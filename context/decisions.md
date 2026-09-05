@@ -16768,3 +16768,84 @@ the budget is ever missed, the fix named in
 `#studio-hindi-table-is-its-own-chunk` (a `<link rel="modulepreload">` for
 the chunk, added when `?lang=hi` is in the URL) is unbuilt and unneeded this
 session — build it then, never by raising the budget instead.
+
+## `ws-r95-creator-rehearsal-harness-over-fixture-db-not-a-mocked-fetch-layer` (2026-09-05, WS-R95)
+
+**Decision.** The creator-journey rehearsal (`evals/rehearsal/harness-creator.mjs`)
+runs the REAL `api/replica.js`, `api/context-items.js`, `api/review-queue.js`,
+`api/readiness.js` and `api/room-publish.js` handlers, unmodified, over a real
+`http.createServer`, rather than a canned-response fake server in
+`evals/first-room/run.mjs`'s own style (which never imports a real handler at
+all). The seam is `globalThis.fetch`: `NEON_URL`/`SUPABASE_URL` point at fixed
+fake hosts, and the ONE interceptor answers Neon's SQL-over-HTTP endpoint from
+`evals/room-doors/fixtures.mjs`'s new `rehearsalCreatorDb` (append-only
+additions to the existing `doorsDb`) and Supabase's `/auth/v1/user` from one
+fixed bearer token. Loopback (the harness's own origin) passes through
+untouched; anything else throws rather than reaching a real network.
+
+**Rationale.** `api/<name>.js` handlers import `q` and `requireUser` at module
+load time with no dependency-injection seam at the HTTP layer (unlike the
+functions one layer down, which all take `db` as their first argument — the
+seam `evals/room-doors` already attacks). The only place left to intercept a
+caller that insists on the REAL handler file is the network call each of
+those two modules makes. This proves the actual HTTP contract (status codes,
+error shapes, the `withDoor` wrapper, CORS) a canned-response fake cannot,
+at the cost of needing new fixture coverage for every decision module the
+walk touches that `doorsDb` was never asked to know about (readiness's six
+raw SQL inputs, the Context Locker, review-queue's generate/decide,
+`creatorExport`'s two ownership-scoping prefix reads and `tableApplied`'s
+`to_regclass` probe).
+
+**What would reverse it.** If `evals/rehearsal/harness.mjs` (WS-R94's own,
+same-wave sibling contract this file's header says to prefer once it exists)
+ships with a materially different seam — e.g. a `--experimental-loader`
+module-resolution hook instead of a fetch intercept — fold this file into
+that one rather than keeping two competing harnesses. If a future workstream
+needs the SAME real-handler-over-fixture shape for a door this file's
+`rehearsalPatterns` does not yet cover, extend `rehearsalCreatorDb`
+(append-only) rather than building a third fixture layer — the WS-R72 lesson
+this file's own comments cite (a later, more specific statement sharing a
+substring with an earlier, more generic one must be matched first) bit this
+workstream FOUR separate times while building it (the Context Locker's
+insert-vs-quota CTE, review-queue's insert/decide-vs-OWNED CTE, and the
+export's `select *` colliding with the readiness aggregate's own
+`vy_mirror_feedback` read) — extending an existing, hard-won ordering is
+cheaper than re-discovering it.
+
+## `ws-r95-readiness-floor-crossing-is-seeded-never-computed` (2026-09-05, WS-R95)
+
+**Decision.** This rehearsal's "publish once Readiness allows" step crosses
+the floor by directly seeding `state.rehearsalReadinessLast` (the row
+`api/_room-publish.js`'s own readiness-passes SQL predicate reads), the SAME
+shortcut `evals/room-publish/run.mjs`'s own fixture (`freshState()`'s
+`readiness: [{overall: 82, min_part: 71, unmeasured_count: 0}]`) already
+takes — never by driving the six raw Readiness inputs to a genuinely passing
+`readinessScreen()` computation.
+
+**Rationale, and the finding that makes this NOT a shortcut of convenience.**
+This workstream first tried the harder, more honest-looking path: feed all
+six of `api/_readiness.js`'s raw SQL inputs (claims, voice fidelity, the
+owner's ceiling, Mirror Call taps, the teacher sheet, source freshness)
+generous, passing values, and let the real `readinessScreen()` compute
+`overall`/`min_part` for real. Four of five parts passed this way (measured:
+`sounds_like_you` 88, `thinks_like_you` 90, `knows_what_not_to_say` 100,
+`up_to_date` 100). The fifth, `knows_your_material`, stayed `null` no matter
+what was fed, because it renders a value ONLY when `readRecallRun()` returns
+a scored recall run, and that function is a committed stub
+(`api/_readiness.js`'s own `readRecallRun(_db, _ownerUserId, _rid)` — unused
+parameters, no writer anywhere in this tree, confirmed by grep). Because
+`readinessScreen()`'s own `overall` and `min_part` are `null` whenever ANY
+part is unmeasured (never a partial mean — that file's own "THE UNDEFINED
+OVERALL" comment), **no replica can cross the publish floor through a real
+`GET /api/readiness` computation as this tree stands, for any creator,
+ever.** This is a structural fact this workstream discovered by trying the
+harder path and hitting a wall, not an assumption carried in from
+`evals/room-publish/run.mjs`'s own choice.
+
+**What would reverse it.** A recall-run writer landing anywhere in this tree
+(a scored held-out question set built from a replica's own sources,
+`api/_readiness.js`'s own §"knows_your_material"'s TODO). The day one exists,
+re-run this rehearsal's "cross the floor" step by feeding all SIX inputs
+(the fixture already supports five of them) rather than seeding the snapshot
+directly, and if it passes for real, this decision is superseded rather than
+edited in place.

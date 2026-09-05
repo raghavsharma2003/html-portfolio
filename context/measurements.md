@@ -11978,6 +11978,33 @@ Method: each statement of `db/migrations/122_room_arrival_via_share_kit.sql`, `1
 
 Not measured: `joinRoom`'s widened RETURNING (`(xmax = 0) as newly_joined`) is the existing upsert with one more output expression, not a new plan; WS-R81, WS-R82, WS-R83, WS-R84 and WS-R90 issue no new SQL.
 
+## `ws-r95-creator-rehearsal-walk-2026-09-05`
+
+n = 26 assertions per locale (52 total across English and Hindi), method: a
+real Chromium (`/opt/pw-browsers/chromium-1194`) driving the real built
+`dist/studio.html` against `evals/rehearsal/harness-creator.mjs`'s real local
+HTTP server (real `api/replica.js`, `api/context-items.js`,
+`api/review-queue.js`, `api/readiness.js`, `api/room-publish.js` handlers
+over `evals/room-doors/fixtures.mjs`'s `rehearsalCreatorDb` fixture),
+`node evals/rehearsal/creator.mjs` and `REHEARSAL_FULL=1 node
+evals/rehearsal/creator.mjs`, 2026-09-05. English-only wall clock: 15.4-17.0s
+across repeated runs (registered in `evals/run.mjs` as `rehearsal-creator`,
+this is the number the release gate's own "eval suite" check absorbs). Both
+locales together: 36.5s. All 26/26 (52/52) checks passed on the committed
+tree. Four fixture/UI gaps named per locale, never silently skipped (see
+`evals/rehearsal/creator.mjs`'s own `gapNotes`, printed on every run):
+the Context Locker's drop-zone form, the Share tab's showcase picker (does
+not mount for a replica whose runtime is not active — a real UI gate, not a
+flaky selector, confirmed by reading the rendered HTML directly), the share
+kit's "Copy" button (same gate), and the export's "Download everything"
+click/download event (reachable past the runtime gate, in the "Owner
+control" band, but its own click-driven `download` event was not observed
+within the 4s timeout used here — proven through the door instead; not
+investigated further given this workstream's time budget). Not measured: a
+cold-start wall clock (every run here followed a warm `npm install`/`vite
+build`); Chromium's exact memory footprint; whether a longer timeout would
+have let the export's own download event fire.
+
 
 ## `ci-release-gate-first-real-run-2026-09-05` — the 21-check gate in GitHub Actions, measured once
 
