@@ -625,6 +625,38 @@ interface RoomStudioCopy {
   friendReferralTitle: string;
 }
 
+// ── roomStudioMandate: RoomStudio.tsx's tier card (WS-R125, migration 130) ─
+// A creator's OWN mandate can be paused from their bank app or halted by a
+// retry ladder giving up, exactly like a follower's - `api/_creator-tier.js`'s
+// `mandate_state` field is what tells them apart, and RoomStudioCopy's own
+// tier block above has no room for either sentence without splicing new
+// fields into its last existing property (the append-only rule this
+// workstream's brief names for copy files), so this is its own closed
+// interface instead.
+//
+// NO BUTTON HERE NAMES "start a new mandate" - a real thing this card
+// cannot currently DO. `startTier` (this file's own existing call) reuses
+// ANY non-terminal row it finds (`existingRows`'s own `state in
+// ('created','authenticated','active','paused')`, api/_payments.js), and a
+// halted mandate's own `state` stays `'paused'` forever (never `'expired'`
+// or `'cancelled'` - `KIND_TO_STATE` maps no webhook kind to either without
+// an explicit cancel), so calling it again on a halted subscription silently
+// returns the SAME dead `provider_subscription_ref` with `checkout_url:
+// null` rather than starting anything new
+// (`context/rejected.md#ws-r125-halted-mandate-start-new-button-would-have-
+// been-a-silent-no-op`). A paused mandate has a real, working action
+// (resume it themselves, in their own UPI app - Razorpay's own FAQ, fetched
+// 2026-09-05: "For UPI Subscriptions, you cannot resume a Subscription
+// paused by your customer. If your customer pauses a Subscription, only
+// they can resume it.") stated as plain text, since no button on this page
+// can do it FOR them either.
+interface RoomStudioMandateCopy {
+  pausedLabel: string; // "Your payment is paused."
+  pausedBody: string; // "Resume it in your UPI app to keep your tier active."
+  haltedLabel: string; // "Your payment mandate needs attention."
+  haltedBody: string; // "It could not be renewed after several attempts. Set up a new mandate from your UPI app to continue."
+}
+
 // ── videoLinkMount: VideoLinkMount.tsx (WS-R61) ────────────────────────────
 interface VideoLinkMountCopy {
   eyebrow: string;
@@ -2011,6 +2043,7 @@ interface StudioCopy {
   authGate: AuthGateCopy;
   recallRun: RecallRunCopy;
   studioApp: StudioAppCopy;
+  roomStudioMandate: RoomStudioMandateCopy;
 }
 
 // WS-R113. `authGate` and the shell section are the two the SIGNED-OUT
@@ -3948,6 +3981,13 @@ const EN: StudioCopy = {
       codeRequired: "An invite code is required for your first workspace.",
       codeInvalid: "That code did not work. Check it and try again, or apply below.",
     },
+  },
+
+  roomStudioMandate: {
+    pausedLabel: "Your payment is paused.",
+    pausedBody: "Resume it in your UPI app to keep your tier active.",
+    haltedLabel: "Your payment mandate needs attention.",
+    haltedBody: "It could not be renewed after several attempts. Set up a new mandate from your UPI app to continue.",
   },
 };
 

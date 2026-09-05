@@ -19996,3 +19996,136 @@ the standard this repo held WS-R110's OWN codec claim to) and explicitly
 covers the codec and bitrate a future session intends to ship at. Either
 would justify moving to option (b)/(c) from the original brief; short of
 one, the honest state is what this entry records.
+
+---
+
+## `ws-r125-mandate-state-sibling-column-not-a-wider-state-check` (2026-09-05, WS-R125, migration 130)
+
+**Decision.** Migration 130 adds `mandate_state`/`mandate_state_at` to
+`vy_room_subscription` and `vy_creator_subscription` as SIBLING columns,
+default `'none'`, closed list `('none','pending','active','paused','halted',
+'cancelled','completed')`. `state` and its two CHECK constraints
+(`vy_room_subscription_state_check`, `vy_creator_subscription_state_check`)
+are untouched - no fifth non-terminal value was ever added to either.
+
+**Rationale.** `context/decisions.md#ws-r69-halted-is-a-derived-read-never-
+a-stored-value` named its own reversal condition precisely: "if a SECOND
+reader ever needs to tell paused from halted... widen the CHECK... and stop
+deriving it." This workstream IS that second reader - `api/_renewals.js`'s
+due-select needs to exclude a paused/halted/pending mandate from a reminder,
+and `api/_ops.js`'s per-room board needs to count paused separately from
+halted - but widening `state`'s own CHECK to add `'halted'` (WS-R69's own
+literal proposal) would have forced EVERY other reader of `state`
+(`applyWebhook`'s tier-flip predicate, `ownerRevenue`'s subscriber counts,
+`creatorTierFromRows`, every `state in (...)` fixture across `evals/
+payments`, `evals/org-billing`, `evals/room-doors`, `evals/renewals`) to
+learn a new value none of them need to distinguish. A sibling column costs
+nothing to every OTHER reader (untouched shape, untouched values) and gives
+the mandate-specific readers a real stored fact instead of `pausedOrHalted`'s
+own per-request ledger re-derivation (`api/_payments.js`). This is a
+BETTER fulfilment of WS-R69's own reversal condition than the literal
+wording it wrote, and `pausedOrHalted` itself was updated to read the new
+column FIRST, falling back to the ledger only for a row created before this
+migration landed (see `followerSubscriptionStatus`'s own updated header).
+
+**Reversal condition.** If a future reader needs a value `state` itself
+must expose (a filter that JOINS across tables keyed only on `state`, say,
+with no room to also carry `mandate_state`), reconsider folding the two
+back together - unlikely, since every such join already has access to the
+same row's `mandate_state` column at zero extra cost once one is willing to
+select it.
+
+## `ws-r125-mandate-state-sibling-column-guard-lives-in-a-case-not-the-where` (2026-09-05, WS-R125)
+
+**Decision.** `applyWebhook`'s follower and creator lanes set `mandate_state`/
+`mandate_state_at` inside the SAME `sub_update` UPDATE that already flips
+`state`, via a `CASE` expression (`when s.mandate_state is distinct from
+$N then $N else s.mandate_state end`) - never a second CTE against the
+same table (`context/rejected.md#ws-r125-mandate-state-as-a-second-cte-on-
+the-same-table`'s own Postgres hazard), and never a guard moved into the
+statement's own top-level WHERE clause either.
+
+**Rationale.** The obvious alternative to a CASE - `and s.mandate_state is
+distinct from $N` appended to `sub_update`'s existing WHERE - would gate
+the ENTIRE update, not just the mandate columns: a `subscription.resumed`
+event that finds `mandate_state` already `'active'` (a real, non-replay
+scenario - e.g. two resumed-adjacent events landing close together) would
+then also skip re-affirming `state`/`current_period_start`/
+`current_period_end` from THIS event's own payload, silently dropping a
+legitimate period-date update. The CASE expression only gates the mandate
+columns' own write, leaving `state` and the period dates governed by
+whatever WHERE clause already decided this row is the one being updated
+(`candidate`'s own dedup for the follower lane, `subscription_id = ($1)`
+for the creator lane, which has no ledger dedup for non-charge events at
+all and therefore needs this guard the most).
+
+**Reversal condition.** None anticipated - this is a correctness property
+(not a stylistic choice) that would need to hold under any future column
+added to the same `sub_update` statement. Any NEW column folded into this
+same UPDATE should use the identical CASE-guard shape rather than reopening
+the WHERE-clause question.
+
+## `ws-r125-follower-reuses-state-overlay-creator-gets-a-new-field` (2026-09-05, WS-R125)
+
+**Decision.** The follower's client-facing subscription shape keeps its
+EXISTING `state` field (already typed `"paused" | "halted" | ...` since
+WS-R69) as the paused-vs-halted signal - `followerSubscriptionStatus` now
+reads it primarily off the new `mandate_state` column rather than the
+ledger, but the WIRE SHAPE is unchanged. The creator's client-facing
+shape (`api/_creator-tier.js`'s `clientCreatorSubscription`,
+`src/studio/paymentsApi.ts`'s `CreatorTierStatus`) instead gets a NEW,
+explicit `mandate_state` field alongside its own unchanged `state`.
+
+**Rationale.** WS-R69 already built and shipped the "halted" virtual
+overlay on `state` for the follower surface specifically - keeping that
+contract byte-identical means zero changes to `roomPayApi.ts`'s existing
+type, zero changes to any existing follower-side caller, and the studio
+never had an equivalent overlay to preserve (this workstream is the FIRST
+time a creator's own paused-vs-halted distinction is exposed at all), so
+there is no existing contract to protect there and no reason to invent a
+virtual overlay from scratch rather than exposing the real column directly.
+The asymmetry is a fact about which surface already had a shipped
+contract, not an inconsistency to fix later.
+
+**Reversal condition.** If a future reader of the FOLLOWER shape needs
+`mandate_state`'s full range (`'pending'`/`'completed'`, which `state`'s
+own overlay never surfaces - only `'paused'` and `'halted'` are
+distinguished there), add the same explicit `mandate_state` field to the
+follower response too rather than widening what `state` overlays to mean -
+`followerSubscriptionStatus` already has the real column in hand from its
+own query, so this is an additive change with no migration.
+
+## `ws-r125-mandate-state-predicate-non-redundant-only-for-pending` (2026-09-05, WS-R125)
+
+**Decision (a finding, recorded because it shaped what the negative
+control below actually tests).** `api/_renewals.js`'s due-select predicate
+`mandate_state in ('none','active')` is REDUNDANT with the existing
+`state = 'active'` clause for a `'paused'` or `'halted'` mandate - both
+kinds flip `state` to `'paused'` in the SAME statement that sets
+`mandate_state` (`KIND_TO_STATE`'s own map), so `state = 'active'` alone
+already excludes them. The predicate is NON-redundant for exactly one
+value: `'pending'` (`subscription.pending`, a charge currently retrying)
+maps to `state = ""` in `KIND_TO_STATE` - meaning `state` is left
+UNCHANGED, typically still `'active'` from the prior successful cycle -
+while `mandate_state` becomes `'pending'`. Without this predicate, a
+follower or creator whose last charge is actively failing and retrying
+would still be reminded about an upcoming renewal their own current
+payment attempt is already in trouble.
+
+**Why this matters for the eval.** `evals/renewals/run.mjs`'s own
+struck-predicate negative control (workstream law 4's own requirement)
+therefore asserts on the `'pending'` row, never the `'paused'`/`'halted'`
+ones - striking `mandate_state` from a hand-rolled due-select and finding a
+`'paused'` row still excluded (by `state` alone) would prove nothing about
+whether `mandate_state` itself does any work; the `'pending'` row is the
+only one that actually distinguishes the two clauses. The `'paused'`/
+`'halted'` assertions are kept in the suite as a description of REAL
+behaviour, just not as the negative control's own evidence.
+
+**Reversal condition.** None - this is measured directly from the two maps'
+own source (`KIND_TO_STATE`, `MANDATE_KIND_TO_STATE`, both `api/
+_payments.js`) and confirmed by the eval; it would only change if a future
+edit ever makes `KIND_TO_STATE["subscription.paused"]` or `["subscription.
+halted"]` map to something OTHER than `'paused'`, at which point this
+redundancy claim (and the eval comment describing it) should be re-checked
+against the new mapping.

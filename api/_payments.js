@@ -405,19 +405,23 @@ export async function startFollowerSubscription(db, { session }, deps = {}) {
  * collapsed to one sentence. `KIND_TO_STATE` (below) maps BOTH
  * `subscription.paused` and `subscription.halted` to the same DB value,
  * `'paused'`, deliberately (that map's own header: "a halted subscription is
- * not this platform's decision to make final") - so the DATABASE COLUMN
- * genuinely cannot tell a customer's own UPI-app pause from a mandate's
- * retry ladder giving up, and never widens the CHECK to try (no `halted`
- * value has ever been added to `vy_room_subscription_state_check`). The
- * LEDGER can, though: `vy_payment_event.kind` keeps the ORIGINAL webhook
- * name forever, migration 078's own CHECK naming both kinds distinctly. This
- * reads the most recent of the two for a `'paused'` subscription and reports
- * a VIRTUAL state, `'halted'`, only in this function's own response shape -
- * never written back to `vy_room_subscription.state`, which keeps meaning
- * exactly what it always has for every other reader (`applyWebhook`'s own
- * tier-flip predicate, `ownerRevenue`'s counts, `AGENTS.md`'s "never blur a
- * derived read into a stored fact"). One extra query, ONLY when the stored
- * state is `'paused'` - every other state costs nothing new.
+ * not this platform's decision to make final") - so `state` genuinely cannot
+ * tell a customer's own UPI-app pause from a mandate's retry ladder giving
+ * up, and never widens the CHECK to try (no `halted` value has ever been
+ * added to `vy_room_subscription_state_check`).
+ *
+ * WS-R125 (migration 130) is the "second reader" this function's own
+ * ORIGINAL header (before this edit) named as the trigger to stop deriving
+ * the distinction from the ledger: `mandate_state` now carries `'paused'`
+ * versus `'halted'` as a genuine stored fact, set by `applyWebhook`'s own
+ * SAME UPDATE that flips `state`, so the common case costs no extra query at
+ * all. The ledger read below survives as a FALLBACK, exercised only when
+ * `mandateState` is `'none'` - a `vy_room_subscription` row that reached
+ * `'paused'` before migration 130 shipped and has not seen a NEW mandate
+ * webhook since (a real possibility for any row that predates today; a
+ * structural impossibility for any row `applyWebhook` writes from this
+ * commit forward, since a webhook that sets `state = 'paused'` always sets
+ * `mandate_state` in the identical statement).
  */
 async function pausedOrHalted(db, subscriptionId) {
   const rows = await db(
@@ -437,12 +441,13 @@ async function pausedOrHalted(db, subscriptionId) {
  *  room's CURRENT price - `startFollowerSubscription`'s own read one section
  *  up - so the subscription panel can state "renews on X for Y" without a
  *  second endpoint; absent when the room has never had one set. `state` is
- *  `'halted'` rather than `'paused'` when the ledger's own most recent event
- *  says so - `pausedOrHalted`'s own header, immediately above. */
+ *  `'halted'` rather than `'paused'` when `mandate_state` (or, for a row that
+ *  predates migration 130, the ledger's own most recent event) says so -
+ *  `pausedOrHalted`'s own header, immediately above. */
 export async function followerSubscriptionStatus(db, { session }, deps = {}) {
   const { room, follower } = await paidSessionScope(db, session, deps);
   const rows = await db(
-    `select subscription_id, provider, state, current_period_start, current_period_end,
+    `select subscription_id, provider, state, mandate_state, current_period_start, current_period_end,
             cancel_at_period_end
        from vy_room_subscription
       where follower_id = ($1)::uuid
@@ -456,7 +461,14 @@ export async function followerSubscriptionStatus(db, { session }, deps = {}) {
     [String(room.room_id)],
   );
   const price = priceRows[0] || null;
-  const displayState = row && row.state === "paused" ? await pausedOrHalted(db, row.subscription_id) : row?.state;
+  const displayState =
+    row && row.state === "paused"
+      ? row.mandate_state === "halted"
+        ? "halted"
+        : row.mandate_state === "paused"
+          ? "paused"
+          : await pausedOrHalted(db, row.subscription_id)
+      : row?.state;
   return {
     tier: follower.tier === "paid" ? "paid" : "free",
     price_inr: price ? Number(price.follower_price_inr) : null,
@@ -824,6 +836,55 @@ export const KIND_TO_STATE = Object.freeze({
   "payment.failed": "",
 });
 
+/**
+ * WS-R125, migration 130. The bank-side mandate's OWN lifecycle, tracked in
+ * the sibling `mandate_state` column - never a widening of `state` above
+ * (`context/decisions.md#ws-r69-halted-is-a-derived-read-never-a-stored-value`'s
+ * own reversal condition: this file's renewal-sweep and ops-board readers
+ * are the "second reader" that decision named as the trigger to stop
+ * deriving the distinction from the ledger). Empty string means "not a
+ * mandate-lifecycle event, leave `mandate_state` exactly where it is" -
+ * `subscription.authenticated`/`.activated`/`.charged`/`payment.failed`
+ * never touch it, so a subscription that has only ever charged straight
+ * through stays `'none'` forever, which `dueReminders`'s own predicate
+ * treats as identically eligible to `'active'`.
+ *
+ * Every mapped target is Razorpay's own webhook description, quoted
+ * verbatim (razorpay.com/docs/payments/subscriptions/subscribe-to-webhooks,
+ * dateModified 2026-08-31T07:20:58.278Z, fetched 2026-09-05 with the
+ * `preferred_country=IN` cookie - without it the same URL redirects to a
+ * `/docs/us/` build that renders identically for this specific page, so the
+ * cookie only mattered for the UPI Autopay pages cited below, not this one):
+ * "subscription.pending Sent when the subscription moves to the pending
+ * state"; "subscription.halted Sent when all retries have been exhausted
+ * and the subscription moves from the pending state to the halted state";
+ * "subscription.cancelled Sent when a subscription is cancelled and moved
+ * to the cancelled state"; "subscription.paused Sent when a subscription is
+ * paused and moved to the paused state"; "subscription.completed Sent when
+ * all the invoices are generated for a subscription and the subscription
+ * moves to the completed state."
+ *
+ * `subscription.resumed` is mapped to `'active'`, not a literal `'resumed'`
+ * value (migration 130's own CHECK has no such value) - the same page's own
+ * words are internally inconsistent here ("subscription.resumed Sent when a
+ * subscription is resumed and moved to the resumed state", but the
+ * dedicated Subscriptions States page, dateModified 2026-08-31T07:20:56.227Z,
+ * lists no `resumed` state among the eight it names, and its own "Paused"
+ * section describes only a return to `active`), and `KIND_TO_STATE` above
+ * already resolves the identical event to `'active'` on the SAME evidence -
+ * this map stays consistent with that existing, already-shipped reading
+ * rather than inventing a ninth value nothing else in this codebase would
+ * recognise.
+ */
+export const MANDATE_KIND_TO_STATE = Object.freeze({
+  "subscription.pending": "pending",
+  "subscription.halted": "halted",
+  "subscription.paused": "paused",
+  "subscription.resumed": "active",
+  "subscription.cancelled": "cancelled",
+  "subscription.completed": "completed",
+});
+
 /** WS-R42, migration 104. Which creator-tier webhook kinds represent a
  *  LANDED CHARGE - the two kinds `KIND_TO_STATE` already maps to `active`
  *  that also carry a real payment (as opposed to `subscription.authenticated`,
@@ -967,6 +1028,7 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
   if (!lane) throw new PaymentsError("payments_subscription_unknown", 404);
 
   const nextState = KIND_TO_STATE[parsed.kind];
+  const nextMandateState = MANDATE_KIND_TO_STATE[parsed.kind] || "";
   const payloadHash = sha256Hex(bodyBuf);
 
   // ── THE CREATOR TIER LANE (WS-R42, migration 104): the state flip is
@@ -988,15 +1050,41 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
   //    reached for them at all. ─────────────────────────────────────────
   if (lane === "creator") {
     const isCreatorCharge = CREATOR_CHARGE_KINDS.has(parsed.kind) && parsed.amountInr > 0;
+    // WS-R125 (migration 130): `mandate_state`/`mandate_state_at` are set in
+    // this SAME UPDATE, never a second data-modifying CTE against this
+    // table - Postgres's own documented hazard for WITH queries ("trying to
+    // update the same row twice in a single statement is not supported...
+    // it is not easy, and sometimes not possible, to reliably predict
+    // which [update] takes place") rules out a sibling `mandate_update` CTE
+    // outright, `context/rejected.md#ws-r125-mandate-state-as-a-second-cte-
+    // on-the-same-table`'s own record of trying exactly that. `$10` (empty
+    // string for a non-mandate kind) leaves both columns untouched; when it
+    // names a real target, `mandate_state_at` only advances when the row is
+    // actually LEAVING a different stored value - the guard this lane needs
+    // most, since (unlike the follower/org lanes) NOTHING dedupes a non-
+    // charge event here on `(provider, provider_event_ref)`, so a provider
+    // retry of the identical webhook reaches this UPDATE every time; without
+    // the guard, `mandate_state_at` would advance on every retry rather than
+    // recording the one moment the mandate actually changed.
     const rows = await db(
       `with sub_update as (
          update vy_creator_subscription s
             set state = case when $2 = '' then s.state else $2 end,
                 current_period_start = coalesce($3::timestamptz, s.current_period_start),
                 current_period_end = coalesce($4::timestamptz, s.current_period_end),
+                mandate_state = case
+                  when $10 = '' then s.mandate_state
+                  when s.mandate_state is distinct from $10 then $10
+                  else s.mandate_state
+                end,
+                mandate_state_at = case
+                  when $10 = '' then s.mandate_state_at
+                  when s.mandate_state is distinct from $10 then now()
+                  else s.mandate_state_at
+                end,
                 updated_at = now()
           where s.subscription_id = ($1)::uuid
-         returning s.subscription_id, s.state, s.owner_user_id, s.replica_id
+         returning s.subscription_id, s.state, s.owner_user_id, s.replica_id, s.mandate_state
        ), charge_insert as (
          insert into vy_creator_charge_event
            (owner_user_id, replica_id, subscription_id, provider, provider_charge_ref, amount_inr, signature_verified, payload_hash)
@@ -1006,11 +1094,11 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
          on conflict (provider, provider_charge_ref) do nothing
          returning charge_id
        )
-       select su.subscription_id, su.state, ci.charge_id
+       select su.subscription_id, su.state, su.mandate_state, ci.charge_id
          from sub_update su
          left join charge_insert ci on true`,
       [ctx.subscription_id, nextState, parsed.periodStart, parsed.periodEnd,
-        providerName, ref, parsed.amountInr, payloadHash, isCreatorCharge],
+        providerName, ref, parsed.amountInr, payloadHash, isCreatorCharge, nextMandateState],
     );
     const result = rows[0];
     // A replay is only a meaningful concept for a chargeable event - the
@@ -1025,6 +1113,7 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
       lane,
       subscription_id: result?.subscription_id ?? ctx.subscription_id,
       state: result?.state ?? null,
+      mandate_state: result?.mandate_state ?? null,
       tier: null,
       offer_marked_paid: null,
       charge_id: result?.charge_id ?? null,
@@ -1075,8 +1164,18 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
     };
   }
 
-  // ── THE FOLLOWER LANE: unchanged from WS-R11/WS-R30, byte-identical SQL
-  //    and behaviour to before this workstream. ──────────────────────────
+  // ── THE FOLLOWER LANE: unchanged from WS-R11/WS-R30 apart from `mandate_
+  //    state`/`mandate_state_at` (WS-R125, migration 130), folded into the
+  //    SAME `sub_update` rather than a sixth CTE against this table - the
+  //    creator lane's own header above names the Postgres hazard a second
+  //    data-modifying CTE on one table would run into. Here the guard
+  //    matters less for correctness (a pure replay never reaches `sub_
+  //    update` at all - it runs `from candidate c`, and a replay's own
+  //    INSERT already deduped to zero rows) and more for HONESTY: without
+  //    it, a duplicate delivery under a DIFFERENT `provider_event_ref` (the
+  //    ledger's only dedup key) would still bump `mandate_state_at` forward
+  //    even though nothing about the mandate actually changed at that
+  //    moment. ──────────────────────────────────────────────────────────
   const takeBp = Number(ctx.platform_take_bp);
   const platformTakeInr = Math.round((parsed.amountInr * takeBp) / 10000);
   const creatorShareInr = parsed.amountInr - platformTakeInr;
@@ -1127,10 +1226,20 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
           set state = case when $10 = '' then s.state else $10 end,
               current_period_start = coalesce($11::timestamptz, s.current_period_start),
               current_period_end = coalesce($12::timestamptz, s.current_period_end),
+              mandate_state = case
+                when $13 = '' then s.mandate_state
+                when s.mandate_state is distinct from $13 then $13
+                else s.mandate_state
+              end,
+              mandate_state_at = case
+                when $13 = '' then s.mandate_state_at
+                when s.mandate_state is distinct from $13 then now()
+                else s.mandate_state_at
+              end,
               updated_at = now()
          from candidate c
         where s.subscription_id = c.subscription_id
-       returning s.subscription_id, s.follower_id, s.state, s.person_id
+       returning s.subscription_id, s.follower_id, s.state, s.person_id, s.mandate_state
      ), follower_update as (
        update vy_room_follower f
           set tier = case when su.state = 'active' then 'paid' else 'free' end,
@@ -1140,13 +1249,14 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
           and su.state in ('active','cancelled','expired')
        returning f.follower_id, f.tier
      )${offerCte}
-     select c.event_id, su.subscription_id, su.state, su.person_id, fu.tier${offerSelect}
+     select c.event_id, su.subscription_id, su.state, su.mandate_state, su.person_id, fu.tier${offerSelect}
        from candidate c
        left join sub_update su on true
        left join follower_update fu on true${offerJoin}`,
     [
       providerName, ref, ctx.room_id, ctx.subscription_id, parsed.kind, parsed.amountInr,
       platformTakeInr, creatorShareInr, payloadHash, nextState, parsed.periodStart, parsed.periodEnd,
+      nextMandateState,
     ],
   );
   const result = rows[0];
@@ -1179,6 +1289,7 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
     lane: "follower",
     subscription_id: result.subscription_id,
     state: result.state,
+    mandate_state: result.mandate_state ?? null,
     tier: result.tier ?? null,
     offer_marked_paid: result.offer_marked_paid ?? null,
     receipt_id: receipt?.receipt_id ?? null,

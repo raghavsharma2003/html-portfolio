@@ -37,6 +37,14 @@ function clientCreatorSubscription(row) {
     price_inr: Number(row.price_inr),
     currency: row.currency,
     state: row.state,
+    // WS-R125 (migration 130): the bank-side mandate's own last word,
+    // `'none'` for a subscription no mandate-lifecycle webhook has ever
+    // touched. `state` itself still collapses `subscription.paused` and
+    // `.halted` to the SAME `'paused'` value (`api/_payments.js`'s
+    // `pausedOrHalted` header, `KIND_TO_STATE`'s own reasoning) - this is
+    // the first honest place a creator's OWN subscription gets to tell them
+    // apart, since WS-R69 only ever built that distinction for a follower.
+    mandate_state: row.mandate_state || "none",
     provider: row.provider,
     current_period_start: row.current_period_start ?? null,
     current_period_end: row.current_period_end ?? null,
@@ -54,8 +62,8 @@ function clientCreatorSubscription(row) {
 export async function readCreatorTier(db, ownerUserId, replicaId, deps = {}) {
   const suiteCovered = await (deps.seatCoversCreatorTier ?? seatCoversCreatorTier)(db, ownerUserId, replicaId);
   const rows = await db(
-    `select subscription_id, plan, price_inr, currency, state, provider, current_period_start, current_period_end,
-            cancel_at_period_end
+    `select subscription_id, plan, price_inr, currency, state, mandate_state, provider,
+            current_period_start, current_period_end, cancel_at_period_end
        from vy_creator_subscription
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       order by created_at desc

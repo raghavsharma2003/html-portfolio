@@ -504,6 +504,8 @@ function doorsPatterns(state) {
         provider, provider_subscription_ref: null, state: "created",
         current_period_start: null, current_period_end: null,
         created_at: new Date(Date.now() + state.subscriptions.length).toISOString(),
+        // WS-R125 (migration 130): the column's own default.
+        mandate_state: "none", mandate_state_at: null,
       };
       state.subscriptions.push(row);
       return [{ subscription_id: row.subscription_id, state: row.state }];
@@ -525,7 +527,7 @@ function doorsPatterns(state) {
     if (has("from vy_org_subscription where provider")) return [];
     if (has("from vy_creator_subscription where provider")) return [];
     if (has("with candidate as") && has("insert into vy_payment_event")) {
-      const [provider, ref, roomId, subId, kind, amountInr, takeInr, shareInr, payloadHash, nextState, periodStart, periodEnd] = params;
+      const [provider, ref, roomId, subId, kind, amountInr, takeInr, shareInr, payloadHash, nextState, periodStart, periodEnd, nextMandateState] = params;
       const dup = state.events.find((e) => e.provider === provider && e.provider_event_ref === ref);
       if (dup) return []; // ON CONFLICT DO NOTHING — the replay case this battery is about
       // WS-R109: was `` `e${state.events.length + 1}` `` — fine for every
@@ -548,6 +550,14 @@ function doorsPatterns(state) {
       state.events.push(event);
       const sub = state.subscriptions.find((s) => s.subscription_id === String(subId));
       if (sub && nextState !== "") sub.state = nextState;
+      // WS-R125 (migration 130): the SAME "leaving state" guard the real
+      // UPDATE's CASE expression carries — see api/_payments.js's own header
+      // on `sub_update` for why this cannot be a second CTE against the
+      // same table instead.
+      if (sub && nextMandateState && sub.mandate_state !== nextMandateState) {
+        sub.mandate_state = nextMandateState;
+        sub.mandate_state_at = new Date(Date.now() + state.events.length).toISOString();
+      }
       let tier = null;
       if (sub && ["active", "cancelled", "expired"].includes(nextState)) {
         const follower = state.followers.find((f) => f.follower_id === sub.follower_id);
@@ -564,7 +574,10 @@ function doorsPatterns(state) {
       // through `applyWebhook` before `evals/rehearsal/follower.mjs`'s own
       // receipts step — every existing receipt case seeds `state.receipts`
       // directly instead (this file's own WS-R100 comment, further down).
-      return [{ event_id: event.event_id, subscription_id: subId, state: sub ? sub.state : null, tier, person_id: sub ? sub.person_id : null }];
+      return [{
+        event_id: event.event_id, subscription_id: subId, state: sub ? sub.state : null,
+        mandate_state: sub ? sub.mandate_state : null, tier, person_id: sub ? sub.person_id : null,
+      }];
     }
 
     // ── WS-R100 (migration 126): the follower's own receipt reads

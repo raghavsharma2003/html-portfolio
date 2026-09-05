@@ -200,6 +200,7 @@ export default function RoomStudio({
 }) {
   const { t } = useStudioLocale();
   const c = t.roomStudio;
+  const cm = t.roomStudioMandate;
   const [room, setRoom] = useState<OwnedRoom | null>(null);
   const [reason, setReason] = useState<string | null>(null);
   const [blockers, setBlockers] = useState<RoomBlockers | null>(null);
@@ -744,6 +745,26 @@ export default function RoomStudio({
             <p className="field-note vy-room__suite-note">
               {withLabel(c.suiteCoversRoom, suiteStatus?.name ?? c.yourSuite)}
             </p>
+          ) : creatorTier.tier === "free" && creatorTier.subscription?.state === "paused" ? (
+            // WS-R125 (migration 130): a mandate that is merely paused or
+            // halted, never cancelled - `creatorTierFromRows`'s own
+            // predicate (api/_creator-tier.js) already reports "free" here
+            // (state !== 'active'), but showing the SAME "upgrade" buttons
+            // a creator who never subscribed sees would be dishonest: their
+            // subscription row still exists. No button is rendered for
+            // either case - `roomStudioMandate`'s own header names why one
+            // would silently do nothing for a halted mandate.
+            <div
+              className="vy-room__cap-row"
+              role="group"
+              aria-label={creatorTier.subscription.mandate_state === "halted" ? cm.haltedLabel : cm.pausedLabel}
+            >
+              <span className="field-note">
+                {creatorTier.subscription.mandate_state === "halted"
+                  ? `${cm.haltedLabel} ${cm.haltedBody}`
+                  : `${cm.pausedLabel} ${cm.pausedBody}`}
+              </span>
+            </div>
           ) : creatorTier.tier === "free" ? (
             <div className="vy-room__cap-row" role="group" aria-label={c.tierGroupAriaLabel}>
               <span className="field-note">{c.tierFreeLabel}</span>

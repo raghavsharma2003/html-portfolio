@@ -13984,3 +13984,170 @@ never assume the arithmetic backend or the byte path leaves it intact):
 prefer an honest, narrower shortfall (a WAV clip that may not render as a
 voice bubble) to a broader, unverifiable claim (a clip that renders
 correctly but might silently carry a dead or degraded watermark).
+
+---
+
+## `ws-r125-mandate-state-as-a-second-cte-on-the-same-table` (2026-09-05, WS-R125)
+
+**Tried.** Migration 130 adds `mandate_state`/`mandate_state_at` to
+`vy_room_subscription` and `vy_creator_subscription`. The first design
+wrote them via a SEPARATE data-modifying CTE inside `applyWebhook`'s own
+`WITH` query - `mandate_update as (update vy_room_subscription s set
+mandate_state = ... where s.subscription_id = c.subscription_id and
+s.mandate_state is distinct from ...)`, alongside the EXISTING `sub_update`
+CTE that already updates the same table's `state` column.
+
+**What broke.** Postgres's own documented behaviour for `WITH` queries:
+"trying to update the same row twice in a single statement is not
+supported... only one of the modifications takes place, but it is not easy
+(and sometimes not possible) to reliably predict which one." Two
+data-modifying CTEs targeting the SAME table in one statement risk one of
+the two UPDATEs being silently dropped for any row both would touch -
+exactly the row this change needed to hit every time. This was caught
+before ever reaching a real database (read from the Postgres documentation
+directly, not observed as a live failure), which is the whole point of
+naming it here rather than after a webhook silently stopped stamping mandate
+transitions.
+
+**What shipped instead.** `mandate_state`/`mandate_state_at` are set inside
+the EXISTING `sub_update` UPDATE's own `SET` clause, via a `CASE` expression
+keyed on `s.mandate_state is distinct from <target>` - still one UPDATE
+statement, still guards against a no-op replay bumping the timestamp, never
+a second write to the same table in the same query. See
+`context/decisions.md#ws-r125-mandate-state-sibling-column-guard-lives-in-a-
+case-not-the-where` for the fuller reasoning, including why the guard could
+not simply move to the statement's own top-level WHERE clause either (that
+would also skip the `state`/period-date updates bundled in the same
+statement whenever `mandate_state` happened to already equal the incoming
+target).
+
+**Reversal condition.** If a future Postgres version changes this documented
+behaviour (unlikely; it has held across major versions for years), or if
+`applyWebhook`'s per-lane write is ever split into genuinely separate
+statements against separate tables anyway (removing the "same table" premise
+entirely), reconsider a dedicated CTE. Until then, any new column added to
+a table `sub_update` already writes belongs inside that SAME CASE-guarded
+SET clause, never a sibling CTE.
+
+## `ws-r125-halted-mandate-start-new-button-would-have-been-a-silent-no-op` (2026-09-05, WS-R125)
+
+**Tried.** The first draft of the studio's tier card and the follower's
+subscription panel rendered a "Start a new mandate" BUTTON for a `halted`
+creator/follower mandate, calling the existing `startCreatorSubscription`/
+`startFollowerSubscription` (`api/_payments.js`) exactly as the "upgrade"
+buttons already do.
+
+**What broke.** Both functions' own "existing-live lookup" (`select
+subscription_id, provider_subscription_ref, state from vy_*_subscription
+where ... state in ('created','authenticated','active','paused') order by
+created_at desc limit 1`) ALWAYS finds the halted row - `KIND_TO_STATE`
+stores a halted mandate's `state` as `'paused'` forever, and no webhook kind
+this platform maps ever moves a subscription to `'expired'` (grepped:
+`KIND_TO_STATE`'s own values are `authenticated/active/paused/cancelled/""`
+only - `'expired'` appears in the CHECK constraint and the partial unique
+index but is never a mapped WRITE target anywhere in this codebase). Because
+the found row already carries a `provider_subscription_ref`, both functions
+return EARLY (`if (providerRef) { return {..., checkout_url: null, state}
+}`) without ever calling the provider - clicking "Start a new mandate" on a
+halted subscription silently hands back the SAME dead reference with no
+checkout link to complete, and nothing on screen would even change.
+
+This is not a new gap this workstream introduced - WS-R11's own final
+report already named it ("an abandoned mandate-collection flow has no path
+to re-fetch a fresh checkout link",
+`context/decisions.md#ws-r37-cancelSubscription-widened-in-place`'s own
+citation of it) and WS-R37 explicitly left cancellation-driven recovery
+unbuilt. This workstream is the first to nearly ship a BUTTON that would
+have made the silent no-op user-facing rather than merely latent.
+
+**What shipped instead.** Both the follower panel and the studio card show
+`halted` as plain informational text ("it could not be renewed after
+several attempts, set up a new mandate from your UPI app") with NO button -
+honest about what is possible today (nothing this UI can trigger) rather
+than presenting a control that does nothing when pressed. `paused` also has
+no button, for the different and permanent reason Razorpay's own FAQ names
+directly (fetched 2026-09-05: "For UPI Subscriptions, you cannot resume a
+Subscription paused by your customer. If your customer pauses a
+Subscription, only they can resume it.").
+
+**Reversal condition.** A real "start a new mandate" self-serve action needs
+BOTH: (1) the two partial unique indexes that gate reuse
+(`vy_room_subscription_follower_live_ix`, `vy_creator_subscription_
+replica_live_ix`, both `where state in ('created','authenticated','active',
+'paused')`) widened to exclude a `mandate_state = 'halted'` row from
+counting as "live", and (2) `startFollowerSubscription`/
+`startCreatorSubscription`'s own existing-live lookups widened with the
+SAME predicate, so a halted subscription is treated as eligible for a
+genuinely NEW row rather than being reused. Neither was done here - it is a
+real migration (a THIRD index change beyond this workstream's own two new
+columns) and two function bodies whose reuse-vs-insert branch is exercised
+by every existing payments/org-billing/room-doors fixture, a correctness-
+critical change this workstream's own brief did not ask for and had no
+budget to verify as thoroughly as it would need. Log it as the next mandate
+workstream's own first task rather than guessing at it here.
+
+## `ws-r125-strict-per-kind-leaving-state-whitelist-rejected-as-fragile` (2026-09-05, WS-R125)
+
+**Tried (on paper, not committed).** Before settling on the "is distinct
+from the target" guard, a stricter design was considered: map each
+mandate-lifecycle webhook kind to the SPECIFIC prior `mandate_state` values
+it may legitimately transition FROM (e.g. `subscription.halted` only valid
+from `'pending'`/`'active'`/`'paused'`; `subscription.resumed` only valid
+from `'paused'`/`'halted'`), and refuse (or silently drop) an event whose
+current stored value is not in that set.
+
+**Why it was not built.** This platform has no reliable ordering guarantee
+across webhook deliveries (Razorpay's own retry behaviour is exactly the
+scenario `applyWebhook`'s header already treats as unverified - WS-R41's own
+addendum found the 2026-09-03 citation for `x-razorpay-event-id` retry
+semantics could not be independently reconfirmed). A strict per-kind
+whitelist would silently STRAND a genuinely real, later-arriving event the
+moment delivery order deviated even slightly from the documented happy
+path - turning an ordering hiccup into a stuck `mandate_state` that never
+catches up, which is a worse failure than the "last write wins" a simple
+`is distinct from` guard accepts. `state` itself has never enforced a
+per-kind FSM this strictly (`KIND_TO_STATE`'s own map has no ordering
+predicate at all), so a stricter rule for `mandate_state` alone would be an
+inconsistency invented for this workstream, not a real Razorpay guarantee
+being enforced.
+
+**Reversal condition.** If a future measurement finds real, repeated
+out-of-order `mandate_state` corruption in production (a `'halted'` mandate
+observed reverting to `'pending'` because a stale retry landed after a newer
+event, say), a stricter transition table becomes worth the stranding risk -
+build it with an explicit "stuck" alert path (an incident row, `api/
+_incidents.js`) rather than a silent refusal, so a stranded mandate is at
+least visible to an operator.
+
+## `ws-r125-razorpay-docs-geo-redirect-hides-india-content` (2026-09-05, WS-R125)
+
+**Tried.** Fetched `razorpay.com/docs/payments/subscriptions/supported-
+payment-methods` (and several sibling India-specific pages) through the
+proxy with a plain `curl -sSL`.
+
+**What broke.** The response set `set-cookie: preferred_country=US` and
+302-redirected to a `/docs/us/...` URL whose rendered body for that
+specific page covered Cards only - the UPI Autopay and Emandate sections the
+page's own `<title>`/meta description promise are present in the SOURCE
+FOR OTHER LOCALES but simply absent from the `US` build's own rendered
+props (a Mintlify docs site with per-country content variants, not a single
+page with a client-side toggle). A page that 200s and LOOKS complete
+(real headline, real "Related Information" footer, no error state) can
+still be silently missing the exact section a citation needs - this is the
+same "a plausible return hides a dead pipeline" shape AGENTS.md names for
+code, applying here to a fetched document instead.
+
+**The fix.** `curl -b "preferred_country=IN" ...` on the SAME URL (no
+redirect this time) returned the full India-locale body, including the UPI
+Autopay/Emandate overview table and the FAQ answers this workstream's own
+migration header cites. Some other pages (`docs/webhooks/subscriptions`
+specifically) also flipped from a 404 under the `/us/` redirect to a real
+200 once the cookie was set, even though nothing about that particular
+page's CONTENT is country-specific - the cookie appears to gate the whole
+routing tree, not only the pages that visibly differ.
+
+**Reversal condition.** None expected - this is a fetch technique to reuse,
+not a decision to revisit. Any future session citing `razorpay.com/docs/`
+for an India-specific payment method (UPI, Emandate, RuPay) should set this
+cookie FIRST rather than trusting a 200 (or accepting a 404) from the
+un-cookied request.

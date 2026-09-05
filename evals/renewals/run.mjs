@@ -17,6 +17,10 @@
 //
 // §1 dueReminders — the window and the NOT EXISTS, one section per subject
 //    kind, and the cancel_at_period_end exclusion.
+// §1b WS-R125 (migration 130) — mandate_state in ('none','active'): a
+//    paused/halted/pending mandate is excluded from the due-select, proven
+//    non-redundant with `state` via the 'pending' case (state stays
+//    'active' while a charge retries), struck-predicate negative control.
 // §2 recordAndSend — INSERT is the idempotency; a send failure leaves the
 //    row with `sent_at` null and a `reason`.
 // §3 the sweep — NEGATIVE CONTROL (a): a second sweep on the same due rows
@@ -90,7 +94,13 @@ function renewalsDb(state) {
     if (has("from vy_room_subscription s") && has("s.follower_id as subject_id")) {
       const [nowIso, endIso] = params;
       return state.roomSubs
-        .filter((s) => s.state === "active" && s.cancel_at_period_end !== true && s.current_period_end
+        // WS-R125 (migration 130): `s.mandate_state in ('none', 'active')`
+        // is now part of the REAL query's own WHERE - a row with no
+        // `mandate_state` set defaults to 'none' (migration 130's own
+        // column default), so every existing fixture row above this
+        // workstream's own section stays eligible unchanged.
+        .filter((s) => s.state === "active" && ["none", "active"].includes(s.mandate_state ?? "none")
+          && s.cancel_at_period_end !== true && s.current_period_end
           && s.current_period_end >= nowIso && s.current_period_end < endIso
           && !state.reminders.some((r) => r.subject_kind === "follower" && r.subject_id === s.follower_id && r.period_end === s.current_period_end))
         .map((s) => {
@@ -107,7 +117,10 @@ function renewalsDb(state) {
     if (has("from vy_creator_subscription s") && has("s.replica_id as subject_id")) {
       const [nowIso, endIso] = params;
       return state.creatorSubs
-        .filter((s) => s.state === "active" && s.cancel_at_period_end !== true && s.current_period_end
+        // WS-R125 (migration 130): the SAME mandate_state predicate as the
+        // follower select above.
+        .filter((s) => s.state === "active" && ["none", "active"].includes(s.mandate_state ?? "none")
+          && s.cancel_at_period_end !== true && s.current_period_end
           && s.current_period_end >= nowIso && s.current_period_end < endIso
           && !state.reminders.some((r) => r.subject_kind === "creator" && r.subject_id === s.replica_id && r.period_end === s.current_period_end))
         .map((s) => ({
@@ -200,6 +213,109 @@ console.log("── §1: dueReminders — the window, the NOT EXISTS, one per su
   state.reminders.push({ subject_kind: "follower", subject_id: uuid(1), period_end: T3, channel: "in_app" });
   const due2 = await dueReminders(renewalsDb(state), T0);
   ok("a subject with ANY reminder row for this period is no longer due", due2.follower.length === 0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §1b WS-R125 (migration 130): a paused mandate is neither charged nor reminded ──");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // Five otherwise-identical, otherwise-due follower subscriptions and five
+  // otherwise-identical, otherwise-due creator subscriptions, one per
+  // mandate_state value that actually occurs in practice. `'none'` (never
+  // touched) and `'active'` (confirmed working) are due; `'paused'`/
+  // `'halted'` are excluded, but so is `state = 'paused'` ALONE already
+  // (KIND_TO_STATE flips both together) - the row that actually PROVES this
+  // predicate does its own, non-redundant work is `'pending'`: a retry in
+  // progress after `subscription.pending` (`api/_payments.js`'s own
+  // `KIND_TO_STATE["subscription.pending"] === ""`, meaning `state` is left
+  // exactly where it was - typically still `'active'` from the prior
+  // successful cycle). Without `mandate_state`, THIS row's own `state`
+  // alone would sail straight through the existing `state = 'active'`
+  // clause and get reminded about a renewal while its last charge is
+  // already failing and retrying.
+  const state = freshRenewalsState();
+  state.roomSubs.push(
+    { follower_id: uuid(11), room_id: ROOM_ID, person_id: uuid(111), state: "active", cancel_at_period_end: false, current_period_end: T3, mandate_state: "none" },
+    { follower_id: uuid(12), room_id: ROOM_ID, person_id: uuid(112), state: "active", cancel_at_period_end: false, current_period_end: T3, mandate_state: "active" },
+    { follower_id: uuid(13), room_id: ROOM_ID, person_id: uuid(113), state: "paused", cancel_at_period_end: false, current_period_end: T3, mandate_state: "paused" },
+    { follower_id: uuid(14), room_id: ROOM_ID, person_id: uuid(114), state: "paused", cancel_at_period_end: false, current_period_end: T3, mandate_state: "halted" },
+    { follower_id: uuid(15), room_id: ROOM_ID, person_id: uuid(115), state: "active", cancel_at_period_end: false, current_period_end: T3, mandate_state: "pending" },
+  );
+  state.creatorSubs.push(
+    { replica_id: uuid(21), owner_user_id: uuid(211), state: "active", cancel_at_period_end: false, current_period_end: T3, plan: "room", price_inr: 4999, currency: "INR", mandate_state: "none" },
+    { replica_id: uuid(22), owner_user_id: uuid(212), state: "active", cancel_at_period_end: false, current_period_end: T3, plan: "room", price_inr: 4999, currency: "INR", mandate_state: "active" },
+    { replica_id: uuid(23), owner_user_id: uuid(213), state: "paused", cancel_at_period_end: false, current_period_end: T3, plan: "room", price_inr: 4999, currency: "INR", mandate_state: "paused" },
+    { replica_id: uuid(24), owner_user_id: uuid(214), state: "paused", cancel_at_period_end: false, current_period_end: T3, plan: "room", price_inr: 4999, currency: "INR", mandate_state: "halted" },
+    { replica_id: uuid(25), owner_user_id: uuid(215), state: "active", cancel_at_period_end: false, current_period_end: T3, plan: "room", price_inr: 4999, currency: "INR", mandate_state: "pending" },
+  );
+
+  const due = await dueReminders(renewalsDb(state), T0);
+  ok("follower: 'none' and 'active' mandates are due", due.follower.some((r) => r.subject_id === uuid(11)) && due.follower.some((r) => r.subject_id === uuid(12)));
+  ok("follower: a customer-paused mandate is NOT due", !due.follower.some((r) => r.subject_id === uuid(13)));
+  ok("follower: a bank-halted mandate is NOT due either", !due.follower.some((r) => r.subject_id === uuid(14)));
+  ok("follower: a 'pending' mandate is NOT due, even though `state` is still 'active'",
+    !due.follower.some((r) => r.subject_id === uuid(15)));
+  ok("follower: exactly two of the five seeded rows are due", due.follower.length === 2, String(due.follower.length));
+  ok("creator: 'none' and 'active' mandates are due", due.creator.some((r) => r.subject_id === uuid(21)) && due.creator.some((r) => r.subject_id === uuid(22)));
+  ok("creator: a customer-paused mandate is NOT due", !due.creator.some((r) => r.subject_id === uuid(23)));
+  ok("creator: a bank-halted mandate is NOT due either", !due.creator.some((r) => r.subject_id === uuid(24)));
+  ok("creator: a 'pending' mandate is NOT due, even though `state` is still 'active'",
+    !due.creator.some((r) => r.subject_id === uuid(25)));
+  ok("creator: exactly two of the five seeded rows are due", due.creator.length === 2, String(due.creator.length));
+
+  // A full sweep on this exact fixture, proving the exclusion end to end
+  // through `sweep()` rather than only through `dueReminders` in isolation:
+  // none of the three non-eligible subjects (follower AND creator) ever
+  // reaches `recordAndSend`, so no reminder row is ever written for them
+  // and no channel is ever attempted - the SAME two facts "neither charged
+  // nor reminded" needs, since a reminder row is this platform's only trace
+  // of "we were about to act on this subscription" and `api/_renewals.js`
+  // itself never charges anyone (Razorpay's own mandate debits the card/UPI
+  // app directly, never this file).
+  const swept = await sweep({ db: renewalsDb(state), env: {}, activeSubscriptionsFor: async () => [], activeTelegramChannelFor: async () => null }, T0);
+  ok("the sweep itself only SEES the two eligible subjects per kind, never the excluded three",
+    swept.seenFollower === 2 && swept.seenCreator === 2);
+  ok("no reminder row was ever written for any excluded subject",
+    !state.reminders.some((r) => [uuid(13), uuid(14), uuid(15), uuid(23), uuid(24), uuid(25)].includes(r.subject_id)));
+
+  // THE REQUIRED STRUCK-PREDICATE NEGATIVE CONTROL: re-run `dueReminders`'
+  // OWN due-select logic with ONLY the `mandate_state` clause physically
+  // struck out (a hand-rolled db exposing everything else identically,
+  // applied to the IDENTICAL fixture rows above) and confirm the `'pending'`
+  // subjects WOULD have been due - the row `state = 'active'` alone can
+  // never catch, since `mandate_state` is the ONLY thing distinguishing it
+  // from an ordinary healthy subscription. Proof the exclusion above is the
+  // predicate actually doing the work, not a coincidence of the fixture
+  // (`rejected.md`'s own "a plausible return hides a dead pipeline" law,
+  // applied to a WHERE clause instead of a whole function). The paused/
+  // halted rows are deliberately NOT re-asserted here - `state = 'paused'`
+  // alone already excludes them with or without this clause, so they would
+  // prove nothing about mandate_state specifically.
+  const struckDb = async (sql, params = []) => {
+    const has = (s) => sql.includes(s);
+    const [nowIso, endIso] = params;
+    if (has("from vy_room_subscription s") && has("s.follower_id as subject_id")) {
+      return state.roomSubs
+        .filter((s) => s.state === "active" && s.cancel_at_period_end !== true
+          && s.current_period_end && s.current_period_end >= nowIso && s.current_period_end < endIso)
+        .map((s) => ({ ...s, subject_id: s.follower_id }));
+    }
+    if (has("from vy_creator_subscription s") && has("s.replica_id as subject_id")) {
+      return state.creatorSubs
+        .filter((s) => s.state === "active" && s.cancel_at_period_end !== true
+          && s.current_period_end && s.current_period_end >= nowIso && s.current_period_end < endIso)
+        .map((s) => ({ ...s, subject_id: s.replica_id }));
+    }
+    if (has("from vy_org_subscription s") && has("s.org_id as subject_id")) return [];
+    throw new Error("struck-predicate fixture: unrecognised statement");
+  };
+  const struckDue = await dueReminders(struckDb, T0);
+  ok("STRUCK PREDICATE: without mandate_state, the 'pending' follower WOULD have been due (state alone cannot catch it)",
+    struckDue.follower.some((r) => r.subject_id === uuid(15)));
+  ok("STRUCK PREDICATE: without mandate_state, the 'pending' creator WOULD have been due too",
+    struckDue.creator.some((r) => r.subject_id === uuid(25)));
+  ok("STRUCK PREDICATE: three of the five follower rows are due once ONLY the mandate guard is removed ('none'/'active'/'pending' all pass state='active'; paused/halted still fail on state alone)",
+    struckDue.follower.length === 3);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

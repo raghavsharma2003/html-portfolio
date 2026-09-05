@@ -13680,3 +13680,40 @@ containing "NEGATIVE CONTROL"/"FAILS"/"FAIL CLOSED"/"-> FAIL").
 - `applyIngestRunDelta`'s new guard (api/_channel-ingest.js): outer `vy_ingest_run_owner_recent_ix`; the anti-join over `vy_context_item` (owner, status = 'refused') is a seq scan because `item_id::text` is compared to `split_part(video_ref, ':', 2)`. Accepted by name: one run per call over one owner's refused items; an index would need an expression or a typed column, logged as the reversal.
 
 No other wave-seventeen workstream added SQL: WS-R115, R116, R117, R118, R113, R114 change no statement; WS-R119 and R120 add fixture matchers only; WS-R111 touches the compiler and the honesty gate only.
+
+### `ws-r125-upi-mandate-lifecycle-eval-counts` (2026-09-05, WS-R125)
+
+**Method.** Each named eval file run standalone via `node evals/<dir>/run.mjs`
+on this worktree, offline, $0, no `NEON_URL`, no network beyond the one
+Razorpay documentation fetch this workstream's own citations name. n = 1 run
+per file per column, node v22.22.2. The "before" column is a REAL untouched-
+tree run, not a recollection: the ten files these five suites touch (`api/
+_payments.js`, `api/_renewals.js`, `api/_ops.js`, `api/_creator-tier.js`,
+and the five `evals/*/run.mjs`/`fixtures.mjs` files themselves) were copied
+aside, reverted to HEAD (`git checkout --`, never `git stash`) one at a
+time, run, then restored byte-for-byte from the copies (`diff -q` confirmed
+identical to the pre-revert working tree before re-running the "after"
+column a second time to reconfirm). Counts below are the suite's own final
+tally line, read verbatim from stdout, not recomputed.
+
+| suite | before this workstream (real untouched-tree run) | after |
+|---|---|---|
+| `evals/payments/run.mjs` | 113 passed, 0 failed | 127 passed, 0 failed |
+| `evals/ops/run.mjs` | 151 passed, 0 failed | 154 passed, 0 failed |
+| `evals/org-billing/run.mjs` | 50 passed, 0 failed | 59 passed, 0 failed |
+| `evals/room-doors/run.mjs` | 799 ok, 0 failed | 802 ok, 0 failed |
+| `evals/renewals/run.mjs` | 55 passed, 0 failed | 70 passed, 0 failed |
+
+`node node_modules/typescript/bin/tsc -b`: exit 0, no output, both before
+and after (the tier-card/panel/copy-table changes type-check clean).
+`node scripts/check-copy.mjs`: "copy law: 6 scopes clean, 21 negative
+controls bit" - unchanged pass, confirming the new English/Hindi strings
+carry no em-dash/en-dash and no banned Rooms-vocabulary word.
+
+**What this does NOT prove.** Every number above is an offline fixture
+count - `offline-mocks-cannot-type-check-sql` (AGENTS.md) applies exactly as
+every prior payments workstream's own header states: none of this proves
+migration 130's two `ALTER TABLE` statements or the widened WHERE clauses
+in `api/_renewals.js`/`api/_ops.js` actually PARSE against a real Postgres.
+See this workstream's final report for the exact statements named for the
+main loop's own `EXPLAIN`.

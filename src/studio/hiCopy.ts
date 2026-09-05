@@ -1880,4 +1880,12 @@ export const HI: StudioRestCopy = {
       codeInvalid: "यह कोड काम नहीं आया। इसे जांचें और फिर कोशिश करें, या नीचे लगाएं।",
     },
   },
+
+  // WS-R125 (migration 130). See copy.ts's own `roomStudioMandate` block.
+  roomStudioMandate: {
+    pausedLabel: "आपका भुगतान रुका हुआ है।",
+    pausedBody: "अपना टियर सक्रिय रखने के लिए इसे अपने UPI ऐप में फिर से शुरू करें।",
+    haltedLabel: "आपके भुगतान मैनडेट पर ध्यान देना ज़रूरी है।",
+    haltedBody: "कई कोशिशों के बाद भी इसे नवीनीकृत नहीं किया जा सका। जारी रखने के लिए अपने UPI ऐप से एक नया मैनडेट शुरू करें।",
+  },
 };

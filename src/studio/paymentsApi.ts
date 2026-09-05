@@ -91,6 +91,13 @@ export interface CreatorTierStatus {
     price_inr: number;
     currency: string;
     state: "created" | "authenticated" | "active" | "paused" | "cancelled" | "expired";
+    // WS-R125 (migration 130): the bank-side mandate's own last word,
+    // 'none' until a mandate-lifecycle webhook has ever touched it. `state`
+    // above still collapses `subscription.paused` and `.halted` to the SAME
+    // 'paused' value (api/_payments.js's `pausedOrHalted` header) - this is
+    // what tells them apart for the studio card, api/_creator-tier.js's own
+    // `clientCreatorSubscription`.
+    mandate_state: "none" | "pending" | "active" | "paused" | "halted" | "cancelled" | "completed";
     provider: string;
     current_period_start: string | null;
     current_period_end: string | null;

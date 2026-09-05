@@ -202,9 +202,14 @@ function opsDb(state) {
       const [roomId] = p;
       const rows = (state.subscriptions || []).filter((s) => s.room_id === roomId);
       const count = (st) => rows.filter((s) => s.state === st).length;
+      // WS-R125 (migration 130): a fixture row with no `mandate_state` set
+      // is 'none' by the migration's own column default - never counted as
+      // paused or halted here either, matching the live column exactly.
+      const mandateCount = (st) => rows.filter((s) => (s.mandate_state || "none") === st).length;
       return [{
         created: count("created"), authenticated: count("authenticated"), active: count("active"),
         paused: count("paused"), cancelled: count("cancelled"), expired: count("expired"),
+        mandate_paused: mandateCount("paused"), mandate_halted: mandateCount("halted"),
       }];
     }
 
@@ -530,7 +535,16 @@ console.log("\n── §4: opsOverview (real counts, honest empty states) ──
     { room_id: SECOND_ROOM_ID, channel: "whatsapp_template", state: "delivered", created_at: "2026-08-20T00:00:00Z" },
     { room_id: SECOND_ROOM_ID, channel: "whatsapp_template", state: "not_configured", created_at: "2026-09-06T00:00:00Z" },
   );
-  state.subscriptions.push({ room_id: ROOM_ID, state: "active" }, { room_id: ROOM_ID, state: "cancelled" });
+  state.subscriptions.push(
+    { room_id: ROOM_ID, state: "active" },
+    { room_id: ROOM_ID, state: "cancelled" },
+    // WS-R125 (migration 130): one bank-paused mandate and one halted one,
+    // both stored as `state = 'paused'` (`api/_payments.js`'s own
+    // `pausedOrHalted` header - the CHECK never widened to add `'halted'`),
+    // split apart ONLY by `mandate_state`.
+    { room_id: ROOM_ID, state: "paused", mandate_state: "paused" },
+    { room_id: ROOM_ID, state: "paused", mandate_state: "halted" },
+  );
   state.paymentEvents.push(
     { room_id: ROOM_ID, kind: "subscription.charged", amount_inr: 499 },
     { room_id: ROOM_ID, kind: "subscription.charged", amount_inr: 499 },
@@ -568,6 +582,12 @@ console.log("\n── §4: opsOverview (real counts, honest empty states) ──
     primary.deliveries_last_24h.delivered === 2 && primary.deliveries_last_24h.skipped_free_tier === 1);
   ok("subscriptions is a full state breakdown, not only active",
     primary.subscriptions.active === 1 && primary.subscriptions.cancelled === 1 && primary.subscriptions.created === 0);
+  ok("subscriptions.paused counts BOTH the customer-paused and the bank-halted row",
+    primary.subscriptions.paused === 2);
+  ok("mandate_paused/mandate_halted split that same bucket by the bank's own last word",
+    primary.subscriptions.mandate_paused === 1 && primary.subscriptions.mandate_halted === 1);
+  ok("quiet Room's empty mandate split is a real zero, not an omission",
+    quiet.subscriptions.mandate_paused === 0 && quiet.subscriptions.mandate_halted === 0);
   ok("revenue_this_month_inr sums only subscription.charged events", primary.revenue_this_month_inr === 998);
   ok("drift_state reflects the latest report", primary.drift_state === "steady");
 

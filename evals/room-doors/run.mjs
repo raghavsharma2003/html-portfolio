@@ -909,6 +909,35 @@ console.log("\n── §4: webhook replay and tampered signatures ──");
   const wrongSecretSig = FAKE_PROVIDER.signWebhookForTest(body, "not-the-real-secret");
   const wrongSecretErr = await threw(() => applyWebhook(db, { rawBody: body, signatureHeader: wrongSecretSig, eventRef: "evt_wrong_secret" }, { env: PAY_ENV }));
   okClass("d-webhook-replay", "payments-webhook.js", "a signature made with the wrong secret is refused", wrongSecretErr?.code === "payment_webhook_signature_invalid");
+
+  // WS-R125 (migration 130): the mandate-lifecycle events attacked the SAME
+  // way as the plain activation above - replay is a no-op, and a duplicate
+  // delivery under a DIFFERENT event id (the ledger's dedup key never
+  // matches, so this attacks the mandate_state column's OWN guard rather
+  // than the ledger's) never re-advances mandate_state_at.
+  const pauseBody = Buffer.from(JSON.stringify({
+    event: "subscription.paused",
+    payload: { subscription: { entity: { id: ref } } },
+  }));
+  const pauseSig = FAKE_PROVIDER.signWebhookForTest(pauseBody, WH_SECRET);
+  await applyWebhook(db, { rawBody: pauseBody, signatureHeader: pauseSig, eventRef: "evt_mandate_pause_1" }, { env: PAY_ENV });
+  const mandateAtAfterFirst = state.subscriptions.find((s) => s.subscription_id === started.subscription_id)?.mandate_state_at;
+  okClass("d-webhook-replay", "payments-webhook.js", "subscription.paused sets a real mandate_state, not just the virtual state overlay",
+    state.subscriptions.find((s) => s.subscription_id === started.subscription_id)?.mandate_state === "paused");
+
+  const dupPauseSig = FAKE_PROVIDER.signWebhookForTest(pauseBody, WH_SECRET);
+  await applyWebhook(db, { rawBody: pauseBody, signatureHeader: dupPauseSig, eventRef: "evt_mandate_pause_2" }, { env: PAY_ENV });
+  okClass("d-webhook-replay", "payments-webhook.js", "a DIFFERENT event id delivering the SAME mandate target never re-advances mandate_state_at (the ledger's own dedup key does not catch this, the mandate column's own guard does)",
+    state.subscriptions.find((s) => s.subscription_id === started.subscription_id)?.mandate_state_at === mandateAtAfterFirst);
+
+  // a signature-invalid mandate event is refused before mandate_state is
+  // ever touched - the SAME verify-then-apply order §4's own header names,
+  // attacked with a mandate kind instead of a plain activation.
+  const forgedPauseSig = FAKE_PROVIDER.signWebhookForTest(pauseBody, "not-the-real-secret");
+  const forgedPauseErr = await threw(() => applyWebhook(db, { rawBody: pauseBody, signatureHeader: forgedPauseSig, eventRef: "evt_mandate_forged" }, { env: PAY_ENV }));
+  okClass("d-webhook-replay", "payments-webhook.js", "a forged signature on a mandate-lifecycle event is refused before mandate_state is ever read",
+    forgedPauseErr?.code === "payment_webhook_signature_invalid" &&
+      state.subscriptions.find((s) => s.subscription_id === started.subscription_id)?.mandate_state_at === mandateAtAfterFirst);
 }
 
 // payout-webhook.js / api/_payments.js's applyPayoutWebhook (WS-R56,

@@ -203,7 +203,15 @@ export async function roomOverview(db, room, monthKey, now) {
         count(*) filter (where state = 'active')::int as active,
         count(*) filter (where state = 'paused')::int as paused,
         count(*) filter (where state = 'cancelled')::int as cancelled,
-        count(*) filter (where state = 'expired')::int as expired
+        count(*) filter (where state = 'expired')::int as expired,
+        -- WS-R125 (migration 130): state = 'paused' above already counts
+        -- BOTH a customer's own UPI-app pause and a mandate's retry ladder
+        -- giving up (api/_payments.js's pausedOrHalted header) - these
+        -- two split that SAME bucket by the bank's own last word, never
+        -- adding to it, so paused above stays the total an operator
+        -- already knows how to read.
+        count(*) filter (where mandate_state = 'paused')::int as mandate_paused,
+        count(*) filter (where mandate_state = 'halted')::int as mandate_halted
        from vy_room_subscription
       where room_id = ($1)::uuid`,
     [roomId],
@@ -255,6 +263,9 @@ export async function roomOverview(db, room, monthKey, now) {
       paused: Number(subscriptions?.paused || 0),
       cancelled: Number(subscriptions?.cancelled || 0),
       expired: Number(subscriptions?.expired || 0),
+      // WS-R125 (migration 130): the mandate's own split of `paused` above.
+      mandate_paused: Number(subscriptions?.mandate_paused || 0),
+      mandate_halted: Number(subscriptions?.mandate_halted || 0),
     },
     revenue_this_month_inr: Number(revenue?.this_month_inr || 0),
     drift_state: drift?.state || "no_report",

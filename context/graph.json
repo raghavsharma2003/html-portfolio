@@ -10312,6 +10312,60 @@
       "kind": "measurement",
       "title": "Migration 129 (the instruction-shaped review card kind) applied live at its merge after reading the constraint name back from pg_constraint; three new statements planned, on indexes except two one-row-estimate scans accepted by name.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r125-mandate-state-sibling-column-not-a-wider-state-check",
+      "kind": "decision",
+      "title": "Migration 130 adds mandate_state/mandate_state_at as SIBLING columns on vy_room_subscription/vy_creator_subscription, default 'none', never widening state's own CHECK - fulfils WS-R69's own named reversal condition for a second reader (renewal sweep, ops board) without disturbing every other reader of state.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r125-mandate-state-sibling-column-guard-lives-in-a-case-not-the-where",
+      "kind": "decision",
+      "title": "applyWebhook sets mandate_state/mandate_state_at inside the existing sub_update UPDATE's own CASE expression, guarded on mandate_state being distinct from the incoming target - never a second CTE on the same table (Postgres hazard) and never a top-level WHERE guard (would also skip legitimate state/period-date updates bundled in the same statement).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r125-follower-reuses-state-overlay-creator-gets-a-new-field",
+      "kind": "decision",
+      "title": "The follower's client shape keeps state's existing paused/halted overlay (WS-R69's shipped contract, now backed by mandate_state); the creator's client shape gets a new explicit mandate_state field, since no equivalent overlay existed there before this workstream.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r125-mandate-state-predicate-non-redundant-only-for-pending",
+      "kind": "decision",
+      "title": "The renewal due-select's mandate_state in ('none','active') clause is redundant with state='active' for paused/halted (both flip state to 'paused' together) - it is non-redundant only for 'pending', where KIND_TO_STATE leaves state unchanged. The struck-predicate negative control therefore targets the 'pending' row, not paused/halted.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r125-mandate-state-as-a-second-cte-on-the-same-table",
+      "kind": "rejection",
+      "title": "A separate mandate_update CTE alongside applyWebhook's existing sub_update CTE was rejected: Postgres does not support two data-modifying statements reliably targeting the same row of the same table in one WITH query - one of the two updates could be silently dropped.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r125-halted-mandate-start-new-button-would-have-been-a-silent-no-op",
+      "kind": "rejection",
+      "title": "A 'Start a new mandate' button for a halted creator/follower subscription was rejected: startCreatorSubscription/startFollowerSubscription always reuse a non-terminal row (state stays 'paused' forever for a halted mandate, KIND_TO_STATE never reaches 'expired'), so the call would silently hand back the same dead provider ref with checkout_url null.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r125-strict-per-kind-leaving-state-whitelist-rejected-as-fragile",
+      "kind": "rejection",
+      "title": "A strict per-kind FSM (each mandate webhook kind only valid from a named set of prior mandate_state values) was rejected in favour of a simple is-distinct-from guard: webhook delivery order is not guaranteed, and a strict whitelist would silently strand a real, later event that arrived out of the documented order.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r125-razorpay-docs-geo-redirect-hides-india-content",
+      "kind": "rejection",
+      "title": "razorpay.com/docs geo-redirects to a /docs/us/ build whose India-specific payment-method content (UPI Autopay, Emandate) is simply absent even though the page 200s and looks complete; setting the preferred_country=IN cookie on the request restores it.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r125-upi-mandate-lifecycle-eval-counts",
+      "kind": "measurement",
+      "title": "Real untouched-tree vs patched-tree eval counts for the UPI mandate lifecycle: evals/payments 113->127, evals/ops 151->154, evals/org-billing 50->59, evals/room-doors 799->802, evals/renewals 55->70, all 0 failed; tsc -b exit 0; check-copy.mjs clean.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20014,6 +20068,36 @@
       "src": "rooms-migration-129-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r112-instruction-shaped-is-a-review-card-not-a-runtime-filter"
+    },
+    {
+      "src": "ws-r125-mandate-state-sibling-column-not-a-wider-state-check",
+      "rel": "caused_by",
+      "dst": "ws-r69-halted-is-a-derived-read-never-a-stored-value"
+    },
+    {
+      "src": "ws-r125-follower-reuses-state-overlay-creator-gets-a-new-field",
+      "rel": "caused_by",
+      "dst": "ws-r69-halted-is-a-derived-read-never-a-stored-value"
+    },
+    {
+      "src": "ws-r125-mandate-state-sibling-column-guard-lives-in-a-case-not-the-where",
+      "rel": "caused_by",
+      "dst": "ws-r125-mandate-state-as-a-second-cte-on-the-same-table"
+    },
+    {
+      "src": "ws-r125-mandate-state-sibling-column-guard-lives-in-a-case-not-the-where",
+      "rel": "caused_by",
+      "dst": "ws-r125-strict-per-kind-leaving-state-whitelist-rejected-as-fragile"
+    },
+    {
+      "src": "ws-r125-halted-mandate-start-new-button-would-have-been-a-silent-no-op",
+      "rel": "caused_by",
+      "dst": "ws-r37-cancelSubscription-widened-in-place"
+    },
+    {
+      "src": "ws-r125-mandate-state-predicate-non-redundant-only-for-pending",
+      "rel": "measured_by",
+      "dst": "ws-r125-upi-mandate-lifecycle-eval-counts"
     }
   ]
 }
