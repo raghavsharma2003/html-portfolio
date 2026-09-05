@@ -12441,3 +12441,150 @@ carries that assumption along invisibly. Any future control built as a real
 `display` before a `min-height`/`min-width` rule can do anything at all —
 checked here by the layout gate's own real-browser measurement, not by
 reading the CSS and assuming it applies.
+
+## `ws-r106-check-copy-generic-angle-bracket-parity` (2026-09-05, WS-R106)
+
+**Tried.** After converting `StudioApp.tsx` to Tier 1, `node
+scripts/check-copy.mjs` reported two `rooms-vocabulary` hits inside it,
+both quoting what looked like real source: `"(null); const [authChecked,
+setAuthChecked] = useState(false); const [replicas, setReplicas] =
+useSt..."` and `") : showCreate || (!selected && loadState === \"ready\")
+? ( INVITES_REQUIRED_UI && replicas.length ==..."`. First response was to
+treat these as real: search the named lines for banned copy to reword.
+
+**What broke.** Neither line is copy at all -- both are plain `const [x,
+setX] = useState(...)` declarations and a loading-state ternary, pre-dating
+this workstream. `scripts/check-copy.mjs`'s `textNodes()` finds a JSX text
+node by pairing any bare `>` with the next `<`, with no concept of a
+TypeScript generic: `useState<StudioSession | null>(null)` closes with a
+`>` that the extractor cannot distinguish from a real tag's closing
+bracket, so it opens a "text node" that runs until the NEXT `<` -- which
+here was `useState<Replica[]>`'s own opening angle bracket, several plain
+declaration lines later. The garbage text in between happened to contain
+the pre-existing state variable `replicas`, which `\breplica[s]?\b`
+matches exactly. Confirmed mechanical rather than content-related by
+running the IDENTICAL scanner against the untouched tree (`git worktree
+add` of `c2945f7`): zero hits, even though the same `useState<T>` pairs and
+the same `replicas`/`setReplicas` declarations already existed there too --
+this workstream's edits (removing the old `GENERIC_COPY`/`TEACHER_COPY`/
+`TEST_COPY` block, moving the `copy` assignment) only shifted WHERE the
+existing phantom spans land, onto a stretch of code that happens to contain
+a banned substring, never introduced new prose.
+
+**Rule.** This is `ws-r10-check-copy-apostrophe-parity`'s own rule,
+restated for a different pair of characters: do not trust a `check-copy`
+line number or snippet as the literal location of a hit; trace it (run the
+scanner against the untouched tree for the same file first, to separate
+"this content is new" from "this pairing shifted") before editing a single
+character of the reported line. The fix here was two `copy-ok:` exemption
+comments (`context/decisions.md#ws-r106-check-copy-generic-angle-bracket-
+parity`), not a rename of the `replicas` identifier the phantom happened to
+cross -- renaming a pervasive, pre-existing variable to satisfy a regex
+quirk would be a large, unrelated refactor for zero user-facing benefit,
+the same shape `ws-r10`'s own two apostrophe workarounds were careful to
+avoid applying to the PHANTOM's actual source. `scripts/check-copy.mjs`'s
+extraction still cannot tell a TS generic's `<...>` from a JSX tag, the
+same way it still cannot tell a JSX-text apostrophe from a string
+delimiter; both are the same class of gap and whoever next touches that
+file's extraction should fix both together.
+
+## `ws-r106-studioapp-own-copy-read-crashed-before-the-hindi-chunk-loaded` (2026-09-05, WS-R106)
+
+**Tried.** First cut of the `sa`/`copy` seam: `const sa =
+STUDIO_COPY_TABLE[studioLocale].studioApp;`, unconditional, right after
+`studioLocale` is computed in `StudioApp()`'s own body.
+
+**What broke.** `node scripts/verify-release.mjs`'s `performance budgets`
+gate (real Chromium, `studio-hi` target) failed with a PAGE ERROR, not a
+budget miss: `studio_copy_hi_not_loaded: read of studioApp before
+loadStudioCopy("hi")`. `STUDIO_COPY_TABLE.hi` is a Proxy that throws on any
+property read until `loadStudioCopy("hi")` installs the real table
+(`copy.ts`'s own header; `context/decisions.md#studio-hindi-table-is-its-
+own-chunk`) -- `StudioLocaleProvider` (`localeContext.tsx`) already guards
+every read under it by rendering `null` until `studioCopyReady(locale)` is
+true, but `sa`/`copy` are computed in `StudioApp()`, the PARENT component
+that MOUNTS that provider, so the read ran unconditionally, before React
+ever reached the point of deciding whether to render the provider's
+children -- exactly the gap the provider's own header names ("this
+provider renders NOTHING for a locale whose table is not ready yet") one
+component too late to protect.
+
+**Rule.** Any code that reads `STUDIO_COPY_TABLE[locale]` OUTSIDE a
+component actually mounted under `StudioLocaleProvider` must gate on
+`studioCopyReady(locale)` itself, the same way the provider does -- never
+assume being "close to" the provider is being under it. Fixed with the same
+shape `StudioLocaleProvider` already uses one file over: `sa` falls back to
+`STUDIO_COPY_TABLE.en.studioApp` when not ready (never rendered to a real
+Hindi reader, since the provider still withholds its children until ready)
+and a `useReducer` + `useEffect` pair in `StudioApp()` itself calls
+`loadStudioCopy(studioLocale)` and force-rerenders once it resolves, so
+`sa`/`copy` are recomputed correctly rather than staying stuck on the
+English fallback if `StudioApp()` itself does not otherwise re-render
+before the chunk lands. Caught by the REAL gate (a real headless Chromium
+page, not a mock), never by `tsc` or `evals/studio-locale/run.mjs`'s own
+bundle-and-call harness, because neither exercises the actual React mount
+order this bug lived in -- `context/rejected.md`'s own recurring lesson
+that a plausible-looking seam still needs the real render path proven.
+
+## `ws-r106-two-evals-hardcoded-english-literals-against-studioapp-source` (2026-09-05, WS-R106)
+
+**Tried.** Trusted `node scripts/verify-release.mjs`'s `eval suite` gate at
+face value when it reported `failed suites: studioselftestui,
+voicepreviewui` after `StudioApp.tsx` moved to Tier 1.
+
+**What broke.** Neither failure was a real regression. `evals/studio-self-
+test-ui/run.mjs` regex-matches the FIVE English source-type labels
+("Audio or video file", ...) directly against `StudioApp.tsx`'s raw file
+text (`const studio = readFileSync(... "StudioApp.tsx")`), and
+`evals/voice-preview-ui.mjs` does the same for the literal string
+`title="Prove it is you"` inside a `<Band` block. Both checks predate this
+workstream and were written when those strings lived in `StudioApp.tsx`
+as plain JSX literals; moving them into `copy.ts#studioApp` (this
+workstream's whole job) makes both regexes correctly report the strings
+gone, because they ARE gone from that file -- they now live in `copy.ts`.
+`evals/voice-preview-ui.mjs`'s own header already names this exact
+pattern for a WS-R71 move ("VoicePreviewPanel.tsx's own literal strings...
+moved into src/studio/copy.ts... panel below is the component PLUS just
+that ONE section of copy.ts's EN table concatenated"), so this was a
+known, expected consequence of the file-tier move, not a surprise.
+
+**Rule.** `evals/studio-self-test-ui/run.mjs`'s check now matches the five
+labels against `copyTs` (the raw `copy.ts` source, already read by that
+file for an unrelated check two lines up) instead of `studio`, plus a
+structural check that `TEST_SOURCE_ANCHORS` (the renamed, still-present
+constant) exists in `StudioApp.tsx`. `evals/voice-preview-ui.mjs`'s check
+now matches the BINDING (`title={t.studioApp.meet.proveTitle}`) rather
+than the English wording, since concatenating `copy.ts`'s whole
+`studioApp` block the way `voicePreviewPanelCopy` narrows to one section
+would risk tripping this same file's own "no unmeasured quality claim"
+finding on unrelated prose, the exact failure mode that file's own header
+already warns against for a careless full-file concatenation. Both are the
+established pattern (`ws-r52-existing-evals-updated-for-the-copy-ts-move`,
+cited by `voice-preview-ui.mjs` itself): when a Tier 2 to Tier 1 move
+relocates a literal string, the eval that pinned it moves its own
+assertion to the new location in the SAME commit, never left broken or
+loosened.
+
+## `ws-r106-studio-hindi-chunk-wait-measured-870-879ms-against-800-budget` (2026-09-05, WS-R106)
+
+**Measured, not fixed.** `node scripts/check-performance.mjs`, run in
+isolation (port 8931/8932 confirmed free by an until-loop first, load
+average 2.5-2.8 at measurement time, down from the 11-15 range this
+session's own concurrent sibling gates produced earlier), n = 2 separate
+full runs (each itself a 3-run median per `check-performance.mjs`'s own
+`RUNS = 3`), 2026-09-05: `studio-hi`'s `hindiChunkWaitMs` measured 870ms
+then 879ms, both over `HINDI_CHUNK_WAIT_BUDGET_MS = 800`. `hiCopy.ts`
+(the dynamically-imported Hindi chunk this budget measures) grew from
+184,309 to 206,298 bytes (+21,989, +11.9%) in raw source, the direct
+result of this workstream's own 135 new Hindi leaf strings
+(`measurements.md#ws-r106-studio-strings-before-after-2026-09-05`); the
+studio-hi target's reported JS transfer also moved from 163.0K to 164.0K.
+Not fixed by this workstream: the 800ms budget is a shipping gate this
+session's brief did not name and does not have standing to loosen
+unilaterally (`ws-r91-first-hindi-paint-2026-09-05` and `first-hindi-
+paint-budget-set-from-measurement` are the precedent for how a future
+session should treat a measured, content-driven miss against this exact
+family of budget -- raise it FROM A MEASUREMENT, name the reversal
+condition, never copy a number). Flagged for the main loop rather than
+silently worked around; see `context/decisions.md#ws-r106-hindi-chunk-
+wait-miss-flagged-not-fixed` for the reversal condition.

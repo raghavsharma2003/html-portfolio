@@ -1775,6 +1775,180 @@ interface AuthGateCopy {
   legalNotice: string;
 }
 
+// WS-R106: the studio's last remaining Tier-2 strings, one closed block --
+// `CreateReplicaCard`, `ReplicaList`, `TestSourceGuide`, `VoiceUnlockNotice`
+// and `ReplicaWorkspace`'s own Feed/Meet/Share bands, empty states, the
+// revoke dialog and the signed-in shell chrome (`StudioApp.tsx`'s own
+// header/workspace-switch furniture). See
+// context/decisions.md#ws-r106-studioapp-tsx-converted-tier-1 for what moved
+// and context/decisions.md#ws-r106-quickstartpath-and-opsboard-stay-tier-2
+// and #ws-r106-error-classifier-fallback-headlines-stay-english for what did
+// not and why.
+interface CreateReplicaVariantCopy {
+  workspaceNoun: string;
+  firstEyebrow: string;
+  firstTitle: string;
+  firstBody: string;
+  nameLabel: string;
+  namePlaceholder: string;
+  fieldNote: string;
+  createdNotice: string;
+}
+interface TestSourceGuideCopy {
+  ariaLabel: string;
+  intro: string;
+  audioOrVideoFile: string;
+  screenshotDocumentOrTextFile: string;
+  textOrWebLink: string;
+  youtubeVideo: string;
+  youtubeChannel: string;
+}
+interface ReplicaListCopy {
+  yourAIsAriaLabel: string;
+  yourAIsLabel: string;
+  newWorkspace: string;
+}
+interface VoiceUnlockNoticeCopy {
+  bodyMissingBoth: string;
+  bodyMissingLiveness: string;
+  bodyMissingIdentity: string;
+  verifyLink: string;
+}
+interface StudioAppLoadingCopy {
+  material: string;
+  voice: string;
+  call: string;
+  reviewQueue: string;
+  identityChecks: string;
+  room: string;
+  privateStudioAriaLabel: string;
+  privateStudio: string;
+  workspaceAriaLabel: string;
+}
+interface StudioAppFeedCopy {
+  materialTitle: string;
+  materialTitleTest: string;
+  materialBlurb: string;
+  materialBlurbTest: string;
+  filesTitle: string;
+  filesTitleTest: string;
+  filesBlurb: string;
+  filesBlurbTest: string;
+  uploadStatusTitle: string;
+  uploadStatusBlurb: string;
+}
+interface StudioAppMeetCopy {
+  hearTalkTitle: string;
+  hearTalkBlurb: string;
+  checkCorrectTitle: string;
+  checkCorrectTitleTest: string;
+  checkCorrectBlurb: string;
+  checkCorrectBlurbTest: string;
+  proveTitle: string;
+  proveBlurb: string;
+  advancedTitle: string;
+  advancedBlurb: string;
+}
+interface StudioAppEmptyStateCopy {
+  eyebrow: string;
+  title: string;
+  body: string;
+  button: string;
+}
+interface StudioAppDeployCopy {
+  disclosureTitle: string;
+  disclosureBlurb: string;
+  disclosureEmpty: StudioAppEmptyStateCopy;
+  gatesTitle: string;
+  gatesBlurb: string;
+  roomTitle: string;
+  roomBlurb: string;
+  channelsTitle: string;
+  channelsBlurb: string;
+  channelsEmpty: StudioAppEmptyStateCopy;
+  ownerAreaTitle: string;
+  ownerAreaBlurb: string;
+  ownerControlEyebrow: string;
+  revokeTitle: string;
+  revokeBody: string;
+  revokeButton: string;
+}
+interface RevokeDialogCopy {
+  titleTemplate: string; // "{label}"
+  body: string;
+  confirmLabel: string;
+  keepButton: string;
+  revokingAriaLabel: string;
+  revoking: string;
+  revokePermanently: string;
+}
+interface StudioAppHeaderCopy {
+  homeAriaLabel: string;
+  gurukulStudio: string;
+  genericStudio: string;
+  internalTestWorkspace: string;
+  privateTeachingWorkspace: string;
+  privateSelfOnlyWorkspace: string;
+  testWorkspaceSession: string;
+  verifiedAccountSession: string;
+  signOut: string;
+  dismissMessage: string;
+  tryAgain: string;
+  yourTestFlow: string;
+  backToShell: string;
+  signedInAccountFallback: string;
+}
+interface WorkspaceSwitchCopy {
+  yourWorkspaces: string;
+  switchOrStartAnother: string;
+}
+interface StudioAppNoticesCopy {
+  erasureComplete: string;
+  livenessVerified: string;
+  revoked: string;
+  sourceConsentGranted: string;
+  sourceConsentWithdrawn: string;
+  inferenceConsentGranted: string;
+  inferenceConsentWithdrawn: string;
+  sourceQuarantined: string;
+  officialFacePassed: string;
+  verificationCancelledConfirmed: string;
+  verificationCancelledPending: string;
+  verificationCancelledNoProviderSession: string;
+  liveEvidenceSecured: string;
+  attemptCancelled: string;
+  recordingSecured: string;
+  sourceErased: string;
+  sourceDisabled: string;
+}
+interface StudioAppInviteCopy {
+  codeRequired: string;
+  codeInvalid: string;
+}
+interface StudioAppCopy {
+  createReplica: {
+    generic: CreateReplicaVariantCopy;
+    teacher: CreateReplicaVariantCopy;
+    test: CreateReplicaVariantCopy;
+  };
+  creatingAriaLabel: string;
+  createButton: string;
+  testSourceGuide: TestSourceGuideCopy;
+  replicaList: ReplicaListCopy;
+  voiceUnlockNotice: VoiceUnlockNoticeCopy;
+  testEnvironmentNoticeTitle: string;
+  testEnvironmentNoticeBody: string;
+  loading: StudioAppLoadingCopy;
+  feed: StudioAppFeedCopy;
+  meet: StudioAppMeetCopy;
+  deploy: StudioAppDeployCopy;
+  revokeDialog: RevokeDialogCopy;
+  header: StudioAppHeaderCopy;
+  workspaceSwitch: WorkspaceSwitchCopy;
+  notices: StudioAppNoticesCopy;
+  invite: StudioAppInviteCopy;
+}
+
 interface StudioCopy {
   classLabels: ClassLabels;
   shell: ShellCopy;
@@ -1816,6 +1990,7 @@ interface StudioCopy {
   mirrorCallStudio: MirrorCallStudioCopy;
   voiceEnrollmentLab: VoiceEnrollmentLabCopy;
   authGate: AuthGateCopy;
+  studioApp: StudioAppCopy;
 }
 
 const EN: StudioCopy = {
@@ -3547,6 +3722,188 @@ const EN: StudioCopy = {
     codeMismatchError: "That code did not match. Check it and try again.",
     genericSendError: "Could not send a code",
     legalNotice: "Access does not grant permission to build your AI. Separate, recorded consent is required before any biometric processing.",
+  },
+
+  studioApp: {
+    createReplica: {
+      generic: {
+        workspaceNoun: "Your AI",
+        firstEyebrow: "Your first AI",
+        firstTitle: "Begin with identity, not an upload.",
+        firstBody: "Name your private workspace. Voice, memories, and behavior remain locked until consent and liveness services are connected.",
+        nameLabel: "AI name",
+        namePlaceholder: "Your name",
+        fieldNote: "You may create an AI only of yourself. Verification comes next.",
+        createdNotice: "Your workspace is ready. Add one file or link on this step, and you can hear a private draft voice before any verification.",
+      },
+      teacher: {
+        workspaceNoun: "Your teaching AI",
+        firstEyebrow: "Your first teaching AI",
+        firstTitle: "Begin with identity, not an upload.",
+        firstBody: "Name your teaching AI. Voice, teaching style, and pedagogy remain locked until consent and liveness services are connected.",
+        nameLabel: "Teacher / AI name",
+        namePlaceholder: "Your name, as students will see it",
+        fieldNote: "You may create a teaching AI only of yourself. Verification comes next.",
+        createdNotice: "Your teaching AI has a workspace. Add one lecture or link on this step, and you can hear a private draft voice before any verification.",
+      },
+      test: {
+        workspaceNoun: "Test AI",
+        firstEyebrow: "",
+        firstTitle: "Create a test workspace.",
+        firstBody: "Name your AI, add any useful sources, then hear it and talk to it.",
+        nameLabel: "AI name",
+        namePlaceholder: "Your name",
+        fieldNote: "You can change your AI as you test it.",
+        createdNotice: "Test workspace ready. Add useful sources, or start talking to your AI now.",
+      },
+    },
+    creatingAriaLabel: "Creating your AI",
+    createButton: "Create workspace",
+    testSourceGuide: {
+      ariaLabel: "Five source types",
+      intro: "Add any source type. None is required to open your AI.",
+      audioOrVideoFile: "Audio or video file",
+      screenshotDocumentOrTextFile: "Screenshot, document, or text file",
+      textOrWebLink: "Text or web link",
+      youtubeVideo: "YouTube video",
+      youtubeChannel: "YouTube channel",
+    },
+    replicaList: {
+      yourAIsAriaLabel: "Your AIs",
+      yourAIsLabel: "Your AIs",
+      newWorkspace: "New workspace",
+    },
+    voiceUnlockNotice: {
+      bodyMissingBoth: "The preview above is private and works right now. To let this voice speak to anyone else we need identity and a live challenge, because a voice is a person and this product only ever builds its owner's own AI.",
+      bodyMissingLiveness: "The preview above is private and works right now. To let this voice speak to anyone else we need a live challenge, because a voice is a person and this product only ever builds its owner's own AI.",
+      bodyMissingIdentity: "The preview above is private and works right now. To let this voice speak to anyone else we need identity, because a voice is a person and this product only ever builds its owner's own AI.",
+      verifyLink: "Verify below on this step",
+    },
+    testEnvironmentNoticeTitle: "Internal test environment",
+    testEnvironmentNoticeBody: "Add any useful sources, then hear and talk to your AI.",
+    loading: {
+      material: "Loading your material",
+      voice: "Loading her voice",
+      call: "Loading the call",
+      reviewQueue: "Loading the review queue",
+      identityChecks: "Loading identity checks",
+      room: "Loading your Room",
+      privateStudioAriaLabel: "Opening private studio",
+      privateStudio: "Opening your private studio",
+      workspaceAriaLabel: "Loading your AI's workspace",
+    },
+    feed: {
+      materialTitle: "Permission, then your material",
+      materialTitleTest: "Add source files",
+      materialBlurb: "Nothing is read, transcribed or stored until you say it may be. Then everything you bring lands in one private ledger you can erase a row at a time.",
+      materialBlurbTest: "Upload audio, video, documents, or screenshots. Multiple files can be added in one pass.",
+      filesTitle: "Files, links, videos, channels",
+      filesTitleTest: "Add files and links",
+      filesBlurb: "Four ways in, one ledger out. Everything here is proposed to you before it changes anything about your AI.",
+      filesBlurbTest: "Drop text files or paste useful links. Add only what will help your AI understand you.",
+      uploadStatusTitle: "Where each upload is right now",
+      uploadStatusBlurb: "Everything you have handed over, and what is happening to it. Anything that needs you is at the top, and anything stuck on our side says so.",
+    },
+    meet: {
+      hearTalkTitle: "Hear it, then talk to it",
+      hearTalkBlurb: "This is the whole point of the product. The preview is private, and the call is where your AI learns from you while you watch.",
+      checkCorrectTitle: "Check it and correct it",
+      checkCorrectTitleTest: "Processing status",
+      checkCorrectBlurb: "What we think we learned, one claim at a time, and the dials only you can set. Nothing here publishes anything.",
+      checkCorrectBlurbTest: "See what your AI is learning from the sources you added.",
+      proveTitle: "Prove it is you",
+      proveBlurb: "A voice is a person. These are the checks that let your AI speak to anyone other than you, and they are the only reason this product can exist.",
+      advancedTitle: "Advanced tuning, all optional",
+      advancedBlurb: "Four labs for people who want to go further. Nothing in here is required to activate your AI, and skipping all of it costs you nothing.",
+    },
+    deploy: {
+      disclosureTitle: "What every student is told first",
+      disclosureBlurb: "Read this before you decide where your AI can be reached. The order is the informed half of informed consent.",
+      disclosureEmpty: {
+        eyebrow: "Nothing saved yet",
+        title: "Your sheet has not been saved, so there is nothing to preview",
+        body: "The disclosure card names the teacher a student is talking to. We will not show you a preview with somebody else's name on it. Save your sheet on the Meet it step and come back, and this will show exactly what a student sees.",
+        button: "Go and save your sheet",
+      },
+      gatesTitle: "The gates, then the switch",
+      gatesBlurb: "Activation is refused until every check has passed. The list below is the runtime's own answer, not a summary of it.",
+      roomTitle: "Your Room",
+      roomBlurb: "A private, continuing address for every follower. This is where publishing actually happens.",
+      channelsTitle: "Where it can be reached",
+      channelsBlurb: "One address at a time, each connected separately, each revocable on its own.",
+      channelsEmpty: {
+        eyebrow: "Nothing saved yet",
+        title: "A channel needs a saved sheet first",
+        body: "The embed code and the widget address are built from your AI's public slug, and that comes from your saved sheet. Until then any snippet we showed you would point somewhere that is not yours.",
+        button: "Go and save your sheet",
+      },
+      ownerAreaTitle: "Owner control, including erasure",
+      ownerAreaBlurb: "Revoking stops future use immediately and queues every stored artifact, derived AI and provider copy for verified deletion.",
+      ownerControlEyebrow: "Owner control",
+      revokeTitle: "Revoke your AI",
+      revokeBody: "Future use stops immediately. Private artifacts and provider copies are then queued for erasure.",
+      revokeButton: "Revoke access",
+    },
+    revokeDialog: {
+      titleTemplate: "Revoke {label}?",
+      body: "This immediately blocks generation and queues stored sources, derived AI versions, memories, and provider copies for erasure. Audio already exported outside Vyakti cannot be recalled.",
+      confirmLabel: "Type REVOKE to confirm",
+      keepButton: "Keep your AI",
+      revokingAriaLabel: "Revoking your AI",
+      revoking: "Revoking",
+      revokePermanently: "Revoke permanently",
+    },
+    header: {
+      homeAriaLabel: "Vyakti home",
+      gurukulStudio: "GURUKUL STUDIO",
+      // WS-R106: renamed from the pre-existing "REPLICA STUDIO" it replaces.
+      // That string sat in a bare, unbound JSX ternary branch, which is why
+      // scripts/check-copy.mjs's PASS 2 (visible-prop and copy-file
+      // extraction only) never actually saw it; moving it into THIS file
+      // (a `COPY_FILES` match, scanned in full, `roomsVocab: true` for
+      // `src/studio/`) puts it in front of the rooms-vocabulary rule for the
+      // first time, and it fails: `\breplica[s]?\b` matches "REPLICA"
+      // exactly. See context/decisions.md#ws-r106-replica-studio-label-renamed-ai-studio.
+      genericStudio: "AI STUDIO",
+      internalTestWorkspace: "Internal test workspace",
+      privateTeachingWorkspace: "Private teaching-AI workspace",
+      privateSelfOnlyWorkspace: "Private, self-only workspace",
+      testWorkspaceSession: "Test workspace session",
+      verifiedAccountSession: "Verified account session",
+      signOut: "Sign out",
+      dismissMessage: "Dismiss message",
+      tryAgain: "Try again",
+      yourTestFlow: "Your test flow",
+      backToShell: "Back to Feed / Meet / Share",
+      signedInAccountFallback: "Signed in account",
+    },
+    workspaceSwitch: {
+      yourWorkspaces: "Your workspaces",
+      switchOrStartAnother: "Switch workspace, or start another one",
+    },
+    notices: {
+      erasureComplete: "Verified erasure complete. Provider copies and private storage are confirmed deleted.",
+      livenessVerified: "Independent liveness verification passed. Build and inference remain separately permissioned.",
+      revoked: "Your AI is revoked. Future use is blocked and verified erasure is pending.",
+      sourceConsentGranted: "Source permissions recorded. Private evidence intake is now open.",
+      sourceConsentWithdrawn: "Source permissions withdrawn. Your AI is non-operational and source erasure is pending.",
+      inferenceConsentGranted: "Private build and disclosed inference permissions recorded. Your AI is not active until every independent gate passes.",
+      inferenceConsentWithdrawn: "Build and inference permissions withdrawn. Your AI is disabled and derived copies are queued for erasure.",
+      sourceQuarantined: "Source received and isolated in private quarantine. Building your AI from it has not started.",
+      officialFacePassed: "Official live-face and ID match passed. The Azure session was deleted; voice challenge capture is now unlocked.",
+      verificationCancelledConfirmed: "Verification cancelled. The provider session is deleted; raw evidence remains queued for confirmed erasure.",
+      verificationCancelledPending: "Verification cancelled. Provider and raw-evidence deletion are pending with the durable cleanup worker.",
+      verificationCancelledNoProviderSession: "Verification cancelled. No provider session existed; raw evidence is queued for confirmed erasure.",
+      liveEvidenceSecured: "Live evidence secured. Verification is pending and biometric setup remains locked.",
+      attemptCancelled: "Attempt cancelled. The recording is queued for deletion.",
+      recordingSecured: "Recording secured. We are checking it now.",
+      sourceErased: "Private source erased.",
+      sourceDisabled: "Source disabled. Verified erasure is pending.",
+    },
+    invite: {
+      codeRequired: "An invite code is required for your first workspace.",
+      codeInvalid: "That code did not work. Check it and try again, or apply below.",
+    },
   },
 };
 

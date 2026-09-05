@@ -60,7 +60,13 @@ function findings(panelSource, apiSource, appSource, cssSource) {
   if (!/Not right yet\?/.test(panelSource) || !/Edit the line/.test(panelSource) || !/Generate another take/.test(panelSource)) issues.push("correction-loop");
   if (!/!testEnvironment && <dl className="hear-voice-proof"/.test(panelSource)) issues.push("self-test-ceremony-hidden");
   if (!/disclosure !== "audible-prefix-v1"/.test(apiSource) || !/x-vyakti-text-plan/.test(apiSource)) issues.push("protected-receipt-required");
-  if (!/!testEnvironment && step === "meet" && <ReadinessPanel/.test(appSource) || !/!testEnvironment && <Band[\s\S]*title="Prove it is you"/.test(appSource)) issues.push("self-test-compliance-removed");
+  // WS-R106: "Prove it is you" moved from a literal `title="..."` into
+  // `copy.ts#studioApp.meet.proveTitle` (both locales), the SAME move
+  // `voicePreviewPanelCopy`'s own header above already made for this exact
+  // file's `panel` variable -- the structural BINDING (`title={t.studioApp.
+  // meet.proveTitle}`) is what stays checkable in `StudioApp.tsx`'s own
+  // source; the English wording itself is `copy.ts`'s job now.
+  if (!/!testEnvironment && step === "meet" && <ReadinessPanel/.test(appSource) || !/!testEnvironment && <Band[\s\S]*title=\{t\.studioApp\.meet\.proveTitle\}/.test(appSource)) issues.push("self-test-compliance-removed");
   if (!/\.hear-voice \.voice-preview-language \{ grid-template-columns: repeat\(3/.test(cssSource)) issues.push("language-control-layout");
   if (!cssSource.includes(".hear-voice-wait-metrics, .hear-voice-correction { grid-template-columns: 1fr; }")) issues.push("mobile-correction-layout");
   if (!/\.hear-voice-stage-ready \{[^}]*background: var\(--forest-deep\)/.test(cssSource)) issues.push("ready-state-material");
