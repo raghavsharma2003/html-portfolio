@@ -165,6 +165,16 @@ function makeDb(state) {
       return [{ subscription_id: row.subscription_id, seats: row.seats, state: row.state }];
     }
 
+    // WS-R51: startCreatorSubscription's own new ownership check
+    // (api/_payments.js's `ownedReplicaHandle`, the door battery's own
+    // class-c fix) - this suite never tests a mismatched owner/replica pair,
+    // so every replica id it constructs from `REPLICA_PREFIX` for `CREATOR`
+    // is admitted unconditionally, `evals/room-doors`'s own dedicated case
+    // for the boundary.
+    if (has("select replica_id from vy_replica where replica_id = $1::uuid and owner_user_id = $2::uuid")) {
+      return [{ replica_id: params[0] }];
+    }
+
     // ── seatCoversCreatorTier (api/_org.js) ──
     if (has("select exists (") && has("vy_org_subscription s on s.org_id = r.org_id")) {
       const [ownerId, replicaId] = params;
@@ -447,8 +457,16 @@ console.log("\n§3 THE EXEMPTION — a Suite seat refuses a creator tier charge,
   // provider is only ever reached AFTER the insert-or-reuse block below the
   // exemption check in api/_payments.js's own source.
   const newCallsAfterExemption = db.calls.slice(callsBefore).map((c) => c.sql);
-  ok("NEGATIVE CONTROL (c): the only db call made was the exemption's own read, no insert/update at all",
-    newCallsAfterExemption.length === 1 && /select exists/i.test(newCallsAfterExemption[0]));
+  // WS-R51 (evals/room-doors, the door-battery class-c fix) added ONE more
+  // read before the exemption check even runs — `ownedReplicaHandle`'s own
+  // new ownership verification (`select replica_id from vy_replica...`) —
+  // so this control now allows exactly TWO reads, still zero writes; the
+  // property under test (no insert/update reaches vy_creator_subscription)
+  // is unchanged.
+  ok("NEGATIVE CONTROL (c): only READS were made before the refusal (the new ownership check, then the exemption's own read), no insert/update at all",
+    newCallsAfterExemption.length === 2 &&
+      /select replica_id from vy_replica/i.test(newCallsAfterExemption[0]) &&
+      /select exists/i.test(newCallsAfterExemption[1]));
 
   const src = readFileSync(join(REPO, "api/_payments.js"), "utf8");
   const exemptionIdx = src.indexOf("if (covered) throw new PaymentsError(\"creator_tier_covered_by_suite\"");

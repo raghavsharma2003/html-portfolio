@@ -626,17 +626,29 @@ export async function updateOrgSeats(db, { ownerUserId, orgId, seats }, deps = {
 // already covers this creator - law 4, `seatCoversCreatorTier`'s one caller.
 // ─────────────────────────────────────────────────────────────────────────
 
+// WS-R51 (evals/room-doors, the "27 preexisting-uncased ops" workstream):
+// this function used to validate ONLY the UUID shape of `replicaId` and
+// trusted, "by construction," that the studio never offers the action
+// against anything but the caller's own replica. That is a class-c gap, not
+// a safe assumption — a body-supplied `replica_id` is exactly the shape the
+// door battery's own class (c) attacks, and `api/payments.js`'s
+// `start_creator_subscription` op passes `body.replica_id` straight through
+// with no session or prior read to have already scoped it. A caller could
+// name ANOTHER owner's replica_id and mint a `vy_creator_subscription` row
+// binding their own `owner_user_id` to someone else's `replica_id` — a data
+// integrity gap even though it never touches the other owner's Room. Fixed
+// by reading `vy_replica` here, the SAME shape `api/_replica.js`'s
+// `getOwnedReplica` and this file's own `ownedRoomForPayments` already use
+// one table over, rather than inventing a second ownership predicate.
 async function ownedReplicaHandle(db, ownerUserId, replicaId) {
-  // No `vy_replica` read needed: every caller of this file already knows the
-  // replica belongs to the owner by construction (the studio only ever
-  // offers this action against the caller's OWN replica id), and this file
-  // holds no `vy_replica` query anywhere else - `ownedRoomForPayments`'s own
-  // scope (a room row, not a replica row) one section up. UUID shape is
-  // still validated, the same "refuse before any write" discipline as every
-  // other identity check in this file.
   if (!UUID.test(String(ownerUserId || "")) || !UUID.test(String(replicaId || ""))) {
     throw new PaymentsError("room_publish_identity_invalid", 400);
   }
+  const rows = await db(
+    `select replica_id from vy_replica where replica_id = $1::uuid and owner_user_id = $2::uuid limit 1`,
+    [String(replicaId).toLowerCase(), String(ownerUserId).toLowerCase()],
+  );
+  if (!rows[0]) throw new PaymentsError("creator_tier_replica_not_owned", 404);
 }
 
 /**

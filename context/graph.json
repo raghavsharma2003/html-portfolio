@@ -7468,6 +7468,30 @@
       "kind": "measurement",
       "title": "Layout gate clean standalone (1174 blocks, 251 Hindi strings glyph-checked, 0 tofu) after fixing .studio-shell-promise's missing max-width; accessibility clean (16 pages, 0 findings); performance clean (48.4s); every suite touching a changed file re-confirmed after fixing two unrelated pre-existing defects (room-doors missing now:NOW, a guarded-table-name comment)",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r51-every-door-cased",
+      "kind": "decision",
+      "title": "The 27 preexisting-uncased owner-bearer ops in OP_COVERAGE each get a real dynamic case; the computed-op-list mechanism widens from 7 to all 12 op-reading doors; the preexisting-uncased class is deleted",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r51-door-battery-cases-and-runtime-before-after-2026-09-05",
+      "kind": "measurement",
+      "title": "Door battery: 302 -> 478 assertions, 7 -> 12 doors in OP_COVERAGE, 27 -> 0 preexisting-uncased, runtime 3.0s -> ~4.6s (ceiling 20s), 2 real security findings fixed, 1 latent test date-bomb found and fixed",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r51-loose-substring-pattern-matched-seatcapsqls-own-embedded-fragment",
+      "kind": "rejection",
+      "title": "A pre-existing three-substring fixture pattern for cancelOrgRenewal's status read silently also matched orgBoard's/startOrgSubscription's own seatCapSql-embedded query, making a real admin's own case look like an ownership regression; fixed by narrowing the pattern with !has(\"vy_org_member\")",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r51-fixture-deps-now-silently-fell-back-to-real-clock",
+      "kind": "rejection",
+      "title": "Nine pre-existing calls in evals/room-doors/run.mjs omitted now: NOW, silently falling back to Date.now(); harmless for months, then a real room_session_expired crash the moment this session's own wall clock crossed the fixture's 12h freshness window mid-run; all nine fixed",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -14890,6 +14914,26 @@
       "src": "ws-r52-gate-results-final-2026-09-05",
       "rel": "caused_by",
       "dst": "ws-r52-explanatory-comment-named-the-guarded-tables-a-fifth-time"
+    },
+    {
+      "src": "ws-r51-every-door-cased",
+      "rel": "measured_by",
+      "dst": "ws-r51-door-battery-cases-and-runtime-before-after-2026-09-05"
+    },
+    {
+      "src": "ws-r51-every-door-cased",
+      "rel": "supersedes",
+      "dst": "ws-r44-computed-op-list-scoped-to-six-named-doors"
+    },
+    {
+      "src": "ws-r51-loose-substring-pattern-matched-seatcapsqls-own-embedded-fragment",
+      "rel": "constrains",
+      "dst": "ws-r51-every-door-cased"
+    },
+    {
+      "src": "ws-r51-fixture-deps-now-silently-fell-back-to-real-clock",
+      "rel": "constrains",
+      "dst": "ws-r51-every-door-cased"
     }
   ]
 }

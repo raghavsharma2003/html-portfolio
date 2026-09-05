@@ -265,6 +265,15 @@ function makeChargeDb(state) {
   const db = async (sql, params = []) => {
     const has = (s) => sql.includes(s);
 
+    // WS-R51: startCreatorSubscription's own new ownership check
+    // (api/_payments.js's `ownedReplicaHandle`) - unconditionally admitted
+    // here, `evals/org-billing/run.mjs`'s own precedent, since this suite's
+    // own subject is reconciliation and webhook replay, not the ownership
+    // boundary (that is `evals/room-doors`'s own new case).
+    if (has("select replica_id from vy_replica where replica_id = $1::uuid and owner_user_id = $2::uuid")) {
+      return [{ replica_id: params[0] }];
+    }
+
     // ── seatCoversCreatorTier's own read (api/_org.js): nobody in this
     //    fixture is Suite-covered unless a test overrides it via deps. ──
     if (has("select exists (") && has("vy_org_subscription")) return [{ covered: false }];

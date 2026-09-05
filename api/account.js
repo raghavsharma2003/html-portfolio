@@ -80,10 +80,29 @@ export default async function handler(req, res) {
       // per-DESTINATION throttle (independent of IP): stops email-bombing a
       // victim address through rotating IPs
       if (!allow(email, "otp_dest", 3)) return res.status(429).json({ error: "slow down" });
+      // WS-R51 (evals/room-doors, the door-battery widening): `send_sms`
+      // below has carried the SAME two persistent, cross-instance layers
+      // since WS-R32 (`otp_send_ip`/`otp_send_dest`, this file's own header);
+      // `send_otp` never got them, so a warm-lambda-only in-memory throttle
+      // (`otp_dest` above) was its entire defense, invisible to every other
+      // instance or region a determined caller could land on next -
+      // precisely the gap WS-R32's own header names as the reason
+      // `vy_public_rate` exists at all. Wired here rather than left, per this
+      // workstream's law 3 ("anything a case finds is fixed").
+      if (await refused(res, "otp_send_ip", ipOf(req))) return;
+      if (await refused(res, "otp_send_dest", email)) return;
       return passthrough(res, await authFetch("otp", { email, create_user: true }));
     }
     if (op === "verify_otp") {
       const email = String(b.email || "").trim().toLowerCase();
+      // WS-R51: `verify_sms` below carries `otp_verify_ip`/`otp_verify_dest`
+      // (WS-R32); `verify_otp` carried NEITHER - the generic per-IP `account`
+      // scope at the top of this handler (20/window, every op on this door)
+      // was the only thing standing between a guessed email OTP and a
+      // successful verify. Wired here, `verify_sms`'s own two-scope shape.
+      if (!email) return res.status(400).json({ error: "valid email required" });
+      if (await refused(res, "otp_verify_ip", ipOf(req))) return;
+      if (await refused(res, "otp_verify_dest", email)) return;
       return passthrough(res, await authFetch("verify", { type: "email", email, token: String(b.token || "") }));
     }
     if (op === "send_sms") {
