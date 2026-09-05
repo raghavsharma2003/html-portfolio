@@ -18928,3 +18928,79 @@ measuring under 800ms would confirm either fix; absent either, the honest
 move is to raise `HINDI_CHUNK_WAIT_BUDGET_MS` from a fresh measurement
 (not copied from this one) the same way the sibling budget was raised, and
 record the new number's own reversal condition in the same commit.
+
+## `ws-r120-readiness-js-joins-the-door-battery` (2026-09-05, WS-R120)
+
+**Decision.** `api/readiness.js` joins `EXPECTED_DOORS` in
+`evals/room-doors/run.mjs` — `DOOR_MODULES` (§0) now names its own two
+decision modules, `_readiness.js` and `_recall-run.js`, so the door is found
+by the SAME direct-substring check that has always run, superseding
+`context/decisions.md#ws-r72-review-queue-js-kept-outside-the-door-battery`'s
+own extension to `readiness.js` (WS-R101). `OP_COVERAGE["readiness.js"]` now
+carries `measure_now: {classes: ["e"]}`, pointing at the case WS-R101 itself
+already wrote (`evals/room-doors/run.mjs`, the case right after org.js's
+`list_mine`) — that case never moved; only the coverage table now finds it.
+
+**Why now, when WS-R101 explicitly declined.** WS-R101's own reason was
+narrow and correct at the time: "adding it would make §18 enumerate
+`measure_now` alongside a GET-only read this file has no `op` literal for, a
+real structural change out of this workstream's own scope." This workstream's
+whole brief IS that structural change — making op coverage a computed
+property is the product, not a side effect — so the reason to decline no
+longer applies once a workstream exists whose job is exactly this.
+
+**The gap this closed, found only once the door became visible.** Admitting
+`readiness.js` to `EXPECTED_DOORS` also admits it to §20's existing body-size
+completeness loop, which iterates `EXPECTED_DOORS` uniformly — and
+`api/readiness.js` had never called the shared `bodyTooLarge` gate every
+other POST door in this list already calls. This is a real, previously
+invisible gap (an unbounded `req.body?.replica_id` on an owner-bearer
+endpoint), not a test artifact: "a door the battery cannot see is a door
+nobody attacks" (this workstream's own product paragraph) is not a metaphor.
+Closed with the one-line fix every sibling POST door with a small JSON body
+already uses (`api/ops.js`, `api/pulse.js`, `api/invites.js`) — same import,
+same call, same position (after auth, before the op is read) — logged here
+because it is production code, not a test file, and this workstream's brief
+named only test files; the fix is narrow, matches an established pattern
+exactly, and leaving §20 red once it could see the gap was not an option.
+
+**Reversal condition.** If `runRecallMeasurement`'s own body ever needs to
+carry something the 8 KB default door ceiling cannot admit (unlikely — it
+takes one `replica_id`), give it `ROOM_TRANSCRIPT_BODY_CAP_BYTES` instead of
+removing the check, `room.js`'s own precedent for the one op that needs a
+bigger body.
+
+## `ws-r120-two-hop-door-and-cron-derivation-excludes-hub-modules-from-the-second-hop` (2026-09-05, WS-R120)
+
+**Decision.** `evals/room-doors/run.mjs`'s §0 (main door list) and §24 (cron
+door list) both replace their DIRECT-substring `touchesDoorModule` check with
+a bounded TWO-HOP walk (`touchesDoorModuleTransitively`, mirroring
+`evals/room-leak/run.mjs`'s own unexported `importsOf` per this workstream's
+own law 1 fallback): a candidate's own direct `_`-file imports, and THOSE
+modules' own direct imports, checked against the same `DOOR_MODULES`/
+`CRON_ROOM_MODULES` anchor sets that have always existed — never an anchor
+set widened by the walk itself. The second hop's own anchor set EXCLUDES three
+modules that are valid FIRST-hop (direct) anchors but not second-hop ones:
+`_replica.js`, `_readiness.js`, `_recall-run.js` — see
+`context/rejected.md#ws-r120-unbounded-transitive-door-discovery-explodes-
+through-hub-modules` for the measurement that found why. This is what finds
+`operator-digest-sweep.js` as a NEW cron door (via `_ops.js`, itself an
+existing anchor, which directly imports `_pulse.js`/`_dormancy.js`/
+`_payments.js`) without anyone naming it by hand — `EXPECTED_CRON_DOORS` grows
+from 8 to 9 doors on this one finding alone.
+
+**Why `readiness.js` itself needed NO second hop.** `_readiness.js`/
+`_recall-run.js` are now literal `DOOR_MODULES` entries
+(`#ws-r120-readiness-js-joins-the-door-battery`), so `readiness.js` is found
+by a plain DIRECT match — the two-hop mechanism is what generalises PAST that
+one hand-named case, not what found it.
+
+**Reversal condition.** If a future door hides behind a decision module that
+is itself two-plus-one hops from an anchor (three hops or more), this
+mechanism will not find it either — widen to N hops only after measuring
+whether the SAME hub-explosion this entry's own rejected.md sibling found
+reappears at that depth, never by assumption. If `_replica.js`,
+`_readiness.js`, or `_recall-run.js` is ever refactored so it is no longer a
+genuine multi-product hub (e.g. Meera's own companion features stop using
+`_readiness.js`), re-measure before re-admitting it to the second hop — do
+not assume the exclusion is permanent past the fact that motivated it.

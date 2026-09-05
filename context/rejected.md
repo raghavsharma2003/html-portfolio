@@ -13187,3 +13187,70 @@ family of budget -- raise it FROM A MEASUREMENT, name the reversal
 condition, never copy a number). Flagged for the main loop rather than
 silently worked around; see `context/decisions.md#ws-r106-hindi-chunk-
 wait-miss-flagged-not-fixed` for the reversal condition.
+
+## `ws-r120-unbounded-transitive-door-discovery-explodes-through-hub-modules` (2026-09-05, WS-R120)
+
+**What was tried.** This workstream's own brief asked for `DOOR_MODULES`/
+`CRON_ROOM_MODULES`'s closed lists to become a DERIVATION rather than a hand-
+maintained set, so an unbounded transitive import walk (mirroring
+`evals/room-leak/run.mjs`'s own `importsOf`, BFS with no depth limit) was
+tried first, over the FULL existing `DOOR_MODULES` anchor set, as the most
+literal reading of "the derivation must find every name they held plus the
+ones they missed."
+
+**What broke, measured directly (not assumed).** Run against every candidate
+in `api/` that reads a body, the unbounded walk admitted 28 files with no
+business being in a Room door battery: `channel-watch.js`, `clone-channel.js`,
+`mirror-call.js`, `replica-calibration.js`, `replica-candidate-eval.js`,
+`replica-claims.js`, `replica-consent.js`, `replica-feedback.js`,
+`replica-feedback-dataset.js`, `replica-identity.js`, `replica-liveness.js`,
+`replica-person-model.js`, `replica-provider-consent.js`, `replica-review.js`,
+`replica-runtime.js`, `replica-source.js`, `replica-voice.js`,
+`replica-voice-delivery-policy.js`, `replica-voice-identity.js`,
+`replica-voice-preference.js`, `replica-voice-preview.js`,
+`replica-voice-trial.js`, `review-queue.js`, `tg.js`, `video-enroll.js`,
+`voice-preview.js`, `whatsapp.js` — every one of them reachable ONLY because
+`_replica.js` is a platform-wide hub every Replica Lab / Meera-only surface
+imports for nothing more than `replicaId()`, one hop or more from EVERY door
+in the platform. Separately, `computedOps`'s own extraction, widened the same
+unbounded way to scan a door's full transitive closure for `op === "..."`
+literals (not just membership), found the SAME defect one layer down: EVERY
+one of the 17 pre-existing doors picked up the identical eleven spurious
+"extra ops" (`activity`, `call_end`, `describe`, `forget`, `log`, `recall`,
+`remember`, `seed_currency`, `upload_photo`, `watch_moment`,
+`watch_visual` — Meera's own companion op vocabulary, reached through a
+shared utility file every door's graph eventually touches), which would have
+required either a blanket exclusion defeating the whole mechanism or 17 x 11
+new coverage entries for ops this door battery has never owned and cannot
+meaningfully attack.
+
+**The trap inside the trap.** Removing `_replica.js` from the anchor set
+entirely (the obvious fix for the explosion) also removed the ONE door this
+workstream actually needed: `api/readiness.js` reaches `_replica.js` through
+`_readiness.js`/`_recall-run.js` and NOTHING else on the anchor list, so
+excluding the hub silently re-introduced WS-R101's exact original gap while
+looking, on a green run, like the derivation had worked. A second measurement
+(bounding the walk to exactly two hops instead of unbounded) found the SAME
+shape one size down: `_readiness.js` itself is ALSO a hub — `api/_clonechannel.js`
+(Meera's own companion memory feature, reached from `clone-channel.js`/
+`tg.js`/`whatsapp.js`, none of them Room doors) imports it directly for an
+unrelated readiness score, so admitting `_readiness.js` at the second hop
+pulled those three back in.
+
+**What closed it.** `_replica.js`, `_readiness.js`, and `_recall-run.js` stay
+valid FIRST-hop (direct) anchors — `readiness.js` is found that way, needing
+no second hop — and are excluded ONLY from second-hop eligibility; every
+OTHER anchor (`_ops.js` included) stays eligible at both hops, which is what
+still finds `operator-digest-sweep.js` as a genuinely new cron door with no
+explosion. See `context/decisions.md#ws-r120-two-hop-door-and-cron-
+derivation-excludes-hub-modules-from-the-second-hop`.
+
+**Generalises to.** Topology (who imports whom) cannot substitute for
+knowing WHAT a module is FOR. A module used by more than one product line in
+this repo (`_replica.js` is the clearest example; `_readiness.js` turned out
+to be a second, smaller one) is a hub, and a graph-closure discovery
+mechanism anchored on it will over-admit at whatever depth it is allowed to
+reach that hub — the fix is never "go one hop less" as a blanket rule (that
+loses genuine finds, as it did here), it is measuring, per anchor, whether
+that SPECIFIC anchor is safe to reach indirectly, and naming the ones that
+are not.

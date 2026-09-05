@@ -9904,6 +9904,36 @@
       "kind": "measurement",
       "title": "Migrations 127 (the recall run) and 128 (the WhatsApp pointer) applied live at their merges, five statements one per request; fifteen new statements planned, all on indexes except the backfill sweep's ledger scan and two one-row-estimate scans, each accepted by name.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r120-readiness-js-joins-the-door-battery",
+      "kind": "decision",
+      "title": "readiness.js joins EXPECTED_DOORS (DOOR_MODULES now names its own _readiness.js/_recall-run.js), superseding WS-R101's own exclusion for this one door; the body-size gap this admitted (no bodyTooLarge call) fixed in the same session.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r120-two-hop-door-and-cron-derivation-excludes-hub-modules-from-the-second-hop",
+      "kind": "decision",
+      "title": "room-doors door and cron door discovery becomes a bounded two-hop import walk over the same anchor sets, with _replica.js/_readiness.js/_recall-run.js excluded from second-hop eligibility only (still valid direct anchors) after the unbounded walk exploded through them.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r120-unbounded-transitive-door-discovery-explodes-through-hub-modules",
+      "kind": "rejection",
+      "title": "An unbounded transitive import walk over DOOR_MODULES admitted 28 unrelated doors and 11 spurious ops through the _replica.js hub; excluding the hub entirely silently lost readiness.js, the one door needed, and _readiness.js turned out to be a second, smaller hub.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r120-door-battery-before-after-2026-09-05",
+      "kind": "measurement",
+      "title": "room-doors/run.mjs before/after: 17->18 doors, 8->9 cron doors, 117->118 ops, 0->2 op:format pairs, 0->3 WhatsApp-chat kinds, 746->779 checks (0 failed both), measured via a real untouched-tree run at 6fe96da in a temporary detached worktree.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r120-full-release-gate-before-after-2026-09-05",
+      "kind": "measurement",
+      "title": "verify-release.mjs on the WS-R120 tree: 21/21 passed on the third full run (background + poll); two earlier attempts failed only layout readability / accessibility on EADDRINUSE, confirmed environmental (sibling worktree port contention).",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19286,6 +19316,21 @@
       "src": "rooms-migrations-127-128-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r103-backfill-sweep-closes-the-named-gap"
+    },
+    {
+      "src": "ws-r120-two-hop-door-and-cron-derivation-excludes-hub-modules-from-the-second-hop",
+      "rel": "caused_by",
+      "dst": "ws-r120-unbounded-transitive-door-discovery-explodes-through-hub-modules"
+    },
+    {
+      "src": "ws-r120-readiness-js-joins-the-door-battery",
+      "rel": "measured_by",
+      "dst": "ws-r120-door-battery-before-after-2026-09-05"
+    },
+    {
+      "src": "ws-r120-two-hop-door-and-cron-derivation-excludes-hub-modules-from-the-second-hop",
+      "rel": "measured_by",
+      "dst": "ws-r120-door-battery-before-after-2026-09-05"
     }
   ]
 }
