@@ -286,6 +286,36 @@ async function whatsappSpendThisMonth(db, now) {
   };
 }
 
+/**
+ * WS-R103 (no migration). "A count on the ops board" (this workstream's own
+ * law 2), platform-wide - `whatsappSpendThisMonth`'s own no-floor shape one
+ * section up (a total of RECEIPTS issued, never a follower or a Room, so
+ * there is nothing here a small bucket could identify). Rolling 7-day SUM
+ * over the `receipt` sweep's own `vy_sweep_run` history, `dormancyThisWeek`'s
+ * own precedent (api/_dormancy.js): the sweep's own summary is the real
+ * weekly count, no new table required. Every receipt this line counts was,
+ * by construction, issued LATE - `backfillReceipts`'s own header: the
+ * webhook itself issues a receipt inline, in the same request, and never
+ * through this sweep at all; a row only reaches `backfillReceipts` because
+ * the inline issue never landed.
+ *
+ * Exported (WS-R103) - `dormancyThisWeek`'s own precedent (api/_dormancy.js,
+ * imported and driven directly by `evals/room-dormancy/run.mjs`): this
+ * board's own weekly-sum shape gets its own direct suite,
+ * `evals/receipt-sweep/run.mjs`, rather than being reachable only through
+ * `opsOverview`'s much larger fixture.
+ */
+export async function receiptsIssuedLateThisWeek(db, now) {
+  const since = new Date(now - 7 * 86_400_000).toISOString();
+  const [row] = await db(
+    `select coalesce(sum((counts->>'issued')::int), 0)::int as issued
+       from vy_sweep_run
+      where sweep = 'receipt' and started_at >= ($1)::timestamptz`,
+    [since],
+  );
+  return { issued: Number(row?.issued || 0) };
+}
+
 /** The latest `vy_sweep_run` row per sweep, joined against `vercel.json`'s
  *  own schedule table (read at build time by `_sweep-schedule.js`, not
  *  guessed). A sweep named in `vercel.json` with no row at all reports
@@ -628,8 +658,9 @@ export async function opsOverview(db, now = Date.now(), deps = {}) {
     },
     // WS-R42. "The money reconciles" - a count of periods, never a Room or a
     // rupee figure, `whatsappSpendThisMonth`'s own aggregate-only shape one
-    // section up.
-    reconciliation: await reconciliationOverview(db, now),
+    // section up. WS-R103 (no migration) adds `charges_without_receipt` to
+    // this same object, threaded through via `deps` rather than a second call.
+    reconciliation: await reconciliationOverview(db, now, deps),
     // WS-R58 (migration 109). "Make failure a row" - last 7 days by kind and
     // door, `none` an honest empty state, red only for a kind new since the
     // 7 days before that.
@@ -666,5 +697,9 @@ export async function opsOverview(db, now = Date.now(), deps = {}) {
     // lumped into one line - `share_arrivals_this_week`'s own shape, one
     // count per channel, each floored at n>=5 the same way.
     share_kit_arrivals_this_week: await shareKitArrivalsThisWeek(db, now, deps),
+    // WS-R103 (no migration). The receipt backfill sweep's own weekly count -
+    // "receipts issued late this week" (this workstream's own law 2), never
+    // cached, `whatsappSpendThisMonth`'s own no-floor shape restated.
+    receipts_issued_late_this_week: await receiptsIssuedLateThisWeek(db, now),
   };
 }

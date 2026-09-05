@@ -12441,3 +12441,39 @@ carries that assumption along invisibly. Any future control built as a real
 `display` before a `min-height`/`min-width` rule can do anything at all —
 checked here by the layout gate's own real-browser measurement, not by
 reading the CSS and assuming it applies.
+
+## `ws-r103-first-backfill-receipts-run-silently-scanned-zero` (2026-09-05, WS-R103)
+
+**Tried.** First draft of `evals/receipt-sweep/run.mjs` called
+`backfillReceipts(db, {})` with no `tableApplied` override, `evals/room-
+receipt/run.mjs`'s own §4 `receiptCounterDb` fixture pattern copied without
+also copying that suite's `deps()` helper (`tableApplied: async () =>
+true`, ...) that every OTHER call in that file threads through.
+
+**What broke.** `backfillReceipts`'s own table gate defaults to the REAL
+`tableApplied` (api/memory.js), which runs `select to_regclass($1) is not
+null as present` against the REAL database seam (`./_db.js`'s `q`) when not
+injected. With no `NEON_URL` in this environment that query throws, is
+caught (`.catch(() => [])`), and resolves to `present: false` - so the
+function's own gate (`if (!applied) return {scanned:0, issued:0,
+receipt_ids:[]}`) fired on EVERY call, and the fake `db` above it was never
+even reached. The suite's own assertions still failed loudly (`scanned ===
+2` got `0`) rather than passing silently, so this was caught immediately,
+not a hidden gap - but the failure mode (an all-zero summary that looks
+exactly like "nothing to sweep" rather than "the gate never opened") is the
+same shape `evals/room-receipt/run.mjs`'s own `deps()` helper already exists
+to avoid, one file over.
+
+**The fix.** Added the identical `deps = (extra = {}) => ({tableApplied:
+async () => true, ...extra})` helper and threaded it through every call
+meaning to exercise the real SELECT (`evals/payments-reconcile/run.mjs`'s
+new §7 needed the same fix for `reconcilePeriod`'s own new gate).
+
+**Rule for the next agent testing any function gated on `tableApplied`
+without a fake `db` wired all the way through `api/memory.js`:** the
+module-level default silently reads the real (usually absent) database and
+resolves `false`, never throws past its own `.catch` - an offline suite
+that forgets to inject it gets a plausible ALL-ZERO result rather than a
+crash. Copy the calling convention (`deps.tableApplied` threaded through
+every call), not just the fixture's own `db` shape, when reusing a sibling
+suite's fixture pattern.

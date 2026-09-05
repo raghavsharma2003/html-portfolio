@@ -1243,6 +1243,92 @@ export async function issueFollowerReceipt(db, { eventId, roomId, personId, issu
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// THE RECEIPT BACKFILL SWEEP (WS-R103, no migration) - `issueFollowerReceipt`'s
+// own header names the gap in as many words: "a process that crashes between
+// [the ledger write and the receipt insert] leaves a ledger row with no
+// receipt for that one webhook delivery... nothing here retries it
+// automatically." This is that retry, run on a schedule
+// (`api/receipt-sweep.js`), through the SAME `issueFollowerReceipt` - the
+// counter's own atomic claim and `vy_receipt`'s own unique index stay the
+// ONLY arbiters of "already receipted," never a second read-then-write path
+// invented here that could disagree with the first about it.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** One cron run's own bound - a database that has accumulated an unusually
+ *  large gap (a long outage, a Key Vault misconfiguration that made every
+ *  webhook's receipt insert fail for days) still finishes in bounded time;
+ *  the next day's run picks up wherever this one left off, `not exists`'s
+ *  own idempotency doing the carrying. */
+export const RECEIPT_SWEEP_DEFAULT_LIMIT = 500;
+
+/**
+ * ONE SELECT of landed FOLLOWER-lane charges with no `vy_receipt` row, oldest
+ * first, then `issueFollowerReceipt` per row - this workstream's own law 1.
+ *
+ * `CREATOR_CHARGE_KINDS` (despite its name - `applyWebhook`'s own follower
+ * lane already reuses this identical set for its own `isLandedCharge` test,
+ * see that branch's own comment) names the two webhook kinds that represent
+ * a REAL landed charge, never a pause, a cancellation, or a retry-ladder
+ * event; `amount_inr > 0` excludes a same-kind event that somehow carried no
+ * money; `room_id is not null` is exactly the predicate `reconcilePeriod`'s
+ * own `followerRows` query already uses to mean "the follower lane, never
+ * the org lane" - an org-lane row (`vy_org_subscription`'s own webhook
+ * events, written into this SAME `vy_payment_event` table with `org_id` set
+ * and `room_id` left null) is invisible to this query by construction, never
+ * by an extra check. Together these three predicates are the reason a
+ * refund-shaped or org-lane row can never be receipted here even if it
+ * somehow carried a positive amount - `evals/receipt-sweep/run.mjs`'s own
+ * negative control proves it by running a version of this same select with
+ * the kind filter removed against the identical fixture rows and showing
+ * THAT version would have swept the non-charge row.
+ *
+ * `person_id` is read off the CHARGE's own subscription (`vy_room_subscription
+ * .person_id`, `LEFT JOIN` so a subscription somehow already gone never turns
+ * a real charge into a skipped one - it is inserted as `null`, `vy_receipt
+ * .person_id`'s own nullable column, `applyWebhook`'s webhook-time write can
+ * do no better either).
+ *
+ * `issuedAt` is the CHARGE's own `received_at` - LAW 1's own words, "the
+ * date on the receipt is the payment's," never `Date.now()` (this function
+ * never reads a clock at all).
+ *
+ * Gated on `vy_receipt` actually being applied (`applyWebhook`'s own gate,
+ * `tableApplied`, one section up) so a database that has not run migration
+ * 126 returns a harmless all-zero summary rather than a query against a
+ * table that does not exist.
+ */
+export async function backfillReceipts(db, deps = {}) {
+  if (typeof db !== "function") throw new Error("receipt_sweep_database_required");
+  const limit = Number.isInteger(deps.limit) && deps.limit > 0 ? deps.limit : RECEIPT_SWEEP_DEFAULT_LIMIT;
+  if (!(await (deps.tableApplied ?? tableApplied)("vy_receipt"))) {
+    return { scanned: 0, issued: 0, receipt_ids: [] };
+  }
+  const rows = await db(
+    `select e.event_id, e.room_id, e.received_at, s.person_id
+       from vy_payment_event e
+       left join vy_room_subscription s on s.subscription_id = e.subscription_id
+      where e.room_id is not null
+        and e.kind = any(($1)::text[])
+        and e.amount_inr > 0
+        and not exists (select 1 from vy_receipt r where r.payment_event_id = e.event_id)
+      order by e.received_at asc
+      limit ($2)::int`,
+    [[...CREATOR_CHARGE_KINDS], limit],
+  );
+  const receiptIds = [];
+  for (const row of rows) {
+    const receipt = await (deps.issueFollowerReceipt ?? issueFollowerReceipt)(db, {
+      eventId: row.event_id,
+      roomId: row.room_id,
+      personId: row.person_id,
+      issuedAt: row.received_at,
+    });
+    if (receipt) receiptIds.push(receipt.receipt_id);
+  }
+  return { scanned: rows.length, issued: receiptIds.length, receipt_ids: receiptIds };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // THE MONEY STRIP - the owner's real counts, never invented
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -1601,8 +1687,19 @@ export function reconcile(ledgerRows, payoutRows, suiteRows, period, { suiteShar
  * per its own reversal condition; the price itself is still read at the
  * org's CURRENT rate (no price history exists - unchanged limitation, see
  * this file's own SUITE section header above `reconcileSuiteLane`).
+ *
+ * WS-R103 (no migration): gains `charges_without_receipt` - the SAME landed-
+ * follower-charge predicate `backfillReceipts` sweeps
+ * (`CREATOR_CHARGE_KINDS`, `amount_inr > 0`, `room_id is not null`), counted
+ * for THIS period rather than swept, with no `vy_receipt` row. This is the
+ * proof the sweep is doing its job: a period reconciled right after a charge
+ * lands (before the daily sweep has run) may show a small nonzero number for
+ * a few hours, and a period reconciled any time after the sweep has caught
+ * up must show zero - `evals/payments-reconcile/run.mjs`'s own new section
+ * drives this exact before/after against a fake db. Gated on `vy_receipt`
+ * being applied, `backfillReceipts`'s own gate restated.
  */
-export async function reconcilePeriod(db, { periodStart, periodEnd }) {
+export async function reconcilePeriod(db, { periodStart, periodEnd }, deps = {}) {
   const start = new Date(periodStart);
   const end = new Date(periodEnd);
   if (!(start instanceof Date) || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !(end > start)) {
@@ -1655,7 +1752,22 @@ export async function reconcilePeriod(db, { periodStart, periodEnd }) {
       amount_inr: Number(r.amount_inr), received_at: r.received_at,
     })),
   ];
-  return reconcile(ledgerRows, payoutRows, suiteRows, { start: start.toISOString(), end: end.toISOString() });
+  let chargesWithoutReceipt = 0;
+  if (await (deps.tableApplied ?? tableApplied)("vy_receipt")) {
+    const receiptRows = await db(
+      `select count(*)::int as n
+         from vy_payment_event e
+        where e.room_id is not null
+          and e.kind = any(($1)::text[])
+          and e.amount_inr > 0
+          and e.received_at >= ($2)::timestamptz and e.received_at < ($3)::timestamptz
+          and not exists (select 1 from vy_receipt r where r.payment_event_id = e.event_id)`,
+      [[...CREATOR_CHARGE_KINDS], start.toISOString(), end.toISOString()],
+    );
+    chargesWithoutReceipt = Number(receiptRows[0]?.n || 0);
+  }
+  const result = reconcile(ledgerRows, payoutRows, suiteRows, { start: start.toISOString(), end: end.toISOString() });
+  return { ...result, charges_without_receipt: chargesWithoutReceipt };
 }
 
 /** The ops board's own line (WS-R42): "the count of periods with findings" -
@@ -1663,18 +1775,30 @@ export async function reconcilePeriod(db, { periodStart, periodEnd }) {
  *  fresh, never cached. `whatsappSpendThisMonth`'s own aggregate-only shape
  *  (api/_ops.js): a count, never a list of which owner or which Room. Capped
  *  at 24 periods (two years of monthly payouts) so this stays a sub-second
- *  board read rather than an unbounded scan as the product ages. */
-export async function reconciliationOverview(db, now = Date.now()) {
+ *  board read rather than an unbounded scan as the product ages.
+ *
+ *  WS-R103 (no migration): `charges_without_receipt` sums `reconcilePeriod`'s
+ *  own new per-period count across every period checked - "zero after a
+ *  sweep is the proof" (this workstream's own law 3), read here rather than
+ *  re-derived. */
+export async function reconciliationOverview(db, now = Date.now(), deps = {}) {
   const periodRows = await db(
     `select distinct period_start, period_end from vy_creator_payout order by period_start desc limit 24`,
     [],
   );
   let periodsWithFindings = 0;
+  let chargesWithoutReceipt = 0;
   for (const p of periodRows) {
-    const result = await reconcilePeriod(db, { periodStart: p.period_start, periodEnd: p.period_end });
+    const result = await reconcilePeriod(db, { periodStart: p.period_start, periodEnd: p.period_end }, deps);
     if (!result.ok) periodsWithFindings += 1;
+    chargesWithoutReceipt += Number(result.charges_without_receipt || 0);
   }
-  return { periods_checked: periodRows.length, periods_with_findings: periodsWithFindings, generated_at: new Date(now).toISOString() };
+  return {
+    periods_checked: periodRows.length,
+    periods_with_findings: periodsWithFindings,
+    charges_without_receipt: chargesWithoutReceipt,
+    generated_at: new Date(now).toISOString(),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

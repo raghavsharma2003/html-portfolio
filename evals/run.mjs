@@ -2488,6 +2488,26 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-about": "room-about/run.mjs",
+  // WS-R103 (no migration). The receipt backfill sweep: `backfillReceipts`
+  // (api/_payments.js) finds every landed follower-lane charge
+  // (`CREATOR_CHARGE_KINDS`, amount > 0, room_id not null) with no
+  // `vy_receipt` row and issues one through the SAME `issueFollowerReceipt`
+  // WS-R100's own webhook path uses, carrying the CHARGE's own `received_at`
+  // as `issued_at`, never the sweep's clock. Also drives
+  // `receiptsIssuedLateThisWeek` (api/_ops.js), the ops board's own rolling
+  // 7-day read of the daily `receipt` cron's own `vy_sweep_run` history.
+  // TWO REQUIRED NEGATIVE CONTROLS: a version of the same select with the
+  // KIND filter removed would sweep a non-charge event with a positive
+  // amount, and a version with the ROOM_ID filter removed would sweep an
+  // org-lane charge - both proven against the identical fixture rows the
+  // real, filtered select leaves untouched. Also proves the table gate (an
+  // unapplied `vy_receipt` costs one boolean check, never a query), the
+  // caller-supplied `limit` bounding one run's own work, oldest-first
+  // ordering, and idempotency (a second run over the same rows issues
+  // nothing new).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "receipt-sweep": "receipt-sweep/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

@@ -17821,3 +17821,78 @@ main chunk, not after it (wave sixteen, WS-R107). When it lands and three
 consecutive gate runs measure under 700 ms, the budget returns to 800; if
 the preload lands and the paint does not move, the parse and commit are
 the cost and the studio's signed-out shell needs its own smaller entry.
+
+## `ws-r103-backfill-sweep-closes-the-named-gap` (2026-09-05, WS-R103, no migration)
+
+**Decision.** `backfillReceipts` (api/_payments.js) is the retry
+`ws-r100-receipt-issued-alongside-not-inside-the-ledger-write` named on
+paper but did not build: a daily cron (`api/receipt-sweep.js`) selects every
+landed follower-lane charge (`CREATOR_CHARGE_KINDS`, `amount_inr > 0`,
+`room_id is not null`) with no `vy_receipt` row and issues one through the
+SAME `issueFollowerReceipt` the webhook itself calls - never a second
+read-then-write path that could disagree with the first about what "already
+receipted" means. A receipt issued by the backfill carries the CHARGE's own
+`received_at` as `issued_at`, never the sweep's clock.
+
+**Rationale.** `vy_receipt`'s own `unique (payment_event_id)` and
+`issueFollowerReceipt`'s `not exists` guard are already the only two
+arbiters of idempotency this table has; a second minting path (a bespoke
+INSERT inside the sweep) would either duplicate that logic and risk it
+drifting from the webhook's own copy, or race the webhook itself for the
+SAME payment event with no shared lock between them. Reusing the identical
+function closes both risks by construction rather than by care.
+
+**Reverses if.** A production incident is ever traced to the sweep itself
+(the backfill claims a wrong number, or claims one out of order relative to
+a webhook-time claim racing it) - at which point the two writers may need a
+shared advisory lock rather than relying on the unique index alone to
+arbitrate a genuine race between them, which this decision assumes is rare
+enough (a webhook a cron happens to also be sweeping) not to need one yet.
+
+## `ws-r103-kept-in-payments-js-not-a-new-file` (2026-09-05, WS-R103)
+
+**Decision.** `backfillReceipts` and `reconcilePeriod`'s new
+`charges_without_receipt` count live in `api/_payments.js`, not a new
+`api/_receipt-sweep.js`, despite that file already being roughly 2,200
+lines before this workstream.
+
+**Rationale.** Both functions read `vy_receipt` directly (a `not exists`
+subquery), and `api/_payments.js` is already the sole `owners` entry for
+that table alongside `_room-surface.js`/`memory.js`/`_replica-full-
+erasure.js` in `evals/room-leak/world.mjs`'s `TABLE_ROLES` map. A brand new
+file touching that table would need a new entry added to that hand-
+maintained map before the leak battery's own SAME_LINE bar would even let
+it run - a wider, shared-file edit for a two-function addition that already
+has a home. Keeping the sweep beside `issueFollowerReceipt` also makes "the
+SAME function" (this workstream's law 1) a same-file call rather than a
+cross-file import, one fewer place for the two to drift apart.
+
+**Reverses if.** `api/_payments.js` grows enough further that its own size
+becomes the more pressing cost - at which point splitting it (this sweep
+included) would need a matching `TABLE_ROLES` edit for whatever new file
+inherits the `vy_receipt` reads, done deliberately rather than as a side
+effect of an unrelated change.
+
+## `ws-r103-receipts-issued-late-read-from-sweep-run-not-a-new-column` (2026-09-05, WS-R103, no migration)
+
+**Decision.** "Receipts issued late this week" (the ops board's own line,
+`receiptsIssuedLateThisWeek`, api/_ops.js) is a rolling 7-day SUM over the
+`receipt` cron's own `vy_sweep_run` history (`counts->>'issued'`), never a
+new column or ledger distinguishing an inline receipt from a backfilled
+one.
+
+**Rationale.** Every receipt this line counts was, by construction, issued
+late: the webhook's own inline `issueFollowerReceipt` call happens in the
+same request as the ledger write, and `backfillReceipts` only ever reaches
+a payment event because that inline call never landed. `dormancyThisWeek`
+(api/_dormancy.js, WS-R75) already established this exact pattern for a
+different weekly count - "the sweep's own summary is the real weekly
+count, no new table required" - and this line needed no anonymity floor to
+go with it (a platform-wide total, never a follower or a Room,
+`whatsappSpendThisMonth`'s own no-floor precedent one file over).
+
+**Reverses if.** A future workstream needs to distinguish WHICH follower's
+receipt was late (this line only ever answers "how many," never "whose") -
+at which point `vy_receipt` itself would need an `issued_by` column
+('webhook' | 'sweep') rather than reading the answer back out of a sweep's
+own summary row.

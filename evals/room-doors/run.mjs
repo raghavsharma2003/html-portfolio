@@ -2888,10 +2888,15 @@ console.log("\n── §24: cron doors — the secret, never in a query or a bod
 const CRON_ROOM_MODULES = [
   "./_checkins.js", "./_pulse.js", "./_dormancy.js", "./_drift-watch.js",
   "./_self-check.js", "./_creator-push.js", "./_replica-full-erasure.js",
+  // WS-R103 (no migration): the receipt backfill sweep imports _payments.js,
+  // the Room's own money module - Room-scoped exactly like every other
+  // module on this list, so its cron door belongs in the attacked set below,
+  // never in the excluded (Meera/Replica-Lab) bucket.
+  "./_payments.js",
 ];
 const EXPECTED_CRON_DOORS = [
   "checkins-sweep.js", "creator-push-sweep.js", "drift-watch-sweep.js",
-  "pulse-sweep.js", "renewals-sweep.js", "replica-erasure-sweep.js", "self-check.js",
+  "pulse-sweep.js", "receipt-sweep.js", "renewals-sweep.js", "replica-erasure-sweep.js", "self-check.js",
 ].sort();
 
 function discoverCronDoors() {

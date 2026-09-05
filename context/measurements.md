@@ -12407,3 +12407,47 @@ median sits near the budget even without it. The mechanism is structural:
 the Hindi table is a dynamic import issued only after the main chunk has
 parsed and run (`main.tsx`'s early `loadStudioCopy("hi")` is still
 downstream of that parse), then React commits it.
+
+## `ws-r103-receipt-sweep-suite-pass-counts-2026-09-05` — every offline battery this workstream touched or added, measured individually
+
+n = 1 run each, method: `node evals/<suite>/run.mjs` invoked directly (not
+through `evals/run.mjs`, to isolate each suite's own pass/fail count),
+2026-09-05, this worktree, no `NEON_URL`. `evals/receipt-sweep/run.mjs`
+(new): 23 passed, 0 failed. `evals/payments-reconcile/run.mjs` (extended,
+new §7 appended): 42 passed, 0 failed - 4 of those are this workstream's
+own, the other 38 are byte-identical to WS-R42/WS-R54's own pre-existing
+assertions, unchanged. `evals/room-receipt/run.mjs` (untouched by this
+workstream, re-run to confirm `issueFollowerReceipt`'s own shape was not
+disturbed by `backfillReceipts` calling it): 52 passed, 0 failed, unchanged
+from WS-R100's own count. `evals/ops/run.mjs` (untouched fixture -
+`opsOverview`'s new `receipts_issued_late_this_week` field and
+`reconciliation`'s new `charges_without_receipt` field are both exercised
+only inside `reconcilePeriod`'s per-period loop, which stays empty in this
+suite's own fixture with no `vy_creator_payout` rows, so neither new field
+changes this suite's own count): 143 passed, 0 failed, unchanged.
+`evals/probe-live/run.mjs` (untouched - the new `/api/receipt-sweep` cron
+door is picked up automatically by `cronPaths(vercel.json)` and
+`cronAuthExpectation`'s own static parse of `api/receipt-sweep.js`'s
+`authorized(req)` failure line, no suite edit needed): 0 findings across
+every check, unchanged shape, one more cron door covered than before.
+`evals/room-doors/run.mjs` (extended - `api/receipt-sweep.js` imports
+`./_payments.js`, so §24's `CRON_ROOM_MODULES` gained that module and
+`EXPECTED_CRON_DOORS` gained the file name, or the new door would have
+silently landed in the EXCLUDED (non-Room) bucket instead of being
+attacked): 724 passed, 0 failed (721 on this SAME commit's untouched tree,
+measured directly rather than trusted from an older report - the +3 is
+exactly the new `e-cron-secret/receipt-sweep.js` class). `node evals/run.mjs`
+(the full registry, all suites in one
+process): exit 0. `node node_modules/typescript/bin/tsc -b`: clean, 0 errors, across every
+`.ts`/`.tsx` file this workstream touched (`api/_payments.js`,
+`api/_ops.js`, `api/receipt-sweep.js`, `src/studio/opsApi.ts`,
+`src/studio/OpsBoard.tsx`). `scripts/check-copy.mjs`: 6 scopes clean, 21
+negative controls bite, unchanged.
+
+The full `verify-release.mjs` gate was run twice on this tree (before and
+after this workstream's changes were committed) under heavy concurrent
+sibling load on this shared machine (4-5 other worktrees' own
+`verify-release.mjs` runs in flight at the same time, holding ports
+8931-8935 in rotation) - see the final report for both runs' own summary
+lines and which findings reproduced on the UNTOUCHED tree (environmental,
+not this workstream's) versus which did not.
