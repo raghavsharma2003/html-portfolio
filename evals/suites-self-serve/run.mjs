@@ -610,5 +610,17 @@ console.log("\n── §7 (WS-R73): the UPI-fixes-your-seat-count disclosure is 
     /"org_seats_locked_by_mandate"/.test(paymentsSrc));
 }
 
+console.log("\n── §8 (WS-R117): the page links to /suites/about, both locales ──");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // The English boundary section's own new link, and its Hindi twin one
+  // locale block down - `evals/suites-about/run.mjs` proves the target page
+  // itself; this only proves the front door actually points at it.
+  ok('the English "boundary" section links to /suites/about',
+    /id="boundary-title">What a Suite admin sees[\s\S]{0,1200}?href="\/suites\/about"/.test(suitesHtml));
+  ok('the Hindi "boundary" section links to /suites/about?lang=hi',
+    /id="boundary-title-hi">Suite एडमिन क्या देखता है[\s\S]{0,1200}?href="\/suites\/about\?lang=hi"/.test(suitesHtml));
+}
+
 console.log(`\n${pass} ok, ${fail} failed`);
 process.exit(fail ? 1 : 0);

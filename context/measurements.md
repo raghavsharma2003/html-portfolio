@@ -13032,3 +13032,21 @@ exceeds 50 ms.
 Not run: `scripts/relcheck.mjs`'s owner-lane walk and the zero-orphan
 sweep (no `NEON_URL` in the build container). No `vy_recall_run` or
 `vy_room_follower_whatsapp_chat` row exists yet.
+
+## `ws-r117-suites-about-eval-2026-09-05`
+
+`evals/suites-about/run.mjs` (new): 36/36 passed, offline, deterministic,
+$0, method: drives the real `buildSuitesAboutHtml` (`api/_suites-about.js`)
+directly with no fake db (the page takes none), asserts purity, both
+locales' real imported constants (seat prices, `PULSE_MIN_FOLLOWERS`),
+hreflang/og:locale shape, `vercel.json` wiring, zero dash/rooms-vocabulary
+offences under `scripts/check-copy.mjs`'s real scanner (with a negative
+control), and a static-import allowlist scan. `evals/suites-self-serve/run.mjs`
+grew one section (§8, 2 checks: the front door links to `/suites/about` in
+both locales) — 70/70 passed. `evals/probe-live/run.mjs` grew one negative
+control (§2f, 2 checks: a dropped `hreflang="hi"` on `/suites/about` is
+caught) — all passed. Measured 2026-09-05, this workstream's own worktree,
+`node scripts/verify-release.mjs`: 21/21 checks passed (no `NEON_URL` in
+this container), full run time ~1080s on a shared, contended machine
+(`eval suite` alone: 588,671ms — see the rejected.md entry on why this
+run's timing is not comparable to an isolated one).

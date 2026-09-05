@@ -1008,6 +1008,47 @@ async function main() {
     await ctx.close();
   }
 
+  // ── the Suite admin's transparency page, WS-R117's own target: `/suites/
+  // about` (`api/_suites-about.js`) has no client app to navigate to either
+  // -- the room-about block's own reason above, restated. Unlike that page,
+  // this one carries no creator-authored free text at all (it is not
+  // slug-scoped, `api/_suites-about.js`'s own header), so there is no
+  // name-mismatch scenario to construct -- both locales are scanned
+  // directly instead, the only way to catch a Devanagari-specific defect on
+  // a page whose Hindi render is chosen entirely by its OWN copy table.
+  if (!targetFilter || targetFilter === "suites-about") {
+    const { buildSuitesAboutHtml } = await import(
+      pathToFileURL(join(ROOT, "api/_suites-about.js")).href
+    );
+    for (const lang of ["en", "hi"]) {
+      const html = buildSuitesAboutHtml({ origin: "https://vyakti.app", lang });
+      const where = `suites-about:${lang}`;
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+      const page = await ctx.newPage();
+      await page.setContent(html, { waitUntil: "domcontentloaded" });
+      await page.addScriptTag({ content: axeSource });
+      const result = await page.evaluate(
+        (tags) => window.axe.run(document, { runOnly: { type: "tag", values: tags } }),
+        AXE_TAGS,
+      );
+      pagesScanned++;
+      for (const v of result.violations) {
+        counts[v.impact] = (counts[v.impact] || 0) + 1;
+        axeFindings.push({
+          where, impact: v.impact, id: v.id, help: v.help,
+          nodesTotal: v.nodes.length,
+          nodes: v.nodes.map((n) => n.target.join(" ")),
+          detail: v.nodes.map((n) => n.failureSummary || "").filter(Boolean),
+        });
+      }
+      const langResult = await page.evaluate(langTagAudit);
+      devanagariNodesTotal += langResult.devanagariNodes;
+      taggedHiElementsTotal += langResult.taggedHiElements;
+      for (const f of langResult.findings) langFindings.push({ where, ...f });
+      await ctx.close();
+    }
+  }
+
   // ── the follower's READABLE export (WS-R108): `format:"html"` on the
   // session-scoped `export` op has no client app to navigate to either -
   // the creator-page/room-about blocks' own reason, restated a third time -

@@ -443,6 +443,10 @@ interface SuiteCopy {
   noticeWillNotRenewSimple: string;
   autoStartLiveStarted: string; // "\"{name}\" is live, and its seat subscription has started."
   autoStartLivePending: string; // "\"{name}\" is live. Start its subscription below when you are ready to charge seats."
+  // WS-R117: the link to /suites/about, the written promise on what an admin
+  // can and cannot see, from the Suite board itself, not only from the
+  // marketing page.
+  aboutLink: string;
 }
 
 // ── suiteSeatLock: SuiteCard.tsx / site/suites.html (WS-R73) ───────────────
@@ -2352,6 +2356,7 @@ const EN: StudioCopy = {
     noticeWillNotRenewSimple: "Will not renew after the current period ends.",
     autoStartLiveStarted: "\"{name}\" is live, and its seat subscription has started.",
     autoStartLivePending: "\"{name}\" is live. Start its subscription below when you are ready to charge seats.",
+    aboutLink: "What an admin can and cannot see",
   },
 
   roomStudio: {

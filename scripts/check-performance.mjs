@@ -222,6 +222,10 @@ const TARGETS = [
   // shorter no-policy render), so the budget is checked against the longer
   // of the two paths this page can render.
   { name: "/r/<slug>/about", path: "/r/anjali/about", label: "Follower transparency page (room-about-fixture.html data)" },
+  // WS-R117: the Suite admin's transparency page -- server-rendered HTML
+  // with zero client script, `/r/<slug>/about`'s own reason above restated
+  // a second time.
+  { name: "/suites/about", path: "/suites/about", label: "Suite admin transparency page (suites-about-fixture.html data)" },
 ];
 
 const MIME = {
@@ -246,6 +250,7 @@ async function resolveFile(pathname) {
   if (pathname === "/") return join(SITE, "index.html");
   if (pathname === "/vyakti") return join(SITE, "vyakti.html");
   if (pathname === "/studio") return join(DIST, "studio.html");
+  if (pathname === "/suites/about") return join(DIST, "suites-about-fixture.html");
   if (pathname.startsWith("/r/") && pathname.endsWith("/about")) return join(DIST, "room-about-fixture.html");
   if (pathname.startsWith("/r/")) return join(DIST, "room-layout-fixture.html");
   if (pathname.startsWith("/c/")) return join(DIST, "creator-page-fixture.html");
@@ -686,7 +691,13 @@ async function main() {
     console.log("  skip  performance budgets: dist/ absent, run `npx vite build` first");
     return 0;
   }
-  const requiredFixtures = ["room-layout-fixture.html", "studio.html", "creator-page-fixture.html", "room-about-fixture.html"];
+  // WS-R117: `/suites/about` needs no vite build step at all
+  // (`scripts/build-suites-about-fixture.mjs`'s own header) -- generated
+  // fresh here every run rather than folded into the `absent` check below,
+  // so it can never go stale against the shipping builder.
+  const { buildSuitesAboutFixture } = await import("./build-suites-about-fixture.mjs");
+  await buildSuitesAboutFixture();
+  const requiredFixtures = ["room-layout-fixture.html", "studio.html", "creator-page-fixture.html", "room-about-fixture.html", "suites-about-fixture.html"];
   const absent = requiredFixtures.filter((f) => !existsSync(join(DIST, f)));
   if (absent.length) {
     console.log(`FAIL  performance budgets: dist/${absent.join(", dist/")} missing — vite inputs, restore rather than skip.`);

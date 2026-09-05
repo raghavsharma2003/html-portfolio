@@ -26,6 +26,7 @@ import {
 import { makePng } from "./fakePng.mjs";
 import { buildCreatorPageHtml } from "../../api/_creator-page.js";
 import { buildRoomAboutHtml } from "../../api/_room-about.js";
+import { buildSuitesAboutHtml } from "../../api/_suites-about.js";
 
 const BOT_RE = /.*(facebookexternalhit|WhatsApp|Twitterbot|TelegramBot|Slackbot|LinkedInBot|Discordbot|Googlebot).*/;
 
@@ -82,6 +83,7 @@ function json(res, status, body, extraHeaders = {}) {
  *   dropCreatorHreflang: "hi"     -- strip one named hreflang <link> from /c/<slug>'s <head>
  *   corruptCreatorJsonLd: true    -- rename the Person JSON-LD block's @type so it fails schema validation
  *   dropAboutHreflang: "hi"       -- strip one named hreflang <link> from /r/<slug>/about's <head> (WS-R97)
+ *   dropSuitesAboutHreflang: "hi" -- strip one named hreflang <link> from /suites/about's <head> (WS-R117)
  */
 export function startFakeServer(port, defects = {}) {
   const config = loadVercelConfig();
@@ -235,6 +237,24 @@ export function startFakeServer(port, defects = {}) {
         // `/r/:slug/about` already carries a vercel.json headers[] rule
         // (WS-R97) -- `/c/:slug`'s own comment above, restated.
         applyHeaders(res, "/r/:slug/about");
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        return res.end(Buffer.from(html));
+      }
+
+      // ── WS-R117: /suites/about -- the REAL buildSuitesAboutHtml's own
+      // output. Not slug-scoped and reads no row (`api/_suites-about.js`'s
+      // own header), so unlike `/r/:slug/about` above this route needs no
+      // fixture row at all -- one match, `lang` from the query string.
+      if (pathname === "/suites/about") {
+        const lang = url.searchParams.get("lang") || "";
+        let html = buildSuitesAboutHtml({ origin: `http://127.0.0.1:${port}`, lang });
+        if (defects.dropSuitesAboutHreflang) {
+          const code = defects.dropSuitesAboutHreflang.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+          html = html.replace(new RegExp(`<link rel="alternate" hreflang="${code}"[^>]*/>\\s*`), "");
+        }
+        // `/suites/about` already carries a vercel.json headers[] rule
+        // (WS-R117) -- `/r/:slug/about`'s own comment above, restated.
+        applyHeaders(res, "/suites/about");
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         return res.end(Buffer.from(html));
       }
