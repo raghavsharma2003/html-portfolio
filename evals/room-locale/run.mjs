@@ -50,9 +50,11 @@ const ok = (name, cond, extra = "") => {
 
 const room = await import(pathToFileURL(join(REPO, "api/_room-surface.js")).href);
 const {
-  openRoom, joinRoom, roomSay, roomSetLocale, roomDisclosureCard,
+  openRoom, joinRoom, roomSay, roomSetLocale, roomSettings, roomDisclosureCard, roomNameFor,
   followerRow, normalizeLocale: normalizeLocaleServer, ROOM_LOCALES: SERVER_LOCALES,
 } = room;
+
+const { roomTaste } = await import(pathToFileURL(join(REPO, "api/_room-taste.js")).href);
 
 const telegram = await import(pathToFileURL(join(REPO, "api/_room-telegram.js")).href);
 const { classifyRoomTelegramUpdate } = telegram;
@@ -316,6 +318,86 @@ const personTables = async () => [];
   const sayBody = src.slice(sayStart, sayEnd);
   ok("roomSay's own source never mentions follower.locale at all",
     sayStart > -1 && sayEnd > sayStart && !/follower\.locale|f\.locale/.test(sayBody));
+}
+
+// ── 6. THE SWITCH SCENARIO (WS-R84): every server-authored string on the
+//      talk, account and taste screens is in the NEW locale after set_locale
+//      ────────────────────────────────────────────────────────────────────
+//
+// `evals/room-locale/run.mjs`'s own §3 already proved `roomSetLocale` WRITES
+// the follower row and mints a fresh session. This section proves the THREE
+// SCREENS that render a disclosure after a switch each see the new locale's
+// bytes, closing the class WS-R79 found and named but deliberately left open
+// (`context/decisions.md#ws-r79-tag-at-the-node-not-the-document`, "Fixing
+// the staleness itself is a separate, smaller workstream").
+{
+  const state = freshState();
+  const db = fakeDb(state);
+  const deps = () => ({
+    loadAgent, engine, reply: async () => "ok", personTables,
+    // `roomSettings`'s own `isTableAppliedFor` seam — without this it falls
+    // through to the REAL `tableApplied` (api/memory.js), which reaches for
+    // a live database this suite must never touch.
+    tableApplied: async () => false,
+  });
+
+  const joined = await joinRoom(
+    db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: false, locale: "en" }, deps(),
+  );
+  ok("setup: joined on the room's default locale (en)", joined.locale === "en");
+
+  // A real turn first, in English, so the talk screen has something to
+  // compare the post-switch state against.
+  const enTurn = await roomSay(db, { session: joined.session, message: "why does the block not slide?" }, deps());
+
+  // ── TALK: roomSetLocale's own response carries the fresh card ───────────
+  const switched = await roomSetLocale(db, { session: joined.session, locale: "hi" }, deps());
+  const name = roomNameFor((await room.resolveRoom(db, SLUG, deps())).sheet);
+  ok("talk: roomSetLocale returns the fresh Hindi card, not a digest alone",
+    switched.disclosure === roomDisclosureCard(name, "hi"));
+  ok("talk: the fresh card is genuinely different bytes from the room's English card",
+    switched.disclosure !== roomDisclosureCard(name, "en"));
+  // NEGATIVE CONTROL, law 4: a screen that kept showing what it already had
+  // before the switch (the English card the follower joined with) is now
+  // WRONG — proven by asserting the two are unequal, so a future regression
+  // that makes `roomSetLocale` forget to update the card (returning the OLD
+  // bytes, or nothing at all) fails this assertion rather than passing it
+  // vacuously.
+  const staleDisclosureAFollowerScreenMightStillHold = roomDisclosureCard(name, joined.locale);
+  ok("NEGATIVE CONTROL: a screen still holding its pre-switch disclosure fails to match the post-switch card",
+    staleDisclosureAFollowerScreenMightStillHold !== switched.disclosure);
+
+  // A turn on the NEW session must succeed (the digest the client would now
+  // hold — `switched.disclosure` — is exactly what `roomSay` re-derives from
+  // the new session's own `loc`, `ws-r24-session-carries-its-own-minted-
+  // locale`'s own contract).
+  const hiTurn = await roomSay(db, { session: switched.session, message: "why does the block not slide?" }, deps());
+  ok("talk: a turn on the fresh session succeeds (the card the client now holds is the one the session was minted against)",
+    typeof hiTurn.reply === "string" && hiTurn.reply.length > 0);
+  ok("setup sanity: the pre-switch turn also succeeded", typeof enTurn.reply === "string");
+
+  // ── ACCOUNT: roomSettings, re-read with the fresh session, is ALREADY
+  //    correct by construction (it derives the card fresh from the
+  //    follower row every time it is called, `roomSettings`'s own source);
+  //    this locks that in as a regression test rather than leaving it
+  //    merely asserted in a comment. ─────────────────────────────────────
+  const settingsAfter = await roomSettings(db, { session: switched.session }, deps());
+  ok("account: roomSettings (op \"settings\") reads back the fresh Hindi card",
+    settingsAfter.disclosure === roomDisclosureCard(name, "hi") && settingsAfter.locale === "hi");
+
+  // ── TASTE: no session exists for a stranger, so there is nothing to go
+  //    stale - `roomTaste` computes the card fresh on every call from
+  //    whatever locale the CALLER passes (the taste screen always passes
+  //    `room.locale`, which `switchLocale`'s own pre-join branch re-fetches
+  //    via `openRoom` on every switch), proven directly here for both
+  //    locales rather than only asserted in `RoomApp.tsx`'s own comment. ──
+  const tasteEn = await roomTaste(db, { slug: SLUG, message: "who are you?", locale: "en", turnIndex: 1 }, { loadAgent, reply: async () => "hi." });
+  const tasteHi = await roomTaste(db, { slug: SLUG, message: "who are you?", locale: "hi", turnIndex: 1 }, { loadAgent, reply: async () => "hi." });
+  ok("taste: an English-locale call returns the English card", tasteEn.disclosure === roomDisclosureCard(name, "en"));
+  ok("taste: a Hindi-locale call returns the Hindi card, same room, same turn, only the locale argument moved",
+    tasteHi.disclosure === roomDisclosureCard(name, "hi"));
+  ok("taste: the two are different bytes (the comparison above is not vacuous)",
+    tasteEn.disclosure !== tasteHi.disclosure);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -800,6 +800,89 @@ async function main() {
     await ctx.close();
   }
 
+  // ── WS-R84: a REAL locale switch, mid-session — the second proof named by
+  // the workstream brief, alongside `evals/room-locale/run.mjs`'s own
+  // server-side switch scenario. `?live=1` is the ONE fixture screen where
+  // `switchLocale` is allowed to run for real (`RoomApp.tsx`'s own
+  // `fixtureLiveLocaleSwitch` prop, `layoutFixture.tsx`'s own `op: "locale"`
+  // stub) — every other target on this page still has that function
+  // structurally blocked, unchanged. This clicks the real "हिन्दी" button and
+  // re-checks the real resulting DOM.
+  //
+  // `langTagAudit` alone CANNOT prove this: a stale ENGLISH disclosure left
+  // over from before the switch still tags itself `lang="en"` correctly
+  // (WS-R79's own node-level detection does not care whether a string is
+  // FRESH, only whether it is TAGGED for the script it is actually in), so a
+  // regression that brings back `context/rejected.md#ws-r84-disclosure-
+  // left-out-of-roomsetlocales-response` would sail through the language-tag
+  // audit with zero findings. So this reads the disclosure card's own text
+  // directly, before and after, and asserts it actually changed AND now
+  // contains Devanagari — the freshness check `langTagAudit` structurally
+  // cannot perform — and THEN runs `langTagAudit` on the same DOM as the
+  // usual second layer, so a tagging regression introduced by the switch
+  // itself (rather than by staleness) is still caught.
+  if (!targetFilter || targetFilter === "room") {
+    const where = "room:talk(locale-switch)";
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await ctx.newPage();
+    await page.goto(`http://127.0.0.1:${PORT}/room-layout-fixture.html?screen=talk&live=1`, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1200);
+    const before = await page.evaluate(() => document.querySelector(".room-card")?.textContent || "");
+    const clicked = await page.evaluate(() => {
+      const btn = document.querySelector('.room-lang-btn[lang="hi"]');
+      if (!(btn instanceof HTMLElement)) return false;
+      btn.click();
+      return true;
+    });
+    if (!clicked) {
+      kbFindings.push({
+        where, kind: "keyboard-coverage",
+        detail: "the Hindi language button was not found — the live switch could not be exercised at all",
+      });
+    } else {
+      // Poll rather than a fixed sleep: the switch is a real (stubbed)
+      // network round trip, and a fixed wait is either flaky under load or
+      // slower than it needs to be on a fast one.
+      // `.room-shell`'s own `lang` attribute (`<main lang={locale}>`,
+      // `RoomApp.tsx`), NOT `document.documentElement.lang` — the fixture
+      // deliberately never sets the latter (`RoomApp.tsx`'s own `if
+      // (fixtureOpen) return;` inside that effect, so every OTHER fixture
+      // screen's `document.documentElement.lang` stays empty too); the
+      // per-render JSX attribute is what actually carries the locale here,
+      // and it is exactly what `langTagAudit`'s own `computedLang` walk
+      // falls back to reading.
+      let switched = false;
+      for (let i = 0; i < 20; i++) {
+        const lang = await page.evaluate(() => document.querySelector(".room-shell")?.getAttribute("lang"));
+        if (lang === "hi") { switched = true; break; }
+        await page.waitForTimeout(150);
+      }
+      if (!switched) {
+        kbFindings.push({
+          where, kind: "keyboard-activation",
+          detail: 'clicking the Hindi language button never flipped .room-shell\'s own lang attribute to "hi" within 3s',
+        });
+      } else {
+        const after = await page.evaluate(() => document.querySelector(".room-card")?.textContent || "");
+        const DEVANAGARI_RE = /[ऀ-ॿ]/;
+        if (after === before) {
+          langFindings.push({
+            where, kind: "lang-stale-disclosure-after-switch",
+            text: "disclosure card text is byte-identical before and after the switch",
+          });
+        } else if (!DEVANAGARI_RE.test(after)) {
+          langFindings.push({ where, kind: "lang-stale-disclosure-after-switch", text: after.slice(0, 60) });
+        }
+        const langResult = await page.evaluate(langTagAudit);
+        devanagariNodesTotal += langResult.devanagariNodes;
+        taggedHiElementsTotal += langResult.taggedHiElements;
+        for (const f of langResult.findings) langFindings.push({ where, ...f });
+        pagesScanned++;
+      }
+    }
+    await ctx.close();
+  }
+
   // ── the creator page, WS-R79's own target: `/c/<slug>` (`api/_creator-page.js`)
   // has no client app to navigate to — "this page's whole job is to BE the
   // content" (that file's own header) — so this calls the REAL, shipping
