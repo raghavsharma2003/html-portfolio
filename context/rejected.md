@@ -14741,3 +14741,55 @@ file scope and was not hardened against the class of defect; a future
 session touching that file could make the comment-stripping the header
 already claims actually real, closing this class of false positive for
 good rather than requiring every future comment to dodge it by hand.
+
+## `ws-r129-no-follower-level-timezone-or-quiet-hours-column` (2026-09-05, WS-R129)
+
+**What was checked.** Before building "quiet hours on every channel"
+(the follower's push/Telegram/WhatsApp quiet window holding for renewals
+reminders and dormancy notices, not only check-ins), `db/schema.sql` was
+read for `vy_room_follower`'s own columns and for every migration that
+ever added `timezone`/`quiet_from`/`quiet_to` anywhere in this schema.
+
+**What was found.** `vy_room_follower` carries neither a timezone nor a
+quiet-hours column. The only migration that ever added those three names
+is 085 (WS-R22), and all three live on `vy_room_checkin` — one row per
+check-in SCHEDULE a follower opted into, not one row per follower. A
+follower can have zero, one, or several such rows (most have zero: checkins
+are paid-only, WS-R16's own workstream law #2), each with its own
+independently-set window. There is therefore no single place in this
+schema today to read "the follower's own quiet hours" for a sender
+(renewals, dormancy) that has no check-in row of its own in hand.
+
+**What this means for the brief's "one setting" requirement.** It cannot
+be built as a genuine account-wide setting without a migration adding
+those three columns to `vy_room_follower` directly (or a new one-row-per-
+follower table) — this workstream's brief gave it no migration number
+(133 belongs to WS-R130, and a workstream never takes a number its own
+brief did not name), so the schema half is NOT done. What IS done: a
+follower who has set a quiet window on ANY of their own active check-ins
+gets that same window honoured on renewals and dormancy sends too
+(`api/_quiet-hours.js`'s `quietHoursOkForFollowerSql`, a `not exists`
+against `vy_room_checkin`) — a real improvement for every follower who has
+ever used the ONLY control this product has ever offered for this
+preference, and a true no-op (never a new, silently-worse block) for a
+follower who has not. See `context/decisions.md#ws-r129-quiet-hours-
+follower-proxy-via-checkin-table` for the full decision and its reversal
+condition, and `context/graph.json`'s `ws-r129-account-wide-quiet-hours-
+column` open node for the gap itself.
+
+**A second, smaller trap hit while building the fix.** `api/_quiet-
+hours.js`'s first draft explained this gap in its own header comment by
+NAMING `vy_room_follower` directly ("`vy_room_follower` carries NO
+timezone..."). `evals/room-leak/run.mjs`'s own scanner decides whether a
+file is even in its scanned set with `src.includes("vy_room_follower")`
+over the RAW FILE TEXT — a prose sentence explaining the gap tripped the
+identical line a real query would, and (since the file has no actual
+statement naming that table) failed with `no-statement-found`. This is the
+SAME trap five earlier sessions already named
+(`ws-r28-leak-battery-scanner-matches-prose-not-only-sql` and its later
+duplicates) — the fix, again, was a one-word paraphrase ("the follower's
+own row" instead of the literal table name), never a scanner change. Filed
+here too because this is the first time the trap was hit inside a BRAND
+NEW file rather than an edit to an existing one, which is worth knowing:
+grep `context/rejected.md` for a table name before writing ANY sentence
+that discusses it, even in a file that has never existed before.

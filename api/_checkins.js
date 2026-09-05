@@ -77,6 +77,10 @@ import {
 } from "./_room-whatsapp.js";
 import { sendRoomCheckinMessage } from "./_room-telegram.js";
 import { recordIncident, notifyNewIncidentKinds, pruneOldIncidents } from "./_incidents.js";
+// WS-R129: the shared quiet-hours fragment, one copy of the exact logic
+// rather than this file's own hand-typed copy (WS-R22's own text, moved
+// verbatim - `api/_quiet-hours.js`'s own header explains why).
+import { quietHoursOkSql } from "./_quiet-hours.js";
 // WS-R62 (migration 114). The real operator subscription store —
 // `notifyNewIncidentKinds`'s own injected seam, wired to production here
 // exactly as `activeSubscriptionsFor`/`revokeSubscriptionById` above are for
@@ -959,18 +963,12 @@ async function deliverOne(db, row, deps) {
  * to BOTH the delivery query and the skip-log query — a defense-in-depth
  * check alongside `computeNextDue`'s own scheduling-time avoidance below, so
  * a `next_due_at` computed before a follower narrowed their quiet window
- * still cannot fire inside it.
+ * still cannot fire inside it. WS-R129 moved the fragment's own text into
+ * `api/_quiet-hours.js` (`quietHoursOkSql`) so `_renewals.js`/`_dormancy.js`
+ * can splice the identical logic in rather than a second hand-typed copy;
+ * this constant is unchanged in behaviour, only in where its text lives.
  */
-const QUIET_HOURS_SQL = `(
-  c.quiet_from is null or c.quiet_to is null or not (
-    case when c.quiet_from <= c.quiet_to
-      then (($1)::timestamptz at time zone c.timezone)::time >= c.quiet_from
-           and (($1)::timestamptz at time zone c.timezone)::time < c.quiet_to
-      else (($1)::timestamptz at time zone c.timezone)::time >= c.quiet_from
-           or (($1)::timestamptz at time zone c.timezone)::time < c.quiet_to
-    end
-  )
-)`;
+const QUIET_HOURS_SQL = quietHoursOkSql("c", 1);
 
 /**
  * The scheduled half. Two SQL statements over the due rows - the delivery

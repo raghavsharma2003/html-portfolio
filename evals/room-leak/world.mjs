@@ -616,7 +616,16 @@ function roomPersonEntries(personTables, schemaMap) {
  *  named function so it is not a THIRD hand-rolled copy of the same logic. */
 const TABLE_ROLES = {
   vy_room_follower_whatsapp: { owners: ["_room-whatsapp.js", "_room-surface.js"] },
-  vy_room_checkin: { owners: ["_checkins.js", "_room-surface.js"], aggregateOnly: ["_ops.js"] },
+  // WS-R129: `api/_quiet-hours.js`'s own `quietHoursOkForFollowerSql`
+  // generates the literal SQL text this scan matches on (its caller's OWN
+  // source, `_renewals.js`/`_dormancy.js`, never mentions the table name at
+  // all - the fragment is assembled here and only ever interpolated into
+  // theirs at runtime). The columns it ever reads are `follower_id`,
+  // `state`, `quiet_from`, `quiet_to`, `timezone` - scheduling-only, the
+  // same shape `_checkins.js`'s own admission above already covers, never
+  // content, never creator-facing, never a cross-follower read (it decides
+  // whether to send THAT SAME follower their own proactive message).
+  vy_room_checkin: { owners: ["_checkins.js", "_room-surface.js", "_quiet-hours.js"], aggregateOnly: ["_ops.js"] },
   vy_room_checkin_delivery: { owners: ["_checkins.js", "_room-surface.js"], aggregateOnly: ["_ops.js"] },
   vy_room_push_subscription: { owners: ["_room-push.js", "_room-surface.js"] },
   vy_room_pulse_optin: { owners: ["_pulse.js", "_room-surface.js"] },

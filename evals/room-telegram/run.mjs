@@ -60,6 +60,7 @@
 //     unmodified by this workstream (same `roomSay`, same `dmRecall`); what
 //     THIS control proves is that the Telegram OUTBOUND wiring carries
 //     nothing beyond what `roomSay` handed it.
+import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { SLUG, loadFixtureAgent, freshState, fakeDb, fakeMemory } from "../room/fixtures.mjs";
@@ -562,6 +563,23 @@ console.log("\n── /voice on and /voice off (WS-R110) — parsed, honest, no 
   const poisonedReply = async () => { modelReached = true; return "unexpected"; };
   await handleRoomTelegramUpdate(textUpdate("10002", "/voice on"), depsFor(state, db, tgClient, memlog, { reply: poisonedReply }));
   ok("/voice on never reaches the model — it is a command, never an ordinary chat message", modelReached === false);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── WS-R129 QUIET HOURS — one enforcement point, never a second copy ──");
+// ═════════════════════════════════════════════════════════════════════════
+// Enforced ONCE, upstream, in `api/_checkins.js`'s own due-select
+// (`evals/checkins/run.mjs`'s own §6 proves the sweep end to end) — a due
+// row never reaches `deliverers.telegram` at all while inside its own
+// quiet window, so this deliverer needs no logic of its own (workstream
+// law #2, "one predicate").
+{
+  const ciSrc = readFileSync(join(REPO, "api/_checkins.js"), "utf8");
+  const start = ciSrc.indexOf("async telegram(db, row, said, deps = {}) {");
+  const end = ciSrc.indexOf("\n  },\n", start);
+  const body = ciSrc.slice(start, end < 0 ? ciSrc.length : end);
+  ok("deliverers.telegram's own body never reads quiet_from/quiet_to itself",
+    start >= 0 && !/quiet_from|quiet_to/.test(body));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -66,6 +66,14 @@ function bufToB64u(buf: ArrayBuffer | null): string {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+/** WS-R129. `copy.quietHours.summary`'s own three placeholders, substituted
+ *  the way `withPrice`/`withDate` (`copy.ts`) already do for a single one —
+ *  a local helper rather than a fourth import from that file, since this is
+ *  the only screen that ever renders this particular template. */
+function withQuietWindow(template: string, from: string, to: string, zone: string): string {
+  return template.split("{from}").join(from).split("{to}").join(to).split("{zone}").join(zone);
+}
+
 function formatDate(iso: string, locale: RoomLocale): string {
   try {
     return new Date(iso).toLocaleDateString(locale === "hi" ? "hi-IN" : "en-IN", {
@@ -561,6 +569,26 @@ export default function AccountPage({
 
       <h3 className="room-checkins-subhead">{copy.account.channelsTitle}</h3>
       <p className="room-fine">{copy.account.channelsNote}</p>
+
+      {/* WS-R129 ("quiet hours on every channel"). Read-only here — the
+          window itself is still picked once, from Check-ins
+          (`CheckinsPanel.tsx`'s own "Not between" control). `settings` is
+          `null` only before the composed read resolves (or on the layout
+          gate's fixture, which always supplies one), so this renders once
+          real data exists rather than flashing an empty state first. */}
+      {settings != null && (
+        <p className="room-fine room-checkins-quiet-summary">
+          {settings.quiet_hours
+            ? `${withQuietWindow(
+                copy.quietHours.summary,
+                settings.quiet_hours.quiet_from,
+                settings.quiet_hours.quiet_to,
+                settings.quiet_hours.timezone,
+              )}. ${copy.quietHours.everyChannelNote}`
+            : copy.quietHours.none}
+        </p>
+      )}
+
       {pushKey && (
         <div className="room-checkins-push">
           <p className="room-fine">{pushOn ? copy.checkins.pushOnCopy : copy.checkins.pushOffCopy}</p>

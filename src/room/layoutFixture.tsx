@@ -194,6 +194,9 @@ const FIXTURE_SETTINGS: RoomSettings = {
   },
   price: { price_inr: 299, currency: "INR" },
   offer: null,
+  // WS-R129: a real value (not null) so the layout gate's own signed-in
+  // walk actually renders the quiet-hours summary block at least once.
+  quiet_hours: { quiet_from: "22:00", quiet_to: "07:00", timezone: "Asia/Kolkata" },
 };
 
 const FIXTURE_SETTINGS_HI: RoomSettings = {

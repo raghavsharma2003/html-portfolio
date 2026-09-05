@@ -150,6 +150,16 @@ function makeDb(room) {
   ok("a Room row with no paid_monthly_voice_seconds falls back to ROOM_PAID_MONTHLY_VOICE_SECONDS, in minutes",
     bareHtml.includes(`up to ${Math.round(ROOM_PAID_MONTHLY_VOICE_SECONDS / 60)} minutes`));
 
+  // WS-R129 ("quiet hours on every channel"): the caps section names it,
+  // in both locales, `AccountPage.tsx`'s own read-only summary one surface
+  // over.
+  ok("the caps section names 'every channel' for quiet hours, English", html.includes("every channel this AI can reach you on"));
+  const htmlHiCaps = buildRoomAboutHtml(
+    { ...room, default_locale: "hi" },
+    { origin: "https://vyakti.app", slug: "anjali-physics" },
+  );
+  ok("the caps section names 'every channel' for quiet hours, Hindi", htmlHiCaps.includes("हर उस चैनल पर भी लागू होता है"));
+
   // STATIC: a source scan proving these are real imports, never a literal
   // that happens to match today's fixture numbers.
   const src = readFileSync(join(API, "_room-about.js"), "utf8");

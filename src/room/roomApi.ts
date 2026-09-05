@@ -468,6 +468,18 @@ export interface RoomSettingsPrice {
   price_inr: number;
   currency: string;
 }
+/** WS-R129. A read-only summary of whichever of this follower's own active
+ *  check-in schedules most recently set a real quiet window — `null` when
+ *  none has (most followers: check-ins are paid-only). `quiet_from`/
+ *  `quiet_to` are `HH:MM` (the server's own `time` column, stringified);
+ *  `timezone` is the IANA zone that window was set in. The account page
+ *  never lets a follower SET this here — it is still picked once, from
+ *  Check-ins — this is only the read-back. */
+export interface RoomSettingsQuietHours {
+  quiet_from: string;
+  quiet_to: string;
+  timezone: string;
+}
 export interface RoomSettings {
   room: {
     slug: string;
@@ -491,6 +503,9 @@ export interface RoomSettings {
    *  `session_worked` offer never appears here; it already reached the
    *  client on the turn that earned it (`RoomTurn.offer`). */
   offer: RoomSettingsOffer | null;
+  /** WS-R129. `null` when this follower has never set quiet hours on any
+   *  active check-in — see `RoomSettingsQuietHours`'s own header. */
+  quiet_hours: RoomSettingsQuietHours | null;
 }
 
 export const roomSettings = (session: string) => post<RoomSettings>({ op: "settings", session });

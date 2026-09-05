@@ -644,6 +644,19 @@ const EN = {
     progress: (n: number, threshold: number) => `${n} of ${threshold} friends have joined and paid so far.`,
     granted: (dateLabel: string) => `You earned a free month on ${dateLabel} - thank you for bringing friends.`,
   },
+
+  /** WS-R129 ("quiet hours on every channel"). Read-only on the account
+   *  page — the window itself is still picked once, from Check-ins
+   *  (`checkins.quietFromLabel`/`quietToLabel` above, unchanged by this
+   *  workstream); this is only the summary and the one sentence the
+   *  workstream brief requires: that whatever window a follower already
+   *  picked holds for every channel, not only the one it was set on. */
+  quietHours: {
+    label: "Quiet hours",
+    summary: "{from} to {to}, {zone}",
+    everyChannelNote: "This applies on every channel this AI can reach you on: push, WhatsApp and Telegram.",
+    none: "You have not set quiet hours yet. Pick one the next time you start a check-in.",
+  },
 };
 
 /** The same shape as `EN`, in plain, functional Hindi (Devanagari). Written
@@ -1001,6 +1014,12 @@ const HI: typeof EN = {
   referralReward: {
     progress: (n: number, threshold: number) => `अब तक ${threshold} में से ${n} दोस्त जुड़े और उन्होंने भुगतान किया।`,
     granted: (dateLabel: string) => `आपने ${dateLabel} को एक मुफ़्त महीना कमाया - दोस्तों को लाने के लिए धन्यवाद।`,
+  },
+  quietHours: {
+    label: "शांत समय",
+    summary: "{zone} में {from} से {to}",
+    everyChannelNote: "यह हर उस चैनल पर लागू होता है जिससे यह AI आप तक पहुंच सकता है: पुश, व्हाट्सएप और टेलीग्राम।",
+    none: "आपने अभी तक शांत समय नहीं चुना। अगली बार चेक-इन शुरू करते समय इसे चुनें।",
   },
 };
 

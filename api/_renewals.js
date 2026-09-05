@@ -72,6 +72,11 @@ import { activeSubscriptionsFor } from "./_room-push.js";
 import { send as webPushSend, renewalPushPayload } from "./_push/webpush.js";
 import { sendRoomCheckinMessage } from "./_room-telegram.js";
 import { tableApplied } from "./memory.js";
+// WS-R129: "quiet hours on every channel" - the follower proxy (this file
+// has no check-in row of its own; `api/_quiet-hours.js`'s own header names
+// why that is the best this schema can do without a follower-level
+// timezone column).
+import { quietHoursOkForFollowerSql } from "./_quiet-hours.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -169,6 +174,18 @@ export function followerRenewalTelegramText({ name, periodEnd, amountInr, curren
  * _subscription`) carries no `mandate_state` column - migration 130's own
  * header, out of this workstream's scope - so its own select below is
  * unchanged.
+ *
+ * WS-R129 ("quiet hours on every channel"): the FOLLOWER query only also
+ * excludes a subject currently inside any of their own active check-in
+ * schedules' quiet window (`quietHoursOkForFollowerSql`, `api/_quiet-
+ * hours.js`) — the follower row itself carries no timezone/quiet-hours
+ * column of its own (see that module's own header for the gap this is a
+ * proxy for). A subject blocked this tick is simply never inserted into
+ * `vy_renewal_reminder` for this (subject, period, channel), so the next
+ * daily sweep tick retries it — deferred, not dropped, `dueReminders`'s own
+ * idempotency-by-INSERT already relied on nothing about WHEN a subject
+ * first appears here. Creator and org reminders are owner-lane (this
+ * workstream's brief names them out of scope) and are unaffected.
  */
 export async function dueReminders(db, now = Date.now()) {
   const nowIso = new Date(now).toISOString();
@@ -195,6 +212,7 @@ export async function dueReminders(db, now = Date.now()) {
              and rr.subject_id = s.follower_id
              and rr.period_end = s.current_period_end
         )
+        and ${quietHoursOkForFollowerSql("f", 1)}
       order by s.current_period_end asc
       limit 500`,
     [nowIso, windowEndIso],

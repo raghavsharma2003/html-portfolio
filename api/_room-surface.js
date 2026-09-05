@@ -3539,6 +3539,32 @@ export async function roomSettings(db, { session }, deps = {}) {
     offer = rows[0] ? { reason: rows[0].reason, shown_at: rows[0].shown_at } : null;
   }
 
+  // ── quiet hours, read-only summary (WS-R129) ─────────────────────────────
+  // The account page never lets a follower SET this here - the window is
+  // still picked once, per schedule, from Check-ins (`CheckinsPanel.tsx`'s
+  // own "Not between" control, unchanged by this workstream). This is only
+  // the read-back: whichever of this follower's own ACTIVE check-in
+  // schedules most recently set a real window (both columns non-null),
+  // since migration 085 is the only place in this schema a follower's own
+  // quiet window and timezone live at all (`api/_quiet-hours.js`'s own
+  // header names the gap - there is no follower-level column to read
+  // instead). `null` when the follower has never set one, or has no
+  // check-in schedule at all (most followers - check-ins are paid-only).
+  let quietHours = null;
+  if (await isTableAppliedFor(deps)("vy_room_checkin")) {
+    const rows = await db(
+      `select quiet_from, quiet_to, timezone from vy_room_checkin
+        where follower_id = ($1)::uuid and state = 'active'
+          and quiet_from is not null and quiet_to is not null
+        order by updated_at desc
+        limit 1`,
+      [follower.follower_id],
+    );
+    quietHours = rows[0]
+      ? { quiet_from: rows[0].quiet_from, quiet_to: rows[0].quiet_to, timezone: rows[0].timezone }
+      : null;
+  }
+
   return {
     room: {
       slug: who.slug,
@@ -3557,6 +3583,7 @@ export async function roomSettings(db, { session }, deps = {}) {
     channels: { push, whatsapp, telegram },
     price,
     offer,
+    quiet_hours: quietHours,
   };
 }
 

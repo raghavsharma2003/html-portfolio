@@ -496,5 +496,23 @@ console.log("\n── §6: STATIC WIRING ──");
     roomWaSrc.indexOf("verifyRoomWhatsappWebhook") < roomWaSrc.indexOf('scope: "room_wa_ip"'));
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §7: WS-R129 QUIET HOURS — one enforcement point, never a second copy ──");
+// ═════════════════════════════════════════════════════════════════════════
+// Quiet hours are enforced ONCE, upstream, in `api/_checkins.js`'s own
+// due-select (`evals/checkins/run.mjs`'s own §6 proves the sweep end to
+// end) — a due row never reaches `deliverers.whatsappTemplate` at all while
+// inside its own quiet window, so this deliverer needs no logic of its own
+// and must never grow one: a second copy of the same check here could drift
+// from the due-select's (workstream law #2, "one predicate").
+{
+  const ciSrc = fs.readFileSync(join(REPO, "api/_checkins.js"), "utf8");
+  const start = ciSrc.indexOf("async whatsappTemplate(db, row, deps = {}) {");
+  const end = ciSrc.indexOf("\n  },\n", start);
+  const body = ciSrc.slice(start, end < 0 ? ciSrc.length : end);
+  ok("deliverers.whatsappTemplate's own body never reads quiet_from/quiet_to itself",
+    start >= 0 && !/quiet_from|quiet_to/.test(body));
+}
+
 console.log(`\nroom-whatsapp: ${pass} ok, ${fail} failed`);
 process.exit(fail ? 1 : 0);
