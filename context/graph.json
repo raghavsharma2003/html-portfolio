@@ -8080,6 +8080,48 @@
       "kind": "measurement",
       "title": "979 Hindi strings through the patched glyph probe: the two WS-R61 false positives pass, nothing else changed, the noncharacter control measures uniform.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r79-language-tagging-helpers",
+      "kind": "component",
+      "title": "src/room/Localized.tsx + src/studio/Localized.tsx, over detectRoomTextLang (src/room/copy.ts), detectStudioTextLang (src/studio/copy.ts) and detectPageTextLang (api/_creator-page.js): per-node lang tagging, never the document, for the disclosure card, the AI name line, a creator bio and showcase Q&A, on the Room, the studio and /c/<slug>.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r79-tag-at-the-node-not-the-document",
+      "kind": "decision",
+      "title": "Language tags live on the text node, never on document.documentElement.lang alone: a locale switch updates the document without refetching the disclosure, and creator text has no locale field of its own.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r79-language-switch-buttons-get-their-own-lang",
+      "kind": "decision",
+      "title": "LanguageSwitch/StudioLanguageSwitch set lang={l} directly on each button, the already-known locale, rather than a detected one; the group aria-label stays bilingual and untagged, a named gap.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r79-lang-hi-latn-exempt-from-the-ascii-only-check",
+      "kind": "decision",
+      "title": "The accessibility gate's ASCII-only-under-lang=hi check exempts any lang value containing latn: hi-Latn is Hindi language, Latin script, so ASCII-only is correct there.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r79-accessibility-lang-tag-coverage-2026-09-05",
+      "kind": "measurement",
+      "title": "221 Devanagari text nodes and 37 own-attribute lang=hi elements checked across 17 pages, 0 findings after the fix (13 real findings before, plus 2 audit-bug false positives found and fixed); a fired-and-reverted negative control on the creator page caught the planted mismatch and cleared on restore.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r79-json-ld-script-text-is-not-prose",
+      "kind": "rejection",
+      "title": "The lang-tag audit's first draft walked every text node under body, including a JSON-LD script block's own payload; fixed by excluding SCRIPT/STYLE/NOSCRIPT/TEMPLATE from the walk.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r79-hi-latn-flagged-by-the-ascii-only-rule-before-the-script-subtag-was-read",
+      "kind": "rejection",
+      "title": "A lang^=hi- prefix match caught VoicePreviewPanel.tsx's correct hi-Latn Hinglish sample as a false positive; fixed by reading the script subtag before applying the ASCII-only rule.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16007,6 +16049,46 @@
       "src": "glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words",
       "rel": "supersedes",
       "dst": "ws-r43-glyph-width-test-needs-3-devanagari-chars"
+    },
+    {
+      "src": "ws-r79-language-tagging-helpers",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r79-tag-at-the-node-not-the-document",
+      "rel": "constrains",
+      "dst": "ws-r79-language-tagging-helpers"
+    },
+    {
+      "src": "ws-r79-tag-at-the-node-not-the-document",
+      "rel": "measured_by",
+      "dst": "ws-r79-accessibility-lang-tag-coverage-2026-09-05"
+    },
+    {
+      "src": "ws-r79-language-switch-buttons-get-their-own-lang",
+      "rel": "measured_by",
+      "dst": "ws-r79-accessibility-lang-tag-coverage-2026-09-05"
+    },
+    {
+      "src": "ws-r79-accessibility-lang-tag-coverage-2026-09-05",
+      "rel": "part_of",
+      "dst": "ws-r50-accessibility-gate"
+    },
+    {
+      "src": "ws-r79-accessibility-lang-tag-coverage-2026-09-05",
+      "rel": "caused_by",
+      "dst": "ws-r79-json-ld-script-text-is-not-prose"
+    },
+    {
+      "src": "ws-r79-accessibility-lang-tag-coverage-2026-09-05",
+      "rel": "caused_by",
+      "dst": "ws-r79-hi-latn-flagged-by-the-ascii-only-rule-before-the-script-subtag-was-read"
+    },
+    {
+      "src": "ws-r79-lang-hi-latn-exempt-from-the-ascii-only-check",
+      "rel": "caused_by",
+      "dst": "ws-r79-hi-latn-flagged-by-the-ascii-only-rule-before-the-script-subtag-was-read"
     }
   ]
 }

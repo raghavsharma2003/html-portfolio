@@ -10271,3 +10271,65 @@ header forbids.
 short run whose parts average to the reference; test the parts for
 uniformity too, and give every detector a control it must catch on every
 run, or its silence proves nothing.
+
+## `ws-r79-json-ld-script-text-is-not-prose` — the language-tag audit's first draft read a `<script>` block as a text node (2026-09-05, WS-R79)
+
+**Tried.** `scripts/check-accessibility.mjs`'s new `langTagAudit` walks
+every text node under `document.body` with `document.createTreeWalker(...,
+NodeFilter.SHOW_TEXT)`, exactly `walkTabOrder`'s own DOM-walking posture one
+function up, looking for Devanagari codepoints with no `hi`-tagged ancestor.
+
+**What broke.** Run against the new `creator-page` target (a real page built
+by `buildCreatorPageHtml`, which embeds a JSON-LD `Person`/`FAQPage` block
+as `<script type="application/ld+json">{...}</script>` — WS-R66's own
+`jsonLdScript`), it reported two findings whose "text" was the literal JSON
+payload: `{"@context":"https://schema.org","@type":"Pe...`. A `<script>`
+element's content IS a text node in the DOM, and a plain `SHOW_TEXT`
+`TreeWalker` does not know or care that a screen reader never reads it —
+the walker was answering "does this string contain Devanagari", not "is
+this string ever spoken aloud", and those are different questions the
+moment JSON containing a creator's own Devanagari name or bio (this exact
+fixture's own `person.name`/`person.description`) gets serialized next to
+prose that IS read aloud.
+
+**What replaced it.** The walker's `acceptNode` filter rejects any text
+node whose parent is `SCRIPT`, `STYLE`, `NOSCRIPT`, or `TEMPLATE` before it
+is ever tested for Devanagari — the same "never read" set axe-core itself
+excludes from its own accessible-name computation, restated here for a
+walker that has no such built-in exclusion of its own.
+
+**The rule.** A DOM text-node walk answers "is this string present in the
+tree", never "is this string ever spoken" — the two diverge at exactly the
+elements a browser renders nothing visible or audible for (`<script>`,
+`<style>`, `<template>`), and any new probe that walks text nodes needs its
+own exclusion list for them; `SHOW_TEXT` alone does not supply one.
+
+## `ws-r79-hi-latn-flagged-by-the-ascii-only-rule-before-the-script-subtag-was-read` — a correct tag caught by a rule written for the wrong-shaped defect (2026-09-05, WS-R79)
+
+**Tried.** The accessibility gate's second new assertion — "no element that
+itself carries `lang="hi"` contains only ASCII letters" — matched any
+element whose `lang` attribute equals `"hi"` OR starts with `"hi-"`
+(`[lang="hi"], [lang^="hi-"]`), on the reasoning that `hi-IN` and similar
+region subtags should be held to the same rule a bare `hi` is.
+
+**What broke.** Run against the real `studio:shell:meet`/`studio:shell-hi:meet`
+targets, it flagged `VoicePreviewPanel.tsx`'s own Hinglish sample text
+("Namaste! Main aapka apna AI version hoon...") — genuinely ASCII-only, and
+genuinely under an element the app deliberately tags `lang="hi-Latn"`
+(`inputLanguage: "hi-Latn"`, that file's own `LANGUAGE_OPTIONS`). This is
+not a mistake to catch: `hi-Latn` is Hindi language, Latin SCRIPT, a more
+specific and CORRECT BCP-47 tag for exactly this content — romanized Hindi
+written on purpose in Latin letters, which axe-core's own "hi-Latn" rule
+never has and never should have a Devanagari character in it.
+
+**What replaced it.** The check now skips any element whose own `lang`
+attribute contains `latn` (case-insensitive) before testing it for
+ASCII-only content — `context/decisions.md#ws-r79-lang-hi-latn-exempt-from-the-ascii-only-check`
+carries the rule and its reversal condition.
+
+**The rule.** A prefix match on `hi-*` conflates "a region subtag" (`hi-IN`,
+still Devanagari-implied, the ASCII-only rule's real target) with "a script
+subtag naming something OTHER than Devanagari" (`hi-Latn`, where ASCII-only
+is the correct and expected shape) — the two need opposite handling, and a
+rule written for the first without reading which subtag it actually is will
+fire on the second every time it is exercised for real.
