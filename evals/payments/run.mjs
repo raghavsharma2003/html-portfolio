@@ -153,6 +153,18 @@ function makeDb(state) {
       const row = state.subscriptions.filter((s) => s.follower_id === followerId).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
       return row ? [{ ...row }] : [];
     }
+    // ── vy_payment_event: WS-R69's own "paused or halted" read
+    // (`pausedOrHalted`, api/_payments.js) — the most recent of the two kinds
+    // for one subscription, off the SAME `state.events` array §5/§6/etc
+    // already populate through `applyWebhook`'s real write, never a second
+    // parallel store. ──
+    if (has("from vy_payment_event") && has("kind in ('subscription.paused', 'subscription.halted')")) {
+      const subId = String(params[0]);
+      const row = state.events
+        .filter((e) => e.subscription_id === subId && (e.kind === "subscription.paused" || e.kind === "subscription.halted"))
+        .sort((a, b) => b.received_at.localeCompare(a.received_at))[0];
+      return row ? [{ kind: row.kind }] : [];
+    }
     if (has("insert into vy_room_subscription")) {
       const [roomId, personId, followerId, provider] = params;
       const live = state.subscriptions.some((s) => s.follower_id === String(followerId) && ["created", "authenticated", "active", "paused"].includes(s.state));
@@ -671,6 +683,180 @@ console.log("\n§11 WS-R60: THE OPEN PROVIDER MARKS, PINNED AS FIXTURES");
     ok("...reference_id still truncated to the documented 40-char ceiling",
       c?.body?.reference_id?.length === 40);
   }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§12 WS-R69: THE MANDATE'S OWN LIFECYCLE, DRIVEN THROUGH THE REALISTIC SEQUENCE");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const state = freshState();
+  state.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
+  const db = makeDb(state);
+  await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent, now: NOW });
+  const ref = state.subscriptions[0].provider_subscription_ref;
+  const follower = state.followers[0];
+
+  // razorpay.com/docs/payments/subscriptions/workflow/, fetched 2026-09-05
+  // (razorpay.js's own WS-R69 addendum, law 2 of this file's own header):
+  // "Immediate start: charged the plan amount" — this platform never sends
+  // `start_at`, so the sequence's own FIRST landed charge (`activated`) must
+  // be the full plan amount, never a token registration amount.
+  const sequence = fake.mandateEventSequence(ref, { priceInr: 399, cycles: 3 });
+  ok("the sequence fires in Razorpay's own documented order (workflow page, fetched 2026-09-05)",
+    sequence.map((e) => e.kind).join(",") === "subscription.authenticated,subscription.activated,subscription.charged,subscription.charged");
+
+  for (const [n, evt] of sequence.entries()) {
+    const sig = fake.signWebhookForTest(evt.body, WEBHOOK_SECRET);
+    await applyWebhook(db, { rawBody: evt.body, signatureHeader: sig, eventRef: `evt_lifecycle_${n}` }, { env: ENV });
+  }
+  ok("after the full sequence, local state is 'active'", state.subscriptions[0].state === "active");
+  ok("the tier flipped to paid", follower.tier === "paid");
+  ok("the FIRST landed charge (the authentication transaction) is the FULL plan amount, not a token amount",
+    state.events.find((e) => e.kind === "subscription.activated")?.amount_inr === 399);
+  ok("both monthly renewals charge the same amount as the authentication transaction",
+    state.events.filter((e) => e.kind === "subscription.charged").every((e) => e.amount_inr === 399) &&
+    state.events.filter((e) => e.kind === "subscription.charged").length === 2);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§13 WS-R69: A HALT IS NOT A CANCELLATION — REQUIRED NEGATIVE CONTROL");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const state = freshState();
+  state.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
+  const db = makeDb(state);
+  await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent, now: NOW });
+  const ref = state.subscriptions[0].provider_subscription_ref;
+  const follower = state.followers[0];
+
+  const sequence = fake.mandateEventSequence(ref, { priceInr: 399, cycles: 5, haltAtCycle: 3 });
+  ok("the sequence STOPS at the halt — nothing fires after a mandate's retries exhaust",
+    sequence.length === 4 && sequence.at(-1).kind === "subscription.halted"); // authenticated, activated, charged, halted
+
+  for (const [n, evt] of sequence.entries()) {
+    const sig = fake.signWebhookForTest(evt.body, WEBHOOK_SECRET);
+    await applyWebhook(db, { rawBody: evt.body, signatureHeader: sig, eventRef: `evt_halt_${n}` }, { env: ENV });
+  }
+
+  // THE BRIEF'S OWN REQUIRED NEGATIVE CONTROL: "a halted event that leaves
+  // the state active fails". Proven two ways — the real outcome through
+  // applyWebhook (a), and this file's own §9 "strike the clause" technique
+  // (b): a source assertion that would itself FAIL if a future edit changed
+  // `KIND_TO_STATE`'s own `subscription.halted` entry to `'active'`.
+  ok("(a) a halted mandate's local state is 'paused' — this assertion FAILS if it is 'active'",
+    state.subscriptions[0].state === "paused" && state.subscriptions[0].state !== "active");
+  // §5's own precedent, re-confirmed here through a REAL multi-cycle
+  // sequence rather than one isolated kind: `follower_update`'s own WHERE
+  // clause (`api/_payments.js`) only demotes tier on 'active'/'cancelled'/
+  // 'expired' — 'paused' (which is what 'halted' maps to) is DELIBERATELY
+  // not in that list, so access keeps working while the mandate's own retry
+  // ladder or the follower's UPI app decides what happens next. A real
+  // finding, not a bug this workstream's own brief asks it to change (out of
+  // scope — access-control policy, not the UPI-Autopay verification/copy
+  // this workstream owns); named in the final report.
+  ok("(a) tier is NOT demoted by a halt — 'paused'/'halted' keep access, same as an explicit pause (§5)",
+    follower.tier === "paid");
+
+  const src = readFileSync(join(REPO, "api/_payments.js"), "utf8");
+  ok("(b) the SOURCE ITSELF never maps subscription.halted to 'active' — this fails if it ever did",
+    !/"subscription\.halted":\s*"active"/.test(src));
+  ok("(b) ...and does map it to 'paused', by name",
+    /"subscription\.halted":\s*"paused"/.test(src));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§14 WS-R69: followerSubscriptionStatus TELLS 'PAUSED' FROM 'HALTED' HONESTLY");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // Two followers of the SAME room: one pauses from their own UPI app
+  // (`subscription.paused`), one has a failed auto-charge exhaust its
+  // retries (`subscription.halted`). `KIND_TO_STATE` maps BOTH to the same
+  // stored `vy_room_subscription.state`, `'paused'` — this section proves
+  // the API's own read tells them apart from the ledger, never the column.
+  const PERSON2 = "aa222222-2222-4222-8222-222222222222";
+  const state = freshState();
+  state.followers.push({
+    follower_id: "f1000000-0000-4000-8000-000000000002", room_id: ROOM, person_id: PERSON2, agent_id: AGENT,
+    age_attested_at: "2026-09-01T00:00:00.000Z", memory_consent_at: null, tier: "free",
+  });
+  state.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
+  const db = makeDb(state);
+
+  const sessionPaused = session();
+  const sessionHalted = session({ p: PERSON2 });
+  await startFollowerSubscription(db, { session: sessionPaused }, { env: ENV, loadAgent, now: NOW });
+  await startFollowerSubscription(db, { session: sessionHalted }, { env: ENV, loadAgent, now: NOW });
+  const refPaused = state.subscriptions[0].provider_subscription_ref;
+  const refHalted = state.subscriptions[1].provider_subscription_ref;
+
+  const fire = async (ref, kind, tag) => {
+    const body = kind === "subscription.charged"
+      ? RAZORPAY_CHARGED(ref, 39900, 1690000000, 1692600000)
+      : RAZORPAY_EVENT(kind, ref);
+    const sig = fake.signWebhookForTest(body, WEBHOOK_SECRET);
+    return applyWebhook(db, { rawBody: body, signatureHeader: sig, eventRef: `evt_${tag}` }, { env: ENV });
+  };
+  await fire(refPaused, "subscription.charged", "p_activate"); // activate first — pausing an unauthenticated mandate isn't a real state
+  await fire(refHalted, "subscription.charged", "h_activate");
+  await fire(refPaused, "subscription.paused", "p_pause");
+  await fire(refHalted, "subscription.halted", "h_halt");
+
+  ok("both subscriptions land on the SAME stored DB value, 'paused'",
+    state.subscriptions[0].state === "paused" && state.subscriptions[1].state === "paused");
+
+  const statusPaused = await followerSubscriptionStatus(db, { session: sessionPaused }, { env: ENV, loadAgent, now: NOW });
+  const statusHalted = await followerSubscriptionStatus(db, { session: sessionHalted }, { env: ENV, loadAgent, now: NOW });
+  ok("a customer-paused mandate reports 'paused'", statusPaused.subscription.state === "paused");
+  ok("a retry-ladder-exhausted mandate reports 'halted' — the SAME stored column, an honestly DIFFERENT read",
+    statusHalted.subscription.state === "halted");
+
+  // NEGATIVE CONTROL: the derived read must never leak back into the STORED
+  // column — every OTHER reader of `vy_room_subscription.state`
+  // (`applyWebhook`'s own tier-flip predicate, §12/§13 above) would break the
+  // instant 'halted' became a real stored value, since it is not in
+  // migration 078's own CHECK.
+  ok("the stored column never becomes the literal string 'halted'",
+    state.subscriptions[1].state === "paused" && state.subscriptions[1].state !== "halted");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§15 WS-R69: THE CHECKOUT COPY NAMES THE MANDATE — NEGATIVE CONTROL");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // §9's own "strike the clause from the shipping text" technique: read the
+  // REAL committed files, not a hand-maintained fixture, so a future edit
+  // that quietly drops the mandate sentence — from the copy, or from where
+  // it is actually RENDERED — fails this exact assertion.
+  const copySrc = readFileSync(join(REPO, "src/room/copy.ts"), "utf8");
+  const roomAppSrc = readFileSync(join(REPO, "src/room/RoomApp.tsx"), "utf8");
+
+  // `mandateNote`'s own value is built from concatenated string literals
+  // (three lines, `+`-joined) rather than one quoted string — matched here
+  // as a WINDOW of text after the key, not a single `"[^"]*"` capture, so
+  // this does not silently pass or fail on a harmless line-wrap.
+  const mandateWindows = [...copySrc.matchAll(/mandateNote:\s*\n?\s*((?:"[^"]*"\s*\+?\s*\n?\s*){1,6})/g)].map((m) => m[1]);
+  ok("mandateNote is defined in BOTH locales (en, then hi) — this fails if either is missing",
+    mandateWindows.length === 2);
+  ok("checkout copy names UPI Autopay and 'mandate' together",
+    mandateWindows.some((w) => /UPI Autopay/.test(w) && /mandate|मैनडेट/.test(w)));
+  ok("...and states pausing happens from the follower's own UPI app",
+    mandateWindows.every((w) => /UPI app|UPI ऐप/.test(w)));
+  ok("a no-price fallback exists too, both locales, `offer`/`capOffer`'s own bodyNoPrice pattern",
+    (copySrc.match(/mandateNoteNoPrice:\s*\n?\s*"/g) || []).length === 2);
+
+  // The copy existing is not enough — it must be RENDERED at every place a
+  // follower can start a mandate, or a screen could ship the string in
+  // copy.ts and never show it. This fails if any subscribe surface (the
+  // plain capped screen, the cap-reached offer, the session-worked offer)
+  // stopped reading it. `>=` rather than `===` on the price-aware count: a
+  // doc-comment mentioning the same identifier is harmless and should not
+  // flip this control.
+  const priceAwareRefs = (roomAppSrc.match(/copy\.pay\.mandateNote\b/g) || []).length;
+  const noPriceRefs = (roomAppSrc.match(/copy\.pay\.mandateNoteNoPrice/g) || []).length;
+  ok("RoomApp.tsx reads the price-aware mandate note at both offer surfaces (capOffer, offer)",
+    priceAwareRefs >= 2);
+  ok("RoomApp.tsx reads the no-price fallback at the plain capped screen AND as both offers' own fallback",
+    noPriceRefs === 3);
 }
 
 // ═════════════════════════════════════════════════════════════════════════
