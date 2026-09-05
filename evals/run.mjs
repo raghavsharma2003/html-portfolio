@@ -2294,6 +2294,40 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "consent-review": "consent-review/run.mjs",
+  // WS-R94. THE FOLLOWER'S JOURNEY, REHEARSED END TO END: a real Chromium
+  // drives the REAL built Room (`dist/room.html`, the real `/c/<slug>`
+  // handler) through the REAL `api/room.js`/`api/creator-page.js` HTTP doors
+  // — `evals/rehearsal/harness.mjs` mounts them, unmodified, over a fixture
+  // database (`evals/room-doors/fixtures.mjs`, extended) via a Node
+  // module-resolution hook (`evals/rehearsal/loader.mjs`, `evals/agent-room/
+  // loader.mjs`'s own precedent) that redirects exactly `./_db.js`,
+  // `./_surface.js` (the model call only) and `./_auth.js` (Supabase auth
+  // only) — nothing else is faked. Every OTHER suite in this registry that
+  // drives `roomSay`/`roomTaste`/`joinRoom` calls them directly with its own
+  // `deps.loadAgent`/`deps.engine`/`deps.reply` overrides; this is the one
+  // caller that goes through the unmodified door with zero deps, which is
+  // exactly why it found what it found (see `context/rejected.md`'s
+  // WS-R94 entries and `context/decisions.md#ws-r94-harness-over-fixture-db-
+  // not-a-second-fake-server`).
+  //
+  // Open a stranger's taste on `/c/<slug>` (the static island) to its own
+  // ceiling; join `/r/<slug>?via=search` with the age attestation and
+  // memory consent; say three things; read a citation; open a thread; the
+  // account page (a real language switch, the disclosure, "Bring a
+  // friend"); a SECOND browser context opens the referral link and joins;
+  // export; forget. Three negative controls: a fourth taste turn refused
+  // server-side after the UI itself hides the input; exporting one
+  // follower's session with another follower's bearer refused (403); the
+  // forget-completeness check itself proven non-vacuous against a
+  // deliberately mutated state. Runs the ENGLISH walk here (gate budget,
+  // `measurements.md#ws-r94-rehearsal-wall-clock-2026-09-05` — under 30s
+  // including a real `vite build`); `node evals/rehearsal/follower.mjs
+  // --full` additionally runs the SAME 22 checks in Hindi (a real language
+  // switch from the taste screen's own header, not a fixture-only `?lang=`
+  // flag — `/r/<slug>` has no such flag). Gracefully skips (exit 0) if
+  // `playwright` is not installed, `scripts/check-accessibility.mjs`'s own
+  // posture. $0, no network beyond 127.0.0.1.
+  "rehearsal-follower": "rehearsal/follower.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
