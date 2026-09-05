@@ -26,6 +26,7 @@ import {
   type OpsSweep,
   type OpsFunnel,
   type OpsShareArrivals,
+  type OpsTasteTurns,
   type OpsPhaseGate,
   type OpsGateState,
   type SweepStaleness,
@@ -182,7 +183,15 @@ function funnelStepLabel(step: string): string {
   return FUNNEL_STEP_LABELS[step] || step.replace(/_/g, " ");
 }
 
-function FunnelCard({ funnel, shareArrivals }: { funnel: OpsFunnel; shareArrivals: OpsShareArrivals }) {
+function FunnelCard({
+  funnel,
+  shareArrivals,
+  tasteTurns,
+}: {
+  funnel: OpsFunnel;
+  shareArrivals: OpsShareArrivals;
+  tasteTurns: OpsTasteTurns;
+}) {
   const { median, p90, n } = funnel.minutes_to_first_room;
   return (
     <div className="ops-board__panel">
@@ -225,6 +234,10 @@ function FunnelCard({ funnel, shareArrivals }: { funnel: OpsFunnel; shareArrival
           the honest floor sentence below that, never a small real number. */}
       <h2 style={{ marginTop: "var(--space-section)" }}>Growth</h2>
       <p className="ops-board__empty">{shareArrivals.note}</p>
+      {/* WS-R53 (migration 110). A count of TURNS, never people - the taste
+          has no follower at all, so unlike the line above this one carries
+          no anonymity floor and always renders the real number. */}
+      <p className="ops-board__empty">{tasteTurns.note}</p>
     </div>
   );
 }
@@ -457,7 +470,11 @@ export default function OpsBoard() {
                 overview.rooms.map((room) => <RoomCard key={room.room_id} room={room} />)
               )}
             </div>
-            <FunnelCard funnel={overview.funnel} shareArrivals={overview.share_arrivals_this_week} />
+            <FunnelCard
+              funnel={overview.funnel}
+              shareArrivals={overview.share_arrivals_this_week}
+              tasteTurns={overview.taste_turns_this_week}
+            />
             <PhaseGateCard gate={overview.phase_gate} />
             <SweepsStrip sweeps={overview.sweeps} />
             <IncidentsCard incidents={overview.incidents} />

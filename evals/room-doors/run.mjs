@@ -1756,6 +1756,7 @@ for (const webhookDoor of ["payments-webhook.js", "room-tg.js", "room-wa.js"]) {
 const OP_COVERAGE = {
   "room.js": {
     open: { excluded: "no session and no bearer — the bearer it optionally reads is looked up only for the caller's OWN account continuity, never another follower's; no cross-identity input for classes b/c/e" },
+    taste: { excluded: "no session and no bearer at all (WS-R53) — a stateless guest-lane turn keyed only by (slug, IP) through api/_rate-limit.js's own room_taste scope; no cross-identity input for classes b/c/e, and evals/room-taste/run.mjs and evals/room-leak/run.mjs's own layer 7 attack the boundary this op actually has (creator-material only, no follower row reachable)" },
     join: { excluded: "no session (none exists yet — join MINTS one) and no cross-person id in the body; the follower row created is always the bearer's own (evals/room/run.mjs's own join suite covers the happy path)" },
     say: { classes: ["a", "b"] },
     speak: { classes: ["a", "b"] },
@@ -1818,6 +1819,7 @@ const OP_COVERAGE = {
     set_paid_ceilings: { classes: ["e"] },
     set_default_locale: { classes: ["e"] },
     set_bio: { classes: ["e"] },
+    set_taste_enabled: { classes: ["e"] },
     list: { classes: ["e"] },
     unlist: { classes: ["e"] },
     stats: { classes: ["e"] },

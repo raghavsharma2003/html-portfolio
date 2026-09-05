@@ -4166,6 +4166,25 @@ create unique index if not exists vy_incident_day_kind_door_status_ix
   on vy_incident (day, kind, door, status);
 create index if not exists vy_incident_day_ix
   on vy_incident (day desc);
+-- Migration 110 - the taste (WS-R53). See db/migrations/110_room_taste.sql
+-- for the full argument: `taste_enabled` is the creator's per-Room switch
+-- (071/105 have no fitting column); `vy_room_taste_turn` is a dedicated,
+-- person-free (room, day) counter for "taste turns this week" on the ops
+-- board - deliberately NOT a fifth `vy_room_arrival.via` value, since that
+-- column names arrival SOURCES and a taste turn is a different dimension
+-- (an activity, not a source) that would make evals/room-share/run.mjs's
+-- fixed four-value assertion wrong for a reason it was never told about.
+alter table vy_room
+  add column if not exists taste_enabled boolean not null default true;
+create table if not exists vy_room_taste_turn (
+  room_id uuid not null references vy_room(room_id) on delete cascade,
+  day     date not null,
+  count   integer not null default 0 check (count >= 0),
+  primary key (room_id, day)
+);
+create index if not exists vy_room_taste_turn_day_ix
+  on vy_room_taste_turn (day);
+
 -- Migration 112 - the studio in Hindi (WS-R52). See
 -- db/migrations/112_replica_locale.sql for the full argument: the CREATOR's
 -- own chrome language, CHECK-bounded like vy_room_follower.locale and

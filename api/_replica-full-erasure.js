@@ -743,6 +743,17 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- reference, not a different KIND of record from anything a receipt
      -- already names.
      room_org_attachments as (delete from vy_room_org_attachment x using target t
+     -- 110 (WS-R53), taste turn counts. Reached by room_id via the SAME
+     -- vy_room subquery room_arrivals just above uses, for the identical
+     -- reason: no agent binding of its own. Carries a real FK CASCADE from
+     -- vy_room (migration 110's own header), so this delete is a backstop
+     -- rather than the only mechanism - "relying on a cascade means relying
+     -- on an FK nobody re-checks," restated again. No new entry in the
+     -- deletedClasses list below: room_arrivals' own precedent immediately
+     -- above - a content-free daily count with no person or follower
+     -- reference at all, not a different KIND of record from anything a
+     -- receipt already names.
+     taste_turns as (delete from vy_room_taste_turn x using target t
        where x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      rooms as (delete from vy_room x using target t

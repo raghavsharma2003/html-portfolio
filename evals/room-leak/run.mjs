@@ -991,6 +991,231 @@ console.log("\n── layer 6: handoff (consented-only creator read) ──");
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// LAYER 7 — TASTE (WS-R53, migration 110). A stranger's three questions
+// before the sign-in wall. This layer proves the class the workstream brief
+// names: the taste is a GUEST lane, stateless across calls by construction,
+// with the follower lane's own writer functions UNREACHABLE from it - the
+// SAME bar layer 1a already holds the follower lane to for creator-material
+// writers, pointed the other direction and read off `api/_room-taste.js`'s
+// own source rather than asserted.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 7: taste (guest lane, no follower writer reachable) ──");
+
+// (7a) STATIC. `api/_room-taste.js`'s own import lines, read off the real
+// source - not a description of what the file is SUPPOSED to import, a scan
+// of what it ACTUALLY does, so a later edit that adds one write-shaped
+// import fails this line the day it lands.
+{
+  const tasteSrc = fs.readFileSync(join(REPO, "api/_room-taste.js"), "utf8");
+
+  // The whole file may import from only these three - `_surface.js` (no
+  // database at all, by that file's own header: "this file has no database
+  // and must keep none"), `_room-surface.js` (the follower lane's own file,
+  // narrowed below to a closed read-only allowlist) and `memory.js`
+  // (narrowed below to the one pure read helper). No direct import of
+  // `episodes.js`, `_phase-gate.js`, `_pulse.js`, `_room-push.js`,
+  // `_room-whatsapp.js`, `_handoff.js`, `_room-voice.js` or `_db.js` -
+  // every one of those either owns a follower writer or a live connection
+  // this stateless lane has no business holding.
+  const importedFiles = [...tasteSrc.matchAll(/from\s+"\.\/(_?[\w.-]+\.js)"/g)].map((m) => m[1]);
+  const ALLOWED_TASTE_IMPORT_FILES = new Set(["_surface.js", "_room-surface.js", "memory.js"]);
+  ok("api/_room-taste.js imports from a closed set of files only (no direct import of a writer-owning or db-holding file)",
+    importedFiles.length > 0 && importedFiles.every((f) => ALLOWED_TASTE_IMPORT_FILES.has(f)),
+    importedFiles.join(","));
+
+  const importsFrom = (spec) => {
+    const m = tasteSrc.match(new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s+"\\./${spec}"`));
+    return m ? m[1].split(",").map((s) => s.trim().split(/\s+as\s+/)[0].trim()).filter(Boolean) : [];
+  };
+
+  // From `_room-surface.js`: a closed allowlist, every one of them a string
+  // function, an error constructor, or a SELECT-only resolver - never a
+  // mint, a session reader, or anything that touches `vy_room_follower`,
+  // `vy_room_thread`, `vy_fact`, `vy_episode` or a consent ledger.
+  const ALLOWED_FROM_ROOM_SURFACE = new Set([
+    "RoomError", "roomUnavailable", "resolveRoom", "roomNameFor",
+    "roomDisclosureCard", "normalizeLocale", "collector", "ROOM_INBOUND_LIMIT",
+  ]);
+  const gotFromRoomSurface = importsFrom("_room-surface\\.js");
+  const disallowedFromRoomSurface = gotFromRoomSurface.filter((n) => !ALLOWED_FROM_ROOM_SURFACE.has(n));
+  ok("api/_room-taste.js imports ONLY the closed read-only/pure allowlist from _room-surface.js",
+    gotFromRoomSurface.length > 0 && disallowedFromRoomSurface.length === 0, disallowedFromRoomSurface.join(","));
+
+  // From `memory.js`: the one pure read helper every migration-gated write
+  // in this codebase already uses (`isTableAppliedFor`'s own shape,
+  // api/_room-surface.js), never a writer.
+  const gotFromMemory = importsFrom("memory\\.js");
+  ok("api/_room-taste.js imports ONLY tableApplied from memory.js",
+    JSON.stringify(gotFromMemory) === JSON.stringify(["tableApplied"]));
+
+  // DERIVED, not asserted: the same fixed-point technique (1a) uses,
+  // applied to `_room-surface.js`'s OWN exports this time, against the
+  // FOLLOWER tables rather than the creator ones - so a function on the
+  // allowlist above that becomes dangerous later (a body edited to write
+  // one of these tables, directly or through a local call chain) fails
+  // this line the day it happens, without this suite needing to know why.
+  const FOLLOWER_TABLES = ["vy_room_follower", "vy_room_thread", "vy_fact", "vy_episode", "meera_log", "meera_consent"];
+  const FOLLOWER_WRITE_RE = new RegExp(`\\b(?:insert into|update)\\s+(?:${FOLLOWER_TABLES.join("|")})\\b`);
+  const roomSurfaceSrc = fs.readFileSync(join(REPO, "api/_room-surface.js"), "utf8");
+  const fnMarks = [...roomSurfaceSrc.matchAll(/^(export\s+)?(?:async\s+)?function\s+(\w+)\s*\(/gm)];
+  const fns = fnMarks.map((m, i) => ({
+    name: m[2],
+    body: roomSurfaceSrc.slice(m.index, i + 1 < fnMarks.length ? fnMarks[i + 1].index : roomSurfaceSrc.length),
+  }));
+  const dangerous = new Set(fns.filter((fn) => FOLLOWER_WRITE_RE.test(fn.body)).map((fn) => fn.name));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const fn of fns) {
+      if (dangerous.has(fn.name)) continue;
+      for (const otherName of dangerous) {
+        if (new RegExp(`\\b${otherName}\\s*\\(`).test(fn.body)) {
+          dangerous.add(fn.name);
+          changed = true;
+          break;
+        }
+      }
+    }
+  }
+  ok(`derived ${dangerous.size} follower-scope writer symbols from api/_room-surface.js's own source`,
+    dangerous.size >= 5, [...dangerous].join(","));
+  const stillSafe = gotFromRoomSurface.filter((n) => dangerous.has(n));
+  ok("none of _room-taste.js's own imports from _room-surface.js are among the derived follower-writer symbols",
+    stillSafe.length === 0, stillSafe.join(","));
+}
+
+// (7b) The table-touch scan, `vy_room_arrival`'s own precedent (migration
+// 102's block above) one table over: a closed set of files may write or
+// delete `vy_room_taste_turn`, and the one other reader must be
+// aggregate-only.
+{
+  const WRITE_OR_DELETE = new Set(["_room-taste.js", "_replica-full-erasure.js"]);
+  const AGGREGATE_ONLY = new Set(["_funnel.js"]);
+  const offenders = [];
+  for (const f of fs.readdirSync(join(REPO, "api"))) {
+    if (!f.endsWith(".js")) continue;
+    const src = fs.readFileSync(join(REPO, "api", f), "utf8");
+    if (!src.includes("vy_room_taste_turn")) continue;
+    if (WRITE_OR_DELETE.has(f)) continue;
+    if (!AGGREGATE_ONLY.has(f)) { offenders.push(f); continue; }
+    const stmts = (src.match(/`[^`]*vy_room_taste_turn[^`]*`/g) || [])
+      .filter((st) => /\bfrom\s+vy_room_taste_turn\b/i.test(st));
+    if (!stmts.length) { offenders.push(f + ":no-statement-found"); continue; }
+    for (const st of stmts) {
+      const selectList = (st.match(/select([\s\S]*?)\sfrom\s/i) || [, ""])[1];
+      const items = []; let depth = 0, cur = "";
+      for (const ch of selectList) {
+        if (ch === "(") depth++;
+        if (ch === ")") depth--;
+        if (ch === "," && depth === 0) { items.push(cur.trim()); cur = ""; } else cur += ch;
+      }
+      if (cur.trim()) items.push(cur.trim());
+      const aggregateOnly = items.length > 0 && items.every((c) => /\b(count|sum|min|coalesce)\s*\(/i.test(c));
+      if (!aggregateOnly) offenders.push(f + ":non-aggregate-read");
+    }
+  }
+  ok("no file outside the allowed set reads vy_room_taste_turn except an aggregate-only sum",
+    offenders.length === 0, offenders.join(","));
+
+  const writeSrc = fs.readFileSync(join(REPO, "api/_room-taste.js"), "utf8");
+  ok("the taste-turn counter write is exactly one insert ... on conflict upsert",
+    /insert into vy_room_taste_turn[\s\S]{0,200}on conflict \(room_id, day\) do update/.test(writeSrc));
+
+  const erasureLines = fs.readFileSync(join(REPO, "api/_replica-full-erasure.js"), "utf8")
+    .split("\n")
+    .filter((l) => l.includes("vy_room_taste_turn"));
+  ok("the erasure job's only touch of vy_room_taste_turn is a delete",
+    erasureLines.length > 0 && erasureLines.every((l) => /delete from/i.test(l)));
+}
+
+// (7c) WORLD CHECK. N strangers taking taste turns and M real followers
+// talking, through the REAL `roomTaste` and `roomSay` over the SAME fake
+// world - every taste reply is scanned for every follower's own tokens, and
+// the follower/thread/fact tables are proven byte-for-byte unchanged by any
+// taste turn (the behavioural half of (7a)'s static claim).
+{
+  const { roomTaste, ROOM_TASTE_TURNS } = await import(pathToFileURL(join(REPO, "api/_room-taste.js")).href);
+  const state = freshState();
+  const db = fakeDb(state);
+
+  const followerUid = (i) => `60000000-0000-4000-a000-${String(i).padStart(12, "0")}`;
+  const followerToken = (i) => `TOKFOLLOWER_${i}_${"w".repeat(8)}`;
+  const M = 3;
+  for (let i = 0; i < M; i++) {
+    const joined = await joinRoom(db, { slug: SLUG, authUserId: followerUid(i), ageAttested: true, memoryConsent: true }, { loadAgent });
+    await roomSay(db, { session: joined.session, message: `my own secret: ${followerToken(i)}` }, {
+      loadAgent, memory: { openEpisode: async () => ({}), logTurn: async () => {}, history: async () => [], recall: async () => [] },
+      reply: () => "noted.",
+    });
+  }
+  const followersBefore = JSON.stringify(state.followers);
+  const threadsBefore = JSON.stringify(state.threads);
+  const factsBefore = JSON.stringify(state.facts);
+
+  const strangerToken = (i, t) => `TOKSTRANGER_${i}_${t}_${"u".repeat(8)}`;
+  const allFollowerTokens = Array.from({ length: M }, (_, i) => followerToken(i));
+  const N_STRANGERS = 5;
+  const violations = [];
+  let disclosureOnTurnOneCount = 0;
+  for (let i = 0; i < N_STRANGERS; i++) {
+    for (let t = 1; t <= ROOM_TASTE_TURNS; t++) {
+      const turn = await roomTaste(db, {
+        slug: SLUG, message: `taste q${t}: ${strangerToken(i, t)}`, turnIndex: t,
+      }, {
+        loadAgent, tableApplied: () => false,
+        reply: () => "acknowledged, noted for next time.",
+      });
+      rowChecks += allFollowerTokens.length;
+      for (const tok of leakedTokens(JSON.stringify(turn), allFollowerTokens)) {
+        violations.push({ stranger: i, turn: t, tok });
+      }
+      if (t === 1) {
+        if (turn.disclosure) disclosureOnTurnOneCount++;
+        ok(`stranger ${i}, turn 1: carries the disclosure card`, Boolean(turn.disclosure));
+      } else {
+        ok(`stranger ${i}, turn ${t}: does NOT re-carry the disclosure card`, turn.disclosure === null);
+      }
+    }
+  }
+  ok(`N=${N_STRANGERS} strangers x ${ROOM_TASTE_TURNS} taste turns: zero follower-token leaks into any taste reply`,
+    violations.length === 0, violations.length ? `first: ${JSON.stringify(violations[0])}` : "");
+  ok(`every one of ${N_STRANGERS} strangers saw the disclosure exactly once (turn 1 only)`,
+    disclosureOnTurnOneCount === N_STRANGERS);
+
+  boundaryChecks++;
+  ok("taste: vy_room_follower is byte-identical before and after every stranger's taste turns",
+    JSON.stringify(state.followers) === followersBefore);
+  boundaryChecks++;
+  ok("taste: vy_room_thread is byte-identical before and after every stranger's taste turns",
+    JSON.stringify(state.threads) === threadsBefore);
+  boundaryChecks++;
+  ok("taste: vy_fact is byte-identical before and after every stranger's taste turns",
+    JSON.stringify(state.facts) === factsBefore);
+
+  // `roomTaste` enforces NO ceiling of its own on `turnIndex` - the real
+  // refusal is `api/room.js`'s rate gate, BEFORE this function is ever
+  // called (`evals/room-taste/run.mjs`'s own §1/§5b), on purpose: a second,
+  // hardcoded wall here would drift from an operator's `RATE_LIMITS_JSON`
+  // override the day the two stopped agreeing (`ROOM_TASTE_TURNS`'s own
+  // comment, api/_room-taste.js). Two things are checked here instead: the
+  // function itself answers rather than throws for a turnIndex past the
+  // product default (proving there is no drift-prone wall to test), and
+  // `turns_left` still clamps at 0 rather than going negative.
+  const overLimit = await roomTaste(db, { slug: SLUG, message: "a fourth question", turnIndex: ROOM_TASTE_TURNS + 1 }, {
+    loadAgent, tableApplied: () => false, reply: () => "answered anyway - the wall is api/room.js's, not this function's",
+  });
+  ok("roomTaste itself answers a turnIndex past ROOM_TASTE_TURNS rather than throwing (no drift-prone hardcoded wall)",
+    Boolean(overLimit.reply));
+  ok("...and turns_left still clamps at 0 rather than going negative",
+    overLimit.turns_left === 0);
+  const roomJsSrc = fs.readFileSync(join(REPO, "api/room.js"), "utf8");
+  const tasteOpBlock = (roomJsSrc.match(/if \(op === "taste"\) \{[\s\S]*?\n    \}/) || [""])[0];
+  ok("api/room.js's taste op calls consume() BEFORE roomTaste() - the gate is the enforcement, textually first",
+    tasteOpBlock.indexOf("await consume(") >= 0 &&
+      tasteOpBlock.indexOf("await consume(") < tasteOpBlock.indexOf("await roomTaste("));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 console.log(`\n── verdict ──`);
 for (const w of worldSummaries) {
   console.log(`  N=${String(w.followers).padEnd(3)} followers  ${String(w.turns).padEnd(4)} turns  ${w.checks} retrieval checks`);

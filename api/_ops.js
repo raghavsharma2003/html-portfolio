@@ -30,7 +30,7 @@ import { sweepSchedules } from "./_sweep-schedule.js";
 // `opsFunnel` is its own aggregate-only function in `api/_funnel.js` (that
 // file's own header names the rule this file already keeps), imported here
 // rather than re-derived so the board's one call stays the board's one call.
-import { opsFunnel, creatorInviteArrivalsThisWeek, shareArrivalsThisWeek } from "./_funnel.js";
+import { opsFunnel, creatorInviteArrivalsThisWeek, shareArrivalsThisWeek, tasteTurnsThisWeek } from "./_funnel.js";
 // WS-R29 (migration 092). The unit cost is a named constant in the one file
 // that owns the send path - imported here rather than restated, so the
 // board's own number and the send path's own comment can never drift apart.
@@ -374,6 +374,10 @@ export async function opsOverview(db, now = Date.now(), deps = {}) {
     // this week came in through a shared link, n>=5 floored the same way
     // the line immediately above already is.
     share_arrivals_this_week: await shareArrivalsThisWeek(db, now, deps),
+    // WS-R53 (migration 110). A count of TURNS, never people - the taste has
+    // no follower at all, so there is no floor here the way there is one
+    // line up (`_funnel.js`'s own header on why).
+    taste_turns_this_week: await tasteTurnsThisWeek(db, now, deps),
     // WS-R29. "The owner sees the bill before Meta does" - the workstream
     // brief's own words.
     whatsapp: await whatsappSpendThisMonth(db, now),

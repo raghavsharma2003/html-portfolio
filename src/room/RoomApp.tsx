@@ -72,6 +72,7 @@ import {
   setRoomLocale,
   speakInRoom,
   slugFromPath,
+  tasteInRoom,
   viaFromLocation,
   type RoomCitations,
   type RoomFollower,
@@ -80,6 +81,7 @@ import {
   type RoomOpen,
   type RoomQuota,
   type RoomSettings,
+  type RoomTasteTurn,
   type RoomThread,
 } from "./roomApi";
 import { RoomPayApiError, startSubscription, type RoomPaymentStatus } from "./roomPayApi";
@@ -154,6 +156,14 @@ interface Props {
    *  same layout-gate target this one prop adds. */
   fixtureInstallPrompt?: boolean;
   fixtureInstallPromptIOS?: boolean;
+  /** WS-R53. `?screen=join` must still measure the JOIN sheet on its own
+   *  (the layout gate's existing target) rather than the taste screen that
+   *  now sits in front of it for a real, signed-out visitor — this forces
+   *  the taste screen already dismissed, `layoutFixture.tsx`'s own seam for
+   *  every other screen that sits behind an earlier one. Production never
+   *  passes it; a real visitor always sees the taste screen first when the
+   *  creator has not switched it off. */
+  fixtureTasteDismissed?: boolean;
 }
 
 export default function RoomApp({
@@ -170,12 +180,17 @@ export default function RoomApp({
   fixtureHandoffOpen,
   fixtureInstallPrompt,
   fixtureInstallPromptIOS,
+  fixtureTasteDismissed,
 }: Props) {
   const slug = useMemo(() => (fixtureOpen ? fixtureOpen.room.slug : slugFromPath()), [fixtureOpen]);
   const [phase, setPhase] = useState<Phase>(
     fixturePhase ?? (fixtureOpen ? (fixtureOpen.joined ? "talking" : "join") : "loading"),
   );
   const [room, setRoom] = useState<RoomOpen | null>(fixtureOpen ?? null);
+  // WS-R53. Once true, the "join" phase renders JoinSheet directly rather
+  // than TasteScreen — either because a stranger tapped its own join
+  // control, or because the fixture forced it (see Props above).
+  const [tasteDismissed, setTasteDismissed] = useState(fixtureTasteDismissed ?? false);
   const [auth, setAuth] = useState<StudioSession | null>(null);
   const [session, setSession] = useState<string | null>(fixtureOpen?.session ?? null);
   const [turns, setTurns] = useState<Turn[]>(fixtureTurns ?? []);
@@ -851,6 +866,24 @@ export default function RoomApp({
   }
 
   if (phase === "join" && room) {
+    // WS-R53: the taste, ahead of the sign-in wall — unless the creator
+    // switched it off (`room.room.taste_enabled`, read from the server,
+    // never guessed) or this visitor already tapped through it once this
+    // tab (`tasteDismissed`, which the taste screen's OWN join control and
+    // its "no more questions today" state both set).
+    if (room.room.taste_enabled !== false && !tasteDismissed) {
+      return (
+        <TasteScreen
+          room={room}
+          name={name}
+          copy={copy}
+          locale={locale}
+          localeBusy={localeBusy}
+          onSwitchLocale={switchLocale}
+          onJoin={() => setTasteDismissed(true)}
+        />
+      );
+    }
     return (
       <JoinSheet
         room={room}
@@ -1461,6 +1494,173 @@ function ThreadRail({
         </button>
       )}
     </nav>
+  );
+}
+
+/* ── the taste ───────────────────────────────────────────────────────────── */
+
+/* Three questions, answered by the creator's AI, from their own material
+ * alone, before the sign-in wall (WS-R53). No session, no thread — nothing
+ * sent to or received from the server survives past this one component:
+ * `tasteInRoom` (roomApi.ts) mints no session, and `exchanges` below lives
+ * only in this screen's own state, gone the moment the tab is (the SAME
+ * "stateless by construction" property api/_room-taste.js's own header
+ * states for the server side of this exact boundary). The join control is
+ * always present and always works — a stranger who wants to skip straight
+ * to signing in never has to spend a question first. */
+function TasteScreen({
+  room,
+  name,
+  copy,
+  locale,
+  localeBusy,
+  onSwitchLocale,
+  onJoin,
+}: {
+  room: RoomOpen;
+  name: string;
+  copy: RoomCopy;
+  locale: RoomLocale;
+  localeBusy: boolean;
+  onSwitchLocale: (next: RoomLocale) => void;
+  onJoin: () => void;
+}) {
+  const [exchanges, setExchanges] = useState<{ q: string; a: string }[]>([]);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  // Non-null only on turn 1 (`api/_room-taste.js`'s own law) — kept on
+  // screen for every turn after, never re-fetched.
+  const [disclosure, setDisclosure] = useState<string | null>(null);
+  const [turnsLeft, setTurnsLeft] = useState(3);
+  // True once the daily allowance is spent, whichever way that happened
+  // (the server said `turns_left: 0`, or the rate gate refused outright) —
+  // the one flag that decides whether the input still renders.
+  const [spent, setSpent] = useState(false);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [exchanges.length]);
+
+  async function ask() {
+    const text = draft.trim();
+    if (!text || busy || spent) return;
+    setBusy(true);
+    setError("");
+    try {
+      // `room.locale` — the exact language the lede/disclosure above is
+      // already rendered in, passed through rather than re-picked, `join`'s
+      // own reason one screen over.
+      const turn: RoomTasteTurn = await tasteInRoom(room.room.slug, text, room.locale);
+      setDraft("");
+      setExchanges((prev) => [...prev, { q: text, a: turn.reply }]);
+      if (turn.disclosure) setDisclosure(turn.disclosure);
+      setTurnsLeft(turn.turns_left);
+      if (turn.turns_left <= 0) setSpent(true);
+    } catch (e) {
+      if (e instanceof RoomApiError && e.code === "rate_limited") {
+        setError(copy.taste.rateLimited);
+        setSpent(true);
+      } else {
+        setError(copy.errors.generic);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="room-shell" lang={locale}>
+      <section className="room-taste">
+        <div className="room-head-row">
+          <h1>{name ? `${name} AI` : room.room.display_name}</h1>
+          <LanguageSwitch locale={locale} busy={localeBusy} onSwitch={onSwitchLocale} />
+        </div>
+        {/* WS-R45. Plain text the creator wrote about themselves — never
+            rendered as anything but a paragraph, exactly like the directory
+            card that already shows it. */}
+        {room.room.bio && <p className="room-lede">{room.room.bio}</p>}
+        {/* The card, the moment it exists (turn 1's own reply) — and once
+            shown it STAYS shown, `api/_room-taste.js`'s own "carried on the
+            first answer" law rendered rather than re-requested. Before that
+            first reply, the lede alone says what this screen is. */}
+        {disclosure ? (
+          <div className="room-card" role="note">
+            {disclosure.split("\n").map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </div>
+        ) : (
+          <p className="room-lede">{withName(copy.taste.lede, name)}</p>
+        )}
+
+        {exchanges.length > 0 && (
+          <div className="room-taste-turns">
+            {exchanges.map((ex, i) => (
+              <div className="room-taste-turn" key={i}>
+                <p className="room-taste-q">{ex.q}</p>
+                <p className="room-taste-a">{ex.a}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        {busy && <p className="room-lede">{copy.taste.thinking}</p>}
+        <div ref={bottomRef} />
+
+        {error && <p className="room-error">{error}</p>}
+
+        {/* Three dots, empty as they are spent — the workstream's own
+            product number (WS-R53 law 4), never re-derived from the
+            server's own configurable limit: a display convention, not the
+            enforcement (the enforcement is `api/_rate-limit.js`'s own
+            `room_taste` scope, entirely server-side). */}
+        <div className="room-taste-dots" aria-hidden="true">
+          {[0, 1, 2].map((i) => (
+            <span key={i} className={`room-taste-dot${i < exchanges.length ? " room-taste-dot-spent" : ""}`} />
+          ))}
+        </div>
+
+        {!spent && (
+          <div className="room-actions">
+            <input
+              className="room-taste-input"
+              aria-label={copy.taste.placeholder}
+              placeholder={copy.taste.placeholder}
+              value={draft}
+              disabled={busy}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void ask();
+              }}
+            />
+            <button
+              type="button"
+              className="room-btn primary"
+              disabled={busy || !draft.trim()}
+              onClick={() => void ask()}
+            >
+              {copy.taste.send}
+            </button>
+          </div>
+        )}
+
+        {!spent && turnsLeft > 0 && turnsLeft < 3 && (
+          <p className="room-fine">
+            {turnsLeft === 1 ? copy.taste.turnsLeftOne : withCount(copy.taste.turnsLeft, turnsLeft)}
+          </p>
+        )}
+        {spent && !error && <p className="room-fine">{copy.taste.spent}</p>}
+
+        {/* Always present, always works — a stranger who wants to sign in
+            right away never has to spend a question first. */}
+        <div className="room-actions">
+          <button type="button" className="room-btn" onClick={onJoin}>
+            {copy.taste.join}
+          </button>
+        </div>
+      </section>
+    </main>
   );
 }
 

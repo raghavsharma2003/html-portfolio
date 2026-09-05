@@ -483,3 +483,52 @@ export async function shareArrivalsThisWeek(db, now = Date.now(), deps = {}) {
   const belowFloor = n < SHARE_ARRIVAL_FLOOR;
   return { n: belowFloor ? null : n, below_floor: belowFloor, note: shareArrivalNote(n) };
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R53 (migration 110). "Taste turns this week" - the workstream brief's
+// own law 5: "a count of turns, not people, and says so on the ops board."
+//
+// No n>=5 anonymity floor, unlike `shareArrivalsThisWeek` above - and that
+// omission is deliberate, not an oversight: the floor exists to keep a
+// creator from re-deriving one specific FOLLOWER out of a small bucket of
+// their own. A taste turn has no follower at all (`api/_room-taste.js`'s
+// whole point - no session, no person, no thread), so there is no person
+// this count could ever re-derive, `suitesFunnelThisWeek`'s own reasoning
+// (WS-R48, "neither count below could ever [point at one person]") applied
+// here rather than to Suites. Platform-wide, `vy_room_arrival`'s own table
+// shape one column narrower - `shareArrivalsThisWeek`'s `tableApplied` gate,
+// restated for the new table so a database migration 110 has not yet
+// reached returns the honest "not enough data" shape rather than a query
+// against a table that is not there.
+// ─────────────────────────────────────────────────────────────────────────
+const ROOM_TASTE_TURN_TABLE = "vy_room_taste_turn";
+
+/** Pure. Never a floor sentence — see this section's own header for why a
+ *  taste-turn count carries none. */
+export function tasteTurnsNote(n) {
+  return `${n} taste turn${n === 1 ? "" : "s"} happened this week (a count of turns, not people).`;
+}
+
+/**
+ * ONE statement, platform-wide, over the rolling 7-day window every other
+ * "this week" line in this file already uses. Gated on migration 110
+ * actually being applied (`tableApplied`, injectable via `deps.tableApplied`
+ * exactly like `shareArrivalsThisWeek`) so a database this migration has not
+ * yet reached returns the honest "not enough data" shape.
+ */
+export async function tasteTurnsThisWeek(db, now = Date.now(), deps = {}) {
+  if (typeof db !== "function") throw new Error("funnel_database_required");
+  const applied = deps.tableApplied ?? tableApplied;
+  if (!(await applied(ROOM_TASTE_TURN_TABLE))) {
+    return { n: 0, note: tasteTurnsNote(0) };
+  }
+  const since = new Date(now - WEEK_WINDOW_MS).toISOString().slice(0, 10);
+  const [row] = await db(
+    `select coalesce(sum(count), 0)::int as n
+       from vy_room_taste_turn
+      where day >= ($1)::date`,
+    [since],
+  );
+  const n = Number(row?.n || 0);
+  return { n, note: tasteTurnsNote(n) };
+}

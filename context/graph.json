@@ -7582,6 +7582,66 @@
       "kind": "measurement",
       "title": "Migration 113 widened vy_room_arrival's via CHECK to admit install (the value WS-R59's JS allowlist added) at the WS-R59 merge; applied live after reading the constraint's name back; the upsert plan is unchanged.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r53-taste-is-stateless-across-turns-by-construction",
+      "kind": "decision",
+      "title": "api/_room-taste.js accepts no session/thread/history/memory; imports only a closed read-only allowlist from _room-surface.js, no follower-scope writer reachable by construction",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r53-taste-turn-is-not-a-fifth-arrival-via",
+      "kind": "decision",
+      "title": "Taste turns this week counted by a new vy_room_taste_turn (room,day) table, migration 110, rather than a fifth vy_room_arrival.via value",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r53-taste-enforces-no-hardcoded-turn-ceiling",
+      "kind": "decision",
+      "title": "roomTaste enforces no ceiling of its own on turnIndex; the daily limit lives entirely in api/_rate-limit.js configurable room_taste scope",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r53-taste-switch-is-a-new-column-not-a-fitting-existing-one",
+      "kind": "decision",
+      "title": "vy_room.taste_enabled is a new boolean column (migration 110), default true, after checking migrations 071 and 105 had no fitting column",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r53-gates-before-after",
+      "kind": "measurement",
+      "title": "verify-release.mjs before 18/20 (2 EADDRINUSE), after 18/20 same single run (2 different EADDRINUSE), both failing gates independently verified clean with free ports; room-taste 21/21, room-leak 112/112, room-doors 306/306, sqlcast/copy/locale/accessibility/performance all clean",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r53-hardcoded-turn-ceiling-drifted-from-the-configurable-rate-limit",
+      "kind": "rejection",
+      "title": "An internal ROOM_TASTE_TURNS ceiling inside roomTaste silently defeated an operator RATE_LIMITS_JSON override; caught by room-taste eval negative control (b); removed",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r53-doc-comments-naming-a-table-tripped-room-leaks-own-scanner",
+      "kind": "rejection",
+      "title": "Header comments in api/_room-taste.js naming vy_room_follower/vy_room_thread/vy_room_arrival in prose tripped room-leak layer 1c raw-substring scanner; fixed by rewording, not by an allowlist exemption",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r53-eval-suite-import-regex-broke-on-a-second-name",
+      "kind": "rejection",
+      "title": "import { consume, limitsFor } from _rate-limit.js broke evals/rate-limit/run.mjs own exact-line regex; fixed with a second separate import line",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r53-uncast-boolean-write-caught-by-sqlcast",
+      "kind": "rejection",
+      "title": "setRoomTasteEnabled wrote set taste_enabled = $3 with no cast; sqlcast rule B caught 2 findings; fixed with ()::boolean",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r53-clock-rollover-broke-room-doors-fixture",
+      "kind": "rejection",
+      "title": "evals/room-doors/run.mjs NOW hardcoded to a calendar date broke once real time crossed it mid-session, unrelated to WS-R53; fixed per main-loop direction with const NOW = Date.now()",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15104,6 +15164,31 @@
       "src": "rooms-migration-113-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r40-arrival-counted-per-openroom-call-not-deduplicated-per-session"
+    },
+    {
+      "src": "ws-r53-taste-turn-is-not-a-fifth-arrival-via",
+      "rel": "constrains",
+      "dst": "ws-r45-one-line-bio-added-in-migration-105"
+    },
+    {
+      "src": "ws-r53-hardcoded-turn-ceiling-drifted-from-the-configurable-rate-limit",
+      "rel": "caused_by",
+      "dst": "ws-r26-limits-are-code-constants-not-a-database-table"
+    },
+    {
+      "src": "ws-r53-taste-enforces-no-hardcoded-turn-ceiling",
+      "rel": "supersedes",
+      "dst": "ws-r53-hardcoded-turn-ceiling-drifted-from-the-configurable-rate-limit"
+    },
+    {
+      "src": "ws-r53-gates-before-after",
+      "rel": "measured_by",
+      "dst": "ws-r53-taste-is-stateless-across-turns-by-construction"
+    },
+    {
+      "src": "ws-r53-doc-comments-naming-a-table-tripped-room-leaks-own-scanner",
+      "rel": "caused_by",
+      "dst": "ws-r40-double-quoted-table-name-fooled-room-leaks-own-backtick-pairing-scanner"
     }
   ]
 }

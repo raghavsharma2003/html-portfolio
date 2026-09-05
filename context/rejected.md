@@ -9494,3 +9494,100 @@ assume that check alone would catch every conceivable cache-write bug
 `req` verbatim) — the STATIC scan is what proves that class of bug is
 unreachable, by construction, regardless of what any individual browser API
 happens to refuse.
+
+## `ws-r53-hardcoded-turn-ceiling-drifted-from-the-configurable-rate-limit` (2026-09-05, WS-R53)
+
+**What was tried.** An early draft of `api/_room-taste.js`'s `roomTaste`
+threw a named `room_taste_limit_reached` error whenever the caller-supplied
+`turnIndex` exceeded `ROOM_TASTE_TURNS` (a hardcoded `3`), intended as
+defence in depth alongside `api/room.js`'s real rate-limit gate.
+
+**What specifically broke.** `evals/room-taste/run.mjs`'s own negative
+control (§5b) - striking the CONFIGURED limit to 4 via `RATE_LIMITS_JSON`
+and confirming the fourth call succeeds - failed immediately: the
+hardcoded wall inside `roomTaste` fired regardless of what the operator's
+own override said, silently defeating `RATE_LIMITS_JSON`'s own escape
+hatch for this one scope only
+(`context/decisions.md#ws-r26-limits-are-code-constants-not-a-database-
+table`). Two names for one number, this repo's own standing lesson,
+caught here before it shipped: fixed by removing the internal ceiling
+entirely (`context/decisions.md#ws-r53-taste-enforces-no-hardcoded-turn-
+ceiling`) - the real enforcement was always `api/_rate-limit.js`'s
+configurable limit, and a second wall behind it could only ever drift
+from it, never usefully tighten it (an operator who wants FEWER taste
+turns already has `RATE_LIMITS_JSON` for that too).
+
+## `ws-r53-doc-comments-naming-a-table-tripped-room-leaks-own-scanner` (2026-09-05, WS-R53)
+
+**What was tried.** `api/_room-taste.js`'s header comment explained, in
+prose, which follower-scope tables the file must never touch, naming them
+literally: `` `vy_room_follower`, `vy_room_thread`, `vy_fact`, `vy_episode` ``,
+and separately described the new counter table as avoiding "a fifth
+`vy_room_arrival.via` value."
+
+**What specifically broke.** `evals/room-leak/run.mjs`'s existing layer 1c
+scan (`AGGREGATE_ONLY`/`ARRIVAL_AGGREGATE_ONLY`) flags ANY file under
+`api/` whose raw source text CONTAINS the substring `vy_room_follower`,
+`vy_room_thread` or `vy_room_arrival` unless that file is on a closed
+allowlist - it does not strip comments first, `ws-r40-double-quoted-
+table-name-fooled-room-leaks-own-backtick-pairing-scanner`'s own sibling
+defect class (a scanner that reads raw bytes cannot tell a comment from a
+statement). A brand-new file merely EXPLAINING what it does not do tripped
+the same check a real reader/writer would. Fixed by rewording the
+comments to describe the tables without ever spelling the literal table
+name (`context/decisions.md#ws-r53-taste-is-stateless-across-turns-by-
+construction`'s own file) rather than adding `_room-taste.js` to the
+scanner's allowlist, which would have been the wrong fix - this file has
+no legitimate reason to be trusted with those tables at all, so an
+allowlist entry would have weakened a real check to accommodate prose.
+
+## `ws-r53-eval-suite-import-regex-broke-on-a-second-name` (2026-09-05, WS-R53)
+
+**What was tried.** `api/room.js` imported both `consume` and the newly-
+needed `limitsFor` from `api/_rate-limit.js` on one line:
+`import { consume, limitsFor } from "./_rate-limit.js";`.
+
+**What specifically broke.** `evals/rate-limit/run.mjs`'s own static proof
+(`api/room.js imports consume from _rate-limit.js`) matches the exact
+regex `/import \{ consume \} from ".\/_rate-limit\.js"/` - a second name in
+the same braces fails it, for a reason having nothing to do with whether
+this door still goes through the rate gate. Fixed by importing `limitsFor`
+on its OWN line immediately below, leaving the exact line that eval reads
+untouched - the shared eval file was not touched at all.
+
+## `ws-r53-uncast-boolean-write-caught-by-sqlcast` (2026-09-05, WS-R53)
+
+**What was tried.** `api/_room-publish.js`'s new `setRoomTasteEnabled`
+wrote `set taste_enabled = $3` with no explicit cast on the bound
+parameter.
+
+**What specifically broke.** `node evals/sqlcast.mjs` (rule B, the strict-
+surface uncast-parameter scan) failed with 2 findings at
+`api/_room-publish.js:779` - the same line matched twice (once as the SET
+clause text, once as the derived `update vy_room (taste_enabled) <- $3`
+shape). Fixed by casting explicitly, `_handoff.js`'s own
+`handoff_enabled = ($3)::boolean` precedent copied rather than invented:
+`set taste_enabled = ($3)::boolean`. `sqlcast: ok` (0 uncast sites) after.
+
+## `ws-r53-clock-rollover-broke-room-doors-fixture` (2026-09-05, WS-R53, not caused by this workstream)
+
+**What was found.** Mid-session, `node scripts/verify-release.mjs` began
+failing `eval suite` and `room door battery` with an uncaught
+`room_session_expired` thrown from `api/_handoff.js`'s `followerScope` ->
+`api/_room-surface.js`'s `assertSessionFresh`, reached from
+`evals/room-doors/run.mjs`. Traced to `evals/room-doors/run.mjs`'s own
+`const NOW = Date.parse("2026-09-04T12:00:00Z")` - a CALENDAR DATE, not a
+value computed from `Date.now()` at run time. Once the real wall clock
+crossed 2026-09-05T00:00Z mid-session, every session token minted at the
+fixture's fixed `NOW` was more than the 12-hour TTL old relative to any
+call site that reads the real clock instead of an explicit `now:` override
+(`followerScope`'s own `deps.now ?? Date.now()` - most callers in this
+suite pass `now: NOW` explicitly, one line at `evals/room-doors/run.mjs:511`
+did not). This is a test-fixture defect unrelated to WS-R53: no file this
+workstream added or touched (`api/_room-taste.js`, the `taste` op, the
+`vy_room_taste_turn` table) is anywhere in the call path, and the same
+failure reproduced identically against the untouched base commit's copy
+of this same file. Confirmed and the fix directed by the main loop mid-
+session: `const NOW = Date.now();` - one line, nothing else, applied by
+this workstream since it happened to be the session in progress when the
+clock crossed. `evals/room-doors/run.mjs`: 306 passed, 0 failed after.

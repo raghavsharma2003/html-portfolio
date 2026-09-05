@@ -79,7 +79,14 @@ const CARD_HI = [
 ].join("\n");
 
 const FIXTURE_OPEN: RoomOpen = {
-  room: { slug: "anjali", display_name: "Anjali", name: "Anjali", handoff_enabled: true },
+  room: {
+    slug: "anjali",
+    display_name: "Anjali",
+    name: "Anjali",
+    handoff_enabled: true,
+    taste_enabled: true,
+    bio: "JEE physics, eleven years at the board, mechanics and electrodynamics.",
+  },
   disclosure: CARD,
   locale: "en",
   joined: true,
@@ -248,6 +255,23 @@ function installFetchStub() {
     if (path === "/api/room") {
       if (op === "push_status") return json({ subscribed: false });
       if (op === "whatsapp_status") return json({ available: false, subscribed: false, phone_masked: null });
+      // WS-R53: a real-shaped answer in case an interaction driver (the
+      // accessibility gate's keyboard walk, a future click-through) submits
+      // the taste input for real - never reachable from the STATIC layout
+      // screenshot, which never sends anything.
+      if (op === "taste") {
+        const isHindi = new URLSearchParams(window.location.search).get("lang") === "hi";
+        return json({
+          room: { slug: "anjali", display_name: "Anjali", name: "Anjali" },
+          disclosure: isHindi ? CARD_HI : CARD,
+          locale: isHindi ? "hi" : "en",
+          reply: isHindi
+            ? "घर्षण वही जवाब देता है जो आप लगाते हैं, एक सीमा तक।"
+            : "Friction answers exactly what you push with, up to a ceiling.",
+          turn_index: 1,
+          turns_left: 2,
+        });
+      }
       return json({});
     }
     return json({});
@@ -286,7 +310,7 @@ function render() {
   // still in English - the one shape a real Room may never be in.
   const hindi = params.get("lang") === "hi";
   const base = hindi ? { ...FIXTURE_OPEN, locale: "hi" as const, disclosure: CARD_HI } : FIXTURE_OPEN;
-  const open = screen === "join" ? { ...base, joined: false, session: null } : base;
+  const open = screen === "join" || screen === "taste" ? { ...base, joined: false, session: null } : base;
   // WS-R59: `?screen=install` forces the install card visible over the
   // ordinary talking screen (`fixtureInstallPrompt`, `RoomApp.tsx`'s own
   // prop for exactly this — the real gate that decides visibility needs a
@@ -299,7 +323,7 @@ function render() {
   ReactDOM.createRoot(document.getElementById("room-root")!).render(
     <RoomApp
       fixtureOpen={open}
-      fixtureTurns={screen === "join" ? [] : FIXTURE_TURNS}
+      fixtureTurns={screen === "join" || screen === "taste" ? [] : FIXTURE_TURNS}
       // WS-R39: the account page overlay, forced open with its own composed
       // read supplied — no network reachable from this fixture.
       fixtureAccountOpen={screen === "account"}
@@ -309,6 +333,11 @@ function render() {
       fixtureCapped={screen === "capped"}
       fixtureCapOffer={screen === "capped" ? FIXTURE_CAP_OFFER : null}
       fixturePhase={screen === "receipt" ? "gone" : screen === "offline" ? "offline" : undefined}
+      // WS-R53: `?screen=join` still measures the JOIN sheet on its own -
+      // the taste screen that now sits in front of it for a real, signed-out
+      // visitor is dismissed here so this target keeps measuring what it
+      // always has. `?screen=taste` leaves it false, its own new target.
+      fixtureTasteDismissed={screen === "join"}
       fixtureForgetReceipt={screen === "receipt" ? FIXTURE_RECEIPT : null}
       fixtureCheckinsOpen={screen === "checkins"}
       fixtureHandoffOpen={screen === "handoff"}

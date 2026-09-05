@@ -76,7 +76,20 @@ export interface RoomThread {
 }
 
 export interface RoomOpen {
-  room: { slug: string; display_name: string; name: string; handoff_enabled: boolean };
+  room: {
+    slug: string;
+    display_name: string;
+    name: string;
+    handoff_enabled: boolean;
+    /** WS-R53 (migration 110). The creator's own switch for the three-
+     *  question taste before the sign-in wall - read here rather than
+     *  guessed client side, `handoff_enabled`'s own reason one screen over. */
+    taste_enabled: boolean;
+    /** WS-R45 (migration 105), carried here for the first time by a
+     *  follower-facing read (WS-R53) - the directory's own one-line bio,
+     *  plain text the creator wrote about themselves. `""` when unset. */
+    bio: string;
+  };
   disclosure: string;
   joined: boolean;
   follower: RoomFollower | null;
@@ -86,6 +99,19 @@ export interface RoomOpen {
    *  behind the creator's own `default_locale` before that. `roomDisclosureCard`
    *  above is rendered in exactly this locale - never re-picked client side. */
   locale: "en" | "hi";
+}
+
+/** WS-R53. One answer from `roomTaste` (api/_room-taste.js) — no session, no
+ *  thread, nothing that outlives this one call. `disclosure` is non-null
+ *  ONLY on `turn_index === 1`, `RoomOpen.disclosure`'s own shape carried by
+ *  a lane with no session to bind it into. */
+export interface RoomTasteTurn {
+  room: { slug: string; display_name: string; name: string };
+  disclosure: string | null;
+  locale: "en" | "hi";
+  reply: string;
+  turn_index: number;
+  turns_left: number;
 }
 
 /** WS-R30 (migration 093). `cap_reached` is written to the ledger but never
@@ -176,6 +202,18 @@ export const openRoom = (
   locale?: string | null,
   via?: string | null,
 ) => post<RoomOpen>({ op: "open", room: slug, locale: locale || undefined, via: via || undefined }, accessToken);
+
+/** WS-R53. Keyed by (room, caller IP) at the server, `api/_rate-limit.js`'s
+ *  `room_taste` scope, 3/day - no session, no bearer, no accessToken
+ *  parameter on this call at all, because there is no follower yet for one
+ *  to name. A refused turn (the daily limit spent) throws `RoomApiError`
+ *  with `code === "rate_limited"` exactly like every other rate-limited
+ *  door in this file, `retryAfterSeconds` carried the same way. */
+export const tasteInRoom = (
+  slug: string,
+  message: string,
+  locale?: string | null,
+) => post<RoomTasteTurn>({ op: "taste", room: slug, message, locale: locale || undefined });
 
 export const joinRoom = (
   slug: string,

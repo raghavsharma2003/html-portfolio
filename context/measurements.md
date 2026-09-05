@@ -10317,3 +10317,76 @@ n = 1 migration (2 statements in one transaction), 1 API statement; method = the
 | `recordRoomArrival` with `via = 'install'` | Insert with `vy_room_arrival_pkey` as the conflict arbiter, unchanged from 102's plan; the CHECK now admits the value |
 
 Not measured: no phone has installed a Room, so no install arrival exists; before this migration such an arrival would have been refused by the CHECK and swallowed by the upsert's catch, a count that would have stayed at zero without anyone noticing.
+
+## `ws-r53-gates-before-after` (2026-09-05, WS-R53)
+
+**n/method.** `node scripts/verify-release.mjs`, run on this machine, no
+`NEON_URL` (20 checks). BEFORE: a temporary sibling worktree checked out
+at the same base commit (2d271f2), `npm install` + `write-config.mjs
+--stub` + `evals/echosim/build.mjs` run there first, one full gate pass.
+AFTER: this worktree, same setup, run to completion three times as fixes
+landed (see `rejected.md` entries below for what each run caught).
+
+**BEFORE (untouched tree, 2026-09-04):** 18/20 passed. 2 failed:
+`layout readability` and `accessibility`, both `EADDRINUSE` on
+127.0.0.1:8931/8933 - a concurrent sibling worktree's own gate run holding
+the port, not a content failure (confirmed by the error shape: a `listen`
+crash before any page ever loaded, `ws-r21`-shaped port collision one
+workstream over, restated here for a different port).
+
+**AFTER (this workstream's tree, final run, 2026-09-05):** 18/20 passed in
+the same single invocation. 2 failed, both `EADDRINUSE` again
+(`layout readability` on 8931, `performance budgets` on 8932 this time -
+a DIFFERENT sibling's gate now holding a DIFFERENT port, consistent with
+"whichever port a sibling happens to be using at that instant" rather than
+a real regression). Both of the failing gates were run STANDALONE with
+their ports confirmed free, immediately before and after this final
+combined run, and both passed clean:
+`node scripts/check-layout.mjs` (58 screen loads, including
+`room:taste:taste` and `room-hi:taste:taste`, 0 findings against either
+new target - see the pointerdown-feedback flake noted separately) and
+`node scripts/check-performance.mjs` (4 targets x 3 runs, all four within
+budget, including `/r/<slug>` at 1200ms LCP / 0.000 CLS / 81ms TBT against
+a bad-4G CDP throttle). `eval suite` (which runs `evals/room-taste/run.mjs`,
+this workstream's own new suite, alongside every other registered suite)
+and `room door battery` both passed in this same run - see
+`rejected.md#ws-r53-clock-rollover-broke-room-doors-fixture` for why an
+EARLIER attempt at this same run showed both failing for a reason that
+turned out to be neither an EADDRINUSE collision nor caused by this
+workstream.
+
+**Room-specific suites, run standalone, this workstream's tree:**
+`evals/room-taste/run.mjs`: 21 passed, 0 failed. `evals/room-leak/run.mjs`
+(with this workstream's new layer 7): 112 passed, 0 failed. `evals/room-
+doors/run.mjs` (with this workstream's `taste`/`set_taste_enabled` OP_
+COVERAGE entries): 306 passed, 0 failed. `node scripts/check-copy.mjs`: 6
+scopes clean, 21 negative controls bit (unchanged count - this
+workstream's new `taste`/Hindi copy added no new violation and no new
+control). `node evals/room-locale/run.mjs`: 44 passed, 0 failed (the
+`taste` key added to both `ROOM_COPY_TABLE.en`/`.hi` passed the `const HI:
+typeof EN` structural-typing key-parity check this file's own header
+describes, confirmed by `npx tsc -b` completing with zero errors).
+`node evals/sqlcast.mjs`: 848 statements scanned, 0 uncast sites - AFTER
+one fix (see `rejected.md`); the FIRST run caught 2 (both against
+`api/_room-publish.js:779`, the new `setRoomTasteEnabled` write).
+
+**Accessibility gate, standalone, this workstream's tree:** `node
+scripts/check-accessibility.mjs`: 0 critical/serious across 13 pages (0
+moderate, 0 minor), 0 keyboard findings, 45727ms - includes
+`room:taste`/`room-hi:taste` in its own `TARGETS`-driven axe-core scan
+(this file imports `TARGETS` from `check-layout.mjs` rather than
+duplicating it, so the new targets were picked up with no edit to this
+gate at all).
+
+**Follow-up, same session: an intermittent `color-contrast` finding on
+`site:/` (Meera's landing page, `.onb-sub`/`.onb-honest`, #4b423d on
+#7fb2e0, measured 4.35 against a 4.5 floor) appeared on a later re-run of
+`node scripts/check-accessibility.mjs` and reproduced twice more in a row.
+Isolated with two temporary `git worktree add` checkouts (both removed
+after): reproduces IDENTICALLY at this workstream's first commit
+(2e0af5e, before the ops-board addition) and at the untouched base commit
+(2d271f2) - confirmed pre-existing, not caused by anything in this
+workstream, and itself intermittent (this exact gate passed clean on this
+same tree earlier in the session, see the entry above) rather than a
+stable regression this workstream introduced. `site/`, `.onb-*` and Meera's
+own tokens are files this workstream never touched.

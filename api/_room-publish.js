@@ -142,7 +142,7 @@ async function ownedRoomRow(db, ownerUserId, replicaId) {
   const rows = await db(
     `select room_id, slug, replica_id, agent_id, owner_user_id, display_name,
             free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
-                listed_at, one_line_bio,
+                listed_at, one_line_bio, taste_enabled,
                 published_at, paused_at, created_at, updated_at
        from vy_room
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
@@ -238,6 +238,11 @@ export function clientRoom(row, { now = Date.now(), env = process.env } = {}) {
     // language above - never rendered on this card as anything but plain
     // text the creator wrote about themselves.
     one_line_bio: row.one_line_bio || "",
+    // WS-R53. Defaults true when the column is absent from a narrower
+    // RETURNING list (never false-by-omission) - `_room-taste.js`'s own
+    // read of this column is the enforcement; this is only the studio's
+    // display of the same switch.
+    taste_enabled: row.taste_enabled !== false,
     listed: row.listed_at != null,
     listed_at: row.listed_at ?? null,
     published: row.published_at != null,
@@ -356,7 +361,7 @@ export async function createRoom(db, ownerUserId, replicaId, { slug } = {}) {
        values (($1)::uuid, $2, ($3)::uuid, ($4)::uuid, ($5)::uuid, $6)
        returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
                  free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
-                listed_at, one_line_bio,
+                listed_at, one_line_bio, taste_enabled,
                 published_at, paused_at, created_at, updated_at`,
       [
         randomUUID(),
@@ -398,7 +403,7 @@ export async function renameRoom(db, ownerUserId, replicaId, slug) {
         where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
         returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
                   free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
-                listed_at, one_line_bio,
+                listed_at, one_line_bio, taste_enabled,
                 published_at, paused_at, created_at, updated_at`,
       [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), normalized],
     );
@@ -470,7 +475,7 @@ export async function publishRoom(db, ownerUserId, replicaId) {
       where r.owner_user_id = ($1)::uuid and r.replica_id = ($2)::uuid
       returning r.room_id, r.slug, r.replica_id, r.agent_id, r.owner_user_id, r.display_name,
                 r.free_monthly_messages, r.paid_monthly_messages, r.paid_monthly_voice_seconds, r.default_locale,
-                r.listed_at, r.one_line_bio,
+                r.listed_at, r.one_line_bio, r.taste_enabled,
                 r.published_at, r.paused_at, r.created_at, r.updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR],
   );
@@ -576,7 +581,7 @@ export async function pauseRoom(db, ownerUserId, replicaId) {
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
                 free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
-                listed_at, one_line_bio,
+                listed_at, one_line_bio, taste_enabled,
                 published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase()],
   );
@@ -601,7 +606,7 @@ export async function resumeRoom(db, ownerUserId, replicaId) {
       where r.owner_user_id = ($1)::uuid and r.replica_id = ($2)::uuid
       returning r.room_id, r.slug, r.replica_id, r.agent_id, r.owner_user_id, r.display_name,
                 r.free_monthly_messages, r.paid_monthly_messages, r.paid_monthly_voice_seconds, r.default_locale,
-                r.listed_at, r.one_line_bio,
+                r.listed_at, r.one_line_bio, r.taste_enabled,
                 r.published_at, r.paused_at, r.created_at, r.updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR],
   );
@@ -630,7 +635,7 @@ export async function setRoomFreeCap(db, ownerUserId, replicaId, cap) {
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
                 free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
-                listed_at, one_line_bio,
+                listed_at, one_line_bio, taste_enabled,
                 published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), n],
   );
@@ -667,7 +672,7 @@ export async function setRoomPaidCeilings(db, ownerUserId, replicaId, { messages
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
                 free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
-                listed_at, one_line_bio,
+                listed_at, one_line_bio, taste_enabled,
                 published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), m, v],
   );
@@ -695,7 +700,7 @@ export async function setRoomDefaultLocale(db, ownerUserId, replicaId, locale) {
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
                 free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
-                listed_at, one_line_bio,
+                listed_at, one_line_bio, taste_enabled,
                 published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), loc],
   );
@@ -747,9 +752,38 @@ export async function setRoomBio(db, ownerUserId, replicaId, bio) {
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
                 free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
-                listed_at, one_line_bio,
+                listed_at, one_line_bio, taste_enabled,
                 published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), text],
+  );
+  return rows[0] ? clientRoom(rows[0]) : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OP: set_taste_enabled (WS-R53, migration 110) — the taste switch
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The creator's own on/off for the three-question taste a stranger gets
+ *  before the sign-in wall (`api/_room-taste.js`). `setRoomFreeCap`'s exact
+ *  shape: one UPDATE, one bounds check for a named 400 rather than a raw
+ *  constraint-violation 500. Defaults `true` (migration 110's own column
+ *  default) — a creator who never touches this switch gets the taste
+ *  turned ON, because the whole feature exists to give every Room a free
+ *  thirty seconds before the wall, not an opt-in nobody finds. */
+export async function setRoomTasteEnabled(db, ownerUserId, replicaId, enabled) {
+  assertOwnerScope(ownerUserId, replicaId);
+  if (typeof enabled !== "boolean") {
+    throw new RoomPublishError("room_taste_enabled_invalid", 400);
+  }
+  const rows = await db(
+    `update vy_room
+        set taste_enabled = ($3)::boolean, updated_at = now()
+      where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
+      returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
+                free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
+                listed_at, one_line_bio, taste_enabled,
+                published_at, paused_at, created_at, updated_at`,
+    [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), enabled],
   );
   return rows[0] ? clientRoom(rows[0]) : null;
 }
@@ -789,7 +823,7 @@ export async function listRoom(db, ownerUserId, replicaId) {
       where r.owner_user_id = ($1)::uuid and r.replica_id = ($2)::uuid
       returning r.room_id, r.slug, r.replica_id, r.agent_id, r.owner_user_id, r.display_name,
                 r.free_monthly_messages, r.paid_monthly_messages, r.paid_monthly_voice_seconds, r.default_locale,
-                r.listed_at, r.one_line_bio,
+                r.listed_at, r.one_line_bio, r.taste_enabled,
                 r.published_at, r.paused_at, r.created_at, r.updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase()],
   );
@@ -809,7 +843,7 @@ export async function unlistRoom(db, ownerUserId, replicaId) {
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
                 free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
-                listed_at, one_line_bio,
+                listed_at, one_line_bio, taste_enabled,
                 published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase()],
   );

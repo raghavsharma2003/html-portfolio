@@ -277,6 +277,32 @@ const TARGETS = [
     minPanels: 1,
     onlyViewport: "phone",
   },
+  // WS-R53: the taste, a stranger's own first screen ahead of `join` above -
+  // its own target rather than a fifth `room:more` step, because the
+  // workstream's own law 4 asks for it by name and this screen's panel
+  // class (`.room-taste`) is not one `room`/`room:more`'s shared selector
+  // already names. Phone only, `room:more`'s own reason: the brief's law 2
+  // scopes tap-target/overflow/clip checks to 390x844.
+  {
+    name: "room:taste",
+    fixture: "room-layout-fixture.html",
+    query: (screen) => `screen=${screen}`,
+    steps: ["taste"],
+    mounted: ".room-shell",
+    panels: ".room-taste",
+    minPanels: 1,
+    onlyViewport: "phone",
+  },
+  {
+    name: "room-hi:taste",
+    fixture: "room-layout-fixture.html",
+    query: (screen) => `screen=${screen}&lang=hi`,
+    steps: ["taste"],
+    mounted: ".room-shell",
+    panels: ".room-taste",
+    minPanels: 1,
+    onlyViewport: "phone",
+  },
   // WS-R45: the creator directory, `site/creators.html`. Unlike `studio` and
   // `room` this page needs no signed-in fixture at all - it is PUBLIC and
   // unauthenticated by construction, so the real static file (see
