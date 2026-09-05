@@ -835,8 +835,32 @@ function glyphAudit({ fontStack, px, minDiffPct, uniformPx, stringsGlobal }) {
     n: pairs.length,
     testableN: out.filter((r) => r.testable).length,
     controlUniform,
+    // `r.uniform === true`, not `!== false`. `testable` (this function's
+    // entry gate, above) counts every Devanagari codepoint including
+    // matras, because a full word needs three of THOSE to make the width-
+    // diff percentage meaningful; `uniformWidths` counts only BASE letters,
+    // because a matra "measures as zero or as its base's width" and would
+    // make a real word look uniform. Those two counts read the same string
+    // differently on purpose, and a word with exactly two base consonants
+    // plus one matra (three Devanagari codepoints, so testable; two base
+    // letters, so uniformWidths returns null, neither confirmed uniform nor
+    // confirmed varied) used to fall through `!== false` as still
+    // flag-eligible on width-diff alone — treating "the second signal
+    // could not be measured" as though it had said "yes, tofu". Real
+    // Hindi "सभी" (2026-09-06, WS-R77's own CI font-install run, the first
+    // time this repo's own detector ran against the CSS's actual first-
+    // choice font rather than a system substitute) measured 9.6% width diff
+    // against three boxes with `uniform: null`, and used to be flagged
+    // outright. Requiring the uniformity test to have POSITIVELY said
+    // "uniform" closes the gap without moving `MIN_GLYPH_DIFF_PCT` (rejected
+    // once already, `context/rejected.md#glyph-probe-width-diff-alone-flags-
+    // three-letter-matra-less-hindi-words`, and not touched here either) and
+    // without changing anything for the three-or-more-base-letter case the
+    // WS-R61 fix was built for: `true === true` and `false === true` are
+    // exactly the outcomes `!== false` already gave them. See
+    // `context/rejected.md#ws-r77-glyph-uniform-null-treated-as-not-disproven-instead-of-not-confirmed`.
     results: out.filter((r) => !r.fontsCheck
-      || (r.testable && r.diffPct <= minDiffPct && r.uniform !== false)),
+      || (r.testable && r.diffPct <= minDiffPct && r.uniform === true)),
   };
 }
 
