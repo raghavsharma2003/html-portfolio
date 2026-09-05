@@ -1,5 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 // WS-R66. `/c/<slug>` (the creator's public page) is server-rendered HTML
 // with no client bundle at all — there is nothing for vite to compile the
@@ -45,9 +47,123 @@ function roomAboutFixturePlugin() {
   }
 }
 
+// WS-R107. `context/measurements.md#first-hindi-paint-on-the-wave-fifteen-merge-gate-2026-09-05`
+// measured the studio's first Hindi paint at 918ms against an 800ms budget,
+// structurally: `hiCopy.ts` (`context/decisions.md#studio-hindi-table-is-its-own-chunk`)
+// is a dynamic `import()` that main.tsx (WS-R91) issues as early as a module
+// body can run, which is still AFTER the browser has fetched, parsed and
+// started executing the main studio chunk — the dynamic import's own network
+// request cannot start until then. A `<link rel="modulepreload">` for the
+// chunk starts that fetch the instant the HTML parser reaches it, in
+// parallel with the main chunk, which is the whole win.
+//
+// It cannot be a plain static `<link>` in `studio.html`'s source: the
+// chunk's filename is content-hashed at build time and `studio.html` has no
+// server-side templating step to receive that hash
+// (`context/decisions.md#ws-r91-hindi-chunk-preloaded-from-main-tsx`'s own
+// note). It also must not cost the ENGLISH studio a byte or a fetch: most
+// visitors never touch the Hindi table, and the whole reason it is a
+// separate chunk (`#studio-hindi-table-is-its-own-chunk`) is that an English
+// creator should not pay for it.
+//
+// TWO WAYS TO MAKE THE PRELOAD CONDITIONAL ON A HINDI REQUEST WERE READ AND
+// WEIGHED (`context/decisions.md#ws-r107-hindi-preload-is-a-conditional-inline-script-not-a-second-entry`
+// has the full reversal condition):
+//   (a) a second built entry `studio-hi.html`, routed by a `vercel.json`
+//       rewrite matching `?lang=hi` via `has: [{type:"query",...}]` -- this
+//       IS a real Vercel capability (verified against
+//       https://vercel.com/docs/project-configuration/vercel-json#rewrites ,
+//       "has ... type, key and value properties", with a worked example
+//       using `"type": "query"` on the same page's `headers` section) -- but
+//       it needs a genuinely SEPARATE source HTML file: a build experiment
+//       here (two `rollupOptions.input` keys pointing at the identical
+//       `studio.html` path) proved Vite/Rollup key an HTML *entry* by its
+//       resolved file path, not by the input object's key, so the second
+//       key silently produced an orphan JS facade chunk and NO second HTML
+//       file at all. A hand-duplicated `studio-hi.html` would then be a
+//       second copy of the whole shell (the CSS-layer-order fix, every meta
+//       tag) that has to be kept byte-for-byte in sync by hand forever.
+//   (b) one file, one small inline script (this plugin), gated on the
+//       request rather than on which file was served. Chosen.
+//
+// The script's own TEXT never changes build to build (so its CSP hash,
+// already committed in vercel.json's `/studio` and `/studio.html` rules,
+// never goes stale as `hiCopy.ts` grows or shrinks) -- the one thing that DOES
+// vary per build, the chunk's hashed filename, is carried in a `<meta>` tag
+// instead, which CSP does not gate at all. The script reads that meta tag,
+// decides "is this visit Hindi" by the identical two-step order
+// `resolveStudioLocale` (`src/studio/studioLocalePreference.ts`) uses before
+// a replica has loaded -- `?lang=` wins outright, else the remembered
+// `vyakti.studio.locale.v1` `localStorage` key -- and, only then, creates
+// the real `<link rel="modulepreload">` itself. An English visit (no
+// `?lang=hi`, nothing remembered) never creates the link and never touches
+// the meta tag's value, so the English studio's own transferred JS is
+// provably unchanged -- `scripts/check-performance.mjs`'s `jsBytes` budget
+// on the `/studio` target is the proof, and a new static check in that same
+// file asserts the built `dist/studio.html` carries exactly one
+// `hi-chunk-preload` meta tag and never a literal, unconditional
+// `<link rel="modulepreload">` for the Hindi chunk.
+const HI_PRELOAD_SCRIPT = `(function () {
+  try {
+    var meta = document.querySelector('meta[name="hi-chunk-preload"]');
+    var href = meta && meta.getAttribute("content");
+    if (!href) return;
+    var lang = new URLSearchParams(location.search).get("lang");
+    var hi = lang === "hi";
+    if (!hi && lang === null) {
+      try {
+        hi = localStorage.getItem("vyakti.studio.locale.v1") === "hi";
+      } catch (e) {}
+    }
+    if (!hi) return;
+    var link = document.createElement("link");
+    link.rel = "modulepreload";
+    link.crossOrigin = "anonymous";
+    link.fetchPriority = "high";
+    link.href = href;
+    document.head.appendChild(link);
+  } catch (e) {}
+})();`
+
+function studioHindiPreloadPlugin() {
+  return {
+    name: 'vyakti-studio-hindi-preload',
+    apply: 'build' as const,
+    async closeBundle() {
+      const distDir = join(process.cwd(), 'dist')
+      const assetNames = readdirSync(join(distDir, 'assets'))
+      // `hiCopy-<hash>.js`, the same filename shape
+      // `scripts/check-performance.mjs`'s `findHiCopyChunkPath()` already
+      // globs for -- found here rather than imported from there so this
+      // plugin has no runtime dependency on a scripts/ file whose own job is
+      // gating, not building.
+      const hiChunk = assetNames.find((n) => n.startsWith('hiCopy-') && n.endsWith('.js'))
+      if (!hiChunk) {
+        // Loud, not silent: `#studio-hindi-table-is-its-own-chunk` being
+        // unbuilt or renamed is exactly the state this plugin exists to
+        // never paper over.
+        throw new Error(
+          'studioHindiPreloadPlugin: no dist/assets/hiCopy-*.js chunk found -- the Hindi copy chunk split ' +
+            '(context/decisions.md#studio-hindi-table-is-its-own-chunk) is missing or its output name changed.',
+        )
+      }
+      const studioHtmlPath = join(distDir, 'studio.html')
+      const html = readFileSync(studioHtmlPath, 'utf8')
+      const marker = '<meta charset="UTF-8" />'
+      if (!html.includes(marker)) {
+        throw new Error(`studioHindiPreloadPlugin: expected marker ${JSON.stringify(marker)} not found in dist/studio.html`)
+      }
+      const injected =
+        `${marker}\n    <meta name="hi-chunk-preload" content="/assets/${hiChunk}" />\n    <script>${HI_PRELOAD_SCRIPT}</script>`
+      const next = html.replace(marker, injected)
+      writeFileSync(studioHtmlPath, next, 'utf8')
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), creatorPageFixturePlugin(), roomAboutFixturePlugin()],
+  plugins: [react(), creatorPageFixturePlugin(), roomAboutFixturePlugin(), studioHindiPreloadPlugin()],
   build: {
     rollupOptions: {
       input: {

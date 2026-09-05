@@ -12441,3 +12441,47 @@ carries that assumption along invisibly. Any future control built as a real
 `display` before a `min-height`/`min-width` rule can do anything at all —
 checked here by the layout gate's own real-browser measurement, not by
 reading the CSS and assuming it applies.
+
+## `ws-r107-two-vite-entries-cannot-share-one-html-source-file`
+
+**What was tried.** Building the studio's Hindi preload as a genuinely
+separate built page (`context/decisions.md#studio-hindi-table-is-its-own-chunk`'s
+own brief-suggested option (a)) without hand-duplicating `studio.html`'s
+whole shell: point TWO keys in `vite.config.ts`'s `rollupOptions.input` at
+the identical `studio.html` file path — `studio: "studio.html"` and
+`"studio-hi-experiment": "studio.html"` — hoping Rollup would treat each key
+as its own HTML entry and emit two independent output files
+(`dist/studio.html`, `dist/studio-hi-experiment.html`) from one shared
+source, the way two entries importing the same `.tsx` module already share
+one JS chunk in this exact codebase (`vite.config.ts`'s `studio`/`room`
+entries both pull from `src/`, and neither duplicates the other's shared
+dependency chunks).
+
+**What broke.** `npx vite build` (a real build, run standalone in this
+worktree, 2026-09-05) emitted `dist/assets/studio-hi-experiment-CUvbvC_R.js`
+— a 0.02 KB orphan facade chunk, essentially empty — and NO
+`dist/studio-hi-experiment.html` at all. `dist/studio.html` was the only
+HTML file produced. Rollup's HTML-entry generation (`vite:build-html`) keys
+an emitted page by the entry's RESOLVED FILE PATH, not by the name given to
+it in the `input` object; two keys resolving to the same path collapse into
+one HTML output, silently, with the second key's own JS facade chunk built
+and then orphaned (nothing references it, since no second page exists to
+load it).
+
+**The rule.** Vite/Rollup's multi-page build shares JS/CSS module graphs
+across entries that import the same source modules (confirmed: this is why
+`studio` and `room.html`'s otherwise-shared React/vendor chunks already
+dedupe in this repo's own `dist/`), but it does NOT support two named HTML
+outputs from one literal HTML source file — the html itself is the unit
+Rollup keys by path, and giving it two names buys nothing. Producing a
+genuinely second HTML shell from one canonical source therefore needs
+either (a) an actual second file on disk (hand-duplicated, or generated
+onto disk by a `buildStart`-time step BEFORE Rollup resolves its `input`,
+which this workstream did not attempt since the maintenance cost of the
+hand-duplicated version was already disqualifying), or (b) skip the second
+page entirely and make the ONE shipped page's own contents conditional at
+runtime instead — the path WS-R107 took
+(`context/decisions.md#ws-r107-hindi-preload-is-a-conditional-inline-script-not-a-second-entry`).
+Anyone reaching for "just add a second `rollupOptions.input` key pointing
+at the same file" to get two output pages from one source should read this
+entry first rather than re-running the experiment.

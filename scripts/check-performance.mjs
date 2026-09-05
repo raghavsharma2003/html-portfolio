@@ -84,7 +84,7 @@
 // real network adds. A real-device measurement that disagrees with any
 // number here is exactly what should change the budget, not this script.
 
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
@@ -630,6 +630,48 @@ function printReport(results) {
   console.log("");
 }
 
+// WS-R107. A STATIC proof, string-level, no browser: the built
+// `dist/studio.html` carries exactly one `hi-chunk-preload` meta tag
+// (`vite.config.ts`'s `studioHindiPreloadPlugin`'s own marker, carrying the
+// real content-hashed chunk path) and never a literal, unconditional
+// `<link rel="modulepreload">` for the Hindi chunk baked into the raw
+// markup. The English studio paying nothing for the Hindi table
+// (`context/decisions.md#studio-hindi-table-is-its-own-chunk`) depends on
+// the preload staying CONDITIONAL — a static tag would fetch the chunk for
+// every visitor, silently, with no CSP violation and no runtime signal this
+// gate's own browser-driven checks would ever catch (they only ever
+// navigate to `/studio` and `/studio?lang=hi`, both of which would show the
+// identical, wrong, "preload present" result if the tag were unconditional).
+// This runs regardless of `--target`, the same always-on posture
+// `runInstallCheck()` below already has, because it is a different KIND of
+// check (a string scan of the built file, not a browser measurement).
+function checkHindiPreloadStatic() {
+  const findings = [];
+  let html;
+  try {
+    html = readFileSync(join(DIST, "studio.html"), "utf8");
+  } catch {
+    findings.push({ metric: "Hindi preload wiring", detail: "dist/studio.html missing" });
+    return findings;
+  }
+  const metaCount = (html.match(/<meta\s+name="hi-chunk-preload"/g) || []).length;
+  if (metaCount !== 1) {
+    findings.push({
+      metric: "Hindi preload wiring",
+      detail: `expected exactly 1 hi-chunk-preload meta tag in dist/studio.html, found ${metaCount}`,
+    });
+  }
+  if (/<link\s+rel="modulepreload"[^>]*hiCopy-/.test(html)) {
+    findings.push({
+      metric: "Hindi preload wiring",
+      detail:
+        "dist/studio.html carries a literal, unconditional <link rel=modulepreload> for the Hindi chunk — " +
+        "it must be created only by the runtime trigger script (?lang=hi or the remembered locale), never baked into the static markup",
+    });
+  }
+  return findings;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const asJson = args.includes("--json");
@@ -718,11 +760,15 @@ async function main() {
     console.log(`  skip  installable Room: ${install.skipped}`);
   }
 
-  if (allFindings.length || installFindings.length) {
+  // WS-R107. Same "always on, folded into the same pass/fail" posture as
+  // the install check just above.
+  const hindiPreloadFindings = checkHindiPreloadStatic().map((f) => ({ target: "studio.html (static)", ...f }));
+
+  if (allFindings.length || installFindings.length || hindiPreloadFindings.length) {
     if (!asJson) {
-      const total = allFindings.length + installFindings.length;
+      const total = allFindings.length + installFindings.length + hindiPreloadFindings.length;
       console.log(`FAIL  performance budgets: ${total} finding(s)`);
-      for (const f of [...allFindings, ...installFindings]) {
+      for (const f of [...allFindings, ...installFindings, ...hindiPreloadFindings]) {
         console.log(`        ${f.target.padEnd(20)} ${f.metric}: ${f.detail}`);
       }
     }
