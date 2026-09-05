@@ -13096,3 +13096,118 @@ commit with its own reasoning - not a blanket widening of this
 workstream's `ROUTE_CLASSES` list to "everything `vercel.json` rewrites,"
 which would silently start asserting a policy about pages nobody has
 looked at yet.
+
+## `ws-r58-withdoor-observes-status-never-rewrites-response` (2026-09-04, WS-R58)
+
+**Decision.** `api/_incidents.js`'s `withDoor` wraps a thin door's WHOLE
+handler and patches only `res.status` to remember the last code sent,
+recording one incident if that code is >=500 once the handler settles. It
+never inspects the caught error, never changes what a door sends, and never
+edits any door's own catch block - eleven doors (`room.js`, `room-pay.js`,
+`room-publish.js`, `payments.js`, `org.js`, `invites.js`, `tg.js`,
+`whatsapp.js`, `checkins.js`, `handoff.js`, `apply.js`) adopt it with a
+one-line export change and zero lines touched inside their own try/catch.
+
+**Rationale.** No shared `sendError`/`fail`/`json(res, 5` helper exists
+across these doors (grepped before building anything, per the workstream
+brief's own instruction) - each hand-rolls `console.error(...);
+res.status(5xx).json(...)`. Editing eleven catch blocks by hand is eleven
+places the SAME logic could drift; observing the response from the outside
+is one function, and `evals/room-doors/run.mjs` (302/302, unchanged before
+and after) proves it changes nothing else about any door. `tg.js`/
+`whatsapp.js` deliberately mask an internal failure as `res.status(200)` so
+Telegram/Meta do not retry-storm a transient bug forever - `withDoor` is a
+pure observer of whatever status a door actually sends, so it correctly
+records nothing for those two today rather than second-guessing what the
+door "really" meant.
+
+**Reversal condition.** If a door's catch-all block is ever refactored to
+carry a real message/detail into the 5xx body (which the copy/leak
+disciplines already forbid, so unlikely), `withDoor` still only reads the
+STATUS CODE, never the body, so it stays content-free regardless. Reverse
+this decision - move to editing each catch block directly - only if a
+future door's response shape makes `res.status` unpatchable (e.g. a
+framework migration that no longer returns `res` from `.status()` for
+chaining); `evals/incidents/run.mjs`'s own `withDoor` tests would start
+failing first and say so.
+
+## `ws-r58-incident-kind-vocabulary-is-a-closed-five-value-list` (2026-09-04, WS-R58)
+
+**Decision.** `vy_incident.kind` (migration 109's CHECK, mirrored in
+`api/_incidents.js`'s `INCIDENT_KINDS`) is exactly `door_5xx`,
+`provider_payments`, `provider_telegram`, `provider_whatsapp`,
+`provider_webpush` - five values, one per call-site CLASS the workstream
+brief named (every thin door's own catch-all as one class; each of the
+three provider seams named in law 2b as three more), never one kind per
+door and never a free-text label.
+
+**Rationale.** The ops board's own promise is "last 7 days by KIND AND
+DOOR as counts" - `door` already carries which file, so `kind` only needs
+to say WHAT SHAPE of failure this was, and five shapes is small enough to
+read as a sentence rather than a table nobody will ever finish reading. A
+per-door kind (`room_js_5xx`, `payments_js_5xx`, ...) would have made the
+"a kind not seen in the previous 7 days" alert (workstream law #4) fire on
+ordinary door rotation rather than on a genuinely new FAILURE SHAPE, which
+is the thing worth waking an operator up for.
+
+**Reversal condition.** If a future incident needs to distinguish, say, a
+timeout from a 5xx within the SAME provider (a distinction an operator
+would act on differently), add a sixth value to both the CHECK and
+`INCIDENT_KINDS` in the same commit - `evals/incidents/run.mjs`'s own
+"INCIDENT_KINDS is the exact five-member closed list" check would need
+updating too, which is the point: the two lists drifting apart silently is
+exactly what that check exists to catch.
+
+## `ws-r58-operator-push-subscription-store-does-not-exist` (2026-09-04, WS-R58)
+
+**Decision.** `notifyNewIncidentKinds` sends through the real
+`api/_push/webpush.js` `send()` every follower notification already uses,
+but resolves operator subscriptions through an INJECTED
+`deps.operatorSubscriptionsFor` (default: resolves to `[]` for every
+operator) rather than building a new subscription table. In production
+today this claims the ledger row correctly and finds nobody real to push
+to - a structural gap, named rather than hidden, not a fix deferred by
+building a fake one.
+
+**Rationale.** `vy_room_push_subscription` (migration 085) is scoped to a
+follower's own `(room_id, person_id, follower_id)`, never to a platform
+operator's Supabase auth id, and there is no other store anywhere in this
+repo that maps `OPS_OWNER_USER_IDS` to a browser subscription. Building one
+needs its own migration number (this workstream was given only 109, for
+`vy_incident`), its own UI (an "enable alerts" control this workstream's
+file list - `db/migrations/109_incident.sql`, `db/schema.sql`,
+`api/_incidents.js`, the eleven doors, `api/_ops.js`,
+`src/studio/OpsBoard.tsx`, `api/_checkins.js` - does not name), and its own
+review of what "an operator's own device" even means for a platform with no
+per-operator sign-in surface today. Shipping a plausible-looking store this
+workstream had no way to prove reachable would be exactly the
+`api/memory.js` "a plausible return hides a dead pipeline" trap AGENTS.md
+names.
+
+**Reversal condition.** The day a real operator push-subscription store
+exists (its own migration, its own thin door, its own UI toggle), wire it
+in as `deps.operatorSubscriptionsFor`'s real implementation and delete this
+decision's "does not exist" clause - `notifyNewIncidentKinds`'s own
+signature does not change, only what is passed to it in production.
+
+## `ws-r58-notify-claim-only-marks-notified-with-a-configured-recipient` (2026-09-04, WS-R58)
+
+**Decision.** `claimNewKindNotification`'s UPDATE only runs (so
+`notified_at` is only ever set) when `notifyNewIncidentKinds` has already
+confirmed VAPID is fully configured AND `OPS_OWNER_USER_IDS` is non-empty.
+An unconfigured deployment never claims a row for a kind that appeared
+before it was configured, so the day it IS configured, that still-unclaimed
+kind can fire once, rather than having silently "used up" its one alert
+against nobody.
+
+**Rationale.** `notified_at` is a promise that an alert was attempted for a
+real, configured audience, not a bookkeeping flag that a sweep tick merely
+ran. `api/_checkins.js`'s own `webPush` deliverer already draws this exact
+line (`state='not_configured'`, no network call, versus a real attempted
+send) - restated here for a claim instead of a delivery ledger row.
+
+**Reversal condition.** If an operator ever reports missing an alert for a
+kind that was already present before VAPID/allowlist got configured, check
+first whether this decision is why (the row genuinely never claimed) before
+assuming a bug in the claim SQL - that is the intended behaviour, not a
+defect, and evidence it is unwanted would be the reversal trigger.

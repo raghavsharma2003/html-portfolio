@@ -4111,3 +4111,33 @@ create index if not exists vy_creator_charge_event_owner_ix
   on vy_creator_charge_event (owner_user_id, received_at desc);
 create index if not exists vy_creator_charge_event_received_ix
   on vy_creator_charge_event (received_at);
+
+-- Migration 109 - the incident ledger (WS-R58). See
+-- db/migrations/109_incident.sql for the full argument: content-free by
+-- schema (kind CHECK-bounded to a closed list, door a bounded file name,
+-- every other column a number or a timestamp), keyed unique on
+-- (day, kind, door, status) so `recordIncident`'s upsert costs one row per
+-- failure shape per day regardless of occurrence count, `notified_at` on
+-- the row itself as the check-ins sweep's own once-per-kind-per-day
+-- idempotency. Not a person table - no owner/replica/room/follower/person
+-- column at all, `vy_sweep_run` (084)'s own precedent restated: invisible
+-- to scripts/relcheck.mjs's PERSON_COLUMNS scan by construction, no
+-- PERSON_TABLES entry, no erasure wiring.
+create table if not exists vy_incident (
+  incident_id  uuid primary key default gen_random_uuid(),
+  day          date not null default current_date,
+  kind         text not null,
+  door         text not null check (length(door) > 0 and length(door) <= 100),
+  status       integer not null check (status >= 0 and status < 1000),
+  count        integer not null default 1 check (count > 0),
+  notified_at  timestamptz,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+alter table vy_incident drop constraint if exists vy_incident_kind_check;
+alter table vy_incident add constraint vy_incident_kind_check
+  check (kind in ('door_5xx', 'provider_payments', 'provider_telegram', 'provider_whatsapp', 'provider_webpush'));
+create unique index if not exists vy_incident_day_kind_door_status_ix
+  on vy_incident (day, kind, door, status);
+create index if not exists vy_incident_day_ix
+  on vy_incident (day desc);

@@ -39,6 +39,7 @@ import {
   issueCreatorInvite,
   myInvites,
 } from "./_invites.js";
+import { withDoor } from "./_incidents.js";
 
 const OWNER_OPS = new Set(["mine_issue", "mine_list"]);
 
@@ -49,7 +50,7 @@ function cors(res) {
   res.setHeader("Cache-Control", "no-store");
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
@@ -107,3 +108,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "invites_failure" });
   }
 }
+
+// WS-R58 (migration 109). See api/room.js's own comment for what this does.
+export default withDoor(q, "invites.js", handler);

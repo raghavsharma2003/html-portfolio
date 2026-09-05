@@ -114,6 +114,20 @@ export interface OpsPhaseGate {
   summary: string;
 }
 
+// WS-R58 (migration 109). `api/_ops.js`'s own `incidentsOverview` shape,
+// typed here unchanged - this file computes nothing, `opsApi.ts`'s own
+// header rule restated.
+export interface OpsIncidentRow {
+  kind: string;
+  door: string;
+  count: number;
+}
+
+export interface OpsIncidents {
+  by_kind_door: OpsIncidentRow[];
+  new_kinds: string[];
+}
+
 export interface OpsOverview {
   generated_at: string;
   rooms: OpsRoom[];
@@ -122,6 +136,8 @@ export interface OpsOverview {
   phase_gate: OpsPhaseGate;
   // WS-R40 (migration 102).
   share_arrivals_this_week: OpsShareArrivals;
+  // WS-R58 (migration 109).
+  incidents: OpsIncidents;
 }
 
 export async function readOpsOverview(token: string): Promise<OpsOverview> {

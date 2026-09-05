@@ -9888,3 +9888,78 @@ not make - out of scope, reported not fixed, per this gate's own
 [preinstall]), :attr(scripts, [postinstall])'`: `[]` - zero packages in
 this tree declare either script, so `scripts/installScriptAllowlist.mjs`
 ships empty (see that file's own header).
+
+## `ws-r58-incidents-suite-2026-09-04` (WS-R58)
+
+**n=34 checks, method: `node evals/incidents/run.mjs`, offline,
+deterministic, $0, no network, no real Postgres, self-contained fake
+`vy_incident` table.** 34/34 passed. Covers: `recordIncident`'s upsert and
+its four negative controls (unrecognised kind, empty door, out-of-range and
+non-integer status, a db that throws); `withDoor`'s proof that a thrown
+door still answers with the SAME status and body as before, that a masked-
+200 door records nothing, that a 503 (not only a bare 500) is recorded, and
+that a 4xx never is; `claimNewKindNotification`/`notifyNewIncidentKinds`'s
+at-most-once-per-kind-per-day guarantee with an injected fake subscription,
+plus the "seen in the previous 7 days is never new" control and the unset-
+VAPID/unset-allowlist honest-no-claim controls; `pruneOldIncidents`'s
+90-day bound and its own never-throws control; and a static scan of this
+file's own `insert into vy_incident (...)` column list against a hand-
+allowed set, with two negative-control fixtures (a `message` column, an
+`error_text` column) that correctly fail it, plus a clean-fixture control
+proving the scan is discriminating rather than vacuously false. Date:
+2026-09-04.
+
+## `ws-r58-ops-suite-incidents-card-extension-2026-09-04` (WS-R58)
+
+**n: 69 checks on the untouched tree (commit 2d271f2, isolated `git
+worktree add --detach`), 77 after this workstream's changes (+8). Method:
+`node evals/ops/run.mjs`, offline, deterministic, $0.** The +8: one "LAW 3
+honest empty state" check inside the existing §4 fixture (no incident
+seeded -> `by_kind_door` and `new_kinds` both empty, never omitted) and a
+new §5b block of seven checks over a five-row incident fixture spanning
+three time windows (last 7 days, the 7 days before that, and more than 13
+days back) - grouped-by-`(kind, door)` summation inside the window, a row
+outside the window never appearing at all, and the new-vs-not-new split
+matching the workstream's own "not seen in the previous 7 days" wording.
+One test-authoring mistake caught and fixed on the way (not a product bug):
+the first draft of the window-sum check expected a row 8 days back to still
+be summed into the last-7-day total; it should not be, and is not - the
+fixture's own comment and assertion were corrected, not the code. Date:
+2026-09-04.
+
+## `ws-r58-room-doors-unchanged-2026-09-04` (WS-R58)
+
+**n=302 checks, method: `node evals/room-doors/run.mjs`, offline,
+deterministic, $0.** 302/302 on the untouched tree (commit 2d271f2) AND
+302/302 after wrapping eleven doors in `withDoor` - identical count,
+identical pass/fail shape, run standalone both times. This is the direct
+evidence for `decisions.md#ws-r58-withdoor-observes-status-never-rewrites-
+response`: a wrapper that changes response behaviour would move this
+number, and it did not. Date: 2026-09-04.
+
+## `ws-r58-gate-before-after-2026-09-04` (WS-R58)
+
+**Method: `node scripts/verify-release.mjs`, no `NEON_URL` in this
+environment (20-check path), on an isolated `git worktree add --detach`
+clone at commit 2d271f2 for "before" and this workstream's own tree for
+"after," both runs on the same shared machine wave eleven's other nine
+worktrees were also building on.** Before: 18/20, two failures -
+`layout readability` (`EADDRINUSE:8931`, a sibling worktree holding the
+port) and `performance budgets` (`/` TBT 362ms > the 300ms budget). After,
+first attempt: 18/20, the SAME two failures, `layout readability` again
+`EADDRINUSE` (now on 8931/8932 both) and `performance budgets` again a TBT
+budget miss (719ms). After, second attempt (rerun once, per this
+workstream's own instructions on a port collision): `layout readability`
+passed once the port freed; `performance budgets` still missed on `/`'s
+TBT under the same shared-machine load the untouched tree ALSO missed
+under. Every other check (typecheck, prompt budget, workflow lint, motion
+lint, board legibility, chrome copy, mirrored constants, enrollment sample
+rate, enrollment bandwidth, engine bundle fresh, stuck-turn endpoint, one
+voice, web build, eval suite [which runs this workstream's new `incidents`
+suite and the extended `ops` suite as part of itself], room leak battery,
+room export completeness, room door battery, accessibility) passed both
+before and after, every run. Conclusion, stated rather than assumed: both
+remaining failures are the documented shared-machine port/load collision
+class this environment already names, reproduced identically on the
+UNTOUCHED tree, not a regression this workstream introduced. Relational DB
+gates skipped (no `NEON_URL`). Date: 2026-09-04.

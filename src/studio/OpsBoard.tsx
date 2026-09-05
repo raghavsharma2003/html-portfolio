@@ -29,6 +29,7 @@ import {
   type OpsPhaseGate,
   type OpsGateState,
   type SweepStaleness,
+  type OpsIncidents,
 } from "./opsApi";
 import type { StudioSession } from "./types";
 import "./design/ops-board.css";
@@ -312,6 +313,55 @@ function SweepsStrip({ sweeps }: { sweeps: OpsSweep[] }) {
   );
 }
 
+// WS-R58 (migration 109). "Make failure a row" - last 7 days by kind and
+// door, `none` an honest empty state (law 3's own word, restated as the
+// same `ops-board__empty` copy every other card here already uses for
+// "nothing yet"), red only for a kind not seen in the 7 days before this
+// window - `badgeClassForOutcome`'s `--stopped` class one card over, the
+// same red every failed sweep already renders in, never a new color.
+function IncidentsCard({ incidents }: { incidents: OpsIncidents }) {
+  return (
+    <div className="ops-board__panel">
+      <h2>Incidents</h2>
+      <p className="ops-board__slug">
+        Every 5xx and every provider failure, last 7 days. Rows older than 90 days are deleted automatically.
+      </p>
+      {incidents.by_kind_door.length === 0 ? (
+        <p className="ops-board__empty">None.</p>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table className="ops-board__table">
+            <thead>
+              <tr>
+                <th>kind</th>
+                <th>door</th>
+                <th>count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {incidents.by_kind_door.map((row) => {
+                const isNew = incidents.new_kinds.includes(row.kind);
+                return (
+                  <tr key={`${row.kind}:${row.door}`}>
+                    <td>
+                      <span className={isNew ? "ops-board__badge ops-board__badge--stopped" : "ops-board__badge ops-board__badge--running"}>
+                        {row.kind.replace(/_/g, " ")}
+                      </span>
+                      {isNew && <span className="ops-board__slug"> new since last week</span>}
+                    </td>
+                    <td>{row.door}</td>
+                    <td>{row.count}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function OpsBoard() {
   const [session, setSession] = useState<StudioSession | null>(null);
   const [checkedSession, setCheckedSession] = useState(false);
@@ -410,6 +460,7 @@ export default function OpsBoard() {
             <FunnelCard funnel={overview.funnel} shareArrivals={overview.share_arrivals_this_week} />
             <PhaseGateCard gate={overview.phase_gate} />
             <SweepsStrip sweeps={overview.sweeps} />
+            <IncidentsCard incidents={overview.incidents} />
           </>
         )}
       </div>

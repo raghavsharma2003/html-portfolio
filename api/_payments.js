@@ -74,6 +74,7 @@ import {
 import { seatCoversCreatorTier } from "./_org.js";
 import * as fakeProvider from "./_payments/providers/fake.js";
 import * as razorpayProvider from "./_payments/providers/razorpay.js";
+import { recordIncident } from "./_incidents.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -1536,6 +1537,15 @@ export async function sendPayout(db, { ownerUserId, payoutId }, deps = {}) {
         where payout_id = ($1)::uuid and state in ('built','pending_account')`,
       [String(payoutId)],
     );
+    // WS-R58 (migration 109). The payments seam already catches this
+    // failure (the state transition three lines up) - fire-and-forget, own
+    // catch inside `recordIncident` itself, never awaited so it cannot slow
+    // an already-failing payout down further.
+    recordIncident(db, {
+      kind: "provider_payments",
+      door: "_payments.js",
+      status: Number(e?.status) || 502,
+    });
     throw e instanceof PaymentsError ? e : new PaymentsError("payments_provider_payout_failed", 502);
   }
   const providerRef = String(sent.provider_payout_ref || "");
