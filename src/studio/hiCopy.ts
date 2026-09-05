@@ -1,40 +1,33 @@
-// The Hindi half of the studio's copy table, its own file and its own
-// chunk (the WS-R71 merge, 2026-09-05). `src/studio/copy.ts` holds the
-// interfaces, the helpers and the English table; this file holds ONLY the
-// Hindi table, and nothing imports it statically: `loadStudioCopy("hi")` in
-// copy.ts is the one caller, through a dynamic `import()`, so Vite ships it
-// as a separate chunk the English studio never downloads. Why: after ten
+// The REST of the studio's copy table, its own file and its own chunk (the
+// WS-R71 merge, 2026-09-05; split again WS-R113, 2026-09-05). `src/studio/
+// copy.ts` holds the interfaces, the helpers and the English table; the
+// sign-in screen's own two sections (`authGate` and the shell section) moved out to
+// `hiAuthCopy.ts` (WS-R113) so a signed-out visit's first Hindi paint never
+// waits on THIS file, which is everything a creator only ever reads once
+// signed in - `loadStudioCopy("hi")` in copy.ts installs both this file and
+// `hiAuthCopy.ts` (loading whichever half is not yet installed), through two
+// independent dynamic `import()`s, so Vite ships each as its own chunk and
+// an English studio downloads neither. Why the original split: after ten
 // workstreams of Hindi copy the studio's signed-out entry measured 186.1 KB
 // of gzipped JS against WS-R49's 180 KB budget, and 142 KB of the copy
 // source (31 KB gzipped) was this table - see
-// context/decisions.md#studio-hindi-table-is-its-own-chunk.
+// context/decisions.md#studio-hindi-table-is-its-own-chunk. Why the second
+// split: even chunked and preloaded, first Hindi paint still measured
+// 808-918ms against an 800ms budget, because the WHOLE table (every panel a
+// signed-out visitor cannot reach yet) gated a screen that only needed two
+// small sections of it - see hiAuthCopy.ts's own header and
+// context/decisions.md#ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section.
 //
 // The file's basename ends in "Copy.ts" on purpose: scripts/check-copy.mjs's
 // `COPY_FILES` pattern treats every string literal in a file named that way
 // as user-visible, which every string here is. Key parity with the English
-// table is asserted by evals/studio-locale/run.mjs, which loads this file
+// table (for every key except `authGate` and the shell section, now hiAuthCopy.ts's own)
+// is asserted by evals/studio-locale/run.mjs, which installs this file
 // through `loadStudioCopy` exactly as the app does.
-import type { StudioCopy } from "./copy";
+import type { StudioRestCopy } from "./copy";
 
-export const HI: StudioCopy = {
+export const HI: StudioRestCopy = {
   classLabels: { you: "आप पर निर्भर", us: "हम पर निर्भर" },
-
-  shell: {
-    languageGroupLabel: "हिन्दी / English",
-    tabsAriaLabel: "आपका AI, तीन टैब में",
-    tabTitle: { feed: "फ़ीड", meet: "मीट", share: "शेयर" },
-    tabPromise: {
-      feed: "अपनी सामग्री लाएं।",
-      meet: "अपने AI से मिलें: सुनें, ठीक करें, देखें यह कितना तैयार है।",
-      share: "अपना रूम पब्लिश करें और तय करें कि इसे कहां पहुंचाया जा सकता है।",
-    },
-    allPanelsLink: "सभी पैनल (पूरी बेंच)",
-    oneVideoTitle: "एक वीडियो, लिंक से",
-    oneVideoBlurb: "अभी बन रहा प्रवेश का चौथा तरीका।",
-    stillLockedTitle: "मीट पर अभी भी लॉक",
-    forYou: "{n} आप पर",
-    onUsCount: "{n} हम पर",
-  },
 
   creatorPath: {
     eyebrow: "आपके रूम के पब्लिश होने तक का रास्ता",
@@ -1694,54 +1687,10 @@ export const HI: StudioCopy = {
     errorStatusUnavailable: "आवाज़ एनरोलमेंट स्थिति उपलब्ध नहीं है",
   },
 
-  // WS-R91: the sign-in screen, read before a session exists.
-  authGate: {
-    vyaktiHomeAriaLabel: "Vyakti होम",
-    safeguardsAriaLabel: "स्टूडियो सुरक्षा उपाय",
-    safeguardSelfReplication: "सिर्फ़ खुद का AI",
-    safeguardNoPublicVoiceLibrary: "कोई पब्लिक आवाज़ लाइब्रेरी नहीं",
-    safeguardAuditableDeletion: "जांचने लायक मिटाना",
-    variant: {
-      generic: {
-        brandTag: "निजी AI लैब",
-        eyebrow: "बनावट से ही निजी",
-        title: "एक AI जो आपकी अनुमति से शुरू होता है।",
-        body: "अपनी सहमति से जांचे गए AI को बनाएं और नियंत्रित करें। हर सोर्स निजी रहता है, हर क्षमता अलग से मंज़ूर होती है, और रद्द करने से आगे का इस्तेमाल रुक जाता है।",
-      },
-      teacher: {
-        brandTag: "गुरुकुल टीचर स्टूडियो",
-        eyebrow: "जांचा गया, सहमति वाला, बताया गया",
-        title: "एक टीचिंग AI जो आपकी अनुमति से शुरू होता है, और हर छात्र को बताया जाता है।",
-        body: "अपनी सहमति से जांचे गए टीचिंग AI को बनाएं और नियंत्रित करें। हर सोर्स निजी रहता है, हर क्षमता अलग से मंज़ूर होती है, रद्द करने से आगे का इस्तेमाल रुक जाता है, और हर सेशन से पहले छात्रों को बताया जाता है कि वे AI से बात कर रहे हैं, आपसे नहीं।",
-      },
-      test: {
-        brandTag: "इंटरनल टेस्ट स्टूडियो",
-        title: "अपने सोर्स जोड़ें। फिर अपने AI को टेस्ट करें।",
-        body: "अपनी आवाज़, लेखन, वीडियो और संदर्भ के काम के उदाहरण अपलोड करें। फिर ड्राफ़्ट सुनें, उससे बात करें, और उसे ठीक करें।",
-      },
-    },
-    protectedWorkspace: "सुरक्षित वर्कस्पेस",
-    signInTitle: "अपना स्टूडियो खोलें",
-    checkInboxTitle: "अपना इनबॉक्स देखें",
-    emailStepBody: "जिस ईमेल से आप अपना AI मैनेज करना चाहते हैं, उससे साइन इन करें। अगर आप इस डिवाइस पर पहले से साइन इन हैं, तो हम आपको पहचान लेंगे।",
-    codeStepBodyTemplate: "हमने {label} पर 6 अंकों का कोड भेजा है।",
-    continueWithGoogle: "Google से जारी रखें",
-    orUseEmail: "या ईमेल इस्तेमाल करें",
-    emailLabel: "ईमेल पता",
-    emailPlaceholder: "you@example.com",
-    sendingCodeAriaLabel: "साइन-इन कोड भेजा जा रहा है",
-    sendingCode: "कोड भेजा जा रहा है",
-    continueSecurely: "सुरक्षित रूप से जारी रखें",
-    codeLabel: "6 अंकों का कोड",
-    verifyingAriaLabel: "कोड जांचा जा रहा है",
-    verifying: "जांच हो रही है",
-    verifyAndEnter: "जांचें और अंदर जाएं",
-    useDifferentEmail: "दूसरा ईमेल इस्तेमाल करें",
-    googleUnavailableError: "Google साइन-इन उपलब्ध नहीं है। इसकी जगह अपना ईमेल इस्तेमाल करें।",
-    codeMismatchError: "यह कोड मेल नहीं खाया। जांचें और फिर कोशिश करें।",
-    genericSendError: "कोड नहीं भेजा जा सका",
-    legalNotice: "पहुंच मिलने का मतलब यह नहीं कि आपका AI बनाने की अनुमति मिल गई। किसी भी बायोमेट्रिक प्रोसेसिंग से पहले अलग से रिकॉर्ड की गई सहमति ज़रूरी है।",
-  },
+  // WS-R113: `authGate` (and the shell section, above -- classLabels is
+  // followed directly by creatorPath in this file now) moved to `hiAuthCopy.ts`, its
+  // own chunk, loaded before a session exists rather than with everything
+  // else here. See this file's own header.
 
   recallRun: {
     button: "अभी मापें",

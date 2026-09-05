@@ -66,7 +66,10 @@ async function loadStudioCopy() {
   const ENTRY = join(OUT, "entry.ts");
   writeFileSync(
     ENTRY,
-    `export { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale, loadStudioCopy } from ${JSON.stringify(
+    // WS-R113: `loadStudioCopyAuth`/`studioAuthCopyReady` added alongside
+    // the pre-split exports — section 1b's own fresh-module test needs
+    // both to prove the auth chunk installs independently of the rest.
+    `export { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale, loadStudioCopy, loadStudioCopyAuth, studioAuthCopyReady, studioCopyReady } from ${JSON.stringify(
       join(REPO, "src/studio/copy"),
     )};\n`,
   );
@@ -144,6 +147,100 @@ await installStudioCopy("hi");
 
   ok("normalizeStudioLocale falls back to en for anything unrecognised",
     normalizeStudioLocale("fr") === "en" && normalizeStudioLocale(undefined) === "en" && normalizeStudioLocale("hi") === "hi");
+}
+
+// ── 1b. THE AUTH/REST CHUNK SPLIT (WS-R113) ─────────────────────────────────
+// `hiCopy.ts` split into `hiAuthCopy.ts` (the sign-in screen's own two
+// sections, `authGate` + `shell`) and `hiCopy.ts` (everything else), so key
+// parity now has to be proven at TWO different boundaries the pre-split
+// eval never had to check: that the two RAW files partition `StudioCopy`'s
+// top-level keys with no overlap and no gap, and that the SECTION-SCOPED
+// throw actually behaves like the app depends on it behaving (a component
+// under `StudioLocaleAuthProvider` must be able to read `authGate`/`shell`
+// the instant `loadStudioCopyAuth` resolves, and must NOT be able to read
+// anything else until `loadStudioCopy` also resolves).
+{
+  // The two raw source files, bundled directly — never through `copy.ts`'s
+  // own loader, so this section sees each file's OWN export, unmediated by
+  // the Proxy the loader installs it behind.
+  const OUT = mkdtempSync(join(tmpdir(), "studio-locale-hi-files-eval-"));
+  const ENTRY = join(OUT, "entry.ts");
+  writeFileSync(
+    ENTRY,
+    `export { HI_AUTH } from ${JSON.stringify(join(REPO, "src/studio/hiAuthCopy"))};\n` +
+      `export { HI as HI_REST } from ${JSON.stringify(join(REPO, "src/studio/hiCopy"))};\n`,
+  );
+  const BUNDLE = join(OUT, "hifiles.bundle.mjs");
+  execSync(
+    `npx esbuild ${ENTRY} --bundle --format=esm --platform=node --outfile=${BUNDLE} --log-level=error`,
+    { cwd: REPO, stdio: "inherit" },
+  );
+  const { HI_AUTH, HI_REST } = await import(pathToFileURL(BUNDLE).href);
+
+  const authTop = Object.keys(HI_AUTH).sort();
+  const restTop = Object.keys(HI_REST).sort();
+  const fullTop = Object.keys(STUDIO_COPY_TABLE.en).sort(); // the full StudioCopy shape, already loaded by section 1
+
+  ok("hiAuthCopy.ts's HI_AUTH carries exactly {authGate, shell}, nothing else",
+    JSON.stringify(authTop) === JSON.stringify(["authGate", "shell"]), authTop.join(", "));
+  ok("hiCopy.ts's HI carries neither authGate nor shell any more",
+    !restTop.includes("authGate") && !restTop.includes("shell"), restTop.join(", "));
+  ok("hiAuthCopy.ts and hiCopy.ts partition StudioCopy's top-level keys with no overlap and no gap",
+    JSON.stringify([...authTop, ...restTop].sort()) === JSON.stringify(fullTop),
+    `auth+rest: ${JSON.stringify([...authTop, ...restTop].sort())}  vs en: ${JSON.stringify(fullTop)}`);
+
+  // A FRESH module instance — the singleton `STUDIO_COPY_TABLE` above
+  // already installed "hi" in full, so observing the pre-load THROWING
+  // state needs its own, never-yet-loaded copy of copy.ts.
+  const fresh = await loadStudioCopy();
+  const freshTable = fresh.STUDIO_COPY_TABLE;
+
+  let authThrowMsg = null;
+  try { void freshTable.hi.authGate; } catch (e) { authThrowMsg = String(e && e.message); }
+  ok("reading authGate before ANY loader runs throws studio_copy_hi_auth_not_loaded",
+    authThrowMsg !== null && authThrowMsg.includes("studio_copy_hi_auth_not_loaded"), authThrowMsg || "(did not throw)");
+
+  let shellThrowMsg = null;
+  try { void freshTable.hi.shell; } catch (e) { shellThrowMsg = String(e && e.message); }
+  ok("reading shell before ANY loader runs ALSO throws the auth-named error (shell moved with authGate)",
+    shellThrowMsg !== null && shellThrowMsg.includes("studio_copy_hi_auth_not_loaded"), shellThrowMsg || "(did not throw)");
+
+  let restThrowMsg = null;
+  try { void freshTable.hi.creatorPath; } catch (e) { restThrowMsg = String(e && e.message); }
+  ok("reading a rest-section key (creatorPath) before any loader throws the PLAIN not-loaded error, never the auth one",
+    restThrowMsg !== null && restThrowMsg.includes("studio_copy_hi_not_loaded") && !restThrowMsg.includes("auth_not_loaded"),
+    restThrowMsg || "(did not throw)");
+
+  ok("studioAuthCopyReady(hi) is false before any loader runs", fresh.studioAuthCopyReady("hi") === false);
+  ok("studioCopyReady(hi) is false before any loader runs", fresh.studioCopyReady("hi") === false);
+
+  // `loadStudioCopyAuth` alone: installs ONLY the two auth-section keys.
+  await fresh.loadStudioCopyAuth("hi");
+  ok("studioAuthCopyReady(hi) is true after loadStudioCopyAuth alone", fresh.studioAuthCopyReady("hi") === true);
+  ok("studioCopyReady(hi) is STILL false after loadStudioCopyAuth alone — the rest is a separate chunk",
+    fresh.studioCopyReady("hi") === false);
+
+  let authGateReadable = false;
+  try { authGateReadable = typeof freshTable.hi.authGate.signInTitle === "string" && freshTable.hi.authGate.signInTitle.length > 0; } catch {}
+  ok("authGate.signInTitle reads real Hindi text after loadStudioCopyAuth alone", authGateReadable);
+
+  let shellReadable = false;
+  try { shellReadable = typeof freshTable.hi.shell.languageGroupLabel === "string" && freshTable.hi.shell.languageGroupLabel.length > 0; } catch {}
+  ok("shell.languageGroupLabel reads real text after loadStudioCopyAuth alone (AuthGate.tsx's own read)", shellReadable);
+
+  let restStillThrows = null;
+  try { void freshTable.hi.creatorPath; } catch (e) { restStillThrows = String(e && e.message); }
+  ok("a rest-section key STILL throws the plain (non-auth) error after loadStudioCopyAuth alone",
+    restStillThrows !== null && restStillThrows.includes("studio_copy_hi_not_loaded") && !restStillThrows.includes("auth_not_loaded"),
+    restStillThrows || "(did not throw)");
+
+  // `loadStudioCopy` (full): installs the rest too, on top of the
+  // already-installed auth section — never re-fetches it.
+  await fresh.loadStudioCopy("hi");
+  ok("studioCopyReady(hi) is true after loadStudioCopy (full)", fresh.studioCopyReady("hi") === true);
+  let restReadable = false;
+  try { restReadable = typeof freshTable.hi.creatorPath.eyebrow === "string" && freshTable.hi.creatorPath.eyebrow.length > 0; } catch {}
+  ok("creatorPath.eyebrow reads real Hindi text after loadStudioCopy (full)", restReadable);
 }
 
 // ── 2. THE STATIC SCAN ──────────────────────────────────────────────────────

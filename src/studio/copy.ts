@@ -2004,6 +2004,17 @@ interface StudioCopy {
   studioApp: StudioAppCopy;
 }
 
+// WS-R113. `authGate` and the shell section are the two the SIGNED-OUT
+// sign-in screen reads (`AuthGate.tsx` reads `t.authGate` in full and
+// `t.shell.languageGroupLabel` for its own language switch's `aria-label` --
+// verified by grep, not assumed, `hiAuthCopy.ts`'s own header names the
+// command). English never splits (it is bundled with the entry regardless);
+// only the HINDI table is loaded as two independent chunks, `hiAuthCopy.ts`
+// for this Pick and `hiCopy.ts` for everything this Omit leaves out. See
+// context/decisions.md#ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section.
+export type StudioAuthCopy = Pick<StudioCopy, "authGate" | "shell">;
+export type StudioRestCopy = Omit<StudioCopy, "authGate" | "shell">;
+
 const EN: StudioCopy = {
   classLabels: { you: "Waiting on you", us: "Waiting on us" },
 
@@ -3928,47 +3939,135 @@ const EN: StudioCopy = {
 };
 
 
-// ── the copy table: English now, Hindi as its own chunk ──────────────────
-// `hi` starts as a placeholder that THROWS on any property read, never as
-// English: a renderer that reaches the Hindi table before `loadStudioCopy`
-// has installed it fails loudly (`studio_copy_hi_not_loaded`) instead of
-// silently showing English to a Hindi creator, which is the failure this
-// shape would otherwise invite. `StudioLocaleProvider` (localeContext.tsx)
-// renders nothing until `studioCopyReady(locale)` is true, so no component
-// under it can hit the placeholder; the layout fixture and the evals await
-// `loadStudioCopy("hi")` before they read `.hi`. See
-// context/decisions.md#studio-hindi-table-is-its-own-chunk.
+// ── the copy table: English now, Hindi as TWO independently-lazy sections
+//    (WS-R113, splitting the WS-R71 single chunk) ──────────────────────────
+// The Hindi entry is one Proxy over TWO sections that install
+// independently: `authGate` plus the shell section (small; the sign-in screen and
+// its own language switch) from `hiAuthCopy.ts`, loaded first and before a
+// session exists; every other key from `hiCopy.ts`, loaded once a session
+// exists. Reading a key from a section not yet installed THROWS, never
+// falls back to English silently (`#studio-hindi-table-is-its-own-chunk`'s
+// own law, restated per section): `studio_copy_hi_auth_not_loaded` for the
+// two auth-section keys, `studio_copy_hi_not_loaded` for everything else,
+// so a stack trace says which chunk is missing and which loader installs
+// it. `StudioLocaleAuthProvider` (localeContext.tsx) renders nothing until
+// `studioAuthCopyReady(locale)` is true -- only the two auth-section keys
+// need be ready for the sign-in screen -- and the signed-in
+// `StudioLocaleProvider` renders nothing until `studioCopyReady(locale)`
+// is true -- BOTH sections, unchanged in meaning from before this split.
+// The layout fixture and every eval that reads the whole Hindi table call
+// `loadStudioCopy("hi")`, which installs both sections and has done since
+// before this split -- see this function's own comment for why it now
+// does strictly more than before, never less. See
+// context/decisions.md#ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section.
+const AUTH_SECTIONS = new Set<keyof StudioCopy>(["authGate", "shell"]);
+
+const hiInstalled: Partial<StudioCopy> = {};
+
+// The `ownKeys`, `getOwnPropertyDescriptor` and property-existence traps
+// mirror `hiInstalled`'s REAL keys, never the empty target object's --
+// without them, `Object.keys`/`Object.entries`/`for...in` (every reflection-based
+// reader: the layout fixture's `flattenHiStrings`, evals/studio-locale's
+// own `paths()`) would see zero keys forever, even after both chunks
+// installed everything, because a bare property-read trap only answers
+// "what is at this one key", never "what keys exist". Reported keys are
+// always marked `configurable: true` in that descriptor (the target
+// itself stays a genuinely empty, extensible object), which is what keeps
+// this a spec-legal Proxy despite `ownKeys` naming properties the target
+// itself never has.
 const HI_NOT_LOADED: StudioCopy = new Proxy({} as StudioCopy, {
   get(_target, key) {
     if (key === "then" || typeof key === "symbol") return undefined;
-    throw new Error(`studio_copy_hi_not_loaded: read of ${String(key)} before loadStudioCopy("hi")`);
+    if (Object.prototype.hasOwnProperty.call(hiInstalled, key)) {
+      return (hiInstalled as Record<string, unknown>)[key as string];
+    }
+    const isAuth = AUTH_SECTIONS.has(key as keyof StudioCopy);
+    throw new Error(
+      `studio_copy_hi_${isAuth ? "auth_" : ""}not_loaded: read of ${String(key)} before ` +
+        (isAuth ? `loadStudioCopyAuth("hi")` : `loadStudioCopy("hi")`),
+    );
+  },
+  has(_target, key) {
+    return Object.prototype.hasOwnProperty.call(hiInstalled, key);
+  },
+  ownKeys(_target) {
+    return Reflect.ownKeys(hiInstalled);
+  },
+  getOwnPropertyDescriptor(_target, key) {
+    if (!Object.prototype.hasOwnProperty.call(hiInstalled, key)) return undefined;
+    return { enumerable: true, configurable: true, value: (hiInstalled as Record<string | symbol, unknown>)[key] };
   },
 });
 
 export const STUDIO_COPY_TABLE: Record<StudioLocale, StudioCopy> = { en: EN, hi: HI_NOT_LOADED };
 
-const COPY_LOADED: Record<StudioLocale, boolean> = { en: true, hi: false };
-let hiLoading: Promise<StudioCopy> | null = null;
+const AUTH_LOADED: Record<StudioLocale, boolean> = { en: true, hi: false };
+const REST_LOADED: Record<StudioLocale, boolean> = { en: true, hi: false };
+let hiAuthLoading: Promise<StudioAuthCopy> | null = null;
+let hiRestLoading: Promise<StudioRestCopy> | null = null;
 
-/** True once `STUDIO_COPY_TABLE[locale]` is the real table for that locale. */
-export function studioCopyReady(locale: StudioLocale): boolean {
-  return COPY_LOADED[normalizeStudioLocale(locale)];
+/** True once the sign-in screen's own section (`authGate` plus the shell
+ *  section together) is installed for `locale` -- the gate `StudioLocaleAuthProvider`
+ *  waits on. Ready immediately for English; for Hindi, ready once
+ *  `hiAuthCopy.ts` has landed, well before the (much larger) rest of the
+ *  table. */
+export function studioAuthCopyReady(locale: StudioLocale): boolean {
+  return AUTH_LOADED[normalizeStudioLocale(locale)];
 }
 
-/** Installs the locale's table into `STUDIO_COPY_TABLE` (the Hindi one from
- *  its own chunk, once) and resolves to it. Idempotent; concurrent callers
- *  share one in-flight import. */
+/** True once `STUDIO_COPY_TABLE[locale]` is the WHOLE real table -- both
+ *  sections installed. The signed-in `StudioLocaleProvider`'s own gate and
+ *  `StudioApp.tsx`'s English-fallback bridge both mean this, unchanged from
+ *  before the split (they never needed the finer-grained answer
+ *  `studioAuthCopyReady` now gives the sign-in screen alone). */
+export function studioCopyReady(locale: StudioLocale): boolean {
+  const safe = normalizeStudioLocale(locale);
+  return AUTH_LOADED[safe] && REST_LOADED[safe];
+}
+
+/** Installs ONLY the sign-in screen's own section (`authGate` plus the
+ *  shell section), from their own chunk (`hiAuthCopy.ts` for Hindi; already real
+ *  for English). Idempotent; concurrent callers share one in-flight
+ *  import. This is the loader `main.tsx` calls eagerly for a Hindi
+ *  request, and the one `StudioLocaleAuthProvider` awaits before
+ *  rendering `AuthGate` -- never `loadStudioCopy` below, which would also
+ *  wait on the much larger rest of the table the sign-in screen never
+ *  reads. */
+export function loadStudioCopyAuth(locale: StudioLocale): Promise<StudioAuthCopy> {
+  const safe = normalizeStudioLocale(locale);
+  if (AUTH_LOADED[safe]) {
+    return Promise.resolve({ authGate: STUDIO_COPY_TABLE[safe].authGate, shell: STUDIO_COPY_TABLE[safe].shell });
+  }
+  if (!hiAuthLoading) {
+    hiAuthLoading = import("./hiAuthCopy").then((mod) => {
+      Object.assign(hiInstalled, mod.HI_AUTH);
+      AUTH_LOADED.hi = true;
+      return mod.HI_AUTH;
+    });
+  }
+  return hiAuthLoading;
+}
+
+/** Installs the WHOLE table for `locale`: the auth section (if not already
+ *  installed) and the rest, from its own chunk (`hiCopy.ts`). Every caller
+ *  from before this split (the signed-in `StudioLocaleProvider`,
+ *  `layoutFixture.tsx`, every eval that reads the Hindi table in full) keeps working
+ *  unchanged -- this function now installs two chunks instead of one, never
+ *  fewer keys than it used to. */
 export function loadStudioCopy(locale: StudioLocale): Promise<StudioCopy> {
   const safe = normalizeStudioLocale(locale);
-  if (COPY_LOADED[safe]) return Promise.resolve(STUDIO_COPY_TABLE[safe]);
-  if (!hiLoading) {
-    hiLoading = import("./hiCopy").then((mod) => {
-      STUDIO_COPY_TABLE.hi = mod.HI;
-      COPY_LOADED.hi = true;
+  const authPromise = loadStudioCopyAuth(safe);
+  if (REST_LOADED[safe]) {
+    return authPromise.then(() => STUDIO_COPY_TABLE[safe]);
+  }
+  if (!hiRestLoading) {
+    hiRestLoading = import("./hiCopy").then((mod) => {
+      Object.assign(hiInstalled, mod.HI);
+      REST_LOADED.hi = true;
       return mod.HI;
     });
   }
-  return hiLoading;
+  return Promise.all([authPromise, hiRestLoading]).then(() => STUDIO_COPY_TABLE[safe]);
 }
 
 export type { StudioCopy };

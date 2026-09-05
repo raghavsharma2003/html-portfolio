@@ -126,15 +126,17 @@ const BUDGETS = {
   fontBytes: 120 * 1024,
 };
 
-// WS-R82. `context/decisions.md#studio-hindi-table-is-its-own-chunk`'s own
-// reversal condition, never measured until now: "if a Hindi creator's first
-// paint is measured to wait more than one throttled round trip for the
+// WS-R82, narrowed WS-R113. `context/decisions.md#studio-hindi-table-is-its-own-chunk`'s
+// own reversal condition, never measured until now: "if a Hindi creator's
+// first paint is measured to wait more than one throttled round trip for the
 // chunk... preload the chunk... and re-measure; never raise the budget."
-// 800ms is that "one throttled round trip" made concrete: the Hindi chunk
-// (dist/assets/hiCopy-*.js) is comfortably under 40KB gzipped, and one HTTP
-// round trip on this gate's own Fast-3G throttle (150ms RTT, 1.6Mbps down)
-// comes to roughly 150ms handshake-equivalent latency plus well under 200ms
-// of transfer time for a file this size — 800ms leaves headroom for TCP
+// 800ms is that "one throttled round trip" made concrete: the Hindi AUTH
+// chunk (dist/assets/hiAuthCopy-*.js, WS-R113 — the sign-in screen's own
+// two sections, `authGate` + `shell`; the whole table was `hiCopy-*.js`
+// before this split) is comfortably under 40KB gzipped, and one HTTP round
+// trip on this gate's own Fast-3G throttle (150ms RTT, 1.6Mbps down) comes
+// to roughly 150ms handshake-equivalent latency plus well under 200ms of
+// transfer time for a file this size — 800ms leaves headroom for TCP
 // slow-start and JS parse/execute on a throttled CPU without hiding a real
 // regression the way a lax budget would.
 const HINDI_CHUNK_WAIT_BUDGET_MS = 800;
@@ -150,32 +152,48 @@ const HINDI_CHUNK_WAIT_BUDGET_MS = 800;
 // diverge (a slow re-render after a fast chunk load would move this one
 // without moving that one) in a way only a second, real measurement can see.
 //
-// 1000, not 800, since the wave-fifteen merge gate (2026-09-05): the 800
-// was copied from the chunk-wait budget, and the paint is structurally
-// LATER than the chunk wait (the table is imported only after the main
-// chunk has parsed, then React commits it), so the two cannot share a
-// number. Measured at 918ms median on the merged tree with the machine
-// otherwise idle, 584-923ms across WS-R91's own batches; a budget that
-// fails on an uncontended run is a wish, not a budget. The fix is a
-// modulepreload of the Hindi chunk from the built page itself (wave
-// sixteen); when it lands, this number returns to 800
-// (`context/decisions.md#first-hindi-paint-budget-set-from-measurement`).
-const FIRST_HINDI_PAINT_BUDGET_MS = 1000;
+// 800 again as of WS-R113 (2026-09-05), closing the reversal condition
+// `context/decisions.md#ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention`
+// named: "three consecutive `--target studio-hi` batches measure under
+// 700ms". Between 1000 (set at the wave-fifteen merge gate, 918ms median
+// with the table imported whole) and here: WS-R107's `modulepreload`
+// (wave sixteen) halved the wait but still measured 808/572/657ms, one of
+// three over 700; WS-R113 (this wave) split the table itself so the
+// sign-in screen's own chunk (`hiAuthCopy.ts`, `authGate` + `shell` only,
+// ~40KB gzipped) is the ONE thing preloaded and awaited before paint,
+// never the much larger rest of it. Three consecutive batches measured
+// 595.8ms, 569.1ms, 533.3ms median — all comfortably under 700ms — and on
+// a HEAVILY CONTENDED machine (`uptime` load average 11.6-13.9 across all
+// three batches, multiple sibling `verify-release.mjs`/`check-layout.mjs`
+// runs and their own Chromium processes concurrently in `ps aux`, never
+// the quiet machine the reversal condition asked for because none was
+// available in this session's window) — see
+// `context/measurements.md#ws-r113-first-hindi-paint-after-the-auth-rest-split-2026-09-05`.
+// A budget this far under its own worst single run (974ms, batch 2's own
+// outlier, still comfortably under the OLD 1000ms budget) even under
+// contention is not a wish; a genuinely idle re-run would be expected to
+// measure lower still.
+const FIRST_HINDI_PAINT_BUDGET_MS = 800;
 
-/** Finds the built Hindi copy chunk (`dist/assets/hiCopy-<hash>.js`) by
- *  filename prefix rather than a hardcoded hash — content hashes change on
- *  every edit to `src/studio/hiCopy.ts`, and this gate must survive that
- *  without a manual update. Returns the URL PATH the static server below
- *  serves it at, or null if `dist/` was built before the WS-R71 chunk split
- *  (an environmental state the caller reports by name, never silently). */
-function findHiCopyChunkPath() {
+/** Finds the built Hindi AUTH chunk (`dist/assets/hiAuthCopy-<hash>.js`,
+ *  WS-R113 — the sign-in screen's own two sections, `authGate` + `shell`)
+ *  by filename prefix rather than a hardcoded hash — content hashes change
+ *  on every edit to `src/studio/hiAuthCopy.ts`, and this gate must survive
+ *  that without a manual update. This is the chunk `studio-hi`'s own
+ *  target (`/studio?lang=hi`, SIGNED OUT) actually fetches — a signed-out
+ *  visit never touches `hiCopy.ts`, the much larger rest of the table,
+ *  which only loads once a session exists (`context/decisions.md#ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section`).
+ *  Returns the URL PATH the static server below serves it at, or null if
+ *  `dist/` was built before the WS-R113 chunk split (an environmental
+ *  state the caller reports by name, never silently). */
+function findHiAuthCopyChunkPath() {
   let names;
   try {
     names = readdirSync(join(DIST, "assets"));
   } catch {
     return null;
   }
-  const hit = names.find((n) => n.startsWith("hiCopy-") && n.endsWith(".js"));
+  const hit = names.find((n) => n.startsWith("hiAuthCopy-") && n.endsWith(".js"));
   return hit ? `/assets/${hit}` : null;
 }
 
@@ -334,12 +352,15 @@ async function measureOnce(browser, target) {
   // fact: how long the Hindi CHUNK itself takes to become usable once
   // anything asks for it, decoupled from render time. The instant the
   // English shell's own first paint fires, it starts a real `import()` of
-  // the ACTUAL built chunk (found by `findHiCopyChunkPath()`, never a
+  // the ACTUAL built chunk (found by `findHiAuthCopyChunkPath()`, never a
   // hand-typed filename that would drift from the real content hash) and
   // times how long that import takes to resolve, under the SAME
   // network/CPU throttle already active on this page. `hindiChunkWaitMs` is
-  // that duration.
-  const hiChunkPath = target.name === "studio-hi" ? findHiCopyChunkPath() : null;
+  // that duration. WS-R113: the chunk this times is the AUTH chunk
+  // (`hiAuthCopy-*.js`) — the only one a real signed-out `studio-hi` visit
+  // ever fetches, the rest of the table (`hiCopy-*.js`) being loaded only
+  // once a session exists.
+  const hiChunkPath = target.name === "studio-hi" ? findHiAuthCopyChunkPath() : null;
 
   const pending = new Map(); // requestId -> { url, type }
   const bytes = { js: 0, css: 0, font: 0, image: 0, other: 0, total: 0 };
@@ -572,16 +593,17 @@ function evaluateBudgets(result) {
       detail: result.thirdPartyRenderBlocking.join(", "),
     });
   }
-  // WS-R82. `studio-hi` only: three distinct, separately-named outcomes,
-  // never folded into one bare pass/fail. A `null` median with no failure
-  // means `findHiCopyChunkPath()` itself found nothing — dist/ built before
-  // the WS-R71 chunk split — which is an environmental "run the build
-  // first", not a regression this gate should report as a budget miss.
+  // WS-R82, narrowed WS-R113. `studio-hi` only: three distinct,
+  // separately-named outcomes, never folded into one bare pass/fail. A
+  // `null` median with no failure means `findHiAuthCopyChunkPath()` itself
+  // found nothing — dist/ built before the WS-R113 chunk split — which is
+  // an environmental "run the build first", not a regression this gate
+  // should report as a budget miss.
   if (result.target === "studio-hi") {
     if (result.hindiChunkFailed) {
       findings.push({ metric: "Hindi chunk wait", detail: "the chunk import itself rejected (see runs[].hindiChunkWaitMs === -1 with --json)" });
     } else if (result.median.hindiChunkWaitMs === null) {
-      findings.push({ metric: "Hindi chunk wait", detail: "no measurement taken — dist/assets/hiCopy-*.js not found; run npx vite build first" });
+      findings.push({ metric: "Hindi chunk wait", detail: "no measurement taken — dist/assets/hiAuthCopy-*.js not found; run npx vite build first" });
     } else if (result.median.hindiChunkWaitMs > HINDI_CHUNK_WAIT_BUDGET_MS) {
       findings.push({
         metric: "Hindi chunk wait",
@@ -661,7 +683,12 @@ function checkHindiPreloadStatic() {
       detail: `expected exactly 1 hi-chunk-preload meta tag in dist/studio.html, found ${metaCount}`,
     });
   }
-  if (/<link\s+rel="modulepreload"[^>]*hiCopy-/.test(html)) {
+  // WS-R113: checks BOTH chunk name shapes — `hiAuthCopy-` (the one this
+  // plugin actually preloads today) and `hiCopy-` (the rest of the table,
+  // which must never get a literal preload either) — so a future change
+  // that starts baking either in unconditionally still fails this check by
+  // name, not just the one currently wired.
+  if (/<link\s+rel="modulepreload"[^>]*hi(Auth)?Copy-/.test(html)) {
     findings.push({
       metric: "Hindi preload wiring",
       detail:

@@ -47,7 +47,7 @@ function roomAboutFixturePlugin() {
   }
 }
 
-// WS-R107. `context/measurements.md#first-hindi-paint-on-the-wave-fifteen-merge-gate-2026-09-05`
+// WS-R107, narrowed WS-R113. `context/measurements.md#first-hindi-paint-on-the-wave-fifteen-merge-gate-2026-09-05`
 // measured the studio's first Hindi paint at 918ms against an 800ms budget,
 // structurally: `hiCopy.ts` (`context/decisions.md#studio-hindi-table-is-its-own-chunk`)
 // is a dynamic `import()` that main.tsx (WS-R91) issues as early as a module
@@ -56,6 +56,15 @@ function roomAboutFixturePlugin() {
 // request cannot start until then. A `<link rel="modulepreload">` for the
 // chunk starts that fetch the instant the HTML parser reaches it, in
 // parallel with the main chunk, which is the whole win.
+//
+// WS-R113 narrowed WHICH chunk this preloads: `hiCopy.ts` split into
+// `hiAuthCopy.ts` (the sign-in screen's own two sections, `authGate` +
+// `shell`) and `hiCopy.ts` (everything else, loaded only once a session
+// exists) — see `context/decisions.md#ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section`.
+// This plugin now preloads ONLY `hiAuthCopy-<hash>.js`: that is the one
+// chunk a signed-out `?lang=hi` visit ever fetches, and preloading the much
+// larger rest chunk too would cost that visit bytes and a fetch it will
+// never use before signing in.
 //
 // It cannot be a plain static `<link>` in `studio.html`'s source: the
 // chunk's filename is content-hashed at build time and `studio.html` has no
@@ -132,21 +141,30 @@ function studioHindiPreloadPlugin() {
     async closeBundle() {
       const distDir = join(process.cwd(), 'dist')
       const assetNames = readdirSync(join(distDir, 'assets'))
-      // `hiCopy-<hash>.js`, the same filename shape
-      // `scripts/check-performance.mjs`'s `findHiCopyChunkPath()` already
+      // `hiAuthCopy-<hash>.js`, the same filename shape
+      // `scripts/check-performance.mjs`'s `findHiAuthCopyChunkPath()` already
       // globs for -- found here rather than imported from there so this
       // plugin has no runtime dependency on a scripts/ file whose own job is
-      // gating, not building.
-      const hiChunk = assetNames.find((n) => n.startsWith('hiCopy-') && n.endsWith('.js'))
-      if (!hiChunk) {
-        // Loud, not silent: `#studio-hindi-table-is-its-own-chunk` being
-        // unbuilt or renamed is exactly the state this plugin exists to
-        // never paper over.
+      // gating, not building. Both chunks are checked for existence (a
+      // missing REST chunk means the split itself broke, even though this
+      // plugin only ever preloads the auth one) so either half silently
+      // disappearing fails the build loudly, by name, rather than shipping a
+      // signed-in creator a broken locale.
+      const hiAuthChunk = assetNames.find((n) => n.startsWith('hiAuthCopy-') && n.endsWith('.js'))
+      const hiRestChunk = assetNames.find((n) => n.startsWith('hiCopy-') && n.endsWith('.js'))
+      if (!hiAuthChunk || !hiRestChunk) {
+        // Loud, not silent: `#studio-hindi-table-is-its-own-chunk` /
+        // `#ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section`
+        // being unbuilt or renamed is exactly the state this plugin exists
+        // to never paper over.
         throw new Error(
-          'studioHindiPreloadPlugin: no dist/assets/hiCopy-*.js chunk found -- the Hindi copy chunk split ' +
-            '(context/decisions.md#studio-hindi-table-is-its-own-chunk) is missing or its output name changed.',
+          'studioHindiPreloadPlugin: expected both dist/assets/hiAuthCopy-*.js and dist/assets/hiCopy-*.js -- ' +
+            `found hiAuthCopy: ${hiAuthChunk ? 'yes' : 'NO'}, hiCopy: ${hiRestChunk ? 'yes' : 'NO'}. The Hindi copy ` +
+            'chunk split (context/decisions.md#ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section) ' +
+            'is missing or an output name changed.',
         )
       }
+      const hiChunk = hiAuthChunk
       const studioHtmlPath = join(distDir, 'studio.html')
       const html = readFileSync(studioHtmlPath, 'utf8')
       const marker = '<meta charset="UTF-8" />'

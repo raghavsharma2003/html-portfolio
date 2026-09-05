@@ -18928,3 +18928,90 @@ measuring under 800ms would confirm either fix; absent either, the honest
 move is to raise `HINDI_CHUNK_WAIT_BUDGET_MS` from a fresh measurement
 (not copied from this one) the same way the sibling budget was raised, and
 record the new number's own reversal condition in the same commit.
+
+## `ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section` (2026-09-05, WS-R113)
+
+**Decision.** `src/studio/hiCopy.ts` (the WS-R71 single Hindi chunk) splits
+into TWO independently-lazy chunks: `src/studio/hiAuthCopy.ts` carries
+exactly `authGate` + `shell` — the two `StudioCopy` sections the SIGNED-OUT
+sign-in screen actually reads (`AuthGate.tsx` reads `t.authGate` in full and
+`t.shell.languageGroupLabel` for its own language switch's `aria-label`;
+verified by grep against the real component, not assumed) — and `hiCopy.ts`
+keeps everything else, loaded only once a session exists. `copy.ts` gains
+`loadStudioCopyAuth`/`studioAuthCopyReady` alongside the pre-split
+`loadStudioCopy`/`studioCopyReady` (which now installs BOTH chunks and means
+"the whole table is real", unchanged in meaning). `STUDIO_COPY_TABLE.hi` is
+ONE `Proxy` over both sections: a key from an uninstalled section throws,
+named by WHICH loader would install it (`studio_copy_hi_auth_not_loaded` vs
+`studio_copy_hi_not_loaded`) — `#studio-hindi-table-is-its-own-chunk`'s own
+"never English in its place" law, restated per section. `localeContext.tsx`
+gains `StudioLocaleAuthProvider` (waits on the auth section alone) beside the
+existing `StudioLocaleProvider` (waits on both); `StudioApp.tsx` mounts the
+new one around `AuthGate`, the existing one around the signed-in tree,
+unchanged. `main.tsx`'s eager `?lang=hi` preload calls `loadStudioCopyAuth`,
+not `loadStudioCopy`; `vite.config.ts`'s `studioHindiPreloadPlugin` now
+`<link rel="modulepreload">`s the `hiAuthCopy-*.js` chunk, not `hiCopy-*.js`.
+`FIRST_HINDI_PAINT_BUDGET_MS` returns to 800 (from 1000) in the same commit
+— see this decision's own measurement note below.
+
+**Why.** `context/decisions.md#ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention`
+named the next lever precisely: "the chunk-wait number... already leaves
+limited room under an 800ms total... shrinking `hiCopy.ts` itself, not
+another network-side fix, is what is left to try." WS-R107's own
+`modulepreload` measured 808/572/657ms — one of three still over 700ms —
+because it preloaded the WHOLE table (every panel: `roomStudio`, the
+enrollment wizard, `studioApp`) to paint a screen that reads two small
+sections of it. A signed-out visitor cannot reach any of the rest of that
+table before signing in, so none of it belongs on the critical path to
+first paint. This is also the `(b)` option `context/decisions.md#ws-r106-hindi-chunk-wait-miss-flagged-not-fixed`
+already named ("split `copy.ts#studioApp` into its own smaller chunk rather
+than growing the single `hiCopy.ts` chunk further") — this workstream split
+by AUDIENCE (signed-out vs signed-in) rather than by the single largest
+section, since `authGate`+`shell` together are far smaller than `studioApp`
+alone and are the ONLY sections the sign-in screen reads at all.
+
+**Measured (n=3 batches x 3 runs each, `node scripts/check-performance.mjs
+--target studio-hi`, 2026-09-05).** Before: 808/572/657ms (WS-R107, one of
+three over 700ms). After this split: batch medians 595.8ms, 569.1ms, 533.3ms
+— all three under 700ms, closing `#ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention`'s
+own reversal condition — measured on a HEAVILY CONTENDED machine (`uptime`
+load average 11.6-13.9 across all three batches; multiple sibling
+`verify-release.mjs`/`check-layout.mjs` runs and their own Chromium
+processes concurrently visible in `ps aux` throughout; no quiet window was
+available in this session). Hindi chunk wait itself fell to single-digit-to-
+low-double-digit milliseconds most runs (one 63-134ms outlier per batch,
+still comfortably inside budget) — the AUTH chunk gzips to ~1.8KB against the
+WS-R107 whole table's ~40KB. See
+`context/measurements.md#ws-r113-first-hindi-paint-after-the-auth-rest-split-2026-09-05`
+for the full per-run numbers.
+
+**A real bug this split surfaced and fixed in the same commit.**
+`StudioApp.tsx`'s pre-existing `sa`/`copy` English-fallback bridge effect
+(WS-R106, `context/rejected.md#ws-r106-studioapp-own-copy-read-crashed-before-the-hindi-chunk-loaded`)
+calls the (module-level) `loadStudioCopy` unconditionally on every render
+with a Hindi locale, including SIGNED OUT — harmless before this split
+(there was only one chunk, and the sign-in screen needed it anyway), but
+after the split this would have silently re-imported the entire `hiCopy.ts`
+rest-chunk on every `/studio?lang=hi` visit regardless of session, measured
+directly: `studio-hi`'s own `jsBytes` first read 205.2KB against the 180KB
+budget (a real, reproducible fail, not noise) before this fix, gated on
+`session` too (`if (!session || studioCopyReady(studioLocale)) return;`),
+after which the same target measured 164.9KB — byte-identical to `/studio`
+(English), confirming the signed-out visit now costs a Hindi creator
+literally nothing beyond the ~1.8KB auth chunk. Logged rather than only
+fixed silently: a workstream measuring its own headline number (first paint)
+without also re-checking the budget line right next to it (`jsBytes`) would
+have shipped this regression un-noticed, since `firstHindiPaintMs` alone
+never touched the rest-chunk fetch at all (it resolves off the auth chunk).
+
+**Reversal.** If a future panel the sign-in screen needs to read grows
+(a third section beyond `authGate`/`shell`), add it to the `AUTH_SECTIONS`
+set in `copy.ts` AND to `hiAuthCopy.ts`'s own `Pick`, in the same commit —
+never leave a signed-out read reaching into the rest chunk, which would
+either throw (if reached before `loadStudioCopy` full resolves) or silently
+reintroduce the whole-table cost this decision removes. If `firstHindiPaintMs`
+is ever measured missing the (now 800ms) budget on a genuinely QUIET machine
+(`uptime` load average at or below core count, no sibling gate in `ps aux`),
+the next lever is the auth chunk's own size, not this split — headroom there
+is currently large (~40KB round trip budget against a ~1.8KB gzipped
+payload).
