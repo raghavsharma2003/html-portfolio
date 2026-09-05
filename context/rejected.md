@@ -11073,3 +11073,94 @@ changed, named here so the next battery finds them already on the list.
 **The rule.** A negative control that reads a live file pins a defect in
 place: the moment the defect is fixed the control fails, so freeze the bad
 shape as a literal and hold the live file to the good one.
+
+## `ws-r84-disclosure-left-out-of-roomsetlocales-response` (2026-09-05, WS-R84)
+
+**What was tried.** The shape `roomSetLocale` (`api/_room-surface.js`) and
+`switchLocale`'s already-joined branch (`RoomApp.tsx`) shipped with, from
+WS-R24 through WS-R79: the write updates the follower row, mints a fresh
+session bound to the NEW card's digest, and returns `{ locale, session }`.
+The client applies both to its own state (`setSession`, and `room.locale`),
+on the reasoning that the session is what matters for the NEXT turn's
+digest check — which is correct for that one purpose — and never touches
+`room.disclosure`, which is still the text object fetched at `open` time.
+
+**What specifically broke.** Reproduced directly (not merely inferred) by
+reverting exactly this one line during this workstream's own build and
+re-running two independent proofs: (1) `evals/room-locale/run.mjs`'s new §6
+— `switched.disclosure` came back `undefined` where the assertion expected
+`roomDisclosureCard(name, "hi")`, and the "screen still holding its
+pre-switch disclosure" negative control could no longer even be exercised
+meaningfully since there was nothing fresh to compare it against; (2)
+`scripts/check-accessibility.mjs`'s new locale-switch walk, against the
+REAL rendered page: clicking "हिन्दी" flips `.room-shell`'s own `lang` to
+`hi` (the chrome DOES switch), but the disclosure card's own text is
+byte-identical before and after — `FAIL accessibility: ... 1 language-tag
+finding(s)`, `[lang:lang-stale-disclosure-after-switch] room:talk(locale-
+switch) "disclosure card text is byte-identical before and after the
+switch"`. The follower's chrome (buttons, headings, every client-copy
+string) genuinely changed language; the ONE string that is the entire
+point of the disclosure mechanism — the safety card itself — silently did
+not, for as many messages as the session stayed open. `langTagAudit` alone
+never caught this in three prior workstreams (WS-R24 shipped it, WS-R79
+found and explicitly deferred it) because the stale English text is still
+HONESTLY English — it tags itself `lang="en"` correctly by WS-R79's own
+per-node detection, which answers "is this tagged for the script it is
+actually in," never "is this the text a fresh fetch would have returned."
+
+**Fix.** `roomSetLocale` now returns `disclosure` alongside `locale` and
+`session` — the same bytes it already computed to bind the new session's
+own `dd` digest, so no new query, no new op, and no second round trip.
+`switchLocale`'s talking branch sets `room.disclosure` from that field in
+the SAME state update as `room.locale` and `session`, so there is never a
+render with the new language's chrome around the old language's card. See
+`decisions.md#ws-r84-locale-switch-refetch-table` for the full enumeration
+of every server-authored string this workstream checked for the same class
+of bug, and why most of them needed no fix.
+
+**Rule.** A digest binding proves a session was minted against SOME
+disclosure text; it says nothing about whether the CLIENT still holds a
+copy of that text anywhere. Whenever a write mints a fresh session because
+some piece of app-voiced text changed, check whether that text ALSO needs
+to ride along in the response — the session alone is not the payload.
+
+## `ws-r84-taste-screen-disclosure-was-a-third-stale-copy` (2026-09-05, WS-R84)
+
+**What was tried.** `TasteScreen`'s first design (WS-R53) held the
+disclosure text in its OWN `useState<string | null>`, set once from
+`turn.disclosure` on the first `tasteInRoom` reply and never touched again
+— reasonable in isolation ("carried on the first answer," WS-R53's own
+law), but this workstream found it was actually a THIRD independent copy
+of a string this component already had access to via a prop: `room.
+disclosure` (from `open`) and a taste turn's own `disclosure` field
+(from `taste`) are byte-identical by construction — same `roomNameFor`,
+same `roomDisclosureCard`, same locale, since the taste screen always
+passes `room.locale` into `tasteInRoom`. Locally caching the text was
+unnecessary even before considering a locale switch.
+
+**What specifically broke.** A stranger who asks one taste question (the
+card appears, in English), then taps "हिन्दी" BEFORE joining: `switchLocale`'s
+pre-join branch correctly re-calls `open` and replaces `room` with a fresh,
+Hindi-locale object (`room.disclosure` is now the Hindi card) — but
+`TasteScreen`'s own `disclosure` state, set once and never re-derived, kept
+showing the English card indefinitely, in a Hindi-chrome screen, for the
+rest of that visit. The SAME class of bug as `#ws-r84-disclosure-left-out-
+of-roomsetlocales-response` above, in a different component, with a
+different-shaped cause (a local cache instead of a missing response
+field) — which is exactly why the workstream brief asked to "close that
+class, not that one case."
+
+**Fix.** The local text cache was replaced with a boolean (`hasAsked`),
+set once the first taste reply lands and never reset; the RENDER always
+reads `room.disclosure` directly. Since `switchLocale`'s pre-join branch
+already refreshes `room` on every switch (an existing, unmodified code
+path — this is the literal "refetched through the same path that fetched
+it on open" case named in the workstream brief), the taste screen can
+never hold a stale copy again, because it no longer holds a copy at all.
+
+**Rule.** Before adding local state to cache a value a component already
+receives as a prop (or could receive from one it already refetches), check
+whether the prop's own refresh path already covers every case the cache
+was meant to survive. A cache that outlives its prop's own refresh cycle
+is a stale-data bug waiting for whichever future change adds a reason to
+refresh the prop.

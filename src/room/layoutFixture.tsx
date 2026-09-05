@@ -318,6 +318,17 @@ function installFetchStub() {
           turns_left: 2,
         });
       }
+      // WS-R84. `?live=1` is the ONE screen that exercises a REAL
+      // `switchLocale` call (`RoomApp.tsx`'s own `fixtureLiveLocaleSwitch`
+      // prop) — answered here exactly the way `api/_room-surface.js`'s real
+      // `roomSetLocale` answers it, `locale` + a fresh `session` string +
+      // the fresh CARD, so `scripts/check-accessibility.mjs` can click the
+      // real language button and assert the real resulting DOM.
+      if (op === "locale") {
+        const body = JSON.parse(String(init?.body ?? "{}"));
+        const want = body?.locale === "hi" ? "hi" : "en";
+        return json({ locale: want, session: `r1.fixture-switched-${want}.fixture`, disclosure: want === "hi" ? CARD_HI : CARD });
+      }
       return json({});
     }
     return json({});
@@ -377,6 +388,11 @@ function render() {
   // offline card (`fixturePhase: "offline"`, the same seam `receipt` below
   // already uses for a phase no real session can be driven into on demand).
   const ios = params.get("ios") === "1";
+  // WS-R84: see `installFetchStub`'s own `op === "locale"` handler and
+  // `RoomApp.tsx`'s `fixtureLiveLocaleSwitch` header — narrowly scoped to
+  // this one query flag so every other screen's `switchLocale` stays
+  // exactly as blocked as it always was.
+  const liveLocaleSwitch = params.get("live") === "1";
   // WS-R63: `checkins`/`handoff` render the talk screen CLOSED, with the
   // long conversation, so `scripts/check-layout.mjs` clicks the real opener
   // itself — `layoutFixture.tsx`'s own header explains why a fixture that
@@ -409,6 +425,7 @@ function render() {
       // WS-R59: the install card, both variants.
       fixtureInstallPrompt={screen === "install"}
       fixtureInstallPromptIOS={screen === "install" && ios}
+      fixtureLiveLocaleSwitch={liveLocaleSwitch}
     />,
   );
   window.__ROOM_HI_STRINGS__ = (() => {

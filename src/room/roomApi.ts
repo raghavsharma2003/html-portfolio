@@ -231,9 +231,11 @@ export const joinRoom = (
  *  enforces this, so a follower cannot name another follower's row here even
  *  by constructing the request by hand. Returns a fresh session, because the
  *  disclosure card's bytes (and therefore its bound digest) changed with the
- *  language. */
+ *  language - and (WS-R84) the card's own bytes alongside it, so the caller
+ *  never has to make a second round trip just to stop showing the old
+ *  language's disclosure. */
 export const setRoomLocale = (session: string, locale: "en" | "hi") =>
-  post<{ locale: "en" | "hi"; session: string }>({ op: "locale", session, locale });
+  post<{ locale: "en" | "hi"; session: string; disclosure: string }>({ op: "locale", session, locale });
 
 export const sayInRoom = (
   session: string,

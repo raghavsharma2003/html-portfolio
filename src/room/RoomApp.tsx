@@ -171,6 +171,17 @@ interface Props {
    *  passes it; a real visitor always sees the taste screen first when the
    *  creator has not switched it off. */
   fixtureTasteDismissed?: boolean;
+  /** WS-R84. The accessibility gate's own language walk needs to exercise a
+   *  REAL locale switch (a real click on `LanguageSwitch`, through the real
+   *  `switchLocale`) so it can prove the resulting DOM, not a hand-built
+   *  stand-in for it — every other fixture prop on this component supplies
+   *  DATA and leaves the app's own logic untouched, and this one scenario is
+   *  the one exception, narrowly scoped to exactly this flag rather than
+   *  loosening `switchLocale`'s own `fixtureOpen` guard for every screen.
+   *  `layoutFixture.tsx`'s fetch stub answers `op: "locale"` for exactly this
+   *  case; production code never sets this prop, so nothing here changes for
+   *  a real follower. */
+  fixtureLiveLocaleSwitch?: boolean;
 }
 
 export default function RoomApp({
@@ -188,6 +199,7 @@ export default function RoomApp({
   fixtureInstallPrompt,
   fixtureInstallPromptIOS,
   fixtureTasteDismissed,
+  fixtureLiveLocaleSwitch,
 }: Props) {
   const slug = useMemo(() => (fixtureOpen ? fixtureOpen.room.slug : slugFromPath()), [fixtureOpen]);
   const [phase, setPhase] = useState<Phase>(
@@ -516,13 +528,23 @@ export default function RoomApp({
    * that mints a fresh session bound to the new card's digest. */
   const switchLocale = useCallback(
     async (next: RoomLocale) => {
-      if (fixtureOpen || localeBusy || next === locale) return;
+      // WS-R84: `fixtureLiveLocaleSwitch` is the one, narrowly-scoped
+      // exception - every other fixture screen still blocks this function
+      // entirely, exactly as before. See the prop's own comment.
+      if ((fixtureOpen && !fixtureLiveLocaleSwitch) || localeBusy || next === locale) return;
       setLocaleBusy(true);
       try {
         if (session && phase === "talking") {
           const result = await setRoomLocale(session, next);
           setSession(result.session);
-          setRoom((prev) => (prev ? { ...prev, locale: result.locale } : prev));
+          // WS-R84: the fresh CARD rides along with the fresh session now,
+          // not just its digest - without this line `room.disclosure` kept
+          // showing whatever language the follower opened in, forever, no
+          // matter how many times they tapped the switch
+          // (`context/rejected.md#ws-r84-disclosure-left-out-of-
+          // roomsetlocales-response`). `locale` and `disclosure` are set
+          // together so there is never a render with one but not the other.
+          setRoom((prev) => (prev ? { ...prev, locale: result.locale, disclosure: result.disclosure } : prev));
         } else {
           const opened = await openRoom(slug, auth?.accessToken ?? null, next, viaFromLocation());
           setRoom(opened);
@@ -536,7 +558,7 @@ export default function RoomApp({
         setLocaleBusy(false);
       }
     },
-    [fixtureOpen, localeBusy, locale, session, phase, slug, auth],
+    [fixtureOpen, fixtureLiveLocaleSwitch, localeBusy, locale, session, phase, slug, auth],
   );
 
   /* WS-R39: the memory-consent toggle, changed from the account page. The
@@ -1759,9 +1781,22 @@ function TasteScreen({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  // Non-null only on turn 1 (`api/_room-taste.js`'s own law) — kept on
-  // screen for every turn after, never re-fetched.
-  const [disclosure, setDisclosure] = useState<string | null>(null);
+  // WS-R53: true from turn 1 onward (`api/_room-taste.js`'s own law - the
+  // card is carried on the first answer and stays shown after). WS-R84: this
+  // used to be the disclosure TEXT itself, captured once from that first
+  // `tasteInRoom` response and held in local state - which meant a follower
+  // who switched languages AFTER asking one question kept reading the OLD
+  // language's card forever, since nothing here ever updated it again. Now
+  // it is only a flag, and the text always renders straight off `room.
+  // disclosure` below - the SAME `open` response `switchLocale`'s own
+  // pre-join branch already re-fetches on every switch (`RoomApp.tsx`'s own
+  // header: "refetched through the same path that fetched it on open"), so
+  // the card can never be one switch behind. `room.disclosure` and a taste
+  // turn's own `disclosure` field are byte-identical by construction (both
+  // `roomDisclosureCard(name, locale)` off the same name and the same
+  // locale this screen passes to `tasteInRoom` below), so nothing is lost by
+  // reading the PROP instead of the per-turn response.
+  const [hasAsked, setHasAsked] = useState(false);
   const [turnsLeft, setTurnsLeft] = useState(3);
   // True once the daily allowance is spent, whichever way that happened
   // (the server said `turns_left: 0`, or the rate gate refused outright) —
@@ -1785,7 +1820,7 @@ function TasteScreen({
       const turn: RoomTasteTurn = await tasteInRoom(room.room.slug, text, room.locale);
       setDraft("");
       setExchanges((prev) => [...prev, { q: text, a: turn.reply }]);
-      if (turn.disclosure) setDisclosure(turn.disclosure);
+      if (turn.disclosure) setHasAsked(true);
       setTurnsLeft(turn.turns_left);
       if (turn.turns_left <= 0) setSpent(true);
     } catch (e) {
@@ -1827,9 +1862,12 @@ function TasteScreen({
             shown it STAYS shown, `api/_room-taste.js`'s own "carried on the
             first answer" law rendered rather than re-requested. Before that
             first reply, the lede alone says what this screen is. */}
-        {disclosure ? (
+        {hasAsked ? (
           <div className="room-card" role="note">
-            <LocalizedDisclosure text={disclosure} />
+            {/* WS-R84: `room.disclosure`, never a locally-held copy - see
+                `hasAsked`'s own comment above on why this can never go
+                stale across a language switch. */}
+            <LocalizedDisclosure text={room.disclosure} />
           </div>
         ) : (
           <p className="room-lede">

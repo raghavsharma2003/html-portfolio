@@ -8686,6 +8686,36 @@
       "kind": "rejection",
       "title": "The consolidate sweep's query-or-body secret and plain compare, found by WS-R89 and left as Meera's, were fixed at the merge (headers only, constant time); the battery's negative control froze the old body as a literal so the fix could not fail it.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r84-locale-switch-refetch-table",
+      "kind": "decision",
+      "title": "Every server-authored string the Room renders is enumerated with its refetch strategy: roomSetLocale's own response now carries the fresh disclosure card (no new op), the taste screen derives it from the room prop instead of a local copy, the account page already refetches via its session dependency, Telegram /hindi and /english re-send the card, and creator content (name, bio, check-in titles) needs no fix at all.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r84-taste-screen-live-locale-switch-in-the-layout-gate",
+      "kind": "decision",
+      "title": "RoomApp.tsx gains fixtureLiveLocaleSwitch, the one narrow exception to switchLocale's fixtureOpen guard, so scripts/check-accessibility.mjs can click the real language button against the real room:talk fixture and read the real resulting DOM, because langTagAudit alone cannot distinguish fresh Hindi text from honestly-tagged stale English text.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r84-disclosure-left-out-of-roomsetlocales-response",
+      "kind": "rejection",
+      "title": "roomSetLocale returned only {locale, session}, never the fresh disclosure card; a follower who switched languages mid-conversation kept reading the OLD language's safety card indefinitely, while every other string in the chrome correctly switched. Reproduced directly (reverting the fix trips both evals/room-locale/run.mjs's new negative control and check-accessibility.mjs's new lang-stale-disclosure-after-switch finding). Fixed by returning the card in the same response.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r84-taste-screen-disclosure-was-a-third-stale-copy",
+      "kind": "rejection",
+      "title": "TasteScreen cached the disclosure text in its own local state instead of reading room.disclosure (a prop it already had, byte-identical by construction); a stranger who asked a taste question then switched languages before joining kept seeing the pre-switch card. Fixed by replacing the cached text with a boolean (hasAsked) and always rendering the prop.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r84-locale-switch-refetch-measurements",
+      "kind": "measurement",
+      "title": "evals/room-locale 54/0 (was would-be 58/3 failing for the new telegram section before the fix, now 61/0); full eval registry 0 FAIL lines before and after; accessibility gate 17 to 18 pages, 0 findings both times, and 1 finding (lang-stale-disclosure-after-switch) when the client fix is manually reverted, proving the new check is non-vacuous.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -17083,6 +17113,31 @@
       "src": "ws-r89-consolidate-sweep-finding-closed-at-the-merge",
       "rel": "supersedes",
       "dst": "ws-r89-consolidate-sweep-secret-in-query-or-body-found-out-of-scope"
+    },
+    {
+      "src": "ws-r84-locale-switch-refetch-table",
+      "rel": "caused_by",
+      "dst": "ws-r79-tag-at-the-node-not-the-document"
+    },
+    {
+      "src": "ws-r84-disclosure-left-out-of-roomsetlocales-response",
+      "rel": "caused_by",
+      "dst": "ws-r24-session-carries-its-own-minted-locale"
+    },
+    {
+      "src": "ws-r84-locale-switch-refetch-table",
+      "rel": "measured_by",
+      "dst": "ws-r84-locale-switch-refetch-measurements"
+    },
+    {
+      "src": "ws-r84-taste-screen-disclosure-was-a-third-stale-copy",
+      "rel": "measured_by",
+      "dst": "ws-r84-locale-switch-refetch-measurements"
+    },
+    {
+      "src": "ws-r84-taste-screen-live-locale-switch-in-the-layout-gate",
+      "rel": "measured_by",
+      "dst": "ws-r84-locale-switch-refetch-measurements"
     }
   ]
 }

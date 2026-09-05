@@ -89,6 +89,7 @@ const {
   adultRefusedCard,
   cappedCard,
   stoppedCard,
+  languageChangedCard,
 } = tg;
 const surface = await import(pathToFileURL(join(REPO, "api/_room-surface.js")).href);
 const { roomDisclosureCard } = surface;
@@ -461,6 +462,68 @@ console.log("── (d) two Telegram followers, one Room: zero cross-follower to
       "is proven at depth by evals/room-leak/run.mjs (16,080 retrieval checks, 0 leaks) against the SAME " +
       "unmodified roomSay/dmRecall this file calls - not re-proven here.",
   );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("── /hindi and /english re-send the disclosure card (WS-R84) ──");
+// ═════════════════════════════════════════════════════════════════════════
+//
+// WS-R24's own law, restated by this workstream's brief: "every app-voiced
+// card takes a locale" applies to a SWITCH exactly as it applies to the
+// first `/start` — a chat that read the English card at join time and then
+// says `/hindi` must not be left with the OLD language as the only
+// disclosure on record for the rest of the conversation. Both cards are
+// sent in the SAME reply as the confirmation, never a bare "Language
+// changed" with no card to back it.
+{
+  const state = freshState();
+  const db = fakeDb(state);
+  const sent = {};
+  const tgClient = fakeTgClient(sent);
+  const memlog = [];
+  const reply = async () => "noted.";
+
+  await fullJoin(state, db, tgClient, memlog, "10001", SLUG, { memory: true });
+  ok("setup: the follower joined on the room's default locale (en)",
+    state.followers[0]?.locale === "en");
+
+  const hiDisclosure = roomDisclosureCard("Anjali");
+  const enDisclosure = roomDisclosureCard("Anjali", "en");
+  ok("setup sanity: roomDisclosureCard's own default IS the English card",
+    hiDisclosure === enDisclosure);
+  const hiCard = roomDisclosureCard("Anjali", "hi");
+  ok("setup sanity: the Hindi and English cards are different bytes (the checks below are not vacuous)",
+    hiCard !== enDisclosure);
+
+  sent["10001"] = [];
+  await handleRoomTelegramUpdate(textUpdate("10001", "/hindi"), depsFor(state, db, tgClient, memlog, { reply }));
+  const hiTexts = texts(sent, "10001");
+  ok("/hindi re-sends the disclosure card, in Hindi, in the same reply as the confirmation",
+    hiTexts.length === 2 && hiTexts[0] === hiCard && hiTexts[1] === languageChangedCard("hi"));
+  ok("NEGATIVE CONTROL: the /hindi reply never contains the stale, pre-switch English card",
+    !hiTexts.includes(enDisclosure));
+  ok("the follower's own row actually moved to hi", state.followers[0]?.locale === "hi");
+
+  // Switch back: /english must carry the SAME shape, in the other direction.
+  sent["10001"] = [];
+  await handleRoomTelegramUpdate(textUpdate("10001", "/english"), depsFor(state, db, tgClient, memlog, { reply }));
+  const enTexts = texts(sent, "10001");
+  ok("/english re-sends the disclosure card, in English, in the same reply as the confirmation",
+    enTexts.length === 2 && enTexts[0] === enDisclosure && enTexts[1] === languageChangedCard("en"));
+  ok("NEGATIVE CONTROL: the /english reply never contains the stale, pre-switch Hindi card",
+    !enTexts.includes(hiCard));
+  ok("the follower's own row moved back to en", state.followers[0]?.locale === "en");
+
+  // A repeated /hindi (no-op switch — already Hindi) still re-sends the
+  // card: a follower who taps the command twice in a row must see the SAME
+  // disclosure both times, never a second reply that silently omits it
+  // because the locale did not technically change.
+  sent["10001"] = [];
+  await handleRoomTelegramUpdate(textUpdate("10001", "/hindi"), depsFor(state, db, tgClient, memlog, { reply }));
+  sent["10001"] = [];
+  await handleRoomTelegramUpdate(textUpdate("10001", "/hindi"), depsFor(state, db, tgClient, memlog, { reply }));
+  ok("a repeated /hindi still re-sends the disclosure card, not just the confirmation",
+    texts(sent, "10001").length === 2 && texts(sent, "10001")[0] === hiCard);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
