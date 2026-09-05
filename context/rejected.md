@@ -11581,3 +11581,48 @@ which is strong enough evidence to treat "run check-copy.mjs immediately
 after any text moves into a COPY_FILES match, before writing the
 translation" as a load-bearing step of the move itself, not an optional
 sanity check.
+
+## `ws-r91-mutationobserver-on-documentelement-inside-addinitscript` (2026-09-05, WS-R91)
+
+**Tried.** `scripts/check-performance.mjs`'s new `firstHindiPaintMs` metric
+(WS-R91, watching for the first Devanagari character to appear in
+`document.body.textContent`) armed a `MutationObserver` on
+`document.documentElement`, wrapped in the same `try {} catch {}` shape the
+adjacent `hindiChunkWaitMs` `PerformanceObserver` already used, inside
+`page.addInitScript(...)`.
+
+**What broke.** Every measured run came back `firstHindiPaintMs: null`,
+across every run, with `crashed: null` on all of them — no page error was
+ever reported, which made the first read of this "no Hindi text ever
+painted" look like a real product regression rather than a broken
+measurement. It was the measurement: `addInitScript` (CDP
+`Page.addScriptToEvaluateOnNewDocument`) runs BEFORE the navigation has
+produced an `<html>` element at all, so `document.documentElement` is
+`null` at the exact instant this script executes.
+`mo.observe(null, {...})` throws a `TypeError`, silently swallowed by the
+surrounding `try {}` — the observer object was constructed but never
+actually armed, so no future mutation, however real, was ever going to fire
+it. Confirmed directly: an instrumented copy logging
+`!!document.documentElement` immediately before the `.observe()` call
+printed `false` on every run, and the REAL page (verified with a
+standalone Playwright script hitting the same built `/studio?lang=hi`
+output) rendered the exact expected Hindi DOM the whole time — the product
+was correct; the check that was supposed to prove it was inert.
+
+**Fix.** Observe `document` itself, never `document.documentElement`.
+`document` is a valid `Node` from the first tick a script can run, before
+any element exists under it, and `{childList: true, subtree: true}` on it
+catches `<html>` itself being inserted along with everything under it. This
+is the general lesson, not specific to this one metric: any
+`MutationObserver` (or similar DOM-dependent API) armed from inside
+`addInitScript` must target `document`, `window`, or another guaranteed-
+present global, never `document.documentElement`/`document.body`, both of
+which can be `null` at that point in the page lifecycle — and a bare
+`try {}` around the `.observe()` call converts that into a silent no-op
+rather than a loud, fixable error, exactly the failure mode
+`scripts/check-copy.mjs`'s own header elsewhere in this codebase warns
+about ("a gate nobody has watched fail is a gate nobody knows is wired").
+Re-measured after the fix: real, varying `firstHindiPaintMs` values
+(586-1006ms across separate runs on this session's own heavily shared
+sandbox — see `context/measurements.md#ws-r91-first-hindi-paint-2026-09-05`),
+never a repeated `null`.

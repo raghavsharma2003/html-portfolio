@@ -16768,3 +16768,161 @@ the budget is ever missed, the fix named in
 `#studio-hindi-table-is-its-own-chunk` (a `<link rel="modulepreload">` for
 the chunk, added when `?lang=hi` is in the URL) is unbuilt and unneeded this
 session — build it then, never by raising the budget instead.
+
+## `ws-r91-authgate-reads-locale-before-sign-in` (2026-09-05, WS-R91)
+
+**Decision.** `AuthGate.tsx` (the studio's sign-in screen, extracted whole
+out of `StudioApp.tsx` this session) is wrapped by `StudioLocaleProvider`
+BEFORE the `if (!session)` branch is reached, not after — the provider now
+mounts above the auth gate in both of `StudioApp.tsx`'s returns (signed out
+and signed in), each with its own `<StudioLocaleProvider>`, rather than one
+shared mount lower in the tree. Every sign-in string (email/OTP forms, the
+Google button, every error, the intro copy for all three variants, the
+legal notice, the language switch itself) moved into `copy.ts#authGate` /
+`hiCopy.ts`, read through `useStudioLocale()` inside `AuthGate.tsx`, never
+through `StudioApp.tsx`'s old English-only `TEACHER_COPY`/`GENERIC_COPY`/
+`TEST_COPY` (kept, but narrowed to `CreateReplicaCard`'s own signed-in-only
+fields — `brandTag`/`introEyebrow`/`introTitle`/`introBody` removed from
+that local `StudioCopy` interface entirely, since `AuthGate.tsx` was their
+only reader). The locale itself is resolved by a new pure module,
+`studioLocalePreference.ts#resolveStudioLocale`: `?lang=` first (unchanged
+from WS-R52), then, once a replica has loaded, ITS OWN `vy_replica.locale`
+(WS-R52's order, still unchanged), and BEFORE that — signed out, or signed
+in but the replica has not loaded yet — a remembered LOCAL choice read from
+`localStorage` (`vyakti.studio.locale.v1`, the studio's own key namespace).
+A mismatch between the remembered local choice and a freshly loaded
+replica's own row resolves to the row, by construction (the chain checks
+the row before it ever consults the remembered value), and `StudioApp.tsx`
+also re-writes the remembered value to match the row once it loads, so a
+future signed-out visit (after a sign-out, on the same device) reflects the
+row's language rather than a stale one.
+
+**Rationale.** This is the fix `WS-R82` found but explicitly could not
+build (`context/rejected.md#ws-r82-studio-hi-signed-out-entry-never-shows-hindi`
+names `AuthGate` sitting before the provider as "not a bug this session
+introduced... it is how the file has read since WS-R52," and names making
+`AuthGate` itself locale-aware as the future workstream's job). Extracting
+`AuthGate` into its own file, rather than converting it in place inside
+`StudioApp.tsx`, follows this workstream's own established pattern
+(`PayoutsCard.tsx` etc. carved out of `RoomStudio.tsx`, `ws-r61`/`ws-r71`'s
+own precedent) for a mechanical reason as much as a stylistic one:
+`StudioApp.tsx` is itself allowlisted in `evals/studio-locale/run.mjs`'s
+`TIER_2_ALLOWLIST` for a REASON UNRELATED to this fix (it owns roughly
+thirty lazy-mounted Tier 2 panels' wiring), so converting a function that
+still lived inside that file would have needed either loosening the
+allowlist's own file-granularity proof or leaving the sign-in screen
+unverified by the static scan. A new file, added directly to `TIER_1_FILES`,
+keeps the proof exact: `AuthGate.tsx` reads only `t.`, unconditionally,
+with nothing else in the same file to blur that claim.
+
+**What was NOT done.** `CreateReplicaCard` and every other Tier 2 panel
+`StudioApp.tsx` still mounts remain English only — this workstream's file
+list named `StudioApp.tsx`, the sign-in component, `studioAuth.ts`,
+`localeContext.tsx`, `copy.ts`/`hiCopy.ts` and the gates, not a wider Tier 2
+sweep. The boot-page spinner (`!authChecked`, "Opening your private
+studio") also stays English and outside the provider deliberately: it is a
+sub-second transient before `restoreSession()` resolves, translating it
+would mean either blocking it behind the Hindi chunk load (worse for a
+screen whose whole job is to appear instantly) or accepting the "never
+English in its place" law's own exception for exactly the state it exists
+to prevent elsewhere. Not one of the four call sites `context/decisions.md
+#ws-r79-tag-at-the-node-not-the-document` already covers needed a change:
+`AuthGate.tsx` carries no server-computed prose.
+
+**Reversal condition.** If a future session finds the boot-page spinner's
+English flash is measured to matter (a real creator report, or a
+performance/perception measurement), revisit translating it — behind a
+synchronous read of the SAME `resolveStudioLocale` chain this decision
+adds, never a second locale mechanism. If `StudioApp.tsx`'s remaining Tier 2
+scope is ever fully converted, `TEACHER_COPY`/`GENERIC_COPY`/`TEST_COPY`
+collapse into `copy.ts` in the same change, the same reversal condition
+`context/decisions.md#ws-r52-tier-2-studio-files-not-localized` already
+states for the rest of that file.
+
+## `ws-r91-hindi-chunk-preloaded-from-main-tsx` (2026-09-05, WS-R91)
+
+**Decision.** `main.tsx` calls `loadStudioCopy("hi")` immediately, at
+module-evaluation time, when `?lang=hi` is present in the URL — before
+`StudioApp` mounts, before `restoreSession()` resolves, before
+`StudioLocaleProvider`'s own effect would otherwise start the same fetch
+post-render. `loadStudioCopy` already dedupes concurrent callers behind one
+shared `hiLoading` promise (`copy.ts`'s own cache), so this is a pure head
+start: the provider's later call the same page session makes resolves
+against this identical in-flight (or already-settled) promise, never a
+second fetch.
+
+**Rationale.** This is the fix `context/decisions.md#studio-hindi-table-is-its-own-chunk`'s
+own reversal condition named in advance ("preload the chunk... when
+`?lang=hi` is in the URL, never a raised budget") and
+`context/decisions.md#ws-r82-studio-hi-performance-target` left unbuilt
+because nothing on the signed-out screen asked for the chunk at all before
+this session. Once `AuthGate.tsx` (this workstream) made the screen
+genuinely Hindi-aware, `scripts/check-performance.mjs`'s new
+`firstHindiPaintMs` metric (WS-R91) measured real values close to or over
+its 800ms budget on this heavily shared, oversubscribed development sandbox
+(load average repeatedly 10-14 on 4 cores while multiple sibling
+workstreams' own release gates ran concurrently — see
+`context/measurements.md#ws-r91-first-hindi-paint-2026-09-05`). A literal
+`<link rel="modulepreload">` tag was considered and set aside: the chunk's
+filename is content-hashed at build time and `studio.html` is a static file
+with no server-side templating step to inject the real hash into, so
+achieving the same effect from a `<link>` tag would need either a Vite
+plugin (more moving parts than this fix needs) or a hand-written glob at
+runtime to discover the hash (fragile). Calling `loadStudioCopy("hi")`
+directly achieves the identical outcome, an early network fetch for the
+chunk, through the mechanism the app already owns and already tests, with
+no new moving part.
+
+**Reversal condition.** If `firstHindiPaintMs` is ever measured missing
+budget on a quiet machine (load average at or below the number of cores,
+no sibling gate running), this fix is insufficient and a real
+`<link rel="modulepreload">` (built via a small Vite plugin that reads the
+manifest) is the next step — never a raised budget. If it is only ever
+measured missing budget on a heavily contended shared sandbox, that is the
+`context/decisions.md#studio-hindi-table-is-its-own-chunk` file's own
+already-stated caveat playing out exactly as described, not evidence this
+fix failed.
+
+## `ws-r91-studio-lang-switch-needs-its-own-opaque-backdrop-on-the-hero` (2026-09-05, WS-R91)
+
+**Decision.** `.auth-brand .studio-lang-switch` (the sign-in screen's own
+language switch, `AuthGate.tsx`) gets a real, near-opaque background color
+(`rgba(10, 38, 30, 0.94)`) rather than sitting transparent over
+`.auth-page::before`'s dark hero gradient the way the surrounding "VYAKTI"
+brand text always has.
+
+**Rationale.** `scripts/check-layout.mjs`'s own contrast walker
+(`backdrop()`) reads a control's effective background by climbing real DOM
+ancestors' `getComputedStyle(...).backgroundColor`, which cannot see a
+`::before` PSEUDO-element's background — that pseudo-element is where
+`.auth-page`'s entire dark hero gradient actually lives. Every existing
+piece of text on that hero (the "VYAKTI" wordmark, the brand tag) is a
+plain `<span>`, never queried by this walker at all (`document.
+querySelectorAll("button, .button, a.button")` — its own scope is
+interactive controls). `AuthGate.tsx`'s language switch is the FIRST real
+`<button>` this screen has ever placed on that hero background, and it is
+also the first thing this fixture state (`studio-hi:signed-out`) has ever
+let this gate see (`context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in`).
+The walker's own default when it finds no opaque ancestor, white, produced
+a genuinely wrong reading (a white label reported at 1.10:1 against an
+assumed white page) — but the underlying gap it surfaced is real, not a
+false positive: a screen reader's forced-colors mode, a printed screenshot,
+or any other context that does not render CSS pseudo-elements the way a
+live browser paints them would see exactly the same undefined background
+this walker saw. A control's own contrast should not depend on a
+pseudo-element painted three z-index layers behind it.
+
+**What was NOT done.** The pre-existing plain text on the hero ("VYAKTI",
+the brand tag span) is untouched — it is not a control, carries no
+interactive affordance, and this gate's contrast rule is scoped to controls
+by DESIGN-LAW §3's own wording ("a control's label"). If a future
+accessibility pass extends the contrast floor to plain text as well, the
+same real-background argument applies to it too, but that is a wider rule
+change this session did not make.
+
+**Reversal condition.** If `.auth-page::before`'s gradient is ever replaced
+with a solid `background-color` on `.auth-page` itself (removing the
+pseudo-element layering entirely), this override becomes redundant rather
+than wrong — safe to remove once confirmed the walker sees the real
+ancestor background directly. Until then, removing it re-introduces the
+same undefined-background gap this decision fixes.
