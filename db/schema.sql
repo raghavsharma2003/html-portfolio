@@ -4361,3 +4361,12 @@ alter table vy_incident add constraint vy_incident_kind_check
 alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
 alter table vy_room_arrival add constraint vy_room_arrival_via_check
   check (via in ('share', 'direct', 'embed', 'search', 'install', 'poster'));
+-- Migration 122 - the share kit (WS-R85). See
+-- db/migrations/122_room_arrival_via_share_kit.sql for the full argument:
+-- vy_room_arrival.via admits 'whatsapp', 'instagram', 'youtube' and
+-- 'telegram' alongside the six values migration 121 already named, matching
+-- api/_room-surface.js's ROOM_ARRIVAL_VIA widened in the same commit. The
+-- named constraint from 121 is superseded by this one.
+alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
+alter table vy_room_arrival add constraint vy_room_arrival_via_check
+  check (via in ('share', 'direct', 'embed', 'search', 'install', 'poster', 'whatsapp', 'instagram', 'youtube', 'telegram'));

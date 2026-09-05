@@ -582,3 +582,105 @@ export async function posterArrivalsThisWeek(db, now = Date.now(), deps = {}) {
   const belowFloor = n < SHARE_ARRIVAL_FLOOR;
   return { n: belowFloor ? null : n, below_floor: belowFloor, note: posterArrivalNote(n) };
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R85 (migration 122, the share kit). Growth BY CHANNEL: the share kit
+// gives a creator a distinct `via` for WhatsApp, Instagram, YouTube and
+// Telegram (`api/_room-surface.js`'s `ROOM_ARRIVAL_VIA`, widened in the same
+// commit as this workstream's migration 122), and the Growth line breaks
+// arrivals down by these four sources rather than lumping every one of them
+// into `direct`. `vy_room_arrival` still carries no follower or thread
+// column, so this statement sits under the SAME "aggregate-only wherever
+// this file touches a follower table" law this file's own header names (it
+// touches none) - and `vy_room_arrival` reads outside two named files are
+// held to the separate, stricter aggregate-only scan
+// `evals/room-leak/run.mjs` already runs for that table, which this
+// function's own home (`_funnel.js`) is already inside.
+//
+// n>=5 floored PER SOURCE - `shareArrivalsThisWeek`'s own reason, applied
+// four times rather than once: a bucket this small over one creator's own
+// Room could point at the one follower who tapped one specific link on one
+// specific platform, exactly as a bucket this small for `share` or `poster`
+// already could.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The four channels this breakdown ever names, `api/_share-kit.js`'s own
+ *  `SHARE_KIT_CHANNELS` restated here rather than imported - this file has
+ *  no reason to import a builder that itself never touches a database, and
+ *  keeping the list local means `evals/share-kit/run.mjs`'s parity section
+ *  is the one place a future drift between the two would be caught, the
+ *  same "restated, not imported, and proven equal by an eval" shape this
+ *  codebase already uses for `TASTE_COPY`. */
+export const SHARE_KIT_ARRIVAL_VIA = Object.freeze(["whatsapp", "instagram", "youtube", "telegram"]);
+
+const SHARE_KIT_CHANNEL_LABEL = Object.freeze({
+  whatsapp: "WhatsApp",
+  instagram: "Instagram",
+  youtube: "YouTube",
+  telegram: "Telegram",
+});
+
+/** Pure, `shareArrivalNote`'s own shape, one channel name threaded through. */
+export function shareKitChannelNote(channel, n) {
+  const label = SHARE_KIT_CHANNEL_LABEL[channel] || channel;
+  if (n < SHARE_ARRIVAL_FLOOR) {
+    return `Fewer than five arrivals came from ${label} this week.`;
+  }
+  return `${n} arrival${n === 1 ? "" : "s"} came from ${label} this week.`;
+}
+
+/** One statement per channel, each `via = '<literal>'` in the WHERE clause
+ *  and NOTHING but `coalesce(sum(count), 0)` in the select list -
+ *  `shareArrivalsThisWeek`/`posterArrivalsThisWeek`'s own exact shape,
+ *  repeated per channel rather than grouped, because
+ *  `evals/room-leak/run.mjs`'s own `ARRIVAL_AGGREGATE_ONLY` scan requires
+ *  EVERY item in a `vy_room_arrival` select list to be an aggregate function
+ *  call - a `select via, sum(count) ... group by via` single-statement
+ *  version was tried first and rejected here for exactly that reason: `via`
+ *  bare in the select list is not an aggregate, and the scan is right to
+ *  refuse it even though this specific column is not sensitive, because it
+ *  cannot tell the difference between this column and one that is
+ *  (`context/rejected.md#ws-r85-grouped-via-breakdown-query-fails-the-aggregate-only-select-list-scan`).
+ *  Four round trips over one is the honest cost of keeping that scan
+ *  meaningful rather than carving it an exception. */
+const SHARE_KIT_CHANNEL_STATEMENT = Object.freeze({
+  whatsapp: `select coalesce(sum(count), 0)::int as n from vy_room_arrival where via = 'whatsapp' and day >= ($1)::date`,
+  instagram: `select coalesce(sum(count), 0)::int as n from vy_room_arrival where via = 'instagram' and day >= ($1)::date`,
+  youtube: `select coalesce(sum(count), 0)::int as n from vy_room_arrival where via = 'youtube' and day >= ($1)::date`,
+  telegram: `select coalesce(sum(count), 0)::int as n from vy_room_arrival where via = 'telegram' and day >= ($1)::date`,
+});
+
+async function channelArrivalCount(db, channel, since) {
+  const [row] = await db(SHARE_KIT_CHANNEL_STATEMENT[channel], [since]);
+  return Number(row?.n || 0);
+}
+
+/**
+ * Four statements, platform-wide, over the rolling 7-day window every other
+ * "this week" line in this file already uses - one per share-kit channel,
+ * `channelArrivalCount`'s own header on why this is four round trips and
+ * not one grouped query. Gated on migration 102 (`vy_room_arrival` itself)
+ * being applied, exactly like `shareArrivalsThisWeek`/
+ * `posterArrivalsThisWeek` above; migration 122's own CHECK widening is a
+ * separate concern this function does not gate on (a database with 102 but
+ * not yet 122 simply has zero rows for these four `via` values, which this
+ * function already reports honestly as zero, never as an error).
+ */
+export async function shareKitArrivalsThisWeek(db, now = Date.now(), deps = {}) {
+  if (typeof db !== "function") throw new Error("funnel_database_required");
+  const applied = deps.tableApplied ?? tableApplied;
+  const channels = {};
+  if (!(await applied(ROOM_ARRIVAL_TABLE))) {
+    for (const channel of SHARE_KIT_ARRIVAL_VIA) {
+      channels[channel] = { n: null, below_floor: true, note: shareKitChannelNote(channel, 0) };
+    }
+    return { channels };
+  }
+  const since = new Date(now - WEEK_WINDOW_MS).toISOString().slice(0, 10);
+  for (const channel of SHARE_KIT_ARRIVAL_VIA) {
+    const n = await channelArrivalCount(db, channel, since);
+    const belowFloor = n < SHARE_ARRIVAL_FLOOR;
+    channels[channel] = { n: belowFloor ? null : n, below_floor: belowFloor, note: shareKitChannelNote(channel, n) };
+  }
+  return { channels };
+}

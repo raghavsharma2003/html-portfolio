@@ -30,7 +30,7 @@ import { sweepSchedules } from "./_sweep-schedule.js";
 // `opsFunnel` is its own aggregate-only function in `api/_funnel.js` (that
 // file's own header names the rule this file already keeps), imported here
 // rather than re-derived so the board's one call stays the board's one call.
-import { opsFunnel, creatorInviteArrivalsThisWeek, shareArrivalsThisWeek, tasteTurnsThisWeek, posterArrivalsThisWeek } from "./_funnel.js";
+import { opsFunnel, creatorInviteArrivalsThisWeek, shareArrivalsThisWeek, tasteTurnsThisWeek, posterArrivalsThisWeek, shareKitArrivalsThisWeek } from "./_funnel.js";
 // WS-R75 (migration 119). `dormancyThisWeek` reads `vy_sweep_run`'s own
 // `counts` history (the SAME "renewals" sweep row `sweepsOverview` above
 // already reads for staleness), never `vy_room_follower` directly - it is
@@ -605,5 +605,10 @@ export async function opsOverview(db, now = Date.now(), deps = {}) {
     // restated for a count that COULD identify a person in a small bucket
     // (this workstream's own law 4).
     dormancy: await dormancyThisWeek(db, now, deps),
+    // WS-R85 (migration 122). Growth from the share kit, broken down by
+    // channel (WhatsApp / Instagram / YouTube / Telegram) rather than
+    // lumped into one line - `share_arrivals_this_week`'s own shape, one
+    // count per channel, each floored at n>=5 the same way.
+    share_kit_arrivals_this_week: await shareKitArrivalsThisWeek(db, now, deps),
   };
 }
