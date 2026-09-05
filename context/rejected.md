@@ -10271,3 +10271,46 @@ header forbids.
 short run whose parts average to the reference; test the parts for
 uniformity too, and give every detector a control it must catch on every
 run, or its silence proves nothing.
+
+## `ws-r71-concatenating-the-whole-copy-ts-leaked-a-sibling-sections-wording-into-an-unrelated-check` (2026-09-05, WS-R71)
+
+**Tried.** Following `evals/readiness/run.mjs`'s own `panelWithCopy` shape
+literally: when `evals/voice-preview-ui.mjs`'s `findings()` needed to keep
+finding `VoicePreviewPanel.tsx`'s now-moved English sentences ("Not right
+yet?", "Edit the line", "Generate another take"), the first fix
+concatenated the ENTIRE `src/studio/copy.ts` file onto the component source
+and passed that as `panelSource` everywhere `findings()` was called,
+matching the precedent's own shape as closely as possible.
+
+**What broke.** The suite's own `unmeasured-quality-claim` finding — a
+check that the panel's copy never claims to be "best", a "winner",
+"indistinguishable" from the owner, or "state of the art" — started firing
+on the LIVE (unmodified) tree, which should be impossible for a check with
+no corresponding source edit. The match was `voiceExperimentPanel`'s own
+`acceptedListenerNote` ("...These are descriptive means, not an automatic
+winner."), a different section of the SAME copy.ts file, now included
+wholesale by the concatenation. The sentence is correct and intentionally
+NEGATES the claim ("not an automatic winner"), so nothing was actually
+wrong with the copy; the check's own regex has no negation awareness and
+the concatenation had widened its search surface to a section this suite
+was never meant to police in the first place.
+
+**What to do differently.** `panelWithCopy`-style concatenation is safe
+when the WHOLE target file's content is genuinely all one component's
+copy (as in `evals/readiness/run.mjs`'s original case, and as in most of
+this workstream's OTHER five fixes, where whole-file concatenation caused
+no false positive because no sibling section happened to contain a
+regex-baiting word). It stops being safe the moment `copy.ts` holds
+UNRELATED sections whose own correct wording can trip a check scoped to
+one specific panel — which, after six workstreams' worth of sections,
+`copy.ts` now reliably does. The fix here was to slice out just the ONE
+relevant top-level section (`voicePreviewPanel: { ... }` to the next
+section's own opening brace) rather than concatenate the file whole; that
+slice is exactly as easy to keep in sync (both markers are literal section
+names already tied to the copy move) and does not import a sibling
+section's vocabulary into a check that was never about it. Any FUTURE eval
+adopting `panelWithCopy`'s shape against `copy.ts` specifically (as opposed
+to `src/room/copy.ts`, still small enough that whole-file concatenation is
+still fine as of this session) should scope the slice the same way, or run
+its own findings against the full file at least once before trusting a
+green result.

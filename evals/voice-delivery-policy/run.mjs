@@ -88,7 +88,11 @@ ok("the owner HTTP boundary is bearer-only, rate limited and build-explicit", /r
 // Delivery Genome". The check below moved with it; what it still proves
 // (evidence depth is shown as immutable and qualification is still gated)
 // is unchanged.
-ok("Studio shows immutable evidence depth and states that qualification is still required", /Voice Delivery/.test(studio) && /held-out qualification/.test(studio) && /Repeating one familiar sentence cannot unlock/.test(studio));
+// WS-R71: VoicePreviewLab.tsx's own literal strings moved into
+// src/studio/copy.ts (`t.voicePreviewLab`); this check now reads the
+// concatenation, `evals/readiness/run.mjs`'s own `panelWithCopy` shape.
+const studioWithCopy = `${studio}\n${readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8")}`;
+ok("Studio shows immutable evidence depth and states that qualification is still required", /Voice Delivery/.test(studioWithCopy) && /held-out qualification/.test(studioWithCopy) && /Repeating one familiar sentence cannot unlock/.test(studioWithCopy));
 ok("source erasure deletes derived delivery policies before private processing lineage disappears", /voice_delivery_policies as/.test(erasure) && erasure.indexOf("voice_delivery_policies as") < erasure.indexOf("voice_preferences as"));
 ok("the research contract forbids automatic promotion and requires held-out ABX", /never promotes/i.test(docs) && /held-out prompts/i.test(docs) && /owner ABX/i.test(docs));
 

@@ -606,6 +606,11 @@ console.log("\n── 11. the surface ──");
 {
   const panel = read("src/studio/ActivityPanel.tsx");
   const css = read("src/studio/activity.css");
+  // WS-R71: ActivityPanel.tsx's own literal strings moved into
+  // src/studio/copy.ts (`t.activityPanel`); the one English-wording check
+  // below now also reads copy.ts, `evals/readiness/run.mjs`'s own
+  // `panelWithCopy` shape.
+  const copyTs = read("src/studio/copy.ts");
 
   // Comments are stripped the way scripts/check-copy.mjs strips them, and
   // BEFORE anything is asserted. Every rule below is about what SHIPS to a
@@ -623,7 +628,7 @@ console.log("\n── 11. the surface ──");
   ok(!/spinner|Spinner|<progress/.test(codeOnly), "...and never a spinner or a progress element");
   ok(/job\.progress \?/.test(codeOnly), "progress renders only when the server sent one");
   ok(!/%`|toFixed|percent/i.test(codeOnly), "no percentage is computed anywhere in the surface");
-  ok(/NotConnected/.test(codeOnly) && /not connected yet/.test(codeOnly),
+  ok(/NotConnected/.test(codeOnly) && /not connected yet/.test(codeOnly + copyTs),
     "an undeployed lane renders a named notice rather than an empty list");
   ok(/lane\.missing\.join/.test(codeOnly), "...and names the missing piece");
   ok(/onPointerDown/.test(codeOnly), "press feedback fires on pointerdown, not on release");

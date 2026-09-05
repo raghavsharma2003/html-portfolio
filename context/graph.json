@@ -8080,6 +8080,42 @@
       "kind": "measurement",
       "title": "979 Hindi strings through the patched glyph probe: the two WS-R61 false positives pass, nothing else changed, the noncharacter control measures uniform.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r71-tier-2-second-wave-converted",
+      "kind": "decision",
+      "title": "Six more studio Tier 2 files converted to Hindi (ActivityPanel, ChannelsStudio, TeacherSheetStudio, VoicePreviewLab, VoicePreviewPanel, VoiceExperimentPanel), 395 new copy.ts leaf strings per locale.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r71-consent-ceremony-files-found-and-not-converted",
+      "kind": "decision",
+      "title": "Four more studio files (VideoEnrollPanel, IngestChannelStudio, LivenessCapture, VoiceIdentityChallenge) found to carry a consent-ceremony statement array and left unconverted, same reasoning as ModelConsentGate/IdentityProofing.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r71-voice-lab-vocabulary",
+      "kind": "decision",
+      "title": "Voice lab technical vocabulary (condition/holdout/sealed pack) rendered in plain coach-level Hindi, never a transliteration of the English jargon.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r71-studio-hindi-tier-2-second-wave-2026-09-05",
+      "kind": "measurement",
+      "title": "759 to 1,154 copy.ts leaf strings per locale (395 new); 2,430 component lines converted; 8 sibling evals updated for the copy.ts move, all reconfirmed passing.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r71-concatenating-the-whole-copy-ts-leaked-a-sibling-sections-wording-into-an-unrelated-check",
+      "kind": "rejection",
+      "title": "Concatenating the whole copy.ts into an evals panelWithCopy check false-triggered on a sibling section's own correct negated wording; fixed by slicing just the one relevant section.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r71-studio-js-budget-overage-2026-09-05",
+      "kind": "open",
+      "title": "/studio JS transfer is 183.2KB against a 180KB budget, real and reproducible (not machine-load noise); copy.ts's whole table is bundled eagerly regardless of which panel opens. Needs a code-splitting or budget decision from the owner/main loop.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16007,6 +16043,41 @@
       "src": "glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words",
       "rel": "supersedes",
       "dst": "ws-r43-glyph-width-test-needs-3-devanagari-chars"
+    },
+    {
+      "src": "ws-r71-tier-2-second-wave-converted",
+      "rel": "part_of",
+      "dst": "ws-r61-tier-2-first-wave-converted"
+    },
+    {
+      "src": "ws-r71-tier-2-second-wave-converted",
+      "rel": "measured_by",
+      "dst": "ws-r71-studio-hindi-tier-2-second-wave-2026-09-05"
+    },
+    {
+      "src": "ws-r71-consent-ceremony-files-found-and-not-converted",
+      "rel": "part_of",
+      "dst": "ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text"
+    },
+    {
+      "src": "ws-r71-consent-ceremony-files-found-and-not-converted",
+      "rel": "part_of",
+      "dst": "ws-r61-identity-proofing-consent-statements-deferred-not-attempted"
+    },
+    {
+      "src": "ws-r71-voice-lab-vocabulary",
+      "rel": "part_of",
+      "dst": "ws-r71-tier-2-second-wave-converted"
+    },
+    {
+      "src": "ws-r71-concatenating-the-whole-copy-ts-leaked-a-sibling-sections-wording-into-an-unrelated-check",
+      "rel": "caused_by",
+      "dst": "ws-r71-studio-hindi-tier-2-second-wave-2026-09-05"
+    },
+    {
+      "src": "ws-r71-studio-js-budget-overage-2026-09-05",
+      "rel": "caused_by",
+      "dst": "ws-r71-tier-2-second-wave-converted"
     }
   ]
 }

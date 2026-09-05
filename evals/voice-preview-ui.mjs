@@ -15,8 +15,23 @@ const PANEL_PATH = join(ROOT, "src/studio/VoicePreviewPanel.tsx");
 const API_PATH = join(ROOT, "src/studio/voicePanelApi.ts");
 const APP_PATH = join(ROOT, "src/studio/StudioApp.tsx");
 const CSS_PATH = join(ROOT, "src/studio/studio.css");
+const COPY_PATH = join(ROOT, "src/studio/copy.ts");
 
-const panel = readFileSync(PANEL_PATH, "utf8");
+// WS-R71: VoicePreviewPanel.tsx's own literal strings ("Not right yet?",
+// "Edit the line", "Generate another take", ...) moved into
+// src/studio/copy.ts (`t.voicePreviewPanel`). `panel` below is the
+// component PLUS just that ONE section of copy.ts's EN table concatenated
+// (not the whole file -- a first attempt concatenated all of copy.ts and
+// tripped this suite's OWN "no unmeasured quality claim" finding on an
+// unrelated section's "not an automatic winner" sentence, so this reads
+// narrowly): `evals/readiness/run.mjs`'s own `panelWithCopy` shape
+// (`ws-r52-existing-evals-updated-for-the-copy-ts-move`), scoped to avoid a
+// sibling section's wording leaking into this file's own checks.
+const copySource = readFileSync(COPY_PATH, "utf8");
+const voicePreviewPanelCopyStart = copySource.indexOf("  voicePreviewPanel: {");
+const voicePreviewPanelCopyEnd = copySource.indexOf("  voiceExperimentPanel: {", voicePreviewPanelCopyStart);
+const voicePreviewPanelCopy = copySource.slice(voicePreviewPanelCopyStart, voicePreviewPanelCopyEnd);
+const panel = `${readFileSync(PANEL_PATH, "utf8")}\n${voicePreviewPanelCopy}`;
 const api = readFileSync(API_PATH, "utf8");
 const app = readFileSync(APP_PATH, "utf8");
 const css = readFileSync(CSS_PATH, "utf8");
