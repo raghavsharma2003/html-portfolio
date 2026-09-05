@@ -10774,6 +10774,12 @@
       "kind": "measurement",
       "title": "verify-release.mjs: 21/21 checks clean in one full pass once ports were free (four earlier attempts each hit an EADDRINUSE on 8931/8932 or a Chromium timeout from ten concurrent sibling gates, every flaky piece independently re-run standalone and passing clean). New suite evals/quiet-hours (28/28); evals/checkins widened 43->48, evals/renewals 55->64, evals/room-dormancy 46->53; room-leak battery 255/255 after adding api/_quiet-hours.js to vy_room_checkin's TABLE_ROLES owners.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "rooms-migrations-130-132-133-live-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "Migrations 130 (mandate state), 132 (the Suite admin's weekly note) and 133 (the referral reward) applied live at their merges with constraints read back first; 131 read back as already carried and not applied; every new statement planned, the referral grant's ledger scan accepted by name with a rewrite condition.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20856,6 +20862,26 @@
       "src": "ws-r22-quiet-hours-shift-not-skip",
       "rel": "constrains",
       "dst": "ws-r129-quiet-hours-follower-proxy-via-checkin-table"
+    },
+    {
+      "src": "rooms-migrations-130-132-133-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r127-org-weekly-note-no-fk-outside-owner-lane-and-relcheck"
+    },
+    {
+      "src": "rooms-migrations-130-132-133-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r126-migration-131-brief-assumed-whatsapp-was-not-yet-a-valid-arrival-value"
+    },
+    {
+      "src": "rooms-migrations-130-132-133-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r130-referral-reward-grant-is-a-second-statement-not-a-fifth-cte"
+    },
+    {
+      "src": "rooms-migrations-130-132-133-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r125-mandate-state-predicate-non-redundant-only-for-pending"
     }
   ]
 }
