@@ -3118,6 +3118,19 @@ export const PERSON_TABLES = [
   // room_id+person_id delete gives it the same named, counted statement its
   // siblings above have, from the start.
   { table: "vy_renewal_reminder", key: "person_id", lane: "relational", wipeWhere: "subject_kind = 'follower'" },
+  // ── WS-R67: the follower's own copy of every reply they flagged (migration
+  // 116) ─────────────────────────────────────────────────────────────────
+  //
+  // Which reply (by hash), which reason, when - never a word this follower
+  // typed. Carries `follower_id references vy_room_follower(follower_id) on
+  // delete cascade`, `vy_room_upgrade_offer`'s own shape restated, so it is
+  // listed here, ahead of `vy_room_follower` below. The CREATOR's mirror
+  // (`vy_room_reply_flag`) is deliberately ABSENT from this manifest: it
+  // names no person at all (migration 116's own header - no follower_id, no
+  // person_id, no thread reference of any kind), so it is reached only by
+  // room_id in api/_replica-full-erasure.js's owner-wide cascade, never
+  // through a person's own wipe.
+  { table: "vy_room_follower_reply_flag", key: "person_id", lane: "relational" },
   // ── WS-R1: the Room's PERSON side (migration 071), moved LAST among the
   // Room's relational-lane entries by WS-R27 (see this block's own header) ──
   //
@@ -3306,6 +3319,8 @@ export const REPLICA_PERSON_TABLES = [
   "vy_room_upgrade_offer",
   // Arrives with 099 (WS-R37), on the identical reasoning.
   "vy_renewal_reminder",
+  // Arrives with 116 (WS-R67), on the identical reasoning.
+  "vy_room_follower_reply_flag",
 ];
 
 // tables and columns that migration 008 introduces

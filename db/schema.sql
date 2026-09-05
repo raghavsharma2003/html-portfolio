@@ -4229,3 +4229,39 @@ create unique index if not exists vy_operator_push_subscription_owner_endpoint_i
 create index if not exists vy_operator_push_subscription_active_ix
   on vy_operator_push_subscription (owner_user_id)
   where revoked_at is null;
+-- Migration 116 - flag this reply (WS-R67). See
+-- db/migrations/116_room_reply_flag.sql for the full argument: TWO tables,
+-- one per lane. `vy_room_follower_reply_flag` is the follower's own copy
+-- (person_id + follower_id, unique per follower per reply, exported and
+-- forgotten with everything else theirs). `vy_room_reply_flag` is the
+-- creator's - no follower_id, no person_id, no thread reference at all, so
+-- it is content-free of follower identity by construction, admitted to
+-- evals/room-leak/run.mjs's aggregate-only class on that basis, and reached
+-- for erasure only by name, by room_id, never through api/memory.js's
+-- manifest.
+create table if not exists vy_room_follower_reply_flag (
+  flag_id      uuid primary key,
+  room_id      uuid not null references vy_room(room_id) on delete cascade,
+  person_id    uuid not null,
+  follower_id  uuid not null references vy_room_follower(follower_id) on delete cascade,
+  reply_sha256 text not null check (reply_sha256 ~ '^[0-9a-f]{64}$'),
+  reason       text not null
+               check (reason in ('wrong', 'harmful', 'not_them', 'other')),
+  created_at   timestamptz not null default now()
+);
+create unique index if not exists vy_room_follower_reply_flag_once_ix
+  on vy_room_follower_reply_flag (follower_id, reply_sha256);
+create index if not exists vy_room_follower_reply_flag_person_ix
+  on vy_room_follower_reply_flag (room_id, person_id, created_at desc);
+
+create table if not exists vy_room_reply_flag (
+  id           uuid primary key,
+  room_id      uuid not null references vy_room(room_id) on delete cascade,
+  reply_sha256 text not null check (reply_sha256 ~ '^[0-9a-f]{64}$'),
+  reply_text   text not null check (reply_text <> '' and length(reply_text) <= 4000),
+  reason       text not null
+               check (reason in ('wrong', 'harmful', 'not_them', 'other')),
+  created_at   timestamptz not null default now()
+);
+create index if not exists vy_room_reply_flag_room_reply_ix
+  on vy_room_reply_flag (room_id, reply_sha256, created_at desc);

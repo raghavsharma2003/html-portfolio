@@ -134,8 +134,9 @@ ok("all eleven named Room-scoped person tables are in roomExportManifest()'s cov
 // ═════════════════════════════════════════════════════════════════════════
 console.log("\n── layer 2: dynamic (a real world through the real follower lane) ──");
 
-/** Seeds every one of the nine extra tables plus one agent-scoped fact, for
- *  ONE follower. Subscription is seeded in a TERMINAL state ('cancelled') -
+/** Seeds every one of the (now ten, WS-R67's own addition) extra tables plus
+ *  one agent-scoped fact, for ONE follower. Subscription is seeded in a
+ *  TERMINAL state ('cancelled') -
  *  `vy_room_subscription`'s own PERSON_TABLES `wipeWhere` restriction, and
  *  `roomForget`'s own new statement, both restated: neither wipe may remove
  *  a LIVE mandate's row, so a world proving "forget leaves zero rows" must
@@ -169,6 +170,13 @@ function seedEverySurface(state, { roomId, personId, threadId, agentId }) {
     handoff_id: "70000000-0000-4000-a000-000000000007", room_id: roomId, person_id: personId,
     payload_text: "please can a human reply", state: "sent",
   });
+  // WS-R67 (migration 116). The FOLLOWER lane only - `EXTRA_STATE_KEYS`'s
+  // own header explains why the creator's mirror is absent from this whole
+  // file.
+  state.followerReplyFlags.push({
+    flag_id: "70000000-0000-4000-a000-000000000008", room_id: roomId, person_id: personId,
+    reply_sha256: "a".repeat(64), reason: "wrong",
+  });
 }
 
 /** Every extra-table state array WS-R27 added, keyed by the manifest table
@@ -183,6 +191,7 @@ const EXTRA_STATE_KEYS = {
   vy_room_pulse_optin: "pulseOptinsX",
   vy_room_push_subscription: "pushSubscriptions",
   vy_room_handoff: "roomHandoffs",
+  vy_room_follower_reply_flag: "followerReplyFlags",
 };
 
 function survivorTables(state, roomId, personId) {
@@ -214,9 +223,11 @@ async function runRealWorld() {
     "vy_room_thread", "vy_room_follower", "vy_room_checkin", "vy_room_subscription",
     "vy_room_pulse_optin", "vy_room_follower_channel", "vy_room_push_subscription",
     "vy_room_handoff", "vy_room_follower_day", "vy_room_checkin_delivery", "vy_room_voice_usage",
+    // WS-R67 (migration 116).
+    "vy_room_follower_reply_flag",
   ];
   const missingFromExport = EXPECT_IN_EXPORT.filter((t) => !dump.tables[t]);
-  ok("roomExport contains a row/count from every one of the nine extra tables (plus the thread)",
+  ok("roomExport contains a row/count from every one of the ten extra tables (plus the thread)",
     missingFromExport.length === 0, missingFromExport.join(","));
   ok("roomExport's vy_fact rows carry this follower's own token (the world is not vacuous)",
     JSON.stringify(dump.tables.vy_fact ?? "").includes(FACT_TOKEN));

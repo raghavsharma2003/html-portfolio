@@ -216,6 +216,31 @@ const EN = {
       "This room is not remembering you. Turn that on any time from the menu.",
   },
 
+  // WS-R67 (migration 116). "Flag this" - a follower's own way to say a
+  // reply was wrong or hurtful, without leaving. Never asks WHY beyond a
+  // closed reason: `flag.reasons`'s four keys are api/_room-surface.js's
+  // `FLAG_REASONS`, verbatim.
+  flag: {
+    buttonLabel: "Flag this",
+    sheetTitle: "What's wrong with this reply?",
+    reasons: {
+      wrong: "It's wrong",
+      harmful: "It's harmful",
+      not_them: "Doesn't sound like them",
+      other: "Something else",
+    },
+    cancel: "Cancel",
+    submitting: "Flagging...",
+    done: "Flagged. Sent to the creator's review.",
+    alreadyFlagged: "You already flagged this reply.",
+    error: "That flag could not be sent. Try again.",
+    withdraw: "Withdraw this flag",
+    withdrawing: "Withdrawing...",
+    withdrawn: "Flag withdrawn.",
+    accountTitle: "What you have flagged",
+    accountEmpty: "You have not flagged anything in this room.",
+  },
+
   threads: {
     title: "Topics",
     all: "Everything",
@@ -583,6 +608,27 @@ const HI: typeof EN = {
     citedFrom: "यह {name} की अपनी सामग्री से है।",
     citedNone: "यह {name} की अपनी सामग्री से है।",
     notRemembering: "यह रूम आपको याद नहीं रख रहा। इसे मेन्यू से कभी भी चालू करें।",
+  },
+
+  flag: {
+    buttonLabel: "फ़्लैग करें",
+    sheetTitle: "इस जवाब में क्या गलत है?",
+    reasons: {
+      wrong: "यह गलत है",
+      harmful: "यह हानिकारक है",
+      not_them: "यह उनकी तरह नहीं लगता",
+      other: "कुछ और",
+    },
+    cancel: "रद्द करें",
+    submitting: "फ़्लैग किया जा रहा है...",
+    done: "फ़्लैग हो गया। क्रिएटर की समीक्षा में भेज दिया गया है।",
+    alreadyFlagged: "आपने यह जवाब पहले ही फ़्लैग कर दिया है।",
+    error: "फ़्लैग भेजा नहीं जा सका। दोबारा कोशिश करें।",
+    withdraw: "यह फ़्लैग वापस लें",
+    withdrawing: "वापस लिया जा रहा है...",
+    withdrawn: "फ़्लैग वापस ले लिया गया।",
+    accountTitle: "आपने क्या फ़्लैग किया है",
+    accountEmpty: "आपने इस रूम में कुछ भी फ़्लैग नहीं किया है।",
   },
 
   threads: {

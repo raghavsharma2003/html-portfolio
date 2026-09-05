@@ -14171,3 +14171,50 @@ should move into the stored column instead — at that point, widen the CHECK
 (a real migration, numbered by the main loop) and stop deriving it. Until
 then, one reader deriving it beats every reader having to agree on a new
 stored value none of them but one needs.
+
+## `ws-r67-flag-hash-not-body-two-lanes-count-at-read-time` (2026-09-05, WS-R67)
+
+**Decision.** "Flag this reply" (migration 116) is TWO tables, never one,
+and the creator-side table is deliberately UNDEDUPLICATED at the row level.
+`vy_room_follower_reply_flag` is the follower's own lane (`follower_id`,
+unique per (follower, reply)); `vy_room_reply_flag` is the creator's —
+`id, room_id, reply_sha256, reply_text, reason, created_at`, no
+follower_id, no person_id, no thread reference of any kind. Ten followers
+flagging the same reply write TEN rows into the creator lane (indistinguishable
+from each other, since none carries an identity), and
+`api/_review-queue.js::readFlaggedReplies` groups them with a plain
+`count(*) ... group by reply_sha256` at READ time. The reply TEXT that ever
+reaches the creator lane is read back from the flagging follower's OWN
+history by matching `reply_sha256` against a real turn `gatedReply` already
+produced and delivered (`api/_room-surface.js::replyTextFromOwnHistory`) —
+`flagReply`'s function signature has no `reply_text` parameter at all, so a
+body-supplied one cannot be read even by a caller who tries.
+
+**Rationale.** AGENTS.md's boundary law is absolute: the creator never
+receives a follower's words or identity through a flag. A single
+aggregate-row-with-a-count design (increment a counter on conflict) was
+considered and rejected: it would need the creator lane to know it is
+looking at "the same reply" across writes, which is fine, but it would ALSO
+tempt a future column onto that one row (a `last_follower_id`, a
+`sample_thread_id` "for context") the way an aggregate row's own schema
+invites enrichment over time — the row-per-flag design makes that
+temptation structurally harder, since there is nothing on any individual
+row to enrich toward a person. The hash-based read-back (rather than
+trusting client-supplied text) is `flagReply`'s own load-bearing predicate:
+`evals/room-flags/run.mjs`'s negative control (a) proves a fabricated hash
+matching nothing in the follower's real history is refused by name, and a
+second negative control proves a body-supplied `reply_text` field is
+silently ignored because the function never reads it, not because a check
+happens to catch it.
+
+**Reversal condition.** If a future workstream needs a per-flag STATE
+(resolved/dismissed, not just "flagged"), the creator lane's schema would
+need an id a creator can act on individually — at that point the
+row-per-flag design pays for itself directly (each row already has its own
+identity to attach a state to); an aggregate-counter design would have to
+be torn up entirely to add one. If instead a future measurement shows the
+per-row creator table growing unmanageably large for a popular Room (a
+scale problem this design accepts in exchange for the boundary guarantee),
+the fix is a periodic compaction job that rewrites N rows of the same
+(room_id, reply_sha256, reason) into one row plus a count column — never a
+change to what the FOLLOWER lane or the read-back predicate do.

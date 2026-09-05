@@ -1,9 +1,10 @@
 // The review queue's HTTP shape, and nothing else — WS-R4.
 //
-//   GET  /api/review-queue?replica_id=…            the open cards and the counts
+//   GET  /api/review-queue?replica_id=…            the open cards, the counts and (WS-R67) flags
 //   POST /api/review-queue { op: 'generate' }      fill the queue
 //   POST /api/review-queue { op: 'decide' }        one card, one decision
 //   POST /api/review-queue { op: 'dictate' }       a signed upload for a correction
+//   POST /api/review-queue { op: 'flag_never' }    "Never say this" off a flagged reply (WS-R67)
 //
 // THIN, in `api/clone-chat.js` over `api/_clonechat.js`'s sense: every decision
 // lives in `api/_review-queue.js` where a fake database can reach it, and this
@@ -29,6 +30,8 @@ import {
   openCorrectionUpload,
   persistReviewCards,
   readReviewQueue,
+  readFlaggedReplies,
+  neverRuleFromFlaggedReply,
 } from "./_review-queue.js";
 import { createProductionQuestionGenerator } from "./_review-queue/questions.js";
 import { clientSource } from "./_replica-source.js";
@@ -112,10 +115,30 @@ export default async function handler(req, res) {
 
     if (req.method === "GET") {
       const queue = await readReviewQueue(q, user.id, req.query?.replica_id);
-      return queue ? res.status(200).json({ queue }) : res.status(404).json({ error: "replica_not_found" });
+      if (!queue) return res.status(404).json({ error: "replica_not_found" });
+      // WS-R67 (migration 116). A SEPARATE key, never folded into `queue`
+      // itself: `readFlaggedReplies` is its own read (see that function's
+      // own header for why a flag is not a `vy_review_card` row). Caught
+      // rather than left to throw: a failure reading flags must not take
+      // the ordinary queue down with it, and `readFlaggedReplies` already
+      // returns `[]` on an unmigrated database - this catch is for anything
+      // else, an honest "waiting on us" the client can still show alongside
+      // a queue that DID load.
+      const flags = await readFlaggedReplies(q, user.id, req.query?.replica_id).catch(() => null);
+      return res.status(200).json({ queue, ...(flags ? { flags } : { flags_unavailable: true }) });
     }
 
     const body = req.body || {};
+    if (body.op === "flag_never") {
+      // "Never say this," off a flagged reply rather than an open card - the
+      // creator's OTHER way into the same never-rule table, WS-R67's own
+      // addition. `neverRuleFromFlaggedReply` reads the pattern back from
+      // `vy_room_reply_flag` itself, never off `body.reply_text` - the SAME
+      // boundary law `flagReply` enforces one surface over.
+      const result = await neverRuleFromFlaggedReply(q, user.id, body);
+      const flags = await readFlaggedReplies(q, user.id, body.replica_id).catch(() => null);
+      return res.status(200).json({ ...result, ...(flags ? { flags } : { flags_unavailable: true }) });
+    }
     if (body.op === "generate") {
       const controller = new AbortController();
       req.on?.("close", () => controller.abort(new Error("client_closed")));

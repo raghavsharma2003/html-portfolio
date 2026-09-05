@@ -423,6 +423,23 @@ export interface ReviewQueue {
   cap: number;
 }
 
+// WS-R67 (migration 116). Ten followers flagging the same reply is ONE
+// entry here with count=10, never ten - `api/_review-queue.js`'s
+// `readFlaggedReplies` groups by reply on the server, so the studio never
+// has to. `suggest_never` is true the moment even one follower named
+// `harmful` - the workstream brief's own words, "Never say this"
+// pre-selected for harmful.
+export type FlagReason = "wrong" | "harmful" | "not_them" | "other";
+
+export interface FlaggedReply {
+  reply_sha256: string;
+  reply_text: string;
+  count: number;
+  reasons: Record<FlagReason, number>;
+  suggest_never: boolean;
+  last_flagged_at: string;
+}
+
 export interface ReviewCorrectionUpload {
   source: { source_id: string; mime: string; state: string };
   upload: {

@@ -618,6 +618,12 @@ const TABLE_ROLES = {
   vy_room_subscription: { owners: ["_payments.js", "_room-surface.js", "_renewals.js"], aggregateOnly: ["_ops.js"] },
   vy_room_upgrade_offer: { owners: ["_payments.js", "_room-surface.js", "_phase-gate.js"] },
   vy_renewal_reminder: { owners: ["_renewals.js", "_room-surface.js"] },
+  // WS-R67 (migration 116), added at the merge the day this layer first met
+  // it: the follower's OWN copy of a flag (person + follower id + the reply
+  // hash, never the reply text), written and read by `_room-surface.js`
+  // alone; the creator-facing twin `vy_room_reply_flag` carries no person
+  // column and is layer 9's own subject.
+  vy_room_follower_reply_flag: { owners: ["_room-surface.js"] },
 };
 // Every line naming a guarded table in a file that is neither an owner nor an
 // aggregate-only reader must be ONE of: a comment (block or line), a DELETE,

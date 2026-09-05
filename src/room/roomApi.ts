@@ -287,6 +287,53 @@ export const dismissOffer = (session: string) =>
 export const roomCitations = (session: string) =>
   post<RoomCitations>({ op: "citations", session });
 
+// ── flag this reply (WS-R67, migration 116) ────────────────────────────────
+
+export type RoomFlagReason = "wrong" | "harmful" | "not_them" | "other";
+
+export interface RoomFlag {
+  reply_sha256: string;
+  reason: RoomFlagReason;
+  reply_text: string;
+  created_at: string;
+}
+
+/**
+ * sha256 hex of one reply's exact text, via the Web Crypto API every browser
+ * this app targets already has - no new dependency. The SAME hash the server
+ * computes off its own stored copy of the same bytes
+ * (api/_room-surface.js's `flagReply`/`replyTextFromOwnHistory`), so two
+ * independent implementations of one well-known primitive are the only thing
+ * that has to agree; the server never trusts this value as the TEXT, only as
+ * WHICH reply it names, and refuses one that matches nothing in this
+ * follower's own history.
+ */
+export async function replySha256(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** "Flag this." `reply` is the exact text `sayInRoom` returned (never a
+ *  bubble fragment - a turn may render as several bubbles, and the hash
+ *  binds the whole reply, `speakInRoom`'s own "the exact reply text"
+ *  restated for a flag instead of a clip). */
+export const flagReply = (session: string, reply: string, reason: RoomFlagReason) =>
+  replySha256(reply).then((hash) =>
+    post<{ flagged: boolean; reply_sha256: string; reason: RoomFlagReason }>({
+      op: "flag",
+      session,
+      reply_sha256: hash,
+      reason,
+    }),
+  );
+
+export const unflagReply = (session: string, replySha256Hex: string) =>
+  post<{ withdrawn: boolean }>({ op: "unflag", session, reply_sha256: replySha256Hex });
+
+/** The follower's own account-page list. */
+export const followerFlags = (session: string) => post<{ flags: RoomFlag[] }>({ op: "flags", session });
+
 export const roomStats = (slug: string) =>
   post<{ talked_today: number | null }>({ op: "stats", room: slug });
 

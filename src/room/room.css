@@ -270,6 +270,76 @@
     cursor: default;
   }
 
+  /* WS-R67 (migration 116). "Flag this" - a small, quiet chip under every AI
+     reply, `room-bubble-voice`'s own shape one control over, but never
+     gated by tier: this is a safety report, not a paid feature. A real
+     44px tap target even though the chip itself reads smaller, WCAG 2.5.8
+     restated for a control this file's own header already treats as law. */
+  .room-bubble-flag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    margin-top: var(--space-hair);
+    margin-inline-start: var(--space-tight);
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: var(--hairline) solid var(--line);
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    cursor: pointer;
+  }
+
+  .room-bubble-flag[aria-pressed="true"] {
+    color: var(--ink);
+    border-color: var(--ink-soft);
+  }
+
+  .room-flag-sheet {
+    box-sizing: border-box;
+    margin-top: var(--space-tight);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: var(--space-item);
+    background: var(--panel);
+    animation: room-rise var(--motion-enter) var(--ease-enter) both;
+  }
+
+  .room-flag-sheet-title {
+    margin: 0 0 var(--space-tight);
+    font-weight: var(--weight-strong);
+  }
+
+  .room-flag-reasons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-tight);
+    margin-bottom: var(--space-tight);
+  }
+
+  .room-flag-reason {
+    min-height: 44px;
+    padding: 0 var(--space-item);
+    border-radius: var(--radius-sm);
+    border: var(--hairline) solid var(--line);
+    background: var(--panel-solid);
+    color: var(--ink);
+    font-size: var(--text-body);
+    cursor: pointer;
+  }
+
+  .room-flag-reason:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .room-flag-sheet {
+      animation: none;
+    }
+  }
+
   @keyframes room-rise {
     from {
       opacity: 0;

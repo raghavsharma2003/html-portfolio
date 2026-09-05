@@ -9,14 +9,42 @@
 import { replicaRequest } from "./replicaApi";
 import { finalizeSource } from "./enrollmentApi";
 import { IncrementalSha256 } from "./sha256Core";
-import type { ReviewCard, ReviewCorrectionUpload, ReviewDecision, ReviewQueue } from "./types";
+import type { FlaggedReply, ReviewCard, ReviewCorrectionUpload, ReviewDecision, ReviewQueue } from "./types";
 
-export async function readReviewQueue(token: string, replicaId: string): Promise<ReviewQueue> {
-  const data = await replicaRequest<{ queue: ReviewQueue }>(
+// WS-R67 (migration 116): the GET now carries `flags` alongside `queue` -
+// read both here rather than adding a second round trip, `flags`'s own
+// caller decides whether to render it.
+export async function readReviewQueue(
+  token: string,
+  replicaId: string,
+): Promise<{ queue: ReviewQueue; flags: FlaggedReply[] }> {
+  const data = await replicaRequest<{ queue: ReviewQueue; flags?: FlaggedReply[] }>(
     token,
     `/api/review-queue?replica_id=${encodeURIComponent(replicaId)}`,
   );
-  return data.queue;
+  return { queue: data.queue, flags: data.flags ?? [] };
+}
+
+/**
+ * "Never say this," off a flagged reply rather than an open card. The
+ * server reads the pattern back from `vy_room_reply_flag` itself - this
+ * call never sends the reply text, only which reply (by hash).
+ */
+export async function neverRuleFromFlag(
+  token: string,
+  replicaId: string,
+  replySha256: string,
+  reason?: string,
+): Promise<{ rule_id: string | null; pattern: string; flags: FlaggedReply[] }> {
+  return replicaRequest(token, "/api/review-queue", {
+    method: "POST",
+    body: JSON.stringify({
+      op: "flag_never",
+      replica_id: replicaId,
+      reply_sha256: replySha256,
+      ...(reason ? { reason } : {}),
+    }),
+  });
 }
 
 export async function fillReviewQueue(token: string, replicaId: string): Promise<{

@@ -636,6 +636,20 @@ const FATE = {
   // period_end, channel, sent_at, a short failure code) - never a word the
   // follower typed.
   vy_renewal_reminder: "forget-only",
+  // ── WS-R67: the follower's own copy of every reply they flagged
+  //    (migration 116) ──
+  // "Forget-only" for the identical reason every Room table above is: no
+  // scoped "forget priya" op reaches any Room table, only the stronger door
+  // (the account-level whole wipe, lane "relational", proven below, or
+  // `roomForget`'s own explicit room_id+person_id delete, added in the same
+  // change as this migration). Content-free (which reply by hash, which
+  // reason, when) - never a word the follower typed. The CREATOR's mirror
+  // (`vy_room_reply_flag`) is deliberately absent from PERSON_TABLES and
+  // therefore from this FATE table too: it names no person at all
+  // (migration 116's own header), so it is reached only by room_id in the
+  // owner-wide erasure cascade, never by either forget door this table
+  // names.
+  vy_room_follower_reply_flag: "forget-only",
 
   // ── the consent ledger (task #148, migration 016) ──
   // The whole wipe takes it: a device-keyed record of a person surviving the

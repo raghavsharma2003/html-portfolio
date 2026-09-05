@@ -61,6 +61,9 @@ import {
   normalizeLocale,
   telegramCheckinsStatusFor,
   setTelegramCheckinsEnabledForFollower,
+  flagReply,
+  lastReplySha256,
+  FLAG_REASONS,
 } from "./_room-surface.js";
 import { personForSurfaceUser, linkSurfacePerson } from "./_room.js";
 import { activeProviderName } from "./_payments.js";
@@ -221,6 +224,30 @@ export function checkinsOffCard(locale = "en") {
     : "Check-ins on Telegram are off. Turn them back on any time with /checkins on.";
 }
 
+/** `/flag <reason>` succeeded (WS-R67). Never names the reason back - the
+ *  creator's queue is where reasons matter, not this confirmation. */
+export function flaggedCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "फ्लैग हो गया। इसे क्रिएटर की समीक्षा सूची में भेज दिया गया है।"
+    : "Flagged. This has been sent to the creator's review queue.";
+}
+
+/** The unique index refused it (migration 116) - this exact reply was
+ *  already flagged by this same account. */
+export function alreadyFlaggedCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "यह जवाब पहले ही फ्लैग किया जा चुका है।"
+    : "You already flagged this reply.";
+}
+
+/** `/flag` with no reply yet in this follower's history to flag - a fresh
+ *  join, or a Room that has said nothing since. */
+export function nothingToFlagCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "अभी फ्लैग करने के लिए कोई जवाब नहीं है।"
+    : "There is no reply yet to flag.";
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // PARSING - one Telegram update -> zero or one classified event
 // ─────────────────────────────────────────────────────────────────────────
@@ -302,6 +329,18 @@ export function parseRoomCommand(text) {
 export function parseCheckinsCommand(text) {
   const m = /^\/checkins(?:@[\w_]+)?\s+(on|off)\s*$/.exec(String(text || "").trim());
   return m ? m[1] : null;
+}
+
+/** `/flag <reason>` (WS-R67), law 5: same lane rules as the web control -
+ *  the reason off the SAME closed list (`FLAG_REASONS`, api/_room-surface.js)
+ *  the web sheet offers, `parseCheckinsCommand`'s exact shape one command
+ *  over. Returns the reason, or null for anything else (including a bare
+ *  `/flag`, an unrecognised reason, or not this command at all) - the
+ *  caller treats all three identically: fall through, `parseCheckinsCommand`'s
+ *  own rule. */
+export function parseFlagCommand(text) {
+  const m = /^\/flag(?:@[\w_]+)?\s+(wrong|harmful|not_them|other)\s*$/.exec(String(text || "").trim());
+  return m && FLAG_REASONS.includes(m[1]) ? m[1] : null;
 }
 
 const CALLBACK_RE = /^(a1|a0|m1|m0):([a-z0-9][a-z0-9-]{0,62})$/;
@@ -627,6 +666,34 @@ async function handleRoomCommand(db, tg, now, env, ev, cmd, ctx) {
     return { ok: true, checkinsEnabled: enabled };
   }
 
+  if (cmd.startsWith("flag:")) {
+    // WS-R67, law 5: the LAST reply, never a hash the chat could supply -
+    // `lastReplySha256` reads it back off this follower's own history, the
+    // same read-back `flagReply` itself performs a second time (the boundary
+    // law never trusts a caller-supplied hash's OWNER, only its match).
+    const reason = cmd.slice(5);
+    const hash = await lastReplySha256(db, { session }, ctx.roomDeps);
+    if (!hash) {
+      await tg.sendMessage(ev.chatId, nothingToFlagCard(scope.locale));
+      return { ok: true, flagged: false, reason: "no_reply" };
+    }
+    try {
+      await flagReply(db, { session, replySha256: hash, reason }, ctx.roomDeps);
+      await tg.sendMessage(ev.chatId, flaggedCard(scope.locale));
+      return { ok: true, flagged: true, reason };
+    } catch (e) {
+      if (e instanceof RoomError && e.code === "room_flag_already_flagged") {
+        await tg.sendMessage(ev.chatId, alreadyFlaggedCard(scope.locale));
+        return { ok: true, flagged: false, reason: "already_flagged" };
+      }
+      if (e instanceof RoomError) {
+        await tg.sendMessage(ev.chatId, roomUnavailableCard(scope.locale));
+        return { ok: true, flagged: false, reason: e.code };
+      }
+      throw e;
+    }
+  }
+
   if (cmd === "forget") {
     const result = await roomForget(db, { session }, ctx.roomDeps);
     await tg.sendMessage(ev.chatId, forgottenCard(result, scope.locale));
@@ -743,6 +810,11 @@ export async function handleRoomTelegramUpdate(update, deps = {}) {
   if (checkinsToggle) {
     return await handleRoomCommand(db, tg, now, env, ev, checkinsToggle === "on" ? "checkins_on" : "checkins_off", ctx);
   }
+
+  // WS-R67: `/flag <reason>` takes an argument, `checkinsToggle`'s own reason
+  // for being checked ahead of the no-argument command table below.
+  const flagReason = parseFlagCommand(ev.text);
+  if (flagReason) return await handleRoomCommand(db, tg, now, env, ev, `flag:${flagReason}`, ctx);
 
   const cmd = parseRoomCommand(ev.text);
   if (cmd) return await handleRoomCommand(db, tg, now, env, ev, cmd, ctx);

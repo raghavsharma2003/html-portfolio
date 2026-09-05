@@ -2052,6 +2052,18 @@ const suites = {
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU, no
   // browser.
   "studio-path": "studio-path/run.mjs",
+  // WS-R67: FLAG THIS REPLY (migration 116). The boundary law driven through
+  // the REAL decision module (`api/_room-surface.js::flagReply`/
+  // `unflagReply`/`followerFlags`, `api/_review-queue.js::readFlaggedReplies`/
+  // `neverRuleFromFlaggedReply`), never a re-implemented check: the read-back
+  // that proves a flag's reply text came from this follower's OWN history
+  // (never the request body), the unique-index refusal for a second flag of
+  // the same reply, the creator's count grouped per reply hash (ten followers,
+  // one card, n=10), the two-lane erasure, and a NEGATIVE CONTROL that a
+  // body-supplied reply text never reaches the creator's lane.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-flags": "room-flags/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

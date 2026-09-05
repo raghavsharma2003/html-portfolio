@@ -30,7 +30,7 @@ import {
   readReviewQueue,
   uploadCorrection,
 } from "./reviewQueueApi";
-import type { ReviewQueue as ReviewQueueShape } from "./types";
+import type { FlaggedReply, ReviewQueue as ReviewQueueShape } from "./types";
 import { useStudioLocale } from "./localeContext";
 import { withCount, type StudioCopy } from "./copy";
 
@@ -68,6 +68,12 @@ export default function ReviewQueue({
 }) {
   const { t } = useStudioLocale();
   const [queue, setQueue] = useState<ReviewQueueShape | null>(null);
+  // WS-R67 (migration 116). Just the count, the workstream's own scope for
+  // this screen: each entry is already one reply with its own `count`
+  // (ten followers flagging the same reply is one entry, never ten -
+  // `api/_review-queue.js`'s own header), so the number rendered below is a
+  // count of rows, `active_never_rules` two lines down's own rule restated.
+  const [flags, setFlags] = useState<FlaggedReply[]>([]);
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [composing, setComposing] = useState(false);
@@ -80,7 +86,9 @@ export default function ReviewQueue({
 
   const load = useCallback(async () => {
     try {
-      setQueue(await readReviewQueue(token, replicaId));
+      const result = await readReviewQueue(token, replicaId);
+      setQueue(result.queue);
+      setFlags(result.flags);
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
       setError(cause instanceof Error ? cause.message : t.reviewQueue.errorLoad);
@@ -341,6 +349,15 @@ export default function ReviewQueue({
           {withCount(
             queue.active_never_rules === 1 ? t.reviewQueue.blockedAnswerOne : t.reviewQueue.blockedAnswerMany,
             queue.active_never_rules,
+          )}
+        </p>
+      ) : null}
+
+      {flags.length > 0 ? (
+        <p className="review-queue-flags" aria-live="polite">
+          {withCount(
+            flags.length === 1 ? t.reviewQueue.flaggedRepliesOne : t.reviewQueue.flaggedRepliesMany,
+            flags.length,
           )}
         </p>
       ) : null}

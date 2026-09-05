@@ -9849,3 +9849,62 @@ fetch of it — the gap between "a search result told me X" and "I read X on
 the primary page" is exactly the gap `context/rejected.md`'s own no-fake-
 citations law exists to keep visible, and it is worth naming even when (as
 here) the underlying fact is plausible and likely true.
+
+## `ws-r67-backtick-delimited-statement-extraction-is-not-a-statement-boundary`
+
+**Tried:** a static leak-check for `vy_room_reply_flag` (WS-R67, migration
+116) modelled on `evals/room-leak/run.mjs`'s own layer-1c/6a technique:
+extract every backtick-delimited string in a file that mentions the table
+name (`` /`[^`]*vy_room_reply_flag[^`]*`/g ``), then assert none of those
+extracted chunks contains `follower_id`/`person_id`/`thread_id`.
+
+**What broke:** two real false positives, both against ALREADY-CORRECT
+production code. First, `api/_room-surface.js::flagReply` shares ONE
+template literal between the follower-lane INSERT (which legitimately
+carries `follower_id` as a column, a few lines away) and the creator-lane
+INSERT — the whole-literal extraction pulled BOTH statements in as one
+"chunk" and flagged the creator half for a column that belongs to the OTHER
+table entirely. Second, and worse: `api/_replica-full-erasure.js`'s owner-
+wide erasure cascade is ONE multi-THOUSAND-line template literal for the
+WHOLE database (every table this file ever deletes, in one JS string), so
+the SAME extraction pattern captured the ENTIRE cascade from the first
+backtick to the last and reported it as one giant "chunk" naming
+`follower_id`/`person_id` dozens of times over — a false positive with a
+100% hit rate against a file with a completely correct, room_id-only,
+column-free DELETE statement for this table.
+
+**The actual fix:** three shapes, each bounded to what it can actually
+mean, never a backtick boundary: an INSERT's own column list, captured by
+`` /insert into vy_room_reply_flag\s*\(([^)]*)\)/ `` (the parens ARE the
+real boundary, and these house queries never nest parens inside a column
+list); a SELECT's own list, found by walking BACKWARD from each literal
+`"from vy_room_reply_flag"` occurrence (by INDEX, not regex-from-file-start)
+to the NEAREST preceding `"select"` within a generous but bounded window
+(600 chars — the real longest such list in this codebase is 453); and a
+DELETE's own short FORWARD window (these are simple room_id-scoped
+deletes, never longer than a couple of clauses). The backward-search
+approach itself had a second, subtler bug on the first attempt: it did not
+exclude `"delete from vy_room_reply_flag"` occurrences (which also contain
+the literal substring `"from vy_room_reply_flag"` the walk searches for),
+so it would find the NEAREST preceding `"select"` — which for a DELETE
+statement is very often a NEIGHBOURING statement's own subquery, or even
+this migration's own explanatory comment prose sitting between two CTEs —
+and flag that unrelated text. The final version explicitly skips any `from`
+occurrence immediately preceded by `"delete"`, leaving the DELETE case to
+its own dedicated forward-window check.
+
+**Where it is now:** `evals/room-flags/run.mjs`'s `creatorLaneOffenders`,
+reused without modification by `evals/room-leak/run.mjs`'s layer 7 (WS-R67
+does not maintain two copies of this scan) — with its own negative control
+(a synthetic `` `select follower_id, thread_id from vy_room_reply_flag ...` ``
+string, fed to the SAME function on a COPY of the sources) proving the
+final version still catches a real violation rather than having been
+narrowed into uselessness chasing these two false positives.
+
+**Reversal condition:** none expected — this is a parsing-precision fix,
+not a product decision. If a future migration adds a THIRD shape this table
+appears in (a JOIN target inside a longer FROM clause, say), extend
+`creatorLaneOffenders` with a fourth bounded pattern rather than reverting
+to a whole-file or whole-literal extraction, which this entry's own history
+shows produces false positives at a 100% rate against the largest file in
+this codebase.

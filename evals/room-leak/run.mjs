@@ -88,12 +88,13 @@
 import fs from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { AGENT_ID, ROOM_ID, OWNER, REPLICA_ID, SLUG, loadFixtureAgent, freshState, fakeDb } from "../room/fixtures.mjs";
+import { AGENT_ID, ROOM_ID, OWNER, REPLICA_ID, SLUG, loadFixtureAgent, freshState, fakeDb, fakeMemory } from "../room/fixtures.mjs";
 import { disclosurePredicate } from "../../api/_disclosure.js";
 import {
   runFullWorld, staticReachProblems, undeclaredRoomPersonTables, classifyOneFile,
   DEFAULT_SEED, ROOM_DEFS, roomForgetReceiptHash, survivorsFor, TABLE_ROLES,
 } from "./world.mjs";
+import { freshFlagState, flagsDb } from "../room-flags/fixtures.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -116,7 +117,8 @@ let rowChecks = 0;
 let boundaryChecks = 0;
 
 const room = await import(pathToFileURL(join(REPO, "api/_room-surface.js")).href);
-const { joinRoom, roomSay, roomExport, roomForget, roomStats } = room;
+const { joinRoom, roomSay, roomExport, roomForget, roomStats, roomThreadDevice, readRoomSession, flagReply } = room;
+const { readFlaggedReplies } = await import(pathToFileURL(join(REPO, "api/_review-queue.js")).href);
 
 // ═════════════════════════════════════════════════════════════════════════
 // LAYER 1 — STATIC. No execution; the shipping source, read and checked.
@@ -1435,6 +1437,111 @@ console.log(`\n── layer 8: the full world (WS-R68) — seed ${DEFAULT_SEED} 
   const undeclared = undeclaredRoomPersonTables(REPO);
   ok("world: every PERSON_TABLES room+person table (besides layer 1c's own two) has a TABLE_ROLES entry",
     undeclared.length === 0, undeclared.join(","));
+}
+
+// (WS-R67's flags are layer 9; layers 7 and 8 above are the taste and the full world. Renumbered at the merge.)
+// LAYER 9 — FLAG THIS REPLY (WS-R67, migration 116). The workstream brief's
+// own class: HARMFUL_AGGREGATE_ONLY — the creator-facing lane
+// (`vy_room_reply_flag`) carries the AI's own reply text and a count, and
+// PROVABLY NO FOLLOWER IDENTITY OR WORDS, even though (unlike layer 5's
+// Pulse) it is not aggregated at write time — the aggregation is
+// `api/_review-queue.js::readFlaggedReplies`'s own GROUP BY, at READ time,
+// migration 116's own header. `evals/room-flags/run.mjs` is this feature's
+// OWN suite (the read-back-from-history proof, the unique-index refusal,
+// the withdrawal); this layer's job is narrower and different in kind: a
+// REAL multi-follower WORLD, through THIS suite's own `leakedTokens` scanner,
+// proving no OTHER follower's unique words ever reach the creator surface a
+// flag produces — layer 2/3's own retrieval proof, applied to a table those
+// layers never touch.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 9: flag this reply (WS-R67, migration 116) ──");
+
+// (7a) STATIC. `evals/room-flags/run.mjs` already runs this exact scan as
+// its own gate; reused here (not retyped) so this battery's own verdict
+// reflects the SAME boundary proof rather than a second, drifting copy of
+// it — `evals/room-flags/fixtures.mjs`'s own header names the reason this
+// wrapper is SHARED rather than duplicated, restated for the scan function
+// one file over.
+{
+  const ALLOWED = new Set(["_room-surface.js", "room.js", "_review-queue.js", "review-queue.js", "_replica-full-erasure.js", "memory.js"]);
+  const sources = {};
+  for (const f of fs.readdirSync(join(REPO, "api"))) {
+    if (!f.endsWith(".js")) continue;
+    const src = fs.readFileSync(join(REPO, "api", f), "utf8");
+    if (src.includes("vy_room_reply_flag")) sources[f] = src;
+  }
+  ok("layer 9 static: the scan is not vacuous - at least one real file names vy_room_reply_flag",
+    Object.keys(sources).length > 0);
+  const outsideAllowed = Object.keys(sources).filter((f) => !ALLOWED.has(f));
+  ok("layer 9 static: every file naming vy_room_reply_flag is in the closed, reviewed set (evals/room-flags/run.mjs's own gate, reused)",
+    outsideAllowed.length === 0, outsideAllowed.join(","));
+}
+
+// (7b) DYNAMIC. A REAL world: three followers, one shared reply everyone
+// flags, and a FOURTH follower with their OWN unique reply and their own
+// unique flag reason — the creator-facing surface (`readFlaggedReplies`'
+// own output) must carry the shared reply's text and count, and must never
+// leak the fourth follower's own private reply into the SAME creator's read
+// of the FIRST reply's card (the two are different cards; nothing about one
+// may bleed into the other's count or text).
+{
+  const state = freshFlagState(freshState());
+  const flagWorldDb = flagsDb(state, fakeDb(state));
+  const memlog = [];
+  const memory = fakeMemory(memlog);
+  const uid = (n) => `9100000${n}-0000-4000-a000-00000000000${n}`;
+  const { createHash } = await import("node:crypto");
+  const sha256Hex = (s) => createHash("sha256").update(String(s), "utf8").digest("hex");
+
+  const SHARED_REPLY = "TOKSHARED_your fee is due on the 5th, not the 15th_ZZZ";
+  const PRIVATE_REPLY = "TOKPRIVATE_a completely different answer only follower 4 ever saw_ZZZ";
+
+  const sessions = [];
+  for (let i = 0; i < 4; i++) {
+    const joined = await joinRoom(
+      flagWorldDb, { slug: SLUG, authUserId: uid(i), ageAttested: true, memoryConsent: true }, { loadAgent },
+    );
+    sessions.push(joined.session);
+    const payload = readRoomSession(joined.session);
+    const device = roomThreadDevice(ROOM_ID, String(payload.p), null);
+    const text = i < 3 ? SHARED_REPLY : PRIVATE_REPLY;
+    memlog.push({ call: "logTurn", device, person: String(payload.p), role: "her", content: text, agentId: AGENT_ID });
+  }
+  for (let i = 0; i < 3; i++) {
+    await flagReply(
+      flagWorldDb, { session: sessions[i], replySha256: sha256Hex(SHARED_REPLY), reason: "wrong" }, { loadAgent, memory },
+    );
+  }
+  await flagReply(
+    flagWorldDb, { session: sessions[3], replySha256: sha256Hex(PRIVATE_REPLY), reason: "not_them" }, { loadAgent, memory },
+  );
+
+  const surface = await readFlaggedReplies(flagWorldDb, OWNER, REPLICA_ID, { tableApplied: async () => true });
+  const sharedCard = surface.find((c) => c.reply_sha256 === sha256Hex(SHARED_REPLY));
+  const privateCard = surface.find((c) => c.reply_sha256 === sha256Hex(PRIVATE_REPLY));
+
+  boundaryChecks++;
+  ok("layer 9: three followers flagging the SAME reply produce ONE card with n=3, never three",
+    Boolean(sharedCard) && sharedCard.count === 3);
+  boundaryChecks++;
+  ok("layer 9: the fourth follower's own reply is a SEPARATE card, count=1",
+    Boolean(privateCard) && privateCard.count === 1);
+  boundaryChecks++;
+  ok("layer 9: the shared card's text is the shared reply, never the private one",
+    sharedCard.reply_text === SHARED_REPLY);
+  boundaryChecks++;
+  ok("layer 9: the private card's text is the private reply, never the shared one",
+    privateCard.reply_text === PRIVATE_REPLY);
+
+  const wholeSurface = JSON.stringify(surface);
+  boundaryChecks++;
+  ok("layer 9: no follower id/person id from this world ever reaches the creator-facing surface",
+    leakedTokens(wholeSurface, sessions.map((s) => String(readRoomSession(s).p))).length === 0);
+  boundaryChecks++;
+  ok("layer 9: the scan above is not vacuous - the person ids really do exist somewhere in this world",
+    leakedTokens(JSON.stringify(sessions.map((s) => readRoomSession(s))), [String(readRoomSession(sessions[0]).p)]).length === 1);
+
+  rowChecks += 6;
 }
 
 // ═════════════════════════════════════════════════════════════════════════

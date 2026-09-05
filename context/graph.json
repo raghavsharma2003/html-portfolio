@@ -7834,6 +7834,30 @@
       "kind": "rejection",
       "title": "Six attempts (two HTML pages, two PDFs, cross-checked by WebSearch first) to reach npci.org.in for the UPI Autopay pre-debit notification sender all returned only the bare site-shell title, no body content \u2014 no CDN mirror found the way WS-R60 found one for razorpay.com.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r67-flag-hash-not-body-two-lanes-count-at-read-time",
+      "kind": "decision",
+      "title": "Flag this reply (migration 116) is two tables (follower lane unique-per-flag, creator lane undeduplicated row-per-flag with no follower/person/thread column at all); the reply text reaching the creator lane is read back from the flagging follower's own history by sha256, never from a request body; n=10-one-card is readFlaggedReplies' GROUP BY at read time, never a write-time aggregate.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r67-flag-this-reply-offline-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/room-flags/run.mjs: 40/40 passed. Extended evals/room-leak/run.mjs (81->89), evals/room-export/run.mjs (39->45), evals/room-doors/run.mjs (495->516). All offline, no NEON_URL; migration 116 not yet applied live by this workstream.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r67-backtick-delimited-statement-extraction-is-not-a-statement-boundary",
+      "kind": "rejection",
+      "title": "A leak-check that extracted whole backtick-delimited template literals to find vy_room_reply_flag's own statement produced two false positives against correct code: flagReply's combined follower+creator INSERT (one literal, two tables) and _replica-full-erasure.js's multi-thousand-line owner-cascade literal (the entire cascade read as one chunk). Fixed with three narrowly-bounded patterns (INSERT's own paren-list, SELECT's own backward-bounded list excluding DELETE's from, DELETE's own short forward window) instead of any whole-literal or whole-file extraction.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r67-flag-this-reply",
+      "kind": "component",
+      "title": "Flag this reply: a follower's one-tap report on a wrong or harmful AI reply, routed into the creator's review queue as a count over the AI's own words, never the follower's identity. api/_room-surface.js (flagReply/unflagReply/followerFlags/lastReplySha256), api/_review-queue.js (readFlaggedReplies/neverRuleFromFlaggedReply), api/room.js ops flag/unflag/flags, api/_room-telegram.js /flag, migration 116.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15541,6 +15565,31 @@
       "src": "ws-r69-upi-autopay-verification-2026-09-05",
       "rel": "caused_by",
       "dst": "ws-r69-npci-org-in-unreachable-by-this-sessions-fetch-tool"
+    },
+    {
+      "src": "ws-r67-flag-hash-not-body-two-lanes-count-at-read-time",
+      "rel": "measured_by",
+      "dst": "ws-r67-flag-this-reply-offline-2026-09-05"
+    },
+    {
+      "src": "ws-r67-flag-this-reply",
+      "rel": "part_of",
+      "dst": "ws-r4-review-queue"
+    },
+    {
+      "src": "ws-r67-flag-this-reply",
+      "rel": "measured_by",
+      "dst": "ws-r67-flag-this-reply-offline-2026-09-05"
+    },
+    {
+      "src": "ws-r67-flag-hash-not-body-two-lanes-count-at-read-time",
+      "rel": "part_of",
+      "dst": "ws-r67-flag-this-reply"
+    },
+    {
+      "src": "ws-r67-backtick-delimited-statement-extraction-is-not-a-statement-boundary",
+      "rel": "caused_by",
+      "dst": "ws-r67-flag-this-reply"
     }
   ]
 }
