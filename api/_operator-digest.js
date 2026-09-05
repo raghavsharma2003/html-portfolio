@@ -155,6 +155,11 @@ export function digestCounts(overview) {
     self_check_ran: selfCheck.last_outcome != null && selfCheck.last_outcome !== "never_ran",
     incidents_today: incidentsToday,
     incidents_new_kinds: Array.isArray(incidents.new_kinds) ? incidents.new_kinds.length : 0,
+    // WS-R102. A COUNT only, never `selfCheck.optional_absent` itself - this
+    // digest's own push payload is a broadcast body, and workstream law 3 is
+    // explicit: "never the names" (`docs/gurukul/DAY-ONE.md`'s own gap 1,
+    // named by a static scan of `operatorDigestPayload`'s own source below).
+    optional_absent_count: Array.isArray(selfCheck.optional_absent) ? selfCheck.optional_absent.length : 0,
   };
 }
 
@@ -196,6 +201,7 @@ export function operatorDigestPayload(counts) {
   const selfFailed = Math.max(0, Math.trunc(Number(counts?.self_check_failed) || 0));
   const incidentsToday = Math.max(0, Math.trunc(Number(counts?.incidents_today) || 0));
   const newKinds = Math.max(0, Math.trunc(Number(counts?.incidents_new_kinds) || 0));
+  const optionalAbsent = Math.max(0, Math.trunc(Number(counts?.optional_absent_count) || 0));
   const belowFloor = Boolean(counts?.followers_joined_below_floor);
 
   const followersPart = belowFloor
@@ -212,7 +218,12 @@ export function operatorDigestPayload(counts) {
     ? `${incidentsToday} incident${incidentsToday === 1 ? "" : "s"} today${newKinds > 0 ? ` (${newKinds} new)` : ""}`
     : "no incidents today";
 
-  const body = `${roomsPublished} Room${roomsPublished === 1 ? "" : "s"} live, ${followersPart}, ${messages} message${messages === 1 ? "" : "s"}, Rs ${revenue} this month. ${selfPart}. ${incidentsPart}.`
+  // WS-R102. A count only, never a name - `digestCounts`'s own header on
+  // why. Silent when zero, the same "an honest empty state says nothing
+  // extra" posture `incidentsPart` above already takes for zero incidents.
+  const optionalPart = optionalAbsent > 0 ? ` ${optionalAbsent} optional not set.` : "";
+
+  const body = `${roomsPublished} Room${roomsPublished === 1 ? "" : "s"} live, ${followersPart}, ${messages} message${messages === 1 ? "" : "s"}, Rs ${revenue} this month. ${selfPart}. ${incidentsPart}.${optionalPart}`
     .slice(0, 200);
 
   return {

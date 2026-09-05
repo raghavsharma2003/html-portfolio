@@ -32,6 +32,10 @@ const SELF_CHECK_STATES = Object.freeze({
     passed: 0,
     failed: 2,
     failing_checks: ["env: OPENROUTER_KEY missing", "env: NEON_URL missing"],
+    // WS-R102. "Nothing configured" means every OPTIONAL_ENV name is also
+    // absent - never a failing check (law 1), so this list is separate from
+    // `failing_checks` above and never moves `failed`/`checked`.
+    optional_absent: ["AZURE_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_URL"],
   },
   half: {
     last_started_at: "2026-09-05T02:00:00.000Z",
@@ -44,6 +48,7 @@ const SELF_CHECK_STATES = Object.freeze({
     // migration family is missing — exactly the shape step 3's `self-check:
     // door:vy_room missing` row is written to catch.
     failing_checks: ["migration 071: vy_room missing"],
+    optional_absent: ["SUPABASE_SERVICE_ROLE_KEY"],
   },
   complete: {
     last_started_at: "2026-09-05T02:00:00.000Z",
@@ -53,6 +58,7 @@ const SELF_CHECK_STATES = Object.freeze({
     passed: 4,
     failed: 0,
     failing_checks: [],
+    optional_absent: [],
   },
 });
 

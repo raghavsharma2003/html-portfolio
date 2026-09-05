@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { parseRunbook, RUNBOOK_PATH } from "../../scripts/dayOneRunbook.mjs";
 import { startDayOneFixture, VALID_OPERATOR_BEARER } from "./fakeServer.mjs";
+import { judgeStep } from "../../scripts/day-one.mjs";
 
 // Async execFile, never execFileSync — the fixture server runs IN THIS SAME
 // PROCESS, and a synchronous child call would block the event loop the
@@ -132,6 +133,60 @@ async function main() {
       threw = e;
     }
     check("a row with a dropped column also fails the whole parse", threw instanceof Error, threw ? "(no throw)" : "parsed without error");
+  }
+
+  // ── 1d. WS-R102: judgeStep's own self-check-env branch, unit tested ─────
+  // Direct against `judgeStep` (never a subprocess) - proves the widened
+  // branch on its own terms, since NO row in the REAL runbook today names
+  // an OPTIONAL_ENV member as its sole reason to stay `manual:` (every row
+  // whose Proving Command cell already reads `self-check:env:<NAME>` names
+  // a REQUIRED_ENV member, unchanged by this workstream - see
+  // `context/decisions.md#ws-r102-no-day-one-row-converts-from-manual` for
+  // why, and `docs/gurukul/DAY-ONE.md`'s own gap 1 rewrite for the honest
+  // accounting).
+  {
+    const syntheticStep = { proving: { kind: "self-check-env", name: "SUPABASE_URL" } };
+    const opsResult = { overview: { self_check: { failing_checks: [], optional_absent: ["SUPABASE_URL"] } } };
+    const r = judgeStep(syntheticStep, { opsResult });
+    check("judgeStep: an OPTIONAL name absent (never on failing_checks) is BLOCKED for a self-check:env row naming it",
+      r.status === "blocked", JSON.stringify(r));
+    check("judgeStep: the detail names the var honestly as optional, not as a required-missing door",
+      /optional, not set: SUPABASE_URL/.test(r.detail), r.detail);
+  }
+  {
+    const syntheticStep = { proving: { kind: "self-check-env", name: "SUPABASE_URL" } };
+    const opsResult = { overview: { self_check: { failing_checks: [], optional_absent: [] } } };
+    const r = judgeStep(syntheticStep, { opsResult });
+    check("judgeStep: an OPTIONAL name present (absent from both lists) reads done",
+      r.status === "done", JSON.stringify(r));
+  }
+  {
+    // NEGATIVE CONTROL: a REQUIRED name missing still reads from
+    // failing_checks exactly as before this workstream - the widened branch
+    // must never mask a real required-env failure.
+    const syntheticStep = { proving: { kind: "self-check-env", name: "NEON_URL" } };
+    const opsResult = { overview: { self_check: { failing_checks: ["env: NEON_URL missing"], optional_absent: ["AZURE_KEY"] } } };
+    const r = judgeStep(syntheticStep, { opsResult });
+    check("NEGATIVE CONTROL: a REQUIRED name still reads blocked via failing_checks, unaffected by optional_absent existing",
+      r.status === "blocked" && r.detail.includes('"env: NEON_URL missing"'), JSON.stringify(r));
+  }
+  {
+    // NEGATIVE CONTROL: an unrelated name absent from optional_absent never
+    // false-positives another name's row.
+    const syntheticStep = { proving: { kind: "self-check-env", name: "SUPABASE_URL" } };
+    const opsResult = { overview: { self_check: { failing_checks: [], optional_absent: ["AZURE_KEY"] } } };
+    const r = judgeStep(syntheticStep, { opsResult });
+    check("NEGATIVE CONTROL: a DIFFERENT name's optional_absent entry never blocks this row",
+      r.status === "done", JSON.stringify(r));
+  }
+  {
+    // An older/degraded overview shape with no optional_absent field at all
+    // (e.g. an operator on a stale build) must never throw.
+    const syntheticStep = { proving: { kind: "self-check-env", name: "SUPABASE_URL" } };
+    const opsResult = { overview: { self_check: { failing_checks: [] } } };
+    const r = judgeStep(syntheticStep, { opsResult });
+    check("judgeStep: a missing optional_absent field on the overview never throws, reads done",
+      r.status === "done", JSON.stringify(r));
   }
 
   // ── 2. day-one.mjs against the fixture, three self-check states ─────────

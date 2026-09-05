@@ -37,6 +37,8 @@ const {
   checkSiblingSweeps,
   runSelfCheck,
   recordSelfCheckIncidents,
+  recordOptionalAbsentIncidents,
+  OPTIONAL_ABSENT_DOOR_PREFIX,
   selfCheckTelegramPayload,
   sendSelfCheckTelegramAlert,
   SELF_CHECK_KIND_REGISTERED,
@@ -306,6 +308,8 @@ const ALL_COLS = new Set(MIGRATION_FAMILY_COLUMNS.map((f) => `${f.table}:${f.col
   ok("a fully healthy world passes every check", result.ok === true && result.failed === 0 && result.checked === result.passed);
   ok("checked/passed/failed are plain numbers (survive api/_sweep-run.js's own sanitizeCounts)",
     typeof result.checked === "number" && typeof result.passed === "number" && typeof result.failed === "number");
+  ok("WS-R102: a world with NO env at all still reports every OPTIONAL_ENV name absent",
+    [...result.optional_absent].sort().join("|") === [...OPTIONAL_ENV].sort().join("|"));
 }
 {
   // A required env var missing, everything else fine.
@@ -316,6 +320,21 @@ const ALL_COLS = new Set(MIGRATION_FAMILY_COLUMNS.map((f) => `${f.table}:${f.col
     result.ok === false && result.failing_doors.includes("env: OPENROUTER_KEY missing"));
   ok("a missing OPTIONAL env var is never a failing check at all",
     !result.failing_doors.some((d) => d.includes("AZURE_KEY")));
+  ok("WS-R102: that same missing OPTIONAL env var IS on optional_absent, by its own name",
+    result.optional_absent.includes("AZURE_KEY"));
+  ok("WS-R102: optional_absent is sorted", JSON.stringify(result.optional_absent) === JSON.stringify([...result.optional_absent].sort()));
+}
+{
+  // WS-R102 workstream law 1: every OPTIONAL_ENV name PRESENT is absent from
+  // optional_absent, and result.ok/result.failed are UNCHANGED by which
+  // optional names are set - the whole point of the "not a failing check" law.
+  const env = Object.fromEntries([...REQUIRED_ENV, ...OPTIONAL_ENV].map((n) => [n, "x"]));
+  const db = worldDb({ tablesPresent: ALL_TABLES, colsPresent: ALL_COLS });
+  const result = await runSelfCheck({ db, env, now: NOW, sweepSchedulesFn: () => ({}) });
+  ok("WS-R102: every OPTIONAL_ENV name set reports an empty optional_absent, not omitted",
+    Array.isArray(result.optional_absent) && result.optional_absent.length === 0);
+  ok("WS-R102: a fully-optional-configured world still passes every check (law 1)",
+    result.ok === true && result.failed === 0);
 }
 {
   // The database itself is down — (c)/(d) must be SKIPPED, not attempted,
@@ -364,6 +383,46 @@ const ALL_COLS = new Set(MIGRATION_FAMILY_COLUMNS.map((f) => `${f.table}:${f.col
   const spyDb = async (sql, params) => { if (sql.includes("insert into vy_incident")) calls.push(params); return []; };
   await recordSelfCheckIncidents(spyDb, { failing_doors: [] });
   ok("NEGATIVE CONTROL: a result with zero failing checks writes zero incident rows", calls.length === 0);
+}
+
+// WS-R102: recordOptionalAbsentIncidents - one recordIncident call per
+// absent OPTIONAL_ENV name, kind always self_check, door always encoded
+// with OPTIONAL_ABSENT_DOOR_PREFIX so api/_ops.js can tell it apart from a
+// real failing check by the door's own prefix alone.
+{
+  const calls = [];
+  const spyDb = async (sql, params) => {
+    if (sql.includes("insert into vy_incident")) { calls.push(params); return []; }
+    throw new Error("unexpected");
+  };
+  const result = { optional_absent: ["AZURE_KEY", "SUPABASE_URL"] };
+  await recordOptionalAbsentIncidents(spyDb, result);
+  ok("recordOptionalAbsentIncidents writes one incident per absent optional name", calls.length === 2);
+  ok("every write's kind is exactly self_check, never a bespoke kind (no migration this workstream)",
+    calls.every((c) => c[1] === "self_check"));
+  ok("every write's door is OPTIONAL_ABSENT_DOOR_PREFIX plus the name, unchanged",
+    calls.map((c) => c[2]).sort().join("|") ===
+      [`${OPTIONAL_ABSENT_DOOR_PREFIX}AZURE_KEY`, `${OPTIONAL_ABSENT_DOOR_PREFIX}SUPABASE_URL`].sort().join("|"));
+  ok("every write's status is the fixed sentinel 0, same as recordSelfCheckIncidents", calls.every((c) => c[3] === 0));
+  ok("NEGATIVE CONTROL: no optional-absent door ever collides with a real failing-check door shape",
+    calls.every((c) => !/^env: .* missing$/.test(c[2]) && !/^db: /.test(c[2]) && !/^migration \d+: /.test(c[2]) && !/^sweep /.test(c[2])));
+}
+{
+  // NEGATIVE CONTROL: an empty optional_absent list (everything set) writes
+  // zero incident rows, the same honest-empty posture recordSelfCheckIncidents
+  // already has for zero failing checks.
+  const calls = [];
+  const spyDb = async (sql, params) => { if (sql.includes("insert into vy_incident")) calls.push(params); return []; };
+  await recordOptionalAbsentIncidents(spyDb, { optional_absent: [] });
+  ok("NEGATIVE CONTROL: a result with zero absent optional names writes zero incident rows", calls.length === 0);
+}
+{
+  // NEGATIVE CONTROL: a missing optional_absent field entirely (an older
+  // result shape) never throws - defaults to writing nothing.
+  const calls = [];
+  const spyDb = async (sql, params) => { if (sql.includes("insert into vy_incident")) calls.push(params); return []; };
+  await recordOptionalAbsentIncidents(spyDb, {});
+  ok("NEGATIVE CONTROL: a result with no optional_absent field at all writes zero rows, never throws", calls.length === 0);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

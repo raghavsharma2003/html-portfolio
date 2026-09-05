@@ -125,7 +125,22 @@ async function readOpsDoor(baseUrl, bearer) {
   }
 }
 
-function judgeStep(step, { probeReport, probeError, opsResult }) {
+/**
+ * `self-check-env` (WS-R102 widened): a name can fail this step TWO ways
+ * now that `api/_self-check.js#runSelfCheck` reports both halves of
+ * `envPresence` - a REQUIRED name missing still reads from
+ * `self_check.failing_checks` exactly as before (unchanged: workstream law
+ * 1 keeps an absent OPTIONAL name out of that list entirely), and an
+ * OPTIONAL name absent now reads from the SEPARATE `self_check.
+ * optional_absent` list `api/_ops.js#selfCheckOverview` exposes
+ * (`docs/gurukul/DAY-ONE.md`'s own gap 1, closed WS-R102). A name on
+ * NEITHER list is `REQUIRED_ENV`/`OPTIONAL_ENV` and present, or a name this
+ * self-check does not track at all (still the ~90-name residual gap 1
+ * names) - either way this step has nothing to report, so it reads `done`,
+ * the same "absence of a finding is not proof of anything beyond what was
+ * actually checked" honesty this script already carries for `probe-live`.
+ */
+export function judgeStep(step, { probeReport, probeError, opsResult }) {
   const p = step.proving;
   if (p.kind === "probe-live-whole" || p.kind === "probe-live-scoped") {
     if (!probeReport) return { status: "unknown", detail: `probe-live could not be run: ${probeError || "no report"}` };
@@ -144,6 +159,10 @@ function judgeStep(step, { probeReport, probeError, opsResult }) {
     if (p.kind === "self-check-env") {
       const door = `env: ${p.name} missing`;
       if (failing.includes(door)) return { status: "blocked", detail: `ops door: "${door}"` };
+      const optionalAbsent = opsResult.overview?.self_check?.optional_absent || [];
+      if (optionalAbsent.includes(p.name)) {
+        return { status: "blocked", detail: `ops door: "optional, not set: ${p.name}"` };
+      }
       return { status: "done", detail: `ops door: no "${door}" finding` };
     }
     const match = failing.find((d) => d.includes(p.substring));
@@ -202,7 +221,13 @@ async function main() {
   process.exit(counts.blocked === 0 ? 0 : 1);
 }
 
-main().catch((e) => {
-  console.error("day-one: fatal:", e && e.stack ? e.stack : e);
-  process.exit(1);
-});
+// Guarded so `evals/day-one/run.mjs` can `import { judgeStep }` for a direct
+// unit test of the WS-R102 optional-absent branch above without also
+// running the whole CLI as a side effect of that import - `scripts/
+// check-mirrors.mjs`'s own guard, restated.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((e) => {
+    console.error("day-one: fatal:", e && e.stack ? e.stack : e);
+    process.exit(1);
+  });
+}
