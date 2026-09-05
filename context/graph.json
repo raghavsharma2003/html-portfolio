@@ -7582,6 +7582,54 @@
       "kind": "measurement",
       "title": "Migration 113 widened vy_room_arrival's via CHECK to admit install (the value WS-R59's JS allowlist added) at the WS-R59 merge; applied live after reading the constraint's name back; the upsert plan is unchanged.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r68-full-world-leak-battery",
+      "kind": "component",
+      "title": "evals/room-leak/world.mjs + run.mjs layer 7: five Rooms, two owner-grouped Suites, 100 followers with overlapping memberships, every transport and lane at once, seeded RNG, inside the existing room-leak gate",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r68-full-world-shape-two-suites-by-owner-not-by-vy-org-row",
+      "kind": "decision",
+      "title": "The full world groups five Rooms into two Suites by owner_user_id alone rather than inserting real vy_org/vy_org_member rows, since Suite tables hold no follower content and every read of them is already aggregate-only",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r68-fixture-composition-order-owner-scope-shadowing",
+      "kind": "decision",
+      "title": "handoffDb is composed OUTSIDE pulseDb (tried first) because handoffDb own owner-scoped match is a strict superset of pulseDb own weaker one; the wrong order silently shadows every handoff call with a stripped row",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r68-static-reach-layer-checks-content-columns-not-strict-aggregate-shape",
+      "kind": "decision",
+      "title": "The generalized static reach layer checks that an aggregate-only reader select-list names no raw content column, rather than requiring a strict count/sum/min shape, so date_trunc/exists(select 1) aggregate reads already shipping do not false-positive",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r68-composed-fixture-owner-scope-shadowing",
+      "kind": "rejection",
+      "title": "Composing pulseDb outside handoffDb (the naive read-order) let pulse own weaker owner-scope match silently swallow handoff own config lookup, stripping handoff_enabled/handoff_monthly_cap with no thrown error",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r68-strict-aggregate-only-select-list-check-false-positives-on-shipped-sql",
+      "kind": "rejection",
+      "title": "A strict count/sum/min-only generalization of the existing aggregate-only check flagged api/_phase-gate.js date_trunc bucket key and api/_room-cohorts.js exists(select 1) idiom as non-aggregate-reads on the untouched, already-shipped tree",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r68-line-scanner-did-not-know-sql-comments",
+      "kind": "rejection",
+      "title": "The generalized per-line SAFE_LINE check only recognised JS comment syntax; api/_replica-full-erasure.js own SQL -- comments naming a guarded table inside a template literal tripped it until -- was added",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r68-full-world-leak-battery-2026-09-05",
+      "kind": "measurement",
+      "title": "320,160 cross-membership token-leak checks across 116 memberships x 3 shuffled turns, zero violations; multi-Room-per-person export/forget isolation proven for 5 overlap followers; generalized static reach layer clean across 12 tables; 71 new assertions (152 total, up from 81); layer 7 runtime 6.3-11.1s, whole battery 27.5s wall clock (was 7.8s)",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15104,6 +15152,31 @@
       "src": "rooms-migration-113-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r40-arrival-counted-per-openroom-call-not-deduplicated-per-session"
+    },
+    {
+      "src": "ws-r68-full-world-leak-battery",
+      "rel": "part_of",
+      "dst": "rooms-migrations-applied-live-in-the-union-order"
+    },
+    {
+      "src": "ws-r68-full-world-leak-battery",
+      "rel": "measured_by",
+      "dst": "ws-r68-full-world-leak-battery-2026-09-05"
+    },
+    {
+      "src": "ws-r68-fixture-composition-order-owner-scope-shadowing",
+      "rel": "caused_by",
+      "dst": "ws-r68-composed-fixture-owner-scope-shadowing"
+    },
+    {
+      "src": "ws-r68-static-reach-layer-checks-content-columns-not-strict-aggregate-shape",
+      "rel": "caused_by",
+      "dst": "ws-r68-strict-aggregate-only-select-list-check-false-positives-on-shipped-sql"
+    },
+    {
+      "src": "ws-r68-full-world-leak-battery",
+      "rel": "constrains",
+      "dst": "ws-r68-full-world-shape-two-suites-by-owner-not-by-vy-org-row"
     }
   ]
 }
