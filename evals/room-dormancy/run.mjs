@@ -28,8 +28,14 @@
 // §5 joinRoom's own defensive clear — a repeat join nulls dormancy_notice_at
 //    (the "one column" this workstream's law 2 names), proven against the
 //    real UPDATE text, not retyped.
+// §9 WS-R129 QUIET HOURS — a follower with an active check-in whose own
+//    quiet window is presently blocking sends gets no dormancy notice this
+//    tick (deferred, not dropped: dormancy_notice_at stays null, so the
+//    next daily tick finds them again); a follower with no check-in, or a
+//    STOPPED one, is unaffected.
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { isQuietHoursOk } from "../../api/_quiet-hours.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -119,6 +125,9 @@ function freshState() {
     threads: [],
     receipts: [],
     consent: [],
+    // WS-R129: the follower-proxy quiet-hours source, `api/_quiet-hours.js`'s
+    // own `quietHoursOkForFollowerSql`.
+    checkins: [],
   };
 }
 
@@ -137,6 +146,7 @@ function fakeDb(state) {
     // ── (a) THE NOTICE ────────────────────────────────────────────────────
     if (has("update vy_room_follower f") && has("set dormancy_notice_at")) {
       const [nowIso] = p;
+      const nowMs = Date.parse(nowIso);
       const out = [];
       for (const f of state.followers) {
         if (f.dormancy_notice_at != null) continue;
@@ -145,6 +155,12 @@ function fakeDb(state) {
         if (!room || room.dormancy_days == null) continue;
         const threshold = new Date(nowIso).getTime() - (room.dormancy_days - 30) * DAY_MS;
         if (new Date(f.last_seen_at).getTime() >= threshold) continue;
+        // WS-R129: mirrors `quietHoursOkForFollowerSql("f", 1)` — blocked
+        // iff ANY of this follower's own active check-ins currently says no.
+        const blocked = (state.checkins || [])
+          .filter((c) => c.follower_id === f.follower_id && c.state === "active")
+          .some((c) => !isQuietHoursOk(nowMs, c.timezone, c.quiet_from, c.quiet_to));
+        if (blocked) continue;
         f.dormancy_notice_at = nowIso;
         out.push({
           follower_id: f.follower_id, room_id: f.room_id, person_id: f.person_id, agent_id: f.agent_id,
@@ -444,6 +460,59 @@ console.log("\n── §8: dormancy WEB PUSH — now real (WS-R81 fixed room-sw.
   const summary4 = await dormancySweep({ db: db4, env, ...DEPS, webPushSend: throwingSend }, NOW);
   ok("a throwing push send never trips dormancyErrors — the notice itself still counts as sent",
     summary4.dormancyNoticesSent === 1 && summary4.dormancyErrors === 0, JSON.stringify(summary4));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §9: WS-R129 QUIET HOURS — the follower proxy, at the four boundary instants ──");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const t1959 = Date.parse("2026-09-05T16:29:00.000Z"); // 21:59 IST
+  const t2201 = Date.parse("2026-09-05T16:31:00.000Z"); // 22:01 IST
+  const t0659 = Date.parse("2026-09-06T01:29:00.000Z"); // 06:59 IST
+  const t0701 = Date.parse("2026-09-06T01:31:00.000Z"); // 07:01 IST
+
+  const PERSON_QUIET = "aa000000-0000-4000-8000-0000000000a1"; // has an active check-in with a quiet window
+  const PERSON_NO_CHECKIN = "aa000000-0000-4000-8000-0000000000a2"; // no check-in at all — unaffected
+  const FOLLOWER_QUIET = "f0000000-0000-4000-8000-0000000000a1";
+  const FOLLOWER_NO_CHECKIN = "f0000000-0000-4000-8000-0000000000a2";
+
+  function makeState() {
+    const state = freshState();
+    // Both already well past the 335-day notice threshold (365 - 30) at
+    // every one of the four test instants (all within a day of each
+    // other), so the ONLY variable across them is the quiet-hours gate.
+    state.followers.push(
+      { follower_id: FOLLOWER_QUIET, room_id: ROOM_A, person_id: PERSON_QUIET, agent_id: AGENT_ID, locale: "en", age_attested_at: isoBefore(500), last_seen_at: isoBefore(340), dormancy_notice_at: null },
+      { follower_id: FOLLOWER_NO_CHECKIN, room_id: ROOM_A, person_id: PERSON_NO_CHECKIN, agent_id: AGENT_ID, locale: "en", age_attested_at: isoBefore(500), last_seen_at: isoBefore(340), dormancy_notice_at: null },
+    );
+    state.checkins.push({ follower_id: FOLLOWER_QUIET, state: "active", quiet_from: "22:00", quiet_to: "07:00", timezone: "Asia/Kolkata" });
+    return state;
+  }
+
+  {
+    const state = makeState();
+    const due = await dormancyNoticeDue(fakeDb(state), t1959);
+    ok("21:59 IST: the quiet-window follower IS noticed (still outside the window)", due.some((r) => r.person_id === PERSON_QUIET));
+    ok("21:59 IST: the no-check-in follower is noticed", due.some((r) => r.person_id === PERSON_NO_CHECKIN));
+  }
+  {
+    const state = makeState();
+    const due = await dormancyNoticeDue(fakeDb(state), t2201);
+    ok("22:01 IST: the quiet-window follower is EXCLUDED", !due.some((r) => r.person_id === PERSON_QUIET));
+    ok("22:01 IST: dormancy_notice_at stays null (deferred, not dropped)",
+      state.followers.find((f) => f.follower_id === FOLLOWER_QUIET).dormancy_notice_at == null);
+    ok("22:01 IST: the no-check-in follower is UNAFFECTED — still noticed", due.some((r) => r.person_id === PERSON_NO_CHECKIN));
+  }
+  {
+    const state = makeState();
+    const due = await dormancyNoticeDue(fakeDb(state), t0659);
+    ok("06:59 IST: still excluded (the window wraps midnight)", !due.some((r) => r.person_id === PERSON_QUIET));
+  }
+  {
+    const state = makeState();
+    const due = await dormancyNoticeDue(fakeDb(state), t0701);
+    ok("07:01 IST: the quiet-window follower is noticed again", due.some((r) => r.person_id === PERSON_QUIET));
+  }
 }
 
 console.log(`\nroom-dormancy: ${pass} passed, ${fail} failed`);

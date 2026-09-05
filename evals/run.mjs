@@ -2693,6 +2693,25 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "suites-about": "suites-about/run.mjs",
+  // WS-R129 ("quiet hours on every channel"). `api/_quiet-hours.js`'s own
+  // shared fragment (`quietHoursOkSql`/`quietHoursOkForFollowerSql`), and a
+  // static scan proving it is actually spliced into every named proactive
+  // due-select: `api/_checkins.js`'s two sweep statements and
+  // `api/_renewals.js`'s follower reminder select and `api/_dormancy.js`'s
+  // notice-due statement all carry the module's own `QUIET_HOURS_MARKER`
+  // literal in the real SQL text they build, driven with a fake `db` that
+  // records every statement rather than re-typed and hand-matched. TWO
+  // REQUIRED NEGATIVE CONTROLS: a frozen copy of the follower due-select's
+  // WHERE clause exactly as it read before this workstream (no marker) is
+  // asserted to FAIL the same scan, and `quietHoursOkForFollowerSql` on a
+  // follower with zero active check-ins never blocks a send (the proxy's
+  // own "no data, no gate" rule, `api/_quiet-hours.js`'s header). Also the
+  // pure predicate's own math: a plain window and a midnight-wrapping one,
+  // each checked at the four boundary instants the workstream brief names
+  // (21:59/22:01/06:59/07:01, follower's own zone).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "quiet-hours": "quiet-hours/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

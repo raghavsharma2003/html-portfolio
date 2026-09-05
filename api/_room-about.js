@@ -198,6 +198,10 @@ const PAGE_COPY = {
     capsFreeBody: (n) => `A free follower gets ${n} messages a month, no voice calls, and no scheduled check-ins.`,
     capsPaidBody: (messages, minutes) =>
       `A paid follower gets ${messages} messages a month plus up to ${minutes} minutes of voice a month, and can turn on check-ins.`,
+    // WS-R129 ("quiet hours on every channel"). A follower who sets a quiet
+    // window on any check-in does not need to set it again per channel.
+    capsQuietHoursBody:
+      "If you set quiet hours on a check-in, they hold for every channel this AI can reach you on, not only the one you set them from.",
     controlsLabel: "Your controls",
     controlsBody:
       "Memory, language, check-in channels, your subscription, downloading your data, and asking to be forgotten all live in your account, inside the room.",
@@ -225,6 +229,8 @@ const PAGE_COPY = {
     capsFreeBody: (n) => `एक फ्री फॉलोअर को महीने में ${n} मैसेज मिलते हैं, कोई वॉइस कॉल नहीं, और कोई शेड्यूल्ड चेक-इन नहीं।`,
     capsPaidBody: (messages, minutes) =>
       `एक पेड फॉलोअर को महीने में ${messages} मैसेज के साथ महीने में ${minutes} मिनट तक वॉइस मिलता है, और चेक-इन चालू कर सकते हैं।`,
+    capsQuietHoursBody:
+      "अगर आप किसी चेक-इन पर शांत समय सेट करते हैं, तो यह उस चैनल के साथ-साथ हर उस चैनल पर भी लागू होता है जिससे यह AI आप तक पहुंच सकता है।",
     controlsLabel: "आपके नियंत्रण",
     controlsBody:
       "मेमोरी, भाषा, चेक-इन चैनल, आपकी सदस्यता, अपना डेटा डाउनलोड करना, और भुलाए जाने के लिए कहना, यह सब रूम के अंदर आपके अकाउंट में मिलता है।",
@@ -307,6 +313,7 @@ export function buildRoomAboutHtml(room, { origin, slug, lang } = {}) {
       <h2 id="about-caps-title">${esc(c.capsLabel)}</h2>
       <p>${esc(c.capsFreeBody(String(freeCap)))}</p>
       <p>${esc(c.capsPaidBody(String(paidMessages), String(paidVoiceMinutes)))}</p>
+      <p>${esc(c.capsQuietHoursBody)}</p>
     </section>
 
     <section aria-labelledby="about-controls-title">

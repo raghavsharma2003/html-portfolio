@@ -28,10 +28,15 @@
 // §7 NEGATIVE CONTROL (c) — a follower's reminder carries no message text of
 //    theirs (static scan of the module's own source and the push payload
 //    builder).
+// §8 WS-R129 QUIET HOURS — a follower with an active check-in whose own
+//    quiet window is presently blocking sends is excluded from the due
+//    reminder select entirely (deferred to the next daily tick, never
+//    dropped); a follower with NO active check-in is never affected.
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadFixtureAgent, freshState, fakeDb, SLUG, ROOM_ID } from "../room/fixtures.mjs";
+import { isQuietHoursOk } from "../../api/_quiet-hours.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -79,6 +84,11 @@ function freshRenewalsState() {
     rooms: [{ room_id: ROOM_ID, slug: SLUG, display_name: "Anjali", locale: "en" }],
     prices: [{ room_id: ROOM_ID, follower_price_inr: 399, currency: "INR" }],
     orgs: [],
+    // WS-R129: the follower-proxy quiet-hours source, `api/_quiet-hours.js`'s
+    // own `quietHoursOkForFollowerSql` - a follower's own ACTIVE check-in
+    // schedules, the only place this schema stores a quiet window/timezone
+    // per follower today.
+    checkins: [],
   };
 }
 
@@ -89,10 +99,18 @@ function renewalsDb(state) {
     // ── dueReminders: follower ──
     if (has("from vy_room_subscription s") && has("s.follower_id as subject_id")) {
       const [nowIso, endIso] = params;
+      const nowMs = Date.parse(nowIso);
+      // WS-R129: mirrors `quietHoursOkForFollowerSql("f", 1)` — blocked iff
+      // ANY of this follower's own active check-ins currently says no.
+      const quietHoursOk = (followerId) =>
+        !(state.checkins || [])
+          .filter((c) => c.follower_id === followerId && c.state === "active")
+          .some((c) => !isQuietHoursOk(nowMs, c.timezone, c.quiet_from, c.quiet_to));
       return state.roomSubs
         .filter((s) => s.state === "active" && s.cancel_at_period_end !== true && s.current_period_end
           && s.current_period_end >= nowIso && s.current_period_end < endIso
-          && !state.reminders.some((r) => r.subject_kind === "follower" && r.subject_id === s.follower_id && r.period_end === s.current_period_end))
+          && !state.reminders.some((r) => r.subject_kind === "follower" && r.subject_id === s.follower_id && r.period_end === s.current_period_end)
+          && quietHoursOk(s.follower_id))
         .map((s) => {
           const r = state.rooms.find((x) => x.room_id === s.room_id);
           const p = state.prices.find((x) => x.room_id === s.room_id);
@@ -536,6 +554,59 @@ console.log("\n── §7: NEGATIVE CONTROL (c) — a follower's reminder carrie
   const poisoned = 'export function renewalPushPayload(slug, displayName, amountInr) {\n  return JSON.stringify({ body: `Rs ${amountInr}` });\n}';
   ok("NEGATIVE CONTROL: the same scan DOES flag a poisoned version that carries amountInr",
     bannedRegex.test(poisoned));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §8: WS-R129 QUIET HOURS — the follower proxy, at the four boundary instants ──");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const periodEnd = "2026-09-08T00:00:00.000Z";
+  const t1959 = Date.parse("2026-09-05T16:29:00.000Z"); // 21:59 IST
+  const t2201 = Date.parse("2026-09-05T16:31:00.000Z"); // 22:01 IST
+  const t0659 = Date.parse("2026-09-06T01:29:00.000Z"); // 06:59 IST
+  const t0701 = Date.parse("2026-09-06T01:31:00.000Z"); // 07:01 IST
+
+  const state = freshRenewalsState();
+  state.roomSubs.push(
+    // Follower with an active check-in whose quiet window covers 22:00-07:00.
+    { follower_id: uuid(10), room_id: ROOM_ID, person_id: uuid(110), state: "active", cancel_at_period_end: false, current_period_end: periodEnd },
+    // Follower with zero check-ins at all — the common case (checkins are
+    // paid-only) — never blocked, at any hour.
+    { follower_id: uuid(11), room_id: ROOM_ID, person_id: uuid(111), state: "active", cancel_at_period_end: false, current_period_end: periodEnd },
+    // Follower whose check-in exists but is STOPPED — the proxy only ever
+    // reads ACTIVE check-ins, so a stopped one blocks nothing either.
+    { follower_id: uuid(12), room_id: ROOM_ID, person_id: uuid(112), state: "active", cancel_at_period_end: false, current_period_end: periodEnd },
+  );
+  state.checkins.push(
+    { follower_id: uuid(10), state: "active", quiet_from: "22:00", quiet_to: "07:00", timezone: "Asia/Kolkata" },
+    { follower_id: uuid(12), state: "stopped", quiet_from: "22:00", quiet_to: "07:00", timezone: "Asia/Kolkata" },
+  );
+
+  const db = renewalsDb(state);
+  const at1959 = (await dueReminders(db, t1959)).follower.map((r) => r.subject_id);
+  ok("21:59 IST: the quiet-window follower IS due (still outside the window)", at1959.includes(uuid(10)));
+  ok("21:59 IST: the no-check-in follower is due", at1959.includes(uuid(11)));
+  ok("21:59 IST: the stopped-check-in follower is due", at1959.includes(uuid(12)));
+
+  const at2201 = (await dueReminders(db, t2201)).follower.map((r) => r.subject_id);
+  ok("22:01 IST: the quiet-window follower is EXCLUDED (inside their own window)", !at2201.includes(uuid(10)));
+  ok("22:01 IST: the no-check-in follower is UNAFFECTED — still due", at2201.includes(uuid(11)));
+  ok("22:01 IST: the stopped-check-in follower is UNAFFECTED — still due", at2201.includes(uuid(12)));
+
+  const at0659 = (await dueReminders(db, t0659)).follower.map((r) => r.subject_id);
+  ok("06:59 IST: still excluded (the window wraps midnight)", !at0659.includes(uuid(10)));
+
+  const at0701 = (await dueReminders(db, t0701)).follower.map((r) => r.subject_id);
+  ok("07:01 IST: the quiet-window follower is due again", at0701.includes(uuid(10)));
+
+  // Deferred, not dropped: no reminder row was ever inserted for uuid(10)
+  // during the blocked ticks (§2's own idempotency-by-INSERT never ran for
+  // it), so the 07:01 tick still finds it due rather than having recorded a
+  // false "already reminded" - `recordAndSend` is the ONLY writer of
+  // `vy_renewal_reminder`, and it was never called for a subject the due-
+  // select itself never returned.
+  ok("deferred, not dropped: no reminder row exists yet for the quiet-window follower",
+    !state.reminders.some((r) => r.subject_id === uuid(10)));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

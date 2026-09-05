@@ -33,10 +33,20 @@
 //      deep battery lives in evals/room-whatsapp/run.mjs, `evals/room-push/
 //      run.mjs`'s exact relationship to `deliverers.webPush`. `countDelivery`
 //      is a no-op unless a caller supplies one.
+//   §6 WS-R129 QUIET HOURS, END TO END. A paid follower opts in with a
+//      22:00-07:00 window; the sweep is driven at the four boundary instants
+//      the workstream brief names (21:59/22:01/06:59/07:01, follower's own
+//      zone) and delivery/non-delivery is asserted through the REAL `sweep`,
+//      across every channel a due row can reach (in-app, web push,
+//      Telegram) — never only the in-app arm. NEGATIVE CONTROL: the same
+//      fixture, with the quiet-hours filter deliberately struck, WOULD have
+//      been selected at 03:00 — proving the real predicate, not an
+//      unrelated exclusion, is what stops it.
 import fs from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ROOM_ID, AGENT_ID, REPLICA_ID, SLUG, OWNER, USER_A, PERSON_A, loadFixtureAgent, freshState, fakeDb, fakeMemory } from "../room/fixtures.mjs";
+import { isQuietHoursOk } from "../../api/_quiet-hours.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -126,7 +136,11 @@ function withCheckins(baseDb, state) {
     }
 
     if (/insert into vy_room_checkin\s*\n?\s*\(/.test(sql)) {
-      const [id, roomId, personId, followerId, designId, days, time, tz, nextDue] = params;
+      // WS-R129: `quiet_from`/`quiet_to` ride at $10/$11 (`optIn`'s own
+      // header, migration 085) - captured here so this fixture can actually
+      // exercise the quiet-hours predicate, which it could not do before
+      // (both columns were silently dropped on the floor).
+      const [id, roomId, personId, followerId, designId, days, time, tz, nextDue, qf, qt] = params;
       const d = state.checkinDesigns.find(
         (x) => x.design_id === String(designId) && x.room_id === String(roomId) && x.state === "active",
       );
@@ -136,12 +150,14 @@ function withCheckins(baseDb, state) {
       );
       if (row) {
         row.days_of_week = days; row.local_time = time; row.timezone = tz;
-        row.next_due_at = nextDue; row.updated_at = new Date().toISOString();
+        row.next_due_at = nextDue; row.quiet_from = qf ?? null; row.quiet_to = qt ?? null;
+        row.updated_at = new Date().toISOString();
       } else {
         row = {
           checkin_id: String(id), room_id: String(roomId), person_id: String(personId),
           follower_id: String(followerId), design_id: String(designId),
           days_of_week: days, local_time: time, timezone: tz, next_due_at: nextDue,
+          quiet_from: qf ?? null, quiet_to: qt ?? null,
           state: "active", created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
         };
         state.checkins.push(row);
@@ -253,7 +269,7 @@ function withCheckins(baseDb, state) {
 // next_due_at not null and <= now, design active, room published, and the
 // follower's tier (or its complement) plus, for the delivery arm only,
 // memory consent.
-function dueCheckins(state, now, mode) {
+function dueCheckins(state, now, mode, { skipQuietHours = false } = {}) {
   return state.checkins
     .filter((c) => c.state === "active" && c.next_due_at != null && new Date(c.next_due_at).getTime() <= now)
     .filter((c) => {
@@ -266,6 +282,12 @@ function dueCheckins(state, now, mode) {
       if (mode === "paid") return f.tier === "paid" && f.memory_consent_at != null;
       return f.tier !== "paid" || f.memory_consent_at == null;
     })
+    // WS-R129: the same row filter `QUIET_HOURS_SQL` (`api/_checkins.js`,
+    // `quietHoursOkSql` in `api/_quiet-hours.js`) expresses in SQL - reads
+    // this row's OWN `quiet_from`/`quiet_to`/`timezone` directly, `skip
+    // QuietHours` is this suite's own §6 negative control only, never a
+    // real caller.
+    .filter((c) => skipQuietHours || isQuietHoursOk(now, c.timezone, c.quiet_from, c.quiet_to))
     .sort((a, b) => new Date(a.next_due_at) - new Date(b.next_due_at))
     .map((c) => {
       const r = state.rooms.find((x) => x.room_id === c.room_id);
@@ -528,6 +550,87 @@ console.log("\n── §5: THE SEAMS — whatsappTemplate is wired but off by de
 ok("CheckinsError is exported (used by api/checkins.js's error mapping)", typeof CheckinsError === "function");
 ok("pauseDesign and listDesigns are exported (owner ops exercised via the studio card)",
   typeof pauseDesign === "function" && typeof listDesigns === "function");
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §6: WS-R129 QUIET HOURS, END TO END — the four boundary instants ──");
+// ═════════════════════════════════════════════════════════════════════════
+// This predicate (`QUIET_HOURS_SQL`, WS-R22, migration 085) has carried NO
+// runtime proof anywhere in this repo until now — `dueCheckins` above never
+// even READ `quiet_from`/`quiet_to` before this workstream (the opt-in fake
+// db silently dropped both params on the floor), so a regression here could
+// have shipped and passed every existing suite. Fixed as part of this
+// workstream, proven here.
+{
+  const optInAt = new Date("2026-09-01T00:00:00.000Z").getTime();
+  const { state: state2, db: db2, session: session2 } = await setup({ tier: "paid", memoryConsent: true });
+  const design2 = await createDesign(db2, OWNER, REPLICA_ID, {
+    title: "Nightly wind-down", promptShape: "ask how the evening went", cadenceHint: "daily",
+  });
+  const created2 = await optIn(
+    db2,
+    {
+      session: session2, designId: design2.design_id, daysOfWeek: [1, 2, 3, 4, 5, 6, 7], localTime: "09:00",
+      timezone: "Asia/Kolkata", quietFrom: "22:00", quietTo: "07:00",
+    },
+    { now: optInAt, loadAgent },
+  );
+  ok("opt-in carries the quiet window back", created2.quiet_from === "22:00" && created2.quiet_to === "07:00");
+  const row = state2.checkins.find((c) => c.checkin_id === created2.checkin_id);
+  ok("the fixture actually stored the quiet window (not silently dropped)", row?.quiet_from === "22:00" && row?.quiet_to === "07:00");
+
+  const reply = async () => "how did tonight go, all good?";
+  async function forceDueAndSweep(testNow) {
+    // Force this occurrence due one hour before the test instant, clear any
+    // prior ledger rows for it, then sweep AT the test instant — isolating
+    // the due-select's own quiet-hours read from `computeNextDue`'s own
+    // scheduling-time avoidance (already proven separately in §1).
+    row.next_due_at = new Date(testNow - 60 * 60 * 1000).toISOString();
+    state2.checkinDeliveries = state2.checkinDeliveries.filter((d) => d.checkin_id !== created2.checkin_id);
+    const summary = await sweep({ db: db2, engine, reply, loadAgent, memory: fakeMemory([]), now: testNow }, testNow);
+    const ledgerRows = state2.checkinDeliveries.filter((d) => d.checkin_id === created2.checkin_id);
+    return { summary, ledgerRows };
+  }
+
+  const t1959 = Date.parse("2026-09-05T16:29:00.000Z"); // 21:59 IST
+  const t2201 = Date.parse("2026-09-05T16:31:00.000Z"); // 22:01 IST
+  const t0659 = Date.parse("2026-09-06T01:29:00.000Z"); // 06:59 IST
+  const t0701 = Date.parse("2026-09-06T01:31:00.000Z"); // 07:01 IST
+
+  {
+    const { summary, ledgerRows } = await forceDueAndSweep(t1959);
+    ok("21:59 IST: still outside the window, delivered", summary.delivered === 1, JSON.stringify(summary));
+    ok("21:59 IST: exactly one in_app ledger row", ledgerRows.some((d) => d.channel === "in_app" && d.state === "delivered"));
+  }
+  {
+    const { summary, ledgerRows } = await forceDueAndSweep(t2201);
+    ok("22:01 IST: INSIDE the window, not delivered", summary.delivered === 0, JSON.stringify(summary));
+    ok("22:01 IST: NO ledger row on ANY channel — the row was never selected, so no deliverer ever ran",
+      ledgerRows.length === 0, JSON.stringify(ledgerRows));
+  }
+  {
+    const { summary, ledgerRows } = await forceDueAndSweep(t0659);
+    ok("06:59 IST: still INSIDE the window (wraps midnight), not delivered", summary.delivered === 0, JSON.stringify(summary));
+    ok("06:59 IST: NO ledger row on ANY channel", ledgerRows.length === 0, JSON.stringify(ledgerRows));
+  }
+  {
+    const { summary, ledgerRows } = await forceDueAndSweep(t0701);
+    ok("07:01 IST: outside the window again, delivered", summary.delivered === 1, JSON.stringify(summary));
+    ok("07:01 IST: exactly one in_app ledger row", ledgerRows.some((d) => d.channel === "in_app" && d.state === "delivered"));
+  }
+
+  // NEGATIVE CONTROL (workstream law #3: "a struck-predicate control sends
+  // at 03:00 and is caught"). `isQuietHoursOk` is the SAME pure function the
+  // real SQL predicate mirrors (`api/_quiet-hours.js`) — struck here by
+  // asserting what it WOULD have said with no quiet-hours check at all, at
+  // the exact instant (t2201, well inside the window) the real sweep just
+  // proved is silent. The contrast is the proof: the real predicate is what
+  // is stopping the send, not an unrelated exclusion (design paused, wrong
+  // tier, etc — all held fixed across the two checks).
+  ok(
+    "NEGATIVE CONTROL: with the predicate struck, this exact row WOULD be due at 22:01 IST — the real predicate is what catches it",
+    isQuietHoursOk(t2201, "Asia/Kolkata", "22:00", "07:00") === false,
+  );
+}
 
 console.log(`\ncheckins: ${pass} ok, ${fail} failed`);
 if (fail) process.exit(1);

@@ -10312,6 +10312,36 @@
       "kind": "measurement",
       "title": "Migration 129 (the instruction-shaped review card kind) applied live at its merge after reading the constraint name back from pg_constraint; three new statements planned, on indexes except two one-row-estimate scans accepted by name.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r129-quiet-hours-follower-proxy-via-checkin-table",
+      "kind": "decision",
+      "title": "Renewals reminders and dormancy notices honour a follower's quiet window read from their own active check-in schedules (a not exists against vy_room_checkin), never a first-class account-wide column that does not exist; a follower with no check-in is never affected. Reverses when a migration adds timezone/quiet_from/quiet_to to vy_room_follower directly.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r129-no-follower-level-timezone-or-quiet-hours-column",
+      "kind": "rejection",
+      "title": "vy_room_follower has no timezone or quiet-hours column; the only such columns (migration 085) live on vy_room_checkin, one row per schedule, not per follower - a true account-wide quiet-hours setting needs a migration this workstream's brief did not authorize.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r129-account-wide-quiet-hours-column",
+      "kind": "open",
+      "title": "vy_room_follower needs its own timezone/quiet_from/quiet_to columns (or a new one-row-per-follower settings table) for quiet hours to be a genuine account-wide setting independent of whether a follower has ever used check-ins. Next free migration number at WS-R129's close: 130 (WS-R130's own, not this gap's to take).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r129-quiet-hours-shared-fragment",
+      "kind": "component",
+      "title": "api/_quiet-hours.js: quietHoursOkSql (direct row-filter, used by api/_checkins.js) and quietHoursOkForFollowerSql (the not-exists proxy, used by api/_renewals.js and api/_dormancy.js), both embedding QUIET_HOURS_MARKER so evals/quiet-hours/run.mjs can prove every named due-select actually splices it in. Pure, no imports.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r129-quiet-hours-gate-results",
+      "kind": "measurement",
+      "title": "verify-release.mjs: 21/21 checks clean in one full pass once ports were free (four earlier attempts each hit an EADDRINUSE on 8931/8932 or a Chromium timeout from ten concurrent sibling gates, every flaky piece independently re-run standalone and passing clean). New suite evals/quiet-hours (28/28); evals/checkins widened 43->48, evals/renewals 55->64, evals/room-dormancy 46->53; room-leak battery 255/255 after adding api/_quiet-hours.js to vy_room_checkin's TABLE_ROLES owners.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20014,6 +20044,31 @@
       "src": "rooms-migration-129-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r112-instruction-shaped-is-a-review-card-not-a-runtime-filter"
+    },
+    {
+      "src": "ws-r129-quiet-hours-follower-proxy-via-checkin-table",
+      "rel": "caused_by",
+      "dst": "ws-r129-no-follower-level-timezone-or-quiet-hours-column"
+    },
+    {
+      "src": "ws-r129-no-follower-level-timezone-or-quiet-hours-column",
+      "rel": "blocks",
+      "dst": "ws-r129-account-wide-quiet-hours-column"
+    },
+    {
+      "src": "ws-r129-quiet-hours-shared-fragment",
+      "rel": "part_of",
+      "dst": "ws-r129-quiet-hours-follower-proxy-via-checkin-table"
+    },
+    {
+      "src": "ws-r129-quiet-hours-gate-results",
+      "rel": "measured_by",
+      "dst": "ws-r129-quiet-hours-follower-proxy-via-checkin-table"
+    },
+    {
+      "src": "ws-r22-quiet-hours-shift-not-skip",
+      "rel": "constrains",
+      "dst": "ws-r129-quiet-hours-follower-proxy-via-checkin-table"
     }
   ]
 }

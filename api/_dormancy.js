@@ -50,6 +50,10 @@ import { activeTelegramChannelFor, roomForgetForFollower } from "./_room-surface
 import { activeSubscriptionsFor } from "./_room-push.js";
 import { send as webPushSend, dormancyPushPayload } from "./_push/webpush.js";
 import { sendRoomCheckinMessage } from "./_room-telegram.js";
+// WS-R129: "quiet hours on every channel" - the follower proxy, `api/_quiet-
+// hours.js`'s own header explains why this is the best this schema can do
+// for a sender with no check-in row of its own.
+import { quietHoursOkForFollowerSql } from "./_quiet-hours.js";
 
 /** The floor migration 119's own CHECK enforces — mirrored here (never
  *  re-typed as a bare number) for the same reason `api/_room-publish.js`'s
@@ -90,6 +94,16 @@ export function dormancyEnabled(env = process.env) {
  * `f.age_attested_at is not null` excludes a row `joinRoom` never finished
  * attesting — the same guard every other follower-scoped write in this
  * repo carries (`api/_room-surface.js`'s own `selfScope`).
+ *
+ * WS-R129 ("quiet hours on every channel"): also excludes a follower
+ * currently inside any of their own active check-in schedules' quiet window
+ * (`quietHoursOkForFollowerSql`, `api/_quiet-hours.js` - that module's own
+ * header names why this is a proxy, not a first-class per-follower column).
+ * A follower blocked this tick simply keeps `dormancy_notice_at` null, so
+ * the next daily sweep tick finds them again - deferred, not dropped, the
+ * exact idempotency-by-column this function's own header already relies on
+ * for "has this follower been noticed yet" rather than "was this tick the
+ * one that noticed them."
  */
 export async function dormancyNoticeDue(db, now = Date.now()) {
   const nowIso = new Date(now).toISOString();
@@ -102,6 +116,7 @@ export async function dormancyNoticeDue(db, now = Date.now()) {
         and f.dormancy_notice_at is null
         and f.age_attested_at is not null
         and f.last_seen_at < ($1)::timestamptz - make_interval(days => r.dormancy_days - ${DORMANCY_GRACE_DAYS})
+        and ${quietHoursOkForFollowerSql("f", 1)}
       returning f.follower_id, f.room_id, f.person_id, f.agent_id, f.locale,
                 r.slug, r.display_name`,
     [nowIso],

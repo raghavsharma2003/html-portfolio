@@ -19996,3 +19996,41 @@ the standard this repo held WS-R110's OWN codec claim to) and explicitly
 covers the codec and bitrate a future session intends to ship at. Either
 would justify moving to option (b)/(c) from the original brief; short of
 one, the honest state is what this entry records.
+
+## `ws-r129-quiet-hours-follower-proxy-via-checkin-table` (2026-09-05, WS-R129)
+
+**Decision.** "Quiet hours on every channel" (renewals reminders, dormancy
+notices) is enforced against a follower who has never set up a check-in
+by NOT enforcing it at all — the row is selectable at any hour, exactly
+today's behaviour — rather than either (a) inventing a default window no
+follower asked for, or (b) blocking every send for a follower with no
+signal. For a follower who HAS set a quiet window on any of their own
+active check-in schedules, that SAME window (read via a `not exists`
+against `vy_room_checkin`, `api/_quiet-hours.js`'s `quietHoursOkForFollowerSql`)
+now also gates their renewal reminders and dormancy notices, on every
+channel those two senders reach (in-app, web push, Telegram).
+`api/_checkins.js`'s own due-select is unchanged in behaviour — it already
+had a real `vy_room_checkin` row in hand — only its predicate's TEXT moved
+into the shared module (`quietHoursOkSql`) so all three senders read one
+copy of the same logic.
+
+**Rationale.** `vy_room_follower` carries no timezone or quiet-hours column
+of its own (see `context/rejected.md#ws-r129-no-follower-level-timezone-or-
+quiet-hours-column`), so there is no true account-wide setting to read for
+renewals/dormancy without a migration this workstream's brief did not
+authorize (133 belongs to WS-R130). Reusing the check-in table's own
+columns is the only way to make "on every channel" true for ANY real
+follower today rather than true in name only. It is also the ONLY
+per-follower signal this schema has ever asked a follower for by name
+("Not between", `CheckinsPanel.tsx`), so it is a legitimate reading of
+what they meant, not an invented proxy.
+
+**What would reverse it.** A migration adds `timezone`/`quiet_from`/
+`quiet_to` directly to `vy_room_follower` (or a new one-row-per-follower
+settings table) and an account-page control writes to it directly. At that
+point `quietHoursOkForFollowerSql` should read the new column set FIRST,
+falling back to the check-in proxy only for a follower who set a window
+before the new column existed (a migration-day compatibility window,
+never a permanent second source of truth) — or be retired outright if a
+backfill copies every check-in's own window onto the new column at
+migration time.
