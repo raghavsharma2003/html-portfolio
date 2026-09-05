@@ -2,38 +2,29 @@ import { useState } from "react";
 import { saveTurnFeedback } from "./feedbackApi";
 import { ReplicaApiError } from "./replicaApi";
 import type { ReplicaTurnFeedback, TurnFeedbackRating } from "./types";
+import { useStudioLocale } from "./localeContext";
+import { withCount } from "./copy";
 
-const DIMENSIONS = [
-  ["wording", "Wording", "The phrases and sentence shape"],
-  ["behavior", "Behavior", "How you react and make decisions"],
-  ["relationship", "Relationship", "How this sounds with this person"],
-  ["memory", "Memory", "Facts, callbacks, and uncertainty"],
-  ["delivery", "Delivery", "Pace, emotion, and nonverbals"],
-  ["voice_identity", "Voice", "The protected audio you actually heard"],
-] as const;
+const DIMENSIONS = ["wording", "behavior", "relationship", "memory", "delivery", "voice_identity"] as const;
 
-const RATINGS: Array<{ value: TurnFeedbackRating; label: string }> = [
-  { value: "exact", label: "Exact" },
-  { value: "close", label: "Close" },
-  { value: "off", label: "Off" },
-];
+const RATING_VALUES: Array<"exact" | "close" | "off"> = ["exact", "close", "off"];
 
 const REASONS = [
-  ["too_generic", "Too generic", ["overall", "wording", "behavior", "relationship"]],
-  ["wrong_fact", "Wrong fact", ["overall", "memory"]],
-  ["wrong_relationship", "Wrong relationship", ["overall", "relationship"]],
-  ["wrong_tone", "Wrong tone", ["overall", "behavior", "delivery"]],
-  ["wrong_wording", "Wrong wording", ["overall", "wording"]],
-  ["too_long", "Too long", ["overall", "wording", "delivery"]],
-  ["too_short", "Too short", ["overall", "wording", "delivery"]],
-  ["voice_mismatch", "Voice mismatch", ["voice_identity"]],
-  ["emotion_mismatch", "Emotion mismatch", ["behavior", "delivery", "voice_identity"]],
-  ["unsafe_or_boundary", "Crossed a boundary", []],
-  ["other", "Something else", []],
+  ["too_generic", ["overall", "wording", "behavior", "relationship"]],
+  ["wrong_fact", ["overall", "memory"]],
+  ["wrong_relationship", ["overall", "relationship"]],
+  ["wrong_tone", ["overall", "behavior", "delivery"]],
+  ["wrong_wording", ["overall", "wording"]],
+  ["too_long", ["overall", "wording", "delivery"]],
+  ["too_short", ["overall", "wording", "delivery"]],
+  ["voice_mismatch", ["voice_identity"]],
+  ["emotion_mismatch", ["behavior", "delivery", "voice_identity"]],
+  ["unsafe_or_boundary", []],
+  ["other", []],
 ] as const;
 
 function reasonApplies(reason: (typeof REASONS)[number], ratings: Record<string, TurnFeedbackRating>) {
-  return reason[2].length === 0 || reason[2].some((dimension) => dimension in ratings);
+  return reason[1].length === 0 || reason[1].some((dimension) => dimension in ratings);
 }
 
 export default function TurnFeedback({
@@ -49,6 +40,8 @@ export default function TurnFeedback({
   voiceHeard: boolean;
   onAuthError: (cause: unknown) => void;
 }) {
+  const { t } = useStudioLocale();
+  const c = t.turnFeedback;
   const [open, setOpen] = useState(false);
   const [ratings, setRatings] = useState<Record<string, TurnFeedbackRating>>({});
   const [reasons, setReasons] = useState<string[]>([]);
@@ -77,7 +70,7 @@ export default function TurnFeedback({
       setRatings(nextRatings);
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "This fidelity note could not be secured");
+      setError(cause instanceof Error ? cause.message : c.errorFallback);
     } finally {
       setBusy(false);
     }
@@ -99,45 +92,46 @@ export default function TurnFeedback({
   const hasMismatch = Object.values(ratings).some((rating) => rating === "close" || rating === "off" || rating === "unsafe");
   const correctionEligible = ["wording", "behavior", "relationship", "memory"].some((dimension) => ratings[dimension] === "close" || ratings[dimension] === "off" || ratings[dimension] === "unsafe");
   const visibleReasons = REASONS.filter((reason) => reasonApplies(reason, ratings));
+  const ratedCount = Object.keys(ratings).length;
 
   return (
     <div className={`turn-feedback ${open ? "open" : ""}`}>
       {!open ? (
         <div className="turn-feedback-quick">
-          {saved ? <span className="turn-feedback-saved">Revision {saved.revision} secured</span> : <span>Did this feel like you?</span>}
-          <button type="button" disabled={busy} onClick={() => void persist({ overall: "exact" }, [], "")}>This is me</button>
-          <button type="button" disabled={busy} onClick={() => { setOpen(true); setError(""); }}>Tune this</button>
+          {saved ? <span className="turn-feedback-saved">{withCount(c.savedRevision, saved.revision)}</span> : <span>{c.didThisFeelLikeYou}</span>}
+          <button type="button" disabled={busy} onClick={() => void persist({ overall: "exact" }, [], "")}>{c.thisIsMe}</button>
+          <button type="button" disabled={busy} onClick={() => { setOpen(true); setError(""); }}>{c.tuneThis}</button>
         </div>
       ) : (
         <form onSubmit={(event) => { event.preventDefault(); void persist(ratings); }}>
-          <div className="turn-feedback-title"><strong>Teach the difference</strong><button type="button" onClick={() => setOpen(false)}>Close</button></div>
-          <p>Grade only what you noticed. Unrated layers remain unknown.</p>
+          <div className="turn-feedback-title"><strong>{c.teachDifference}</strong><button type="button" onClick={() => setOpen(false)}>{c.close}</button></div>
+          <p>{c.gradeOnlyNote}</p>
           <div className="feedback-dimensions">
-            {DIMENSIONS.map(([dimension, label, description]) => {
+            {DIMENSIONS.map((dimension) => {
               const disabled = dimension === "voice_identity" && !voiceHeard;
               return (
                 <fieldset key={dimension} disabled={disabled}>
-                  <legend><span>{label}</span><small>{disabled ? "Play protected voice first" : description}</small></legend>
-                  <div>{RATINGS.map((rating) => <button className={ratings[dimension] === rating.value ? "selected" : ""} type="button" key={rating.value} onClick={() => rate(dimension, rating.value)}>{rating.label}</button>)}</div>
+                  <legend><span>{c.dimensionLabel[dimension]}</span><small>{disabled ? c.playVoiceFirst : c.dimensionDescription[dimension]}</small></legend>
+                  <div>{RATING_VALUES.map((rating) => <button className={ratings[dimension] === rating ? "selected" : ""} type="button" key={rating} onClick={() => rate(dimension, rating)}>{c.ratingLabel[rating]}</button>)}</div>
                 </fieldset>
               );
             })}
           </div>
           {hasMismatch ? (
             <div className="feedback-reasons">
-              <span>What missed?</span>
-              <div>{visibleReasons.map(([value, label]) => <button className={reasons.includes(value) ? "selected" : ""} type="button" key={value} onClick={() => toggleReason(value)}>{label}</button>)}</div>
+              <span>{c.whatMissed}</span>
+              <div>{visibleReasons.map(([value]) => <button className={reasons.includes(value) ? "selected" : ""} type="button" key={value} onClick={() => toggleReason(value)}>{c.reasonLabel[value]}</button>)}</div>
             </div>
           ) : null}
           {correctionEligible ? (
             <label className="feedback-correction">
-              <span>What would you actually say? <small>optional, encrypted before storage</small></span>
-              <textarea rows={2} maxLength={2_000} value={correction} onChange={(event) => setCorrection(event.target.value)} placeholder="Write the version that sounds like you." />
+              <span>{c.correctionLabel} <small>{c.correctionOptionalNote}</small></span>
+              <textarea rows={2} maxLength={2_000} value={correction} onChange={(event) => setCorrection(event.target.value)} placeholder={c.correctionPlaceholder} />
             </label>
           ) : null}
           <div className="feedback-actions">
-            <span>{Object.keys(ratings).length ? `${Object.keys(ratings).length} layer${Object.keys(ratings).length === 1 ? "" : "s"} rated` : "Choose at least one layer"}</span>
-            <button className="button primary-button" type="submit" disabled={busy || !Object.keys(ratings).length}>{busy ? "Securing..." : "Save evidence"}</button>
+            <span>{ratedCount ? withCount(ratedCount === 1 ? c.layersRatedOne : c.layersRatedMany, ratedCount) : c.chooseAtLeastOne}</span>
+            <button className="button primary-button" type="submit" disabled={busy || !ratedCount}>{busy ? c.securing : c.saveEvidence}</button>
           </div>
         </form>
       )}

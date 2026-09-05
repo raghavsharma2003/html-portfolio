@@ -22,29 +22,24 @@
 // `StudioApp.tsx` (search for `VideoLinkMount`). It carries no state and no API
 // call, so removing it cannot break anything above it.
 
+import { useStudioLocale } from "./localeContext";
+
 /** What the channel lane already covers, so the gap is stated precisely. */
 export default function VideoLinkMount() {
+  const { t } = useStudioLocale();
+  const c = t.videoLinkMount;
   return (
     <section id="video-link-mount" className="video-link-mount" aria-labelledby="video-link-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Coming online</p>
-          <h2 id="video-link-title">One video, by link</h2>
-          <p>
-            Paste a single lecture URL and we pull the audio, transcribe it, and propose what it teaches us about
-            how you explain. This lane is being built right now and is not connected yet.
-          </p>
+          <p className="eyebrow">{c.eyebrow}</p>
+          <h2 id="video-link-title">{c.title}</h2>
+          <p>{c.blurb}</p>
         </div>
       </div>
       <div className="video-link-body">
-        <p className="field-note">
-          There is deliberately no box to paste into yet. A field that accepted a link and did nothing with it would
-          cost you the paste and the wait, and tell you nothing true.
-        </p>
-        <p className="field-note">
-          What works today for video: connect your channel below, and we watch it for new uploads with your
-          attested permission. Everything that lane extracts is proposed to you, never applied on its own.
-        </p>
+        <p className="field-note">{c.noBoxNote}</p>
+        <p className="field-note">{c.worksTodayNote}</p>
       </div>
     </section>
   );

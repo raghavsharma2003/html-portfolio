@@ -80,27 +80,26 @@ import {
   type PulseReport,
 } from "./pulseApi";
 import { markFunnelStep } from "./funnelApi";
+import { useStudioLocale } from "./localeContext";
+import { withCount, withLabel, STUDIO_LANGUAGE_LABELS, type StudioCopy } from "./copy";
 import "./roomStudio.css";
 
 /** Plain-words sentence for the verdict line - WS-R12's own card. Never a
  *  fabricated number: an unmeasurable verdict names what is missing (a
  *  cohort six weeks old) rather than guessing at a percentage. */
-function cohortVerdictSentence(v: RoomCohortVerdictLine): string {
+function cohortVerdictSentence(t: StudioCopy, v: RoomCohortVerdictLine): string {
+  const c = t.roomStudio;
   if (v.verdict === "not_measurable_yet" || v.week6_return_share == null || !v.cohort_week) {
-    return "Not measurable yet. This needs a cohort that has been open for at least six weeks.";
+    return c.notMeasurableYetVerdict;
   }
   const pct = Math.round(v.week6_return_share * 100);
   const band =
-    v.verdict === "below_25"
-      ? "below the 25% gate this product needs to work at all"
-      : v.verdict === "above_40"
-        ? "above the 40% line where this becomes a category"
-        : "between the 25% gate and the 40% category line";
-  return `Your oldest measurable cohort, the week of ${v.cohort_week}, returned ${pct}%. That is ${band}.`;
+    v.verdict === "below_25" ? c.belowGateBand : v.verdict === "above_40" ? c.aboveCategoryBand : c.betweenBand;
+  return c.cohortVerdictSentence.split("{label}").join(v.cohort_week).split("{n}").join(String(pct)).split("{label2}").join(band);
 }
 
-function formatCohortDate(iso: string | null): string {
-  if (!iso) return "soon";
+function formatCohortDate(t: StudioCopy, iso: string | null): string {
+  if (!iso) return t.roomStudio.soon;
   const d = new Date(`${iso}T00:00:00.000Z`);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -133,19 +132,29 @@ const BLOCKER_STEP: Record<string, StepId> = {
   "teacher-sheet-studio": "meet",
 };
 
-function BlockerRow({ blocker, cls, onJump }: { blocker: RoomBlocker; cls: "you" | "us"; onJump: (anchor: string) => void }) {
+function BlockerRow({
+  blocker,
+  cls,
+  onJump,
+  t,
+}: {
+  blocker: RoomBlocker;
+  cls: "you" | "us";
+  onJump: (anchor: string) => void;
+  t: StudioCopy;
+}) {
   const id = blocker.anchor.replace("#", "");
   const step = BLOCKER_STEP[id];
   return (
     <li className={`vy-room__blocker vy-room__blocker--${cls}`}>
-      <span className="vy-room__blocker-badge">{cls === "you" ? "Waiting on you" : "Waiting on us"}</span>
+      <span className="vy-room__blocker-badge">{cls === "you" ? t.classLabels.you : t.classLabels.us}</span>
       <div>
         <p>{blocker.headline}</p>
         <p className="field-note">{blocker.next}</p>
       </div>
       {id && (
         <button type="button" className="text-button" onPointerDown={() => onJump(blocker.anchor)}>
-          {step === "meet" ? "Go there" : "Show me"}
+          {step === "meet" ? t.wizardRail.goThere : t.roomStudio.showMe}
         </button>
       )}
     </li>
@@ -180,6 +189,8 @@ export default function RoomStudio({
     blocker: { label: string; anchor: string; cls: "you" | "us" } | null,
   ) => void;
 }) {
+  const { t } = useStudioLocale();
+  const c = t.roomStudio;
   const [room, setRoom] = useState<OwnedRoom | null>(null);
   const [reason, setReason] = useState<string | null>(null);
   const [blockers, setBlockers] = useState<RoomBlockers | null>(null);
@@ -318,7 +329,7 @@ export default function RoomStudio({
       setCapDraft(next.free_monthly_messages);
       setPaidMessagesDraft(next.paid_monthly_messages);
       setPaidVoiceDraft(next.paid_monthly_voice_seconds);
-      setNotice("Your Room is set up. Publish it when you are ready.");
+      setNotice(c.noticeRoomSetup);
       onStatusChange?.(next.published);
       onRoomState?.(next, null, null);
     } catch (e) {
@@ -336,7 +347,7 @@ export default function RoomStudio({
       const next = await renameOwnedRoom(token, replicaId, slugDraft);
       setRoom(next);
       setSlugDraft(next.slug);
-      setNotice("Address saved.");
+      setNotice(c.noticeAddressSaved);
     } catch (e) {
       fail(e);
     } finally {
@@ -358,7 +369,7 @@ export default function RoomStudio({
       const next = await publishOwnedRoom(token, replicaId);
       setRoom(next);
       setBlockers({ waiting_on_you: [], waiting_on_us: [] });
-      setNotice("Your Room is live.");
+      setNotice(c.noticeRoomLive);
       onStatusChange?.(next.published);
       const freshStats = await readOwnedRoomStats(token, replicaId).catch(() => null);
       setStats(freshStats);
@@ -379,7 +390,7 @@ export default function RoomStudio({
     try {
       const next = room.paused ? await resumeOwnedRoom(token, replicaId) : await pauseOwnedRoom(token, replicaId);
       setRoom(next);
-      setNotice(next.paused ? "Paused. Nobody can reach your Room until you resume it." : "Resumed. Your Room is live again.");
+      setNotice(next.paused ? c.pausedNotice : c.noticeResumed);
       onStatusChange?.(next.published);
       onRoomState?.(next, stats, null);
     } catch (e) {
@@ -397,7 +408,7 @@ export default function RoomStudio({
         const updated = await setOwnedRoomFreeCap(token, replicaId, next);
         setRoom(updated);
         setCapDraft(updated.free_monthly_messages);
-        setNotice(`Free followers now get ${updated.free_monthly_messages} messages a month.`);
+        setNotice(withCount(c.noticeFreeCap, updated.free_monthly_messages));
       } catch (e) {
         fail(e);
       } finally {
@@ -414,11 +425,7 @@ export default function RoomStudio({
       try {
         const updated = await setOwnedRoomDefaultLocale(token, replicaId, next);
         setRoom(updated);
-        setNotice(
-          next === "hi"
-            ? "New followers with no language set will see Hindi first."
-            : "New followers with no language set will see English first.",
-        );
+        setNotice(next === "hi" ? c.noticeDefaultLocaleHi : c.noticeDefaultLocaleEn);
       } catch (e) {
         fail(e);
       } finally {
@@ -436,7 +443,7 @@ export default function RoomStudio({
         const updated = await setOwnedRoomBio(token, replicaId, next);
         setRoom(updated);
         setBioDraft(updated.one_line_bio);
-        setNotice("Your one-line description is saved.");
+        setNotice(c.noticeBioSaved);
       } catch (e) {
         fail(e);
       } finally {
@@ -454,11 +461,7 @@ export default function RoomStudio({
     try {
       const next = room.listed ? await unlistOwnedRoom(token, replicaId) : await listOwnedRoom(token, replicaId);
       setRoom(next);
-      setNotice(
-        next.listed
-          ? "Listed. Your Room now appears in the creator directory."
-          : "Unlisted. Your Room is off the directory; the link above still works."
-      );
+      setNotice(next.listed ? c.noticeListed : c.noticeUnlisted);
     } catch (e) {
       fail(e);
     } finally {
@@ -476,8 +479,11 @@ export default function RoomStudio({
         setPaidMessagesDraft(updated.paid_monthly_messages);
         setPaidVoiceDraft(updated.paid_monthly_voice_seconds);
         setNotice(
-          `Paid followers now get ${updated.paid_monthly_messages} messages and ` +
-            `${Math.round(updated.paid_monthly_voice_seconds / 60)} voice minutes a month.`,
+          c.noticePaidCeilings
+            .split("{n}")
+            .join(String(updated.paid_monthly_messages))
+            .split("{n2}")
+            .join(String(Math.round(updated.paid_monthly_voice_seconds / 60))),
         );
       } catch (e) {
         fail(e);
@@ -496,7 +502,7 @@ export default function RoomStudio({
         const updated = await setRoomPriceInr(token, replicaId, next);
         setPrice(updated);
         setPriceDraft(updated.follower_price_inr);
-        setNotice(`Followers now pay ${inr(updated.follower_price_inr)} a month.`);
+        setNotice(withLabel(c.noticePrice, inr(updated.follower_price_inr)));
       } catch (e) {
         fail(e);
       } finally {
@@ -513,7 +519,7 @@ export default function RoomStudio({
       try {
         const subscription = await startCreatorTierSubscription(token, replicaId, plan);
         setCreatorTier((prev) => (prev ? { ...prev, tier: subscription?.state === "active" ? plan : prev.tier, subscription } : prev));
-        setNotice("Your tier subscription has started.");
+        setNotice(c.noticeTierStarted);
       } catch (e) {
         fail(e);
       } finally {
@@ -532,7 +538,7 @@ export default function RoomStudio({
     try {
       const subscription = await cancelCreatorTierSubscription(token, replicaId);
       setCreatorTier((prev) => (prev ? { ...prev, subscription } : prev));
-      setNotice("Will not renew after the current period ends.");
+      setNotice(c.noticeTierCancel);
     } catch (e) {
       fail(e);
     } finally {
@@ -616,11 +622,11 @@ export default function RoomStudio({
       <section id="room-studio" className="stage-section vy-room" aria-labelledby="room-title">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Your Room</p>
-            <h2 id="room-title">Loading your Room</h2>
+            <p className="eyebrow">{c.eyebrow}</p>
+            <h2 id="room-title">{c.loadingTitle}</h2>
           </div>
         </div>
-        <p className="field-note" role="status">Checking whether your Room exists yet.</p>
+        <p className="field-note" role="status">{c.checkingExists}</p>
       </section>
     );
   }
@@ -630,13 +636,9 @@ export default function RoomStudio({
       <section id="room-studio" className="stage-section vy-room" aria-labelledby="room-title">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Your Room</p>
-            <h2 id="room-title">Set up the place your AI lives</h2>
-            <p>
-              A Room is a private, continuing address for every follower who talks to your AI. It remembers each
-              of them, on its own, and never shows one follower to another. Set it up once, then publish it when
-              the gates below are clear.
-            </p>
+            <p className="eyebrow">{c.eyebrow}</p>
+            <h2 id="room-title">{c.setupTitle}</h2>
+            <p>{c.setupIntro}</p>
           </div>
         </div>
         {/* Shown whenever there is no room yet, whatever the reason said (it
@@ -644,7 +646,7 @@ export default function RoomStudio({
             is idempotent on its own, so offering the button early is always
             safe: worst case it hands back the room that already existed. */}
         <button className="button primary-button" type="button" disabled={busy === "create"} onPointerDown={() => void create()}>
-          {busy === "create" ? "Setting up..." : "Set up your Room"}
+          {busy === "create" ? c.settingUp : c.setupButton}
         </button>
         {reason && reason !== "not_created" && <p className="field-note">{reason.replaceAll("_", " ")}</p>}
         {error && <p className="inline-error" role="alert">{error}</p>}
@@ -656,24 +658,21 @@ export default function RoomStudio({
     <section id="room-studio" className="stage-section vy-room" aria-labelledby="room-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Your Room</p>
-          <h2 id="room-title">The place your AI lives</h2>
-          <p>
-            One private, continuing address. Every follower who joins gets their own remembered relationship with
-            your AI, and none of them ever sees another follower's conversation, or yours.
-          </p>
+          <p className="eyebrow">{c.eyebrow}</p>
+          <h2 id="room-title">{c.liveTitle}</h2>
+          <p>{c.liveIntro}</p>
         </div>
         <span className={`vy-room__status vy-room__status--${room.published ? (room.paused ? "paused" : "live") : "draft"}`}>
-          {room.published ? (room.paused ? "Paused" : "Live") : "Not published"}
+          {room.published ? (room.paused ? c.statusPaused : c.statusLive) : c.statusDraft}
         </span>
       </div>
 
       <article className="teacher-sheet-card vy-room__link-card">
-        <h3>Your Room's address</h3>
+        <h3>{c.addressCardTitle}</h3>
         <div className="vy-room__link-row">
           <code className="vy-room__link">{roomLink(room.slug)}</code>
           <button className="button secondary-button" type="button" onPointerDown={copyLink}>
-            {copied ? "Copied" : "Copy link"}
+            {copied ? c.copied : c.copyLink}
           </button>
         </div>
         {/* WS-R55. The story card: the same public row this Room's own link
@@ -687,26 +686,26 @@ export default function RoomStudio({
           target="_blank"
           rel="noreferrer"
         >
-          Download story card
+          {c.downloadStoryCard}
         </a>
         {suiteStatus && (
-          <p className="field-note vy-room__suite-note">Part of {suiteStatus.name}.</p>
+          <p className="field-note vy-room__suite-note">{withLabel(c.partOf, suiteStatus.name)}</p>
         )}
         {creatorTier && (
           creatorTier.tier === "covered_by_suite" ? (
             <p className="field-note vy-room__suite-note">
-              Your seat in {suiteStatus?.name ?? "your Suite"} covers this Room.
+              {withLabel(c.suiteCoversRoom, suiteStatus?.name ?? c.yourSuite)}
             </p>
           ) : creatorTier.tier === "free" ? (
-            <div className="vy-room__cap-row" role="group" aria-label="Tier">
-              <span className="field-note">Your tier: free capacity.</span>
+            <div className="vy-room__cap-row" role="group" aria-label={c.tierGroupAriaLabel}>
+              <span className="field-note">{c.tierFreeLabel}</span>
               <button
                 className="button secondary-button"
                 type="button"
                 disabled={busy === "creator_tier"}
                 onPointerDown={() => void startTier("room")}
               >
-                {busy === "creator_tier" ? "Working..." : `Upgrade to Room (${inr(4999)}/mo)`}
+                {busy === "creator_tier" ? c.working : withLabel(c.upgradeToRoom, inr(4999))}
               </button>
               <button
                 className="button secondary-button"
@@ -714,7 +713,7 @@ export default function RoomStudio({
                 disabled={busy === "creator_tier"}
                 onPointerDown={() => void startTier("studio")}
               >
-                {busy === "creator_tier" ? "Working..." : `Upgrade to Studio (${inr(19999)}/mo)`}
+                {busy === "creator_tier" ? c.working : withLabel(c.upgradeToStudio, inr(19999))}
               </button>
             </div>
           ) : (
@@ -723,14 +722,15 @@ export default function RoomStudio({
             // api/_creator-tier.js's own `creatorTierFromRows` returns
             // "free" for every other state, so this line never needs to
             // qualify itself with a pending or lapsed state.
-            <div className="vy-room__cap-row" role="group" aria-label="Tier">
+            <div className="vy-room__cap-row" role="group" aria-label={c.tierGroupAriaLabel}>
               <span className="field-note">
-                Your tier: {creatorTier.tier === "room" ? "Room" : "Studio"}.
+                {withLabel(c.tierLabel, creatorTier.tier === "room" ? c.tierRoom : c.tierStudio)}
                 {/* WS-R37: the reminder line, one stated fact, no urgency. */}
                 {creatorTier.subscription?.current_period_end &&
-                  (creatorTier.subscription.cancel_at_period_end
-                    ? ` Will not renew after ${new Date(creatorTier.subscription.current_period_end).toLocaleDateString()}.`
-                    : ` Renews on ${new Date(creatorTier.subscription.current_period_end).toLocaleDateString()}.`)}
+                  withLabel(
+                    creatorTier.subscription.cancel_at_period_end ? c.willNotRenewOn : c.renewsOn,
+                    new Date(creatorTier.subscription.current_period_end).toLocaleDateString(),
+                  )}
               </span>
               {creatorTier.subscription && !creatorTier.subscription.cancel_at_period_end && (
                 <button
@@ -739,14 +739,14 @@ export default function RoomStudio({
                   disabled={busy === "creator_tier"}
                   onPointerDown={() => void cancelTier()}
                 >
-                  {busy === "creator_tier" ? "Working..." : "Cancel"}
+                  {busy === "creator_tier" ? c.working : c.cancel}
                 </button>
               )}
             </div>
           )
         )}
 
-        <label className="field-label" htmlFor="room-slug">Change the address</label>
+        <label className="field-label" htmlFor="room-slug">{c.changeAddressLabel}</label>
         <div className="vy-room__slug-row">
           <input
             id="room-slug"
@@ -762,96 +762,82 @@ export default function RoomStudio({
             disabled={busy === "slug" || !slugValid || !slugChanged}
             onPointerDown={() => void saveSlug()}
           >
-            {busy === "slug" ? "Saving..." : "Save address"}
+            {busy === "slug" ? c.saving : c.saveAddress}
           </button>
         </div>
         <p className="field-note">
           {slugDraft.trim() === ""
-            ? "Enter an address for your Room."
+            ? c.enterAddress
             : !slugValid
-              ? "Between 3 and 40 letters, numbers, or dashes."
-              : `Will read as ${roomLink(slugPreview)}`}
+              ? c.addressInvalid
+              : withLabel(c.willReadAs, roomLink(slugPreview))}
         </p>
       </article>
 
       <article className="teacher-sheet-card vy-room__link-card">
-        <h3>Your Room on Telegram</h3>
+        <h3>{c.telegramCardTitle}</h3>
         {room.telegram_deep_link ? (
           <div className="vy-room__link-row">
             <code className="vy-room__link">{room.telegram_deep_link}</code>
             <a className="button secondary-button" href={room.telegram_deep_link} target="_blank" rel="noreferrer">
-              Open
+              {c.open}
             </a>
           </div>
         ) : (
-          <p className="field-note">
-            Not connected yet. Followers still reach your Room at the address above; Telegram is a second way in,
-            not a requirement.
-          </p>
+          <p className="field-note">{c.telegramNotConnected}</p>
         )}
       </article>
 
       <article className="teacher-sheet-card vy-room__link-card">
-        <h3>On your own site</h3>
-        <p className="field-note">
-          Paste this into any page you control: a coaching site, a Linktree, a blog post. It shows one button
-          with your Room's disclosure beneath it, and opens your Room in a new tab when a visitor clicks it. It
-          sets no cookie and asks nothing of your visitors.
-        </p>
-        <pre className="embed-snippet" aria-label="Embed snippet"><code>{embedSnippet}</code></pre>
+        <h3>{c.ownSiteCardTitle}</h3>
+        <p className="field-note">{c.ownSiteIntro}</p>
+        <pre className="embed-snippet" aria-label={c.embedSnippetAriaLabel}><code>{embedSnippet}</code></pre>
         <button className="button secondary-button" type="button" onPointerDown={copyEmbed}>
-          {embedCopied ? "Copied" : "Copy snippet"}
+          {embedCopied ? c.copied : c.copySnippet}
         </button>
-        <p className="field-note">
-          Visitors see the disclosure in whichever language your Room shows first, English or Hindi, and this
-          button never places your Room inside their page. It always opens your Room's own address.
-        </p>
+        <p className="field-note">{c.ownSiteFooter}</p>
       </article>
 
       <article className="teacher-sheet-card vy-room__publish-card">
-        <h3>{room.published ? "Publishing" : "Publish your Room"}</h3>
+        <h3>{room.published ? c.publishCardTitlePublished : c.publishCardTitleUnpublished}</h3>
         {!room.published && (
           <button className="button primary-button" type="button" disabled={busy === "publish"} onPointerDown={() => void publish()}>
-            {busy === "publish" ? "Publishing..." : "Publish your Room"}
+            {busy === "publish" ? c.publishing : c.publishButton}
           </button>
         )}
         {room.published && (
           <button className="button secondary-button" type="button" disabled={busy === "pause"} onPointerDown={() => void togglePause()}>
-            {busy === "pause" ? "Working..." : room.paused ? "Resume" : "Pause"}
+            {busy === "pause" ? c.working : room.paused ? c.resume : c.pause}
           </button>
         )}
 
         {!canPublish && blockers && (blockers.waiting_on_you.length > 0 || blockers.waiting_on_us.length > 0) && (
           <ul className="vy-room__blockers">
-            {blockers.waiting_on_you.map((b) => <BlockerRow key={b.code} blocker={b} cls="you" onJump={jumpTo} />)}
-            {blockers.waiting_on_us.map((b) => <BlockerRow key={b.code} blocker={b} cls="us" onJump={jumpTo} />)}
+            {blockers.waiting_on_you.map((b) => <BlockerRow key={b.code} blocker={b} cls="you" onJump={jumpTo} t={t} />)}
+            {blockers.waiting_on_us.map((b) => <BlockerRow key={b.code} blocker={b} cls="us" onJump={jumpTo} t={t} />)}
           </ul>
         )}
         {room.published && !room.paused && (
           <p className="field-note">
-            Live since {room.published_at ? new Date(room.published_at).toLocaleDateString() : "recently"}. Anyone
-            with your Room's address can join and start their own remembered relationship with your AI.
+            {withLabel(c.liveSince, room.published_at ? new Date(room.published_at).toLocaleDateString() : c.recently)}
           </p>
         )}
         {room.paused && (
-          <p className="field-note">Paused. Nobody can reach your Room until you resume it.</p>
+          <p className="field-note">{c.pausedNotice}</p>
         )}
       </article>
 
       <article className="teacher-sheet-card vy-room__cap-card">
-        <h3>List my Room</h3>
-        <p className="field-note">
-          Listing shows your Room on the creator directory: your name, the one-line description below, and the
-          language your Room's screens speak. It never shows how many followers you have.
-        </p>
-        <label className="field-label" htmlFor="room-bio">One-line description</label>
+        <h3>{c.listMyRoomTitle}</h3>
+        <p className="field-note">{c.listMyRoomIntro}</p>
+        <label className="field-label" htmlFor="room-bio">{c.oneLineDescriptionLabel}</label>
         <div className="vy-room__slug-row">
           <input
             id="room-bio"
             className="field"
             value={bioDraft}
             maxLength={140}
-            placeholder="What you talk about, in one line"
+            placeholder={c.oneLineDescriptionPlaceholder}
             onChange={(event) => setBioDraft(event.target.value)}
           />
           <button
@@ -860,13 +846,13 @@ export default function RoomStudio({
             disabled={busy === "bio" || bioDraft === room.one_line_bio}
             onPointerDown={() => void saveBio(bioDraft)}
           >
-            {busy === "bio" ? "Saving..." : "Save"}
+            {busy === "bio" ? c.saving : c.save}
           </button>
         </div>
         <p className="field-note">
           {room.published
-            ? (room.listed ? "Listed. Anyone browsing the directory can find your Room." : "Not listed. Your Room still works for anyone with the link.")
-            : "Publish your Room first, then you can list it."}
+            ? (room.listed ? c.listedNote : c.notListedNote)
+            : c.publishFirstNote}
         </p>
         <button
           className="button secondary-button"
@@ -874,17 +860,14 @@ export default function RoomStudio({
           disabled={busy === "listed" || !room.published}
           onPointerDown={() => void toggleListed()}
         >
-          {busy === "listed" ? "Working..." : room.listed ? "Remove from directory" : "List my Room"}
+          {busy === "listed" ? c.working : room.listed ? c.removeFromDirectory : c.listMyRoom}
         </button>
       </article>
 
       <article className="teacher-sheet-card vy-room__cap-card">
-        <h3>Free followers</h3>
-        <p className="field-note">
-          A follower who has not paid gets this many messages a month, no voice, no check-ins. You can change it
-          any time.
-        </p>
-        <div className="vy-room__cap-row" role="group" aria-label="Free monthly messages">
+        <h3>{c.freeFollowersTitle}</h3>
+        <p className="field-note">{c.freeFollowersIntro}</p>
+        <div className="vy-room__cap-row" role="group" aria-label={c.freeMonthlyMessagesAriaLabel}>
           {FREE_CAP_PRESETS.map((preset) => (
             <button
               key={preset}
@@ -910,19 +893,15 @@ export default function RoomStudio({
             disabled={busy === "cap" || capDraft === room.free_monthly_messages || !Number.isFinite(capDraft)}
             onPointerDown={() => void saveCap(capDraft)}
           >
-            {busy === "cap" ? "Saving..." : "Save"}
+            {busy === "cap" ? c.saving : c.save}
           </button>
         </div>
       </article>
 
       <article className="teacher-sheet-card vy-room__cap-card">
-        <h3>Room language</h3>
-        <p className="field-note">
-          Your AI keeps speaking whatever you speak with it - this only picks the app's own screens: the buttons,
-          the disclosure line, the menu. A follower who has joined before, or whose own browser reports a
-          language, sees that instead; this is only the first screen for everyone else.
-        </p>
-        <div className="vy-room__cap-row" role="group" aria-label="Default room language">
+        <h3>{c.roomLanguageTitle}</h3>
+        <p className="field-note">{c.roomLanguageIntro}</p>
+        <div className="vy-room__cap-row" role="group" aria-label={c.defaultRoomLanguageAriaLabel}>
           {(["en", "hi"] as const).map((loc) => (
             <button
               key={loc}
@@ -931,20 +910,20 @@ export default function RoomStudio({
               disabled={busy === "locale"}
               onPointerDown={() => void saveDefaultLocale(loc)}
             >
-              {loc === "hi" ? "हिन्दी" : "English"}
+              {STUDIO_LANGUAGE_LABELS[loc]}
             </button>
           ))}
         </div>
       </article>
 
       <article className="teacher-sheet-card vy-room__cap-card">
-        <h3>Paid followers</h3>
+        <h3>{c.paidFollowersTitle}</h3>
         <p className="field-note">
-          Unlimited-feeling chat under a fair-use ceiling, plus voice replies when {" "}
-          <code>ROOM_VOICE</code> is on. Both numbers are yours to set, within the plan's bounds.
+          {c.paidFollowersIntroPre} {" "}
+          <code>ROOM_VOICE</code> {c.paidFollowersIntroPost}
         </p>
-        <label className="field-label" htmlFor="room-paid-messages">Messages a month</label>
-        <div className="vy-room__cap-row" role="group" aria-label="Paid monthly messages">
+        <label className="field-label" htmlFor="room-paid-messages">{c.messagesAMonthLabel}</label>
+        <div className="vy-room__cap-row" role="group" aria-label={c.paidMonthlyMessagesAriaLabel}>
           <input
             id="room-paid-messages"
             className="field vy-room__cap-field"
@@ -956,8 +935,8 @@ export default function RoomStudio({
           />
           <span className="field-note">{PAID_MESSAGES_MIN}-{PAID_MESSAGES_MAX}</span>
         </div>
-        <label className="field-label" htmlFor="room-paid-voice">Voice minutes a month</label>
-        <div className="vy-room__cap-row" role="group" aria-label="Paid monthly voice minutes">
+        <label className="field-label" htmlFor="room-paid-voice">{c.voiceMinutesAMonthLabel}</label>
+        <div className="vy-room__cap-row" role="group" aria-label={c.paidMonthlyVoiceMinutesAriaLabel}>
           <input
             id="room-paid-voice"
             className="field vy-room__cap-field"
@@ -981,19 +960,23 @@ export default function RoomStudio({
             }
             onPointerDown={() => void savePaidCeilings(paidMessagesDraft, paidVoiceDraft)}
           >
-            {busy === "paid_ceilings" ? "Saving..." : "Save"}
+            {busy === "paid_ceilings" ? c.saving : c.save}
           </button>
         </div>
       </article>
 
       <article className="teacher-sheet-card vy-room__price-card">
-        <h3>Price</h3>
+        <h3>{c.priceTitle}</h3>
         <p className="field-note">
-          What a follower pays a month for unlimited within fair use, past the free messages above. Between{" "}
-          {inr(PRICE_MIN_INR)} and {inr(PRICE_MAX_INR)}. Vyakti keeps {(price?.platform_take_bp ?? 2500) / 100}% of
-          what a follower pays; the rest is yours.
+          {c.priceIntro
+            .split("{min}")
+            .join(inr(PRICE_MIN_INR))
+            .split("{max}")
+            .join(inr(PRICE_MAX_INR))
+            .split("{pct}")
+            .join(String((price?.platform_take_bp ?? 2500) / 100))}
         </p>
-        <div className="vy-room__cap-row" role="group" aria-label="Follower price">
+        <div className="vy-room__cap-row" role="group" aria-label={c.followerPriceAriaLabel}>
           {PRICE_PRESETS.map((preset) => (
             <button
               key={preset}
@@ -1025,108 +1008,109 @@ export default function RoomStudio({
             }
             onPointerDown={() => void savePrice(priceDraft)}
           >
-            {busy === "price" ? "Saving..." : "Save"}
+            {busy === "price" ? c.saving : c.save}
           </button>
         </div>
-        {!price && <p className="field-note">No price set yet. Followers cannot subscribe until you set one.</p>}
+        {!price && <p className="field-note">{c.noPriceYet}</p>}
       </article>
 
       <article className="teacher-sheet-card vy-room__money-card">
-        <h3>Money</h3>
+        <h3>{c.moneyTitle}</h3>
         {revenue && revenue.subscribers > 0 ? (
           <div className="vy-room__stats-grid">
             <div className="vy-room__stat">
               <span className="vy-room__stat-value">{revenue.subscribers}</span>
-              <span className="vy-room__stat-label">Subscribers</span>
+              <span className="vy-room__stat-label">{c.subscribers}</span>
             </div>
             <div className="vy-room__stat">
               <span className="vy-room__stat-value">{revenue.churned_this_month}</span>
-              <span className="vy-room__stat-label">Left this month</span>
+              <span className="vy-room__stat-label">{c.leftThisMonth}</span>
             </div>
             <div className="vy-room__stat">
               <span className="vy-room__stat-value">{inr(revenue.creator_share_this_month_inr)}</span>
-              <span className="vy-room__stat-label">Your share this month</span>
+              <span className="vy-room__stat-label">{c.yourShareThisMonth}</span>
             </div>
           </div>
         ) : (
-          <p className="field-note">No subscribers yet.</p>
+          <p className="field-note">{c.noSubscribersYet}</p>
         )}
         {revenue?.latest_payout ? (
           <p className="field-note">
-            Last payout: {inr(revenue.latest_payout.net_inr)} ({revenue.latest_payout.state}), for{" "}
-            {new Date(revenue.latest_payout.period_start).toLocaleDateString()} to{" "}
-            {new Date(revenue.latest_payout.period_end).toLocaleDateString()}.
+            {c.lastPayout
+              .split("{label}")
+              .join(inr(revenue.latest_payout.net_inr))
+              .split("{label2}")
+              .join(t.payouts.stateLabel[revenue.latest_payout.state])
+              .split("{label3}")
+              .join(new Date(revenue.latest_payout.period_start).toLocaleDateString())
+              .split("{label4}")
+              .join(new Date(revenue.latest_payout.period_end).toLocaleDateString())}
           </p>
         ) : (
-          <p className="field-note">No payout yet.</p>
+          <p className="field-note">{c.noPayoutYet}</p>
         )}
       </article>
 
       <article className="teacher-sheet-card vy-room__stats-card">
-        <h3>How your Room is doing</h3>
+        <h3>{c.howDoingTitle}</h3>
         {stats ? (
           stats.followers_total === 0 ? (
-            <p className="field-note">No followers yet. Share your Room's address to change that.</p>
+            <p className="field-note">{c.noFollowersYet}</p>
           ) : (
             <div className="vy-room__stats-grid">
               <div className="vy-room__stat">
                 <span className="vy-room__stat-value">{stats.followers_total}</span>
-                <span className="vy-room__stat-label">Followers</span>
+                <span className="vy-room__stat-label">{c.followers}</span>
               </div>
               <div className="vy-room__stat">
                 <span className="vy-room__stat-value">{stats.followers_active_24h}</span>
-                <span className="vy-room__stat-label">Active today</span>
+                <span className="vy-room__stat-label">{c.activeToday}</span>
               </div>
               <div className="vy-room__stat">
                 <span className="vy-room__stat-value">{stats.messages_this_month}</span>
-                <span className="vy-room__stat-label">Messages this month</span>
+                <span className="vy-room__stat-label">{c.messagesThisMonth}</span>
               </div>
             </div>
           )
         ) : (
-          <p className="field-note">Could not load your counts just now. They will show the next time this loads.</p>
+          <p className="field-note">{c.couldNotLoadCounts}</p>
         )}
       </article>
 
       <article className="teacher-sheet-card vy-room__cohort-card">
-        <h3>Week six</h3>
-        <p className="field-note">
-          Of the followers who joined in a given week, the share still talking to your AI six weeks later.
-          This is the number that matters most, more than messages sent or how many showed up today.
-        </p>
+        <h3>{c.weekSixTitle}</h3>
+        <p className="field-note">{c.weekSixIntro}</p>
         {cohortReport ? (
           cohortReport.cohorts.length === 0 ? (
-            <p className="field-note">No cohorts yet. This fills in once your Room has its first followers.</p>
+            <p className="field-note">{c.noCohortsYet}</p>
           ) : (
             <>
               <ul className="vy-room__cohort-list">
-                {cohortReport.cohorts.map((c) => (
-                  <li key={c.cohort_week} className="vy-room__cohort-row">
-                    <span className="vy-room__cohort-week">Week of {c.cohort_week}</span>
-                    {c.measurable ? (
+                {cohortReport.cohorts.map((cohort) => (
+                  <li key={cohort.cohort_week} className="vy-room__cohort-row">
+                    <span className="vy-room__cohort-week">{withLabel(c.weekOf, cohort.cohort_week)}</span>
+                    {cohort.measurable ? (
                       <span className="vy-room__cohort-value">
-                        {c.week6_return_share == null
-                          ? "No followers that week"
-                          : `${Math.round(c.week6_return_share * 100)}% still talking`}
+                        {cohort.week6_return_share == null
+                          ? c.noFollowersThatWeek
+                          : withCount(c.stillTalkingPct, Math.round(cohort.week6_return_share * 100))}
                       </span>
                     ) : (
                       <span className="vy-room__cohort-value vy-room__cohort-value--pending">
-                        Not measurable until {formatCohortDate(c.not_measurable_until)}
+                        {withLabel(c.notMeasurableUntil, formatCohortDate(t, cohort.not_measurable_until))}
                       </span>
                     )}
                   </li>
                 ))}
               </ul>
-              <p className="field-note vy-room__cohort-verdict">{cohortVerdictSentence(cohortReport.verdict)}</p>
-              <p className="field-note">
-                The gate is 25% or higher. 40% or higher is where this stops being a feature and becomes a category.
-              </p>
+              <p className="field-note vy-room__cohort-verdict">{cohortVerdictSentence(t, cohortReport.verdict)}</p>
+              <p className="field-note">{c.gateLine}</p>
             </>
           )
         ) : cohortError ? (
-          <p className="field-note">Could not load this just now. It will show the next time this loads.</p>
+          <p className="field-note">{c.couldNotLoadRetry}</p>
         ) : (
-          <p className="field-note" role="status">Loading.</p>
+          <p className="field-note" role="status">{c.loading}</p>
         )}
       </article>
 
@@ -1147,22 +1131,18 @@ export default function RoomStudio({
       <InviteCreatorCard token={token} roomPublished={room.published} onAuthError={fail} />
       <HandoffCard token={token} replicaId={replicaId} />
       <article className="teacher-sheet-card vy-room__pulse-card">
-        <h3>Pulse</h3>
-        <p className="field-note">
-          What your followers are talking about, as counts only, and only from conversations a follower chose to let
-          count. Never a message, never a name, and never shown until at least five different followers are behind a
-          number.
-        </p>
-        <div className="vy-room__cap-row" role="group" aria-label="Pulse topics">
-          {(pulse?.topics ?? []).map((t) => (
-            <span key={t.topic_id} className="vy-room__cap-pill vy-room__cap-pill--selected">
-              {t.label}
+        <h3>{c.pulseTitle}</h3>
+        <p className="field-note">{c.pulseIntro}</p>
+        <div className="vy-room__cap-row" role="group" aria-label={c.pulseTopicsAriaLabel}>
+          {(pulse?.topics ?? []).map((topic) => (
+            <span key={topic.topic_id} className="vy-room__cap-pill vy-room__cap-pill--selected">
+              {topic.label}
               <button
                 type="button"
                 className="vy-room__pulse-topic-remove"
-                aria-label={`Remove topic ${t.label}`}
+                aria-label={withLabel(c.removeTopicAriaLabel, topic.label)}
                 disabled={busy === "topics"}
-                onPointerDown={() => removeTopic(t.label)}
+                onPointerDown={() => removeTopic(topic.label)}
               >
                 &times;
               </button>
@@ -1174,7 +1154,7 @@ export default function RoomStudio({
                 className="field vy-room__cap-field"
                 type="text"
                 maxLength={PULSE_LABEL_MAX_LEN}
-                placeholder="Add a topic, e.g. exam stress"
+                placeholder={c.addTopicPlaceholder}
                 value={topicDraft}
                 onChange={(event) => setTopicDraft(event.target.value)}
               />
@@ -1184,7 +1164,7 @@ export default function RoomStudio({
                 disabled={busy === "topics" || !topicDraft.trim()}
                 onPointerDown={addTopic}
               >
-                {busy === "topics" ? "Saving..." : "Add"}
+                {busy === "topics" ? c.saving : c.add}
               </button>
             </>
           )}
@@ -1192,7 +1172,7 @@ export default function RoomStudio({
         {pulse ? (
           <>
             {pulse.status === "not_enough_optins" ? (
-              <p className="field-note">Not enough people have opted in yet.</p>
+              <p className="field-note">{c.notEnoughOptins}</p>
             ) : (pulse.combo_buckets?.length ?? 0) > 0 ? (
               <div className="vy-room__stats-grid">
                 {pulse.combo_buckets.map((b) => (
@@ -1203,22 +1183,19 @@ export default function RoomStudio({
                 ))}
               </div>
             ) : (
-              <p className="field-note">
-                Enough followers have opted in, but nothing has five behind it yet.
-              </p>
+              <p className="field-note">{c.enoughOptinsNoBucket}</p>
             )}
             {pulse.suppressed > 0 && (
               <p className="field-note">
-                {pulse.suppressed} combination{pulse.suppressed === 1 ? "" : "s"} were held back this week because
-                showing them would have named someone.
+                {withCount(pulse.suppressed === 1 ? c.suppressedOne : c.suppressedMany, pulse.suppressed)}
               </p>
             )}
             {pulse.note && <p className="field-note vy-room__pulse-note">{pulse.note}</p>}
           </>
         ) : pulseError ? (
-          <p className="field-note">Could not load this just now. It will show the next time this loads.</p>
+          <p className="field-note">{c.couldNotLoadRetry}</p>
         ) : (
-          <p className="field-note" role="status">Loading.</p>
+          <p className="field-note" role="status">{c.loading}</p>
         )}
       </article>
 

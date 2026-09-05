@@ -8,41 +8,29 @@ import {
   readPersonModel,
 } from "./personModelApi";
 import type { ClaimExtractionStatus, PersonModelStatus, ReplicaClaim } from "./types";
+import { useStudioLocale } from "./localeContext";
+import { withCount, type StudioCopy } from "./copy";
 
-const BLOCKERS: Record<string, string> = {
-  self_name_required: "Confirm the name your AI uses for itself",
-  language_identity_required: "Confirm its language and code-switching identity",
-  behavior_evidence_required: "Review at least one behavior or repair pattern",
-  boundary_evidence_required: "Confirm at least one personal boundary",
-  critical_identity_conflict: "Resolve conflicting identity claims",
-};
-
-const EXTRACTION_BLOCKERS: Record<string, string> = {
-  transcription_consent_required: "Grant transcription consent",
-  training_consent_required: "Grant AI-building consent for assisted claim extraction",
-  reviewed_subject_transcript_required: "Accept at least one verified speaker transcript",
-};
-
-function confidence(value: number) {
-  return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
+function confidencePct(value: number) {
+  return Math.round(Math.max(0, Math.min(1, value)) * 100);
 }
 
-function ClaimCard({ claim, busy, decide }: { claim: ReplicaClaim; busy: boolean; decide: (claim: ReplicaClaim, decision: "accepted" | "rejected" | "superseded", reason: string) => void }) {
+function ClaimCard({ claim, busy, decide, c }: { claim: ReplicaClaim; busy: boolean; decide: (claim: ReplicaClaim, decision: "accepted" | "rejected" | "superseded", reason: string) => void; c: StudioCopy["personModelStudio"] }) {
   return (
     <article className={`person-claim decision-${claim.decision ?? "pending"}`}>
       <div className="claim-meta">
         <span>{claim.domain}</span><span>·</span><span>{claim.key.replaceAll("_", " ")}</span>
-        <span className="claim-confidence">{confidence(claim.confidence)} confidence</span>
+        <span className="claim-confidence">{withCount(c.confidencePct, confidencePct(claim.confidence))}</span>
       </div>
       <p>{claim.body}</p>
       <div className="claim-foot">
-        <span>{claim.origin.replaceAll("_", " ")} · {claim.source_count} cited source{claim.source_count === 1 ? "" : "s"}</span>
+        <span>{claim.origin.replaceAll("_", " ")} · {withCount(claim.source_count === 1 ? c.citedSourceOne : c.citedSourceMany, claim.source_count)}</span>
         {claim.decision && <strong>{claim.decision}{claim.reason_code ? ` · ${claim.reason_code.replaceAll("_", " ")}` : ""}</strong>}
-        <div className="claim-actions" aria-label="Review this claim">
-          <button type="button" aria-pressed={claim.reason_code === "private_exclude"} disabled={busy || claim.reason_code === "private_exclude"} onClick={() => decide(claim, "rejected", "private_exclude")}>Keep out</button>
-          <button type="button" aria-pressed={claim.reason_code === "inaccurate"} disabled={busy || claim.reason_code === "inaccurate"} onClick={() => decide(claim, "rejected", "inaccurate")}>Not accurate</button>
-          <button type="button" aria-pressed={claim.decision === "superseded"} disabled={busy || claim.decision === "superseded"} onClick={() => decide(claim, "superseded", "outdated")}>Outdated</button>
-          <button className="claim-accept" type="button" aria-pressed={claim.decision === "accepted"} disabled={busy || claim.decision === "accepted"} onClick={() => decide(claim, "accepted", "representative")}>This is me</button>
+        <div className="claim-actions" aria-label={c.reviewClaimAriaLabel}>
+          <button type="button" aria-pressed={claim.reason_code === "private_exclude"} disabled={busy || claim.reason_code === "private_exclude"} onClick={() => decide(claim, "rejected", "private_exclude")}>{c.keepOut}</button>
+          <button type="button" aria-pressed={claim.reason_code === "inaccurate"} disabled={busy || claim.reason_code === "inaccurate"} onClick={() => decide(claim, "rejected", "inaccurate")}>{c.notAccurate}</button>
+          <button type="button" aria-pressed={claim.decision === "superseded"} disabled={busy || claim.decision === "superseded"} onClick={() => decide(claim, "superseded", "outdated")}>{c.outdated}</button>
+          <button className="claim-accept" type="button" aria-pressed={claim.decision === "accepted"} disabled={busy || claim.decision === "accepted"} onClick={() => decide(claim, "accepted", "representative")}>{c.thisIsMe}</button>
         </div>
       </div>
     </article>
@@ -50,6 +38,8 @@ function ClaimCard({ claim, busy, decide }: { claim: ReplicaClaim; busy: boolean
 }
 
 export default function PersonModelStudio({ token, replicaId, onAuthError }: { token: string; replicaId: string; onAuthError: (cause: unknown) => void }) {
+  const { t } = useStudioLocale();
+  const c = t.personModelStudio;
   const [status, setStatus] = useState<PersonModelStatus | null>(null);
   const [extraction, setExtraction] = useState<ClaimExtractionStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,15 +64,15 @@ export default function PersonModelStudio({ token, replicaId, onAuthError }: { t
       else {
         if (claimExtraction.reason instanceof ReplicaApiError && claimExtraction.reason.status === 401) return onAuthError(claimExtraction.reason);
         setExtraction(null);
-        setExtractionError(claimExtraction.reason instanceof Error ? claimExtraction.reason.message : "Cited extraction status could not be loaded");
+        setExtractionError(claimExtraction.reason instanceof Error ? claimExtraction.reason.message : c.errorExtractionUnavailable);
       }
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "What we learned about you could not be loaded");
+      setError(cause instanceof Error ? cause.message : c.errorProfileUnavailable);
     } finally {
       setLoading(false);
     }
-  }, [onAuthError, replicaId, token]);
+  }, [onAuthError, replicaId, token, c.errorExtractionUnavailable, c.errorProfileUnavailable]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -97,7 +87,7 @@ export default function PersonModelStudio({ token, replicaId, onAuthError }: { t
       await load();
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "Claim review was not saved");
+      setError(cause instanceof Error ? cause.message : c.errorClaimNotSaved);
     } finally {
       setBusyClaim("");
     }
@@ -111,7 +101,7 @@ export default function PersonModelStudio({ token, replicaId, onAuthError }: { t
       await load();
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "Building what we learned about you was refused");
+      setError(cause instanceof Error ? cause.message : c.errorBuildRefused);
     } finally {
       setBuilding(false);
     }
@@ -125,7 +115,7 @@ export default function PersonModelStudio({ token, replicaId, onAuthError }: { t
       await load();
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "Profile changed and could not be approved");
+      setError(cause instanceof Error ? cause.message : c.errorApproveChanged);
     } finally {
       setBuilding(false);
     }
@@ -139,7 +129,7 @@ export default function PersonModelStudio({ token, replicaId, onAuthError }: { t
       await load();
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setExtractionError(cause instanceof Error ? cause.message : "Cited claims could not be extracted");
+      setExtractionError(cause instanceof Error ? cause.message : c.errorExtractionFailed);
     } finally {
       setExtracting(false);
     }
@@ -149,78 +139,72 @@ export default function PersonModelStudio({ token, replicaId, onAuthError }: { t
     <section id="person-model-studio" className="person-model" aria-labelledby="person-model-title">
       <div className="person-model-head">
         <div>
-          <p className="eyebrow">What we learned about you</p>
-          <h2 id="person-model-title">Everything we think we learned about you, one claim at a time</h2>
-          <p>
-            Confirm identity, language, behavior, values, boundaries, and autobiography as separate evidence-backed claims.
-            Conflicts stay visible instead of being averaged into a confident fiction.
-          </p>
+          <p className="eyebrow">{c.eyebrow}</p>
+          <h2 id="person-model-title">{c.title}</h2>
+          <p>{c.intro}</p>
         </div>
-        <div className="model-version"><strong>{approved ? `v${approved.version}` : "\u2014"}</strong><span>approved version</span></div>
+        <div className="model-version"><strong>{approved ? `v${approved.version}` : "\u2014"}</strong><span>{c.approvedVersionLabel}</span></div>
       </div>
 
-      {loading ? <div className="runtime-loading" role="status">Loading reviewed claims…</div> : error ? (
-        <div className="runtime-error" role="alert"><span>{error}</span><button type="button" onClick={() => void load()}>Retry</button></div>
+      {loading ? <div className="runtime-loading" role="status">{c.loadingClaims}</div> : error ? (
+        <div className="runtime-error" role="alert"><span>{error}</span><button type="button" onClick={() => void load()}>{c.retry}</button></div>
       ) : status ? (
         <>
           <div className="person-model-summary">
-            <span><strong>{status.claims.length}</strong> proposed claims</span>
-            <span><strong>{status.readiness.accepted_claims}</strong> accepted</span>
-            <span><strong>{status.readiness.conflicts.length}</strong> critical conflicts</span>
+            <span><strong>{status.claims.length}</strong> {c.proposedClaims}</span>
+            <span><strong>{status.readiness.accepted_claims}</strong> {c.accepted}</span>
+            <span><strong>{status.readiness.conflicts.length}</strong> {c.criticalConflicts}</span>
           </div>
           <section className="claim-extraction" aria-labelledby="claim-extraction-title">
             <div className="claim-extraction-copy">
-              <p className="eyebrow">Cited extraction</p>
-              <h3 id="claim-extraction-title">Turn your reviewed recordings into claims you control</h3>
-              <p>
-                Only accepted target-speaker transcript spans qualify. Raw transcripts stay server-side, direct identifiers are
-                masked before the extraction call, and every result remains a proposal until you review it below.
-              </p>
+              <p className="eyebrow">{c.citedExtractionEyebrow}</p>
+              <h3 id="claim-extraction-title">{c.citedExtractionTitle}</h3>
+              <p>{c.citedExtractionIntro}</p>
               {extraction ? (
                 <div className="extraction-facts">
-                  <span><strong>{extraction.readiness.eligible_spans}</strong> eligible spans</span>
+                  <span><strong>{extraction.readiness.eligible_spans}</strong> {c.eligibleSpans}</span>
                   {extraction.runs[0] ? (
-                    <span><strong>{extraction.runs[0].proposed_count}</strong> last proposed</span>
-                  ) : <span>No extraction run yet</span>}
+                    <span><strong>{extraction.runs[0].proposed_count}</strong> {c.lastProposed}</span>
+                  ) : <span>{c.noExtractionRunYet}</span>}
                 </div>
               ) : null}
             </div>
             <div className="claim-extraction-action">
               {extraction?.readiness.blockers.length ? (
                 <ul>
-                  {extraction.readiness.blockers.map((blocker) => <li key={blocker}>{EXTRACTION_BLOCKERS[blocker] ?? blocker.replaceAll("_", " ")}</li>)}
+                  {extraction.readiness.blockers.map((blocker) => <li key={blocker}>{c.extractionBlockers[blocker as keyof typeof c.extractionBlockers] ?? blocker.replaceAll("_", " ")}</li>)}
                 </ul>
               ) : null}
               {extractionError ? <p className="extraction-error" role="alert">{extractionError}</p> : null}
               <button className="button secondary-button" type="button" disabled={extracting || !extraction?.readiness.ready} onClick={() => void extract()}>
-                {extracting ? "Extracting privately..." : extraction?.runs.length ? "Extract new evidence" : "Extract cited claims"}
+                {extracting ? c.extractingPrivately : extraction?.runs.length ? c.extractNewEvidence : c.extractCitedClaims}
               </button>
             </div>
           </section>
           {status.claims.length ? (
             <div className="person-claims">
-              {status.claims.map((claim) => <ClaimCard key={claim.claim_id} claim={claim} busy={busyClaim === claim.claim_id} decide={(item, decision, reason) => void review(item, decision, reason)} />)}
+              {status.claims.map((claim) => <ClaimCard key={claim.claim_id} claim={claim} busy={busyClaim === claim.claim_id} decide={(item, decision, reason) => void review(item, decision, reason)} c={c} />)}
             </div>
           ) : (
             <div className="person-empty">
-              <strong>No behavior or memory claims yet.</strong>
-              <p>Processed evidence will appear here for review. Raw transcripts, vectors, and storage paths remain withheld.</p>
+              <strong>{c.noClaimsHeadline}</strong>
+              <p>{c.noClaimsNote}</p>
             </div>
           )}
           {status.readiness.blockers.length > 0 && (
             <ul className="model-blockers">
-              {status.readiness.blockers.map((blocker) => <li key={blocker}><span />{BLOCKERS[blocker] ?? blocker.replaceAll("_", " ")}</li>)}
+              {status.readiness.blockers.map((blocker) => <li key={blocker}><span />{c.blockers[blocker as keyof typeof c.blockers] ?? blocker.replaceAll("_", " ")}</li>)}
             </ul>
           )}
           <div className="person-model-action">
-            <p>A build is deterministic and versioned. Approving it never grants inference or voice generation permission.</p>
+            <p>{c.buildIsDeterministicNote}</p>
             {draft ? (
               <button className="button primary-button" type="button" disabled={building || !status.readiness.ready} onClick={() => void approve(draft.version)}>
-                {building ? "Checking evidence…" : `Approve profile v${draft.version}`}
+                {building ? c.checkingEvidence : c.approveProfileVersion.split("{n}").join(String(draft.version))}
               </button>
             ) : (
               <button className="button primary-button" type="button" disabled={building || !status.readiness.ready} onClick={() => void build()}>
-                {building ? "Building…" : "Build review draft"}
+                {building ? c.building : c.buildReviewDraft}
               </button>
             )}
           </div>

@@ -401,6 +401,466 @@ interface SuiteCopy {
   autoStartLivePending: string; // "\"{name}\" is live. Start its subscription below when you are ready to charge seats."
 }
 
+// ── roomStudio: RoomStudio.tsx's own chrome (WS-R61) ───────────────────────
+// The Room address, publish switch, free/paid caps, price, money, stats,
+// week-six cohorts and pulse. Never the five sub-cards it mounts
+// (PayoutsCard/SuiteCard/CheckinsCard/HandoffCard/InviteCreatorCard) — those
+// already have their own `*Copy` interfaces above, converted in WS-R52.
+interface RoomStudioCopy {
+  eyebrow: string;
+  loadingTitle: string;
+  checkingExists: string;
+  setupTitle: string;
+  setupIntro: string;
+  settingUp: string;
+  setupButton: string;
+  liveTitle: string;
+  liveIntro: string;
+  statusPaused: string;
+  statusLive: string;
+  statusDraft: string;
+  addressCardTitle: string;
+  copied: string;
+  copyLink: string;
+  downloadStoryCard: string;
+  partOf: string; // "Part of {label}."
+  suiteCoversRoom: string; // "Your seat in {label} covers this Room."
+  yourSuite: string; // fallback name when the Suite itself has none
+  tierGroupAriaLabel: string;
+  tierFreeLabel: string;
+  working: string;
+  upgradeToRoom: string; // "Upgrade to Room ({label}/mo)"
+  upgradeToStudio: string; // "Upgrade to Studio ({label}/mo)"
+  tierLabel: string; // "Your tier: {label}."
+  tierRoom: string;
+  tierStudio: string;
+  willNotRenewOn: string; // " Will not renew after {label}."
+  renewsOn: string; // " Renews on {label}."
+  cancel: string;
+  changeAddressLabel: string;
+  saving: string;
+  saveAddress: string;
+  enterAddress: string;
+  addressInvalid: string;
+  willReadAs: string; // "Will read as {label}"
+  telegramCardTitle: string;
+  open: string;
+  telegramNotConnected: string;
+  ownSiteCardTitle: string;
+  ownSiteIntro: string;
+  embedSnippetAriaLabel: string;
+  copySnippet: string;
+  ownSiteFooter: string;
+  publishCardTitlePublished: string;
+  publishCardTitleUnpublished: string;
+  publishing: string;
+  publishButton: string;
+  resume: string;
+  pause: string;
+  liveSince: string; // "Live since {label}. Anyone with your Room's address can join and start their own remembered relationship with your AI."
+  recently: string;
+  pausedNotice: string;
+  listMyRoomTitle: string;
+  listMyRoomIntro: string;
+  oneLineDescriptionLabel: string;
+  oneLineDescriptionPlaceholder: string;
+  save: string;
+  listedNote: string;
+  notListedNote: string;
+  publishFirstNote: string;
+  removeFromDirectory: string;
+  listMyRoom: string;
+  freeFollowersTitle: string;
+  freeFollowersIntro: string;
+  freeMonthlyMessagesAriaLabel: string;
+  roomLanguageTitle: string;
+  roomLanguageIntro: string;
+  defaultRoomLanguageAriaLabel: string;
+  paidFollowersTitle: string;
+  paidFollowersIntroPre: string; // "... plus voice replies when" (ROOM_VOICE) "is on. ..."
+  paidFollowersIntroPost: string;
+  messagesAMonthLabel: string;
+  paidMonthlyMessagesAriaLabel: string;
+  voiceMinutesAMonthLabel: string;
+  paidMonthlyVoiceMinutesAriaLabel: string;
+  priceTitle: string;
+  priceIntro: string; // "... Between {min} and {max}. Vyakti keeps {pct}% ..."
+  followerPriceAriaLabel: string;
+  noPriceYet: string;
+  moneyTitle: string;
+  subscribers: string;
+  leftThisMonth: string;
+  yourShareThisMonth: string;
+  noSubscribersYet: string;
+  lastPayout: string; // "Last payout: {label} ({label2}), for {label3} to {label4}."
+  noPayoutYet: string;
+  howDoingTitle: string;
+  noFollowersYet: string;
+  followers: string;
+  activeToday: string;
+  messagesThisMonth: string;
+  couldNotLoadCounts: string;
+  weekSixTitle: string;
+  weekSixIntro: string;
+  noCohortsYet: string;
+  weekOf: string; // "Week of {label}"
+  noFollowersThatWeek: string;
+  stillTalkingPct: string; // "{n}% still talking"
+  notMeasurableUntil: string; // "Not measurable until {label}"
+  notMeasurableYetVerdict: string;
+  belowGateBand: string;
+  aboveCategoryBand: string;
+  betweenBand: string;
+  cohortVerdictSentence: string; // "Your oldest measurable cohort, the week of {label}, returned {n}%. That is {label2}."
+  soon: string;
+  gateLine: string;
+  couldNotLoadRetry: string;
+  loading: string;
+  pulseTitle: string;
+  pulseIntro: string;
+  pulseTopicsAriaLabel: string;
+  removeTopicAriaLabel: string; // "Remove topic {label}"
+  addTopicPlaceholder: string;
+  add: string;
+  notEnoughOptins: string;
+  enoughOptinsNoBucket: string;
+  suppressedOne: string; // "{n} combination was held back this week because showing them would have named someone."
+  suppressedMany: string;
+  showMe: string;
+  noticeRoomSetup: string;
+  noticeAddressSaved: string;
+  noticeRoomLive: string;
+  noticeResumed: string;
+  noticeDefaultLocaleHi: string;
+  noticeDefaultLocaleEn: string;
+  noticeBioSaved: string;
+  noticeListed: string;
+  noticeUnlisted: string;
+  noticeFreeCap: string; // "Free followers now get {n} messages a month."
+  noticePaidCeilings: string; // "Paid followers now get {n} messages and {n2} voice minutes a month."
+  noticePrice: string; // "Followers now pay {label} a month."
+  noticeTierStarted: string;
+  noticeTierCancel: string;
+}
+
+// ── videoLinkMount: VideoLinkMount.tsx (WS-R61) ────────────────────────────
+interface VideoLinkMountCopy {
+  eyebrow: string;
+  title: string;
+  blurb: string;
+  noBoxNote: string;
+  worksTodayNote: string;
+}
+
+// ── runtimeGate: RuntimeGate.tsx (WS-R61). Launch gate labels + chrome ────
+interface RuntimeGateCopy {
+  labels: Record<
+    | "self_replica_only"
+    | "replica_not_ready"
+    | "self_identity_not_bound"
+    | "adult_verification_required"
+    | "identity_verification_required"
+    | "liveness_verification_required"
+    | "inference_consent_required"
+    | "person_profile_not_approved"
+    | "calibration_not_approved"
+    | "voice_genome_not_approved"
+    | "voice_not_ready"
+    | "production_voice_required"
+    | "qualification_incomplete",
+    string
+  >;
+  eyebrow: string;
+  title: string;
+  intro: string;
+  sealActive: string;
+  sealSealed: string;
+  sealSubActive: string;
+  sealSubSealed: string;
+  checkingGates: string;
+  retry: string;
+  qualificationSuitesPassed: string;
+  whatWeLearnedVersion: string;
+  calibrationVersion: string;
+  voiceVersion: string;
+  gatesClosedOne: string; // "{n} launch gate still closed"
+  gatesClosedMany: string;
+  actionNote: string;
+  freezing: string;
+  runtimeActive: string;
+  activateButton: string;
+  readinessUnavailable: string;
+  activationRefused: string;
+}
+
+// ── turnFeedback: TurnFeedback.tsx (WS-R61) ────────────────────────────────
+interface TurnFeedbackCopy {
+  dimensionLabel: Record<"wording" | "behavior" | "relationship" | "memory" | "delivery" | "voice_identity", string>;
+  dimensionDescription: Record<"wording" | "behavior" | "relationship" | "memory" | "delivery" | "voice_identity", string>;
+  ratingLabel: Record<"exact" | "close" | "off", string>;
+  reasonLabel: Record<
+    | "too_generic"
+    | "wrong_fact"
+    | "wrong_relationship"
+    | "wrong_tone"
+    | "wrong_wording"
+    | "too_long"
+    | "too_short"
+    | "voice_mismatch"
+    | "emotion_mismatch"
+    | "unsafe_or_boundary"
+    | "other",
+    string
+  >;
+  playVoiceFirst: string;
+  savedRevision: string; // "Revision {n} secured"
+  didThisFeelLikeYou: string;
+  thisIsMe: string;
+  tuneThis: string;
+  teachDifference: string;
+  close: string;
+  gradeOnlyNote: string;
+  whatMissed: string;
+  correctionLabel: string;
+  correctionOptionalNote: string;
+  correctionPlaceholder: string;
+  layersRatedOne: string; // "{n} layer rated"
+  layersRatedMany: string;
+  chooseAtLeastOne: string;
+  securing: string;
+  saveEvidence: string;
+  errorFallback: string;
+}
+
+// ── replicaDialogueLab: ReplicaDialogueLab.tsx (WS-R61) ────────────────────
+interface ReplicaDialogueLabCopy {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  statusPrivateLive: string;
+  statusSealed: string;
+  lockedHeadline: string;
+  lockedNote: string;
+  stopVoice: string;
+  playProtectedVoice: string;
+  emptyHeadline: string;
+  emptyNote: string;
+  thinking: string;
+  messageLabel: string;
+  messagePlaceholder: string;
+  sendPrivately: string;
+  dismiss: string;
+  trustNote: string;
+  errorReadinessUnavailable: string;
+  errorReconcileRequired: string;
+  errorCouldNotAnswer: string;
+  errorVoicePlayback: string;
+}
+
+// ── calibrationStudio: CalibrationStudio.tsx (WS-R61) ──────────────────────
+interface CalibrationStudioCopy {
+  layers: Record<"delivery" | "language" | "behaviour" | "memory" | "relationship", string>;
+  blockers: Record<
+    | "approved_person_profile_required"
+    | "delivery_calibration_required"
+    | "language_calibration_required"
+    | "behaviour_calibration_required"
+    | "memory_calibration_required"
+    | "relationship_calibration_required"
+    | "calibration_depth_required",
+    string
+  >;
+  eyebrow: string;
+  title: string;
+  intro: string;
+  approvedPolicyLabel: string;
+  preparingContrasts: string;
+  retry: string;
+  contrastsReviewedAriaLabel: string; // "{n} of {n2} contrasts reviewed"
+  contrastsReviewed: string;
+  calibrationScenariosAriaLabel: string;
+  openContrastAriaLabel: string; // "Open {label} contrast {n}"
+  orWord: string;
+  bothFeelLikeMe: string;
+  neitherIsMe: string;
+  freeTextNote: string;
+  checkingChoices: string;
+  approveCalibrationVersion: string; // "Approve calibration v{n}"
+  buildingPolicy: string;
+  buildCalibrationPolicy: string;
+  errorCouldNotLoad: string;
+  errorChoiceNotSaved: string;
+  errorBuildRefused: string;
+  errorApproveChanged: string;
+}
+
+// ── candidateEvaluationLab: CandidateEvaluationLab.tsx (WS-R61) ────────────
+interface CandidateEvaluationLabCopy {
+  dimensionCopy: Record<"overall" | "wording" | "behavior" | "relationship" | "memory" | "delivery", { label: string; hint: string }>;
+  choiceLabel: Record<"a" | "tie" | "b", string>;
+  loadErrorFallback: string;
+  eyebrow: string;
+  title: string;
+  intro: string;
+  sealAriaLabel: string;
+  blindedLabel: string;
+  mappingNote: string;
+  loadingAriaLabel: string;
+  comparisonUnavailable: string;
+  tryAgain: string;
+  emptyHeadline: string;
+  emptyNote: string;
+  completeHeadline: string;
+  completeNote: string; // "{n} comparisons are sealed. Safety, privacy, and statistical gates decide whether this candidate can advance."
+  comparisonOfLabel: string; // "Comparison {n} of {n2}"
+  sealedCountLabel: string; // "{n} sealed"
+  situationLabel: string;
+  optionsAriaLabel: string;
+  anonymousOutput: string;
+  orWord: string;
+  judgeEveryLayer: string;
+  judgeInstruction: string;
+  layersJudged: string; // "{n} of {n2} layers judged"
+  sealingComparison: string;
+  sealAndContinue: string;
+}
+
+// ── processingReview: ProcessingReview.tsx (WS-R61). `SELF_TEST_NOTICE`'s own
+//    `headline`/`next` (built via `blockerClass.ts`'s `disabledReason`) stay
+//    English per `ws-r52-class-labels-split-from-blockerclass-ts-own-copy` --
+//    only its two-word class badge substitutes `t.classLabels` on screen,
+//    same as BlockerNotice.tsx/WizardRail.tsx already do. Everything else on
+//    this screen is this workstream's own chrome and moves here in full. ────
+interface ProcessingReviewCopy {
+  reasonLabel: Record<
+    "accepted" | "rejected" | "superseded",
+    Record<string, string>
+  >;
+  recently: string;
+  contentWithheld: string;
+  needsReview: string;
+  reviewAriaLabel: string; // "Review {label}"
+  decisionSelectLabel: string;
+  reasonSelectLabel: string;
+  optionAccept: string;
+  optionReject: string;
+  optionSupersede: string;
+  saving: string;
+  recordReview: string;
+  decisionWithheldNote: string;
+  confidenceNotReported: string;
+  confidencePct: string; // "{n}% confidence"
+  endpointSuffix: string; // " · {n}s endpoint"
+  unreportedFamily: string;
+  unreportedAdapter: string;
+  eyebrow: string;
+  title: string;
+  refreshing: string;
+  refresh: string;
+  intro: string;
+  loadingReceipts: string;
+  emptyHeadline: string;
+  emptyNote: string;
+  sourceTitle: string; // "{label} source"
+  pipelineStepOne: string; // "{n} pipeline step"
+  pipelineStepMany: string;
+  derivedVariantOne: string;
+  derivedVariantMany: string;
+  evidenceRecordOne: string;
+  evidenceRecordMany: string;
+  pipelineStepsAriaLabel: string;
+  noPipelineAttempt: string;
+  attemptLabel: string; // "attempt {n}"
+  selectedVoiceBadge: string;
+  opening: string;
+  listenPrivately: string;
+  selecting: string;
+  selected: string;
+  useThisVoice: string;
+  cannotPlayAudio: string;
+  linkExpiresNote: string;
+  noReviewableEvidence: string;
+  draftOnlyEyebrow: string;
+  voiceBuildGateTitle: string;
+  voiceBuildGateIntro: string;
+  acousticFamilies: string;
+  voiceMeasurements: string;
+  qualityMeasurements: string;
+  speakerSegments: string;
+  queueingDraft: string;
+  queueDraftVoice: string;
+  buildLedger: string;
+  immutableDraftLedger: string;
+  voiceVersionStatus: string; // "Voice version {n}, {label}"
+  voicePrintFamiliesDetail: string; // "{n} independent voice-print families"
+  targetSegmentsDetail: string; // "{n} target segments"
+  enrollmentArtifactsDetail: string; // "{n} private enrollment artifacts"
+  draftsCannotSynthesize: string;
+  errorProcessingUnavailable: string;
+  errorDecisionNotRecorded: string;
+  errorDraftNotQueued: string;
+  errorAuditionNotOpened: string;
+  errorCandidateNotSelected: string;
+  noticeReviewRecorded: string;
+  noticeCandidateSelected: string;
+  noticeDraftQueued: string;
+}
+
+// ── personModelStudio: PersonModelStudio.tsx (WS-R61) ──────────────────────
+interface PersonModelStudioCopy {
+  blockers: Record<
+    | "self_name_required"
+    | "language_identity_required"
+    | "behavior_evidence_required"
+    | "boundary_evidence_required"
+    | "critical_identity_conflict",
+    string
+  >;
+  extractionBlockers: Record<
+    "transcription_consent_required" | "training_consent_required" | "reviewed_subject_transcript_required",
+    string
+  >;
+  confidencePct: string; // "{n}% confidence"
+  citedSourceOne: string; // "{n} cited source"
+  citedSourceMany: string;
+  keepOut: string;
+  notAccurate: string;
+  outdated: string;
+  thisIsMe: string;
+  reviewClaimAriaLabel: string;
+  eyebrow: string;
+  title: string;
+  intro: string;
+  approvedVersionLabel: string;
+  loadingClaims: string;
+  retry: string;
+  proposedClaims: string;
+  accepted: string;
+  criticalConflicts: string;
+  citedExtractionEyebrow: string;
+  citedExtractionTitle: string;
+  citedExtractionIntro: string;
+  eligibleSpans: string;
+  lastProposed: string;
+  noExtractionRunYet: string;
+  extractingPrivately: string;
+  extractNewEvidence: string;
+  extractCitedClaims: string;
+  noClaimsHeadline: string;
+  noClaimsNote: string;
+  buildIsDeterministicNote: string;
+  checkingEvidence: string;
+  approveProfileVersion: string; // "Approve profile v{n}"
+  building: string;
+  buildReviewDraft: string;
+  errorExtractionUnavailable: string;
+  errorProfileUnavailable: string;
+  errorClaimNotSaved: string;
+  errorBuildRefused: string;
+  errorApproveChanged: string;
+  errorExtractionFailed: string;
+}
+
 interface StudioCopy {
   classLabels: ClassLabels;
   shell: ShellCopy;
@@ -414,6 +874,15 @@ interface StudioCopy {
   inviteCreator: InviteCreatorCopy;
   inviteGate: InviteGateCopy;
   suite: SuiteCopy;
+  roomStudio: RoomStudioCopy;
+  videoLinkMount: VideoLinkMountCopy;
+  runtimeGate: RuntimeGateCopy;
+  turnFeedback: TurnFeedbackCopy;
+  replicaDialogueLab: ReplicaDialogueLabCopy;
+  calibrationStudio: CalibrationStudioCopy;
+  candidateEvaluationLab: CandidateEvaluationLabCopy;
+  processingReview: ProcessingReviewCopy;
+  personModelStudio: PersonModelStudioCopy;
 }
 
 const EN: StudioCopy = {
@@ -714,6 +1183,548 @@ const EN: StudioCopy = {
     autoStartLiveStarted: "\"{name}\" is live, and its seat subscription has started.",
     autoStartLivePending: "\"{name}\" is live. Start its subscription below when you are ready to charge seats.",
   },
+
+  roomStudio: {
+    eyebrow: "Your Room",
+    loadingTitle: "Loading your Room",
+    checkingExists: "Checking whether your Room exists yet.",
+    setupTitle: "Set up the place your AI lives",
+    setupIntro:
+      "A Room is a private, continuing address for every follower who talks to your AI. It remembers each " +
+      "of them, on its own, and never shows one follower to another. Set it up once, then publish it when " +
+      "the gates below are clear.",
+    settingUp: "Setting up...",
+    setupButton: "Set up your Room",
+    liveTitle: "The place your AI lives",
+    liveIntro:
+      "One private, continuing address. Every follower who joins gets their own remembered relationship with " +
+      "your AI, and none of them ever sees another follower's conversation, or yours.",
+    statusPaused: "Paused",
+    statusLive: "Live",
+    statusDraft: "Not published",
+    addressCardTitle: "Your Room's address",
+    copied: "Copied",
+    copyLink: "Copy link",
+    downloadStoryCard: "Download story card",
+    partOf: "Part of {label}.",
+    suiteCoversRoom: "Your seat in {label} covers this Room.",
+    yourSuite: "your Suite",
+    tierGroupAriaLabel: "Tier",
+    tierFreeLabel: "Your tier: free capacity.",
+    working: "Working...",
+    upgradeToRoom: "Upgrade to Room ({label}/mo)",
+    upgradeToStudio: "Upgrade to Studio ({label}/mo)",
+    tierLabel: "Your tier: {label}.",
+    tierRoom: "Room",
+    tierStudio: "Studio",
+    willNotRenewOn: " Will not renew after {label}.",
+    renewsOn: " Renews on {label}.",
+    cancel: "Cancel",
+    changeAddressLabel: "Change the address",
+    saving: "Saving...",
+    saveAddress: "Save address",
+    enterAddress: "Enter an address for your Room.",
+    addressInvalid: "Between 3 and 40 letters, numbers, or dashes.",
+    willReadAs: "Will read as {label}",
+    telegramCardTitle: "Your Room on Telegram",
+    open: "Open",
+    telegramNotConnected:
+      "Not connected yet. Followers still reach your Room at the address above; Telegram is a second way in, " +
+      "not a requirement.",
+    ownSiteCardTitle: "On your own site",
+    ownSiteIntro:
+      "Paste this into any page you control: a coaching site, a Linktree, a blog post. It shows one button " +
+      "with your Room's disclosure beneath it, and opens your Room in a new tab when a visitor clicks it. It " +
+      "sets no cookie and asks nothing of your visitors.",
+    embedSnippetAriaLabel: "Embed snippet",
+    copySnippet: "Copy snippet",
+    ownSiteFooter:
+      "Visitors see the disclosure in whichever language your Room shows first, English or Hindi, and this " +
+      "button never places your Room inside their page. It always opens your Room's own address.",
+    publishCardTitlePublished: "Publishing",
+    publishCardTitleUnpublished: "Publish your Room",
+    publishing: "Publishing...",
+    publishButton: "Publish your Room",
+    resume: "Resume",
+    pause: "Pause",
+    liveSince:
+      "Live since {label}. Anyone with your Room's address can join and start their own remembered " +
+      "relationship with your AI.",
+    recently: "recently",
+    pausedNotice: "Paused. Nobody can reach your Room until you resume it.",
+    listMyRoomTitle: "List my Room",
+    listMyRoomIntro:
+      "Listing shows your Room on the creator directory: your name, the one-line description below, and the " +
+      "language your Room's screens speak. It never shows how many followers you have.",
+    oneLineDescriptionLabel: "One-line description",
+    oneLineDescriptionPlaceholder: "What you talk about, in one line",
+    save: "Save",
+    listedNote: "Listed. Anyone browsing the directory can find your Room.",
+    notListedNote: "Not listed. Your Room still works for anyone with the link.",
+    publishFirstNote: "Publish your Room first, then you can list it.",
+    removeFromDirectory: "Remove from directory",
+    listMyRoom: "List my Room",
+    freeFollowersTitle: "Free followers",
+    freeFollowersIntro:
+      "A follower who has not paid gets this many messages a month, no voice, no check-ins. You can change it " +
+      "any time.",
+    freeMonthlyMessagesAriaLabel: "Free monthly messages",
+    roomLanguageTitle: "Room language",
+    roomLanguageIntro:
+      "Your AI keeps speaking whatever you speak with it - this only picks the app's own screens: the buttons, " +
+      "the disclosure line, the menu. A follower who has joined before, or whose own browser reports a " +
+      "language, sees that instead; this is only the first screen for everyone else.",
+    defaultRoomLanguageAriaLabel: "Default room language",
+    paidFollowersTitle: "Paid followers",
+    paidFollowersIntroPre: "Unlimited-feeling chat under a fair-use ceiling, plus voice replies when",
+    paidFollowersIntroPost: "is on. Both numbers are yours to set, within the plan's bounds.",
+    messagesAMonthLabel: "Messages a month",
+    paidMonthlyMessagesAriaLabel: "Paid monthly messages",
+    voiceMinutesAMonthLabel: "Voice minutes a month",
+    paidMonthlyVoiceMinutesAriaLabel: "Paid monthly voice minutes",
+    priceTitle: "Price",
+    priceIntro:
+      "What a follower pays a month for unlimited within fair use, past the free messages above. Between " +
+      "{min} and {max}. Vyakti keeps {pct}% of what a follower pays; the rest is yours.",
+    followerPriceAriaLabel: "Follower price",
+    noPriceYet: "No price set yet. Followers cannot subscribe until you set one.",
+    moneyTitle: "Money",
+    subscribers: "Subscribers",
+    leftThisMonth: "Left this month",
+    yourShareThisMonth: "Your share this month",
+    noSubscribersYet: "No subscribers yet.",
+    lastPayout: "Last payout: {label} ({label2}), for {label3} to {label4}.",
+    noPayoutYet: "No payout yet.",
+    howDoingTitle: "How your Room is doing",
+    noFollowersYet: "No followers yet. Share your Room's address to change that.",
+    followers: "Followers",
+    activeToday: "Active today",
+    messagesThisMonth: "Messages this month",
+    couldNotLoadCounts: "Could not load your counts just now. They will show the next time this loads.",
+    weekSixTitle: "Week six",
+    weekSixIntro:
+      "Of the followers who joined in a given week, the share still talking to your AI six weeks later. " +
+      "This is the number that matters most, more than messages sent or how many showed up today.",
+    noCohortsYet: "No cohorts yet. This fills in once your Room has its first followers.",
+    weekOf: "Week of {label}",
+    noFollowersThatWeek: "No followers that week",
+    stillTalkingPct: "{n}% still talking",
+    notMeasurableUntil: "Not measurable until {label}",
+    notMeasurableYetVerdict: "Not measurable yet. This needs a cohort that has been open for at least six weeks.",
+    belowGateBand: "below the 25% gate this product needs to work at all",
+    aboveCategoryBand: "above the 40% line where this becomes a category",
+    betweenBand: "between the 25% gate and the 40% category line",
+    cohortVerdictSentence: "Your oldest measurable cohort, the week of {label}, returned {n}%. That is {label2}.",
+    soon: "soon",
+    gateLine: "The gate is 25% or higher. 40% or higher is where this stops being a feature and becomes a category.",
+    couldNotLoadRetry: "Could not load this just now. It will show the next time this loads.",
+    loading: "Loading.",
+    pulseTitle: "Pulse",
+    pulseIntro:
+      "What your followers are talking about, as counts only, and only from conversations a follower chose to " +
+      "let count. Never a message, never a name, and never shown until at least five different followers are " +
+      "behind a number.",
+    pulseTopicsAriaLabel: "Pulse topics",
+    removeTopicAriaLabel: "Remove topic {label}",
+    addTopicPlaceholder: "Add a topic, e.g. exam stress",
+    add: "Add",
+    notEnoughOptins: "Not enough people have opted in yet.",
+    enoughOptinsNoBucket: "Enough followers have opted in, but nothing has five behind it yet.",
+    suppressedOne: "{n} combination was held back this week because showing them would have named someone.",
+    suppressedMany: "{n} combinations were held back this week because showing them would have named someone.",
+    showMe: "Show me",
+    noticeRoomSetup: "Your Room is set up. Publish it when you are ready.",
+    noticeAddressSaved: "Address saved.",
+    noticeRoomLive: "Your Room is live.",
+    noticeResumed: "Resumed. Your Room is live again.",
+    noticeDefaultLocaleHi: "New followers with no language set will see Hindi first.",
+    noticeDefaultLocaleEn: "New followers with no language set will see English first.",
+    noticeBioSaved: "Your one-line description is saved.",
+    noticeListed: "Listed. Your Room now appears in the creator directory.",
+    noticeUnlisted: "Unlisted. Your Room is off the directory; the link above still works.",
+    noticeFreeCap: "Free followers now get {n} messages a month.",
+    noticePaidCeilings: "Paid followers now get {n} messages and {n2} voice minutes a month.",
+    noticePrice: "Followers now pay {label} a month.",
+    noticeTierStarted: "Your tier subscription has started.",
+    noticeTierCancel: "Will not renew after the current period ends.",
+  },
+
+  videoLinkMount: {
+    eyebrow: "Coming online",
+    title: "One video, by link",
+    blurb:
+      "Paste a single lecture URL and we pull the audio, transcribe it, and propose what it teaches us about " +
+      "how you explain. This lane is being built right now and is not connected yet.",
+    noBoxNote:
+      "There is deliberately no box to paste into yet. A field that accepted a link and did nothing with it " +
+      "would cost you the paste and the wait, and tell you nothing true.",
+    worksTodayNote:
+      "What works today for video: connect your channel below, and we watch it for new uploads with your " +
+      "attested permission. Everything that lane extracts is proposed to you, never applied on its own.",
+  },
+
+  runtimeGate: {
+    labels: {
+      self_replica_only: "Self-only policy",
+      replica_not_ready: "Approved voice and behavior",
+      self_identity_not_bound: "Verified account-to-person binding",
+      adult_verification_required: "Living-adult verification",
+      identity_verification_required: "Identity verification",
+      liveness_verification_required: "Live anti-replay check",
+      inference_consent_required: "Inference permission",
+      person_profile_not_approved: "Approved: what we learned about you",
+      calibration_not_approved: "Approved behavior calibration",
+      voice_genome_not_approved: "Approved voice",
+      voice_not_ready: "Production voice mapping",
+      production_voice_required: "Non-test voice provider",
+      qualification_incomplete: "Seven-suite qualification",
+    },
+    eyebrow: "Runtime",
+    title: "What has to pass before your AI can talk to anyone",
+    intro:
+      "Launch binds the exact version of what we learned about you, the exact voice, provider voice, " +
+      "relationship namespace, and evaluation set. New drafts cannot silently change an active AI.",
+    sealActive: "ACTIVE",
+    sealSealed: "SEALED",
+    sealSubActive: "Private use only",
+    sealSubSealed: "No generation access",
+    checkingGates: "Checking every launch gate...",
+    retry: "Retry",
+    qualificationSuitesPassed: "qualification suites passed",
+    whatWeLearnedVersion: "what we learned: version",
+    calibrationVersion: "calibration version",
+    voiceVersion: "voice version",
+    gatesClosedOne: "{n} launch gate still closed",
+    gatesClosedMany: "{n} launch gates still closed",
+    actionNote:
+      "Your AI's calls use protected cascade speech only. There is no fallback to another cloud voice or to " +
+      "device text to speech.",
+    freezing: "Freezing capability...",
+    runtimeActive: "Runtime active",
+    activateButton: "Activate private runtime",
+    readinessUnavailable: "Runtime readiness is unavailable",
+    activationRefused: "Runtime activation was refused",
+  },
+
+  turnFeedback: {
+    dimensionLabel: {
+      wording: "Wording",
+      behavior: "Behavior",
+      relationship: "Relationship",
+      memory: "Memory",
+      delivery: "Delivery",
+      voice_identity: "Voice",
+    },
+    dimensionDescription: {
+      wording: "The phrases and sentence shape",
+      behavior: "How you react and make decisions",
+      relationship: "How this sounds with this person",
+      memory: "Facts, callbacks, and uncertainty",
+      delivery: "Pace, emotion, and nonverbals",
+      voice_identity: "The protected audio you actually heard",
+    },
+    ratingLabel: { exact: "Exact", close: "Close", off: "Off" },
+    reasonLabel: {
+      too_generic: "Too generic",
+      wrong_fact: "Wrong fact",
+      wrong_relationship: "Wrong relationship",
+      wrong_tone: "Wrong tone",
+      wrong_wording: "Wrong wording",
+      too_long: "Too long",
+      too_short: "Too short",
+      voice_mismatch: "Voice mismatch",
+      emotion_mismatch: "Emotion mismatch",
+      unsafe_or_boundary: "Crossed a boundary",
+      other: "Something else",
+    },
+    playVoiceFirst: "Play protected voice first",
+    savedRevision: "Revision {n} secured",
+    didThisFeelLikeYou: "Did this feel like you?",
+    thisIsMe: "This is me",
+    tuneThis: "Tune this",
+    teachDifference: "Teach the difference",
+    close: "Close",
+    gradeOnlyNote: "Grade only what you noticed. Unrated layers remain unknown.",
+    whatMissed: "What missed?",
+    correctionLabel: "What would you actually say?",
+    correctionOptionalNote: "optional, encrypted before storage",
+    correctionPlaceholder: "Write the version that sounds like you.",
+    layersRatedOne: "{n} layer rated",
+    layersRatedMany: "{n} layers rated",
+    chooseAtLeastOne: "Choose at least one layer",
+    securing: "Securing...",
+    saveEvidence: "Save evidence",
+    errorFallback: "This fidelity note could not be secured",
+  },
+
+  replicaDialogueLab: {
+    eyebrow: "Private conversation",
+    title: "Talk to your AI privately, in text",
+    intro:
+      "Every answer is generated from what we learned about you, owner calibration, this relationship's " +
+      "private state, and recent turns. Voice playback can speak only the exact server-issued reply.",
+    statusPrivateLive: "PRIVATE · LIVE",
+    statusSealed: "SEALED",
+    lockedHeadline: "Conversation stays unavailable until the private runtime passes every gate.",
+    lockedNote: "No fallback AI, generic voice, or partial activation is used.",
+    stopVoice: "Stop voice",
+    playProtectedVoice: "Play protected voice",
+    emptyHeadline: "Start with something only you would notice.",
+    emptyNote: "The first turn opens a private, version-bound session.",
+    thinking: "Building an evidence-bound answer...",
+    messageLabel: "Message your AI",
+    messagePlaceholder: "What would I say here?",
+    sendPrivately: "Send privately",
+    dismiss: "Dismiss",
+    trustNote:
+      "Synthetic disclosure and watermarking remain mandatory for audio. Conversation logs are private and " +
+      "erasable; this screen never exposes AI, agent, person, storage, or provider identifiers.",
+    errorReadinessUnavailable: "Private dialogue readiness is unavailable",
+    errorReconcileRequired:
+      "This reply completed, but Azure usage needs operator reconciliation before another paid turn.",
+    errorCouldNotAnswer: "Your AI could not answer",
+    errorVoicePlayback: "Protected voice could not be played",
+  },
+
+  calibrationStudio: {
+    layers: {
+      delivery: "Delivery",
+      language: "Language",
+      behaviour: "Behavior",
+      memory: "Memory",
+      relationship: "Relationship",
+    },
+    blockers: {
+      approved_person_profile_required: "Approve what we learned about you first",
+      delivery_calibration_required: "Choose at least one delivery contrast",
+      language_calibration_required: "Choose at least one language contrast",
+      behaviour_calibration_required: "Choose at least one behavior contrast",
+      memory_calibration_required: "Choose at least one memory contrast",
+      relationship_calibration_required: "Choose at least one relationship contrast",
+      calibration_depth_required: "Resolve at least seven contrasts",
+    },
+    eyebrow: "Behavior calibration",
+    title: "Show it how you would actually answer",
+    intro:
+      "Choose between safe behavioral contrasts. Every correction becomes versioned preference evidence, " +
+      "never another sentence glued onto a persona prompt.",
+    approvedPolicyLabel: "approved policy",
+    preparingContrasts: "Preparing calibration contrasts...",
+    retry: "Retry",
+    contrastsReviewedAriaLabel: "{n} of {n2} contrasts reviewed",
+    contrastsReviewed: "contrasts reviewed",
+    calibrationScenariosAriaLabel: "Calibration scenarios",
+    openContrastAriaLabel: "Open {label} contrast {n}",
+    orWord: "or",
+    bothFeelLikeMe: "Both feel like me",
+    neitherIsMe: "Neither is me",
+    freeTextNote:
+      "Free-text notes are never compiled into behavior. Only reviewed, server-owned strategies can enter a " +
+      "frozen runtime capability.",
+    checkingChoices: "Checking choices...",
+    approveCalibrationVersion: "Approve calibration v{n}",
+    buildingPolicy: "Building policy...",
+    buildCalibrationPolicy: "Build calibration policy",
+    errorCouldNotLoad: "Calibration could not be loaded",
+    errorChoiceNotSaved: "Your calibration choice was not saved",
+    errorBuildRefused: "Calibration build was refused",
+    errorApproveChanged: "Calibration changed and could not be approved",
+  },
+
+  candidateEvaluationLab: {
+    dimensionCopy: {
+      overall: { label: "Overall", hint: "Which one feels more like you?" },
+      wording: { label: "Wording", hint: "Phrases, sentence shape, and length" },
+      behavior: { label: "Behavior", hint: "Reaction, judgment, and way of responding" },
+      relationship: { label: "Relationship", hint: "How you would speak in this exact bond" },
+      memory: { label: "Memory", hint: "Facts, callbacks, and honest uncertainty" },
+      delivery: { label: "Delivery", hint: "Implied pace, energy, and emotional shape" },
+    },
+    choiceLabel: { a: "A is closer", tie: "No difference", b: "B is closer" },
+    loadErrorFallback: "The comparison could not be loaded",
+    eyebrow: "Blind comparison",
+    title: "Pick the closer voice, without being told which is which",
+    intro: "Compare two hidden outputs layer by layer. Their identity stays sealed until the full evaluation is complete.",
+    sealAriaLabel: "Evaluation blinding status",
+    blindedLabel: "BLINDED",
+    mappingNote: "A/B mapping stays server-side",
+    loadingAriaLabel: "Loading blind evaluation",
+    comparisonUnavailable: "Comparison unavailable",
+    tryAgain: "Try again",
+    emptyHeadline: "No qualified candidate is waiting for review.",
+    emptyNote: "This opens only after a frozen test set and two encrypted candidate outputs exist for at least 30 comparisons.",
+    completeHeadline: "Blind review complete",
+    completeNote: "{n} comparisons are sealed. Safety, privacy, and statistical gates decide whether this candidate can advance.",
+    comparisonOfLabel: "Comparison {n} of {n2}",
+    sealedCountLabel: "{n} sealed",
+    situationLabel: "Situation",
+    optionsAriaLabel: "Anonymous response options",
+    anonymousOutput: "Anonymous output",
+    orWord: "OR",
+    judgeEveryLayer: "Judge every layer",
+    judgeInstruction: "Choose based on this situation only. A tie is useful evidence.",
+    layersJudged: "{n} of {n2} layers judged",
+    sealingComparison: "Sealing comparison...",
+    sealAndContinue: "Seal and continue",
+  },
+
+  processingReview: {
+    reasonLabel: {
+      accepted: {
+        matches_subject: "Matches me",
+        clean_identity_signal: "Clean identity signal",
+        measurement_verified: "Measurement verified",
+        segment_verified: "Speaker segment verified",
+      },
+      rejected: {
+        wrong_speaker: "Wrong speaker",
+        third_party_present: "Another person appears",
+        poor_quality: "Quality is too poor",
+        corrupt_or_incomplete: "Corrupt or incomplete",
+        synthetic_or_replayed: "Synthetic or replayed",
+        privacy_risk: "Privacy risk",
+      },
+      superseded: {
+        better_variant_selected: "Better variant selected",
+        newer_measurement: "Newer measurement",
+        corrected_segmentation: "Segmentation corrected",
+        source_replaced: "Source replaced",
+      },
+    },
+    recently: "Recently",
+    contentWithheld: "Content withheld. Review only the timing, confidence, and provenance shown here.",
+    needsReview: "needs review",
+    reviewAriaLabel: "Review {label}",
+    decisionSelectLabel: "Decision",
+    reasonSelectLabel: "Reason",
+    optionAccept: "Accept",
+    optionReject: "Reject",
+    optionSupersede: "Supersede",
+    saving: "Saving",
+    recordReview: "Record review",
+    decisionWithheldNote: "A decision is unavailable here because the evidence content is intentionally withheld.",
+    confidenceNotReported: "Confidence not reported",
+    confidencePct: "{n}% confidence",
+    endpointSuffix: "{n}s endpoint",
+    unreportedFamily: "unreported family",
+    unreportedAdapter: "unreported adapter",
+    eyebrow: "Your review",
+    title: "See what we extracted, then approve it",
+    refreshing: "Refreshing",
+    refresh: "Refresh",
+    intro:
+      "Only review-safe measurements are shown. Raw transcripts, voice vectors, storage locations, provider references, and durable download links never enter this page. " +
+      "A private audition link is minted only after you press Listen and expires within 60 seconds.",
+    loadingReceipts: "Loading private processing receipts",
+    emptyHeadline: "No processing receipts yet",
+    emptyNote: "Add a source above. It will appear here only after the private processing pipeline begins.",
+    sourceTitle: "{label} source",
+    pipelineStepOne: "{n} pipeline step",
+    pipelineStepMany: "{n} pipeline steps",
+    derivedVariantOne: "{n} derived variant",
+    derivedVariantMany: "{n} derived variants",
+    evidenceRecordOne: "{n} evidence record",
+    evidenceRecordMany: "{n} evidence records",
+    pipelineStepsAriaLabel: "Pipeline steps",
+    noPipelineAttempt: "No pipeline attempt has been recorded.",
+    attemptLabel: "attempt {n}",
+    selectedVoiceBadge: "Selected voice",
+    opening: "Opening",
+    listenPrivately: "Listen privately",
+    selecting: "Selecting",
+    selected: "Selected",
+    useThisVoice: "Use this voice",
+    cannotPlayAudio: "Your browser cannot play this private audio.",
+    linkExpiresNote: "The signed link expires automatically in under one minute.",
+    noReviewableEvidence: "No reviewable evidence has been emitted for this source.",
+    draftOnlyEyebrow: "Draft only",
+    voiceBuildGateTitle: "Voice build gate",
+    voiceBuildGateIntro:
+      "A queued build cannot be used for synthesis. A separate approval and held-out real-world evaluation " +
+      "are still required.",
+    acousticFamilies: "acoustic families",
+    voiceMeasurements: "voice measurements",
+    qualityMeasurements: "quality measurements",
+    speakerSegments: "speaker segments",
+    queueingDraft: "Queueing draft",
+    queueDraftVoice: "Queue a draft voice",
+    buildLedger: "Build ledger",
+    immutableDraftLedger: "Immutable draft ledger",
+    voiceVersionStatus: "Voice version {n}, {label}",
+    voicePrintFamiliesDetail: "{n} independent voice-print families",
+    targetSegmentsDetail: "{n} target segments",
+    enrollmentArtifactsDetail: "{n} private enrollment artifacts",
+    draftsCannotSynthesize:
+      "Drafts cannot synthesize audio. Approval still requires owner calibration and a real held-out identity " +
+      "evaluation.",
+    errorProcessingUnavailable: "Processing review is unavailable",
+    errorDecisionNotRecorded: "Decision could not be recorded",
+    errorDraftNotQueued: "Draft build could not be queued",
+    errorAuditionNotOpened: "Private audition could not be opened",
+    errorCandidateNotSelected: "Voice candidate could not be selected",
+    noticeReviewRecorded: "Review decision recorded as an append-only receipt.",
+    noticeCandidateSelected: "Voice candidate selected. Existing drafts were retired so the next voice build binds this exact audio.",
+    noticeDraftQueued: "Draft voice build queued. It still needs your approval before anything can use it.",
+  },
+
+  personModelStudio: {
+    blockers: {
+      self_name_required: "Confirm the name your AI uses for itself",
+      language_identity_required: "Confirm its language and code-switching identity",
+      behavior_evidence_required: "Review at least one behavior or repair pattern",
+      boundary_evidence_required: "Confirm at least one personal boundary",
+      critical_identity_conflict: "Resolve conflicting identity claims",
+    },
+    extractionBlockers: {
+      transcription_consent_required: "Grant transcription consent",
+      training_consent_required: "Grant AI-building consent for assisted claim extraction",
+      reviewed_subject_transcript_required: "Accept at least one verified speaker transcript",
+    },
+    confidencePct: "{n}% confidence",
+    citedSourceOne: "{n} cited source",
+    citedSourceMany: "{n} cited sources",
+    keepOut: "Keep out",
+    notAccurate: "Not accurate",
+    outdated: "Outdated",
+    thisIsMe: "This is me",
+    reviewClaimAriaLabel: "Review this claim",
+    eyebrow: "What we learned about you",
+    title: "Everything we think we learned about you, one claim at a time",
+    intro:
+      "Confirm identity, language, behavior, values, boundaries, and autobiography as separate evidence-backed " +
+      "claims. Conflicts stay visible instead of being averaged into a confident fiction.",
+    approvedVersionLabel: "approved version",
+    loadingClaims: "Loading reviewed claims...",
+    retry: "Retry",
+    proposedClaims: "proposed claims",
+    accepted: "accepted",
+    criticalConflicts: "critical conflicts",
+    citedExtractionEyebrow: "Cited extraction",
+    citedExtractionTitle: "Turn your reviewed recordings into claims you control",
+    citedExtractionIntro:
+      "Only accepted target-speaker transcript spans qualify. Raw transcripts stay server-side, direct " +
+      "identifiers are masked before the extraction call, and every result remains a proposal until you review " +
+      "it below.",
+    eligibleSpans: "eligible spans",
+    lastProposed: "last proposed",
+    noExtractionRunYet: "No extraction run yet",
+    extractingPrivately: "Extracting privately...",
+    extractNewEvidence: "Extract new evidence",
+    extractCitedClaims: "Extract cited claims",
+    noClaimsHeadline: "No behavior or memory claims yet.",
+    noClaimsNote: "Processed evidence will appear here for review. Raw transcripts, vectors, and storage paths remain withheld.",
+    buildIsDeterministicNote: "A build is deterministic and versioned. Approving it never grants inference or voice generation permission.",
+    checkingEvidence: "Checking evidence...",
+    approveProfileVersion: "Approve profile v{n}",
+    building: "Building...",
+    buildReviewDraft: "Build review draft",
+    errorExtractionUnavailable: "Cited extraction status could not be loaded",
+    errorProfileUnavailable: "What we learned about you could not be loaded",
+    errorClaimNotSaved: "Claim review was not saved",
+    errorBuildRefused: "Building what we learned about you was refused",
+    errorApproveChanged: "Profile changed and could not be approved",
+    errorExtractionFailed: "Cited claims could not be extracted",
+  },
 };
 
 const HI: StudioCopy = {
@@ -1013,6 +2024,549 @@ const HI: StudioCopy = {
     noticeWillNotRenewSimple: "मौजूदा अवधि खत्म होने के बाद नवीनीकृत नहीं होगी।",
     autoStartLiveStarted: "\"{name}\" लाइव है, और इसकी सीट सदस्यता शुरू हो गई है।",
     autoStartLivePending: "\"{name}\" लाइव है। जब सीटों के लिए भुगतान लेने के लिए तैयार हों, तब नीचे इसकी सदस्यता शुरू करें।",
+  },
+
+  roomStudio: {
+    eyebrow: "आपका रूम",
+    loadingTitle: "आपका रूम लोड हो रहा है",
+    checkingExists: "जांचा जा रहा है कि आपका रूम अभी है या नहीं।",
+    setupTitle: "वह जगह बनाएं जहां आपका AI रहता है",
+    setupIntro:
+      "एक रूम हर फॉलोअर के लिए, जो आपके AI से बात करता है, एक निजी, लगातार चलने वाला पता है। यह हर एक को खुद " +
+      "याद रखता है, और कभी एक फॉलोअर को दूसरे को नहीं दिखाता। इसे एक बार बना लें, फिर जब नीचे के गेट खुल जाएं तो " +
+      "इसे पब्लिश करें।",
+    settingUp: "बनाया जा रहा है...",
+    setupButton: "अपना रूम बनाएं",
+    liveTitle: "वह जगह जहां आपका AI रहता है",
+    liveIntro:
+      "एक निजी, लगातार चलने वाला पता। हर फॉलोअर जो जुड़ता है, आपके AI के साथ अपना ही याद रखा हुआ रिश्ता पाता है, " +
+      "और उनमें से कोई भी कभी किसी और फॉलोअर की बातचीत, या आपकी, नहीं देखता।",
+    statusPaused: "रुका हुआ",
+    statusLive: "लाइव",
+    statusDraft: "पब्लिश नहीं हुआ",
+    addressCardTitle: "आपके रूम का पता",
+    copied: "कॉपी हो गया",
+    copyLink: "लिंक कॉपी करें",
+    downloadStoryCard: "स्टोरी कार्ड डाउनलोड करें",
+    partOf: "{label} का हिस्सा।",
+    suiteCoversRoom: "{label} में आपकी सीट इस रूम को कवर करती है।",
+    yourSuite: "आपका Suite",
+    tierGroupAriaLabel: "टियर",
+    tierFreeLabel: "आपका टियर: मुफ़्त क्षमता।",
+    working: "हो रहा है...",
+    upgradeToRoom: "Room में अपग्रेड करें ({label}/माह)",
+    upgradeToStudio: "Studio में अपग्रेड करें ({label}/माह)",
+    tierLabel: "आपका टियर: {label}।",
+    tierRoom: "Room",
+    tierStudio: "Studio",
+    willNotRenewOn: " {label} के बाद नवीनीकृत नहीं होगा।",
+    renewsOn: " {label} को नवीनीकृत होगा।",
+    cancel: "रद्द करें",
+    changeAddressLabel: "पता बदलें",
+    saving: "सेव हो रहा है...",
+    saveAddress: "पता सेव करें",
+    enterAddress: "अपने रूम के लिए एक पता डालें।",
+    addressInvalid: "3 से 40 अक्षर, अंक, या डैश के बीच।",
+    willReadAs: "यह ऐसे दिखेगा: {label}",
+    telegramCardTitle: "Telegram पर आपका रूम",
+    open: "खोलें",
+    telegramNotConnected:
+      "अभी नहीं जुड़ा। फॉलोअर्स फिर भी ऊपर वाले पते पर आपके रूम तक पहुंच सकते हैं; Telegram पहुंचने का एक दूसरा " +
+      "तरीका है, कोई ज़रूरत नहीं।",
+    ownSiteCardTitle: "अपनी खुद की साइट पर",
+    ownSiteIntro:
+      "इसे किसी भी पेज पर पेस्ट करें जो आप नियंत्रित करते हैं: एक कोचिंग साइट, एक Linktree, एक ब्लॉग पोस्ट। यह " +
+      "नीचे आपके रूम का डिस्क्लोज़र दिखाते हुए एक बटन दिखाता है, और क्लिक करने पर आपका रूम एक नए टैब में खोलता है। " +
+      "यह कोई कुकी सेट नहीं करता और आपके विज़िटर से कुछ नहीं मांगता।",
+    embedSnippetAriaLabel: "एम्बेड स्निपेट",
+    copySnippet: "स्निपेट कॉपी करें",
+    ownSiteFooter:
+      "विज़िटर वही भाषा में डिस्क्लोज़र देखते हैं जिसमें आपका रूम पहले दिखता है, अंग्रेज़ी या हिन्दी, और यह बटन " +
+      "आपके रूम को कभी उनके पेज के अंदर नहीं रखता। यह हमेशा आपके रूम का अपना पता खोलता है।",
+    publishCardTitlePublished: "पब्लिशिंग",
+    publishCardTitleUnpublished: "अपना रूम पब्लिश करें",
+    publishing: "पब्लिश हो रहा है...",
+    publishButton: "अपना रूम पब्लिश करें",
+    resume: "फिर शुरू करें",
+    pause: "रोकें",
+    liveSince:
+      "{label} से लाइव है। आपके रूम का पता रखने वाला कोई भी जुड़ सकता है और आपके AI के साथ अपना याद रखा हुआ " +
+      "रिश्ता शुरू कर सकता है।",
+    recently: "हाल ही में",
+    pausedNotice: "रुका हुआ है। जब तक आप इसे फिर शुरू नहीं करते, कोई भी आपके रूम तक नहीं पहुंच सकता।",
+    listMyRoomTitle: "मेरा रूम लिस्ट करें",
+    listMyRoomIntro:
+      "लिस्ट करने पर आपका रूम क्रिएटर डायरेक्टरी में दिखता है: आपका नाम, नीचे की एक-लाइन जानकारी, और जिस भाषा " +
+      "में आपके रूम की स्क्रीन बोलती हैं। यह कभी नहीं दिखाता कि आपके कितने फॉलोअर हैं।",
+    oneLineDescriptionLabel: "एक-लाइन जानकारी",
+    oneLineDescriptionPlaceholder: "आप किस बारे में बात करते हैं, एक लाइन में",
+    save: "सेव करें",
+    listedNote: "लिस्टेड है। डायरेक्टरी देखने वाला कोई भी आपका रूम ढूंढ सकता है।",
+    notListedNote: "लिस्टेड नहीं है। आपका रूम फिर भी लिंक रखने वाले किसी के लिए भी काम करता है।",
+    publishFirstNote: "पहले अपना रूम पब्लिश करें, फिर आप इसे लिस्ट कर सकते हैं।",
+    removeFromDirectory: "डायरेक्टरी से हटाएं",
+    listMyRoom: "मेरा रूम लिस्ट करें",
+    freeFollowersTitle: "मुफ़्त फॉलोअर्स",
+    freeFollowersIntro:
+      "जिस फॉलोअर ने भुगतान नहीं किया है उसे महीने में इतने मैसेज मिलते हैं, कोई वॉइस नहीं, कोई चेक-इन नहीं। " +
+      "आप इसे कभी भी बदल सकते हैं।",
+    freeMonthlyMessagesAriaLabel: "मुफ़्त मासिक मैसेज",
+    roomLanguageTitle: "रूम की भाषा",
+    roomLanguageIntro:
+      "आपका AI वही बोलता रहता है जो आप उससे बोलते हैं - यह सिर्फ ऐप की अपनी स्क्रीन चुनता है: बटन, डिस्क्लोज़र " +
+      "लाइन, मेन्यू। जो फॉलोअर पहले जुड़ चुका है, या जिसके अपने ब्राउज़र ने कोई भाषा बताई है, वह इसके बजाय वही " +
+      "देखता है; यह बाकी सबके लिए सिर्फ पहली स्क्रीन है।",
+    defaultRoomLanguageAriaLabel: "डिफ़ॉल्ट रूम भाषा",
+    paidFollowersTitle: "पेड फॉलोअर्स",
+    paidFollowersIntroPre: "फेयर-यूज़ सीमा के भीतर लगभग असीमित चैट, साथ ही वॉइस जवाब जब",
+    paidFollowersIntroPost: "चालू हो। दोनों नंबर प्लान की सीमा के भीतर आपके तय करने के लिए हैं।",
+    messagesAMonthLabel: "महीने में मैसेज",
+    paidMonthlyMessagesAriaLabel: "पेड मासिक मैसेज",
+    voiceMinutesAMonthLabel: "महीने में वॉइस मिनट",
+    paidMonthlyVoiceMinutesAriaLabel: "पेड मासिक वॉइस मिनट",
+    priceTitle: "कीमत",
+    priceIntro:
+      "ऊपर के मुफ़्त मैसेज के बाद, फेयर-यूज़ के भीतर असीमित के लिए एक फॉलोअर महीने में क्या देता है। {min} और " +
+      "{max} के बीच। Vyakti एक फॉलोअर के भुगतान का {pct}% रखता है; बाकी आपका है।",
+    followerPriceAriaLabel: "फॉलोअर कीमत",
+    noPriceYet: "अभी कोई कीमत तय नहीं है। जब तक आप एक तय नहीं करते, फॉलोअर्स सदस्यता नहीं ले सकते।",
+    moneyTitle: "पैसा",
+    subscribers: "सब्सक्राइबर्स",
+    leftThisMonth: "इस महीने छोड़ा",
+    yourShareThisMonth: "इस महीने आपका हिस्सा",
+    noSubscribersYet: "अभी कोई सब्सक्राइबर नहीं।",
+    lastPayout: "पिछला पेआउट: {label} ({label2}), {label3} से {label4} तक के लिए।",
+    noPayoutYet: "अभी कोई पेआउट नहीं है।",
+    howDoingTitle: "आपका रूम कैसा कर रहा है",
+    noFollowersYet: "अभी कोई फॉलोअर नहीं। इसे बदलने के लिए अपने रूम का पता शेयर करें।",
+    followers: "फॉलोअर्स",
+    activeToday: "आज सक्रिय",
+    messagesThisMonth: "इस महीने के मैसेज",
+    couldNotLoadCounts: "अभी आपके आंकड़े लोड नहीं हो सके। अगली बार लोड होने पर ये दिखेंगे।",
+    weekSixTitle: "छठा हफ़्ता",
+    weekSixIntro:
+      "किसी हफ़्ते में जुड़े फॉलोअर्स में से, छह हफ़्ते बाद भी आपके AI से बात कर रहे लोगों का हिस्सा। यह वह नंबर " +
+      "है जो सबसे ज़्यादा मायने रखता है, भेजे गए मैसेज या आज कितने आए उससे भी ज़्यादा।",
+    noCohortsYet: "अभी कोई कोहॉर्ट नहीं। आपके रूम के पहले फॉलोअर मिलते ही यह भरना शुरू होगा।",
+    weekOf: "{label} का हफ़्ता",
+    noFollowersThatWeek: "उस हफ़्ते कोई फॉलोअर नहीं",
+    stillTalkingPct: "{n}% अभी भी बात कर रहे हैं",
+    notMeasurableUntil: "{label} तक मापने लायक नहीं",
+    notMeasurableYetVerdict: "अभी मापने लायक नहीं। इसके लिए कम से कम छह हफ़्ते पुराना कोहॉर्ट चाहिए।",
+    belowGateBand: "25% के उस गेट से नीचे जो इस प्रोडक्ट को बिल्कुल काम करने के लिए चाहिए",
+    aboveCategoryBand: "40% की उस लाइन से ऊपर जहां यह एक श्रेणी बन जाता है",
+    betweenBand: "25% के गेट और 40% की श्रेणी लाइन के बीच",
+    cohortVerdictSentence: "आपका सबसे पुराना मापने लायक कोहॉर्ट, {label} के हफ़्ते का, {n}% वापस आया। यह {label2} है।",
+    soon: "जल्द",
+    gateLine: "गेट 25% या उससे ज़्यादा है। 40% या उससे ज़्यादा वह जगह है जहां यह एक फ़ीचर होना बंद कर एक श्रेणी बन जाता है।",
+    couldNotLoadRetry: "अभी यह लोड नहीं हो सका। अगली बार लोड होने पर यह दिखेगा।",
+    loading: "लोड हो रहा है।",
+    pulseTitle: "Pulse",
+    pulseIntro:
+      "आपके फॉलोअर्स किस बारे में बात कर रहे हैं, सिर्फ आंकड़ों के रूप में, और सिर्फ उन बातचीत से जिन्हें किसी " +
+      "फॉलोअर ने खुद गिनने देना चुना। कभी कोई मैसेज नहीं, कभी कोई नाम नहीं, और जब तक किसी नंबर के पीछे कम से कम " +
+      "पांच अलग-अलग फॉलोअर न हों, तब तक कभी नहीं दिखाया जाता।",
+    pulseTopicsAriaLabel: "Pulse विषय",
+    removeTopicAriaLabel: "विषय {label} हटाएं",
+    addTopicPlaceholder: "एक विषय जोड़ें, जैसे परीक्षा का तनाव",
+    add: "जोड़ें",
+    notEnoughOptins: "अभी तक पर्याप्त लोगों ने ऑप्ट-इन नहीं किया।",
+    enoughOptinsNoBucket: "पर्याप्त फॉलोअर्स ने ऑप्ट-इन किया है, लेकिन अभी किसी के पीछे पांच नहीं हैं।",
+    suppressedOne: "{n} संयोजन इस हफ़्ते रोका गया क्योंकि दिखाने से किसी का नाम पता चल जाता।",
+    suppressedMany: "{n} संयोजन इस हफ़्ते रोके गए क्योंकि दिखाने से किसी का नाम पता चल जाता।",
+    showMe: "मुझे दिखाएं",
+    noticeRoomSetup: "आपका रूम बन गया है। जब तैयार हों तब इसे पब्लिश करें।",
+    noticeAddressSaved: "पता सेव हो गया।",
+    noticeRoomLive: "आपका रूम लाइव है।",
+    noticeResumed: "फिर शुरू हुआ। आपका रूम फिर से लाइव है।",
+    noticeDefaultLocaleHi: "जिन नए फॉलोअर्स ने भाषा तय नहीं की, वे पहले हिन्दी देखेंगे।",
+    noticeDefaultLocaleEn: "जिन नए फॉलोअर्स ने भाषा तय नहीं की, वे पहले अंग्रेज़ी देखेंगे।",
+    noticeBioSaved: "आपकी एक-लाइन जानकारी सेव हो गई।",
+    noticeListed: "लिस्टेड है। आपका रूम अब क्रिएटर डायरेक्टरी में दिखता है।",
+    noticeUnlisted: "अनलिस्टेड है। आपका रूम डायरेक्टरी में नहीं है; ऊपर वाला लिंक फिर भी काम करता है।",
+    noticeFreeCap: "मुफ़्त फॉलोअर्स को अब महीने में {n} मैसेज मिलते हैं।",
+    noticePaidCeilings: "पेड फॉलोअर्स को अब महीने में {n} मैसेज और {n2} वॉइस मिनट मिलते हैं।",
+    noticePrice: "फॉलोअर्स अब महीने में {label} देते हैं।",
+    noticeTierStarted: "आपकी टियर सदस्यता शुरू हो गई है।",
+    noticeTierCancel: "मौजूदा अवधि खत्म होने के बाद नवीनीकृत नहीं होगी।",
+  },
+
+  videoLinkMount: {
+    eyebrow: "जल्द आ रहा है",
+    title: "एक वीडियो, लिंक से",
+    blurb:
+      "एक लेक्चर का URL पेस्ट करें और हम ऑडियो निकालते हैं, उसे ट्रांसक्राइब करते हैं, और बताते हैं कि यह आपके " +
+      "समझाने के तरीके के बारे में हमें क्या सिखाता है। यह हिस्सा अभी बन रहा है और अभी जुड़ा नहीं है।",
+    noBoxNote:
+      "अभी जानबूझकर यहां पेस्ट करने के लिए कोई बॉक्स नहीं है। एक फ़ील्ड जो लिंक ले ले और उसका कुछ न करे, आपसे " +
+      "पेस्ट और इंतज़ार दोनों लेगी, और आपको कुछ सच नहीं बताएगी।",
+    worksTodayNote:
+      "वीडियो के लिए आज क्या काम करता है: नीचे अपना चैनल जोड़ें, और हम आपकी दी हुई अनुमति से नए अपलोड देखते " +
+      "हैं। वह हिस्सा जो भी निकालता है, वह आपको बताया जाता है, खुद से लागू नहीं किया जाता।",
+  },
+
+  runtimeGate: {
+    labels: {
+      self_replica_only: "सिर्फ़-खुद की नीति",
+      replica_not_ready: "मंज़ूर आवाज़ और व्यवहार",
+      self_identity_not_bound: "अकाउंट-से-व्यक्ति की पुष्टि हुई बाइंडिंग",
+      adult_verification_required: "जीवित-वयस्क सत्यापन",
+      identity_verification_required: "पहचान सत्यापन",
+      liveness_verification_required: "लाइव एंटी-रीप्ले जांच",
+      inference_consent_required: "इन्फ़रेंस अनुमति",
+      person_profile_not_approved: "मंज़ूर: हमने आपके बारे में क्या सीखा",
+      calibration_not_approved: "मंज़ूर व्यवहार कैलिब्रेशन",
+      voice_genome_not_approved: "मंज़ूर आवाज़",
+      voice_not_ready: "प्रोडक्शन वॉइस मैपिंग",
+      production_voice_required: "गैर-टेस्ट वॉइस प्रोवाइडर",
+      qualification_incomplete: "सात-सुइट क्वालिफ़िकेशन",
+    },
+    eyebrow: "रनटाइम",
+    title: "आपका AI किसी से बात कर सके, उससे पहले क्या पास होना चाहिए",
+    intro:
+      "लॉन्च हमने आपके बारे में जो सीखा उसका सटीक वर्शन, सटीक आवाज़, प्रोवाइडर वॉइस, रिश्ते का नेमस्पेस, और " +
+      "मूल्यांकन सेट को बांधता है। नए ड्राफ्ट चुपचाप किसी सक्रिय AI को नहीं बदल सकते।",
+    sealActive: "सक्रिय",
+    sealSealed: "सील्ड",
+    sealSubActive: "सिर्फ़ निजी इस्तेमाल",
+    sealSubSealed: "कोई जनरेशन एक्सेस नहीं",
+    checkingGates: "हर लॉन्च गेट जांचा जा रहा है...",
+    retry: "फिर कोशिश करें",
+    qualificationSuitesPassed: "क्वालिफ़िकेशन सुइट पास हुए",
+    whatWeLearnedVersion: "हमने क्या सीखा: वर्शन",
+    calibrationVersion: "कैलिब्रेशन वर्शन",
+    voiceVersion: "आवाज़ वर्शन",
+    gatesClosedOne: "{n} लॉन्च गेट अभी भी बंद है",
+    gatesClosedMany: "{n} लॉन्च गेट अभी भी बंद हैं",
+    actionNote:
+      "आपके AI की कॉल सिर्फ़ सुरक्षित कैस्केड स्पीच इस्तेमाल करती हैं। किसी और क्लाउड वॉइस या डिवाइस टेक्स्ट " +
+      "टू स्पीच पर कोई फ़ॉलबैक नहीं है।",
+    freezing: "क्षमता फ़्रीज़ की जा रही है...",
+    runtimeActive: "रनटाइम सक्रिय है",
+    activateButton: "निजी रनटाइम सक्रिय करें",
+    readinessUnavailable: "रनटाइम की तैयारी अभी उपलब्ध नहीं है",
+    activationRefused: "रनटाइम सक्रिय करना अस्वीकार हुआ",
+  },
+
+  turnFeedback: {
+    dimensionLabel: {
+      wording: "शब्द चयन",
+      behavior: "व्यवहार",
+      relationship: "रिश्ता",
+      memory: "याददाश्त",
+      delivery: "डिलीवरी",
+      voice_identity: "आवाज़",
+    },
+    dimensionDescription: {
+      wording: "वाक्यांश और वाक्य की बनावट",
+      behavior: "आप कैसे प्रतिक्रिया देते और फैसले लेते हैं",
+      relationship: "इस व्यक्ति के साथ यह कैसा लगता है",
+      memory: "तथ्य, पुरानी बातें, और अनिश्चितता",
+      delivery: "गति, भाव, और बिना-शब्दों वाले संकेत",
+      voice_identity: "वह सुरक्षित ऑडियो जो आपने असल में सुना",
+    },
+    ratingLabel: { exact: "बिल्कुल सही", close: "करीब", off: "गलत" },
+    reasonLabel: {
+      too_generic: "बहुत सामान्य",
+      wrong_fact: "गलत तथ्य",
+      wrong_relationship: "गलत रिश्ता",
+      wrong_tone: "गलत लहजा",
+      wrong_wording: "गलत शब्द चयन",
+      too_long: "बहुत लंबा",
+      too_short: "बहुत छोटा",
+      voice_mismatch: "आवाज़ नहीं मिली",
+      emotion_mismatch: "भाव नहीं मिला",
+      unsafe_or_boundary: "एक सीमा पार की",
+      other: "कुछ और",
+    },
+    playVoiceFirst: "पहले सुरक्षित आवाज़ चलाएं",
+    savedRevision: "रिविज़न {n} सुरक्षित",
+    didThisFeelLikeYou: "क्या यह आपकी तरह लगा?",
+    thisIsMe: "यह मैं हूं",
+    tuneThis: "इसे ठीक करें",
+    teachDifference: "फ़र्क सिखाएं",
+    close: "बंद करें",
+    gradeOnlyNote: "सिर्फ़ वही रेट करें जो आपने देखा। बिना रेट किए हिस्से अनजान ही रहते हैं।",
+    whatMissed: "क्या चूक गया?",
+    correctionLabel: "आप असल में क्या कहेंगे?",
+    correctionOptionalNote: "वैकल्पिक, सेव होने से पहले एन्क्रिप्टेड",
+    correctionPlaceholder: "वह वर्शन लिखें जो आपकी तरह लगे।",
+    layersRatedOne: "{n} हिस्सा रेट किया गया",
+    layersRatedMany: "{n} हिस्से रेट किए गए",
+    chooseAtLeastOne: "कम से कम एक हिस्सा चुनें",
+    securing: "सुरक्षित किया जा रहा है...",
+    saveEvidence: "सबूत सेव करें",
+    errorFallback: "यह सटीकता नोट सुरक्षित नहीं हो सका",
+  },
+
+  replicaDialogueLab: {
+    eyebrow: "निजी बातचीत",
+    title: "अपने AI से निजी तौर पर, टेक्स्ट में बात करें",
+    intro:
+      "हर जवाब उस पर बनता है जो हमने आपके बारे में सीखा, आपके अपने कैलिब्रेशन, इस रिश्ते की निजी स्थिति, और " +
+      "हाल के टर्न। वॉइस प्लेबैक सिर्फ़ वही सर्वर-जारी जवाब बोल सकती है।",
+    statusPrivateLive: "निजी · लाइव",
+    statusSealed: "सील्ड",
+    lockedHeadline: "जब तक निजी रनटाइम हर गेट पास न करे, बातचीत उपलब्ध नहीं होगी।",
+    lockedNote: "कोई फ़ॉलबैक AI, सामान्य आवाज़, या आधा सक्रिय होना इस्तेमाल नहीं होता।",
+    stopVoice: "आवाज़ रोकें",
+    playProtectedVoice: "सुरक्षित आवाज़ चलाएं",
+    emptyHeadline: "कुछ ऐसा शुरू करें जो सिर्फ़ आप ही नोटिस करेंगे।",
+    emptyNote: "पहला टर्न एक निजी, वर्शन-बद्ध सेशन खोलता है।",
+    thinking: "सबूत-आधारित जवाब बनाया जा रहा है...",
+    messageLabel: "अपने AI को मैसेज करें",
+    messagePlaceholder: "यहां मैं क्या कहूंगा?",
+    sendPrivately: "निजी तौर पर भेजें",
+    dismiss: "हटाएं",
+    trustNote:
+      "ऑडियो के लिए सिंथेटिक डिस्क्लोज़र और वॉटरमार्किंग हमेशा ज़रूरी रहती है। बातचीत के लॉग निजी और मिटाए " +
+      "जा सकने वाले हैं; यह स्क्रीन कभी AI, एजेंट, व्यक्ति, स्टोरेज, या प्रोवाइडर की पहचान नहीं दिखाती।",
+    errorReadinessUnavailable: "निजी बातचीत की तैयारी अभी उपलब्ध नहीं है",
+    errorReconcileRequired:
+      "यह जवाब पूरा हो गया, लेकिन अगले पेड टर्न से पहले Azure इस्तेमाल को ऑपरेटर की तरफ़ से मिलाना ज़रूरी है।",
+    errorCouldNotAnswer: "आपका AI जवाब नहीं दे सका",
+    errorVoicePlayback: "सुरक्षित आवाज़ चलाई नहीं जा सकी",
+  },
+
+  calibrationStudio: {
+    layers: {
+      delivery: "डिलीवरी",
+      language: "भाषा",
+      behaviour: "व्यवहार",
+      memory: "याददाश्त",
+      relationship: "रिश्ता",
+    },
+    blockers: {
+      approved_person_profile_required: "पहले हमने आपके बारे में जो सीखा उसे मंज़ूर करें",
+      delivery_calibration_required: "कम से कम एक डिलीवरी तुलना चुनें",
+      language_calibration_required: "कम से कम एक भाषा तुलना चुनें",
+      behaviour_calibration_required: "कम से कम एक व्यवहार तुलना चुनें",
+      memory_calibration_required: "कम से कम एक याददाश्त तुलना चुनें",
+      relationship_calibration_required: "कम से कम एक रिश्ता तुलना चुनें",
+      calibration_depth_required: "कम से कम सात तुलनाएं हल करें",
+    },
+    eyebrow: "व्यवहार कैलिब्रेशन",
+    title: "इसे दिखाएं कि आप असल में कैसे जवाब देंगे",
+    intro:
+      "सुरक्षित व्यवहार तुलनाओं में से चुनें। हर सुधार वर्शन वाला प्राथमिकता सबूत बनता है, कभी किसी प्रॉम्प्ट " +
+      "में चिपकाया गया एक और वाक्य नहीं।",
+    approvedPolicyLabel: "मंज़ूर नीति",
+    preparingContrasts: "कैलिब्रेशन तुलनाएं तैयार की जा रही हैं...",
+    retry: "फिर कोशिश करें",
+    contrastsReviewedAriaLabel: "{n2} में से {n} तुलनाएं देखी गईं",
+    contrastsReviewed: "तुलनाएं देखी गईं",
+    calibrationScenariosAriaLabel: "कैलिब्रेशन परिदृश्य",
+    openContrastAriaLabel: "{label} तुलना {n} खोलें",
+    orWord: "या",
+    bothFeelLikeMe: "दोनों मेरी जैसी लगती हैं",
+    neitherIsMe: "कोई भी मेरी जैसी नहीं",
+    freeTextNote:
+      "फ़्री-टेक्स्ट नोट कभी व्यवहार में नहीं जोड़े जाते। सिर्फ़ देखी गई, सर्वर की अपनी रणनीतियां ही किसी " +
+      "फ़्रीज़ की गई रनटाइम क्षमता में जा सकती हैं।",
+    checkingChoices: "चुनाव जांचे जा रहे हैं...",
+    approveCalibrationVersion: "कैलिब्रेशन v{n} मंज़ूर करें",
+    buildingPolicy: "नीति बनाई जा रही है...",
+    buildCalibrationPolicy: "कैलिब्रेशन नीति बनाएं",
+    errorCouldNotLoad: "कैलिब्रेशन लोड नहीं हो सका",
+    errorChoiceNotSaved: "आपका कैलिब्रेशन चुनाव सेव नहीं हुआ",
+    errorBuildRefused: "कैलिब्रेशन बनाना अस्वीकार हुआ",
+    errorApproveChanged: "कैलिब्रेशन बदल गई और मंज़ूर नहीं हो सकी",
+  },
+
+  candidateEvaluationLab: {
+    dimensionCopy: {
+      overall: { label: "कुल मिलाकर", hint: "कौन-सा आपकी जैसा ज़्यादा लगता है?" },
+      wording: { label: "शब्द चयन", hint: "वाक्यांश, वाक्य की बनावट, और लंबाई" },
+      behavior: { label: "व्यवहार", hint: "प्रतिक्रिया, समझ, और जवाब देने का तरीका" },
+      relationship: { label: "रिश्ता", hint: "इस सटीक रिश्ते में आप कैसे बोलेंगे" },
+      memory: { label: "याददाश्त", hint: "तथ्य, पुरानी बातें, और ईमानदार अनिश्चितता" },
+      delivery: { label: "डिलीवरी", hint: "गति, ऊर्जा, और भाव की बनावट" },
+    },
+    choiceLabel: { a: "A ज़्यादा करीब है", tie: "कोई फ़र्क नहीं", b: "B ज़्यादा करीब है" },
+    loadErrorFallback: "यह तुलना लोड नहीं हो सकी",
+    eyebrow: "अंधी तुलना",
+    title: "बिना बताए, ज़्यादा करीब वाली आवाज़ चुनें",
+    intro: "दो छिपे हुए आउटपुट को परत दर परत मिलाएं। पूरी समीक्षा पूरी होने तक इनकी पहचान छिपी रहती है।",
+    sealAriaLabel: "समीक्षा की गोपनीयता स्थिति",
+    blindedLabel: "छिपा हुआ",
+    mappingNote: "A/B मैपिंग सिर्फ़ सर्वर पर रहती है",
+    loadingAriaLabel: "अंधी समीक्षा लोड हो रही है",
+    comparisonUnavailable: "तुलना उपलब्ध नहीं है",
+    tryAgain: "फिर कोशिश करें",
+    emptyHeadline: "अभी समीक्षा के लिए कोई योग्य उम्मीदवार नहीं है।",
+    emptyNote: "यह तभी खुलता है जब एक फ़्रीज़ किया टेस्ट सेट और दो एन्क्रिप्टेड उम्मीदवार आउटपुट कम से कम 30 तुलनाओं के लिए मौजूद हों।",
+    completeHeadline: "अंधी समीक्षा पूरी हुई",
+    completeNote: "{n} तुलनाएं सील हो गई हैं। सुरक्षा, निजता, और सांख्यिकी गेट तय करते हैं कि यह उम्मीदवार आगे बढ़ सकता है या नहीं।",
+    comparisonOfLabel: "तुलना {n2} में से {n}",
+    sealedCountLabel: "{n} सील हुईं",
+    situationLabel: "स्थिति",
+    optionsAriaLabel: "गुमनाम जवाब विकल्प",
+    anonymousOutput: "गुमनाम आउटपुट",
+    orWord: "या",
+    judgeEveryLayer: "हर परत परखें",
+    judgeInstruction: "सिर्फ़ इस स्थिति के आधार पर चुनें। बराबरी भी एक उपयोगी सबूत है।",
+    layersJudged: "{n2} में से {n} परतें परखी गईं",
+    sealingComparison: "तुलना सील की जा रही है...",
+    sealAndContinue: "सील करें और आगे बढ़ें",
+  },
+
+  processingReview: {
+    reasonLabel: {
+      accepted: {
+        matches_subject: "मुझसे मिलता है",
+        clean_identity_signal: "साफ़ पहचान संकेत",
+        measurement_verified: "मापन सत्यापित",
+        segment_verified: "स्पीकर सेगमेंट सत्यापित",
+      },
+      rejected: {
+        wrong_speaker: "गलत स्पीकर",
+        third_party_present: "कोई और व्यक्ति मौजूद है",
+        poor_quality: "क्वालिटी बहुत खराब है",
+        corrupt_or_incomplete: "करप्ट या अधूरा",
+        synthetic_or_replayed: "सिंथेटिक या रीप्ले किया गया",
+        privacy_risk: "गोपनीयता जोखिम",
+      },
+      superseded: {
+        better_variant_selected: "बेहतर वैरिएंट चुना गया",
+        newer_measurement: "नया मापन",
+        corrected_segmentation: "सेगमेंटेशन ठीक किया गया",
+        source_replaced: "सोर्स बदला गया",
+      },
+    },
+    recently: "हाल ही में",
+    contentWithheld: "कंटेंट रोका गया है। सिर्फ़ यहां दिखे समय, विश्वास स्तर, और उद्गम की समीक्षा करें।",
+    needsReview: "समीक्षा चाहिए",
+    reviewAriaLabel: "{label} की समीक्षा करें",
+    decisionSelectLabel: "फैसला",
+    reasonSelectLabel: "वजह",
+    optionAccept: "स्वीकार करें",
+    optionReject: "अस्वीकार करें",
+    optionSupersede: "बदलें",
+    saving: "सेव हो रहा है",
+    recordReview: "समीक्षा दर्ज करें",
+    decisionWithheldNote: "यहां फैसला उपलब्ध नहीं है क्योंकि सबूत की सामग्री जानबूझकर रोकी गई है।",
+    confidenceNotReported: "विश्वास स्तर नहीं बताया गया",
+    confidencePct: "{n}% विश्वास",
+    endpointSuffix: "{n} सेकंड एंडपॉइंट",
+    unreportedFamily: "न बताया गया परिवार",
+    unreportedAdapter: "न बताया गया एडाप्टर",
+    eyebrow: "आपकी समीक्षा",
+    title: "देखें हमने क्या निकाला, फिर मंज़ूर करें",
+    refreshing: "रीफ़्रेश हो रहा है",
+    refresh: "रीफ़्रेश करें",
+    intro:
+      "सिर्फ़ समीक्षा के लिए सुरक्षित माप दिखाए जाते हैं। कच्चे ट्रांसक्रिप्ट, वॉइस वेक्टर, स्टोरेज लोकेशन, " +
+      "प्रोवाइडर रेफरेंस, और स्थायी डाउनलोड लिंक कभी इस पेज पर नहीं आते। एक निजी सुनने का लिंक तभी बनता है जब " +
+      "आप सुनें दबाते हैं, और यह 60 सेकंड में खत्म हो जाता है।",
+    loadingReceipts: "निजी प्रोसेसिंग रसीदें लोड हो रही हैं",
+    emptyHeadline: "अभी कोई प्रोसेसिंग रसीद नहीं है",
+    emptyNote: "ऊपर एक सोर्स जोड़ें। यह तभी दिखेगा जब निजी प्रोसेसिंग शुरू होगी।",
+    sourceTitle: "{label} सोर्स",
+    pipelineStepOne: "{n} पाइपलाइन स्टेप",
+    pipelineStepMany: "{n} पाइपलाइन स्टेप",
+    derivedVariantOne: "{n} निकाला गया वैरिएंट",
+    derivedVariantMany: "{n} निकाले गए वैरिएंट",
+    evidenceRecordOne: "{n} सबूत रिकॉर्ड",
+    evidenceRecordMany: "{n} सबूत रिकॉर्ड",
+    pipelineStepsAriaLabel: "पाइपलाइन स्टेप",
+    noPipelineAttempt: "अभी कोई पाइपलाइन प्रयास दर्ज नहीं हुआ।",
+    attemptLabel: "प्रयास {n}",
+    selectedVoiceBadge: "चुनी गई आवाज़",
+    opening: "खोला जा रहा है",
+    listenPrivately: "निजी तौर पर सुनें",
+    selecting: "चुना जा रहा है",
+    selected: "चुना गया",
+    useThisVoice: "यह आवाज़ इस्तेमाल करें",
+    cannotPlayAudio: "आपका ब्राउज़र यह निजी ऑडियो नहीं चला सकता।",
+    linkExpiresNote: "यह साइन किया लिंक एक मिनट से कम में खुद खत्म हो जाता है।",
+    noReviewableEvidence: "इस सोर्स के लिए समीक्षा योग्य कोई सबूत नहीं भेजा गया।",
+    draftOnlyEyebrow: "सिर्फ़ ड्राफ्ट",
+    voiceBuildGateTitle: "वॉइस बिल्ड गेट",
+    voiceBuildGateIntro:
+      "क्यू में लगा बिल्ड इस्तेमाल के लिए तैयार नहीं होता। एक अलग मंज़ूरी और एक असली, अलग से रखा गया " +
+      "मूल्यांकन अभी भी ज़रूरी है।",
+    acousticFamilies: "ध्वनि परिवार",
+    voiceMeasurements: "आवाज़ माप",
+    qualityMeasurements: "क्वालिटी माप",
+    speakerSegments: "स्पीकर सेगमेंट",
+    queueingDraft: "ड्राफ्ट क्यू में डाला जा रहा है",
+    queueDraftVoice: "ड्राफ्ट आवाज़ क्यू में डालें",
+    buildLedger: "बिल्ड लेजर",
+    immutableDraftLedger: "अपरिवर्तनीय ड्राफ्ट लेजर",
+    voiceVersionStatus: "आवाज़ वर्शन {n}, {label}",
+    voicePrintFamiliesDetail: "{n} स्वतंत्र वॉइस-प्रिंट परिवार",
+    targetSegmentsDetail: "{n} टारगेट सेगमेंट",
+    enrollmentArtifactsDetail: "{n} निजी एनरोलमेंट कलाकृतियां",
+    draftsCannotSynthesize:
+      "ड्राफ्ट ऑडियो नहीं बना सकते। मंज़ूरी के लिए अभी भी मालिक का कैलिब्रेशन और एक असली, अलग से रखा गया " +
+      "पहचान मूल्यांकन ज़रूरी है।",
+    errorProcessingUnavailable: "प्रोसेसिंग समीक्षा अभी उपलब्ध नहीं है",
+    errorDecisionNotRecorded: "फैसला दर्ज नहीं हो सका",
+    errorDraftNotQueued: "ड्राफ्ट बिल्ड क्यू में नहीं लगाया जा सका",
+    errorAuditionNotOpened: "निजी सुनवाई नहीं खोली जा सकी",
+    errorCandidateNotSelected: "आवाज़ उम्मीदवार चुना नहीं जा सका",
+    noticeReviewRecorded: "समीक्षा का फैसला एक स्थायी रसीद के रूप में दर्ज हो गया।",
+    noticeCandidateSelected: "आवाज़ उम्मीदवार चुना गया। मौजूदा ड्राफ्ट हटा दिए गए ताकि अगला वॉइस बिल्ड यही सटीक ऑडियो इस्तेमाल करे।",
+    noticeDraftQueued: "ड्राफ्ट वॉइस बिल्ड क्यू में डाला गया। इस्तेमाल होने से पहले अभी भी आपकी मंज़ूरी चाहिए।",
+  },
+
+  personModelStudio: {
+    blockers: {
+      self_name_required: "वह नाम पुष्ट करें जो आपका AI खुद के लिए इस्तेमाल करता है",
+      language_identity_required: "इसकी भाषा और कोड-स्विचिंग पहचान पुष्ट करें",
+      behavior_evidence_required: "कम से कम एक व्यवहार या सुधार पैटर्न देखें",
+      boundary_evidence_required: "कम से कम एक निजी सीमा पुष्ट करें",
+      critical_identity_conflict: "टकराते हुए पहचान दावे सुलझाएं",
+    },
+    extractionBlockers: {
+      transcription_consent_required: "ट्रांसक्रिप्शन की अनुमति दें",
+      training_consent_required: "सहायता प्राप्त दावा निष्कर्षण के लिए AI-निर्माण अनुमति दें",
+      reviewed_subject_transcript_required: "कम से कम एक सत्यापित स्पीकर ट्रांसक्रिप्ट स्वीकार करें",
+    },
+    confidencePct: "{n}% विश्वास",
+    citedSourceOne: "{n} उद्धृत सोर्स",
+    citedSourceMany: "{n} उद्धृत सोर्स",
+    keepOut: "बाहर रखें",
+    notAccurate: "सही नहीं है",
+    outdated: "पुराना",
+    thisIsMe: "यह मैं हूं",
+    reviewClaimAriaLabel: "इस दावे की समीक्षा करें",
+    eyebrow: "हमने आपके बारे में क्या सीखा",
+    title: "हमें जो लगता है हमने आपके बारे में सीखा, एक-एक दावे के रूप में",
+    intro:
+      "पहचान, भाषा, व्यवहार, मूल्य, सीमाएं, और आत्मकथा को अलग-अलग सबूत-आधारित दावों के रूप में पुष्ट करें। " +
+      "टकराव छिपाए नहीं जाते, एक भरोसेमंद कल्पना में औसत नहीं किए जाते।",
+    approvedVersionLabel: "मंज़ूर वर्शन",
+    loadingClaims: "समीक्षा किए गए दावे लोड हो रहे हैं...",
+    retry: "फिर कोशिश करें",
+    proposedClaims: "प्रस्तावित दावे",
+    accepted: "स्वीकृत",
+    criticalConflicts: "गंभीर टकराव",
+    citedExtractionEyebrow: "उद्धृत निष्कर्षण",
+    citedExtractionTitle: "अपनी समीक्षा की गई रिकॉर्डिंग को अपने नियंत्रण वाले दावों में बदलें",
+    citedExtractionIntro:
+      "सिर्फ़ स्वीकृत, लक्षित-स्पीकर ट्रांसक्रिप्ट हिस्से ही योग्य हैं। कच्चे ट्रांसक्रिप्ट सिर्फ़ सर्वर पर रहते " +
+      "हैं, सीधी पहचान निष्कर्षण कॉल से पहले छिपाई जाती है, और हर नतीजा तब तक सिर्फ़ एक प्रस्ताव रहता है जब तक " +
+      "आप उसे नीचे न देख लें।",
+    eligibleSpans: "योग्य हिस्से",
+    lastProposed: "पिछली बार प्रस्तावित",
+    noExtractionRunYet: "अभी कोई निष्कर्षण नहीं हुआ",
+    extractingPrivately: "निजी तौर पर निकाला जा रहा है...",
+    extractNewEvidence: "नया सबूत निकालें",
+    extractCitedClaims: "उद्धृत दावे निकालें",
+    noClaimsHeadline: "अभी कोई व्यवहार या याददाश्त दावे नहीं हैं।",
+    noClaimsNote: "प्रोसेस किया गया सबूत यहां समीक्षा के लिए दिखेगा। कच्चे ट्रांसक्रिप्ट, वेक्टर, और स्टोरेज पाथ रोके रहते हैं।",
+    buildIsDeterministicNote: "एक बिल्ड निश्चित और वर्शन वाला होता है। इसे मंज़ूर करना कभी इन्फ़रेंस या आवाज़ बनाने की अनुमति नहीं देता।",
+    checkingEvidence: "सबूत जांचा जा रहा है...",
+    approveProfileVersion: "प्रोफ़ाइल v{n} मंज़ूर करें",
+    building: "बनाया जा रहा है...",
+    buildReviewDraft: "समीक्षा ड्राफ्ट बनाएं",
+    errorExtractionUnavailable: "उद्धृत निष्कर्षण की स्थिति लोड नहीं हो सकी",
+    errorProfileUnavailable: "हमने आपके बारे में जो सीखा वह लोड नहीं हो सका",
+    errorClaimNotSaved: "दावे की समीक्षा सेव नहीं हुई",
+    errorBuildRefused: "हमने आपके बारे में जो सीखा उसे बनाना अस्वीकार हुआ",
+    errorApproveChanged: "प्रोफ़ाइल बदल गई और मंज़ूर नहीं हो सकी",
+    errorExtractionFailed: "उद्धृत दावे नहीं निकाले जा सके",
   },
 };
 
