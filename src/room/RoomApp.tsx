@@ -1545,6 +1545,7 @@ export default function RoomApp({
           session={session}
           copy={copy}
           locale={locale}
+          slug={slug}
           name={name || room?.room.display_name || ""}
           auth={auth}
           remembers={remembers}
@@ -2026,6 +2027,12 @@ function JoinSheet({
         <div className="room-card" role="note">
           <LocalizedDisclosure text={room.disclosure} />
         </div>
+        {/* WS-R97. Before joining, not only after - a stranger deciding
+            whether to sign in reads the same "What this AI knows about you"
+            page a follower's own account carries. */}
+        <p className="room-fine">
+          <a className="room-about-link" href={`/r/${encodeURIComponent(room.room.slug)}/about?lang=${locale}`}>{copy.about.linkLabel}</a>
+        </p>
         <p className="room-lede" style={{ marginTop: "var(--space-item)" }}>
           {copy.join.lede}
         </p>

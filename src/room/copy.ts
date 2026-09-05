@@ -573,6 +573,16 @@ const EN = {
     copy: "Copy link",
     copied: "Copied",
   },
+
+  /** WS-R97. The link out to `/r/<slug>/about`, the follower's transparency
+   *  page - `api/_room-about.js`'s own server rendered page, never fetched
+   *  or embedded here. This is the ONLY thing this file says about that
+   *  page: a label for the link, on the account page and the join screen -
+   *  the page's own words live server side (two runtimes, no shared
+   *  boundary to cross, this file's own header explains why). */
+  about: {
+    linkLabel: "What this AI knows about you",
+  },
 };
 
 /** The same shape as `EN`, in plain, functional Hindi (Devanagari). Written
@@ -902,6 +912,10 @@ const HI: typeof EN = {
     note: "यह लिंक शेयर करें। अगर कोई दोस्त इससे जुड़ता है, तो क्रिएटर को सिर्फ इतना पता चलता है कि एक दोस्त आया - कभी यह नहीं कि कौन।",
     copy: "लिंक कॉपी करें",
     copied: "कॉपी हो गया",
+  },
+
+  about: {
+    linkLabel: "यह AI आपके बारे में क्या जानता है",
   },
 };
 

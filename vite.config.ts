@@ -26,9 +26,28 @@ function creatorPageFixturePlugin() {
   }
 }
 
+// WS-R97. `/r/<slug>/about` (the follower's transparency page) is server-
+// rendered HTML with no client bundle at all, the identical shape
+// `/c/<slug>` already is above — a second, separate plugin rather than a
+// second call inside `creatorPageFixturePlugin`'s own `closeBundle`, so
+// either fixture can be read from its own name in this file without hunting
+// through the other's hook.
+function roomAboutFixturePlugin() {
+  return {
+    name: 'vyakti-room-about-fixture',
+    apply: 'build' as const,
+    async closeBundle() {
+      // `./scripts/build-room-about-fixture.d.mts` is the real type for this
+      // sibling .mjs script, `creatorPageFixturePlugin`'s own reason above.
+      const { buildRoomAboutFixture } = await import('./scripts/build-room-about-fixture.mjs')
+      await buildRoomAboutFixture()
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), creatorPageFixturePlugin()],
+  plugins: [react(), creatorPageFixturePlugin(), roomAboutFixturePlugin()],
   build: {
     rollupOptions: {
       input: {
