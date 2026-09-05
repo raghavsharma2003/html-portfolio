@@ -1136,6 +1136,15 @@ export async function roomSetLocale(db, { session, locale }, deps = {}) {
   const disclosure = roomDisclosureCard(name, loc);
   return {
     locale: loc,
+    // WS-R84: the card's own bytes, in the locale just written - not merely
+    // the digest they hash to. Before this field existed, the ONLY caller of
+    // this op (`RoomApp.tsx`'s `switchLocale`, already-joined branch) had no
+    // way to update the card it renders without a SECOND round trip, so the
+    // talk screen kept showing the OLD language's disclosure until the next
+    // full `open` (`context/rejected.md#ws-r84-disclosure-left-out-of-
+    // roomsetlocales-response`). Returning it here is the SAME call the
+    // switch already makes, never a new op.
+    disclosure,
     session: mintRoomSession(
       {
         r: resolved.room.slug,

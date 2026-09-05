@@ -646,6 +646,15 @@ async function handleRoomCommand(db, tg, now, env, ev, cmd, ctx) {
     const want = cmd === "hindi" ? "hi" : "en";
     const session = mintFollowerSession(scope.resolved, scope.identity.person_id, { now, env, locale: scope.locale });
     const result = await roomSetLocale(db, { session, locale: want }, ctx.roomDeps);
+    // WS-R84 (law 3, "every app-voiced card takes a locale" restated for a
+    // switch): the disclosure line is re-sent, in the NEW locale, in the
+    // SAME reply as the confirmation - a chat that read the English card at
+    // `/start` and then says `/hindi` must not be left with only an English
+    // disclosure on record for the rest of the conversation. `result.locale`
+    // (what the write actually committed), never `want` - the same
+    // "trust the response, not the request" discipline `languageChangedCard`
+    // one line down already follows.
+    await tg.sendMessage(ev.chatId, roomDisclosureCard(roomNameFor(scope.resolved.sheet), result.locale));
     await tg.sendMessage(ev.chatId, languageChangedCard(result.locale));
     return { ok: true, localeChanged: result.locale };
   }
