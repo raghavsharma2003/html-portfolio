@@ -109,6 +109,14 @@ export const withLabel = (template: string, label: string) => template.split("{l
 export const withNameAndCount = (template: string, name: string, n: number) =>
   template.split("{name}").join(name).split("{n}").join(String(n));
 
+/** WS-R82. A count plus its English plural marker at `{s}` -- `src/room/
+ *  copy.ts`'s own `withRetry` shape, generalised: `{s}` resolves to "" at
+ *  n===1 and "s" otherwise. Hindi templates simply never write `{s}`, so the
+ *  split is a harmless no-op there -- Hindi needs no plural marker the way
+ *  English does. */
+export const withPluralCount = (template: string, n: number) =>
+  template.split("{n}").join(String(n)).split("{s}").join(n === 1 ? "" : "s");
+
 // ── classLabels: the two-word badge only. See the file header above for
 //    why the reason sentence beside it (blockerClass.ts's CLASS_COPY.lead,
 //    and every DisabledReason.headline/next) stays English. ───────────────
@@ -1443,6 +1451,241 @@ interface VoiceExperimentPanelCopy {
   removePrivateExperiment: string;
 }
 
+// ── WS-R82: the studio's last four files. ContextLockerPanel.tsx, ─────────
+//    EnrollmentWorkspace.tsx, MirrorCallStudio.tsx, VoiceEnrollmentLab.tsx.
+//    `EnrollmentWorkspace.tsx`'s own formal four-statement consent ceremony
+//    (age, self-identity, rights, synthetic-disclosure understanding) is
+//    extracted whole into `EnrollmentConsentPanel.tsx` rather than
+//    translated -- see context/decisions.md#ws-r82-enrollment-consent-panel-extracted-not-translated
+//    -- so this section covers everything else in that file only.
+interface ContextLockerPanelCopy {
+  reasons: Record<string, string>;
+  title: string;
+  intro: string;
+  dropzoneTitle: string;
+  dropzoneHelpTemplate: string; // "{label}"
+  bytesFewMB: string;
+  chooseFilesButton: string;
+  readingButton: string;
+  thirdPartyAck: string;
+  linksLabel: string;
+  linksPlaceholderLine1: string;
+  linksPlaceholderLine2: string;
+  addLinksButton: string;
+  iAmSpeaker: string; // "{name}" "{n}"
+  thisIsMyOwnWriting: string;
+  inYourLocker: string;
+  loading: string;
+  nothingYet: string;
+  removeButton: string;
+  quotaSummary: string; // "{n}" "{n2}" "{label}" "{label2}"
+  stateNotAdded: string;
+  stateProposalsReady: string;
+  stateProposalCount: string; // "{n}"
+  stateNotRead: string;
+  stateBelongsElsewhere: string;
+  stateRead: string;
+  stateWorking: string;
+  detailRequestFailed: string;
+  detailMinedWaiting: string;
+  charactersSuffix: string; // "{n}"
+  yourMessagesAs: string; // "{name}"
+  bytesKB: string; // "{n}"
+  bytesMB: string; // "{n}"
+  bytesBytes: string; // "{n}"
+}
+
+interface MirrorCallStudioCopy {
+  eyebrow: string;
+  title: string;
+  pitch: string;
+  stateChecking: string;
+  stateNotDeployed: string;
+  stateReady: string;
+  stateConnecting: string;
+  stateGpuWarming: string;
+  stateLive: string;
+  stateEnding: string;
+  stateEnded: string;
+  stateStopped: string;
+  tabsAriaLabel: string;
+  callTab: string;
+  reviewLaterTab: string; // "{n}"
+  backendAbsentHeadline: string;
+  backendAbsentBodyTemplate: string; // "{label}"
+  backendAbsentMissing: string; // "{label}"
+  checkingBackend: string;
+  startAnotherCallButton: string;
+  startCallButton: string;
+  endingButton: string;
+  endCallButton: string;
+  interviewLabel: string;
+  interviewPitch: string;
+  interviewPreviewWorking: string;
+  interviewNotAvailable: string;
+  interviewNothingOnList: string;
+  interviewOneQuestionWaiting: string;
+  interviewMinutesLeftTemplate: string; // "{n}"
+  interviewCannotCheckContradiction: string;
+  interviewNoReadinessSnapshot: string;
+  interviewSkippedAnsweredTemplate: string; // "{n}"
+  startInterviewButton: string;
+  interviewAnsweredTemplate: string; // "{n}" "{n2}"
+  interviewStopsItselfNote: string;
+  gpuColdHeadline: string;
+  gpuColdBodyTemplate: string; // "{label}"
+  gpuColdEstimateTemplate: string; // "{n}"
+  sendWindowButton: string;
+  discardButton: string;
+  transcribingButton: string;
+  yourAiAnsweringButton: string;
+  yourAiSpeakingButton: string;
+  talkButton: string;
+  recordingNote: string;
+  oneWindowNote: string;
+  autoCutNotice: string;
+  captionsOnlyNote: string;
+  captionWhoYou: string;
+  captionWhoClone: string;
+  captionWhoDropped: string;
+  captionWhoCall: string;
+  soundedLikeMeLabel: string;
+  didNotSoundLikeMeLabel: string;
+  stopAndSendButton: string;
+  iWouldSayItLikeThis: string;
+  emptyThreadHeadline: string;
+  emptyThreadBody: string;
+  dismissButton: string;
+  voiceFidelityLabel: string;
+  noCeilingPrinted: string;
+  ceilingTemplate: string; // "{label}"
+  ofCeilingTemplate: string; // "{label}"
+  windowsCountTemplate: string; // "{n}"
+  secondsPooledTemplate: string; // "{n}"
+  confidenceTemplate: string; // "{label}"
+  windowOrNoWindowYet: string;
+  noWindowYet: string;
+  reselectionsTemplate: string; // "{n}"
+  referenceSetTemplate: string; // "{n}" "{n2}"
+  droppedWindowsTemplate: string; // "{n}"
+  proposedChangesLabel: string;
+  proposedWaitingTemplate: string; // "{n}"
+  willRollIntoReviewTemplate: string; // "{n}"
+  heldBackByCapTemplate: string; // "{n}"
+  refreshButton: string;
+  heardTimesTemplate: string; // "{n}"
+  becauseYouSaidTemplate: string; // "{label}"
+  applyingButton: string;
+  acceptButton: string;
+  dismissingButton: string;
+  rejectButton: string;
+  nothingMinedLive: string;
+  chipsAppearDuringCall: string;
+  actionedThisCallLabel: string;
+  appliedLabel: string;
+  acceptedNotOnSheetLabel: string;
+  rejectedLabel: string;
+  reviewNothingApplied: string;
+  neverShownHeldBack: string;
+  notAppliedReviewLater: string;
+  reviewEmpty: string;
+  acceptedRejectedDeferredTemplate: string; // "{n}" "{n2}" "{n3}"
+  voiceBuildQueuedNote: string;
+  noVoiceBuildQueuedTemplate: string; // "{label}"
+  kindPhraseHabit: string;
+  kindRegister: string;
+  kindBoundary: string;
+  kindFact: string;
+  kindDelivery: string;
+  interviewSummaryLabel: string;
+  interviewAskedAnsweredTemplate: string; // "{n}" "{n2}"
+  whatItGotLabel: string;
+  interviewNothingBackNote: string;
+  nextAskLabel: string;
+  interviewNothingLeftNote: string;
+  interviewEffectUnchangedTemplate: string; // "{n}"
+  interviewEffectUnknownNote: string;
+  errorMirrorCallCouldNotStart: string;
+  errorCallCouldNotEndCleanly: string;
+  errorMicCouldNotOpen: string;
+  errorWindowCouldNotBeSent: string;
+  errorChangesCouldNotBeRefreshed: string;
+  errorChangeCouldNotBeApplied: string;
+  errorChangeCouldNotBeDismissed: string;
+  errorRatingCouldNotBeSaved: string;
+  errorMicCouldNotOpenForRerecord: string;
+  errorRerecordCouldNotBeSaved: string;
+  errorMirrorCallBackendUnreachable: string;
+}
+
+interface VoiceEnrollmentLabCopy {
+  eyebrow: string;
+  title: string;
+  stateChecking: string;
+  stateNotCreated: string;
+  intro: string;
+  blockersHeadline: string;
+  blockersIntro: string;
+  blockerAdultAge: string;
+  blockerIdentity: string;
+  blockerLiveness: string;
+  blockerCapture: string;
+  blockerStorage: string;
+  blockerBiometric: string;
+  blockerVoiceBuilding: string;
+  providerStatementStep: string;
+  recordExactConsent: string;
+  legalNameLabel: string;
+  legalNamePlaceholder: string;
+  issueStatementButton: string;
+  readExactlyLabel: string;
+  expiresTemplate: string; // "{label}"
+  stopRecordingTemplate: string; // "{n}"
+  recordPrivateWavButton: string;
+  audioFallback: string;
+  recordingDurationTemplate: string; // "{label}"
+  retakeButton: string;
+  secureStatementButton: string;
+  statementSecuredTitle: string;
+  acceptedByProvider: string;
+  awaitingProviderVerification: string;
+  providerLabel: string;
+  providerValue: string;
+  localeLabel: string;
+  attemptLabel: string;
+  attemptTemplate: string; // "{n}"
+  statementHashLabel: string;
+  exactVoiceBindingStep: string;
+  buildPrivateVoiceTitle: string;
+  statusNoProfile: string;
+  statusReadyTemplate: string; // "{n}"
+  statusCreating: string;
+  statusDeleting: string;
+  statusFailed: string;
+  bindingProviderStatement: string;
+  bindingApprovedVoice: string;
+  bindingWavRange: string;
+  bindingSpendReservation: string;
+  createVerifiedVoiceButton: string;
+  creatingVerifiedProfileButton: string;
+  deleteVoiceLabel: string;
+  eraseProviderVoiceButton: string;
+  footerNote: string;
+  stageHashing: string;
+  stageAuthorizing: string;
+  stageUploading: string;
+  stageFinalizing: string;
+  errorIssueFailed: string;
+  errorMicNotOpened: string;
+  errorMinDuration: string;
+  errorRecordingNotFinalized: string;
+  errorUploadAuthMissing: string;
+  errorConsentNotSecured: string;
+  errorProfileNotCreated: string;
+  errorProfileNotErased: string;
+  errorStatusUnavailable: string;
+}
+
 interface StudioCopy {
   classLabels: ClassLabels;
   shell: ShellCopy;
@@ -1479,6 +1722,9 @@ interface StudioCopy {
   voicePreviewLab: VoicePreviewLabCopy;
   voicePreviewPanel: VoicePreviewPanelCopy;
   voiceExperimentPanel: VoiceExperimentPanelCopy;
+  contextLockerPanel: ContextLockerPanelCopy;
+  mirrorCallStudio: MirrorCallStudioCopy;
+  voiceEnrollmentLab: VoiceEnrollmentLabCopy;
 }
 
 const EN: StudioCopy = {
@@ -2865,6 +3111,281 @@ const EN: StudioCopy = {
     working: "Working...",
     replacePack: "Replace pack",
     removePrivateExperiment: "Remove private experiment",
+  },
+
+  // ── WS-R82: the studio's last four files ──────────────────────────────
+  contextLockerPanel: {
+    reasons: {
+      pdf_no_text_layer: "This PDF is a scan. There is no text in it to read, only pictures of text. We have no OCR, so we would rather say so than store it empty.",
+      pdf_text_layer_unreadable: "We found text in this PDF but it does not read as language. The fonts use an encoding we cannot map. Export it as text or DOCX instead.",
+      pdf_encrypted: "This PDF is password-protected. Remove the password and try again.",
+      pdf_unsupported_filter: "This PDF compresses its text in a way we do not read.",
+      pdf_malformed: "This file is not a readable PDF.",
+      docx_malformed: "This file is not a readable Word document.",
+      docx_encrypted: "This Word document is password-protected.",
+      docx_no_text: "This Word document has no text in its body.",
+      doc_legacy_binary_unsupported: "The old .doc format is not read. Save it as .docx and try again.",
+      rtf_unsupported: "RTF is not read. Save it as .docx or plain text.",
+      odt_unsupported: "OpenDocument is not read. Export as .docx or text.",
+      pages_unsupported: "Pages files are not read. Export as .docx or a PDF with real text in it.",
+      epub_unsupported: "EPUB is not read.",
+      archive_unsupported: "We do not unpack archives. Upload the files inside it.",
+      csv_unsupported: "A spreadsheet is not prose. Mining it would put column headers in your phrasing.",
+      spreadsheet_unsupported: "A spreadsheet is not prose.",
+      slides_unsupported: "Slides are titles and fragments, not how you talk. Export the speaker notes if that is what you meant.",
+      structured_data_unsupported: "Structured data is not prose.",
+      html_upload_unsupported: "Paste the page's link instead. An uploaded HTML file has no source to cite.",
+      text_not_utf8: "This file is not UTF-8 text. Re-save it as UTF-8.",
+      text_unreadable: "This file does not read as language.",
+      format_unsupported: "We do not read this file type.",
+      extracted_text_too_large: "This document is longer than one item may be. Split it and upload the parts. We do not trim anything silently.",
+      file_too_large: "This file is larger than one upload may be.",
+      chat_export_third_party_consent_required: "This is a chat export, so it contains someone else's private messages. Tick the box above and add it again. We only ever mine your own messages, and theirs are read only to tell them apart.",
+      chat_export_too_many_speakers: "This is a large group chat, mostly other people's words. Export a one-to-one chat instead.",
+      whatsapp_export_unparseable: "This looks like a chat export but no line in it matched a message. Export the chat again 'Without media' and upload the .txt unchanged.",
+      link_unparseable: "That is not a link.",
+      link_scheme_unsupported: "Only https links are read.",
+      link_host_not_public: "We only read links on public websites.",
+      article_fetch_not_configured: "This deployment cannot read links yet. Upload the text instead.",
+      article_fetch_failed: "We could not load that page.",
+      article_no_text: "That page had no readable text.",
+      article_unreadable: "That page did not read as language.",
+      channel_lane: "This is YouTube. It belongs to the channel lane, which asks you to confirm the channel is yours before reading a single video.",
+      voice_evidence_lane: "This is audio. It belongs to the voice lane, which carries the consent your voice needs.",
+      not_owner_authored_no_style_evidence: "Read, but not used for how you talk, because it is not your own writing. Mark it as yours if it is.",
+      speaker_unattributed_no_style_evidence: "Read. Tell us which of these people is you and we will mine only your messages.",
+      declared_speaker_not_in_export: "Nobody by that name sends messages in this export.",
+      no_candidates_cleared_held_out: "Read, but nothing in it repeated often enough to be worth proposing. That is normal for a short document.",
+      citation_integrity_failed: "Read, but the proposals could not be traced back to the text they came from, so none were kept.",
+      proposal_already_exists: "Already proposed. See Review.",
+      context_item_quota_exhausted: "Your locker is full. Remove something to add more.",
+      context_byte_quota_exhausted: "Your locker is out of space. Remove something to add more.",
+      replica_not_found: "That AI is not yours.",
+    },
+    title: "Bring your context",
+    intro: "Everything you have already written about yourself, or that is already about you. Drop the files in, paste the links. Each one tells you what it became, and anything we cannot honestly read, we say so instead of quietly keeping it.",
+    dropzoneTitle: "Drop your files here",
+    dropzoneHelpTemplate: "Text, Markdown, Word documents, PDFs with real text in them, and WhatsApp chat exports. Up to {label} each. Audio goes to the voice lane and YouTube goes to the channel lane. Paste those and we will point you there rather than doing it twice.",
+    bytesFewMB: "a few MB",
+    chooseFilesButton: "Choose files",
+    readingButton: "Reading…",
+    thirdPartyAck: "If I upload a chat export, I understand it contains another person's private messages, that only MY messages are ever used, and that theirs are read only to tell the two apart.",
+    linksLabel: "Or paste links, one per line",
+    linksPlaceholderLine1: "https://example.com/an-interview-with-me",
+    linksPlaceholderLine2: "https://example.com/my-essay",
+    addLinksButton: "Add links",
+    iAmSpeaker: "I am {name} ({n})",
+    thisIsMyOwnWriting: "This is my own writing",
+    inYourLocker: "In your locker",
+    loading: "Loading…",
+    nothingYet: "Nothing yet.",
+    removeButton: "Remove",
+    quotaSummary: "{n} of {n2} items · {label} of {label2}.",
+    stateNotAdded: "Not added",
+    stateProposalsReady: "Proposals ready",
+    stateProposalCount: "{n} proposal{s}",
+    stateNotRead: "Not read",
+    stateBelongsElsewhere: "Belongs elsewhere",
+    stateRead: "Read",
+    stateWorking: "Working…",
+    detailRequestFailed: "request_failed",
+    detailMinedWaiting: "Waiting for you in Review. Nothing is applied to your AI until you approve it.",
+    charactersSuffix: "{n} characters",
+    yourMessagesAs: " · your messages as {name}",
+    bytesKB: "{n} KB",
+    bytesMB: "{n} MB",
+    bytesBytes: "{n} bytes",
+  },
+
+  mirrorCallStudio: {
+    eyebrow: "Mirror Call",
+    title: "Talk to your AI and correct it while it listens.",
+    pitch: "Your side goes up in windows of up to 30 seconds. Speak, send, hear the reply. Nothing it learns reaches your sheet until you tap it.",
+    stateChecking: "CHECKING",
+    stateNotDeployed: "NOT DEPLOYED",
+    stateReady: "READY",
+    stateConnecting: "CONNECTING",
+    stateGpuWarming: "GPU WARMING",
+    stateLive: "LIVE",
+    stateEnding: "ENDING",
+    stateEnded: "ENDED",
+    stateStopped: "STOPPED",
+    tabsAriaLabel: "Mirror Call",
+    callTab: "Call",
+    reviewLaterTab: "Review later{n}",
+    backendAbsentHeadline: "The Mirror Call backend is not deployed on this environment.",
+    backendAbsentBodyTemplate: "This tab talks to /api/mirror-call, which answered nothing here ({label}). There is no offline demo of a Mirror Call on purpose: a simulated call would look exactly like a working one.",
+    backendAbsentMissing: "What is missing: {label}.",
+    checkingBackend: "Checking whether this environment has the call backend.",
+    startAnotherCallButton: "Start another call",
+    startCallButton: "Start the call",
+    endingButton: "Ending...",
+    endCallButton: "End call",
+    interviewLabel: "The interview",
+    interviewPitch: "I know what you talk about. I do not know how you think yet. Give me twenty minutes and I will ask the five things I am most unsure about.",
+    interviewPreviewWorking: "Working out what it would ask.",
+    interviewNotAvailable: "The interview is not available on this environment. Ordinary calls still work.",
+    interviewNothingOnList: "Nothing is on its list right now. It only asks what your material does not already answer.",
+    interviewOneQuestionWaiting: ", one question waiting on you",
+    interviewMinutesLeftTemplate: ". About {n} minute{s} left",
+    interviewCannotCheckContradiction: "It could not check for answers that changed over time on this environment, so nothing of that kind is on the list.",
+    interviewNoReadinessSnapshot: "There is no Readiness snapshot yet, so nothing on the list came from one.",
+    interviewSkippedAnsweredTemplate: "{n} question{s} you already answered in an earlier interview {isare} not on this list.",
+    startInterviewButton: "Start the interview",
+    interviewAnsweredTemplate: "{n} of {n2} answered",
+    interviewStopsItselfNote: "It stops itself at the end of the twenty minutes. Your answers are saved as new material and nothing about your AI changes during the call.",
+    gpuColdHeadline: "The voice GPU is cold.",
+    gpuColdBodyTemplate: "A cold start usually takes two to three minutes. That is an estimate from past starts, not a countdown of anything being measured{label}.",
+    gpuColdEstimateTemplate: ". The server's own estimate is about {n} more minutes",
+    sendWindowButton: "Send this window",
+    discardButton: "Discard",
+    transcribingButton: "Transcribing...",
+    yourAiAnsweringButton: "Your AI is answering...",
+    yourAiSpeakingButton: "Your AI is speaking...",
+    talkButton: "Talk",
+    recordingNote: "Recording. The window is capped at 30 seconds. It is sent when you say so, or cut at the cap.",
+    oneWindowNote: "One window at a time: your side, then its side. This is the cascade lane, not a duplex call.",
+    autoCutNotice: "The 30-second cap cut this window. Send it and say the rest in the next one. Nothing was quietly dropped.",
+    captionsOnlyNote: "Captions only on this environment. The voice route for your AI is not deployed.",
+    captionWhoYou: "You",
+    captionWhoClone: "Your AI",
+    captionWhoDropped: "Missed",
+    captionWhoCall: "Call",
+    soundedLikeMeLabel: "This sounded like me",
+    didNotSoundLikeMeLabel: "This did not sound like me",
+    stopAndSendButton: "Stop and send",
+    iWouldSayItLikeThis: "I'd say it like this",
+    emptyThreadHeadline: "Nothing has been said yet.",
+    emptyThreadBody: "Your AI answers what you say and never opens a call on its own.",
+    dismissButton: "Dismiss",
+    voiceFidelityLabel: "Voice fidelity",
+    noCeilingPrinted: "no printed ceiling",
+    ceilingTemplate: "ceiling {label}",
+    ofCeilingTemplate: "{label} of ceiling",
+    windowsCountTemplate: "{n} window{s}",
+    secondsPooledTemplate: "{n}s pooled",
+    confidenceTemplate: "{label} confidence",
+    windowOrNoWindowYet: "{n}s window",
+    noWindowYet: "no window yet",
+    reselectionsTemplate: "{n} re-selection{s}",
+    referenceSetTemplate: "Reference set: {n} consented window{s}, {n2}s.",
+    droppedWindowsTemplate: "{n} window{s} did not make it through transcription.",
+    proposedChangesLabel: "Proposed changes",
+    proposedWaitingTemplate: "{n} waiting",
+    willRollIntoReviewTemplate: " · {n} will roll into Review later if you end now",
+    heldBackByCapTemplate: " · {n} held back by the {n2}-per-minute cap",
+    refreshButton: "Refresh",
+    heardTimesTemplate: "heard {n}x",
+    becauseYouSaidTemplate: "Because you said “{label}”",
+    applyingButton: "Applying...",
+    acceptButton: "Accept",
+    dismissingButton: "Dismissing...",
+    rejectButton: "Reject",
+    nothingMinedLive: "Nothing mined from this call yet. Chips appear as you talk, each quoting what produced it.",
+    chipsAppearDuringCall: "Chips appear during a call.",
+    actionedThisCallLabel: "Actioned this call",
+    appliedLabel: "Applied",
+    acceptedNotOnSheetLabel: "Accepted, not yet on the sheet",
+    rejectedLabel: "Rejected",
+    reviewNothingApplied: "Nothing here was applied. These are the chips you did not action before the call ended, plus any the {n}-per-minute rail cap held back so the call did not turn into a stream of questions. They went to the ordinary review queue, exactly like a delta mined from an upload.",
+    neverShownHeldBack: "Never shown, held back by the rail cap · not applied",
+    notAppliedReviewLater: "Not applied · review later",
+    reviewEmpty: "Nothing is waiting for review.",
+    acceptedRejectedDeferredTemplate: "{n} accepted, {n2} rejected · {n3} deferred",
+    voiceBuildQueuedNote: "A voice build is queued. It runs on GPU time after the call, so this screen will not show it finishing.",
+    noVoiceBuildQueuedTemplate: "No voice build was queued{label}.",
+    kindPhraseHabit: "Phrase habit",
+    kindRegister: "Register",
+    kindBoundary: "Boundary",
+    kindFact: "Fact",
+    kindDelivery: "Delivery",
+    interviewSummaryLabel: "The interview",
+    interviewAskedAnsweredTemplate: "{n} asked · {n2} answered",
+    whatItGotLabel: "What it got",
+    interviewNothingBackNote: "Nothing came back this time.",
+    nextAskLabel: "What the next one would ask",
+    interviewNothingLeftNote: "There is nothing left on its list.",
+    interviewEffectUnchangedTemplate: "Your answers were saved as {n} new piece{s} of material. Nothing about your AI changed during this call.",
+    interviewEffectUnknownNote: "Your answers were saved. This build could not confirm what else changed, so treat that as unknown.",
+    errorMirrorCallCouldNotStart: "The Mirror Call could not start",
+    errorCallCouldNotEndCleanly: "The call could not be ended cleanly",
+    errorMicCouldNotOpen: "The microphone could not open",
+    errorWindowCouldNotBeSent: "That window could not be sent",
+    errorChangesCouldNotBeRefreshed: "The proposed changes could not be refreshed",
+    errorChangeCouldNotBeApplied: "This change could not be applied",
+    errorChangeCouldNotBeDismissed: "This change could not be dismissed",
+    errorRatingCouldNotBeSaved: "That rating could not be saved",
+    errorMicCouldNotOpenForRerecord: "The microphone could not open for a re-record",
+    errorRerecordCouldNotBeSaved: "That re-record could not be saved",
+    errorMirrorCallBackendUnreachable: "The Mirror Call backend could not be reached",
+  },
+
+  voiceEnrollmentLab: {
+    eyebrow: "Provider voice",
+    title: "Create a voice only Microsoft can verify",
+    stateChecking: "Checking",
+    stateNotCreated: "Not created",
+    intro: "Your platform permissions are not provider consent. Microsoft requires a separate spoken legal statement, then Vyakti binds it to one reviewed voice and one private, metered profile.",
+    blockersHeadline: "Enrollment remains locked",
+    blockersIntro: "Complete these independent gates first:",
+    blockerAdultAge: "Adult age verification",
+    blockerIdentity: "Identity verification",
+    blockerLiveness: "Live-person verification",
+    blockerCapture: "Capture consent",
+    blockerStorage: "Private storage consent",
+    blockerBiometric: "Biometric setup consent",
+    blockerVoiceBuilding: "Voice-building consent",
+    providerStatementStep: "Provider statement",
+    recordExactConsent: "Record exact consent",
+    legalNameLabel: "Legal first and last name",
+    legalNamePlaceholder: "First and last name",
+    issueStatementButton: "Issue Microsoft statement",
+    readExactlyLabel: "Read every word exactly",
+    expiresTemplate: "Expires {label}",
+    stopRecordingTemplate: "Stop recording · {n}s",
+    recordPrivateWavButton: "Record private WAV",
+    audioFallback: "Your browser cannot preview this recording.",
+    recordingDurationTemplate: "{label} seconds · 24 kHz PCM WAV",
+    retakeButton: "Retake",
+    secureStatementButton: "Secure statement",
+    statementSecuredTitle: "Statement secured",
+    acceptedByProvider: "Accepted by provider",
+    awaitingProviderVerification: "Awaiting provider verification",
+    providerLabel: "Provider",
+    providerValue: "Microsoft Azure",
+    localeLabel: "Locale",
+    attemptLabel: "Attempt",
+    attemptTemplate: "{n} of 5",
+    statementHashLabel: "Statement",
+    exactVoiceBindingStep: "Exact voice binding",
+    buildPrivateVoiceTitle: "Build the private voice",
+    statusNoProfile: "No provider voice has been created.",
+    statusReadyTemplate: "Ready from your approved voice, version {n}.",
+    statusCreating: "Azure is validating and creating the private voice profile.",
+    statusDeleting: "Disabled now. Provider erasure is pending.",
+    statusFailed: "Provider creation failed. Review the gate before retrying.",
+    bindingProviderStatement: "Provider statement",
+    bindingApprovedVoice: "Approved voice",
+    bindingWavRange: "30 to 90 seconds of reviewed WAV",
+    bindingSpendReservation: "Azure spend reservation",
+    createVerifiedVoiceButton: "Create verified voice",
+    creatingVerifiedProfileButton: "Creating verified profile",
+    deleteVoiceLabel: "Type DELETE VOICE to erase provider copy",
+    eraseProviderVoiceButton: "Erase provider voice",
+    footerNote: "No public voice page, downloadable voice file, bulk API, telephony, or silent generation is enabled.",
+    stageHashing: "hashing",
+    stageAuthorizing: "authorizing",
+    stageUploading: "uploading",
+    stageFinalizing: "finalizing",
+    errorIssueFailed: "Provider consent could not be issued",
+    errorMicNotOpened: "The microphone could not be opened",
+    errorMinDuration: "Read the complete statement in one recording lasting at least five seconds.",
+    errorRecordingNotFinalized: "The WAV recording could not be finalized",
+    errorUploadAuthMissing: "Private upload authorization is missing.",
+    errorConsentNotSecured: "Provider consent could not be secured",
+    errorProfileNotCreated: "The provider voice could not be created",
+    errorProfileNotErased: "The provider voice could not be erased",
+    errorStatusUnavailable: "Voice enrollment status is unavailable",
   },
 };
 
