@@ -7618,6 +7618,18 @@
       "kind": "measurement",
       "title": "evals/probe-live/run.mjs: 41 surfaces, 11 assertions, 11/11 green against a fixture server on 127.0.0.1:8940 (clean fixture zero findings, two negative controls each producing exactly the expected finding, a mutated-copy self-scan refusing to start); verify-release.mjs 20/21 green without NEON_URL, the one failure (accessibility, Meera onboarding contrast) reproduced on a standalone rerun and touches no file in this workstream's diff",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r64-live-report-2026-09-05",
+      "kind": "measurement",
+      "title": "scripts/probe-live.mjs run for real against the wave-twelve preview: 41 of 42 surfaces matched exactly (headers, bot unfurl, og.png/story.png, manifest, room-sw.js, room-embed.js, static pages, the three refused doors, all twelve cron sweeps); one genuine finding, GET /sitemap.xml 500 instead of 200",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r64-sitemap-500-on-db-failure",
+      "kind": "open",
+      "title": "GET /sitemap.xml returned 500 on the live preview because api/sitemap.js is the only public Room reader with no graceful DB-failure fallback (its four siblings all degrade to 200); whether the cause is an unreachable DB on this preview or a real query defect is not distinguishable from outside; not fixed by WS-R64 (out of scope), flagged as a follow-up task instead",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15175,6 +15187,21 @@
       "src": "ws-r64-not-a-verify-release-gate",
       "rel": "measured_by",
       "dst": "ws-r64-probe-live-offline-eval-2026-09-05"
+    },
+    {
+      "src": "ws-r64-live-report-2026-09-05",
+      "rel": "part_of",
+      "dst": "ws-r64-live-probe"
+    },
+    {
+      "src": "ws-r64-expectations-parsed-from-source-not-retyped",
+      "rel": "measured_by",
+      "dst": "ws-r64-live-report-2026-09-05"
+    },
+    {
+      "src": "ws-r64-sitemap-500-on-db-failure",
+      "rel": "caused_by",
+      "dst": "ws-r64-live-report-2026-09-05"
     }
   ]
 }

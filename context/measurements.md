@@ -10348,3 +10348,60 @@ Onboarding.tsx`) reproduces identically (4.35 vs the required 4.5:1,
 byte-for-byte the same finding) on a standalone re-run of `node
 scripts/check-accessibility.mjs` and touches no file this workstream's
 `git diff` includes — environmental, not this workstream's.
+
+## `ws-r64-live-report-2026-09-05`
+
+n = 42 surfaces; method = `node scripts/probe-live.mjs <base-url> --share
+<link> --cookie-jar <file>` (the real, unmodified script, run against the
+real deployment); base URL =
+`https://html-portfolio-git-claude-73ad3b-raghav-carbonsettles-projects.vercel.app`;
+date 2026-09-05. The `--share` priming worked (final status 200 after
+following the redirect chain, one `_vercel_jwt` cookie captured and never
+the raw share token) and every subsequent request rode that cookie
+successfully — deployment protection was not a blocker for any of the 42
+requests. **41 of 42 surfaces matched their expectation exactly**: every
+`vercel.json` `headers[]` promise held on all thirteen sampled paths; the
+Room's bot unfurl (three user agents) carried the right title, `og:image`
+URL and dimensions; `og.png`/`story.png` were valid PNGs at the exact
+`ROOM_CARD_SIZES`; the per-Room manifest for an unknown slug was
+byte-identical to `public/room.webmanifest`; `/room-sw.js` was
+byte-identical to `public/room-sw.js`; `/room-embed.js` was
+byte-identical to the real `ROOM_EMBED_JS`; `/creators`, `/suites`,
+`/robots.txt` (byte-identical to `site/robots.txt`), `/privacy` and
+`/delete-account` all answered 200 with content; `POST /api/room`
+refused an unknown op with 400 `unknown_op` and a sessionless `say` with
+401 `room_session_invalid`; `GET /api/room-embed` for an unknown slug
+returned `{room:null}`; and all twelve cron sweeps refused an
+unauthenticated caller with exactly the status/body their own source
+promises (two 403s, ten 401s, matching `cronAuthExpectation`'s per-file
+parse exactly).
+
+**One genuine finding: `GET /sitemap.xml` returned 500, not 200** (body
+`sitemap unavailable`, `api/sitemap.js`'s own catch-block text). Not a
+probe defect — `api/_sitemap.js`'s `buildSitemapXml` runs one SQL `select`
+against `vy_room` with no `try`/`catch` of its own, and `api/sitemap.js`
+is the ONE public-read Room door in this codebase that has NO graceful
+degradation on a DB failure: every sibling (`api/room-page.js`,
+`api/room-card.js`, `api/room-manifest.js`, `api/room-embed.js`) catches
+the identical class of error and still answers 200 with a platform-only
+fallback. Whether the underlying cause on THIS deployment is a genuinely
+unreachable database (this preview project's `NEON_URL`/DB credentials,
+an owner/Vercel-side fact this session cannot see) or a real query defect
+cannot be told apart from the outside — the response shape is identical
+either way. Not fixed by this workstream (out of its stated scope, and
+fixing it blind risks masking whichever cause is real); flagged instead as
+a follow-up task (see `mcp__ccd_session__spawn_task` in this session's own
+record) to (a) confirm whether this Vercel project has `NEON_URL`
+configured and (b) make `api/sitemap.js` degrade to a landing+directory-only
+200 on a DB failure, matching its four siblings, regardless of (a)'s
+answer.
+
+`/vyakti` answered 404 on this preview — NOT counted as a finding, and
+correctly so: `scripts/vercel-build.sh`'s own logic (`docs/gurukul/
+DEPLOY.md`'s "The Vercel reality") only ever writes the Vyakti landing to
+`dist/index.html` (serving it at `/`, which this run confirmed returns
+200), never to a separate `dist/vyakti.html` — so a 404 at `/vyakti`
+specifically is this build's normal shape when the platform-branch
+condition is true, not a broken route. This workstream's law 1 does not
+list `/vyakti` among the paths a status code is asserted against for
+exactly this reason.
