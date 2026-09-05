@@ -9758,3 +9758,44 @@ substring as radioactive everywhere in a file, JS comments included; this
 is the identical class one comment-syntax over — a check built for JS
 source that ALSO scans template-literal SQL bodies must know both
 languages' comment syntax, not just the host language's.
+
+## `ws-r65-funnel-read-op-rejected-fixture-too-heavy` (2026-09-05, WS-R65)
+
+**What was tried.** Before settling on front-end-composed reads
+(`context/decisions.md#ws-r65-creator-path-reads-existing-state-not-a-new-
+endpoint`), the first plan for the Feed tab's path card was a new
+`funnel_read` op on `api/replica.js` (an existing door, already carrying
+`funnel_mark` at `OP_COVERAGE`'s class "e") returning the real
+`api/_funnel.js#replicaFunnel(db, replicaId, ownerUserId)` — exactly the
+ordered `steps` object this card needs, already built, already exercised
+by `evals/funnel/run.mjs`.
+
+**What broke.** `evals/room-doors/run.mjs`'s door battery is what the
+brief's own escape hatch names as the required home for a new op
+("one owner op on an existing door WITH ITS DOOR-BATTERY CASE"), and a grep
+of that whole file for the seven tables `replicaFunnel` reads across its
+eight queries —`vy_replica_source`, `vy_replica_processing_job`,
+`vy_replica_generation`, `vy_replica_readiness`, `vy_teacher_sheet`,
+`vy_room`, `vy_room_follower` — found ZERO matches. The shared
+`freshDoorsState`/`doorsDb` fixture that file's ~2,000 lines are built
+around has no shape for any of them. Writing a real, non-vacuous
+`e-owner-bearer` case (the class `funnel_mark` itself already uses, one
+owner's read succeeds, a different owner's attempt against the same
+`replica_id` is refused) would have meant extending that shared fixture to
+model all seven tables well enough for `replicaFunnel`'s actual SQL to
+resolve against it — a large, shared-file change five other wave-twelve
+workstreams (R61, R62, R63, R66, R67, R68, R69, R70) are concurrently
+editing, for a card whose entire job is a Feed-tab progress list.
+
+**What was learned.** The brief's phrasing ("one owner op on an EXISTING
+DOOR with its door-battery case") is doing real, narrow work: it does not
+mean "any new endpoint is fine as long as it sits behind an existing
+route", it means the FULL cost of a new op — a real fixture shape, a real
+ownership negative control, a case in the shared battery — has to be paid,
+and that cost is a signal about whether the new read is actually cheaper
+than composing existing ones. Here it clearly was not: `StudioShell.tsx`
+already held every read this card needed except one (`first_preview_heard`,
+honestly left unconfirmed and forward-filled from later evidence, see the
+decision above). A future workstream that already needs one of those seven
+tables through this exact door for its OWN reason would change this
+calculus — see the decision's own reversal condition.

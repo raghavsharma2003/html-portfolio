@@ -10651,3 +10651,55 @@ workstream. `evals/room-export/run.mjs`'s own dynamic layer 2 does not
 cover them either (its `EXPECT_IN_EXPORT` list predates both) — a real,
 pre-existing gap this workstream found but did not close, named rather than
 silently inherited.
+
+## `ws-r65-studio-path-gate-results-2026-09-05`
+
+n = every gate touched by this workstream, run individually and, twice, as
+part of the full `node scripts/verify-release.mjs`; method = direct
+invocation, output captured to a log file, read back; date 2026-09-05, on
+this workstream's own tree before its final commit.
+
+| gate | result |
+|---|---|
+| `node evals/studio-path/run.mjs` (new) | 34 passed, 0 failed |
+| `node evals/run.mjs studio-path` (registered) | 34 passed, 0 failed |
+| `node evals/studio-locale/run.mjs` | 40 passed, 0 failed (CreatorPath.tsx added to TIER_1_FILES, zero literal English JSX text nodes) |
+| `node evals/funnel/run.mjs` (unmodified suite, over the refactored `api/_funnel.js`) | 49 passed, 0 failed |
+| `node evals/room-doors/run.mjs` | 492 ok, 0 failed |
+| `node evals/room-leak/run.mjs` | 81 passed, 0 failed |
+| `node evals/room-export/run.mjs` | 44 passed, 0 failed |
+| `node scripts/check-copy.mjs` | 6 scopes clean, 21 negative controls bit |
+| `node scripts/check-mirrors.mjs` | 10 marker(s) checked (3 new: `FUNNEL_STEPS_ORDER`, `READINESS_OVERALL_FLOOR`, `READINESS_PART_FLOOR`), 0 disagree |
+| `node scripts/check-layout.mjs --only studio` | ok, 1318 prose blocks judged across 390/834/1355px x `studio:feed/feed-mid/meet/deploy`, `studio:shell:feed/meet/deploy`, `studio-hi:feed/feed-mid/meet/deploy`, `studio:shell-hi:feed/meet/deploy` |
+| `node scripts/check-accessibility.mjs` (full) | 0 critical, 0 serious, 0 moderate, 0 minor introduced by this workstream (one pre-existing `site:/` `color-contrast` finding, `.onb-sub`/`.onb-honest`, reproduces on the untouched tree and is not this workstream's) |
+| `npx tsc --noEmit -p tsconfig.app.json` | clean |
+| `npx vite build` | clean |
+
+**The one real finding this workstream's own gate run caught and fixed**:
+the first `creator-path.css` draft coloured `.creator-path-step-current
+.creator-path-state` with `--state-waiting` at `--text-micro` size, and
+`check-accessibility.mjs` measured it at 4.36:1 on `--paper` — under the
+4.5:1 floor, the SAME number `studio-shell.css`'s own header already
+documents for the identical token/size pair
+(`context/measurements.md#ws-r31-gate-results-2026-09-04`). Fixed by
+keeping that text `--ink`/`--ink-soft` at every state (the word already
+carries "now"; the dot is where `--state-waiting` still appears), matching
+the precedent rather than relearning it.
+
+**`node scripts/verify-release.mjs` (full), twice**: 19/21 then 18/21,
+with every failure both times a bare `EADDRINUSE` on 127.0.0.1:8931/8932/
+8933 (layout readability, performance budgets, accessibility, in varying
+combinations run to run) — never a real assertion failure, confirmed
+environmental by `ps aux` showing ten concurrent wave-twelve sibling
+worktrees (`ws-r61` through `ws-r70`) each running their OWN
+`verify-release.mjs` at the same wall-clock moment, several already past
+their own layout/accessibility/performance steps and holding those same
+ports. All three affected gates were independently confirmed green in
+isolation, above and here, with retries only needed for the SAME port
+contention, never a content failure:
+`node scripts/check-performance.mjs` alone (retried once for 8931/8932
+contention, then clean): all four targets within budget — `/` 1100ms LCP/
+0.000 CLS/155ms TBT, `/vyakti` 520ms/0.000/275ms, `/r/<slug>` 1312ms/
+0.000/208ms, `/studio` 1560ms/0.000/257ms, none over the 2500ms/0.1/300ms
+floors. The relational DB gates skipped (no `NEON_URL` in this
+environment), as on every prior workstream's own tree.

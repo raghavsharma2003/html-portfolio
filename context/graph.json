@@ -7786,6 +7786,36 @@
       "kind": "measurement",
       "title": "320,160 cross-membership token-leak checks across 116 memberships x 3 shuffled turns, zero violations; multi-Room-per-person export/forget isolation proven for 5 overlap followers; generalized static reach layer clean across 12 tables; 71 new assertions (152 total, up from 81); layer 7 runtime 6.3-11.1s, whole battery 27.5s wall clock (was 7.8s)",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r65-creator-path-card",
+      "kind": "component",
+      "title": "The Feed tab's own path card: src/studio/CreatorPath.tsx (computeCreatorPath, CreatorPathCard), src/studio/copy.ts#creatorPath, StudioShell.tsx wiring, src/studio/creator-path.css, evals/studio-path/run.mjs, two new check-layout.mjs feed-mid fixture states, api/_funnel.js#FUNNEL_STEPS_ORDER.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r65-creator-path-reads-existing-state-not-a-new-endpoint",
+      "kind": "decision",
+      "title": "The path card derives all 12 step states from reads StudioShell.tsx already holds (sources, platformWork, readiness, room, roomStats), adding no fetch and no new API route.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r65-creator-path-one-next-action-and-disappearance-rule",
+      "kind": "decision",
+      "title": "computeCreatorPath finds the furthest step with real positive evidence, never a negative fact; the card is visible until room_published, hidden after, visible again only if the Room is paused.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r65-funnel-read-op-rejected-fixture-too-heavy",
+      "kind": "rejection",
+      "title": "A funnel_read op on api/replica.js over the real replicaFunnel was rejected: evals/room-doors/run.mjs's shared fake db has zero support for the seven tables replicaFunnel joins across.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r65-studio-path-gate-results-2026-09-05",
+      "kind": "measurement",
+      "title": "34/34 new studio-path eval, 40/40 studio-locale, 49/49 funnel, 492/492 room-doors, 81/81 room-leak, 44/44 room-export, layout/accessibility clean after one contrast fix; full verify-release 19/21 twice, both remaining failures EADDRINUSE from ten concurrent sibling worktrees.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15453,6 +15483,36 @@
       "src": "ws-r68-full-world-leak-battery",
       "rel": "constrains",
       "dst": "ws-r68-full-world-shape-two-suites-by-owner-not-by-vy-org-row"
+    },
+    {
+      "src": "ws-r65-creator-path-card",
+      "rel": "part_of",
+      "dst": "ws-r31-studio-shell"
+    },
+    {
+      "src": "ws-r65-creator-path-reads-existing-state-not-a-new-endpoint",
+      "rel": "part_of",
+      "dst": "ws-r65-creator-path-card"
+    },
+    {
+      "src": "ws-r65-creator-path-one-next-action-and-disappearance-rule",
+      "rel": "part_of",
+      "dst": "ws-r65-creator-path-card"
+    },
+    {
+      "src": "ws-r65-funnel-read-op-rejected-fixture-too-heavy",
+      "rel": "caused_by",
+      "dst": "ws-r65-creator-path-card"
+    },
+    {
+      "src": "ws-r65-creator-path-reads-existing-state-not-a-new-endpoint",
+      "rel": "supersedes",
+      "dst": "ws-r65-funnel-read-op-rejected-fixture-too-heavy"
+    },
+    {
+      "src": "ws-r65-creator-path-card",
+      "rel": "measured_by",
+      "dst": "ws-r65-studio-path-gate-results-2026-09-05"
     }
   ]
 }

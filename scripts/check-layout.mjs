@@ -156,8 +156,18 @@ const TARGETS = [
   {
     name: "studio",
     fixture: "studio-layout-fixture.html",
-    query: (step) => `mode=teacher&step=${step}`,
-    steps: ["feed", "meet", "deploy"],
+    // WS-R65: "feed-mid" is not a real wizard step, `room:more`'s own
+    // pattern of folding a scenario name into `steps` restated here -- it
+    // is `?step=feed` again, but with `scenario=processing` layered on top
+    // (`layoutFixture.tsx`'s own SCENARIOS table) so the Feed tab's new
+    // path card (`CreatorPath.tsx`) renders with one source uploaded and
+    // processing still running: some steps done, one current with its own
+    // control, the rest still grey. `feed` alone (no scenario) already
+    // covers the card's OTHER required fixture state, the first step,
+    // nothing added yet -- this is the "middle step" the brief's law 4
+    // asks this target to also render.
+    query: (step) => (step === "feed-mid" ? "mode=teacher&step=feed&scenario=processing" : `mode=teacher&step=${step}`),
+    steps: ["feed", "feed-mid", "meet", "deploy"],
     mounted: ".studio-shell, .studio-layout",
     panels: ".wizard-band, .consent-panel, .processing-review, .mirror-call, .hear-voice",
     minPanels: 2,
@@ -192,8 +202,12 @@ const TARGETS = [
   {
     name: "studio-hi",
     fixture: "studio-layout-fixture.html",
-    query: (step) => `mode=teacher&step=${step}&lang=hi`,
-    steps: ["feed", "meet", "deploy"],
+    // WS-R65: `studio`'s own "feed-mid" restated in Hindi, `studio-hi`'s
+    // own reason for existing at all -- a collapsed Devanagari column in
+    // the path card's step list or its current-step sentence needs its own
+    // measured target, not the English one standing in for it.
+    query: (step) => (step === "feed-mid" ? "mode=teacher&step=feed&scenario=processing&lang=hi" : `mode=teacher&step=${step}&lang=hi`),
+    steps: ["feed", "feed-mid", "meet", "deploy"],
     mounted: ".studio-shell, .studio-layout",
     panels: ".wizard-band, .consent-panel, .processing-review, .mirror-call, .hear-voice",
     minPanels: 2,
