@@ -2935,6 +2935,126 @@ for (const doorFile of discoveredCronDoors) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// §25. WS-R93 (class e, owner-secret sibling) — OWNER-SECRET DOORS. Doors
+// gated by an owner-configured secret (`LIFE_SECRET`, `TASTE_QUEUE_SECRET`,
+// `CULTURE_SECRET`) rather than `CRON_SECRET`, none of them Room-scoped —
+// Meera's own memory/taste/culture surfaces, the same "not Room-scoped,
+// carries its own surface" rule §0 and §24 already use to exclude
+// `api/export.js`/`api/memory.js` and `api/consolidate-sweep.js`'s own
+// decisions from the main lists (`decisions.md#ws-r38-door-list-completeness-rule`).
+// WS-R89's second door battery named `api/life.js` and `api/taste-queue.js`
+// as still reading an owner `?secret=` and left them, out of scope
+// (`context/rejected.md#ws-r89-consolidate-sweep-finding-closed-at-the-merge`).
+// This class closes them the same way class e already closed the cron
+// doors — and, along the way, found a THIRD door doing the exact same
+// thing: `api/culture.js`'s `force` gate.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §25: owner-secret doors — the secret, never in a query or a body ──");
+
+// The discovery marker: a door earns a place on this list by reading its
+// owner secret from this exact header key, in source. Unlike §24's cron
+// doors (discovered by which Room decision module they import), these three
+// doors import no shared module at all — the header key itself is the only
+// thing they have in common, so it is what discovery keys on.
+const OWNER_SECRET_HEADER_MARKER = '"x-owner-secret"';
+const EXPECTED_OWNER_SECRET_DOORS = ["culture.js", "life.js", "taste-queue.js"].sort();
+
+function discoverOwnerSecretDoors() {
+  const files = readdirSync(API).filter((f) => f.endsWith(".js") && !f.startsWith("_"));
+  const doors = [];
+  for (const f of files) {
+    const src = readFileSync(join(API, f), "utf8");
+    if (src.includes(OWNER_SECRET_HEADER_MARKER)) doors.push(f);
+  }
+  return doors.sort();
+}
+const discoveredOwnerSecretDoors = discoverOwnerSecretDoors();
+ok(
+  "the discovered owner-secret door list matches EXPECTED_OWNER_SECRET_DOORS exactly — a new owner-secret door cannot appear unattacked",
+  JSON.stringify(discoveredOwnerSecretDoors) === JSON.stringify(EXPECTED_OWNER_SECRET_DOORS),
+  discoveredOwnerSecretDoors.join(",") !== EXPECTED_OWNER_SECRET_DOORS.join(",")
+    ? `\n      discovered: ${discoveredOwnerSecretDoors.join(", ")}\n      expected:   ${EXPECTED_OWNER_SECRET_DOORS.join(", ")}`
+    : "",
+);
+console.log(`  owner-secret door list (${discoveredOwnerSecretDoors.length}): ${discoveredOwnerSecretDoors.join(", ")}`);
+
+for (const doorFile of discoveredOwnerSecretDoors) {
+  const src = readFileSync(join(API, doorFile), "utf8");
+  // Same generic `function \w*[Aa]uthoriz\w*` extraction §24 already uses —
+  // one shape covers `authorized` in every door regardless of file.
+  const fnMatch = src.match(/function \w*[Aa]uthoriz\w*\([^)]*\)[^{]*\{[\s\S]*?\n\}/);
+  okClass("e-owner-secret", doorFile, "an authorization function is found in source (the extraction itself is sound)", Boolean(fnMatch));
+  const fnBody = fnMatch ? fnMatch[0] : "";
+  okClass("e-owner-secret", doorFile, "the secret comparison reads ONLY req.headers — never req.query or req.body", /req\??\.headers/.test(fnBody) && !/req\??\.query/.test(fnBody) && !/req\??\.body/.test(fnBody));
+  okClass("e-owner-secret", doorFile, "the comparison is constant-time (timingSafeEqual) somewhere in this door's own source", src.includes("timingSafeEqual"));
+  okClass("e-owner-secret", doorFile, "nowhere else in this door's source is the secret read from req.query or req.body", !/req\??\.(query|body)\??\.secret/.test(src));
+}
+
+// NEGATIVE CONTROL: this check is not vacuously permissive — run against the
+// EXACT owner-auth shape `api/life.js` shipped before this change (a
+// genuine query/body secret, WS-R93's own grep of every door in `api/`
+// found it, `api/taste-queue.js` and `api/culture.js` alongside it), frozen
+// here as a literal because the real file was fixed by this workstream: the
+// extraction finds no header-only `authorized` function at all (`ownerOk`
+// was an arrow function, never named `authorized`, and never read a
+// header), and separately is flagged as reading the secret from
+// req.query/req.body. The real file is then held to the same rule as every
+// owner-secret door, two assertions below.
+{
+  const preChangeLifeAuth = [
+    'const ownerOk = (given) => Boolean(SECRET) && given === SECRET;',
+    '',
+    '// GET /api/life',
+    'const secret = req.query?.secret || "";',
+    'if (!ownerOk(secret)) return res.status(403).json({ error: "owner review only" });',
+    '',
+    '// POST /api/life',
+    'if (!ownerOk(body.secret || "")) return res.status(403).json({ error: "owner review only" });',
+  ].join("\n");
+  const fnMatch = preChangeLifeAuth.match(/function \w*[Aa]uthoriz\w*\([^)]*\)[^{]*\{[\s\S]*?\n\}/);
+  ok(
+    "NEGATIVE CONTROL: this class's own extraction finds no header-only authorization function in the pre-change api/life.js (frozen literal) — ownerOk is never named `authorized` and never reads a header",
+    !fnMatch,
+  );
+  ok(
+    "NEGATIVE CONTROL: the pre-change api/life.js (frozen literal) is flagged as reading the secret from req.query or req.body",
+    /req\??\.(query|body)\??\.secret/.test(preChangeLifeAuth),
+  );
+  // The real file, fixed by WS-R93: header only, constant time.
+  const lifeSrc = readFileSync(join(API, "life.js"), "utf8");
+  const realMatch = lifeSrc.match(/function authorized\([^)]*\)[^{]*\{[\s\S]*?\n\}/);
+  const realBody = realMatch ? realMatch[0] : "";
+  ok(
+    "api/life.js's REAL authorized() now reads ONLY req.headers for the secret (the WS-R93 fix, closed here rather than left as WS-R89 found it)",
+    Boolean(realMatch) && /req\??\.headers/.test(realBody) && !/req\??\.query/.test(realBody) && !/req\??\.body/.test(realBody),
+  );
+  ok(
+    "api/life.js compares its secret in constant time (timingSafeEqual) somewhere in its own source",
+    lifeSrc.includes("timingSafeEqual"),
+  );
+}
+
+// LAW 4: a repo-wide sweep, independent of the discovery marker above — no
+// door anywhere in api/ may read `req.query.secret` or `req.body.secret`,
+// so this whole class of defect cannot silently return through a door that
+// never adopted the `x-owner-secret` header at all. `_`-prefixed files are
+// decision modules with no HTTP surface of their own and are out of scope
+// the same way §0's door list already excludes them.
+{
+  const allDoorFiles = readdirSync(API).filter((f) => f.endsWith(".js") && !f.startsWith("_"));
+  const offenders = [];
+  for (const f of allDoorFiles) {
+    const src = readFileSync(join(API, f), "utf8");
+    if (/req\??\.(query|body)\??\.secret/.test(src)) offenders.push(f);
+  }
+  ok(
+    "no door anywhere in api/ reads req.query.secret or req.body.secret (the class WS-R93 closed cannot silently return)",
+    offenders.length === 0,
+    offenders.join(", "),
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 console.log("\n── case counts per attack class, per door ──");
 for (const [klass, { doors, pass: p, fail: f }] of Object.entries(byClass)) {
   console.log(`  ${klass.padEnd(20)} doors: ${[...doors].sort().join(", ")}  (${p} ok, ${f} failed)`);

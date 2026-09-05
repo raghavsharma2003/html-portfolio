@@ -14,11 +14,20 @@
 //                                                            consolidate.js's
 //                                                            own dual on-
 //                                                            demand+cron shape)
-//   GET  /api/taste-queue?secret=...                      → list pending
+//   GET  /api/taste-queue                                 → list pending
 //                                                            candidates for
 //                                                            owner review
-//   POST /api/taste-queue {op:"approve"|"reject", id, secret}
+//   POST /api/taste-queue {op:"approve"|"reject", id}
 //                                                          → owner decision
+//
+// GET listing, `nominate_all` and `approve`/`reject` all carry the owner
+// secret in the `x-owner-secret` header, never the query string or the
+// body — WS-R93. It used to be `?secret=` on GET and `body.secret` on
+// POST, which lands in access logs, proxies and browser history, the same
+// leak class WS-R89 already closed for `api/consolidate-sweep.js`'s cron
+// secret (`context/rejected.md#ws-r89-consolidate-sweep-secret-in-query-or-body-found-out-of-scope`).
+// `nominate` (a follower device scanning its own patterns) never carried a
+// secret and still does not — it is not an owner op.
 //
 // "Generated text never writes the identity core" (§4.1.5): approving a
 // candidate here NEVER edits src/engine/inner.ts's authored TASTE table —
@@ -42,12 +51,23 @@
 // (frozen here) so forget/export cover it — until that lands, a person's
 // pending taste candidates do NOT get swept by forget, which is flagged
 // below as a known gap, not silently accepted.
+import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { personIdFor } from "./memory.js";
 import { MEERA_AGENT_ID, agentScopePredicate, agentValue } from "./_agentscope.js";
 
 const SECRET = process.env.TASTE_QUEUE_SECRET || "";
+
+// Owner secret, header only, constant-time compare — api/self-check.js's
+// own `authorized` shape, api/consolidate-sweep.js's own `secretMatches`.
+// A short or unset SECRET can never match, so an unconfigured deploy is
+// simply closed rather than open-by-accident.
+function authorized(req) {
+  const expected = Buffer.from(String(SECRET));
+  const actual = Buffer.from(String(req.headers?.["x-owner-secret"] || ""));
+  return expected.length >= 16 && expected.length === actual.length && timingSafeEqual(expected, actual);
+}
 
 // §4.1.5's own numbers, duplicated here rather than imported from
 // src/engine/relstate.ts's `checkTasteEligibility` — same rationale
@@ -154,8 +174,7 @@ export default async function handler(req, res) {
       // other endpoint in this repo, so it is gated exactly like
       // api/culture.js gates its `force` param: no secret configured means
       // this capability is simply off, never open by accident.
-      const secret = req.query?.secret || "";
-      if (!SECRET || secret !== SECRET) return res.status(403).json({ error: "owner review only" });
+      if (!authorized(req)) return res.status(403).json({ error: "owner review only" });
       await ensureSchema();
       const status = ["pending", "approved", "rejected"].includes(req.query?.status) ? req.query.status : "pending";
       const rows = await q(
@@ -182,8 +201,7 @@ export default async function handler(req, res) {
     }
 
     if (op === "nominate_all") {
-      const secret = req.body?.secret || "";
-      if (!SECRET || secret !== SECRET) return res.status(403).json({ error: "owner-triggered sweep only" });
+      if (!authorized(req)) return res.status(403).json({ error: "owner-triggered sweep only" });
       await ensureSchema();
       const limit = Math.min(Number(req.body?.limit) || 25, 100);
       const persons = await q(
@@ -202,8 +220,7 @@ export default async function handler(req, res) {
     }
 
     if (op === "approve" || op === "reject") {
-      const secret = req.body?.secret || "";
-      if (!SECRET || secret !== SECRET) return res.status(403).json({ error: "owner review only" });
+      if (!authorized(req)) return res.status(403).json({ error: "owner review only" });
       const id = Number(req.body?.id);
       if (!Number.isFinite(id)) return res.status(400).json({ error: "id required" });
       await ensureSchema();
