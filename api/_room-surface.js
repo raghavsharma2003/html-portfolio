@@ -988,6 +988,80 @@ export async function roomReferralLink(db, { session }, deps = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// THE REFERRAL REWARD (WS-R130, migration 133) — "2 of 3 friends", never a
+// friend's identity
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Three. `api/_payments.js#maybeGrantReferralReward` is the ONE place that
+ *  decides whether a reward is actually granted, and it imports this exact
+ *  constant rather than carrying its own copy — one number, one place, so
+ *  this read and that decision can never silently disagree about what
+ *  "three friends" means. */
+export const REFERRAL_REWARD_FRIEND_THRESHOLD = 3;
+
+/**
+ * A follower's own "how close am I" read for the account page's "Bring a
+ * friend" card — never a friend's identity, never a friend's own row,
+ * exactly `roomExport`'s own referral count one section up restated for
+ * progress toward a reward instead of a lifetime total. `friends_credited`
+ * counts, among everyone THIS follower has ever referred
+ * (`vy_room_referral_credit.referrer_follower_id = who.followerId`), how
+ * many have themselves landed at least one real charge — the identical
+ * "landed charge" predicate `api/_payments.js#maybeGrantReferralReward`
+ * uses to decide the reward itself, so a follower's own progress bar can
+ * never show a number the grant machinery would disagree with.
+ *
+ * Gated on BOTH new tables (migration 133) being applied — the honest
+ * "nothing to show yet" shape (`friends_credited: 0, reward: null`) on a
+ * database that has not run this migration, `friendsBroughtThisWeek`'s own
+ * not-applied-yet posture restated for a follower-scoped read.
+ */
+export async function roomReferralProgress(db, { session }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  if (
+    !(await isTableAppliedFor(deps)("vy_room_referral_credit")) ||
+    !(await isTableAppliedFor(deps)("vy_room_referral_reward"))
+  ) {
+    return { friends_credited: 0, threshold: REFERRAL_REWARD_FRIEND_THRESHOLD, reward: null };
+  }
+  const countRows = await db(
+    `select count(*)::int as n
+       from vy_room_referral_credit rc
+      where rc.referrer_follower_id = ($1)::uuid
+        and exists (
+              select 1
+                from vy_payment_event pe
+                join vy_room_subscription rs on rs.subscription_id = pe.subscription_id
+               where rs.follower_id = rc.referred_follower_id
+                 and pe.kind = any(array['subscription.charged','subscription.activated'])
+                 and pe.amount_inr > 0
+            )`,
+    [who.followerId],
+  ).catch(() => []);
+  const n = Number(countRows[0]?.n);
+  const rewardRows = await db(
+    `select reward_id, granted_at, period_extended_to, year_key
+       from vy_room_referral_reward
+      where referrer_follower_id = ($1)::uuid and room_id = ($2)::uuid
+      order by granted_at desc
+      limit 1`,
+    [who.followerId, who.roomId],
+  ).catch(() => []);
+  const reward = rewardRows[0]
+    ? {
+        granted_at: rewardRows[0].granted_at,
+        period_extended_to: rewardRows[0].period_extended_to,
+        year_key: rewardRows[0].year_key,
+      }
+    : null;
+  return {
+    friends_credited: Number.isFinite(n) ? Math.min(n, REFERRAL_REWARD_FRIEND_THRESHOLD) : 0,
+    threshold: REFERRAL_REWARD_FRIEND_THRESHOLD,
+    reward,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // OP: open
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -1283,6 +1357,46 @@ export async function joinRoom(
          where ($3)::text <> ($4)::text`,
         [randomUUID(), String(resolved.room.room_id), referrerHash, joinerHash],
       ).catch(() => {});
+
+      // WS-R130 (migration 133). `vy_room_referral` above is deliberately
+      // unlinkable — this is the reward machinery's own second, ADDITIONAL
+      // write, naming a real referrer for the first time in this product.
+      // `vy_room_referral_credit` is what lets a later charge from THIS
+      // follower ever find its way back to a specific referrer's specific
+      // subscription — a question `vy_room_referral`'s own hash-only shape
+      // cannot answer by design (this migration's own header). The referrer
+      // is resolved the ONLY way it safely can be here: by recomputing
+      // `referralHashFor` for every follower already in this Room (via
+      // pgcrypto's `digest()`, the SAME function this file's own JS side
+      // uses) and matching the one whose hash equals the `ref` the joiner
+      // carried — `rf.follower_id <> ($3)::uuid` re-proves self-referral is
+      // impossible here too, belt-and-braces over the fact that a follower
+      // who joins through their own link never reaches this branch at all
+      // (their `referrerHash` would equal `joinerHash` and the sibling
+      // INSERT above already refuses on that exact predicate — this one has
+      // no such shared guard, since it is not the same statement, so it
+      // re-states the check rather than relying on the neighbour's).
+      // `on conflict (referred_follower_id) do nothing` is the SAME
+      // "credited once, ever" guarantee `follower.newly_joined` already
+      // gives in practice, restated as a structural constraint
+      // (migration 133's own `vy_room_referral_credit_referred_ix`).
+      if (await isTableAppliedFor(deps)("vy_room_referral_credit")) {
+        await db(
+          `insert into vy_room_referral_credit
+             (credit_id, room_id, referred_follower_id, referrer_follower_id, referrer_person_id, created_at)
+           select ($1)::uuid, ($2)::uuid, ($3)::uuid, rf.follower_id, rf.person_id, now()
+             from vy_room_follower rf
+            where rf.room_id = ($2)::uuid
+              and rf.follower_id <> ($3)::uuid
+              and encode(
+                    digest('room_referral ' || rf.room_id::text || ' ' || rf.person_id::text || ' ' || ($4)::text, 'sha256'),
+                    'hex'
+                  ) = ($5)::text
+            limit 1
+           on conflict (referred_follower_id) do nothing`,
+          [randomUUID(), String(resolved.room.room_id), String(follower.follower_id), referralSalt(deps.env), referrerHash],
+        ).catch(() => {});
+      }
     }
   }
 
@@ -2504,6 +2618,36 @@ export async function roomExport(db, { session }, deps = {}) {
     const n = Number(rows[0]?.n);
     if (Number.isFinite(n) && n > 0) tables.vy_room_referral = { count: n };
   }
+  // WS-R130 (migration 133). Whether THIS follower was themselves referred
+  // by a friend - `referred_follower_id` is a `follower_id`, not the
+  // literal `person_id` column `ROOM_EXPORT_EXTRA`'s generic shapes key
+  // off, so this is scoped by `who.followerId` directly rather than
+  // through that loop. Never who referred them - only the fact of it, `n`
+  // capped at 1 by the table's own `unique (referred_follower_id)`.
+  if (await isTableAppliedFor(deps)("vy_room_referral_credit")) {
+    const rows = await db(
+      `select count(*)::int as n from vy_room_referral_credit where referred_follower_id = ($1)::uuid`,
+      [who.followerId],
+    ).catch(() => []);
+    const n = Number(rows[0]?.n);
+    if (Number.isFinite(n) && n > 0) tables.vy_room_referral_credit = { count: n };
+  }
+  // WS-R130 (migration 133). Same reasoning one table over: not one of the
+  // `ROOM_EXPORT_EXTRA` entries above, because `referrer_person_id` is not
+  // the literal `person_id` column name that loop's generic shapes key
+  // off. Unlike `vy_room_referral`, no recomputation is needed here — this
+  // table names the referrer's own `person_id` directly, so a follower's
+  // own export reads it straight, exactly as `roomReceipt`'s own read one
+  // section up reads its own `person_id`-keyed rows straight.
+  if (await isTableAppliedFor(deps)("vy_room_referral_reward")) {
+    const rows = await db(
+      `select count(*)::int as n from vy_room_referral_reward
+        where room_id = ($1)::uuid and referrer_person_id = ($2)::uuid`,
+      [who.roomId, who.personId],
+    ).catch(() => []);
+    const n = Number(rows[0]?.n);
+    if (Number.isFinite(n) && n > 0) tables.vy_room_referral_reward = { count: n };
+  }
   return {
     format: "vyakti-room-export/1",
     exported_at: new Date(deps.now ?? Date.now()).toISOString(),
@@ -2549,7 +2693,15 @@ export async function roomExportManifest(deps = {}) {
   // is named here directly rather than left out of this manifest the way
   // `vy_room_arrival` correctly is — that table is never read back to any
   // one follower at all, and this one is.
-  return [...scoped.map((t) => t.table), ...ROOM_EXPORT_EXTRA.map((e) => e.table), "vy_room_referral"];
+  // WS-R130 (migration 133): the same treatment, for the same reason, for
+  // the two tables the reward feature added - neither carries the literal
+  // `person_id` column `ROOM_EXPORT_EXTRA`'s generic shapes key off, and
+  // `roomExport` DOES reach both (the special-cased blocks right after the
+  // `vy_room_referral` one, this file's own header there).
+  return [
+    ...scoped.map((t) => t.table), ...ROOM_EXPORT_EXTRA.map((e) => e.table),
+    "vy_room_referral", "vy_room_referral_credit", "vy_room_referral_reward",
+  ];
 }
 
 /** The ownership half of `wipeWhereSql`, and NOTHING else: the owning columns
@@ -3199,6 +3351,14 @@ async function selfScope(db, session, deps) {
     // from, so the app-voiced note it returns can still be honestly localized
     // after the follower who asked for it no longer has a row to read it off.
     locale: normalizeLocale(follower.locale),
+    // WS-R130 (migration 133). Additive — no pre-existing caller of
+    // `selfScope` reads this field, so this is not a change in behaviour
+    // for any of them. `roomReferralProgress` below is the one caller that
+    // needs it: a follower's own progress read is scoped by their OWN
+    // `follower_id`, never their `person_id` alone, since that is the
+    // column `vy_room_referral_credit`/`vy_room_referral_reward` actually
+    // key a referrer by.
+    followerId: String(follower.follower_id),
   };
 }
 
@@ -3411,7 +3571,7 @@ export async function roomReceipts(db, { session }, deps = {}) {
   const who = await selfScope(db, session, deps);
   if (!(await isTableAppliedFor(deps)("vy_receipt"))) return { receipts: [] };
   const rows = await db(
-    `select r.receipt_id, r.receipt_no, r.payment_event_id, r.issued_at, e.amount_inr
+    `select r.receipt_id, r.receipt_no, r.payment_event_id, r.issued_at, e.amount_inr, e.kind
        from vy_receipt r
        join vy_payment_event e on e.event_id = r.payment_event_id
       where r.room_id = ($1)::uuid and r.person_id = ($2)::uuid
@@ -3425,6 +3585,11 @@ export async function roomReceipts(db, { session }, deps = {}) {
       receipt_no: Number(row.receipt_no),
       issued_at: row.issued_at,
       amount_inr: Number(row.amount_inr),
+      // WS-R130 (migration 133). The one signal the account page's list
+      // needs to show "free month (referral reward)" instead of the
+      // ordinary line for a zero-amount reward receipt, without the list
+      // read growing a second shape.
+      is_referral_reward: row.kind === "referral_reward",
     })),
   };
 }

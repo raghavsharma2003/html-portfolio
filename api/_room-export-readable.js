@@ -343,6 +343,17 @@ export const TABLE_COPY = Object.freeze([
     en: "How many people joined this room using your own invite link.",
     hi: "आपके अपने आमंत्रण लिंक से कितने लोग इस रूम में शामिल हुए।",
   },
+  // WS-R130 (migration 133), added at the wave-eighteen merge: whether you
+  // joined this room through a friend's own invite link - never who.
+  { table: "vy_room_referral_credit",
+    en: "Whether you joined this room using a friend's own invite link.",
+    hi: "क्या आप किसी दोस्त के आमंत्रण लिंक से इस रूम में शामिल हुए।",
+  },
+  // The free month a follower's own three referred friends earned them.
+  { table: "vy_room_referral_reward",
+    en: "A free month you earned because three friends you invited joined and paid.",
+    hi: "एक मुफ़्त महीना जो आपने कमाया क्योंकि आपके बुलाए तीन दोस्त शामिल हुए और उन्होंने भुगतान किया।",
+  },
 ]);
 
 /** `TABLE_COPY`'s own name -> entry index, built once. Kept separate from

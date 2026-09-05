@@ -59,6 +59,7 @@
 // (api/_org.js, built and proven by WS-R28 with no caller) gets its one
 // caller here: `startCreatorSubscription` refuses BEFORE any provider call
 // when a Suite seat already covers this creator - law 4.
+import { randomUUID } from "node:crypto";
 import { sha256Hex } from "./_provenance/contracts.js";
 import { consume } from "./_rate-limit.js";
 import { getChannelSecret, ChannelSecretError } from "./_channel-secrets.js";
@@ -70,6 +71,11 @@ import {
   followerRow,
   roomUnavailable,
   RoomError,
+  // WS-R130 (migration 133). The one number "three friends" means,
+  // imported rather than re-declared here — `roomReferralProgress`'s own
+  // header states why: one constant, one place, so a follower's own
+  // progress read and this file's own grant decision can never disagree.
+  REFERRAL_REWARD_FRIEND_THRESHOLD,
 } from "./_room-surface.js";
 import { seatCoversCreatorTier } from "./_org.js";
 import * as fakeProvider from "./_payments/providers/fake.js";
@@ -1140,7 +1146,7 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
           and su.state in ('active','cancelled','expired')
        returning f.follower_id, f.tier
      )${offerCte}
-     select c.event_id, su.subscription_id, su.state, su.person_id, fu.tier${offerSelect}
+     select c.event_id, su.subscription_id, su.state, su.person_id, su.follower_id, fu.tier${offerSelect}
        from candidate c
        left join sub_update su on true
        left join follower_update fu on true${offerJoin}`,
@@ -1173,6 +1179,23 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
       issuedAt: new Date(deps.now ?? Date.now()).toISOString(),
     });
   }
+  // WS-R130 (migration 133). The referral reward - decided as a SECOND
+  // statement right after the receipt, `maybeGrantReferralReward`'s own
+  // header states why this is not a fifth CTE folded into the write above.
+  // Gated on `isLandedCharge` exactly like the receipt one block up: a
+  // pause, a cancellation or a zero-amount event can never grant a reward,
+  // only a genuinely landed charge can. Best-effort - a failure here must
+  // never turn a real, already-recorded charge into a 500 for a growth-
+  // reward reason (`recordRoomArrival`'s own posture, restated a third
+  // time in this file).
+  let referralReward = null;
+  if (isLandedCharge && result.follower_id) {
+    referralReward = await maybeGrantReferralReward(
+      db,
+      { eventId: result.event_id, roomId: ctx.room_id, followerId: result.follower_id, now: deps.now ?? Date.now() },
+      deps,
+    ).catch(() => null);
+  }
   return {
     applied: true,
     replay: false,
@@ -1182,6 +1205,7 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
     tier: result.tier ?? null,
     offer_marked_paid: result.offer_marked_paid ?? null,
     receipt_id: receipt?.receipt_id ?? null,
+    referral_reward_id: referralReward?.reward_id ?? null,
   };
 }
 
@@ -1240,6 +1264,190 @@ export async function issueFollowerReceipt(db, { eventId, roomId, personId, issu
     [fy, eventId, roomId, personId, issuedAt || null],
   );
   return rows[0] || null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE REFERRAL REWARD (WS-R130, migration 133) — a follower whose personal
+// link brought three friends who each completed a first paid month gets one
+// free month, capped at one reward per follower per year.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The kinds this file's own `KIND_TO_STATE`/`CREATOR_CHARGE_KINDS` already
+ *  name as "a real landed charge" (`applyWebhook`'s follower lane, restated
+ *  here as its own array literal rather than importing `CREATOR_CHARGE_KINDS`
+ *  — that set is a `Set`, and this needs a `text[]` Postgres can bind
+ *  directly; keeping the two in sync is one short array, not a live import
+ *  cycle risk). Any drift between the two would show up immediately in
+ *  `evals/payments/run.mjs`'s own byte-for-byte assertions against both. */
+const REFERRAL_REWARD_CHARGE_KINDS = ["subscription.charged", "subscription.activated"];
+
+export const REFERRAL_REWARD_REASON = "referral_reward";
+
+/**
+ * Decided as a SECOND statement, right after `issueFollowerReceipt`, never
+ * folded into `applyWebhook`'s own ledger-write CTE chain — `issueFollowerReceipt`'s
+ * own header states the reason and it applies here with equal force: that
+ * write is a heavily fixture-modelled statement several sibling suites drive
+ * byte-exactly, and folding a THIRD and FOURTH table's writes into it would
+ * renumber every one of its bound parameters for every one of them
+ * (`context/decisions.md#ws-r100-receipt-issued-alongside-not-inside-the-
+ * ledger-write`, restated for this workstream). Called ONLY for a genuinely
+ * NEW landed follower charge (`applyWebhook`'s own `isLandedCharge` gate,
+ * the same one `issueFollowerReceipt` is called under) — a replay never
+ * reaches this function at all, `applyWebhook`'s own early return on a
+ * deduped ledger insert.
+ *
+ * ONE STATEMENT decides everything: whether this charge is the referred
+ * follower's OWN first-ever landed charge, who referred them (`vy_room_
+ * referral_credit`, migration 133), how many of THAT referrer's referred
+ * followers have themselves landed at least one charge, and — only when
+ * that count reaches `REFERRAL_REWARD_FRIEND_THRESHOLD` — inserts the
+ * reward and extends the referrer's OWN active subscription's
+ * `current_period_end` by one month, all atomically. The unique index
+ * (`vy_room_referral_reward_cap_ix`, migration 133) is the LAST arbiter
+ * under concurrency: two webhook deliveries racing to credit the same
+ * referrer's third friend can both compute "count reaches three," but only
+ * one can ever insert successfully — the `on conflict ... do nothing`
+ * below, `startFollowerSubscription`'s own idempotent-on-conflict shape
+ * restated for a reward instead of a subscription row.
+ *
+ * A self-referral cannot reach this function credited at all —
+ * `joinRoom`'s own `vy_room_referral_credit` write already refuses one
+ * structurally (this migration's own header); this function adds no
+ * second guard because there is nothing here for a second guard to catch
+ * that the first did not already prevent from ever being written.
+ *
+ * Gated on BOTH new tables being applied — a database that has not run
+ * migration 133 yet grants nothing and returns `null`, `issueFollowerReceipt`'s
+ * own `tableApplied` gate one function up restated for two tables instead
+ * of one.
+ */
+export async function maybeGrantReferralReward(db, { eventId, roomId, followerId, now = Date.now() } = {}, deps = {}) {
+  const tableCheck = deps.tableApplied ?? tableApplied;
+  if (!(await tableCheck("vy_room_referral_credit")) || !(await tableCheck("vy_room_referral_reward"))) {
+    return null;
+  }
+  const yearKey = financialYearFor(now);
+  const rewardId = randomUUID();
+  const rows = await db(
+    `with this_follower_first as (
+       select not exists (
+         select 1
+           from vy_payment_event pe
+           join vy_room_subscription rs on rs.subscription_id = pe.subscription_id
+          where rs.follower_id = ($1)::uuid
+            and pe.event_id <> ($2)::uuid
+            and pe.kind = any(($6)::text[])
+            and pe.amount_inr > 0
+       ) as is_first
+     ), landed_referrer as (
+       select rc.referrer_follower_id, rc.referrer_person_id, rc.room_id
+         from vy_room_referral_credit rc, this_follower_first tff
+        where rc.referred_follower_id = ($1)::uuid
+          and rc.room_id = ($3)::uuid
+          and tff.is_first
+     ), referrer_progress as (
+       select lr.referrer_follower_id, lr.referrer_person_id, lr.room_id,
+              count(*) filter (
+                where exists (
+                  select 1
+                    from vy_payment_event pe2
+                    join vy_room_subscription rs2 on rs2.subscription_id = pe2.subscription_id
+                   where rs2.follower_id = rc2.referred_follower_id
+                     and pe2.kind = any(($6)::text[])
+                     and pe2.amount_inr > 0
+                )
+              ) as n
+         from landed_referrer lr
+         join vy_room_referral_credit rc2 on rc2.referrer_follower_id = lr.referrer_follower_id
+        group by lr.referrer_follower_id, lr.referrer_person_id, lr.room_id
+     ), referrer_subscription as (
+       select rs3.subscription_id, rs3.current_period_end
+         from vy_room_subscription rs3
+         join referrer_progress rp on rp.referrer_follower_id = rs3.follower_id
+        where rs3.state = 'active'
+          and rp.n >= ($4)::int
+        order by rs3.created_at desc
+        limit 1
+     ), reward_insert as (
+       insert into vy_room_referral_reward
+         (reward_id, room_id, referrer_follower_id, referrer_person_id, granted_at,
+          period_extended_to, year_key, reason)
+       select ($7)::uuid, rp.room_id, rp.referrer_follower_id, rp.referrer_person_id, now(),
+              coalesce(rsub.current_period_end, now()) + interval '1 month', ($5)::text, ($8)::text
+         from referrer_progress rp
+         left join referrer_subscription rsub on true
+        where rp.n >= ($4)::int
+       on conflict (referrer_follower_id, room_id, year_key) do nothing
+       returning reward_id, referrer_follower_id, referrer_person_id, room_id, period_extended_to
+     ), referrer_extend as (
+       update vy_room_subscription rs4
+          set current_period_end = ri.period_extended_to, updated_at = now()
+         from reward_insert ri
+        where rs4.follower_id = ri.referrer_follower_id
+          and rs4.state = 'active'
+        returning rs4.subscription_id
+     )
+     select reward_id, referrer_follower_id, referrer_person_id, room_id, period_extended_to from reward_insert`,
+    [
+      String(followerId), String(eventId), String(roomId), REFERRAL_REWARD_FRIEND_THRESHOLD, yearKey,
+      REFERRAL_REWARD_CHARGE_KINDS, rewardId, REFERRAL_REWARD_REASON,
+    ],
+  );
+  const reward = rows[0];
+  if (!reward) return null;
+  // The reward's own zero-amount ledger entry and receipt — the SAME,
+  // already-proven `issueFollowerReceipt` this file's webhook lane already
+  // calls for a real charge, given a SYNTHETIC `vy_payment_event` row
+  // instead of the webhook's own. `amount_inr = 0` (so `vy_payment_event
+  // _split_sums`/`_amounts_nonneg` hold unchanged), `signature_verified =
+  // true` (that CHECK binds every row regardless of kind — an internally
+  // decided grant is not a forged webhook), `provider_event_ref` scoped to
+  // this one reward id so a second call for the SAME reward (there never
+  // is one — `reward_insert`'s own `on conflict` already refused it above)
+  // could not double-insert the ledger row either. Best-effort, `recordRoomArrival`'s
+  // own posture restated a third time in this file: a receipt write failing
+  // must never undo a reward already granted and extended.
+  let receiptId = null;
+  try {
+    const eventRows = await db(
+      `insert into vy_payment_event
+         (provider, provider_event_ref, room_id, subscription_id, kind, amount_inr,
+          platform_take_inr, creator_share_inr, signature_verified, payload_hash)
+       select $1, $2, ($3)::uuid, s.subscription_id, 'referral_reward', 0, 0, 0, true, $4
+         from vy_room_subscription s
+        where s.follower_id = ($5)::uuid and s.state = 'active'
+        order by s.created_at desc
+        limit 1
+       on conflict (provider, provider_event_ref) do nothing
+       returning event_id`,
+      [
+        activeProviderName(deps.env ?? process.env), `referral_reward:${reward.reward_id}`, String(reward.room_id),
+        sha256Hex(`referral_reward:${reward.reward_id}`), String(reward.referrer_follower_id),
+      ],
+    );
+    const rewardEventId = eventRows[0]?.event_id;
+    if (rewardEventId) {
+      const receipt = await issueFollowerReceipt(db, {
+        eventId: rewardEventId,
+        roomId: reward.room_id,
+        personId: reward.referrer_person_id,
+        issuedAt: new Date(now).toISOString(),
+      });
+      receiptId = receipt?.receipt_id ?? null;
+    }
+  } catch {
+    // Honest silence, `recordRoomArrival`'s own posture: the reward and the
+    // extension already landed above; a receipt that failed to mint is a
+    // real, named gap for the backfill sweep to close later, never a reason
+    // to fail the whole webhook response.
+  }
+  return {
+    reward_id: reward.reward_id,
+    referrer_follower_id: reward.referrer_follower_id,
+    period_extended_to: reward.period_extended_to,
+    receipt_id: receiptId,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1766,8 +1974,32 @@ export async function reconcilePeriod(db, { periodStart, periodEnd }, deps = {})
     );
     chargesWithoutReceipt = Number(receiptRows[0]?.n || 0);
   }
+  // WS-R130 (migration 133). `referral_rewards` - the rupees this period's
+  // rewards did NOT collect, named rather than missing (this workstream's
+  // own brief, law 4). Reported never compared, `creator_lane_total_inr`'s
+  // own posture two lines up restated: a reward is not a discrepancy
+  // against any payout, it is the platform's own free month, so this is
+  // information for the line item, not a `findings` entry. `forgone_inr`
+  // is a plain `count x this Room's CURRENT follower price` - the same
+  // "no price history exists" limitation the Suite lane's own section
+  // above states for a different join, restated here rather than solved
+  // twice in one file.
+  let referralRewards = { count: 0, forgone_inr: 0 };
+  if (await (deps.tableApplied ?? tableApplied)("vy_room_referral_reward")) {
+    const rewardRows = await db(
+      `select coalesce(p.follower_price_inr, 0) as follower_price_inr
+         from vy_room_referral_reward rr
+         left join vy_room_price p on p.room_id = rr.room_id
+        where rr.granted_at >= ($1)::timestamptz and rr.granted_at < ($2)::timestamptz`,
+      [start.toISOString(), end.toISOString()],
+    );
+    referralRewards = {
+      count: rewardRows.length,
+      forgone_inr: rewardRows.reduce((sum, r) => sum + Number(r.follower_price_inr || 0), 0),
+    };
+  }
   const result = reconcile(ledgerRows, payoutRows, suiteRows, { start: start.toISOString(), end: end.toISOString() });
-  return { ...result, charges_without_receipt: chargesWithoutReceipt };
+  return { ...result, charges_without_receipt: chargesWithoutReceipt, referral_rewards: referralRewards };
 }
 
 /** The ops board's own line (WS-R42): "the count of periods with findings" -

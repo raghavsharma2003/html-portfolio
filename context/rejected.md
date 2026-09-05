@@ -13984,3 +13984,171 @@ never assume the arithmetic backend or the byte path leaves it intact):
 prefer an honest, narrower shortfall (a WAV clip that may not render as a
 voice bubble) to a broader, unverifiable claim (a clip that renders
 correctly but might silently carry a dead or degraded watermark).
+
+## `ws-r130-sql-comment-backticks-terminated-the-template-literal-yet-again`
+
+**What was tried.** Two new DELETE CTE blocks added to `api/_replica-
+full-erasure.js`'s giant one-statement template literal, with their own
+explanatory SQL comment (`-- ...`) written in this repo's own habitual
+prose style — backtick-quoting identifiers like `` `room_referrals` ``,
+`` `vy_receipt` `` and `` `vy_room_follower_whatsapp_chat` `` the way a
+Markdown-literate person naturally does.
+
+**What broke, and how it was caught.** `node --check api/_replica-full-
+erasure.js` failed with `SyntaxError: missing ) after argument list`,
+pointing at the START of the giant template literal rather than the actual
+backtick — because the FIRST unescaped backtick inside that SQL comment
+closed the JS template literal early, turning everything after it into
+bare JS the parser could not make sense of. This is the SAME class of
+mistake `rejected.md` already names at least five times over for THIS
+EXACT FILE'S sibling migrations, each one caught only by running `node
+--check` rather than by having read the warning beforehand.
+
+**The fix.** Removed every backtick from the new comment block, added the
+file's own standing "NOTE: no backticks in this SQL comment on purpose"
+sentence the other blocks in this file already carry, re-ran `node
+--check` clean.
+
+**The lesson, restated because restating it clearly has not been enough.**
+The trap is not unfamiliarity with the rule — this session had read this
+exact repeated warning in `rejected.md` before writing a single line of
+this file — the trap is that quoting an identifier with backticks is a
+finger-memory habit from writing prose about code, and it fires inside a
+SQL string exactly as readily as outside one. The only thing that has ever
+actually caught it, across every one of this file's own prior instances,
+is running `node --check` immediately after editing anything inside this
+specific template literal — never having read the rule.
+
+## `ws-r130-erasure-comment-naming-vy-room-follower-whatsapp-chat-tripped-the-static-scanner`
+
+**What was tried.** The SAME new comment block above (after the backtick
+fix) explained why the new tables carry no foreign key on their identity
+columns by citing the sibling precedent BY NAME: "migration 128's
+`vy_room_follower_whatsapp_chat` precedent."
+
+**What broke.** `evals/room-leak/run.mjs`'s layer-1 static check
+(`api/_replica-full-erasure.js`'s "the erasure job's only touch of
+`vy_room_thread`/`vy_room_follower` is a delete" assertion) scans every
+LINE of that file containing the substring `vy_room_follower` and requires
+each one to match `/delete from/i`. `vy_room_follower_whatsapp_chat`
+contains `vy_room_follower` as a literal substring, so a plain-prose
+mention of the longer table's name in a comment tripped the shorter
+table's own dedicated guard — `context/rejected.md`'s own
+`ws-r70-mentioning-a-boundary-tables-name-in-a-comment-trips-a-repo-wide-
+static-scanner` and `ws-r86-creator-export-comment-naming-vy-room-arrival-
+tripped-its-bespoke-scanner` entries name this exact class of near-miss for
+two OTHER files; this is a third instance, in a third file, found the same
+session as the backtick trap above and by the same mechanism (running the
+actual suite rather than trusting the comment was safe).
+
+**The fix.** Paraphrased to "migration 128's WhatsApp chat pointer
+precedent" — the sibling table's SHAPE, never its literal name.
+
+**The lesson.** A repo with several independent, table-name-substring
+static scanners (this file's own "only a delete" check, the generalized
+`TABLE_ROLES`/`CONTENT_COLUMN_RE` mechanism, and at least one bespoke
+per-table scanner named in the two `rejected.md` entries above) means ANY
+new prose mentioning ANY existing table name by name, anywhere in
+`api/_replica-full-erasure.js`, is a candidate for tripping a check that
+has nothing to do with what the sentence is actually explaining. The
+practical rule this session is adding no new information to, only
+repeating a third time: describe a sibling table's SHAPE in this file's
+own comments, never its name.
+
+## `ws-r130-shared-room-fixture-would-have-silently-misrouted-the-new-credit-insert`
+
+**What was tried (caught before it shipped, not after a test failure).**
+`evals/room/fixtures.mjs`'s existing branch for `vy_room_referral`'s own
+insert is matched with a plain `sql.includes("insert into vy_room_referral")`
+check. The new statement this workstream adds, `insert into
+vy_room_referral_credit (...)`, is a SUPERSTRING of that exact text —
+`"insert into vy_room_referral_credit ...".includes("insert into
+vy_room_referral")` is `true`.
+
+**What would have broken.** Without reordering, the new credit-table
+insert would have fallen into the EXISTING `vy_room_referral` branch,
+which destructures its params as `[referralId, roomId, referrerHash,
+joinerHash]` — four positions — while the credit insert's own five
+params (`[creditId, roomId, referredFollowerId, salt, referrerHash]`) carry
+a completely different meaning at each position. Every suite that forces
+`tableApplied` true broadly (this workstream's own `room-referrals/run.mjs`
+`deps()` helper, `evals/room-doors`, `evals/room-export`, `evals/room-leak`'s
+composed world) would have corrupted `state.referrals` with a
+mis-destructured row disguised as a real referral — silently, since no
+branch throws on a mismatched shape, it just uses whatever a wrong
+positional param happens to be. This is `context/rejected.md`'s own named
+"a table name that is a superstring of another table name" defect class
+(`ws-r104`'s original instance, the door-battery's own `tableTouch`
+word-boundary fix) recurring a step earlier, in a raw fixture matcher
+rather than in a leak-battery scanner.
+
+**The fix.** The new, more specific `insert into vy_room_referral_credit`
+branch is checked BEFORE the existing, shorter `insert into
+vy_room_referral` branch — order of `if` statements is the only thing
+`sql.includes()` respects, so the more specific pattern must always come
+first when one string is a superstring of another already-matched one.
+
+**The lesson.** Every time this codebase adds a table whose name extends
+an EXISTING table's name as a prefix (`_credit`, `_reward`, `_chat`,
+`_delivery` — this repo now has several), any fixture, scanner, or SQL-text
+matcher keyed on `sql.includes()`/plain substring tests over the shorter
+name needs a deliberate check for whether the new, longer name would also
+match it — and if so, the longer pattern's branch must be checked first,
+never appended after on the assumption that "new code goes at the end."
+
+## `ws-r130-static-import-of-room-surface-in-the-shared-fixture-broke-whatsapps-frozen-module-secret`
+
+**What was tried.** `evals/room/fixtures.mjs` (the shared fake `db` every
+Room suite imports) added a plain, top-level `import { referralHashFor }
+from "../../api/_room-surface.js"` so `joinRoom`'s new `vy_room_referral_
+credit` write could be modelled honestly by recomputing the REAL hash
+function rather than a second, parallel copy of it.
+
+**What broke, and how it was caught.** `node evals/run.mjs` (the whole
+registry) reported `failed suites: room-whatsapp` — 6 of 68 assertions in
+`evals/room-whatsapp/run.mjs`'s own §4 (the webhook handshake, signature
+verification, the auto-reply) failed. That suite's own header already
+names the exact mechanism this broke, in as many words: `api/whatsapp.js`
+reads `WHATSAPP_APP_SECRET`/`WHATSAPP_VERIFY_TOKEN` into FROZEN
+module-level constants the instant it is first imported, so the suite sets
+both env vars in its own top-level code BEFORE its own dynamic `import()`
+of anything that needs them. Walking `api/_room-surface.js`'s own import
+graph (78 files) found the chain: `_room-surface.js` -> `api/_ops.js` ->
+`api/_room-whatsapp.js` -> `api/whatsapp.js`. A STATIC import is resolved
+and its module body EXECUTED before the importING file's own top-level
+code runs — so the new import in `fixtures.mjs` pulled `api/whatsapp.js`
+into memory, with both secrets still `undefined`, before
+`evals/room-whatsapp/run.mjs`'s own line setting them ever ran, silently
+freezing an empty HMAC secret for the rest of that process's life. This is
+`ws-common.md`'s own named law ("a MODULE-SCOPE read of another api
+module's export inside an import cycle is a crash only some entry points
+see") — restated here for an EVAL FIXTURE reaching an unrelated production
+module transitively, rather than for two `api/` files reaching each other
+directly, which is the shape that law's own wording anticipates. Every
+OTHER suite sharing this fixture (`room-referrals`, `payments`,
+`room-doors`, `room-export`, `room-leak`) stayed green throughout, because
+none of them happens to import a module that reads a frozen secret at
+import time — this is exactly the "a crash only some entry points see"
+property, found only by running the FULL registry, never by running any
+one suite alone.
+
+**The fix.** The import became a LAZY, cached dynamic `import()` inside the
+one function that actually needs `referralHashFor` (`getReferralHashFor()`,
+called with `await` only from the new `vy_room_referral_credit` branch),
+never a static top-level import. A dynamic import executes at CALL time,
+which for every existing suite is always after that suite's own top-level
+setup — including `room-whatsapp`'s own env-var assignment — has already
+run, and for suites that never call this branch at all (`room-whatsapp`
+among them), `api/_room-surface.js` and its whatsapp-transitive chain are
+never even loaded.
+
+**The lesson.** `ws-common.md`'s own rule ("never add an import between
+two api files without running the whole registry") needs to be read one
+level wider than its own wording: the risk is not limited to imports
+BETWEEN `api/` files — a test fixture, an eval helper, or any other file
+that gains a new transitive path into a module with import-time side
+effects (a frozen secret, a registered singleton, a module-level cache)
+carries the identical risk, and the only thing that catches it is running
+`node evals/run.mjs` with no argument, never a single suite in isolation,
+after ANY new import lands anywhere in this repo's tree — not only inside
+`api/`.

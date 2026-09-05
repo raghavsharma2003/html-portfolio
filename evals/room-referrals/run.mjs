@@ -72,10 +72,15 @@ const {
   ROOM_ARRIVAL_VIA,
   referralHashFor,
   roomReferralLink,
+  roomReferralProgress,
+  REFERRAL_REWARD_FRIEND_THRESHOLD,
   joinRoom,
   roomExport,
   RoomError,
 } = room;
+
+const payments = await import(pathToFileURL(join(REPO, "api/_payments.js")).href);
+const { maybeGrantReferralReward } = payments;
 
 const funnel = await import(pathToFileURL(join(REPO, "api/_funnel.js")).href);
 const {
@@ -367,6 +372,236 @@ const deps = (extra = {}) => ({
   const nobodyExportA = await roomExport(db, { session: joinedA.session }, deps({ tableApplied: async () => false }));
   ok("§7 migration 123 not applied yet: the export omits the key entirely, never a fake zero",
     !("vy_room_referral" in nobodyExportA.tables));
+}
+
+// ── §8 (WS-R130, migration 133). the referral CREDIT link, written at the
+//    SAME moment as vy_room_referral, naming a real referrer for the first
+//    time ─────────────────────────────────────────────────────────────────
+{
+  const state = freshState();
+  const db = fakeDb(state);
+  const joinedA = await joinRoom(
+    db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, deps(),
+  );
+  const linkA = await roomReferralLink(db, { session: joinedA.session }, deps());
+  const refA = new URL(`http://x${linkA.url}`).searchParams.get("ref");
+  const joinedB = await joinRoom(
+    db,
+    { slug: SLUG, authUserId: USER_B, ageAttested: true, memoryConsent: true, ref: refA },
+    deps(),
+  );
+  ok("§8 B joining through A's link writes exactly one referral CREDIT row",
+    state.referralCredits.length === 1, JSON.stringify(state.referralCredits));
+  const credit = state.referralCredits[0];
+  const followerA = state.followers.find((f) => f.person_id === PERSON_A);
+  const followerB = state.followers.find((f) => f.person_id === PERSON_B);
+  ok("§8 the credit names A as referrer and B as referred, by follower_id",
+    credit.referrer_follower_id === followerA.follower_id && credit.referred_follower_id === followerB.follower_id);
+  ok("§8 the credit names A's own person_id too (unlike vy_room_referral, this table IS identity-bearing)",
+    credit.referrer_person_id === PERSON_A);
+  ok("§8 vy_room_referral itself is UNCHANGED — still exactly one anonymous row",
+    state.referrals.length === 1 && !("person_id" in state.referrals[0]) && !("follower_id" in state.referrals[0]));
+
+  // NEGATIVE CONTROL: a repeat join with the same ref mints no second
+  // credit row either — `unique (referred_follower_id)`'s own guarantee,
+  // `§3`'s identical control for `vy_room_referral` restated for this
+  // table.
+  await joinRoom(
+    db,
+    { slug: SLUG, authUserId: USER_B, ageAttested: true, memoryConsent: false, ref: refA },
+    deps(),
+  );
+  ok("NEGATIVE CONTROL: a repeat join with the SAME ref mints no second credit row",
+    state.referralCredits.length === 1, `now has ${state.referralCredits.length}`);
+
+  // A malformed ref never resolves to a credit row either — `resolveReferralHash`'s
+  // own refusal, `§5`'s own law restated one table over.
+  const state2 = freshState();
+  const db2 = fakeDb(state2);
+  await joinRoom(
+    db2, { slug: SLUG, authUserId: USER_B, ageAttested: true, memoryConsent: true, ref: "not-a-hash" }, deps(),
+  );
+  ok("§8 a malformed ref never reaches the credit insert at all", state2.referralCredits.length === 0);
+}
+
+// ── §9 (WS-R130, migration 133). `maybeGrantReferralReward` and
+//    `roomReferralProgress` — a LOCAL wrapper over the shared fixture,
+//    modelling exactly the vy_payment_event/vy_room_subscription shapes
+//    these two new reads need, which `evals/room/fixtures.mjs` was never
+//    built to carry (that fixture's own domain is the follower lane, never
+//    money) — `evals/room-referrals/run.mjs`'s own §6 `fakeFunnelDb`
+//    precedent, restated for a heavier statement.
+// ───────────────────────────────────────────────────────────────────────
+const REFERRAL_REWARD_CHARGE_KINDS_TEST = ["subscription.charged", "subscription.activated"];
+
+function paymentsWrapperDb(state, baseDb) {
+  state.paymentEvents = state.paymentEvents || [];
+  state.subscriptions = state.subscriptions || [];
+  state.rewards = state.rewards || [];
+  const landed = (followerId, excludeEventId) =>
+    state.paymentEvents.some((pe) => {
+      if (excludeEventId != null && pe.event_id === excludeEventId) return false;
+      if (!REFERRAL_REWARD_CHARGE_KINDS_TEST.includes(pe.kind) || pe.amount_inr <= 0) return false;
+      const sub = state.subscriptions.find((s) => s.subscription_id === pe.subscription_id);
+      return sub && sub.follower_id === followerId;
+    });
+  return async (sql, params = []) => {
+    const has = (s) => sql.includes(s);
+    if (has("with this_follower_first as")) {
+      const [followerId, eventId, roomId, threshold, yearKey, , rewardId, reason] = params;
+      const fid = String(followerId);
+      const isFirst = !landed(fid, String(eventId));
+      if (!isFirst) return [];
+      const credit = state.referralCredits.find((c) => c.referred_follower_id === fid && c.room_id === String(roomId));
+      if (!credit) return [];
+      const siblingCredits = state.referralCredits.filter((c) => c.referrer_follower_id === credit.referrer_follower_id);
+      const n = siblingCredits.filter((c) => landed(c.referred_follower_id, null)).length;
+      if (n < Number(threshold)) return [];
+      const already = state.rewards.find(
+        (r) => r.referrer_follower_id === credit.referrer_follower_id &&
+          r.room_id === String(roomId) && r.year_key === String(yearKey),
+      );
+      if (already) return [];
+      const referrerSub = state.subscriptions.find(
+        (s) => s.follower_id === credit.referrer_follower_id && s.state === "active",
+      );
+      const base = referrerSub ? new Date(referrerSub.current_period_end) : new Date();
+      const extended = new Date(base.getTime());
+      extended.setUTCMonth(extended.getUTCMonth() + 1);
+      const reward = {
+        reward_id: String(rewardId), room_id: String(roomId),
+        referrer_follower_id: credit.referrer_follower_id, referrer_person_id: credit.referrer_person_id,
+        granted_at: new Date().toISOString(), period_extended_to: extended.toISOString(),
+        year_key: String(yearKey), reason: String(reason),
+      };
+      state.rewards.push(reward);
+      if (referrerSub) referrerSub.current_period_end = reward.period_extended_to;
+      return [{ ...reward }];
+    }
+    if (has("from vy_room_referral_credit rc") && has("count(*)::int as n")) {
+      const [followerId] = params.map(String);
+      const rows = state.referralCredits.filter((c) => c.referrer_follower_id === followerId);
+      const n = rows.filter((c) => landed(c.referred_follower_id, null)).length;
+      return [{ n }];
+    }
+    if (has("from vy_room_referral_reward") && has("order by granted_at desc")) {
+      const [followerId, roomId] = params.map(String);
+      const rows = state.rewards
+        .filter((r) => r.referrer_follower_id === followerId && r.room_id === roomId)
+        .sort((a, b) => (a.granted_at < b.granted_at ? 1 : -1));
+      return rows.length ? [rows[0]] : [];
+    }
+    // Every reward's own zero-amount receipt attempt (`issueFollowerReceipt`'s
+    // own statements) and the synthetic `vy_payment_event` insert - NOT
+    // modelled here on purpose: `maybeGrantReferralReward`'s own header
+    // states the receipt half is best-effort and `.catch()`-wrapped, so an
+    // unmatched statement falling through to the base fixture's honest
+    // empty-array default proves the grant survives a receipt that could
+    // not be minted, exactly the property that branch exists for.
+    return baseDb(sql, params);
+  };
+}
+
+{
+  const state = freshState();
+  const db = paymentsWrapperDb(state, fakeDb(state));
+  const joinedA = await joinRoom(
+    db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, deps(),
+  );
+  const linkA = await roomReferralLink(db, { session: joinedA.session }, deps());
+  const refA = new URL(`http://x${linkA.url}`).searchParams.get("ref");
+  const followerA = state.followers.find((f) => f.person_id === PERSON_A);
+
+  // A's own subscription, active, so the extension has something real to
+  // extend.
+  state.subscriptions.push({
+    subscription_id: "sub-a", follower_id: followerA.follower_id, person_id: PERSON_A,
+    state: "active", current_period_end: "2026-09-01T00:00:00.000Z", created_at: "2026-08-01T00:00:00.000Z",
+  });
+
+  const zeroProgress = await roomReferralProgress(db, { session: joinedA.session }, deps());
+  ok("§9 before any friend pays: 0 of 3, no reward",
+    zeroProgress.friends_credited === 0 && zeroProgress.threshold === REFERRAL_REWARD_FRIEND_THRESHOLD && zeroProgress.reward === null,
+    JSON.stringify(zeroProgress));
+
+  // Three friends join through A's link and each lands a first charge.
+  const friendFollowerIds = [];
+  for (let i = 0; i < 3; i++) {
+    const uid = `f0000000-0000-4000-8000-00000000000${i}`;
+    const joined = await joinRoom(
+      db, { slug: SLUG, authUserId: uid, ageAttested: true, memoryConsent: true, ref: refA }, deps(),
+    );
+    const follower = state.followers.find((f) => f.person_id === (state.accounts.find((a) => a.auth_user_id === uid)?.person_id));
+    friendFollowerIds.push(follower.follower_id);
+    const subId = `sub-friend-${i}`;
+    state.subscriptions.push({
+      subscription_id: subId, follower_id: follower.follower_id, person_id: follower.person_id,
+      state: "active", current_period_end: "2026-09-15T00:00:00.000Z", created_at: "2026-08-15T00:00:00.000Z",
+    });
+    const eventId = `evt-${i}`;
+    state.paymentEvents.push({ event_id: eventId, subscription_id: subId, kind: "subscription.charged", amount_inr: 399 });
+
+    const grant = await maybeGrantReferralReward(
+      db, { eventId, roomId: ROOM_ID, followerId: follower.follower_id, now: Date.parse("2026-08-20T00:00:00.000Z") }, deps(),
+    );
+    if (i < 2) {
+      ok(`§9 friend ${i + 1} of 3 pays: no reward yet`, grant === null, JSON.stringify(grant));
+    } else {
+      ok("§9 the THIRD friend's first charge grants the reward", grant !== null && grant.reward_id, JSON.stringify(grant));
+      ok("§9 the reward names A's OWN follower_id as referrer",
+        grant?.referrer_follower_id === followerA.follower_id);
+      ok("§9 A's own subscription period_end was extended by exactly one month",
+        grant?.period_extended_to === "2026-10-01T00:00:00.000Z", grant?.period_extended_to);
+    }
+  }
+
+  const fullProgress = await roomReferralProgress(db, { session: joinedA.session }, deps());
+  ok("§9 A's own progress now reads 3 of 3, with the reward",
+    fullProgress.friends_credited === 3 && fullProgress.reward !== null, JSON.stringify(fullProgress));
+
+  // NEGATIVE CONTROL: a REPLAY (the same event id landing a second time —
+  // `applyWebhook`'s own `!result` early return means this function is
+  // never even CALLED on a real replay, but this proves the function
+  // itself is not the thing preventing a double grant, the unique index
+  // is) grants nothing a second time for the SAME year.
+  const replay = await maybeGrantReferralReward(
+    db, { eventId: "evt-2", roomId: ROOM_ID, followerId: friendFollowerIds[2], now: Date.parse("2026-08-21T00:00:00.000Z") }, deps(),
+  );
+  ok("NEGATIVE CONTROL: calling the SAME grant again (the cap, `on conflict ... do nothing`) grants nothing twice",
+    replay === null, JSON.stringify(replay));
+  ok("NEGATIVE CONTROL: exactly one reward row exists for A, this room, this year",
+    state.rewards.filter((r) => r.referrer_follower_id === followerA.follower_id).length === 1);
+
+  // A fourth friend paying does not grant a SECOND reward the same year —
+  // the cap is "one per follower per room per year," not "one per three
+  // friends."
+  const uid4 = "f0000000-0000-4000-8000-000000000003";
+  const joined4 = await joinRoom(
+    db, { slug: SLUG, authUserId: uid4, ageAttested: true, memoryConsent: true, ref: refA }, deps(),
+  );
+  const follower4 = state.followers.find((f) => f.person_id === state.accounts.find((a) => a.auth_user_id === uid4)?.person_id);
+  state.subscriptions.push({
+    subscription_id: "sub-friend-3", follower_id: follower4.follower_id, person_id: follower4.person_id,
+    state: "active", current_period_end: "2026-09-20T00:00:00.000Z", created_at: "2026-08-20T00:00:00.000Z",
+  });
+  state.paymentEvents.push({ event_id: "evt-3", subscription_id: "sub-friend-3", kind: "subscription.charged", amount_inr: 399 });
+  const fourthGrant = await maybeGrantReferralReward(
+    db, { eventId: "evt-3", roomId: ROOM_ID, followerId: follower4.follower_id, now: Date.parse("2026-08-22T00:00:00.000Z") }, deps(),
+  );
+  ok("§9 a fourth friend paying grants no SECOND reward the same year (capped, not per-three)",
+    fourthGrant === null, JSON.stringify(fourthGrant));
+
+  // Migration 133 not applied yet: the honest zero shape, `friendsBroughtThisWeek`'s
+  // own not-applied-yet posture restated.
+  const nothingYet = await roomReferralProgress(db, { session: joinedA.session }, deps({ tableApplied: async () => false }));
+  ok("§9 migration 133 not applied yet: the honest zero shape, never a fake count",
+    nothingYet.friends_credited === 0 && nothingYet.reward === null);
+  const noGrantYet = await maybeGrantReferralReward(
+    db, { eventId: "evt-x", roomId: ROOM_ID, followerId: followerA.follower_id, now: Date.now() },
+    { tableApplied: async () => false },
+  );
+  ok("§9 maybeGrantReferralReward with migration 133 not applied returns null, never throws",
+    noGrantYet === null);
 }
 
 console.log(`\nroom-referrals: ${pass} passed, ${fail} failed`);

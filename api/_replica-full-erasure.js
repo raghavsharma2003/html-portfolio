@@ -858,6 +858,29 @@ export async function completeReplicaErasure(db, lease, receipt) {
      room_referrals as (delete from vy_room_referral x using target t
        where x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 133 (WS-R130), the referral reward. UNLIKE room_referrals
+     -- immediately above, these two DO name a real referrer
+     -- (referrer_person_id) - a follower's own free month and the credit
+     -- link that made it computable, vy_receipt's own money-record
+     -- reasoning several blocks up restated rather than room_referrals'
+     -- content-free one. Folded into the "owner_room_payments" receipt
+     -- class below, receipts' own precedent several blocks up: a granted
+     -- reward is a detail of the Room's money, not a different kind of
+     -- record. Carries NO foreign key on its identity columns at all
+     -- (migration 133's own header - migration 128's WhatsApp chat pointer
+     -- precedent), only a real FK CASCADE on room_id, so - unlike
+     -- most blocks in this function - this delete is NOT a backstop behind
+     -- a cascade for the identity columns; it is reached by room_id's own
+     -- cascade for the ROW, and named here explicitly on this function's
+     -- own standing rule regardless ("relying on a cascade means relying
+     -- on an FK nobody re-checks"). NOTE: no backticks in this SQL comment
+     -- on purpose.
+     room_referral_credits as (delete from vy_room_referral_credit x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     room_referral_rewards as (delete from vy_room_referral_reward x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      rooms as (delete from vy_room x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      -- 091 (WS-R28), Suites v0. Reached by owner_user_id ALONE, creator_

@@ -455,6 +455,12 @@ console.log("\n§7 (WS-R103, no migration) - reconcilePeriod gains charges_witho
           e.received_at >= start && e.received_at < end && !receiptedEventIds.has(e.event_id)).length;
         return [{ n }];
       }
+      // WS-R130 (migration 133): `referral_rewards` - this section's own
+      // fixture seeds no reward rows at all, on purpose (its own subject is
+      // `charges_without_receipt`, not this NEW field) - an empty answer
+      // proves the query runs and returns the honest zero shape rather than
+      // this section throwing on an unmodelled statement.
+      if (has("from vy_room_referral_reward rr")) return [];
       throw new Error(`payments-reconcile §7: unmodelled statement: ${sql.slice(0, 140)}`);
     };
     return { db, ranFlag: () => receiptQueryRan };
@@ -484,6 +490,57 @@ console.log("\n§7 (WS-R103, no migration) - reconcilePeriod gains charges_witho
   const ungated = await reconcilePeriod(gatedDb, { periodStart: PERIOD_START, periodEnd: PERIOD_END }, { tableApplied: async () => false });
   ok("§7 an unapplied vy_receipt reports zero without ever running that query",
     ungated.charges_without_receipt === 0 && gatedRanFlag() === false);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§8 WS-R130 (migration 133) - reconcilePeriod names referral_rewards, never missing");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const PERIOD_START = "2026-09-01T00:00:00.000Z";
+  const PERIOD_END = "2026-10-01T00:00:00.000Z";
+  const rewardRows = [
+    { room_id: ROOM_A, follower_price_inr: 399, granted_at: "2026-09-10T00:00:00.000Z" },
+    { room_id: ROOM_B, follower_price_inr: 599, granted_at: "2026-09-20T00:00:00.000Z" },
+  ];
+  function makeDb() {
+    let ranFlag = false;
+    const db = async (sql, params = []) => {
+      const has = (s) => sql.includes(s);
+      if (has("from vy_payment_event e") && has("join vy_room r on r.room_id = e.room_id")) return [];
+      if (has("from vy_creator_charge_event")) return [];
+      if (has("from vy_room_org_attachment a")) return [];
+      if (has("from vy_creator_payout")) return [];
+      if (has("from vy_room_referral_reward rr")) {
+        ranFlag = true;
+        const [start, end] = params;
+        return rewardRows
+          .filter((r) => r.granted_at >= start && r.granted_at < end)
+          .map((r) => ({ follower_price_inr: r.follower_price_inr }));
+      }
+      // `charges_without_receipt`'s own gated query also fires under a
+      // blanket `tableApplied: true` - this section's own subject is
+      // `referral_rewards`, so this is answered honestly-empty rather than
+      // widening this section's own fixture to model it a second time.
+      if (has("count(*)::int as n") && has("from vy_payment_event e") && has("not exists")) return [{ n: 0 }];
+      throw new Error(`payments-reconcile §8: unmodelled statement: ${sql.slice(0, 140)}`);
+    };
+    return { db, ranFlag: () => ranFlag };
+  }
+
+  const { db } = makeDb();
+  const result = await reconcilePeriod(db, { periodStart: PERIOD_START, periodEnd: PERIOD_END }, { tableApplied: async () => true });
+  ok("§8 two rewards granted inside the period are counted, both rooms' own price named",
+    result.referral_rewards.count === 2 && result.referral_rewards.forgone_inr === 399 + 599,
+    JSON.stringify(result.referral_rewards));
+  ok("§8 the line sits ALONGSIDE the existing shape, never replacing it",
+    result.ok === true && Array.isArray(result.findings));
+
+  // Gated on vy_room_referral_reward being applied - the honest zero shape,
+  // never a fake count, `charges_without_receipt`'s own gate restated.
+  const { db: gatedDb, ranFlag: gatedRanFlag } = makeDb();
+  const ungated = await reconcilePeriod(gatedDb, { periodStart: PERIOD_START, periodEnd: PERIOD_END }, { tableApplied: async () => false });
+  ok("§8 migration 133 not applied - referral_rewards reports zero without ever running that query",
+    ungated.referral_rewards.count === 0 && ungated.referral_rewards.forgone_inr === 0 && gatedRanFlag() === false);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

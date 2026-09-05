@@ -3692,6 +3692,30 @@ async function purgeRelational(devices, scope, { logIds = [], rx = null, from = 
       );
       if (nulledReceipts.length) out.vy_receipt = nulledReceipts.length;
     }
+    // WS-R130 (migration 133). `vy_room_referral_credit`/`vy_room_referral_
+    // reward` - `vy_receipt`'s own precedent one block up, restated for two
+    // tables instead of one: both name a real referrer's `referrer_person_id`
+    // and both are financial/growth-ledger rows that must survive a
+    // person's own "forget everything" with their room and their number
+    // intact - only the identity goes. An UPDATE, never a DELETE, exactly
+    // `vy_receipt`'s own shape; the narrow per-Room `roomForget`
+    // (api/_room-surface.js) does not touch either table at all, the same
+    // restraint `vy_receipt` gets one block up. Gated on each table
+    // existing at all, `vy_receipt`'s own guard restated twice.
+    if (await tableApplied("vy_room_referral_credit")) {
+      const nulledCredits = await q(
+        `update vy_room_referral_credit set referrer_person_id = null where referrer_person_id = $1 returning credit_id`,
+        [person],
+      );
+      if (nulledCredits.length) out.vy_room_referral_credit = nulledCredits.length;
+    }
+    if (await tableApplied("vy_room_referral_reward")) {
+      const nulledRewards = await q(
+        `update vy_room_referral_reward set referrer_person_id = null where referrer_person_id = $1 returning reward_id`,
+        [person],
+      );
+      if (nulledRewards.length) out.vy_room_referral_reward = nulledRewards.length;
+    }
     // the mapping and (if no other device shares it) the person row itself:
     // a full wipe that kept the identity row would keep a record of them
     // EVERY mapping row, not just the asking device's. Leaving the others

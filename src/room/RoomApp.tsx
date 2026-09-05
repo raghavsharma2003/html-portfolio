@@ -88,6 +88,7 @@ import {
   type RoomOffer,
   type RoomOpen,
   type RoomQuota,
+  type RoomReferralProgress,
   type RoomSettings,
   type RoomTasteTurn,
   type RoomThread,
@@ -147,6 +148,9 @@ interface Props {
   /** WS-R86 (migration 123). `AccountPage.tsx`'s own `fixtureReferralUrl`
    *  seam, threaded through here exactly as `fixtureSettings` already is. */
   fixtureReferralUrl?: string;
+  /** WS-R130 (migration 133). `fixtureReferralUrl`'s own seam, one field
+   *  over. */
+  fixtureReferralProgress?: RoomReferralProgress;
   /** WS-R43. The Room's own layout battery: three screens no fixture reached
    *  before ("Hindi glyphs unverified" since WS-R24 — no session had ever
    *  rendered the cap-reached card, the forget receipt, or either dialog in a
@@ -195,6 +199,7 @@ export default function RoomApp({
   fixtureSettings,
   fixturePayment,
   fixtureReferralUrl,
+  fixtureReferralProgress,
   fixtureCapped,
   fixtureCapOffer,
   fixturePhase,
@@ -1578,6 +1583,7 @@ export default function RoomApp({
           fixtureSettings={fixtureSettings}
           fixturePayment={fixturePayment}
           fixtureReferralUrl={fixtureReferralUrl}
+          fixtureReferralProgress={fixtureReferralProgress}
         />
       )}
     </main>

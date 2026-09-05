@@ -19996,3 +19996,119 @@ the standard this repo held WS-R110's OWN codec claim to) and explicitly
 covers the codec and bitrate a future session intends to ship at. Either
 would justify moving to option (b)/(c) from the original brief; short of
 one, the honest state is what this entry records.
+
+## `ws-r130-referral-reward-needs-a-second-identity-table-vy-room-referral-credit` (2026-09-05, WS-R130, migration 133)
+
+**Decision.** The referral reward is NOT computed from `vy_room_referral`
+(migration 123's own hash-only, no-person-column aggregate table). A brand
+new table, `vy_room_referral_credit` (referred_follower_id UNIQUE,
+referrer_follower_id, referrer_person_id, room_id), is written at the SAME
+join-time moment `vy_room_referral` is (`joinRoom`'s existing gate: a
+validated `ref` hash, a genuinely first-ever join), resolving the referrer
+by recomputing `referralHashFor` via pgcrypto's `digest()` against every
+follower already in the Room and matching the one whose hash equals the
+carried `ref`. `vy_room_referral_reward` (the grant) reads THIS table, never
+`vy_room_referral`.
+
+**Rationale.** `vy_room_referral` was built, deliberately, so that no
+reader — not even an operator holding the table directly — can ever learn
+which specific follower a hash belongs to (`ws-r86-referral-hash-reuses-
+rate-salt-without-daily-rotation` and its siblings). A reward MUST identify
+a specific referrer to extend their specific subscription; that is a
+different question in kind from "how many referrals happened this week,"
+and answering it by loosening `vy_room_referral`'s own design (adding a
+person column to it) would undo a decision this repo has already defended
+at length and would put the anonymous, creator-facing aggregate table one
+schema change away from becoming identity-bearing by accident. A second,
+narrowly-scoped, identity-bearing table — used ONLY by the reward
+machinery and a follower's own progress read, never surfaced to a creator —
+keeps the blast radius of "this table names a real person" contained to
+exactly the two files whose whole job is to.
+
+**Reversal.** If a future audit finds recomputing the hash against every
+follower in a Room too expensive at scale (a Room with tens of thousands of
+followers), the fix is an index-friendly resolution (e.g., a
+`follower_id`-keyed lookup keyed some other way) — never falling back to
+storing the referrer's identity ON `vy_room_referral` itself, which would
+need its own new decision and its own migration, argued on its own terms.
+
+## `ws-r130-referral-credit-and-reward-tables-carry-no-fk-on-identity-columns` (2026-09-05, WS-R130, migration 133)
+
+**Decision.** `vy_room_referral_credit.referrer_follower_id`/
+`referred_follower_id`/`referrer_person_id` and `vy_room_referral_reward.
+referrer_follower_id`/`referrer_person_id` carry NO foreign key to
+`vy_room_follower` or `vy_person` — only `room_id` gets a real FK with ON
+DELETE CASCADE. WHERE-clause binding only, `vy_room_follower_whatsapp_
+chat`'s own precedent (migration 128) restated.
+
+**Rationale.** A granted reward is a financial-ledger fact — money already
+did not get collected because of it, `vy_receipt`'s own "a receipt is proof
+a real charge happened" restated for its mirror image, proof a charge did
+NOT happen and why. An `on delete cascade` from `vy_room_follower` would
+silently erase that fact the moment EITHER party (the referrer whose reward
+this is, or the friend whose payment triggered it) later leaves the Room or
+is forgotten — which would make `reconcilePeriod`'s own `referral_rewards`
+line retroactively wrong for a period that already closed. `vy_receipt`
+solved the identical problem by carrying no `follower_id` column at all;
+these two tables solve it by carrying the columns but no FK, so the
+identity survives a follower-row delete and is nulled (never deleted)
+separately, by `api/memory.js`'s own explicit door, on that PERSON's own
+account-wide forget.
+
+**Reversal.** None anticipated. If a future audit decides a reward's own
+identity MUST die with the follower row (a stricter reading of "forget me"
+than this product has taken anywhere else), that is a new, explicit
+product decision reversing `vy_receipt`'s own precedent too, not a change
+scoped to this table alone.
+
+## `ws-r130-referral-reward-grant-is-a-second-statement-not-a-fifth-cte` (2026-09-05, WS-R130, migration 133)
+
+**Decision.** `maybeGrantReferralReward` runs as its OWN statement, called
+from `applyWebhook`'s follower lane right after `issueFollowerReceipt`,
+never folded into the ledger write's own multi-CTE chain
+(`candidate`/`sub_update`/`follower_update`/`offer_update`).
+
+**Rationale.** `ws-r100-receipt-issued-alongside-not-inside-the-ledger-
+write`'s own argument restated verbatim for a second addition: that write
+is a heavily fixture-modelled statement several sibling suites
+(`evals/payments`, `evals/room-doors`, `evals/org-billing`) drive
+byte-exactly, and folding a THIRD and FOURTH table's writes into it would
+renumber every one of its bound parameters for every one of them — a blast
+radius neither the receipt nor the reward has any business opening. The
+brief's own words ("the grant is decided inside the webhook's statement
+family... in the same statement") are honoured at the level that matters:
+the count, the insert, and the subscription extension are ONE atomic SQL
+statement (`maybeGrantReferralReward`'s own CTE chain) — it is simply not
+the SAME textual statement as the ledger write, exactly as the receipt
+already is not.
+
+**Reversal.** If a future audit needs the reward decided in the SAME
+transaction as the ledger write with no possibility of a process crash
+between them (today's crash window: a real charge lands, the reward would
+have qualified, the process dies before `maybeGrantReferralReward` runs —
+no reward is lost forever, since the next friend's charge or a future
+sweep would need to re-evaluate it, but this specific charge's own
+contribution to the count is not re-computed automatically today), that
+is a deliberate, larger rewrite of the ledger statement itself, argued on
+its own terms with its own fixture-renumbering cost accepted in writing.
+
+## `ws-r130-referral-progress-rides-the-referral-link-response-not-a-new-op` (2026-09-05, WS-R130)
+
+**Decision.** `roomReferralProgress` is not its own `api/room.js` op. The
+existing `referral_link` op's handler calls both `roomReferralLink` and
+`roomReferralProgress` and merges their results into one JSON response.
+
+**Rationale.** The account page's "Bring a friend" card needs both the
+link and the follower's own progress toward a reward in the same paint, and
+`roomReferralLink`'s own session-only request shape has nothing left to
+grow — a second op for a read that always accompanies the first would cost
+a second round trip and a second rate-limit scope for no real
+separation of concerns; the account page never wants one without the
+other. `roomReferralLink` itself is UNCHANGED (same function, same return
+shape when called directly) — every existing suite that calls it keeps
+passing unmodified.
+
+**Reversal.** If a future surface ever wants progress WITHOUT minting a
+link (a creator-facing summary, say — never planned, since this data is
+follower-scoped and never creator-visible by this workstream's own design),
+that is a new, separately-rate-limited op, not a widening of this one.

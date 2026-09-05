@@ -39,6 +39,7 @@ import {
   type RoomForgetReceipt,
   type RoomSettings,
   type RoomReceiptRow,
+  type RoomReferralProgress,
 } from "./roomApi";
 import { listCheckinDesignsAndPushKey, setTelegramCheckins } from "./roomCheckinsApi";
 import { paymentStatus, type RoomPaymentStatus } from "./roomPayApi";
@@ -112,6 +113,10 @@ interface Props {
    *  entry names: an unrendered screen state hides its real strings from
    *  the glyph pass. */
   fixtureReferralUrl?: string;
+  /** WS-R130 (migration 133). `fixtureReferralUrl`'s own seam, one field
+   *  over — no network reaches `roomReferralProgress` from the fixture
+   *  either, so this supplies the progress line's own state directly. */
+  fixtureReferralProgress?: RoomReferralProgress;
 }
 
 export default function AccountPage({
@@ -135,6 +140,7 @@ export default function AccountPage({
   fixtureSettings,
   fixturePayment,
   fixtureReferralUrl,
+  fixtureReferralProgress,
 }: Props) {
   const [settings, setSettings] = useState<RoomSettings | null>(fixtureSettings ?? null);
   const [payment, setPayment] = useState<RoomPaymentStatus | null>(fixturePayment ?? null);
@@ -165,6 +171,12 @@ export default function AccountPage({
   // server never composes an absolute URL itself).
   const [referralUrl, setReferralUrl] = useState<string | null>(fixtureReferralUrl ?? null);
   const [referralCopied, setReferralCopied] = useState(false);
+  // WS-R130 (migration 133). "2 of 3 friends" - rides the SAME read as
+  // `referralUrl` below (one round trip, `roomReferralLink`'s widened
+  // response), never a second effect.
+  const [referralProgress, setReferralProgress] = useState<RoomReferralProgress | null>(
+    fixtureReferralProgress ?? null,
+  );
 
   // WS-R63: scroll into view, focus in, Escape closes, focus returns to the
   // opener on close - `useDialogInView`'s own header.
@@ -218,7 +230,11 @@ export default function AccountPage({
     if (fixtureSettings) return;
     let live = true;
     roomReferralLink(session)
-      .then((r) => { if (live) setReferralUrl(r.url); })
+      .then((r) => {
+        if (!live) return;
+        setReferralUrl(r.url);
+        if (r.progress) setReferralProgress(r.progress);
+      })
       .catch(() => {});
     return () => { live = false; };
   }, [session, fixtureSettings]);
@@ -509,6 +525,20 @@ export default function AccountPage({
               {referralCopied ? copy.referral.copied : copy.referral.copy}
             </button>
           </div>
+          {/* WS-R130 (migration 133). "2 of 3 friends", never a friend's
+              identity - the reward line only once one has actually been
+              granted, `referralUrl && (...)`'s own honest-empty-state
+              posture restated one level down. */}
+          {referralProgress && (
+            <p className="room-fine">
+              {copy.referralReward.progress(referralProgress.friends_credited, referralProgress.threshold)}
+            </p>
+          )}
+          {referralProgress?.reward && (
+            <p className="room-fine">
+              {copy.referralReward.granted(String(referralProgress.reward.granted_at).slice(0, 10))}
+            </p>
+          )}
         </>
       )}
 

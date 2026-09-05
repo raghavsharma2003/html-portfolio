@@ -151,6 +151,11 @@ const COPY = Object.freeze({
     room: "Room",
     plan: "Plan",
     planLine: (roomName) => `${roomName} AI - monthly membership`,
+    // WS-R130 (migration 133). The referral reward's own zero-amount
+    // receipt - `buildReceiptContext`'s own `paymentEvent.kind` branch,
+    // never a second receipt shape: same number, same date, same
+    // supplier block, only this one line and the total (INR 0) differ.
+    referralRewardLine: (roomName) => `${roomName} AI - one free month (referral reward)`,
     billedTo: "Billed to",
     billedToFallback: "This platform's own follower account (no name or address collected)",
     taxableValue: "Taxable value",
@@ -171,6 +176,7 @@ const COPY = Object.freeze({
     room: "रूम",
     plan: "योजना",
     planLine: (roomName) => `${roomName} AI - मासिक सदस्यता`,
+    referralRewardLine: (roomName) => `${roomName} AI - एक महीना मुफ़्त (रेफ़रल इनाम)`,
     billedTo: "बिल किसे",
     billedToFallback: "इस प्लेटफ़ॉर्म पर आपका फ़ॉलोअर खाता (कोई नाम या पता एकत्र नहीं किया गया)",
     taxableValue: "कर योग्य मूल्य",
@@ -218,6 +224,14 @@ export function buildReceiptContext({ paymentEvent, receipt, room, locale = "en"
   const split = gstSplit({ amountInr: paymentEvent.amount_inr, followerState, platformState: null });
   const supplier = platformSupplierInfo(env);
   const roomName = room?.name || room?.display_name || "";
+  // WS-R130 (migration 133). The one branch this file's whole shape did not
+  // need until a receipt could ever be issued for something other than a
+  // real charge - `paymentEvent.kind === 'referral_reward'` is the ONLY
+  // other kind `issueFollowerReceipt`'s own caller ever passes in
+  // (`api/_payments.js#maybeGrantReferralReward`), always with
+  // `amount_inr: 0`, so every other number below (`taxable_value_inr`,
+  // `total_tax_inr`) already comes out zero from `gstSplit` unchanged.
+  const isReward = paymentEvent.kind === "referral_reward";
   return Object.freeze({
     locale: loc,
     receipt_number: receiptNumber,
@@ -225,7 +239,7 @@ export function buildReceiptContext({ paymentEvent, receipt, room, locale = "en"
     issued_at: receipt.issued_at,
     date_label: dateLabel(receipt.issued_at, loc),
     room_name: roomName,
-    plan_line: COPY[loc].planLine(roomName),
+    plan_line: isReward ? COPY[loc].referralRewardLine(roomName) : COPY[loc].planLine(roomName),
     amount_inr: Number(paymentEvent.amount_inr || 0),
     split,
     supplier,
