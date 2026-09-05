@@ -213,6 +213,8 @@ const RENEWALS = await import(pathToFileURL(join(API, "_renewals.js")).href);
 const { cancelFollowerRenewal, cancelCreatorRenewal, cancelOrgRenewal } = RENEWALS;
 const OPS = await import(pathToFileURL(join(API, "_ops.js")).href);
 const { isOpsOwner, subscribeOperatorPush, revokeOperatorPush, operatorPushSubscriptionsFor } = OPS;
+const CREATOR_PUSH = await import(pathToFileURL(join(API, "_creator-push.js")).href);
+const { subscribeCreatorPush, revokeCreatorPush } = CREATOR_PUSH;
 const RATE = await import(pathToFileURL(join(API, "_rate-limit.js")).href);
 const { consume } = RATE;
 const RATELIMIT = await import(pathToFileURL(join(API, "_ratelimit.js")).href);
@@ -1924,6 +1926,83 @@ console.log("\n── §17b: ops.js push_subscribe / push_revoke (WS-R62) ──
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// §17c. WS-R74 (migration 118) — replica.js's own push_subscribe/push_revoke,
+// the creator's weekly push subscription. §17b's own shape restated for a
+// creator instead of a platform operator, with ONE structural difference:
+// there is no `OPS_OWNER_USER_IDS` allowlist here — every authenticated
+// owner may subscribe for THEMSELVES (no cross-identity input in the body
+// at all, `replica.js`'s own "export" op precedent). The class-e attack
+// this section actually tests is therefore narrower and sharper: can a
+// stolen bearer (OWNER_B) revoke ANOTHER owner's (OWNER's) subscription by
+// guessing their endpoint? The WHERE (`owner_user_id = $1 and endpoint =
+// $2`) is what refuses this, attacked here by calling `subscribeCreatorPush`/
+// `revokeCreatorPush` DIRECTLY, the same "attack the real decision module"
+// law §17b's own header states.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §17c: replica.js push_subscribe / push_revoke (WS-R74) ──");
+{
+  const SUB2 = {
+    endpoint: "https://push.example.test/creator-device-1",
+    p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM",
+    auth: "tBHItJI5svbpez7KI4CCXg",
+  };
+  function freshCreatorPushState() {
+    return { rows: [] };
+  }
+  /** A literal, faithful interpretation of the REAL SQL text `_creator-push.js`
+   *  sends - `opsPushDb`'s own technique restated for `vy_creator_push_
+   *  subscription`, no allowlist parameter (this table's own WHERE carries
+   *  none). */
+  function creatorPushDb(state) {
+    return async (sql, params = []) => {
+      const has = (s) => sql.includes(s);
+      if (has("insert into vy_creator_push_subscription")) {
+        const [id, ownerUserId, endpoint, p256dh, auth] = params;
+        let row = state.rows.find((r) => r.owner_user_id === ownerUserId && r.endpoint === endpoint);
+        if (row) {
+          row.p256dh = p256dh;
+          row.auth = auth;
+          row.revoked_at = null;
+        } else {
+          row = { id, owner_user_id: ownerUserId, endpoint, p256dh, auth, revoked_at: null };
+          state.rows.push(row);
+        }
+        return [{ id: row.id }];
+      }
+      if (has("update vy_creator_push_subscription") && has("endpoint = $2")) {
+        const [ownerUserId, endpoint] = params;
+        const row = state.rows.find((r) => r.owner_user_id === ownerUserId && r.endpoint === endpoint && !r.revoked_at);
+        if (!row) return [];
+        row.revoked_at = "revoked";
+        return [{ id: row.id }];
+      }
+      return [];
+    };
+  }
+
+  // subscribe: the real creator's own write succeeds.
+  {
+    const state = freshCreatorPushState();
+    const db = creatorPushDb(state);
+    const result = await subscribeCreatorPush(db, OWNER, SUB2);
+    okClass("e-owner-bearer", "replica.js", "push_subscribe: the real creator's own subscribe succeeds (the fixture is sound)", result.subscribed === true && state.rows.length === 1);
+  }
+  // revoke: the real creator revokes their own subscription; a DIFFERENT
+  // owner's (OWNER_B) attempt against the SAME endpoint leaves it
+  // untouched - the class-e attack this section exists to prove refused.
+  {
+    const state = freshCreatorPushState();
+    const db = creatorPushDb(state);
+    await subscribeCreatorPush(db, OWNER, SUB2);
+    const stolen = await revokeCreatorPush(db, OWNER_B, SUB2.endpoint);
+    okClass("e-owner-bearer", "replica.js", "push_revoke: a DIFFERENT owner (OWNER_B) revokes nothing of OWNER's own subscription", stolen.revoked === false);
+    ok("[e-owner-bearer/replica.js] push_revoke: OWNER's own row is UNCHANGED by the other owner's attempt", state.rows[0].revoked_at === null);
+    const mine = await revokeCreatorPush(db, OWNER, SUB2.endpoint);
+    okClass("e-owner-bearer", "replica.js", "push_revoke: the real creator's own revoke succeeds (the fixture is sound)", mine.revoked === true && state.rows[0].revoked_at !== null);
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // §18. THE COMPUTED OP LIST — law 1: every `op === "<name>"` literal in a
 // door's own source is read off that source (never hand-typed twice) and
 // asserted against this file's own coverage table, so a new op fails the
@@ -2105,6 +2184,11 @@ const OP_COVERAGE = {
     // evals/creator-export/run.mjs's own layer 2, over the real
     // creatorExport rather than a second copy of it here.
     export: { excluded: "no cross-identity input for classes b/c/e — ownerUserId comes only from requireUser(req), never a body-supplied id; own-data-only proven dynamically in evals/creator-export/run.mjs" },
+    // WS-R74 (migration 118). The creator's own weekly push subscription -
+    // ops.js's own push_subscribe/push_revoke entries restated for the
+    // creator lane, see §19b below for the dynamic case.
+    push_subscribe: { classes: ["e"] },
+    push_revoke: { classes: ["e"] },
   },
   // ── WS-R62 (migration 114): the ops door's first `op`-shaped body. ──────
   "ops.js": {

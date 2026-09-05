@@ -117,3 +117,38 @@ export async function readErasureStatus(token: string, requestId: string): Promi
   });
   return data.erasure;
 }
+
+// WS-R74 (migration 118). "This week on your phone" - `api/_ops.js`'s own
+// `operatorPushConfig`/`subscribeOperatorPush`/`revokeOperatorPush` shape
+// restated for the creator lane, over the SAME door every other owner-
+// scoped op on this file already uses (never a second endpoint). Config is
+// bundled onto the "list mine" GET response rather than a second read - see
+// `api/replica.js`'s own header on that GET branch.
+export interface CreatorPushConfig {
+  configured: boolean;
+  vapid_public: string | null;
+}
+
+export async function readCreatorPushConfig(token: string): Promise<CreatorPushConfig> {
+  const data = await replicaRequest<{ push: CreatorPushConfig }>(token, "/api/replica");
+  return data.push;
+}
+
+export async function subscribeCreatorPush(
+  token: string,
+  endpoint: string,
+  p256dh: string,
+  auth: string,
+): Promise<{ subscribed: boolean }> {
+  return replicaRequest<{ subscribed: boolean }>(token, "/api/replica", {
+    method: "POST",
+    body: JSON.stringify({ op: "push_subscribe", endpoint, p256dh, auth }),
+  });
+}
+
+export async function revokeCreatorPush(token: string, endpoint: string): Promise<{ revoked: boolean }> {
+  return replicaRequest<{ revoked: boolean }>(token, "/api/replica", {
+    method: "POST",
+    body: JSON.stringify({ op: "push_revoke", endpoint }),
+  });
+}

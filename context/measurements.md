@@ -11061,3 +11061,37 @@ n = 979 Hindi strings (759 studio, 220 Room), method: `node scripts/check-layout
 | U+FDD0 U+FDD1 U+FDD2 (control) | none | not applicable | yes | not run | uniform, as required |
 
 Every other string: unchanged (the uniformity half only narrows findings; a string the width diff passed is untouched). The finding reproduced identically on two runs 20 minutes apart, so it was not a load or font-loading flake (`rejected.md#glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words`). Not measured: real tofu on this machine (every installed face has Devanagari, so a missing webfont still renders letters here; the control is the only proof the detector would see it).
+
+## `ws-r74-creator-weekly-push-2026-09-05` — gates and offline suites, method and n
+
+All measured by running the named script/eval directly on the WS-R74 worktree
+(branch `ws-r74-creators-weekly-push`, base commit `8b154f8`), 2026-09-05,
+`node` 22, no `NEON_URL` in this environment.
+
+| what | n / result | method |
+|---|---|---|
+| `node evals/creator-push/run.mjs` (new suite) | 31 passed, 0 failed | direct run, offline, fake `db` |
+| `node evals/room-leak/run.mjs` (layer 11 added) | 211 passed, 0 failed (was 210/1 before the layer-11 static-scan false positive on the word "title" was fixed — see `rejected.md`) | direct run |
+| `node evals/room-doors/run.mjs` (§17c added) | 552 ok, 0 failed (baseline on the untouched tree at `8b154f8`: 544 ok, 0 failed — the +8 are §17c's own 4 assertions plus the OP_COVERAGE completeness checks for the 2 new ops) | direct run, baseline measured by `git checkout 8b154f8` in the same worktree, both runs same machine |
+| `node evals/creator-export/run.mjs` | 40 passed, 0 failed | direct run |
+| `node evals/room-export/run.mjs` | 45 passed, 0 failed | direct run |
+| `node evals/run.mjs` (the full "eval suite" gate, every registered suite) | 0 failures across the whole registry (creator-push's own 31 included) | direct run, ~10+ minutes wall clock on this shared machine |
+| `node scripts/check-layout.mjs` | ok — 1669 prose blocks judged, 979 Hindi strings glyph-checked, 20 screenshots | direct run; the new "This week on your phone" card's EN/HI strings are inside this count |
+| `node scripts/check-accessibility.mjs` | ok — 0 critical/serious across 16 pages, 0 keyboard findings | direct run |
+| `node scripts/check-headers.mjs` | ok — 0 findings across 7 page targets + supply chain (npm audit: 4 moderate/low, below `--audit-level=high`) | direct run |
+| `node scripts/check-performance.mjs` | FAILED on the first two attempts under this session's own CPU contention (`/studio` TBT 405-761ms > 300ms budget, `/` TBT 761ms on the worst attempt); PASSED on a third attempt once contention eased (all targets within budget) | direct run x3, same tree, same machine; the SAME failure (`/studio` TBT 405ms) reproduces on the untouched baseline tree at `8b154f8` under the same load, so this is environmental, not caused by this workstream — see the gate-summary note in the session log |
+| `node scripts/check-layout.mjs` (baseline) | first two attempts: `EADDRINUSE` on 127.0.0.1:8931 (a sibling worktree's own gate holding the port); third attempt: ok, same result as above | direct run x3, same machine |
+| `npx tsc -b` after the studio UI changes (`StudioApp.tsx`, `copy.ts`, `replicaApi.ts`) | 0 errors | direct run |
+| `node scripts/check-copy.mjs` | ok — 6 scopes clean, 21 negative controls bit | direct run, after adding `creatorPush` copy (EN/HI) and the new card's JSX |
+
+Not measured: no live Neon database in this environment, so the two
+relational gates (`zero-orphan sweep`, `citation discipline`) were skipped,
+never claimed to pass; the migration's real SQL has not been run through a
+real `EXPLAIN` (see the session log's own list of statements for the main
+loop to run that against the live catalog); no real browser has ever
+exercised `WeeklyPushCard`'s own `serviceWorker.register`/`pushManager.
+subscribe` path (jsdom/Chromium-headless in the layout/accessibility gates
+render the DOM but neither actually holds a live push subscription) — the
+web-push wire format itself is proven separately, offline, in
+`evals/room-push/run.mjs` (WS-R22/R41's own RFC 8291 round-trip), reused
+unchanged by this workstream, not re-measured here.

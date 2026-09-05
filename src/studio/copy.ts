@@ -927,6 +927,16 @@ interface CreatorExportCopy {
   done: string;
 }
 
+// ── creatorPush: "This week on your phone" (WS-R74, migration 118) ─────────
+interface CreatorPushCopy {
+  title: string;
+  intro: string;
+  notConfigured: string;
+  turnOn: string;
+  turnOff: string;
+  error: string;
+}
+
 interface StudioCopy {
   classLabels: ClassLabels;
   shell: ShellCopy;
@@ -952,6 +962,7 @@ interface StudioCopy {
   processingReview: ProcessingReviewCopy;
   personModelStudio: PersonModelStudioCopy;
   showcase: ShowcaseCopy;
+  creatorPush: CreatorPushCopy;
 }
 
 const EN: StudioCopy = {
@@ -1869,6 +1880,14 @@ const EN: StudioCopy = {
     rateLimited: "You can request this once a day. Try again tomorrow.",
     error: "Could not prepare your download. Please try again.",
     done: "Your download has started.",
+  },
+  creatorPush: {
+    title: "This week on your phone",
+    intro: "A short push about your Room, once a Monday morning: new followers and messages, this deployment's own push key required.",
+    notConfigured: "Push alerts are not set up on this deployment yet.",
+    turnOn: "Turn on the weekly push on this device",
+    turnOff: "Turn off the weekly push on this device",
+    error: "Could not change alert settings on this device.",
   },
 };
 
@@ -2788,6 +2807,14 @@ const HI: StudioCopy = {
     rateLimited: "आप यह दिन में एक बार मांग सकते हैं। कल फिर कोशिश करें।",
     error: "आपका डाउनलोड तैयार नहीं हो सका। कृपया फिर कोशिश करें।",
     done: "आपका डाउनलोड शुरू हो गया है।",
+  },
+  creatorPush: {
+    title: "इस हफ़्ते की खबर, आपके फ़ोन पर",
+    intro: "हर सोमवार सुबह, आपके रूम के बारे में एक छोटा सा पुश: नए फॉलोअर और मैसेज। इसके लिए इस डिप्लॉयमेंट की अपनी पुश-की ज़रूरी है।",
+    notConfigured: "इस डिप्लॉयमेंट पर पुश अलर्ट अभी सेट नहीं हैं।",
+    turnOn: "इस डिवाइस पर साप्ताहिक पुश चालू करें",
+    turnOff: "इस डिवाइस पर साप्ताहिक पुश बंद करें",
+    error: "इस डिवाइस पर अलर्ट सेटिंग नहीं बदली जा सकी।",
   },
 };
 

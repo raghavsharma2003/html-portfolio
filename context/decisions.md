@@ -14710,3 +14710,67 @@ aggregate-only rule) rather than widening the generic `select *` path — and
 that future file's own identifier must still never appear as a literal
 string in `api/_creator-export.js`'s own source outside such a query, per
 the rejection entry this decision cites.
+
+## `ws-r74-creator-push-headline-derived-not-forwarded-verbatim` (2026-09-05, WS-R74)
+
+**Decision.** The creator's weekly push headline
+(`api/_creator-push.js#pulseHeadlineFor`) does NOT forward `readPulse`'s own
+`note` field verbatim. It derives a short, one-line headline directly from
+`readPulse`'s `combo_buckets` array instead — the same already-floor-checked
+(`follower_count >= 5`, migration 097's own CHECK) rows `weeklyNote` itself
+reads, with `weeklyNote`'s own "prefer the single-label bucket, else the
+highest count" pick restated in a handful of lines for a one-line result
+instead of a paragraph.
+
+**Rationale.** Measured, not reasoned about: running this workstream's own
+`evals/creator-push/run.mjs` §4 world against the FIRST version of this
+function (which forwarded `pulse.note` as-is, truncated to 220 characters
+for the notification body) produced a payload whose body read "...It never
+shows a message or a name, and never a number below five. One combination
+reached the floor this we" — the ENTIRE useful fact (which topic, what
+action) was cut off, because `weeklyNote`'s own fixed two-sentence
+disclaimer preamble ("Pulse counts what your followers talk about...")
+alone consumes most of a lock-screen notification's own budget. A creator's
+push would have shown the disclaimer every single week and never the news.
+See `evals/creator-push/run.mjs`'s own assertion
+`"sendCreatorWeeklyPushes: the published Pulse combo's headline was
+included"`, which failed under the forwarded-`note` version and passes
+under the derived-headline version — this is the run that found the bug,
+not a design guess.
+
+**Reversal condition.** If `weeklyNote`'s own preamble is ever shortened or
+made optional (a `opts.short` flag, say), forwarding `note` verbatim becomes
+viable again and this duplication can be deleted in favour of importing
+that shorter form — but only once a real run of this workstream's own eval
+world shows the headline text actually reaching the payload intact, the
+same evidence bar that closed this decision the first time.
+
+## `ws-r74-creator-weekly-push-subscription-table-carries-no-owner-allowlist` (2026-09-05, WS-R74)
+
+**Decision.** `vy_creator_push_subscription` (migration 118) is written by
+`subscribeCreatorPush(db, ownerUserId, sub)` with NO allowlist parameter in
+its INSERT's WHERE clause — unlike `vy_operator_push_subscription`
+(migration 114, `subscribeOperatorPush`), whose WHERE clause checks
+`OPS_OWNER_USER_IDS` as a query parameter. Every authenticated owner may
+subscribe for themselves.
+
+**Rationale.** The two tables answer different questions. `OPS_OWNER_
+USER_IDS` names a small, fixed, operator-configured allowlist of PLATFORM
+STAFF — the WHERE clause is the enforcement because "is this bearer staff"
+is exactly the fact a database row cannot otherwise verify. `vy_creator_
+push_subscription`'s own question is "is this bearer THIS row's owner",
+answered structurally by `ownerUserId` coming only from `requireUser(req)`
+in `api/replica.js` (never a body-supplied id) — the identical "no cross-
+identity input" shape every other owner-scoped op on that door already
+takes (`export`, `set_locale`, `revoke`). Adding a second allowlist gate
+here would be checking a fact this table has no business asking: every
+owner of a Room is entitled to know what happens in their own Room this
+week, which is the entire point of Rooms v1 existing.
+
+**Reversal condition.** If push notifications are ever gated behind a paid
+tier or an explicit opt-in flag on `vy_room` (rather than "every published
+Room's owner gets one"), that gate belongs in `sendCreatorWeeklyPushes`'s
+own room-scan WHERE (`published_at is not null and paused_at is null`
+gains a clause) or in a new column on `vy_room`, never retrofitted onto the
+subscription table's own WHERE — the subscription answers "can this device
+receive pushes for this owner", not "should this owner get one this week".
