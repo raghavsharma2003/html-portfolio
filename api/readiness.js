@@ -18,40 +18,69 @@
 // The write is idempotent on the inputs: api/_readiness.js's insert is guarded
 // against the newest snapshot's own `inputs_hash`, so a poll that changes
 // nothing writes nothing and the history stays a record of changes.
+//
+// WS-R101 adds the door's first `op`-shaped body: `POST {op:"measure_now",
+// replica_id}` runs a recall run (`api/_recall-run.js::runRecallMeasurement`)
+// and stores the result readiness now reads on the NEXT `GET`. It does not
+// return a fresh readiness screen itself — the write and the read stay two
+// requests, exactly as `POST /api/review-queue` writing a decision and
+// `GET /api/readiness` re-reading afterwards already do — so this handler's
+// own error shape never has to merge two different failure vocabularies.
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
-import { ReadinessError, readOwnedReadiness } from "./_readiness.js";
+import { readOwnedReadiness } from "./_readiness.js";
+import { runRecallMeasurement } from "./_recall-run.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   res.setHeader("Cache-Control", "no-store");
+}
+
+async function handleGet(req, res, user) {
+  if (!allow(user.id, "readiness_user", 80)) return res.status(429).json({ error: "slow_down" });
+  const readiness = await readOwnedReadiness(q, user.id, req.query?.replica_id);
+  // A replica that is not the caller's answers exactly as a replica that does
+  // not exist. Ownership is decided by the SQL predicate inside the read,
+  // never by a branch here.
+  if (!readiness) return res.status(404).json({ error: "replica_not_found" });
+  return res.status(200).json({ readiness });
+}
+
+async function handleMeasureNow(req, res, user) {
+  // Its own, tighter user-scoped bucket: the SQL rate predicate inside
+  // `runRecallMeasurement` is the real limiter (one run per replica per
+  // hour), this is only the cheap outer wall the GET side already has one
+  // of, `readiness_user`'s own precedent one scope over.
+  if (!allow(user.id, "readiness_measure_now", 10)) return res.status(429).json({ error: "slow_down" });
+  const result = await runRecallMeasurement(q, user.id, req.body?.replica_id);
+  return res.status(200).json({ recall_run: result });
 }
 
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
-  if (req.method !== "GET") return res.status(405).json({ error: "GET only" });
+  if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "GET or POST only" });
   if (!allow(ipOf(req), "readiness", 40)) return res.status(429).json({ error: "slow_down" });
 
   try {
     const user = await requireUser(req);
-    if (!allow(user.id, "readiness_user", 80)) return res.status(429).json({ error: "slow_down" });
-
-    const readiness = await readOwnedReadiness(q, user.id, req.query?.replica_id);
-    // A replica that is not the caller's answers exactly as a replica that does
-    // not exist. Ownership is decided by the SQL predicate inside the read,
-    // never by a branch here.
-    if (!readiness) return res.status(404).json({ error: "replica_not_found" });
-    return res.status(200).json({ readiness });
+    if (req.method === "GET") return await handleGet(req, res, user);
+    const op = String(req.body?.op || "");
+    if (op === "measure_now") return await handleMeasureNow(req, res, user);
+    return res.status(400).json({ error: "readiness_op_unknown" });
   } catch (error) {
     if (error instanceof AuthError) return res.status(error.status).json({ error: error.code });
-    if (error instanceof ReadinessError) return res.status(error.status).json({ error: error.code });
     const status = Number.isInteger(error?.status) ? error.status : 500;
     return res.status(status).json({
       error: status === 500 ? "readiness_failure" : String(error.code || error.message),
+      // `recall_set_too_small`'s own `{found, min}` (api/_recall-run.js) rides
+      // here rather than in a second field only that one error needs — every
+      // other named error on this door carries no `details` and the client
+      // treats an absent key as absent, never as a fabricated 0.
+      ...(status !== 500 && error?.details ? { details: error.details } : {}),
     });
   }
 }

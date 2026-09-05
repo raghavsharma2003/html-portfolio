@@ -2488,6 +2488,25 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-about": "room-about/run.mjs",
+  // WS-R101. The recall run: Readiness's `knows_your_material` part gets its
+  // writer. `generateRecallSet` (deterministic, zero model calls) over a fake
+  // db's mined context items, approved review cards and transcribed
+  // interview answers; `scoreAnswer` (pure, 0-100) with its own negative
+  // control (order-blind scoring cannot tell an echo from the same words
+  // shuffled); `scoreRecallRun`/`runRecallMeasurement` driven through the
+  // REAL compiled agent (`api/_engine.gen.js`, the DEMO_TEACHER fixture
+  // sheet) with a fake `reply`; the rate predicate and the supersede-on-
+  // insert, both against a fake db with a controllable clock; `readRecallRun`
+  // reading the stored row back; and the capstone `evals/room-doors`/
+  // `evals/readiness` cannot prove alone — the publish lock crossing through
+  // a REAL recall run in the fixture world, no seed of `vy_replica_readiness`
+  // itself, superseding `context/decisions.md#ws-r95-readiness-floor-
+  // crossing-is-seeded-never-computed`'s own reversal condition.
+  //
+  // Offline, deterministic, $0, no network beyond the local esbuild bundle
+  // step (fixture-only, no external fetch), one real compiled-agent call
+  // path exercised with a fake reply — no live model call, no GPU.
+  "recall-run": "recall-run/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

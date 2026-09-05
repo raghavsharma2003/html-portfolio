@@ -182,6 +182,9 @@ export const OWNER_LANE_TABLES = Object.freeze([
   { table: "vy_replica_activity", scope: "replica" },
   { table: "vy_replica_audit", scope: "replica" },
   { table: "vy_replica_readiness", scope: "replica" },
+  // 127 (WS-R101). The recall run's own scored history, readiness's own
+  // precedent immediately above restated one instrument over.
+  { table: "vy_recall_run", scope: "replica" },
   { table: "vy_replica_funnel_mark", scope: "replica" },
   { table: "vy_replica_drift_report", scope: "replica" },
   { table: "vy_replica_generation", scope: "replica" },

@@ -9448,6 +9448,42 @@
       "kind": "decision",
       "title": "The first-Hindi-paint budget is 1000 ms, set from measurement rather than copied from the chunk-wait budget; returns to 800 once the Hindi chunk is preloaded from the built page and three gate runs measure under 700 ms.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r101-recall-run-writer",
+      "kind": "decision",
+      "title": "api/_recall-run.js is the writer knows_your_material never had: a deterministic held-out question set from a replica's own sources, scored 0-100 through the real compiled agent, gated behind RECALL_RUN and rate-limited to one run per replica per hour (migration 127, vy_recall_run).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r101-recall-scorer-order-sensitive",
+      "kind": "decision",
+      "title": "scoreAnswer blends vocabulary overlap and a longest-common-subsequence order term; a negative control proves an order-blind patch cannot tell an echoed passage apart from the same words shuffled (both score 100), which the real scorer does not do.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r101-never-rules-must-arrive-compiled",
+      "kind": "decision",
+      "title": "scoreRecallRun/runRecallMeasurement require neverRules already compiled (compileNeverRules), the same contract roomNeverRules already states for every Room reply lane, restated for a lane with no Room.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r101-recall-run-neverrules-uncompiled-silently-does-nothing",
+      "kind": "rejection",
+      "title": "A raw {rule_id,pattern,revoked_at} row handed straight to gatedReply matches nothing and throws nothing \u2014 the answer comes back unsuppressed, gated:true, ordinary text. Fixed by compiling before the call.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r101-recall-run-eval-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/recall-run/run.mjs: 75 assertions, 0 failures, offline, deterministic, one real compiled-agent call path with a fake reply. Capstone: the publish lock crosses through a REAL recall run in the fixture world, vy_replica_readiness never seeded.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r101-gate-baseline",
+      "kind": "measurement",
+      "title": "verify-release timed out identically on the untouched tree and the ws-r101 tree, both EADDRINUSE on the same ports under nine concurrent sibling gates; layout and performance both pass standalone on ws-r101 once ports freed, confirming the timeout was environmental.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18440,6 +18476,31 @@
       "src": "first-hindi-paint-budget-set-from-measurement",
       "rel": "constrains",
       "dst": "ws-r91-authgate-reads-locale-before-sign-in"
+    },
+    {
+      "src": "ws-r101-recall-run-writer",
+      "rel": "supersedes",
+      "dst": "ws-r95-readiness-floor-crossing-is-seeded-never-computed"
+    },
+    {
+      "src": "ws-r101-recall-run-writer",
+      "rel": "measured_by",
+      "dst": "ws-r101-recall-run-eval-2026-09-05"
+    },
+    {
+      "src": "ws-r101-recall-run-writer",
+      "rel": "caused_by",
+      "dst": "ws-r101-recall-scorer-order-sensitive"
+    },
+    {
+      "src": "ws-r101-recall-run-writer",
+      "rel": "caused_by",
+      "dst": "ws-r101-never-rules-must-arrive-compiled"
+    },
+    {
+      "src": "ws-r101-never-rules-must-arrive-compiled",
+      "rel": "caused_by",
+      "dst": "ws-r101-recall-run-neverrules-uncompiled-silently-does-nothing"
     }
   ]
 }

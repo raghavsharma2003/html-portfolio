@@ -17821,3 +17821,112 @@ main chunk, not after it (wave sixteen, WS-R107). When it lands and three
 consecutive gate runs measure under 700 ms, the budget returns to 800; if
 the preload lands and the paint does not move, the parse and commit are
 the cost and the studio's signed-out shell needs its own smaller entry.
+
+## `ws-r101-recall-run-writer` (2026-09-05, WS-R101)
+
+**Decision.** `api/_recall-run.js` is the writer Readiness's `knows_your_material`
+part never had. `generateRecallSet` builds a held-out question set
+deterministically from a replica's own mined context items, its
+review-queue-approved ("sounds right") cards, and its transcribed interview
+answers — a pure template (a passage's own first sentence wrapped in one
+fixed sentence), zero model calls, refused by name (`recall_set_too_small`)
+below 20 usable passages. `scoreRecallRun` drives every question through the
+REAL compiled agent via `gatedReply` (`api/_surface.js`, the one door) and
+scores each answer 0-100 with a scorer blending vocabulary overlap and word
+order (see `ws-r101-recall-scorer-order-sensitive` below). `runRecallMeasurement`
+is the whole flow behind a new "Measure now" op on `api/readiness.js`
+(`op: "measure_now"`), gated behind `RECALL_RUN` (off by default,
+`docs/gurukul/ENV-MANIFEST.md` §34) and rate-limited to one run per replica
+per hour by the write's own predicate (migration 127,
+`vy_recall_run`). `api/_readiness.js::readRecallRun` reads the latest
+unsuperseded row and `knowsYourMaterial` uses its `score` directly (never
+re-deriving a correct/total ratio the stored row does not carry).
+
+**Rationale.** `ws-r95-readiness-floor-crossing-is-seeded-never-computed`
+names its own reversal condition in full: a recall-run writer landing
+anywhere in this tree, re-proven by feeding all six Readiness inputs and
+getting a real pass rather than a seed. `evals/recall-run/run.mjs` §6 is
+that proof, at the layer under WS-R95's own Chromium rehearsal: a REAL
+`runRecallMeasurement` call, over a fake `db` that also answers every other
+Readiness input from genuinely-measured rows, produces a stored
+`vy_recall_run` row that `readOwnedReadiness` reads back into a value high
+enough, alongside the four other real parts, to cross the publish floor —
+`vy_replica_readiness` written twice by `readOwnedReadiness` itself (before,
+after), never seeded. 75 checks, 0 failures, offline, deterministic, one
+real compiled-agent call path exercised with a fake `reply` (never a live
+model call).
+
+**What would reverse it.** WS-R95's own Chromium rehearsal
+(`evals/rehearsal/creator.mjs`) re-run with "Measure now" driven through the
+real browser and the real `POST /api/readiness` door, crossing the floor
+without seeding `vy_replica_readiness` at the HTTP layer rather than at
+`api/_recall-run.js`'s own module boundary — out of this workstream's scope,
+named here as the remaining step. Superseded outright if a future workstream
+finds the vocabulary-plus-order scorer produces systematically inflated or
+deflated scores against a real keyed run (no keyed run exists yet for this
+instrument, the same honest gap `evals/recallbench`'s own §5 states for
+Meera's memory benchmark).
+
+## `ws-r101-recall-scorer-order-sensitive` (2026-09-05, WS-R101)
+
+**Decision.** `api/_recall-run.js::scoreAnswer` blends two components: plain
+vocabulary overlap (order-blind, `RECALL_UNIGRAM_WEIGHT = 0.4`) and a
+longest-common-subsequence ratio over the passage's own word order
+(`RECALL_ORDER_WEIGHT = 0.6`). `evals/recallbench`'s own containment-by-
+substring shape (Meera's memory benchmark) was read first and NOT imported
+unchanged — its `retrievedFrom`/`keysOf` are wired to a fixture `dyad`
+object and a rendered-block heading structure with no equivalent here, so
+there was nothing pure to import; the METHOD (score what actually reached
+the answer, never an internal row list) is what carries over.
+
+**Rationale.** `evals/recall-run/run.mjs` §2b is a negative control in the
+`evals/readiness/run.mjs` §4 style: the real scoring line is patched out
+(order term removed, leaving vocabulary overlap alone) and re-imported from
+a temp file. Under the patched module, an echoed passage and the SAME WORDS
+IN A RANDOM ORDER both score 100 — indistinguishable, because unigram
+overlap alone cannot see order at all. Under the real module the shuffled
+answer scores strictly between 0 and 100 on the same fixed, hand-authored
+shuffle every run (never a random seed, so this suite is deterministic).
+This closes the exact failure a pure keyword-overlap recall scorer would
+have: a compiled agent that memorised a bag of facts with no grasp of how
+they relate would pass a vocabulary-only scorer every time it echoed the
+right words in the wrong order.
+
+**What would reverse it.** A keyed run against real replica material
+showing the LCS term systematically penalises legitimate paraphrase (a
+correct answer in genuinely different, non-shuffled words scoring lower
+than the unigram-only component alone would predict) — no such run exists
+yet; §2's own "unrelated content scores low but not necessarily 0" case is
+the only real-paraphrase-adjacent case this suite currently measures.
+
+## `ws-r101-never-rules-must-arrive-compiled` (2026-09-05, WS-R101)
+
+**Decision.** `api/_recall-run.js`'s `scoreRecallRun`/`runRecallMeasurement`
+require `neverRules` to already be COMPILED (`api/_never-rules.js::compileNeverRules`)
+before they reach `gatedReply` — the same contract
+`api/_room-surface.js::roomNeverRules` already states for every Room reply
+lane, restated here for a lane with no Room. `runRecallMeasurement`'s
+default path calls `compileNeverRules(await loadNeverRules(...))` itself
+rather than handing `loadNeverRules`'s raw `{rule_id, pattern, revoked_at}`
+rows straight to `gatedReply`.
+
+**Rationale.** Building this workstream's own eval first with UNCOMPILED raw
+rows passed as `neverRules` produced a silent pass-through: `gateReply`
+matched nothing, the "never say this" answer was never suppressed, and the
+test failed loudly enough to catch it before merge — but a caller adding a
+FIFTH reply lane later would have no test forcing the same discovery,
+because a raw row and a compiled rule are both plain objects and nothing
+type-checks the difference at a JS boundary. `plausible-return-hides-a-dead-
+pipeline`'s shape exactly: a never-rule silently not enforced returns
+`gated: true` and ordinary-looking text, and the ONLY way to see the gap is
+to write the positive AND the negative case, which
+`evals/recall-run/run.mjs` §3 now does (a matching compiled rule suppresses
+the target question's answer and names itself; every other question is
+unaffected).
+
+**What would reverse it.** `gatedReply` itself learning to accept either
+shape (detecting a raw row by its `pattern` key and compiling it inline)
+would make this contract self-enforcing rather than a convention every
+caller has to remember — a real simplification, not attempted here because
+it touches the one door every surface's replies leave by and this
+workstream's brief did not ask for that file to change.

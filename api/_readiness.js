@@ -84,15 +84,18 @@
 // §4. THE INSTRUMENTS, AND THE TWO THAT DO NOT EXIST YET
 // ═════════════════════════════════════════════════════════════════════════
 //
-//   knows_your_material    NO INSTRUMENT. A per-replica recall score needs a
-//                          held-out question set generated from the replica's
-//                          own sources and a scored run over it. The harness
-//                          shape is evals/recallbench (offline, deterministic,
-//                          zero model calls); no per-replica run is stored
-//                          anywhere and measurements.md carries no recall
-//                          number for anyone. `readRecallRun` below returns
-//                          null and says why, at the exact seam a future run
-//                          table plugs into.
+//   knows_your_material    HAS AN INSTRUMENT NOW (WS-R101, migration 127,
+//                          api/_recall-run.js), but it is OWNER-TRIGGERED,
+//                          never automatic: a held-out question set built
+//                          from the replica's own sources is scored against
+//                          the real compiled agent through `gatedReply`, and
+//                          production's reply seam costs money per question
+//                          (`RECALL_RUN`, off by default,
+//                          docs/gurukul/ENV-MANIFEST.md's own section). Until
+//                          an owner presses "Measure now" (or the flag is
+//                          off), `readRecallRun` below returns null exactly
+//                          as it always did, and the part reads "not
+//                          measured yet" — an honest state, not a bug.
 //
 //   sounds_like_you        HALF AN INSTRUMENT. vy_voice_fidelity is live and
 //                          real (api/_fidelity.js). The owner's own ceiling is
@@ -297,18 +300,26 @@ function knowsYourMaterial(input, _now) {
   const reviewed = num(claims.reviewed);
   const recall = input.recall || null;
 
-  // The measured path, for the day a recall run exists. Scored answers over a
-  // held-out question set built from the replica's own sources.
-  if (recall && num(recall.questions) > 0) {
-    const questions = num(recall.questions);
-    const correct = num(recall.correct);
+  // The measured path (WS-R101, `api/_recall-run.js`). `recall` is
+  // `readRecallRun`'s own shape: `{score, n, method, computed_at}`, the
+  // latest unsuperseded `vy_recall_run` row (migration 127). `score` is
+  // already a 0-100 integer over `n` held-out questions built from the
+  // replica's own sources and scored against the real compiled agent — it is
+  // used directly, never re-derived from a correct/total pair, because the
+  // stored row IS the measurement rather than raw counts this function would
+  // have to re-aggregate.
+  if (recall && Number.isFinite(Number(recall.score)) && num(recall.n) > 0) {
+    const n = num(recall.n);
+    const value = Math.max(0, Math.min(100, Math.round(Number(recall.score))));
     return part("knows_your_material", {
-      value: pct(correct, questions),
-      n: questions,
-      method: `Held-out recall run: ${correct} of ${questions} questions answered from your own sources.`,
+      value,
+      n,
+      // "measured on N questions from your own material", never a bare
+      // number — this file's own header names that rule.
+      method: `Held-out recall run: measured on ${n} questions from your own material.`,
       measured_at: iso(recall.computed_at),
       detail: `${mined} claims mined from what you gave us, ${reviewed} reviewed by you.`,
-      action: pct(correct, questions) < READINESS_PART_FLOOR ? action("add_sources") : null,
+      action: value < READINESS_PART_FLOOR ? action("add_sources") : null,
     });
   }
 
@@ -563,13 +574,31 @@ export function readinessInputsHash(inputs = {}) {
 // THE READS
 // ─────────────────────────────────────────────────────────────────────────
 
-/** THE SEAM §4 names. A per-replica recall run has no table and no writer, so
- *  this returns null and the part says "not measured yet". It is a function
- *  rather than a literal null so the day a run table lands there is exactly
- *  one place to point it at, and so `dead-writers` is visible here rather than
- *  hidden inside an object literal. */
-export async function readRecallRun(_db, _ownerUserId, _rid) {
-  return null;
+const RECALL_RUN_SQL = `select r.score, r.n, r.method, r.created_at
+  from vy_recall_run r
+ where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.superseded_at is null
+ order by r.created_at desc limit 1`;
+
+/** THE SEAM §4 named, now wired (WS-R101, migration 127, `api/_recall-run.js`).
+ *  Reads the latest unsuperseded `vy_recall_run` row and returns
+ *  `{score, n, method, computed_at}`, or null when no run has ever been
+ *  scored for this replica — the honest state every replica was in before
+ *  this workstream, and the state any replica remains in until its owner
+ *  presses "Measure now" (or `RECALL_RUN` is off, in which case the op that
+ *  would write this row refuses before it ever runs). A function rather
+ *  than an inline query so this stays the ONE place `knowsYourMaterial`
+ *  reads from, exactly as it was when it always returned null. */
+export async function readRecallRun(db, ownerUserId, rid) {
+  if (typeof db !== "function") return null;
+  const rows = await db(RECALL_RUN_SQL, [rid, ownerUserId]);
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    score: Number(row.score),
+    n: Number(row.n),
+    method: String(row.method || ""),
+    computed_at: row.created_at,
+  };
 }
 
 const CLAIM_LEDGER_SQL = `select

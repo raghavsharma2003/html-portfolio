@@ -4442,3 +4442,24 @@ create unique index if not exists vy_receipt_payment_event_ix
   on vy_receipt (payment_event_id);
 create index if not exists vy_receipt_room_person_ix
   on vy_receipt (room_id, person_id, issued_at desc);
+
+-- Migration 127 - the recall run (WS-R101). See
+-- db/migrations/127_recall_run.sql for the full argument: one row per scored
+-- run over a held-out question set built from the replica's own sources,
+-- answered by the real compiled agent and scored 0-100. No foreign key
+-- (009's convention); `superseded_at` set in the same statement as the
+-- insert, guarded by the SAME predicate that enforces one run per replica
+-- per hour, so a rate-limited call disturbs nothing.
+create table if not exists vy_recall_run (
+  run_id         uuid primary key default gen_random_uuid(),
+  replica_id     uuid not null,
+  owner_user_id  uuid not null,
+  score          int not null check (score >= 0 and score <= 100),
+  n              int not null check (n > 0),
+  method         text not null default '',
+  set_hash       text not null check (set_hash ~ '^[0-9a-f]{64}$'),
+  created_at     timestamptz not null default now(),
+  superseded_at  timestamptz
+);
+create index if not exists vy_recall_run_owner_ix
+  on vy_recall_run (replica_id, owner_user_id, created_at desc);

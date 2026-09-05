@@ -533,6 +533,15 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- behind while reporting success.
      readiness as (delete from vy_replica_readiness x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 127's recall runs (WS-R101). Same shape as readiness immediately
+     -- above and for the same reason: NO foreign key (009's convention), so
+     -- this line is not a second layer, it is the only layer, and
+     -- scripts/relcheck.mjs's owner-lane reach walk fails the build without
+     -- it. A recall run is a dated, scored record of how well we thought a
+     -- named person's AI knew their own material, exactly what an erasure
+     -- that skipped it would leave behind while reporting success.
+     recall_runs as (delete from vy_recall_run x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      -- 088's funnel marks (WS-R25). Same shape as readiness immediately
      -- above and for the same reason: NO foreign key (009's convention),
      -- so this line is not a second layer, it is the only layer, and

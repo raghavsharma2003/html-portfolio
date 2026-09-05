@@ -12441,3 +12441,43 @@ carries that assumption along invisibly. Any future control built as a real
 `display` before a `min-height`/`min-width` rule can do anything at all —
 checked here by the layout gate's own real-browser measurement, not by
 reading the CSS and assuming it applies.
+
+## `ws-r101-recall-run-neverrules-uncompiled-silently-does-nothing` — a raw DB row handed to `gatedReply` matches nothing, no error (2026-09-05, WS-R101)
+
+**Tried.** `api/_recall-run.js`'s first draft of `runRecallMeasurement`
+loaded never-say rules with `await loadNeverRules(db, rid, owner)` and
+passed that array straight through to `scoreRecallRun`'s `neverRules`
+option, which `gatedReply` (`api/_surface.js`) reads directly.
+
+**What specifically broke.** `evals/recall-run/run.mjs`'s own never-rule
+case (a compiled rule matching an echoed answer, expecting the answer
+suppressed) failed: the answer came back UNSUPPRESSED, `gated: true`,
+ordinary text, no error anywhere. `loadNeverRules` returns raw
+`{rule_id, pattern, revoked_at}` rows straight off `vy_review_never_rule`;
+`gateReply`'s matching (`replyViolatesNeverRule`) expects the COMPILED shape
+`api/_never-rules.js::compileNeverRules` produces (`{rule_id, needles}`, the
+pattern pre-normalised and pre-shingled into match tokens) — a raw row's
+`.pattern` field is simply never read by the matcher, so the row is inert
+and silent. `api/_room-surface.js::roomNeverRules` already compiles before
+handing rules to any Room reply lane; this file's first draft was the one
+caller in the repo that skipped it.
+
+**The fix.** `runRecallMeasurement` now calls
+`compileNeverRules(await loadNeverRules(db, rid, owner))`, and the
+docstring on `scoreRecallRun` states the contract in words: `neverRules`
+must arrive already compiled. `ws-r101-never-rules-must-arrive-compiled`
+(`context/decisions.md`) is the full argument and the open question this
+finding raises (should `gatedReply` accept either shape and compile a raw
+row itself, closing the gap structurally rather than by convention).
+
+**The lesson for the next caller.** A raw never-rule row and a compiled one
+are both plain JS objects with no type system distinguishing them at the
+`gatedReply` boundary, and the failure mode is not a crash, not a wrong
+answer, not a 500 — it is a completely ordinary-looking successful reply
+that happens to say the forbidden thing. `docs/gurukul/safety-floor-teacher.md`'s
+own measurement ("prompt instructions leaked 57-98%; the SQL predicate
+leaked 0 of 31,122") is why this rule exists as a predicate at all; this
+finding is the SAME law's plumbing half — a predicate that is never actually
+wired in is indistinguishable from no predicate, and the only way either
+suite or a human notices is a positive test that actually exercises the
+suppression, never a green run that merely calls the function.

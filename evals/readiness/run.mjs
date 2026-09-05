@@ -94,7 +94,7 @@ const byId = (screen) => Object.fromEntries(screen.parts.map((row) => [row.id, r
 const PASSING = Object.freeze({
   now: NOW,
   claims: { mined: 142, reviewed: 96, approved: 40 },
-  recall: { questions: 40, correct: 34, computed_at: at(2) },
+  recall: { score: 85, n: 40, computed_at: at(2) },
   fidelity: { mean: 0.63, windows: 12, status: "warn", computed_at: at(1) },
   owner_ceiling: { value: 0.8869, n: 8, measured_at: at(9) },
   mirror: { sounds_right: 36, fix_it: 14, latest_at: at(3) },
@@ -157,7 +157,7 @@ eq(low.suggested_action?.code, "long_mirror_call",
 
 // The overall floor bites on its own too, with every part above 55.
 const flat = readinessScreen(mutate({
-  recall: { questions: 40, correct: 24, computed_at: at(2) },
+  recall: { score: 60, n: 40, computed_at: at(2) },
   mirror: { sounds_right: 30, fix_it: 20, latest_at: at(3) },
   freshness: { claims_total: 40, claims_valid: 24, newest_source_at: at(11) },
   safety: { ...PASSING.safety, escalation_route: false },
@@ -300,7 +300,7 @@ eq(readinessScreen(mutate({ owner_ceiling: null })).weakest_part, "sounds_like_y
 
 // Lowest measured wins when everything is measured, ties broken by the order.
 const tied = readinessScreen(mutate({
-  recall: { questions: 40, correct: 24, computed_at: at(2) },
+  recall: { score: 60, n: 40, computed_at: at(2) },
   mirror: { sounds_right: 30, fix_it: 20, latest_at: at(3) },
 }));
 eq(byId(tied).knows_your_material.value, 60, "the tie fixture puts two parts on 60");
@@ -316,7 +316,7 @@ const permutations = [
   PASSING,
   mutate({ recall: null }),
   mutate({ recall: null, claims: { mined: 0, reviewed: 0, approved: 0 } }),
-  mutate({ recall: { questions: 40, correct: 8, computed_at: at(2) } }),
+  mutate({ recall: { score: 20, n: 40, computed_at: at(2) } }),
   mutate({ fidelity: null }),
   mutate({ owner_ceiling: null }),
   mutate({ owner_ceiling: { value: 0.9, n: 4, measured_at: at(9) } }),
@@ -390,6 +390,12 @@ function fakeDb(rows) {
     calls.push({ sql, params });
     if (/insert into vy_replica_readiness/i.test(sql)) return [{ readiness_id: "r1", computed_at: at(0) }];
     if (/from vy_replica_claim/i.test(sql)) return [rows.ledger];
+    // WS-R101: `readRecallRun`'s own read, no longer a stub. `rows.recall`
+    // absent means "no run has ever been stored" — the honest state this
+    // section's own `unmeasured_count: 2` assertion below already expects,
+    // now for a REAL reason (a real, empty query) rather than a hardcoded
+    // null return.
+    if (/from vy_recall_run/i.test(sql)) return rows.recall ? [rows.recall] : [];
     if (/from vy_voice_fidelity/i.test(sql)) return rows.fidelity ? [rows.fidelity] : [];
     if (/from vy_replica_voice_genome/i.test(sql)) return rows.ceiling ? [rows.ceiling] : [];
     if (/from vy_mirror_feedback/i.test(sql)) return [rows.mirror];

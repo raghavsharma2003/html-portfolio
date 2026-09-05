@@ -206,6 +206,22 @@
     color: var(--ink-soft);
   }
 
+  /* ── WS-R101: the "Measure now" control on knows_your_material ─────────── */
+
+  .vy-readiness__measure-now {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    padding-top: var(--space-hair);
+  }
+
+  .vy-readiness__measure-status {
+    margin: 0;
+    font-size: var(--text-micro);
+    line-height: var(--leading-snug);
+    color: var(--ink-soft);
+  }
+
   /* ── the lock, and the one action ─────────────────────────────────────── */
 
   .vy-readiness__lock {
