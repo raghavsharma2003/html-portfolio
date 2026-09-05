@@ -167,6 +167,12 @@ const { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale } = await loadS
     // under it), so it clears the scan the same way an empty file would, but
     // it belongs in the "converted" list rather than the "not touched" one.
     "localeContext.tsx",
+    // WS-R79's own new file: the language-tag rendering helper
+    // (`Localized`). `localeContext.tsx`'s own precedent, one line up -- no
+    // literal English text of its own (a string in, a `lang`-tagged node
+    // out, the string always a caller's own prop), so it clears the scan
+    // the same way an empty file would.
+    "Localized.tsx",
     // WS-R61 (tier 2, wave one). RoomStudio.tsx first, as the brief required
     // (it carries the follower price and the TDS disclosure sentence -- see
     // context/decisions.md#ws-r61-roomstudio-money-and-tds-copy-translated-meaning-preserved),

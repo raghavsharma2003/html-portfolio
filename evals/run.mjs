@@ -2108,6 +2108,23 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   "creator-export": "creator-export/run.mjs",
+  // WS-R79. Language tagging for screen readers — the detection primitive
+  // every `Localized` component and every server-side `langSpan` call
+  // defers to (`src/room/copy.ts#detectRoomTextLang`, `src/studio/
+  // copy.ts#detectStudioTextLang`), proven against every real translated
+  // leaf string in both copy tables plus the named edge cases (digits, a
+  // bare loanword, a matra-only fragment, mixed script), and `api/
+  // _creator-page.js`'s `buildCreatorPageHtml`, proven against a
+  // deliberately mismatched Room (Hindi name/bio/showcase, page requested
+  // in English) by parsing the real, shipping HTML output rather than
+  // trusting it by construction. The browser-based proof — a real rendered
+  // DOM, `scripts/check-accessibility.mjs`'s own `langTagAudit`, its
+  // always-on self-test, and this workstream's fired-and-reverted negative
+  // control — lives in that gate, not here; this suite is the offline half
+  // under it.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "lang-tag": "lang-tag/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
