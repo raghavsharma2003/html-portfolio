@@ -538,6 +538,7 @@ export const HI: StudioCopy = {
     dormancyDaysAriaLabel: "फॉलोअर को भुलाए जाने से पहले निष्क्रियता के दिन",
     noticeDormancyOn: "किसी शांत फॉलोअर को उनकी आख़िरी विज़िट के {n} दिन बाद, पहले सूचना देकर भुला दिया जाता है।",
     noticeDormancyOff: "बंद कर दिया गया। हर फॉलोअर की बातचीत फिर से हमेशा के लिए रखी जाएगी।",
+    friendReferralTitle: "इस हफ़्ते दोस्तों ने लाए",
   },
 
   videoLinkMount: {

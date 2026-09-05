@@ -55,6 +55,10 @@ import { readinessPasses } from "./_clonechannel.js";
 import { READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR } from "./_readiness.js";
 import { ownedRuntimeStatus } from "./_replica-runtime.js";
 import { monthKeyOf } from "./_room-surface.js";
+// WS-R86 (migration 123). `ownerRoomStats` below is the one caller — the
+// Room Studio's own "Friends brought this week" card, `api/_funnel.js`'s
+// own per-room aggregate read, imported rather than re-derived.
+import { friendsBroughtThisWeek } from "./_funnel.js";
 // WS-R45. `setRoomBio` reuses the REAL copy gate rather than a second,
 // hand-rolled regex that could drift from it — the identical reason
 // `readinessPasses` above is imported rather than restated. See
@@ -933,7 +937,7 @@ export async function unlistRoom(db, ownerUserId, replicaId) {
  * rather than a placeholder dash — `context/rejected.md`'s no-fake-numbers
  * law, applied to the one screen a creator checks the most.
  */
-export async function ownerRoomStats(db, ownerUserId, replicaId, { now = Date.now() } = {}) {
+export async function ownerRoomStats(db, ownerUserId, replicaId, { now = Date.now(), tableApplied } = {}) {
   assertOwnerScope(ownerUserId, replicaId);
   const room = await ownedRoomRow(db, ownerUserId, replicaId);
   if (!room) return null;
@@ -952,6 +956,10 @@ export async function ownerRoomStats(db, ownerUserId, replicaId, { now = Date.no
     followers_total: Number(row.followers_total || 0),
     followers_active_24h: Number(row.followers_active_24h || 0),
     messages_this_month: Number(row.messages_this_month || 0),
+    // WS-R86 (migration 123). n>=5 floored — `friendsBroughtThisWeek`'s own
+    // header explains why this is a SEPARATE table/read from the three
+    // counts above rather than a fourth column in the same statement.
+    friends_brought_this_week: await friendsBroughtThisWeek(db, room.room_id, now, { tableApplied }),
   };
 }
 

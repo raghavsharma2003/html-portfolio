@@ -39,6 +39,7 @@ import {
   type OpsPosterArrivals,
   type OpsDigest,
   type OpsShareKitArrivals,
+  type OpsFriendArrivals,
 } from "./opsApi";
 import type { StudioSession } from "./types";
 import "./design/ops-board.css";
@@ -228,12 +229,14 @@ function FunnelCard({
   tasteTurns,
   posterArrivals,
   shareKitArrivals,
+  friendArrivals,
 }: {
   funnel: OpsFunnel;
   shareArrivals: OpsShareArrivals;
   tasteTurns: OpsTasteTurns;
   posterArrivals: OpsPosterArrivals;
   shareKitArrivals: OpsShareKitArrivals;
+  friendArrivals: OpsFriendArrivals;
 }) {
   const { median, p90, n } = funnel.minutes_to_first_room;
   return (
@@ -281,6 +284,11 @@ function FunnelCard({
           `shareArrivals`'s own shape, floored the identical way, right
           below it: a poster arrival is a share by another name. */}
       <p className="ops-board__empty">{posterArrivals.note}</p>
+      {/* WS-R86 (migration 123). A follower's own "Bring a friend" link -
+          `shareArrivals`'s own shape, floored the identical way, right
+          below it: an arrival counts here whether or not the visit ever
+          becomes a credited referral. */}
+      <p className="ops-board__empty">{friendArrivals.note}</p>
       {/* WS-R53 (migration 110). A count of TURNS, never people - the taste
           has no follower at all, so unlike the line above this one carries
           no anonymity floor and always renders the real number. */}
@@ -711,6 +719,7 @@ export default function OpsBoard() {
               tasteTurns={overview.taste_turns_this_week}
               posterArrivals={overview.poster_arrivals_this_week}
               shareKitArrivals={overview.share_kit_arrivals_this_week}
+              friendArrivals={overview.friend_arrivals_this_week}
             />
             <PhaseGateCard gate={overview.phase_gate} />
             <SweepsStrip sweeps={overview.sweeps} />

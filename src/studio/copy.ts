@@ -601,6 +601,11 @@ interface RoomStudioCopy {
   dormancyDaysAriaLabel: string;
   noticeDormancyOn: string; // "Kept for {n} days after a follower's last visit."
   noticeDormancyOff: string;
+  // WS-R86 (migration 123). "Friends brought this week" - the "how's it
+  // doing" card's own fourth line, `friends_brought_this_week.note`
+  // (`api/_funnel.js`'s own honest sentence, n>=5 floored) rendered as-is,
+  // never re-derived client side.
+  friendReferralTitle: string;
 }
 
 // ── videoLinkMount: VideoLinkMount.tsx (WS-R61) ────────────────────────────
@@ -2032,6 +2037,7 @@ const EN: StudioCopy = {
     dormancyDaysAriaLabel: "Days of inactivity before a follower is forgotten",
     noticeDormancyOn: "A quiet follower is forgotten {n} days after their last visit, with a notice first.",
     noticeDormancyOff: "Turned off. Every follower's conversation is kept forever again.",
+    friendReferralTitle: "Friends brought this week",
   },
 
   videoLinkMount: {

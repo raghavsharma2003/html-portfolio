@@ -186,6 +186,7 @@ const {
   // embedded in a door.
   bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES, ROOM_TRANSCRIPT_BODY_CAP_BYTES,
   slugOf, roomBySlug, sameOriginOrAbsent, assertTasteOriginAllowed,
+  roomReferralLink,
 } = RS;
 const CREATOR_PAGE = await import(pathToFileURL(join(API, "_creator-page.js")).href);
 const { publicCreatorPageRoomBySlug } = CREATOR_PAGE;
@@ -404,6 +405,9 @@ async function assertForgeryRefused(doorName, opName, mintValid) {
   const citeErr = await threw(() => roomCitations(db, { session: expired }, { loadAgent, now: NOW, env: ENV }));
   okClass("a-forged-session", "room.js", "citations: a stale session is refused (WS-R38 finding 1 — this door checked NEITHER freshness nor follower existence before this workstream)", citeErr?.code === "room_session_expired");
 
+  const referralErr = await threw(() => roomReferralLink(db, { session: expired }, { loadAgent, now: NOW, env: ENV }));
+  okClass("a-forged-session", "room.js", "referral_link: a stale session is refused (WS-R86, migration 123 — the same selfScope resolver citations uses)", referralErr?.code === "room_session_expired");
+
   const threadState = freshDoorsState();
   const threadDb = doorsDb(threadState);
   const threadJoined = await joinRoom(threadDb, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
@@ -526,6 +530,8 @@ function withSecondRoom(state) {
   okClass("b-cross-room", "room.js", "export: cross-room session refused room_unavailable", exportErr?.code === "room_unavailable");
   const citeErr = await threw(() => roomCitations(db, { session: crossToken }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
   okClass("b-cross-room", "room.js", "citations: cross-room session refused room_unavailable", citeErr?.code === "room_unavailable");
+  const referralErr = await threw(() => roomReferralLink(db, { session: crossToken }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
+  okClass("b-cross-room", "room.js", "referral_link: cross-room session refused room_unavailable (WS-R86, migration 123)", referralErr?.code === "room_unavailable");
 
   const hoState = withSecondRoom(freshDoorsState());
   hoState.rooms[0].handoff_enabled = true;
@@ -2185,7 +2191,7 @@ const OP_COVERAGE = {
   "room.js": {
     open: { excluded: "no session and no bearer — the bearer it optionally reads is looked up only for the caller's OWN account continuity, never another follower's; no cross-identity input for classes b/c/e" },
     taste: { excluded: "no session and no bearer at all (WS-R53) — a stateless guest-lane turn keyed only by (slug, IP) through api/_rate-limit.js's own room_taste scope; no cross-identity input for classes b/c/e, and evals/room-taste/run.mjs and evals/room-leak/run.mjs's own layer 7 attack the boundary this op actually has (creator-material only, no follower row reachable)" },
-    join: { excluded: "no session (none exists yet — join MINTS one) and no cross-person id in the body; the follower row created is always the bearer's own (evals/room/run.mjs's own join suite covers the happy path)" },
+    join: { excluded: "no session (none exists yet — join MINTS one) and no cross-person id in the body; the follower row created is always the bearer's own (evals/room/run.mjs's own join suite covers the happy path). WS-R86 (migration 123): the body also carries `ref`, an opaque referral hash, never a cross-identity id — it cannot name or reach another follower's row, only credit an arbitrary hash the caller typed, which the self-referral WHERE and the xmax new-row gate already bound (evals/room-referrals/run.mjs's own suite)" },
     say: { classes: ["a", "b"] },
     speak: { classes: ["a", "b"] },
     history: { classes: ["a", "b"] },
@@ -2203,6 +2209,10 @@ const OP_COVERAGE = {
     settings: { classes: ["a", "b"] },
     settings_reviewed: { classes: ["a", "b"] },
     citations: { classes: ["a", "b"] },
+    // WS-R86 (migration 123). No body-supplied person/follower id at all —
+    // `roomReferralLink` (`api/_room-surface.js`) reads only the session,
+    // `citations`'/`flags`' own shape one op up.
+    referral_link: { classes: ["a", "b"] },
     // WS-R67 (migration 116). No body-supplied person/follower id on any of
     // the three — `flag`/`unflag` take a reply hash, `flags` takes only the
     // session, `selfScope`'s own gate (§9b).

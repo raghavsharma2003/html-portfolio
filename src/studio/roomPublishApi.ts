@@ -70,6 +70,10 @@ export interface RoomStats {
   followers_total: number;
   followers_active_24h: number;
   messages_this_month: number;
+  // WS-R86 (migration 123). `api/_funnel.js`'s own `friendsBroughtThisWeek`
+  // shape, typed here unchanged - n>=5 floored, `OpsShareArrivals`'s own
+  // shape (opsApi.ts) one surface over.
+  friends_brought_this_week: { n: number | null; below_floor: boolean; note: string };
 }
 
 // WS-R85 (migration 122). `api/_share-kit.js`'s own `buildShareKit` shape,

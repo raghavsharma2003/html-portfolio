@@ -30,7 +30,7 @@ import { sweepSchedules } from "./_sweep-schedule.js";
 // `opsFunnel` is its own aggregate-only function in `api/_funnel.js` (that
 // file's own header names the rule this file already keeps), imported here
 // rather than re-derived so the board's one call stays the board's one call.
-import { opsFunnel, creatorInviteArrivalsThisWeek, shareArrivalsThisWeek, tasteTurnsThisWeek, posterArrivalsThisWeek, shareKitArrivalsThisWeek } from "./_funnel.js";
+import { opsFunnel, creatorInviteArrivalsThisWeek, shareArrivalsThisWeek, tasteTurnsThisWeek, posterArrivalsThisWeek, shareKitArrivalsThisWeek, friendArrivalsThisWeek } from "./_funnel.js";
 // WS-R75 (migration 119). `dormancyThisWeek` reads `vy_sweep_run`'s own
 // `counts` history (the SAME "renewals" sweep row `sweepsOverview` above
 // already reads for staleness), never `vy_room_follower` directly - it is
@@ -608,6 +608,12 @@ export async function opsOverview(db, now = Date.now(), deps = {}) {
     // arrivals this week came in through `?via=poster`, n>=5 floored the
     // same way `share_arrivals_this_week` already is.
     poster_arrivals_this_week: await posterArrivalsThisWeek(db, now, deps),
+    // WS-R86 (migration 123). Growth from a follower's own "Bring a
+    // friend" link: how many arrivals this week came in through
+    // `?via=friend`, n>=5 floored the same way every other arrival line on
+    // this board already is - `posterArrivalsThisWeek`'s own shape, one
+    // `via` value over.
+    friend_arrivals_this_week: await friendArrivalsThisWeek(db, now, deps),
     // WS-R75 (migration 119). Notices sent and followers forgotten this
     // week, both n>=5 floored - `share_arrivals_this_week`'s own shape,
     // restated for a count that COULD identify a person in a small bucket

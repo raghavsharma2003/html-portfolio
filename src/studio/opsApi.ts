@@ -176,6 +176,15 @@ export interface OpsDigest {
   sent_at: string | null;
 }
 
+// WS-R86 (migration 123). `api/_funnel.js`'s own `friendArrivalsThisWeek`
+// shape, typed here unchanged - `OpsPosterArrivals`'s own shape, one `via`
+// value over.
+export interface OpsFriendArrivals {
+  n: number | null;
+  below_floor: boolean;
+  note: string;
+}
+
 export interface OpsOverview {
   generated_at: string;
   rooms: OpsRoom[];
@@ -198,6 +207,8 @@ export interface OpsOverview {
   digest: OpsDigest;
   // WS-R85 (migration 122).
   share_kit_arrivals_this_week: OpsShareKitArrivals;
+  // WS-R86 (migration 123).
+  friend_arrivals_this_week: OpsFriendArrivals;
 }
 
 // WS-R85 (migration 122). `api/_funnel.js`'s own `shareKitArrivalsThisWeek`

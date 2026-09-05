@@ -217,16 +217,32 @@ export function followerLaneTableNames() {
   return new Set(PERSON_TABLES.map((t) => t.table));
 }
 
-/** The four deliberate gaps on the OWNER side — never a follower-lane
+/** The deliberate gaps on the OWNER side — never a follower-lane
  *  question, named here once so the completeness comparison in
  *  evals/creator-export/run.mjs can state its own exclusions rather than
  *  re-deriving them, and so a future table added to erasure with none of
- *  these four names fails the comparison instead of silently joining an
- *  ad hoc exception list. */
+ *  these names fails the comparison instead of silently joining an ad hoc
+ *  exception list.
+ *
+ *  `vy_room_referral` (WS-R86, migration 123) is named here even though
+ *  `ownerLaneSubset()`'s own two-part test (an owning column, or a listed
+ *  aggregate exception) already excludes it without this entry — a
+ *  sibling room-aggregate table used the SAME correct-by-omission shape
+ *  before this workstream (its own AGG_EXCEPTIONS comment, two screens
+ *  over in the eval, names the reasoning; its own identifier is
+ *  deliberately not spelled out again here, `context/rejected.md`'s own
+ *  entry on why a comment naming a boundary table by name can trip an
+ *  unrelated repo-wide static scanner). This entry exists for the reader,
+ *  not the check: a room-aggregate table with no owning column and no
+ *  person column at all is not owner-identifiable data in the first
+ *  place, so it is documented as a deliberate gap rather than left to be
+ *  rediscovered by someone wondering why a real table `_replica-full-
+ *  erasure.js` reaches never shows up in a creator's own export. */
 export const OWNER_LANE_DELIBERATE_GAPS = Object.freeze([
   "vy_payment_event",
   "vy_replica_erasure_job",
   "vy_replica_erasure_attempt",
+  "vy_room_referral",
   "vy_replica_deletion_receipt",
 ]);
 

@@ -80,6 +80,7 @@ import {
   tasteInRoom,
   unflagReply,
   viaFromLocation,
+  refFromLocation,
   type RoomCitations,
   type RoomFlagReason,
   type RoomFollower,
@@ -143,6 +144,9 @@ interface Props {
   fixtureAccountOpen?: boolean;
   fixtureSettings?: RoomSettings;
   fixturePayment?: RoomPaymentStatus;
+  /** WS-R86 (migration 123). `AccountPage.tsx`'s own `fixtureReferralUrl`
+   *  seam, threaded through here exactly as `fixtureSettings` already is. */
+  fixtureReferralUrl?: string;
   /** WS-R43. The Room's own layout battery: three screens no fixture reached
    *  before ("Hindi glyphs unverified" since WS-R24 — no session had ever
    *  rendered the cap-reached card, the forget receipt, or either dialog in a
@@ -190,6 +194,7 @@ export default function RoomApp({
   fixtureAccountOpen,
   fixtureSettings,
   fixturePayment,
+  fixtureReferralUrl,
   fixtureCapped,
   fixtureCapOffer,
   fixturePhase,
@@ -1559,6 +1564,7 @@ export default function RoomApp({
           }}
           fixtureSettings={fixtureSettings}
           fixturePayment={fixturePayment}
+          fixtureReferralUrl={fixtureReferralUrl}
         />
       )}
     </main>
@@ -1990,7 +1996,14 @@ function JoinSheet({
       // rendered in - passed through rather than re-picked, so the follower
       // row's initial locale can never disagree with the card the follower
       // actually read before agreeing to anything.
-      const joined = await joinRoom(room.room.slug, auth.accessToken, { age18, remember }, room.locale);
+      //
+      // WS-R86: `refFromLocation()` read here, on THIS join call only - the
+      // one moment a follower row is genuinely new, `joinRoom`'s (roomApi.ts)
+      // own header on why a repeat join elsewhere in this file never passes
+      // one.
+      const joined = await joinRoom(
+        room.room.slug, auth.accessToken, { age18, remember }, room.locale, refFromLocation(),
+      );
       onJoined(joined);
     } catch {
       setError(copy.errors.generic);

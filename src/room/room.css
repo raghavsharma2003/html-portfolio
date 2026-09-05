@@ -567,6 +567,17 @@
     color: var(--ink-soft);
   }
 
+  /* WS-R86 (migration 123). The "Bring a friend" link's own long, spaceless
+   * URL string - `.room-fine`'s own `max-width: var(--measure)` bounds the
+   * BOX, but a browser can only wrap at a space it finds, and a URL has
+   * none, so the box alone was not enough (caught by the layout gate: a
+   * 156px sideways scroll on a 390px phone). `.room-bubble`'s own
+   * `overflow-wrap: anywhere` restated for a URL instead of a follower's
+   * own message. */
+  .room-referral-url {
+    overflow-wrap: anywhere;
+  }
+
   .room-keeps {
     max-width: var(--measure);
     margin: 0 0 var(--space-item);

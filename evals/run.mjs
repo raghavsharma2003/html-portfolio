@@ -2262,6 +2262,22 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "share-kit": "share-kit/run.mjs",
+  // WS-R86 (migration 123). Follower referrals: "Bring a friend" mints a
+  // hash-bearing link (`referralHashFor`, `api/_room-surface.js`); the join
+  // op credits the referrer exactly once, on the joiner's genuinely FIRST
+  // join (the xmax-based new-row detection), never a repeat toggle; a
+  // self-referral (the joiner's own recomputed hash equals the `ref` they
+  // carried) is refused structurally in the WRITE's own WHERE clause, not
+  // a JS `if`. Drives the REAL `roomReferralLink`/`joinRoom`/`roomExport`
+  // (api/_room-surface.js), `friendsBroughtThisWeek`/`friendArrivalsThisWeek`
+  // (api/_funnel.js) over a fake db. THREE NEGATIVE CONTROLS: (a) a joiner
+  // presenting their own hash as `ref` writes zero referral rows; (b) a
+  // repeat join (the memory toggle) with the SAME `ref` still present in
+  // the caller mints no second row; (c) a malformed `ref` (wrong length,
+  // uppercase, SQL-shaped) never reaches the insert at all.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-referrals": "room-referrals/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

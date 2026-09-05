@@ -22,6 +22,7 @@
 //   POST /api/room {op:"settings", session}          -> the follower's own page (WS-R39)
 //   POST /api/room {op:"settings_reviewed", session} -> "I looked at this page"
 //   POST /api/room {op:"citations", session}
+//   POST /api/room {op:"referral_link", session} -> "Bring a friend" link (WS-R86)
 //   POST /api/room {op:"flag",   session, reply_sha256, reason} -> "Flag this" (WS-R67)
 //   POST /api/room {op:"unflag", session, reply_sha256}         -> withdraw one
 //   POST /api/room {op:"flags",  session}                       -> the follower's own list
@@ -115,6 +116,7 @@ import {
   bodyTooLarge,
   ROOM_TRANSCRIPT_BODY_CAP_BYTES,
   assertTasteOriginAllowed,
+  roomReferralLink,
 } from "./_room-surface.js";
 import { PulseError, setOptIn, revoke as revokePulseOptIn } from "./_pulse.js";
 import { setSubscription, removeSubscription, subscriptionStatus } from "./_room-push.js";
@@ -264,6 +266,12 @@ async function handler(req, res) {
         // WS-R24: the exact locale the client's `open` call was just told to
         // render the join screen in, passed back rather than re-derived.
         locale: body.locale,
+        // WS-R86 (migration 123): the `?ref=` hash a referral link carried,
+        // read raw off the URL. `joinRoom` validates the shape and gates
+        // the write to a genuinely NEW follower row (never a repeat call),
+        // so a garbage or replayed value here is simply never written -
+        // no cross-identity input, `join`'s own OP_COVERAGE reasoning.
+        ref: body.ref,
       });
       // COUNTS AND DECISIONS, never conversation text - `_obs.js`'s law. The
       // memory answer is a decision and is logged as one; whose it is, is not.
@@ -494,6 +502,20 @@ async function handler(req, res) {
 
     if (op === "citations") {
       return res.status(200).json(await roomCitations(q, { session: body.session }));
+    }
+
+    if (op === "referral_link") {
+      // WS-R86 (migration 123). "Bring a friend" - the burst limit above
+      // real behaviour (a follower's own daily allowance of link mints,
+      // `flag`'s own shape above), keyed on the follower's own person id
+      // off the already-HMAC-verified session so a garbage or stolen
+      // session is refused by `room_session_invalid` before this counter
+      // is ever touched.
+      const referralPayload = readRoomSession(body.session);
+      if (await refused(res, "room_referral_follower", referralPayload.p)) return;
+      const link = await roomReferralLink(q, { session: body.session });
+      obsBestEffort("room.referral_link", {});
+      return res.status(200).json(link);
     }
 
     if (op === "stats") {

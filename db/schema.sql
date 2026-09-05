@@ -4376,6 +4376,27 @@ alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
 alter table vy_room_arrival add constraint vy_room_arrival_via_check
   check (via in ('share', 'direct', 'embed', 'search', 'install', 'poster', 'whatsapp', 'instagram', 'youtube', 'telegram'));
 
+-- Migration 123 (its CHECK reconciled at the merge to the union of 122's channels and 123's friend) - follower referrals (WS-R86). See
+-- db/migrations/123_room_referral.sql for the full argument: a room-
+-- aggregate table with no person column at all, `referrer_hash` a salted
+-- sha256 (RATE_SALT's own shape, undated -- a referral link must keep
+-- comparing equal to itself for as long as it is shared) of the referring
+-- follower's own person id and the Room, plus `vy_room_arrival.via`
+-- widened to admit 'friend' alongside the six values migration 121 named.
+create table if not exists vy_room_referral (
+  referral_id   uuid primary key,
+  room_id       uuid not null references vy_room(room_id) on delete cascade,
+  referrer_hash text not null check (referrer_hash ~ '^[0-9a-f]{64}$'),
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists vy_room_referral_room_created_ix
+  on vy_room_referral (room_id, created_at);
+
+alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
+alter table vy_room_arrival add constraint vy_room_arrival_via_check
+  check (via in ('share', 'direct', 'embed', 'search', 'install', 'poster', 'whatsapp', 'instagram', 'youtube', 'telegram', 'friend'));
+
 -- Migration 125 - the operator's morning digest (WS-R88). See
 -- db/migrations/125_operator_digest.sql for the full argument: one row per
 -- DAY (never per subscription), content-free by schema, no person column at

@@ -31,6 +31,7 @@ import {
   whatsappOptIn,
   whatsappStop,
   roomSettings as fetchRoomSettings,
+  roomReferralLink,
   type RoomFlag,
   type RoomForgetReceipt,
   type RoomSettings,
@@ -93,6 +94,15 @@ interface Props {
    *  precedent one component over. */
   fixtureSettings?: RoomSettings;
   fixturePayment?: RoomPaymentStatus;
+  /** WS-R86 (migration 123). The layout gate's own seam, one control over -
+   *  no network reaches `roomReferralLink` from the fixture, so this
+   *  supplies the "Bring a friend" card's own state directly, the same
+   *  way `fixtureSettings` already does for the rest of this page. Without
+   *  it the card would never render under the layout gate at all, which
+   *  is exactly the trap `context/rejected.md`'s own published-Share-tab
+   *  entry names: an unrendered screen state hides its real strings from
+   *  the glyph pass. */
+  fixtureReferralUrl?: string;
 }
 
 export default function AccountPage({
@@ -114,6 +124,7 @@ export default function AccountPage({
   onForgotten,
   fixtureSettings,
   fixturePayment,
+  fixtureReferralUrl,
 }: Props) {
   const [settings, setSettings] = useState<RoomSettings | null>(fixtureSettings ?? null);
   const [payment, setPayment] = useState<RoomPaymentStatus | null>(fixturePayment ?? null);
@@ -133,6 +144,13 @@ export default function AccountPage({
   // copy of it.
   const [flags, setFlags] = useState<RoomFlag[]>([]);
   const [withdrawingHash, setWithdrawingHash] = useState<string | null>(null);
+  // WS-R86 (migration 123). "Bring a friend" - the server mints the hash,
+  // this page only ever displays the RELATIVE path it returns, prefixed
+  // with the browser's own origin (`RoomApp.tsx`'s own `shareUrl`
+  // precedent one field over, `roomReferralLink`'s own header on why the
+  // server never composes an absolute URL itself).
+  const [referralUrl, setReferralUrl] = useState<string | null>(fixtureReferralUrl ?? null);
+  const [referralCopied, setReferralCopied] = useState(false);
 
   // WS-R63: scroll into view, focus in, Escape closes, focus returns to the
   // opener on close - `useDialogInView`'s own header.
@@ -178,6 +196,30 @@ export default function AccountPage({
       .catch(() => {});
     return () => { live = false; };
   }, [session, fixtureSettings]);
+
+  // WS-R86. Never on a fixture, the flags effect's own rule restated - a
+  // failed mint simply leaves the card absent (`referralUrl` stays null),
+  // never a page-wide error for a growth feature.
+  useEffect(() => {
+    if (fixtureSettings) return;
+    let live = true;
+    roomReferralLink(session)
+      .then((r) => { if (live) setReferralUrl(r.url); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [session, fixtureSettings]);
+
+  const copyReferralLink = useCallback(async () => {
+    if (!referralUrl) return;
+    try {
+      await navigator.clipboard?.writeText(`${window.location.origin}${referralUrl}`);
+      setReferralCopied(true);
+      setTimeout(() => setReferralCopied(false), 2000);
+    } catch {
+      // Honest silence, `switchLocale`'s own posture: nothing to undo, the
+      // next tap tries again.
+    }
+  }, [referralUrl]);
 
   const withdrawFlag = useCallback(async (replySha256: string) => {
     setWithdrawingHash(replySha256);
@@ -365,6 +407,29 @@ export default function AccountPage({
             document `lang`. */}
         <LocalizedDisclosure text={settings?.disclosure || ""} />
       </div>
+
+      {/* WS-R86 (migration 123). "Bring a friend" - under the disclosure,
+          this workstream's own law 3. Absent (never shown-and-disabled)
+          until the server has actually minted a link, honest empty state,
+          `pushKey`'s own "renders nothing when unset" posture one control
+          up. */}
+      {referralUrl && (
+        <>
+          <h3 className="room-checkins-subhead">{copy.referral.title}</h3>
+          <p className="room-fine">{copy.referral.note}</p>
+          <div className="room-actions">
+            <p className="room-fine room-referral-url">{`${window.location.origin}${referralUrl}`}</p>
+            <button
+              type="button"
+              className="room-btn"
+              onPointerDown={() => void copyReferralLink()}
+              onKeyDown={activateOnKey(() => void copyReferralLink())}
+            >
+              {referralCopied ? copy.referral.copied : copy.referral.copy}
+            </button>
+          </div>
+        </>
+      )}
 
       <h3 className="room-checkins-subhead">{copy.account.memoryTitle}</h3>
       <p className="room-fine">{remembers ? copy.account.memoryOn : copy.account.memoryOff}</p>

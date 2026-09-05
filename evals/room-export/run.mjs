@@ -231,6 +231,13 @@ async function runRealWorld() {
   const dump = await roomExport(db, { session: joined.session }, FULL_DEPS);
   ok("roomExport's vy_room_follower row carries dormancy_notice_at when set - no code change needed, the generic select * already carries it",
     Array.isArray(dump.tables.vy_room_follower) && dump.tables.vy_room_follower[0]?.dormancy_notice_at === "2026-09-01T00:00:00.000Z");
+  // WS-R86 (migration 123). This world's follower never referred anyone -
+  // the honest empty state, `evals/room-referrals/run.mjs`'s own §7 proves
+  // the populated case (a real referrer's own export carries `{count: n}`);
+  // this suite's own job is completeness (every table `roomExport` reaches
+  // is named), which `roomExportManifest()` below already asserts by name.
+  ok("roomExport carries no vy_room_referral key for a follower who never referred anyone (honest empty state, never a fake {count: 0})",
+    !("vy_room_referral" in dump.tables));
   const EXPECT_IN_EXPORT = [
     "vy_room_thread", "vy_room_follower", "vy_room_checkin", "vy_room_subscription",
     "vy_room_pulse_optin", "vy_room_follower_channel", "vy_room_push_subscription",
