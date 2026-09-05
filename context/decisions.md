@@ -20268,3 +20268,66 @@ edit ever makes `KIND_TO_STATE["subscription.paused"]` or `["subscription.
 halted"]` map to something OTHER than `'paused'`, at which point this
 redundancy claim (and the eval comment describing it) should be re-checked
 against the new mapping.
+
+## `ws-r128-eval-registry-runs-across-a-worker-pool` (2026-09-05, WS-R128)
+
+**Decision.** `evals/run.mjs`'s default mode is now a worker pool (size
+`os.availableParallelism() - 1`, floored at 2, overridable by the
+developer-only `EVALS_WORKERS` env var) instead of one suite after
+another. `--serial` restores the exact old loop and is kept permanently as
+the negative control's baseline, not removed once the pool shipped.
+
+**Rationale.** Measured (`measurements.md#ws-r128-eval-registry-wall-clock-and-parity-2026-09-05`):
+the apples-to-apples pair available this session (both under similar heavy
+sibling contention) ran the pool in roughly half the `--serial` wall clock
+(414s vs 808s), and parity between the two — suite name set, exit code,
+every suite's own final count line, and total real assertion-line count
+(10,351 on both sides, exactly) — held. `CLAUDE.md`'s standing law is that
+speed and quality are never traded against each other; this buys wall
+clock with a mechanically verified zero change to what is proven, which is
+the only trade this repo's own law permits.
+
+**Reversal condition.** If a future suite is added that has the THIRD kind
+of hidden shared state `evals/runner-lib.mjs`'s own header warns about (not
+a fixed port, not a shared file — something neither this workstream's
+audit nor `runner-lib.mjs`'s own comment anticipated) and cannot be fixed
+at the suite level cheaply, that is a reason to serialize THAT suite (add
+it to `PRE_POOL_SUITES` or `PORT_LANE_SUITES`, or give it its own lane),
+never a reason to revert the pool itself — see law 4 in this workstream's
+brief, restated in `runner-lib.mjs`'s own header. If a future CI runner has
+fewer than 2 effective cores, `pickWorkerCount`'s floor of 2 would
+oversubscribe it; that would be grounds to make the floor conditional on
+`os.cpus().length`, not to drop the pool.
+
+## `ws-r128-shared-file-writers-run-before-the-pool-not-in-a-lane` (2026-09-05, WS-R128)
+
+**Decision.** `PRE_POOL_SUITES` (`rehearsal-follower`, `rehearsal-creator`
+— both run `npx vite build` into the repo's one `dist/`) run serially,
+fully, to completion, BEFORE the pool or the port lane starts at all — not
+merely in their own lane running concurrently alongside the pool, which is
+the treatment `PORT_LANE_SUITES` gets.
+
+**Rationale.** `evals/room-push/run.mjs` reads `dist/room-sw.js` and
+`dist/room.html` — the exact files `rehearsal/harness.mjs`'s `npx vite
+build` produces — and room-push does not build its own copy (it skips its
+own §8 by name if they are absent, per its own printed line). Two
+suites racing to WRITE `dist/` at once is one hazard (an interrupted
+`vite build` reading its own half-written output); a suite READING
+`dist/` while another suite is mid-write is a second, quieter one — a
+torn `room.html` that room-push's own Playwright page load could parse as
+valid HTML missing half its content, passing or failing for a reason that
+has nothing to do with the property room-push exists to check. Running the
+writers to completion before the port lane (which is where room-push
+lives) removes both hazards by construction rather than by hoping the
+timing works out, which is what "in a lane alongside the pool" would have
+left to chance.
+
+**Reversal condition.** If `room-push`'s own §8 is rewritten to build a
+private `dist/`-equivalent under its own `mkdtempSync` directory (the
+pattern nearly every other suite in this registry already uses, per
+`runner-lib.mjs`'s own header), it stops depending on the shared writers
+entirely and could join the pool outright. If a THIRD suite is added that
+also runs `npx vite build`, it joins `PRE_POOL_SUITES`, never the port
+lane — the property this decision protects is "no suite reads `dist/`
+while another suite writes it," and the pre-pool barrier is what makes
+that true regardless of how many writers or readers exist.

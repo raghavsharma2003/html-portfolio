@@ -13829,3 +13829,97 @@ this tree - only that its residual finding shrank under the same
 contention conditions the other three gates already showed produce and
 then clear spurious failures. The main loop should re-run `node
 scripts/check-layout.mjs` standalone once a port is free before merge.
+
+## `ws-r128-eval-registry-wall-clock-and-parity-2026-09-05` (WS-R128)
+
+**Method.** `evals/run.mjs` (213 suites at the time of measurement) timed
+end to end with `date +%s` around the whole process, both before this
+workstream's change (the untouched loop, `execSync` one suite at a time)
+and after (`--serial`, the byte-identical old loop kept as the negative
+control's baseline, versus the new default: a worker pool sized by
+`pickWorkerCount()` — 3 on this 4-core machine — plus a serial pre-pool
+phase for the two `dist/`-writing suites and a serial port lane for the
+three fixed-port suites; see `evals/runner-lib.mjs`'s own header for the
+full design and `decisions.md#ws-r128-eval-registry-runs-across-a-worker-pool`
+for the decision). Machine load read from `/proc/loadavg`'s first field.
+
+**The idle-machine attempt, honestly.** The brief's own law-3 asks for
+three serial and three parallel runs "on an idle machine (load under 2 by
+until-loop)." A load-under-2 window existed at the START of this session
+(load 0.29-2.04) and the three UNTOUCHED-tree serial runs below were taken
+in it. Machine load then rose and stayed at 9-27 for the rest of the
+session — confirmed by `ps aux` to be nine sibling `ws-rNNN` worktrees
+each running their own `verify-release.mjs`/`evals/run.mjs` concurrently
+on this same four-core box, exactly `ws-common.md`'s own "nine sibling
+agents share this machine" line, not an artifact of this workstream's own
+code. A dedicated until-loop tried again for 360s (24 checks, 15s apart)
+immediately before the parallel measurements below and **never got below
+9.08** — reported here rather than silently measuring under load and
+calling it idle. Per this workstream's own brief ("the parity assertion...
+matters more than the wall clock"), the runs proceeded anyway.
+
+**Three serial runs, UNTOUCHED tree, load 0.29-2.04 (genuinely idle):**
+
+| run | wall clock | exit | note |
+|---|---|---|---|
+| 1 | 234s | 1 | `rehearsal-creator` failed (Chromium `page.waitForFunction` 20000ms timeout in `walkLocale`) |
+| 2 | 278s | 1 | same failure, same location |
+| 3 | 256s | 0 | all 225 suites passed (this tree predates `registry-runner`) |
+
+Average 256s, consistent with `CLAUDE.md`'s own "230 to 240 seconds" figure
+for a less-contended run. The `rehearsal-creator` flake in runs 1-2 is
+logged separately (`rejected.md#ws-r128-rehearsal-creator-chromium-timeout-flakes-under-load-in-both-modes`)
+since it reproduces on the untouched tree and is not this workstream's
+defect.
+
+**Two parallel runs (default, `EVALS_WORKERS=3` on run 1 / unset default 3
+on run 2) and one `--serial` run, all on the PATCHED tree (226 suites,
+`registry-runner` included), under the heavy, un-idle load described
+above:**
+
+| mode | wall clock | exit | load at start | load at end | note |
+|---|---|---|---|---|---|
+| parallel (smoke) | 304s | 1 | ~5.5 (rising) | ~10 | `rehearsal-creator` failed, same Chromium timeout as above |
+| parallel | 414s | 0 | 10.86 | 18.13 | all 226 suites passed |
+| `--serial` | 808s | 0 | 17.16 | 26.23 | all 226 suites passed |
+
+The `--serial`/parallel pair (414s vs 808s) ran under similar (if not
+identical — `--serial` faced somewhat higher load) contention and is the
+closest apples-to-apples reading available this session: **parallel
+finished in roughly half the wall clock of serial even with the machine
+oversubscribed by a factor of six**, because the pool's own suites are not
+what is competing for the missing cores — the sibling agents are, in
+either mode, and only the parallel mode gets any benefit from whatever
+slack exists between their peaks. No idle-versus-idle comparison was
+possible this session; a future one with a genuinely quiet machine should
+repeat law 3's 3x3 protocol and record it here as a `supersedes` edge.
+
+**Parity, checked exactly rather than by eye, between the `--serial` run
+and the passing parallel run (both on the patched, 226-suite tree):**
+
+- Suite name sets: `diff` of every top-level `── name ──` header — **identical, 226/226**.
+- Both exit 0; neither produced a `failed suites:` line.
+- Every suite's own final numeric summary line (`ALL N PASS`, `N passed,
+  N failed`, etc — 43 suites print one of these shapes) — **identical
+  text on both sides, in the same order, for 42 of 43**; the one
+  difference was a suite's own embedded WALL-CLOCK milliseconds figure
+  inside its summary sentence (`rehearsal-follower`: "wall clock 33035ms"
+  serial vs "27662ms" parallel), not a check count.
+- Total `ok`-shaped assertion lines across the whole transcript: 10,564 in
+  the parallel log versus 10,351 in the `--serial` log — a difference of
+  exactly 213, which is exactly the suite count, and grep against the
+  parallel-only progress-ticker format (`  ok    <name> (<ms>ms)`, printed
+  once per suite by this workstream's own new completion callback, never
+  by a suite itself) accounts for all 213: **10,351 real assertion lines
+  on both sides, byte for byte**.
+- Zero lines matching `FAIL`/`not ok` in either transcript outside
+  deliberate `NEGATIVE CONTROL`/`FAIL CLOSED` assertion text.
+
+This is the parity result the brief asks for: same suites, same pass/fail,
+same assertion count, on the one apples-to-apples pair this session's
+machine allowed.
+
+**registry-runner's own self-test** (two fake suites, not the real
+registry — see its own header for why): 14/14 checks pass, run both
+directly and through `evals/run.mjs registry-runner`, ~1s, deterministic,
+$0.

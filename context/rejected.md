@@ -14201,3 +14201,42 @@ not a decision to revisit. Any future session citing `razorpay.com/docs/`
 for an India-specific payment method (UPI, Emandate, RuPay) should set this
 cookie FIRST rather than trusting a 200 (or accepting a 404) from the
 un-cookied request.
+
+## `ws-r128-rehearsal-creator-chromium-timeout-flakes-under-load-in-both-modes` (2026-09-05, WS-R128)
+
+**Tried.** Investigated whether `rehearsal-creator`'s intermittent failure
+(`page.waitForFunction: Timeout 20000ms exceeded` at `evals/rehearsal/
+creator.mjs:484`, inside `walkLocale`) was something this workstream's
+parallel pool introduced — it is the ONE suite that failed in three of
+this session's five full-registry runs, and it is also one of this
+workstream's own `PRE_POOL_SUITES`, so a new defect in its scheduling
+would have been this workstream's to fix.
+
+**What was found instead.** The SAME failure, at the SAME line, with the
+SAME 20000ms Chromium timeout, reproduced on the completely UNTOUCHED tree
+(before any of this workstream's edits, in the ORIGINAL one-suite-at-a-time
+loop) in 2 of 3 runs taken while the machine's load average was genuinely
+low (0.29-2.04) — nothing else was competing for the CPU, and Chromium
+still timed out waiting for a client-side render to settle. The third
+untouched-tree run, taken minutes later at the same low load, passed
+cleanly. This is not a contention artifact and not a scheduling artifact:
+it is a pre-existing flake in `rehearsal-creator`'s own Playwright wait
+(a 20s ceiling for something Chromium sometimes does not finish inside),
+present before this workstream's own code existed and reproduced
+identically whether that suite runs alone, first, or inside the parallel
+pool's pre-pool serial phase.
+
+**What was not done.** Raising `walkLocale`'s own timeout, or otherwise
+touching `evals/rehearsal/creator.mjs`, is out of this workstream's scope
+(that file belongs to WS-R119/WS-R95, not this one) and the fix belongs
+with whoever owns that suite's own render-wait budget, with its own
+measurement of how much headroom a slower or more contended CI runner
+actually needs — a number this session's data does not establish (three
+untouched-tree samples at low load is not enough to say whether 20s is
+usually enough or usually too tight).
+
+**The rule.** A suite that fails identically before your change exists is
+evidence your change did not cause it, not evidence you may ignore it
+silently — it is logged here, by name, with its reproduction conditions,
+so the next agent who sees `rehearsal-creator` fail does not re-spend a
+session re-deriving that this is pre-existing.

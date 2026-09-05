@@ -10456,6 +10456,30 @@
       "kind": "measurement",
       "title": "Two full verify-release.mjs runs on the patched tree under 18-24+ concurrent sibling processes: run 1 17/21 (4 failures, all independently re-run standalone and confirmed passing - performance budgets, rehearsal-creator, accessibility - except layout readability which shrank 9 to 2 findings across retries but was not fully reconfirmed clean); run 2 19/21, both failures pure EADDRINUSE port collisions (layout readability, performance budgets), eval suite and accessibility clean in the real full run.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r128-eval-registry-runs-across-a-worker-pool",
+      "kind": "decision",
+      "title": "evals/run.mjs defaults to a worker pool (os.availableParallelism()-1, floor 2, EVALS_WORKERS override) instead of one suite at a time; --serial keeps the old loop byte for byte as the permanent negative-control baseline.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r128-shared-file-writers-run-before-the-pool-not-in-a-lane",
+      "kind": "decision",
+      "title": "rehearsal-follower/rehearsal-creator (the two suites that run npx vite build into dist/) run serially to full completion before the pool or the port lane starts at all, so room-push's own dist/ read in the port lane never races a writer.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r128-eval-registry-wall-clock-and-parity-2026-09-05",
+      "kind": "measurement",
+      "title": "Idle-machine (load 0.29-2.04) serial baseline averaged 256s over 3 runs; the machine never got quiet again despite a 360s until-loop (nine sibling agents actively running their own gates, confirmed via ps aux). The one apples-to-apples pair under similar heavy load: parallel 414s vs --serial 808s, with exact parity (226/226 suite names, identical exit codes, identical per-suite summary lines except one suite's own embedded timing figure, 10,351 real assertion lines byte-for-byte on both sides once the parallel mode's own 213 progress-ticker lines are excluded).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r128-rehearsal-creator-chromium-timeout-flakes-under-load-in-both-modes",
+      "kind": "rejection",
+      "title": "rehearsal-creator's page.waitForFunction 20000ms Chromium timeout (walkLocale) reproduced on the completely untouched tree at genuinely low load (2 of 3 runs) before this workstream's code existed, and identically inside the new pool -- a pre-existing suite-level flake, not a scheduling defect this workstream introduced.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20263,6 +20287,21 @@
       "src": "ws-r125-mandate-state-predicate-non-redundant-only-for-pending",
       "rel": "measured_by",
       "dst": "ws-r125-upi-mandate-lifecycle-eval-counts"
+    },
+    {
+      "src": "ws-r128-eval-registry-runs-across-a-worker-pool",
+      "rel": "measured_by",
+      "dst": "ws-r128-eval-registry-wall-clock-and-parity-2026-09-05"
+    },
+    {
+      "src": "ws-r128-shared-file-writers-run-before-the-pool-not-in-a-lane",
+      "rel": "constrains",
+      "dst": "ws-r128-eval-registry-runs-across-a-worker-pool"
+    },
+    {
+      "src": "ws-r128-eval-registry-wall-clock-and-parity-2026-09-05",
+      "rel": "caused_by",
+      "dst": "ws-r128-rehearsal-creator-chromium-timeout-flakes-under-load-in-both-modes"
     }
   ]
 }

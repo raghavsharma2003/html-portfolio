@@ -5,11 +5,21 @@
 // container reap away from gone. An eval that is not in version control
 // protects nothing.
 //
-//   node evals/run.mjs           # all suites
-//   node evals/run.mjs parse     # one suite
+//   node evals/run.mjs           # all suites, across a worker pool (default)
+//   node evals/run.mjs --serial  # all suites, one after another (the old
+//                                # behaviour, byte for byte — the negative
+//                                # control the parallel pool is measured
+//                                # against; see evals/runner-lib.mjs)
+//   node evals/run.mjs parse     # one suite, always run directly
+//
+// WS-R128. `runner-lib.mjs` carries the pool, the port lane and the
+// pre-pool serial writers, and its own header names exactly which suites
+// need which treatment and why. This file stays the registry plus the
+// driver: no suite-classification reasoning belongs here twice.
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { PRE_POOL_SUITES, PORT_LANE_SUITES, pickWorkerCount, runPool, runSuiteFile } from "./runner-lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -2722,16 +2732,109 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "org-weekly-note": "org-weekly-note/run.mjs",
+  // WS-R128. The self-test of THIS file's own concurrency core: two fake
+  // suites (never the real 213) prove registry-order printing survives
+  // out-of-order completion, and exit codes aggregate the same way whether
+  // a suite fails on the first worker to grab it or the last. See
+  // evals/registry-runner/run.mjs's own header for why two fakes rather
+  // than a slice of the real registry — the real registry is exactly what
+  // this suite must stay decoupled from to be trustworthy.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, ~1s.
+  "registry-runner": "registry-runner/run.mjs",
 };
-const pick = process.argv[2];
+
+const argv = process.argv.slice(2);
+const serial = argv.includes("--serial");
+const pick = argv.find((a) => !a.startsWith("--"));
+
+if (pick) {
+  // Single-suite mode: always direct, regardless of --serial. Nothing to
+  // pool when there is exactly one suite.
+  if (!(pick in suites)) {
+    console.error(`no such suite: ${pick}`);
+    process.exit(1);
+  }
+  const r = await runSuiteFile(pick, join(HERE, suites[pick]), { cwd: ROOT });
+  process.stdout.write(r.output);
+  process.exit(r.ok ? 0 : 1);
+}
+
+if (serial) {
+  // The negative control's baseline: the ORIGINAL loop, unchanged, so a
+  // side-by-side run proves the pool changes wall clock and nothing else.
+  let failed = 0;
+  const failedSuites = [];
+  for (const [name, file] of Object.entries(suites)) {
+    console.log(`\n── ${name} ──`);
+    try {
+      execSync(`node ${join(HERE, file)}`, { stdio: "inherit", cwd: ROOT });
+    } catch {
+      failed++;
+      failedSuites.push(name);
+    }
+  }
+  if (failedSuites.length) console.error(`\nfailed suites: ${failedSuites.join(", ")}`);
+  process.exit(failed ? 1 : 0);
+}
+
+// Parallel default. Three groups, in this order:
+//  1. PRE_POOL_SUITES — the dist/ writers — run serially, fully, before
+//     anything else starts (see runner-lib.mjs's header for why this is
+//     stricter than the port lane below rather than merged into it).
+//  2. PORT_LANE_SUITES — the fixed-port suites — run one at a time, but
+//     concurrently WITH the pool, since their ports never collide with a
+//     pool suite (none binds 8940/8941/8945) or with each other.
+//  3. Everything else — the pool, sized by pickWorkerCount().
+const entries = Object.entries(suites).map(([name, file]) => ({ name, file: join(HERE, file) }));
+const preSet = new Set(PRE_POOL_SUITES);
+const portSet = new Set(PORT_LANE_SUITES);
+const preEntries = entries.filter((e) => preSet.has(e.name));
+const portEntries = entries.filter((e) => portSet.has(e.name));
+const poolEntries = entries.filter((e) => !preSet.has(e.name) && !portSet.has(e.name));
+
+// A name in PRE_POOL_SUITES/PORT_LANE_SUITES that no longer matches a real
+// suite key (a typo, or a suite renamed without updating runner-lib.mjs)
+// must fail loudly here rather than silently promote a shared-file writer
+// or a fixed-port suite into the general pool.
+if (preEntries.length !== PRE_POOL_SUITES.length || portEntries.length !== PORT_LANE_SUITES.length) {
+  console.error(
+    `runner-lib.mjs names a suite that is not in the registry: ` +
+      `PRE_POOL_SUITES matched ${preEntries.length}/${PRE_POOL_SUITES.length}, ` +
+      `PORT_LANE_SUITES matched ${portEntries.length}/${PORT_LANE_SUITES.length}`,
+  );
+  process.exit(1);
+}
+
+const resultByName = new Map();
+const onDone = (r) => {
+  resultByName.set(r.name, r);
+  console.log(`  ${r.ok ? "ok  " : "FAIL"}  ${r.name} (${r.ms}ms)`);
+};
+
+console.log(`\n── pre-pool (dist/ writers, serial): ${PRE_POOL_SUITES.join(", ")} ──`);
+await runPool(preEntries, 1, { cwd: ROOT, onDone });
+
+const workers = pickWorkerCount();
+console.log(
+  `\n── pool (${workers} workers) + port lane (serial: ${PORT_LANE_SUITES.join(", ")}), ${poolEntries.length} pooled suites ──`,
+);
+await Promise.all([
+  runPool(poolEntries, workers, { cwd: ROOT, onDone }),
+  runPool(portEntries, 1, { cwd: ROOT, onDone }),
+]);
+
+// Printed whole, in REGISTRY order, once the run is complete — a failure
+// reads the same as it did under the old serial loop, because the text a
+// failing suite produced is printed under its own `── name ──` header
+// exactly as before, just after the fact rather than live.
 let failed = 0;
 const failedSuites = [];
-for (const [name, file] of Object.entries(suites)) {
-  if (pick && pick !== name) continue;
+for (const [name] of Object.entries(suites)) {
+  const r = resultByName.get(name);
   console.log(`\n── ${name} ──`);
-  try {
-    execSync(`node ${join(HERE, file)}`, { stdio: "inherit", cwd: ROOT });
-  } catch {
+  process.stdout.write(r.output);
+  if (!r.ok) {
     failed++;
     failedSuites.push(name);
   }
