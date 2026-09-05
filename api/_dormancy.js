@@ -48,6 +48,7 @@
 // voice-identity.js), restated for this flag.
 import { activeTelegramChannelFor, roomForgetForFollower } from "./_room-surface.js";
 import { activeSubscriptionsFor } from "./_room-push.js";
+import { send as webPushSend, dormancyPushPayload } from "./_push/webpush.js";
 import { sendRoomCheckinMessage } from "./_room-telegram.js";
 
 /** The floor migration 119's own CHECK enforces — mirrored here (never
@@ -176,20 +177,35 @@ export async function dormancySweep(deps, now = Date.now()) {
       // shows; the UPDATE above that produced this row IS the delivery.
       summary.dormancyNoticesSent++;
 
-      // Web push: deliberately NOT attempted. Found while building this
-      // workstream: `public/room-sw.js`'s own push handler drops any
-      // payload whose `t` is not the literal string "checkin"
-      // (`if (data.t !== "checkin") return;`), so `api/_renewals.js`'s own
-      // `t:"renewal"` push (WS-R37) is already silently discarded on
-      // arrival — a real, previously undiscovered gap this workstream did
-      // not introduce and is out of scope to fix. Sending a `t:"dormancy"`
-      // push here would only be a second, equally invisible instance of the
-      // same gap, so this sweep does not attempt it at all rather than
-      // ship a send path nothing on the other end can ever show —
-      // `context/rejected.md#ws-r75-web-push-type-switch-drops-every-non-
-      // checkin-payload`.
+      // Web push: now real (WS-R81). `public/room-sw.js`'s own push handler
+      // used to drop any payload whose `t` was not the literal string
+      // "checkin" — this workstream's own reason this sweep shipped with
+      // NO send path at all (`context/rejected.md#ws-r75-web-push-type-
+      // switch-drops-every-non-checkin-payload`). That worker now
+      // recognises `t: "dormancy"`, so this is the first real send.
+      // Best-effort, `_renewals.js`'s own sweep posture restated: a send
+      // failure here never blocks the notice (the UPDATE above already IS
+      // the delivery of record) and is caught here, never left to bubble
+      // into the outer per-follower try/catch, so a push failure can never
+      // stop the Telegram attempt just below it for the SAME follower.
       const pushSubs = await (deps.activeSubscriptionsFor ?? activeSubscriptionsFor)(db, row.follower_id).catch(() => []);
-      void pushSubs; // read only to keep the seam exercised by the offline eval; never sent to
+      if (pushSubs.length) {
+        const vapidPublic = String(env.ROOM_PUSH_VAPID_PUBLIC || "");
+        const vapidPrivate = String(env.ROOM_PUSH_VAPID_PRIVATE || "");
+        const vapidSubject = String(env.ROOM_PUSH_VAPID_SUBJECT || "");
+        if (vapidPublic && vapidPrivate && vapidSubject) {
+          const payload = (deps.dormancyPushPayload ?? dormancyPushPayload)(row.slug, row.display_name);
+          for (const sub of pushSubs) {
+            try {
+              await (deps.webPushSend ?? webPushSend)(sub, payload, {
+                fetch: deps.fetch, vapidPublic, vapidPrivate, vapidSubject, now,
+              });
+            } catch {
+              // Best effort — see this block's own header.
+            }
+          }
+        }
+      }
 
       // Telegram: real, functional (no service-worker dispatch involved) —
       // `api/_renewals.js`'s own reuse of the same pointer, restated.

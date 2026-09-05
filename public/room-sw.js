@@ -1,28 +1,57 @@
 // The Room's service worker (WS-R22 migration 085; precache and offline
-// shell added WS-R59). `public/push-sw.js`'s own shape, scoped to `/r/`
-// rather than Meera's `/chat`. Three jobs: hold the PWA install scope for
-// the per-Room `manifest.webmanifest` (`api/_room-manifest.js`), precache the
-// built shell so a follower on a bad connection opens the Room like an app
-// instead of a spinner, and show a due check-in's push.
+// shell added WS-R59; the push contract below rewritten WS-R81). `public/
+// push-sw.js`'s own shape, scoped to `/r/` rather than Meera's `/chat`.
+// Three jobs: hold the PWA install scope for the per-Room `manifest.
+// webmanifest` (`api/_room-manifest.js`), precache the built shell so a
+// follower on a bad connection opens the Room like an app instead of a
+// spinner, and show a due push — a check-in, a renewal reminder, or a
+// dormancy notice.
 //
-// ── THE PAYLOAD CONTRACT FOR PUSH, AND WHY IT IS THIS THIN ─────────────────
+// ── THE PAYLOAD CONTRACT FOR PUSH (WS-R81) ──────────────────────────────
 //
-// `api/_push/webpush.js`'s `checkinPushPayload` — the ONLY function in this
-// repo that builds a Room push body — sends `{t:"checkin", r:<slug>,
-// n:<the room's own PUBLIC display name>, th:<thread id or null>}`. It is
-// content-free BY CONSTRUCTION (workstream law #1): there is no check-in
-// title, no prompt shape, no reply text anywhere on the wire, so this file
-// could not display any of that even if it wanted to. The notification body
-// is therefore a FIXED sentence this file writes once, exactly the way
-// `push-sw.js` refuses to show a placeholder for an empty FCM body — the
-// difference here is the body is deliberately generic rather than absent,
-// since "content-free" is the product decision, not a data gap to paper over.
+// Every push this platform ever sends to a follower's own device arrives as
+// the SAME shape: `{t, title, body, url}`.
 //
-// Tapping the notification opens `/r/<slug>` — the thread id, when the
-// payload carries one, rides as a query param a future version of the Room
-// can read; today every check-in lands in the follower's default room-wide
-// thread, so `th` is null and the tap opens the room's own default view,
-// which already IS the thread the message sits in.
+//   t      a CLOSED list this file owns: "checkin", "renewal", "dormancy" -
+//          the only three kinds any Room builder in `api/_push/webpush.js`
+//          (`checkinPushPayload`/`renewalPushPayload`/`dormancyPushPayload`)
+//          has ever emitted or ever will without a matching edit HERE first.
+//   title  the exact, fixed sentence a follower sees on their lock screen -
+//          assembled server-side by the SAME payload function, never
+//          composed in this file. Content-free BY CONSTRUCTION at the
+//          SOURCE (workstream law #1, `api/_push/webpush.js`'s own header
+//          on each builder): there is no check-in title, no prompt shape,
+//          no reply text, no renewal date or amount, no follower-authored
+//          word anywhere upstream of this string, so this file could not
+//          display any of that even if it wanted to.
+//   body   likewise fixed and content-free.
+//   url    the exact route a tap should open - `/r/<slug>?via=push`, with
+//          `&thread=<id>` appended for a check-in against a named thread
+//          (today every check-in lands in the follower's default room-wide
+//          thread, so this is always absent in practice).
+//
+// An unrecognised `t` is DROPPED, named once in a `console.warn`, never
+// guessed at and never shown as a placeholder — `notificationclick` then
+// focuses an existing window at `url` before opening a new one.
+//
+// `public/push-sw.js` is the SIBLING worker for this platform's two OTHER
+// account-wide push kinds (a creator's weekly note, an operator's incident
+// alert) - a second FILE, not a second contract: its own header documents
+// the identical `{t, title, body, url}` shape. It does not share this
+// file's closed-kind drop, because it is also Meera's own worker (a
+// different product built in this same repo, out of this workstream's
+// scope to touch) - see that file's own header for why.
+//
+// FOUND BUILDING THIS (WS-R81): before this fix, this file's own `push`
+// handler checked `data.t !== "checkin"` and returned for EVERYTHING else -
+// so `api/_renewals.js`'s own renewal push (WS-R37) has been silently
+// discarded on arrival on every follower's own device for as long as it has
+// existed, and `api/_dormancy.js`'s own dormancy notice (WS-R75) shipped
+// with NO web-push send at all for exactly this reason (that workstream
+// found the bug and declined to add a second, equally invisible send path -
+// `context/rejected.md#ws-r75-web-push-type-switch-drops-every-non-checkin-
+// payload`). Both now reach a phone; the dormancy sweep's own send is wired
+// for the first time in `api/_dormancy.js` alongside this fix.
 //
 // ── THE PRECACHE, AND THE ONE LAW IT MUST NEVER BREAK ───────────────────────
 //
@@ -175,6 +204,11 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(caches.match(req).then((cached) => cached || fetch(req)));
 });
 
+// The closed list this file owns — see the header above. Kept as a Set,
+// named once, rather than a chain of `||` comparisons a future kind could
+// be bolted onto without also touching the doc comment above it.
+const KNOWN_PUSH_KINDS = new Set(["checkin", "renewal", "dormancy"]);
+
 self.addEventListener("push", (event) => {
   let data = {};
   try {
@@ -182,34 +216,44 @@ self.addEventListener("push", (event) => {
   } catch {
     data = {};
   }
-  if (data.t !== "checkin") return; // an unrecognised payload shape is dropped, never guessed at
-  const slug = typeof data.r === "string" ? data.r : "";
-  if (!slug) return;
-  const name = typeof data.n === "string" && data.n ? data.n : "Your creator";
-  const thread = typeof data.th === "string" && data.th ? data.th : null;
-  const route = thread ? `/r/${slug}?thread=${encodeURIComponent(thread)}` : `/r/${slug}`;
+  const t = typeof data.t === "string" ? data.t : "";
+  if (!KNOWN_PUSH_KINDS.has(t)) {
+    // Ignored by NAME, never guessed at, never shown as a placeholder — the
+    // exact drop this file's header explains was previously silent for
+    // every kind but "checkin". Now only a genuinely unlisted kind is
+    // dropped, and it says so.
+    console.warn(`[room-sw] unrecognised push kind, dropped: ${t || "(none)"}`);
+    return;
+  }
+  const title = typeof data.title === "string" ? data.title : "";
+  const body = typeof data.body === "string" ? data.body : "";
+  const url = typeof data.url === "string" && data.url ? data.url : "/r/";
+  if (!title) {
+    console.warn(`[room-sw] push kind "${t}" carried no title, dropped`);
+    return;
+  }
 
   event.waitUntil(
-    self.registration.showNotification(`${name} AI has a check-in for you`, {
-      body: "Tap to open the conversation.",
-      tag: "vyakti-room-checkin",
+    self.registration.showNotification(title, {
+      body,
+      tag: `vyakti-room-${t}`,
       renotify: true,
       icon: "/favicon.svg",
-      data: { route },
+      data: { url },
     }),
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const route = (event.notification.data && event.notification.data.route) || "/r/";
+  const url = (event.notification.data && event.notification.data.url) || "/r/";
   event.waitUntil(
     (async () => {
       const all = await clients.matchAll({ type: "window", includeUncontrolled: true });
       for (const client of all) {
-        if (client.url.includes(route) && "focus" in client) return client.focus();
+        if (client.url.includes(url) && "focus" in client) return client.focus();
       }
-      if (clients.openWindow) return clients.openWindow(route);
+      if (clients.openWindow) return clients.openWindow(url);
       return undefined;
     })(),
   );

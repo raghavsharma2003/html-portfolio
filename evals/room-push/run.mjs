@@ -105,8 +105,10 @@ console.log("── §1: THE CRYPTO — aes128gcm round-trip, independently deco
   const decoded = decryptPayload(body, { uaPrivate: receiver.privateRaw, authSecret });
   const parsed = JSON.parse(decoded.toString("utf8"));
   ok("round trip recovers the exact payload", JSON.stringify(parsed) === payload, JSON.stringify(parsed));
-  ok("the payload names the room and the creator's public name",
-    parsed.t === "checkin" && parsed.r === SLUG && parsed.n === "Anjali" && parsed.th === null);
+  ok("the payload carries the WS-R81 {t,title,body,url} contract, naming the room and the creator's public name",
+    parsed.t === "checkin" && parsed.title === "Anjali AI has a check-in for you" &&
+      parsed.body === "Tap to open the conversation." && parsed.url === `/r/${SLUG}?via=push`,
+    JSON.stringify(parsed));
 
   // Determinism: a fixed salt and sender keypair yield byte-identical output.
   const salt = Buffer.from("0".repeat(32), "hex");
@@ -366,7 +368,15 @@ console.log("\n── §6: NEGATIVE CONTROL (a), STATIC — the payload builder 
   ok("checkinPushPayload is present in the source", start >= 0);
   const closingBrace = src.indexOf("\n}\n", start); // the function's own end, not the next export's
   const body = src.slice(start, closingBrace < 0 ? src.length : closingBrace + 2);
-  const banned = ["prompt_shape", "promptShape", "row.title", "\\btitle\\b", "message", "\\bsaid\\b", "checkinDirective"];
+  // WS-R81: the wire contract now legitimately carries a `title:` FIELD KEY
+  // (the bare word "title"), so the bare-word ban this scan used to run is
+  // no longer a usable signal on its own — a leak of an actual THREAD title
+  // would read as property access off some row/object (`row.title`,
+  // `thread.title`, `checkin.title`), never a top-level object-literal key
+  // with nothing before the dot. `\.title\b` catches exactly that shape and
+  // NOTHING about the contract's own `title:` key, which the NEGATIVE
+  // CONTROL below proves both halves of.
+  const banned = ["prompt_shape", "promptShape", "\\.title\\b", "\\bmessage\\b", "\\bsaid\\b", "checkinDirective"];
   const bannedRegex = new RegExp(banned.join("|"));
   const clean = !bannedRegex.test(body);
   ok("the REAL checkinPushPayload's own source names none of the check-in-text identifiers",
@@ -377,6 +387,14 @@ console.log("\n── §6: NEGATIVE CONTROL (a), STATIC — the payload builder 
   const poisoned = `export function checkinPushPayload(slug, promptShape, threadId) {\n  return JSON.stringify({ r: slug, shape: promptShape });\n}`;
   ok("NEGATIVE CONTROL: the same scan DOES flag a poisoned version that carries promptShape",
     bannedRegex.test(poisoned));
+
+  // NEGATIVE CONTROL (WS-R81): a version that reads an actual row's own
+  // title (property access, not the contract's own literal key) must also
+  // be flagged — and the REAL function, which only ever WRITES a `title:`
+  // key and never reads one off a row, must not trip it.
+  const poisonedRowTitle = `export function checkinPushPayload(slug, displayName, threadId, row) {\n  return JSON.stringify({ title: row.title });\n}`;
+  ok("NEGATIVE CONTROL: the same scan DOES flag a version that reads row.title off an external object",
+    bannedRegex.test(poisonedRowTitle));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

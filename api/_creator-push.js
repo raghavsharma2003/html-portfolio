@@ -169,7 +169,8 @@ export async function revokeCreatorPushById(db, id) {
 // "title" is deliberately absent from this list even though `_push/
 // webpush.js`'s own CONTENT_COLUMNS names it (a THREAD title there) -
 // `creatorWeeklyPushPayload`'s own returned shape legitimately carries a
-// `title` FIELD (push-sw.js's own `{title, body, kind, route}` contract),
+// `title` FIELD (public/room-sw.js's own `{t, title, body, url}` contract,
+// WS-R81),
 // so the bare word is not a usable signal here; `thread_title` below is,
 // and is what a real leak of that specific column would actually be
 // spelled as inside this file's own source.
@@ -181,9 +182,11 @@ const FOLLOWER_CONTENT_NAMES = [
  * Law 3/4. Pure - takes only a Room's own slug, its own PUBLIC display
  * name (already shown to anyone who opens `/r/<slug>`) and three
  * already-aggregated numbers/strings, touches no database, and returns the
- * SAME `{title, body, kind, route}` shape `push-sw.js`'s own contract
- * requires (that file's own header: "a data-only push ... `{title, body,
- * kind, route}`") so this displays through the ONE already-reviewed
+ * SAME `{t, title, body, url}` shape `public/room-sw.js`'s own documented
+ * contract requires (WS-R81 - `push-sw.js`'s own header restates it,
+ * reading `t`/`url` as aliases of this file's OLDER `kind`/`route` field
+ * names so nothing here has to change to keep displaying, only what those
+ * fields are CALLED) so this displays through the ONE already-reviewed
  * display worker every other account-wide push in this repo uses, rather
  * than a second display path this workstream would have to write and
  * review from scratch. `headline` is `readPulse`'s own `note` text
@@ -200,10 +203,10 @@ export function creatorWeeklyPushPayload(slug, displayName, followersThisWeek, m
   const h = headline == null ? "" : String(headline).trim();
   if (h) body = `${body} ${h.slice(0, 220)}`;
   return {
+    t: "creator_week",
     title: "Your Room this week",
     body: body.slice(0, 400),
-    kind: "creatorWeeklyPush",
-    route: `/r/${String(slug || "")}`,
+    url: `/r/${String(slug || "")}`,
   };
 }
 

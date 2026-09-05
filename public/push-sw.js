@@ -19,10 +19,32 @@
 // displayed by the BROWSER before this file runs, so the copy rules in
 // `src/notify/copy.ts` would be bypassed by whatever the server happened to
 // put in it, and the tap route would be the origin rather than the thread.
-// Data-only means every push this product can send is displayed by the eight
-// lines below, in one place, with one set of rules.
+// Data-only means every push this product can send is displayed by the code
+// below, in one place, with one set of rules.
 //
 //   { title, body, largeBody?, kind, route }
+//
+// WS-R81: this file is ALSO the sibling worker for Vyakti Rooms' two
+// account-wide push kinds that are not follower-facing — a creator's own
+// weekly note (`api/_creator-push.js`) and an operator's own incident alert
+// (`api/_incidents.js`) — registered directly by `src/studio/StudioApp.tsx`/
+// `OpsBoard.tsx`, never through `src/notify/push.ts`. Those two now emit
+// `public/room-sw.js`'s own documented `{t, title, body, url}` shape rather
+// than this file's older `{kind, route}` names, so `t`/`url` are read here
+// as ALIASES of `kind`/`route` (`data.t ?? data.kind`, `data.url ?? data.
+// route`) rather than the older field names being retired — Meera's own
+// sender (`api/_push.js`) is a different product built in this same repo
+// and out of this workstream's scope to touch, so it keeps sending `kind`/
+// `route` unchanged and this file keeps answering to both.
+//
+// UNLIKE room-sw.js, this file does NOT drop an unrecognised kind by name:
+// it shows any payload that carries a non-empty title and body regardless
+// of what `t`/`kind` says, exactly as it always has. Room-sw.js's own
+// closed list (`checkin`/`renewal`/`dormancy`) is that OTHER worker's fix
+// for a bug this file never had (its own "no silent push" law below already
+// covers "never show nothing sensible") — and this file has no way to
+// enumerate Meera's own kind vocabulary, which is not this workstream's to
+// close over.
 //
 // ── WHY THERE IS NO SILENT PUSH ───────────────────────────────────────────
 //
@@ -40,6 +62,11 @@ const TAGS = {
   reply: "meera-reply",
   missedCall: "meera-missed-call",
   story: "meera-story",
+  // WS-R81: Vyakti Rooms' two account-wide kinds, keyed by the NEW `t`
+  // value each builder now emits (`api/_creator-push.js`'s `creator_week`,
+  // `api/_incidents.js`'s `incident`).
+  creator_week: "vyakti-creator-week",
+  incident: "vyakti-ops-incident",
 };
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -53,6 +80,10 @@ self.addEventListener("push", (event) => {
     d = {};
   }
   const data = d.data || d;
+  // `t`/`url` (WS-R81, room-sw.js's own contract) are read as ALIASES of
+  // this file's older `kind`/`route` names — see the header above for why
+  // neither name retires the other here.
+  const kind = typeof data.t === "string" && data.t ? data.t : (typeof data.kind === "string" ? data.kind : "");
   const title = typeof data.title === "string" ? data.title : "";
   const body = typeof data.body === "string" ? data.body : "";
   if (!title || !body) return; // never a placeholder — see the header
@@ -61,7 +92,7 @@ self.addEventListener("push", (event) => {
       body,
       // One notification per KIND, replaced rather than stacked, exactly as the
       // fixed ids do on the local lane (src/notify/local.ts).
-      tag: TAGS[data.kind] || "meera",
+      tag: TAGS[kind] || "meera",
       renotify: false,
       icon: "/icon-192.png",
       // The BADGE is not a small icon — Android and Chrome mask it to a
@@ -70,14 +101,14 @@ self.addEventListener("push", (event) => {
       // flat white on transparency at the 96px the spec asks for, the web
       // half of the same fix `ic_stat_meera` is on the native lane.
       badge: "/badge-96.png",
-      data: { route: typeof data.route === "string" ? data.route : "#chat" },
+      data: { url: typeof data.url === "string" ? data.url : (typeof data.route === "string" ? data.route : "#chat") },
     }),
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const route = (event.notification.data && event.notification.data.route) || "#chat";
+  const url = (event.notification.data && event.notification.data.url) || "#chat";
   event.waitUntil(
     (async () => {
       const open = await clients.matchAll({ type: "window", includeUncontrolled: true });
@@ -87,11 +118,11 @@ self.addEventListener("notificationclick", (event) => {
           // tab would throw away a draft he was typing and, if a call were up,
           // the call.
           await c.focus();
-          if ("navigate" in c) await c.navigate(new URL(route, self.registration.scope).href);
+          if ("navigate" in c) await c.navigate(new URL(url, self.registration.scope).href);
           return;
         }
       }
-      await clients.openWindow(new URL(route, self.registration.scope).href);
+      await clients.openWindow(new URL(url, self.registration.scope).href);
     })(),
   );
 });

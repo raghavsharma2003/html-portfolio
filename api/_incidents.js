@@ -195,26 +195,27 @@ export function withDoor(db, door, handler) {
 // `checkinPushPayload` own "the payload builder's own parameter list IS the
 // enforcement" precedent restated for a fifth notification shape.
 //
-// WS-R62: shaped as `{title, body, kind, route}` — `public/push-sw.js`'s
-// OWN payload contract (its header: "a data-only push … `{title, body,
-// kind, route}`") — so the operator's real browser notification is drawn by
-// the SAME already-committed, already-reviewed display worker every other
+// WS-R62, wire shape rewritten WS-R81: `{t, title, body, url}` —
+// `public/room-sw.js`'s OWN documented payload contract, restated by
+// `public/push-sw.js`'s own header for this platform's account-wide push —
+// so the operator's real browser notification is drawn by the SAME
+// already-committed, already-reviewed display worker every other
 // account-wide push in this repo uses, rather than a second display path
 // this workstream would have to write and review from scratch. `title`/
 // `body` are fixed English sentences built from the closed `kind` vocabulary
 // and a count, never a template that could carry a door name or an id —
-// `kind: "opsIncident"` here is `push-sw.js`'s own notification GROUPING
-// key (its `TAGS` map), unrelated to `vy_incident.kind`, and `route` always
-// points at the ops board itself, never a specific incident row (there is
-// no per-incident route to point at — the board's own Incidents card is
-// where the real detail lives, behind the operator's own bearer).
+// `t: "incident"` here is `push-sw.js`'s own notification GROUPING key (its
+// `TAGS` map), unrelated to `vy_incident.kind`, and `url` always points at
+// the ops board itself, never a specific incident row (there is no
+// per-incident route to point at — the board's own Incidents card is where
+// the real detail lives, behind the operator's own bearer).
 function incidentPushPayload(kind, count) {
   const n = Number.isFinite(count) ? count : 0;
   return JSON.stringify({
+    t: "incident",
     title: "Vyakti ops alert",
     body: `${String(kind || "")}: ${n} today`,
-    kind: "opsIncident",
-    route: "/studio?mode=ops",
+    url: "/studio?mode=ops",
   });
 }
 
