@@ -469,6 +469,21 @@ interface SuiteSeatLockCopy {
   seatsLockedByMandate: string;
 }
 
+// ── suiteWeeklyNote: SuiteCard.tsx (WS-R127, migration 132) ────────────────
+// "Your weekly note" - the admin-only line naming when this Suite last
+// received its own weekly counts (Rooms live, followers joined, messages),
+// plus the "Send a test note now" control. Sends through the SAME device
+// subscription `creatorPush`'s own "This week on your phone" toggle already
+// manages - this section names no push-permission flow of its own.
+interface SuiteWeeklyNoteCopy {
+  title: string;
+  lastDelivery: string; // "Last delivered {label}."
+  neverDelivered: string;
+  sendTest: string;
+  sending: string;
+  testSent: string;
+}
+
 // ── roomStudio: RoomStudio.tsx's own chrome (WS-R61) ───────────────────────
 // The Room address, publish switch, free/paid caps, price, money, stats,
 // week-six cohorts and pulse. Never the five sub-cards it mounts
@@ -2011,6 +2026,7 @@ interface StudioCopy {
   authGate: AuthGateCopy;
   recallRun: RecallRunCopy;
   studioApp: StudioAppCopy;
+  suiteWeeklyNote: SuiteWeeklyNoteCopy;
 }
 
 // WS-R113. `authGate` and the shell section are the two the SIGNED-OUT
@@ -3948,6 +3964,14 @@ const EN: StudioCopy = {
       codeRequired: "An invite code is required for your first workspace.",
       codeInvalid: "That code did not work. Check it and try again, or apply below.",
     },
+  },
+  suiteWeeklyNote: {
+    title: "Your weekly note",
+    lastDelivery: "Last delivered {label}.",
+    neverDelivered: "Not delivered yet.",
+    sendTest: "Send a test note now",
+    sending: "Sending...",
+    testSent: "Test note sent to your own device (turn on the weekly push above to receive it).",
   },
 };
 

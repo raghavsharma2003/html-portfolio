@@ -499,20 +499,41 @@ export async function orgSubscriptionStatus(db, adminOwnerUserId, orgId) {
 // ─────────────────────────────────────────────────────────────────────────
 // OP: listMyOrgs - every Suite this owner belongs to, admin or creator, with
 // the cheap seat-usage count the account card shows. No follower table.
+//
+// WS-R127 (migration 132): `weekly_note_last_sent_at` - the Suite board's
+// own "Your weekly note / Last delivered" line (SuiteCard.tsx) - is read by
+// a plain correlated subquery in this SAME statement, `seats_used`'s own
+// shape one line up restated for `vy_org_weekly_note` instead of `vy_room`.
+// A subquery, never an import of `api/_org-weekly-note.js#lastOrgWeeklyNote`:
+// that file's own header names why this file and that one stay a one-way
+// dependency (this file never imports it) - the read this op needs is one
+// more correlated `max(sent_at)` in the SAME round trip, not a second
+// query, and `vy_org_weekly_note` carries no follower/person column for a
+// second aggregator to misuse (migration 132's own header). Across every
+// channel (push or email) - a Suite that has received EITHER counts as
+// having received a note that week, `_org-weekly-note.js#lastOrgWeeklyNote`'s
+// own identical scope.
 // ─────────────────────────────────────────────────────────────────────────
 export async function listMyOrgs(db, ownerUserId) {
   const owner = assertUuid(ownerUserId, "org_owner_identity_invalid");
   const rows = await db(
     `select o.org_id, o.name, o.slug, o.plan, o.seat_limit, o.created_at, m.role,
             (select count(*)::int from vy_room r2 where r2.org_id = o.org_id) as seats_used,
-            ${seatCapSql("o.org_id")} as seats_paid
+            ${seatCapSql("o.org_id")} as seats_paid,
+            (select max(sent_at) from vy_org_weekly_note w where w.org_id = o.org_id) as weekly_note_last_sent_at
        from vy_org_member m
        join vy_org o on o.org_id = m.org_id
       where m.owner_user_id = ($1)::uuid
       order by o.created_at asc`,
     [owner],
   );
-  return rows.map((r) => ({ ...clientOrg(r), role: r.role, seats_used: Number(r.seats_used), seats_paid: Number(r.seats_paid) }));
+  return rows.map((r) => ({
+    ...clientOrg(r),
+    role: r.role,
+    seats_used: Number(r.seats_used),
+    seats_paid: Number(r.seats_paid),
+    weekly_note: { last_sent_at: r.weekly_note_last_sent_at || null },
+  }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────

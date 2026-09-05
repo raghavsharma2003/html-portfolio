@@ -71,6 +71,8 @@ function freshState() {
     // === null` means still open - the same "one open row per room_id"
     // invariant the real partial unique index enforces.
     orgAttachments: [],
+    // WS-R127, migration 132: the content-free weekly-note send ledger.
+    orgWeeklyNotes: [],
   };
 }
 
@@ -304,7 +306,14 @@ function orgDb(state) {
         .filter((m) => m.owner_user_id === ownerId)
         .map((m) => {
           const org = state.orgs.find((o) => o.org_id === m.org_id);
-          return { ...org, role: m.role, seats_used: state.rooms.filter((r) => r.org_id === m.org_id).length, seats_paid: effectiveSeatCap(org, state) };
+          // WS-R127 (migration 132): the SAME statement's own correlated
+          // `max(sent_at)` subquery, modelled here exactly as the real SQL
+          // reads it - most recent send across every channel.
+          const sent = state.orgWeeklyNotes.filter((n) => n.org_id === m.org_id).map((n) => n.sent_at).sort().pop() || null;
+          return {
+            ...org, role: m.role, seats_used: state.rooms.filter((r) => r.org_id === m.org_id).length,
+            seats_paid: effectiveSeatCap(org, state), weekly_note_last_sent_at: sent,
+          };
         });
     }
 
@@ -691,6 +700,13 @@ console.log("\n── §6: the remaining reads ──");
 
   const mine = await listMyOrgs(db, CREATOR_A);
   ok("listMyOrgs returns every Suite this owner belongs to, with their own role", mine.length === 1 && mine[0].role === "creator");
+  // WS-R127 (migration 132): the Suite board's own "Your weekly note" line.
+  ok("listMyOrgs: a Suite that has never received a weekly note reports null, not a fake date", mine[0].weekly_note.last_sent_at === null);
+  state.orgWeeklyNotes.push({ org_id: ORG_A, week_start: "2026-09-07", sent_at: "2026-09-07T00:05:00.000Z", channel: "push" });
+  const mineAfter = await listMyOrgs(db, CREATOR_A);
+  ok("listMyOrgs: once a send lands, weekly_note.last_sent_at names the real timestamp", mineAfter[0].weekly_note.last_sent_at === "2026-09-07T00:05:00.000Z");
+  const otherOrg = await listMyOrgs(db, CREATOR_B);
+  ok("listMyOrgs: a DIFFERENT Suite's own weekly note is never mixed into ORG_A's admin's own read", (otherOrg.find((o) => o.org_id === ORG_B)?.weekly_note.last_sent_at ?? null) === null);
 
   const members = await listOrgMembers(db, ADMIN_A, ORG_A);
   ok("listOrgMembers returns the roster (admin + creator)",
