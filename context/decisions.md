@@ -13710,3 +13710,33 @@ follower's devices (today it is per-browser, per-slug, `localStorage`
 only), the `InstallStorage` interface and the three pure functions stay
 exactly as they are — only the concrete storage `RoomApp.tsx` passes in
 changes, from `window.localStorage` to a thin wrapper over a server call.
+
+## `ws-r69-halted-is-a-derived-read-never-a-stored-value` (2026-09-05, WS-R69)
+
+**Decision.** `subscription.paused` and `subscription.halted` keep flipping
+`vy_room_subscription.state` to the SAME stored value, `'paused'` — no
+migration widens `vy_room_subscription_state_check` to add a `'halted'`
+value. Instead, `api/_payments.js`'s `followerSubscriptionStatus` derives a
+VIRTUAL `'halted'` state, only in its own response shape, by reading the
+most recent matching `vy_payment_event.kind` for that subscription when the
+stored state is `'paused'`.
+
+**Rationale.** The stored column is read by several OTHER things that must
+keep meaning exactly what they always have — `applyWebhook`'s own tier-flip
+predicate (`su.state in ('active','cancelled','expired')`), `ownerRevenue`'s
+subscriber counts, `evals/room-doors`' own fixture matches on the literal
+state-in-list string. Widening the CHECK to add a fifth non-terminal value
+would touch all of them for a distinction only ONE reader (the follower's
+own settings panel) actually needs to make. The ledger (`vy_payment_event.kind`,
+migration 078's own CHECK, unchanged) already carries the original webhook
+name forever — reading it back costs one query, ONLY when the stored state
+is already `'paused'`, and never risks the stored column drifting from what
+every other caller already assumes it means.
+
+**Reversal condition.** If a SECOND reader ever needs to tell paused from
+halted (a future owner-facing panel, an automated dunning email), duplicating
+this same one-query lookup in a second place is a sign the distinction
+should move into the stored column instead — at that point, widen the CHECK
+(a real migration, numbered by the main loop) and stop deriving it. Until
+then, one reader deriving it beats every reader having to agree on a new
+stored value none of them but one needs.
