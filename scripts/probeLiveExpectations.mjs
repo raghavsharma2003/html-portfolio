@@ -247,6 +247,68 @@ export function roomEmbedUnknownExpectation() {
 // of the twelve answer 403 with a different error string than the other
 // ten's 401, and both are correct per that file's own choice.
 // ─────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R90: the creator page's <head> literals — hreflang codes, the "hi"
+// alternate's own query suffix, and the og:locale mapping — parsed from
+// `api/_creator-page.js`'s own `HREFLANG_CODES`/`HI_LANG_QUERY`/`OG_LOCALE`
+// constants rather than retyped, the identical discipline every other
+// `*Facts()`/`*Expectation()` function in this file already follows.
+// ─────────────────────────────────────────────────────────────────────────
+export function creatorPageHeadFacts() {
+  const src = read("api/_creator-page.js");
+  const codesMatch = /const HREFLANG_CODES\s*=\s*\[([^\]]*)\]/.exec(src);
+  const hreflangCodes = codesMatch ? [...codesMatch[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]) : null;
+  const hiQueryMatch = /const HI_LANG_QUERY\s*=\s*"([^"]+)"/.exec(src);
+  const ogLocaleMatch = /const OG_LOCALE\s*=\s*\{\s*en:\s*"([^"]+)",\s*hi:\s*"([^"]+)"\s*\}/.exec(src);
+  if (!hreflangCodes || !hreflangCodes.length || !hiQueryMatch || !ogLocaleMatch) {
+    throw new Error("probeLiveExpectations: could not parse api/_creator-page.js's HREFLANG_CODES/HI_LANG_QUERY/OG_LOCALE");
+  }
+  return {
+    hreflangCodes,
+    hiQuery: hiQueryMatch[1],
+    ogLocale: { en: ogLocaleMatch[1], hi: ogLocaleMatch[2] },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R90: a small, hand-written schema.org validator for exactly the two
+// JSON-LD types `api/_creator-page.js#buildCreatorPageJsonLd` emits (Person
+// always, FAQPage only with a showcase) — required fields only, never a
+// full schema.org conformance suite, and no network call of any kind: the
+// brief's own law for this check ("write a small validator for the two
+// types' required fields; no network"). Shared by `evals/creator-page/
+// run.mjs` (against the real builder's output) and `scripts/probe-live.mjs`
+// (against whatever JSON-LD a real deployment actually serves), so the two
+// can never disagree about what "valid" means here.
+// ─────────────────────────────────────────────────────────────────────────
+export function validatePersonJsonLd(obj) {
+  const errors = [];
+  if (obj?.["@context"] !== "https://schema.org") errors.push('@context must be "https://schema.org"');
+  if (obj?.["@type"] !== "Person") errors.push('@type must be "Person"');
+  if (typeof obj?.name !== "string" || !obj.name) errors.push("name must be a non-empty string");
+  if (typeof obj?.url !== "string" || !obj.url) errors.push("url must be a non-empty string");
+  return errors;
+}
+
+export function validateFaqPageJsonLd(obj) {
+  const errors = [];
+  if (obj?.["@context"] !== "https://schema.org") errors.push('@context must be "https://schema.org"');
+  if (obj?.["@type"] !== "FAQPage") errors.push('@type must be "FAQPage"');
+  if (!Array.isArray(obj?.mainEntity) || obj.mainEntity.length === 0) {
+    errors.push("mainEntity must be a non-empty array");
+    return errors;
+  }
+  obj.mainEntity.forEach((question, i) => {
+    if (question?.["@type"] !== "Question") errors.push(`mainEntity[${i}].@type must be "Question"`);
+    if (typeof question?.name !== "string" || !question.name) errors.push(`mainEntity[${i}].name must be a non-empty string`);
+    if (question?.acceptedAnswer?.["@type"] !== "Answer") errors.push(`mainEntity[${i}].acceptedAnswer.@type must be "Answer"`);
+    if (typeof question?.acceptedAnswer?.text !== "string" || !question.acceptedAnswer.text) {
+      errors.push(`mainEntity[${i}].acceptedAnswer.text must be a non-empty string`);
+    }
+  });
+  return errors;
+}
+
 export function cronAuthExpectation(apiPath) {
   const rel = `api${apiPath.replace(/^\/api/, "")}.js`;
   if (!existsSync(join(ROOT, rel))) return null;

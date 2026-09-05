@@ -26,7 +26,7 @@ import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { startFakeServer } from "./fakeServer.mjs";
+import { startFakeServer, CREATOR_FIXTURE_SLUG } from "./fakeServer.mjs";
 
 // `execFile` (async), NOT `execFileSync`: the fixture server below runs IN
 // THIS SAME PROCESS, and a synchronous child-process call blocks this
@@ -86,6 +86,45 @@ async function main() {
     }
   }
 
+  // ── 1b. WS-R90: /c/<slug> with --creator-slug -> zero findings ─────────
+  {
+    const { url, stop } = await startFakeServer(PORT, {});
+    try {
+      const { exitCode, report } = await runProbe(url, ["--creator-slug", CREATOR_FIXTURE_SLUG]);
+      check("creator page (clean, --creator-slug given) -> exit 0", exitCode === 0, `exit ${exitCode}`);
+      check(
+        "creator page (clean) -> zero findings",
+        report && report.ok === true && report.findings.length === 0,
+        report ? JSON.stringify(report.findings) : "(no parseable report)",
+      );
+      const probed = report && report.surfaces.some((s) => s.surface.includes("--creator-slug"));
+      check("creator page (clean) -> the /c/:slug surface was actually probed", Boolean(probed), report ? JSON.stringify(report.surfaces.map((s) => s.surface)) : "n/a");
+      check("creator page (clean) -> no skip note printed", !(report?.notes || []).some((n) => n.includes("SKIPPED")), JSON.stringify(report?.notes));
+    } finally {
+      await stop();
+    }
+  }
+
+  // ── 1c. WS-R90: no --creator-slug -> the section is SKIPPED, never a failure ──
+  {
+    const { url, stop } = await startFakeServer(PORT, {});
+    try {
+      const { exitCode, report } = await runProbe(url);
+      check("no --creator-slug -> exit 0 (skip, not a failure)", exitCode === 0, `exit ${exitCode}`);
+      // Section 1's own pre-existing route-class loop still probes /c/:slug
+      // with an UNKNOWN slug for its header promise regardless of
+      // --creator-slug (WS-R66, unrelated to this section) -- so the
+      // assertion here is scoped to THIS workstream's own labelled surface,
+      // never a bare "/c/" substring that would also match that one.
+      const probed = report && report.surfaces.some((s) => s.surface.includes("--creator-slug"));
+      check("no --creator-slug -> the --creator-slug surface is never probed", !probed, report ? JSON.stringify(report.surfaces.map((s) => s.surface)) : "n/a");
+      const noted = report && (report.notes || []).some((n) => n.includes("SKIPPED") && n.includes("--creator-slug"));
+      check("no --creator-slug -> the skip is named in a note, not silent", Boolean(noted), JSON.stringify(report?.notes));
+    } finally {
+      await stop();
+    }
+  }
+
   // ── 2a. NEGATIVE CONTROL: a dropped header on "/" ───────────────────────
   {
     const { url, stop } = await startFakeServer(PORT, { dropHeader: { path: "/", key: "Permissions-Policy" } });
@@ -107,6 +146,32 @@ async function main() {
       check("corrupted manifest -> exit 1", exitCode === 1, `exit ${exitCode}`);
       const hit = report && report.findings.some((f) => f.surface.includes("manifest.webmanifest") && /byte-identical/.test(f.expectation));
       check("corrupted manifest -> the probe names it", Boolean(hit), report ? JSON.stringify(report.findings) : "(no parseable report)");
+    } finally {
+      await stop();
+    }
+  }
+
+  // ── 2c. WS-R90 NEGATIVE CONTROL: a dropped hreflang="hi" alternate ──────
+  {
+    const { url, stop } = await startFakeServer(PORT, { dropCreatorHreflang: "hi" });
+    try {
+      const { exitCode, report } = await runProbe(url, ["--creator-slug", CREATOR_FIXTURE_SLUG]);
+      check("dropped hreflang=hi -> exit 1", exitCode === 1, `exit ${exitCode}`);
+      const hit = report && report.findings.some((f) => f.surface === "/c/:slug" && /hreflang="hi"/.test(f.expectation) && f.observed === "(absent)");
+      check("dropped hreflang=hi -> the probe names it", Boolean(hit), report ? JSON.stringify(report.findings) : "(no parseable report)");
+    } finally {
+      await stop();
+    }
+  }
+
+  // ── 2d. WS-R90 NEGATIVE CONTROL: a corrupted Person JSON-LD @type ───────
+  {
+    const { url, stop } = await startFakeServer(PORT, { corruptCreatorJsonLd: true });
+    try {
+      const { exitCode, report } = await runProbe(url, ["--creator-slug", CREATOR_FIXTURE_SLUG]);
+      check("corrupted Person JSON-LD -> exit 1", exitCode === 1, `exit ${exitCode}`);
+      const hit = report && report.findings.some((f) => f.surface === "/c/:slug" && /Person JSON-LD/.test(f.expectation));
+      check("corrupted Person JSON-LD -> the probe names it", Boolean(hit), report ? JSON.stringify(report.findings) : "(no parseable report)");
     } finally {
       await stop();
     }

@@ -24,8 +24,30 @@ import {
   cronAuthExpectation,
 } from "../../scripts/probeLiveExpectations.mjs";
 import { makePng } from "./fakePng.mjs";
+import { buildCreatorPageHtml } from "../../api/_creator-page.js";
 
 const BOT_RE = /.*(facebookexternalhit|WhatsApp|Twitterbot|TelegramBot|Slackbot|LinkedInBot|Discordbot|Googlebot).*/;
+
+// WS-R90: the ONE slug this fixture treats as "listed, published, and real"
+// -- `buildCreatorPageHtml` is the REAL builder from `api/_creator-page.js`
+// (imported above, never reimplemented), fed fixture Room/showcase data
+// rather than a fake `db`, exactly what `scripts/probe-live.mjs`'s own
+// `--creator-slug` flag expects a real deployment to answer with. Any OTHER
+// slug still gets `buildCreatorPageHtml(null, ...)`, the platform-only
+// fallback -- proving the probe's `--creator-slug` path checks the NAMED
+// slug, not merely whatever `/c/:slug` happens to return.
+export const CREATOR_FIXTURE_SLUG = "probe-fixture-creator";
+const CREATOR_FIXTURE_DATA = {
+  room: {
+    display_name: "Fixture Creator",
+    one_line_bio: "A fixture Room the live probe's own offline proof serves.",
+    default_locale: "en",
+    taste_enabled: false,
+  },
+  showcase: [
+    { id: "s1", question: "What do you teach?", answer: "Everything this fixture needs to prove.", position: 1 },
+  ],
+};
 
 function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -41,6 +63,8 @@ function json(res, status, body, extraHeaders = {}) {
  * `defects` (all optional, all default off -- the well-behaved server):
  *   dropHeader: { path, key }     -- omit one promised header on one route
  *   corruptManifestByte: true     -- flip one byte of the manifest.webmanifest response
+ *   dropCreatorHreflang: "hi"     -- strip one named hreflang <link> from /c/<slug>'s <head>
+ *   corruptCreatorJsonLd: true    -- rename the Person JSON-LD block's @type so it fails schema validation
  */
 export function startFakeServer(port, defects = {}) {
   const config = loadVercelConfig();
@@ -155,6 +179,28 @@ export function startFakeServer(port, defects = {}) {
         // handler implements, mirrored here as the identical-bytes property
         // the probe's own check depends on.
         return res.end(makePng(size.width, size.height));
+      }
+
+      // ── WS-R90: /c/:slug -- the REAL buildCreatorPageHtml's own output ──
+      const creatorMatch = /^\/c\/([^/]+)$/.exec(pathname);
+      if (creatorMatch) {
+        const slug = decodeURIComponent(creatorMatch[1]);
+        const data = slug === CREATOR_FIXTURE_SLUG ? CREATOR_FIXTURE_DATA : null;
+        let html = buildCreatorPageHtml(data, { origin: `http://127.0.0.1:${port}`, slug });
+        if (defects.dropCreatorHreflang) {
+          const code = defects.dropCreatorHreflang.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+          html = html.replace(new RegExp(`<link rel="alternate" hreflang="${code}"[^>]*/>\\s*`), "");
+        }
+        if (defects.corruptCreatorJsonLd) {
+          html = html.replace('"@type":"Person"', '"@type":"NotAPerson"');
+        }
+        // `/c/:slug` already carries a vercel.json headers[] rule (WS-R66) --
+        // section 1's own route-class loop probes it with an UNKNOWN slug
+        // before this workstream ever runs, so this handler must promise the
+        // same headers the generic 404 fallback used to supply by accident.
+        applyHeaders(res, "/c/:slug");
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        return res.end(Buffer.from(html));
       }
 
       // ── /r/:slug itself: bot unfurl vs. the static person page ──────────

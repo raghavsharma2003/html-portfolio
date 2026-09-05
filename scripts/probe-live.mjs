@@ -10,6 +10,18 @@
 //
 //   node scripts/probe-live.mjs <base-url> [--json]
 //                                [--cookie-jar <file>] [--share <url>]
+//                                [--creator-slug <slug>]
+//
+// WS-R90: `--creator-slug` names a REAL, listed, published Room's slug on
+// the deployment being probed, and checks `/c/<slug>`'s canonical, hreflang
+// alternates and JSON-LD (Person always, FAQPage when the Room has a
+// showcase). Every other check in this file needs only an UNKNOWN slug --
+// this is the one exception, because an unknown slug's `/c/<slug>` is
+// deliberately the platform-only fallback with no Person block at all
+// (`api/_creator-page.js`'s own "nobody may learn whether a slug exists
+// from this page's shape" law). Omitted, this section is SKIPPED with a
+// printed note, never a failure -- see `usage()` below for why a probe must
+// never invent a listed slug to check against.
 //
 // NETWORK: exactly one base URL's origin, GET and HEAD, plus the two
 // specific `POST /api/room` bodies this file's own source names below —
@@ -52,6 +64,9 @@ import {
   roomNoSessionExpectation,
   roomEmbedUnknownExpectation,
   unknownSlug,
+  creatorPageHeadFacts,
+  validatePersonJsonLd,
+  validateFaqPageJsonLd,
 } from "./probeLiveExpectations.mjs";
 
 const SELF_PATH = fileURLToPath(import.meta.url);
@@ -104,13 +119,14 @@ function assertOwnSourceOnlyPostsSafeOps() {
 // CLI
 // ═══════════════════════════════════════════════════════════════════════════
 function parseArgs(argv) {
-  const out = { baseUrl: null, json: false, cookieJar: null, share: null };
+  const out = { baseUrl: null, json: false, cookieJar: null, share: null, creatorSlug: null };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--json") out.json = true;
     else if (a === "--cookie-jar") out.cookieJar = argv[++i];
     else if (a === "--share") out.share = argv[++i];
+    else if (a === "--creator-slug") out.creatorSlug = argv[++i];
     else rest.push(a);
   }
   out.baseUrl = rest[0] || null;
@@ -120,12 +136,18 @@ function parseArgs(argv) {
 function usage() {
   console.error(
     [
-      "usage: node scripts/probe-live.mjs <base-url> [--json] [--cookie-jar <file>] [--share <url>]",
+      "usage: node scripts/probe-live.mjs <base-url> [--json] [--cookie-jar <file>] [--share <url>] [--creator-slug <slug>]",
       "",
-      "  <base-url>          the ONE origin this run is allowed to touch",
-      "  --cookie-jar <file> read/write a small JSON cookie jar here (never inside this repo)",
-      "  --share <url>       visit once to prime the jar past Vercel deployment protection",
-      "                      (a protected preview needs this -- see docs/gurukul/DEPLOY.md)",
+      "  <base-url>            the ONE origin this run is allowed to touch",
+      "  --cookie-jar <file>   read/write a small JSON cookie jar here (never inside this repo)",
+      "  --share <url>         visit once to prime the jar past Vercel deployment protection",
+      "                        (a protected preview needs this -- see docs/gurukul/DEPLOY.md)",
+      "  --creator-slug <slug> a REAL, listed, published Room's slug on this deployment --",
+      "                        checks /c/<slug>'s canonical, hreflang alternates and JSON-LD.",
+      "                        Omit to skip this section: no live listed Room can be assumed",
+      "                        to exist (context/STATE.md's own LIVE table -- 'no real vy_room",
+      "                        row has ever been inserted anywhere outside a fake db'), and a",
+      "                        probe must never invent one to check against.",
     ].join("\n"),
   );
 }
@@ -232,6 +254,7 @@ function makeClient({ baseUrl, cookies, cookieJarPath }) {
 // ═══════════════════════════════════════════════════════════════════════════
 const findings = [];
 const surfaces = [];
+const notes = [];
 function fail(surface, expectation, observed, promisedBy) {
   findings.push({ surface, expectation, observed, promisedBy });
 }
@@ -264,7 +287,7 @@ function checkHeaderPromise(surfaceName, path, promisedHeaders, actualHeaders) {
 async function main() {
   assertOwnSourceOnlyPostsSafeOps();
 
-  const { baseUrl, json, cookieJar: cookieJarPath, share } = parseArgs(process.argv.slice(2));
+  const { baseUrl, json, cookieJar: cookieJarPath, share, creatorSlug } = parseArgs(process.argv.slice(2));
   if (!baseUrl) {
     usage();
     process.exit(2);
@@ -486,9 +509,68 @@ async function main() {
     }
   }
 
+  // ── 10. /c/<slug> for a REAL listed fixture slug ────────────────────────
+  // Unlike every check above, this one needs a slug that actually exists,
+  // is published, listed and unpaused on THIS deployment -- something a
+  // probe can never invent (an unknown slug renders the platform-only
+  // fallback, `jsonLd: ""`, no Person block at all). Skipped, never failed,
+  // when the caller has no such slug to give -- `evals/probe-live/run.mjs`
+  // proves both the checking half (against a fixture server that DOES
+  // serve real builder output for a named slug) and this honest-skip half.
+  if (creatorSlug) {
+    const headFacts = creatorPageHeadFacts();
+    const res = await client.request("GET", `/c/${encodeURIComponent(creatorSlug)}`, {
+      headers: { "user-agent": "Googlebot/2.1 (+http://www.google.com/bot.html)" },
+    });
+    const bytes = await bufferOf(res);
+    const html = bytes.toString("utf8");
+    recordSurface(`/c/:slug (--creator-slug, Googlebot)`, res, bytes);
+
+    if (res.status !== 200) {
+      fail("/c/:slug", "status 200", res.status, "api/_creator-page.js");
+    }
+
+    const canonicalMatch = /<link rel="canonical" href="([^"]+)" \/>/.exec(html);
+    if (!canonicalMatch) {
+      fail("/c/:slug", 'a <link rel="canonical"> tag', "(absent)", "api/_creator-page.js renderPage");
+    }
+
+    for (const code of headFacts.hreflangCodes) {
+      const escapedCode = code.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+      const re = new RegExp(`<link rel="alternate" hreflang="${escapedCode}" href="([^"]+)" \\/>`);
+      const m = re.exec(html);
+      if (!m) {
+        fail("/c/:slug", `a hreflang="${code}" alternate link`, "(absent)", "api/_creator-page.js HREFLANG_CODES");
+        continue;
+      }
+      if (code === "hi" && !m[1].includes(headFacts.hiQuery)) {
+        fail("/c/:slug", `hreflang="hi" href containing "${headFacts.hiQuery}"`, m[1], "api/_creator-page.js HI_LANG_QUERY");
+      }
+    }
+
+    const jsonLdBlocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+      .map((m) => {
+        try { return JSON.parse(m[1]); } catch { return null; }
+      });
+    const person = jsonLdBlocks.find((b) => b && b["@type"] === "Person");
+    if (!person) {
+      fail("/c/:slug", "a Person JSON-LD block", "(absent or unparseable)", "api/_creator-page.js buildCreatorPageJsonLd");
+    } else {
+      const errors = validatePersonJsonLd(person);
+      if (errors.length) fail("/c/:slug", "a schema-valid Person JSON-LD block", errors.join("; "), "api/_creator-page.js buildCreatorPageJsonLd");
+    }
+    const faq = jsonLdBlocks.find((b) => b && b["@type"] === "FAQPage");
+    if (faq) {
+      const errors = validateFaqPageJsonLd(faq);
+      if (errors.length) fail("/c/:slug", "a schema-valid FAQPage JSON-LD block", errors.join("; "), "api/_creator-page.js buildCreatorPageJsonLd");
+    }
+  } else {
+    notes.push("/c/:slug checks SKIPPED: no --creator-slug given (no live listed Room can be assumed to exist)");
+  }
+
   // ═════════════════════════════════════════════════════════════════════
   if (json) {
-    console.log(JSON.stringify({ ok: findings.length === 0, baseUrl, surfaces, findings }, null, 2));
+    console.log(JSON.stringify({ ok: findings.length === 0, baseUrl, surfaces, findings, notes }, null, 2));
   } else {
     console.log(`probe-live: ${surfaces.length} surface(s) checked against ${baseUrl}`);
     for (const s of surfaces) {
@@ -502,6 +584,7 @@ async function main() {
     } else {
       console.log("\n  ok    0 findings");
     }
+    for (const n of notes) console.log(`note: ${n}`);
   }
   process.exit(findings.length ? 1 : 0);
 }

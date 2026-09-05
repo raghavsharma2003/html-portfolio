@@ -16283,3 +16283,135 @@ non-aggregate columns (`via` named explicitly) rather than "every item must
 be an aggregate" — but that is a change to a leak-battery invariant, which
 needs its own measurement and its own review, not a workaround inside one
 caller.
+
+## `ws-r90-hreflang-og-locale-identical-on-every-response` (2026-09-05, WS-R90)
+
+**Decision.** `api/_creator-page.js#renderPage` computes its three hreflang
+`<link>` tags (`en`, `hi`, `x-default`) and its `og:locale` tag from `url`/
+`slug` and the RENDERED `locale` alone — never from which query string
+(`?lang=`) the current request actually carried, and identically whether
+`data` is a real, listed Room or the platform-only unknown/unlisted
+fallback. The three hreflang links are the exact same three links on every
+one of a Room's requests, in either language.
+
+**Rationale.** Google's own hreflang doc, fetched for this workstream
+("Tell Google about localized versions of your page"), states the rule
+directly: "The set of links is identical for every version of the page" —
+each language version must reference itself and every sibling, not just the
+"other" one. Making the links a pure function of `url`/`slug` is what makes
+that true by construction rather than by remembering to keep two branches
+in sync; the fallback page carrying the identical set follows WS-R66's own
+"nobody may learn whether a slug exists from this page's shape" law extended
+to these new tags — an absent-versus-present hreflang link would itself be
+exactly the kind of shape difference that law exists to close off.
+
+**Reversal condition.** If a future locale is ever added (a third language,
+not `en`/`hi`), `HREFLANG_CODES` grows to match and `x-default` still points
+at the bare address — the SAME reasoning, not a new one. If canonical is
+ever changed to be the RENDERED locale's own address rather than always the
+bare "en" address (a genuine SEO trade-off some sites make differently),
+this decision's hreflang alternates stay correct regardless: they describe
+the URL structure, not which one is canonical.
+
+## `ws-r90-sitemap-hreflang-only-on-c-slug-not-r-slug` (2026-09-05, WS-R90)
+
+**Decision.** `api/_sitemap.js`'s new `creatorPageUrlEntry` (the `xhtml:link`
+hreflang cluster, per Google's sitemap-method doc) is emitted only for each
+listed-and-published Room's `/c/<slug>` entry. `/r/<slug>` (the Room itself,
+built beside it in the same `rows.flatMap`) keeps its plain, single-line
+`<url><loc>...</loc></url>` shape, unchanged.
+
+**Rationale.** This workstream's own brief names `/c/<slug>` alone for
+sitemap hreflang ("the sitemap lists every listed creator's `/c/<slug>`
+with hreflang alternates"); `/r/<slug>` is a client app (`RoomApp.tsx`) with
+no `?lang=` query-string language switch of its own — a follower's locale
+there is chosen inside the app after it loads (`WS-R84`'s own refetch-on-
+switch work), not by requesting a different URL, so there is no second
+address for a crawler to be told about. Adding an identical cluster to
+`/r/<slug>` "for symmetry" would be inventing a signal Google has nothing
+to do with, not documenting a real alternate.
+
+**Reversal condition.** If `/r/<slug>` ever grows its own `?lang=` entry
+point that a crawler should be told about (mirroring `/c/<slug>`'s), give
+it the identical `creatorPageUrlEntry`-shaped treatment rather than a third,
+independently-written function — the two would then be describing the same
+kind of fact about two different pages.
+
+## `ws-r90-creator-slug-probe-flag-optional-honest-skip` (2026-09-05, WS-R90)
+
+**Decision.** `scripts/probe-live.mjs` gains a `--creator-slug <slug>` flag
+that checks `/c/<slug>`'s canonical, hreflang alternates and JSON-LD against
+a REAL deployment. When omitted, that ONE section is skipped with a printed
+note in both the text and JSON report shapes (`notes: [...]`) — the run
+still exits 0 on an otherwise-clean deployment, never a failure for an
+absent flag.
+
+**Rationale.** Every other check in this file works against an UNKNOWN
+slug on purpose (a probe must never assume a specific row exists in a
+database it cannot query). This one check cannot: an unknown slug's
+`/c/<slug>` is deliberately the platform-only fallback with `jsonLd: ""` —
+no Person block at all — so there is nothing meaningful to validate without
+a REAL, listed, published Room's slug. `context/STATE.md`'s own LIVE table
+states plainly that "no real `vy_room` row has ever been inserted anywhere
+outside a fake `db`" as of this workstream's own session — inventing a
+slug to probe, or silently skipping with no note, would both violate
+AGENTS.md's "honest states" law (the first by fabricating a check result on
+data that does not exist, the second by hiding what was not checked).
+`evals/probe-live/run.mjs` proves both halves: the checking logic (against
+`fakeServer.mjs`'s new `/c/<slug>` route, which serves the REAL
+`buildCreatorPageHtml`'s output for one named fixture slug) and the
+honest-skip path (no flag given, exit 0, a note names why).
+
+**Reversal condition.** The day a real, listed, published Room exists on a
+deployment this repeats against (the owner's own Room, or a seeded fixture
+account), `docs/gurukul/DEPLOY.md`'s Phase 6 probe-live step should start
+passing `--creator-slug <that slug>` by default rather than leaving this
+optional forever — the flag's own design does not need to change, only the
+runbook that invokes it.
+
+## `ws-r90-jsonld-schema-validator-shared-not-duplicated` (2026-09-05, WS-R90)
+
+**Decision.** `validatePersonJsonLd`/`validateFaqPageJsonLd` (small,
+hand-written schema.org required-field checkers, no network) live in
+`scripts/probeLiveExpectations.mjs` — the file WS-R64 already established
+as the one place both `scripts/probe-live.mjs` and its offline eval import
+shared expectations from — rather than as a second copy inside
+`evals/creator-page/run.mjs` alone.
+
+**Rationale.** Both callers need the identical definition of "valid": the
+eval checks the REAL `buildCreatorPageJsonLd`'s output in-process, and the
+live probe checks whatever JSON-LD a real deployment actually serves over
+HTTP. Two independently maintained copies of "what fields does a Person
+need" is exactly the drift `ws-r64-expectations-parsed-from-source-not-
+retyped` (above) already named the whole point of this file to prevent, one
+concept over (a validator, not a source-parsed literal, but the same "never
+a second literal" reasoning applies to a second RULE).
+
+**Reversal condition.** If a future workstream needs full schema.org
+conformance (every optional field, not just the required ones this page
+actually emits), that belongs in a real schema.org validation library
+behind a new, explicit `--strict` flag — not grown silently inside these
+two functions, which this decision keeps deliberately scoped to the fields
+`api/_creator-page.js#buildCreatorPageJsonLd` actually promises.
+
+## `ws-r90-hreflang-literals-as-named-constants-for-source-parsing` (2026-09-05, WS-R90)
+
+**Decision.** `api/_creator-page.js` names its three new literals as module-
+level constants — `HREFLANG_CODES`, `HI_LANG_QUERY`, `OG_LOCALE` — rather
+than writing them inline inside `renderPage`'s template string, even though
+nothing in this file besides `renderPage` itself reads them.
+
+**Rationale.** WS-R64's law ("every expectation is derived from the repo's
+own source where one exists, never a second literal") only works when the
+source itself has something regex-parseable to derive FROM.
+`scripts/probeLiveExpectations.mjs#creatorPageHeadFacts` parses these three
+names directly out of this file's own bytes, the identical technique every
+other `*Facts()` function in that module already uses (`roomPageFacts`,
+`roomCardSizes`) — an inline literal buried inside a template-string
+expression has no stable shape a regex could target without becoming
+fragile to unrelated formatting changes in the surrounding markup.
+
+**Reversal condition.** None expected — this is the established pattern
+for this file, not a new one; a future addition to this page's `<head>`
+that a probe needs to check should follow the identical shape (a named,
+top-level constant) rather than reopen this question.

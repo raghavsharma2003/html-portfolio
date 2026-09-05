@@ -49,6 +49,9 @@ const ok = (name, cond, extra = "") => {
   console.log(`${cond ? "  ok  " : "FAIL  "}${name}${extra ? `   ${extra}` : ""}`);
 };
 
+const { creatorPageHeadFacts, validatePersonJsonLd, validateFaqPageJsonLd } = await import(
+  pathToFileURL(join(REPO, "scripts/probeLiveExpectations.mjs")).href
+);
 const CREATOR_PAGE = await import(pathToFileURL(join(API, "_creator-page.js")).href);
 const ROOM_PUBLISH = await import(pathToFileURL(join(API, "_room-publish.js")).href);
 const {
@@ -418,6 +421,92 @@ function makeDb(state) {
   const xml = await buildSitemapXml(makeDb(state), { origin: "https://vyakti.app" });
   ok("sitemap carries /r/<slug>", xml.includes("<loc>https://vyakti.app/r/anjali-physics</loc>"));
   ok("sitemap carries /c/<slug> beside it", xml.includes("<loc>https://vyakti.app/c/anjali-physics</loc>"));
+
+  // WS-R90: the sitemap's own hreflang cluster for /c/<slug>, and the
+  // required xhtml namespace Google's sitemap-method doc names.
+  ok("urlset declares the xhtml namespace hreflang needs", xml.includes('xmlns:xhtml="http://www.w3.org/1999/xhtml"'));
+  ok("the /c/<slug> entry's own hreflang=en alternate is itself", xml.includes('<xhtml:link rel="alternate" hreflang="en" href="https://vyakti.app/c/anjali-physics" />'));
+  ok("the /c/<slug> entry's own hreflang=hi alternate carries ?lang=hi", xml.includes('<xhtml:link rel="alternate" hreflang="hi" href="https://vyakti.app/c/anjali-physics?lang=hi" />'));
+  ok("the /c/<slug> entry names an x-default alternate", xml.includes('<xhtml:link rel="alternate" hreflang="x-default" href="https://vyakti.app/c/anjali-physics" />'));
+  ok("the /r/<slug> entry carries NO hreflang cluster (brief names only /c/<slug>)",
+    !new RegExp(`<loc>https://vyakti\\.app/r/anjali-physics</loc>[\\s\\S]{0,20}<xhtml:link`).test(xml));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 14. WS-R90: SEARCH PRESENCE — hreflang alternates, x-default, og:locale
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const room = { display_name: "Anjali", one_line_bio: "JEE physics, one topic a day.", default_locale: "en" };
+  const html = buildCreatorPageHtml({ room, showcase: [] }, { origin: "https://vyakti.app", slug: "anjali-physics" });
+
+  const facts = creatorPageHeadFacts();
+  ok("HREFLANG_CODES parses to exactly en, hi, x-default", JSON.stringify(facts.hreflangCodes) === JSON.stringify(["en", "hi", "x-default"]));
+  ok("HI_LANG_QUERY parses to ?lang=hi", facts.hiQuery === "?lang=hi");
+  ok("OG_LOCALE parses to en_US / hi_IN", facts.ogLocale.en === "en_US" && facts.ogLocale.hi === "hi_IN");
+
+  for (const code of facts.hreflangCodes) {
+    ok(`carries a hreflang="${code}" alternate link`, html.includes(`hreflang="${code}"`));
+  }
+  ok('hreflang="en" points at the bare canonical address', html.includes('<link rel="alternate" hreflang="en" href="https://vyakti.app/c/anjali-physics" />'));
+  ok('hreflang="hi" points at the ?lang=hi address', html.includes('<link rel="alternate" hreflang="hi" href="https://vyakti.app/c/anjali-physics?lang=hi" />'));
+  ok('hreflang="x-default" points at the SAME bare address as "en", not a third URL',
+    html.includes('<link rel="alternate" hreflang="x-default" href="https://vyakti.app/c/anjali-physics" />'));
+
+  ok('an English render carries og:locale content="en_US"', html.includes('<meta property="og:locale" content="en_US" />'));
+  const htmlHi = buildCreatorPageHtml({ room, showcase: [] }, { origin: "https://vyakti.app", slug: "anjali-physics", lang: "hi" });
+  ok('the SAME Room requested with ?lang=hi carries og:locale content="hi_IN"', htmlHi.includes('<meta property="og:locale" content="hi_IN" />'));
+  ok('the hi render carries the IDENTICAL hreflang set as the en render (Google\'s own rule: identical on every version)',
+    [...htmlHi.matchAll(/<link rel="alternate" hreflang="[^"]+" href="[^"]+" \/>/g)].map((m) => m[0]).join("|")
+      === [...html.matchAll(/<link rel="alternate" hreflang="[^"]+" href="[^"]+" \/>/g)].map((m) => m[0]).join("|"));
+
+  // The platform-only fallback (unknown/unlisted slug) still carries a full,
+  // correct hreflang cluster and og:locale=en_US -- WS-R66's own "nobody may
+  // learn whether a slug exists from this page's shape" law extended to
+  // these new tags: an absent-tag difference would itself be a signal.
+  const unknownHtml = buildCreatorPageHtml(null, { origin: "https://vyakti.app", slug: "nobody-here" });
+  ok("the platform-only fallback still carries all three hreflang alternates",
+    facts.hreflangCodes.every((code) => unknownHtml.includes(`hreflang="${code}"`)));
+  ok('the platform-only fallback carries og:locale content="en_US"', unknownHtml.includes('<meta property="og:locale" content="en_US" />'));
+
+  // `api/_sitemap.js` restates (never imports) the identical HREFLANG_CODES/
+  // HI_LANG_QUERY constants for its own xhtml:link cluster
+  // (`context/decisions.md#ws-r90-sitemap-hreflang-only-on-c-slug-not-r-slug`'s
+  // own comment claims the two files "agree" -- checked here directly
+  // against the sitemap file's own source, not merely asserted).
+  const sitemapSrc = readFileSync(join(API, "_sitemap.js"), "utf8");
+  const sitemapCodesMatch = /const HREFLANG_CODES\s*=\s*\[([^\]]*)\]/.exec(sitemapSrc);
+  const sitemapCodes = sitemapCodesMatch ? [...sitemapCodesMatch[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]) : null;
+  const sitemapHiQueryMatch = /const HI_LANG_QUERY\s*=\s*"([^"]+)"/.exec(sitemapSrc);
+  ok("api/_sitemap.js's own HREFLANG_CODES matches api/_creator-page.js's, byte for byte",
+    JSON.stringify(sitemapCodes) === JSON.stringify(facts.hreflangCodes));
+  ok("api/_sitemap.js's own HI_LANG_QUERY matches api/_creator-page.js's",
+    sitemapHiQueryMatch?.[1] === facts.hiQuery);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 15. WS-R90: THE JSON-LD SCHEMA VALIDATOR — required fields, both types,
+// plus a negative control proving the validator actually bites
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const room = { display_name: "Anjali", one_line_bio: "JEE physics." };
+  const showcase = [{ question: "How do you explain projectile motion?", answer: "Split it into components." }];
+  const ld = buildCreatorPageJsonLd({ room, showcase, url: "https://vyakti.app/c/anjali-physics" });
+
+  ok("the real Person block passes the schema validator with zero errors", validatePersonJsonLd(ld.person).length === 0, JSON.stringify(validatePersonJsonLd(ld.person)));
+  ok("the real FAQPage block passes the schema validator with zero errors", validateFaqPageJsonLd(ld.faq).length === 0, JSON.stringify(validateFaqPageJsonLd(ld.faq)));
+
+  const noShowcaseLd = buildCreatorPageJsonLd({ room, showcase: [], url: "https://vyakti.app/c/anjali-physics" });
+  ok("a Person block with no showcase (faq: null) still passes on its own", validatePersonJsonLd(noShowcaseLd.person).length === 0);
+
+  // NEGATIVE CONTROLS: the validator actually bites on each required field.
+  ok("NEGATIVE CONTROL: a Person missing @context is caught", validatePersonJsonLd({ ...ld.person, "@context": undefined }).some((e) => /@context/.test(e)));
+  ok("NEGATIVE CONTROL: a Person with the wrong @type is caught", validatePersonJsonLd({ ...ld.person, "@type": "Organization" }).some((e) => /@type/.test(e)));
+  ok("NEGATIVE CONTROL: a Person missing name is caught", validatePersonJsonLd({ ...ld.person, name: "" }).some((e) => /name/.test(e)));
+  ok("NEGATIVE CONTROL: an empty FAQPage mainEntity is caught", validateFaqPageJsonLd({ ...ld.faq, mainEntity: [] }).some((e) => /mainEntity/.test(e)));
+  ok("NEGATIVE CONTROL: a Question missing acceptedAnswer.text is caught",
+    validateFaqPageJsonLd({ ...ld.faq, mainEntity: [{ "@type": "Question", name: "Q?", acceptedAnswer: { "@type": "Answer", text: "" } }] })
+      .some((e) => /acceptedAnswer\.text/.test(e)));
+  ok("a null/undefined object is caught rather than throwing", validatePersonJsonLd(null).length > 0 && validateFaqPageJsonLd(undefined).length > 0);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

@@ -8770,6 +8770,60 @@
       "kind": "measurement",
       "title": "WS-R85 offline gate results: share-kit 79/79, room-share 57/57, room-doors 568/568, room-leak 217/217, ops 137/137, studio-locale 58/58, studio-shell 68/68, layout gate clean on the studio target both locales",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r90-hreflang-og-locale-identical-on-every-response",
+      "kind": "decision",
+      "title": "Creator page hreflang links and og:locale are a pure function of url/slug/rendered locale, identical on every response including the platform-only fallback, per Google's own doc rule.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r90-sitemap-hreflang-only-on-c-slug-not-r-slug",
+      "kind": "decision",
+      "title": "Sitemap xhtml:link hreflang cluster is added only to /c/<slug> entries, not /r/<slug>, matching the brief scope and the fact /r/<slug> has no query-string language switch.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r90-creator-slug-probe-flag-optional-honest-skip",
+      "kind": "decision",
+      "title": "probe-live.mjs --creator-slug flag checks /c/<slug> against a real listed Room; omitted, the section is skipped with a printed note rather than failing or inventing a slug.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r90-jsonld-schema-validator-shared-not-duplicated",
+      "kind": "decision",
+      "title": "validatePersonJsonLd/validateFaqPageJsonLd live in probeLiveExpectations.mjs, shared by the eval and the live probe, rather than duplicated.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r90-hreflang-literals-as-named-constants-for-source-parsing",
+      "kind": "decision",
+      "title": "HREFLANG_CODES/HI_LANG_QUERY/OG_LOCALE are named module constants in api/_creator-page.js so probeLiveExpectations.mjs can parse them from source rather than retype them.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r90-fake-server-c-slug-handler-forgot-applyheaders",
+      "kind": "rejection",
+      "title": "The first draft of fakeServer.mjs's new /c/:slug route wrote its response head directly, dropping the CSP/HSTS/etc headers the OLD 404 fallback had been supplying by accident; caught by the existing clean-fixture-zero-findings assertion.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r90-creator-page-bytes-2026-09-05",
+      "kind": "measurement",
+      "title": "creator-page-fixture.html: 7186 bytes before WS-R90, 7485 after (+299 bytes / +4.2%) for 3 hreflang links + 1 og:locale meta tag, n=1, byte-for-byte diff against a scratch worktree at the session start commit.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r90-creator-page-performance-2026-09-05",
+      "kind": "measurement",
+      "title": "check-performance.mjs /c/<slug> target after WS-R90: LCP 268ms, TBT 0ms, JS 2.2KB (unchanged), all within budget; n=3 cold runs.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r90-evals-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/creator-page 119 (was 89), evals/creator-directory 61 (was 55), evals/probe-live 23 checks (was 12), all pass, offline, $0.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -17237,6 +17291,51 @@
       "src": "ws-r85-share-kit",
       "rel": "measured_by",
       "dst": "ws-r85-gates-2026-09-05"
+    },
+    {
+      "src": "ws-r90-hreflang-og-locale-identical-on-every-response",
+      "rel": "part_of",
+      "dst": "ws-r66-creator-page-predicate-restated-not-imported"
+    },
+    {
+      "src": "ws-r90-sitemap-hreflang-only-on-c-slug-not-r-slug",
+      "rel": "part_of",
+      "dst": "ws-r45-creators-html-vite-entry-for-gate-only"
+    },
+    {
+      "src": "ws-r90-creator-slug-probe-flag-optional-honest-skip",
+      "rel": "part_of",
+      "dst": "ws-r64-not-a-verify-release-gate"
+    },
+    {
+      "src": "ws-r90-jsonld-schema-validator-shared-not-duplicated",
+      "rel": "part_of",
+      "dst": "ws-r64-expectations-parsed-from-source-not-retyped"
+    },
+    {
+      "src": "ws-r90-hreflang-literals-as-named-constants-for-source-parsing",
+      "rel": "part_of",
+      "dst": "ws-r64-expectations-parsed-from-source-not-retyped"
+    },
+    {
+      "src": "ws-r90-creator-page-performance-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r90-hreflang-og-locale-identical-on-every-response"
+    },
+    {
+      "src": "ws-r90-creator-page-bytes-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r90-hreflang-og-locale-identical-on-every-response"
+    },
+    {
+      "src": "ws-r90-evals-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r90-jsonld-schema-validator-shared-not-duplicated"
+    },
+    {
+      "src": "ws-r90-fake-server-c-slug-handler-forgot-applyheaders",
+      "rel": "caused_by",
+      "dst": "ws-r90-creator-slug-probe-flag-optional-honest-skip"
     }
   ]
 }
