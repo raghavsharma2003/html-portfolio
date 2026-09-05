@@ -10950,3 +10950,174 @@ fixture that lies.
 is a new screen, and the gate must be run on it alone before the merge; and
 a grid track that defaults to `auto` is a min-content pipe from the deepest
 unbreakable string to the page's width.
+
+## `ws-r82-enrollment-consent-panel-extracted-then-reverted` (2026-09-05, WS-R82)
+
+**Tried.** `EnrollmentWorkspace.tsx`'s formal four-statement consent ceremony
+(the `consent-panel` article: age/identity/rights/synthetic-disclosure
+attestations) was extracted whole into its own new file,
+`EnrollmentConsentPanel.tsx` — untouched, English, its own component with its
+own local state — on the exact precedent `PayoutsCard.tsx`/`SuiteCard.tsx`/
+`CheckinsCard.tsx`/`HandoffCard.tsx`/`InviteCreatorCard.tsx` already set for
+carving a self-contained card OUT of a large file specifically so the REST
+of that file could convert to Hindi while the ceremony itself stayed whole.
+It was built completely: the new file, `EnrollmentWorkspace.tsx` rewired to
+import and render it, all 900+ remaining lines of that file routed through
+`t.enrollmentWorkspace` (a new `copy.ts`/`hiCopy.ts` section, ~180 leaf
+strings), `evals/studio-locale/run.mjs`'s allowlist updated. `npx tsc -b
+--noEmit` passed clean on the first attempt; the literal-English-text scanner
+found zero hits in both files.
+
+**What broke, and it was not a code defect.** Reading `scratchpad/ws-r83-consent-ceremonies-hindi-review.md`
+(visible from this workstream's own scratchpad this session, since WS-R83 is
+a wave-fourteen sibling) showed its brief fixes the phrase "the six consent
+ceremonies" to an EXPLICIT, named list of exactly six files
+(`ModelConsentGate.tsx`, `IdentityProofing.tsx`, `VideoEnrollPanel.tsx`,
+`IngestChannelStudio.tsx`, `LivenessCapture.tsx`, `VoiceIdentityChallenge.tsx`)
+and builds an eval whose own job is to prove a legal-review document is
+COMPLETE against exactly those six files' consent blocks — a completeness
+proof that would go quietly wrong (not fail, just stop meaning what it
+claims) the moment a SEVENTH consent-ceremony file existed in the tree that
+WS-R83's own document never enumerated. This workstream's own brief also
+independently states the allowlist should "shrink to the six consent
+ceremonies alone" — the SAME fixed count, from the same wave-planning
+source. Two siblings in the same wave, working from the same "six" premise,
+with no channel between their two running sessions to renegotiate it
+mid-flight: the only choice that does not silently break one of them is to
+not add a seventh file this session, however clean the extraction is on its
+own technical merits.
+
+**What to do differently.** Before extracting ANY file out of a Tier 2
+allowlist entry into a new file, check whether a SIBLING workstream in the
+same wave has already fixed a specific COUNT or LIST of files this addition
+would silently change — read that sibling's own brief file in the shared
+scratchpad if it is visible, the way this session did, rather than assuming
+"the six" is a stable English phrase safe to reinterpret locally. A clean
+build and a green typecheck prove the code works; they prove nothing about
+whether a concurrent sibling's own completeness proof still means what it
+claimed before this session's diff landed beside it.
+
+## `ws-r82-studio-hi-signed-out-entry-never-shows-hindi` (2026-09-05, WS-R82)
+
+**Tried (as an assumption, not a code change).** This workstream's own brief
+asked for a performance metric named "the time between the English shell's
+first paint and the first Hindi text node painted" on the studio's
+SIGNED-OUT entry with `?lang=hi`. Read `StudioApp.tsx` before building the
+metric, on the working assumption that `?lang=hi` on the signed-out screen
+would eventually paint SOME Hindi text to time against.
+
+**What broke.** It does not, and this is not a bug this session introduced —
+it is how the file has read since WS-R52. `StudioApp.tsx`'s `if (!session)
+return <AuthGate .../>;` returns BEFORE `<StudioLocaleProvider locale=
+{studioLocale}>` is ever reached; `AuthGate` itself is copy-driven by a
+separate, older, `?lang`-blind local object (`TEACHER_COPY`/`GENERIC_COPY`/
+`TEST_COPY`, already named as out of scope in `StudioApp.tsx`'s own
+`TIER_2_ALLOWLIST` entry). So a Hindi creator visiting `/studio?lang=hi`
+before signing in sees ZERO Hindi anywhere, including the sign-in screen
+itself — `loadStudioCopy("hi")` is never even called. A literal "first Hindi
+text node" measurement on this exact screen would therefore either hang
+forever waiting for something that never happens, or require inventing a
+timeout and reporting "infinity," neither of which is an honest budget
+check.
+
+**What was done instead.** `context/decisions.md#ws-r82-studio-hi-performance-target`
+measures the one thing that IS real and locale-specific on this screen: how
+long the Hindi CHUNK itself takes to become usable once anything asks for
+it, timed via a real `import()` of the actual built chunk file, under the
+gate's own throttle — decoupled from which future screen ends up being the
+one that actually triggers that import for a real signed-in creator.
+
+**What to do differently, and the actual product gap this surfaced.** A
+future workstream that wants to CLOSE this gap (not just measure around it)
+would need to make `AuthGate` itself locale-aware — genuinely translating the
+sign-in screen, or at minimum firing `loadStudioCopy("hi")` on `?lang=hi`
+before or during the auth check so the chunk is at least warm by the time a
+returning creator's session resolves. Neither is in this workstream's own
+file list (`StudioApp.tsx` is explicitly untouched), so this is named here
+rather than attempted.
+
+## `ws-r82-mirror-call-fine-tune-word-surfaced-by-the-move-to-copy-ts` (2026-09-05, WS-R82)
+
+**Tried.** Moved `MirrorCallStudio.tsx`'s existing English review-tab
+sentence — "A voice fine-tune is queued. It runs on GPU time after the call,
+so this screen will not show it finishing." — verbatim into `copy.ts`, the
+same `ws-r61-copy-ts-move-surfaced-latent-model-word-and-middot-run-violations`
+assumption that text already shipping on the real tree needed no re-review
+before relocation.
+
+**What broke.** `scripts/check-copy.mjs`'s rooms-vocabulary rule bans
+`fine-tune` in ANY user-visible string, and this literal string, sitting as
+a bare ternary branch (`state.ended.finetune.queued ? "A voice fine-tune is
+queued..." : ...`) directly inside a JSX expression, had shipped invisibly
+for as long as this file has existed: `isVisibleLiteral()` never treated it
+as visible because it was neither a JSX text node nor an object property
+with a recognised key. Moving it into `copy.ts` (a whole-file `COPY_FILES`
+scan) surfaced it immediately, on the first `node scripts/check-copy.mjs`
+run against the edited tree.
+
+**What to do differently.** Reworded to "A voice build is queued." /"No
+voice build was queued", reusing the SAME substitution `copy.ts`'s own
+`noticeDraftQueued`/`draftVersionLabel` entries already made for this exact
+concept elsewhere in the same file — "voice build" is this product's
+established vocabulary for what used to be described as fine-tuning, not a
+one-off rewording invented for this file. Confirms
+`ws-r61-copy-ts-move-surfaced-latent-model-word-and-middot-run-violations`'s
+own finding generalises: ANY string moved into a `COPY_FILES`-matched file
+needs a fresh `check-copy.mjs` run before its Hindi translation is written,
+regardless of how long the English has shipped safely.
+
+## `ws-r82-voicepanel-eval-also-concatenated-the-whole-copy-ts` (2026-09-05, WS-R82)
+
+**Tried.** Ran the full `eval suite` gate after adding `mirrorCallStudio`'s
+copy section, expecting the four already-updated "component + copy.ts
+together" evals (`evals/voice-preview-ui.mjs` among them, WS-R71's own fix)
+to stay clean since none of them touch `MirrorCallStudio.tsx` or its new
+copy section directly.
+
+**What broke.** `evals/voicepanel.mjs` — NOT one of the eight evals WS-R71's
+own session found and fixed for this exact defect class — failed a negative
+control: "no voice-panel path retains the disproved three-minute ceiling."
+Its own `clientWithCopy` concatenated the WHOLE of `src/studio/copy.ts` (not
+just `t.voicePreviewPanel`'s own section, the way `evals/voice-preview-ui.mjs`
+already does after WS-R71's fix), so `mirrorCallStudio.gpuColdBodyTemplate`
+— a GPU cold-start message this session copied VERBATIM from
+`MirrorCallStudio.tsx`'s own pre-existing English text, carrying the SAME
+"two to three minutes" phrase this negative control exists to ban from the
+VOICE PANEL specifically — leaked into a check about a completely different
+screen the moment it was added anywhere in the file.
+
+**What to do differently.** `evals/voice-preview-ui.mjs`'s own fix
+(`rejected.md#ws-r71-concatenating-the-whole-copy-ts-leaked-a-sibling-sections-wording-into-an-unrelated-check`)
+was never propagated to every OTHER eval sharing the identical
+"component + whole copy.ts" concatenation shape — `evals/voicepanel.mjs`
+(fixed this session, the same slice-just-the-one-section pattern) is proof
+that at least one sibling was missed. A future session adding a new
+`copy.ts` section should grep for `readFileSync(.*copy\.ts.*utf8` across
+`evals/` before assuming the existing fix already covers every caller, since
+apparently it did not.
+
+## `ws-r82-context-locker-clone-word-surfaced-by-the-move-to-copy-ts` (2026-09-05, WS-R82)
+
+**Tried.** Moved `ContextLockerPanel.tsx`'s `stateDetail()` function's
+existing return value — "Waiting for you in Review. Nothing is applied to
+your clone until you approve it." — verbatim into `copy.ts`, the same
+assumption as the entry above, on a DIFFERENT file.
+
+**What broke.** The same mechanism: a bare `return "..."` inside a plain
+function is invisible to `isVisibleLiteral()`'s JSX-text-node/recognised-key
+test, so this sentence — carrying the banned word "clone" — had shipped
+invisibly since the file was written. Moving it into `copy.ts` surfaced it
+on the first gate run.
+
+**What to do differently.** Reworded to "Nothing is applied to your AI until
+you approve it." — dropping "clone" entirely rather than finding a Hindi-safe
+synonym for it, consistent with the rest of this product's own vocabulary
+("your AI", never "clone," in any language). Same generalisation as the
+entry above: this is now the THIRD time in this repo's history a
+`COPY_FILES` move has surfaced a previously-invisible banned-word or
+punctuation defect (see also
+`ws-r61-copy-ts-move-surfaced-latent-model-word-and-middot-run-violations`),
+which is strong enough evidence to treat "run check-copy.mjs immediately
+after any text moves into a COPY_FILES match, before writing the
+translation" as a load-bearing step of the move itself, not an optional
+sanity check.

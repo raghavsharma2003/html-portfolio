@@ -15714,3 +15714,168 @@ budget with a measurement, never silently. If the placeholder ever throws in
 production (an incident row naming `studio_copy_hi_not_loaded`), the provider
 gate has a hole and the fix is in `localeContext.tsx`, not a softer
 placeholder.
+
+## `ws-r82-tier-2-third-wave-converted` (2026-09-05, WS-R82)
+
+**Decision.** Three of the four files this workstream was asked to convert
+move to Tier 1: `ContextLockerPanel.tsx`, `MirrorCallStudio.tsx`,
+`VoiceEnrollmentLab.tsx` (264 new leaf strings per locale — 78 + 120 + 66 —
+added to `src/studio/copy.ts`/`hiCopy.ts` as their own closed sections at the
+end). `layoutFixture.tsx` and `main.tsx` also move to Tier 1: both already
+carried zero literal English JSX text nodes of their own (the same shape
+`localeContext.tsx`/`Localized.tsx` already occupy in that list) and sat in
+`TIER_2_ALLOWLIST` for a STRUCTURAL reason unrelated to translation debt —
+reclassifying them (no content touched) is what actually lets the allowlist
+narrow toward the six consent-ceremony files it exists to hold, rather than
+carrying two permanent non-ceremony entries beside them forever. The fourth
+named file, `EnrollmentWorkspace.tsx`, is NOT converted — see the next entry.
+
+**Rationale.** All three converted files were read in full before converting:
+`ContextLockerPanel.tsx`'s one consent-shaped checkbox was found to be a
+control, not a ceremony (see
+`#ws-r82-context-locker-checkbox-is-a-control-not-a-ceremony`);
+`MirrorCallStudio.tsx` and `VoiceEnrollmentLab.tsx` carry no checkbox array or
+statement set at all — `VoiceEnrollmentLab.tsx`'s one legally-sensitive
+string, Microsoft's own required spoken consent statement
+(`providerConsent.statement`), is SERVER-COMPUTED prose already covered by
+`copy.ts`'s own header exception (category 1), never a literal this file
+authors. Every one of the 264 new leaf strings passes
+`scripts/check-copy.mjs`'s real scanner (`evals/studio-locale/run.mjs`'s own
+proof, run against the real Hindi table through the real gate, not a sample).
+
+**What was found and fixed, not merely translated.** Moving text into a
+`COPY_FILES`-matched file makes it visible to the scanner for the first time
+(`ws-r61-copy-ts-move-surfaced-latent-model-word-and-middot-run-violations`'s
+own pattern, repeated twice more this session — see
+`#ws-r82-mirror-call-fine-tune-word-surfaced-by-the-move-to-copy-ts` and
+`#ws-r82-context-locker-clone-word-surfaced-by-the-move-to-copy-ts` in
+`rejected.md`). Also found independent of the copy gate: `MirrorCallStudio.tsx`'s
+review-tab copy hardcoded "8-per-minute" as a literal number describing the
+chip rail's rate cap, but the real constant `CHIPS_PER_MINUTE`
+(`mirrorCallMachine.ts`) is 3 — a pre-existing, invisible defect (nobody reads
+a plain English sentence and checks it against a constant three files away)
+that would have shipped a WRONG, and now newly-visible-in-two-languages,
+number had the literal simply been copied. Fixed by adding a second
+placeholder to the two templates that need it and interpolating the real
+constant at render time in both call sites, so the two languages can never
+drift from each other or from the code again.
+
+**Reversal condition.** Unchanged shape from `ws-r71-tier-2-second-wave-converted`:
+a future workstream converting `EnrollmentWorkspace.tsx` removes its
+allowlist entry and adds it to `TIER_1_FILES` in the same change.
+
+## `ws-r82-context-locker-checkbox-is-a-control-not-a-ceremony` (2026-09-05, WS-R82)
+
+**Decision.** `ContextLockerPanel.tsx`'s one consent-shaped checkbox — "If I
+upload a chat export, I understand it contains another person's private
+messages, that only MY messages are ever used, and that theirs are read only
+to tell the two apart" — is translated as part of the file, the same as any
+other control on the screen, not carved out as a seventh consent ceremony.
+
+**Rationale.** WS-R71 flagged this checkbox for a closer read rather than
+deciding it either way. Read closely against the six confirmed ceremonies
+(`ModelConsentGate.tsx`'s six `STATEMENTS`, `IdentityProofing.tsx`'s KYC
+statements, `VideoEnrollPanel.tsx`/`IngestChannelStudio.tsx`'s five-statement
+YouTube rights ceremonies, `LivenessCapture.tsx`/`VoiceIdentityChallenge.tsx`'s
+biometric fieldsets — all FORMAL, multi-statement, dedicated consent SCREENS
+a person deliberately steps through before something high-stakes), this is a
+single sentence conditionally gating one specific upload path (a chat
+export), structurally identical to an ordinary feature-confirmation checkbox
+elsewhere in this product's already-translated screens. It is not named by
+exact English wording in `scripts/roomsVocabAllowlist.mjs` the way the six
+ceremonies partly are, so no already-approved wording is at stake, and
+`rejected.md#ws-r61-partial-modelconsentgate-translation-considered-and-rejected`'s
+own finding — do not split a consent screen's chrome from its statements —
+does not apply to a screen that was never treated as a dedicated ceremony
+screen to begin with.
+
+**Reversal condition.** If a legal review (the kind `docs/legal/HINDI-CONSENT-REVIEW.md`,
+WS-R83, gives the six confirmed ceremonies) finds this checkbox carries more
+legal weight than a plain feature confirmation, revert this translation and
+add `ContextLockerPanel.tsx` to `TIER_2_ALLOWLIST` with that finding as the
+reason.
+
+## `ws-r82-enrollment-workspace-is-a-seventh-consent-ceremony-not-converted` (2026-09-05, WS-R82)
+
+**Decision.** `EnrollmentWorkspace.tsx`, one of this workstream's own four
+named files, is NOT converted. It is left exactly as it was, with its
+`TIER_2_ALLOWLIST` entry strengthened to name the specific finding.
+
+**Rationale.** Read in full, its consent-panel article carries a live,
+FOUR-statement `attestations` array a creator affirmatively checks before any
+private source intake opens — an identity claim ("I am creating a replica of
+myself, not another person"), an age claim, a rights claim, and an
+understanding of the synthetic-disclosure requirement. This is the SAME
+formal, multi-statement consent-ceremony shape as `ModelConsentGate.tsx`'s
+six `STATEMENTS`, not the single-checkbox control shape
+`ContextLockerPanel.tsx`'s own checkbox turned out to be (see the entry
+above). This makes `EnrollmentWorkspace.tsx` a SEVENTH file carrying this
+exact risk class — found only after WS-R83's own brief had already fixed its
+scope at the SIX files WS-R61/WS-R71 found (`ModelConsentGate.tsx`,
+`IdentityProofing.tsx`, `VideoEnrollPanel.tsx`, `IngestChannelStudio.tsx`,
+`LivenessCapture.tsx`, `VoiceIdentityChallenge.tsx` — confirmed by reading
+`scratchpad/ws-r83-consent-ceremonies-hindi-review.md` directly, since it is
+visible from this workstream's own scratchpad this session). A full
+extraction of this ceremony into its own file (`EnrollmentConsentPanel.tsx`,
+the same shape `PayoutsCard.tsx` etc. were carved out of `RoomStudio.tsx`)
+was built this session and type-checked clean end to end — see
+`rejected.md#ws-r82-enrollment-consent-panel-extracted-then-reverted` for
+why it was deliberately thrown away rather than shipped: it would have
+silently widened WS-R83's fixed six-file scope out from under a sibling
+workstream whose own eval proves its legal-review document is COMPLETE
+against exactly those six files, and no session running WS-R82 alongside
+WS-R83 in the same wave has a channel to tell WS-R83 to widen its own count
+mid-flight.
+
+**Reversal condition.** Once a session (a future wave, or the main loop
+during this wave's merge, now that this entry exists to read) either (a)
+widens WS-R83's scope to seven and gives `EnrollmentWorkspace.tsx`'s ceremony
+the same legal-review-document treatment as the other six, or (b) confirms
+WS-R83's own document already covers seven for some reason this entry did
+not find — extract the ceremony into its own file (the built, type-checked
+`EnrollmentConsentPanel.tsx` shape this session already proved works, not
+re-derived) and convert the rest of `EnrollmentWorkspace.tsx`, the same
+pattern this workstream used for its other three files.
+
+## `ws-r82-studio-hi-performance-target` (2026-09-05, WS-R82)
+
+**Decision.** `scripts/check-performance.mjs` gains a `studio-hi` target
+(`/studio?lang=hi`, same LCP 2500ms / JS 180KB budgets as `/studio`) and a
+named `hindiChunkWaitMs` metric, budget 800ms: NOT a direct read of "first
+Hindi text node painted" (the signed-out entry never paints one — see
+`rejected.md#ws-r82-studio-hi-signed-out-entry-never-shows-hindi`) but a
+direct, real `import()` of the ACTUAL built `dist/assets/hiCopy-*.js` chunk
+(found by filename prefix, never a hand-typed content hash), timed from the
+page's own `first-paint` entry, under the same network/CPU throttle already
+active on the page. The chunk's own bytes are excluded from the target's
+`jsBytes` tally (a real signed-out visitor's browser never requests this
+chunk at all; counting it would fail the JS budget on a request this gate's
+own measurement methodology caused, not a real regression).
+
+**Why a proxy metric rather than the literal thing the brief named.** The
+literal "first Hindi text node" does not exist to measure on this screen:
+`StudioApp.tsx`'s `AuthGate` renders before `StudioLocaleProvider` mounts, so
+`?lang=hi` on a signed-out visit changes nothing about what paints. The
+proxy — how long the chunk itself takes to become usable, once ANY code path
+asks for it, under this gate's throttle — is the load-bearing quantity
+`context/decisions.md#studio-hindi-table-is-its-own-chunk`'s own reversal
+condition actually cares about, and is the one number that stays true
+regardless of exactly which future screen ends up requesting the chunk
+first.
+
+**Measured, 2026-09-05, n=3 cold runs, this gate's own throttle (4x CPU,
+1.6Mbps/750Kbps/150ms):** median 583-636ms across repeated full-suite runs
+(`context/measurements.md#ws-r82-studio-hi-chunk-wait-2026-09-05`), against
+the 800ms budget — passes with real margin, no preload needed this session.
+`/studio` (plain) and `studio-hi` both measure 161.4KB JS, confirming the
+chunk split still costs the signed-out visitor nothing.
+
+**Reversal condition.** If a real phone on a real bad-4G day, or a future
+signed-in measurement of the actual `loadStudioCopy("hi")` call site, shows a
+materially different number than this proxy, trust the real measurement over
+the proxy and say so — the proxy's whole justification is that no better
+in-scope measurement exists today, not that it is definitionally correct. If
+the budget is ever missed, the fix named in
+`#studio-hindi-table-is-its-own-chunk` (a `<link rel="modulepreload">` for
+the chunk, added when `?lang=hi` is in the URL) is unbuilt and unneeded this
+session — build it then, never by raising the budget instead.
