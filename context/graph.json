@@ -7918,6 +7918,12 @@
       "kind": "rejection",
       "title": "a copy.ts string wrapped across two + -concatenated lines split a phrase a sibling eval's regex expected as one unbroken run in the raw source bytes",
       "at": "2026-09-05"
+    },
+    {
+      "id": "rooms-migration-116-live-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "Migration 116 (the two reply-flag tables) applied live at the WS-R67 merge; the two-CTE flag and unflag, the follower's list, the creator's grouped read and the never-rule lookup all plan on their indexes.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15710,6 +15716,11 @@
       "src": "ws-r61-multiline-string-concatenation-broke-a-sibling-evals-regex-match",
       "rel": "constrains",
       "dst": "ws-r61-copy-ts-move-surfaced-latent-model-word-and-middot-run-violations"
+    },
+    {
+      "src": "rooms-migration-116-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r67-flag-hash-not-body-two-lanes-count-at-read-time"
     }
   ]
 }

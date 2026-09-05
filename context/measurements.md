@@ -10832,3 +10832,17 @@ broadly per WS-R52's own mechanism, not a per-file screenshot this
 workstream took); a human Hindi speaker's read of the translations for
 register/tone (the same gap every prior Hindi workstream in this repo has
 stated plainly rather than implied coverage of).
+
+## `rooms-migration-116-live-verification-2026-09-05`
+
+n = 1 migration (5 statements in one transaction), 5 API statements; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP (neither table existed), the catalog read back (the follower-lane table's seven columns and the creator-lane table's six, five CHECKs, the unique `(follower_id, reply_sha256)` index, the person index and the room-and-reply index), then `EXPLAIN` (never `EXPLAIN ANALYZE`) with typed literals; date 2026-09-05, at the WS-R67 merge (de630c7).
+
+| statement | plan |
+|---|---|
+| `flagReply`'s two-CTE insert | the follower row with `vy_room_follower_reply_flag_once_ix` as the conflict arbiter (DO NOTHING); the creator mirror gated by a one-time filter on the first CTE |
+| `unflagReply`'s two-CTE delete | the follower row by Index Scan on the unique index; the one matching creator row found by a backward Index Scan on `vy_room_reply_flag_room_reply_ix` then deleted by primary key |
+| `followerFlags` (the follower's own list) | Bitmap on `vy_room_follower_reply_flag_person_ix` by room with the follower as the filter, left-joined to the creator row by the room-and-reply index |
+| `readFlaggedReplies` (the creator's grouped read) | `vy_room_owner_ix` for the Room, Bitmap on `vy_room_reply_flag_room_reply_ix`, sorted aggregate by hash and text |
+| `neverRuleFromFlaggedReply`'s text lookup | `vy_room_owner_ix` then Index Scan on the room-and-reply index by hash |
+
+Not measured: no follower has flagged a reply; both tables have zero rows; no card has been drawn from a flag.
