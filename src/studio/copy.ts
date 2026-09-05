@@ -437,6 +437,21 @@ interface SuiteCopy {
   autoStartLivePending: string; // "\"{name}\" is live. Start its subscription below when you are ready to charge seats."
 }
 
+// ── suiteSeatLock: SuiteCard.tsx / site/suites.html (WS-R73) ───────────────
+// Razorpay refuses a seat-quantity change outright on a UPI Autopay or
+// Emandate subscription (`api/_payments/providers/razorpay.js`'s own
+// WS-R73 addendum, quoted there). `mandateNote` is the disclosure shown
+// BEFORE checkout, next to "Start Suite subscription" and on site/suites.html's
+// own pricing section; `seatsLockedByMandate` is what SuiteCard.tsx shows
+// instead of the generic error text when `updateOrgSeats` actually refuses
+// with `org_seats_locked_by_mandate`, naming the same path the disclosure
+// already promised (cancel it, keep working until the period ends, start a
+// new one at the seat count needed).
+interface SuiteSeatLockCopy {
+  mandateNote: string;
+  seatsLockedByMandate: string;
+}
+
 // ── roomStudio: RoomStudio.tsx's own chrome (WS-R61) ───────────────────────
 // The Room address, publish switch, free/paid caps, price, money, stats,
 // week-six cohorts and pulse. Never the five sub-cards it mounts
@@ -952,6 +967,7 @@ interface StudioCopy {
   processingReview: ProcessingReviewCopy;
   personModelStudio: PersonModelStudioCopy;
   showcase: ShowcaseCopy;
+  suiteSeatLock: SuiteSeatLockCopy;
 }
 
 const EN: StudioCopy = {
@@ -1869,6 +1885,19 @@ const EN: StudioCopy = {
     rateLimited: "You can request this once a day. Try again tomorrow.",
     error: "Could not prepare your download. Please try again.",
     done: "Your download has started.",
+  },
+  suiteSeatLock: {
+    // WS-R73. razorpay.com/docs/api/payments/subscriptions/update-subscription/,
+    // fetched 2026-09-05: a UPI or Emandate subscription refuses a quantity
+    // change outright; a card subscription can be updated at any time.
+    mandateNote:
+      "If you pay for this Suite by UPI, its seat count is fixed for as long as that subscription runs. " +
+      "To change it later, cancel it, which keeps working until the period ends, then start a new one at the seat count " +
+      "you need. Paying by card can be updated at any time.",
+    seatsLockedByMandate:
+      "This Suite pays by UPI or a bank e-mandate, and Razorpay does not allow changing seats on that kind of " +
+      "subscription. Cancel it below, which keeps working until the period ends, then start a new one at the seat " +
+      "count you need.",
   },
 };
 
@@ -2788,6 +2817,15 @@ const HI: StudioCopy = {
     rateLimited: "आप यह दिन में एक बार मांग सकते हैं। कल फिर कोशिश करें।",
     error: "आपका डाउनलोड तैयार नहीं हो सका। कृपया फिर कोशिश करें।",
     done: "आपका डाउनलोड शुरू हो गया है।",
+  },
+  suiteSeatLock: {
+    mandateNote:
+      "अगर आप इस Suite के लिए UPI से भुगतान करते हैं, तो जब तक वह सदस्यता चलती है, उसकी सीट संख्या तय रहती है। बाद में बदलने के " +
+      "लिए, इसे रद्द करें, यह अवधि खत्म होने तक काम करती रहेगी, फिर जितनी सीटें चाहिए उतनी संख्या पर एक नई सदस्यता शुरू करें। " +
+      "कार्ड से भुगतान करने पर कभी भी अपडेट किया जा सकता है।",
+    seatsLockedByMandate:
+      "यह Suite UPI या बैंक ई-मैंडेट से भुगतान करता है, और Razorpay इस तरह की सदस्यता पर सीटें बदलने की अनुमति नहीं देता। नीचे " +
+      "इसे रद्द करें, यह अवधि खत्म होने तक काम करती रहेगी, फिर जितनी सीटें चाहिए उतनी संख्या पर एक नई सदस्यता शुरू करें।",
   },
 };
 

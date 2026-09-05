@@ -1178,3 +1178,52 @@ were run and are UNCHANGED, per this workstream's own law 4.
 See `context/measurements.md#ws-r69-upi-autopay-verification-2026-09-05` for
 the full citation table and `context/decisions.md`/`context/rejected.md` for
 the fixed shapes and the closed fetch paths.
+
+## 29. Suites on UPI, the locked-seat path (`vercel-app`, WS-R73, 2026-09-05)
+
+**No new env var, no new migration.** This workstream closed WS-R69's own
+finding 6(a): Razorpay refuses `updateSubscriptionQuantity` (the Suite
+lane's own `updateOrgSeats`) outright when the subscription was authorised
+via UPI Autopay or Emandate. `evals/org-billing/run.mjs` grew from 40 to
+50 assertions (§6); `evals/payments/run.mjs` grew from 98 to 104 (§16);
+`evals/suites-self-serve/run.mjs` grew from 60 to 68 (§7, the disclosure
+proof). No SQL statement changed shape (`updateOrgSeats` already ran the
+same five queries; this workstream adds a PROVIDER call, never a new
+database read or write, ahead of its existing `update vy_org_subscription
+set seats = ...` write, and only when `sub.provider_subscription_ref` is
+already set).
+
+| mark | status | citation |
+|---|---|---|
+| The supported path when quantity cannot change | **VERIFIED** | `razorpay.com/docs/api/payments/subscriptions/update-subscription/`, fetched 2026-09-05, quoted verbatim: a UPI-authorised subscription's update is rejected with "subscriptions cannot be updated when payment mode is UPI", Emandate with "...emandate", and "the advised approach is to cancel and create a new Subscription if changes are needed" |
+| A distinct "upgrade this mandate to a card" operation | **VERIFIED, and it does not exist** | no document this session reached names a payment-method-change endpoint separate from cancel-and-recreate; Checkout (the same `short_url` `createSubscription` already returns) is where a payer picks card, UPI or Emandate every time, including on a subscription created after a cancellation, so "start a new subscription and pick a card" is the SAME documented path, not a second one |
+| Where the payment method is learned | **the provider's subscription read** (`getSubscription`, `api/_payments/providers/razorpay.js`), never a new ledger column | see `context/decisions.md#ws-r73-provider-read-not-a-ledger-column-for-the-mandate-method` |
+| The `payment_method` field on `GET /v1/subscriptions/:id` | **VERIFIED WITH A NAMED CAVEAT** | `github.com/razorpay/razorpay-node/blob/master/documents/subscription.md` (Razorpay's own official Node SDK docs repository), fetched 2026-09-05: the field appears on a "Delete offer linked to a subscription" sample response (`"payment_method":"card"`), which also returns a full Subscription entity; the PLAIN fetch-by-id sample in the SAME document does not show it. A corroborating (not primary) community capture of a live fetch-by-id response shows the identical field on the plain response too. Only `"card"` was seen in a sample; `"upi"`/`"emandate"` are this platform's own two other documented methods, never independently seen inside this field by this session — `getSubscription`'s own caller therefore fails OPEN toward "updatable" on an unrecognised third value, per its own header |
+
+**What changed in code**, the Suite lane only:
+- `api/_payments/providers/razorpay.js`: new `getSubscription(providerSubscriptionRef, secrets)`
+  (`GET /v1/subscriptions/:id`), returning `{payment_method}`.
+- `api/_payments/providers/fake.js`: the same function, an in-memory twin
+  defaulting an unset ref to `'card'` (every eval written before this
+  workstream expects an update to succeed); new test-only
+  `setFakeSubscriptionMethod`, `updateSubscriptionQuantityCallCountForTest`,
+  `resetUpdateSubscriptionQuantityCallCountForTest`.
+- `api/_payments.js`: `updateOrgSeats` calls `getSubscription` BEFORE
+  `updateSubscriptionQuantity` and refuses, named `org_seats_locked_by_mandate`
+  (`details: {payment_method, path: "cancel_and_create_new_subscription"}`),
+  before either the provider PATCH or the local `seats` write, when the
+  method is `upi` or `emandate` (case-insensitive).
+- `src/studio/copy.ts`: a new top-level `suiteSeatLock` section (both
+  locales), appended after `creatorExport`, the last existing section —
+  `mandateNote` (shown before checkout) and `seatsLockedByMandate` (shown
+  when the refusal above actually happens).
+- `src/studio/SuiteCard.tsx`: renders `mandateNote` above "Start Suite
+  subscription"; `addSeat`'s own catch shows `seatsLockedByMandate` instead
+  of the generic reason-code text when `updateOrgSeats` refuses
+  `org_seats_locked_by_mandate`.
+- `site/suites.html`: a second `price-take` paragraph per locale, in the
+  Pricing section (before the Start-a-Suite form), stating the same fact.
+
+See `context/measurements.md#ws-r73-suites-on-upi-verification-2026-09-05`
+for the fuller mark table and `context/decisions.md`/`context/rejected.md`
+for the seam decision and what stayed open.

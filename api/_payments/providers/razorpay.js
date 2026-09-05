@@ -172,6 +172,57 @@ export async function updateSubscriptionQuantity(providerSubscriptionRef, quanti
 }
 
 /**
+ * Read a subscription back (WS-R73) - `GET /v1/subscriptions/:id`, the same
+ * operation `updateSubscriptionQuantity` above PATCHes, used here to learn
+ * what payment method authorised it BEFORE that PATCH is ever attempted.
+ * `api/_payments.js`'s `updateOrgSeats` is the one caller: "the seam...
+ * learns the subscription's payment method... from... the provider's
+ * subscription read" (this workstream's own brief, law 2) - the PROVIDER
+ * read was chosen over widening the ledger, because the field this function
+ * reads lives on the Subscription entity itself, addressed by the exact
+ * `provider_subscription_ref` already on hand, with no new column and no new
+ * migration (see `context/decisions.md#ws-r73-provider-read-not-a-ledger-column-for-the-mandate-method`).
+ *
+ * ── VERIFIED WITH A NAMED CAVEAT (WS-R73, 2026-09-05) ──────────────────────
+ * `github.com/razorpay/razorpay-node/blob/master/documents/subscription.md`
+ * (Razorpay's own official Node SDK documentation repository), fetched
+ * 2026-09-05: the main "Fetch a Subscription" sample response in that
+ * document does NOT show a `payment_method` field, but a SECOND sample
+ * response in the SAME document (the "Delete offer linked to a subscription"
+ * operation, which also returns a full Subscription entity) does, quoted
+ * verbatim: `"payment_method":"card"`. A separate community-maintained
+ * capture of a live fetch-by-id response (`github.com/razorpay/razorpay-node`
+ * issue history, surfaced by web search rather than an official page, so
+ * named as a corroborating source rather than a primary one) shows the
+ * identical field on the PLAIN fetch-by-id response too:
+ * `"auth_attempts":0,...,"payment_method":"card",...`. Both sources name only
+ * the `"card"` value; `"upi"` and `"emandate"` are this platform's own two
+ * OTHER documented Subscription payment methods (razorpay.js's own header,
+ * "Razorpay Subscriptions supports Cards, UPI Autopay and Emandate"), never
+ * independently seen inside a `payment_method` sample by this session - so
+ * this function reads the raw string Razorpay sends rather than validating
+ * it against a closed set, and `api/_payments.js`'s own caller treats
+ * anything other than `'upi'`/`'emandate'` (case-insensitively) as
+ * updatable, never the other way round, so an unrecognised THIRD value fails
+ * OPEN toward "let the real PATCH decide" rather than blocking a legitimate
+ * card update on a caution that turned out to be unfounded. Reversed the day
+ * a real account's own fetch-by-id response is read directly.
+ */
+export async function getSubscription(providerSubscriptionRef, secrets) {
+  if (!secrets?.keyId || !secrets?.keySecret) {
+    throw Object.assign(new Error("payments_provider_credentials_missing"), { code: "payments_provider_credentials_missing", status: 503 });
+  }
+  const r = await fetch(`${API}/subscriptions/${encodeURIComponent(providerSubscriptionRef)}`, {
+    method: "GET",
+    headers: { Authorization: basicAuthHeader(secrets.keyId, secrets.keySecret) },
+    signal: AbortSignal.timeout(15_000),
+  }).catch(() => null);
+  if (!r || !r.ok) throw Object.assign(new Error("payments_provider_subscription_read_failed"), { code: "payments_provider_subscription_read_failed", status: 502 });
+  const body = await r.json().catch(() => ({}));
+  return { payment_method: typeof body?.payment_method === "string" ? body.payment_method : null };
+}
+
+/**
  * `opts.atCycleEnd` (WS-R37) - widened from the original single-argument
  * shape, which always sent `cancel_at_cycle_end: 0` (cancel now). No caller
  * of this function exists anywhere in this tree yet (confirmed by grep
@@ -624,3 +675,48 @@ export function parsePayoutEvent(json) {
 //   change) and, per this quote, could never make one that worked for a
 //   customer-initiated pause even if it wanted to — the honest copy is "go
 //   back to your UPI app," never a dead or misleading in-Room control.
+
+// ── WS-R73 addendum (2026-09-05): SUITES ON UPI — the path when quantity
+//    cannot change ─────────────────────────────────────────────────────────
+//
+// WS-R69's finding 6(a) above named the gap; this workstream closes it.
+// `updateOrgSeats` (api/_payments.js) now calls `getSubscription` above
+// BEFORE `updateSubscriptionQuantity`, and refuses by name
+// (`org_seats_locked_by_mandate`) when the method is UPI or Emandate,
+// never sending the PATCH at all.
+//
+// ── THE SUPPORTED PATH WHEN QUANTITY CANNOT CHANGE — VERIFIED ─────────────
+// razorpay.com/docs/api/payments/subscriptions/update-subscription/, fetched
+// 2026-09-05 (the SAME operation page WS-R60 already cited for the PATCH
+// shape itself), quoted verbatim: a UPI-authorised subscription's update
+// attempt is rejected with "subscriptions cannot be updated when payment
+// mode is UPI"; an Emandate-authorised one with "subscriptions cannot be
+// updated when payment mode is emandate"; and, for both, "the advised
+// approach is to cancel and create a new Subscription if changes are
+// needed." No third path (an in-place "upgrade this mandate to a card")
+// is documented anywhere this session reached — a follow-up search for
+// "change payment method" on an existing subscription found only that the
+// SAME update endpoint is what is blocked, never a distinct
+// method-migration operation. Practically, "cancel and create a new
+// Subscription" already gives an admin a card option: Razorpay's own
+// Checkout (the `short_url` `createSubscription` already returns) is where
+// a payer picks card, UPI or Emandate every time, including for a brand
+// new subscription created after a cancellation — so "start a new
+// subscription and pick a card this time" is not a SEPARATE path from
+// "cancel and create a new Subscription," it is that same path with a
+// different Checkout choice, which is exactly why this file adds no
+// distinct "upgrade to card" function: `cancelSubscription`'s own
+// `atCycleEnd` option (WS-R37) plus the EXISTING `startOrgSubscription`
+// (api/_payments.js) are the whole mechanism, reused rather than
+// duplicated.
+//
+// ── THE DOCUMENT ITSELF WAS HARD TO REACH, LIKE OTHERS BEFORE IT ──────────
+// The direct `razorpay.com` URL for this operation page returned real
+// content this time (WS-R60 already broke the SPA-routing barrier for the
+// SAME page in the prior session); `razorpay.com/docs/webhooks/subscriptions/`
+// and `razorpay.com/docs/api/payments/subscriptions/fetch-with-id/` still
+// 404d for a direct fetch in this session, and their cloudfront mirror
+// (`d6xcmfyh68wv8.cloudfront.net`, WS-R60's own technique) 404d too for
+// those two specific paths — named rather than retried indefinitely,
+// per `context/rejected.md#ws-r41-provider-docs-sites-resist-a-single-page-fetch-tool-two-ways`'s
+// own precedent for when to stop and name a mark open instead of closed.

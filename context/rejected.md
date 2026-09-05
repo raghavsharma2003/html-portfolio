@@ -10271,3 +10271,35 @@ header forbids.
 short run whose parts average to the reference; test the parts for
 uniformity too, and give every detector a control it must catch on every
 run, or its silence proves nothing.
+
+## `ws-r73-no-distinct-upi-to-card-upgrade-endpoint`
+
+**Tried.** Before writing `updateOrgSeats`'s own refusal, this workstream
+searched for a Razorpay operation that would let a Suite admin "upgrade" an
+existing UPI Autopay or Emandate subscription to a card mandate IN PLACE —
+the kind of endpoint that would let a locked Suite keep its own
+`provider_subscription_ref` and simply gain the ability to be PATCHed
+afterward, avoiding the cancel-and-recreate path entirely. This workstream's
+own brief named it as one of two possible "paths that work" worth citing.
+
+**What broke.** No such operation exists in any document this session
+reached. `razorpay.com/docs/api/payments/subscriptions/update-subscription/`
+(fetched 2026-09-05) documents exactly one update operation, and it is the
+SAME `quantity`/`schedule_change_at` PATCH that is blocked for UPI/Emandate
+in the first place — there is no sibling "change payment method" or
+"upgrade mandate" call. A follow-up search for "change payment method"
+found only restatements of the same block, never a distinct endpoint. The
+one alternative every source names is "cancel and create a new
+Subscription" — and because a NEW subscription is always created through
+Razorpay's own Checkout, where the payer picks card, UPI or Emandate every
+time, "start a new subscription and pick a card this time" is not a
+SEPARATE path from cancel-and-recreate, it is that same path with a
+different Checkout choice. `updateOrgSeats`'s own refusal therefore names
+ONE path (`cancel_and_create_new_subscription`), not two, and no new
+provider function was written for an "upgrade" that does not exist.
+
+**The rule.** When a brief names two candidate paths as "the" fix and only
+one turns out to be independently real, do not invent a second code path to
+honour the brief's own phrasing — name what was actually found, and log
+that the other candidate was searched for and not there, so the next
+session does not spend the same search again.

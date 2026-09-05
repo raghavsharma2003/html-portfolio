@@ -860,5 +860,73 @@ console.log("\n§15 WS-R69: THE CHECKOUT COPY NAMES THE MANDATE — NEGATIVE CON
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+console.log("\n§16 WS-R73: getSubscription — the READ updateOrgSeats calls before it ever PATCHes");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // razorpay.js's own WS-R73 addendum: getSubscription GETs the SAME
+  // resource updateSubscriptionQuantity PATCHes, and reads `payment_method`
+  // off the response - `evals/payments/run.mjs`'s own §11 harness (WS-R60),
+  // reused rather than reinvented.
+  const realFetch = globalThis.fetch;
+  const withFetch = async (impl, run) => {
+    let captured = null;
+    globalThis.fetch = async (url, init) => {
+      captured = { url: String(url), method: init?.method, body: init?.body ? JSON.parse(init.body) : null };
+      return impl(captured);
+    };
+    try {
+      return { captured: () => captured, result: await run() };
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  };
+
+  {
+    const { captured, result } = await withFetch(
+      () => ({ ok: true, json: async () => ({ id: "sub_wsr73_upi", payment_method: "upi" }) }),
+      () => razorpay.getSubscription("sub_wsr73_upi", { keyId: "k", keySecret: "s" }),
+    );
+    const c = captured();
+    ok("getSubscription GETs /v1/subscriptions/:id, the same resource updateSubscriptionQuantity PATCHes",
+      c?.method === "GET" && c.url === "https://api.razorpay.com/v1/subscriptions/sub_wsr73_upi");
+    ok("...and reads the documented payment_method field off the response, unvalidated against a closed set",
+      result.payment_method === "upi");
+  }
+  {
+    // A response with no payment_method at all (an account whose live
+    // response shape does not carry it, per this function's own header
+    // caveat) reads back null, never a guessed default - the CALLER
+    // (api/_payments.js's updateOrgSeats) is the one place a fallback
+    // string ("") lives, and only so `SEAT_UPDATE_LOCKED_METHODS.has()`
+    // has something to call `.has` on.
+    const { result } = await withFetch(
+      () => ({ ok: true, json: async () => ({ id: "sub_wsr73_bare" }) }),
+      () => razorpay.getSubscription("sub_wsr73_bare", { keyId: "k", keySecret: "s" }),
+    );
+    ok("a response with no payment_method field reads back null, never an invented default",
+      result.payment_method === null);
+  }
+  {
+    // NEGATIVE CONTROL: missing credentials refuses before any fetch runs,
+    // the SAME posture every other function in this file already has.
+    const refused = await razorpay.getSubscription("sub_x", {}).then(() => null, (e) => e);
+    ok("NEGATIVE CONTROL: getSubscription with no credentials refuses, named, never a network call",
+      refused?.code === "payments_provider_credentials_missing");
+  }
+  {
+    // The fake twin: default 'card' (every eval written before WS-R73
+    // expects an update to succeed), and a test-only setter for the other
+    // two - api/_payments/providers/fake.js's own header.
+    const bare = await fake.getSubscription("fake_sub_never_set");
+    ok("the fake twin defaults an unset ref to 'card' - every pre-existing eval's own assumption",
+      bare.payment_method === "card");
+    fake.setFakeSubscriptionMethod("fake_sub_wsr73", "emandate");
+    const set = await fake.getSubscription("fake_sub_wsr73");
+    ok("setFakeSubscriptionMethod makes the fake twin report the method a test asks for",
+      set.payment_method === "emandate");
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

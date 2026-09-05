@@ -563,5 +563,48 @@ console.log("\n── §6: the wiring is real, not just the pieces ──");
     /suites: \{/.test(opsSrc) && /await suitesFunnelThisWeek\(db, now\)/.test(opsSrc) && /await suiteIntentApplicationsThisWeek\(db, now\)/.test(opsSrc));
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §7 (WS-R73): the UPI-fixes-your-seat-count disclosure is on the page, both locales, before checkout ──");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // The page's own two <p class="price-take"> lines per locale: the
+  // pre-existing platform-take sentence, then this workstream's new one,
+  // both inside the SAME pricing section the start form sits below - "before
+  // checkout" (this workstream's own law 2).
+  const priceTakeParas = [...suitesHtml.matchAll(/<p class="price-take">([^<]*)<\/p>/g)].map((m) => m[1]);
+  ok("the page carries exactly two price-take paragraphs per locale (platform take, then the mandate note) - four total",
+    priceTakeParas.length === 4);
+  const mentionsUpi = priceTakeParas.filter((t) => /UPI/.test(t));
+  ok("two of the four price-take paragraphs mention UPI (English and Hindi mandate notes) - the other two are the unrelated platform-take sentence",
+    mentionsUpi.length === 2);
+  const mandateNoteEn = mentionsUpi.find((t) => /[ऀ-ॿ]/.test(t) === false);
+  const mandateNoteHi = mentionsUpi.find((t) => /[ऀ-ॿ]/.test(t) === true);
+  ok("the English mandate note names the actual path: cancel it, keep working until the period ends, start a new one",
+    /cancel it/.test(mandateNoteEn || "") && /keeps working until the period ends/.test(mandateNoteEn || ""));
+  ok("the Hindi mandate note is not a placeholder copy of the English one (contains Devanagari, not only Latin script)",
+    Boolean(mandateNoteHi) && /[ऀ-ॿ]/.test(mandateNoteHi));
+
+  // Structural proof the SAME disclosure exists in the studio's own Suite
+  // card, not only on the marketing page - copy.ts is the one place both
+  // SuiteCard.tsx and this suite can check the words came from, and
+  // SuiteCard.tsx is checked for actually READING it, `evals/payments/run.mjs`
+  // §15's own "copy existing is not enough, it must be rendered" precedent.
+  const copySrc = readFileSync(join(REPO, "src/studio/copy.ts"), "utf8");
+  const suiteCardSrc = readFileSync(join(REPO, "src/studio/SuiteCard.tsx"), "utf8");
+  ok("copy.ts defines suiteSeatLock.mandateNote and .seatsLockedByMandate in BOTH locales",
+    (copySrc.match(/mandateNote:\s*\n?\s*"/g) || []).length >= 2 &&
+      (copySrc.match(/seatsLockedByMandate:\s*\n?\s*"/g) || []).length >= 2);
+  ok("SuiteCard.tsx renders the mandate note before the Start Suite subscription button",
+    /\{mandate\.mandateNote\}/.test(suiteCardSrc) &&
+      suiteCardSrc.indexOf("{mandate.mandateNote}") < suiteCardSrc.indexOf("startMoney(s.org_id"));
+  ok("SuiteCard.tsx shows the named refusal's own copy, not the generic reason-code text, when updateOrgSeats refuses org_seats_locked_by_mandate",
+    /org_seats_locked_by_mandate/.test(suiteCardSrc) && /mandate\.seatsLockedByMandate/.test(suiteCardSrc));
+
+  // api/_payments.js's own refusal reason is what the page's copy is a
+  // promise ABOUT - if the reason code ever drifts, this fails alongside it.
+  ok("api/_payments.js actually throws the SAME reason code the UI special-cases",
+    /"org_seats_locked_by_mandate"/.test(paymentsSrc));
+}
+
 console.log(`\n${pass} ok, ${fail} failed`);
 process.exit(fail ? 1 : 0);

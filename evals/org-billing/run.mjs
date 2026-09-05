@@ -575,5 +575,71 @@ console.log("\n§5 updateOrgSeats — a provider-mediated proration, never inven
   ok("reducing seats below the count already in use is refused, named", belowUsage instanceof PaymentsError && belowUsage.code === "org_seats_below_usage" && belowUsage.details.seats_used === 3);
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§6 WS-R73: SUITES ON UPI — a locked mandate refuses BY NAME, never a raw provider error");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // A UPI-authorised Suite subscription: the provider read says 'upi', and
+  // updateOrgSeats must refuse BEFORE the PATCH, never send it, and never
+  // touch the local seat count.
+  const state = freshState();
+  seedOrg(state, { seatLimit: 5 });
+  const db = makeDb(state);
+  const started = await startOrgSubscription(db, { ownerUserId: ADMIN, orgId: ORG, plan: "starter", seats: 3 }, { env: ENV });
+  const ref = started.provider_subscription_ref;
+  fake.setFakeSubscriptionMethod(ref, "upi");
+  fake.resetUpdateSubscriptionQuantityCallCountForTest();
+
+  const seatsBefore = state.orgSubscriptions[0].seats;
+  const refused = await updateOrgSeats(db, { ownerUserId: ADMIN, orgId: ORG, seats: 7 }, { env: ENV }).then(() => null, (e) => e);
+  ok("a UPI-authorised Suite's seat update is refused, named org_seats_locked_by_mandate",
+    refused instanceof PaymentsError && refused.code === "org_seats_locked_by_mandate");
+  ok("the refusal names the payment method it read", refused?.details?.payment_method === "upi");
+  ok("the refusal names the path that works (cancel and create a new Subscription, Razorpay's own documented alternative)",
+    refused?.details?.path === "cancel_and_create_new_subscription");
+  ok("NEGATIVE CONTROL: a quantity update on a UPI mandate never reaches the provider - updateSubscriptionQuantity's own call count is still zero",
+    fake.updateSubscriptionQuantityCallCountForTest() === 0);
+  ok("NEGATIVE CONTROL: the refusal leaves the seat cap UNCHANGED in the database, never prorated locally while the provider itself refused",
+    state.orgSubscriptions[0].seats === seatsBefore && state.orgSubscriptions[0].seats === 3);
+}
+
+{
+  // Emandate: the SAME refusal, the SAME two negative controls, a different
+  // method string - proving the check is not accidentally UPI-only.
+  const state = freshState();
+  seedOrg(state, { seatLimit: 5 });
+  const db = makeDb(state);
+  const started = await startOrgSubscription(db, { ownerUserId: ADMIN, orgId: ORG, plan: "starter", seats: 3 }, { env: ENV });
+  const ref = started.provider_subscription_ref;
+  fake.setFakeSubscriptionMethod(ref, "emandate");
+  fake.resetUpdateSubscriptionQuantityCallCountForTest();
+
+  const refused = await updateOrgSeats(db, { ownerUserId: ADMIN, orgId: ORG, seats: 9 }, { env: ENV }).then(() => null, (e) => e);
+  ok("an Emandate-authorised Suite's seat update is refused, named the SAME reason as UPI (Razorpay's own faqs page states both together)",
+    refused instanceof PaymentsError && refused.code === "org_seats_locked_by_mandate" && refused.details.payment_method === "emandate");
+  ok("NEGATIVE CONTROL: zero provider calls for Emandate either",
+    fake.updateSubscriptionQuantityCallCountForTest() === 0);
+  ok("NEGATIVE CONTROL: the seat cap is unchanged", state.orgSubscriptions[0].seats === 3);
+}
+
+{
+  // Card, explicitly set rather than relied on as the default (this section's
+  // own positive control): the SAME function, on the ONE method Razorpay's
+  // own PATCH actually accepts, still succeeds and still reaches the
+  // provider exactly once.
+  const state = freshState();
+  seedOrg(state, { seatLimit: 5 });
+  const db = makeDb(state);
+  const started = await startOrgSubscription(db, { ownerUserId: ADMIN, orgId: ORG, plan: "starter", seats: 3 }, { env: ENV });
+  const ref = started.provider_subscription_ref;
+  fake.setFakeSubscriptionMethod(ref, "card");
+  fake.resetUpdateSubscriptionQuantityCallCountForTest();
+
+  const updated = await updateOrgSeats(db, { ownerUserId: ADMIN, orgId: ORG, seats: 6 }, { env: ENV });
+  ok("a card-authorised Suite's seat update still succeeds", updated.seats === 6 && state.orgSubscriptions[0].seats === 6);
+  ok("POSITIVE CONTROL: the provider WAS reached exactly once for the card lane, proving §6's zero counts above are a real refusal, not a broken counter",
+    fake.updateSubscriptionQuantityCallCountForTest() === 1);
+}
+
 console.log(`\norg-billing: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

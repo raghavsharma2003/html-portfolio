@@ -63,6 +63,7 @@ export default function SuiteCard({
 }) {
   const { t } = useStudioLocale();
   const c = t.suite;
+  const mandate = t.suiteSeatLock;
   const [suites, setSuites] = useState<MySuite[] | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -298,12 +299,21 @@ export default function SuiteCard({
         await load();
         setNotice(c.noticeSeatsUpdated);
       } catch (e) {
-        setError(readableError(e, "could not update seats"));
+        // WS-R73: Razorpay refuses this outright on a UPI/Emandate
+        // subscription (api/_payments.js's updateOrgSeats, named
+        // org_seats_locked_by_mandate) - named separately from every other
+        // failure so the admin reads the actual path forward, not a
+        // reason-code with its underscores turned to spaces.
+        setError(
+          e instanceof OrgApiError && e.code === "org_seats_locked_by_mandate"
+            ? mandate.seatsLockedByMandate
+            : readableError(e, "could not update seats"),
+        );
       } finally {
         setBusy(null);
       }
     },
-    [token, load, c.noticeSeatsUpdated],
+    [token, load, c.noticeSeatsUpdated, mandate.seatsLockedByMandate],
   );
 
   // WS-R37: cancel at period end - never immediately, api/_renewals.js's own
@@ -470,6 +480,9 @@ export default function SuiteCard({
                       <>
                         <p className="field-note">{c.noSubscriptionYet}</p>
                         <p className="field-note">{withCount(c.platformTake, PLATFORM_TAKE_PERCENT)}</p>
+                        {/* WS-R73: stated before checkout, not after a UPI mandate
+                            has already locked the seat count. */}
+                        <p className="field-note">{mandate.mandateNote}</p>
                         <button
                           className="button primary-button"
                           type="button"

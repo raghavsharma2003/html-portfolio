@@ -14710,3 +14710,41 @@ aggregate-only rule) rather than widening the generic `select *` path — and
 that future file's own identifier must still never appear as a literal
 string in `api/_creator-export.js`'s own source outside such a query, per
 the rejection entry this decision cites.
+
+## `ws-r73-provider-read-not-a-ledger-column-for-the-mandate-method` (2026-09-05, WS-R73)
+
+**Decision.** `updateOrgSeats` (`api/_payments.js`) learns a Suite
+subscription's payment method by calling a NEW provider function,
+`getSubscription` (`GET /v1/subscriptions/:id`), immediately before the
+existing `updateSubscriptionQuantity` PATCH, rather than by widening
+`vy_payment_event` (or `vy_org_subscription`) with a new `payment_method`
+column populated at webhook-apply time. No migration.
+
+**Rationale.** `vy_payment_event` today stores only `kind`/`amount_inr`/
+timestamps, never the raw webhook JSON, so a ledger-derived answer would
+need `applyWebhook`'s own `parseWebhookPayload` widened to also capture
+`payload.payment.entity.method` off the FIRST webhook that ever lands for a
+subscription (`subscription.authenticated`) and persist it somewhere new —
+a schema change, a backfill question for any subscription authenticated
+before that column existed, and a second place (alongside the provider
+itself) that could drift from what Razorpay actually has on file. The
+provider read has none of that: it asks the ONE authority that actually
+knows the answer, addressed by the `provider_subscription_ref` this
+function already has in hand, costs one HTTP round trip only on the path
+that was already about to make a SECOND one (the PATCH this function calls
+next), and needs nothing new in the database at all — `razorpay.js`'s own
+WS-R73 addendum names the workstream's own brief, law 2 ("the provider's
+subscription read"), as the source of this exact choice.
+
+**Reversal condition.** If a caller ever needs to know a subscription's
+payment method WITHOUT also being about to make a provider call right
+after (a dashboard listing every Suite's method, say, where an HTTP round
+trip per row would be too slow), that is the point to add the ledger
+column instead — capturing it once, at `subscription.authenticated`
+webhook time, the way `vy_payment_event`'s own `kind` is captured today —
+and this function would then read that column first, falling back to a
+live provider call only when the column is still null (a subscription
+authenticated before the column existed). Until such a second reader
+exists, one reader making one extra call beats every future reader trusting
+a column nothing has cross-checked against the provider since the day it
+was written.
