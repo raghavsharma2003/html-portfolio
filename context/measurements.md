@@ -10307,3 +10307,13 @@ pass/fail on worker-registers / precache-complete / no-api-caching, so a
 registration TIME figure is not established anywhere in this workstream —
 stated plainly as NOT MEASURED rather than implied by the precache-byte
 figure above.
+
+## `rooms-migration-113-live-verification-2026-09-05`
+
+n = 1 migration (2 statements in one transaction), 1 API statement; method = the live constraint name read back first (`vy_room_arrival_via_check`, the name Postgres gave migration 102's inline CHECK), the migration applied through the Neon MCP, the definition read back (five values, `install` last), then `EXPLAIN` of `recordRoomArrival`'s upsert with `via = 'install'`; date 2026-09-05, at the WS-R59 merge (ed60064).
+
+| statement | plan |
+|---|---|
+| `recordRoomArrival` with `via = 'install'` | Insert with `vy_room_arrival_pkey` as the conflict arbiter, unchanged from 102's plan; the CHECK now admits the value |
+
+Not measured: no phone has installed a Room, so no install arrival exists; before this migration such an arrival would have been refused by the CHECK and swallowed by the upsert's catch, a count that would have stayed at zero without anyone noticing.

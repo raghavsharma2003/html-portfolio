@@ -7576,6 +7576,12 @@
       "kind": "measurement",
       "title": "check-performance.mjs's four public targets stayed within every budget after this workstream's service-worker registration effect landed (LCP 496-1592ms, CLS <=0.001, TBT 95-197ms, all under budget); before/after full-table comparison incomplete (before run captured only pass/fail, not the per-target table)",
       "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-113-live-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "Migration 113 widened vy_room_arrival's via CHECK to admit install (the value WS-R59's JS allowlist added) at the WS-R59 merge; applied live after reading the constraint's name back; the upsert plan is unchanged.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15093,6 +15099,11 @@
       "src": "ws-r59-installable-room",
       "rel": "measured_by",
       "dst": "ws-r59-performance-budgets-before-after-2026-09-04"
+    },
+    {
+      "src": "rooms-migration-113-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r40-arrival-counted-per-openroom-call-not-deduplicated-per-session"
     }
   ]
 }
