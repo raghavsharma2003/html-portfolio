@@ -1277,3 +1277,27 @@ explicit submission), so a legitimate call can never be refused by turning
 this flag on alone; the one reachable refusal path is
 `deps.handoffDenies`, a seam no production code populates yet
 (`context/decisions.md#ws-r87-handoff-v0-grant-is-self-issued`).
+
+## 32. The follower's receipt (`vercel-app`, WS-R100, migration 126, 2026-09-05)
+
+Every payment a follower makes gets a printable receipt built from the
+ledger (`vy_payment_event`, migration 078), never from the payment
+provider's own page. Both env vars are optional and both are read only by
+`api/_receipt.js`'s `platformSupplierInfo` at render time - unset renders
+one clearly marked placeholder sentence in the receipt itself (both
+locales), never a fabricated legal name or GSTIN.
+
+| Var | Read by | Required? | Exact value | What changes with it |
+|---|---|---|---|---|
+| `PLATFORM_LEGAL_NAME` | `api/_receipt.js:platformSupplierInfo()` | optional | the platform's own registered legal name, any non-empty string | **unset (default)**: every receipt's own "Supplier" section renders the named placeholder sentence instead of a name. **set**: renders verbatim, alongside `PLATFORM_GSTIN` if that is ALSO set (both are required together for `platformSupplierInfo().complete` to be true - one alone still renders the placeholder) |
+| `PLATFORM_GSTIN` | `api/_receipt.js:platformSupplierInfo()` | optional | a real fifteen-character GSTIN matching the standard shape (`GSTIN_RE`); anything else (unset, empty, malformed) is treated as unset | **unset or malformed (default)**: the placeholder sentence, exactly as an unset `PLATFORM_LEGAL_NAME` above - a typo in this var may not silently print a wrong tax identity. **set and shape-valid**: renders verbatim on every receipt from that point on |
+
+No migration gate, no cron, no new secret-store entry - both vars are
+plain, non-secret configuration (a legal name and a GSTIN are both public
+information on any real invoice) read the same way `TDS_RATE_BP_DEFAULT`'s
+sibling constants are, `api/_payments.js`'s own existing posture for a tax
+figure nobody has confirmed with an accountant yet, restated here for the
+platform's own identity rather than a rate. Setting them requires no
+frontend rebuild (not `VITE_`) and takes effect on the very next request -
+this deployment has never had either set, so every receipt issued so far
+carries the placeholder, honestly.

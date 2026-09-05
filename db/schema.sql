@@ -4418,3 +4418,27 @@ alter table vy_operator_digest add constraint vy_operator_digest_counts_size
   check (octet_length(counts::text) <= 4096);
 create index if not exists vy_operator_digest_day_desc_ix
   on vy_operator_digest (day desc);
+
+-- Migration 126 - the follower's receipt (WS-R100). See
+-- db/migrations/126_receipt.sql for the full argument (CGST Rule 46
+-- citation, the erasure-lane reasoning): a per-financial-year counter
+-- claimed atomically, one receipt per payment event, `person_id` nullable
+-- so an account-wide "forget everything" can null it without deleting the
+-- row (the number and the amount survive; the person does not).
+create table if not exists vy_receipt_counter (
+  fy   text primary key check (fy ~ '^[0-9]{4}-[0-9]{2}$'),
+  next bigint not null default 1 check (next > 0)
+);
+
+create table if not exists vy_receipt (
+  receipt_id       uuid primary key default gen_random_uuid(),
+  receipt_no       bigint not null check (receipt_no > 0),
+  payment_event_id uuid not null references vy_payment_event(event_id) on delete cascade,
+  room_id          uuid not null references vy_room(room_id) on delete cascade,
+  person_id        uuid,
+  issued_at        timestamptz not null default now()
+);
+create unique index if not exists vy_receipt_payment_event_ix
+  on vy_receipt (payment_event_id);
+create index if not exists vy_receipt_room_person_ix
+  on vy_receipt (room_id, person_id, issued_at desc);

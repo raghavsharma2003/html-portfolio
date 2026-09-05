@@ -275,6 +275,20 @@ const EXEMPT = {
     "this is the check it is an exemption FROM, and an argument that lives " +
     "only next to the table it excuses is an argument nobody reviewing this " +
     "gate will ever read.",
+  vy_receipt:
+    "person-keyed (person_id) but deliberately NOT a PERSON_TABLES entry: " +
+    "an account-wide 'forget everything' NULLS person_id on this table " +
+    "(api/memory.js's own explicit door, right beside vy_room_forget_" +
+    "receipt's), it never DELETEs the row - the whole reason it is exempt " +
+    "here rather than listed above, since PERSON_TABLES membership means " +
+    "'wiped by the generic DELETE loop' and this table must survive that " +
+    "wipe with its receipt_no and its ledger-linked amount intact, losing " +
+    "only the person. It IS reachable for forget and export both: forget " +
+    "via api/memory.js's own explicit door (this comment's own sibling), " +
+    "export via api/_room-surface.js's ROOM_EXPORT_EXTRA. A full REPLICA " +
+    "erasure (a different, stronger act) DOES delete it by name, child-" +
+    "before-parent, in api/_replica-full-erasure.js - migration 126's own " +
+    "header carries the full argument.",
 };
 //
 // WS-R: THE SAME LESSON, ONE LEVEL DOWN. The column list used to be

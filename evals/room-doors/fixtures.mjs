@@ -73,6 +73,25 @@ export function freshDoorsState() {
   state.orgSubscriptions = [];
   state.creatorSubscriptions = [];
   state.events = [];
+  // WS-R100 (migration 126). One landed charge and its own receipt, seeded
+  // directly (never through the webhook - this battery's own job is the
+  // READ side's cross-identity refusal, not the write path
+  // `evals/payments/run.mjs`/`evals/room-receipt/run.mjs` already prove).
+  // Belongs to PERSON_A on the base fixture's one Room.
+  state.events.push({
+    event_id: "e9000000-0000-4000-8000-000000000001",
+    provider: "fake", provider_event_ref: "evt_r100_seed", room_id: ROOM_ID,
+    subscription_id: "s9000000-0000-4000-8000-000000000001", kind: "subscription.charged",
+    amount_inr: 399, platform_take_inr: 100, creator_share_inr: 299,
+    signature_verified: true, payload_hash: "0".repeat(64),
+    received_at: "2026-09-01T00:00:00.000Z",
+  });
+  state.receipts = [{
+    receipt_id: "f9000000-0000-4000-8000-000000000001",
+    receipt_no: 1, payment_event_id: "e9000000-0000-4000-8000-000000000001",
+    room_id: ROOM_ID, person_id: PERSON_A, issued_at: "2026-09-01T00:05:00.000Z",
+  }];
+  state.receiptCounters = [{ fy: "2026-27", next: 2 }];
   state.publicRate = new Map();
   state.checkinDesigns = [];
   state.checkins = [];
@@ -521,6 +540,35 @@ function doorsPatterns(state) {
         }
       }
       return [{ event_id: event.event_id, subscription_id: subId, state: sub ? sub.state : null, tier }];
+    }
+
+    // ── WS-R100 (migration 126): the follower's own receipt reads
+    //    (`roomReceipt`/`roomReceipts`, api/_room-surface.js). Both are
+    //    session-scoped joins against `state.receipts`/`state.events` seeded
+    //    above - this battery's own job is proving the WHERE clause itself
+    //    refuses a mismatched room/person, never the write path. ──────────
+    // ORDER MATTERS: the LIST query's own distinguishing feature ("order
+    // by") must be checked BEFORE the single-row check, since both query
+    // texts contain the substring "r.payment_event_id" - see
+    // evals/room-receipt/run.mjs's own identical fixture for the failure
+    // this ordering fixes.
+    if (has("from vy_receipt r") && has("join vy_payment_event e") && has("order by r.issued_at desc")) {
+      const [roomId, personId] = params.map(String);
+      const rows = state.receipts.filter((r) => r.room_id === roomId && r.person_id === personId);
+      return rows
+        .sort((a, b) => b.issued_at.localeCompare(a.issued_at))
+        .map((r) => {
+          const ev = state.events.find((e) => e.event_id === r.payment_event_id);
+          return { receipt_id: r.receipt_id, receipt_no: r.receipt_no, payment_event_id: r.payment_event_id, issued_at: r.issued_at, amount_inr: ev?.amount_inr };
+        });
+    }
+    if (has("from vy_receipt r") && has("join vy_payment_event e") && has("r.payment_event_id")) {
+      const [paymentEventId, roomId, personId] = params.map(String);
+      const row = state.receipts.find((r) => r.payment_event_id === paymentEventId
+        && r.room_id === roomId && r.person_id === personId);
+      if (!row) return [];
+      const ev = state.events.find((e) => e.event_id === row.payment_event_id);
+      return [{ receipt_no: row.receipt_no, issued_at: row.issued_at, event_id: ev?.event_id, amount_inr: ev?.amount_inr, kind: ev?.kind }];
     }
 
     // ── WS-R44: WS-R45's list / unlist / set_bio (api/_room-publish.js) ────

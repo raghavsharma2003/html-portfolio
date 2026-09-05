@@ -659,6 +659,21 @@ const TABLE_ROLES = {
   // `count(*)`, never `referrer_hash` itself (the negative control below
   // this layer proves a reader that DOES select the hash is caught).
   vy_room_referral: { owners: ["_room-surface.js", "_replica-full-erasure.js"], aggregateOnly: ["_funnel.js"] },
+  // WS-R100 (migration 126). The follower's receipt: NOT one of
+  // `roomPersonEntries`' own auto-discovered tables either, on the same
+  // technicality `vy_room_referral` above states for a different reason -
+  // this one carries both `room_id` and `person_id`, but it is not a
+  // `PERSON_TABLES` entry at all (`scripts/relcheck.mjs`'s `EXEMPT` map
+  // carries the written reason: an account-wide forget NULLS `person_id`
+  // here rather than deleting the row). Added here BY NAME anyway,
+  // `vy_room_referral`'s own precedent restated: the generic static reach
+  // layer guards it exactly as it guards every PERSON_TABLES-derived table.
+  // `_room-surface.js` reads a follower's own receipts back to them
+  // (`roomReceipt`/`roomReceipts`) and lists it in `ROOM_EXPORT_EXTRA`;
+  // `_payments.js` writes it (`issueFollowerReceipt`, the webhook's own
+  // call); `memory.js` nulls its `person_id` on a whole-account wipe;
+  // `_replica-full-erasure.js` deletes it by name on a full Room erasure.
+  vy_receipt: { owners: ["_room-surface.js", "_payments.js", "memory.js", "_replica-full-erasure.js"] },
 };
 // Every line naming a guarded table in a file that is neither an owner nor an
 // aggregate-only reader must be ONE of: a comment (block or line), a DELETE,

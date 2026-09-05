@@ -32,9 +32,12 @@ import {
   whatsappStop,
   roomSettings as fetchRoomSettings,
   roomReferralLink,
+  listReceipts,
+  fetchReceiptHtml,
   type RoomFlag,
   type RoomForgetReceipt,
   type RoomSettings,
+  type RoomReceiptRow,
 } from "./roomApi";
 import { listCheckinDesignsAndPushKey, setTelegramCheckins } from "./roomCheckinsApi";
 import { paymentStatus, type RoomPaymentStatus } from "./roomPayApi";
@@ -144,6 +147,10 @@ export default function AccountPage({
   // copy of it.
   const [flags, setFlags] = useState<RoomFlag[]>([]);
   const [withdrawingHash, setWithdrawingHash] = useState<string | null>(null);
+  // WS-R100 (migration 126). The follower's own receipts - the subscription
+  // panel's own list, `flags`' own state shape one field up.
+  const [receipts, setReceipts] = useState<RoomReceiptRow[]>([]);
+  const [printingId, setPrintingId] = useState<string | null>(null);
   // WS-R86 (migration 123). "Bring a friend" - the server mints the hash,
   // this page only ever displays the RELATIVE path it returns, prefixed
   // with the browser's own origin (`RoomApp.tsx`'s own `shareUrl`
@@ -208,6 +215,40 @@ export default function AccountPage({
       .catch(() => {});
     return () => { live = false; };
   }, [session, fixtureSettings]);
+
+  // WS-R100. Never on a fixture, the flags/referral effects' own rule
+  // restated: a failed load simply leaves the list empty, the SAME honest
+  // silence `roomReferralLink`'s own effect uses above for a non-critical
+  // panel — `copy.payReceipt.loadError` exists for the print action's own
+  // failure below, not for this initial read.
+  useEffect(() => {
+    if (fixtureSettings) return;
+    let live = true;
+    listReceipts(session)
+      .then((result) => { if (live) setReceipts(result.receipts); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [session, fixtureSettings]);
+
+  const printReceipt = useCallback(async (paymentEventId: string) => {
+    setPrintingId(paymentEventId);
+    setError("");
+    try {
+      const html = await fetchReceiptHtml(session, paymentEventId);
+      // A POST response has no URL a browser can navigate to on its own, so
+      // the printable page is written into a new window directly -
+      // `window.print()` on ITS OWN document, never this page's.
+      const win = window.open("", "_blank");
+      if (!win) throw new Error("popup_blocked");
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    } catch {
+      setError(copy.payReceipt.loadError);
+    } finally {
+      setPrintingId(null);
+    }
+  }, [session, copy]);
 
   const copyReferralLink = useCallback(async () => {
     if (!referralUrl) return;
@@ -551,6 +592,33 @@ export default function AccountPage({
         // WS-R37's cancel op may not be in this tree yet — an honest state,
         // never a dead button (`context/rejected.md#a-step-is-never-silently-blocked`).
         <p className="room-fine">{copy.account.subscriptionNoCancel}</p>
+      )}
+
+      {/* WS-R100 (migration 126). The follower's own receipts - a number,
+          the date and the amount here; the printable page itself (the GST
+          lines, the platform's legal identity) is server text, fetched only
+          when a follower actually asks to print one. */}
+      <h3 className="room-checkins-subhead">{copy.payReceipt.title}</h3>
+      {receipts.length === 0 ? (
+        <p className="room-fine">{copy.payReceipt.empty}</p>
+      ) : (
+        <ul className="room-checkins-list">
+          {receipts.map((r) => (
+            <li key={r.payment_event_id} className="room-checkins-row">
+              <p className="room-fine room-num">{formatDate(r.issued_at, locale)}</p>
+              <p className="room-fine room-num">{`₹${r.amount_inr}`}</p>
+              <button
+                type="button"
+                className="room-btn"
+                disabled={printingId === r.payment_event_id}
+                onPointerDown={() => void printReceipt(r.payment_event_id)}
+                onKeyDown={activateOnKey(() => void printReceipt(r.payment_event_id))}
+              >
+                {printingId === r.payment_event_id ? copy.pay.working : copy.payReceipt.print}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
 
       <h3 className="room-checkins-subhead">{copy.flag.accountTitle}</h3>

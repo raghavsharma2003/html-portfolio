@@ -75,6 +75,7 @@ import { seatCoversCreatorTier } from "./_org.js";
 import * as fakeProvider from "./_payments/providers/fake.js";
 import * as razorpayProvider from "./_payments/providers/razorpay.js";
 import { recordIncident } from "./_incidents.js";
+import { financialYearFor } from "./_receipt.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -1129,7 +1130,7 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
               updated_at = now()
          from candidate c
         where s.subscription_id = c.subscription_id
-       returning s.subscription_id, s.follower_id, s.state
+       returning s.subscription_id, s.follower_id, s.state, s.person_id
      ), follower_update as (
        update vy_room_follower f
           set tier = case when su.state = 'active' then 'paid' else 'free' end,
@@ -1139,7 +1140,7 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
           and su.state in ('active','cancelled','expired')
        returning f.follower_id, f.tier
      )${offerCte}
-     select c.event_id, su.subscription_id, su.state, fu.tier${offerSelect}
+     select c.event_id, su.subscription_id, su.state, su.person_id, fu.tier${offerSelect}
        from candidate c
        left join sub_update su on true
        left join follower_update fu on true${offerJoin}`,
@@ -1154,6 +1155,24 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
     // landed a row. A no-op, never an error - a webhook retry earns a 200.
     return { applied: false, replay: true, lane: "follower", subscription_id: ctx.subscription_id };
   }
+  // WS-R100 (migration 126). The follower's own receipt - claimed and
+  // inserted ONLY for a genuinely NEW landed charge (never on the replay
+  // branch just above, and never for a non-charge kind or a zero amount),
+  // gated on the table actually being applied so a database that has not
+  // run migration 126 yet keeps behaving exactly as it did before this
+  // workstream - `roomExport`'s own `isTableAppliedFor` seam, restated here.
+  // See `issueFollowerReceipt`'s own header for why this is a SECOND
+  // statement rather than a fifth CTE folded into the write above.
+  let receipt = null;
+  const isLandedCharge = CREATOR_CHARGE_KINDS.has(parsed.kind) && parsed.amountInr > 0;
+  if (isLandedCharge && (await (deps.tableApplied ?? tableApplied)("vy_receipt"))) {
+    receipt = await issueFollowerReceipt(db, {
+      eventId: result.event_id,
+      roomId: ctx.room_id,
+      personId: result.person_id,
+      issuedAt: new Date(deps.now ?? Date.now()).toISOString(),
+    });
+  }
   return {
     applied: true,
     replay: false,
@@ -1162,7 +1181,65 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
     state: result.state,
     tier: result.tier ?? null,
     offer_marked_paid: result.offer_marked_paid ?? null,
+    receipt_id: receipt?.receipt_id ?? null,
   };
+}
+
+/**
+ * WS-R100 (migration 126). Claims the next receipt number for the ledger
+ * row's own financial year and inserts the receipt row - called ONLY for a
+ * landed follower charge, and only once the ledger's own INSERT above
+ * actually landed a NEW row (`applyWebhook`'s own `!result` early return
+ * refuses to reach this far on a replay). Two statements, not a fifth CTE
+ * folded into the ledger write's own chain: that write is a heavily
+ * fixture-modelled statement several sibling suites drive byte-exactly
+ * (evals/payments, evals/room-doors, evals/org-billing), and folding a
+ * THIRD table's writes into it would renumber every one of its bound
+ * parameters for every one of them - a blast radius this receipt has no
+ * business opening for a table none of those suites' existing fixtures
+ * need to know about. `vy_receipt`'s own `unique (payment_event_id)` is
+ * what makes running these two statements as a pair, rather than as one
+ * atomic unit, safe: a process that crashes between them leaves a ledger
+ * row with no receipt for that one webhook delivery - a real, named gap,
+ * not a hidden one (`context/decisions.md
+ * #ws-r100-receipt-issued-alongside-not-inside-the-ledger-write`) - and
+ * nothing here retries it automatically; a follow-up workstream could add a
+ * backfill sweep the same way `evals/room-dormancy` added one for a
+ * different gap.
+ *
+ * `bump`'s own `not exists (select 1 from vy_receipt ...)` guard means a
+ * caller invoked twice for the SAME payment event (a bug elsewhere, or a
+ * deliberate backfill re-run) burns no second counter number even though
+ * `vy_receipt`'s own unique index would refuse the second insert anyway -
+ * the guard buys an honest, gap-free counter for the ORDINARY case; only a
+ * genuine race between two callers for the SAME event id can still burn one
+ * number, which the counter's own eval proves is a race the FY sequence
+ * survives without a collision or an out-of-order gap.
+ */
+export async function issueFollowerReceipt(db, { eventId, roomId, personId, issuedAt } = {}) {
+  const fy = financialYearFor(Date.parse(issuedAt || new Date().toISOString()));
+  const rows = await db(
+    `with ensure as (
+       insert into vy_receipt_counter (fy, next) values (($1)::text, 1)
+       on conflict (fy) do nothing
+       returning 1
+     ), bump as (
+       update vy_receipt_counter c
+          set next = c.next + 1
+        where c.fy = ($1)::text
+          and not exists (select 1 from vy_receipt r where r.payment_event_id = ($2)::uuid)
+       returning c.next - 1 as claimed_no
+     ), ins as (
+       insert into vy_receipt (receipt_no, payment_event_id, room_id, person_id, issued_at)
+       select b.claimed_no, ($2)::uuid, ($3)::uuid, ($4)::uuid, coalesce(($5)::timestamptz, now())
+         from bump b
+       on conflict (payment_event_id) do nothing
+       returning receipt_id, receipt_no, issued_at
+     )
+     select receipt_id, receipt_no, issued_at from ins`,
+    [fy, eventId, roomId, personId, issuedAt || null],
+  );
+  return rows[0] || null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

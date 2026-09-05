@@ -2371,6 +2371,27 @@ const suites = {
   // `playwright` is not installed, `scripts/check-accessibility.mjs`'s own
   // posture. $0, no network beyond 127.0.0.1.
   "rehearsal-follower": "rehearsal/follower.mjs",
+  // WS-R100 (migration 126). The follower's receipt: a number, the date,
+  // the Room, the amount split into its GST lines, the platform's legal
+  // name and GSTIN (or a named placeholder), in the follower's own
+  // language, built from the ledger and never from the provider's page.
+  // Proves the pure math (financial-year boundary, the VY/<FY>/<n> shape
+  // and Rule 46(b)'s sixteen-character cap enforced as a throw, gstSplit's
+  // own arithmetic identities), the counter's atomic claim under
+  // concurrency (two different claims land two different, sequential
+  // numbers; the same payment event claimed twice burns no second number),
+  // the builder in both locales including the honest placeholder path when
+  // the platform's own legal identity is unset, the scoped read through the
+  // real follower lane, and export. TWO NEGATIVE CONTROLS: a receipt for
+  // another follower's real payment_event_id is refused by the WHERE; a
+  // duplicate claim for one payment event is refused (no second row, no
+  // second counter number burned). Forget's own nullify door is proven
+  // statically against the real source (api/memory.js's `q` is imported
+  // directly from api/_db.js, not injectable) - see the final report for
+  // what remains for `EXPLAIN` against the live database.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-receipt": "room-receipt/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

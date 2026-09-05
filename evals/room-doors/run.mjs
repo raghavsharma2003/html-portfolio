@@ -181,6 +181,8 @@ const {
   roomCitations, roomExport, roomForget, roomDismissOffer, ROOM_SESSION_TTL_MS,
   roomDisclosureCard, roomSettings, roomSettingsReviewed,
   flagReply, unflagReply, followerFlags,
+  // WS-R100 (migration 126). The follower's own receipt.
+  roomReceipt, roomReceipts,
   // WS-R89 (the second door battery): the body cap, the slug validator, and
   // the cross-origin decision — all decision-module functions, never logic
   // embedded in a door.
@@ -2169,6 +2171,70 @@ console.log("\n── §17d: ops.js send_test_digest (WS-R88) ──");
 // or one of the two safe exclusions, and `decisions.md#ws-r51-every-door-
 // cased` names the reversal condition for the ops this run still cannot
 // exercise (the three structurally op-less webhook doors).
+// ═════════════════════════════════════════════════════════════════════════
+// §17e. WS-R100 (migration 126) — room.js's "receipt" / "receipts". `receipt`
+// takes a body-supplied `payment_event_id` (class c, on `payments.js`'s own
+// `payout_statement` precedent, §11: a body id belonging to someone else is
+// refused by the WHERE, never returned); `receipts` takes only the session,
+// `flags`'/`citations`' own shape (classes a/b only). Both go through
+// `selfScope`, the SAME resolver every other self-scoped op in this file
+// proves forgery-refused.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §17e: room.js receipt / receipts (WS-R100) ──");
+{
+  const { db, session } = await setupFollower();
+  await assertForgeryRefused("room.js", "receipt", () => session);
+  await assertForgeryRefused("room.js", "receipts", () => session);
+
+  const expired = mintRoomSession({ ...reencodeWithSameSig(session).payload, iat: NOW - (13 * 60 * 60 * 1000) }, ENV);
+  const receiptErr = await threw(() => roomReceipt(db, { session: expired, paymentEventId: "e9000000-0000-4000-8000-000000000001" }, { loadAgent, now: NOW, env: ENV }));
+  okClass("a-forged-session", "room.js", "receipt: a stale session is refused", receiptErr?.code === "room_session_expired");
+  const receiptsErr = await threw(() => roomReceipts(db, { session: expired }, { loadAgent, now: NOW, env: ENV }));
+  okClass("a-forged-session", "room.js", "receipts: a stale session is refused", receiptsErr?.code === "room_session_expired");
+
+  // The happy path, proving the fixture and the read are both sound —
+  // freshDoorsState() seeds exactly one receipt, PERSON_A's own, on
+  // payment_event_id "e9000000-0000-4000-8000-000000000001".
+  const mine = await roomReceipt(db, { session, paymentEventId: "e9000000-0000-4000-8000-000000000001" }, { loadAgent, now: NOW, env: ENV });
+  ok("[receipt/room.js] fixture: the real follower reads their own seeded receipt", typeof mine?.receipt_number === "string" && mine.receipt_number.endsWith("/1"));
+  const mineList = await roomReceipts(db, { session }, { loadAgent, now: NOW, env: ENV, tableApplied: async () => true });
+  ok("[receipts/room.js] fixture: the real follower's own list carries exactly the one seeded receipt",
+    mineList.receipts.length === 1 && mineList.receipts[0].payment_event_id === "e9000000-0000-4000-8000-000000000001");
+}
+{
+  const state = withSecondRoom(freshDoorsState());
+  const db = doorsDb(state);
+  const loadAgentTwoRooms = async (slug) => {
+    if (slug === SLUG) return loadAgent(slug);
+    if (slug === "kabir") return { module: {}, sheet: { name: "Kabir", slug: "kabir" } };
+    throw new Error("teacher_sheet_unavailable");
+  };
+  const joined = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV });
+  const { payload } = reencodeWithSameSig(joined.session);
+  const crossToken = mintRoomSession({ ...payload, r: "kabir" }, ENV);
+  const receiptErr = await threw(() => roomReceipt(db, { session: crossToken, paymentEventId: "e9000000-0000-4000-8000-000000000001" }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
+  okClass("b-cross-room", "room.js", "receipt: cross-room session refused room_unavailable", receiptErr?.code === "room_unavailable");
+  const receiptsErr = await threw(() => roomReceipts(db, { session: crossToken }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
+  okClass("b-cross-room", "room.js", "receipts: cross-room session refused room_unavailable", receiptsErr?.code === "room_unavailable");
+}
+{
+  // class c: a body-supplied payment_event_id belonging to ANOTHER follower
+  // in the SAME room is refused by the WHERE (room_receipt_not_found), never
+  // that follower's own receipt — `payments.js`'s `payout_statement` own
+  // precedent (§11), restated for a follower-scoped id instead of an owner
+  // one.
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const joinedA = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
+  const joinedB = await joinRoom(db, { slug: SLUG, authUserId: USER_B, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
+  const stolen = await threw(() => roomReceipt(db, { session: joinedB.session, paymentEventId: "e9000000-0000-4000-8000-000000000001" }, { loadAgent, now: NOW, env: ENV }));
+  okClass("c-body-ids", "room.js", "receipt: follower B naming follower A's own payment_event_id is refused, never A's receipt", stolen?.code === "room_receipt_not_found");
+  const mineA = await roomReceipt(db, { session: joinedA.session, paymentEventId: "e9000000-0000-4000-8000-000000000001" }, { loadAgent, now: NOW, env: ENV });
+  okClass("c-body-ids", "room.js", "receipt: follower A's own request for the SAME id succeeds (the fixture and the fix are both sound)", typeof mineA?.receipt_number === "string");
+  const listB = await roomReceipts(db, { session: joinedB.session }, { loadAgent, now: NOW, env: ENV, tableApplied: async () => true });
+  okClass("c-body-ids", "room.js", "receipts: follower B's own list carries none of A's receipts", listB.receipts.length === 0);
+}
+
 console.log("\n── §18: the computed op list — every op is cased or named ──");
 
 function computedOps(file) {
@@ -2222,6 +2288,12 @@ const OP_COVERAGE = {
     stats: { excluded: "no session and no bearer — a public read by slug; resolveRoom's own WHERE already collapses paused/unpublished/unknown into the same answer" },
     export: { classes: ["a", "b", "c"] },
     forget: { classes: ["a", "c"] },
+    // WS-R100 (migration 126). `receipt` carries a body-supplied
+    // `payment_event_id` — class c — refused by the WHERE's own
+    // `room_id`/`person_id` pair (§17e); `receipts` takes only the session,
+    // `flags`'/`citations`' own shape.
+    receipt: { classes: ["a", "b", "c"] },
+    receipts: { classes: ["a", "b"] },
   },
   "room-pay.js": {
     subscribe: { classes: ["a"] },

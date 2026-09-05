@@ -93,6 +93,11 @@ import { sessionWorked, recordOffer, markOfferOutcome } from "./_phase-gate.js";
 // shape, on `_clonechat.js`'s precedent); `compileNeverRules` imports nothing.
 import { loadNeverRules } from "./_review-queue.js";
 import { compileNeverRules } from "./_never-rules.js";
+// WS-R100 (migration 126). `_receipt.js` is a leaf module (no imports of its
+// own beyond node builtins) - never `_payments.js`, which imports FROM this
+// file (`roomSettings`'s own header names the wall: a file this one already
+// depends on may not import back).
+import { buildReceiptContext } from "./_receipt.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -2369,6 +2374,12 @@ const ROOM_EXPORT_EXTRA = Object.freeze([
   { table: "vy_room_follower_reply_flag", shape: "rows",
     reason: "the follower's own flagged-reply history (which reply, which reason, when) - " +
       "theirs to see in full" },
+  // WS-R100 (migration 126). The follower's own receipts. Deliberately NOT
+  // a `PERSON_TABLES` entry (`scripts/relcheck.mjs`'s `EXEMPT` map carries
+  // the written reason) but still theirs to see in full here, the same
+  // "voluntary extra" shape every OTHER row on this list already is.
+  { table: "vy_receipt", shape: "rows",
+    reason: "the follower's own payment receipts for this room - theirs to see in full" },
 ]);
 
 /** `api/_room-whatsapp.js`'s own function, re-derived here rather than
@@ -2632,6 +2643,19 @@ async function roomForgetCore(db, who, deps = {}) {
     );
     deleted.vy_room_subscription = subRows.length;
   }
+
+  // WS-R100 (migration 126). `vy_receipt` is deliberately ABSENT from this
+  // function, on `vy_room_subscription`'s own precedent immediately above:
+  // a follower's own receipt is proof they paid real money, and forgetting
+  // what an AI remembers about them is a different request in kind from
+  // forgetting that they paid it. Only the account-wide "forget everything"
+  // pass ever touches this table (`api/memory.js`'s own explicit door,
+  // right beside `vy_room_forget_receipt`'s), and even then it NULLS
+  // `person_id` rather than deleting the row - the number and the amount
+  // survive, the person does not (migration 126's own header states this in
+  // full). Carries no `follower_id` column at all, unlike
+  // `vy_room_subscription` two blocks up, so the follower-row delete below
+  // cannot cascade it away by accident either.
 
   if (await isTableAppliedFor(deps)("vy_room_pulse_optin")) {
     // WS-R17 (migration 080): Pulse's own toggle, this Room only. A full
@@ -3297,6 +3321,83 @@ export async function roomSettingsReviewed(db, { session }, deps = {}) {
   );
   if (!rows[0]) throw new RoomError("room_join_required", 403);
   return { settings_reviewed_at: rows[0].settings_reviewed_at };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE FOLLOWER'S RECEIPT (WS-R100, migration 126)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// One receipt exists per landed charge - `api/_payments.js`'s
+// `issueFollowerReceipt`, called from the payments webhook the moment a
+// charge lands, is the only writer. This file only ever READS a row someone
+// else already wrote, scoped by the SAME verified session every other
+// self-scoped op here uses, and hands it to `api/_receipt.js`'s pure
+// `buildReceiptContext` - never a DB read of its own - so this is the one
+// place a receipt's own row and its rendered text meet.
+
+/**
+ * Every receipt for this follower, in this Room, newest first - the
+ * account page's own list read. A row whose `person_id` an account-wide
+ * "forget everything" already nulled (migration 126's own header) can never
+ * match this WHERE and is correctly invisible to the follower who used to
+ * own it, exactly like every other table that wipe reaches.
+ */
+export async function roomReceipts(db, { session }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  if (!(await isTableAppliedFor(deps)("vy_receipt"))) return { receipts: [] };
+  const rows = await db(
+    `select r.receipt_id, r.receipt_no, r.payment_event_id, r.issued_at, e.amount_inr
+       from vy_receipt r
+       join vy_payment_event e on e.event_id = r.payment_event_id
+      where r.room_id = ($1)::uuid and r.person_id = ($2)::uuid
+      order by r.issued_at desc
+      limit 200`,
+    [who.roomId, who.personId],
+  ).catch(() => []);
+  return {
+    receipts: rows.map((row) => ({
+      payment_event_id: String(row.payment_event_id),
+      receipt_no: Number(row.receipt_no),
+      issued_at: row.issued_at,
+      amount_inr: Number(row.amount_inr),
+    })),
+  };
+}
+
+/**
+ * One receipt, by the payment event id it names. Session-scoped exactly
+ * like `roomReceipts` above: `room_id` AND `person_id` both come off the
+ * verified session, never the request body, so a follower cannot name
+ * another follower's payment event even by constructing the request by
+ * hand - the WHERE clause itself is the refusal
+ * (`evals/room-doors/run.mjs`'s own OP_COVERAGE entry for "receipt" names
+ * this, `evals/room-receipt/run.mjs`'s own negative control proves it).
+ * `api/room.js` decides whether the caller gets this back as HTML or JSON;
+ * this function only ever returns the same plain context either way.
+ */
+export async function roomReceipt(db, { session, paymentEventId }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  const pid = String(paymentEventId || "").trim();
+  if (!UUID.test(pid)) throw new RoomError("room_receipt_not_found", 404);
+  const rows = await db(
+    `select r.receipt_no, r.issued_at, e.event_id, e.amount_inr, e.kind
+       from vy_receipt r
+       join vy_payment_event e on e.event_id = r.payment_event_id
+      where r.payment_event_id = ($1)::uuid and r.room_id = ($2)::uuid and r.person_id = ($3)::uuid
+      limit 1`,
+    [pid, who.roomId, who.personId],
+  ).catch(() => []);
+  const row = rows[0];
+  if (!row) throw new RoomError("room_receipt_not_found", 404);
+  const resolved = await resolveRoom(db, who.slug, deps);
+  const name = roomNameFor(resolved.sheet);
+  return buildReceiptContext({
+    paymentEvent: { event_id: row.event_id, amount_inr: row.amount_inr, kind: row.kind },
+    receipt: { receipt_no: row.receipt_no, issued_at: row.issued_at },
+    room: { name },
+    locale: who.locale,
+    env: deps.env,
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────

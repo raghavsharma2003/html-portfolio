@@ -12066,3 +12066,62 @@ a predicate that takes its rule set as a parameter has as many wirings as
 it has callers, and a suite that passes with an empty set has proven
 nothing about any of them; grep the CALLERS of the door for the key the
 moment a new lane is added.
+
+## `ws-r100-receipt-single-cte-with-the-ledger-write-rejected-on-paper` (2026-09-05, WS-R100)
+
+**Tried (on paper, never implemented).** The first design for
+`issueFollowerReceipt` folded the counter's atomic claim and the receipt
+INSERT into `applyWebhook`'s OWN multi-CTE ledger-write statement, as a
+fifth/sixth CTE alongside `candidate`/`sub_update`/`follower_update`/
+`offer_update` - one atomic statement, no gap between the ledger row landing
+and the receipt existing.
+
+**What specifically would have broken.** That statement's own bound
+parameters are positional (`$1`..`$12`) and several sibling suites
+(`evals/payments/run.mjs`'s `makeDb`, `evals/room-doors/fixtures.mjs`'s
+`doorsDb`) pattern-match its exact SQL text and destructure `params` by
+FIXED INDEX to build their own fake rows. Adding new bound parameters for
+`fy`/a receipt id/etc. would renumber every index after the insertion point,
+silently breaking every existing fixture branch that reads `params[10]`,
+`params[11]` and so on expecting the OLD meaning - not a compile error, a
+wrong value read as the right one, the exact shape of bug this file's own
+`sound-gate-proved-by-silence` entry warns about one level up (a check that
+still runs and still reports green while proving nothing). Reasoned through
+rather than actually implemented and reverted - `ws-r42-third-lane-widening-
+rejected-on-paper`'s own precedent for logging a rejection caught by
+analysis before it was ever built, not only ones caught by a failing test.
+
+**What was built instead.** Two statements
+(`#ws-r100-receipt-issued-alongside-not-inside-the-ledger-write`,
+`decisions.md`), gated on `tableApplied("vy_receipt")` so every existing
+fixture's own untouched `params` array is never even read by the new code.
+
+## `ws-r100-fixture-list-query-swallowed-by-single-row-query-same-substring` (2026-09-05, WS-R100)
+
+**Tried and broke.** The first version of both new fixture files
+(`evals/room-receipt/run.mjs`, `evals/room-doors/fixtures.mjs`) checked
+`roomReceipt`'s own single-row SQL pattern (`has("from vy_receipt r") &&
+has("join vy_payment_event e") && has("r.payment_event_id")`) BEFORE
+`roomReceipts`' own list pattern (the same two `has()` calls plus
+`has("order by r.issued_at desc")`). `roomReceipts`' real SQL text ALSO
+contains the substring `"r.payment_event_id"` (once in its own SELECT list,
+once in the JOIN clause), so the single-row branch matched FIRST for both
+queries and destructured `roomReceipts`' own two-element `params` array
+(`[roomId, personId]`) as though it were the single-row query's THREE-element
+one (`[paymentEventId, roomId, personId]`) - `paymentEventId` silently became
+the real `roomId`, and the lookup found nothing. `evals/room-receipt/
+run.mjs`'s own §5 ("the follower's own list carries exactly their one
+seeded receipt") failed the first time it ran, with an empty list where a
+real, seeded receipt existed - caught by running the suite, not by reading
+the SQL.
+
+**What fixed it.** Reordered both fixtures so the MORE SPECIFIC pattern (the
+list query's own `"order by r.issued_at desc"`, a substring the single-row
+query never contains) is checked FIRST. The general lesson, restated for a
+third time in this file in a new shape: two SQL statements sharing column
+NAMES will share SUBSTRINGS, and a fixture's own `if (has(...))` chain is
+only correct when checked in most-specific-first order, or when every
+pattern is proven pairwise disjoint - neither of which a fixture author
+gets for free just because the real Postgres planner never has this
+ambiguity at all (it parses the whole statement, a fixture's `.includes()`
+does not).
