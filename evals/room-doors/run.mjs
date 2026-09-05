@@ -181,7 +181,14 @@ const {
   roomCitations, roomExport, roomForget, roomDismissOffer, ROOM_SESSION_TTL_MS,
   roomDisclosureCard, roomSettings, roomSettingsReviewed,
   flagReply, unflagReply, followerFlags,
+  // WS-R89 (the second door battery): the body cap, the slug validator, and
+  // the cross-origin decision — all decision-module functions, never logic
+  // embedded in a door.
+  bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES, ROOM_TRANSCRIPT_BODY_CAP_BYTES,
+  slugOf, roomBySlug, sameOriginOrAbsent, assertTasteOriginAllowed,
 } = RS;
+const CREATOR_PAGE = await import(pathToFileURL(join(API, "_creator-page.js")).href);
+const { publicCreatorPageRoomBySlug } = CREATOR_PAGE;
 const HANDOFF = await import(pathToFileURL(join(API, "_handoff.js")).href);
 const { draftHandoffPayload, sendHandoffRequest, withdrawHandoffRequest, myHandoffs, HandoffError } = HANDOFF;
 const CHECKINS = await import(pathToFileURL(join(API, "_checkins.js")).href);
@@ -227,14 +234,16 @@ const { isOpsOwner, subscribeOperatorPush, revokeOperatorPush, operatorPushSubsc
 const OPERATOR_DIGEST = await import(pathToFileURL(join(API, "_operator-digest.js")).href);
 const { sendTestOperatorDigest } = OPERATOR_DIGEST;
 const CREATOR_PUSH = await import(pathToFileURL(join(API, "_creator-push.js")).href);
-const { subscribeCreatorPush, revokeCreatorPush } = CREATOR_PUSH;
+const { subscribeCreatorPush, revokeCreatorPush, CreatorPushError } = CREATOR_PUSH;
+const ROOM_PUSH = await import(pathToFileURL(join(API, "_room-push.js")).href);
+const { setSubscription: roomPushSetSubscription } = ROOM_PUSH;
 const RATE = await import(pathToFileURL(join(API, "_rate-limit.js")).href);
 const { consume } = RATE;
 const RATELIMIT = await import(pathToFileURL(join(API, "_ratelimit.js")).href);
 const ROOM_TG = await import(pathToFileURL(join(API, "_room-telegram.js")).href);
-const { verifyRoomTelegramWebhook } = ROOM_TG;
+const { verifyRoomTelegramWebhook, handleRoomTelegramUpdate } = ROOM_TG;
 const ROOM_WA = await import(pathToFileURL(join(API, "_room-whatsapp.js")).href);
-const { verifyRoomWhatsappWebhook } = ROOM_WA;
+const { verifyRoomWhatsappWebhook, handleStatusWebhook } = ROOM_WA;
 const WHATSAPP = await import(pathToFileURL(join(API, "whatsapp.js")).href);
 const { signatureOk } = WHATSAPP;
 // WS-R51: the widened §18 door list's own new callers.
@@ -242,6 +251,14 @@ const FUNNEL = await import(pathToFileURL(join(API, "_funnel.js")).href);
 const { markStep } = FUNNEL;
 const REPLICA_ERASURE = await import(pathToFileURL(join(API, "_replica-full-erasure.js")).href);
 const { getReplicaErasureStatus } = REPLICA_ERASURE;
+// WS-R89 (§24, class e): the two cron doors whose own authorization
+// function accepts an injectable `env`, read directly from the DOOR file
+// (not a `_<name>.js` decision module — these two ARE the doors, thin as
+// they are) for the strongest, dynamic form of this class's own proof.
+const REPLICA_ERASURE_SWEEP_DOOR = await import(pathToFileURL(join(API, "replica-erasure-sweep.js")).href);
+const REPLICA_ERASURE_AUTH = REPLICA_ERASURE_SWEEP_DOOR.authorizedReplicaErasure;
+const PROCESSING_SWEEP_MODULE = await import(pathToFileURL(join(API, "_replica-processing", "sweep.js")).href);
+const PROCESSING_SWEEP_AUTH = PROCESSING_SWEEP_MODULE.authorizedProcessingSweep;
 
 const { loadAgent } = await loadFixtureAgent(ROOT);
 
@@ -2415,6 +2432,483 @@ console.log("\n── §19: negative controls (both MUST fail) ──");
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
   }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §20. WS-R89 (the second door battery, class a) — BODY SIZE. Every
+// POST-accepting door in EXPECTED_DOORS either calls the one shared
+// `bodyTooLarge` gate (`api/_room-surface.js`) with one of its two named
+// ceilings, or is one of the three doors that already enforce their OWN
+// raw-body cap (1MB) before `req.body` even exists — completeness is
+// computed from source, the SAME law §0/§18 already apply to the door list
+// and the op list.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §20: body size, every POST door ──");
+
+// The three doors whose OWN raw-body reader already caps at 1MB — proven
+// by reading source, never assumed. `room-wa.js` carries no `rawBodyOf` of
+// its own; it verifies through `api/whatsapp.js`'s `verifyWhatsappWebhook`,
+// which is where the cap actually lives — the SAME "restated, don't
+// silently drift" indirection the door list's own completeness check
+// already tolerates for a shared primitive.
+const RAW_BODY_CAPPED_DOORS = {
+  "payments-webhook.js": (src) => src.includes("size > 1_000_000"),
+  "payout-webhook.js": (src) => src.includes("size > 1_000_000"),
+  "room-wa.js": () => readFileSync(join(API, "whatsapp.js"), "utf8").includes("size > 1_000_000"),
+};
+
+for (const doorFile of EXPECTED_DOORS) {
+  const src = readFileSync(join(API, doorFile), "utf8");
+  if (RAW_BODY_CAPPED_DOORS[doorFile]) {
+    okClass("a-body-size", doorFile, "raw-body reader caps at 1MB before req.body ever exists (read from source)", RAW_BODY_CAPPED_DOORS[doorFile](src));
+    continue;
+  }
+  const capUsed = src.includes("bodyTooLarge(") &&
+    (src.includes("ROOM_DOOR_BODY_CAP_BYTES") || src.includes("ROOM_TRANSCRIPT_BODY_CAP_BYTES"));
+  okClass("a-body-size", doorFile, "calls the shared bodyTooLarge() gate with one of its two named ceilings (read from source)", capUsed);
+}
+// room.js alone carries a client-supplied transcript and gets the LARGER
+// ceiling; every other checked door gets the smaller one — both asserted
+// by name, not merely "some constant".
+{
+  const roomSrc = readFileSync(join(API, "room.js"), "utf8");
+  okClass("a-body-size", "room.js", "uses the LARGER transcript ceiling, not the default door ceiling", roomSrc.includes("ROOM_TRANSCRIPT_BODY_CAP_BYTES") && !roomSrc.includes("ROOM_DOOR_BODY_CAP_BYTES"));
+  for (const doorFile of EXPECTED_DOORS) {
+    if (doorFile === "room.js" || RAW_BODY_CAPPED_DOORS[doorFile]) continue;
+    const src = readFileSync(join(API, doorFile), "utf8");
+    okClass("a-body-size", doorFile, "uses the DEFAULT door ceiling, never the transcript one", src.includes("ROOM_DOOR_BODY_CAP_BYTES") && !src.includes("ROOM_TRANSCRIPT_BODY_CAP_BYTES"));
+  }
+}
+
+// The gate itself, driven directly: a legitimate worst-case `say` body
+// (the full transcript ceiling this file's own header derives — 30 turns,
+// 4000 chars each) passes; one byte over the SAME shape is refused; the
+// default door ceiling refuses a body far smaller than the transcript one
+// would admit, proving the two ceilings are actually DIFFERENT, not the
+// same constant under two names.
+{
+  const legitimateTranscript = {
+    op: "say", session: "r1.fake.fake",
+    message: "x".repeat(2000),
+    transcript: Array.from({ length: 30 }, () => ({ role: "user", content: "अ".repeat(4000) })),
+  };
+  okClass("a-body-size", "room.js", "a legitimate worst-case transcript body (30 turns, 4000 Devanagari chars each) is UNDER the transcript ceiling", !bodyTooLarge(legitimateTranscript, ROOM_TRANSCRIPT_BODY_CAP_BYTES));
+  const oneByteOver = { ...legitimateTranscript, message: legitimateTranscript.message + "x".repeat(ROOM_TRANSCRIPT_BODY_CAP_BYTES) };
+  okClass("a-body-size", "room.js", "the SAME shape padded past the ceiling is refused", bodyTooLarge(oneByteOver, ROOM_TRANSCRIPT_BODY_CAP_BYTES));
+  okClass("a-body-size", "every-other-door", "the transcript body is REFUSED against the smaller default ceiling — the two constants are genuinely different, not one constant under two names", bodyTooLarge(legitimateTranscript, ROOM_DOOR_BODY_CAP_BYTES));
+  okClass("a-body-size", "every-other-door", "an ordinary small body (a session, an op, a short field) passes the default ceiling", !bodyTooLarge({ op: "list", session: "r1.fake.fake" }, ROOM_DOOR_BODY_CAP_BYTES));
+  // NEGATIVE CONTROL: a body that cannot be JSON-serialised (a shape no
+  // legitimate client could ever produce) is refused rather than silently
+  // passed through.
+  const circular = {};
+  circular.self = circular;
+  okClass("a-body-size", "bodyTooLarge", "NEGATIVE CONTROL: an unserialisable body is refused, never trusted", bodyTooLarge(circular, ROOM_TRANSCRIPT_BODY_CAP_BYTES));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §21. WS-R89 (class b) — SLUG AND ID SHAPE. `slugOf` (`api/_room-surface.js`)
+// is NFKC-normalised, then ASCII-only-or-refused, and it is now the ONE
+// slug validator on the read path — `api/_creator-page.js`'s own read used
+// to restate a weaker one; §21c proves it now shares this one instead.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §21: slug and id shape ──");
+
+{
+  // (a) a real, plain-ASCII slug is admitted.
+  okClass("b-slug-shape", "slugOf", "a real slug is admitted unchanged", slugOf(SLUG) === SLUG);
+
+  // (b) a CROSS-SCRIPT HOMOGLYPH — Cyrillic "а" (U+0430) in place of Latin
+  // "a" — is refused BY NAME, never a near-miss lookup. NFKC does not touch
+  // it (the two characters are canonically unrelated, only visually
+  // similar), so the ASCII-only regex still catches it exactly as it did
+  // before this workstream added normalisation.
+  const cyrillicHomoglyph = "аnjali"; // Cyrillic а + "njali"
+  okClass("b-slug-shape", "slugOf", "a Cyrillic homoglyph of a real slug is refused, not a near-miss", slugOf(cyrillicHomoglyph) === "");
+
+  // (c) a COMPATIBILITY duplicate — fullwidth "ａ" (U+FF41) — NFKC-normalises
+  // to plain "a" and THEN passes the ASCII check, landing on the exact same
+  // bytes a plain-ASCII caller would have sent. This is the intentional
+  // half of "NFKC-normalised, ASCII-only": a real product convenience
+  // (an IME's fullwidth input), never a route to a DIFFERENT room, because
+  // it converges on the SAME slug rather than a different one.
+  const fullwidthCompat = "ａnjali"; // fullwidth ａ + "njali"
+  okClass("b-slug-shape", "slugOf", "a fullwidth compatibility form NFKC-normalises to the SAME real slug, never a different one", slugOf(fullwidthCompat) === SLUG);
+
+  // (d) overlong and empty.
+  okClass("b-slug-shape", "slugOf", "an overlong slug (64 chars) is refused", slugOf("a".repeat(64)) === "");
+  okClass("b-slug-shape", "slugOf", "an empty slug is refused", slugOf("") === "");
+  okClass("b-slug-shape", "slugOf", "whitespace-only is refused", slugOf("   ") === "");
+
+  // NEGATIVE CONTROL: the real slug, differently CASED, still resolves —
+  // proves the shape check is not accidentally over-strict in the other
+  // direction (a slug that SHOULD resolve still does).
+  okClass("b-slug-shape", "slugOf", "NEGATIVE CONTROL: the real slug in a different case still normalises to it (the check is not over-strict)", slugOf(SLUG.toUpperCase()) === SLUG);
+}
+
+{
+  // roomBySlug: a homoglyph never reaches SQL at all — proven with a db
+  // that THROWS if called, so a query would fail this case loudly rather
+  // than quietly returning zero rows (a "near-miss lookup", the exact shape
+  // this class refuses).
+  const hostileDb = async () => { throw new Error("roomBySlug queried the database for an invalid slug — this is the near-miss lookup class b refuses"); };
+  const refused = await roomBySlug(hostileDb, "аnjali");
+  okClass("b-slug-shape", "_room-surface.js", "roomBySlug refuses a homoglyph BEFORE any query runs (a hostile db that throws-on-call never fires)", refused === null);
+
+  // The base fixture's real db: a homoglyph resolves to NOTHING, and the
+  // real slug still resolves to the real room (the fixture is sound).
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  okClass("b-slug-shape", "_room-surface.js", "roomBySlug: the real slug still resolves (fixture sanity)", (await roomBySlug(db, SLUG))?.room_id === ROOM_ID);
+  okClass("b-slug-shape", "_room-surface.js", "roomBySlug: a homoglyph of the real slug resolves to nothing", (await roomBySlug(db, "аnjali")) === null);
+}
+
+{
+  // §21c: `api/_creator-page.js`'s own read now shares `slugOf` — the real
+  // finding this workstream fixed (`context/decisions.md#ws-r89-creator-
+  // page-slug-read-shares-slugof`). Proven the SAME way: a hostile db that
+  // throws if queried never fires for a homoglyph.
+  const hostileDb = async () => { throw new Error("publicCreatorPageRoomBySlug queried the database for an invalid slug"); };
+  const refused = await publicCreatorPageRoomBySlug(hostileDb, "аnjali");
+  okClass("b-slug-shape", "_creator-page.js", "publicCreatorPageRoomBySlug refuses a homoglyph BEFORE any query runs", refused === null);
+  const src = readFileSync(join(API, "_creator-page.js"), "utf8");
+  okClass("b-slug-shape", "_creator-page.js", "publicCreatorPageRoomBySlug's own source imports slugOf from _room-surface.js rather than restating a weaker check", src.includes("slugOf") && src.includes('from "./_room-surface.js"'));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §22. WS-R89 (class c) — CROSS-ORIGIN. `assertTasteOriginAllowed`
+// (`api/_room-surface.js`) is the ONE decision the taste op's cross-origin
+// refusal rests on — `api/room.js` calls it and nothing else, so this
+// section drives it directly rather than a re-implementation.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §22: cross-origin (the taste island) ──");
+
+const DEPLOY_HOST = "meera-silk.vercel.app";
+{
+  okClass("c-cross-origin", "sameOriginOrAbsent", "an absent Origin/Referer is allowed (non-browser callers, a strict referrer policy)", sameOriginOrAbsent(undefined, DEPLOY_HOST) === true);
+  okClass("c-cross-origin", "sameOriginOrAbsent", "an EMPTY header string is allowed the same way", sameOriginOrAbsent("", DEPLOY_HOST) === true);
+  okClass("c-cross-origin", "sameOriginOrAbsent", "a header naming the SAME host is allowed", sameOriginOrAbsent(`https://${DEPLOY_HOST}`, DEPLOY_HOST) === true);
+  okClass("c-cross-origin", "sameOriginOrAbsent", "a header naming a DIFFERENT host is refused", sameOriginOrAbsent("https://evil.example.test", DEPLOY_HOST) === false);
+  okClass("c-cross-origin", "sameOriginOrAbsent", "a malformed header (not a URL at all) is refused, not trusted as absent", sameOriginOrAbsent("not-a-url-at-all", DEPLOY_HOST) === false);
+  // A path/query on the Origin (never legal, but Referer commonly carries
+  // one) does not defeat the host comparison.
+  okClass("c-cross-origin", "sameOriginOrAbsent", "a Referer with a path still compares by HOST only", sameOriginOrAbsent(`https://${DEPLOY_HOST}/c/anjali?via=search`, DEPLOY_HOST) === true);
+}
+
+{
+  // assertTasteOriginAllowed: the real door's own call, both headers absent
+  // (curl, a server-to-server probe) is fine.
+  const bothAbsent = await threw(() => assertTasteOriginAllowed(undefined, undefined, DEPLOY_HOST));
+  okClass("c-cross-origin", "room.js", "taste: both headers absent is allowed", bothAbsent === null);
+
+  // The SAME host on both — the ordinary browser case.
+  const sameHost = await threw(() => assertTasteOriginAllowed(`https://${DEPLOY_HOST}`, `https://${DEPLOY_HOST}/c/anjali`, DEPLOY_HOST));
+  okClass("c-cross-origin", "room.js", "taste: same-origin Origin AND Referer is allowed", sameHost === null);
+
+  // A THIRD-PARTY page embedding the island's own fetch — Origin names the
+  // attacker's own site, this deployment's money on every visitor with zero
+  // credential required. Refused, named.
+  const crossOrigin = await threw(() => assertTasteOriginAllowed("https://attacker.example.test", undefined, DEPLOY_HOST));
+  okClass("c-cross-origin", "room.js", "taste: a cross-origin Origin header is refused", crossOrigin instanceof RoomError && crossOrigin.code === "room_taste_cross_origin" && crossOrigin.status === 403);
+
+  // Origin absent (some browsers omit it on same-origin credentialed
+  // requests) but Referer names a THIRD PARTY — still refused. This is the
+  // "Origin and Referer" half of the brief's own class c, not Origin alone.
+  const crossReferer = await threw(() => assertTasteOriginAllowed(undefined, "https://attacker.example.test/embed.html", DEPLOY_HOST));
+  okClass("c-cross-origin", "room.js", "taste: a cross-origin Referer alone (Origin absent) is ALSO refused", crossReferer instanceof RoomError && crossReferer.code === "room_taste_cross_origin");
+
+  // NEGATIVE CONTROL: with the request host itself matching the attacker's
+  // own claimed origin (a caller who controls BOTH what host it sends the
+  // request to AND the Origin header — i.e. asserting against ITS OWN host
+  // rather than the deployment's), the same call is admitted — proving the
+  // check compares against the REQUEST's own host, not a hardcoded string,
+  // and would only ever protect a REAL deployment whose own host differs
+  // from the attacker's.
+  const selfConsistent = await threw(() => assertTasteOriginAllowed("https://attacker.example.test", undefined, "attacker.example.test"));
+  okClass("c-cross-origin", "room.js", "NEGATIVE CONTROL: the check compares against the REQUEST's own host, not a hardcoded one — confirms it is a real comparison, not a constant refusal", selfConsistent === null);
+}
+
+// api/room.js's own source: every OTHER session-bearing op stays open, by
+// name — `context/decisions.md#ws-r89-session-bearing-doors-stay-cors-open`
+// is the reasoning; this proves the code matches it (no OTHER op calls
+// assertTasteOriginAllowed, and the wildcard CORS header is unchanged).
+{
+  const src = readFileSync(join(API, "room.js"), "utf8");
+  const tasteBlockMatch = src.match(/if \(op === "taste"\) \{[\s\S]*?\n    \}\n\n    if \(op === "join"\)/);
+  okClass("c-cross-origin", "room.js", "assertTasteOriginAllowed is called exactly inside the taste op's own block, not a door-wide guard", Boolean(tasteBlockMatch) && tasteBlockMatch[0].includes("assertTasteOriginAllowed("));
+  const occurrences = [...src.matchAll(/assertTasteOriginAllowed\(/g)].length;
+  okClass("c-cross-origin", "room.js", "assertTasteOriginAllowed is called exactly ONCE in the whole door", occurrences === 1);
+  okClass("c-cross-origin", "room.js", "the door's CORS header is still the wildcard — the fix is an Origin CHECK, not a CORS lockdown that would also block the taste island's own legitimate same-origin fetch", src.includes('res.setHeader("Access-Control-Allow-Origin", "*")'));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §23. WS-R89 (class d) — REPLAY / REUSE. A push subscription endpoint
+// already ACTIVELY bound to one owner, presented for another; a Telegram
+// update redelivered; WhatsApp's own status webhook confirmed to have
+// nothing a duplicate delivery could corrupt (already proven at §4, one
+// more crisp assertion here for this class's own completeness).
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §23: replay / reuse ──");
+
+// (d1) creator push — THE REAL FINDING. Before this workstream's fix,
+// `subscribeCreatorPush` upserted on `(owner_user_id, endpoint)`, the PAIR,
+// so a DIFFERENT owner subscribing the SAME endpoint silently inserted a
+// SECOND row rather than being refused.
+{
+  const SUB = {
+    endpoint: "https://push.example.test/door-battery-shared-device",
+    p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM",
+    auth: "tBHItJI5svbpez7KI4CCXg",
+  };
+  function freshState() {
+    return { rows: [] };
+  }
+  function db(state) {
+    return async (sql, params = []) => {
+      const has = (s) => sql.includes(s);
+      if (has("select owner_user_id from vy_creator_push_subscription") && has("owner_user_id <> ($2)::uuid")) {
+        const [endpoint, ownerUserId] = params;
+        return state.rows.filter((r) => r.endpoint === endpoint && !r.revoked_at && r.owner_user_id !== ownerUserId).map((r) => ({ owner_user_id: r.owner_user_id }));
+      }
+      if (has("insert into vy_creator_push_subscription")) {
+        const [id, ownerUserId, endpoint, p256dh, auth] = params;
+        let row = state.rows.find((r) => r.owner_user_id === ownerUserId && r.endpoint === endpoint);
+        if (row) { row.p256dh = p256dh; row.auth = auth; row.revoked_at = null; }
+        else { row = { id, owner_user_id: ownerUserId, endpoint, p256dh, auth, revoked_at: null }; state.rows.push(row); }
+        return [{ id: row.id }];
+      }
+      return [];
+    };
+  }
+  const state = freshState();
+  const realDb = db(state);
+  await subscribeCreatorPush(realDb, OWNER, SUB);
+  const stolen = await threw(() => subscribeCreatorPush(realDb, OWNER_B, SUB));
+  okClass("d-replay-reuse", "replica.js", "creator push: an endpoint already ACTIVELY bound to a DIFFERENT owner is refused, never a second row", stolen instanceof CreatorPushError && stolen.code === "creator_push_endpoint_bound_elsewhere");
+  okClass("d-replay-reuse", "replica.js", "creator push: the refusal left exactly ONE row for this endpoint", state.rows.filter((r) => r.endpoint === SUB.endpoint && !r.revoked_at).length === 1);
+  // NEGATIVE CONTROL: the SAME owner re-subscribing the SAME endpoint is
+  // fine (this is the ordinary re-enable-notifications path, not a stranger).
+  const resub = await subscribeCreatorPush(realDb, OWNER, SUB);
+  okClass("d-replay-reuse", "replica.js", "NEGATIVE CONTROL: the SAME owner re-subscribing their OWN endpoint is unaffected by the new check", resub.subscribed === true && state.rows.length === 1);
+}
+
+// (d2) follower push — CONSIDERED, NOT A FINDING. `api/_room-push.js`'s own
+// header states the reason the endpoint-keyed upsert reassigns ownership on
+// conflict: one physical browser holds ONE Push subscription per origin, so
+// the SAME person following a SECOND Room in the SAME browser legitimately
+// moves the endpoint — refusing cross-follower reassignment here would
+// break that real flow, unlike creator push where no legitimate
+// reassignment case exists at all (`context/decisions.md#ws-r89-follower-
+// push-endpoint-reassignment-stays-as-is`). This case proves the CURRENT,
+// intentional behaviour, so a future change to it is a decision, not a
+// silent drift.
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const joinedA = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
+  const joinedB = await joinRoom(db, { slug: SLUG, authUserId: USER_B, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
+  // `joinRoom`'s own return shape is client-facing and carries no
+  // `follower_id` — the fixture's own row is the source of truth here.
+  const followerIdA = String(state.followers.find((f) => f.room_id === ROOM_ID && f.person_id === PERSON_A).follower_id);
+  const followerIdB = String(state.followers.find((f) => f.room_id === ROOM_ID && f.person_id === PERSON_B).follower_id);
+  const SHARED_ENDPOINT = "https://push.example.test/one-browser-two-followers";
+  const SUB = { endpoint: SHARED_ENDPOINT, p256dh: "a".repeat(48), auth: "b".repeat(16) };
+  await roomPushSetSubscription(db, { session: joinedA.session, ...SUB }, { loadAgent, now: NOW, env: ENV });
+  okClass("d-replay-reuse", "room.js", "follower push: A's own subscribe binds the endpoint to A", state.roomPushSubs.find((r) => r.endpoint === SHARED_ENDPOINT)?.follower_id === followerIdA);
+  await roomPushSetSubscription(db, { session: joinedB.session, ...SUB }, { loadAgent, now: NOW, env: ENV });
+  okClass("d-replay-reuse", "room.js", "follower push: B re-subscribing the SAME physical endpoint moves it to B — BY DESIGN, one browser holds one subscription per origin", state.roomPushSubs.find((r) => r.endpoint === SHARED_ENDPOINT)?.follower_id === followerIdB);
+  okClass("d-replay-reuse", "room.js", "follower push: exactly ONE row for the endpoint, never two — the reassignment REPLACES ownership, it does not fork it", state.roomPushSubs.filter((r) => r.endpoint === SHARED_ENDPOINT).length === 1);
+}
+
+// (d3) Telegram — THE REAL FINDING. `handleOrdinaryMessage` metres a
+// follower's monthly cap through `roomSay`, exactly as the web door does; a
+// redelivered `update_id` (Telegram's own retry policy, never a third party
+// — the shared secret already refuses anyone else) would otherwise
+// double-spend it and send a second reply. `room_tg_update_seen` is a
+// BOUNDED mitigation (`api/_rate-limit.js`'s own header on the scope),
+// proven here with a fake `consume` so this case does not depend on the
+// real `vy_public_rate` table's own SQL shape (already proven separately by
+// `evals/rate-limit/run.mjs`).
+{
+  // A FIRST delivery of a real update_id is NOT swallowed by the dedup
+  // check — it reaches ordinary dispatch (a fake `tg`/`db` return empty,
+  // simulating an unlinked chat, and the door answers "not linked" exactly
+  // as it would for any other unbound sender).
+  const consumeCalls = [];
+  const fakeConsume = async (_db, { key }) => {
+    consumeCalls.push(key);
+    return { ok: true, remaining: 0, retryAfterSeconds: 60 };
+  };
+  const fakeTg = { sendMessage: async () => ({ ok: true }) };
+  const fakeDb = async () => [];
+  const result = await handleRoomTelegramUpdate(
+    { update_id: 424242, message: { chat: { id: 1, type: "private" }, from: { id: 9 }, text: "hi" } },
+    { db: fakeDb, tg: fakeTg, consume: fakeConsume, now: NOW, env: ENV },
+  );
+  okClass("d-replay-reuse", "room-tg.js", "the FIRST delivery of a real update_id is NOT short-circuited — it reaches ordinary dispatch (an unlinked private chat, answered honestly)", result?.skipped !== "duplicate_update" && consumeCalls.includes("424242") && result?.skipped !== "group chat refused");
+}
+{
+  // A cleaner, positive proof: the SECOND delivery of the SAME update_id is
+  // a no-op, never reaching the database at all.
+  const seen = new Set(["777777"]); // pretend the first delivery already consumed this key
+  const fakeConsume = async (_db, { key }) => (seen.has(key) ? { ok: false, remaining: 0, retryAfterSeconds: 60 } : { ok: true, remaining: 0, retryAfterSeconds: 60 });
+  const fakeDb = async () => { throw new Error("handleRoomTelegramUpdate reached the database for a redelivered update_id — this must be a no-op"); };
+  const result = await handleRoomTelegramUpdate({ update_id: 777777, message: { chat: { id: 1 }, text: "hi again" } }, { db: fakeDb, consume: fakeConsume, now: NOW, env: ENV });
+  okClass("d-replay-reuse", "room-tg.js", "a REDELIVERED update_id is a no-op — never reaches the database, never double-spends the follower's cap", result?.ok === true && result?.skipped === "duplicate_update");
+
+  // NEGATIVE CONTROL: an update with NO update_id at all (malformed, or a
+  // caller that omits it) is NOT silently treated as a duplicate — the
+  // dedup check only fires on `Number.isInteger(update_id)`, so this falls
+  // through to ORDINARY dispatch (a real "not_linked" answer, never the
+  // dedup branch's own `skipped: "duplicate_update"`), proving the control
+  // is not vacuous.
+  const noIdResult = await handleRoomTelegramUpdate({ message: { chat: { id: 1, type: "private" }, from: { id: 9 }, text: "no update_id" } }, { db: fakeDb, consume: fakeConsume, now: NOW, env: ENV });
+  okClass("d-replay-reuse", "room-tg.js", "NEGATIVE CONTROL: an update with no update_id falls through to ordinary dispatch, never the dedup branch's own skip reason", noIdResult?.skipped !== "duplicate_update");
+}
+
+// (d4) WhatsApp — CONFIRMED, NOT A FINDING. `handleStatusWebhook` persists
+// no conversation at all (this file's own §4 header); the SAME status
+// payload delivered twice produces the SAME result both times, with no
+// state anywhere for a duplicate to corrupt.
+{
+  const payload = { entry: [{ changes: [{ value: { statuses: [{ id: "wamid.test123", status: "delivered", recipient_id: "911234567890" }] } }] }] };
+  const fakeDb = async () => [];
+  const first = await handleStatusWebhook(payload, { db: fakeDb });
+  const second = await handleStatusWebhook(payload, { db: fakeDb });
+  okClass("d-replay-reuse", "room-wa.js", "WhatsApp: the SAME status payload delivered twice produces the byte-identical result both times (nothing persisted for a duplicate to corrupt)", JSON.stringify(first) === JSON.stringify(second));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §24. WS-R89 (class e) — CRON DOORS. Every cron door reachable over HTTP
+// carries a shared secret this file's own §0 door list never attacked (cron
+// files are `*-sweep.js`/`self-check.js`, structurally excluded from the
+// door-body-reading rule §0 already applies). Scoped to the SEVEN cron
+// doors whose own source imports a Room decision module — the SAME "not
+// Room-scoped, carries its own surface" rule §0 already uses to exclude
+// `api/export.js`/`api/memory.js` from the main door list
+// (`decisions.md#ws-r38-door-list-completeness-rule`) — never the Replica
+// Lab / Meera-only sweeps this battery has never owned.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §24: cron doors — the secret, never in a query or a body ──");
+
+const CRON_ROOM_MODULES = [
+  "./_checkins.js", "./_pulse.js", "./_dormancy.js", "./_drift-watch.js",
+  "./_self-check.js", "./_creator-push.js", "./_replica-full-erasure.js",
+];
+const EXPECTED_CRON_DOORS = [
+  "checkins-sweep.js", "creator-push-sweep.js", "drift-watch-sweep.js",
+  "pulse-sweep.js", "renewals-sweep.js", "replica-erasure-sweep.js", "self-check.js",
+].sort();
+
+function discoverCronDoors() {
+  const files = readdirSync(API).filter((f) => f.endsWith("-sweep.js") || f === "self-check.js");
+  const doors = [];
+  for (const f of files) {
+    const src = readFileSync(join(API, f), "utf8");
+    if (CRON_ROOM_MODULES.some((m) => src.includes(`"${m}"`))) doors.push(f);
+  }
+  return doors.sort();
+}
+const discoveredCronDoors = discoverCronDoors();
+ok(
+  "the discovered cron door list matches EXPECTED_CRON_DOORS exactly — a new Room-scoped cron door cannot appear unattacked",
+  JSON.stringify(discoveredCronDoors) === JSON.stringify(EXPECTED_CRON_DOORS),
+  discoveredCronDoors.join(",") !== EXPECTED_CRON_DOORS.join(",")
+    ? `\n      discovered: ${discoveredCronDoors.join(", ")}\n      expected:   ${EXPECTED_CRON_DOORS.join(", ")}`
+    : "",
+);
+console.log(`  cron door list (${discoveredCronDoors.length}): ${discoveredCronDoors.join(", ")}`);
+
+// Named, not silently dropped: the Meera-only and Replica-Lab-only sweeps
+// this static sweep ALSO finds via a raw grep, and why each stays out —
+// `context/rejected.md#ws-r89-consolidate-sweep-secret-in-query-or-body-
+// found-out-of-scope` for the one real defect among them.
+const ALL_SWEEP_FILES = readdirSync(API).filter((f) => f.endsWith("-sweep.js") || f === "self-check.js").sort();
+const EXCLUDED_CRON_DOORS = ALL_SWEEP_FILES.filter((f) => !discoveredCronDoors.includes(f));
+ok(
+  "every cron door NOT in the Room-scoped list is accounted for by name (Meera memory consolidation / Replica Lab enrollment, neither Room-scoped, neither this battery's surface)",
+  EXCLUDED_CRON_DOORS.length === ALL_SWEEP_FILES.length - EXPECTED_CRON_DOORS.length,
+  EXCLUDED_CRON_DOORS.join(", "),
+);
+
+for (const doorFile of discoveredCronDoors) {
+  const src = readFileSync(join(API, doorFile), "utf8");
+  // Extract the authorization function's own body (named `authorized`,
+  // `authorizedReplicaErasure`, or — self-check.js/checkins-sweep.js/etc.
+  // share the plain `authorized` name — a generic `function \w*[Aa]uthoriz\w*`
+  // match rather than one hard-coded name, so a differently-named function
+  // is still found).
+  const fnMatch = src.match(/function \w*[Aa]uthoriz\w*\([^)]*\)[^{]*\{[\s\S]*?\n\}/);
+  okClass("e-cron-secret", doorFile, "an authorization function is found in source (the extraction itself is sound)", Boolean(fnMatch));
+  const fnBody = fnMatch ? fnMatch[0] : "";
+  okClass("e-cron-secret", doorFile, "the secret comparison reads ONLY req.headers — never req.query or req.body", /req\??\.headers/.test(fnBody) && !/req\??\.query/.test(fnBody) && !/req\??\.body/.test(fnBody));
+  // The constant-time compare may live in a small local helper the auth
+  // function calls (`replica-erasure-sweep.js`'s own `sameSecret`) rather
+  // than inline — checked against the WHOLE file, never just the extracted
+  // function body, so a helper one call away still counts.
+  okClass("e-cron-secret", doorFile, "the comparison is constant-time (timingSafeEqual) somewhere in this door's own source", src.includes("timingSafeEqual"));
+}
+
+// NEGATIVE CONTROL: this check is not vacuously permissive — run against
+// the EXACT `authorized()` body `api/consolidate-sweep.js` shipped until the
+// WS-R89 merge (a genuine query/body secret fallback this workstream found;
+// `rejected.md#ws-r89-consolidate-sweep-secret-in-query-or-body-found-out-
+// of-scope`), frozen here as a literal because the real file was fixed at
+// that merge: the extraction correctly flags it as reading `req.query`/
+// `req.body` for the secret. The real file is then held to the same rule as
+// every Room-scoped cron door, one assertion below.
+{
+  const oldConsolidateAuthorized = [
+    "function authorized(req) {",
+    "  const auth = req.headers.authorization || \"\";",
+    "  if (CRON_SECRET && auth === `Bearer ${CRON_SECRET}`) return true;",
+    "  const provided =",
+    "    req.headers[\"x-sweep-secret\"] ||",
+    "    (req.method === \"GET\" ? req.query?.secret : req.body?.secret) ||",
+    "    \"\";",
+    "  if (SWEEP_SECRET && provided === SWEEP_SECRET) return true;",
+    "  return false;",
+    "}",
+  ].join("\n");
+  const fnMatch = oldConsolidateAuthorized.match(/function \w*[Aa]uthoriz\w*\([^)]*\)[^{]*\{[\s\S]*?\n\}/);
+  const fnBody = fnMatch ? fnMatch[0] : "";
+  const wouldPass = Boolean(fnMatch) && /req\??\.headers/.test(fnBody) && !/req\??\.query/.test(fnBody) && !/req\??\.body/.test(fnBody);
+  ok(
+    "NEGATIVE CONTROL: this class's own extraction correctly flags the pre-merge api/consolidate-sweep.js authorized() (frozen literal) as reading req.query/req.body for the secret",
+    Boolean(fnMatch) && !wouldPass,
+  );
+  // The real file, fixed at the WS-R89 merge: headers only, constant time.
+  const consolidateSrc = readFileSync(join(API, "consolidate-sweep.js"), "utf8");
+  const realMatch = consolidateSrc.match(/function authorized\([^)]*\)[^{]*\{[\s\S]*?\n\}/);
+  const realBody = realMatch ? realMatch[0] : "";
+  ok(
+    "api/consolidate-sweep.js's REAL authorized() now reads ONLY req.headers for the secret (the WS-R89 finding, closed at the merge)",
+    Boolean(realMatch) && /req\??\.headers/.test(realBody) && !/req\??\.query/.test(realBody) && !/req\??\.body/.test(realBody),
+  );
+  ok(
+    "api/consolidate-sweep.js compares its secrets in constant time (timingSafeEqual) somewhere in its own source",
+    consolidateSrc.includes("timingSafeEqual"),
+  );
+}
+
+// Dynamic proof, for the two doors whose authorization function accepts an
+// injectable `env` — the strongest form this class takes: the REAL secret,
+// presented in a query string or a body, is refused; the SAME secret, in
+// the Authorization header, is admitted.
+{
+  const REAL_SECRET = "s".repeat(32);
+  const okReq = { headers: { authorization: `Bearer ${REAL_SECRET}` }, query: {}, body: {} };
+  const queryReq = { headers: {}, query: { secret: REAL_SECRET }, body: {} };
+  const bodyReq = { headers: {}, query: {}, body: { secret: REAL_SECRET } };
+  const wrongHeaderReq = { headers: { authorization: "Bearer not-the-real-secret-at-all-x" }, query: {}, body: {} };
+
+  okClass("e-cron-secret", "replica-erasure-sweep.js", "the real secret in the Authorization header is admitted", REPLICA_ERASURE_AUTH(okReq, { CRON_SECRET: REAL_SECRET }) === true);
+  okClass("e-cron-secret", "replica-erasure-sweep.js", "the SAME real secret in the query string is refused", REPLICA_ERASURE_AUTH(queryReq, { CRON_SECRET: REAL_SECRET }) === false);
+  okClass("e-cron-secret", "replica-erasure-sweep.js", "the SAME real secret in the body is refused", REPLICA_ERASURE_AUTH(bodyReq, { CRON_SECRET: REAL_SECRET }) === false);
+  okClass("e-cron-secret", "replica-erasure-sweep.js", "NEGATIVE CONTROL: a wrong header secret is refused too (the check is a real comparison, not a constant true)", REPLICA_ERASURE_AUTH(wrongHeaderReq, { CRON_SECRET: REAL_SECRET }) === false);
+
+  okClass("e-cron-secret", "replica-processing-sweep.js", "the real secret in the Authorization header is admitted", PROCESSING_SWEEP_AUTH(okReq, { CRON_SECRET: REAL_SECRET }) === true);
+  okClass("e-cron-secret", "replica-processing-sweep.js", "the SAME real secret in the query string is refused", PROCESSING_SWEEP_AUTH(queryReq, { CRON_SECRET: REAL_SECRET }) === false);
+  okClass("e-cron-secret", "replica-processing-sweep.js", "the SAME real secret in the body is refused", PROCESSING_SWEEP_AUTH(bodyReq, { CRON_SECRET: REAL_SECRET }) === false);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

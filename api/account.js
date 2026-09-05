@@ -20,6 +20,7 @@ import { allow, ipOf } from "./_ratelimit.js";
 import { consume } from "./_rate-limit.js";
 import { q } from "./_db.js";
 import { SB_URL, SB_KEY, authFetch, userFromToken } from "./_auth.js";
+import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ── WS-R32: the OTP doors behind vy_public_rate (closes ws-r26-otp-doors-
@@ -72,6 +73,8 @@ export default async function handler(req, res) {
 
   try {
     const b = req.body || {};
+    // WS-R89: the one shared cap every POST door checks first.
+    if (bodyTooLarge(b, ROOM_DOOR_BODY_CAP_BYTES)) return res.status(413).json({ error: "body_too_large" });
     const op = b.op;
 
     if (op === "send_otp") {

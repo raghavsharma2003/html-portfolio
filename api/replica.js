@@ -28,6 +28,7 @@ import {
   revokeCreatorPush,
   CreatorPushError,
 } from "./_creator-push.js";
+import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 
 export const config = { maxDuration: 60 };
 
@@ -63,6 +64,8 @@ export default async function handler(req, res) {
     }
 
     const body = req.body || {};
+    // WS-R89: the one shared cap every POST door checks first.
+    if (bodyTooLarge(body, ROOM_DOOR_BODY_CAP_BYTES)) return res.status(413).json({ error: "body_too_large" });
     if (body.op === "create") {
       // WS-R23 (migration 086): INVITES_REQUIRED is read here, the HTTP
       // layer, and passed down as an explicit option so createSelfReplica

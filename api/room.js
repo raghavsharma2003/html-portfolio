@@ -112,6 +112,9 @@ import {
   flagReply,
   unflagReply,
   followerFlags,
+  bodyTooLarge,
+  ROOM_TRANSCRIPT_BODY_CAP_BYTES,
+  assertTasteOriginAllowed,
 } from "./_room-surface.js";
 import { PulseError, setOptIn, revoke as revokePulseOptIn } from "./_pulse.js";
 import { setSubscription, removeSubscription, subscriptionStatus } from "./_room-push.js";
@@ -167,6 +170,13 @@ async function handler(req, res) {
   if (!allow(ipOf(req), "room_ip", 90)) return res.status(429).json({ error: "slow_down" });
 
   const body = req.body || {};
+  // WS-R89: the one cap this door checks before touching anything else — the
+  // larger of the two named ceilings, because "say"/"speak" carry a
+  // client-supplied transcript no other op on this door needs
+  // (`api/_room-surface.js`'s own header on the two constants).
+  if (bodyTooLarge(body, ROOM_TRANSCRIPT_BODY_CAP_BYTES)) {
+    return res.status(413).json({ error: "body_too_large" });
+  }
   const op = String(body.op || "");
 
   try {
@@ -193,6 +203,16 @@ async function handler(req, res) {
     }
 
     if (op === "taste") {
+      // WS-R89. The one door reachable with nothing but a slug — no
+      // session, no bearer — and LLM-backed, so a third-party page
+      // embedding it spends this deployment's own money on every visitor,
+      // with zero credential required. `sameOriginOrAbsent`'s own header in
+      // `api/_room-surface.js`: every OTHER session-bearing op on this door
+      // stays CORS-open because its credential is never ambient (no cookie
+      // — a third party gains nothing a legitimate holder did not already
+      // have); this op has no credential at all to gate on, which is
+      // exactly why it is checked here rather than left to that reasoning.
+      assertTasteOriginAllowed(req.headers?.origin, req.headers?.referer, req.headers?.host);
       // WS-R53. Keyed by (slug, IP) rather than (room_id, IP) - `room_open_ip`'s
       // own reasoning: the gate must cost nothing extra when a slug does not
       // even resolve, and slug is exactly what a stranger's browser has

@@ -104,6 +104,7 @@
 // the backlog gradually and a killed invocation costs nothing but its hour.
 // ═══════════════════════════════════════════════════════════════════════════
 import { q } from "./_db.js";
+import { timingSafeEqual } from "node:crypto";
 import {
   runFullChainForPerson,
   LOG_BATCH_CAP,
@@ -318,14 +319,26 @@ async function release(agentId, personId, runId) {
   );
 }
 
+/** Constant-time equality of two secrets, false for an unset or short
+ *  expected value (`api/self-check.js`'s own `authorized` shape restated). */
+function secretMatches(expected, provided) {
+  const e = Buffer.from(String(expected || ""));
+  const p = Buffer.from(String(provided || ""));
+  return e.length >= 16 && e.length === p.length && timingSafeEqual(e, p);
+}
+
+// WS-R89's second door battery found (and, being Room-scoped, left to the
+// main loop) two defects here: the sweep secret was also accepted from the
+// GET query string or the POST body, where it lands in access logs and
+// browser history, and both comparisons were plain `===`, which leaks the
+// match length in timing. Headers only now, both compared in constant time
+// (`context/rejected.md#ws-r89-consolidate-sweep-secret-in-query-or-body-found-out-of-scope`).
+// `docs/CONSOLIDATION.md`'s own runbook already sends `x-sweep-secret` as a
+// header; nothing in this repo sent the secret any other way.
 function authorized(req) {
-  const auth = req.headers.authorization || "";
-  if (CRON_SECRET && auth === `Bearer ${CRON_SECRET}`) return true;
-  const provided =
-    req.headers["x-sweep-secret"] ||
-    (req.method === "GET" ? req.query?.secret : req.body?.secret) ||
-    "";
-  if (SWEEP_SECRET && provided === SWEEP_SECRET) return true;
+  const auth = String(req.headers.authorization || "");
+  if (CRON_SECRET && auth.startsWith("Bearer ") && secretMatches(CRON_SECRET, auth.slice(7))) return true;
+  if (SWEEP_SECRET && secretMatches(SWEEP_SECRET, req.headers["x-sweep-secret"])) return true;
   return false;
 }
 

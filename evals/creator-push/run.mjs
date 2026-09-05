@@ -89,6 +89,14 @@ function freshSubState() {
 function subDb(state) {
   return async (sql, params = []) => {
     const has = (s) => sql.includes(s);
+    // WS-R89: subscribeCreatorPush's own new pre-check — an endpoint
+    // already ACTIVELY bound to a DIFFERENT owner.
+    if (has("select owner_user_id from vy_creator_push_subscription") && has("owner_user_id <> ($2)::uuid")) {
+      const [endpoint, ownerUserId] = params;
+      return state.rows
+        .filter((r) => r.endpoint === endpoint && !r.revoked_at && r.owner_user_id !== ownerUserId)
+        .map((r) => ({ owner_user_id: r.owner_user_id }));
+    }
     if (has("insert into vy_creator_push_subscription")) {
       const [id, ownerUserId, endpoint, p256dh, auth] = params;
       let row = state.rows.find((r) => r.owner_user_id === ownerUserId && r.endpoint === endpoint);
@@ -154,6 +162,28 @@ function subDb(state) {
   // A second revoke of the SAME endpoint is a no-op, never a throw.
   const revokedAgain = await revokeCreatorPush(db, OWNER, SUB.endpoint);
   ok("revokeCreatorPush: revoking an already-revoked row is a clean no-op", revokedAgain.revoked === false);
+
+  // WS-R89 (class d, replay/reuse): re-subscribing a REVOKED endpoint under
+  // a DIFFERENT owner is fine (the prior owner's row is inactive) —
+  // proves the pre-check is scoped to ACTIVE rows, not the endpoint string
+  // forever.
+  const reusedAfterRevoke = await subscribeCreatorPush(db, OWNER_B, SUB);
+  ok("subscribeCreatorPush: a REVOKED endpoint may be claimed by a different owner",
+    reusedAfterRevoke.subscribed === true);
+  await revokeCreatorPush(db, OWNER_B, SUB.endpoint);
+
+  // WS-R89 (class d): the same endpoint, ACTIVELY bound to OWNER_B, is
+  // refused for OWNER — the real finding this workstream fixed. Before the
+  // fix this silently inserted a SECOND row, `owner_user_id=OWNER`, leaving
+  // the browser bound to two different creators at once.
+  await subscribeCreatorPush(db, OWNER_B, SUB);
+  const stolenSub = await threwAsync(() => subscribeCreatorPush(db, OWNER, SUB));
+  ok("subscribeCreatorPush: an endpoint already ACTIVELY bound to a DIFFERENT owner is refused, never a second row",
+    stolenSub instanceof CreatorPushError && stolenSub.code === "creator_push_endpoint_bound_elsewhere");
+  ok("subscribeCreatorPush: the refusal left exactly ONE row for this endpoint, still OWNER_B's",
+    state.rows.filter((r) => r.endpoint === SUB.endpoint && !r.revoked_at).length === 1 &&
+    state.rows.find((r) => r.endpoint === SUB.endpoint && !r.revoked_at).owner_user_id === OWNER_B);
+  await revokeCreatorPush(db, OWNER_B, SUB.endpoint);
 
   // Malformed input throws BEFORE any SQL runs (assertCreatorPushSubscription).
   const badEndpoint = await threwAsync(() => subscribeCreatorPush(db, OWNER, { ...SUB, endpoint: "http://not-https.example.test" }));

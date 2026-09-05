@@ -19,7 +19,7 @@
 import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { obsBestEffort } from "./_obs.js";
-import { RoomError } from "./_room-surface.js";
+import { RoomError, bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 import { PaymentsError, startFollowerSubscription, followerSubscriptionStatus } from "./_payments.js";
 import { cancelFollowerRenewal } from "./_renewals.js";
 import { withDoor } from "./_incidents.js";
@@ -38,6 +38,8 @@ async function handler(req, res) {
   if (!allow(ipOf(req), "room_pay_ip", 30)) return res.status(429).json({ error: "slow_down" });
 
   const body = req.body || {};
+  // WS-R89: the one shared cap every POST door checks first.
+  if (bodyTooLarge(body, ROOM_DOOR_BODY_CAP_BYTES)) return res.status(413).json({ error: "body_too_large" });
   const op = String(body.op || "");
 
   try {

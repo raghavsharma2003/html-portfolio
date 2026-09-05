@@ -8620,6 +8620,72 @@
       "kind": "measurement",
       "title": "Every eval WS-R81 touched or extended, run standalone after npx vite build, 2026-09-05: room-push 69/0, renewals 55/0, creator-push 31/0, room-dormancy 46/0, incidents 39/0, checkins 37/0, room-leak 217/0, room-doors 564/0, scripts/check-copy.mjs clean.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r89-body-cap-two-named-ceilings",
+      "kind": "decision",
+      "title": "One shared bodyTooLarge() gate, two named ceilings (64KiB default, 768KiB for room.js's transcript ops), wired into every POST door.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r89-creator-page-slug-read-shares-slugof",
+      "kind": "decision",
+      "title": "api/_creator-page.js now imports slugOf from _room-surface.js instead of restating a weaker ASCII/length-unchecked slug read.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r89-slugof-nfkc-before-ascii-check",
+      "kind": "decision",
+      "title": "slugOf normalises NFKC before the ASCII-only regex -- collapses compatibility duplicates, never bridges cross-script homoglyphs.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r89-taste-gets-a-cross-origin-check-session-bearing-doors-do-not",
+      "kind": "decision",
+      "title": "room.js's taste op alone gets an Origin/Referer check (no credential, LLM-backed); every other session-bearing op stays CORS-open per its own pre-existing no-cookie reasoning.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r89-push-endpoint-ownership-checked-not-constrained",
+      "kind": "decision",
+      "title": "subscribeCreatorPush pre-checks for a DIFFERENT owner already actively bound to an endpoint before inserting -- application-level, no migration, narrow race named honestly.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r89-follower-push-endpoint-reassignment-stays-as-is",
+      "kind": "decision",
+      "title": "Follower push endpoint reassignment on conflict is left unchanged -- one browser holds one Push subscription per origin, so cross-follower reassignment is a legitimate flow, unlike creator push.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r89-telegram-update-dedup-is-a-bounded-window-not-a-permanent-ledger",
+      "kind": "decision",
+      "title": "handleRoomTelegramUpdate refuses a redelivered update_id via a reused consume() scope (3h window) -- bounded by the retention sweep's 24h default, not a permanent ledger; needs a migration to close for good.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r89-consolidate-sweep-secret-in-query-or-body-found-out-of-scope",
+      "kind": "rejection",
+      "title": "api/consolidate-sweep.js accepts its admin secret via query/body and compares non-constant-time -- a real defect, found and left unfixed, Meera's own surface not this battery's.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r89-consolidate-sweep-fixture-not-built-out-of-scope",
+      "kind": "rejection",
+      "title": "A fixture and test cases for consolidate-sweep.js authorized() were considered and not built, for the same out-of-scope reason as the fix itself.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r89-second-door-battery-2026-09-05",
+      "kind": "measurement",
+      "title": "Door battery: 564 -> 667 cases (103 new, five new classes a-e), 5 real findings fixed, 1 found and left out of scope, 0 regressions.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r89-consolidate-sweep-finding-closed-at-the-merge",
+      "kind": "rejection",
+      "title": "The consolidate sweep's query-or-body secret and plain compare, found by WS-R89 and left as Meera's, were fixed at the merge (headers only, constant time); the battery's negative control froze the old body as a literal so the fix could not fail it.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16962,6 +17028,61 @@
       "src": "ws-r81-bare-word-bans-in-two-static-scans-would-have-flagged-the-new-contracts-own-field-names",
       "rel": "caused_by",
       "dst": "ws-r81-push-worker-one-contract-closed-kinds"
+    },
+    {
+      "src": "ws-r89-body-cap-two-named-ceilings",
+      "rel": "measured_by",
+      "dst": "ws-r89-second-door-battery-2026-09-05"
+    },
+    {
+      "src": "ws-r89-creator-page-slug-read-shares-slugof",
+      "rel": "measured_by",
+      "dst": "ws-r89-second-door-battery-2026-09-05"
+    },
+    {
+      "src": "ws-r89-slugof-nfkc-before-ascii-check",
+      "rel": "measured_by",
+      "dst": "ws-r89-second-door-battery-2026-09-05"
+    },
+    {
+      "src": "ws-r89-taste-gets-a-cross-origin-check-session-bearing-doors-do-not",
+      "rel": "measured_by",
+      "dst": "ws-r89-second-door-battery-2026-09-05"
+    },
+    {
+      "src": "ws-r89-push-endpoint-ownership-checked-not-constrained",
+      "rel": "measured_by",
+      "dst": "ws-r89-second-door-battery-2026-09-05"
+    },
+    {
+      "src": "ws-r89-follower-push-endpoint-reassignment-stays-as-is",
+      "rel": "measured_by",
+      "dst": "ws-r89-second-door-battery-2026-09-05"
+    },
+    {
+      "src": "ws-r89-telegram-update-dedup-is-a-bounded-window-not-a-permanent-ledger",
+      "rel": "measured_by",
+      "dst": "ws-r89-second-door-battery-2026-09-05"
+    },
+    {
+      "src": "ws-r89-consolidate-sweep-secret-in-query-or-body-found-out-of-scope",
+      "rel": "measured_by",
+      "dst": "ws-r89-second-door-battery-2026-09-05"
+    },
+    {
+      "src": "ws-r89-consolidate-sweep-fixture-not-built-out-of-scope",
+      "rel": "caused_by",
+      "dst": "ws-r89-consolidate-sweep-secret-in-query-or-body-found-out-of-scope"
+    },
+    {
+      "src": "ws-r89-creator-page-slug-read-shares-slugof",
+      "rel": "caused_by",
+      "dst": "ws-r38-door-list-completeness-rule"
+    },
+    {
+      "src": "ws-r89-consolidate-sweep-finding-closed-at-the-merge",
+      "rel": "supersedes",
+      "dst": "ws-r89-consolidate-sweep-secret-in-query-or-body-found-out-of-scope"
     }
   ]
 }

@@ -81,3 +81,14 @@ create unique index if not exists vy_creator_weekly_push_room_week_ix
 -- (migration 097) restated for this table.
 create index if not exists vy_creator_weekly_push_room_sent_ix
   on vy_creator_weekly_push (room_id, sent_at desc);
+
+-- Added at the WS-R89 merge (2026-09-05): `subscribeCreatorPush` now asks,
+-- before the upsert, whether an endpoint is already actively bound to a
+-- DIFFERENT owner (`api/_creator-push.js`, WS-R89's replay class). That read
+-- is by endpoint alone; the unique index above leads with owner_user_id and
+-- cannot serve it, and the live EXPLAIN planned it as a bitmap over every
+-- active row through the owner-led partial index. This index is the read's
+-- own shape. Idempotent, as every statement in this file is.
+create index if not exists vy_creator_push_subscription_endpoint_active_ix
+  on vy_creator_push_subscription (endpoint)
+  where revoked_at is null;

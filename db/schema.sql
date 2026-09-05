@@ -4312,6 +4312,10 @@ create unique index if not exists vy_creator_push_subscription_owner_endpoint_ix
 create index if not exists vy_creator_push_subscription_active_ix
   on vy_creator_push_subscription (owner_user_id)
   where revoked_at is null;
+-- Added at the WS-R89 merge: the endpoint-alone read in subscribeCreatorPush.
+create index if not exists vy_creator_push_subscription_endpoint_active_ix
+  on vy_creator_push_subscription (endpoint)
+  where revoked_at is null;
 
 create table if not exists vy_creator_weekly_push (
   push_id           uuid primary key,

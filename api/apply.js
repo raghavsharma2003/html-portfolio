@@ -22,6 +22,7 @@ import { requireUser, AuthError } from "./_auth.js";
 import { ApplyError, submitApplication, listApplications, eraseApplicationsByContact } from "./_apply.js";
 import { InvitesError, requireOperator } from "./_invites.js";
 import { withDoor } from "./_incidents.js";
+import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -36,6 +37,8 @@ async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
   const body = req.body || {};
+  // WS-R89: the one shared cap every POST door checks first.
+  if (bodyTooLarge(body, ROOM_DOOR_BODY_CAP_BYTES)) return res.status(413).json({ error: "body_too_large" });
   const op = String(body.op || "submit");
 
   try {

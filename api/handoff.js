@@ -23,7 +23,7 @@
 import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { requireUser, AuthError } from "./_auth.js";
-import { RoomError } from "./_room-surface.js";
+import { RoomError, bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 import {
   HandoffError,
   getHandoffConfig,
@@ -51,6 +51,8 @@ async function handler(req, res) {
   if (!allow(ipOf(req), "handoff_ip", 60)) return res.status(429).json({ error: "slow_down" });
 
   const body = req.body || {};
+  // WS-R89: the one shared cap every POST door checks first.
+  if (bodyTooLarge(body, ROOM_DOOR_BODY_CAP_BYTES)) return res.status(413).json({ error: "body_too_large" });
   const op = String(body.op || "");
 
   try {

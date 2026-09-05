@@ -11660,3 +11660,21 @@ build` (so `dist/room-sw.js` reflects the current tree):
 `checkinPushPayload`/`deliverers.webPush`, exercised as a regression
 check), `room-leak` 217/0, `room-doors` 564/0, `scripts/check-copy.mjs`
 clean (6 scopes, 21 negative controls).
+
+## `ws-r89-second-door-battery-2026-09-05` — five new attack classes, cases per class, findings
+
+**Method.** `node evals/room-doors/run.mjs`, run repeatedly during development and once more as the final check before commit, offline, deterministic, no `NEON_URL`. Baseline on the untouched tree (this workstream's own branch point, `6deaf1e`): 564 ok, 0 failed (matches `context/STATE.md`'s own "the door battery at 564 cases" from the wave-thirteen merge entry). After this workstream: 667 ok, 0 failed — 103 new cases across five new sections (§20-§24), one new door-list-completeness assertion each for body size and cron doors, zero regressions in the 564 pre-existing cases.
+
+**Cases per class, and real findings, n=1 run (deterministic, re-run three times during development with identical counts each time):**
+
+| class | new cases | real findings fixed | non-findings confirmed |
+|---|---|---|---|
+| a — body size | 36 | 0 (no door had ANY cap before this workstream; the whole class is new coverage, not a "finding" against a broken check) | 17 doors now capped, two named ceilings proven genuinely different |
+| b — slug/id shape | 12 | 1 — `api/_creator-page.js`'s own slug read restated a weaker check than `api/_room-surface.js`'s `slugOf` | `slugOf`'s own ASCII-only regex already refused a homoglyph before this workstream; NFKC normalisation added and proven safe (no cross-script collision) |
+| c — cross-origin | 14 | 1 — the taste op had no Origin/Referer check at all, reachable with no credential, LLM-backed | every other session-bearing op's wildcard CORS confirmed intentional and unchanged (`room.js`'s own pre-existing header reasoning) |
+| d — replay/reuse | 10 | 2 — `_creator-push.js` allowed a different owner to bind an already-actively-subscribed endpoint (silent second row); Telegram's ordinary-message path had no `update_id` dedup at all, double-spending the follower cap on redelivery | `_room-push.js`'s cross-follower endpoint reassignment confirmed intentional (one physical browser, one subscription); WhatsApp's status webhook confirmed to persist nothing a duplicate could corrupt |
+| e — cron doors | 31 (28 classed + 3 unclassed structural) | 1 found, NOT fixed (out of scope) — `api/consolidate-sweep.js` accepts its secret via query/body and compares non-constant-time; see `rejected.md#ws-r89-consolidate-sweep-secret-in-query-or-body-found-out-of-scope` | 7 of 8 Room-relevant cron doors (`checkins-sweep.js`, `creator-push-sweep.js`, `drift-watch-sweep.js`, `pulse-sweep.js`, `renewals-sweep.js`, `replica-erasure-sweep.js`, `self-check.js`) confirmed header-only, constant-time, by source AND (for the two with injectable `env`) by dynamic proof |
+
+**Total: 5 real findings fixed, 1 real finding found and explicitly left out of scope, 103 new passing cases, 0 regressions.**
+
+**Gate summary, this workstream's own tree, measured after every change (`node scripts/verify-release.mjs`):** 19 of 21 checks pass standalone; `layout readability` and `performance budgets` both `EADDRINUSE` on 127.0.0.1:8931/8932 throughout this session (a sibling worktree's own gate holding the ports — `ws-common.md`'s own named collision, confirmed by repeated retries never clearing during this session's runtime, environmental rather than caused by this workstream's changes, which touch none of the files either gate renders). `eval suite`, `room leak battery` (217/217, unchanged), `room export completeness` (46/46, unchanged), `room door battery` (667/667, up from 564/564), `accessibility`, `security headers`, `typecheck`, `prompt budget`, `mirrored constants`, `enrollment sample rate`, `enrollment bandwidth`, `engine bundle fresh`, `stuck-turn endpoint`, `one voice`, `web build`, `workflow lint`, `motion lint`, `board legibility`, `chrome copy` — all pass on both the untouched-tree baseline and this workstream's own tree.

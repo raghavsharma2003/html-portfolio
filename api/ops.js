@@ -41,6 +41,7 @@ import {
 // WS-R88 (migration 125). "Send a test digest now" - the ops board's own
 // operator op, cased below alongside push_subscribe/push_revoke.
 import { sendTestOperatorDigest } from "./_operator-digest.js";
+import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 
 export const config = { maxDuration: 30 };
 
@@ -63,6 +64,8 @@ export default async function handler(req, res) {
     }
 
     const body = req.body || {};
+    // WS-R89: the one shared cap every POST door checks first.
+    if (bodyTooLarge(body, ROOM_DOOR_BODY_CAP_BYTES)) return res.status(413).json({ error: "body_too_large" });
     const op = String(body.op || "");
 
     if (op === "push_subscribe") {

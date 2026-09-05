@@ -103,6 +103,10 @@ export function freshDoorsState() {
   // door battery's own case can prove the WHERE clause, not just this
   // workstream's own `evals/creator-page/run.mjs`, refuses the second.
   state.roomShowcase = [];
+  // WS-R89: the follower's own web push subscription table
+  // (`api/_room-push.js`) — no case in this battery had a reason to drive
+  // it before this workstream's class-d (replay) cases.
+  state.roomPushSubs = [];
   state.reviewCards = [
     {
       card_id: "e1000000-0000-4000-8000-000000000001",
@@ -1061,6 +1065,33 @@ function doorsPatterns(state) {
       const [replica, owner] = params.map(String);
       const row = state.replicas.find((r) => r.replica_id === replica && r.owner_user_id === owner);
       return row ? [{ replica_id: row.replica_id }] : [];
+    }
+
+    // WS-R89 (class d, replay/reuse): `api/_room-push.js`'s `setSubscription`
+    // — a follower's own web push subscription, upserted by `endpoint`
+    // ALONE (the migration's own unique index; unlike creator push, this
+    // reassignment is BY DESIGN — one physical browser can hold only one
+    // Push subscription per origin, so the SAME endpoint legitimately moves
+    // when the same person follows a second Room in the same browser —
+    // `context/decisions.md#ws-r89-follower-push-endpoint-reassignment-stays-
+    // as-is`).
+    if (has("insert into vy_room_push_subscription")) {
+      const [subscriptionId, roomId, personId, followerId, endpoint, p256dh, auth, uaHash] = params;
+      let row = state.roomPushSubs.find((r) => r.endpoint === endpoint);
+      if (row) {
+        Object.assign(row, {
+          room_id: String(roomId), person_id: String(personId), follower_id: String(followerId),
+          p256dh, auth, user_agent_hash: uaHash, revoked_at: null,
+        });
+      } else {
+        row = {
+          subscription_id: subscriptionId, room_id: String(roomId), person_id: String(personId),
+          follower_id: String(followerId), endpoint, p256dh, auth, user_agent_hash: uaHash,
+          created_at: new Date().toISOString(), revoked_at: null,
+        };
+        state.roomPushSubs.push(row);
+      }
+      return [{ subscription_id: row.subscription_id, created_at: row.created_at }];
     }
 
     return undefined; // not a doors pattern — fall through to the base Room fixture

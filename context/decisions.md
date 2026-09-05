@@ -16000,3 +16000,61 @@ and Vyakti's push kind vocabularies under one closed list (both products,
 one owner decision), fold Meera's three kinds into `push-sw.js`'s own list
 by name rather than leaving this split standing — and update this entry to
 `supersedes` this one when that happens.
+
+## `ws-r89-body-cap-two-named-ceilings` (2026-09-05, WS-R89)
+
+**Decision.** `api/_room-surface.js` gains one shared function, `bodyTooLarge(body, capBytes)`, and two named constants: `ROOM_DOOR_BODY_CAP_BYTES` (64 KiB, every POST door except one) and `ROOM_TRANSCRIPT_BODY_CAP_BYTES` (768 KiB, `api/room.js` alone). Every one of the fourteen `req.body`-parsing doors in `EXPECTED_DOORS` now calls this gate first, before any rate-limit consumption or dispatch; the three raw-body webhook doors (`payments-webhook.js`, `payout-webhook.js`, `room-wa.js` via `api/whatsapp.js`'s own `rawBodyOf`) already capped at 1MB before this workstream and are left as they were, verified by source rather than re-implemented.
+
+**Rationale.** `api/room.js`'s `say`/`speak` ops carry a client-supplied `transcript` array (up to `ROOM_HISTORY_TURNS` × `ROOM_TEXT_LIMIT` = 30 × 4000 chars, ~352 KiB of UTF-8 for an all-Devanagari transcript) — no other door carries anything comparable. One constant for every door would either be too tight for room.js's own legitimate worst case or too loose for every other door's actual largest field (a message, a bio, a push endpoint URL — comfortably under 64 KiB). Two named constants, one shared function, keeps the mechanism singular while letting each door's real ceiling differ.
+
+**Reversal condition.** If a future op on any OTHER door legitimately needs a body approaching the transcript ceiling, give it `ROOM_TRANSCRIPT_BODY_CAP_BYTES` explicitly rather than raising the default for every door silently. If room.js's own transcript shape shrinks (e.g. the anonymous-widget transcript path is retired), lower `ROOM_TRANSCRIPT_BODY_CAP_BYTES` and re-run `evals/room-doors/run.mjs`'s §20 to confirm the new ceiling still admits a genuine worst-case body.
+
+## `ws-r89-creator-page-slug-read-shares-slugof` (2026-09-05, WS-R89)
+
+**Decision.** `api/_creator-page.js`'s `publicCreatorPageRoomBySlug` now calls the exported `slugOf` from `api/_room-surface.js` instead of its own `String(slug || "").trim().toLowerCase()`.
+
+**Rationale.** The door battery's class-b sweep found `/c/<slug>` was the ONE slug-reading code path in this product with no ASCII-only check, no length ceiling, and no NFKC normalisation — a homoglyph or an oversized slug reached the SQL `where lower(slug) = $1` as a "near-miss lookup" (0 rows, indistinguishable from an ordinary unknown slug) rather than being refused BY NAME at the door, the exact shape this workstream's brief calls out. `api/_room-embed.js`'s own slug read already went through `resolveRoom` → `roomBySlug` → `slugOf` correctly; only the creator page had drifted into its own weaker copy.
+
+**Reversal condition.** If `slugOf`'s own shape rule ever needs to differ between the follower-facing Room and the public creator page (a case this workstream found no reason for), split them explicitly rather than letting the copies silently diverge again — name the difference in a decision, the way this one names the convergence.
+
+## `ws-r89-slugof-nfkc-before-ascii-check` (2026-09-05, WS-R89)
+
+**Decision.** `slugOf` now calls `.normalize("NFKC")` before its ASCII-only regex, rather than adding normalisation nowhere at all or normalising AFTER the shape check (which would be a no-op).
+
+**Rationale.** NFKC only collapses COMPATIBILITY duplicates of a character (a fullwidth "ａ" U+FF41, a circled "①") into their canonical ASCII form — it does not touch a CROSS-SCRIPT HOMOGLYPH (Cyrillic "а" U+0430 styled to look like Latin "a"), because the two are canonically unrelated, only visually similar. So normalising first is safe: a homoglyph still fails the ASCII check exactly as it did before, and a genuine compatibility form now converges on the SAME real slug a plain-ASCII caller would have typed, rather than being refused for no product reason. Measured directly: `evals/room-doors/run.mjs` §21 proves both halves on the SAME real slug (`"anjali"`) — a Cyrillic "аnjali" is refused, a fullwidth "ａnjali" resolves to the real room.
+
+**Reversal condition.** If a future Unicode edge case is found where NFKC DOES bridge two visually-distinct scripts into the same bytes (none is known today), add it as a named negative test and reconsider running the ASCII check BEFORE normalisation instead — the two orders are not equivalent and this decision states which one this product runs.
+
+## `ws-r89-taste-gets-a-cross-origin-check-session-bearing-doors-do-not` (2026-09-05, WS-R89)
+
+**Decision.** `api/room.js`'s `taste` op is now guarded by `assertTasteOriginAllowed` (checking both `Origin` and `Referer` against the request's own `Host`, both required to be absent-or-matching). No OTHER op on this door, and no other door in `EXPECTED_DOORS`, gained an Origin check — the wildcard `Access-Control-Allow-Origin: *` this door's own header already reasons about stays exactly as it was.
+
+**Rationale.** `api/room.js`'s own header already settled the CSRF question for every session-bearing op: this product carries its credential in the request BODY, never a cookie, so a wildcard origin grants a third-party page exactly the ability to POST with a credential it must already hold — nothing an attacker gains by embedding the fetch. `taste` is different in kind, not degree: it is the ONE op reachable with nothing but a slug — no session, no bearer, no credential of any kind — and it is LLM-backed, so a third-party page embedding it spends this deployment's own money on every visitor who loads that page, with zero barrier. That is a resource-abuse risk the existing CSRF reasoning never addressed, because it was never about credential theft.
+
+**Reversal condition.** If a legitimate third-party embed of the taste flow is ever built (a creator's own site running the widget cross-origin, not the new-tab embed WS-R46 chose), it needs a real allowed-origin table before `assertTasteOriginAllowed` can admit it — never a blanket relaxation. If `open`/`stats` (the OTHER two anonymous, session-free ops on this door) are ever made to call a paid model, apply the identical check to them and say so here rather than silently reusing this decision's reasoning for a different op.
+
+## `ws-r89-push-endpoint-ownership-checked-not-constrained` (2026-09-05, WS-R89)
+
+**Decision.** `api/_creator-push.js`'s `subscribeCreatorPush` now runs a `SELECT` for an endpoint already ACTIVELY bound to a DIFFERENT owner before its `INSERT ... ON CONFLICT (owner_user_id, endpoint)`, refusing with `creator_push_endpoint_bound_elsewhere` (409) rather than silently creating a second row. This is an APPLICATION-level check, not a new unique constraint — no migration this workstream.
+
+**Rationale.** The real finding: migration 118's unique index is on `(owner_user_id, endpoint)`, the PAIR, so a different owner subscribing the identical endpoint string was never a conflict at the database level at all — it inserted a second, parallel row, silently binding one browser to two creators' weekly pushes. A pre-check closes the reachable case; a genuinely new unique index on `endpoint` alone would be the complete fix but needs a migration this workstream's brief explicitly withholds (WS-R89 is "no migration").
+
+**Reversal condition.** The day a migration is available for this workstream's own number range, add a unique index on `endpoint` alone (or a partial one over `revoked_at is null`) and drop the pre-check in favour of a real database-level guarantee — the narrow race this pre-check cannot close (two different owners racing to bind a brand-new endpoint for the first time) is the reason to prefer the constraint the moment one is affordable.
+
+## `ws-r89-follower-push-endpoint-reassignment-stays-as-is` (2026-09-05, WS-R89)
+
+**Decision.** `api/_room-push.js`'s `setSubscription` is UNCHANGED: its `ON CONFLICT (endpoint) DO UPDATE` still reassigns a subscription row's `follower_id`/`room_id`/`person_id` to whichever follower most recently subscribed that physical endpoint, with no cross-follower refusal added.
+
+**Rationale.** This looked, at first read, like the SAME defect as creator push's — but the two are not symmetric. A browser holds exactly ONE Web Push subscription per (origin, service-worker scope); `pushManager.subscribe()` on an already-subscribed worker returns the SAME existing subscription object rather than minting a new one. So when the SAME real person follows a SECOND Room in the SAME browser, the endpoint LEGITIMATELY moves — this file's own header already documents exactly this case ("a follower who re-enables notifications on the same browser/device"). A creator has exactly one owner identity and no legitimate reason to ever "become" a different owner on the same device; a follower very plausibly follows several creators from one phone. Refusing cross-follower reassignment here would break a real, anticipated product flow that has no analogue on the creator side.
+
+**Reversal condition.** If this product ever needs ONE browser to hold independent, simultaneous push subscriptions for several Rooms at once (which Web Push itself does not support per-origin without per-Room service worker scopes — a real architecture change, not a policy one), this decision reverses along with that architecture change, not before it.
+
+## `ws-r89-telegram-update-dedup-is-a-bounded-window-not-a-permanent-ledger` (2026-09-05, WS-R89)
+
+**Decision.** `api/_room-telegram.js`'s `handleRoomTelegramUpdate` now refuses a redelivered `update_id` as a no-op, via `api/_rate-limit.js`'s existing `consume()` primitive under a new scope, `room_tg_update_seen` (limit 1, a 3-hour window) — reusing the persistent, race-safe `vy_public_rate` table rather than a new per-update_id ledger table, which would need a migration this workstream does not have.
+
+**Rationale.** `handleOrdinaryMessage` calls `roomSay`, metered exactly as the web door is; a Telegram redelivery of the SAME update (real, correctly-signed, Telegram's own retry policy on a slow or non-2xx response — never a third party, since the shared secret already refuses anyone else) would otherwise double-spend a follower's monthly cap and send a second reply, silently, with zero code protecting against it before this workstream. `consume()` was already built, by its own header, "for the doors named in the workstream: ... the Telegram webhook" and is reused rather than re-derived.
+
+**What this explicitly does NOT claim.** This is a BOUNDED mitigation, not a permanent ledger. `purgeStalePublicRateWindows`'s own retention default is 24 hours regardless of a scope's own `windowMs` (`api/_checkins.js`'s sweep calls it with no override), so the 3-hour window is set well under that ceiling rather than claiming a longer one the retention sweep would silently undercut. A redelivery Telegram sends more than a few hours after the original — rare, but not impossible — would not be caught.
+
+**Reversal condition.** The day a migration is available for this workstream's own number range, build a real per-`(surface, update_id)` ledger table (permanent, never purged) and retire the `consume()`-based mitigation in its favour. Until then, if Telegram's own redelivery SLA is ever measured to exceed this window in production (an incident, not a guess), widen the window rather than silently leaving the gap.

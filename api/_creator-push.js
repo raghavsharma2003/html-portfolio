@@ -100,11 +100,32 @@ export function creatorPushConfig(env = process.env) {
  * subscribe for THEMSELVES, the ordinary "no cross-identity input" shape
  * every other owner-scoped op on `api/replica.js` already takes, not a
  * second identity gate this table would need to invent.
+ *
+ * WS-R89 (the second door battery, class d): the migration's own unique
+ * index is on `(owner_user_id, endpoint)`, the PAIR — never `endpoint`
+ * alone — so a DIFFERENT owner subscribing the SAME endpoint string is not
+ * a conflict at the database level at all; it would silently INSERT a
+ * second, parallel row, and a later owner-scoped weekly push would then
+ * reach a browser that never subscribed under that owner. No migration for
+ * this workstream, so the fix is an application-level pre-check rather than
+ * a new unique index: an endpoint already ACTIVELY bound to a DIFFERENT
+ * owner is refused by name (`creator_push_endpoint_bound_elsewhere`) before
+ * the insert ever runs. A narrow race remains between the check and the
+ * insert (two different owners racing to bind a brand-new endpoint for the
+ * first time), honestly named rather than silently claimed closed —
+ * `context/decisions.md#ws-r89-push-endpoint-ownership-checked-not-constrained`.
  */
 export async function subscribeCreatorPush(db, ownerUserId, sub) {
   if (typeof db !== "function") throw new Error("creator_push_database_required");
   assertCreatorPushSubscription(sub || {});
   const { endpoint, p256dh, auth } = sub;
+  const elsewhere = await db(
+    `select owner_user_id from vy_creator_push_subscription
+      where endpoint = $1 and revoked_at is null and owner_user_id <> ($2)::uuid
+      limit 1`,
+    [endpoint, ownerUserId],
+  );
+  if (elsewhere.length > 0) throw new CreatorPushError("creator_push_endpoint_bound_elsewhere", 409);
   const rows = await db(
     `insert into vy_creator_push_subscription (id, owner_user_id, endpoint, p256dh, auth, created_at, revoked_at)
      values (($1)::uuid, ($2)::uuid, $3, $4, $5, now(), null)
