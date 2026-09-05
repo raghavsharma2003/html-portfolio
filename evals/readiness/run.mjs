@@ -61,6 +61,7 @@ import {
 } from "../../api/_readiness.js";
 import { runtimeBlockers } from "../../api/_replica-runtime.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
+import { RECALL_RUN_METHOD_VERSION } from "../../api/_recall-run.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "../..");
@@ -620,5 +621,56 @@ ok("the panel is mounted on the Meet step and nowhere else",
   && (app.match(/<ReadinessPanel/g) || []).length === 1);
 ok("the strip it replaced is gone rather than left beside it",
   !/ReadinessStrip/.test(app.replace(/\{\/\*[\s\S]*?\*\/\}/g, "")));
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §9: WS-R118 — a stored recall run's method note, when it is stale ──");
+// ═════════════════════════════════════════════════════════════════════════
+//
+// `readRecallRun`'s own `stale_method` flag (`api/_readiness.js`) compares a
+// stored row's `method` against `RECALL_RUN_METHOD_VERSION`. This suite
+// drives `readinessScreen` directly (its own §0's law: never touch a
+// database here), so it exercises the flag by constructing `input.recall`
+// exactly as `readRecallRun` would return it — the same fixture-carries-the-
+// wire-shape convention every other part in this file already uses.
+{
+  const freshMethod = `${RECALL_RUN_METHOD_VERSION}: 40 template questions over held-out passages from the replica's own sources, scored by vocabulary overlap and word order against the source text.`;
+  const staleMethod = "recall-run/v0: an even older method string, kept only to prove the comparison is a real prefix check, not a length or an equality on the whole sentence.";
+
+  const fresh = readinessScreen(mutate({
+    recall: { score: 85, n: 40, method: freshMethod, computed_at: at(2), stale_method: false },
+  }));
+  const freshPart = fresh.parts.find((row) => row.id === "knows_your_material");
+  ok("a recall run stored under the CURRENT method carries no older-method note",
+    !/older method/.test(freshPart.method));
+
+  const stale = readinessScreen(mutate({
+    recall: { score: 85, n: 40, method: staleMethod, computed_at: at(2), stale_method: true },
+  }));
+  const stalePart = stale.parts.find((row) => row.id === "knows_your_material");
+  ok("a recall run stored under an OLDER method says so, in the sentence a creator reads",
+    /Measured with an older method than the one in use now\./.test(stalePart.method));
+  eq(stalePart.value, 85, "the number itself is unchanged -- a stale method is a note, never a hidden number");
+  ok("the note travels on the SAME field a creator already reads (method), not a second one nobody renders",
+    stalePart.method.startsWith("Held-out recall run: measured on 40 questions from your own material."));
+
+  // `readRecallRun` itself: an unrecognized/empty method fails toward STALE,
+  // the same "assume drift, never assume steady" law `api/_drift-watch.js`
+  // already applies to a prosody anchor it cannot read.
+  const READINESS = await import(pathToFileURL(join(ROOT, "api/_readiness.js")).href);
+  const RID2 = "10000000-0000-4000-8000-000000000009";
+  const OWNER2 = "20000000-0000-4000-8000-000000000009";
+  const fakeDbFresh = async (sql) => (/from vy_recall_run/.test(sql)
+    ? [{ score: 72, n: 30, method: freshMethod, created_at: at(1) }] : []);
+  const fakeDbStale = async (sql) => (/from vy_recall_run/.test(sql)
+    ? [{ score: 72, n: 30, method: staleMethod, created_at: at(1) }] : []);
+  const fakeDbBlank = async (sql) => (/from vy_recall_run/.test(sql)
+    ? [{ score: 72, n: 30, method: "", created_at: at(1) }] : []);
+  const readFresh = await READINESS.readRecallRun(fakeDbFresh, OWNER2, RID2);
+  const readStale = await READINESS.readRecallRun(fakeDbStale, OWNER2, RID2);
+  const readBlank = await READINESS.readRecallRun(fakeDbBlank, OWNER2, RID2);
+  eq(readFresh.stale_method, false, "readRecallRun: a row under the current method reads stale_method=false");
+  eq(readStale.stale_method, true, "readRecallRun: a row under an older method reads stale_method=true");
+  eq(readBlank.stale_method, true, "readRecallRun: a row with no recognizable method fails toward stale, never toward a false 'fresh'");
+}
 
 console.log(`\n${checks} readiness checks passed`);

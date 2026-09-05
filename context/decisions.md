@@ -18928,3 +18928,126 @@ measuring under 800ms would confirm either fix; absent either, the honest
 move is to raise `HINDI_CHUNK_WAIT_BUDGET_MS` from a fresh measurement
 (not copied from this one) the same way the sibling budget was raised, and
 record the new number's own reversal condition in the same commit.
+
+## `ws-r118-recall-scorer-calibrated-against-a-keyed-set` (2026-09-05, WS-R118)
+
+**Decision.** `api/_recall-run.js#scoreAnswer` (WS-R101's vocabulary + word
+order blend, unchanged since it shipped) gains three additions, each earned
+by one class of a new 60-case hand-authored keyed set
+(`evals/recall-run/keyed.mjs`) the original scorer failed and the new one
+does not: (1) a small hand-built English stemmer plus a small hand-built
+English/Hindi synonym list, folding both the unigram-overlap term and the
+order term onto the same canonical token space, so a genuine paraphrase is
+scored on what it means rather than which exact word forms it reused; (2) a
+negation-aware contradiction cap (`hasContradiction`, `RECALL_NEGATION_WORDS
+= ["not", "never", "नहीं"]`, a 4-token window) that holds a score down when
+the answer denies a claim the passage makes plainly near the same key term,
+or the reverse; (3) an evasion floor (`RECALL_EVASION_MIN_WORDS = 6`,
+`RECALL_EVASION_CAP = 8`) for any answer too short to carry a real
+demonstration of recall regardless of what it happens to overlap with.
+`RECALL_RUN_METHOD_VERSION` bumps `v1` -> `v2` because the function that
+version string names is a genuinely different function now.
+
+**Rationale.** WS-R101 shipped a scorer nobody had compared to a judgment a
+person would sign, and a creator's publish floor rests on it (this
+workstream's own brief). Measured BEFORE any change, the keyed set's 60
+cases against the original `scoreAnswer`: 49/60 agree overall (81.7%) —
+verbatim 10/10, paraphrase 10/10, partial 10/10, wrong-on-topic 10/10,
+**contradiction 0/10** (every negated echo of a passage scored 50-72,
+comfortably inside "sounds right" territory), evasive 9/10 (one short Hindi
+brush-off scored 12, two points over its own 0-10 ceiling). The paraphrase
+and partial classes already agreed without any change — the keyed set
+proved WS-R101's ORIGINAL order-sensitive blend already tolerates a
+same-meaning, different-word answer reasonably well on its own; stemming
+and synonyms only widen that margin and were kept because they cost nothing
+where they don't matter and help where a genuine synonym swap sat near a
+band edge. Contradiction is the one class the original scorer failed
+completely, and the reason generalises past this one keyed set: inserting
+"not" or "never" into an echo barely moves EITHER term the blend already
+had — vocabulary overlap stays near total and word order survives almost
+intact, because negation words are usually short interstitial tokens. No
+combination of the two original terms, at any weight, can close that gap;
+it needed a check that reads what a token actually IS, not just whether and
+where it appears. Measured AFTER the three additions: 60/60 (100%), every
+class 10/10 (`context/measurements.md#ws-r118-recall-scorer-keyed-
+agreement`). Two negative controls (`evals/recall-run/run.mjs` §8) prove
+each addition is load-bearing rather than decorative: the source with the
+contradiction cap's own guard patched out drops the contradiction class
+from 10/10 to 0/10 against the identical keyed set; a purpose-built example
+("I do not know." against a passage that happens to open with the same
+words) scores 8 with the evasion floor and 25 without it.
+
+**Logged limits, by the letter of WS-R101's own header
+("`generateRecallSet`... a systematic blind spot in the model becomes a
+systematic blind spot in the eval" — the equivalent risk here is a
+systematic blind spot in the SCORER, not the model): `SYNONYM_GROUPS` is a
+~50-entry hand-built list covering the vocabulary this workstream's own
+keyed set exercises, explicitly NOT a general thesaurus — a paraphrase using
+a synonym pair outside it scores on stemmed/raw overlap alone, exactly as
+before this workstream. `stemEnglish` handles four common suffixes only and
+nothing irregular (irregular verbs ride on the synonym list instead).
+`RECALL_NEGATION_WORDS` is the exact three-item list WS-R118's own brief
+named, not a negation grammar: no "no", no "neither...nor", no Hindi
+negator outside "नहीं", no scope resolution past a flat token window. The
+window itself (4 tokens) is a proxy for clause scope, not a parse — a
+negation genuinely several clauses from its own key term is undetected, the
+same limit restated in tokens. See
+`context/rejected.md#ws-r118-negation-window-false-flagged-a-positive-
+contrast-term`.
+
+**Reversal condition.** A future keyed case — hand-authored the same way,
+banded the same way — that this scorer places outside its own band is
+grounds to extend exactly the mechanism that case's class already uses
+(a synonym pair, a stemmer suffix, the negation list, the window width, the
+evasion threshold), never a new mechanism layered on top without first
+checking whether an existing one already covers it. If `RECALL_NEGATION_WORDS`
+or `SYNONYM_GROUPS` grows past roughly 200 entries, the "small hand-built
+list, not a thesaurus" framing this decision rests on has quietly become
+false and the next session should say so rather than keep appending.
+
+## `ws-r118-stale-recall-method-note-rides-the-existing-english-field` (2026-09-05, WS-R118)
+
+**Decision.** `api/_readiness.js#readRecallRun` reads a stored
+`vy_recall_run` row's own `method` sentence and compares it against
+`RECALL_RUN_METHOD_VERSION` (a plain `startsWith`, since every method
+sentence this file has ever written begins with its own version string),
+returning `stale_method: true` when they no longer match, INCLUDING when
+`method` is empty or unrecognized. `knowsYourMaterial` appends one sentence
+— "Measured with an older method than the one in use now." — to the SAME
+`method` field a creator already reads on the Readiness screen, when
+`stale_method` is set. No new field on `ReadinessPart`, no new `src/studio`
+copy-table entry, no locale plumbing.
+
+**Rationale.** `part.method`/`part.detail` are already an established,
+allowlisted exception to this repo's locale system (`src/studio/copy.ts`'s
+own header, "SERVER-COMPUTED PROSE... authored server-side... arrive as
+English strings over the wire regardless of what this file says",
+`evals/studio-locale/run.mjs`'s literal-scan allowlist) — precisely because
+a server-authored sentence like this one is not the kind of UI chrome that
+file's locale system exists to translate. Riding the existing field means
+the note appears on the Readiness screen identically regardless of which
+locale a creator has chosen, satisfying "the readiness screen says so in
+both locales" (this workstream's own brief) without inventing a second,
+narrower exception to a rule this repo already has one exception for. The
+`stale_method` boolean itself is the drift-watch precedent
+(`api/_drift-watch.js`'s `prosody_anchor_stale` + a named reason, never a
+silent pass) applied to a superseded MEASUREMENT rather than a superseded
+VOICE MODEL: a number that used to be produced one way and is now produced
+a different way is not wrong, but reporting it with no seam at all is the
+same `plausible-return-hides-a-dead-pipeline` shape one layer down — a
+creator reading "88" has no way to know the 88 came from an instrument that
+no longer exists. Failing toward `stale_method: true` on an empty/unknown
+method (rather than `false`, "assume fresh") is the SAME asymmetry
+`readProsodyBaselineState` already commits to for the identical reason: "a
+monitoring signal that cannot prove it read the real state must fail toward
+'assume drift', never toward 'assume steady'" — restated here as "a field
+that cannot prove which scorer produced a number must fail toward 'assume
+superseded'."
+
+**Reversal condition.** If a second, unrelated readiness part ever needs the
+same "measured under an older method" note (a future instrument with its
+own version string), promote the pattern into a shared helper on `part()`
+itself rather than copying this `if (recall.stale_method)` string-append a
+second time — two copies of the same three-line pattern is the threshold
+`api/_drift-watch.js`'s own commentary already uses elsewhere in this repo
+for "stop restating, start sharing."

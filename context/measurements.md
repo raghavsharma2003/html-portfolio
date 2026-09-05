@@ -13032,3 +13032,70 @@ exceeds 50 ms.
 Not run: `scripts/relcheck.mjs`'s owner-lane walk and the zero-orphan
 sweep (no `NEON_URL` in the build container). No `vy_recall_run` or
 `vy_room_follower_whatsapp_chat` row exists yet.
+
+## `ws-r118-recall-scorer-keyed-agreement` (2026-09-05, WS-R118)
+
+**n = 60 keyed cases** (`evals/recall-run/keyed.mjs`), 10 per class across
+six classes (verbatim, paraphrase, partial, wrong_on_topic, contradiction,
+evasive), 5 English + 5 Hindi per class, each hand-authored against one of
+ten fixed base passages (five English, five Hindi) with a hand-written
+expected band and a one-line reason. **Method:** each case's `passage`/
+`answer` pair run through `api/_recall-run.js#scoreAnswer` directly (pure
+function, no I/O, no model call), scored `score >= band[0] && score <=
+band[1]` as agreement; run via `node evals/recall-run/run.mjs` §7 (also
+`node evals/run.mjs`), which fails the suite on any disagreement.
+
+**BEFORE** (WS-R101's original scorer — vocabulary overlap 0.4 + LCS order
+0.6, no stemming, no synonyms, no contradiction handling, no evasion floor,
+`normalizeWords`'s Devanagari-matra-stripping bug still present):
+
+| class | agree | rate |
+|---|---|---|
+| verbatim | 10/10 | 100% |
+| paraphrase | 10/10 | 100% |
+| partial | 10/10 | 100% |
+| wrong_on_topic | 10/10 | 100% |
+| contradiction | **0/10** | **0%** |
+| evasive | 9/10 | 90% |
+| **total** | **49/60** | **81.7%** |
+
+Contradiction misses: `en-contra-1..5` scored 56, 59, 57, 72, 60 (band
+0-20); `hi-contra-1..5` scored 57, 63, 50, 69, 66 (same band — see
+`context/rejected.md#ws-r118-devanagari-matras-stripped-by-the-unicode-
+letter-class` for why the Hindi cases were not scoring differently from
+the English ones despite the eventual negation fix being Hindi-specific in
+part). Evasive miss: `hi-evas-4` ("ठीक से याद नहीं", "not properly
+remembered") scored 12 against a 0-10 band.
+
+**AFTER** (this workstream's scorer — stemming, a ~50-entry synonym list,
+the negation-aware contradiction cap, the evasion floor, the Devanagari
+fix; `RECALL_RUN_METHOD_VERSION` bumped `v1` -> `v2`):
+
+| class | agree | rate |
+|---|---|---|
+| verbatim | 10/10 | 100% |
+| paraphrase | 10/10 | 100% |
+| partial | 10/10 | 100% |
+| wrong_on_topic | 10/10 | 100% |
+| contradiction | 10/10 | 100% |
+| evasive | 10/10 | 100% |
+| **total** | **60/60** | **100%** |
+
+**Negative controls** (`evals/recall-run/run.mjs` §8, same source-patch
+technique as WS-R101's own §2b): with the contradiction cap's guard
+removed from the real module, the SAME contradiction class drops from
+10/10 to 0/10 (every case scored back in the 44-89 range). With the
+evasion floor's guard removed, a purpose-built example — "I do not know."
+against a passage opening "I do not know why I quit my old job..." — scores
+25 (real scorer with the floor: 8).
+
+**Limit, stated plainly:** this is a single hand-authored keyed set built
+by the same session that changed the scorer to pass it, not an independent
+human calibration — WS-R118's own brief names this explicitly ("Before a
+human calibration exists, the scorer must at least agree with a keyed set
+a person would sign"). It establishes a floor (the scorer no longer fails
+an obvious case in an obvious way) and a regression gate (any future
+scorer change that moves a class out of its band fails the suite), not
+proof the scorer matches a real person's independent judgment on real
+replica answers — that measurement does not exist yet and is not this
+workstream's to make.

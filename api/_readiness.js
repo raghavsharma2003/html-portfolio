@@ -136,6 +136,12 @@
 import { canonicalJson, sha256Hex } from "./_provenance/contracts.js";
 import { replicaId } from "./_replica.js";
 import { FIDELITY_POLICY_VERSION } from "./_fidelity.js";
+// WS-R118. One-direction import (checked: nothing `_recall-run.js` imports,
+// directly or transitively, reaches back to this file — no cycle), and a
+// NEW import between two `api/` files per this workstream's own brief, so
+// `node evals/run.mjs` (the whole registry, not just this suite) was run
+// after adding it.
+import { RECALL_RUN_METHOD_VERSION } from "./_recall-run.js";
 
 export const READINESS_POLICY_VERSION = "replica-readiness/v1";
 
@@ -311,12 +317,22 @@ function knowsYourMaterial(input, _now) {
   if (recall && Number.isFinite(Number(recall.score)) && num(recall.n) > 0) {
     const n = num(recall.n);
     const value = Math.max(0, Math.min(100, Math.round(Number(recall.score))));
+    // WS-R118. `readRecallRun`'s own `stale_method` flag, turned into the
+    // sentence a creator reads — "measured on N questions from your own
+    // material", never a bare number, this file's own header names that
+    // rule, PLUS a second sentence when the row on file was scored by a
+    // scorer version this file no longer runs. English, server-authored,
+    // by the same allowlisted exception `part.method` already carries
+    // (`src/studio/copy.ts`'s own header, "SERVER-COMPUTED PROSE") — so
+    // this note reads identically in both locales without a copy-table
+    // entry of its own.
+    const staleNote = recall.stale_method
+      ? " Measured with an older method than the one in use now."
+      : "";
     return part("knows_your_material", {
       value,
       n,
-      // "measured on N questions from your own material", never a bare
-      // number — this file's own header names that rule.
-      method: `Held-out recall run: measured on ${n} questions from your own material.`,
+      method: `Held-out recall run: measured on ${n} questions from your own material.${staleNote}`,
       measured_at: iso(recall.computed_at),
       detail: `${mined} claims mined from what you gave us, ${reviewed} reviewed by you.`,
       action: value < READINESS_PART_FLOOR ? action("add_sources") : null,
@@ -593,11 +609,24 @@ export async function readRecallRun(db, ownerUserId, rid) {
   const rows = await db(RECALL_RUN_SQL, [rid, ownerUserId]);
   const row = rows[0];
   if (!row) return null;
+  const method = String(row.method || "");
   return {
     score: Number(row.score),
     n: Number(row.n),
-    method: String(row.method || ""),
+    method,
     computed_at: row.created_at,
+    // WS-R118. A stored row's own `method` sentence is versioned
+    // (`api/_recall-run.js`'s `RECALL_RUN_METHOD_VERSION`, e.g.
+    // "recall-run/v2: ..."). When it no longer starts with the version this
+    // file currently produces, the number is still real but was scored by
+    // an instrument that has since changed underneath it — the same
+    // named-not-silent law `api/_drift-watch.js` already applies to a stale
+    // prosody anchor (`stale: true` plus a reason, never a quiet pass),
+    // applied here to a superseded scorer. An empty/unrecognized `method`
+    // (a row from before this concept existed) fails toward "stale" for the
+    // same reason a monitoring signal that cannot prove it read the real
+    // state fails toward "assume drift" — never toward a false "fresh".
+    stale_method: !method.startsWith(RECALL_RUN_METHOD_VERSION),
   };
 }
 
