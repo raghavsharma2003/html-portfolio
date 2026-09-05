@@ -10703,3 +10703,43 @@ contention, then clean): all four targets within budget — `/` 1100ms LCP/
 0.000/208ms, `/studio` 1560ms/0.000/257ms, none over the 2500ms/0.1/300ms
 floors. The relational DB gates skipped (no `NEON_URL` in this
 environment), as on every prior workstream's own tree.
+
+## `ws-r69-upi-autopay-verification-2026-09-05`
+
+n = 9 marks named by this workstream's brief (how a Subscription is created
+for UPI Autopay, the mandate amount versus the plan amount, the pre-debit
+notification's timing and sender, the Rs 15,000 ceiling's existence and
+above-ceiling behaviour, webhook events handled versus ignored, plus 2 new
+findings surfaced along the way — resume-only-by-customer, and seat updates
+refused on UPI/Emandate); method = one or more `WebFetch`/`WebSearch` calls
+per mark against `razorpay.com` (direct, and via the `d6xcmfyh68wv8.cloudfront.net`
+mirror where the direct path 404d, WS-R60's own technique) and `npci.org.in`
+(unreachable, see the rejection entry); date 2026-09-05. Full citations in
+`docs/gurukul/ENV-MANIFEST.md` §28's own mark table (not duplicated here).
+
+| mark | status |
+|---|---|
+| Subscription creation fields for UPI Autopay (no `payment_method`/`upi` field — chosen at Checkout) | VERIFIED |
+| Mandate amount = plan amount, for an immediate-start subscription | VERIFIED |
+| Pre-debit notification timing (24 hours) | VERIFIED |
+| Pre-debit notification sender, for UPI specifically | STILL OPEN |
+| Rs 15,000 ceiling — existence | VERIFIED (unchanged, earlier workstream) |
+| Rs 15,000 ceiling — behaviour above it | STILL OPEN |
+| Webhook events handled vs ignored | VERIFIED (unchanged — already fully answered by `KIND_TO_STATE`) |
+| Only the customer can resume a customer-paused Subscription | VERIFIED (new finding) |
+| Seat-quantity updates refused on a UPI/Emandate subscription | VERIFIED (new finding, out of this workstream's own scope — the Suite lane) |
+
+**What is proven offline, and what is not.** `evals/payments/run.mjs` grew
+78 -> 98 assertions (§12–§15, all passing): a realistic multi-cycle mandate
+lifecycle driven through the REAL `applyWebhook` state machine via
+`fake.js`'s new `mandateEventSequence()`; a required negative control
+proving a halt never leaves the stored state `'active'`; `followerSubscriptionStatus`
+telling a customer-paused mandate from a retry-ladder-halted one off the
+SAME stored `'paused'` column; and a source-scan negative control proving
+the checkout copy both EXISTS (both locales) and is RENDERED at all three
+subscribe surfaces. `evals/renewals/run.mjs` (54) and
+`evals/payments-reconcile/run.mjs` (38, the WS-R42 ledger/reconcile suite)
+were run unchanged and pass unchanged, confirming this workstream's own law
+4. Nothing here made a real network call to Razorpay or NPCI's own APIs —
+no live account exists in this environment, unchanged from every prior
+payments workstream.

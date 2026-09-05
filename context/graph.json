@@ -7816,6 +7816,24 @@
       "kind": "measurement",
       "title": "34/34 new studio-path eval, 40/40 studio-locale, 49/49 funnel, 492/492 room-doors, 81/81 room-leak, 44/44 room-export, layout/accessibility clean after one contrast fix; full verify-release 19/21 twice, both remaining failures EADDRINUSE from ten concurrent sibling worktrees.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r69-halted-is-a-derived-read-never-a-stored-value",
+      "kind": "decision",
+      "title": "subscription.paused and subscription.halted both flip vy_room_subscription.state to the SAME stored 'paused' value (unchanged); followerSubscriptionStatus derives a virtual 'halted' display state from the most recent matching vy_payment_event.kind instead of widening the CHECK.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r69-upi-autopay-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "UPI Autopay verification pass: subscription creation fields, mandate-vs-plan amount, pre-debit notification timing, webhook handling all VERIFIED; pre-debit sender (UPI-specific) and above-ceiling behaviour STILL OPEN; two new findings (customer-only resume, seat updates refused on UPI/Emandate).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r69-npci-org-in-unreachable-by-this-sessions-fetch-tool",
+      "kind": "rejection",
+      "title": "Six attempts (two HTML pages, two PDFs, cross-checked by WebSearch first) to reach npci.org.in for the UPI Autopay pre-debit notification sender all returned only the bare site-shell title, no body content \u2014 no CDN mirror found the way WS-R60 found one for razorpay.com.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15513,6 +15531,16 @@
       "src": "ws-r65-creator-path-card",
       "rel": "measured_by",
       "dst": "ws-r65-studio-path-gate-results-2026-09-05"
+    },
+    {
+      "src": "ws-r69-halted-is-a-derived-read-never-a-stored-value",
+      "rel": "measured_by",
+      "dst": "rooms-migration-078-live-verification-2026-09-03"
+    },
+    {
+      "src": "ws-r69-upi-autopay-verification-2026-09-05",
+      "rel": "caused_by",
+      "dst": "ws-r69-npci-org-in-unreachable-by-this-sessions-fetch-tool"
     }
   ]
 }

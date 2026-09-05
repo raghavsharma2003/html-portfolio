@@ -9799,3 +9799,53 @@ honestly left unconfirmed and forward-filled from later evidence, see the
 decision above). A future workstream that already needs one of those seven
 tables through this exact door for its OWN reason would change this
 calculus — see the decision's own reversal condition.
+
+## `ws-r69-npci-org-in-unreachable-by-this-sessions-fetch-tool` (2026-09-05, WS-R69)
+
+**What was tried.** This workstream's brief asked for the pre-debit
+notification's timing AND sender (Razorpay's own docs give the timing —
+"24 hours prior to the debit" — but never name a sender for UPI Autopay
+specifically, only for card e-mandates: "banks should send..."). Six
+separate attempts to reach `npci.org.in` for the UPI-specific answer: two
+HTML pages (`npci.org.in/what-we-do/AutoPay/product-overview`,
+`npci.org.in/what-we-do/upi/upi-autopay/faqs`) and two circular PDFs
+(`OC-151-UPI-AUTOPAY-AFA-limit-enhancement-and-compliance.pdf`,
+`UPI-OC-182-User-Experience-Enhancement-for-UPI-AutoPay.pdf`), each fetched
+directly and via a targeted `WebSearch` first to confirm the URL was real
+and on-topic before spending the fetch.
+
+**What broke.** Every HTML page returned ONLY the site's own generic
+`<title>` — "National Payments Corporation of India (NPCI) - Enabling
+digital payments in India" — with no body content at all, the exact
+signature `context/rejected.md#ws-r41-provider-docs-sites-resist-a-single-
+page-fetch-tool-two-ways` names for a client-routed SPA whose real content
+this session's plain fetch tool cannot reach past the static shell. Both
+PDFs returned the identical bare title, meaning this tool's PDF handling
+(unlike Razorpay's own CDN mirror, WS-R60's fix for the OTHER half of that
+same rejection entry) found no rendering path at all here — not a
+truncation, not a 404, just the shell. `WebSearch` itself DID surface a
+specific, plausible-sounding claim ("the Payee PSP must initiate a Pre-debit
+Notification API (ReqValCust) prior to 24 hours...") attributed to "NPCI's
+Operating Circular" — but that is the search engine's OWN synthesis of
+third-party aggregator pages, never this session's own fetch of NPCI's
+actual text, so it is named here as UNVERIFIED rather than reported as a
+citation this session actually holds.
+
+**What closed it.** Nothing did — marked STILL OPEN in
+`docs/gurukul/ENV-MANIFEST.md` §28 and `context/measurements.md#ws-r69-upi-
+autopay-verification-2026-09-05`, rather than either laundering the search
+engine's synthesis into a false citation or silently dropping the question.
+Not consequential to code today: this platform never itself sends a
+pre-debit notification (Razorpay/NPCI's own infrastructure does, whichever
+of them it turns out to be), so nothing here changes what `api/_payments.js`
+does regardless of which party the answer names.
+
+**The law.** Unlike Razorpay (`rejected.md#ws-r60-razorpay-operation-pages-
+found-by-search-not-guessed-slugs`'s own fix — a CDN mirror serving the same
+pre-rendered content), NPCI's own site had no discoverable mirror this
+session could find, and a search engine's paraphrase of what a primary
+document "says" is not the same evidentiary weight as this session's own
+fetch of it — the gap between "a search result told me X" and "I read X on
+the primary page" is exactly the gap `context/rejected.md`'s own no-fake-
+citations law exists to keep visible, and it is worth naming even when (as
+here) the underlying fact is plausible and likely true.

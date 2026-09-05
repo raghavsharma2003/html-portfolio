@@ -508,3 +508,119 @@ export function parsePayoutEvent(json) {
   else if (event === "payout.failed" || event === "payout.rejected") kind = "failed";
   return { providerRef, kind, reason };
 }
+
+// ── WS-R69 verification addendum (2026-09-05): UPI AUTOPAY, MADE TRUE ─────
+//
+// This workstream's brief: "the plan named it [UPI Autopay]; the seam was
+// built against the Subscriptions API generically. Make it true for UPI."
+// Appended rather than edited in place, WS-R60's own precedent above: every
+// citation below is dated and URLed so the NEXT session can tell what was
+// checked from what was assumed, without diffing history.
+//
+// ── 1. HOW A SUBSCRIPTION IS CREATED FOR UPI AUTOPAY — VERIFIED, closes the
+//    brief's own "payment_method/upi fields" question with a NEGATIVE
+//    answer, not a guess ──────────────────────────────────────────────────
+// razorpay.com/docs/payments/subscriptions/create/, fetched 2026-09-05: the
+// Create Subscription request body's own documented fields are `plan_id`,
+// `customer_notify`, `total_count`, `quantity`, `start_at`, `expire_by`,
+// `notes`, `addons` — no `method`, `payment_method`, or `upi` field appears
+// anywhere in that table. This is not a gap this file has yet to close: it
+// is confirmation that the Subscriptions API (as opposed to the raw S2S
+// recurring-payments API a different integration shape would use) never
+// takes a payment-method argument at all — the customer picks UPI Autopay,
+// a card, or Emandate on RAZORPAY'S OWN hosted Checkout page (the
+// `short_url`/`checkout_url` this file already returns), never in the
+// `createSubscription` call itself. `createSubscription`'s existing body
+// (`plan_id`, `customer_notify`, `total_count`, `quantity`, `notes`) already
+// matches this exactly — no code change needed, only the mark closed.
+//
+// ── 2. THE MANDATE AMOUNT VERSUS THE PLAN AMOUNT — VERIFIED, and a genuine
+//    finding this workstream's own fake-twin fix (fake.js) depends on ──────
+// razorpay.com/docs/payments/subscriptions/workflow/, fetched 2026-09-05,
+// quoted verbatim: "The Subscription becomes active when the billing cycle
+// starts" and "the authentication transaction is the initial charge — its
+// amount depends on the start date: Immediate start: charged the plan
+// amount (not refunded); Future start: charged ₹5 (auto-refunded)."
+// `createSubscription` above never sends `start_at`, so every Room
+// subscription is an IMMEDIATE start — the authentication transaction (the
+// first thing the follower approves with their UPI PIN) charges the FULL
+// plan amount, not a token registration amount. The mandate amount and the
+// first month's charge are the SAME rupee figure for this product, which is
+// exactly what `src/room/copy.ts`'s new `pay.mandateNote` (this workstream)
+// states as "the first payment happens today" rather than hedging it as a
+// possible future date.
+//
+// ── 3. THE PRE-DEBIT NOTIFICATION — PARTIALLY VERIFIED (timing yes, sender
+//    only for the CARD-mandate case, not UPI specifically) ────────────────
+// razorpay.com/blog/what-is-upi-autopay-recurring-payments-razorpay-
+// subscriptions/, fetched 2026-09-05, quoted verbatim: "pre-debit
+// notifications will be sent to consumers 24 hours prior to the debit."
+// Timing: VERIFIED. WHO sends it, for UPI specifically: STILL OPEN — that
+// page does not say. The one page this session could reach that names a
+// sender at all is a DIFFERENT product line: razorpay.com/docs/announcements/
+// rbi-card-mandate-guidelines/subscriptions/ (reached via the
+// `d6xcmfyh68wv8.cloudfront.net` mirror, WS-R60's own technique, after the
+// `razorpay.com` path itself 404d for a direct GET), quoted verbatim:
+// "Banks should send customers a pre-debit notification at least 24 hours
+// before the actual debit" — but that page is scoped to CARD e-mandates
+// under the RBI circular, never UPI Autopay, so it cannot be extended to
+// this platform's own payment method without a document that actually says
+// so. `npci.org.in` (the body that actually operates UPI Autopay) was tried
+// six times this session across four different pages and two PDFs and
+// returned either a bare client-shell title with no body content or nothing
+// at all — see `context/rejected.md#ws-r69-npci-org-in-unreachable-by-this-
+// sessions-fetch-tool` for the full list of attempts. Settled by whoever can
+// reach an actual NPCI operating circular, or a sandbox account's own
+// dashboard copy.
+//
+// ── 4. THE RS 15,000 CEILING AND WHAT HAPPENS ABOVE IT — the ceiling itself
+//    was already VERIFIED by an earlier workstream (this file's own header,
+//    "RBI's Digital Payments E-mandate Framework, 2026... fetched
+//    2026-09-03"); "what happens above it" is STILL OPEN ─────────────────
+// Every fetch this session tried against a `razorpay.com` or `npci.org.in`
+// page for the ABOVE-ceiling behaviour (search terms: "UPI Autopay AFA
+// 15000 limit debit", "razorpay UPI Autopay mandate amount plan amount")
+// either 404d, resolved to a page that does not mention the ceiling at all
+// (`razorpay.com/upi-autopay/`, `razorpay.com/docs/payments/subscriptions/
+// faqs/`), or returned only a search engine's OWN synthesis of third-party
+// blogs restating the RBI circular in different words — never this
+// session's own fetch of a Razorpay or NPCI page stating it directly. Not
+// consequential to this product today regardless: every Room price (Rs
+// 299–599) is roughly two orders of magnitude under the ceiling either way
+// (this file's own header, unchanged), so the exact above-ceiling behaviour
+// changes nothing this codebase does — named as open rather than invented,
+// per this repo's own no-fake-numbers law, rather than closed with a
+// plausible-sounding guess.
+//
+// ── 5. WEBHOOK EVENTS HANDLED VERSUS IGNORED — already fully answered by
+//    `api/_payments.js`'s own `KIND_TO_STATE` (unchanged by this workstream,
+//    restated here because the brief asked for it named in one place):
+//    HANDLED (flip `vy_room_subscription.state`): `subscription.authenticated`
+//    -> `authenticated`; `subscription.activated`/`.charged`/`.resumed` ->
+//    `active`; `subscription.paused`/`.halted` -> `paused` (the same DB
+//    value on purpose — see fake.js's own WS-R69 addendum for why); `.cancelled`/
+//    `.completed` -> `cancelled`. IGNORED (logged, state unchanged):
+//    `subscription.pending`, `payment.failed` — the provider's own retry
+//    ladder narrating itself, never yet a fact about paid access.
+//
+// ── 6. TWO FINDINGS OUTSIDE THIS FILE'S OWN SCOPE, NAMED SO THEY ARE NOT
+//    LOST, NEITHER FIXED HERE (out of this workstream's brief, which is the
+//    FOLLOWER lane only) ───────────────────────────────────────────────────
+// razorpay.com/docs/payments/subscriptions/faqs/, fetched 2026-09-05, quoted
+// verbatim, TWO separate findings:
+//   (a) "You can only update a Subscription authorised using cards and not
+//   via UPI and Emandate." `updateSubscriptionQuantity` above (the SUITE
+//   seat lane's own operation, `api/_payments.js`'s `updateOrgSeats`) would
+//   be REFUSED by Razorpay outright if a Suite's own subscription happens to
+//   be authorised via UPI Autopay rather than a card — a real gap in a
+//   DIFFERENT lane than this workstream's brief scopes (follower Room
+//   subscriptions never call this function at all), named here rather than
+//   silently discovered and dropped.
+//   (b) "No. You cannot resume a Subscription paused by your customer. Only
+//   your customer can resume such Subscriptions." This is the fact this
+//   workstream's `followerSubscriptionStatus` fix and `copy.ts`'s new
+//   `account.subscriptionStates.paused` copy are built on: this platform has
+//   no "resume" button anywhere in the Room (confirmed by grep before this
+//   change) and, per this quote, could never make one that worked for a
+//   customer-initiated pause even if it wanted to — the honest copy is "go
+//   back to your UPI app," never a dead or misleading in-Room control.

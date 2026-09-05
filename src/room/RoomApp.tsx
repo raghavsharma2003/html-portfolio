@@ -1157,6 +1157,11 @@ export default function RoomApp({
             >
               {payBusy ? copy.pay.working : copy.pay.cta}
             </button>
+            {/* WS-R69: no price is wired to this render point (this section
+                has never shown one), so the price-less mandate disclosure —
+                `pay.mandateNote`'s own no-price twin, `capOffer`/`offer`'s
+                own `bodyNoPrice` pattern restated for this sentence. */}
+            <p className="room-fine">{copy.pay.mandateNoteNoPrice}</p>
             {payError && <p className="room-error">{payError}</p>}
           </section>
         )}
@@ -1173,6 +1178,14 @@ export default function RoomApp({
               {capOffer.price_inr != null
                 ? withName(withPrice(copy.capOffer.body, `Rs ${capOffer.price_inr}`), name)
                 : withName(copy.capOffer.bodyNoPrice, name)}
+            </p>
+            {/* WS-R69: what tapping this button actually starts — a UPI
+                Autopay mandate, not a one-time charge — in a person's own
+                words, both locales, `copy.pay.mandateNote`. */}
+            <p className="room-fine">
+              {capOffer.price_inr != null
+                ? withPrice(copy.pay.mandateNote, `Rs ${capOffer.price_inr}`)
+                : copy.pay.mandateNoteNoPrice}
             </p>
             <button
               type="button"
@@ -1205,6 +1218,14 @@ export default function RoomApp({
               {offerCard.price_inr != null
                 ? withName(withPrice(copy.offer.body, `Rs ${offerCard.price_inr}`), name)
                 : withName(copy.offer.bodyNoPrice, name)}
+            </p>
+            {/* WS-R69: the same mandate disclosure `capOffer`'s own card
+                carries one section up - one shared sentence family, not a
+                third copy of it. */}
+            <p className="room-fine">
+              {offerCard.price_inr != null
+                ? withPrice(copy.pay.mandateNote, `Rs ${offerCard.price_inr}`)
+                : copy.pay.mandateNoteNoPrice}
             </p>
             <button
               type="button"

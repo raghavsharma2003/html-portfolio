@@ -1129,3 +1129,52 @@ adjacent Payouts API this session reused conventions from.
 `payments_webhook_ip` scope (`api/_rate-limit.js`) rather than minting a
 second one — both doors are the same provider's own delivery IPs, not a
 person — so `api/_rate-limit.js` is untouched by this workstream.
+
+## 28. UPI Autopay, verified (`vercel-app`, WS-R69, 2026-09-05)
+
+**No new env var.** This workstream verified the follower Room's UPI Autopay
+mandate against Razorpay's own documents, fixed the fake provider twin to
+emit a realistic event sequence, and added the checkout disclosure copy the
+brief required — no new secret, no new `PAYMENTS_*` variable. `evals/payments/run.mjs`
+grew from 78 to 98 assertions (§12–§15); `evals/renewals/run.mjs` (54) and
+`evals/payments-reconcile/run.mjs` (38, the WS-R42 ledger/reconcile suite)
+were run and are UNCHANGED, per this workstream's own law 4.
+
+| mark | status | citation |
+|---|---|---|
+| How a Subscription is created for UPI Autopay (payment_method/upi fields) | **VERIFIED** — answered "there is no such field" | `razorpay.com/docs/payments/subscriptions/create/`, fetched 2026-09-05: the documented request body is `plan_id`, `customer_notify`, `total_count`, `quantity`, `start_at`, `expire_by`, `notes`, `addons` — no method/payment-method field anywhere; UPI Autopay is picked on Razorpay's own hosted Checkout page, never in this call |
+| The mandate amount versus the plan amount | **VERIFIED** | `razorpay.com/docs/payments/subscriptions/workflow/`, fetched 2026-09-05, quoted verbatim: "Immediate start: charged the plan amount (not refunded); Future start: charged ₹5 (auto-refunded)" — `createSubscription` never sends `start_at`, so the mandate's own authentication transaction IS the plan amount |
+| Pre-debit notification timing | **VERIFIED** | `razorpay.com/blog/what-is-upi-autopay-recurring-payments-razorpay-subscriptions/`, fetched 2026-09-05, quoted verbatim: "pre-debit notifications will be sent to consumers 24 hours prior to the debit" |
+| Pre-debit notification sender, for UPI specifically | **STILL OPEN** | the only page reachable that names a sender (`razorpay.com/docs/announcements/rbi-card-mandate-guidelines/subscriptions/`, via the cloudfront mirror) scopes it to CARD e-mandates ("Banks should send customers a pre-debit notification..."), not UPI; `npci.org.in` was unreachable across six attempts — `context/rejected.md#ws-r69-npci-org-in-unreachable-by-this-sessions-fetch-tool` |
+| Rs 15,000 ceiling (existence) | **VERIFIED (by an earlier workstream, unchanged)** | `api/_payments/providers/razorpay.js`'s own header, "RBI's Digital Payments E-mandate Framework, 2026... fetched 2026-09-03" |
+| Rs 15,000 ceiling — what happens above it | **STILL OPEN** | no `razorpay.com`/`npci.org.in` page this session reached states it directly; not consequential today (every Room price, Rs 299–599, is two orders of magnitude under it) |
+| Webhook events handled vs ignored | **VERIFIED (unchanged — already fully answered)** | `api/_payments.js`'s own `KIND_TO_STATE`: handled = `authenticated`/`activated`/`charged`/`resumed`/`paused`/`halted`/`cancelled`/`completed`; ignored (logged only) = `pending`, `payment.failed` |
+| Only the customer can resume a customer-paused Subscription | **VERIFIED, a new finding** | `razorpay.com/docs/payments/subscriptions/faqs/`, fetched 2026-09-05, quoted verbatim: "No. You cannot resume a Subscription paused by your customer. Only your customer can resume such Subscriptions." — this is why the Room has no "resume" button anywhere (confirmed by grep) and why `copy.ts`'s new `paused` copy says "resume it from your UPI app," never a dead in-Room control |
+| Seat-quantity updates do not work on a UPI/Emandate subscription | **VERIFIED, a new finding, OUT OF THIS WORKSTREAM'S SCOPE** | same FAQ page, quoted verbatim: "You can only update a Subscription authorised using cards and not via UPI and Emandate." Affects `api/_payments.js`'s `updateOrgSeats` (the SUITE seat lane, a different lane than this workstream's brief), which calls `updateSubscriptionQuantity` unconditionally — a real gap if a Suite's own subscription is ever authorised via UPI, named here rather than fixed (out of scope) |
+
+**What changed in code**, all in the follower Room lane only:
+- `api/_payments/providers/fake.js`: new `mandateEventSequence()` — the fake
+  twin now emits `authenticated -> activated -> charged... [-> halted]` in
+  Razorpay's own documented order, so `evals/payments/run.mjs` §12/§13 drive
+  the REAL state machine through a realistic multi-cycle lifecycle rather
+  than one hand-picked kind at a time.
+- `api/_payments.js`: `followerSubscriptionStatus` now derives a `'halted'`
+  DISPLAY state (never a stored one — `vy_room_subscription_state_check`,
+  migration 078, is UNCHANGED, no widening needed) from the most recent
+  matching `vy_payment_event.kind` when the stored state is `'paused'`. New
+  SQL (for EXPLAIN): `select kind from vy_payment_event where subscription_id
+  = ($1)::uuid and kind in ('subscription.paused', 'subscription.halted')
+  order by received_at desc limit 1` — runs ONLY when the stored state is
+  already `'paused'`, so every other read pays nothing new.
+- `src/room/copy.ts` / `RoomApp.tsx`: the checkout disclosure (`pay.mandateNote`/
+  `mandateNoteNoPrice`, both locales) rendered at all three subscribe
+  surfaces (the plain capped screen, the cap-reached offer, the
+  session-worked offer); `account.subscriptionStates.halted` added, `paused`
+  reworded to name the UPI app, both locales.
+- `src/room/roomPayApi.ts`: `RoomSubscriptionState.state` widened (TypeScript
+  union only — no CHECK, no migration) to include the virtual `'halted'`
+  value the API can now return.
+
+See `context/measurements.md#ws-r69-upi-autopay-verification-2026-09-05` for
+the full citation table and `context/decisions.md`/`context/rejected.md` for
+the fixed shapes and the closed fetch paths.

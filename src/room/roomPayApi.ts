@@ -22,7 +22,12 @@ export class RoomPayApiError extends Error {
 export interface RoomSubscriptionState {
   subscription_id: string;
   provider: string;
-  state: "created" | "authenticated" | "active" | "paused" | "cancelled" | "expired";
+  // WS-R69: "halted" is never a value the DATABASE column stores (it stays
+  // "paused" there on purpose, `api/_payments.js`'s `pausedOrHalted` header)
+  // — it is a VIRTUAL state this API's own read derives from the ledger, so
+  // the client-side type has to carry it too, or an honest server response
+  // becomes a type error here instead of a rendered sentence.
+  state: "created" | "authenticated" | "active" | "paused" | "halted" | "cancelled" | "expired";
   current_period_start?: string | null;
   current_period_end?: string | null;
   // WS-R37: set once the follower asks the provider to stop at the end of

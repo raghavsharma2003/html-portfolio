@@ -399,12 +399,45 @@ export async function startFollowerSubscription(db, { session }, deps = {}) {
   };
 }
 
+/**
+ * WS-R69: "paused" versus "halted", told apart HONESTLY rather than
+ * collapsed to one sentence. `KIND_TO_STATE` (below) maps BOTH
+ * `subscription.paused` and `subscription.halted` to the same DB value,
+ * `'paused'`, deliberately (that map's own header: "a halted subscription is
+ * not this platform's decision to make final") - so the DATABASE COLUMN
+ * genuinely cannot tell a customer's own UPI-app pause from a mandate's
+ * retry ladder giving up, and never widens the CHECK to try (no `halted`
+ * value has ever been added to `vy_room_subscription_state_check`). The
+ * LEDGER can, though: `vy_payment_event.kind` keeps the ORIGINAL webhook
+ * name forever, migration 078's own CHECK naming both kinds distinctly. This
+ * reads the most recent of the two for a `'paused'` subscription and reports
+ * a VIRTUAL state, `'halted'`, only in this function's own response shape -
+ * never written back to `vy_room_subscription.state`, which keeps meaning
+ * exactly what it always has for every other reader (`applyWebhook`'s own
+ * tier-flip predicate, `ownerRevenue`'s counts, `AGENTS.md`'s "never blur a
+ * derived read into a stored fact"). One extra query, ONLY when the stored
+ * state is `'paused'` - every other state costs nothing new.
+ */
+async function pausedOrHalted(db, subscriptionId) {
+  const rows = await db(
+    `select kind from vy_payment_event
+      where subscription_id = ($1)::uuid
+        and kind in ('subscription.paused', 'subscription.halted')
+      order by received_at desc
+      limit 1`,
+    [String(subscriptionId)],
+  );
+  return rows[0]?.kind === "subscription.halted" ? "halted" : "paused";
+}
+
 /** The follower's own honest read: their tier and their subscription's state,
  *  never more than that - no other follower's anything, `docs/SURFACES.md`'s
  *  rule for this whole surface. `price_inr`/`currency` (WS-R37) are the
  *  room's CURRENT price - `startFollowerSubscription`'s own read one section
  *  up - so the subscription panel can state "renews on X for Y" without a
- *  second endpoint; absent when the room has never had one set. */
+ *  second endpoint; absent when the room has never had one set. `state` is
+ *  `'halted'` rather than `'paused'` when the ledger's own most recent event
+ *  says so - `pausedOrHalted`'s own header, immediately above. */
 export async function followerSubscriptionStatus(db, { session }, deps = {}) {
   const { room, follower } = await paidSessionScope(db, session, deps);
   const rows = await db(
@@ -422,6 +455,7 @@ export async function followerSubscriptionStatus(db, { session }, deps = {}) {
     [String(room.room_id)],
   );
   const price = priceRows[0] || null;
+  const displayState = row && row.state === "paused" ? await pausedOrHalted(db, row.subscription_id) : row?.state;
   return {
     tier: follower.tier === "paid" ? "paid" : "free",
     price_inr: price ? Number(price.follower_price_inr) : null,
@@ -429,7 +463,7 @@ export async function followerSubscriptionStatus(db, { session }, deps = {}) {
     subscription: row && {
       subscription_id: row.subscription_id,
       provider: row.provider,
-      state: row.state,
+      state: displayState,
       current_period_start: row.current_period_start ?? null,
       current_period_end: row.current_period_end ?? null,
       cancel_at_period_end: row.cancel_at_period_end === true,
