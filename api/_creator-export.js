@@ -196,6 +196,16 @@ export const OWNER_LANE_TABLES = Object.freeze([
 
   // ── the reminder ledger, creator subject only ──────────────────────────
   { table: "vy_renewal_reminder", scope: "renewal_creator" },
+
+  // ── WS-R74 (migration 118), the creator's weekly push ─────────────────
+  // `vy_creator_weekly_push`: `vy_room_pulse_week`'s own "room_agg" shape
+  // restated for a content-free send ledger (no owner_user_id column on
+  // the table itself, reached by joining through this owner's own rooms).
+  { table: "vy_creator_weekly_push", scope: "room_agg" },
+  // `vy_creator_push_subscription`: `vy_operator_push_subscription`'s own
+  // shape restated for a creator's own device instead of a platform
+  // operator's.
+  { table: "vy_creator_push_subscription", scope: "owner" },
 ]);
 
 /** Every table `PERSON_TABLES` names, plus the two named in this file's own

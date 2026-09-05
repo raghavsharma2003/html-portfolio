@@ -329,7 +329,7 @@ ok("checkins is read as every 15 minutes", schedules["checkins"]?.expected_inter
 ok("pulse is read as weekly", schedules["pulse"]?.expected_interval_ms === 7 * 24 * 3_600_000);
 ok("consolidate is read as hourly", schedules["consolidate"]?.expected_interval_ms === 3_600_000);
 ok("replica-erasure is read as every 10 minutes", schedules["replica-erasure"]?.expected_interval_ms === 10 * 60_000);
-ok("every one of this repo's 11 crons resolves to a NON-NULL interval (no shape here goes unrecognised)",
+ok("every one of this repo's 12 crons resolves to a NON-NULL interval (no shape here goes unrecognised)",
   Object.values(schedules).filter((s) => Number.isFinite(s.expected_interval_ms)).length === vercelJson.crons.length);
 ok("an unrecognised schedule shape (day-of-month) is null, never guessed",
   expectedIntervalMs("0 0 1 * *") === null);
@@ -545,7 +545,7 @@ console.log("\n── §4: opsOverview (real counts, honest empty states) ──
   ok("sweeps: pulse has never run at all and reports 'never_ran', not 'ok' - law 4 again",
     overview.sweeps.find((s) => s.sweep === "pulse").last_outcome === "never_ran" &&
     overview.sweeps.find((s) => s.sweep === "pulse").staleness === "never_ran");
-  ok("every one of this repo's 11 crons appears in the sweeps strip",
+  ok("every one of this repo's 12 crons appears in the sweeps strip",
     overview.sweeps.length === vercelJson.crons.length);
 
   // WS-R29: platform-wide, THIS MONTH only, delivered only, never

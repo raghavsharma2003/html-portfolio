@@ -10445,3 +10445,72 @@ string appears somewhere in the HTML. `scripts/check-headers.mjs`'s
 `checkExecuted` seam is exactly this, and this workstream's own
 `data-enhanced="1"` marker (added for this reason, not as an afterthought)
 is what caught the bug before it shipped.
+
+## `ws-r74-pulse-note-verbatim-in-a-push-notification-body` (2026-09-05, WS-R74)
+
+**Tried.** The creator's weekly push headline
+(`api/_creator-push.js#pulseHeadlineFor`) forwarded `readPulse`'s own
+`note` field (`api/_pulse.js#weeklyNote`'s return value) as-is into
+`creatorWeeklyPushPayload`'s `headline` argument, truncated to 220
+characters before appending it to the notification body.
+
+**What broke.** Running this workstream's own `evals/creator-push/run.mjs`
+§4 world (a real published Room, a real Pulse world with one combo bucket
+at the n>=5 floor) against this version failed the assertion "the
+published Pulse combo's headline was included" — the payload body read
+"...It never shows a message or a name, and never a number below five. One
+combination reached the floor this we" and stopped. `weeklyNote`'s own
+fixed, two-sentence disclaimer preamble ("Pulse counts what your followers
+talk about, only from conversations they chose to let count. It never
+shows a message or a name, and never a number below five.") is roughly 160
+characters on its own — with the creator's name and this week's two counts
+already consuming the front of a 400-character total body cap, the 220-
+character headline slice was ALWAYS going to cut off before the one fact
+worth a push (which topic, what to do about it) ever appeared. Every real
+send this week would have shown the same disclaimer sentence, never the
+news — found by running the eval, not by reading the code.
+
+**The fix.** `pulseHeadlineFor` derives its own short, one-line headline
+directly from `readPulse`'s `combo_buckets` field instead — the same
+already-floor-checked rows `weeklyNote` itself reads, with `weeklyNote`'s
+own "prefer the single-label bucket, else the highest count" pick restated
+in a handful of lines for a one-line result. See
+`context/decisions.md#ws-r74-creator-push-headline-derived-not-forwarded-verbatim`
+for the reversal condition.
+
+**The rule.** A studio-facing "note" string built for a card with room to
+breathe is not automatically fit for a lock-screen notification body with
+a few hundred characters total — measure what a truncation cap actually
+leaves standing before trusting a reused string, the same "run it, don't
+reason about it" lesson this file's own header states as the whole point
+of this repo's evals.
+
+## `ws-r74-leak-battery-static-scan-content-column-list-included-the-payload-builders-own-field-name` (2026-09-05, WS-R74)
+
+**Tried.** `api/_creator-push.js`'s `FOLLOWER_CONTENT_NAMES` (the static-
+scan list `evals/creator-push/run.mjs` and `evals/room-leak/run.mjs`'s
+layer 11 grep `creatorWeeklyPushPayload`'s own source against) included
+`"title"`, copied directly from `api/_push/webpush.js`'s own
+`CONTENT_COLUMNS` list (where it names a follower's THREAD title).
+
+**What broke.** `creatorWeeklyPushPayload` legitimately returns a
+`{title, body, kind, route}` object — `push-sw.js`'s own payload contract
+— so its own source contains the literal string `title:` as a FIELD NAME,
+with nothing to do with a thread. The static scan's negative control
+failed on the real, correct source: "NEGATIVE CONTROL (a):
+creatorWeeklyPushPayload's own source names none of this repo's
+follower-facing content columns — got title" on a function that leaks
+nothing.
+
+**The fix.** Replaced `"title"` with `"thread_title"` in the list — a
+string that would actually appear in this file's source only if a thread's
+own title column were read into scope, and does not collide with the
+payload's own legitimate field name. Found immediately by running the eval
+once written, not reasoned about in advance.
+
+**The rule.** A content-column name borrowed from a sibling file's own
+list is only safe to reuse if the borrowing function's own OUTPUT SHAPE
+does not happen to need a field with the identical name for an unrelated,
+legitimate reason — check the collision by running the scan against the
+real function, not by copying the list and assuming it still means what it
+meant in its original file.

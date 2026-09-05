@@ -22,6 +22,12 @@ import { deleteOwnedFaceSessionNow } from "./_replica-face-session.js";
 import { markStep } from "./_funnel.js";
 import { creatorExport } from "./_creator-export.js";
 import { consume } from "./_rate-limit.js";
+import {
+  creatorPushConfig,
+  subscribeCreatorPush,
+  revokeCreatorPush,
+  CreatorPushError,
+} from "./_creator-push.js";
 
 export const config = { maxDuration: 60 };
 
@@ -44,7 +50,14 @@ export default async function handler(req, res) {
 
     if (req.method === "GET") {
       const id = req.query?.replica_id;
-      if (!id) return res.status(200).json({ replicas: await listOwnedReplicas(q, user.id) });
+      if (!id) {
+        // WS-R74 (migration 118). The creator's own "This week on your
+        // phone" card reads `configured`/`vapid_public` bundled with the
+        // list read - `api/_ops.js`'s own `opsOverview` carrying `push`
+        // alongside every other board fact, restated here so the studio's
+        // account surface needs no second endpoint.
+        return res.status(200).json({ replicas: await listOwnedReplicas(q, user.id), push: creatorPushConfig() });
+      }
       const replica = await getOwnedReplica(q, user.id, id);
       return replica ? res.status(200).json({ replica }) : res.status(404).json({ error: "replica_not_found" });
     }
@@ -118,6 +131,23 @@ export default async function handler(req, res) {
       const dump = await creatorExport(q, user.id);
       return res.status(200).json(dump);
     }
+    if (body.op === "push_subscribe") {
+      // WS-R74 (migration 118). `ownerUserId` comes only from
+      // `requireUser(req)` above, never a body-supplied id - the same "no
+      // cross-identity input" shape `export`'s own op takes two blocks
+      // down; a subscribe call can only ever write a row for the CALLER's
+      // own id.
+      const result = await subscribeCreatorPush(q, user.id, {
+        endpoint: body.endpoint,
+        p256dh: body.p256dh,
+        auth: body.auth,
+      });
+      return res.status(200).json(result);
+    }
+    if (body.op === "push_revoke") {
+      const result = await revokeCreatorPush(q, user.id, body.endpoint);
+      return res.status(200).json(result);
+    }
     if (body.op === "funnel_mark") {
       // WS-R25 (migration 088). The two studio-only funnel moments -
       // "studio_opened" on the wizard mount, "publish_clicked" on the
@@ -129,6 +159,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "unknown_op" });
   } catch (error) {
     if (error instanceof AuthError) return res.status(error.status).json({ error: error.code });
+    if (error instanceof CreatorPushError) return res.status(error.status).json({ error: error.code });
     const status = Number.isInteger(error?.status) ? error.status : 500;
     return res.status(status).json({ error: status === 500 ? "replica_failure" : error.message });
   }

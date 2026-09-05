@@ -10,11 +10,15 @@ import {
   createReplica,
   exportReplicaData,
   listReplicas,
+  readCreatorPushConfig,
   readErasureStatus,
   readReplica,
   ReplicaApiError,
   revokeReplica,
   setReplicaLocale,
+  subscribeCreatorPush,
+  revokeCreatorPush,
+  type CreatorPushConfig,
 } from "./replicaApi";
 // WS-R52. `StudioLocale` (aliased: this file already has its own unrelated
 // `StudioCopy` interface -- src/studio/copy.ts's own `StudioCopy` never
@@ -652,6 +656,141 @@ function VoiceUnlockNotice({ replica }: { replica: Replica }) {
       </p>
       <a className="text-button" href="#identity-proofing">Verify below on this step</a>
     </aside>
+  );
+}
+
+/** RFC 4648 base64url, both directions - `OpsBoard.tsx`'s own pair,
+ *  restated here rather than imported: that file is a standalone mount
+ *  this surface deliberately does not depend on, its own header's reason
+ *  restated. Two tiny pure functions duplicated a second time is a
+ *  smaller risk than a cross-file import neither side asked for. */
+function b64uToUint8Array(b64u: string): Uint8Array<ArrayBuffer> {
+  const pad = "=".repeat((4 - (b64u.length % 4)) % 4);
+  const base64 = (b64u + pad).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const out = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+function bufToB64u(buf: ArrayBuffer | null): string {
+  if (!buf) return "";
+  const bytes = new Uint8Array(buf);
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+// WS-R74 (migration 118). "This week on your phone" - `OpsBoard.tsx`'s own
+// `PushAlertsCard` restated for the creator lane, self-contained per
+// `CheckinsCard.tsx`'s own precedent (owns its own fetch/subscribe state
+// rather than threading more useStates through `ReplicaWorkspace`'s already
+// large prop list). Reuses `/push-sw.js`, the SAME generic, already-
+// reviewed display worker every other account-wide push in this repo uses
+// (`api/_creator-push.js`'s own header on why this works unmodified) -
+// never a second service worker or a second display path.
+function WeeklyPushCard({ token }: { token: string }) {
+  const { t } = useStudioLocale();
+  const c = t.creatorPush;
+  const [config, setConfig] = useState<CreatorPushConfig | null>(null);
+  const [subscribed, setSubscribed] = useState(false);
+  const [checked, setChecked] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      let cfg: CreatorPushConfig | null = null;
+      try {
+        cfg = await readCreatorPushConfig(token);
+      } catch {
+        cfg = null;
+      }
+      if (!live) return;
+      setConfig(cfg);
+      if (!cfg?.configured) {
+        setChecked(true);
+        return;
+      }
+      try {
+        const registration = await navigator.serviceWorker.getRegistration("/push-sw.js");
+        const existing = await registration?.pushManager.getSubscription();
+        if (live) setSubscribed(Boolean(existing));
+      } catch {
+        // Unsupported browser (no serviceWorker/PushManager) - the control
+        // below renders its own honest "not configured" state, since
+        // `config` stayed whatever the read above returned; `checked`
+        // still flips so the button is not left permanently disabled.
+      } finally {
+        if (live) setChecked(true);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [token]);
+
+  const toggle = useCallback(async () => {
+    setBusy(true);
+    setError("");
+    try {
+      if (subscribed) {
+        const registration = await navigator.serviceWorker.getRegistration("/push-sw.js");
+        const existing = await registration?.pushManager.getSubscription();
+        if (existing) {
+          await revokeCreatorPush(token, existing.endpoint);
+          await existing.unsubscribe();
+        }
+        setSubscribed(false);
+      } else {
+        if (!config?.vapid_public) return;
+        if (!("serviceWorker" in navigator) || !("PushManager" in window)) throw new Error("push_unsupported");
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") throw new Error("push_denied");
+        const registration = await navigator.serviceWorker.register("/push-sw.js");
+        await navigator.serviceWorker.ready;
+        const existing = await registration.pushManager.getSubscription();
+        const subscription =
+          existing ??
+          (await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: b64uToUint8Array(config.vapid_public),
+          }));
+        const endpoint = subscription.endpoint;
+        const p256dh = bufToB64u(subscription.getKey("p256dh"));
+        const auth = bufToB64u(subscription.getKey("auth"));
+        await subscribeCreatorPush(token, endpoint, p256dh, auth);
+        setSubscribed(true);
+      }
+    } catch {
+      setError(c.error);
+    } finally {
+      setBusy(false);
+    }
+  }, [subscribed, config, token, c.error]);
+
+  return (
+    <section className="export-zone" aria-labelledby="weekly-push-title">
+      <div>
+        <h2 id="weekly-push-title">{c.title}</h2>
+        <p>{c.intro}</p>
+      </div>
+      {!config?.configured ? (
+        <p>{c.notConfigured}</p>
+      ) : (
+        <>
+          <button
+            className="button secondary-button"
+            type="button"
+            disabled={busy || !checked}
+            onPointerDown={() => void toggle()}
+          >
+            {subscribed ? c.turnOff : c.turnOn}
+          </button>
+          {error && <p className="inline-error" role="alert">{error}</p>}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -1403,6 +1542,7 @@ export function ReplicaWorkspace({
                     {exporting ? <><Spinner label={t.creatorExport.downloading} />{t.creatorExport.downloading}</> : t.creatorExport.button}
                   </button>
                 </section>
+                <WeeklyPushCard token={accessToken} />
                 <section className="danger-zone" aria-labelledby="control-title">
                   <div>
                     <p className="eyebrow">Owner control</p>

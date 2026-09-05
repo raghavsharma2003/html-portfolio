@@ -112,6 +112,12 @@ export function ownerLaneSubset(reach, schemaMap, followerNames, gaps, aggExcept
 const AGG_EXCEPTIONS = new Set([
   "vy_room_pulse_snapshot", "vy_room_pulse_combo", "vy_room_pulse_week",
   "vy_room_org_attachment", "vy_agent",
+  // WS-R74 (migration 118). The creator's weekly push send ledger: content-
+  // free (room_id, week_start, two counts, one boolean), no owner_user_id
+  // column at all, reached only by joining through this owner's own rooms
+  // - vy_room_pulse_week's own exception two lines up restated for a send
+  // record instead of a computed snapshot.
+  "vy_creator_weekly_push",
 ]);
 
 const erasureSrc = readFileSync(join(REPO, "api/_replica-full-erasure.js"), "utf8");

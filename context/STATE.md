@@ -984,3 +984,86 @@ listed in this workstream's final report for the main loop's own `EXPLAIN`.
 **2026-09-06, WS-R77 addendum: one full post-fix `verify-release.mjs` run completed.** The Node 22 run started before the report above and finished after it (11m45s of CPU-starved wall clock under the same sibling contention). Result: **18 of 21 checks passed clean**, including `eval suite` (736s, vs 218s baseline — the contention, not a defect), `room leak battery`, `room door battery`, `security headers`. The 3 failures — `layout readability`, `performance budgets`, `accessibility` — were each `EADDRINUSE` on 127.0.0.1:8931/8932/8933 at server startup, before any measurement ran; `layout readability` in particular never reached the glyph check this workstream fixed, so this run neither confirms nor contradicts that fix on its own (the full-corpus standalone verification already in the report above is what proves it). No other finding of any kind. Consistent with, and does not change, the report already given.
 
 **2026-09-05, WS-R80 built (the taste on the creator's page, no migration), on worktree branch `ws-r80-taste-on-the-creator-page` over 8b154f8, not merged, not pushed.** WS-R53 built the taste inside the Room's own app shell; WS-R66 built the server-rendered `/c/<slug>` a crawler and a search visitor actually read. A visitor from a search result still had to click through to `/r/<slug>` before asking anything. This workstream puts the three questions on the page they landed on, as a small progressively-enhanced island: new `public/creator-taste.js` (5722 bytes raw, 2128 minified, under WS-R46's own 6KB budget) enhances a real, already-working no-JS `<form>` `api/_creator-page.js` now renders (a plain GET to `/r/<slug>?via=search`, the Room's own taste screen for a signed-out visitor) into an inline fetch against the exact same `taste` op `api/room.js` already serves — no new server code, no new op, the same 3-a-day `room_taste` rate scope, the same disclosure on the first answer, the same per-Room `taste_enabled` switch (now added to `publicCreatorPageRoomBySlug`'s own SELECT so the widget is absent, not hidden, when a creator turns it off). The island's copy (`TASTE_COPY`, both locales) restates `src/room/copy.ts`'s own `taste` section rather than importing it — `api/` cannot import a `.ts` module, the identical boundary `src/studio/pulseApi.ts` already names in the other direction — proven byte-identical by `evals/creator-page/run.mjs`'s new §12/§13 (89/89 total now), which bundles the REAL `copy.ts` with esbuild (`evals/room-locale/run.mjs`'s own technique) and compares field by field with a negative control. One real bug caught before merge, worth the read for anyone building a second island: the first draft wrote `data-room`/`data-locale` on the wrapping `<section>` while the script read them off the `<form>` it actually queries, so the island silently never mounted — no console error, no CSP violation — caught only by `scripts/check-headers.mjs`'s own `checkExecuted` proof for `/c/:slug` (now asserting the island's own `data-enhanced="1"` marker), which no HTML-substring eval assertion would ever have caught (`rejected.md#ws-r80-data-attributes-on-the-wrapping-section-not-the-element-the-script-reads`). A second, spec-level catch: the no-JS form's `action` carries NO query string, because a GET form submission REPLACES `action`'s own query string with the serialized fields rather than appending to it — `via=search` rides as a hidden field instead, or it would silently vanish for exactly the no-JS visitor this fallback exists to serve (`decisions.md#ws-r80-via-search-survives-as-a-hidden-field-not-in-the-form-action`). `evals/room-taste/run.mjs` gained a new §6 (32/32 total): the island parses, is dependency-free, fits the size cap, sends exactly one fetch (`/api/room`) and exactly one op literal (`taste`, never a follower op, with two negative controls), and never assigns `.innerHTML`. Performance: `/c/<slug>` stays at 2.2KB JS against the 180KB budget, LCP 344ms against WS-R66's own 448ms baseline (ordinary run noise, not a claimed win) (`measurements.md#ws-r80-creator-page-performance-2026-09-05`). `node scripts/verify-release.mjs`: 21/21 on the untouched tree (one `layout readability` EADDRINUSE on a sibling worktree's port reproduced and cleared on rerun, environmental per this repo's own rule), 21/21 after this workstream's own changes (`security headers` initially failed on the `checkExecuted` bug above, fixed, then green). `node scripts/context.mjs --check`: clean. No migration; the one SQL change is `taste_enabled` added to `publicCreatorPageRoomBySlug`'s existing SELECT column list (same table, same predicate, one more column) — listed for the main loop to `EXPLAIN`. No new env var. NOT PROVEN, stated plainly: nobody has loaded `/c/<slug>` in a real browser against a real deployment; no real taste turn has ever been asked from this page outside a fake `db`. Did not push; on branch `ws-r80-taste-on-the-creator-page`.
+
+**2026-09-05, WS-R74: the creator's weekly push (migration 118).** Pulse writes a
+weekly note and the funnel/cohorts know the week's numbers, but a creator
+learned any of it only by opening the studio; WS-R62's operator push
+mechanism (migration 114) is restated here for the creator lane. Two
+tables: `vy_creator_push_subscription` (owner lane, `vy_operator_push_
+subscription`'s exact shape, no allowlist in its WHERE — every owner may
+subscribe for themselves, `decisions.md#ws-r74-creator-weekly-push-
+subscription-table-carries-no-owner-allowlist`) and `vy_creator_weekly_push`
+(a content-free send ledger, `vy_room_pulse_week`'s own room_agg shape, one
+row per Room per ISO week, its unique `(room_id, week_start)` index the
+WHOLE idempotency mechanism — `ON CONFLICT DO NOTHING`, no JS `if`).
+`api/_creator-push.js` is the pure builder plus the send: `creatorPushConfig`
+(reuses `ROOM_PUSH_VAPID_PUBLIC/PRIVATE/SUBJECT`, no new env var),
+`subscribeCreatorPush`/`revokeCreatorPush`/`creatorPushSubscriptionsFor`/
+`revokeCreatorPushById`, `creatorWeeklyPushPayload` (pure, parameter-list-
+bounded, `{title, body, kind, route}` for the SAME `/push-sw.js` display
+worker WS-R62 already ships), and `sendCreatorWeeklyPushes` (one push per
+published, unpaused Room: followers/messages this week from bare aggregates
+over `vy_room_follower`/`vy_room_follower_day`, plus a headline from Pulse's
+own `readPulse(...).combo_buckets` — NOT `.note` verbatim, see the rejection
+below). `api/creator-push-sweep.js` is the Monday 04:00 UTC cron (one hour
+after `pulse-sweep`'s own 03:00, so this week's Pulse snapshot exists first);
+`replica.js` gains `push_subscribe`/`push_revoke` ops (no cross-identity
+input — `ownerUserId` from `requireUser(req)` alone) and bundles `push`
+config onto its GET response. `src/studio/StudioApp.tsx` gains a
+self-contained `WeeklyPushCard` ("This week on your phone") beside the
+Download-everything/Revoke controls, both locales, honest when VAPID is
+unset. Two real bugs found by RUNNING the new eval, not by reasoning about
+it: (1) the headline forwarded `readPulse`'s `note` field verbatim,
+truncated to 220 chars, which cut off before the actual topic ever
+appeared behind `weeklyNote`'s own two-sentence disclaimer preamble — fixed
+by deriving a short one-line headline from `combo_buckets` directly instead
+(`rejected.md#ws-r74-pulse-note-verbatim-in-a-push-notification-body`); (2)
+the leak battery's own follower-content-column scan list included `"title"`,
+colliding with the payload's own legitimate `{title, ...}` field name and
+failing its own negative control on correct source — fixed by using
+`"thread_title"` instead (`rejected.md#ws-r74-leak-battery-static-scan-
+content-column-list-included-the-payload-builders-own-field-name`). Wired
+into the erasure cascade (both tables reached by name, `vy_creator_weekly_
+push` by `room_id` via the vy_room subquery child-before-parent, `vy_
+creator_push_subscription` by `owner_user_id` alone, no new `deletedClasses`
+entry — a browser endpoint and two encryption keys, `vy_operator_push_
+subscription`'s own precedent) and `api/_creator-export.js`'s `OWNER_LANE_
+TABLES` (plus its own eval's `AGG_EXCEPTIONS` for the room_agg table).
+`evals/room-leak/run.mjs` gains layer 11 (static: the payload builder's own
+source names no follower-facing column; world: a real sweep over a real
+Pulse world with a follower token seeded on `vy_room_follower.person_id`
+that this feature's own SQL never selects, the token proven absent from the
+outgoing payload, a second sweep tick the same week proven to send nothing
+more, and a negative control proving the scanner is load-bearing).
+`evals/room-doors/run.mjs` gains §17c (class-e: a different owner cannot
+revoke another owner's own subscription by guessing their endpoint) and the
+two new ops' OP_COVERAGE entries. New suite `evals/creator-push/run.mjs`:
+31/31 (config, subscribe/revoke with a class-e negative control, the
+payload builder's static scan, and the sweep over a real Room/Pulse world —
+unpublished/paused Rooms never selected, a 404 revoking only the dead
+subscription). `node evals/room-leak/run.mjs`: 211/211 (was 210/1 before
+the "title" false positive was fixed). `node evals/room-doors/run.mjs`:
+552/552 (baseline on the untouched tree at `8b154f8`, measured by `git
+checkout` in the same worktree: 544/544 — the +8 are this workstream's
+own). `node evals/run.mjs` (the full "eval suite" gate, every registered
+suite): 0 failures. `node scripts/verify-release.mjs`'s remaining named
+gates run individually (the aggregate script kept hitting this session's
+own 600s/EADDRINUSE limits on a loaded shared machine): typecheck,
+prompt budget, board legibility, chrome copy, mirrored constants, engine
+bundle, one voice, web build, layout readability, accessibility and
+security headers all ok; performance budgets failed twice under this
+session's own CPU contention (`/studio` TBT up to 761ms > 300ms budget) and
+passed on a third attempt once contention eased — the SAME failure
+reproduces on the untouched baseline tree under load, confirmed
+environmental rather than caused by this workstream
+(`measurements.md#ws-r74-creator-weekly-push-2026-09-05`). No migration
+270/271/272 conflict: 118 is this workstream's only number, 117 stays
+unused. No new env var. `node scripts/context.mjs --check`: clean, 1340
+nodes / 1589 edges. NOT PROVEN, stated plainly: no statement has run
+against a live Postgres (no `NEON_URL` in this environment — every new SQL
+statement is listed verbatim in this workstream's final report for the main
+loop to `EXPLAIN`); no real creator has ever seen the card or received a
+real push (the web-push wire format itself stays proven by `evals/room-push/
+run.mjs`'s own RFC 8291 round-trip, reused unchanged, not re-measured here);
+`scripts/relcheck.mjs` did not run (no `NEON_URL`). Did not push; on branch
+`ws-r74-creators-weekly-push`.

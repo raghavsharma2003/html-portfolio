@@ -942,6 +942,16 @@ interface CreatorExportCopy {
   done: string;
 }
 
+// ── creatorPush: "This week on your phone" (WS-R74, migration 118) ─────────
+interface CreatorPushCopy {
+  title: string;
+  intro: string;
+  notConfigured: string;
+  turnOn: string;
+  turnOff: string;
+  error: string;
+}
+
 interface StudioCopy {
   classLabels: ClassLabels;
   shell: ShellCopy;
@@ -968,6 +978,7 @@ interface StudioCopy {
   personModelStudio: PersonModelStudioCopy;
   showcase: ShowcaseCopy;
   suiteSeatLock: SuiteSeatLockCopy;
+  creatorPush: CreatorPushCopy;
 }
 
 const EN: StudioCopy = {
@@ -1899,6 +1910,14 @@ const EN: StudioCopy = {
       "subscription. Cancel it below, which keeps working until the period ends, then start a new one at the seat " +
       "count you need.",
   },
+  creatorPush: {
+    title: "This week on your phone",
+    intro: "A short push about your Room, once a Monday morning: new followers and messages, this deployment's own push key required.",
+    notConfigured: "Push alerts are not set up on this deployment yet.",
+    turnOn: "Turn on the weekly push on this device",
+    turnOff: "Turn off the weekly push on this device",
+    error: "Could not change alert settings on this device.",
+  },
 };
 
 const HI: StudioCopy = {
@@ -2826,6 +2845,14 @@ const HI: StudioCopy = {
     seatsLockedByMandate:
       "यह Suite UPI या बैंक ई-मैंडेट से भुगतान करता है, और Razorpay इस तरह की सदस्यता पर सीटें बदलने की अनुमति नहीं देता। नीचे " +
       "इसे रद्द करें, यह अवधि खत्म होने तक काम करती रहेगी, फिर जितनी सीटें चाहिए उतनी संख्या पर एक नई सदस्यता शुरू करें।",
+  },
+  creatorPush: {
+    title: "इस हफ़्ते की खबर, आपके फ़ोन पर",
+    intro: "हर सोमवार सुबह, आपके रूम के बारे में एक छोटा सा पुश: नए फॉलोअर और मैसेज। इसके लिए इस डिप्लॉयमेंट की अपनी पुश-की ज़रूरी है।",
+    notConfigured: "इस डिप्लॉयमेंट पर पुश अलर्ट अभी सेट नहीं हैं।",
+    turnOn: "इस डिवाइस पर साप्ताहिक पुश चालू करें",
+    turnOff: "इस डिवाइस पर साप्ताहिक पुश बंद करें",
+    error: "इस डिवाइस पर अलर्ट सेटिंग नहीं बदली जा सकी।",
   },
 };
 

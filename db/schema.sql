@@ -4289,3 +4289,40 @@ create table if not exists vy_room_reply_flag (
 );
 create index if not exists vy_room_reply_flag_room_reply_ix
   on vy_room_reply_flag (room_id, reply_sha256, created_at desc);
+
+-- Migration 118 - the creator's weekly push (WS-R74). See
+-- db/migrations/118_creator_weekly_push.sql for the full argument. Two
+-- tables: `vy_creator_push_subscription` is `vy_operator_push_subscription`'s
+-- (migration 114) exact shape restated for a creator's own device instead
+-- of a platform operator's; `vy_creator_weekly_push` is `vy_room_pulse_
+-- week`'s (097) exact shape restated for a send ledger instead of a
+-- computed Pulse snapshot, its unique (room_id, week_start) index the whole
+-- "second push in the same week is refused" guarantee.
+create table if not exists vy_creator_push_subscription (
+  id            uuid primary key,
+  owner_user_id uuid not null,
+  endpoint      text not null,
+  p256dh        text not null,
+  auth          text not null,
+  created_at    timestamptz not null default now(),
+  revoked_at    timestamptz
+);
+create unique index if not exists vy_creator_push_subscription_owner_endpoint_ix
+  on vy_creator_push_subscription (owner_user_id, endpoint);
+create index if not exists vy_creator_push_subscription_active_ix
+  on vy_creator_push_subscription (owner_user_id)
+  where revoked_at is null;
+
+create table if not exists vy_creator_weekly_push (
+  push_id           uuid primary key,
+  room_id           uuid not null references vy_room(room_id) on delete cascade,
+  week_start        date not null,
+  sent_at           timestamptz not null default now(),
+  followers_count    integer not null default 0 check (followers_count >= 0),
+  messages_count     integer not null default 0 check (messages_count >= 0),
+  headline_included boolean not null default false
+);
+create unique index if not exists vy_creator_weekly_push_room_week_ix
+  on vy_creator_weekly_push (room_id, week_start);
+create index if not exists vy_creator_weekly_push_room_sent_ix
+  on vy_creator_weekly_push (room_id, sent_at desc);

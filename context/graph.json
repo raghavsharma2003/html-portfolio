@@ -8182,6 +8182,42 @@
       "kind": "rejection",
       "title": "The island's first draft wrote data-room/data-locale on the wrapping <section>, while the script read them off the <form> it actually has a handle to; the form's own guard silently returned early and the island never mounted, caught only by check-headers.mjs's checkExecuted proof.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r74-creator-weekly-push",
+      "kind": "component",
+      "title": "The creators weekly push (WS-R74, migration 118): vy_creator_push_subscription (owner device) + vy_creator_weekly_push (content-free send ledger, one row per Room per ISO week), api/_creator-push.js (config, subscribe/revoke, the payload builder, the sweep), api/creator-push-sweep.js (Monday 04:00 UTC cron, after pulse-sweep), replica.js push_subscribe/push_revoke ops, and the studio account surfaces This week on your phone card.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r74-creator-push-headline-derived-not-forwarded-verbatim",
+      "kind": "decision",
+      "title": "The creators weekly push headline is derived from readPulse combo_buckets directly, never readPulse note verbatim: the notes own two-sentence disclaimer preamble consumed the whole notification body before the actual news ever appeared, found by running evals/creator-push/run.mjs, not by reasoning about it.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r74-creator-weekly-push-subscription-table-carries-no-owner-allowlist",
+      "kind": "decision",
+      "title": "vy_creator_push_subscription has no OPS_OWNER_USER_IDS-style allowlist in its WHERE clause, unlike vy_operator_push_subscription: every authenticated owner may subscribe for themselves, enforced by ownerUserId coming only from requireUser(req), the same no-cross-identity-input shape every other owner-scoped op on replica.js already takes.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r74-creator-weekly-push-2026-09-05",
+      "kind": "measurement",
+      "title": "Gate and offline-suite results for WS-R74: creator-push 31/0, room-leak 211/0 (layer 11 added), room-doors 552/0 (baseline 544/0, plus 17c), creator-export 40/0, room-export 45/0, the full eval suite 0 failures; layout/accessibility/security-headers all ok; performance budgets failed twice under this sessions own CPU contention and passed on a third attempt, the same failure reproducing on the untouched baseline tree under load.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r74-pulse-note-verbatim-in-a-push-notification-body",
+      "kind": "rejection",
+      "title": "Forwarding readPulse note verbatim (truncated to 220 chars) into the weekly push body cut off before the actual topic ever appeared, because weeklyNotes own fixed disclaimer preamble alone consumed most of the budget - found by running evals/creator-push/run.mjs, fixed by deriving a short headline from combo_buckets directly instead.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r74-leak-battery-static-scan-content-column-list-included-the-payload-builders-own-field-name",
+      "kind": "rejection",
+      "title": "The follower-content-column scan list included title, copied from _push/webpush.js CONTENT_COLUMNS, colliding with creatorWeeklyPushPayloads own legitimate {title, body, kind, route} field name and failing its own negative control on correct source; replaced with thread_title, which cannot collide.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16179,6 +16215,26 @@
       "src": "ws-r80-taste-copy-restated-not-imported",
       "rel": "measured_by",
       "dst": "ws-r80-creator-page-eval-2026-09-05"
+    },
+    {
+      "src": "ws-r74-creator-push-headline-derived-not-forwarded-verbatim",
+      "rel": "caused_by",
+      "dst": "ws-r74-pulse-note-verbatim-in-a-push-notification-body"
+    },
+    {
+      "src": "ws-r74-creator-weekly-push-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r74-pulse-note-verbatim-in-a-push-notification-body"
+    },
+    {
+      "src": "ws-r74-creator-weekly-push-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r74-leak-battery-static-scan-content-column-list-included-the-payload-builders-own-field-name"
+    },
+    {
+      "src": "ws-r74-creator-weekly-push",
+      "rel": "measured_by",
+      "dst": "ws-r74-creator-weekly-push-2026-09-05"
     }
   ]
 }
