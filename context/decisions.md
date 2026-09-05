@@ -14580,3 +14580,133 @@ grow a "Show on your page" action next to an eligible one that calls
 `setOwnedRoomShowcase` with `sourceCardId` instead of typed text — the
 capability and its tests are already in place and need no server change to
 support it.
+
+## `ws-r70-owner-lane-manifest-derived-from-erasures-scoping-predicate-not-its-position` (2026-09-05, WS-R70)
+
+**Decision.** `api/_creator-export.js`'s `OWNER_LANE_TABLES` (the creator's
+own DSAR export, the pair `api/_replica-full-erasure.js`'s erasure is the
+other half of) classifies a table as owner-lane or follower-lane by
+checking it against `api/memory.js`'s `PERSON_TABLES` manifest — NEVER by
+which block of `api/_replica-full-erasure.js`'s own SQL text it appears in,
+even though that file's own WHERE-clause scoping (`agent_id` vs
+`replica_id`/`owner_user_id`/a `room_id` subquery) looks like it should be
+the discriminator.
+
+**Rationale.** `vy_room_thread` and `vy_room_follower` are deleted in the
+SAME block of `api/_replica-full-erasure.js` as genuinely owner-lane tables
+(`vy_room`, `vy_room_price`, the Pulse tables), scoped by `agent_id` because
+erasing the WHOLE replica correctly takes every follower's row with it —
+but the ROWS themselves are a follower's own membership and their own
+thread titles (`PERSON_TABLES`, key `person_id`), never the creator's to
+read back. `vy_room_subscription` is the sharper case: it is reached from
+the SAME `room_id`-through-`vy_room` subquery as `vy_payment_event` and
+`vy_room_price` (a genuinely owner-lane block), yet it is a follower's own
+subscription record (`PERSON_TABLES`, key `person_id`) and carries no
+`owner_user_id`/`replica_id` column of its own at all. An eval that
+classified by SQL position (found this table span applied via
+`replica_id`/`owner_user_id`/room-subquery therefore owner-lane) would have
+shipped exactly the boundary violation this whole workstream exists to
+prevent — a follower's subscription and Room membership and thread names in
+the creator's own downloaded file. `MIXED_LANE_TABLES` (`vy_renewal_reminder`
+alone, as of this workstream) is the one sanctioned exception: it holds two
+DISJOINT subject lanes in one physical table behind a CHECK constraint
+(migration 099), and only the `subject_kind = 'creator'` predicate's rows
+are ever read.
+
+**Reversal condition.** If a future table is ever added that is BOTH
+person-keyed (in `PERSON_TABLES`) AND has a legitimate creator-only slice
+worth exporting under a disjoint predicate the way `vy_renewal_reminder`
+does, add it to `MIXED_LANE_TABLES` by name with the same argument this
+entry makes — never widen the classification rule itself to "anything
+reached by `owner_user_id`/`replica_id` in the erasure file," which is
+exactly the rule this decision rejects.
+
+## `ws-r70-creator-export-excludes-vy-room-handoff` (2026-09-05, WS-R70)
+
+**Decision.** `vy_room_handoff` is excluded from the creator's export
+entirely — not partially, not with columns filtered — even though it is
+the record of the creator's OWN verbatim reply to a follower's request for
+a human.
+
+**Rationale.** 083's own header names `vy_room_handoff` as "the one
+PERSON-lane exception to 071's 'never a word' law": a follower's verbatim
+ask and the creator's own verbatim reply sit on the SAME row
+(`payload_text`), and there is no column-level split that hands the
+creator their own words without also handing back the follower's. The
+workstream brief anticipated this ("flags and handoff requests are
+included as the creator sees them (WS-R67's creator-side table if it
+lands; read its lane rule)") — WS-R67 ("flag this reply") is a wave-twelve
+sibling building concurrently; grepped for at this worktree's base
+(a414c7c) rather than assumed, and no creator-side handoff table exists in
+this tree.
+
+**Reversal condition.** Once WS-R67's own creator-side table lands (a table
+naming ONLY the creator's own reply, never the follower's ask), add IT to
+`OWNER_LANE_TABLES` — never add `vy_room_handoff` itself, whatever scope
+predicate is used, per the decision immediately above this one.
+
+## `ws-r70-vy-payment-event-and-erasure-process-bookkeeping-excluded-from-the-export` (2026-09-05, WS-R70)
+
+**Decision.** Four tables `api/_replica-full-erasure.js` reaches by name are
+deliberately absent from `api/_creator-export.js`'s `OWNER_LANE_TABLES`,
+named once as `OWNER_LANE_DELIBERATE_GAPS`: `vy_payment_event`,
+`vy_replica_erasure_job`, `vy_replica_erasure_attempt`,
+`vy_replica_deletion_receipt`.
+
+**Rationale.** `vy_payment_event` carries no `owner_user_id`/`replica_id`
+column at all (schema-checked via `evals/sqlcast/schema.mjs`'s own DDL
+parse, not assumed) — it is reached only through a `room_id` subquery, the
+same shape several genuinely owner-lane tables use, but with no owning
+column of its own to scope a direct read on safely. The other three are
+erasure-PROCESS bookkeeping, not the creator's own content: a job/attempt
+row only exists once revocation was already requested (irrelevant to an
+active creator's export), and the deletion receipt is deliberately
+HMAC-hashed with no plain `owner_user_id`/`replica_id` column to filter by
+at all (`api/_replica-full-erasure.js`'s own header: "NOT an HMAC... looked
+up later, by an operator" — the receipt's whole design is that nobody,
+including the platform, can look one up except by recomputing its hash
+from a request id already in hand).
+
+**Reversal condition.** If `vy_payment_event` ever gains an `owner_user_id`
+or `replica_id` column (a schema change worth making on its own financial-
+transparency merits, independent of this export), move it from
+`OWNER_LANE_DELIBERATE_GAPS` into `OWNER_LANE_TABLES` with a `room_owner` or
+`replica` scope. The three erasure-bookkeeping tables have no analogous
+path — they will always describe the erasure PROCESS, never the creator's
+own archive.
+
+## `ws-r70-room-arrival-excluded-generic-select-conflicts-with-a-sibling-gates-discipline` (2026-09-05, WS-R70)
+
+**Decision.** The Room's per-day arrival-source counts table is excluded
+from `api/_creator-export.js`'s `OWNER_LANE_TABLES` even though it is
+content-free (no person or follower column at all) and would otherwise
+qualify on the identical "aggregate view" reasoning `vy_room_pulse_snapshot`
+and its siblings already qualify on. It is not named in `OWNER_LANE_
+DELIBERATE_GAPS` either — its identifier is deliberately absent from this
+file entirely, for the reason `rejected.md#ws-r70-mentioning-a-boundary-
+tables-name-in-a-comment-trips-a-repo-wide-static-scanner` gives in full.
+
+**Rationale.** `evals/room-leak/run.mjs`'s own repo-wide static scan holds
+every reader of that ONE table, outside two named writer/deleter files, to
+a stricter discipline than "content-free" alone buys: the SELECT naming it
+must be a single rolled-up SQL aggregate (`count`/`sum`/`min`/`coalesce`),
+never a per-row read — `api/_funnel.js`'s own share-arrivals line is the
+one existing reader, and it is exactly that shape. `creatorExport`'s own
+per-table read is a generic `select *` for every scope by construction (one
+function, seven WHERE shapes, no per-table special case), and this ONE
+table is the only place in the whole 51-table manifest where that generic
+shape collides with an established, gate-enforced discipline for a reason
+that has nothing to do with this workstream's own boundary law. The
+workstream brief names Pulse counts and cohort counts as the explicit
+carve-out for content-free aggregates; it never names this table, so
+leaving it out is a narrow scope cut, not a silent gap in what the brief
+asked for.
+
+**Reversal condition.** If a future workstream wants this table in the
+creator's export, the fix is a table-specific query (an explicit
+`sum(count)` grouped by the table's own primary key columns, satisfying
+both this file's generic manifest shape AND `evals/room-leak/run.mjs`'s
+aggregate-only rule) rather than widening the generic `select *` path — and
+that future file's own identifier must still never appear as a literal
+string in `api/_creator-export.js`'s own source outside such a query, per
+the rejection entry this decision cites.

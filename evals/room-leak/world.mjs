@@ -617,7 +617,10 @@ const TABLE_ROLES = {
   // an owner here, not an aggregate-only reader.
   vy_room_subscription: { owners: ["_payments.js", "_room-surface.js", "_renewals.js"], aggregateOnly: ["_ops.js"] },
   vy_room_upgrade_offer: { owners: ["_payments.js", "_room-surface.js", "_phase-gate.js"] },
-  vy_renewal_reminder: { owners: ["_renewals.js", "_room-surface.js"] },
+  // `_creator-export.js` (WS-R70) reads the CREATOR-subject slice only
+  // (`subject_kind = 'creator'` and the owner in the WHERE), back to that
+  // owner; MIXED_LANE_TABLES in that file names why this table is both.
+  vy_renewal_reminder: { owners: ["_renewals.js", "_room-surface.js", "_creator-export.js"] },
   // WS-R67 (migration 116), added at the merge the day this layer first met
   // it: the follower's OWN copy of a flag (person + follower id + the reply
   // hash, never the reply text), written and read by `_room-surface.js`

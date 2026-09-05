@@ -122,6 +122,16 @@ export const DEFAULT_LIMITS = {
   // own "a burst limit above a real cap" restated for a count of flags
   // instead of a count of messages.
   room_flag_follower: { limit: 20, windowMs: 24 * 60 * 60_000 },
+  // WS-R70. The creator's own export (api/replica.js's `export` op, over
+  // api/_creator-export.js) walks dozens of owner-lane tables per call — one
+  // a day per owner is the workstream brief's own number, generous for a
+  // real request ("I am leaving, give me my data") and firm against a
+  // stolen bearer token turning this door into a database-wide scrape
+  // engine. Keyed on the owner's own id, never an IP: the export always
+  // returns the CALLER's own data (api/_creator-export.js's own header), so
+  // the abuse shape this bounds is one account hammering its OWN export,
+  // never a cross-account concern the way `room_open_ip` guards against.
+  creator_export_owner: { limit: 1, windowMs: 24 * 60 * 60_000 },
 };
 
 /**

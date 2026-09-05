@@ -8002,6 +8002,66 @@
       "kind": "measurement",
       "title": "Migration 115 (vy_room_showcase) applied live at the WS-R66 merge; every read and write plans on the partial unique index or the owner index; the erasure delete seq-scanned until a plain room index was added at the merge.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r70-the-creators-export",
+      "kind": "component",
+      "title": "api/_creator-export.js: creatorExport(db, ownerUserId) over api/replica.js's export op, one JSON document of every owner-lane table OWNER_LANE_TABLES names (51 tables), rate-limited one a day per owner via vy_public_rate; the DSAR pair api/_replica-full-erasure.js's erasure is the other half of.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r70-owner-lane-manifest-derived-from-erasures-scoping-predicate-not-its-position",
+      "kind": "decision",
+      "title": "OWNER_LANE_TABLES classifies a table by its NAME against PERSON_TABLES, never by which block or scoping predicate of api/_replica-full-erasure.js's SQL it appears in - vy_room_subscription/vy_room_thread/vy_room_follower are reached from an owner-lane-looking SQL position but are follower rows.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r70-creator-export-excludes-vy-room-handoff",
+      "kind": "decision",
+      "title": "vy_room_handoff is excluded from the creator export entirely - the follower's ask and the creator's own reply share one row with no column-level split; reversal: WS-R67's own creator-side table, if it lands.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r70-vy-payment-event-and-erasure-process-bookkeeping-excluded-from-the-export",
+      "kind": "decision",
+      "title": "OWNER_LANE_DELIBERATE_GAPS names four tables excluded on purpose: vy_payment_event (no owning column at all) and three erasure-process bookkeeping tables (job, attempt, and the HMAC-hashed receipt).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r70-owner-lane-classification-by-erasure-sql-position-would-have-leaked-a-follower",
+      "kind": "rejection",
+      "title": "Classifying owner-lane by erasure's own SQL block/predicate (agent_id vs replica_id/owner_user_id/room_id) would have put vy_room_subscription, a follower's own subscription, into the creator export - fixed by classifying against PERSON_TABLES by name instead.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r70-creator-export-manifest-coverage-2026-09-05",
+      "kind": "measurement",
+      "title": "OWNER_LANE_TABLES: 51 tables, by scope: replica 38, room_agg 4, room_owner 3, owner 3, agent 1, invite_redeemed 1, renewal_creator 1; equals exactly the owner-lane subset of api/_replica-full-erasure.js's own reach, computed from the checked-in DDL.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r70-creator-export-seeded-size-2026-09-05",
+      "kind": "measurement",
+      "title": "A four-table fake-db seed for one owner produced a 3679-byte export (51 manifest entries, 4 with rows); not a realistic creator size - no live database in this worktree.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r70-mentioning-a-boundary-tables-name-in-a-comment-trips-a-repo-wide-static-scanner",
+      "kind": "rejection",
+      "title": "api/_creator-export.js's comments naming vy_room_thread/vy_room_follower/the Handoff table by identifier, and a vy_room_arrival select *, both tripped evals/room-leak/run.mjs's repo-wide static scans - fixed by paraphrasing in prose and dropping vy_room_arrival from the manifest entirely.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r70-shared-pixel-max-width-reused-for-a-longer-sentence-than-it-was-ever-measured-against",
+      "kind": "rejection",
+      "title": "The new export control's paragraph reused .danger-zone's own 640px max-width and wrapped at 116 characters per line (scripts/check-layout.mjs, after a vite build) - the shorter sentence never actually tested that width; fixed with its own rule using var(--measure), the ch-based cap the rest of the studio already uses for long-form prose.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r70-room-arrival-excluded-generic-select-conflicts-with-a-sibling-gates-discipline",
+      "kind": "decision",
+      "title": "The Room's per-day arrival-source counts table is excluded from OWNER_LANE_TABLES entirely (not even in OWNER_LANE_DELIBERATE_GAPS) because creatorExport's generic select * shape collides with evals/room-leak/run.mjs's aggregate-only discipline for that one table; reversal: a table-specific aggregate query, never a widened generic path.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15864,6 +15924,56 @@
       "src": "rooms-migration-115-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r66-showcase-eligibility-is-a-where-clause-on-kind"
+    },
+    {
+      "src": "ws-r70-owner-lane-manifest-derived-from-erasures-scoping-predicate-not-its-position",
+      "rel": "caused_by",
+      "dst": "ws-r70-owner-lane-classification-by-erasure-sql-position-would-have-leaked-a-follower"
+    },
+    {
+      "src": "ws-r70-the-creators-export",
+      "rel": "constrains",
+      "dst": "ws-r70-owner-lane-manifest-derived-from-erasures-scoping-predicate-not-its-position"
+    },
+    {
+      "src": "ws-r70-the-creators-export",
+      "rel": "constrains",
+      "dst": "ws-r70-creator-export-excludes-vy-room-handoff"
+    },
+    {
+      "src": "ws-r70-the-creators-export",
+      "rel": "constrains",
+      "dst": "ws-r70-vy-payment-event-and-erasure-process-bookkeeping-excluded-from-the-export"
+    },
+    {
+      "src": "ws-r70-the-creators-export",
+      "rel": "measured_by",
+      "dst": "ws-r70-creator-export-manifest-coverage-2026-09-05"
+    },
+    {
+      "src": "ws-r70-the-creators-export",
+      "rel": "measured_by",
+      "dst": "ws-r70-creator-export-seeded-size-2026-09-05"
+    },
+    {
+      "src": "ws-r70-the-creators-export",
+      "rel": "caused_by",
+      "dst": "ws-r70-mentioning-a-boundary-tables-name-in-a-comment-trips-a-repo-wide-static-scanner"
+    },
+    {
+      "src": "ws-r70-the-creators-export",
+      "rel": "caused_by",
+      "dst": "ws-r70-shared-pixel-max-width-reused-for-a-longer-sentence-than-it-was-ever-measured-against"
+    },
+    {
+      "src": "ws-r70-room-arrival-excluded-generic-select-conflicts-with-a-sibling-gates-discipline",
+      "rel": "caused_by",
+      "dst": "ws-r70-mentioning-a-boundary-tables-name-in-a-comment-trips-a-repo-wide-static-scanner"
+    },
+    {
+      "src": "ws-r70-the-creators-export",
+      "rel": "constrains",
+      "dst": "ws-r70-room-arrival-excluded-generic-select-conflicts-with-a-sibling-gates-discipline"
     }
   ]
 }

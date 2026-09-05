@@ -92,6 +92,24 @@ export async function setReplicaLocale(token: string, id: string, locale: "en" |
   return data.replica;
 }
 
+/**
+ * WS-R70. The creator's own export — every owner-lane table
+ * `api/_creator-export.js`'s `OWNER_LANE_TABLES` names, as one JSON
+ * document. No `replica_id` in the body: `ownerUserId` on the server side
+ * comes only from the bearer token (`requireUser(req)`), so this call can
+ * only ever return the CALLER's own data. A longer timeout than
+ * `replicaRequest`'s own 20s default — a real export walks dozens of
+ * tables — is passed explicitly rather than widening the shared default,
+ * which every other, cheaper op on this door would then also wait on.
+ */
+export async function exportReplicaData(token: string): Promise<Record<string, unknown>> {
+  return replicaRequest<Record<string, unknown>>(token, "/api/replica", {
+    method: "POST",
+    body: JSON.stringify({ op: "export" }),
+    signal: AbortSignal.timeout(45_000),
+  });
+}
+
 export async function readErasureStatus(token: string, requestId: string): Promise<ReplicaErasureStatus> {
   const data = await replicaRequest<{ erasure: ReplicaErasureStatus }>(token, "/api/replica", {
     method: "POST",

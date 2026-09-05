@@ -5,6 +5,7 @@
 // POST /api/replica {op:revoke, replica_id}
 // POST /api/replica {op:erasure_status, erasure_request_id}
 // POST /api/replica {op:set_locale, replica_id, locale}   -- WS-R52, studio chrome only
+// POST /api/replica {op:export}                            -- WS-R70, one a day per owner
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
@@ -19,6 +20,8 @@ import { getReplicaErasureStatus } from "./_replica-full-erasure.js";
 import { configuredFaceSessionErasureBroker } from "./_face-session/registry.js";
 import { deleteOwnedFaceSessionNow } from "./_replica-face-session.js";
 import { markStep } from "./_funnel.js";
+import { creatorExport } from "./_creator-export.js";
+import { consume } from "./_rate-limit.js";
 
 export const config = { maxDuration: 60 };
 
@@ -97,6 +100,23 @@ export default async function handler(req, res) {
       const replica = await setOwnedReplicaLocale(q, user.id, body.replica_id, body.locale);
       if (!replica) return res.status(404).json({ error: "replica_not_found" });
       return res.status(200).json({ replica });
+    }
+    if (body.op === "export") {
+      // WS-R70. No cross-identity input at all — `ownerUserId` comes only
+      // from `requireUser(req)` above, never a body-supplied id, so this op
+      // always returns the CALLER's own owner-lane data (evals/room-doors/
+      // run.mjs's own OP_COVERAGE entry for "export" names this; a
+      // dedicated cross-owner-isolation check lives in
+      // evals/creator-export/run.mjs). Rate-limited to one a day per owner,
+      // the workstream brief's own number: a real export walks dozens of
+      // tables, and the gate must fail closed before any of them run.
+      const gate = await consume(q, { scope: "creator_export_owner", key: user.id });
+      if (!gate.ok) {
+        res.setHeader("Retry-After", String(gate.retryAfterSeconds));
+        return res.status(429).json({ error: gate.code, retry_after_seconds: gate.retryAfterSeconds });
+      }
+      const dump = await creatorExport(q, user.id);
+      return res.status(200).json(dump);
     }
     if (body.op === "funnel_mark") {
       // WS-R25 (migration 088). The two studio-only funnel moments -
