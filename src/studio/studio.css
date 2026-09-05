@@ -475,6 +475,7 @@
   .auth-brand {
     grid-column: 1 / -1;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 12px;
     min-height: 42px;
@@ -486,6 +487,28 @@
 
   .auth-brand .mark { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.24); }
   .brand-rule { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.25); }
+
+  /* WS-R91: the sign-in screen's own language switch reuses `.studio-lang-
+   * switch`/`.studio-lang-btn` (studio-shell.css, WS-R52/WS-R79) rather than
+   * forking a second component, but that component's palette
+   * (`--paper`/`--ink`/`--line-strong`) is authored for the light "paper"
+   * chrome the signed-in shell sits on — verbatim on `.auth-brand`'s own dark
+   * hero panel it would be a dark border and dark text on a dark green
+   * background, invisible rather than merely low-contrast. Scoped here to
+   * the two properties that actually need to change; every size, spacing and
+   * `aria-pressed` rule stays exactly the shared component's own. */
+  /* The switch's own dark hero background comes from `.auth-page::before`, a
+   * PSEUDO-element `scripts/check-layout.mjs`'s own contrast walker cannot
+   * see (it reads real ancestor `background-color`, which a `::before` is
+   * not part of, so it fell through to its own white default and reported a
+   * white label on white at 1.10:1 -- real, not a checker limitation: a
+   * screen reader user's high-contrast override or a printed screenshot
+   * would see exactly that same undefined background). A near-opaque
+   * (alpha > 0.85, that walker's own threshold) solid backdrop on the
+   * switch itself fixes both the real defect and the measurement. */
+  .auth-brand .studio-lang-switch { margin-left: auto; background: rgba(10, 38, 30, 0.94); border-color: rgba(255, 255, 255, 0.32); }
+  .auth-brand .studio-lang-btn { color: rgba(255, 255, 255, 0.92); }
+  .auth-brand .studio-lang-btn[aria-pressed="true"] { background: rgba(255, 255, 255, 0.96); color: var(--ink); }
 
   .auth-intro {
     align-self: center;
@@ -641,7 +664,12 @@
   .legal-copy {
     margin: 28px 0 0;
     color: var(--ink-faint);
-    font-size: 10px;
+    /* WS-R91: was a hardcoded 10px, below tokens.css's `--text-micro` floor
+     * (11px) -- unmeasured until `studio-hi:signed-out` (this workstream)
+     * became the first fixture to ever reach this screen. A consent-adjacent
+     * notice is exactly the copy tokens.css names as the reason the floor
+     * exists (`design/tokens.css`'s own comment on `--text-micro`). */
+    font-size: var(--text-micro);
     line-height: 1.55;
   }
 
@@ -2303,8 +2331,14 @@
 
   @media (max-width: 590px) {
     .auth-page { padding-inline: 15px; }
-    .auth-brand { margin-left: 6px; }
-    .auth-brand span:last-child, .brand-rule { display: none; }
+    .auth-brand { margin-left: 6px; flex-wrap: wrap; row-gap: 8px; }
+    .auth-brand-tag, .brand-rule { display: none; }
+    /* WS-R91: at this width the brand tag and rule are already dropped
+     * (above) rather than squeezed, and the language switch is the one new
+     * control here that must not follow them off screen — it wraps onto its
+     * own full-width row instead, `flex-wrap: wrap` on `.auth-brand` above
+     * plus a forced break so it never shares a row with `VYAKTI`. */
+    .auth-brand .studio-lang-switch { flex-basis: 100%; margin-left: 0; }
     .auth-intro { padding-inline: 6px; }
     .auth-intro > p:not(.eyebrow) { font-size: 14px; }
     .trust-strip { display: grid; gap: 12px; }

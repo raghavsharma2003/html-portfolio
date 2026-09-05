@@ -1719,6 +1719,62 @@ interface VoiceEnrollmentLabCopy {
   errorStatusUnavailable: string;
 }
 
+// ── WS-R91: the sign-in screen (`AuthGate.tsx`), reachable in both locales
+// BEFORE a session exists (context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in).
+// `variant` mirrors the three-way selection `StudioApp.tsx`'s own (English-
+// only, untouched) `TEACHER_COPY`/`GENERIC_COPY`/`TEST_COPY` objects already
+// made for the STILL-Tier-2 `CreateReplicaCard` — the two are independent
+// tables reading the same three keys, not one feeding the other. `test` has
+// no `eyebrow`: the pre-existing English behaviour is to render nothing
+// there (`TEST_COPY.introEyebrow` was always `""`), and an intentionally
+// blank string would trip `evals/studio-locale/run.mjs`'s own "no blank
+// string anywhere in the table" check, so the key is absent rather than
+// empty for that one variant.
+interface AuthGateVariantCopy {
+  brandTag: string;
+  eyebrow: string;
+  title: string;
+  body: string;
+}
+interface AuthGateTestVariantCopy {
+  brandTag: string;
+  title: string;
+  body: string;
+}
+interface AuthGateCopy {
+  vyaktiHomeAriaLabel: string;
+  safeguardsAriaLabel: string;
+  safeguardSelfReplication: string;
+  safeguardNoPublicVoiceLibrary: string;
+  safeguardAuditableDeletion: string;
+  variant: {
+    generic: AuthGateVariantCopy;
+    teacher: AuthGateVariantCopy;
+    test: AuthGateTestVariantCopy;
+  };
+  protectedWorkspace: string;
+  signInTitle: string;
+  checkInboxTitle: string;
+  emailStepBody: string;
+  codeStepBodyTemplate: string; // "{label}"
+  continueWithGoogle: string;
+  orUseEmail: string;
+  emailLabel: string;
+  emailPlaceholder: string;
+  sendingCodeAriaLabel: string;
+  sendingCode: string;
+  continueSecurely: string;
+  codeLabel: string;
+  verifyingAriaLabel: string;
+  verifying: string;
+  verifyAndEnter: string;
+  useDifferentEmail: string;
+  googleUnavailableError: string;
+  codeMismatchError: string;
+  genericSendError: string;
+  legalNotice: string;
+}
+
 interface StudioCopy {
   classLabels: ClassLabels;
   shell: ShellCopy;
@@ -1759,6 +1815,7 @@ interface StudioCopy {
   contextLockerPanel: ContextLockerPanelCopy;
   mirrorCallStudio: MirrorCallStudioCopy;
   voiceEnrollmentLab: VoiceEnrollmentLabCopy;
+  authGate: AuthGateCopy;
 }
 
 const EN: StudioCopy = {
@@ -3442,6 +3499,54 @@ const EN: StudioCopy = {
     errorProfileNotCreated: "The provider voice could not be created",
     errorProfileNotErased: "The provider voice could not be erased",
     errorStatusUnavailable: "Voice enrollment status is unavailable",
+  },
+
+  authGate: {
+    vyaktiHomeAriaLabel: "Vyakti home",
+    safeguardsAriaLabel: "Studio safeguards",
+    safeguardSelfReplication: "Self-replication only",
+    safeguardNoPublicVoiceLibrary: "No public voice library",
+    safeguardAuditableDeletion: "Auditable deletion",
+    variant: {
+      generic: {
+        brandTag: "PRIVATE AI LAB",
+        eyebrow: "Private by construction",
+        title: "An AI that begins with your permission.",
+        body: "Build and control a consent-verified AI of yourself. Every source stays private, every capability is separately approved, and revocation stops future use.",
+      },
+      teacher: {
+        brandTag: "GURUKUL TEACHER STUDIO",
+        eyebrow: "Verified, consented, disclosed",
+        title: "A teaching AI that begins with your permission, and is disclosed to every student.",
+        body: "Build and control a consent-verified teaching AI of yourself. Every source stays private, every capability is separately approved, revocation stops future use, and students are told before every session that they are talking to an AI, not you.",
+      },
+      test: {
+        brandTag: "INTERNAL TEST STUDIO",
+        title: "Add your sources. Then test your AI.",
+        body: "Upload useful examples of your voice, writing, videos, and context. Then hear the draft, talk to it, and correct it.",
+      },
+    },
+    protectedWorkspace: "Protected workspace",
+    signInTitle: "Enter your studio",
+    checkInboxTitle: "Check your inbox",
+    emailStepBody: "Sign in with the email you want to manage your AI from. If you are already signed in on this device, we will recognise you.",
+    codeStepBodyTemplate: "We sent a six-digit code to {label}.",
+    continueWithGoogle: "Continue with Google",
+    orUseEmail: "or use email",
+    emailLabel: "Email address",
+    emailPlaceholder: "you@example.com",
+    sendingCodeAriaLabel: "Sending sign-in code",
+    sendingCode: "Sending code",
+    continueSecurely: "Continue securely",
+    codeLabel: "Six-digit code",
+    verifyingAriaLabel: "Verifying code",
+    verifying: "Verifying",
+    verifyAndEnter: "Verify and enter",
+    useDifferentEmail: "Use a different email",
+    googleUnavailableError: "Google sign-in is unavailable. Use your email instead.",
+    codeMismatchError: "That code did not match. Check it and try again.",
+    genericSendError: "Could not send a code",
+    legalNotice: "Access does not grant permission to build your AI. Separate, recorded consent is required before any biometric processing.",
   },
 };
 

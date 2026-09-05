@@ -1,11 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ensureStudioSession,
-  googleSignIn,
-  isStudioAuthDead,
-  sendEmailOtp,
-  verifyEmailOtp,
-} from "./studioAuth";
+import { ensureStudioSession, isStudioAuthDead } from "./studioAuth";
 import {
   createReplica,
   exportReplicaData,
@@ -29,7 +23,21 @@ import {
 // below is a plain callback, not a component, so it cannot call a hook.
 import { normalizeStudioLocale, STUDIO_COPY_TABLE, type StudioLocale as StudioChromeLocale } from "./copy";
 import { StudioLocaleProvider, useStudioLocale } from "./localeContext";
+// WS-R91. The pre-sign-in half of the locale chain (?lang= / a remembered
+// local choice / "en"), pulled out as its own pure module so it can be
+// unit-tested directly -- see `studioLocalePreference.ts`'s own header.
+import {
+  readRememberedStudioLocale,
+  resolveStudioLocale,
+  writeRememberedStudioLocale,
+} from "./studioLocalePreference";
 import { restoreSession, writeStoredSession } from "./session";
+// WS-R91. AuthGate is its own file now (evals/studio-locale/run.mjs's own
+// TIER_1_FILES entry) -- see that file's header for why. `Mark`/`Spinner`
+// moved to `StudioChrome.tsx` alongside it, the shared leaf both this file
+// and AuthGate.tsx import rather than either importing from the other.
+import AuthGate, { type AuthGateVariant } from "./AuthGate";
+import { Mark, Spinner } from "./StudioChrome";
 import { friendlyError } from "./errorCopy";
 import { markFunnelStep } from "./funnelApi";
 import type {
@@ -150,7 +158,6 @@ const VoiceExperimentPanel = lazy(() => import("./VoiceExperimentPanel"));
 // usage site in the "Meet" step's "Check it and correct it" band.
 const ReviewQueue = lazy(() => import("./ReviewQueue"));
 
-type AuthStep = "email" | "code";
 type LoadState = "booting" | "loading" | "ready" | "error";
 
 const STUDIO_SELF_TEST_UI = studioSelfTestUiEnabled(
@@ -206,11 +213,12 @@ function readStudioMode(): StudioMode {
   }
 }
 
+// WS-R91. `brandTag`/`introEyebrow`/`introTitle`/`introBody` moved out of
+// this interface (and the three objects below): they were the OLD AuthGate's
+// own fields, now `copy.ts#authGate.variant`'s job in both locales — see
+// `AuthGate.tsx`. Everything left here is `CreateReplicaCard`'s own
+// (Tier 2, unconverted) copy.
 interface StudioCopy {
-  brandTag: string;
-  introEyebrow: string;
-  introTitle: string;
-  introBody: string;
   workspaceNoun: string;
   firstEyebrow: string;
   firstTitle: string;
@@ -222,11 +230,6 @@ interface StudioCopy {
 }
 
 const GENERIC_COPY: StudioCopy = {
-  brandTag: "PRIVATE AI LAB",
-  introEyebrow: "Private by construction",
-  introTitle: "An AI that begins with your permission.",
-  introBody:
-    "Build and control a consent-verified AI of yourself. Every source stays private, every capability is separately approved, and revocation stops future use.",
   workspaceNoun: "Your AI",
   firstEyebrow: "Your first AI",
   firstTitle: "Begin with identity, not an upload.",
@@ -243,11 +246,6 @@ const GENERIC_COPY: StudioCopy = {
 };
 
 const TEACHER_COPY: StudioCopy = {
-  brandTag: "GURUKUL TEACHER STUDIO",
-  introEyebrow: "Verified, consented, disclosed",
-  introTitle: "A teaching AI that begins with your permission, and is disclosed to every student.",
-  introBody:
-    "Build and control a consent-verified teaching AI of yourself. Every source stays private, every capability is separately approved, revocation stops future use, and students are told before every session that they are talking to an AI, not you.",
   workspaceNoun: "Your teaching AI",
   firstEyebrow: "Your first teaching AI",
   firstTitle: "Begin with identity, not an upload.",
@@ -260,10 +258,6 @@ const TEACHER_COPY: StudioCopy = {
 };
 
 const TEST_COPY: StudioCopy = {
-  brandTag: "INTERNAL TEST STUDIO",
-  introEyebrow: "",
-  introTitle: "Add your sources. Then test your AI.",
-  introBody: "Upload useful examples of your voice, writing, videos, and context. Then hear the draft, talk to it, and correct it.",
   workspaceNoun: "Test AI",
   firstEyebrow: "",
   firstTitle: "Create a test workspace.",
@@ -329,20 +323,6 @@ function initials(name: string) {
   return value.toUpperCase() || "VR";
 }
 
-function Mark() {
-  return (
-    <span className="mark" aria-hidden="true">
-      <span />
-      <span />
-      <span />
-    </span>
-  );
-}
-
-function Spinner({ label }: { label: string }) {
-  return <span className="spinner" role="status" aria-label={label} />;
-}
-
 const TEST_SOURCE_TYPES = [
   { label: "Audio or video file", anchor: "#enrollment-workspace" },
   { label: "Screenshot, document, or text file", anchor: "#enrollment-workspace" },
@@ -385,167 +365,11 @@ function TestSourceGuide() {
 // section-numbering eyebrows outright, and deleting the numbers killed the
 // collision more permanently than renumbering it would have.
 
-function AuthGate({ onAuthed, copy, testEnvironment }: { onAuthed: (session: StudioSession) => void; copy: StudioCopy; testEnvironment: boolean }) {
-  const [step, setStep] = useState<AuthStep>("email");
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const codeRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (step === "code") codeRef.current?.focus();
-  }, [step]);
-
-  async function sendCode() {
-    setError("");
-    setBusy(true);
-    try {
-      await sendEmailOtp(email.trim());
-      setStep("code");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message.replaceAll("_", " ") : "Could not send a code");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function verifyCode() {
-    setError("");
-    setBusy(true);
-    try {
-      const session = await verifyEmailOtp(email.trim(), code.trim());
-      writeStoredSession(session);
-      onAuthed(session);
-    } catch {
-      setError("That code did not match. Check it and try again.");
-      setCode("");
-      requestAnimationFrame(() => codeRef.current?.focus());
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <main className="auth-page">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
-      <header className="auth-brand">
-        <a href="/" aria-label="Vyakti home"><Mark /></a>
-        <span>VYAKTI</span>
-        <span className="brand-rule" />
-        <span>{copy.brandTag}</span>
-      </header>
-
-      <section className="auth-intro" aria-labelledby="studio-title">
-        {copy.introEyebrow && <p className="eyebrow">{copy.introEyebrow}</p>}
-        <h1 id="studio-title">{copy.introTitle}</h1>
-        <p>{copy.introBody}</p>
-        {!testEnvironment && <div className="trust-strip" aria-label="Studio safeguards">
-          <span><i />Self-replication only</span>
-          <span><i />No public voice library</span>
-          <span><i />Auditable deletion</span>
-        </div>}
-      </section>
-
-      <section className="auth-card" aria-labelledby="signin-title">
-        <div className="secure-chip"><span className="secure-dot" />Protected workspace</div>
-        <h2 id="signin-title">{step === "email" ? "Enter your studio" : "Check your inbox"}</h2>
-        <p className="card-copy">
-          {step === "email"
-            ? "Sign in with the email you want to manage your AI from. If you are already signed in on this device, we will recognise you."
-            : `We sent a six-digit code to ${email}.`}
-        </p>
-
-        {step === "email" ? (
-          <>
-            <button
-              className="button google-button"
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setError("");
-                setBusy(true);
-                googleSignIn().catch(() => {
-                  setError("Google sign-in is unavailable. Use your email instead.");
-                  setBusy(false);
-                });
-              }}
-            >
-              <span className="google-g" aria-hidden="true">G</span>
-              Continue with Google
-            </button>
-            <div className="or"><span>or use email</span></div>
-            <label className="field-label" htmlFor="studio-email">Email address</label>
-            <input
-              id="studio-email"
-              className="field"
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && email.includes("@") && !busy) void sendCode();
-              }}
-            />
-            <button
-              className="button primary-button"
-              type="button"
-              disabled={busy || !email.includes("@")}
-              onClick={() => void sendCode()}
-            >
-              {busy ? <><Spinner label="Sending sign-in code" />Sending code</> : "Continue securely"}
-            </button>
-          </>
-        ) : (
-          <>
-            <label className="field-label" htmlFor="studio-code">Six-digit code</label>
-            <input
-              ref={codeRef}
-              id="studio-code"
-              className="field code-field"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              placeholder="000000"
-              value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && code.length === 6 && !busy) void verifyCode();
-              }}
-            />
-            <button
-              className="button primary-button"
-              type="button"
-              disabled={busy || code.length !== 6}
-              onClick={() => void verifyCode()}
-            >
-              {busy ? <><Spinner label="Verifying code" />Verifying</> : "Verify and enter"}
-            </button>
-            <button
-              className="text-button"
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setStep("email");
-                setCode("");
-                setError("");
-              }}
-            >
-              Use a different email
-            </button>
-          </>
-        )}
-        {error && <p className="inline-error" role="alert">{error}</p>}
-        {!testEnvironment && <p className="legal-copy">
-          Access does not grant permission to build your AI. Separate, recorded consent is required before any biometric processing.
-        </p>}
-      </section>
-    </main>
-  );
-}
+// AuthGate moved to its own file, AuthGate.tsx (WS-R91) -- see that file's
+// header for why. `AuthStep` above is used only by it, so it moved too, and
+// `StudioCopy`/`TEACHER_COPY`/`GENERIC_COPY`/`TEST_COPY` below stay here:
+// they are `CreateReplicaCard`'s own (Tier 2, unconverted) copy, never
+// AuthGate's now.
 
 function CreateReplicaCard({ onCreate, busy, copy }: { onCreate: (name: string) => void; busy: boolean; copy: StudioCopy }) {
   const [name, setName] = useState("");
@@ -1610,6 +1434,12 @@ export default function StudioApp() {
   // navigation, so this never flips mid-session.
   const [mode] = useState<StudioMode>(readStudioMode);
   const copy = STUDIO_SELF_TEST_UI ? TEST_COPY : mode === "teacher" ? TEACHER_COPY : GENERIC_COPY;
+  // WS-R91. AuthGate's own locale-aware variant key into `copy.ts`'s
+  // `authGate.variant` table -- the SAME three-way selection `copy` above
+  // already makes for `CreateReplicaCard` (still Tier 2, still English-only),
+  // restated as a string key rather than an object so AuthGate can look
+  // itself up correctly in either language.
+  const authVariant: AuthGateVariant = STUDIO_SELF_TEST_UI ? "test" : mode === "teacher" ? "teacher" : "generic";
   const [session, setSession] = useState<StudioSession | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [replicas, setReplicas] = useState<Replica[]>([]);
@@ -1636,17 +1466,48 @@ export default function StudioApp() {
     const raw = new URLSearchParams(window.location.search).get("lang");
     return raw === "en" || raw === "hi" ? raw : null;
   });
+  // WS-R91. The pre-auth half of the chain: a replica has not loaded yet
+  // (signed out, or the fetch is still in flight), so there is no
+  // `vy_replica.locale` to read -- the studio's own remembered LOCAL choice
+  // stands in until one has. `resolveStudioLocale`'s own header states the
+  // full order; `context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in`
+  // is the decision.
+  const [rememberedLocale, setRememberedLocale] = useState<StudioChromeLocale | null>(
+    () => readRememberedStudioLocale(),
+  );
   const [localeBusy, setLocaleBusy] = useState(false);
-  const studioLocale: StudioChromeLocale = urlLocale ?? normalizeStudioLocale(selected?.locale);
+  const studioLocale: StudioChromeLocale = resolveStudioLocale({
+    urlLocale,
+    replica: selected,
+    rememberedLocale,
+  });
   // `src/room/RoomApp.tsx`'s own line, same reason: the studio's chrome
   // locale is a client-side fact `studio.html`'s static `lang="en"` cannot
   // know at build time.
   useEffect(() => {
     document.documentElement.lang = studioLocale;
   }, [studioLocale]);
+  // WS-R91. Once a replica has loaded, ITS OWN locale is the authoritative
+  // record (`resolveStudioLocale` already prefers it over `rememberedLocale`
+  // for what is ON SCREEN) -- this keeps the LOCAL memory in sync with it
+  // too, so a mismatch (a creator switched language on a different device,
+  // or before finishing sign-in on this one) does not keep surfacing after
+  // the row has already settled it. Logged as a decision, not silently
+  // assumed: `context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in`.
+  useEffect(() => {
+    if (selected) writeRememberedStudioLocale(normalizeStudioLocale(selected.locale));
+  }, [selected]);
   const switchLocale = useCallback(
     async (next: StudioChromeLocale) => {
-      if (!session || !selected || localeBusy || next === studioLocale) return;
+      if (localeBusy || next === studioLocale) return;
+      // Remembered locally regardless of sign-in state -- AuthGate's own
+      // language switch (pre-auth) and the signed-in shell's (post-auth)
+      // are the SAME callback for exactly this reason: whichever screen a
+      // creator switches language on, the choice survives a reload before
+      // any replica has loaded to say otherwise.
+      writeRememberedStudioLocale(next);
+      setRememberedLocale(next);
+      if (!session || !selected) return;
       setLocaleBusy(true);
       try {
         const updated = await setReplicaLocale(session.accessToken, selected.replica_id, next);
@@ -2512,7 +2373,23 @@ export default function StudioApp() {
     );
   }
 
-  if (!session) return <AuthGate copy={copy} testEnvironment={STUDIO_SELF_TEST_UI} onAuthed={(next) => { setSession(next); void loadReplicas(next); }} />;
+  if (!session) {
+    return (
+      // WS-R91. The provider mounts ABOVE the gate: the sign-in screen reads
+      // real translated copy in both locales, from the moment it renders,
+      // rather than the fixed English `copy` object above (still used
+      // below, unchanged, by the signed-in-only `CreateReplicaCard`).
+      // context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in.
+      <StudioLocaleProvider locale={studioLocale}>
+        <AuthGate
+          variant={authVariant}
+          testEnvironment={STUDIO_SELF_TEST_UI}
+          onAuthed={(next) => { setSession(next); void loadReplicas(next); }}
+          onSwitchLocale={switchLocale}
+        />
+      </StudioLocaleProvider>
+    );
+  }
 
   return (
     // WS-R52. Wraps the whole signed-in tree so any panel -- Tier 1 fully
