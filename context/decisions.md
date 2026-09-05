@@ -12653,3 +12653,130 @@ collapsed column, an overflowing dialog), widen `room:more`/`room-hi:more`
 to the full `VIEWPORTS` array like `room`/`room-hi` already are - the
 runtime budget is a reason to scope narrowly by default, not a reason to
 stay narrow once there is a real defect to catch.
+
+## `ws-r54-suite-reconcile-reads-attachment-history-prorated` (2026-09-04/05, WS-R54)
+
+**Decision.** `reconcile`'s Suite lane (`reconcileSuiteLane`, `api/_payments.js`)
+now reads `suiteRows` as one row per `vy_room_org_attachment` (migration 108)
+INTERVAL that overlaps the period being reconciled - `[attached_at,
+coalesce(detached_at, +infinity))` intersected with `[period.start,
+period.end)` - and prorates each interval's full-price share by the
+fraction of the period it actually overlaps, in fractional days
+(`Math.trunc(fullShare * overlapMs / periodMs)`). `reconcilePeriod` feeds it
+from a new SQL statement joining `vy_room_org_attachment` to an org with an
+ACTIVE `vy_org_subscription`, never the Room's CURRENT `org_id`. A Room
+attached to TWO Suites inside one period gets the SUM of both intervals'
+own prorated shares, never a single flat share picked from whichever Suite
+holds it at build time - if the two Suites charge different
+`price_per_seat_inr`, that total need not equal either Suite's own
+full-period number, and this is the correct answer, not an approximation.
+
+**Rationale.** This directly fires the reversal condition
+`ws-r42-reconcile-suite-lane-uses-current-attachment` itself named: "the day
+a Room-organisation attachment history table exists... `reconcilePeriod`
+should read attachment AS OF the period's own `period_end` from it instead."
+This decision goes one step past that literal wording (a single as-of
+instant) into a real overlap-and-prorate read, because an as-of-period-end
+read alone still gets the two-Suites-in-one-period case wrong (it would
+credit the WHOLE period to whichever Suite held the Room at the very last
+instant) and still mis-answers the exact motivating example WS-R42 itself
+gave: "a Room detached on the 2nd is reconciled as never attached" - an
+as-of-period-end read agrees with that wrong answer (the Room is not
+attached AT period end, so it would still show zero expected), where an
+overlap read correctly credits the 1-2 days it really held. Proven in
+`evals/payments-reconcile/run.mjs` §3b (half-period proration), §3c (two
+Suites, the exact split written down), and §3d NEGATIVE CONTROL (e) (the
+OLD current-attachment-only shape, fed to the SAME pure `reconcile`
+function, produces a false `suite_share_mismatch` for a Room correctly
+paid for 2 of 30 days - proving the old shape wrong, not merely different).
+This still shares `runPayoutRollup`'s own unfixed limitation: there is no
+`price_per_seat_inr` HISTORY, so every interval prices at that org's
+CURRENT active-subscription rate, never the rate actually in force during
+the interval.
+
+**Reversal condition.** The day a `vy_org_subscription` PRICE history exists
+(a table recording what `price_per_seat_inr` was at each point in time,
+not only its current value), `reconcileSuiteLane` should price each
+interval at the rate in force DURING it rather than the org's current rate,
+and this decision's "shares runPayoutRollup's limitation" clause is
+superseded. Separately, if `runPayoutRollup` itself is ever changed to
+prorate at BUILD time (rather than only reconciliation catching the
+mismatch after the fact), this decision's own findings for a mid-period
+attachment change from "the correct payout, verified" to "no finding
+possible because the builder and the checker now agree by construction" -
+worth noting so a future session does not read a sudden absence of
+half-period findings as this check having gone quiet rather than the
+underlying mismatch having been fixed at the source.
+
+## `ws-r54-attachment-history-written-in-same-statement-as-org-id-flip` (2026-09-04/05, WS-R54)
+
+**Decision.** `attachRoom` and `detachRoom` (`api/_org.js`) write
+`vy_room_org_attachment` (migration 108) in the SAME statement family as the
+`vy_room.org_id` flip - one CTE per function, the UPDATE's own RETURNING
+feeding the history INSERT (attach) or a second UPDATE that closes the open
+row (detach) - never a second round trip across two separate `db()` calls.
+
+**Rationale.** `attachRoom`'s own law 2 ("a predicate on the write, never a
+branch above it") already established that this file treats "two things
+that must never disagree" as one atomic statement rather than two
+sequential ones a crash between them could split; this is the same
+argument applied to a second TABLE instead of a second CONDITION. The
+partial unique index (`vy_room_org_attachment_open_ix`, one open row per
+`room_id`) is deliberately NOT caught and translated to a named `OrgError`
+on the attach side - a stray already-open row for a room whose OWN
+`org_id` the UPDATE's WHERE already proved is null is a data integrity bug
+this predicate did not anticipate, and "structurally impossible, not
+merely undesired" (migration 095's own words) means it should surface as a
+raw unique-violation, not be swallowed into a plausible-sounding refusal
+code that would misdescribe what actually went wrong. Proven in
+`evals/org/run.mjs` §3b (the row opens, with the room's own `org_attached_at`)
+and its own negative control (a deliberately corrupted stray-open-row state
+throws code 23505), and §4b (the row closes on detach - "a detach that
+does not close the row fails this" is the control's own literal assertion
+name).
+
+**Reversal condition.** If a future workstream needs `attachRoom`/`detachRoom`
+to succeed even when the paired history write fails (e.g. a schema
+migration window where `vy_room_org_attachment` is briefly unavailable),
+the CTE would need to split back into two statements with explicit
+reconciliation - at which point this decision's "never a second round trip"
+claim is false and must be superseded, not edited in place.
+
+## `ws-r54-attachment-backfill-defaults-to-now-for-pre-107-rooms` (2026-09-04/05, WS-R54, known inexactness)
+
+**Decision.** Migration 108's backfill (`insert into vy_room_org_attachment
+... select ... coalesce(r.org_attached_at, now()) ... where not exists`)
+opens one history row for every currently-attached Room, dated at
+`vy_room.org_attached_at` (migration 107) where that column is set, or
+`now()` (the migration's own apply time) where it is not - which is every
+Room that attached to a Suite BEFORE migration 107 existed and has not
+re-attached since.
+
+**Rationale.** No earlier signal survives anywhere in this schema for that
+second group: `updated_at` is touched by publish, pause, price changes and
+detach too (migration 107's own header, restated by migration 108's), so it
+cannot stand in for "the moment this Room joined this Suite." `now()` is
+the least-wrong default available - `context/rejected.md`'s no-fake-numbers
+law applied to a timestamp instead of a metric: a manufactured earlier date
+would look more precise than this database actually knows, while `now()`
+is honestly exactly as recent as the true state of knowledge.
+
+**Consequence, stated plainly.** Any Room in that second group, reconciled
+by `reconcilePeriod` for a period that ENDED BEFORE migration 108 ran, will
+show LESS attachment overlap with that period than it actually had (its
+recorded `attached_at` is later than its true one), which understates its
+prorated expected `suite_share_inr` and can produce a false
+`suite_share_mismatch` finding for a period that was actually correct. This
+is a KNOWN, bounded inexactness, not a silent one - it affects only
+historical (pre-108) periods for Rooms that attached before migration 107,
+never a period reconciled going forward.
+
+**Reversal condition.** No further fix is possible retroactively - the true
+historical `attached_at` for that group is genuinely unrecoverable from
+this schema. This entry's own purpose is to stop a future session from
+re-discovering the same "why does this one old period show a Suite
+mismatch" confusion from scratch: if `reconciliationOverview`'s
+`periods_with_findings` count is ever audited by hand, check whether the
+flagged period predates 2026-09 (this migration's own apply date) and the
+owner's Room predates migration 107 before treating the finding as a real
+payout bug.

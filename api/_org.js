@@ -244,6 +244,18 @@ export async function acceptMembership(db, ownerUserId, orgId) {
 // price changes and detach all touch it too. `detachRoom` clears the same
 // column back to null on the way out, so a re-attached Room always carries
 // the DATE OF ITS CURRENT membership, never a stale earlier one.
+//
+// WS-R54 (migration 108): the SAME statement now also opens a
+// `vy_room_org_attachment` row, fed by the UPDATE's own RETURNING inside one
+// CTE - never a second round trip a crash between two statements could
+// split, this file's own law 2 applied to a second table instead of a
+// second condition. The UPDATE's WHERE already proves `r.org_id is null`
+// before this room reaches the INSERT, so a stray already-open row for the
+// same room_id (a data bug this predicate did not anticipate) surfaces as a
+// real unique-violation on `vy_room_org_attachment_open_ix` rather than
+// being silently absorbed - "structurally impossible, not merely
+// undesired", migration 095's own words, restated for an attachment history
+// row instead of a payment lane.
 // ─────────────────────────────────────────────────────────────────────────
 export async function attachRoom(db, adminOwnerUserId, orgId, roomId) {
   const admin = assertUuid(adminOwnerUserId, "org_owner_identity_invalid");
@@ -251,21 +263,28 @@ export async function attachRoom(db, adminOwnerUserId, orgId, roomId) {
   const room = assertUuid(roomId, "room_identity_invalid");
 
   const rows = await db(
-    `update vy_room r
-        set org_id = ($2)::uuid, org_attached_at = now(), updated_at = now()
-      where r.room_id = ($1)::uuid
-        and r.org_id is null
-        and exists (
-          select 1 from vy_org_member m
-           where m.org_id = ($2)::uuid and m.owner_user_id = ($3)::uuid and m.role = 'admin'
-        )
-        and exists (
-          select 1 from vy_org_member m2
-           where m2.org_id = ($2)::uuid and m2.owner_user_id = r.owner_user_id and m2.role = 'creator'
-        )
-        and (select count(*) from vy_room r2 where r2.org_id = ($2)::uuid)
-          < ${seatCapSql("($2)::uuid")}
-      returning r.room_id, r.org_id, r.slug`,
+    `with updated as (
+       update vy_room r
+          set org_id = ($2)::uuid, org_attached_at = now(), updated_at = now()
+        where r.room_id = ($1)::uuid
+          and r.org_id is null
+          and exists (
+            select 1 from vy_org_member m
+             where m.org_id = ($2)::uuid and m.owner_user_id = ($3)::uuid and m.role = 'admin'
+          )
+          and exists (
+            select 1 from vy_org_member m2
+             where m2.org_id = ($2)::uuid and m2.owner_user_id = r.owner_user_id and m2.role = 'creator'
+          )
+          and (select count(*) from vy_room r2 where r2.org_id = ($2)::uuid)
+            < ${seatCapSql("($2)::uuid")}
+        returning r.room_id, r.org_id, r.slug, r.org_attached_at
+     ), history as (
+       insert into vy_room_org_attachment (room_id, org_id, attached_at)
+       select room_id, org_id, org_attached_at from updated
+       returning room_id
+     )
+     select room_id, org_id, slug from updated`,
     [room, org, admin],
   );
   if (rows[0]) return { room_id: rows[0].room_id, org_id: rows[0].org_id, slug: rows[0].slug };
@@ -304,21 +323,39 @@ export async function attachRoom(db, adminOwnerUserId, orgId, roomId) {
 // ─────────────────────────────────────────────────────────────────────────
 // OP: detachRoom - the room's own owner, or an admin of the org it is
 // attached to, may detach it. Either is a self-service exit, never a lock-in.
+//
+// WS-R54 (migration 108): the SAME statement now closes this room's OPEN
+// `vy_room_org_attachment` row (`detached_at = now()`) via a second CTE fed
+// by the UPDATE's own RETURNING - `attachRoom`'s own header, restated for
+// the closing half of the interval instead of the opening one. If no open
+// row exists (a data bug this predicate did not anticipate: an attach that
+// somehow never opened one), the closing UPDATE's WHERE matches zero rows
+// and detachRoom still succeeds - the Room's own detach is never blocked by
+// a history row being wrong, only the history itself would be.
 // ─────────────────────────────────────────────────────────────────────────
 export async function detachRoom(db, callerOwnerUserId, roomId) {
   const caller = assertUuid(callerOwnerUserId, "org_owner_identity_invalid");
   const room = assertUuid(roomId, "room_identity_invalid");
 
   const rows = await db(
-    `update vy_room r
-        set org_id = null, org_attached_at = null, updated_at = now()
-      where r.room_id = ($1)::uuid
-        and r.org_id is not null
-        and (
-          r.owner_user_id = ($2)::uuid
-          or exists (select 1 from vy_org_member m where m.org_id = r.org_id and m.owner_user_id = ($2)::uuid and m.role = 'admin')
-        )
-      returning r.room_id`,
+    `with updated as (
+       update vy_room r
+          set org_id = null, org_attached_at = null, updated_at = now()
+        where r.room_id = ($1)::uuid
+          and r.org_id is not null
+          and (
+            r.owner_user_id = ($2)::uuid
+            or exists (select 1 from vy_org_member m where m.org_id = r.org_id and m.owner_user_id = ($2)::uuid and m.role = 'admin')
+          )
+        returning r.room_id
+     ), closed as (
+       update vy_room_org_attachment a
+          set detached_at = now()
+        where a.room_id in (select room_id from updated)
+          and a.detached_at is null
+        returning a.room_id
+     )
+     select room_id from updated`,
     [room, caller],
   );
   if (rows[0]) return { room_id: rows[0].room_id, org_id: null };
@@ -379,6 +416,22 @@ export async function orgBoard(db, orgId, adminUserId, now = Date.now()) {
     roomsOut.push(await roomOverview(db, room, monthKey, now));
   }
 
+  // WS-R54 (migration 108): attachment HISTORY - counts and dates, never a
+  // follower, law 3's own text restated for a second table. `room_id` here
+  // is never a follower: it names this Suite's OWN Room, exactly what
+  // `rooms` above already names for every Room CURRENTLY attached - this
+  // list additionally carries a Room that has since DETACHED, which
+  // `rooms` (scoped by the room's live `org_id`) cannot show. No
+  // person/thread column anywhere in this select, the same guarantee every
+  // other statement in this file already carries.
+  const historyRows = await db(
+    `select room_id, org_id, attached_at, detached_at
+       from vy_room_org_attachment
+      where org_id = ($1)::uuid
+      order by attached_at desc`,
+    [org],
+  );
+
   const org2 = orgRows[0];
   // WS-R33: `seats_paid` is the COALESCED cap (an active subscription's own
   // seats, or 0 once one has lapsed, or `seat_limit` when none was ever
@@ -393,6 +446,11 @@ export async function orgBoard(db, orgId, adminUserId, now = Date.now()) {
     seats_paid: seatsPaid,
     seats_free: Math.max(0, seatsPaid - rooms.length),
     rooms: roomsOut,
+    attachment_history: {
+      count: historyRows.length,
+      currently_attached: historyRows.filter((r) => r.detached_at == null).length,
+      items: historyRows.map((r) => ({ room_id: r.room_id, attached_at: r.attached_at, detached_at: r.detached_at })),
+    },
   };
 }
 

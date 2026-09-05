@@ -9,13 +9,15 @@
 //
 // Offline, deterministic, $0, no DB, no network, no real provider.
 // `offline-mocks-cannot-type-check-sql` still applies: nothing here proves
-// migration 104's statements, or `reconcilePeriod`'s own four SELECTs, parse
-// against a live database (see this workstream's final report for what
-// does). §1-3 drive `reconcile` directly, no fake `db` at all - it is a pure
-// function, `payoutStatementFromRows`'s own precedent. §4-5 drive the real
-// `applyWebhook`/`startCreatorSubscription` through a fake `db`,
-// `evals/org-billing/run.mjs`'s own fixture pattern, extended with the one
-// new table it does not yet model.
+// migration 104's statements, migration 108's (WS-R54), or `reconcilePeriod`'s
+// own five SELECTs (the fifth reading `vy_room_org_attachment` history, added
+// by WS-R54) parse against a live database (see this workstream's final
+// report for what does). §1-3d drive `reconcile` directly, no fake `db` at
+// all - it is a pure function, `payoutStatementFromRows`'s own precedent;
+// §3b-3d prove the WS-R54 proration/two-Suite/period-true behaviour the same
+// way. §4-5 drive the real `applyWebhook`/`startCreatorSubscription` through
+// a fake `db`, `evals/org-billing/run.mjs`'s own fixture pattern, extended
+// with the one new table it does not yet model.
 import assert from "node:assert/strict";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -84,8 +86,14 @@ function buildFixture() {
     { owner_user_id: OWNER_B, gross_inr: 798, take_inr: 200, net_inr: 598, tds_inr: 0, suite_share_inr: 0 },
     { owner_user_id: OWNER_C, gross_inr: 798, take_inr: 200, net_inr: 598, tds_inr: 0, suite_share_inr: 0 },
   ];
+  // WS-R54 (migration 108): `suiteRows` now carries the attachment INTERVAL,
+  // not just the current fact of attachment. Attached at the period's own
+  // start and still open (`detached_at: null`) - full-period overlap, so
+  // every assertion below that expects the FULL SUITE_SHARE_INR is
+  // unchanged by this shape.
   const suiteRows = [
-    { owner_user_id: OWNER_A, room_id: ROOM_A, org_id: ORG_X, price_per_seat_inr: PRICE_PER_SEAT },
+    { owner_user_id: OWNER_A, room_id: ROOM_A, org_id: ORG_X, price_per_seat_inr: PRICE_PER_SEAT,
+      attached_at: PERIOD.start, detached_at: null },
   ];
   return { ledgerRows, payoutRows, suiteRows };
 }
@@ -141,6 +149,108 @@ console.log("\n§3 NEGATIVE CONTROL (b) - suite_share_inr for a Room not attache
   ok("actual is the recorded suite_share_inr", suiteFindings[0]?.actual_inr === SUITE_SHARE_INR);
   ok("the follower check for Owner B is UNCHANGED (this control is isolated)",
     !result.findings.some((f) => f.type === "follower_gross_mismatch" && f.owner_user_id === OWNER_B));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§3b (WS-R54, migration 108) - a Room attached for HALF the period gets HALF the share");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const { ledgerRows, payoutRows, suiteRows } = buildFixture();
+  // ROOM_A attaches at period start and detaches exactly halfway through
+  // (Sept 1 -> Sept 16 of a Sept 1 -> Oct 1 period: 15 of 30 days).
+  const s = suiteRows[0];
+  s.attached_at = PERIOD.start;
+  s.detached_at = "2026-09-16T00:00:00.000Z";
+  const HALF_SHARE_INR = Math.trunc(((PRICE_PER_SEAT * SUITE_SEAT_SHARE_BP) / 10000) * 0.5); // 749
+  const ownerA = payoutRows.find((p) => p.owner_user_id === OWNER_A);
+  ownerA.suite_share_inr = HALF_SHARE_INR;
+  ownerA.gross_inr = 798 + HALF_SHARE_INR;
+  const result = reconcile(ledgerRows, payoutRows, suiteRows, PERIOD);
+  ok("a payout that correctly paid the PRORATED half-period share reconciles clean",
+    result.ok === true, JSON.stringify(result.findings));
+
+  // The full FLAT share (what the old, unprorated read would have expected)
+  // is now the WRONG number for a half-period attachment.
+  const overpaid = payoutRows.find((p) => p.owner_user_id === OWNER_A);
+  overpaid.suite_share_inr = SUITE_SHARE_INR;
+  overpaid.gross_inr = 798 + SUITE_SHARE_INR;
+  const badResult = reconcile(ledgerRows, payoutRows, suiteRows, PERIOD);
+  const suiteFindings = badResult.findings.filter((f) => f.type === "suite_share_mismatch");
+  ok("a payout that paid the FULL flat share for a HALF-period attachment is caught",
+    suiteFindings.length === 1 && suiteFindings[0].expected_inr === HALF_SHARE_INR && suiteFindings[0].actual_inr === SUITE_SHARE_INR,
+    JSON.stringify(suiteFindings));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§3c (WS-R54) - a Room attached to TWO Suites in one period: the SUM of both prorated shares");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // Write down what this gets, per this workstream's own law 3: ROOM_A
+  // spends the first 10 days of a 30-day period with ORG_X (price 2999) and
+  // the remaining 20 with a SECOND Suite, ORG_Y (price 1999) - a real
+  // mid-period Suite switch, back-to-back with no gap.
+  const { ledgerRows, payoutRows, suiteRows } = buildFixture();
+  const ORG_Y = "c1000000-0000-4000-8000-000000000002";
+  const PRICE_Y = 1999;
+  suiteRows[0].attached_at = PERIOD.start;
+  suiteRows[0].detached_at = "2026-09-11T00:00:00.000Z"; // 10 days with ORG_X
+  suiteRows.push({
+    owner_user_id: OWNER_A, room_id: ROOM_A, org_id: ORG_Y, price_per_seat_inr: PRICE_Y,
+    attached_at: "2026-09-11T00:00:00.000Z", detached_at: null, // 20 days with ORG_Y, still open
+  });
+  const shareX = Math.trunc(((PRICE_PER_SEAT * SUITE_SEAT_SHARE_BP) / 10000) * (10 / 30)); // trunc(1499.5 * 1/3) = 499
+  const shareY = Math.trunc(((PRICE_Y * SUITE_SEAT_SHARE_BP) / 10000) * (20 / 30)); // trunc(999.5 * 2/3) = 666
+  const expectedTotal = shareX + shareY; // 1165 - neither Suite's own full-period number (1499 or 999)
+  ok("the two prorated shares are neither Suite's own full-period number",
+    expectedTotal !== SUITE_SHARE_INR && expectedTotal !== Math.trunc((PRICE_Y * SUITE_SEAT_SHARE_BP) / 10000));
+  const ownerA = payoutRows.find((p) => p.owner_user_id === OWNER_A);
+  ownerA.suite_share_inr = expectedTotal;
+  ownerA.gross_inr = 798 + expectedTotal;
+  const result = reconcile(ledgerRows, payoutRows, suiteRows, PERIOD);
+  ok("a payout that paid the SUM of both prorated shares reconciles clean",
+    result.ok === true, JSON.stringify(result.findings));
+  const suiteFinding = result.findings.find((f) => f.type === "suite_share_mismatch");
+  ok("no suite_share_mismatch finding for owner A", !suiteFinding);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§3d NEGATIVE CONTROL (e) - reconciling against the CURRENT attachment (the old behaviour) is wrong for a Room detached mid-period");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // The exact motivating case from context/decisions.md#ws-r42-reconcile-
+  // suite-lane-uses-current-attachment: "a Room detached on the 2nd is
+  // reconciled as never attached." ROOM_A attached for the first 2 days of
+  // the period, then detached - by period end it is no longer attached to
+  // ANY Suite, but it correctly earned 2 days' worth of prorated share.
+  const { ledgerRows, payoutRows, suiteRows } = buildFixture();
+  suiteRows[0].attached_at = PERIOD.start;
+  suiteRows[0].detached_at = "2026-09-03T00:00:00.000Z"; // 2 of 30 days
+  const TWO_DAY_SHARE_INR = Math.trunc(((PRICE_PER_SEAT * SUITE_SEAT_SHARE_BP) / 10000) * (2 / 30)); // 99
+  const ownerA = payoutRows.find((p) => p.owner_user_id === OWNER_A);
+  ownerA.suite_share_inr = TWO_DAY_SHARE_INR;
+  ownerA.gross_inr = 798 + TWO_DAY_SHARE_INR;
+
+  // THE NEW (period-true) reading: reconcile() is handed the real interval
+  // and finds the payout correct.
+  const newResult = reconcile(ledgerRows, payoutRows, suiteRows, PERIOD);
+  ok("the NEW, interval-based reading finds NO mismatch for a Room correctly paid for its 2 attached days",
+    newResult.ok === true, JSON.stringify(newResult.findings));
+
+  // THE OLD behaviour: `suiteRows` built from CURRENT attachment only (the
+  // shape `reconcilePeriod` used before migration 108 - a Room's org_id is
+  // null by period end, so it is simply ABSENT from suiteRows, exactly as
+  // the pre-108 `where r.org_id is not null` query would leave it). This is
+  // NOT a live query here (offline; `reconcile` never touches a database) -
+  // it is the SAME pure function fed the shape the OLD code would have
+  // produced, proving that shape was wrong, not merely different.
+  const oldStyleSuiteRows = [];
+  const oldResult = reconcile(ledgerRows, payoutRows, oldStyleSuiteRows, PERIOD);
+  const oldFindings = oldResult.findings.filter((f) => f.type === "suite_share_mismatch");
+  ok("NEGATIVE CONTROL (e): the OLD (current-attachment-only) reading FALSELY flags a correctly-paid, since-detached Room",
+    oldFindings.length === 1 && oldFindings[0].owner_user_id === OWNER_A && oldFindings[0].expected_inr === 0,
+    JSON.stringify(oldFindings));
+  ok("the false finding's own actual_inr is exactly the 2-day share the Room really earned",
+    oldFindings[0]?.actual_inr === TWO_DAY_SHARE_INR);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

@@ -1242,12 +1242,37 @@ export async function runPayoutRollup(
 // ledger total against a PER-ROOM share only coincides when seats-billed
 // equals rooms-attached, which is not guaranteed and not what the builder
 // checks. So this function recomputes the BUILDER'S OWN FORMULA from
-// `suiteRows` (the identical `vy_room join vy_org_subscription` shape
-// `runPayoutRollup`'s own `suite_share` CTE reads) and compares THAT against
-// the recorded `suite_share_inr` - proving the payout row was not corrupted
-// or drifted from what the formula would produce today, which is the
-// reconciliation this product's data shape actually supports. Logged with
-// its reversal condition: `context/decisions.md#ws-r42-suite-reconcile-recomputes-the-builder-formula`.
+// `suiteRows` and compares THAT against the recorded `suite_share_inr` -
+// proving the payout row was not corrupted or drifted from what the formula
+// would produce, the reconciliation this product's data shape actually
+// supports. Logged with its reversal condition:
+// `context/decisions.md#ws-r42-suite-reconcile-recomputes-the-builder-formula`.
+//
+// WS-R54 (migration 108) SUPERSEDES how `suiteRows` itself is read, per
+// `context/decisions.md#ws-r42-reconcile-suite-lane-uses-current-attachment`'s
+// own reversal condition ("the day a Room-organisation attachment history
+// table exists... `reconcilePeriod` should read attachment AS OF the
+// period... instead"), extended past a single as-of instant into a real
+// INTERVAL: `suiteRows` is now one row per `vy_room_org_attachment` interval
+// that OVERLAPS the period being reconciled (never the Room's current
+// `org_id`), and the recomputed formula PRORATES each interval's full-price
+// share by the fraction of the period it actually overlaps - `[attached_at,
+// coalesce(detached_at, period.end))` intersected with `[period.start,
+// period.end)`, in fractional days (an interval can start or end mid-day; a
+// day-BUCKET count would misprice the edges, `ws-r42-ledger-and-payout-are-
+// both-whole-rupees`'s "read the columns, do not assume" applied to a unit
+// of time instead of a unit of money). A Room attached to TWO Suites inside
+// one period gets the SUM of both intervals' own prorated shares - never a
+// single flat share picked from whichever Suite happens to hold it at build
+// time - so if the two Suites charge different `price_per_seat_inr`, the
+// total need not equal either Suite's own full-period number; this is the
+// correct answer, not an approximation of one. Logged in
+// `context/decisions.md#ws-r54-suite-reconcile-reads-attachment-history-prorated`.
+// This still shares `runPayoutRollup`'s own limitation for PRICE: there is
+// no `price_per_seat_inr` HISTORY table, so every interval prices at that
+// org's CURRENT active-subscription rate, never the rate that was actually
+// in force during the interval - unchanged by this migration, restated here
+// so it is not mistaken for fixed.
 //
 // CREATOR: `vy_creator_charge_event` (104) has no payout counterpart at all
 // (095's own header: 100% platform revenue, nothing to distribute) - summed
@@ -1301,12 +1326,34 @@ function reconcileFollowerLane(ledgerRows, payoutRows, inPeriod) {
   return findings;
 }
 
-function reconcileSuiteLane(payoutRows, suiteRows, suiteShareBp) {
+// WS-R54: `suiteRows` now carries one row per attachment INTERVAL
+// (`attached_at`, `detached_at` - possibly null, meaning still open) rather
+// than one row per currently-attached Room. Each interval's full-period
+// share is prorated by how much of THIS period it actually overlaps -
+// `Math.min(detachedMs ?? +Infinity, periodEnd) - Math.max(attachedMs,
+// periodStart)`, clamped at zero for an interval that does not overlap at
+// all (the SQL feeding this already filters those out, but a pure function
+// defends its own invariant rather than trusting its caller,
+// `assertUuid`'s own precedent restated). `+Infinity` for a null
+// `detached_at` needs no wall-clock read (`Date.now()`) to stay correct:
+// clamped against `periodEnd` it always resolves to `periodEnd` for any
+// period that has actually closed, which is the only kind this function is
+// ever asked to reconcile - a still-open period is nonsensical input here
+// exactly as it already is for `inPeriod` above.
+function reconcileSuiteLane(payoutRows, suiteRows, suiteShareBp, period) {
+  const periodStart = new Date(period?.start).getTime();
+  const periodEnd = new Date(period?.end).getTime();
+  const periodMs = periodEnd - periodStart;
   const expectedByOwner = new Map();
   const roomsByOwner = new Map();
   for (const s of suiteRows) {
     const owner = String(s.owner_user_id);
-    const share = Math.trunc((Number(s.price_per_seat_inr) * Number(suiteShareBp)) / 10000);
+    const attachedMs = new Date(s.attached_at).getTime();
+    const detachedMs = s.detached_at != null ? new Date(s.detached_at).getTime() : Infinity;
+    const overlapMs = Math.max(0, Math.min(detachedMs, periodEnd) - Math.max(attachedMs, periodStart));
+    if (overlapMs <= 0) continue;
+    const fullShare = (Number(s.price_per_seat_inr) * Number(suiteShareBp)) / 10000;
+    const share = Math.trunc((fullShare * overlapMs) / periodMs);
     expectedByOwner.set(owner, (expectedByOwner.get(owner) || 0) + share);
     if (!roomsByOwner.has(owner)) roomsByOwner.set(owner, new Set());
     if (s.room_id != null) roomsByOwner.get(owner).add(String(s.room_id));
@@ -1339,12 +1386,16 @@ function reconcileSuiteLane(payoutRows, suiteRows, suiteShareBp) {
  * owner_user_id, room_id?, replica_id?, amount_inr, received_at}` - the org
  * lane is deliberately absent (see this section's own header: the Suite
  * check never sums org-lane ledger rows). `payoutRows`: `vy_creator_payout`
- * rows for exactly this period. `suiteRows`: `{owner_user_id, room_id,
- * org_id, price_per_seat_inr}`, one row per Room attached to an org with an
- * ACTIVE subscription right now - `runPayoutRollup`'s own `suite_share` CTE
- * join, restated for a JS array. `period`: `{start, end}`, ISO strings or
- * anything `Date` parses; only used to filter `ledgerRows` by `received_at`.
- * Never touches a database.
+ * rows for exactly this period. `suiteRows` (WS-R54, migration 108):
+ * `{owner_user_id, room_id, org_id, price_per_seat_inr, attached_at,
+ * detached_at}`, one row per `vy_room_org_attachment` INTERVAL that overlaps
+ * this period - `detached_at` is `null` for a Room still attached - joined
+ * to an org with an ACTIVE subscription (that org's CURRENT rate; this
+ * product keeps no price history, see this section's own header), never a
+ * snapshot of the Room's current `org_id`. `period`: `{start, end}`, ISO
+ * strings or anything `Date` parses; filters `ledgerRows` by `received_at`
+ * AND prorates each `suiteRows` interval's overlap with it. Never touches a
+ * database.
  */
 export function reconcile(ledgerRows, payoutRows, suiteRows, period, { suiteShareBp = SUITE_SEAT_SHARE_BP } = {}) {
   const start = new Date(period?.start).getTime();
@@ -1356,7 +1407,7 @@ export function reconcile(ledgerRows, payoutRows, suiteRows, period, { suiteShar
 
   const findings = [
     ...reconcileFollowerLane(ledgerRows, payoutRows, inPeriod),
-    ...reconcileSuiteLane(payoutRows, suiteRows, suiteShareBp),
+    ...reconcileSuiteLane(payoutRows, suiteRows, suiteShareBp, period),
   ];
 
   let creatorLaneTotalInr = 0;
@@ -1378,14 +1429,14 @@ export function reconcile(ledgerRows, payoutRows, suiteRows, period, { suiteShar
 /**
  * DB-backed. Fetches exactly the rows `reconcile` needs for one period and
  * runs it - `readCreatorTier`'s own "the decision lives where a fake db can
- * reach it, the wrapper is what a handler calls" restated. `suiteRows` reads
- * CURRENT `vy_org_subscription`/`vy_room` state, not a historical snapshot of
- * who was attached at THIS period's own end - this product keeps no such
- * snapshot (same limitation `runPayoutRollup` itself already has: "read
- * fresh, never stored anywhere else"). Reconciling a period other than the
- * most recently built one can therefore report a false Suite finding if
- * attachment changed since - logged with its reversal condition:
- * `context/decisions.md#ws-r42-reconcile-suite-lane-uses-current-attachment`.
+ * reach it, the wrapper is what a handler calls" restated. `suiteRows`
+ * (WS-R54, migration 108) reads `vy_room_org_attachment` HISTORY - every
+ * interval overlapping `[periodStart, periodEnd)` - joined to an org with an
+ * ACTIVE subscription, never the Room's CURRENT `org_id`. This supersedes
+ * `context/decisions.md#ws-r42-reconcile-suite-lane-uses-current-attachment`
+ * per its own reversal condition; the price itself is still read at the
+ * org's CURRENT rate (no price history exists - unchanged limitation, see
+ * this file's own SUITE section header above `reconcileSuiteLane`).
  */
 export async function reconcilePeriod(db, { periodStart, periodEnd }) {
   const start = new Date(periodStart);
@@ -1407,12 +1458,22 @@ export async function reconcilePeriod(db, { periodStart, periodEnd }) {
       where received_at >= ($1)::timestamptz and received_at < ($2)::timestamptz`,
     [start.toISOString(), end.toISOString()],
   );
+  // WS-R54 (migration 108): every attachment INTERVAL that overlaps this
+  // period - `a.attached_at < periodEnd and (a.detached_at is null or
+  // a.detached_at > periodStart)`, the standard half-open interval overlap
+  // test - joined to the Room's own owner and to an org with an ACTIVE
+  // subscription (that org's CURRENT rate; no price history exists). Never
+  // `r.org_id` (the Room's CURRENT Suite) - a Room long detached, or
+  // attached to a DIFFERENT Suite today, still surfaces here if its history
+  // overlapped this period.
   const suiteRows = await db(
-    `select r.owner_user_id, r.room_id, r.org_id, os.price_per_seat_inr
-       from vy_room r
-       join vy_org_subscription os on os.org_id = r.org_id and os.state = 'active'
-      where r.org_id is not null`,
-    [],
+    `select r.owner_user_id, a.room_id, a.org_id, os.price_per_seat_inr, a.attached_at, a.detached_at
+       from vy_room_org_attachment a
+       join vy_room r on r.room_id = a.room_id
+       join vy_org_subscription os on os.org_id = a.org_id and os.state = 'active'
+      where a.attached_at < ($2)::timestamptz
+        and (a.detached_at is null or a.detached_at > ($1)::timestamptz)`,
+    [start.toISOString(), end.toISOString()],
   );
   const payoutRows = await db(
     `select owner_user_id, period_start, period_end, gross_inr, take_inr, net_inr, tds_inr, suite_share_inr

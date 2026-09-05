@@ -67,6 +67,10 @@ function freshState() {
     orgMembers: [],
     orgSubscriptions: [],
     rooms: [],
+    // WS-R54, migration 108: one row per attachment INTERVAL. `detached_at
+    // === null` means still open - the same "one open row per room_id"
+    // invariant the real partial unique index enforces.
+    orgAttachments: [],
   };
 }
 
@@ -162,10 +166,17 @@ function orgDb(state) {
       return org ? [{ org_id: org.org_id, name: org.name, slug: org.slug }] : [];
     }
 
-    // ── attachRoom's own UPDATE (checked before the generic vy_room select
-    //    below). WS-R48 (migration 107): the same statement now also stamps
-    //    org_attached_at - the fixture's own room gains it too, so a test
-    //    reading that column back sees the real write. ───────────────────
+    // ── attachRoom's own CTE (the UPDATE, checked before the generic
+    //    vy_room select below - both substrings still identify it verbatim
+    //    inside the WITH clause). WS-R48 (migration 107): the same
+    //    statement stamps org_attached_at. WS-R54 (migration 108): the SAME
+    //    statement now ALSO opens a vy_room_org_attachment row in the same
+    //    CTE - modelled here as one atomic fake-db effect, `createOrg`'s own
+    //    two-table-one-statement precedent restated. A stray already-open
+    //    row for this room_id (a state this WHERE's own `room.org_id` check
+    //    should make impossible in real use) is modelled as the real
+    //    partial unique index would refuse it: a thrown 23505, never a
+    //    silent second open row. ───────────────────────────────────────
     if (has("update vy_room r") && has("set org_id = ($2)::uuid, org_attached_at = now(), updated_at = now()")) {
       const [roomId, orgId, adminId] = params;
       const room = state.rooms.find((r) => r.room_id === roomId);
@@ -175,8 +186,16 @@ function orgDb(state) {
       const creatorMember = state.orgMembers.some((m) => m.org_id === orgId && m.owner_user_id === room.owner_user_id && m.role === "creator");
       const seatsUsed = state.rooms.filter((r) => r.org_id === orgId).length;
       if (!isAdmin || !creatorMember || seatsUsed >= Number(effectiveSeatCap(org, state))) return [];
+      if (state.orgAttachments.some((a) => a.room_id === roomId && a.detached_at === null)) {
+        throw Object.assign(
+          new Error('duplicate key value violates unique constraint "vy_room_org_attachment_open_ix"'),
+          { code: "23505" },
+        );
+      }
+      const attachedAt = new Date().toISOString();
       room.org_id = orgId;
-      room.org_attached_at = new Date().toISOString();
+      room.org_attached_at = attachedAt;
+      state.orgAttachments.push({ room_id: roomId, org_id: orgId, attached_at: attachedAt, detached_at: null });
       return [{ room_id: room.room_id, org_id: room.org_id, slug: room.slug }];
     }
 
@@ -195,9 +214,12 @@ function orgDb(state) {
       }];
     }
 
-    // ── detachRoom's own UPDATE. WS-R48: clears org_attached_at back to
-    //    null in the SAME statement, so a re-attach always carries the date
-    //    of its CURRENT membership. ────────────────────────────────────────
+    // ── detachRoom's own CTE. WS-R48: clears org_attached_at back to null
+    //    in the SAME statement, so a re-attach always carries the date of
+    //    its CURRENT membership. WS-R54 (migration 108): the SAME statement
+    //    now ALSO closes this room's open vy_room_org_attachment row
+    //    (detached_at = now()) - modelled as one atomic fake-db effect,
+    //    attachRoom's own precedent restated for the closing half. ───────
     if (has("update vy_room r") && has("set org_id = null, org_attached_at = null, updated_at = now()")) {
       const [roomId, callerId] = params;
       const room = state.rooms.find((r) => r.room_id === roomId);
@@ -207,7 +229,18 @@ function orgDb(state) {
       if (!isOwner && !isAdmin) return [];
       room.org_id = null;
       room.org_attached_at = null;
+      const detachedAt = new Date().toISOString();
+      const open = state.orgAttachments.find((a) => a.room_id === roomId && a.detached_at === null);
+      if (open) open.detached_at = detachedAt;
       return [{ room_id: room.room_id }];
+    }
+
+    // ── orgBoard's own attachment-history read (WS-R54) ─────────────────
+    if (has("select room_id, org_id, attached_at, detached_at") && has("from vy_room_org_attachment")) {
+      const [orgId] = params;
+      return state.orgAttachments
+        .filter((a) => a.org_id === orgId)
+        .sort((a, b) => b.attached_at.localeCompare(a.attached_at));
     }
 
     // ── detachRoom's first diagnostic select (room_exists/current_org_id/
@@ -447,6 +480,45 @@ console.log("\n── §3: attachRoom (law 2, one predicate write) ──");
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// §3b - migration 108: attachRoom opens a vy_room_org_attachment row in the
+// SAME statement, and two open rows for one Room are refused by the index.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §3b: migration 108, attachRoom opens history ──");
+{
+  const state = freshState();
+  seedTwoOrgsTwoRooms(state);
+  const db = orgDb(state);
+  await attachRoom(db, ADMIN_A, ORG_A, ROOM_A);
+  ok("attachRoom opened exactly one vy_room_org_attachment row",
+    state.orgAttachments.filter((a) => a.room_id === ROOM_A).length === 1);
+  const row = state.orgAttachments.find((a) => a.room_id === ROOM_A);
+  ok("the opened row names the right org and is still open (detached_at null)",
+    row.org_id === ORG_A && row.detached_at === null);
+  ok("the opened row's attached_at matches the room's own org_attached_at (same statement, same value)",
+    row.attached_at === state.rooms.find((r) => r.room_id === ROOM_A).org_attached_at);
+}
+{
+  // NEGATIVE CONTROL: two open rows for one Room refused by the index. A
+  // room whose OWN org_id is null (so attachRoom's write predicate is
+  // satisfiable) but whose attachment HISTORY already carries an open row -
+  // a state the real schema should never reach through this file's own
+  // write path, modelled directly to prove the partial unique index's own
+  // refusal, not merely trusted to exist.
+  const state = freshState();
+  seedTwoOrgsTwoRooms(state);
+  const db = orgDb(state);
+  state.orgAttachments.push({ room_id: ROOM_A, org_id: ORG_B, attached_at: "2026-08-01T00:00:00.000Z", detached_at: null });
+  let threw = null;
+  try { await attachRoom(db, ADMIN_A, ORG_A, ROOM_A); } catch (e) { threw = e; }
+  ok("NEGATIVE CONTROL: a second open attachment row for the same Room is refused (unique violation, code 23505)",
+    threw?.code === "23505");
+  ok("the refused attach left the room's own org_id untouched",
+    state.rooms.find((r) => r.room_id === ROOM_A).org_id === null);
+  ok("still exactly one open row for the Room (the stray one, untouched)",
+    state.orgAttachments.filter((a) => a.room_id === ROOM_A && a.detached_at === null).length === 1);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // §4 - detachRoom: the room's own owner OR an org admin, self-service exit.
 // ═════════════════════════════════════════════════════════════════════════
 console.log("\n── §4: detachRoom ──");
@@ -488,6 +560,28 @@ console.log("\n── §4: detachRoom ──");
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// §4b - migration 108: detachRoom closes the open history row in the SAME
+// statement; a detach that does not close it is a bug this control catches.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §4b: migration 108, detachRoom closes history ──");
+{
+  const state = freshState();
+  seedTwoOrgsTwoRooms(state);
+  const db = orgDb(state);
+  await attachRoom(db, ADMIN_A, ORG_A, ROOM_A);
+  await new Promise((r) => setTimeout(r, 2));
+  await detachRoom(db, CREATOR_A, ROOM_A);
+  const rows = state.orgAttachments.filter((a) => a.room_id === ROOM_A);
+  ok("exactly one attachment row exists for the Room (never a second one opened by the detach)", rows.length === 1);
+  ok("A DETACH THAT DOES NOT CLOSE THE ROW FAILS THIS: the row's detached_at is set, not null",
+    rows[0].detached_at !== null);
+  ok("the close happened AFTER the open (a real interval, not a same-instant no-op)",
+    rows[0].detached_at > rows[0].attached_at);
+  ok("no open row remains for the Room, so a fresh attach afterwards would not collide",
+    !state.orgAttachments.some((a) => a.room_id === ROOM_A && a.detached_at === null));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // §5 - orgBoard: law 3. 404 by name for a non-member; a Suite's board never
 // shows a Room that belongs to a DIFFERENT Suite.
 // ═════════════════════════════════════════════════════════════════════════
@@ -503,6 +597,26 @@ console.log("\n── §5: orgBoard (law 3, aggregate-only, per-Suite isolation)
   ok("seats_used/seats_free arithmetic is real, not guessed", board.seats_used === 1 && board.seats_free === 1);
   ok("every per-room field is a count/state, never a follower row",
     Object.keys(board.rooms[0]).every((k) => !["thread", "person_id", "message_text"].includes(k)));
+
+  // WS-R54 (migration 108): attachment_history is counts and dates, never a
+  // follower, and OUTLIVES a detach - it names a Room even after the Room
+  // has left `rooms` above, which `orgBoard`'s room list (scoped by the
+  // Room's own LIVE org_id) cannot do.
+  ok("attachment_history carries exactly the one open interval just created",
+    board.attachment_history.count === 1 && board.attachment_history.currently_attached === 1);
+  ok("attachment_history's one item names the room and dates, no follower field",
+    board.attachment_history.items[0].room_id === ROOM_A &&
+    board.attachment_history.items[0].detached_at === null &&
+    typeof board.attachment_history.items[0].attached_at === "string" &&
+    Object.keys(board.attachment_history.items[0]).every((k) => !["person_id", "thread_id", "message_text"].includes(k)));
+
+  await detachRoom(db, CREATOR_A, ROOM_A);
+  const boardAfterDetach = await orgBoard(db, ORG_A, ADMIN_A);
+  ok("after a detach, the Room leaves the live rooms list", boardAfterDetach.rooms.length === 0);
+  ok("but attachment_history still remembers it, now closed",
+    boardAfterDetach.attachment_history.count === 1 &&
+    boardAfterDetach.attachment_history.currently_attached === 0 &&
+    boardAfterDetach.attachment_history.items[0].detached_at !== null);
 
   // NEGATIVE CONTROL (c): ORG_B's own board never shows ORG_A's room, and
   // ORG_A's board never shows ROOM_B (still attached to ORG_B throughout).
