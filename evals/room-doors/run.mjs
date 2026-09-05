@@ -20,8 +20,9 @@
 // modules this workstream's brief names (`_room-surface.js`, `_room-
 // publish.js`, `_room-telegram.js`, `_room-whatsapp.js`, `_room-push.js`,
 // `_room-cohorts.js`, `_handoff.js`, `_checkins.js`, `_payments.js`,
-// `_org.js`, `_replica.js`, `_apply.js`, `_invites.js`, `_pulse.js`), OR ARE
-// `api/account.js` by name — the one door in the brief that owns no shared
+// `_org.js`, `_replica.js`, `_apply.js`, `_invites.js`, `_pulse.js`,
+// `_ops.js` [WS-R62, migration 114]), OR ARE `api/account.js` by name —
+// the one door in the brief that owns no shared
 // decision module of its own but carries the OTP brute-force surface law (h)
 // names explicitly. The list that rule produces is asserted against
 // `EXPECTED_DOORS` below; a new file matching the rule that this file does
@@ -68,7 +69,11 @@
 //                              session or an owner bearer
 //   (d) webhook replay      — payments-webhook.js, payout-webhook.js, room-tg.js, room-wa.js
 //   (e) owner bearer on another owner's replica/org — org.js, replica.js,
-//       room-publish.js, checkins.js, handoff.js (owner ops)
+//       room-publish.js, checkins.js, handoff.js (owner ops), ops.js
+//       (WS-R62: a non-operator bearer against the platform-operator
+//       allowlist, not "another owner's" resource, but the identical
+//       shape — a credential that must discriminate one identity from
+//       every other)
 //   (f) rate-key malformation — api/_rate-limit.js's consume(), cross-cutting
 //   (g) invite code guessing  — replica.js's createSelfReplica
 //   (h) OTP verify brute force — account.js, re-asserting WS-R32
@@ -125,9 +130,12 @@ const DOOR_MODULES = [
   "./_room-surface.js", "./_room-publish.js", "./_room-telegram.js", "./_room-whatsapp.js",
   "./_room-push.js", "./_room-cohorts.js", "./_handoff.js", "./_checkins.js", "./_payments.js",
   "./_org.js", "./_replica.js", "./_apply.js", "./_invites.js", "./_pulse.js",
+  // WS-R62 (migration 114): the ops door's own subscribe/revoke ops, the
+  // first `op`-shaped body this door has ever read.
+  "./_ops.js",
 ];
 const EXPECTED_DOORS = [
-  "account.js", "apply.js", "checkins.js", "handoff.js", "invites.js", "org.js",
+  "account.js", "apply.js", "checkins.js", "handoff.js", "invites.js", "ops.js", "org.js",
   "payments-webhook.js", "payments.js", "payout-webhook.js", "pulse.js", "replica.js", "room-pay.js",
   "room-publish.js", "room-tg.js", "room-wa.js", "room.js",
 ].sort();
@@ -203,7 +211,7 @@ const APPLY = await import(pathToFileURL(join(API, "_apply.js")).href);
 const RENEWALS = await import(pathToFileURL(join(API, "_renewals.js")).href);
 const { cancelFollowerRenewal, cancelCreatorRenewal, cancelOrgRenewal } = RENEWALS;
 const OPS = await import(pathToFileURL(join(API, "_ops.js")).href);
-const { isOpsOwner } = OPS;
+const { isOpsOwner, subscribeOperatorPush, revokeOperatorPush, operatorPushSubscriptionsFor } = OPS;
 const RATE = await import(pathToFileURL(join(API, "_rate-limit.js")).href);
 const { consume } = RATE;
 const RATELIMIT = await import(pathToFileURL(join(API, "_ratelimit.js")).href);
@@ -1706,6 +1714,127 @@ console.log("\n── §17: the five widened doors' own new cases (WS-R51) ─�
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// §17b. WS-R62 (migration 114) — ops.js's own push_subscribe/push_revoke,
+// the ops door's first `op`-shaped body. A dedicated tiny fake `vy_operator_
+// push_subscription` table rather than an addition to fixtures.mjs's shared
+// state — this table has no room, no follower, no replica, nothing that
+// fixture already models, so growing it here would be the exact "a fixture
+// pulled in for one field it does not use" risk `evals/incidents/run.mjs`'s
+// own header names for the identical reason.
+//
+// The class here is (e), restated for the platform-operator allowlist
+// rather than "another owner's X" (this file's own class-e header comment
+// names the shape): OWNER stands in for a real operator id, OWNER_B for a
+// bearer NOT on `OPS_OWNER_USER_IDS` — every assertion below calls
+// `api/_ops.js`'s exported functions DIRECTLY, the same "attack the real
+// decision module, never a re-implemented check" law every other class-e
+// block in this file already keeps.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §17b: ops.js push_subscribe / push_revoke (WS-R62) ──");
+{
+  const ALLOWLIST_ENV = { OPS_OWNER_USER_IDS: OWNER };
+  const SUB = {
+    endpoint: "https://push.example.test/operator-device-1",
+    p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM",
+    auth: "tBHItJI5svbpez7KI4CCXg",
+  };
+
+  function freshOpsPushState() {
+    return { rows: [] };
+  }
+  /** A literal, faithful interpretation of the REAL SQL text `_ops.js`
+   *  sends — not a re-implemented ownership check — so a passing assertion
+   *  here means the query's own WHERE clause, not this fixture's JS, is
+   *  what refused a non-operator bearer. */
+  function opsPushDb(state) {
+    return async (sql, params = []) => {
+      const has = (s) => sql.includes(s);
+      const allowedBy = (ownerUserId, ids) =>
+        Array.isArray(ids) && ids.map((x) => String(x).toLowerCase()).includes(String(ownerUserId).toLowerCase());
+
+      if (has("insert into vy_operator_push_subscription")) {
+        const [id, ownerUserId, endpoint, p256dh, auth, ids] = params;
+        if (!allowedBy(ownerUserId, ids)) return []; // the WHERE's own refusal
+        let row = state.rows.find((r) => r.owner_user_id === ownerUserId && r.endpoint === endpoint);
+        if (row) {
+          row.p256dh = p256dh;
+          row.auth = auth;
+          row.revoked_at = null;
+        } else {
+          row = { id, owner_user_id: ownerUserId, endpoint, p256dh, auth, revoked_at: null };
+          state.rows.push(row);
+        }
+        return [{ id: row.id }];
+      }
+      if (has("update vy_operator_push_subscription") && has("endpoint = $2")) {
+        const [ownerUserId, endpoint, ids] = params;
+        if (!allowedBy(ownerUserId, ids)) return [];
+        const row = state.rows.find((r) => r.owner_user_id === ownerUserId && r.endpoint === endpoint && !r.revoked_at);
+        if (!row) return [];
+        row.revoked_at = "revoked";
+        return [{ id: row.id }];
+      }
+      if (has("select id, endpoint, p256dh, auth") && has("from vy_operator_push_subscription")) {
+        const [ownerUserId] = params;
+        return state.rows
+          .filter((r) => r.owner_user_id === ownerUserId && !r.revoked_at)
+          .map((r) => ({ id: r.id, endpoint: r.endpoint, p256dh: r.p256dh, auth: r.auth }));
+      }
+      if (has("update vy_operator_push_subscription set revoked_at = now() where id")) {
+        const [id] = params;
+        const row = state.rows.find((r) => r.id === id);
+        if (row) row.revoked_at = "revoked";
+        return [];
+      }
+      return [];
+    };
+  }
+
+  // subscribe: the real operator's own write succeeds.
+  {
+    const state = freshOpsPushState();
+    const db = opsPushDb(state);
+    const result = await subscribeOperatorPush(db, OWNER, SUB, ALLOWLIST_ENV);
+    okClass("e-owner-bearer", "ops.js", "push_subscribe: the real operator's own subscribe succeeds (the fixture is sound)", result.subscribed === true && state.rows.length === 1);
+  }
+  // subscribe: NEGATIVE CONTROL — a bearer NOT on OPS_OWNER_USER_IDS writes
+  // NO row. This calls `subscribeOperatorPush` directly, bypassing
+  // `api/ops.js`'s own door-level `isOpsOwner` gate entirely, so a pass
+  // here proves the INSERT's own WHERE clause refuses — not a JS `if`
+  // above it that a door-level bug could someday skip.
+  {
+    const state = freshOpsPushState();
+    const db = opsPushDb(state);
+    const result = await subscribeOperatorPush(db, OWNER_B, SUB, ALLOWLIST_ENV);
+    okClass("e-owner-bearer", "ops.js", "push_subscribe: NEGATIVE CONTROL — a bearer NOT on OPS_OWNER_USER_IDS writes ZERO rows, decided by the INSERT's own WHERE, not by this test skipping a JS check", result.subscribed === false && state.rows.length === 0);
+  }
+  // revoke: the real operator revokes their own subscription; a stranger's
+  // attempt against the SAME endpoint leaves it untouched.
+  {
+    const state = freshOpsPushState();
+    const db = opsPushDb(state);
+    await subscribeOperatorPush(db, OWNER, SUB, ALLOWLIST_ENV);
+    const stolen = await revokeOperatorPush(db, OWNER_B, SUB.endpoint, ALLOWLIST_ENV);
+    okClass("e-owner-bearer", "ops.js", "push_revoke: a bearer NOT on OPS_OWNER_USER_IDS revokes nothing", stolen.revoked === false);
+    ok("[e-owner-bearer/ops.js] push_revoke: OWNER's own row is UNCHANGED by the stranger's attempt", state.rows[0].revoked_at === null);
+    const mine = await revokeOperatorPush(db, OWNER, SUB.endpoint, ALLOWLIST_ENV);
+    okClass("e-owner-bearer", "ops.js", "push_revoke: the real operator's own revoke succeeds (the fixture is sound)", mine.revoked === true && state.rows[0].revoked_at !== null);
+  }
+  // reader: NEGATIVE CONTROL — a revoked row is never returned to the
+  // sweep, so a 404/410 the sweep already acted on cannot be sent to twice
+  // (workstream law #3's own words).
+  {
+    const state = freshOpsPushState();
+    state.rows.push({ id: "s1", owner_user_id: OWNER, endpoint: "https://push.example.test/active", p256dh: "a", auth: "b", revoked_at: null });
+    state.rows.push({ id: "s2", owner_user_id: OWNER, endpoint: "https://push.example.test/revoked", p256dh: "a", auth: "b", revoked_at: "revoked" });
+    const db = opsPushDb(state);
+    const active = await operatorPushSubscriptionsFor(db, OWNER);
+    ok("[e-owner-bearer/ops.js] operatorPushSubscriptionsFor: only the active row is returned", active.length === 1 && active[0].id === "s1");
+    ok("NEGATIVE CONTROL: operatorPushSubscriptionsFor never returns a revoked row", !active.some((r) => r.id === "s2"));
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // §18. THE COMPUTED OP LIST — law 1: every `op === "<name>"` literal in a
 // door's own source is read off that source (never hand-typed twice) and
 // asserted against this file's own coverage table, so a new op fails the
@@ -1868,6 +1997,11 @@ const OP_COVERAGE = {
     erasure_status: { classes: ["e"] },
     funnel_mark: { classes: ["e"] },
     set_locale: { classes: ["e"] },
+  },
+  // ── WS-R62 (migration 114): the ops door's first `op`-shaped body. ──────
+  "ops.js": {
+    push_subscribe: { classes: ["e"] },
+    push_revoke: { classes: ["e"] },
   },
   "account.js": {
     send_otp: { classes: ["h"] },

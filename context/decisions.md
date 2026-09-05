@@ -13892,3 +13892,88 @@ workstream built for the offline eval would already be most of the way
 there — but no such capability exists today, and `evals/probe-live/
 fakeServer.mjs` is deliberately a hand-built approximation, not a claim of
 parity with the real Vercel edge.
+
+## `ws-r62-operator-push-subscription-store-built` (2026-09-05, WS-R62)
+
+**Decision.** `vy_operator_push_subscription` (migration 114:
+`id, owner_user_id, endpoint, p256dh, auth, created_at, revoked_at`, unique
+on `(owner_user_id, endpoint)`) is built, and `api/_checkins.js` wires
+`api/_ops.js`'s `operatorPushSubscriptionsFor`/`revokeOperatorPushById` into
+`api/_incidents.js`'s `notifyNewIncidentKinds` as `deps.
+operatorSubscriptionsFor`/`deps.revokeOperatorSubscription`, replacing the
+always-empty default. `api/ops.js` gains two owner-bearer POST ops on the
+SAME door the overview already answers GET from: `push_subscribe` and
+`push_revoke`.
+
+**Rationale.** This is the reversal condition
+`ws-r58-operator-push-subscription-store-does-not-exist` named in writing:
+"the day a real operator push-subscription store exists ... wire it in as
+`deps.operatorSubscriptionsFor`'s real implementation." `notifyNewIncidentKinds`'s
+own signature did not change, exactly as that decision predicted — only
+what is passed to it in production did.
+
+**Reversal condition.** If a platform operator is ever someone who has no
+`vy_replica` row of their own (today `OPS_OWNER_USER_IDS` is asserted, not
+verified, to be drawn from Vyakti's own owner-id space, which by this
+platform's own onboarding always has at least one replica), their
+subscription row would have no erasure path — `api/_replica-full-erasure.js`
+only reaches this table via a candidate `(replica_id, owner_user_id)` pair,
+`vy_org_member`'s/`vy_creator_payout`'s own already-accepted "an owner with
+no replica of their own is not reached either" limitation restated. If that
+assumption is ever tested and found false, this table needs its own,
+replica-independent erasure surface, not a ride-along on `vy_replica`'s job.
+
+## `ws-r62-operator-push-payload-reuses-push-sw` (2026-09-05, WS-R62)
+
+**Decision.** `api/_incidents.js`'s `incidentPushPayload(kind, count)` is
+shaped as flat `{title, body, kind, route}` JSON — `public/push-sw.js`'s own
+committed, already-reviewed `push` event contract (`const data = d.data ||
+d;` falls through to the payload itself when it carries no `data`
+wrapper) — rather than building or modifying a dedicated service worker for
+the studio/ops board. `title`/`body` are fixed English sentences built only
+from the closed `INCIDENT_KINDS` vocabulary and a count; `route` always
+points at `/studio?mode=ops` itself, never a per-incident URL.
+
+**Rationale.** No manifest or service worker exists for the studio/ops
+board today, and building one was outside this workstream's file list and
+risked the same class of regression WS-R59's own install/precache battery
+exists to catch on `room-sw.js` (a Room-scoped file this workstream does
+not touch). `push-sw.js` already handles an arbitrary `{title,body,kind,
+route}` push from any sender — a browser's `push` event carries whatever
+bytes were POSTed to the subscription endpoint, regardless of which backend
+signed the send — so reusing its display path costs zero new files while
+still keeping the wire content-free (`kind`/`count` only, no door name, no
+person id, `evals/incidents/run.mjs`'s own static-scan negative control).
+
+**Reversal condition.** If `push-sw.js`'s own payload contract ever changes
+(e.g. requiring an FCM-style `data` wrapper, or a `kind` value colliding
+with a Meera notification tag), or the ops board grows its own dedicated
+installable-app flow, give operator alerts a dedicated service worker at
+that point.
+
+## `ws-r62-ops-board-push-copy-stays-english-inline` (2026-09-05, WS-R62)
+
+**Decision.** The "Alerts on this phone" card's copy lives inline in
+`src/studio/OpsBoard.tsx` as plain English strings, the same house style
+every other card on that page already uses — NOT as a bilingual entry in
+`src/studio/copy.ts`, despite this workstream's own brief asking for "both
+locales through src/studio/copy.ts."
+
+**Rationale.** `evals/studio-locale/run.mjs`'s own `TIER_2_ALLOWLIST`
+already names `OpsBoard.tsx` in writing as deliberately unlocalized:
+"Internal operator dashboard (`?mode=ops`), never a creator-facing screen
+at all" (WS-R52). The page carries no locale state, no language switcher,
+and no mechanism to select Hindi at all — adding bilingual copy.ts entries
+a page structurally cannot read would satisfy the letter of the brief while
+adding dead weight nobody could reach, the exact "a plausible return hides
+a dead pipeline" shape AGENTS.md warns against, restated for unreachable
+localization instead of a fake success value. `context/`'s own rule binds
+here: where a live, gate-enforced decision disagrees with an instruction,
+they are both wins for `context/`.
+
+**Reversal condition.** If a future workstream removes `OpsBoard.tsx` from
+`TIER_2_ALLOWLIST` and gives the ops board a real locale switcher (WS-R61,
+"the rest of the studio in Hindi," is the most likely candidate to do this
+as a side effect), move this card's copy into `src/studio/copy.ts` at that
+point — the card's own structure does not need to change, only where its
+strings live.

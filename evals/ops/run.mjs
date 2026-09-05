@@ -29,6 +29,14 @@ const ok = (name, cond, extra = "") => {
   else fail++;
   console.log(`${cond ? "  ok  " : "FAIL  "}${name}${extra ? `   ${extra}` : ""}`);
 };
+const threwAsync = async (fn) => {
+  try {
+    await fn();
+    return null;
+  } catch (error) {
+    return error;
+  }
+};
 
 const {
   opsOverview,
@@ -36,6 +44,10 @@ const {
   isOpsOwner,
   sweepStaleness,
   incidentsOverview,
+  operatorPushConfig,
+  subscribeOperatorPush,
+  revokeOperatorPush,
+  operatorPushSubscriptionsFor,
 } = await import(pathToFileURL(join(REPO, "api/_ops.js")).href);
 const { withSweepRun, sanitizeCounts } = await import(pathToFileURL(join(REPO, "api/_sweep-run.js")).href);
 const { sweepSchedules, expectedIntervalMs, sweepNameFromPath } = await import(
@@ -558,6 +570,13 @@ console.log("\n── §4: opsOverview (real counts, honest empty states) ──
     Array.isArray(overview.incidents.by_kind_door) && overview.incidents.by_kind_door.length === 0 &&
     Array.isArray(overview.incidents.new_kinds) && overview.incidents.new_kinds.length === 0,
     JSON.stringify(overview.incidents));
+
+  // WS-R62 (migration 114): unset VAPID in this offline environment - the
+  // board's own honest-empty-state law restated for the push card, never a
+  // private key on the wire.
+  ok("push.configured is honestly false when VAPID is unset in this environment",
+    overview.push.configured === false && overview.push.vapid_public === null,
+    JSON.stringify(overview.push));
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -600,6 +619,89 @@ console.log("\n── §5b: incidentsOverview (the Incidents card) ──");
     !card.new_kinds.includes("provider_telegram"));
   ok("provider_payments never appears in new_kinds either - it is outside the window entirely",
     !card.new_kinds.includes("provider_payments"));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §5c — WS-R62 (migration 114). `operatorPushConfig` (pure, no db) and the
+// subscribe/revoke/read functions against a small dedicated fake
+// `vy_operator_push_subscription` table. `evals/room-doors/run.mjs`'s own
+// §17b attacks these same functions as class (e) (a non-operator bearer
+// refused, decided by the SQL's own WHERE); this section proves the
+// ordinary, well-behaved shape - `evals/room-leak/run.mjs`'s own division
+// of labour between "does the boundary hold under attack" and "does the
+// happy path work at all" restated one file over.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §5c: operator push subscriptions (WS-R62) ──");
+{
+  ok("operatorPushConfig: unset VAPID reports honestly unconfigured, no public key",
+    operatorPushConfig({}).configured === false && operatorPushConfig({}).vapid_public === null);
+  const configured = operatorPushConfig({
+    ROOM_PUSH_VAPID_PUBLIC: "pub-key", ROOM_PUSH_VAPID_PRIVATE: "priv-key", ROOM_PUSH_VAPID_SUBJECT: "mailto:ops@example.test",
+  });
+  ok("operatorPushConfig: all three set reports configured, WITH the public key",
+    configured.configured === true && configured.vapid_public === "pub-key");
+  ok("operatorPushConfig: the PRIVATE key never appears on the returned shape",
+    !JSON.stringify(configured).includes("priv-key"));
+}
+{
+  const OPERATOR = "11111111-1111-4111-8111-111111111111";
+  const ENV = { OPS_OWNER_USER_IDS: OPERATOR };
+  const SUB = { endpoint: "https://push.example.test/ops-device", p256dh: "B".repeat(50), auth: "A".repeat(20) };
+
+  function pushState() { return { rows: [] }; }
+  function pushDb(state) {
+    return async (sql, params = []) => {
+      const has = (s) => sql.includes(s);
+      if (has("insert into vy_operator_push_subscription")) {
+        const [id, ownerUserId, endpoint, p256dh, auth, ids] = params;
+        if (!ids.map((x) => String(x).toLowerCase()).includes(String(ownerUserId).toLowerCase())) return [];
+        let row = state.rows.find((r) => r.owner_user_id === ownerUserId && r.endpoint === endpoint);
+        if (row) { row.p256dh = p256dh; row.auth = auth; row.revoked_at = null; }
+        else { row = { id, owner_user_id: ownerUserId, endpoint, p256dh, auth, revoked_at: null }; state.rows.push(row); }
+        return [{ id: row.id }];
+      }
+      if (has("update vy_operator_push_subscription") && has("endpoint = $2")) {
+        const [ownerUserId, endpoint, ids] = params;
+        if (!ids.map((x) => String(x).toLowerCase()).includes(String(ownerUserId).toLowerCase())) return [];
+        const row = state.rows.find((r) => r.owner_user_id === ownerUserId && r.endpoint === endpoint && !r.revoked_at);
+        if (!row) return [];
+        row.revoked_at = "revoked";
+        return [{ id: row.id }];
+      }
+      if (has("select id, endpoint, p256dh, auth") && has("from vy_operator_push_subscription")) {
+        const [ownerUserId] = params;
+        return state.rows.filter((r) => r.owner_user_id === ownerUserId && !r.revoked_at)
+          .map((r) => ({ id: r.id, endpoint: r.endpoint, p256dh: r.p256dh, auth: r.auth }));
+      }
+      return [];
+    };
+  }
+
+  const state = pushState();
+  const db = pushDb(state);
+  const subscribed = await subscribeOperatorPush(db, OPERATOR, SUB, ENV);
+  ok("subscribeOperatorPush: a valid subscription from the real operator succeeds", subscribed.subscribed === true);
+
+  const resubscribed = await subscribeOperatorPush(db, OPERATOR, SUB, ENV);
+  ok("subscribeOperatorPush: re-subscribing the SAME endpoint upserts, never a second row",
+    resubscribed.subscribed === true && state.rows.length === 1);
+
+  const active = await operatorPushSubscriptionsFor(db, OPERATOR);
+  ok("operatorPushSubscriptionsFor: the operator's own active subscription is readable",
+    active.length === 1 && active[0].endpoint === SUB.endpoint);
+
+  const revoked = await revokeOperatorPush(db, OPERATOR, SUB.endpoint, ENV);
+  ok("revokeOperatorPush: the real operator's own revoke succeeds", revoked.revoked === true);
+
+  const afterRevoke = await operatorPushSubscriptionsFor(db, OPERATOR);
+  ok("operatorPushSubscriptionsFor: a revoked row is no longer returned", afterRevoke.length === 0);
+
+  // NEGATIVE CONTROL: assertOperatorPushSubscription's own input validation
+  // (subscribeOperatorPush throws BEFORE any SQL runs for a malformed body).
+  const badEndpoint = await threwAsync(() => subscribeOperatorPush(db, OPERATOR, { ...SUB, endpoint: "http://not-https.example.test" }, ENV));
+  ok("NEGATIVE CONTROL: a non-https endpoint is refused before any SQL runs", badEndpoint?.code === "ops_push_endpoint_invalid");
+  const badKey = await threwAsync(() => subscribeOperatorPush(db, OPERATOR, { ...SUB, p256dh: "short" }, ENV));
+  ok("NEGATIVE CONTROL: a too-short p256dh key is refused before any SQL runs", badKey?.code === "ops_push_key_invalid");
 }
 
 // ═════════════════════════════════════════════════════════════════════════

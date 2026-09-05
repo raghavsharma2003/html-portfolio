@@ -10508,3 +10508,63 @@ specifically is this build's normal shape when the platform-branch
 condition is true, not a broken route. This workstream's law 1 does not
 list `/vyakti` among the paths a status code is asserted against for
 exactly this reason.
+
+## `ws-r62-gate-before-after-2026-09-05`
+
+n = 1 worktree (`ws-r62-operator-subscriptions`, base `a414c7c`); method =
+`node scripts/verify-release.mjs` run on the untouched tree, then again
+after every edit; date 2026-09-05.
+
+| when | result |
+|---|---|
+| before (untouched tree) | 20/21 — `accessibility` FAILS on `site:/`'s `.onb-sub`/`.onb-honest` color-contrast (4.35:1 against a 4.5:1 threshold), unrelated to this workstream (Meera's own landing page, not touched here) |
+| after, full gate, 8+ sibling `verify-release.mjs` runs sharing this machine (load average 16-17 on 4 cores, confirmed by `/proc/loadavg` and `ps`) | 19/21 — the SAME `accessibility` failure, byte-identical text, PLUS `performance budgets` crashing with `EADDRINUSE` on port 8932 (a sibling gate run holding the port at that instant) |
+| after, `node scripts/check-performance.mjs` standalone, immediately after the port freed | FAIL once more (`/r/<slug>` TBT 323ms > 300ms budget, JS/CSS byte counts unchanged at 82.3K/29.9K — this workstream touches no file in the Room's own bundle), then PASS on an immediate retry with byte-for-byte identical JS/CSS counts and load average still 16.5+ — the TBT swing is CPU-contention noise on a saturated shared host, not a regression: no Room-bundle file (`room.html`, `src/room/*`, `public/room-sw.js`) was touched by this workstream |
+
+The honest picture: this workstream's own changes add zero client bytes to
+any page `check-performance.mjs` measures (`/`, `/vyakti`, `/r/<slug>`,
+`/studio` all read server-side `api/` files and `src/studio/OpsBoard.tsx`/
+`opsApi.ts`, neither bundled into any of those four targets except
+`/studio`, whose own JS/CSS byte counts — 147.4K/33.8K — were identical
+across the failing and passing runs). `accessibility`'s one failure is
+confirmed identical, word-for-word, on the untouched tree and after every
+edit. Under a quiet machine (no sibling gate runs), `node scripts/
+verify-release.mjs` is expected to read 20/21 — the single accessibility
+failure only — exactly as the untouched-tree baseline read; this could not
+be re-confirmed with a fully clean concurrent run in this session because
+the shared machine never became quiet (wave-twelve's other workstreams kept
+gates running the whole session).
+
+`node evals/room-doors/run.mjs` standalone: 492/492 before this workstream's
+edits (baseline read from the untouched tree's own §-by-class tally),
+503/503 after — the 11 new passes are §17b's own six ops.js cases plus the
+five `[computed-op-list/ops.js]`/OP_COVERAGE assertions §18 adds once
+`ops.js` joins `EXPECTED_DOORS`. `node evals/incidents/run.mjs`: 34/34
+before, 39/39 after (five new: the push-payload count assertion, the 410
+revoke case, and the three-part static-scan negative control on
+`incidentPushPayload`). `node evals/ops/run.mjs`: 124/124 after (was not
+separately counted before this workstream's edits; the ten new §5c cases
+plus the one `push.configured` assertion in §4 account for the growth from
+whatever WS-R58 left it at). `node evals/run.mjs` (the full offline suite
+`verify-release.mjs`'s own "eval suite" gate runs): exit 0, no suite
+reporting a nonzero failure count, confirmed by grepping the full run's
+output for `[1-9][0-9]* failed` and finding only one incidental match
+inside an unrelated ok-line's own text (`ingested=2 failed=0`).
+`node scripts/check-copy.mjs`: clean, 6 scopes, 21 negative controls,
+unchanged. `node scripts/context.mjs --check`: clean both before (1251
+nodes / 1504 edges) and after this workstream's own append.
+`node node_modules/typescript/bin/tsc -b`: clean (the exact invocation
+`scripts/verify-release.mjs`'s own "typecheck" gate uses).
+
+Not measured (no `NEON_URL` in this environment): migration 114 has never
+run against a live Postgres; `scripts/relcheck.mjs`'s owner-lane reach walk
+has never actually queried `information_schema` for
+`vy_operator_push_subscription`'s own `owner_user_id` column, so its
+"reached by name in `api/_replica-full-erasure.js`" verdict rests on the
+regex the eval reproduces (`delete from vy_operator_push_subscription\b`),
+not on a live run of the real gate; no real subscription row exists outside
+a fake `db`; no real browser has ever received a push through this path, so
+`public/push-sw.js`'s own display of the `{title,body,kind,route}` shape
+this workstream's payload now sends is UNPROVEN in a real browser (proven
+only as "the SAME shape that file's own header already documents it
+expects," a static argument, not a run).

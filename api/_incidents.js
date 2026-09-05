@@ -35,21 +35,26 @@
 //      `pruneOldRuns` own best-effort, bounded-delete posture restated for
 //      this table.
 //
-// ── THE HONEST GAP, NAMED RATHER THAN HIDDEN ────────────────────────────
+// ── THE GAP THIS FILE ONCE NAMED, NOW CLOSED (WS-R62, migration 114) ────
 //
 // `notifyNewIncidentKinds` sends through the SAME `api/_push/webpush.js`
-// module every follower notification already uses, but this repo has NO
-// operator push-subscription store — `vy_room_push_subscription` (migration
-// 085) is scoped to a follower's own (room_id, person_id, follower_id), not
-// to a platform operator's Supabase auth id, and building a new store is
-// outside this workstream's file list. `deps.operatorSubscriptionsFor`
-// (default: resolves to an empty list for every operator) is the seam a
-// future workstream wires a real store into; until then this function's OWN
-// mechanics — claim, dedupe, at-most-once — are proven end to end by
-// `evals/incidents/run.mjs` with an injected fake subscription, and in
-// production it correctly finds nobody to push to, rather than pretending a
-// push went out. See context/decisions.md#ws-r58-operator-push-subscription-
-// store-does-not-exist for the reversal condition.
+// module every follower notification already uses. Until WS-R62 this repo
+// had NO operator push-subscription store — `vy_room_push_subscription`
+// (migration 085) is scoped to a follower's own (room_id, person_id,
+// follower_id), not to a platform operator's Supabase auth id —
+// `deps.operatorSubscriptionsFor` resolved to an empty list for every
+// operator, so a claim was made correctly but nobody was ever pushed to.
+// `vy_operator_push_subscription` (migration 114, `api/_ops.js`'s
+// `operatorPushSubscriptionsFor`/`revokeOperatorPushById`) is that store;
+// `api/_checkins.js` wires the real functions in as `deps.
+// operatorSubscriptionsFor`/`deps.revokeOperatorSubscription` in
+// production. This file still takes both as INJECTED deps, never an
+// import of `api/_ops.js` directly — that file already imports THIS one
+// (`INCIDENT_KINDS`, `incidentsOverview`'s own read), so an import the
+// other way would make a cycle, `opsOwnerIdsLocal`'s own precedent one
+// function up restated for a second seam. See
+// context/decisions.md#ws-r58-operator-push-subscription-store-does-not-exist
+// for the decision this closes.
 import { randomUUID } from "node:crypto";
 import { send as webPushSend } from "./_push/webpush.js";
 
@@ -173,13 +178,35 @@ export function withDoor(db, door, handler) {
   };
 }
 
-// Content-free by construction — `kind` is one of the five closed values,
-// never a door name or a status the reader does not already control the
-// vocabulary for (`evals/incidents/run.mjs`'s own static scan, `_push/
-// webpush.js`'s `checkinPushPayload` own precedent restated for a fifth
-// notification shape).
-function incidentPushPayload(kind) {
-  return JSON.stringify({ t: "incident", k: String(kind || "") });
+// Content-free by construction — the only two facts that ever reach the
+// wire are `kind` (one of the five closed values) and `count` (today's
+// total for that kind, across every door and status) — never a door name
+// and never a person id, `evals/incidents/run.mjs`'s own static scan
+// asserts this function's own source names neither, `_push/webpush.js`'s
+// `checkinPushPayload` own "the payload builder's own parameter list IS the
+// enforcement" precedent restated for a fifth notification shape.
+//
+// WS-R62: shaped as `{title, body, kind, route}` — `public/push-sw.js`'s
+// OWN payload contract (its header: "a data-only push … `{title, body,
+// kind, route}`") — so the operator's real browser notification is drawn by
+// the SAME already-committed, already-reviewed display worker every other
+// account-wide push in this repo uses, rather than a second display path
+// this workstream would have to write and review from scratch. `title`/
+// `body` are fixed English sentences built from the closed `kind` vocabulary
+// and a count, never a template that could carry a door name or an id —
+// `kind: "opsIncident"` here is `push-sw.js`'s own notification GROUPING
+// key (its `TAGS` map), unrelated to `vy_incident.kind`, and `route` always
+// points at the ops board itself, never a specific incident row (there is
+// no per-incident route to point at — the board's own Incidents card is
+// where the real detail lives, behind the operator's own bearer).
+function incidentPushPayload(kind, count) {
+  const n = Number.isFinite(count) ? count : 0;
+  return JSON.stringify({
+    title: "Vyakti ops alert",
+    body: `${String(kind || "")}: ${n} today`,
+    kind: "opsIncident",
+    route: "/studio?mode=ops",
+  });
 }
 
 /**
@@ -236,11 +263,19 @@ export async function claimNewKindNotification(db, kind) {
  * The check-ins sweep's own step (workstream law #4). For every kind that
  * has at least one row today, attempts the claim above; on a win, attempts
  * one web push per subscription `deps.operatorSubscriptionsFor` resolves
- * for each `OPS_OWNER_USER_IDS` entry — see this file's header for why that
- * resolves to nothing today. Unset VAPID or an empty operator allowlist is
+ * for each `OPS_OWNER_USER_IDS` entry — `api/_checkins.js` wires this to the
+ * real `vy_operator_push_subscription` reader in production (WS-R62); the
+ * default here (an empty list) is only ever exercised by an eval that does
+ * not inject one. Unset VAPID or an empty operator allowlist is
  * `_checkins.js`'s own `webPush`'s posture restated: no claim is even
  * attempted, so the day it gets configured mid-day this can still fire for
  * a kind that first appeared before the config existed.
+ *
+ * A 404/410 from the push service revokes that ONE subscription via
+ * `deps.revokeOperatorSubscription` (default: a no-op — again, only an
+ * eval that omits it ever sees that) — `_checkins.js`'s own `webPush`
+ * deliverer's 404/410 handling for a follower, restated for the owner lane
+ * (workstream law #3).
  *
  * NEVER throws — every step inside is best-effort, the same posture
  * `_checkins.js`'s `deliverers.webPush` already takes for a single
@@ -270,6 +305,9 @@ export async function notifyNewIncidentKinds(db, deps = {}) {
     ? deps.operatorSubscriptionsFor
     : async () => [];
   const sendPush = deps.sendPush || webPushSend;
+  const revoke = typeof deps.revokeOperatorSubscription === "function"
+    ? deps.revokeOperatorSubscription
+    : async () => {};
 
   for (const row of kindsToday) {
     const kind = row?.kind;
@@ -277,7 +315,20 @@ export async function notifyNewIncidentKinds(db, deps = {}) {
     const claimed = await claimNewKindNotification(db, kind);
     if (!claimed) continue;
     summary.claimed++;
-    const payload = incidentPushPayload(kind);
+    // Today's total for this kind, across every door and status — the
+    // ONLY other fact (besides `kind` itself) `incidentPushPayload` may
+    // ever put on the wire, its own header's law.
+    let countToday = 0;
+    try {
+      const [countRow] = await db(
+        `select coalesce(sum(count), 0)::int as n from vy_incident where day = current_date and kind = $1`,
+        [kind],
+      );
+      countToday = Number(countRow?.n || 0);
+    } catch (error) {
+      console.error("[incidents] notify count read failure:", error?.message || "unknown");
+    }
+    const payload = incidentPushPayload(kind, countToday);
     for (const ownerId of ownerIds) {
       let subs = [];
       try {
@@ -294,7 +345,14 @@ export async function notifyNewIncidentKinds(db, deps = {}) {
             vapidSubject,
             now: deps.now,
           });
-          if (result?.ok) summary.pushed++;
+          if (result?.ok) {
+            summary.pushed++;
+          } else if (result?.status === 404 || result?.status === 410) {
+            // Workstream law #3 — `_checkins.js`'s own `webPush` deliverer's
+            // 404/410 handling for a follower's subscription, restated for
+            // the operator's own.
+            await revoke(sub.id).catch(() => {});
+          }
         } catch (error) {
           console.error("[incidents] notify push send failure:", error?.message || "unknown");
         }

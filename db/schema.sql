@@ -4204,3 +4204,28 @@ alter table vy_replica
 alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
 alter table vy_room_arrival add constraint vy_room_arrival_via_check
   check (via in ('share', 'direct', 'embed', 'search', 'install'));
+
+-- Migration 114 - operator push subscriptions (WS-R62). See
+-- db/migrations/114_operator_push_subscription.sql for the full argument:
+-- closes the gap named in `context/decisions.md#ws-r58-operator-push-
+-- subscription-store-does-not-exist` - the same endpoint/p256dh/auth shape
+-- `vy_room_push_subscription` (085) keeps for a follower, narrowed to one
+-- operator's own `owner_user_id` (no room, no person, no follower). NOT a
+-- person table - an operator is an owner acting in a platform-staff
+-- capacity, `vy_creator_invite.issued_by_user_id`'s own precedent (086)
+-- restated - reached by the owner-lane erasure job by NAME
+-- (api/_replica-full-erasure.js), never by cascade.
+create table if not exists vy_operator_push_subscription (
+  id          uuid primary key,
+  owner_user_id uuid not null,
+  endpoint    text not null,
+  p256dh      text not null,
+  auth        text not null,
+  created_at  timestamptz not null default now(),
+  revoked_at  timestamptz
+);
+create unique index if not exists vy_operator_push_subscription_owner_endpoint_ix
+  on vy_operator_push_subscription (owner_user_id, endpoint);
+create index if not exists vy_operator_push_subscription_active_ix
+  on vy_operator_push_subscription (owner_user_id)
+  where revoked_at is null;

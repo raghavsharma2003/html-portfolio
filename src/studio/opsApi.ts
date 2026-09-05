@@ -137,6 +137,14 @@ export interface OpsIncidents {
   new_kinds: string[];
 }
 
+// WS-R62 (migration 114). `api/_ops.js`'s own `operatorPushConfig` shape,
+// typed here unchanged - this file computes nothing, `opsApi.ts`'s own
+// header rule restated. Never the private VAPID key.
+export interface OpsPushConfig {
+  configured: boolean;
+  vapid_public: string | null;
+}
+
 export interface OpsOverview {
   generated_at: string;
   rooms: OpsRoom[];
@@ -149,8 +157,34 @@ export interface OpsOverview {
   incidents: OpsIncidents;
   // WS-R53 (migration 110).
   taste_turns_this_week: OpsTasteTurns;
+  // WS-R62 (migration 114).
+  push: OpsPushConfig;
 }
 
 export async function readOpsOverview(token: string): Promise<OpsOverview> {
   return replicaRequest<OpsOverview>(token, "/api/ops");
+}
+
+// WS-R62 (migration 114). The operator's own "Alerts on this phone"
+// control - subscribe/revoke are POST ops on the SAME `/api/ops` door the
+// overview reads GET from (`api/ops.js`'s own header names the reason: one
+// door, one auth gate, never a second endpoint to keep in sync with the
+// first one's own 404-by-name law).
+export async function subscribeOpsPush(
+  token: string,
+  endpoint: string,
+  p256dh: string,
+  auth: string,
+): Promise<{ subscribed: boolean }> {
+  return replicaRequest<{ subscribed: boolean }>(token, "/api/ops", {
+    method: "POST",
+    body: JSON.stringify({ op: "push_subscribe", endpoint, p256dh, auth }),
+  });
+}
+
+export async function revokeOpsPush(token: string, endpoint: string): Promise<{ revoked: boolean }> {
+  return replicaRequest<{ revoked: boolean }>(token, "/api/ops", {
+    method: "POST",
+    body: JSON.stringify({ op: "push_revoke", endpoint }),
+  });
 }
