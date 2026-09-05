@@ -34,6 +34,11 @@
 //   4. THE OPS BOARD'S OWN READ. `receiptsIssuedLateThisWeek` sums the
 //      `receipt` sweep's own `vy_sweep_run` history over a rolling 7 days,
 //      never a cached or invented number.
+//   5. WS-R133 (referral-reward hardening, law 3). A `referral_reward`
+//      ledger row with a missing receipt (the exact gap
+//      `maybeGrantReferralReward`'s own `catch` names) is closed by this
+//      SAME sweep - kind-aware, exactly `amount_inr = 0`, the SAME atomic
+//      counter claim - never a second, parallel mint path.
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -49,7 +54,7 @@ const ok = (name, cond, extra = "") => {
 };
 
 const paymentsMod = await import(pathToFileURL(join(REPO, "api/_payments.js")).href);
-const { backfillReceipts, issueFollowerReceipt, CREATOR_CHARGE_KINDS, RECEIPT_SWEEP_DEFAULT_LIMIT } = paymentsMod;
+const { backfillReceipts, issueFollowerReceipt, CREATOR_CHARGE_KINDS, RECEIPT_SWEEP_DEFAULT_LIMIT, REFERRAL_REWARD_REASON } = paymentsMod;
 const opsMod = await import(pathToFileURL(join(REPO, "api/_ops.js")).href);
 const { receiptsIssuedLateThisWeek } = opsMod;
 
@@ -83,12 +88,22 @@ function makeWorld() {
   const db = async (sql, params = []) => {
     const has = (s) => sql.includes(s);
 
-    // ── backfillReceipts's own SELECT ──────────────────────────────────
+    // ── backfillReceipts's own SELECT (WS-R133: kind-aware amount test —
+    //    a real charge still needs amount_inr > 0; the reward kind is
+    //    ADDITIONALLY admitted at exactly amount_inr = 0, never a blanket
+    //    "amount_inr >= 0" that would also sweep a broken zero-amount
+    //    charge) ─────────────────────────────────────────────────────────
     if (has("from vy_payment_event e") && has("left join vy_room_subscription s") && has("not exists")) {
-      const [kinds, limit] = params;
+      const [kinds, limit, rewardKind] = params;
       const kindSet = new Set(kinds);
       return events
-        .filter((e) => e.room_id != null && kindSet.has(e.kind) && Number(e.amount_inr) > 0 && !receipts.has(e.event_id))
+        .filter((e) => {
+          if (e.room_id == null || receipts.has(e.event_id)) return false;
+          const amount = Number(e.amount_inr);
+          if (kindSet.has(e.kind) && amount > 0) return true;
+          if (rewardKind && e.kind === rewardKind && amount === 0) return true;
+          return false;
+        })
         .sort((a, b) => a.received_at.localeCompare(b.received_at))
         .slice(0, limit)
         .map((e) => ({
@@ -195,6 +210,81 @@ console.log("§1 THE SELECT'S THREE PREDICATES, and the two required negative co
   ok("§2 a second run over the SAME rows scans nothing new", second.scanned === 0, JSON.stringify(second));
   ok("§2 a second run issues nothing new", second.issued === 0, JSON.stringify(second));
   ok("§2 the counter is unchanged by the second, idempotent run", counters.get("2026-27") === 4);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§2b WS-R133 law 3 - the sweep also closes a missing REWARD receipt");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // The exact gap `maybeGrantReferralReward`'s own `catch` produces: the
+  // reward's synthetic, zero-amount `vy_payment_event` row landed (the
+  // grant and the subscription extension already happened), but the
+  // receipt mint that was supposed to follow it never ran - modelled here
+  // by seeding the ledger row directly and never calling
+  // `issueFollowerReceipt` for it at all, "killing the receipt mint" the
+  // same way a Key Vault outage or a crash between the two statements
+  // would in production (`issueFollowerReceipt`'s own header names this
+  // exact gap for a real charge; this is the identical gap for a reward).
+  const world = makeWorld();
+  world.events.push({
+    event_id: "REWARD-1", room_id: ROOM_1, subscription_id: SUB_1, kind: "referral_reward",
+    amount_inr: 0, received_at: "2026-09-16T00:00:00.000Z",
+  });
+  // A genuine charge in the SAME batch, so the sweep is proven to handle
+  // both kinds together in one run, oldest-first across both.
+  world.events.push({
+    event_id: "E-CHARGE", room_id: ROOM_1, subscription_id: SUB_1, kind: "subscription.charged",
+    amount_inr: 399, received_at: "2026-09-17T00:00:00.000Z",
+  });
+
+  const summary = await backfillReceipts(world.db, deps());
+  ok("§2b the reward's own zero-amount event is scanned alongside the real charge",
+    summary.scanned === 2, JSON.stringify(summary));
+  ok("§2b the reward's own receipt IS issued - kind-aware, not excluded by amount_inr > 0",
+    world.receipts.has("REWARD-1"), JSON.stringify([...world.receipts.keys()]));
+  const rewardReceipt = world.receipts.get("REWARD-1");
+  ok("§2b the reward's receipt carries the SAME atomic FY counter claim as any other receipt",
+    Number.isInteger(rewardReceipt?.receipt_no) && rewardReceipt.receipt_no > 0, JSON.stringify(rewardReceipt));
+  ok("§2b the reward's receipt's issued_at is the LEDGER ROW's own received_at, never the sweep's clock",
+    rewardReceipt?.issued_at === "2026-09-16T00:00:00.000Z");
+  ok("§2b the real charge in the same batch also gets its receipt", world.receipts.has("E-CHARGE"));
+
+  // NEGATIVE CONTROL: a second run over the SAME rows sweeps nothing new -
+  // the reward-kind branch is exactly as idempotent as the charge branch,
+  // the SAME `not exists (select 1 from vy_receipt ...)` guarding both.
+  const second = await backfillReceipts(world.db, deps());
+  ok("§2b NEGATIVE CONTROL: a second run issues no second reward receipt", second.issued === 0, JSON.stringify(second));
+
+  // NEGATIVE CONTROL: a referral_reward event that is NOT exactly zero-amount
+  // (a shape that should never exist given migration 133's own CHECK, but
+  // this SELECT's own predicate is what would refuse it if it somehow did)
+  // is never swept - proves the reward branch is gated on amount_inr = 0
+  // specifically, never merely on the kind string.
+  const world2 = makeWorld();
+  world2.events.push({
+    event_id: "REWARD-BAD", room_id: ROOM_1, subscription_id: SUB_1, kind: "referral_reward",
+    amount_inr: 50, received_at: "2026-09-18T00:00:00.000Z",
+  });
+  const summary2 = await backfillReceipts(world2.db, deps());
+  ok("NEGATIVE CONTROL: a non-zero-amount referral_reward row is never swept (amount_inr = 0 is a real filter)",
+    !world2.receipts.has("REWARD-BAD") && summary2.scanned === 0, JSON.stringify(summary2));
+
+  // REQUIRED NEGATIVE CONTROL (this suite's own §1 convention, restated for
+  // the reward branch): a version of the SAME select without the
+  // reward-kind clause would never have found REWARD-1 at all - demonstrated
+  // against the identical fixture rows, never merely asserted.
+  const world3 = makeWorld();
+  world3.events.push({
+    event_id: "REWARD-2", room_id: ROOM_1, subscription_id: SUB_1, kind: "referral_reward",
+    amount_inr: 0, received_at: "2026-09-19T00:00:00.000Z",
+  });
+  const withoutRewardClause = world3.events.filter(
+    (e) => e.room_id != null && CREATOR_CHARGE_KINDS.has(e.kind) && Number(e.amount_inr) > 0,
+  );
+  ok("REQUIRED NEGATIVE CONTROL: a select WITHOUT the reward-kind clause would never find the reward row",
+    !withoutRewardClause.some((e) => e.event_id === "REWARD-2"));
+  ok(`REQUIRED NEGATIVE CONTROL: REFERRAL_REWARD_REASON really is "referral_reward" (the clause is not vacuous)`,
+    REFERRAL_REWARD_REASON === "referral_reward");
 }
 
 // ═════════════════════════════════════════════════════════════════════════

@@ -1032,6 +1032,14 @@ export const REFERRAL_REWARD_FRIEND_THRESHOLD = 3;
  * "nothing to show yet" shape (`friends_credited: 0, reward: null`) on a
  * database that has not run this migration, `friendsBroughtThisWeek`'s own
  * not-applied-yet posture restated for a follower-scoped read.
+ *
+ * WS-R133: the same two-level nested `exists` (subscription, then event)
+ * `api/_payments.js#maybeGrantReferralReward`'s own `referrer_progress` CTE
+ * now uses, restated here rather than left on the old `pe join rs` shape —
+ * this function's own header already promises the progress bar "can never
+ * show a number the grant machinery would disagree with," which binds the
+ * access path too, not only the answer: `vy_room_subscription_follower_ix`
+ * then `vy_payment_event_subscription_ix`, the identical two indexes.
  */
 export async function roomReferralProgress(db, { session }, deps = {}) {
   const who = await selfScope(db, session, deps);
@@ -1047,11 +1055,15 @@ export async function roomReferralProgress(db, { session }, deps = {}) {
       where rc.referrer_follower_id = ($1)::uuid
         and exists (
               select 1
-                from vy_payment_event pe
-                join vy_room_subscription rs on rs.subscription_id = pe.subscription_id
+                from vy_room_subscription rs
                where rs.follower_id = rc.referred_follower_id
-                 and pe.kind = any(array['subscription.charged','subscription.activated'])
-                 and pe.amount_inr > 0
+                 and exists (
+                       select 1
+                         from vy_payment_event pe
+                        where pe.subscription_id = rs.subscription_id
+                          and pe.kind = any(array['subscription.charged','subscription.activated'])
+                          and pe.amount_inr > 0
+                     )
             )`,
     [who.followerId],
   ).catch(() => []);

@@ -1420,6 +1420,31 @@ const REFERRAL_REWARD_CHARGE_KINDS = ["subscription.charged", "subscription.acti
 export const REFERRAL_REWARD_REASON = "referral_reward";
 
 /**
+ * WS-R133. FROZEN — the exact shape `referrer_progress`'s own friend-count
+ * `exists` carried from WS-R130's merge until this workstream, kept verbatim
+ * (never executed by any caller in this file) as the negative control for
+ * `evals/room-referrals/run.mjs`'s own decision-parity assertion (§10). The
+ * reversal condition this text exists to document
+ * (`context/measurements.md#rooms-migrations-130-132-133-live-verification-2026-09-05`,
+ * WS-R130's own EXPLAIN note): "the friend count's exists is planned as a
+ * hashed subplan over a seq scan of vy_payment_event filtered by kind and
+ * amount, accepted by name (one grant per first charge, a small ledger)...
+ * when the ledger passes roughly 100k rows, rewrite the count as a
+ * correlated exists per credit row so it walks the subscription and event
+ * indexes" — this is that rewrite (below), and this constant is what it is
+ * being proven equivalent to, never a query anything here still runs.
+ */
+export const REFERRAL_REWARD_LEGACY_FRIEND_EXISTS_SQL = `
+            exists (
+              select 1
+                from vy_payment_event pe2
+                join vy_room_subscription rs2 on rs2.subscription_id = pe2.subscription_id
+               where rs2.follower_id = rc2.referred_follower_id
+                 and pe2.kind = any(($6)::text[])
+                 and pe2.amount_inr > 0
+            )`;
+
+/**
  * Decided as a SECOND statement, right after `issueFollowerReceipt`, never
  * folded into `applyWebhook`'s own ledger-write CTE chain — `issueFollowerReceipt`'s
  * own header states the reason and it applies here with equal force: that
@@ -1457,6 +1482,24 @@ export const REFERRAL_REWARD_REASON = "referral_reward";
  * migration 133 yet grants nothing and returns `null`, `issueFollowerReceipt`'s
  * own `tableApplied` gate one function up restated for two tables instead
  * of one.
+ *
+ * WS-R133 (referral-reward hardening). `referrer_progress`'s own friend
+ * count below is now a TWO-LEVEL correlated `exists` (subscription, then
+ * event) rather than the single `exists` over a `pe2 join rs2` this
+ * workstream inherited (`REFERRAL_REWARD_LEGACY_FRIEND_EXISTS_SQL` above is
+ * that inherited shape, frozen for the parity control). The rewrite gives
+ * the planner an equality on `rs2.follower_id` it can drive straight off
+ * `vy_room_subscription_follower_ix`, THEN an equality on
+ * `pe2.subscription_id` it can drive off `vy_payment_event_subscription_ix`
+ * — a Nested Loop Semi Join walking both indexes once per credited friend,
+ * expected in place of the old shape's hashed subplan (a single seq scan of
+ * `vy_payment_event` filtered by kind/amount, materialized once per call
+ * regardless of how many friends this referrer has). The semantics are
+ * unchanged — the same existential predicate, restated as two nested
+ * `exists` instead of one `exists` over a join — `evals/room-referrals`'s
+ * own §10 proves the two shapes never disagree over >=200 generated
+ * referrer histories. The main loop confirms the expected plan shape live
+ * with `EXPLAIN` (this function issues no `ANALYZE`, ever).
  */
 export async function maybeGrantReferralReward(db, { eventId, roomId, followerId, now = Date.now() } = {}, deps = {}) {
   const tableCheck = deps.tableApplied ?? tableApplied;
@@ -1483,15 +1526,25 @@ export async function maybeGrantReferralReward(db, { eventId, roomId, followerId
           and rc.room_id = ($3)::uuid
           and tff.is_first
      ), referrer_progress as (
+       -- WS-R133: two nested exists, subscription then event, so the
+       -- planner can drive each from its own index
+       -- (vy_room_subscription_follower_ix, vy_payment_event_subscription_ix)
+       -- instead of hashing the whole ledger once per call - see this
+       -- function's own header and REFERRAL_REWARD_LEGACY_FRIEND_EXISTS_SQL
+       -- above for the shape this replaces and why.
        select lr.referrer_follower_id, lr.referrer_person_id, lr.room_id,
               count(*) filter (
                 where exists (
                   select 1
-                    from vy_payment_event pe2
-                    join vy_room_subscription rs2 on rs2.subscription_id = pe2.subscription_id
+                    from vy_room_subscription rs2
                    where rs2.follower_id = rc2.referred_follower_id
-                     and pe2.kind = any(($6)::text[])
-                     and pe2.amount_inr > 0
+                     and exists (
+                           select 1
+                             from vy_payment_event pe2
+                            where pe2.subscription_id = rs2.subscription_id
+                              and pe2.kind = any(($6)::text[])
+                              and pe2.amount_inr > 0
+                         )
                 )
               ) as n
          from landed_referrer lr
@@ -1640,6 +1693,26 @@ export const RECEIPT_SWEEP_DEFAULT_LIMIT = 500;
  * `tableApplied`, one section up) so a database that has not run migration
  * 126 returns a harmless all-zero summary rather than a query against a
  * table that does not exist.
+ *
+ * WS-R133 (referral-reward hardening, law 3). WS-R130 named the gap in as
+ * many words (`maybeGrantReferralReward`'s own header, the `catch` around
+ * its receipt-mint attempt): "a receipt that failed to mint is a real,
+ * named gap for the backfill sweep to close later" — and this sweep never
+ * did, because its own kind filter (`CREATOR_CHARGE_KINDS`) never named
+ * `'referral_reward'` and its own `amount_inr > 0` predicate structurally
+ * excludes the reward's own zero-amount ledger row (migration 133's own
+ * CHECK: a reward's `vy_payment_event` row is `amount_inr = 0` by
+ * construction, `vy_payment_event_amounts_nonneg` never widened to require
+ * a positive amount). The fix is KIND-AWARE, never a blanket `or amount_inr
+ * >= 0` that would also sweep a genuinely broken zero-amount charge: a real
+ * charge still needs `amount_inr > 0` (unchanged), and ONLY the
+ * `referral_reward` kind is additionally admitted at exactly `amount_inr =
+ * 0` — the same two facts `maybeGrantReferralReward`'s own synthetic ledger
+ * row insert already asserts about itself (`kind = 'referral_reward'`,
+ * `amount_inr = 0`). Everything past this SELECT is UNCHANGED: the same
+ * `issueFollowerReceipt`, the same atomic FY-counter claim, the same
+ * `vy_receipt` unique index as the only arbiter of "already receipted" —
+ * this is a wider SELECT, never a second receipt-minting path.
  */
 export async function backfillReceipts(db, deps = {}) {
   if (typeof db !== "function") throw new Error("receipt_sweep_database_required");
@@ -1652,12 +1725,14 @@ export async function backfillReceipts(db, deps = {}) {
        from vy_payment_event e
        left join vy_room_subscription s on s.subscription_id = e.subscription_id
       where e.room_id is not null
-        and e.kind = any(($1)::text[])
-        and e.amount_inr > 0
+        and (
+              (e.kind = any(($1)::text[]) and e.amount_inr > 0)
+              or (e.kind = ($3)::text and e.amount_inr = 0)
+            )
         and not exists (select 1 from vy_receipt r where r.payment_event_id = e.event_id)
       order by e.received_at asc
       limit ($2)::int`,
-    [[...CREATOR_CHARGE_KINDS], limit],
+    [[...CREATOR_CHARGE_KINDS], limit, REFERRAL_REWARD_REASON],
   );
   const receiptIds = [];
   for (const row of rows) {
