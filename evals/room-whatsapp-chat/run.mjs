@@ -48,6 +48,9 @@ const {
   classifyRoomWhatsappChatMessage,
   joinInstructionCard,
   defaultRoomWhatsappChatClient,
+  whatsappJoinNumber,
+  whatsappJoinLink,
+  WHATSAPP_JOIN_URL_LIMIT,
 } = wa;
 const surface = await import(pathToFileURL(join(REPO, "api/_room-surface.js")).href);
 const { roomDisclosureCard } = surface;
@@ -115,6 +118,22 @@ function withWhatsappChat(state, base) {
       state.forgetReceipts.push(params);
       return [];
     }
+    // WS-R126: `recordRoomArrival`'s own upsert (`api/_room-surface.js`),
+    // `evals/room-share/run.mjs`'s own fixture shape for the identical
+    // statement, restated here since this suite's shared `fakeDb` (from
+    // `../room/fixtures.mjs`) knows nothing about `vy_room_arrival` at all.
+    if (has("insert into vy_room_arrival")) {
+      const [roomId, day, via] = p;
+      state.arrivals = state.arrivals || [];
+      let row = state.arrivals.find((a) => a.room_id === roomId && a.day === day && a.via === via);
+      if (!row) {
+        row = { room_id: roomId, day, via, count: 1 };
+        state.arrivals.push(row);
+      } else {
+        row.count += 1;
+      }
+      return [];
+    }
     return base(sql, params);
   };
 }
@@ -123,6 +142,7 @@ function freshWaState() {
   const state = freshState();
   state.waChatPointers = [];
   state.forgetReceipts = [];
+  state.arrivals = [];
   return state;
 }
 
@@ -215,6 +235,27 @@ ok("case-insensitive and extra whitespace tolerated", parseJoinCommand(`  JOIN  
 ok("an ordinary message is not a join command at all", parseJoinCommand("hello") === null);
 ok('"joins" is not "join " - word-boundary correct', parseJoinCommand(`joins ${SLUG}`) === null);
 
+// WS-R126: WhatsApp's own normalisations - the poster/share-kit's wa.me deep
+// link prefills this exact text, and a phone keyboard's autocorrect can wrap
+// the long-pressed/pasted slug in a smart quote before the message is ever
+// sent. A trailing whitespace + capital "J" case already existed above
+// (`"  JOIN   ${SLUG}  "`); these are the new cases this workstream added.
+ok('a straight double quote around the slug ("join "SLUG"") is tolerated',
+  parseJoinCommand(`join "${SLUG}"`) === SLUG);
+ok("a straight single quote around the slug is tolerated", parseJoinCommand(`join '${SLUG}'`) === SLUG);
+ok("a curly single-quote PAIR (U+2018/U+2019) around the slug is tolerated",
+  parseJoinCommand(`join ‘${SLUG}’`) === SLUG);
+ok("a curly double-quote PAIR (U+201C/U+201D) around the slug is tolerated",
+  parseJoinCommand(`join “${SLUG}”`) === SLUG);
+ok("a MISMATCHED smart quote (an iOS-shaped autocorrect that opens but does not close) is still tolerated",
+  parseJoinCommand(`join “${SLUG}`) === SLUG);
+ok("a quote on ONE side only (trailing) is tolerated", parseJoinCommand(`join ${SLUG}"`) === SLUG);
+ok("NEGATIVE CONTROL: a quote with a SPACE before the slug (not hugging it) refuses",
+  parseJoinCommand(`join " ${SLUG}"`) === null);
+ok("NEGATIVE CONTROL: trailing garbage after a closing quote still refuses",
+  parseJoinCommand(`join "${SLUG}"x`) === null);
+ok("NEGATIVE CONTROL: a quote alone with no slug at all still refuses", parseJoinCommand('join ""') === null);
+
 ok("hindi/english/stop/forget parse to their own name, no leading slash",
   ["hindi", "english", "stop", "forget"].every((c) => parseRoomCommand(c) === c));
 ok("case-insensitive", parseRoomCommand("STOP") === "stop");
@@ -224,6 +265,33 @@ ok("export is deliberately NOT in this transport's command set (the workstream b
 
 ok("button id round-trips", JSON.stringify(parseButtonId(`a1:${SLUG}`)) === JSON.stringify({ step: "a1", slug: SLUG }));
 ok("a malformed button id is refused, not guessed at", parseButtonId("garbage") === null);
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── WS-R126: the join link, structurally absent until every input is real ──");
+// ═════════════════════════════════════════════════════════════════════════
+
+ok("no WHATSAPP_PHONE_NUMBER_ID at all: the number is the empty string",
+  whatsappJoinNumber({}) === "");
+ok("a configured id is digits-only, non-numeric punctuation stripped (a '+', spaces or dashes a deployer might paste)",
+  whatsappJoinNumber({ WHATSAPP_PHONE_NUMBER_ID: "+91 99999 00001" }) === "919999900001");
+
+ok("ROOM_WHATSAPP_CHAT unset: the link is structurally absent even with a number configured",
+  whatsappJoinLink(SLUG, { WHATSAPP_PHONE_NUMBER_ID: "919999900001" }) === null);
+ok("ROOM_WHATSAPP_CHAT=1 but no number configured: still absent",
+  whatsappJoinLink(SLUG, { ROOM_WHATSAPP_CHAT: "1" }) === null);
+ok("no slug: absent", whatsappJoinLink("", { ROOM_WHATSAPP_CHAT: "1", WHATSAPP_PHONE_NUMBER_ID: "919999900001" }) === null);
+ok("every input present: the real wa.me shape, `join <slug>` url-encoded",
+  whatsappJoinLink(SLUG, { ROOM_WHATSAPP_CHAT: "1", WHATSAPP_PHONE_NUMBER_ID: "919999900001" }) ===
+    `https://wa.me/919999900001?text=join%20${SLUG}`);
+ok("NEGATIVE CONTROL: a link over WHATSAPP_JOIN_URL_LIMIT is refused rather than truncated",
+  (() => {
+    const longSlug = "a".repeat(40); // assertSlugShape's own real ceiling
+    const link = whatsappJoinLink(longSlug, { ROOM_WHATSAPP_CHAT: "1", WHATSAPP_PHONE_NUMBER_ID: "9".repeat(2000) });
+    return link === null; // the huge fabricated "number" alone already blows the limit
+  })());
+ok("a real 40-character slug with an ordinary number stays comfortably under the limit",
+  whatsappJoinLink("a".repeat(40), { ROOM_WHATSAPP_CHAT: "1", WHATSAPP_PHONE_NUMBER_ID: "919999900001" }).length <
+    WHATSAPP_JOIN_URL_LIMIT);
 
 {
   const h1 = phoneHash("+919000000001", {});
@@ -284,11 +352,16 @@ console.log("\n── the join flow: disclosure, age gate, memory gate, joined �
     texts(sent, phone).at(-1) === joinInstructionCard("en"));
   ok("...and creates no person, no identity row, no pointer at all",
     state.persons.length === 0 && state.surfaceIdentities.length === 0 && state.waChatPointers.length === 0);
+  ok("WS-R126: ...and records NO arrival at all - only a `join <slug>` that resolves a Room counts",
+    (state.arrivals || []).length === 0);
 
   sent[phone] = [];
   const deps = depsFor(state, sent);
   await handleRoomWhatsappChatWebhook(textPayload(phone, `join ${SLUG}`, `${phone}-1`), deps);
   ok('"join <slug>" sends the disclosure line', texts(sent, phone)[0] === roomDisclosureCard("Anjali", "en"));
+  ok("WS-R126, law 4: the SAME 'join <slug>' text records a 'whatsapp' arrival for this Room, on the first inbound message",
+    state.arrivals.length === 1 && state.arrivals[0].room_id === ROOM_ID &&
+      state.arrivals[0].via === "whatsapp" && state.arrivals[0].count === 1);
   const gate = lastButtons(sent, phone);
   ok("...then the age gate as a reply-button message with the right button ids",
     Boolean(gate) && gate.text === adultGateCard("en") &&
@@ -312,6 +385,8 @@ console.log("\n── the join flow: disclosure, age gate, memory gate, joined �
       state.waChatPointers[0].follower_id === state.followers[0].follower_id);
   ok('the "joined" card is sent, naming the free allowance',
     texts(sent, phone).at(-1).startsWith("You're in.") && texts(sent, phone).at(-1).includes("20 free messages this month"));
+  ok("WS-R126, law 4 'never a second write': completing the age/memory gate after the join text recorded no SECOND arrival",
+    state.arrivals.length === 1 && state.arrivals[0].count === 1);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

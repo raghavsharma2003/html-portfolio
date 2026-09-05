@@ -69,6 +69,14 @@ import { scanSource } from "../scripts/check-copy.mjs";
 // this file's own `ownerRoomShareKit` below is the one caller that hands it
 // a real owned Room row.
 import { buildShareKit, ShareKitError } from "./_share-kit.js";
+// WS-R126 (join from WhatsApp, migration 131). `whatsappJoinLink` is the ONE
+// place that reads an env var for this feature (`_share-kit.js` stays pure,
+// per this file's own header on why) — a NEW import edge between two `api/`
+// files, run against the full `node evals/run.mjs` registry per this
+// workstream's own brief before it shipped (no cycle: `_room-whatsapp-chat.js`
+// and everything it imports were grepped for a back-reference to this file
+// and none exists).
+import { whatsappJoinLink } from "./_room-whatsapp-chat.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -1002,6 +1010,11 @@ export async function ownerRoomShareKit(db, ownerUserId, replicaId, { origin = "
       locale: room.default_locale,
       origin,
       publishedAt: room.published_at,
+      // WS-R126: structurally absent (`null`) unless the WhatsApp chat lane
+      // itself is on AND a business number is configured — `whatsappJoinLink`'s
+      // own header states why a half-configured deploy must never hand out a
+      // link that opens nothing useful.
+      whatsappJoinUrl: whatsappJoinLink(room.slug, process.env),
     });
     return { room_id: room.room_id, kit };
   } catch (error) {

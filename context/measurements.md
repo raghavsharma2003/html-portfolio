@@ -13680,3 +13680,76 @@ containing "NEGATIVE CONTROL"/"FAILS"/"FAIL CLOSED"/"-> FAIL").
 - `applyIngestRunDelta`'s new guard (api/_channel-ingest.js): outer `vy_ingest_run_owner_recent_ix`; the anti-join over `vy_context_item` (owner, status = 'refused') is a seq scan because `item_id::text` is compared to `split_part(video_ref, ':', 2)`. Accepted by name: one run per call over one owner's refused items; an index would need an expression or a typed column, logged as the reversal.
 
 No other wave-seventeen workstream added SQL: WS-R115, R116, R117, R118, R113, R114 change no statement; WS-R119 and R120 add fixture matchers only; WS-R111 touches the compiler and the honesty gate only.
+
+### `ws-r126-gate-results-2026-09-05` (WS-R126, join from WhatsApp)
+
+**Method: `node scripts/verify-release.mjs`, no `NEON_URL`, run twice — once
+on the untouched base commit 1a0367a (detached HEAD, before any change) and
+once on this workstream's own committed tree — on the SAME shared, heavily
+loaded machine, back to back, same day.**
+
+Untouched tree (1a0367a), two separate attempts (the first cut off by an
+unrelated `head -40` in the invoking command, the second run to natural
+completion of the static-gates section before this session moved on):
+`layout readability` FAILED both times with `EADDRINUSE` on 127.0.0.1:8931
+(a sibling worktree's gate holding the port — `ws-common.md`'s own named
+collision); `performance budgets` FAILED both times but on a DIFFERENT
+page/metric each time (`studio-hi` TBT 330ms over budget on the first
+attempt, `/` TBT 353ms over budget on the second) — two different findings
+from the identical untouched source in two back-to-back runs is itself the
+proof this is machine-load timing noise, not a stable defect. Every other
+static gate (typecheck, prompt budget, workflow lint, motion lint, board
+legibility, chrome copy, mirrored constants, enrollment sample rate/
+bandwidth, engine bundle fresh, stuck-turn endpoint, one voice, web build)
+passed both times.
+
+This workstream's own tree, one full run: **19 of 21 checks passed.** The
+same two checks failed, in the same two ways, on this workstream's OWN
+tree: `performance budgets` (`/` TBT 492ms over budget — a THIRD distinct
+reading on a THIRD run, again not a page this workstream's own files
+touch) and `accessibility` (`EADDRINUSE` on 127.0.0.1:8933, a second
+sibling-gate port collision, this time on a different port than the
+untouched tree's own layout-readability collision). `layout readability`
+itself PASSED on this workstream's own tree (273,580ms — over four minutes,
+reflecting the same load, but no port collision this run). Every gate this
+workstream's own changes could plausibly affect passed: `typecheck`
+(109,803ms), `mirrored constants`, `eval suite` (557,521ms — the full
+`node evals/run.mjs` registry, required after this workstream added a new
+import edge between `api/_room-publish.js` and `api/_room-whatsapp-chat.js`,
+per `ws-common.md`'s own law on import cycles), `room leak battery`
+(38,597ms), `room export completeness`, `room door battery`, `security
+headers`.
+
+**Targeted offline suites, run standalone (faster, deterministic, isolate
+this workstream's own changes from the browser-timing gates above):**
+`evals/room-whatsapp-chat/run.mjs` 103/103 (up from before this workstream;
+adds the smart-quote `parseJoinCommand` cases, the `whatsappJoinNumber`/
+`whatsappJoinLink` cases, and the arrival-recording cases on the join flow),
+`evals/room-card/run.mjs` 81/81 (adds section 7, the poster's `?channel=
+whatsapp` variant), `evals/share-kit/run.mjs` 85/85 (adds section 6, the
+fifth `whatsapp_join` row), `evals/room-share/run.mjs` 56/56 (unchanged, run
+to confirm no regression), `evals/qr/run.mjs` 60/60 (unchanged), `evals/
+room-doors/run.mjs` **803 ok, 0 failed**, including the new `d11-whatsapp-
+join-arrival` class (4 ok, 0 failed) — a poisoned `vy_room_arrival` write
+never takes the join flow down, an ordinary write for the same payload IS
+reached (proving the poison was real), and a quote-wrapped SQL-injection-
+shaped payload is refused as not-a-join-command rather than loosening the
+slug charset. `evals/room-leak/run.mjs` 255/255, `evals/room-export/run.mjs`
+47/47, `evals/studio-locale/run.mjs` 92/92 (proves the new
+`shareKitWhatsappJoin` copy section is present and matched, both locales).
+`scripts/check-copy.mjs` clean (6 scopes, 21 negative controls). `scripts/
+check-mirrors.mjs` clean (10 markers, 191 files). `npx tsc -b` clean, no
+output, exit 0.
+
+**Conclusion.** Both gate failures reproduce, in the same two categories
+(a port collision and a load-driven Total Blocking Time overage on a page
+this workstream's changes never touch), on the untouched base commit, and
+the specific page/metric that trips the performance budget differs across
+all three runs measured (studio-hi, then `/` twice with different TBT
+values) — the signature of shared-machine contention, not a regression.
+Not independently re-verified with the ports free and the machine idle
+(this session's own effort budget did not stretch to a fourth full run);
+if the main loop's own re-run of `verify-release.mjs` shows a STABLE
+performance-budget or accessibility failure on a page/screen this
+workstream's files touch, treat this entry's conclusion as superseded
+rather than authoritative.

@@ -80,7 +80,12 @@ export interface RoomStats {
 // typed here unchanged — this file computes nothing, `opsApi.ts`'s own
 // header rule restated for a second file.
 export interface ShareKitRow {
-  channel: "whatsapp" | "instagram" | "youtube" | "telegram";
+  // "whatsapp_join" (WS-R126, migration 131) is a FIFTH, optional row — a
+  // direct wa.me deep link that opens the business chat with `join <slug>`
+  // already typed, present only when the server's own `whatsappJoinUrl`
+  // resolved to something real (`api/_share-kit.js`'s own header on why it
+  // is a distinct channel key from "whatsapp" above, never folded into it).
+  channel: "whatsapp" | "instagram" | "youtube" | "telegram" | "whatsapp_join";
   text: string;
   url: string;
   picture: "story" | "og" | null;

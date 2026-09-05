@@ -194,5 +194,31 @@ console.log("\n── 5. negative controls: over-limit throw, via allowlist ─�
     resolveArrivalVia("newsletter") === "direct");
 }
 
+// ═══ 6. WS-R126: THE WHATSAPP-JOIN ENTRY, STRUCTURALLY ABSENT BY DEFAULT ═══
+console.log("\n── 6. the WhatsApp-join entry: a fifth row, only when handed a real link ──");
+{
+  const kitNoJoin = buildShareKit({ name: NAME, slug: SLUG, locale: "en", origin: ORIGIN, publishedAt: PUBLISHED_AT });
+  ok("with no whatsappJoinUrl at all, the kit is UNCHANGED — exactly the four channels, backward compatible",
+    kitNoJoin.length === 4 && kitNoJoin.map((r) => r.channel).join(",") === SHARE_KIT_CHANNELS.join(","));
+
+  const JOIN_URL = "https://wa.me/919999900001?text=join%20anjali-physics";
+  const kitWithJoin = buildShareKit({
+    name: NAME, slug: SLUG, locale: "en", origin: ORIGIN, publishedAt: PUBLISHED_AT, whatsappJoinUrl: JOIN_URL,
+  });
+  ok("with a real join url, a fifth row appears, AFTER the original four (append, never reorder)",
+    kitWithJoin.length === 5 && kitWithJoin.slice(0, 4).map((r) => r.channel).join(",") === SHARE_KIT_CHANNELS.join(","));
+  const joinRow = kitWithJoin[4];
+  ok("the fifth row's own channel is a DISTINCT key from the existing 'whatsapp' web-link channel — the two must never collide",
+    joinRow.channel !== "whatsapp" && joinRow.channel === "whatsapp_join");
+  ok("the fifth row carries the exact link handed in, unmodified", joinRow.url === JOIN_URL && joinRow.text === JOIN_URL);
+
+  ok("blank/whitespace-only whatsappJoinUrl is treated as absent, same as omitted", buildShareKit({
+    name: NAME, slug: SLUG, locale: "en", origin: ORIGIN, publishedAt: PUBLISHED_AT, whatsappJoinUrl: "   ",
+  }).length === 4);
+
+  ok("an unpublished Room still returns null even when a join url is given — the same 'nothing honest to share yet' rule",
+    buildShareKit({ name: NAME, slug: SLUG, locale: "en", origin: ORIGIN, publishedAt: null, whatsappJoinUrl: JOIN_URL }) === null);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

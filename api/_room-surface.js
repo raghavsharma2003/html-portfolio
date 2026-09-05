@@ -873,6 +873,14 @@ export async function setTelegramCheckinsEnabledForFollower(db, followerId, enab
  *  wave and the main loop reconciled 123's CHECK to the union of both
  *  (`context/decisions.md#ws-r78-migration-121-ships-with-the-js-allowlist-in-one-commit`
  *  is the law each restates). */
+// WS-R126 (join from WhatsApp): `whatsapp` above is now written from a
+// SECOND caller — `api/_room-whatsapp-chat.js`'s `handleJoin`, on a
+// wa.me deep link's own `join <slug>` text resolving a real Room — never a
+// new sibling value, because both this and WS-R85's own web-link click are
+// honestly "arrived via WhatsApp" for the ONE Growth line reader either was
+// ever built for (`api/_funnel.js`'s `shareKitArrivalsThisWeek`). Migration
+// 131's own header carries the full argument for why this is a reuse, not a
+// widening.
 export const ROOM_ARRIVAL_VIA = Object.freeze([
   "share", "direct", "embed", "search", "install", "poster",
   "whatsapp", "instagram", "youtube", "telegram", "friend",

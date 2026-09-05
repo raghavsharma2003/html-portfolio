@@ -306,5 +306,68 @@ console.log("\n── 6. the poster's QR: decoded from the real rasterised PNG, 
   ok("with no origin, the poster still rasterises to a real, non-blank PNG", noOriginPng.length > 2000);
 }
 
+// ═══ 7. THE POSTER'S WHATSAPP-JOIN VARIANT (WS-R126) ═════════════════════
+console.log("\n── 7. the poster's ?channel=whatsapp variant: QR, sentence, identical-bytes law ──");
+{
+  const JOIN_URL_EN = "https://wa.me/919999900001?text=join%20anjali";
+  const JOIN_URL_HI = "https://wa.me/919999900001?text=join%20priya";
+  const ORIGIN = "https://vyakti-rooms.vercel.app";
+
+  const input = cardInputFor(ROW_EN, "poster", ORIGIN, JOIN_URL_EN);
+  ok("cardInputFor sets channel:'whatsapp' when given a join url on a poster",
+    input.channel === "whatsapp" && input.url === JOIN_URL_EN);
+  ok("cardInputFor ignores a join url for kind !== 'poster' (og never gets a channel)",
+    cardInputFor(ROW_EN, "og", ORIGIN, JOIN_URL_EN).channel !== "whatsapp");
+  ok("cardInputFor ignores a join url for an unpublished/unknown row — the identical-bytes law restated for a second query param",
+    cardInputFor(null, "poster", ORIGIN, JOIN_URL_EN).url === `${ORIGIN}/`);
+
+  const layout = computeCardLayout(input);
+  const urlBlock = layout.blocks.find((b) => b.id === "url");
+  ok("the caption under the QR is the WhatsApp sentence, never the raw wa.me link (unreadable/unretypeable as printed text)",
+    !urlBlock.lines.join(" ").includes("wa.me") && urlBlock.lines.join(" ").toLowerCase().includes("whatsapp"));
+
+  const hiLayout = computeCardLayout(cardInputFor(ROW_HI, "poster", ORIGIN, JOIN_URL_HI));
+  const hiUrlBlock = hiLayout.blocks.find((b) => b.id === "url");
+  ok("the Hindi poster's own WhatsApp sentence is in Hindi, not the English one reused",
+    hiUrlBlock.lines.join(" ").includes("WhatsApp") && hiUrlBlock.lines.join(" ") !== urlBlock.lines.join(" "));
+
+  // The copy scan (§3's own `scanRenderedLines`, reused rather than
+  // re-implemented): this new sentence must clear the REAL check-copy.mjs
+  // scanner exactly like every other line this file draws, in both locales.
+  const enOffences = scanRenderedLines(input);
+  ok("the WhatsApp poster's English sentence clears the real copy scanner (no em/en dash, no banned Rooms vocabulary)",
+    enOffences.length === 0, enOffences.map((o) => `${o.rule}:${o.text}`).join(" | "));
+  const hiOffences = scanRenderedLines(cardInputFor(ROW_HI, "poster", ORIGIN, JOIN_URL_HI));
+  ok("the WhatsApp poster's Hindi sentence clears the real copy scanner too",
+    hiOffences.length === 0, hiOffences.map((o) => `${o.rule}:${o.text}`).join(" | "));
+
+  const jsQR = (await import("jsqr")).default;
+  const sharp = await import("sharp").then((m) => m.default, () => null);
+  if (!sharp) {
+    ok("sharp not installed — cannot decode the whatsapp poster's QR to check it", false);
+  } else {
+    const png = await rasterizeRoomCard(input);
+    const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const decoded = jsQR(new Uint8ClampedArray(data.buffer, data.byteOffset, data.length), info.width, info.height);
+    ok("the whatsapp poster's QR decodes to the wa.me join link, not the ordinary ?via=poster address",
+      decoded && decoded.data === JOIN_URL_EN, `decoded: ${decoded?.data}`);
+
+    // Identical-bytes law, restated once more: an unpublished/unknown slug's
+    // whatsapp-channel poster must hash the SAME as its ordinary poster —
+    // the channel query param must never let a scanner learn a slug exists.
+    const platformOrdinary = await rasterizeRoomCard(cardInputFor(null, "poster", ORIGIN));
+    const platformWhatsapp = await rasterizeRoomCard(cardInputFor(null, "poster", ORIGIN, JOIN_URL_EN));
+    ok("an unpublished/unknown slug's poster is BYTE-IDENTICAL whether or not ?channel=whatsapp is requested",
+      sha256(platformOrdinary) === sha256(platformWhatsapp));
+    ok("...and the ETag agrees (never a per-channel cache key for a slug that does not exist)",
+      roomCardEtag(null, "poster", ORIGIN) === roomCardEtag(null, "poster", ORIGIN, JOIN_URL_EN));
+
+    // A real Room's own ETag DOES change with the channel — two real,
+    // distinct pictures must never share a cache entry.
+    ok("a real Room's poster ETag changes between the ordinary and whatsapp variants",
+      roomCardEtag(ROW_EN, "poster", ORIGIN) !== roomCardEtag(ROW_EN, "poster", ORIGIN, JOIN_URL_EN));
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

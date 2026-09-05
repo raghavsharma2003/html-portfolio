@@ -4496,3 +4496,16 @@ create index if not exists vy_room_follower_whatsapp_chat_follower_ix
 alter table vy_review_card drop constraint if exists vy_review_card_kind_check;
 alter table vy_review_card add constraint vy_review_card_kind_check
   check (kind in ('question','claim','delta','follower_declined','instruction_shaped'));
+
+-- Migration 131 - join from WhatsApp (WS-R126). See
+-- db/migrations/131_arrival_via_whatsapp.sql for the full argument: 'whatsapp'
+-- is ALREADY a valid vy_room_arrival.via value as of migrations 122/123 (the
+-- share kit's own web-link channel); this workstream reuses that SAME value
+-- for a second, distinct arrival source (a follower opening the WhatsApp
+-- Business chat itself via a wa.me deep link, api/_room-whatsapp-chat.js's
+-- `handleJoin`) rather than adding a sibling one, so the two statements below
+-- are a defensive, idempotent reassertion of the unchanged 11-value list, not
+-- a genuine widening.
+alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
+alter table vy_room_arrival add constraint vy_room_arrival_via_check
+  check (via in ('share', 'direct', 'embed', 'search', 'install', 'poster', 'whatsapp', 'instagram', 'youtube', 'telegram', 'friend'));

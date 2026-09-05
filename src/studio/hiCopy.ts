@@ -1880,4 +1880,13 @@ export const HI: StudioRestCopy = {
       codeInvalid: "यह कोड काम नहीं आया। इसे जांचें और फिर कोशिश करें, या नीचे लगाएं।",
     },
   },
+
+  // WS-R126 (join from WhatsApp, migration 131). Its own closed section --
+  // copy.ts's own ShareKitWhatsappJoinCopy header states why this is not
+  // folded into shareKit above.
+  shareKitWhatsappJoin: {
+    label: "WhatsApp पर जुड़ें",
+    caption: "WhatsApp खुलेगा और \"join {slug}\" पहले से टाइप मिलेगा, बस भेजना है।",
+    button: "WhatsApp खोलें",
+  },
 };

@@ -151,7 +151,23 @@ function fillTemplate(template, name, url) {
  * shapes admit), but a defensive assertion that never fires costs nothing
  * and a silent truncation that ships once costs a great deal.
  */
-export function buildShareKit({ name, slug, locale, origin, publishedAt } = {}) {
+/** WS-R126 (join from WhatsApp): a fifth, DIFFERENT-SHAPED row this file can
+ *  append — not a message to compose in another app (the four rows above),
+ *  a direct wa.me deep link that opens THIS business number's own chat with
+ *  `join <slug>` already typed. Kept as its own channel key rather than
+ *  folded into `"whatsapp"` above: that row's text/url/picture triple is
+ *  already load-bearing for `SHARE_KIT_LIMITS`/`SHARE_KIT_PICTURE`/
+ *  `SHARE_KIT_COPY`'s own per-channel maps and `CHANNEL_ORDER`
+ *  (`ShareKitCard.tsx`) — overloading it would mean the whatsapp row's own
+ *  `?via=whatsapp` web link and this new chat-opening link could never both
+ *  be shown in the same place. This file stays PURE: `whatsappJoinUrl` is a
+ *  plain string handed in by the caller (`api/_room-publish.js`'s
+ *  `ownerRoomShareKit`, which is where an env var may be read), never
+ *  derived here — an empty/missing value means "structurally absent", this
+ *  workstream's own law 1, and the row is simply not appended. */
+export const SHARE_KIT_WHATSAPP_JOIN_CHANNEL = "whatsapp_join";
+
+export function buildShareKit({ name, slug, locale, origin, publishedAt, whatsappJoinUrl } = {}) {
   if (!publishedAt) return null;
   const displayName = String(name || "").trim();
   const cleanSlug = String(slug || "").trim();
@@ -160,7 +176,7 @@ export function buildShareKit({ name, slug, locale, origin, publishedAt } = {}) 
   const loc = normalizeLocale(locale);
   const copy = SHARE_KIT_COPY[loc] || SHARE_KIT_COPY.en;
 
-  return SHARE_KIT_CHANNELS.map((channel) => {
+  const rows = SHARE_KIT_CHANNELS.map((channel) => {
     const url = base ? `${base}/r/${encodeURIComponent(cleanSlug)}?via=${channel}` : `/r/${encodeURIComponent(cleanSlug)}?via=${channel}`;
     const text = fillTemplate(copy[channel], displayName, url);
     const limit = SHARE_KIT_LIMITS[channel];
@@ -169,6 +185,12 @@ export function buildShareKit({ name, slug, locale, origin, publishedAt } = {}) 
     }
     return { channel, text, url, picture: SHARE_KIT_PICTURE[channel] };
   });
+
+  const joinUrl = String(whatsappJoinUrl || "").trim();
+  if (joinUrl) {
+    rows.push({ channel: SHARE_KIT_WHATSAPP_JOIN_CHANNEL, text: joinUrl, url: joinUrl, picture: "story" });
+  }
+  return rows;
 }
 
 // Named export so a caller (or this file's own eval) can build the

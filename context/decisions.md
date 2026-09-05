@@ -19996,3 +19996,85 @@ the standard this repo held WS-R110's OWN codec claim to) and explicitly
 covers the codec and bitrate a future session intends to ship at. Either
 would justify moving to option (b)/(c) from the original brief; short of
 one, the honest state is what this entry records.
+
+## `ws-r126-whatsapp-chat-join-reuses-the-whatsapp-arrival-value` (2026-09-05, WS-R126)
+
+**Decision.** A follower opening the WhatsApp Business chat itself (a wa.me
+deep link with `join <slug>` prefilled, `api/_room-whatsapp-chat.js`'s
+`handleJoin`) records its arrival under the SAME `via='whatsapp'` value the
+share kit's own web-link channel already writes (migration 122/123,
+`api/_share-kit.js`'s `whatsapp` row), never a new sibling value like
+`whatsapp_chat`. This workstream's own brief assumed `whatsapp` was not yet a
+valid `via` value at all ("migration 131 widens the arrival via CHECK to add
+whatsapp") — a grep of `api/_room-surface.js`'s `ROOM_ARRIVAL_VIA` before
+writing migration 131 found it was already there, added by WS-R85 (migration
+122) for a DIFFERENT source (a web page view through a shared link), and
+reconciled again by WS-R86 (migration 123). Migration 131 is therefore a
+defensive, idempotent reassertion of the unchanged 11-value CHECK, not a
+genuine widening — see its own header and `rejected.md#ws-r126-migration-131-brief-assumed-whatsapp-was-not-yet-a-valid-arrival-value` for the full finding.
+
+**Rationale.** Both events answer the identical question the Growth line's
+`shareKitArrivalsThisWeek` whatsapp channel exists to answer — "how many
+followers this week can be attributed to WhatsApp" — and a creator reading
+that one number has no use for two half-populated buckets that only a
+schema diagram could tell apart. A new value would also have needed a new
+`SHARE_KIT_CHANNEL_STATEMENT`/`SHARE_KIT_CHANNEL_LABEL` entry in
+`api/_funnel.js` and a new Growth-board row for a distinction nobody asked
+for.
+
+**Reversal condition.** If a future workstream needs to tell "arrived by
+clicking a shared web link" apart from "arrived by opening the WhatsApp
+chat directly" — for example, to compare which channel converts better, or
+because one of the two entry points to a Room proves out but the other
+does not and someone needs to see that in the numbers — split them into two
+`via` values then, with their own migration and their own Growth-board row,
+using this entry's own reasoning as the record of why they were one bucket
+before.
+
+## `ws-r126-poster-whatsapp-channel-caption-replaces-the-url-not-appends-it` (2026-09-05, WS-R126)
+
+**Decision.** The poster's `?channel=whatsapp` variant (`api/_room-card.js`'s
+`computeCardLayout`) REPLACES the plain-text caption under the QR (normally
+the Room's own URL, "for people who cannot scan") with a bilingual sentence
+("Scan with your phone's camera to open WhatsApp and say hi." /
+Hindi equivalent) rather than printing the wa.me link as text alongside or
+instead of that sentence.
+
+**Rationale.** The QR's own payload on this variant is
+`https://wa.me/<number>?text=join%20<slug>` — a long, URL-encoded string
+with no human meaning printed on paper, unlike the ordinary poster's own
+`<origin>/r/<slug>?via=poster`, which at least names the product and the
+creator's own slug if someone chooses to type it by hand. Printing that
+wa.me string would satisfy the letter of "for people who cannot scan" while
+failing its purpose (nobody retypes a `%20`-encoded URL from a wall).
+
+**Reversal condition.** If a future measurement shows people DO try to
+retype poster URLs by hand often enough to matter (nothing in this
+workstream measured this for either poster variant), print both: the
+sentence, then the link, `wrapLines`'s own multi-line capacity already has
+room.
+
+## `ws-r126-whatsapp-join-number-reuses-phone-number-id` (2026-09-05, WS-R126)
+
+**Decision.** `whatsappJoinNumber` (`api/_room-whatsapp-chat.js`) reads
+`WHATSAPP_PHONE_NUMBER_ID` for the wa.me deep link's own phone segment,
+rather than a new, dedicated dialable-number env var.
+
+**Rationale.** This workstream's own brief states "The business number comes
+from the env the WhatsApp module already reads" and separately "No new env
+var" — the only env var this module already reads that could plausibly
+serve is `WHATSAPP_PHONE_NUMBER_ID`. Under Meta's WhatsApp Cloud API this
+value is documented as an opaque per-number Graph API identifier (used
+exclusively as a URL path segment in this codebase's own outbound calls,
+`api/whatsapp.js`'s `PHONE_ID`), NOT necessarily the dialable E.164 number a
+`wa.me/<number>` link needs — this workstream had no network access granted
+to fetch Meta's own documentation and settle whether a given deployment's
+configured value happens to also be dialable (`ws-common.md`'s network law:
+a provider's docs are reachable only where a workstream's own section names
+them, and this one does not).
+
+**What would reverse this.** A real, separate dialable-number env var, once
+one exists for this codebase to reuse (a follow-up should confirm with the
+owner whether the live `WHATSAPP_PHONE_NUMBER_ID` value is in fact dialable
+before this feature is treated as functional in production — NOT PROVEN
+either way by this workstream).

@@ -122,6 +122,7 @@ import {
   followerRow,
   mintFollowerSession,
   normalizeLocale,
+  recordRoomArrival,
 } from "./_room-surface.js";
 import {
   adultGateCard,
@@ -160,6 +161,59 @@ export const ROOM_WA_TEXT_LIMIT = 4096;
  *  (api/room-wa.js's own unchanged branch) rather than a half-built one. */
 export function whatsappChatEnabled(env = process.env) {
   return String(env.ROOM_WHATSAPP_CHAT || "") === "1";
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE JOIN LINK (WS-R126) — a wa.me deep link that opens THIS business
+// number's chat with `join <slug>` already typed, for a poster QR or a
+// share-kit row. "No new env var" is this workstream's own brief law, so
+// `whatsappJoinNumber` reads the ONE env var this file's own module already
+// names (`WHATSAPP_PHONE_NUMBER_ID`) rather than inventing a second one —
+// NAMED HONESTLY: under Meta's Cloud API that value is the phone's opaque
+// GRAPH API IDENTIFIER, not necessarily the dialable E.164 number a wa.me
+// link needs (`api/whatsapp.js`'s own `PHONE_ID` is used exclusively as a
+// path segment in a Graph API call, never printed or dialled anywhere in
+// this codebase before this workstream). This workstream had no network
+// access to fetch Meta's own documentation to settle whether a given
+// deployment's configured value happens to be dialable (`ws-common.md`'s own
+// network law: a provider's public documentation page is reachable only
+// where a workstream's OWN section names it, and this one does not) —
+// NOT PROVEN, named rather than implied: whether `WHATSAPP_PHONE_NUMBER_ID`
+// as configured on this deploy is the dialable number wa.me expects. A
+// deployer must confirm their own value before treating this link as live;
+// `context/decisions.md#ws-r126-whatsapp-join-number-reuses-phone-number-id`
+// states what would reverse this (a real, separate dialable-number env var,
+// once one exists to reuse).
+export function whatsappJoinNumber(env = process.env) {
+  return String(env.WHATSAPP_PHONE_NUMBER_ID || "").replace(/[^0-9]/g, "");
+}
+
+/** A conservative, generic URL-length bound (this workstream had no network
+ *  access to fetch a WhatsApp-specific published limit — the comment above
+ *  states why). `join <slug>` url-encoded is bounded by `assertSlugShape`'s
+ *  own 3-40 characters (`api/_room-surface.js`) and can never come close to
+ *  this — the same "a defensive assertion that never fires costs nothing"
+ *  posture `api/_share-kit.js`'s own `SHARE_KIT_LIMITS` header states for
+ *  its four templates. */
+export const WHATSAPP_JOIN_URL_LIMIT = 2048;
+
+/** `https://wa.me/<number>?text=join%20<slug>` — WhatsApp's own click-to-chat
+ *  shape, restated WITH a phone segment from `ShareKitCard.tsx`'s existing
+ *  `wa.me/?text=` (that one omits the number on purpose: it opens a contact
+ *  PICKER so a creator can forward a message to any of their own contacts;
+ *  this one names a number on purpose, so tapping it opens a chat with THIS
+ *  business number instead). Returns `null` — structurally absent, this
+ *  workstream's own law 1 — whenever the WhatsApp chat lane itself is off
+ *  (`whatsappChatEnabled`), no number is configured, or the slug is empty;
+ *  never a placeholder link that would resolve to nothing or to the wrong
+ *  flow. */
+export function whatsappJoinLink(slug, env = process.env) {
+  if (!whatsappChatEnabled(env)) return null;
+  const number = whatsappJoinNumber(env);
+  const cleanSlug = String(slug || "").trim();
+  if (!number || !cleanSlug) return null;
+  const link = `https://wa.me/${number}?text=${encodeURIComponent(`join ${cleanSlug}`)}`;
+  return link.length <= WHATSAPP_JOIN_URL_LIMIT ? link : null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -225,9 +279,25 @@ export function joinInstructionCard(locale = "en") {
  *  `_room-telegram.js`'s `parseStartCommand` validates. Returns the slug or
  *  `null` for "not this command at all" — ONE outcome rather than three,
  *  since unlike `/start` there is no bare `join` with a meaningfully
- *  different empty-payload case to distinguish worth a caller branching on. */
+ *  different empty-payload case to distinguish worth a caller branching on.
+ *
+ *  WS-R126: this text is no longer only ever typed by hand — the poster/
+ *  share-kit's own wa.me deep link (`whatsappJoinLink` below) PREFILLS it,
+ *  and a phone keyboard's own autocorrect can wrap a pasted or long-pressed
+ *  word in a smart quote before the message ever leaves the device. The
+ *  outer `.trim()` already absorbed leading/trailing whitespace and the `i`
+ *  flag already absorbed a capital `J` before this workstream touched the
+ *  line; the one new tolerance is an OPTIONAL straight or curly quote
+ *  (`"`, `'`, U+2018/U+2019 single, U+201C/U+201D double) immediately before
+ *  and/or after the slug, independently — a phone's autocorrect does not
+ *  reliably pair opening and closing glyphs, so requiring a matched pair
+ *  would refuse exactly the input this exists to accept. Anything else
+ *  (a second word, a quote NOT immediately hugging the slug, no `join`
+ *  literal at all) still refuses, unchanged — proven by
+ *  `evals/room-whatsapp-chat/run.mjs`'s own negative controls. */
 export function parseJoinCommand(text) {
-  const m = /^join\s+([a-z0-9][a-z0-9-]{0,62})\s*$/i.exec(String(text || "").trim());
+  const m = /^join\s+["'‘’“”]?([a-z0-9][a-z0-9-]{0,62})["'‘’“”]?\s*$/i
+    .exec(String(text || "").trim());
   return m ? m[1].toLowerCase() : null;
 }
 
@@ -505,6 +575,18 @@ async function handleJoin(db, wa, phone, slug, ctx) {
     await wa.sendText(phone, roomUnavailableCard("en"));
     return { ok: true, unavailable: true };
   }
+  // WS-R126, law 4: counted the instant the `join <slug>` text resolves a
+  // real Room, whether or not this phone ever answers the age/memory gate
+  // that follows — the SAME "an arrival counts at OPEN, not at completed
+  // join" posture `api/_room-surface.js`'s own `friendArrivalsThisWeek`
+  // header states for a referral link, restated for a WhatsApp chat message
+  // instead of an HTTP page view. Best effort (`.catch(() => {})`,
+  // `recordRoomArrival`'s own posture) — a counting failure must never turn
+  // into a follower-facing error. Reused `via='whatsapp'` on purpose, not a
+  // new value: `db/migrations/131_arrival_via_whatsapp.sql`'s own header
+  // explains why this bucket is shared with the share kit's web-link clicks
+  // rather than split into a second one.
+  await recordRoomArrival(db, { roomId: resolved.room.room_id, via: "whatsapp", now: ctx.roomDeps.now }).catch(() => {});
   // Law 2: the disclosure line BEFORE the first reply, sent once, then the
   // age question as a reply-button message — the first of the two answers
   // `joinRoom` requires together, `_room-telegram.js`'s `handleStart` own
