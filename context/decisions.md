@@ -16768,3 +16768,55 @@ the budget is ever missed, the fix named in
 `#studio-hindi-table-is-its-own-chunk` (a `<link rel="modulepreload">` for
 the chunk, added when `?lang=hi` is in the URL) is unbuilt and unneeded this
 session — build it then, never by raising the budget instead.
+
+## `ws-r92-seventh-consent-ceremony-joins-hindi-review-document` (2026-09-05, WS-R92)
+
+**Decision.** `docs/legal/HINDI-CONSENT-REVIEW.md` (WS-R83) is widened from
+six files to seven: `EnrollmentWorkspace.tsx`'s four-statement account
+consent ceremony (`is_self`/`is_adult`/`has_source_rights`/
+`understands_synthetic_disclosure`, `statement_set: self-replica-enrollment-v1`)
+joins `ModelConsentGate.tsx`, `IdentityProofing.tsx`, `VideoEnrollPanel.tsx`,
+`IngestChannelStudio.tsx`, `LivenessCapture.tsx` and `VoiceIdentityChallenge.tsx`
+as File 7 of 7, with 16 new rows (R89-R104) built to the same rigour: file and
+line, shipped English, proposed Hindi, back-translation, and a note. The
+document also gains a `Verdict` column (`pending`/`approved`/`changed`/
+`rejected`) on every one of its now-104 rows, and a `Reviewed by / on` line
+per file (all seven `not yet reviewed` today). `evals/consent-review/run.mjs`
+is extended to re-extract File 7's structural anchors from the real
+`EnrollmentWorkspace.tsx` and `src/studio/enrollmentApi.ts` on every run
+(the same completeness proof the other six already had), to assert every
+verdict is one of the closed four values, and to assert no `approved` row's
+Hindi trips the real copy gate. No `src/` change; no migration.
+
+**Rationale.** This is the exact reversal condition (a) named in
+`ws-r82-enrollment-workspace-is-a-seventh-consent-ceremony-not-converted`:
+"a session ... widens WS-R83's scope to seven and gives
+`EnrollmentWorkspace.tsx`'s ceremony the same legal-review-document treatment
+as the other six." WS-R82 (same wave as WS-R83) found this seventh file,
+built and then deliberately reverted its extraction into
+`EnrollmentConsentPanel.tsx` specifically to avoid widening WS-R83's
+completeness proof out from under a concurrently-running sibling with no
+channel to renegotiate the count mid-flight (`rejected.md#ws-r82-enrollment-consent-panel-extracted-then-reverted`).
+That constraint no longer applies once both waves have landed: WS-R83's
+document already exists and is being edited directly, not raced against.
+`EnrollmentWorkspace.tsx`'s shape genuinely differs from the other six (no
+single named `[key, label]` statement array; the label text is inline in the
+component, the key names live in a separate file, `enrollmentApi.ts`), so the
+Methodology section's category 1 rule is extended rather than reused
+unmodified, and the extension is written down in the document itself rather
+than left implicit. The `Verdict` column exists because a document with 104
+rows and one reviewer is realistically going to be reviewed in pieces, not
+signed off in one sitting; without a per-row state, a partial review has
+nowhere to record itself and the next session re-reads all 104 rows to find
+out which ones already have a lawyer's answer.
+
+**Reversal condition.** Once every row's verdict in this document stops
+being useful as a durable record, i.e. once every file has converted to
+Tier 1 (see the document's own "after review" procedure) and the document is
+kept only for historical provenance, the `Verdict` column's job is done and a
+future session may say so in a new entry rather than treating it as still
+load-bearing. Until then, a code change that writes Hindi into `hiCopy.ts`
+for any of these seven files without that row's verdict here reading
+`approved` (or `changed`, with the corrected Hindi written back into this
+document in the same edit) reverses this decision's own stated rule, not the
+decision itself, and should be treated as a bug in the workstream that did it.

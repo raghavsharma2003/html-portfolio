@@ -11982,3 +11982,28 @@ Not measured: `joinRoom`'s widened RETURNING (`(xmax = 0) as newly_joined`) is t
 ## `ci-release-gate-first-real-run-2026-09-05` — the 21-check gate in GitHub Actions, measured once
 
 n = 1 run (`release-gate.yml`, run 1, on `6deaf1e`), method: GitHub's own run record, 2026-09-05. Started 10:12:53Z, finished 10:21:27Z: 8 minutes 34 seconds wall clock for the Node 22 and Node 24 jobs in parallel, conclusion success on both. Below WS-R77's 25-minute trigger for splitting the browser checks into a parallel job (`decisions.md#ws-r77-ci-gate-not-split-into-parallel-jobs-yet` stands). Not measured: per-check timing inside the runner (the job log was not read), a cold-cache run (this run downloaded Chromium for the first time and still fit).
+
+## `ws-r92-hindi-consent-review-document-seventh-file` — row, file and verdict counts after widening to seven files
+
+n = 1 document (`docs/legal/HINDI-CONSENT-REVIEW.md`), method: grep-counted
+directly against the committed file, and separately asserted by
+`evals/consent-review/run.mjs`'s own structural-sanity checks (both agree),
+2026-09-05. 104 rows total across seven files (up from 88 across six before
+WS-R92): File 1 `ModelConsentGate.tsx` 16, File 2 `IdentityProofing.tsx` 14,
+File 3 `VideoEnrollPanel.tsx` 11, File 4 `IngestChannelStudio.tsx` 12, File 5
+`LivenessCapture.tsx` 17, File 6 `VoiceIdentityChallenge.tsx` 18, File 7
+`EnrollmentWorkspace.tsx` 16 (new, WS-R92). 30 consent statements/checkbox
+labels covered (6+5+5+5+5+0+4, the 4 new ones from `EnrollmentWorkspace.tsx`'s
+`is_self`/`is_adult`/`has_source_rights`/`understands_synthetic_disclosure`).
+5 distinct `statement_set` ids (one shared by two files), up from 4, adding
+`self-replica-enrollment-v1`. 3 distinct `policy_version` ids, unchanged
+(File 7 reuses `replica-self-v1`, the same value `ModelConsentGate.tsx`,
+`VideoEnrollPanel.tsx` and `IngestChannelStudio.tsx` already cite). Verdict
+counts: 104 `pending`, 0 `approved`, 0 `changed`, 0 `rejected` (every row,
+all seven files; nothing in this document has been reviewed as of this
+session). `evals/consent-review/run.mjs`: 144 checks, 144 passed, 0 failed,
+run standalone in 2 seconds. Not measured: how long a human reviewer takes to
+work through 104 rows (no review has happened yet); whether the seven files'
+English source text itself changes before review completes (the eval only
+proves the document matches source AT THE TIME IT IS RUN, not that it will
+stay matched).

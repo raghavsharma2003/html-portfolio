@@ -8992,6 +8992,30 @@
       "kind": "measurement",
       "title": "The first real GitHub Actions run of the 21-check release gate took 8 minutes 34 seconds for Node 22 and 24 in parallel and passed; no job split needed.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r92-seventh-consent-ceremony-joins-hindi-review-document",
+      "kind": "decision",
+      "title": "EnrollmentWorkspace.tsx's four-statement consent ceremony joins docs/legal/HINDI-CONSENT-REVIEW.md as File 7 of 7 (16 new rows); the document gains a Verdict column (pending/approved/changed/rejected) on all 104 rows and a Reviewed by / on line per file.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r92-hindi-consent-review-document-seventh-file",
+      "kind": "measurement",
+      "title": "104 rows across 7 files (up from 88/6), 30 consent statements covered, 5 statement_set ids, 3 policy_version ids, 104/104 pending verdicts, evals/consent-review/run.mjs 144 passed 0 failed.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r92-statement-set-constant-export-not-added",
+      "kind": "rejection",
+      "title": "Considered exporting EnrollmentWorkspace.tsx's inline statement_set literal as a named constant in api/_replica-consent.js to match the other six files' pattern; rejected as out of this workstream's scoped files, used regex-extraction of the literal instead.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r92-post-grant-heading-not-documented-as-ceremony-row",
+      "kind": "rejection",
+      "title": "Considered documenting EnrollmentWorkspace.tsx's post-grant heading (\"Enrollment permission is active\") as its own row; rejected for consistency with ModelConsentGate.tsx's own undocumented post-grant success heading.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -17614,6 +17638,31 @@
       "src": "rooms-migrations-122-123-125-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r86-follower-referrals"
+    },
+    {
+      "src": "ws-r92-seventh-consent-ceremony-joins-hindi-review-document",
+      "rel": "caused_by",
+      "dst": "ws-r82-enrollment-workspace-is-a-seventh-consent-ceremony-not-converted"
+    },
+    {
+      "src": "ws-r92-seventh-consent-ceremony-joins-hindi-review-document",
+      "rel": "part_of",
+      "dst": "ws-r83-consent-ceremony-hindi-review-document-before-conversion"
+    },
+    {
+      "src": "ws-r92-hindi-consent-review-document-seventh-file",
+      "rel": "measured_by",
+      "dst": "ws-r92-seventh-consent-ceremony-joins-hindi-review-document"
+    },
+    {
+      "src": "ws-r92-statement-set-constant-export-not-added",
+      "rel": "part_of",
+      "dst": "ws-r92-seventh-consent-ceremony-joins-hindi-review-document"
+    },
+    {
+      "src": "ws-r92-post-grant-heading-not-documented-as-ceremony-row",
+      "rel": "part_of",
+      "dst": "ws-r92-seventh-consent-ceremony-joins-hindi-review-document"
     }
   ]
 }
