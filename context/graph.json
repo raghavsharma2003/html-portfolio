@@ -7858,6 +7858,66 @@
       "kind": "component",
       "title": "Flag this reply: a follower's one-tap report on a wrong or harmful AI reply, routed into the creator's review queue as a count over the AI's own words, never the follower's identity. api/_room-surface.js (flagReply/unflagReply/followerFlags/lastReplySha256), api/_review-queue.js (readFlaggedReplies/neverRuleFromFlaggedReply), api/room.js ops flag/unflag/flags, api/_room-telegram.js /flag, migration 116.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r61-tier-2-first-wave-converted",
+      "kind": "decision",
+      "title": "9 of 31 studio Tier 2 files converted (RoomStudio.tsx first, then VideoLinkMount/RuntimeGate/TurnFeedback/ReplicaDialogueLab/CalibrationStudio/CandidateEvaluationLab/ProcessingReview/PersonModelStudio); TIER_2_ALLOWLIST 31 -> 22",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r61-roomstudio-money-and-tds-copy-translated-meaning-preserved",
+      "kind": "decision",
+      "title": "RoomStudio.tsx's pricing/tier-upgrade/Pulse copy translated with numbers as template placeholders; the TDS disclosure sentence stays PayoutsCard.tsx's own single string, read not duplicated",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text",
+      "kind": "decision",
+      "title": "ModelConsentGate.tsx (including its chrome) left entirely unconverted: roomsVocabAllowlist.mjs names four of its six STATEMENTS by exact English substring as already-consented legal text",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r61-identity-proofing-consent-statements-deferred-not-attempted",
+      "kind": "decision",
+      "title": "IdentityProofing.tsx left in TIER_2_ALLOWLIST: its five checkbox statements are KYC-adjacent consent wording with no legal review of a Hindi rendering in scope this session",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r61-partial-modelconsentgate-translation-considered-and-rejected",
+      "kind": "rejection",
+      "title": "Translating only ModelConsentGate.tsx's chrome (leaving the six STATEMENTS as opaque English) considered and rejected: a half-translated consent screen is a different ceremony from the one approved, even with the legal sentences byte-identical",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r61-copy-ts-move-surfaced-latent-model-word-and-middot-run-violations",
+      "kind": "rejection",
+      "title": "Moving pre-existing English strings into copy.ts (a check-copy.mjs COPY_FILE, scanned unconditionally) surfaced a banned word (\"model\") and a middot-run violation that had been invisible to the gate while the same text sat as bare function-call arguments in .tsx source",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r61-studio-hindi-tier-2-first-wave-2026-09-05",
+      "kind": "measurement",
+      "title": "9 files, 2514 English source lines, 441 new copy.ts leaf strings per locale; studio-locale 39/39 -> 48/48; TIER_2_ALLOWLIST 31 -> 22; check-copy.mjs clean after 2 mid-workstream findings fixed",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r61-three-dedicated-evals-updated-for-the-copy-ts-move",
+      "kind": "decision",
+      "title": "person-model/replica-review/replica-calibration evals updated to read component+copy.ts together, same shape as ws-r52-existing-evals-updated-for-the-copy-ts-move one tier lower",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r61-assumed-studio-locale-and-check-copy-were-sufficient-gates-for-a-tier-2-move",
+      "kind": "rejection",
+      "title": "studio-locale + check-copy.mjs alone did not catch 3 broken dedicated evals that pinned literal sentences in converted files; only a full verify-release.mjs run did",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r61-multiline-string-concatenation-broke-a-sibling-evals-regex-match",
+      "kind": "rejection",
+      "title": "a copy.ts string wrapped across two + -concatenated lines split a phrase a sibling eval's regex expected as one unbroken run in the raw source bytes",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15590,6 +15650,66 @@
       "src": "ws-r67-backtick-delimited-statement-extraction-is-not-a-statement-boundary",
       "rel": "caused_by",
       "dst": "ws-r67-flag-this-reply"
+    },
+    {
+      "src": "ws-r61-tier-2-first-wave-converted",
+      "rel": "measured_by",
+      "dst": "ws-r61-studio-hindi-tier-2-first-wave-2026-09-05"
+    },
+    {
+      "src": "ws-r61-tier-2-first-wave-converted",
+      "rel": "constrains",
+      "dst": "ws-r52-tier-2-studio-files-not-localized"
+    },
+    {
+      "src": "ws-r61-roomstudio-money-and-tds-copy-translated-meaning-preserved",
+      "rel": "part_of",
+      "dst": "ws-r61-tier-2-first-wave-converted"
+    },
+    {
+      "src": "ws-r61-copy-ts-move-surfaced-latent-model-word-and-middot-run-violations",
+      "rel": "constrains",
+      "dst": "ws-r61-tier-2-first-wave-converted"
+    },
+    {
+      "src": "ws-r61-partial-modelconsentgate-translation-considered-and-rejected",
+      "rel": "constrains",
+      "dst": "ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text"
+    },
+    {
+      "src": "ws-r52-class-labels-split-from-blockerclass-ts-own-copy",
+      "rel": "constrains",
+      "dst": "ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text"
+    },
+    {
+      "src": "ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text",
+      "rel": "constrains",
+      "dst": "ws-r61-identity-proofing-consent-statements-deferred-not-attempted"
+    },
+    {
+      "src": "ws-r61-three-dedicated-evals-updated-for-the-copy-ts-move",
+      "rel": "part_of",
+      "dst": "ws-r61-tier-2-first-wave-converted"
+    },
+    {
+      "src": "ws-r61-assumed-studio-locale-and-check-copy-were-sufficient-gates-for-a-tier-2-move",
+      "rel": "caused_by",
+      "dst": "ws-r61-tier-2-first-wave-converted"
+    },
+    {
+      "src": "ws-r61-three-dedicated-evals-updated-for-the-copy-ts-move",
+      "rel": "constrains",
+      "dst": "ws-r61-assumed-studio-locale-and-check-copy-were-sufficient-gates-for-a-tier-2-move"
+    },
+    {
+      "src": "ws-r61-multiline-string-concatenation-broke-a-sibling-evals-regex-match",
+      "rel": "caused_by",
+      "dst": "ws-r61-tier-2-first-wave-converted"
+    },
+    {
+      "src": "ws-r61-multiline-string-concatenation-broke-a-sibling-evals-regex-match",
+      "rel": "constrains",
+      "dst": "ws-r61-copy-ts-move-surfaced-latent-model-word-and-middot-run-violations"
     }
   ]
 }

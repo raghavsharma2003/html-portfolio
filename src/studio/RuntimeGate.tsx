@@ -2,22 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ReplicaApiError } from "./replicaApi";
 import { activateRuntime, readRuntimeStatus } from "./runtimeApi";
 import type { ReplicaRuntimeStatus } from "./types";
-
-const LABELS: Record<string, string> = {
-  self_replica_only: "Self-only policy",
-  replica_not_ready: "Approved voice and behavior",
-  self_identity_not_bound: "Verified account-to-person binding",
-  adult_verification_required: "Living-adult verification",
-  identity_verification_required: "Identity verification",
-  liveness_verification_required: "Live anti-replay check",
-  inference_consent_required: "Inference permission",
-  person_profile_not_approved: "Approved: what we learned about you",
-  calibration_not_approved: "Approved behavior calibration",
-  voice_genome_not_approved: "Approved voice",
-  voice_not_ready: "Production voice mapping",
-  production_voice_required: "Non-test voice provider",
-  qualification_incomplete: "Seven-suite qualification",
-};
+import { useStudioLocale } from "./localeContext";
+import { withCount } from "./copy";
 
 export default function RuntimeGate({
   token,
@@ -32,6 +18,8 @@ export default function RuntimeGate({
   onAuthError: (cause: unknown) => void;
   onStatusChange?: (runtime: ReplicaRuntimeStatus) => void;
 }) {
+  const { t } = useStudioLocale();
+  const c = t.runtimeGate;
   const [runtime, setRuntime] = useState<ReplicaRuntimeStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(false);
@@ -46,11 +34,11 @@ export default function RuntimeGate({
       onStatusChange?.(next);
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "Runtime readiness is unavailable");
+      setError(cause instanceof Error ? cause.message : c.readinessUnavailable);
     } finally {
       setLoading(false);
     }
-  }, [onAuthError, onStatusChange, replicaId, token]);
+  }, [onAuthError, onStatusChange, replicaId, token, c.readinessUnavailable]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -63,7 +51,7 @@ export default function RuntimeGate({
       onStatusChange?.(next);
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "Runtime activation was refused");
+      setError(cause instanceof Error ? cause.message : c.activationRefused);
       await load();
     } finally {
       setActivating(false);
@@ -75,48 +63,45 @@ export default function RuntimeGate({
     <section id="runtime-gate" className="runtime-gate" aria-labelledby="runtime-gate-title">
       <div className="runtime-gate-head">
         <div>
-          <p className="eyebrow">Runtime</p>
-          <h2 id="runtime-gate-title">What has to pass before your AI can talk to anyone</h2>
-          <p>
-            Launch binds the exact version of what we learned about you, the exact voice, provider voice, relationship namespace,
-            and evaluation set. New drafts cannot silently change an active AI.
-          </p>
+          <p className="eyebrow">{c.eyebrow}</p>
+          <h2 id="runtime-gate-title">{c.title}</h2>
+          <p>{c.intro}</p>
         </div>
         <div className={`runtime-seal ${runtime?.active ? "active" : ""}`}>
-          <span>{runtime?.active ? "ACTIVE" : "SEALED"}</span>
-          <small>{runtime?.active ? "Private use only" : "No generation access"}</small>
+          <span>{runtime?.active ? c.sealActive : c.sealSealed}</span>
+          <small>{runtime?.active ? c.sealSubActive : c.sealSubSealed}</small>
         </div>
       </div>
 
       {loading ? (
-        <div className="runtime-loading" role="status">Checking every launch gate…</div>
+        <div className="runtime-loading" role="status">{c.checkingGates}</div>
       ) : error ? (
         <div className="runtime-error" role="alert">
-          <span>{error}</span><button type="button" onClick={() => void load()}>Retry</button>
+          <span>{error}</span><button type="button" onClick={() => void load()}>{c.retry}</button>
         </div>
       ) : runtime ? (
         <>
           <div className="runtime-score">
-            <div><strong>{runtime.qualification.passed}/{runtime.qualification.required}</strong><span>qualification suites passed</span></div>
-            <div><strong>{runtime.versions.profile ?? "\u2014"}</strong><span>what we learned: version</span></div>
-            <div><strong>{runtime.versions.calibration ?? "\u2014"}</strong><span>calibration version</span></div>
-            <div><strong>{runtime.versions.voice_genome ?? "\u2014"}</strong><span>voice version</span></div>
+            <div><strong>{runtime.qualification.passed}/{runtime.qualification.required}</strong><span>{c.qualificationSuitesPassed}</span></div>
+            <div><strong>{runtime.versions.profile ?? "\u2014"}</strong><span>{c.whatWeLearnedVersion}</span></div>
+            <div><strong>{runtime.versions.calibration ?? "\u2014"}</strong><span>{c.calibrationVersion}</span></div>
+            <div><strong>{runtime.versions.voice_genome ?? "\u2014"}</strong><span>{c.voiceVersion}</span></div>
           </div>
           {blockers.length > 0 && (
             <div className="runtime-blockers">
-              <strong>{blockers.length} launch gate{blockers.length === 1 ? "" : "s"} still closed</strong>
-              <ul>{blockers.map((blocker) => <li key={blocker}><span />{LABELS[blocker] ?? blocker.replaceAll("_", " ")}</li>)}</ul>
+              <strong>{withCount(blockers.length === 1 ? c.gatesClosedOne : c.gatesClosedMany, blockers.length)}</strong>
+              <ul>{blockers.map((blocker) => <li key={blocker}><span />{c.labels[blocker as keyof typeof c.labels] ?? blocker.replaceAll("_", " ")}</li>)}</ul>
             </div>
           )}
           <div className="runtime-action">
-            <p>Your AI's calls use protected cascade speech only. There is no fallback to another cloud voice or to device text to speech.</p>
+            <p>{c.actionNote}</p>
             <button
               className="button primary-button"
               type="button"
               disabled={stopped || runtime.active || !runtime.can_activate || activating}
               onClick={() => void activate()}
             >
-              {activating ? "Freezing capability…" : runtime.active ? "Runtime active" : "Activate private runtime"}
+              {activating ? c.freezing : runtime.active ? c.runtimeActive : c.activateButton}
             </button>
           </div>
         </>

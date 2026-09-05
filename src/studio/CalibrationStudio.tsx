@@ -2,24 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ReplicaApiError } from "./replicaApi";
 import { approveCalibration, buildCalibration, chooseCalibration, readCalibration } from "./calibrationApi";
 import type { CalibrationChoice, CalibrationScenario, CalibrationStatus } from "./types";
-
-const LAYERS: Record<string, string> = {
-  delivery: "Delivery",
-  language: "Language",
-  behaviour: "Behavior",
-  memory: "Memory",
-  relationship: "Relationship",
-};
-
-const BLOCKERS: Record<string, string> = {
-  approved_person_profile_required: "Approve what we learned about you first",
-  delivery_calibration_required: "Choose at least one delivery contrast",
-  language_calibration_required: "Choose at least one language contrast",
-  behaviour_calibration_required: "Choose at least one behavior contrast",
-  memory_calibration_required: "Choose at least one memory contrast",
-  relationship_calibration_required: "Choose at least one relationship contrast",
-  calibration_depth_required: "Resolve at least seven contrasts",
-};
+import { useStudioLocale } from "./localeContext";
 
 function Option({
   side,
@@ -50,6 +33,8 @@ function Option({
   );
 }
 export default function CalibrationStudio({ token, replicaId, onAuthError }: { token: string; replicaId: string; onAuthError: (cause: unknown) => void }) {
+  const { t } = useStudioLocale();
+  const c = t.calibrationStudio;
   const [status, setStatus] = useState<CalibrationStatus | null>(null);
   const [active, setActive] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -63,11 +48,11 @@ export default function CalibrationStudio({ token, replicaId, onAuthError }: { t
       setStatus(await readCalibration(token, replicaId));
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "Calibration could not be loaded");
+      setError(cause instanceof Error ? cause.message : c.errorCouldNotLoad);
     } finally {
       setLoading(false);
     }
-  }, [onAuthError, replicaId, token]);
+  }, [onAuthError, replicaId, token, c.errorCouldNotLoad]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -88,7 +73,7 @@ export default function CalibrationStudio({ token, replicaId, onAuthError }: { t
       if (nextUnanswered >= 0) setActive(nextUnanswered);
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "Your calibration choice was not saved");
+      setError(cause instanceof Error ? cause.message : c.errorChoiceNotSaved);
     } finally {
       setBusy(false);
     }
@@ -102,7 +87,7 @@ export default function CalibrationStudio({ token, replicaId, onAuthError }: { t
       await load();
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "Calibration build was refused");
+      setError(cause instanceof Error ? cause.message : c.errorBuildRefused);
     } finally {
       setBusy(false);
     }
@@ -116,39 +101,53 @@ export default function CalibrationStudio({ token, replicaId, onAuthError }: { t
       await load();
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "Calibration changed and could not be approved");
+      setError(cause instanceof Error ? cause.message : c.errorApproveChanged);
     } finally {
       setBusy(false);
     }
   }
 
+  const layerLabel = (layer: string): string => c.layers[layer as keyof typeof c.layers] ?? layer;
+  const blockerLabel = (blocker: string): string => c.blockers[blocker as keyof typeof c.blockers] ?? blocker.replaceAll("_", " ");
+
   return (
     <section id="calibration-studio" className="calibration-studio" aria-labelledby="calibration-title">
       <div className="calibration-head">
         <div>
-          <p className="eyebrow">Behavior calibration</p>
-          <h2 id="calibration-title">Show it how you would actually answer</h2>
-          <p>Choose between safe behavioral contrasts. Every correction becomes versioned preference evidence, never another sentence glued onto a persona prompt.</p>
+          <p className="eyebrow">{c.eyebrow}</p>
+          <h2 id="calibration-title">{c.title}</h2>
+          <p>{c.intro}</p>
         </div>
-        <div className="calibration-version"><strong>{approved ? `v${approved.version}` : "\u2014"}</strong><span>approved policy</span></div>
+        <div className="calibration-version"><strong>{approved ? `v${approved.version}` : "\u2014"}</strong><span>{c.approvedPolicyLabel}</span></div>
       </div>
 
-      {loading ? <div className="runtime-loading" role="status">Preparing calibration contrasts…</div> : error ? (
-        <div className="runtime-error" role="alert"><span>{error}</span><button type="button" onClick={() => void load()}>Retry</button></div>
+      {loading ? <div className="runtime-loading" role="status">{c.preparingContrasts}</div> : error ? (
+        <div className="runtime-error" role="alert"><span>{error}</span><button type="button" onClick={() => void load()}>{c.retry}</button></div>
       ) : status && current ? (
         <>
-          <div className="calibration-progress" aria-label={`${status.readiness.reviewed} of ${scenarios.length} contrasts reviewed`}>
+          <div
+            className="calibration-progress"
+            aria-label={c.contrastsReviewedAriaLabel
+              .split("{n}")
+              .join(String(status.readiness.reviewed))
+              .split("{n2}")
+              .join(String(scenarios.length))}
+          >
             <span style={{ transform: `scaleX(${scenarios.length ? status.readiness.reviewed / scenarios.length : 0})` }} />
           </div>
           <div className="calibration-nav">
-            <div><strong>{status.readiness.reviewed}/{scenarios.length}</strong><span>contrasts reviewed</span></div>
-            <div className="calibration-dots" aria-label="Calibration scenarios">
+            <div><strong>{status.readiness.reviewed}/{scenarios.length}</strong><span>{c.contrastsReviewed}</span></div>
+            <div className="calibration-dots" aria-label={c.calibrationScenariosAriaLabel}>
               {scenarios.map((scenario, index) => (
                 <button
                   key={scenario.scenario_id}
                   type="button"
                   className={`${index === active ? "active" : ""} ${scenario.preference ? "answered" : ""}`}
-                  aria-label={`Open ${LAYERS[scenario.layer] ?? scenario.layer} contrast ${index + 1}`}
+                  aria-label={c.openContrastAriaLabel
+                    .split("{label}")
+                    .join(layerLabel(scenario.layer))
+                    .split("{n}")
+                    .join(String(index + 1))}
                   aria-current={index === active ? "step" : undefined}
                   onClick={() => setActive(index)}
                 />
@@ -156,29 +155,29 @@ export default function CalibrationStudio({ token, replicaId, onAuthError }: { t
             </div>
           </div>
           <article className="calibration-card">
-            <div className="calibration-card-meta"><span>{LAYERS[current.layer] ?? current.layer}</span><span>{current.axis.replaceAll("_", " ")}</span></div>
+            <div className="calibration-card-meta"><span>{layerLabel(current.layer)}</span><span>{current.axis.replaceAll("_", " ")}</span></div>
             <h3>{current.context}</h3>
             <div className="calibration-options">
               <Option side="left" scenario={current} selected={current.preference?.choice === "left"} busy={busy} choose={(choice) => void choose(choice)} />
-              <div className="calibration-or">or</div>
+              <div className="calibration-or">{c.orWord}</div>
               <Option side="right" scenario={current} selected={current.preference?.choice === "right"} busy={busy} choose={(choice) => void choose(choice)} />
             </div>
             <div className="calibration-neutral">
-              <button type="button" aria-pressed={current.preference?.choice === "tie"} disabled={busy} onClick={() => void choose("tie")}>Both feel like me</button>
-              <button type="button" aria-pressed={current.preference?.choice === "neither"} disabled={busy} onClick={() => void choose("neither")}>Neither is me</button>
+              <button type="button" aria-pressed={current.preference?.choice === "tie"} disabled={busy} onClick={() => void choose("tie")}>{c.bothFeelLikeMe}</button>
+              <button type="button" aria-pressed={current.preference?.choice === "neither"} disabled={busy} onClick={() => void choose("neither")}>{c.neitherIsMe}</button>
             </div>
           </article>
           {status.readiness.blockers.length > 0 && (
             <ul className="model-blockers calibration-blockers">
-              {status.readiness.blockers.map((blocker) => <li key={blocker}><span />{BLOCKERS[blocker] ?? blocker.replaceAll("_", " ")}</li>)}
+              {status.readiness.blockers.map((blocker) => <li key={blocker}><span />{blockerLabel(blocker)}</li>)}
             </ul>
           )}
           <div className="calibration-action">
-            <p>Free-text notes are never compiled into behavior. Only reviewed, server-owned strategies can enter a frozen runtime capability.</p>
+            <p>{c.freeTextNote}</p>
             {draft ? (
-              <button className="button primary-button" type="button" disabled={busy || !status.readiness.ready} onClick={() => void approve(draft.version)}>{busy ? "Checking choices…" : `Approve calibration v${draft.version}`}</button>
+              <button className="button primary-button" type="button" disabled={busy || !status.readiness.ready} onClick={() => void approve(draft.version)}>{busy ? c.checkingChoices : c.approveCalibrationVersion.split("{n}").join(String(draft.version))}</button>
             ) : (
-              <button className="button primary-button" type="button" disabled={busy || !status.readiness.ready} onClick={() => void build()}>{busy ? "Building policy…" : "Build calibration policy"}</button>
+              <button className="button primary-button" type="button" disabled={busy || !status.readiness.ready} onClick={() => void build()}>{busy ? c.buildingPolicy : c.buildCalibrationPolicy}</button>
             )}
           </div>
         </>

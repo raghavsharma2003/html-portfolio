@@ -163,42 +163,41 @@ const { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale } = await loadS
     // under it), so it clears the scan the same way an empty file would, but
     // it belongs in the "converted" list rather than the "not touched" one.
     "localeContext.tsx",
+    // WS-R61 (tier 2, wave one). RoomStudio.tsx first, as the brief required
+    // (it carries the follower price and the TDS disclosure sentence -- see
+    // context/decisions.md#ws-r61-roomstudio-money-and-tds-copy-translated-meaning-preserved),
+    // then the smaller shell/lab/review panels with no honesty-gate or
+    // consent-ceremony conflict. See context/decisions.md#ws-r61-tier-2-first-wave-converted
+    // for the full list and why each was safe to move.
+    "RoomStudio.tsx", "VideoLinkMount.tsx", "RuntimeGate.tsx", "TurnFeedback.tsx",
+    "ReplicaDialogueLab.tsx", "CalibrationStudio.tsx", "CandidateEvaluationLab.tsx",
+    "ProcessingReview.tsx", "PersonModelStudio.tsx",
   ];
 
   // Every file this workstream did NOT convert, one line each. See
   // context/decisions.md#ws-r52-tier-2-studio-files-not-localized for the
-  // full argument (deep enrollment/voice-lab wizard internals, ~11,500 of
-  // the studio's ~16,300 lines, plus RoomStudio.tsx as this workstream's
-  // one deliberate scope cut inside the "shell" tier) and
+  // original argument and context/decisions.md#ws-r61-tier-2-first-wave-converted
+  // for what WS-R61 moved out of this list and why the rest stayed --
   // context/rejected.md for what was tried and why a full pass in one
-  // session was rejected.
+  // session was rejected (both sessions).
   const TIER_2_ALLOWLIST = {
     "layoutFixture.tsx": "The layout/accessibility gates' own signed-in harness, inert everywhere but loopback (its own header) -- never a page a creator reaches, so its literal strings (route stubs, fixture labels) are test data, not chrome.",
     "main.tsx": "The studio's real entry point (mounts StudioApp, no UI of its own); scanned here purely because it shares the .tsx extension with the panels that matter.",
     "ActivityPanel.tsx": "Feed step's job-status list; deep wizard internal, deferred.",
-    "CalibrationStudio.tsx": "Voice calibration lab; deep wizard internal, deferred.",
-    "CandidateEvaluationLab.tsx": "Blind A/B eval lab; deep wizard internal, deferred.",
     "ChannelsStudio.tsx": "Channel connection flows; deep wizard internal, deferred.",
     "ContextLockerPanel.tsx": "File/link ingestion; deep wizard internal, deferred.",
     "DisclosurePreview.tsx": "Renders the FIXED disclosure card text a follower reads (never translated per-creator; it is the platform's own floor, identical for every published AI) alongside its own chrome; deferred as a unit rather than split.",
     "EnrollmentWorkspace.tsx": "The largest single wizard file (~2,300 lines); source upload/consent internals, deferred.",
-    "IdentityProofing.tsx": "Identity verification flow; deep wizard internal, deferred.",
+    "IdentityProofing.tsx": "WS-R61 read this file and chose NOT to convert it: its `STATEMENTS` array is the exact English wording a creator affirmatively checks before submitting a government ID for age/identity verification (KYC-adjacent). Unlike this workstream's other wave-one files, a mistranslation here has real legal/compliance weight and no dedicated legal review was in scope for this session -- same caution `ModelConsentGate.tsx`'s own entry below states for a similar reason, see context/decisions.md#ws-r61-identity-proofing-consent-statements-deferred-not-attempted.",
     "IngestChannelStudio.tsx": "YouTube channel ownership flow; deep wizard internal, deferred.",
     "LivenessCapture.tsx": "Azure liveness challenge flow; deep wizard internal, deferred.",
     "MirrorCallStudio.tsx": "Live Mirror Call + interview UI; deep wizard internal, deferred.",
-    "ModelConsentGate.tsx": "Build-permission consent ceremony; deep wizard internal, deferred.",
+    "ModelConsentGate.tsx": "Its six `STATEMENTS` are pre-existing consent-ceremony legal text: four of them are named BY STRING, in this exact English wording, in scripts/roomsVocabAllowlist.mjs's own escape hatch (a teacher already affirmatively checked these exact words before any replica was built). WS-R61 read that file before touching this one and stopped: translating the ceremony would move the words a person already consented to, the precise failure roomsVocabAllowlist.mjs's own header names (`safety-floor-teacher.md` §2.1). See context/decisions.md#ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text.",
     "OpsBoard.tsx": "Internal operator dashboard (`?mode=ops`), never a creator-facing screen at all.",
-    "PersonModelStudio.tsx": "Claim review internals; deep wizard internal, deferred.",
-    "ProcessingReview.tsx": "Raw evidence/artifact review; deep wizard internal, deferred.",
     "QuickStartPath.tsx": "Owns BLOCKER_META, honesty-gated prose checked by evals/studiowizard.mjs's English-only BLAME_PATTERNS regex (copy.ts's own header); localizing it without a parallel Hindi honesty check would ship an ungated safety-adjacent surface.",
-    "ReplicaDialogueLab.tsx": "Text dialogue lab; deep wizard internal, deferred.",
-    "RoomStudio.tsx": "The studio's single largest file (1200+ lines) carrying money/tax copy (creator-tier pricing, the TDS note); this workstream's one deliberate scope cut inside the shell tier, logged separately from the Tier 2 wizard internals.",
-    "RuntimeGate.tsx": "Launch/activation gate; deep wizard internal, deferred.",
     "StudioApp.tsx": "Owns TEACHER_COPY/GENERIC_COPY/TEST_COPY (pre-existing, unrelated local `StudioCopy` auth-flow copy, WS-R31 era) plus every lazy-mounted Tier 2 panel's wiring; the shell mount, locale provider and language-switch wiring this workstream added ARE converted (see StudioShell.tsx).",
     "TeacherSheetStudio.tsx": "Teacher sheet editor; deep wizard internal, deferred.",
-    "TurnFeedback.tsx": "Per-turn rating widget; deep wizard internal, deferred.",
     "VideoEnrollPanel.tsx": "Video-link enrollment; deep wizard internal, deferred.",
-    "VideoLinkMount.tsx": "The Feed tab's own 'one video, by link' mount ('a fourth way in, being built right now', its own header) — the Band WRAPPING it (StudioShell.tsx) is converted; its own internal copy is not.",
     "VoiceEnrollmentLab.tsx": "Voice consent + enrollment lab; deep wizard internal, deferred.",
     "VoiceExperimentPanel.tsx": "Blind voice listening lab; deep wizard internal, deferred.",
     "VoiceIdentityChallenge.tsx": "Voice identity challenge flow; deep wizard internal, deferred.",
