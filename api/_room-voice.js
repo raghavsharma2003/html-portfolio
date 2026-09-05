@@ -134,6 +134,7 @@ function fail(code, status, details) {
  */
 // ═════════════════════════════════════════════════════════════════════════
 // WS-R110: a CONTAINER for the SAME bytes, never a second synthesis path
+// WS-R114: verified against Telegram's own document, and NOT transcoded
 // ═════════════════════════════════════════════════════════════════════════
 //
 // `roomSpeak` returns raw `pcm_s16le` samples with no container at all
@@ -149,6 +150,39 @@ function fail(code, status, details) {
 // re-encode — `roomSay`/`roomSpeak`'s own law ("never a second synthesis
 // path") is about NOT calling a model or a provider a second time, and
 // nothing here does either.
+//
+// WS-R110 left it unverified whether Telegram renders this WAV as a playable
+// voice bubble. WS-R114 fetched `core.telegram.org/bots/api` directly to a
+// file (curl, 860,075 bytes, HTTP 200 — the full page, not the truncated
+// excerpt the summarizing fetch tool returned for WS-R41/WS-R60,
+// `context/decisions.md#ws-r114-telegram-full-page-fetch-recovered-by-curl-
+// to-file`) and read `sendVoice`'s own paragraph, fetched 2026-09-05: "your
+// audio must be in an .OGG file encoded with OPUS, or in .MP3 format, or in
+// .M4A format (other formats may be sent as Audio or Document)." WAV is none
+// of the three. The honest, DECIDED answer is below as a structural fact
+// (`ROOM_TELEGRAM_VOICE_CONTAINER.meetsSendVoiceFormatRequirement`), not left
+// as a comment nobody has to keep true.
+//
+// The obvious fix — transcode to OGG/Opus or MP3 before sending — was
+// rejected, not attempted: `docs/gurukul/AZURE-DEPLOY-STATE.md` §14.10
+// already states, in this repo, before this workstream existed, "Watermark
+// robustness is unmeasured. Detection was verified on the exact bytes
+// returned. Survival through MP3, resampling, or a re-record was not
+// tested. AudioSeal claims robustness; this deployment has not confirmed
+// it." A lossy re-encode changes the exact samples the watermark is embedded
+// in, and this workstream has no GPU and no paid-API budget to run the real
+// detector against a re-encoded clip and find out. Shipping a transcode
+// nobody can verify still carries the watermark would be shipping an
+// unprovable provenance claim on a customer-facing surface — worse than the
+// WAV clip's honest, documented shortfall (`context/decisions.md#ws-r114-
+// telegram-wav-kept-over-unverifiable-lossy-transcode`). The WAV stays.
+export const ROOM_TELEGRAM_VOICE_CONTAINER = Object.freeze({
+  extension: "wav",
+  mimeType: "audio/wav",
+  telegramSendVoiceDocumentedFormats: Object.freeze(["ogg-opus", "mp3", "m4a"]),
+  meetsSendVoiceFormatRequirement: false,
+});
+
 export function pcmToWavBuffer(pcm, format = {}) {
   const numChannels = Number(format.channels) > 0 ? Number(format.channels) : 1;
   const sampleRate = Number(format.sampleRate) > 0 ? Number(format.sampleRate) : 24_000;
