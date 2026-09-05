@@ -447,8 +447,11 @@ function makeDb(state) {
     htmlOn.includes('data-room="anjali-physics"') && htmlOn.includes('data-locale="en"'));
   ok("the deferred island script is included, and only as an external <script src>, never inline",
     htmlOn.includes('<script src="/creator-taste.js" defer></script>'));
-  ok("the lede has {name} already substituted server-side",
-    htmlOn.includes("Ask Anjali AI a question before you sign in."));
+  // The name inside the lede carries its own `lang` since the WS-R79/WS-R80
+  // merge (`withLangSplicedName`, the join link's own shape): the sentence is
+  // still substituted server-side, and the creator's name is its own node.
+  ok("the lede has {name} already substituted server-side, the name in its own lang",
+    htmlOn.includes('Ask <span lang="en">Anjali</span> AI a question before you sign in.'));
   ok("the join link exists but starts hidden (JS reveals it after the third turn or a refusal)",
     /<a id="vy-taste-join" href="\/r\/anjali-physics\?via=search" hidden>/.test(htmlOn));
 

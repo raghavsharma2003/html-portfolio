@@ -10911,3 +10911,42 @@ to `src/room/copy.ts`, still small enough that whole-file concatenation is
 still fine as of this session) should scope the slice the same way, or run
 its own findings against the full file at least once before trusting a
 green result.
+
+
+## `published-room-share-tab-never-rendered-under-the-layout-gate-until-wave-thirteen` — the picker scenario lit up a tab no fixture had ever published
+
+**Tried.** Every studio layout fixture from WS-R31 to WS-R70 rendered a
+Room in the `not_created` state, so the gate had measured the Share tab's
+publish controls and never its published state: the check-in design form,
+the payout fund-account form, the Suite join form, the embed snippet, the
+Handoff queue, the invites card, the Week six card. WS-R72's
+`showcase-picker` scenario was the first to publish the fixture Room, and
+its own gate runs in the worktree were all reported as port collisions, so
+the first real render happened at the wave-thirteen merge gate.
+
+**What broke, in order.** (1) The page threw before painting: `RoomStudio`
+reads `cohorts.length` on the Week six report and `InviteCreatorCard` reads
+`quota.remaining`, and `HandoffCard` reads `counts.sent`, none guarded,
+while the fixture answered `{}` for `/api/room-cohorts`, `/api/invites` and
+`/api/handoff` (unlisted routes). (2) With those routes answered in the real
+doors' own shapes, the phone viewport scrolled sideways at 777 px: the embed
+snippet's `pre` carries `white-space: pre` inside an `overflow-x: auto` box,
+and a scroll container still reports its unwrapped text as its min-content
+contribution, so the tab shell's implicit `auto` grid track, the tab bar and
+the headline all resolved to the snippet's 85-character width. (3) With the
+page back at 390 px, three `label.field-label` notes ran 150 characters per
+line on desktop: `.field-label` had no measure.
+
+**What replaced it.** The three routes in the fixture's base table; the
+snippet box gets `contain: inline-size` and `min-width: 0` so it contributes
+nothing to its ancestors' intrinsic width while still scrolling unwrapped
+inside itself; `.studio-tabshell` gets `grid-template-columns: minmax(0, 1fr)`
+so no future unbreakable string can widen the page through the shell;
+`.field-label` gets `max-width: var(--measure)`. No component guards were
+added: the doors always answer these shapes, and a guard would have hidden a
+fixture that lies.
+
+**The rule.** A scenario that changes a state no fixture had reached before
+is a new screen, and the gate must be run on it alone before the merge; and
+a grid track that defaults to `auto` is a min-content pipe from the deepest
+unbreakable string to the page's width.

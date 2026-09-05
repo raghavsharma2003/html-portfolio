@@ -271,10 +271,16 @@ function buildTasteSection(room, name, locale, slugParam) {
   // different ideas of "this Room's slug".
   const slugRaw = String(slugParam || "");
   const slug = encodeURIComponent(slugRaw);
-  const lede = withName(t.lede, name);
+  // WS-R79's rule applied to WS-R80's lede at their merge: the creator's
+  // name inside this sentence is the creator's own word in the creator's
+  // own language, so it is spliced in with its own `lang` (the same
+  // `withLangSplicedName` the join link below uses) rather than trusted to
+  // match the page's locale. `withLangSplicedName` escapes what it returns,
+  // so the result is rendered as-is, never through `esc()` a second time.
+  const lede = withLangSplicedName(withName(t.lede, name), name);
   return `<section class="taste" aria-labelledby="taste-title">
       <h2 id="taste-title">${esc(c.askTitle)}</h2>
-      <p class="room-lede" id="vy-taste-lede">${esc(lede)}</p>
+      <p class="room-lede" id="vy-taste-lede">${lede}</p>
       <p class="disclosure" id="vy-taste-disclosure" hidden></p>
       <div id="vy-taste-turns" aria-live="polite"></div>
       <form id="vy-taste-form" method="get" action="/r/${slug}" data-room="${esc(slugRaw)}" data-locale="${locale}">

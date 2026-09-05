@@ -8488,6 +8488,18 @@
       "kind": "measurement",
       "title": "Migrations 118 to 121 applied live one statement per request at their merges; 23 new or changed statements EXPLAINed, all on their indexes except three bounded sequential scans accepted by name.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "published-room-share-tab-never-rendered-under-the-layout-gate-until-wave-thirteen",
+      "kind": "rejection",
+      "title": "The first render of a published Room's Share tab under the layout gate (WS-R72's picker scenario at the merge) threw on three unlisted fixture routes, then widened the studio to 777 px through an embed snippet's min-content and the shell's auto grid track, then ran labels 150 characters wide; fixed in the fixture, the snippet's containment, the shell's track and the label's measure.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "wave-thirteen-merge-gate-first-published-share-tab-2026-09-05",
+      "kind": "measurement",
+      "title": "The published Share tab under the layout gate: 12 findings, then 22 (777 px document), then 5 (150 cpl), then 0 across 48 screen loads as each cause was removed.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16720,6 +16732,11 @@
       "src": "rooms-migrations-118-to-121-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r75-dormancy"
+    },
+    {
+      "src": "wave-thirteen-merge-gate-first-published-share-tab-2026-09-05",
+      "rel": "measured_by",
+      "dst": "published-room-share-tab-never-rendered-under-the-layout-gate-until-wave-thirteen"
     }
   ]
 }

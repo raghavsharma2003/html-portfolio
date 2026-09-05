@@ -11509,3 +11509,17 @@ Method: each statement of `db/migrations/118_creator_weekly_push.sql`, `119_dorm
 | WS-R75 set dormancy days | Index Scan on `vy_room_owner_ix` |
 
 Not measured: WS-R76's `information_schema.columns` read (the same catalog index family as the tables read); WS-R73, WS-R77 and WS-R79 issue no new SQL.
+
+
+## `wave-thirteen-merge-gate-first-published-share-tab-2026-09-05` — what the first render of a published Room's Share tab measured
+
+n = 48 studio screen loads (the `studio`, `studio:shell`, `studio-hi` and `studio:shell-hi` targets at 390, 834 and 1355 px), method: `node scripts/check-layout.mjs --only studio` on the merged wave-thirteen tree, 2026-09-05.
+
+| stage | findings | the number |
+|---|---|---|
+| fixture answering `{}` for three routes | 12 (6 picker-open, 6 coverage) | the page threw before paint |
+| routes answered | 22 | document 777 px at a 390 px viewport; 116 cpl labels |
+| `contain: inline-size` on the snippet, `minmax(0, 1fr)` on the shell | 5 | document 390 px; 150 cpl labels at 1355 px |
+| `.field-label` at `var(--measure)` | 0 | 48 loads clean |
+
+The probe that found the driver: for every element, `white-space` of `pre`/`nowrap` with `scrollWidth` past the viewport, a pixel `min-width` past it, or a grid whose resolved tracks sum past it; the `studio-tabshell`'s single track had resolved to 762.7 px.

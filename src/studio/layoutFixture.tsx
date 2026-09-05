@@ -180,6 +180,31 @@ const ROUTES: Record<string, unknown> = {
   // the empty state that carries this panel's longest prose, so it is the one
   // worth measuring rather than a bare `{}`.
   "/api/room-publish": { room: null, reason: "not_created" },
+  // `RoomStudio`'s Week six card reads `cohorts` and `verdict` without a
+  // guard the moment a Room is published (the `showcase-picker` scenario
+  // publishes one); an unlisted route's `{}` threw before the picker could
+  // paint (found by the wave-thirteen merge gate). The real door always
+  // answers this shape (api/_room-cohorts.js's own `verdictFor`).
+  "/api/room-cohorts": {
+    cohorts: [],
+    verdict: { verdict: "not_measurable_yet", cohort_week: null, week6_return_share: null },
+  },
+  // `InviteCreatorCard` (WS-R47) reads `quota.remaining` without a guard once
+  // a Room is published, the same way as the cohorts card above; the real
+  // door's own shape (`api/_creator-invites.js`: three invites, none used).
+  "/api/invites": { invites: [], quota: { max: 3, used: 0, remaining: 3 } },
+  // `HandoffCard` (WS-R20) reads `counts.sent`/`counts.answered` without a
+  // guard once a Room is published. One static body answers every op on this
+  // path (`installStubFetch`'s own limit), so `config_get`'s two fields and
+  // `queue`'s two fields live side by side: Handoff off, an empty queue.
+  "/api/handoff": {
+    enabled: false, monthly_cap: 0,
+    counts: { drafted: 0, sent: 0, answered: 0, withdrawn: 0 }, next: null,
+  },
+  // `CheckinsCard` (WS-R16): `design_list` unwraps `designs`; none designed.
+  "/api/checkins": { designs: [] },
+  // `RoomStudio`'s Suite line (WS-R28): `room_status` unwraps `org`; not in a Suite.
+  "/api/org": { org: null },
   // `ChannelWatchView`. `attestations` is read without a guard, so it has to
   // be an array or the Feed step throws before it paints.
   "/api/channel-watch": {

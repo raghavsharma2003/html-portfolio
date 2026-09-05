@@ -589,9 +589,13 @@ console.log("\n── §7 (WS-R73): the UPI-fixes-your-seat-count disclosure is 
   // SuiteCard.tsx and this suite can check the words came from, and
   // SuiteCard.tsx is checked for actually READING it, `evals/payments/run.mjs`
   // §15's own "copy existing is not enough, it must be rendered" precedent.
-  const copySrc = readFileSync(join(REPO, "src/studio/copy.ts"), "utf8");
+  // The Hindi table is its own file since the WS-R71 merge (src/studio/hiCopy.ts,
+  // context/decisions.md#studio-hindi-table-is-its-own-chunk): both locales
+  // are read together, English from copy.ts and Hindi from hiCopy.ts.
+  const copySrc = readFileSync(join(REPO, "src/studio/copy.ts"), "utf8")
+    + "\n" + readFileSync(join(REPO, "src/studio/hiCopy.ts"), "utf8");
   const suiteCardSrc = readFileSync(join(REPO, "src/studio/SuiteCard.tsx"), "utf8");
-  ok("copy.ts defines suiteSeatLock.mandateNote and .seatsLockedByMandate in BOTH locales",
+  ok("copy.ts and hiCopy.ts define suiteSeatLock.mandateNote and .seatsLockedByMandate in BOTH locales",
     (copySrc.match(/mandateNote:\s*\n?\s*"/g) || []).length >= 2 &&
       (copySrc.match(/seatsLockedByMandate:\s*\n?\s*"/g) || []).length >= 2);
   ok("SuiteCard.tsx renders the mandate note before the Start Suite subscription button",

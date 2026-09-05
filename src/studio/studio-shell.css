@@ -20,6 +20,14 @@
 @layer components {
   .studio-tabshell {
     display: grid;
+    /* `minmax(0, 1fr)`, never the implicit `auto` track: an auto track's
+       minimum is its content's min-content width, so one unbreakable string
+       anywhere in a tab (an 85-character embed snippet was the first) sets
+       the width of the tab bar, the headline and every card above it, and
+       the page scrolls sideways. A zero minimum keeps the shell at the
+       viewport and leaves each block to scroll or wrap inside its own box
+       (DESIGN-LAW section 3). Found by the wave-thirteen merge gate. */
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-block);
   }
 
