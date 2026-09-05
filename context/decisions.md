@@ -15714,3 +15714,70 @@ budget with a measurement, never silently. If the placeholder ever throws in
 production (an incident row naming `studio_copy_hi_not_loaded`), the provider
 gate has a hole and the fix is in `localeContext.tsx`, not a softer
 placeholder.
+
+## `ws-r83-consent-ceremony-hindi-review-document-before-conversion` (2026-09-05, WS-R83)
+
+**Decision.** The six consent-ceremony studio files
+`ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text`,
+`ws-r61-identity-proofing-consent-statements-deferred-not-attempted` and
+`ws-r71-consent-ceremony-files-found-and-not-converted` held back from Hindi
+conversion (`ModelConsentGate.tsx`, `IdentityProofing.tsx`,
+`VideoEnrollPanel.tsx`, `IngestChannelStudio.tsx`, `LivenessCapture.tsx`,
+`VoiceIdentityChallenge.tsx`) get their proposed Hindi written into a
+standalone legal-review document, `docs/legal/HINDI-CONSENT-REVIEW.md`,
+BEFORE any of them convert. No `src/` change happened this session. The
+document carries, for all 88 rows (26 consent statements plus every ceremony
+heading, legend, primary action and boundary/refusal line the six files
+render): the file and line, the English exactly as shipped, a proposed
+Hindi, and a plain-English back-translation of the Hindi, so a reviewer who
+does not read Hindi can check meaning against the English original rather
+than trusting the translator. It also names each ceremony's
+`statement_set`/`policy_version` id and the table it is recorded against, so
+a reviewer can tie a row in this document to the row a real person's consent
+is recorded against in the database.
+
+**Rationale.** The three decision entries this one is a sequel to each gave
+the SAME reason for deferring: no legal review of Hindi wording was in scope
+for or possible within that session, and a mistranslation in a consent, KYC
+or biometric ceremony carries real legal and compliance weight a generic
+Hindi honesty/consent detector (their own stated reversal condition) cannot
+substitute for. A document is the artifact legal review actually consumes; a
+diff against six `.tsx` files is not, and drafting the Hindi as a code change
+first (even behind a flag) would put untested legal wording one merge away
+from a screen. `evals/consent-review/run.mjs` proves three narrower, purely
+mechanical things instead of judging Hindi quality (which only a person can
+judge): that the document is COMPLETE (every consent statement, checkbox
+label, ceremony heading, legend, primary action and boundary/refusal line
+the six files currently render is re-extracted from the real source on every
+run and found in the document's English column, so a future edit to any
+ceremony's wording breaks this suite until the document catches up), that
+every proposed Hindi row is clean under the REAL `scripts/check-copy.mjs`
+scanner (`scanSource`, the same function/trick `evals/studio-locale/run.mjs`
+already established for Hindi copy), and that the cited statement_set/
+policy_version ids are the real exported constants, not typed-out guesses.
+
+**A genuine complication, recorded rather than hidden.** Three of the source
+English statements (`ModelConsentGate.tsx`'s `authorize_biometric_voice_modeling`
+and `authorize_private_training`, `LivenessCapture.tsx`'s
+`self_only_private_replica`) use exactly the words `scripts/check-copy.mjs`'s
+Rooms vocabulary rule bans in Hindi (and in English going forward): "replica",
+"training", "model", "embeddings". The Hindi in the document renders these
+functionally (`आपका AI` for "replica", "आवाज़ तैयार करने या बेहतर बनाने"
+for "training or adaptation of a voice model", "आवाज़ पहचान-निशानी" for
+"voice embeddings") rather than transliterating a banned word, and each such
+row is flagged in the document as the row most likely to need a lawyer's
+explicit confirmation that the functional Hindi still covers what the
+English legal noun covers. This is not a decision this workstream is
+positioned to make; it is surfaced so the reviewer sees it rather than
+signing off on a document that quietly narrowed scope.
+
+**Reversal condition.** Once a person with sign-off authority over consent/
+KYC/biometric copy has approved the Hindi in this document (as written, or
+as corrected inline), this entry and the three it extends get superseded by
+one recording that review happened, on what date, for which rows; the
+reviewed Hindi (not a re-translation) moves into `src/studio/hiCopy.ts`,
+and each file moves from `TIER_2_ALLOWLIST` to `TIER_1_FILES` in
+`evals/studio-locale/run.mjs`, the exact conversion shape WS-R52/R61/R71
+already established for every other Tier 1 file. Until then, none of the
+six files may convert on the strength of this document alone; it is input
+to a legal decision, not the decision itself.

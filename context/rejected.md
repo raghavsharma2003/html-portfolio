@@ -10950,3 +10950,50 @@ fixture that lies.
 is a new screen, and the gate must be run on it alone before the merge; and
 a grid track that defaults to `auto` is a min-content pipe from the deepest
 unbreakable string to the page's width.
+
+## `ws-r83-whole-file-jsx-text-node-scan-rejected-as-the-block-boundary` (2026-09-05, WS-R83)
+
+**What was tried.** Before settling on the five-category block boundary
+`docs/legal/HINDI-CONSENT-REVIEW.md`'s Methodology section defines, the
+first draft of this workstream tried reusing
+`evals/studio-locale/run.mjs`'s own `literalEnglishTextNodes` scan verbatim:
+every JSX text node of three or more words in each of the six files, with no
+further filtering, as the row set to translate and gate on.
+
+**What broke.** That produces far more rows than "the consent ceremony": in
+`LivenessCapture.tsx` alone it pulls in loading-state copy
+("Loading live challenge status"), device-permission error strings keyed off
+`DOMException.name`, and MediaRecorder failure text ("The browser recording
+stopped unexpectedly...") alongside the five statements a person actually
+checks. A lawyer asked to review "the consent ceremony" would have to read
+past dozens of unrelated UI strings to find the twelve or so that carry
+legal weight, and every one of those unrelated strings churns whenever a
+copy tweak lands nearby, so the document's completeness proof would fail on
+changes that have nothing to do with consent. The opposite failure mode was
+also tried and rejected: gating ONLY the named statement arrays
+(`STATEMENTS`/`ATTESTATION_COPY`/`STATEMENT_COPY`) missed the ceremony
+headings, the primary action a person actually presses, and the boundary
+lines stating what the consent does and does not cover, three things a
+reviewer needs exactly as much as the statements themselves to judge the
+ceremony as a whole.
+
+**What replaced it.** The five-category boundary in the document's
+Methodology section: the statement/checkbox array itself, the ceremony's
+own heading (eyebrow + `h2`/`h3` + `<legend>`), the primary action button's
+resting label, one explicit boundary or refusal line per ceremony, and (File
+6 only, which has no checkbox array) its `REASON` map standing in for
+category 1. Narrow enough that a reviewer reads only what the ceremony
+actually says, wide enough that `evals/consent-review/run.mjs`'s
+completeness check still catches a heading rename, a legend edit or a new
+statement the same way it catches a changed statement.
+
+## `ws-r83-modelconsentgate-partial-translation-still-rejected-see-ws-r61` (cross-reference, WS-R83)
+
+**Confirmed, not re-litigated.** This workstream's own document generalises
+`ws-r61-partial-modelconsentgate-translation-considered-and-rejected`'s
+finding (translating the chrome around a consent ceremony while leaving its
+statements as opaque values changes what the whole screen communicates) to
+all six files, exactly as `ws-r71-consent-ceremony-files-found-and-not-converted`
+already did for four of them. Nothing new was tried here; this entry exists
+so a reader who reaches this file from `ws-r83-consent-ceremony-hindi-review-document-before-conversion`
+finds the original reasoning without having to search for it.
