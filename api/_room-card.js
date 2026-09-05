@@ -1,10 +1,12 @@
-// The Room's pictures (WS-R55): a generated unfurl image per Room and a
-// story card the creator can post. Every decision lives here, where a fake
-// `db` never has to reach it at all — `renderRoomCard`, `computeCardLayout`
-// and `buildRoomCardSvg` below are PURE (data in, string/object out), and
-// `rasterizeRoomCard` is the one function in this file that touches the
-// filesystem (reading the bundled font once) or a native addon (the
-// canvas). `api/room-card.js` is the thin HTTP door one file over.
+// The Room's pictures (WS-R55): a generated unfurl image per Room, a story
+// card the creator can post, and (WS-R78) a printable A4 poster with a QR
+// code — the story card gains the same QR, small, in a corner. Every
+// decision lives here, where a fake `db` never has to reach it at all —
+// `renderRoomCard`, `computeCardLayout` and `buildRoomCardSvg` below are
+// PURE (data in, string/object out), and `rasterizeRoomCard` is the one
+// function in this file that touches the filesystem (reading the bundled
+// font once) or a native addon (the canvas). `api/room-card.js` is the thin
+// HTTP door one file over.
 //
 // ── WHY THIS EXISTS ─────────────────────────────────────────────────────
 //
@@ -84,16 +86,20 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { PLATFORM_TITLE, PLATFORM_DESCRIPTION } from "./_room-page.js";
 import { roomDisclosureCard, normalizeLocale } from "./_room-surface.js";
+import { encodeQR } from "./_qr.js";
 
 const require = createRequire(import.meta.url);
 
-/** The two shapes this product hands a platform: a landscape unfurl card
- *  (WhatsApp/Telegram/iMessage/Twitter's `og:image`) and a portrait story
- *  card sized for Instagram/WhatsApp Status. Both a fixed pixel size, per
- *  law 1 of this workstream's brief. */
+/** The three shapes this product hands a creator: a landscape unfurl card
+ *  (WhatsApp/Telegram/iMessage/Twitter's `og:image`), a portrait story card
+ *  sized for Instagram/WhatsApp Status, and (WS-R78) an A4 poster at 150dpi
+ *  for a notice board or a clinic wall — `1240x1754`, the brief's own
+ *  numbers (`210mm x 297mm` at 150dpi, rounded to the nearest pixel). All
+ *  three a fixed pixel size, law 1/2 of their respective workstream briefs. */
 export const ROOM_CARD_SIZES = {
   og: { width: 1200, height: 630 },
   story: { width: 1080, height: 1920 },
+  poster: { width: 1240, height: 1754 },
 };
 
 export const ROOM_CARD_KINDS = Object.keys(ROOM_CARD_SIZES);
@@ -165,56 +171,118 @@ function wrapLines(text, maxChars, maxLines) {
 }
 
 /**
- * PURE. `{name, bio, locale, kind}` -> a plain layout object: pixel size,
- * the two background rectangles, and a list of text blocks, each an array
- * of already-wrapped lines with an ABSOLUTE `x`/`y` per line (never a
- * relative offset) — the one shared source both `renderRoomCard` (SVG, for
- * the copy scan and a human preview) and `rasterizeRoomCard` (canvas, for
- * the wire) read, so the two can never draw a different picture from the
- * same inputs. Never reads a file, never touches the network, never sees a
- * follower — only the four values a caller hands it, which is what makes
- * `evals/room-card/run.mjs`'s negative control possible: a fifth,
- * follower-shaped field simply has nowhere to plug in.
+ * PURE. `{name, bio, locale, kind, url}` -> a plain layout object: pixel
+ * size, the two background rectangles, a list of text blocks (each an
+ * array of already-wrapped lines with an ABSOLUTE `x`/`y` per line, never a
+ * relative offset, and an optional `align: "center"`), and — for `kind ===
+ * "poster"` (a large, centred one) or `kind === "story"` (a small one in
+ * the top-right corner, WS-R78's own brief, law 2's last sentence: "the
+ * story card gains the QR in a corner") — a `qr` field. The one shared
+ * source both
+ * `renderRoomCard` (SVG, for the copy scan and a human preview) and
+ * `rasterizeRoomCard` (canvas, for the wire) read, so the two can never
+ * draw a different picture from the same inputs. Never reads a file, never
+ * touches the network, never sees a follower — `url` is a plain string the
+ * caller already resolved (`cardInputFor` below builds it from the SAME
+ * `display_name`/`slug` `publicRoomBySlug` already exposes plus an
+ * `origin` the caller's own request carried, never fetched here) — which
+ * is what makes `evals/room-card/run.mjs`'s negative control possible: a
+ * follower-shaped field simply has nowhere to plug in. `encodeQR` (WS-R78,
+ * `api/_qr.js`) is itself pure, so calling it here does not cost this
+ * function its own purity.
  */
-export function computeCardLayout({ name, bio, locale, kind } = {}) {
+export function computeCardLayout({ name, bio, locale, kind, url } = {}) {
   const size = ROOM_CARD_SIZES[kind] || ROOM_CARD_SIZES.og;
   const { width, height } = size;
   const isStory = kind === "story";
+  const isPoster = kind === "poster";
   const loc = normalizeLocale(locale);
   const displayName = String(name || "").trim() || PLATFORM_TITLE;
   const bioText = String(bio || "").trim();
   const disclosure = name ? roomDisclosureCard(displayName, loc).split("\n")[0] : PLATFORM_DESCRIPTION;
 
-  const pad = isStory ? 96 : 88;
-  const nameSize = isStory ? 84 : 68;
-  const bioSize = isStory ? 40 : 32;
-  const discSize = isStory ? 30 : 24;
-  const markSize = isStory ? 34 : 26;
-  const nameChars = isStory ? 14 : 20;
-  const bioChars = isStory ? 26 : 40;
-  const discChars = isStory ? 30 : 52;
+  const pad = isPoster ? 110 : isStory ? 96 : 88;
+  const nameSize = isPoster ? 104 : isStory ? 84 : 68;
+  const bioSize = isPoster ? 50 : isStory ? 40 : 32;
+  const discSize = isPoster ? 36 : isStory ? 30 : 24;
+  const markSize = isPoster ? 40 : isStory ? 34 : 26;
+  const nameChars = isPoster ? 13 : isStory ? 14 : 20;
+  const bioChars = isPoster ? 28 : isStory ? 26 : 40;
+  const discChars = isPoster ? 44 : isStory ? 30 : 52;
 
   const nameLines = wrapLines(displayName, nameChars, 2);
-  const bioLines = bioText ? wrapLines(bioText, bioChars, isStory ? 4 : 3) : [];
-  const discLines = wrapLines(disclosure, discChars, isStory ? 4 : 2);
+  const bioLines = bioText ? wrapLines(bioText, bioChars, isPoster ? 3 : isStory ? 4 : 3) : [];
+  const discLines = wrapLines(disclosure, discChars, isPoster ? 3 : isStory ? 4 : 2);
 
   const blocks = [];
-  let y = isStory ? 640 : 260;
+  let y = isPoster ? 220 : isStory ? 640 : 260;
   const nameGap = nameSize * 1.18;
   blocks.push({ id: "name", lines: nameLines, x: pad, y, fontSize: nameSize, color: FOREST_DEEP, lineHeight: nameGap });
-  y += nameGap * nameLines.length + (isStory ? 56 : 40);
+  y += nameGap * nameLines.length + (isPoster ? 44 : isStory ? 56 : 40);
 
   if (bioLines.length) {
     const bioGap = bioSize * 1.4;
     blocks.push({ id: "bio", lines: bioLines, x: pad, y, fontSize: bioSize, color: FOREST, lineHeight: bioGap });
+    if (isPoster) y += bioGap * bioLines.length + 56;
   }
 
-  const discY = height - (isStory ? 220 : 150);
-  const discGap = discSize * 1.5;
-  blocks.push({ id: "disclosure", lines: discLines, x: pad, y: discY, fontSize: discSize, color: FOREST, lineHeight: discGap });
+  // The poster's own centrepiece (WS-R78 law 2): a QR encoding the address
+  // in plain text under it "for people who cannot scan". The story card
+  // gets the SAME QR, small, in a corner (law 2's own last sentence) —
+  // both read `url` off the identical input this workstream's
+  // `cardInputFor` resolves, so a story posted from the studio and a
+  // poster printed from it always point at the same address. `qr` stays
+  // null whenever no `url` was resolved (a caller with no request origin
+  // to build one from) — a card with no QR is a degraded but honest
+  // fallback, never a crash, `rasterizeRoomCardForRoom`'s own "must still
+  // answer with SOME picture" law one layer up restated for a missing
+  // input instead of a render failure.
+  let qr = null;
+  const qrText = (isPoster || isStory) ? String(url || "").trim() : "";
+  if (qrText) {
+    const encoded = encodeQR(qrText);
+    const quiet = 4; // the spec's own minimum quiet-zone width, in modules
+    const dim = encoded.size + quiet * 2;
+    const targetPx = isPoster ? 760 : 208; // story: a small corner mark, not a centrepiece
+    const moduleSize = Math.max(1, Math.floor(targetPx / dim));
+    const qrPx = moduleSize * dim;
+    if (isPoster) {
+      const qrX = Math.round((width - qrPx) / 2);
+      const qrY = Math.round(y);
+      qr = { matrix: encoded.matrix, moduleSize, quiet, x: qrX, y: qrY, size: qrPx };
+      y = qrY + qrPx + 48;
 
-  const markY = height - (isStory ? 88 : 56);
-  blocks.push({ id: "mark", lines: [BRAND_MARK], x: pad, y: markY, fontSize: markSize, color: SIGNAL, lineHeight: 0 });
+      const urlLines = wrapLines(qrText, 56, 2);
+      const urlGap = 32 * 1.4;
+      blocks.push({
+        id: "url", lines: urlLines, x: width / 2, y, fontSize: 32, color: FOREST,
+        lineHeight: urlGap, align: "center",
+      });
+      y += urlGap * urlLines.length + 44;
+    } else {
+      // Top-right corner, clear of the name/bio/disclosure block that
+      // starts at `y` further down the page — the one area of a story
+      // card this layout otherwise leaves blank.
+      const qrX = width - pad - qrPx;
+      const qrY = pad;
+      qr = { matrix: encoded.matrix, moduleSize, quiet, x: qrX, y: qrY, size: qrPx };
+    }
+  }
+
+  if (isPoster) {
+    const discGap = discSize * 1.5;
+    blocks.push({ id: "disclosure", lines: discLines, x: width / 2, y, fontSize: discSize, color: FOREST, lineHeight: discGap, align: "center" });
+  } else {
+    const discY = height - (isStory ? 220 : 150);
+    const discGap = discSize * 1.5;
+    blocks.push({ id: "disclosure", lines: discLines, x: pad, y: discY, fontSize: discSize, color: FOREST, lineHeight: discGap });
+  }
+
+  const markY = height - (isPoster ? 70 : isStory ? 88 : 56);
+  blocks.push({
+    id: "mark", lines: [BRAND_MARK], x: isPoster ? width / 2 : pad, y: markY,
+    fontSize: markSize, color: SIGNAL, lineHeight: 0, align: isPoster ? "center" : "left",
+  });
 
   return {
     width,
@@ -223,11 +291,36 @@ export function computeCardLayout({ name, bio, locale, kind } = {}) {
     accent: { color: SIGNAL, width: 14 },
     fontFamily: FONT_FAMILY,
     blocks,
+    qr,
   };
 }
 
+/** The QR's own dark modules, as one SVG `<path>` — every dark cell
+ *  contributes one `M...h...v...h...z` subpath, concatenated, so a
+ *  same-color region never needs a separate `<rect>` per module (WS-R78:
+ *  up to 57x57 = 3,249 modules at version 10, `evals/qr/run.mjs`'s own
+ *  long-payload case). `renderRoomCardQr`/`rasterizeRoomCardQr` are the
+ *  ONLY two places this file turns a `qr` layout field into marks — both
+ *  read the identical `matrix`/`moduleSize`/`quiet`/`x`/`y` `computeCardLayout`
+ *  produced, so the SVG and the raster can never disagree about which
+ *  module is dark. */
+function renderRoomCardQr(qr) {
+  if (!qr) return "";
+  const { matrix, moduleSize, quiet, x, y } = qr;
+  let d = "";
+  for (let row = 0; row < matrix.length; row++) {
+    for (let col = 0; col < matrix.length; col++) {
+      if (!matrix[row][col]) continue;
+      const px = x + (col + quiet) * moduleSize;
+      const py = y + (row + quiet) * moduleSize;
+      d += `M${px} ${py}h${moduleSize}v${moduleSize}h${-moduleSize}z`;
+    }
+  }
+  return `<path d="${d}" fill="${FOREST_DEEP}" />`;
+}
+
 /**
- * PURE. `renderRoomCard({name, bio, locale, kind})` -> an SVG document
+ * PURE. `renderRoomCard({name, bio, locale, kind, url})` -> an SVG document
  * string, built from `computeCardLayout`. Used for the copy scan
  * (`evals/room-card/run.mjs` runs every rendered string through the REAL
  * `scripts/check-copy.mjs` scanner, `api/_room-publish.js`'s `assertBioClean`
@@ -236,19 +329,21 @@ export function computeCardLayout({ name, bio, locale, kind } = {}) {
  */
 export function renderRoomCard(input) {
   const layout = computeCardLayout(input);
-  const { width, height, background, accent, fontFamily, blocks } = layout;
+  const { width, height, background, accent, fontFamily, blocks, qr } = layout;
   const textEls = blocks
     .filter((b) => b.lines.length)
     .map((b) => {
+      const anchor = b.align === "center" ? ` text-anchor="middle"` : "";
       const tspans = b.lines
         .map((line, i) => `<tspan x="${b.x}" y="${b.y + b.lineHeight * i}">${esc(line)}</tspan>`)
         .join("");
-      return `<text font-family="${fontFamily}, sans-serif" font-size="${b.fontSize}" fill="${b.color}">${tspans}</text>`;
+      return `<text font-family="${fontFamily}, sans-serif" font-size="${b.fontSize}" fill="${b.color}"${anchor}>${tspans}</text>`;
     })
     .join("\n  ");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <rect x="0" y="0" width="${width}" height="${height}" fill="${background}" />
   <rect x="0" y="0" width="${accent.width}" height="${height}" fill="${accent.color}" />
+  ${renderRoomCardQr(qr)}
   ${textEls}
 </svg>`;
 }
@@ -260,19 +355,39 @@ export function renderRoomCard(input) {
  * the two "a bot/a picture must never learn whether a slug exists"
  * guarantees cannot drift apart from each other by one file changing its
  * own copy.
+ *
+ * `origin` (WS-R78) is used for exactly one thing: the poster's own QR
+ * needs a full, absolute address to encode, and this file reads no
+ * request and no environment variable to build one — `api/room-card.js`
+ * derives its origin the same way every other thin door in this codebase
+ * already does (`api/room-page.js`'s own `originFromRequest`, restated
+ * rather than shared, that file's own header explains why) and hands it
+ * straight through. For `og`/`story` it is simply never read. A real Room
+ * gets `<origin>/r/<slug>?via=poster` — `ROOM_ARRIVAL_VIA` (`api/_room-
+ * surface.js`) and migration 121's CHECK both admit `poster` together, this
+ * workstream's own law 1, so an arrival through this address counts. The
+ * platform card (an unpublished, paused, or unknown slug — `row` is
+ * `null`) gets the bare origin instead of a per-slug address: a scan must
+ * still learn nothing about which slug someone tried, the identical
+ * "byte-identical" law `buildRoomPageHtml` states for its own `og:image`,
+ * restated here for a QR payload instead of an SVG string. No `origin` at
+ * all (a caller that never resolved one) degrades to no QR rather than a
+ * thrown error — `computeCardLayout`'s own header on why.
  */
-export function cardInputFor(row, kind) {
-  if (!row) return { name: null, bio: null, locale: "en", kind };
+export function cardInputFor(row, kind, origin = "") {
+  const base = String(origin || "").replace(/\/+$/, "");
+  if (!row) return { name: null, bio: null, locale: "en", kind, url: base ? `${base}/` : "" };
   return {
     name: row.display_name || "",
     bio: row.one_line_bio || "",
     locale: row.default_locale,
     kind,
+    url: base ? `${base}/r/${encodeURIComponent(String(row.slug || ""))}?via=poster` : "",
   };
 }
 
-export function buildRoomCardSvg(row, kind) {
-  return renderRoomCard(cardInputFor(row, kind));
+export function buildRoomCardSvg(row, kind, origin = "") {
+  return renderRoomCard(cardInputFor(row, kind, origin));
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -306,8 +421,24 @@ async function registeredCanvasModule() {
   return cachedCanvasModule;
 }
 
+/** The QR's dark modules, drawn straight onto the canvas — `renderRoomCardQr`'s
+ *  own SVG-path shape, one raster over: identical `matrix`/`moduleSize`/
+ *  `quiet`/`x`/`y` inputs, so a poster and its SVG preview can never place a
+ *  module differently. */
+function rasterizeRoomCardQr(ctx, qr) {
+  if (!qr) return;
+  const { matrix, moduleSize, quiet, x, y } = qr;
+  ctx.fillStyle = FOREST_DEEP;
+  for (let row = 0; row < matrix.length; row++) {
+    for (let col = 0; col < matrix.length; col++) {
+      if (!matrix[row][col]) continue;
+      ctx.fillRect(x + (col + quiet) * moduleSize, y + (row + quiet) * moduleSize, moduleSize, moduleSize);
+    }
+  }
+}
+
 /**
- * `{name, bio, locale, kind}` -> a PNG `Buffer`, sized per `kind`
+ * `{name, bio, locale, kind, url}` -> a PNG `Buffer`, sized per `kind`
  * (`ROOM_CARD_SIZES`). Draws the SAME `computeCardLayout` `renderRoomCard`
  * draws, with Skia's own text shaper (`@napi-rs/canvas`, the Chrome/Android
  * engine) rather than resvg's — see this file's own header for the
@@ -323,11 +454,13 @@ export async function rasterizeRoomCard(input) {
   ctx.fillRect(0, 0, layout.width, layout.height);
   ctx.fillStyle = layout.accent.color;
   ctx.fillRect(0, 0, layout.accent.width, layout.height);
+  rasterizeRoomCardQr(ctx, layout.qr);
   ctx.textBaseline = "alphabetic";
   for (const block of layout.blocks) {
     if (!block.lines.length) continue;
     ctx.fillStyle = block.color;
     ctx.font = `${block.fontSize}px "${layout.fontFamily}"`;
+    ctx.textAlign = block.align === "center" ? "center" : "left";
     block.lines.forEach((line, i) => {
       ctx.fillText(line, block.x, block.y + block.lineHeight * i);
     });
@@ -335,8 +468,8 @@ export async function rasterizeRoomCard(input) {
   return canvas.toBuffer("image/png");
 }
 
-export async function rasterizeRoomCardForRoom(row, kind) {
-  return rasterizeRoomCard(cardInputFor(row, kind));
+export async function rasterizeRoomCardForRoom(row, kind, origin = "") {
+  return rasterizeRoomCard(cardInputFor(row, kind, origin));
 }
 
 /**
@@ -345,11 +478,14 @@ export async function rasterizeRoomCardForRoom(row, kind) {
  * and — the part the "identical bytes" law (law 3) needs — every
  * unpublished-or-unknown slug hashes to the SAME tag, because `row` is
  * always the same fixed literal in that case. `kind` is folded in so `/og`
- * and `/story` for the same Room never collide.
+ * and `/story` for the same Room never collide. `origin` (WS-R78) folds in
+ * too because the poster's own QR/URL text is the one thing this file
+ * draws that DOES vary by request origin — `og`/`story` never pass one, so
+ * their own tags are unaffected (an empty string either way).
  */
-export function roomCardEtag(row, kind) {
+export function roomCardEtag(row, kind, origin = "") {
   const basis = row
-    ? JSON.stringify([row.display_name || "", row.one_line_bio || "", normalizeLocale(row.default_locale), kind])
-    : JSON.stringify(["__platform__", kind]);
+    ? JSON.stringify([row.display_name || "", row.one_line_bio || "", normalizeLocale(row.default_locale), kind, origin])
+    : JSON.stringify(["__platform__", kind, origin]);
   return `"${createHash("sha256").update(basis).digest("hex").slice(0, 32)}"`;
 }

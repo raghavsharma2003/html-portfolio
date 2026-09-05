@@ -159,6 +159,16 @@ export interface OpsSelfCheck {
   failing_checks: string[];
 }
 
+// WS-R78 (migration 121). `api/_funnel.js`'s own `posterArrivalsThisWeek`
+// shape, typed here unchanged - this file computes nothing, `opsApi.ts`'s
+// own header rule restated. `OpsShareArrivals`'s own shape, one `via`
+// value over.
+export interface OpsPosterArrivals {
+  n: number | null;
+  below_floor: boolean;
+  note: string;
+}
+
 export interface OpsOverview {
   generated_at: string;
   rooms: OpsRoom[];
@@ -175,6 +185,8 @@ export interface OpsOverview {
   taste_turns_this_week: OpsTasteTurns;
   // WS-R62 (migration 114).
   push: OpsPushConfig;
+  // WS-R78 (migration 121).
+  poster_arrivals_this_week: OpsPosterArrivals;
 }
 
 export async function readOpsOverview(token: string): Promise<OpsOverview> {

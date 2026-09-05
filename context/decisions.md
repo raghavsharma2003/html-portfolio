@@ -15342,3 +15342,123 @@ BCP-47, not a scoped-out gap. If a future script variant tag is added for
 Hindi (`hi-Deva-Latn` or similar) that should ALSO be exempt, extend the
 same substring check; a bare `hi`/`hi-IN`/`hi-Deva` (Devanagari implied,
 nothing saying otherwise) should never be.
+
+## `ws-r78-own-qr-encoder-not-npm-qrcode` (2026-09-05, WS-R78)
+
+**Decision.** `api/_qr.js` is a hand-written QR encoder (byte mode, error
+correction level M, versions 1-10) rather than a dependency on `qrcode`
+(npm), even though the workstream brief named `qrcode` as an acceptable
+choice "ONLY if it has zero dependencies and no install script."
+
+**Rationale.** It does not clear that bar: at the version installed while
+building this workstream, `qrcode` depends on `dijkstrajs`, `encode-utf8`,
+`pngjs` and `yargs` — a four-package chain this product's own supply-chain
+gate (`scripts/check-headers.mjs`'s install-script scan against
+`scripts/installScriptAllowlist.mjs`) has never had reason to admit, for a
+few hundred lines of fully-specified, deterministic arithmetic
+(`ws-r55-resvg-devanagari-shaping`'s own "measure before shipping the named
+plan" precedent, applied to a dependency choice instead of a rasteriser).
+The reference `qrcode` package WAS used, extensively, during this build —
+as a debugging oracle, installed as a temporary devDependency-free scratch
+tool, never committed, and its own internal modules (`galois-field.js`,
+`polynomial.js`, `reed-solomon-encoder.js`, and `qrcode.js`'s
+`setupFormatInfo`/`setupData`) were read as SOURCE to find and fix two real
+bugs this file shipped with — see `context/rejected.md`'s two WS-R78
+entries for the full story. Reading a reference implementation to VERIFY
+against is a different thing from depending on it to SHIP; this decision
+keeps the two separate.
+
+**Reversal condition.** If `qrcode` (or any alternative) ever ships with
+zero runtime dependencies and no install script, replacing `api/_qr.js`
+with it is a reasonable trade IF the replacement is proven against the
+SAME real-scanner suite this file's own `evals/qr/run.mjs` §8 and
+`evals/room-card/run.mjs` §6 already run (`jsqr`, real rendered pixels,
+across a version/mask spread) — never swapped in on the strength of the
+package's own name or test suite alone, which is exactly the failure mode
+the two rejected.md entries this decision cites describe.
+
+## `ws-r78-poster-decode-verification-via-real-scanner` (2026-09-05, WS-R78)
+
+**Decision.** `evals/qr/run.mjs` §8 and `evals/room-card/run.mjs` §6 decode
+the ACTUAL rasterised poster/QR pixels through `jsqr` (npm, zero
+dependencies, no install script, a devDependency — never imported by
+`api/`, so the encoder itself still imports nothing third-party) and assert
+the exact recovered string, rather than relying on the brief's own
+alternative ("verify by re-encoding and comparing modules").
+
+**Rationale.** Both self-referential alternatives this workstream tried
+first — a "does the write match its own readback" round trip, and (in an
+earlier design that was never shipped) a "does re-encoding the same text
+produce the same matrix" comparison — are circular: either check compares
+this file's own output against a SECOND computation built from the SAME
+assumptions, so a wrong-but-internally-consistent convention passes both
+every time. This is not hypothetical: `context/rejected.md`'s two WS-R78
+entries are two real bugs (a byte-reversed Reed-Solomon generator
+polynomial, an MSB-first format-info write) that passed the self-consistent
+round trip and would have shipped a poster no real phone could scan. Only
+an INDEPENDENTLY-sourced check — a real decoder reading real pixels, or a
+reference implementation's own source read as an oracle — can catch a
+self-consistent-but-wrong convention, because it does not share the
+assumption that is wrong.
+
+**Reversal condition.** None anticipated; this is now the standing law for
+this file. If `jsqr` is ever dropped (a supply-chain concern, a
+maintenance burden), replace it with a DIFFERENT real, independent decoder
+before removing the check — never fall back to matrix self-comparison
+alone, which is the exact failure mode this decision exists to avoid.
+
+## `ws-r78-platform-poster-qr-encodes-bare-origin` (2026-09-05, WS-R78)
+
+**Decision.** The platform-only poster (an unpublished, paused, or unknown
+slug — `row = null` at `cardInputFor`'s own boundary) encodes the bare
+origin (`https://<origin>/`) in its QR, rather than omitting the QR
+entirely or encoding a fixed, slug-free placeholder string.
+
+**Rationale.** `api/_room-page.js`'s own law, restated by every picture
+this product draws since WS-R55: a bot, and now a piece of paper, must
+never learn whether a slug exists, so every paused-or-unknown poster must
+render BYTE-IDENTICAL pixels regardless of which slug produced it — the
+existing `evals/room-card/run.mjs` §2 identical-bytes proof, extended to
+`kind: "poster"` automatically since it iterates `ROOM_CARD_KINDS`. Since
+the poster's own QR is now part of what "identical bytes" means, its
+payload must be a function of `origin` alone, never of the attempted slug.
+Encoding the bare origin (rather than omitting the QR) keeps the platform
+poster genuinely useful — a scan lands on the platform's own front door
+rather than a dead end — while satisfying the identical-bytes law exactly,
+since `origin` is constant for a given deployment regardless of which
+unpublished slug someone tried.
+
+**Reversal condition.** If the platform ever wants the platform poster's QR
+to carry a DIFFERENT, more specific address (a `/creators` directory link,
+say), that is a one-line change to `cardInputFor`'s `row === null` branch,
+still gated on the SAME identical-bytes proof already covering it — never a
+change that lets the QR vary by attempted slug.
+
+## `ws-r78-migration-121-ships-with-the-js-allowlist-in-one-commit` (2026-09-05, WS-R78)
+
+**Decision.** `api/_room-surface.js`'s `ROOM_ARRIVAL_VIA` widens to admit
+`'poster'` in the SAME commit as migration 121 (which widens
+`vy_room_arrival`'s CHECK constraint to match), rather than following
+WS-R59's own precedent of adding the JS-only value first and leaving the
+SQL CHECK for the main loop to write at merge time.
+
+**Rationale.** WS-R59's asymmetry was a deliberate, logged, temporary state
+(`context/decisions.md#ws-r59-install-via-not-yet-in-the-arrival-check-
+constraint`) that worked because a rejected insert is harmless
+(`recordRoomArrival`'s own `.catch(() => {})`) — but it also meant install
+arrivals were silently uncounted for one full merge cycle, a real product
+cost even if a safe one. This workstream's own brief states the law
+plainly, in these words: "never one without the other." Writing both
+together removes the asymmetry window entirely rather than trading it for
+a faster individual merge — `evals/room-share/run.mjs` cross-checks the two
+files' six values against each other directly (parsing migration 121's own
+CHECK clause text, never retyping it), so a future value added to one and
+not the other fails the gate immediately rather than silently undercounting
+for a cycle the way `install` briefly did.
+
+**Reversal condition.** If a future `via` value's own SQL migration is
+substantially riskier or slower to review than its JS-side allowlist
+change (unlike this one, a single `alter table ... check` statement), the
+WS-R59 asymmetry pattern remains available and is not deprecated — this
+decision is about what THIS workstream chose given a trivial migration, not
+a blanket rule against ever shipping the two separately again.

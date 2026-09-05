@@ -30,7 +30,7 @@ import { sweepSchedules } from "./_sweep-schedule.js";
 // `opsFunnel` is its own aggregate-only function in `api/_funnel.js` (that
 // file's own header names the rule this file already keeps), imported here
 // rather than re-derived so the board's one call stays the board's one call.
-import { opsFunnel, creatorInviteArrivalsThisWeek, shareArrivalsThisWeek, tasteTurnsThisWeek } from "./_funnel.js";
+import { opsFunnel, creatorInviteArrivalsThisWeek, shareArrivalsThisWeek, tasteTurnsThisWeek, posterArrivalsThisWeek } from "./_funnel.js";
 // WS-R29 (migration 092). The unit cost is a named constant in the one file
 // that owns the send path - imported here rather than restated, so the
 // board's own number and the send path's own comment can never drift apart.
@@ -589,5 +589,9 @@ export async function opsOverview(db, now = Date.now(), deps = {}) {
     // on this phone" control needs to open a subscription. Never the
     // private key.
     push: operatorPushConfig(deps.env || process.env),
+    // WS-R78 (migration 121). Growth from the printed poster's QR: how many
+    // arrivals this week came in through `?via=poster`, n>=5 floored the
+    // same way `share_arrivals_this_week` already is.
+    poster_arrivals_this_week: await posterArrivalsThisWeek(db, now, deps),
   };
 }

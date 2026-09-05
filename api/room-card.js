@@ -18,6 +18,18 @@ import { allow, ipOf } from "./_ratelimit.js";
 import { resolveRoomPage } from "./_room-page.js";
 import { ROOM_CARD_KINDS, rasterizeRoomCardForRoom, roomCardEtag } from "./_room-card.js";
 
+/** `api/room-page.js`'s own `originFromRequest`, restated here — WS-R78's
+ *  poster is the first `kind` this door draws that needs one at all (its
+ *  QR encodes an absolute URL); `og`/`story` never read it. Every thin
+ *  handler in this codebase derives its own origin from the request rather
+ *  than sharing a helper across an HTTP module boundary for two lines,
+ *  `api/room-page.js`'s own header on why. */
+function originFromRequest(req) {
+  const proto = String(req.headers["x-forwarded-proto"] || "https").split(",")[0].trim() || "https";
+  const host = String(req.headers["x-forwarded-host"] || req.headers.host || "").split(",")[0].trim();
+  return host ? `${proto}://${host}` : "";
+}
+
 export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "HEAD") {
     return res.status(405).send("GET only");
@@ -43,7 +55,8 @@ export default async function handler(req, res) {
     row = null;
   }
 
-  const etag = roomCardEtag(row, kind);
+  const origin = originFromRequest(req);
+  const etag = roomCardEtag(row, kind, origin);
   res.setHeader("Content-Type", "image/png");
   // `public, max-age=3600, stale-while-revalidate=86400` per this
   // workstream's brief (law 4) — an unpublished/unknown slug renders the
@@ -59,7 +72,7 @@ export default async function handler(req, res) {
   if (req.method === "HEAD") return res.status(200).end();
 
   try {
-    const png = await rasterizeRoomCardForRoom(row, kind);
+    const png = await rasterizeRoomCardForRoom(row, kind, origin);
     return res.status(200).send(png);
   } catch (error) {
     console.error("[room-card] render failure:", error?.message || "unknown");
@@ -67,7 +80,7 @@ export default async function handler(req, res) {
     // a broken-image icon on someone else's platform — fall back to the
     // platform-only card the same way an unknown slug does.
     try {
-      const fallback = await rasterizeRoomCardForRoom(null, kind);
+      const fallback = await rasterizeRoomCardForRoom(null, kind, origin);
       return res.status(200).send(fallback);
     } catch {
       return res.status(200).end();

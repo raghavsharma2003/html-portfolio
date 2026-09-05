@@ -4334,3 +4334,12 @@ create index if not exists vy_creator_weekly_push_room_sent_ix
 alter table vy_incident drop constraint if exists vy_incident_kind_check;
 alter table vy_incident add constraint vy_incident_kind_check
   check (kind in ('door_5xx', 'provider_payments', 'provider_telegram', 'provider_whatsapp', 'provider_webpush', 'self_check'));
+-- Migration 121 - the poster and the QR (WS-R78). See
+-- db/migrations/121_room_arrival_via_poster.sql for the full argument:
+-- vy_room_arrival.via admits 'poster' alongside the five values migration
+-- 113 already named, matching api/_room-surface.js's ROOM_ARRIVAL_VIA
+-- widened in the same commit. The inline CHECK in the 102 block above and
+-- the named constraint from 113 are both superseded by this one.
+alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
+alter table vy_room_arrival add constraint vy_room_arrival_via_check
+  check (via in ('share', 'direct', 'embed', 'search', 'install', 'poster'));

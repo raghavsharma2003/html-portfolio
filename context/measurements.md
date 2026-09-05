@@ -11287,3 +11287,33 @@ n = every target `scripts/check-accessibility.mjs` already scans (room, room-hi,
 **Also measured, offline** (`node evals/lang-tag/run.mjs`, $0, deterministic): 218 of the Room's own translated Hindi leaf strings (2 shared, untranslated placeholders correctly skipped) and 750 of the Studio's (9 skipped) each detect as `hi` through `detectRoomTextLang`/`detectStudioTextLang`; 8 named edge cases (empty string, a digits-only placeholder, a bare loanword, a bare acronym, a lone Devanagari codepoint, a Devanagari name plus an untranslated loanword, the same name in Latin script, Devanagari mixed with ASCII digits) each resolve as expected in both directions; `buildCreatorPageHtml`'s real output, parsed with a regex rather than trusted, carries the exact `lang="hi"`/`lang="en"` spans this workstream's brief names on the h1 name, the bio paragraph, a Hindi and an English showcase answer in the same list, and the join link's own name portion, while the platform's own sentences stay untagged plain paragraphs in the REQUESTED locale. 31/31.
 
 Not measured: no real screen reader (TalkBack/VoiceOver/NVDA) was run against any of this — every proof above is a computed-`lang`/DOM-shape assertion in Chromium, which is what `scripts/check-accessibility.mjs`'s own axe half already limits itself to for the same reason. A human pass with a real screen reader remains open.
+
+## `ws-r78-poster-render-time-and-bytes-2026-09-05` — the poster's own render cost, measured
+
+n = 1 real Room (`display_name: "Anjali Sharma"`, a two-line English bio, origin `https://vyakti-rooms.vercel.app`), method: `rasterizeRoomCard` called directly (bypassing the HTTP door) in this worktree, `performance.now()` around each call, 2026-09-05, Node 22, no concurrent load.
+
+| call | ms |
+|---|---|
+| cold (first call in process — font registration + `@napi-rs/canvas` module load) | 333.9 |
+| warm (second call, same process) | 162.0 |
+
+Bytes, same run: poster PNG (1240x1754, a real QR at version 4) 79,256 bytes; the platform (unpublished/unknown) poster 72,681 bytes; `og.png` (1200x630, no QR) 36,764 bytes for the same Room, given for scale. Not measured: a real Vercel cold start (this worktree has no deployment); concurrent-request behaviour; a Hindi Room's poster bytes (expected larger, more glyph ink, not measured here). The warm figure is the more representative one for a Vercel function serving repeat requests within its own instance's lifetime, per `api/_room-card.js`'s own module-scope font cache.
+
+## `ws-r78-qr-encoder-real-scanner-verification-2026-09-05` — every version 1-10 decoded by an independent scanner
+
+n = 10 (one synthetic payload per version, chosen by string length to land exactly at that version under EC level M), method: `encodeQR` (the real `api/_qr.js`) rasterised via `@napi-rs/canvas` (module size 5px, quiet zone 4 modules) and decoded by `jsqr` (npm, a real, independent QR reader, added as a devDependency for this purpose), one process, 2026-09-05. All 10 decoded to the exact input string. Versions and masks the "best of 8" selection actually picked, for the record (not tuned or cherry-picked — this is every version 1-10 in one run):
+
+| version | mask chosen | payload length (bytes) |
+|---|---|---|
+| 1 | 6 | 1 |
+| 2 | 1 | 15 |
+| 3 | 0 | 27 |
+| 4 | 2 | 43 |
+| 5 | 1 | 63 |
+| 6 | 5 | 85 |
+| 7 | 2 | 107 |
+| 8 | 4 | 123 |
+| 9 | 1 | 153 |
+| 10 | 0 | 181 |
+
+This run followed the fix for `rejected.md#ws-r78-reversed-rs-generator-polynomial-passed-every-self-check` and `#ws-r78-format-info-msb-first-was-unscannable`; the identical spread, run BEFORE either fix, decoded 0 of 10. Not measured: a real phone camera (no camera available in this sandboxed environment) — `jsqr` is a real, independent, actively-maintained decoder library, but it is still software, not a lived scan; see this workstream's own final report for the honest statement of what remains unproven.

@@ -10683,3 +10683,117 @@ subtag naming something OTHER than Devanagari" (`hi-Latn`, where ASCII-only
 is the correct and expected shape) — the two need opposite handling, and a
 rule written for the first without reading which subtag it actually is will
 fire on the second every time it is exercised for real.
+
+## `ws-r78-reversed-rs-generator-polynomial-passed-every-self-check` (2026-09-05, WS-R78)
+
+**What was tried.** The QR encoder's Reed-Solomon generator polynomial
+(`rsGeneratorPoly`, `api/_qr.js`) was built with a hand-rolled recurrence —
+`next[j] ^= gfMul(g[j], root); next[j+1] ^= g[j];` inside a loop over the
+polynomial's own growing degree — chosen because it looked like a standard
+LFSR-style construction and matched the shape of the "multiply by (x -
+alpha^i) each iteration" description this file's own header still carries.
+It was tested against exactly the check this repo's own law recommends: an
+INDEPENDENT polynomial-division routine (not `rsEncode` itself) proving a
+computed `data ++ ec` block divides evenly by its own generator — the
+literal definition of a valid RS codeword. That check passed, every time,
+for all six EC-codeword counts the versions-1-10/level-M table uses, plus a
+negative control (flip one byte, divisibility breaks) that also behaved
+correctly.
+
+**What actually broke.** The recurrence built the polynomial's coefficients
+in LOWEST-degree-first order (`g[0]` = the constant term), the exact
+REVERSE of the highest-degree-first convention `rsEncode`'s own "subtract
+the leading term, shift" division algorithm requires (`generator[0]` must be
+the leading/highest-degree coefficient or the division is subtracting the
+wrong term at every step). Divisibility is NOT orientation-sensitive in the
+way this matters: a polynomial and its coefficient-reversed mirror are two
+DIFFERENT polynomials, and "some generator makes this a valid codeword" is
+true of both — the self-check confirmed the RS math was internally
+consistent with itself, never that it matched the spec's own generator. The
+resulting EC codewords were real, valid-looking bytes that happened to
+encode nothing a real QR decoder could use: `jsqr` (a real, independent
+scanner, added as a devDependency specifically to catch exactly this class
+of bug) failed to decode ANY of the 8 candidate masks for a plain "HELLO"
+test string, at every version this file was tested against.
+
+**How it was found.** Not by more self-checking — by installing the
+reference `qrcode` (npm) package (the very implementation this workstream's
+brief named and rejected as a production dependency, kept as a debugging
+oracle only, never committed) and diffing byte-for-byte: same input data
+codewords fed to `qrcode`'s own `ReedSolomonEncoder` produced completely
+different EC bytes than this file's `rsEncode`. Printing both generator
+polynomials side by side showed one was the EXACT coefficient-reversal of
+the other. Fixed by rewriting `rsGeneratorPoly` as an explicit convolution
+(`polyMulGF`, highest-degree-first in both operands, matching the reference
+package's own `Polynomial.mul`/`generateECPolynomial` construction line for
+line) rather than a hand-rolled recurrence — verified to produce the
+BYTE-IDENTICAL generator polynomial and EC codewords the reference package
+computes for the same input, then verified end to end across ten synthetic
+inputs (one per version 1-10) all decoding correctly through `jsqr`.
+
+**The rule.** A polynomial-arithmetic routine that is internally consistent
+with its OWN convention will pass a divisibility/round-trip self-check even
+when that convention is backwards relative to everyone else's — the check
+proves "this code agrees with itself," never "this code agrees with the
+spec." The only check that can prove the latter is one built from a
+DIFFERENT, independently-sourced implementation of the same well-known
+algorithm (a reference package's own module, in this case) or a real
+decoder reading the actual output. See also
+`#ws-r78-format-info-msb-first-was-unscannable` immediately below — the
+same lesson, a second time, in the same file, missed by a different
+self-referential check.
+
+## `ws-r78-format-info-msb-first-was-unscannable` (2026-09-05, WS-R78)
+
+**What was tried.** `api/_qr.js`'s `writeFormatInfo` placed the 15-bit
+masked format-info value into its two redundant sets of physical modules
+MSB-first (`for (let i = 14; i >= 0; i--) bits.push(...)`), matching the
+"bit14 down to bit0" description this workstream carried in from a
+half-remembered reading of the format-info placement diagram. A dedicated
+self-consistency test (`evals/qr/run.mjs` §6) read the SAME 15 modules back
+with the SAME MSB-first assumption and recovered the identical mask pattern
+that had been written — round trip passed, every time, including for a
+version 7+ payload that also exercises the version-info block.
+
+**What actually broke.** The reference `qrcode` (npm) package's own
+`setupFormatInfo` (`lib/core/qrcode.js`, read directly as source, never
+imported into shipped code) writes bit `i` at loop index `i`, i.e.
+LSB-FIRST (`mod = ((bits >> i) & 1); ... if (i < 6) matrix.set(i, 8, mod)`),
+the opposite direction. Because this file's own readback test reversed the
+SAME wrong way its own writer did, the round trip could not have caught the
+error under any input — it was proving the write function agreed with
+itself, which a backwards convention does exactly as reliably as a correct
+one. Combined with `#ws-r78-reversed-rs-generator-polynomial-passed-every-
+self-check` above (found in the same debugging session), NEITHER bug was
+independently visible until a REAL decoder (`jsqr`, npm, zero dependencies,
+added as a devDependency for exactly this purpose) was pointed at actual
+rendered pixels: it failed to decode a plain "HELLO" QR under every one of
+8 candidate masks.
+
+**How it was found.** A byte-for-byte differential against the reference
+package's own `setupFormatInfo` source (read, not imported) showed the
+loop direction was reversed; overwriting ONLY the format-info modules of an
+otherwise-known-good reference matrix with this file's own (buggy) output
+broke `jsqr`'s decode of an otherwise-perfect QR, isolating the bug to
+format-info placement specifically before the Reed-Solomon bug above was
+even found. Fixed by reversing the loop (`for (let i = 0; i <= 14; i++)`),
+then re-deriving the eval's OWN readback (`evals/qr/run.mjs`'s
+`readFormatMaskPattern`) to match — including its negative control, whose
+first attempt flipped a coordinate carrying one of the two always-zero
+EC-level bits (invisible to a check that only ever reads the mask field
+back) and silently passed for the wrong reason before being moved to a
+coordinate that actually carries a mask bit.
+
+**The rule.** The SAME lesson as the entry above, from the opposite
+direction of the algorithm: a hand-derived "best recollection" of a
+placement/bit-order convention, checked only against a hand-derived
+readback of the SAME convention, cannot fail — both would have to be wrong
+IN A MATCHING WAY to disagree, and both were wrong in a matching way twice
+in the same file. Where the real world's bit-endianness or module-ordering
+convention matters (anything meant to be read by someone else's hardware
+or software), verify against an artefact this codebase did not author:
+a reference implementation's own source, a real independent decoder, or
+both. `evals/qr/run.mjs`'s own §8 (the real `jsqr` scan) and
+`evals/room-card/run.mjs`'s own §6 are the reversal condition this entry
+would need to be wrong about: if either ever starts failing to decode a
+real poster, treat it as this bug's return, not as a flaky test.

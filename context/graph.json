@@ -8338,6 +8338,60 @@
       "kind": "rejection",
       "title": "A lang^=hi- prefix match caught VoicePreviewPanel.tsx's correct hi-Latn Hinglish sample as a false positive; fixed by reading the script subtag before applying the ASCII-only rule.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r78-reversed-rs-generator-polynomial-passed-every-self-check",
+      "kind": "rejection",
+      "title": "The QR encoder's Reed-Solomon generator polynomial was built coefficient-reversed; a divisibility self-check could not catch it because divisibility is not orientation-sensitive. Found by diffing against the reference qrcode package's own source.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r78-format-info-msb-first-was-unscannable",
+      "kind": "rejection",
+      "title": "The QR encoder wrote format-info bits MSB-first; the spec (and the reference qrcode package) wants LSB-first. A self-consistency round trip could not catch it because the readback reversed the same wrong way the writer did.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r78-own-qr-encoder-not-npm-qrcode",
+      "kind": "decision",
+      "title": "api/_qr.js is a hand-written QR encoder, not a dependency on qrcode (npm), because qrcode does not clear the brief's own zero-dependency bar.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r78-poster-decode-verification-via-real-scanner",
+      "kind": "decision",
+      "title": "evals/qr/run.mjs and evals/room-card/run.mjs decode real rasterised pixels through jsqr (a real, independent scanner) rather than trusting self-consistency or matrix re-comparison alone, because both self-referential checks missed real bugs.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r78-platform-poster-qr-encodes-bare-origin",
+      "kind": "decision",
+      "title": "The platform (paused/unknown-slug) poster's QR encodes the bare origin rather than nothing, keeping the identical-bytes law intact while still being useful.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r78-migration-121-ships-with-the-js-allowlist-in-one-commit",
+      "kind": "decision",
+      "title": "Unlike WS-R59's install/113 split, WS-R78 ships ROOM_ARRIVAL_VIA's poster addition and migration 121's matching CHECK widen in the same commit, per the brief's own law.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r78-poster-render-time-and-bytes-2026-09-05",
+      "kind": "measurement",
+      "title": "Poster render: 333.9ms cold, 162.0ms warm, one real Room. Poster PNG 79,256 bytes; platform poster 72,681 bytes; og.png 36,764 bytes for scale.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r78-qr-encoder-real-scanner-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "10/10 synthetic payloads (one per version 1-10) decoded correctly by jsqr after the two bugs above were fixed; 0/10 before the fix, same spread.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r78-qr-encoder",
+      "kind": "component",
+      "title": "api/_qr.js: a pure QR encoder (byte mode, EC level M, versions 1-10) with no third-party runtime, feeding api/_room-card.js's new poster kind.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16460,6 +16514,26 @@
       "src": "ws-r79-lang-hi-latn-exempt-from-the-ascii-only-check",
       "rel": "caused_by",
       "dst": "ws-r79-hi-latn-flagged-by-the-ascii-only-rule-before-the-script-subtag-was-read"
+    },
+    {
+      "src": "ws-r78-poster-decode-verification-via-real-scanner",
+      "rel": "measured_by",
+      "dst": "ws-r78-qr-encoder-real-scanner-verification-2026-09-05"
+    },
+    {
+      "src": "ws-r78-own-qr-encoder-not-npm-qrcode",
+      "rel": "caused_by",
+      "dst": "ws-r78-reversed-rs-generator-polynomial-passed-every-self-check"
+    },
+    {
+      "src": "ws-r78-poster-decode-verification-via-real-scanner",
+      "rel": "caused_by",
+      "dst": "ws-r78-format-info-msb-first-was-unscannable"
+    },
+    {
+      "src": "ws-r78-qr-encoder",
+      "rel": "part_of",
+      "dst": "ws-r55-room-card-pure-layout"
     }
   ]
 }

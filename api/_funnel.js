@@ -533,3 +533,52 @@ export async function tasteTurnsThisWeek(db, now = Date.now(), deps = {}) {
   const n = Number(row?.n || 0);
   return { n, note: tasteTurnsNote(n) };
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R78 (migration 121, poster and QR). "How many arrivals this week came
+// from a printed poster's QR" -- `shareArrivalsThisWeek`'s own shape, one
+// `via` value over: `vy_room_arrival` already carries no follower or
+// thread column, so this statement sits under the SAME "aggregate-only
+// wherever this file touches a follower table" law this file's own header
+// names (it never touches one at all), and `vy_room_arrival` reads outside
+// two named files are held to the SEPARATE, stricter aggregate-only scan
+// `evals/room-leak/run.mjs` already runs for that table specifically.
+// n>=5 floored for the identical reason `shareArrivalsThisWeek` is: a
+// bucket this small over one creator's own Room could point at the one
+// person who scanned the one poster on their own notice board.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Pure, `shareArrivalNote`'s own shape. */
+export function posterArrivalNote(n) {
+  if (n < SHARE_ARRIVAL_FLOOR) {
+    return "Fewer than five arrivals came from a poster this week.";
+  }
+  return `${n} arrival${n === 1 ? "" : "s"} came from a poster this week.`;
+}
+
+/**
+ * ONE statement, platform-wide, `via = 'poster'` over the same rolling
+ * 7-day window `shareArrivalsThisWeek` uses. Gated on migration 102
+ * (`vy_room_arrival` itself, not 121 -- the CHECK constraint 121 widens is
+ * a separate concern from whether the TABLE exists at all) being applied,
+ * `shareArrivalsThisWeek`'s own `tableApplied` seam restated so a database
+ * that has 102 but not yet 121 still answers honestly rather than
+ * throwing on a `via` value its own CHECK does not admit yet.
+ */
+export async function posterArrivalsThisWeek(db, now = Date.now(), deps = {}) {
+  if (typeof db !== "function") throw new Error("funnel_database_required");
+  const applied = deps.tableApplied ?? tableApplied;
+  if (!(await applied(ROOM_ARRIVAL_TABLE))) {
+    return { n: null, below_floor: true, note: posterArrivalNote(0) };
+  }
+  const since = new Date(now - WEEK_WINDOW_MS).toISOString().slice(0, 10);
+  const [row] = await db(
+    `select coalesce(sum(count), 0)::int as n
+       from vy_room_arrival
+      where via = 'poster' and day >= ($1)::date`,
+    [since],
+  );
+  const n = Number(row?.n || 0);
+  const belowFloor = n < SHARE_ARRIVAL_FLOOR;
+  return { n: belowFloor ? null : n, below_floor: belowFloor, note: posterArrivalNote(n) };
+}

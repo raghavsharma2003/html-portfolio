@@ -31,6 +31,10 @@
 // 4. THE FUNNEL LINE. `shareArrivalsThisWeek` floors at n>=5 exactly like
 //    every other per-Room-derived count on this board; below the floor the
 //    line is the honest sentence, never a small real number.
+// 4b. THE POSTER'S OWN FUNNEL LINE (WS-R78, migration 121). The identical
+//    proof, one `via` value over, for `posterArrivalsThisWeek` — including
+//    that a same-day SHARE arrival never leaks into the poster count, the
+//    two lines scoped by `via` alone.
 // 5. FOUR NEGATIVE CONTROLS: (a) a static scan of `RoomApp.tsx`'s own
 //    share-url builder proves it names no follower id, session or token —
 //    the recipient of a shared link can never be traced back to who sent
@@ -70,6 +74,8 @@ const {
   shareArrivalsThisWeek,
   shareArrivalNote,
   SHARE_ARRIVAL_FLOOR,
+  posterArrivalsThisWeek,
+  posterArrivalNote,
 } = await import(pathToFileURL(join(REPO, "api/_funnel.js")).href);
 const { scanSource } = await import(pathToFileURL(join(REPO, "scripts/check-copy.mjs")).href);
 
@@ -143,9 +149,18 @@ function fakeDb(rooms) {
       return [];
     }
     if (/from vy_room_arrival/i.test(sql)) {
+      // WS-R78: reads the `via` this specific statement's own WHERE clause
+      // names (`shareArrivalsThisWeek`'s "share" or `posterArrivalsThisWeek`'s
+      // "poster") rather than a value hardcoded to the first caller this
+      // fixture was ever written for — a fake that always answered "share"
+      // regardless of the real query text would have silently given
+      // `posterArrivalsThisWeek` the SAME numbers `shareArrivalsThisWeek`
+      // gets, passing every assertion for the wrong reason.
+      const viaMatch = sql.match(/via = '([a-z]+)'/i);
+      const via = viaMatch ? viaMatch[1] : null;
       const since = params[0];
       const n = (rooms.__arrivals || [])
-        .filter((a) => a.via === "share" && a.day >= since)
+        .filter((a) => a.via === via && a.day >= since)
         .reduce((sum, a) => sum + a.count, 0);
       return [{ n }];
     }
@@ -285,21 +300,27 @@ console.log("\n── 3. the arrival upsert: one statement, count increments ─
   ok("a different day or a different via opens a SECOND row rather than merging into the first",
     rooms.__arrivals.length === 2);
 
-  // WS-R59 added 'install' to this allowlist without a migration
-  // (`api/_room-surface.js`'s own comment on `ROOM_ARRIVAL_VIA` names the
-  // asymmetry and the reversal condition) — so this list is no longer
-  // exactly migration 102's CHECK constraint, it is that constraint PLUS
-  // one JS-side-only value. Both facts get their own assertion rather than
-  // silently loosening the original one: the four DB-backed values are
-  // still exactly what the CHECK constraint names, and 'install' is the
-  // one addition, named so a SECOND value slipped in unminuted would still
-  // fail this.
-  ok("ROOM_ARRIVAL_VIA's DB-backed subset is exactly the four values migration 102's CHECK constraint names",
-    JSON.stringify([...ROOM_ARRIVAL_VIA].filter((v) => v !== "install").sort()) ===
-      JSON.stringify(["direct", "embed", "search", "share"]));
-  ok("ROOM_ARRIVAL_VIA's one JS-only addition is exactly 'install' (WS-R59), nothing else",
+  // WS-R59 added 'install' to this allowlist without a migration in the
+  // SAME commit, leaving a deliberate asymmetry the main loop closed with
+  // migration 113 at that merge. WS-R78 (this workstream) did not repeat
+  // that asymmetry: its own brief's law 1 is "add `poster` to
+  // ROOM_ARRIVAL_VIA AND widen migration 113's CHECK ... never one
+  // without the other", so migration 121 ships in this same commit. Two
+  // assertions rather than a loosened one: the full six-value JS
+  // allowlist is asserted directly, AND it is cross-checked against
+  // migration 121's own SQL text (parsed, not retyped) so the two can
+  // never drift the way 102 and the JS-only 'install' briefly did.
+  ok("ROOM_ARRIVAL_VIA is exactly the six named values, nothing more, nothing fewer",
     JSON.stringify([...ROOM_ARRIVAL_VIA].sort()) ===
-      JSON.stringify(["direct", "embed", "install", "search", "share"]));
+      JSON.stringify(["direct", "embed", "install", "poster", "search", "share"]));
+  const migration121Src = readFileSync(join(REPO, "db/migrations/121_room_arrival_via_poster.sql"), "utf8");
+  const checkMatch = migration121Src.match(/check \(via in \(([^)]+)\)\)/);
+  const migration121Values = checkMatch
+    ? checkMatch[1].split(",").map((s) => s.trim().replace(/^'|'$/g, "")).sort()
+    : [];
+  ok("migration 121's own CHECK constraint names exactly the same six values as ROOM_ARRIVAL_VIA",
+    JSON.stringify(migration121Values) === JSON.stringify([...ROOM_ARRIVAL_VIA].sort()),
+    JSON.stringify(migration121Values));
   ok("every named value round-trips through resolveArrivalVia unchanged",
     ROOM_ARRIVAL_VIA.every((v) => resolveArrivalVia(v) === v));
   ok("an unrecognised value becomes 'direct'", resolveArrivalVia("newsletter") === "direct");
@@ -337,6 +358,44 @@ console.log("\n── 4. shareArrivalsThisWeek: n>=5 floored ──");
   ok("at the floor: the note carries the real number", above.note === shareArrivalNote(5));
   ok("SHARE_ARRIVAL_FLOOR is 5, matching every other per-Room count on this board",
     SHARE_ARRIVAL_FLOOR === 5);
+}
+
+// ═══ 4b. THE POSTER'S OWN FUNNEL LINE (WS-R78) ═══════════════════════════
+console.log("\n── 4b. posterArrivalsThisWeek: the identical n>=5 floor, one via value over ──");
+
+{
+  ok("posterArrivalsThisWeek returns the honest not-enough-data shape when migration 102 is unapplied",
+    (await posterArrivalsThisWeek(async () => { throw new Error("must not be queried"); }, Date.now(), {
+      tableApplied: async () => false,
+    })).n === null);
+
+  const rooms = freshRooms();
+  const db = fakeDb(rooms);
+  const now = new Date("2026-09-10T12:00:00.000Z").getTime();
+  const day = new Date("2026-09-08T00:00:00.000Z").getTime();
+  // Four poster arrivals this week — BELOW the SHARE_ARRIVAL_FLOOR (the
+  // identical floor `posterArrivalsThisWeek` reuses, `api/_funnel.js`'s
+  // own header on why).
+  for (let i = 0; i < 4; i++) {
+    await recordRoomArrival(db, { roomId: ROOM_ID, via: "poster", now: day + i * 60_000 });
+  }
+  // A same-day SHARE arrival must never leak into the poster count — the
+  // two lines are scoped by `via`, never merged.
+  await recordRoomArrival(db, { roomId: ROOM_ID, via: "share", now: day });
+  const below = await posterArrivalsThisWeek(db, now, { tableApplied: async () => true });
+  ok("below the floor: n is null, below_floor is true", below.n === null && below.below_floor === true);
+  ok("below the floor: the note is the fixed sentence, never a real number",
+    below.note === "Fewer than five arrivals came from a poster this week.");
+  ok("the share arrival recorded alongside it never counts toward the poster line",
+    (rooms.__arrivals || []).filter((a) => a.via === "poster").reduce((s, a) => s + a.count, 0) === 4);
+
+  // A fifth, different room's poster arrival on the same day crosses the
+  // floor without adding a follower.
+  await recordRoomArrival(db, { roomId: "d0000000-0000-4000-8000-000000000002", via: "poster", now: day });
+  const above = await posterArrivalsThisWeek(db, now, { tableApplied: async () => true });
+  ok("at the floor: n is the real count", above.n === 5 && above.below_floor === false);
+  ok("at the floor: the note carries the real number", above.note === posterArrivalNote(5));
+  ok("NEGATIVE CONTROL: posterArrivalNote(3) never contains the digit 3", !posterArrivalNote(3).includes("3"));
 }
 
 // ═══ 5. NEGATIVE CONTROLS ═══════════════════════════════════════════════════

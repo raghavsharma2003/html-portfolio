@@ -987,6 +987,11 @@ interface ReviewQueueFlagsCopy {
   dismissed: string;
   errorAction: string;
 }
+// ── poster: the printable poster link in the Share tab (WS-R78), next to
+//    the existing story-card download. ───────────────────────────────────
+interface PosterCopy {
+  download: string;
+}
 
 interface StudioCopy {
   classLabels: ClassLabels;
@@ -1017,6 +1022,7 @@ interface StudioCopy {
   creatorPush: CreatorPushCopy;
   showcasePicker: ShowcasePickerCopy;
   reviewQueueFlags: ReviewQueueFlagsCopy;
+  poster: PosterCopy;
 }
 
 const EN: StudioCopy = {
@@ -1979,6 +1985,9 @@ const EN: StudioCopy = {
     dismissed: "Cleared from your flagged list.",
     errorAction: "That action could not be saved",
   },
+  poster: {
+    download: "Download poster (A4)",
+  },
 };
 
 const HI: StudioCopy = {
@@ -2937,6 +2946,9 @@ const HI: StudioCopy = {
     dismissing: "सेव हो रहा है...",
     dismissed: "आपकी फ़्लैग सूची से हटा दिया गया।",
     errorAction: "वह कार्रवाई सेव नहीं हो सकी",
+  },
+  poster: {
+    download: "पोस्टर डाउनलोड करें (A4)",
   },
 };
 

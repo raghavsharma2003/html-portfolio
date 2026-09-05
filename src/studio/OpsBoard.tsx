@@ -35,6 +35,7 @@ import {
   type OpsIncidents,
   type OpsPushConfig,
   type OpsSelfCheck,
+  type OpsPosterArrivals,
 } from "./opsApi";
 import type { StudioSession } from "./types";
 import "./design/ops-board.css";
@@ -222,10 +223,12 @@ function FunnelCard({
   funnel,
   shareArrivals,
   tasteTurns,
+  posterArrivals,
 }: {
   funnel: OpsFunnel;
   shareArrivals: OpsShareArrivals;
   tasteTurns: OpsTasteTurns;
+  posterArrivals: OpsPosterArrivals;
 }) {
   const { median, p90, n } = funnel.minutes_to_first_room;
   return (
@@ -269,6 +272,10 @@ function FunnelCard({
           the honest floor sentence below that, never a small real number. */}
       <h2 style={{ marginTop: "var(--space-section)" }}>Growth</h2>
       <p className="ops-board__empty">{shareArrivals.note}</p>
+      {/* WS-R78 (migration 121). The printed poster's own growth line -
+          `shareArrivals`'s own shape, floored the identical way, right
+          below it: a poster arrival is a share by another name. */}
+      <p className="ops-board__empty">{posterArrivals.note}</p>
       {/* WS-R53 (migration 110). A count of TURNS, never people - the taste
           has no follower at all, so unlike the line above this one carries
           no anonymity floor and always renders the real number. */}
@@ -647,6 +654,7 @@ export default function OpsBoard() {
               funnel={overview.funnel}
               shareArrivals={overview.share_arrivals_this_week}
               tasteTurns={overview.taste_turns_this_week}
+              posterArrivals={overview.poster_arrivals_this_week}
             />
             <PhaseGateCard gate={overview.phase_gate} />
             <SweepsStrip sweeps={overview.sweeps} />

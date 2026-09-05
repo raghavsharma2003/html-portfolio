@@ -42,6 +42,7 @@ import {
   roomLink,
   roomEmbedSnippet,
   storyCardLink,
+  posterLink,
   firstRoomBlocker,
   RoomPublishApiError,
   type OwnedRoom,
@@ -688,6 +689,20 @@ export default function RoomStudio({
           rel="noreferrer"
         >
           {c.downloadStoryCard}
+        </a>
+        {/* WS-R78. The printable poster: the same public row and the same
+            "opens in a new tab, never a download this page triggers
+            itself" posture as the story card just above it - a creator
+            saves it from there and prints it for a notice board or a
+            clinic wall. The poster's own QR carries `?via=poster`, so a
+            scan from the printed sheet counts on the Growth line. */}
+        <a
+          className="button secondary-button vy-room__poster-link"
+          href={posterLink(room.slug)}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {t.poster.download}
         </a>
         {suiteStatus && (
           <p className="field-note vy-room__suite-note">{withLabel(c.partOf, suiteStatus.name)}</p>

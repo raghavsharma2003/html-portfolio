@@ -259,6 +259,19 @@ export function storyCardLink(slug: string, origin = window.location.origin): st
   return `${origin}/r/${slug}/story.png`;
 }
 
+/** WS-R78. The printable poster the Share tab links to —
+ *  `/r/<slug>/poster.png`, `vercel.json`'s own rewrite to
+ *  `api/room-card.js`'s `poster` kind. `storyCardLink`'s own shape, one
+ *  file size over — same public row, same no-token, same "the browser's
+ *  own origin so a preview deployment prints a link to itself" reasoning.
+ *  The poster's own QR encodes this SAME origin plus `?via=poster`
+ *  (`api/_room-card.js`'s `cardInputFor`), so a creator previewing this
+ *  link and a stranger scanning the printed sheet always land on the
+ *  identical deployment. */
+export function posterLink(slug: string, origin = window.location.origin): string {
+  return `${origin}/r/${slug}/poster.png`;
+}
+
 // WS-R31. The one derived fact `StudioShell.tsx`'s Share tab needs from a
 // `RoomBlockers` read: the single next thing, waiting-on-you first, else
 // waiting-on-us, matching `RoomStudio.tsx`'s own "name the top one" rule

@@ -2163,6 +2163,33 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "lang-tag": "lang-tag/run.mjs",
+  // WS-R78. The QR encoder (`api/_qr.js`, pure JS, byte mode, EC level M,
+  // versions 1-10, no third-party runtime for the encoder itself — see
+  // that file's own header on why `qrcode` (npm) was measured and rejected
+  // in favour of writing it). GF(256) hygiene; Reed-Solomon divisibility
+  // (an independent polynomial-division routine, not `_qr.js`'s own,
+  // proving a valid codeword block IS divisible by its generator and a
+  // corrupted one is not); known-vector BCH format info (EC level M, all
+  // 8 masks) and BCH version info (versions 7-10) against the standard
+  // published tables; structural sanity across a version spread including
+  // one forced into 7-10; a self-consistency round trip on the
+  // format/version-info modules; and — the layer that actually matters —
+  // `jsqr` (npm, zero dependencies, a devDependency, never imported by
+  // `api/`) decoding REAL rasterised pixels back to the exact input text
+  // across versions 1/4/7/8 and four different masks. This suite's own
+  // header names the two real bugs (a byte-reversed Reed-Solomon generator
+  // polynomial, an MSB-first format-info write where the spec wants
+  // LSB-first) that every earlier, purely self-referential layer passed
+  // twice over while a real scanner could not read a single poster; see
+  // `context/rejected.md#ws-r78-reversed-rs-generator-polynomial-passed-every-self-check`.
+  // FOUR NEGATIVE CONTROLS: flipping one byte of a valid RS codeword block
+  // breaks divisibility; flipping one format-info module changes the
+  // recovered mask pattern; erasing a finder pattern's own pixels in the
+  // rendered PNG breaks the real scanner's read; `chooseVersion` throws
+  // one byte past every version 1-10's own capacity.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "qr": "qr/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
