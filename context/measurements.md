@@ -12365,3 +12365,23 @@ do not read). The Hindi chunk itself (`dist/assets/hiCopy-*.js`) grew from
 142KB source / 30.7KB gzipped (WS-R71) to 172.22KB source / 38.22KB gzipped
 this session, for the same reason: `authGate`'s Hindi strings are real
 prose, not filler.
+
+## `ws-r97-room-about-page-budget-2026-09-05` — the follower's transparency page, first measurement
+
+Method: `scripts/check-performance.mjs` and `scripts/check-headers.mjs`, both run standalone and then inside the full `verify-release.mjs` gate, against `dist/room-about-fixture.html` (built by `scripts/build-room-about-fixture.mjs` from the REAL `buildRoomAboutHtml`, a Room WITH a dormancy policy set — the longer of this page's two render paths). n = 3 runs (this gate's own `RUNS` constant), 2026-09-05, this gate's own Fast-3G-equivalent throttle (4x CPU, 1.6Mbps down / 750Kbps up / 150ms latency).
+
+| metric | measured | budget |
+|---|---|---|
+| LCP | 260-328ms across repeated runs | 2500ms |
+| CLS | 0.000 | 0.1 |
+| TBT | 0ms | 300ms |
+| JS transfer | 0.0KB (zero client script on this page, by construction) | 180KB |
+| CSS transfer | 0.0KB (inline `<style>`, no separate stylesheet request) | 120KB font budget n/a, 0 fonts loaded |
+
+Security headers: `scripts/check-headers.mjs` against the same fixture under the real `/r/:slug/about` `vercel.json` rule — 0 CSP violations, 0 missing headers, across what is now 8 page targets (was 7 before this workstream). Accessibility: `scripts/check-accessibility.mjs --target room-about`, a Room whose `default_locale` is Hindi requested via `?lang=en` (the mismatched-locale shape `ws-r79`'s own creator-page block already established) — 0 critical/serious axe findings, 0 language-tag findings, 5 Devanagari text nodes and 5 own-attribute `lang="hi"` elements checked (the creator's own name, tagged on its own node, the only creator-authored free text this page renders). Full accessibility gate (all targets, no filter): 19 page(s) now (was 18), still 0 critical/serious, 0 keyboard findings, 0 language-tag findings.
+
+Not measured: a real phone, a real cold cache beyond this gate's own throttle emulation, and — same wall every other Rooms surface in this repo stands behind — no live deployment has ever served this page (`api/room-about.js`'s door has never received a real HTTP request outside `evals/probe-live/run.mjs`'s own fake server).
+
+## `ws-r97-room-about-eval-2026-09-05` — the offline suite's own count
+
+Method: `node evals/room-about/run.mjs` and `node evals/run.mjs room-about`, both run directly, 2026-09-05, offline, deterministic, $0. n = 48 assertions, 0 failures, runtime under 200ms. Covers: the predicate (published+unpaused, never `listed_at`), purity in both locales, every rendered number checked both by value and by a static import-source scan (`decisions.md#ws-r97-page-numbers-are-api-to-api-imports-not-mirror-markers`), the retention section's two render paths, the WS-R90 hreflang/x-default/og:locale shape, one byte-identical negative control across unpublished/paused/unknown, one differential control proving an unlisted-but-published Room is NOT collapsed into that same card, the vercel.json rewrite/headers wiring, and a direct scan for em/en dash in both locales' rendered body. `evals/probe-live/run.mjs` adds 8 more checks (a clean `--creator-slug` run, a `--creator-slug`-omitted skip, and a dropped-hreflang negative control against a real fake HTTP server) — full suite `node evals/run.mjs`: exit 0.

@@ -205,6 +205,12 @@ const TARGETS = [
   // mainly to prove that stays true rather than to catch a JS regression a
   // page with no bundle cannot have.
   { name: "/c/<slug>", path: "/c/anjali", label: "Creator public page (creator-page-fixture.html data)" },
+  // WS-R97: the follower's transparency page -- server-rendered HTML with
+  // zero client script, `/c/<slug>`'s own reason above restated a second
+  // time. Measured with a dormancy policy SET on the fixture Room (never the
+  // shorter no-policy render), so the budget is checked against the longer
+  // of the two paths this page can render.
+  { name: "/r/<slug>/about", path: "/r/anjali/about", label: "Follower transparency page (room-about-fixture.html data)" },
 ];
 
 const MIME = {
@@ -229,6 +235,7 @@ async function resolveFile(pathname) {
   if (pathname === "/") return join(SITE, "index.html");
   if (pathname === "/vyakti") return join(SITE, "vyakti.html");
   if (pathname === "/studio") return join(DIST, "studio.html");
+  if (pathname.startsWith("/r/") && pathname.endsWith("/about")) return join(DIST, "room-about-fixture.html");
   if (pathname.startsWith("/r/")) return join(DIST, "room-layout-fixture.html");
   if (pathname.startsWith("/c/")) return join(DIST, "creator-page-fixture.html");
   const rel = normalize(pathname.slice(1)).replace(/^(\.\.(\/|\\|$))+/, "");
@@ -626,7 +633,7 @@ async function main() {
     console.log("  skip  performance budgets: dist/ absent, run `npx vite build` first");
     return 0;
   }
-  const requiredFixtures = ["room-layout-fixture.html", "studio.html", "creator-page-fixture.html"];
+  const requiredFixtures = ["room-layout-fixture.html", "studio.html", "creator-page-fixture.html", "room-about-fixture.html"];
   const absent = requiredFixtures.filter((f) => !existsSync(join(DIST, f)));
   if (absent.length) {
     console.log(`FAIL  performance budgets: dist/${absent.join(", dist/")} missing — vite inputs, restore rather than skip.`);

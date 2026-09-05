@@ -23,6 +23,11 @@
 // printed note, never a failure -- see `usage()` below for why a probe must
 // never invent a listed slug to check against.
 //
+// WS-R97: the SAME `--creator-slug` also checks `/r/<slug>/about`'s
+// canonical and hreflang alternates -- `api/_room-about.js`'s own predicate
+// is published+unpaused, never `listed_at`-gated, so any Room that flag
+// already names is guaranteed to answer for this page too.
+//
 // NETWORK: exactly one base URL's origin, GET and HEAD, plus the two
 // specific `POST /api/room` bodies this file's own source names below —
 // both refused before either could ever reach a model or a provider. THE
@@ -65,6 +70,7 @@ import {
   roomEmbedUnknownExpectation,
   unknownSlug,
   creatorPageHeadFacts,
+  roomAboutHeadFacts,
   validatePersonJsonLd,
   validateFaqPageJsonLd,
 } from "./probeLiveExpectations.mjs";
@@ -566,6 +572,43 @@ async function main() {
     }
   } else {
     notes.push("/c/:slug checks SKIPPED: no --creator-slug given (no live listed Room can be assumed to exist)");
+  }
+
+  // ── 11. WS-R97: /r/<slug>/about for the SAME --creator-slug fixture ────
+  // `publicRoomAboutBySlug` is never `listed_at`-gated (this page's own law,
+  // `api/_room-about.js`'s header), so any Room `--creator-slug` names is
+  // guaranteed published-and-unpaused already and this page must answer for
+  // it too — no second flag needed.
+  if (creatorSlug) {
+    const aboutFacts = roomAboutHeadFacts();
+    const res = await client.request("GET", `/r/${encodeURIComponent(creatorSlug)}/about`);
+    const bytes = await bufferOf(res);
+    const html = bytes.toString("utf8");
+    recordSurface(`/r/:slug/about (--creator-slug)`, res, bytes);
+
+    if (res.status !== 200) {
+      fail("/r/:slug/about", "status 200", res.status, "api/_room-about.js");
+    }
+
+    const canonicalMatch = /<link rel="canonical" href="([^"]+)" \/>/.exec(html);
+    if (!canonicalMatch) {
+      fail("/r/:slug/about", 'a <link rel="canonical"> tag', "(absent)", "api/_room-about.js renderPage");
+    }
+
+    for (const code of aboutFacts.hreflangCodes) {
+      const escapedCode = code.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+      const re = new RegExp(`<link rel="alternate" hreflang="${escapedCode}" href="([^"]+)" \\/>`);
+      const m = re.exec(html);
+      if (!m) {
+        fail("/r/:slug/about", `a hreflang="${code}" alternate link`, "(absent)", "api/_room-about.js HREFLANG_CODES");
+        continue;
+      }
+      if (code === "hi" && !m[1].includes(aboutFacts.hiQuery)) {
+        fail("/r/:slug/about", `hreflang="hi" href containing "${aboutFacts.hiQuery}"`, m[1], "api/_room-about.js HI_LANG_QUERY");
+      }
+    }
+  } else {
+    notes.push("/r/:slug/about checks SKIPPED: no --creator-slug given (no live published Room can be assumed to exist)");
   }
 
   // ═════════════════════════════════════════════════════════════════════

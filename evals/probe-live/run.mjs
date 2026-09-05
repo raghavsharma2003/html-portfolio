@@ -125,6 +125,45 @@ async function main() {
     }
   }
 
+  // ── 1d. WS-R97: /r/<slug>/about with --creator-slug -> zero findings ───
+  {
+    const { url, stop } = await startFakeServer(PORT, {});
+    try {
+      const { exitCode, report } = await runProbe(url, ["--creator-slug", CREATOR_FIXTURE_SLUG]);
+      check("room-about (clean, --creator-slug given) -> exit 0", exitCode === 0, `exit ${exitCode}`);
+      check(
+        "room-about (clean) -> zero findings",
+        report && report.ok === true && report.findings.length === 0,
+        report ? JSON.stringify(report.findings) : "(no parseable report)",
+      );
+      // Scoped to THIS workstream's own labelled surface, never a bare
+      // "/r/:slug/about" substring -- section 1's own pre-existing
+      // route-class loop already probes that path with an UNKNOWN slug
+      // regardless of --creator-slug (the /c/:slug block's own comment
+      // above states the identical trap for that surface).
+      const probed = report && report.surfaces.some((s) => s.surface === "/r/:slug/about (--creator-slug)");
+      check("room-about (clean) -> the /r/:slug/about surface was actually probed", Boolean(probed), report ? JSON.stringify(report.surfaces.map((s) => s.surface)) : "n/a");
+    } finally {
+      await stop();
+    }
+  }
+
+  // ── 1e. WS-R97: no --creator-slug -> the /r/:slug/about section is
+  //       SKIPPED, never a failure ───────────────────────────────────────
+  {
+    const { url, stop } = await startFakeServer(PORT, {});
+    try {
+      const { exitCode, report } = await runProbe(url);
+      check("no --creator-slug -> exit 0 (room-about skip, not a failure)", exitCode === 0, `exit ${exitCode}`);
+      const probed = report && report.surfaces.some((s) => s.surface === "/r/:slug/about (--creator-slug)");
+      check("no --creator-slug -> the /r/:slug/about surface is never probed", !probed, report ? JSON.stringify(report.surfaces.map((s) => s.surface)) : "n/a");
+      const noted = report && (report.notes || []).some((n) => n.includes("SKIPPED") && n.includes("/r/:slug/about"));
+      check("no --creator-slug -> the room-about skip is named in a note, not silent", Boolean(noted), JSON.stringify(report?.notes));
+    } finally {
+      await stop();
+    }
+  }
+
   // ── 2a. NEGATIVE CONTROL: a dropped header on "/" ───────────────────────
   {
     const { url, stop } = await startFakeServer(PORT, { dropHeader: { path: "/", key: "Permissions-Policy" } });
@@ -172,6 +211,20 @@ async function main() {
       check("corrupted Person JSON-LD -> exit 1", exitCode === 1, `exit ${exitCode}`);
       const hit = report && report.findings.some((f) => f.surface === "/c/:slug" && /Person JSON-LD/.test(f.expectation));
       check("corrupted Person JSON-LD -> the probe names it", Boolean(hit), report ? JSON.stringify(report.findings) : "(no parseable report)");
+    } finally {
+      await stop();
+    }
+  }
+
+  // ── 2e. WS-R97 NEGATIVE CONTROL: a dropped hreflang="hi" alternate on
+  //       /r/<slug>/about ──────────────────────────────────────────────
+  {
+    const { url, stop } = await startFakeServer(PORT, { dropAboutHreflang: "hi" });
+    try {
+      const { exitCode, report } = await runProbe(url, ["--creator-slug", CREATOR_FIXTURE_SLUG]);
+      check("room-about dropped hreflang=hi -> exit 1", exitCode === 1, `exit ${exitCode}`);
+      const hit = report && report.findings.some((f) => f.surface === "/r/:slug/about" && /hreflang="hi"/.test(f.expectation) && f.observed === "(absent)");
+      check("room-about dropped hreflang=hi -> the probe names it", Boolean(hit), report ? JSON.stringify(report.findings) : "(no parseable report)");
     } finally {
       await stop();
     }

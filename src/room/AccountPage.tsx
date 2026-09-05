@@ -80,6 +80,11 @@ interface Props {
   session: string;
   copy: RoomCopy;
   locale: RoomLocale;
+  /** WS-R97. The Room's own slug (`RoomApp.tsx`'s own `slug`, `ShareButton`'s
+   *  own precedent one field over): the "What this AI knows about you" link
+   *  below is a real navigation to `/r/<slug>/about`, never a fetch, so it
+   *  needs the address it points at, not a fixture-only seam. */
+  slug: string;
   name: string;
   auth: StudioSession | null;
   remembers: boolean;
@@ -112,6 +117,7 @@ export default function AccountPage({
   session,
   copy,
   locale,
+  slug,
   name,
   auth,
   remembers,
@@ -448,6 +454,14 @@ export default function AccountPage({
             document `lang`. */}
         <LocalizedDisclosure text={settings?.disclosure || ""} />
       </div>
+
+      {/* WS-R97. A real navigation, not a panel this component opens - the
+          transparency page is its own server rendered address
+          (`api/_room-about.js`), so this is a plain `<a>`, never a button
+          with an onClick. */}
+      <p className="room-fine">
+        <a className="room-about-link" href={`/r/${encodeURIComponent(slug)}/about?lang=${locale}`}>{copy.about.linkLabel}</a>
+      </p>
 
       {/* WS-R86 (migration 123). "Bring a friend" - under the disclosure,
           this workstream's own law 3. Absent (never shown-and-disabled)

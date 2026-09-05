@@ -12401,3 +12401,43 @@ over `/opt/pw-browsers` in a private mount namespace with an empty
 container both walk in full. A `CHROMIUM_PATH=/nonexistent` simulation was
 NOT enough, because the fixed path still existed, and the first "test" of
 this fix passed for the wrong reason.
+
+## `ws-r97-plain-anchor-min-height-had-no-effect-until-given-its-own-display` (2026-09-05, WS-R97)
+
+**Tried.** The account page's and the join screen's new "What this AI knows
+about you" link (`AccountPage.tsx`, `RoomApp.tsx`'s `JoinSheet`) was shipped
+as a plain `<a className="room-fine" href={...}>`, on the reasoning that
+`.room-fine`'s own `font-size`/`color`/`max-width` were all this inline text
+link needed — every other control on these two screens that needed a real
+tap target already used `.room-btn` on a `<button>`, so a link that merely
+opens a new page seemed like exactly the kind of small, secondary control
+`.room-fine` already covers correctly elsewhere on the page.
+
+**What broke.** `node scripts/check-layout.mjs --only room` failed with a
+`TAP-TARGET` finding at `phone/room:join`: the rendered `<a>` measured
+157x14px, and the identical Hindi render measured 141x14px, both far under
+the 44x44 CSS px the layout gate's own WCAG 2.5.8 check requires. The cause
+is not `.room-fine` at all — it is that `min-height` (and `min-width`) have
+NO EFFECT on an element with the browser default `display: inline` for an
+`<a>` tag. `.room-btn`'s own `min-height: 48px` rule has always worked only
+because every existing caller applies it to a `<button>`, whose UA stylesheet
+gives it a non-inline default box; nothing in `.room-btn` itself sets
+`display`, so the identical rule silently does nothing the moment it (or,
+here, a lookalike rule) is applied to a bare `<a>` instead.
+
+**The fix.** A new, narrowly-scoped `.room-about-link` class
+(`src/room/room.css`) carrying `display: inline-flex; align-items: center;
+min-height: 44px;`, applied alongside `.room-fine`'s own wrapping `<p>` —
+never a change to `.room-btn` itself, which is correct exactly as written
+for every one of its existing `<button>` callers.
+
+**The rule.** A CSS box-sizing property that "should obviously work" is
+conditional on the element's own COMPUTED `display` value, not merely
+present in the rule that names it — `min-height`/`min-width` are no-ops on
+`display: inline` (the default for `<a>`, `<span>`, and every other inline
+element), and a rule copied from a `<button>` context to an `<a>` context
+carries that assumption along invisibly. Any future control built as a real
+`<a href>` rather than a `<button>` needs its own explicit non-inline
+`display` before a `min-height`/`min-width` rule can do anything at all —
+checked here by the layout gate's own real-browser measurement, not by
+reading the CSS and assuming it applies.

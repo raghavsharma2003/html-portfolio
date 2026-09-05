@@ -586,6 +586,16 @@ const EN = {
     print: "Print",
     loadError: "Could not load your receipts. Try again.",
   },
+
+  /** WS-R97. The link out to `/r/<slug>/about`, the follower's transparency
+   *  page - `api/_room-about.js`'s own server rendered page, never fetched
+   *  or embedded here. This is the ONLY thing this file says about that
+   *  page: a label for the link, on the account page and the join screen -
+   *  the page's own words live server side (two runtimes, no shared
+   *  boundary to cross, this file's own header explains why). */
+  about: {
+    linkLabel: "What this AI knows about you",
+  },
 };
 
 /** The same shape as `EN`, in plain, functional Hindi (Devanagari). Written
@@ -922,6 +932,10 @@ const HI: typeof EN = {
     empty: "अभी तक कोई भुगतान नहीं।",
     print: "प्रिंट करें",
     loadError: "आपकी रसीदें लोड नहीं हो सकीं। फिर से कोशिश करें।",
+  },
+
+  about: {
+    linkLabel: "यह AI आपके बारे में क्या जानता है",
   },
 };
 

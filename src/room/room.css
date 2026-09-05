@@ -578,6 +578,18 @@
     overflow-wrap: anywhere;
   }
 
+  /* WS-R97. The "What this AI knows about you" link, a real navigation
+   * (`<a href>`), not a button - `min-height` on a plain inline `<a>` has no
+   * effect at all, so this needs its own `inline-flex` box for the tap
+   * target rule to bind (`.room-btn`'s own 48px min-height relies on a
+   * `<button>`'s default box, which an anchor does not share). Caught by
+   * the layout gate: a 157x14px link on a 390px phone. */
+  .room-about-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
   .room-keeps {
     max-width: var(--measure);
     margin: 0 0 var(--space-item);

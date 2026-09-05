@@ -959,6 +959,55 @@ async function main() {
     await ctx.close();
   }
 
+  // ── the follower transparency page, WS-R97's own target: `/r/<slug>/about`
+  // (`api/_room-about.js`) has no client app to navigate to either -- the
+  // creator-page block above's own reason, restated -- so this calls the
+  // REAL, shipping `buildRoomAboutHtml` directly, fed a Room whose OWN
+  // default locale is Hindi, requested via `?lang=en` -- the creator-page
+  // block's own mismatched-locale shape, one surface over: the only
+  // creator-authored free text this page ever shows is the creator's own
+  // NAME, and a mismatch is the only fixture that can prove it is tagged
+  // correctly rather than merely never wrong by accident.
+  if (!targetFilter || targetFilter === "room-about") {
+    const { buildRoomAboutHtml } = await import(
+      pathToFileURL(join(ROOT, "api/_room-about.js")).href
+    );
+    const mismatchedRoom = {
+      slug: "priya",
+      display_name: "प्रिया",
+      default_locale: "hi",
+      dormancy_days: 365,
+      free_monthly_messages: 20,
+      paid_monthly_messages: 500,
+      paid_monthly_voice_seconds: 1800,
+    };
+    const html = buildRoomAboutHtml(mismatchedRoom, { origin: "https://vyakti.app", slug: "priya", lang: "en" });
+    const where = "room-about:mismatched-locale";
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await ctx.newPage();
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
+    await page.addScriptTag({ content: axeSource });
+    const result = await page.evaluate(
+      (tags) => window.axe.run(document, { runOnly: { type: "tag", values: tags } }),
+      AXE_TAGS,
+    );
+    pagesScanned++;
+    for (const v of result.violations) {
+      counts[v.impact] = (counts[v.impact] || 0) + 1;
+      axeFindings.push({
+        where, impact: v.impact, id: v.id, help: v.help,
+        nodesTotal: v.nodes.length,
+        nodes: v.nodes.map((n) => n.target.join(" ")),
+        detail: v.nodes.map((n) => n.failureSummary || "").filter(Boolean),
+      });
+    }
+    const langResult = await page.evaluate(langTagAudit);
+    devanagariNodesTotal += langResult.devanagariNodes;
+    taggedHiElementsTotal += langResult.taggedHiElements;
+    for (const f of langResult.findings) langFindings.push({ where, ...f });
+    await ctx.close();
+  }
+
   await browser.close();
   server.close();
   const runtimeMs = Date.now() - t0;

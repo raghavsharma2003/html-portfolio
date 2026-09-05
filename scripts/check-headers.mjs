@@ -282,6 +282,18 @@ const TARGETS = [
     // `data-enhanced="1"` once its listener is attached.
     checkExecuted: () => document.getElementById("vy-taste-form")?.getAttribute("data-enhanced") === "1",
   },
+  // WS-R97: the follower's transparency page. Server-rendered, no client
+  // script at all (this page carries no island, unlike `/c/:slug` above) --
+  // the CSP under test is still the real `/r/:slug/about` rule from
+  // vercel.json, matched on the request path exactly as every other target
+  // here is.
+  {
+    name: "/r/:slug/about",
+    path: "/r/anjali/about",
+    label: "Follower transparency page (room-about-fixture.html data)",
+    pp: DENY_PP,
+    checkExecuted: null,
+  },
 ];
 
 const MIME = {
@@ -305,6 +317,7 @@ async function resolveFile(pathname) {
   if (pathname === "/suites") return join(SITE, "suites.html");
   if (pathname === "/creators") return join(SITE, "creators.html");
   if (pathname === "/studio") return join(DIST, "studio.html");
+  if (pathname.startsWith("/r/") && pathname.endsWith("/about")) return join(DIST, "room-about-fixture.html");
   if (pathname.startsWith("/r/")) return join(DIST, "room-layout-fixture.html");
   if (pathname.startsWith("/c/")) return join(DIST, "creator-page-fixture.html");
   const rel = pathname.slice(1).replace(/^(\.\.(\/|\\|$))+/, "");
@@ -351,7 +364,7 @@ function serveApp(rules) {
 // §1 driver
 // ═════════════════════════════════════════════════════════════════════════
 async function runHeaderChecks(rules) {
-  if (!existsSync(join(DIST, "room-layout-fixture.html")) || !existsSync(join(DIST, "studio.html")) || !existsSync(join(DIST, "creator-page-fixture.html"))) {
+  if (!existsSync(join(DIST, "room-layout-fixture.html")) || !existsSync(join(DIST, "studio.html")) || !existsSync(join(DIST, "creator-page-fixture.html")) || !existsSync(join(DIST, "room-about-fixture.html"))) {
     console.log("  building (dist/ missing or incomplete) ...");
     execFileSync(process.execPath, [fileURLToPath(new URL("../node_modules/vite/bin/vite.js", import.meta.url)), "build"], {
       cwd: ROOT,

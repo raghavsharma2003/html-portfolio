@@ -9406,6 +9406,36 @@
       "kind": "decision",
       "title": "think() reads OPENROUTER_API_KEY then the config's OPENROUTER_KEY, the same read every other completion caller makes, so the self-check's required-name check covers the one door every Room reply uses.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r97-room-about-predicate-not-listed-at-gated",
+      "kind": "decision",
+      "title": "/r/<slug>/about gates on published+unpaused only, deliberately never listed_at, unlike /c/<slug>.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r97-page-numbers-are-api-to-api-imports-not-mirror-markers",
+      "kind": "decision",
+      "title": "Every number api/_room-about.js renders is a real ES import from its defining file, never a mirror-marker literal.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r97-plain-anchor-min-height-had-no-effect-until-given-its-own-display",
+      "kind": "rejection",
+      "title": "min-height on a plain inline <a> link did nothing until it got its own inline-flex display, caught by the layout gate.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r97-room-about-page-budget-2026-09-05",
+      "kind": "measurement",
+      "title": "The follower transparency page: LCP 260-328ms, 0 JS, 0 CSP violations across 8 header targets, 0 accessibility findings across 19 targets.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r97-room-about-eval-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/room-about/run.mjs: 48 assertions, 0 failures, offline, deterministic, plus 8 probe-live checks.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18368,6 +18398,21 @@
       "src": "surface-think-falls-back-to-the-config-key-like-every-other-door",
       "rel": "caused_by",
       "dst": "ws-r96-day-one-runbook"
+    },
+    {
+      "src": "ws-r97-room-about-predicate-not-listed-at-gated",
+      "rel": "measured_by",
+      "dst": "ws-r97-room-about-eval-2026-09-05"
+    },
+    {
+      "src": "ws-r97-page-numbers-are-api-to-api-imports-not-mirror-markers",
+      "rel": "measured_by",
+      "dst": "ws-r97-room-about-eval-2026-09-05"
+    },
+    {
+      "src": "ws-r97-room-about-page-budget-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r97-room-about-eval-2026-09-05"
     }
   ]
 }
