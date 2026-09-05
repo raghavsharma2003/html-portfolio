@@ -116,6 +116,28 @@ function fakeDb(options = {}) {
       return options.cardOpen === false ? [] : [{ card_id: CARD }];
     }
     if (has("evidence_type='transcript_span'")) return options.transcripts || [];
+    // WS-R72. `readEligibleShowcaseCards`'s own list read - owner-scoped IN
+    // THE WHERE CLAUSE, never a JS filter, so the fixture proves the same
+    // way the very first branch above does: a params match returns the
+    // fixture rows, a mismatch (another owner's bearer) returns nothing.
+    if (has("select card_id, kind, prompt_text, answer_text")) {
+      return params[0] === REPLICA && params[1] === OWNER ? (options.eligibleCards || []) : [];
+    }
+    // WS-R72. `dismissFlaggedReply`'s own DELETE - the SAME params-match
+    // shape, `f.id` rows only for the real owner's (replica_id,
+    // owner_user_id).
+    if (has("delete from vy_room_reply_flag f") && has("using vy_room r")) {
+      return params[0] === REPLICA && params[1] === OWNER ? (options.dismissedRows ?? [{ id: "flag-row-1" }]) : [];
+    }
+    // WS-R72 negative control: `neverRuleFromFlaggedReply`'s own read-back
+    // (`api/_review-queue.js`'s own comment: "never trusted off the request
+    // body") and its never-rule upsert - owner-scoped the SAME way.
+    if (has("select f.reply_text") && has("from vy_room_reply_flag f join vy_room r on r.room_id = f.room_id")) {
+      return params[0] === REPLICA && params[1] === OWNER ? (options.flagReplyRows || []) : [];
+    }
+    if (has("with existing as (") && has("insert into vy_review_never_rule") && has("lower(pattern) = lower($3::text)")) {
+      return [{ rule_id: options.flagNeverRuleId ?? "nr-fixture-1" }];
+    }
     state.unmatched.push(sql.slice(0, 70));
     throw new Error(`fake db has no branch for: ${sql.slice(0, 70)}`);
   };
@@ -540,6 +562,105 @@ await throws("a replica with no reviewed transcript says so rather than returnin
   () => R.generateSyntheticQuestions(fakeDb({ transcripts: [] }), OWNER, REPLICA, {
     family: "f", name: "n", version: "1", model: "m", generate: async () => ({ questions: [] }),
   }), "review_question_excerpts_absent");
+
+// ═════════════════════════════════════════════════════════════════════════
+// 7A. THE SHOWCASE PICKER'S READ (WS-R72, closes ws-r66-showcase-card-
+// picker-ui-not-built-v0)
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── 7a. readEligibleShowcaseCards ──");
+
+const FLAG_DEPS = { tableApplied: async () => true };
+
+{
+  const eligible = [
+    { card_id: "e1000000-0000-4000-8000-000000000001", kind: "question",
+      prompt_text: "How do you explain projectile motion to a beginner?",
+      answer_text: "Split it into horizontal and vertical motion and treat them separately." },
+  ];
+  const db = fakeDb({ eligibleCards: eligible });
+  const cards = await R.readEligibleShowcaseCards(db, OWNER, REPLICA);
+  eq(cards.length, 1, "the real owner's decided cards come back");
+  eq(cards[0].card_id, eligible[0].card_id, "...the real card, not a guess");
+}
+
+{
+  // NEGATIVE CONTROL, law 4's first bullet: the eligibility predicate is a
+  // WHERE clause on the real SQL, never a JS filter applied after the rows
+  // are in hand - `ws-r66-showcase-eligibility-is-a-where-clause-on-kind`'s
+  // own reasoning, restated for this second reader.
+  const source = read("api/_review-queue.js");
+  const fn = source.match(/export async function readEligibleShowcaseCards\([\s\S]*?\n}\n/)?.[0] || "";
+  ok(Boolean(fn), "readEligibleShowcaseCards is found (not moved/renamed)");
+  ok(/state = 'sounds_right' and kind <> 'follower_declined'/.test(fn),
+    "...and its ONE select carries both halves of the predicate together, in the WHERE, never split across a JS filter");
+  ok(!/\.filter\(/.test(fn), "...and the function body itself contains no JS-side filter at all");
+}
+
+{
+  // NEGATIVE CONTROL: a bearer for a DIFFERENT owner reaching for OWNER's
+  // own REPLICA gets nothing back, never OWNER's cards - the SAME params-
+  // match shape `readReviewQueue(db, STRANGER, REPLICA)` above proves.
+  const db = fakeDb({ eligibleCards: [{ card_id: "x", kind: "question", prompt_text: "p", answer_text: "a" }] });
+  const stolen = await R.readEligibleShowcaseCards(db, STRANGER, REPLICA);
+  eq(stolen.length, 0, "a different owner's bearer against OWNER's own replica gets an empty list, never OWNER's cards");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 7B. "SOUNDS RIGHT ANYWAY" (WS-R72)
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── 7b. dismissFlaggedReply ──");
+
+{
+  const db = fakeDb({ dismissedRows: [{ id: "flag-row-1" }, { id: "flag-row-2" }] });
+  const result = await R.dismissFlaggedReply(db, OWNER, { replica_id: REPLICA, reply_sha256: "a".repeat(64) }, FLAG_DEPS);
+  eq(result.dismissed, 2, "every creator-lane row for this reply is dismissed in one op, not one at a time");
+}
+
+await throws("a hash naming no flagged reply on this owner's Room is refused by name, never a silent no-op",
+  () => R.dismissFlaggedReply(fakeDb({ dismissedRows: [] }), OWNER, {
+    replica_id: REPLICA, reply_sha256: "b".repeat(64),
+  }, FLAG_DEPS), "review_flag_not_found");
+
+{
+  // NEGATIVE CONTROL: a different owner's bearer against OWNER's own
+  // replica dismisses NOTHING, never OWNER's flags - `dismissedRows` is
+  // keyed to the (REPLICA, OWNER) params match in the fixture above, so a
+  // STRANGER bearer against the SAME replica_id lands on the params
+  // mismatch branch and gets an empty result.
+  const db = fakeDb({ dismissedRows: [{ id: "flag-row-1" }] });
+  const stolen = await R.dismissFlaggedReply(db, STRANGER, { replica_id: REPLICA, reply_sha256: "a".repeat(64) }, FLAG_DEPS)
+    .catch((e) => e);
+  ok(stolen instanceof R.ReviewQueueError && stolen.code === "review_flag_not_found",
+    "a different owner's bearer against OWNER's own replica_id is refused, never dismisses OWNER's flags");
+}
+
+await throws("a malformed hash is refused before any SQL runs",
+  () => R.dismissFlaggedReply(fakeDb({}), OWNER, { replica_id: REPLICA, reply_sha256: "not-a-hash" }, FLAG_DEPS),
+  "review_flag_hash_invalid");
+
+// ═════════════════════════════════════════════════════════════════════════
+// 7C. NEGATIVE CONTROL, law 4's second bullet: a never-rule from a flag
+// hash the owner does not own is refused (WS-R72, extends WS-R67's own
+// neverRuleFromFlaggedReply - `evals/room-flags/run.mjs` proves the SAME-
+// owner "hash matches nothing" refusal; this proves the CROSS-owner one).
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── 7c. neverRuleFromFlaggedReply refuses a hash the owner does not own ──");
+
+{
+  const HASH = "c".repeat(64);
+  const db = fakeDb({ flagReplyRows: [{ reply_text: "The exam moved to the 14th." }] });
+  const mine = await R.neverRuleFromFlaggedReply(db, OWNER, { replica_id: REPLICA, reply_sha256: HASH }, FLAG_DEPS);
+  ok(Boolean(mine.rule_id), "the real owner's own never-rule from a flag lands (the fixture is sound)");
+}
+{
+  const HASH = "c".repeat(64);
+  const stolen = await R.neverRuleFromFlaggedReply(
+    fakeDb({ flagReplyRows: [{ reply_text: "The exam moved to the 14th." }] }),
+    STRANGER, { replica_id: REPLICA, reply_sha256: HASH }, FLAG_DEPS,
+  ).catch((e) => e);
+  ok(stolen instanceof R.ReviewQueueError && stolen.code === "review_flag_not_found",
+    "a different owner's bearer against OWNER's own replica_id and a REAL flag hash is refused, never writes a rule off OWNER's flag");
+}
 
 // ═════════════════════════════════════════════════════════════════════════
 // 7. MIGRATION 074 AND THE ERASURE REACH

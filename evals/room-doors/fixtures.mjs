@@ -119,6 +119,18 @@ export function freshDoorsState() {
       answer_text: "A real follower's own words in this AI's reply to them",
     },
   ];
+  // WS-R72: one creator-lane flag row (migration 116, `vy_room_reply_flag`)
+  // on OWNER's own Room, for `dismissFlaggedReply`'s owner-bearer case
+  // below — no follower/person/thread column, migration 116's own law,
+  // restated by this fixture carrying none.
+  state.roomReplyFlags = [
+    {
+      id: "f1000000-0000-4000-8000-000000000001", room_id: ROOM_ID,
+      reply_sha256: "9".repeat(64),
+      reply_text: "The exam is on the 14th, not the 12th.",
+      reason: "wrong", created_at: "2026-09-01T09:00:00.000Z",
+    },
+  ];
   return state;
 }
 
@@ -525,7 +537,13 @@ function doorsPatterns(state) {
     // "where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid" pattern
     // above; these four are their OWN statements, in the exact order
     // `setRoomShowcase`/`removeRoomShowcase`/`readRoomShowcase` send them.
-    if (has("from vy_review_card") && has("kind <> 'follower_declined'")) {
+    // WS-R72: `has("card_id = ($1)::uuid")` narrows this to setRoomShowcase's
+    // OWN one-card lookup specifically - readEligibleShowcaseCards' LIST read
+    // (matched separately, below) shares the "from vy_review_card" +
+    // "kind <> 'follower_declined'" substrings but takes no card id param at
+    // all, and without this narrowing this branch shadowed that one (found
+    // running this exact fixture against the real SQL the first time).
+    if (has("from vy_review_card") && has("kind <> 'follower_declined'") && has("card_id = ($1)::uuid")) {
       const [cardId, ownerUserId, replicaId] = params.map(String);
       const row = state.reviewCards.find(
         (c) => c.card_id === cardId && c.owner_user_id === ownerUserId && c.replica_id === replicaId
@@ -565,6 +583,35 @@ function doorsPatterns(state) {
       if (!s) return [];
       s.removed_at = new Date().toISOString();
       return [{ room_id: s.room_id }];
+    }
+
+    // ── WS-R72: api/_review-queue.js's readEligibleShowcaseCards ───────────
+    // Owner-scoped in its OWN select, no `vy_room` join at all (unlike
+    // showcase_set/remove above) — matched here off the same params-scoped
+    // shape `state.reviewCards` already carries.
+    if (has("select card_id, kind, prompt_text, answer_text")) {
+      const [replicaId, ownerUserId] = params.map(String);
+      return state.reviewCards
+        .filter((c) => c.replica_id === replicaId && c.owner_user_id === ownerUserId
+          && c.state === "sounds_right" && c.kind !== "follower_declined")
+        .map((c) => ({ card_id: c.card_id, kind: c.kind, prompt_text: c.prompt_text, answer_text: c.answer_text }));
+    }
+
+    // ── WS-R72: api/_review-queue.js's dismissFlaggedReply ──────────────────
+    // The creator lane's own DELETE, owner-scoped through the SAME
+    // "from vy_room" + owner/replica WHERE shape every other owner-scoped
+    // handle in this fixture uses, restated for a delete against a
+    // migration-116 table rather than a select.
+    if (has("delete from vy_room_reply_flag f") && has("using vy_room r")) {
+      const [replicaId, ownerUserId, hash] = params.map(String);
+      const r = state.rooms.find((x) => x.owner_user_id === ownerUserId && x.replica_id === replicaId);
+      if (!r) return [];
+      const before = state.roomReplyFlags.length;
+      state.roomReplyFlags = state.roomReplyFlags.filter(
+        (f) => !(f.room_id === r.room_id && f.reply_sha256 === hash),
+      );
+      const removed = before - state.roomReplyFlags.length;
+      return Array.from({ length: removed }, (_, i) => ({ id: `deleted-${i}` }));
     }
 
     // ── WS-R44: WS-R37's cancel lane (api/_renewals.js) ────────────────────

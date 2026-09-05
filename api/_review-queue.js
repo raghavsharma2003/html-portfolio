@@ -520,6 +520,85 @@ export async function neverRuleFromFlaggedReply(db, ownerUserId, input, deps = {
   return { rule_id: rows[0]?.rule_id ?? null, pattern };
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+// SHOWCASE PICKER (WS-R72) — the read `api/_room-publish.js`'s `setRoomShowcase`
+// needed a browsing screen for. `api/room-publish.js?op=showcase_set` already
+// accepts a `sourceCardId` and enforces the eligibility predicate on its OWN
+// write; this is the SAME predicate, restated on a READ so the studio can
+// list what a creator is allowed to pick from before they pick it
+// (`context/decisions.md#ws-r66-showcase-card-picker-ui-not-built-v0`, the
+// open item this closes).
+// ═════════════════════════════════════════════════════════════════════════
+
+/**
+ * Every DECIDED review card eligible to become a showcase slot's source: the
+ * IDENTICAL predicate `api/_room-publish.js::setRoomShowcase` enforces on its
+ * own copy-from-card write (`kind <> 'follower_declined' and state =
+ * 'sounds_right'`, both inside this ONE select), never a JS filter applied
+ * after the rows are already in hand. This is what makes a follower-sourced
+ * card structurally unable to reach the picker: the WHERE clause is the only
+ * place the boundary is drawn, and it is drawn once, in the same words, on
+ * both the read and the write (`ws-r66-showcase-eligibility-is-a-where-
+ * clause-on-kind`'s own reasoning, restated for a second caller).
+ */
+export async function readEligibleShowcaseCards(db, ownerUserId, replicaIdValue) {
+  if (typeof db !== "function") fail("review_db_required", 503);
+  const rid = replicaId(replicaIdValue);
+  const owner = reviewUuid(ownerUserId, "review_owner_required");
+  const rows = await db(
+    `select card_id, kind, prompt_text, answer_text
+       from vy_review_card
+      where replica_id = $1::uuid and owner_user_id = $2::uuid
+        and state = 'sounds_right' and kind <> 'follower_declined'
+      order by decided_at desc nulls last, card_id asc
+      limit 50`,
+    [rid, owner],
+  );
+  return rows.map((row) => ({
+    card_id: String(row.card_id),
+    kind: row.kind,
+    prompt_text: row.prompt_text,
+    answer_text: row.answer_text,
+  }));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// "SOUNDS RIGHT ANYWAY" (WS-R72) — the flagged-reply card's OTHER action.
+// ═════════════════════════════════════════════════════════════════════════
+//
+// No new column and no new table (this workstream's brief: no migration).
+// `vy_room_reply_flag` (migration 116) already carries no follower identity of
+// any kind (`readFlaggedReplies`'s own header), so there is no "state" column
+// to flip and nothing to preserve about WHO flagged it — dismissing a
+// flagged-reply card is therefore the SAME shape `unflagReply` already uses
+// one file over for a follower's own withdrawal (`api/_room-surface.js`): a
+// DELETE, never a flip. The difference is scope. `unflagReply` deletes ONE row
+// (the withdrawing follower's own), scoped by `follower_id`; this deletes
+// EVERY row for this reply on this Room, scoped by owner — the creator is not
+// taking back one follower's flag, they are saying "I looked at this and it
+// stands," which clears the card for every follower who flagged it, the same
+// way marking a review card `sounds_right` clears it from the open queue for
+// good rather than for one asker.
+export async function dismissFlaggedReply(db, ownerUserId, input, deps = {}) {
+  if (typeof db !== "function") fail("review_db_required", 503);
+  const rid = replicaId(input?.replica_id);
+  const owner = reviewUuid(ownerUserId, "review_owner_required");
+  const hash = String(input?.reply_sha256 || "").trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(hash)) fail("review_flag_hash_invalid", 400);
+  const applied = deps.tableApplied ?? tableApplied;
+  if (!(await applied("vy_room_reply_flag"))) fail("review_flag_not_found", 404);
+  const rows = await db(
+    `delete from vy_room_reply_flag f
+       using vy_room r
+      where r.room_id = f.room_id and r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
+        and f.reply_sha256 = $3::text
+      returning f.id`,
+    [rid, owner, hash],
+  );
+  if (!rows.length) fail("review_flag_not_found", 404);
+  return { dismissed: rows.length, reply_sha256: hash };
+}
+
 /** What generation reads: the claims still awaiting a decision, the Mirror Call
  *  chips nobody has tapped, and the dedupe hashes already on the queue. Every
  *  statement carries owner_user_id inside its WHERE clause. */

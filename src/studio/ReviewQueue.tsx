@@ -25,14 +25,38 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ReplicaApiError } from "./replicaApi";
 import {
   decideReviewCard,
+  dismissFlaggedReply,
   encodeCorrectionText,
   fillReviewQueue,
+  neverRuleFromFlag,
   readReviewQueue,
   uploadCorrection,
 } from "./reviewQueueApi";
-import type { FlaggedReply, ReviewQueue as ReviewQueueShape } from "./types";
+import type { FlagReason, FlaggedReply, ReviewQueue as ReviewQueueShape } from "./types";
 import { useStudioLocale } from "./localeContext";
-import { withCount, type StudioCopy } from "./copy";
+import { withCount, withLabel, type StudioCopy } from "./copy";
+
+// WS-R72. The reason breakdown, in the order the brief's own "Never say
+// this" pre-selection reads them (harmful first) - `readFlaggedReplies`'s
+// own header, restated for display order rather than for the predicate.
+const REASON_ORDER: FlagReason[] = ["harmful", "wrong", "not_them", "other"];
+
+function reasonLabel(t: StudioCopy, reason: FlagReason): string {
+  if (reason === "wrong") return t.reviewQueueFlags.reasonWrong;
+  if (reason === "harmful") return t.reviewQueueFlags.reasonHarmful;
+  if (reason === "not_them") return t.reviewQueueFlags.reasonNotThem;
+  return t.reviewQueueFlags.reasonOther;
+}
+
+/** "harmful 2, wrong 1" - every reason that was actually used, in order,
+ *  never a zero. `flag.reasons` is a real count from `readFlaggedReplies`'s
+ *  own SQL, so this renders exactly what it says and nothing it does not. */
+function reasonBreakdown(t: StudioCopy, reasons: FlaggedReply["reasons"]): string {
+  return REASON_ORDER
+    .filter((reason) => reasons[reason] > 0)
+    .map((reason) => `${reasons[reason]} ${reasonLabel(t, reason)}`)
+    .join(", ");
+}
 
 /** The three buttons, in the order the keys and the DOM agree on. The
  *  DECISION and the HINT key are the product's own vocabulary, fixed by the
@@ -74,6 +98,11 @@ export default function ReviewQueue({
   // `api/_review-queue.js`'s own header), so the number rendered below is a
   // count of rows, `active_never_rules` two lines down's own rule restated.
   const [flags, setFlags] = useState<FlaggedReply[]>([]);
+  // WS-R72. The one flagged reply's action currently in flight, by hash -
+  // `null` means none, `busy`'s own single-flight shape restated per row
+  // rather than per screen, since these live below the decision card and
+  // must never block or be blocked by it.
+  const [flagBusy, setFlagBusy] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [composing, setComposing] = useState(false);
@@ -216,6 +245,42 @@ export default function ReviewQueue({
     }
   }
 
+  // WS-R72. "Never say this" (reusing WS-R67's own `neverRuleFromFlag`
+  // client wrapper, tested but never wired until now) and "Sounds right
+  // anyway" on a flagged-reply card. `flagBusy` names the ONE reply hash in
+  // flight, `busy`'s own single-flight shape, one section down.
+  async function neverThisFlag(hash: string) {
+    if (flagBusy) return;
+    setFlagBusy(hash);
+    setError("");
+    try {
+      const result = await neverRuleFromFlag(token, replicaId, hash);
+      setFlags(result.flags);
+      setNotice(t.reviewQueue.noticeNever);
+    } catch (cause) {
+      if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
+      setError(cause instanceof Error ? cause.message : t.reviewQueueFlags.errorAction);
+    } finally {
+      setFlagBusy(null);
+    }
+  }
+
+  async function dismissThisFlag(hash: string) {
+    if (flagBusy) return;
+    setFlagBusy(hash);
+    setError("");
+    try {
+      const result = await dismissFlaggedReply(token, replicaId, hash);
+      setFlags(result.flags);
+      setNotice(t.reviewQueueFlags.dismissed);
+    } catch (cause) {
+      if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
+      setError(cause instanceof Error ? cause.message : t.reviewQueueFlags.errorAction);
+    } finally {
+      setFlagBusy(null);
+    }
+  }
+
   // 1 / 2 / 3. Bound on the section rather than on window so a keystroke typed
   // into the fix composer is not also a decision.
   function onKey(event: React.KeyboardEvent<HTMLElement>) {
@@ -354,12 +419,49 @@ export default function ReviewQueue({
       ) : null}
 
       {flags.length > 0 ? (
-        <p className="review-queue-flags" aria-live="polite">
-          {withCount(
-            flags.length === 1 ? t.reviewQueue.flaggedRepliesOne : t.reviewQueue.flaggedRepliesMany,
-            flags.length,
-          )}
-        </p>
+        <section className="review-queue-flags" aria-labelledby="review-queue-flags-title">
+          <p id="review-queue-flags-title" className="review-queue-flags-summary" aria-live="polite">
+            {withCount(
+              flags.length === 1 ? t.reviewQueue.flaggedRepliesOne : t.reviewQueue.flaggedRepliesMany,
+              flags.length,
+            )}
+          </p>
+          <ul className="review-queue-flag-list">
+            {flags.map((flag) => (
+              <li key={flag.reply_sha256} className="review-queue-flag-card">
+                {/* flag.reply_text is the AI's own words, read back from the
+                    flagging follower's history by hash - never a follower's
+                    own text (`api/_review-queue.js::readFlaggedReplies`'s
+                    own header). copy.ts's exception for rendered material
+                    applies here exactly as it does to a review card. */}
+                <p className="review-queue-flag-text">{flag.reply_text}</p>
+                <p className="review-queue-flag-meta">
+                  {withCount(flag.count === 1 ? t.reviewQueueFlags.timesOne : t.reviewQueueFlags.timesMany, flag.count)}
+                  {" "}
+                  {withLabel(t.reviewQueueFlags.reasonsLabel, reasonBreakdown(t, flag.reasons))}
+                </p>
+                <div className="review-queue-flag-actions">
+                  <button
+                    className="button secondary-button review-choice-never"
+                    type="button"
+                    disabled={flagBusy === flag.reply_sha256}
+                    onPointerDown={() => void neverThisFlag(flag.reply_sha256)}
+                  >
+                    {flagBusy === flag.reply_sha256 ? t.reviewQueueFlags.dismissing : t.reviewQueue.buttonNever}
+                  </button>
+                  <button
+                    className="text-button"
+                    type="button"
+                    disabled={flagBusy === flag.reply_sha256}
+                    onPointerDown={() => void dismissThisFlag(flag.reply_sha256)}
+                  >
+                    {flagBusy === flag.reply_sha256 ? t.reviewQueueFlags.dismissing : t.reviewQueueFlags.soundsRightAnyway}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
     </section>
   );

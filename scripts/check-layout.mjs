@@ -176,8 +176,20 @@ const TARGETS = [
     // covers the card's OTHER required fixture state, the first step,
     // nothing added yet -- this is the "middle step" the brief's law 4
     // asks this target to also render.
-    query: (step) => (step === "feed-mid" ? "mode=teacher&step=feed&scenario=processing" : `mode=teacher&step=${step}`),
-    steps: ["feed", "feed-mid", "meet", "deploy"],
+    //
+    // WS-R72: "deploy-picker" is the SAME "feed-mid" pattern one step over --
+    // `?step=deploy` again, `scenario=showcase-picker` layered on top so the
+    // Share tab's Room is published (the base fixture's `room: null` never
+    // mounts `ShowcaseCard` at all). Its picker is opened by a REAL CLICK on
+    // `[data-picker-open="1"]` in the per-step loop below, `room:checkins`/
+    // `room:handoff`'s own WS-R43 law ("never a fixture prop pre-opening
+    // it"), never a second scenario flag.
+    query: (step) => (
+      step === "feed-mid" ? "mode=teacher&step=feed&scenario=processing"
+        : step === "deploy-picker" ? "mode=teacher&step=deploy&scenario=showcase-picker"
+        : `mode=teacher&step=${step}`
+    ),
+    steps: ["feed", "feed-mid", "meet", "deploy", "deploy-picker"],
     mounted: ".studio-shell, .studio-layout",
     panels: ".wizard-band, .consent-panel, .processing-review, .mirror-call, .hear-voice",
     minPanels: 2,
@@ -216,8 +228,13 @@ const TARGETS = [
     // own reason for existing at all -- a collapsed Devanagari column in
     // the path card's step list or its current-step sentence needs its own
     // measured target, not the English one standing in for it.
-    query: (step) => (step === "feed-mid" ? "mode=teacher&step=feed&scenario=processing&lang=hi" : `mode=teacher&step=${step}&lang=hi`),
-    steps: ["feed", "feed-mid", "meet", "deploy"],
+    // WS-R72: "deploy-picker" restated in Hindi, `studio`'s own reason above.
+    query: (step) => (
+      step === "feed-mid" ? "mode=teacher&step=feed&scenario=processing&lang=hi"
+        : step === "deploy-picker" ? "mode=teacher&step=deploy&scenario=showcase-picker&lang=hi"
+        : `mode=teacher&step=${step}&lang=hi`
+    ),
+    steps: ["feed", "feed-mid", "meet", "deploy", "deploy-picker"],
     mounted: ".studio-shell, .studio-layout",
     panels: ".wizard-band, .consent-panel, .processing-review, .mirror-call, .hear-voice",
     minPanels: 2,
@@ -979,6 +996,33 @@ async function main() {
             findings.push({
               where, kind: "dialog-in-view", el: "opener", n: 0, unit: "",
               text: `[data-dialog-open="${step}"] not found - the button this step depends on is gone`,
+            });
+          }
+        }
+
+        // WS-R72: the SAME "real click, never a fixture prop pre-opening it"
+        // law, one step over. `[data-picker-open="1"]` is `ShowcaseCard.tsx`'s
+        // own "Pick from your reviews" button on slot 1, locale-independent
+        // by the same design as `[data-dialog-open]` above so `studio-hi`'s
+        // Hindi label never has to be matched.
+        if (step === "deploy-picker") {
+          const opener = page.locator('[data-picker-open="1"]');
+          if (await opener.count().catch(() => 0)) {
+            await opener.click();
+            await page.waitForTimeout(300);
+            const opened = await page.evaluate(
+              () => Boolean(document.querySelector(".vy-room__showcase-picker")),
+            );
+            if (!opened) {
+              findings.push({
+                where, kind: "picker-open", el: "picker", n: 0, unit: "",
+                text: 'clicking [data-picker-open="1"] did not open .vy-room__showcase-picker',
+              });
+            }
+          } else {
+            findings.push({
+              where, kind: "picker-open", el: "opener", n: 0, unit: "",
+              text: '[data-picker-open="1"] not found - the button this step depends on is gone',
             });
           }
         }

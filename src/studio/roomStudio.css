@@ -285,6 +285,60 @@
   }
   .vy-room__handoff-card textarea.field { resize: vertical; min-height: 4.5em; }
 
+  /* Showcase (WS-R66/WS-R72). The slot itself was unstyled before this
+     workstream (no rule below existed for `.vy-room__showcase-slot` at
+     all) - the layout gate never rendered it, `room` was always null in
+     its fixture. It renders for real now (the "deploy-picker" scenario),
+     so this gives the slot its own gap rather than shipping the FIRST
+     measured render of a card this workstream did not itself lay out. */
+  .vy-room__showcase-slot {
+    display: grid;
+    gap: var(--space-tight);
+    padding-top: var(--space-item);
+    border-top: var(--hairline) solid var(--line);
+  }
+  .vy-room__showcase-slot:first-of-type { padding-top: 0; border-top: none; }
+
+  /* The picker. `.review-card-answer`'s own `max-width: var(--measure)` +
+     `white-space: pre-wrap` reasoning, restated for a card the owner is
+     about to copy rather than one they are deciding: real prose, not
+     chrome, so it is held to the same readable-line-length floor. */
+  .vy-room__showcase-picker {
+    display: grid;
+    gap: var(--space-tight);
+    margin-top: var(--space-tight);
+    border-radius: var(--radius-control);
+    padding: var(--space-item);
+    background: rgba(255, 255, 255, 0.5);
+  }
+  .vy-room__showcase-picker-list {
+    display: grid;
+    gap: var(--space-row);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .vy-room__showcase-picker-item {
+    display: grid;
+    gap: var(--space-hair);
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    padding: var(--space-tight) var(--space-row);
+    background: rgba(255, 255, 255, 0.6);
+  }
+  .vy-room__showcase-picker-q {
+    max-width: var(--measure);
+    margin: 0;
+    font-weight: var(--weight-medium);
+  }
+  .vy-room__showcase-picker-a {
+    max-width: var(--measure);
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    white-space: pre-wrap;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .vy-room__cap-pill { transition: none; }
     .vy-room__pulse-topic-remove { transition: none; }

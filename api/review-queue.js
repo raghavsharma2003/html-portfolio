@@ -1,10 +1,12 @@
 // The review queue's HTTP shape, and nothing else — WS-R4.
 //
-//   GET  /api/review-queue?replica_id=…            the open cards, the counts and (WS-R67) flags
-//   POST /api/review-queue { op: 'generate' }      fill the queue
-//   POST /api/review-queue { op: 'decide' }        one card, one decision
-//   POST /api/review-queue { op: 'dictate' }       a signed upload for a correction
-//   POST /api/review-queue { op: 'flag_never' }    "Never say this" off a flagged reply (WS-R67)
+//   GET  /api/review-queue?replica_id=…               the open cards, the counts and (WS-R67) flags
+//   POST /api/review-queue { op: 'generate' }         fill the queue
+//   POST /api/review-queue { op: 'decide' }           one card, one decision
+//   POST /api/review-queue { op: 'dictate' }          a signed upload for a correction
+//   POST /api/review-queue { op: 'flag_never' }       "Never say this" off a flagged reply (WS-R67)
+//   POST /api/review-queue { op: 'showcase_eligible' } decided cards the Share tab's picker can copy (WS-R72)
+//   POST /api/review-queue { op: 'flag_dismiss' }     "Sounds right anyway" off a flagged reply (WS-R72)
 //
 // THIN, in `api/clone-chat.js` over `api/_clonechat.js`'s sense: every decision
 // lives in `api/_review-queue.js` where a fake database can reach it, and this
@@ -32,6 +34,8 @@ import {
   readReviewQueue,
   readFlaggedReplies,
   neverRuleFromFlaggedReply,
+  readEligibleShowcaseCards,
+  dismissFlaggedReply,
 } from "./_review-queue.js";
 import { createProductionQuestionGenerator } from "./_review-queue/questions.js";
 import { clientSource } from "./_replica-source.js";
@@ -138,6 +142,22 @@ export default async function handler(req, res) {
       const result = await neverRuleFromFlaggedReply(q, user.id, body);
       const flags = await readFlaggedReplies(q, user.id, body.replica_id).catch(() => null);
       return res.status(200).json({ ...result, ...(flags ? { flags } : { flags_unavailable: true }) });
+    }
+    if (body.op === "flag_dismiss") {
+      // "Sounds right anyway" - `flag_never`'s own shape, one op over: the
+      // decision module deletes the creator lane's rows for this reply and
+      // this response re-reads `flags` the SAME way `flag_never` does, so the
+      // studio never has to special-case which action it just took.
+      const result = await dismissFlaggedReply(q, user.id, body);
+      const flags = await readFlaggedReplies(q, user.id, body.replica_id).catch(() => null);
+      return res.status(200).json({ ...result, ...(flags ? { flags } : { flags_unavailable: true }) });
+    }
+    if (body.op === "showcase_eligible") {
+      // WS-R72. The Share tab's "Pick from your reviews" - a READ, never a
+      // write, so it carries no card id and touches nothing `showcase_set`
+      // does not already touch on its own write path.
+      const cards = await readEligibleShowcaseCards(q, user.id, body.replica_id);
+      return res.status(200).json({ cards });
     }
     if (body.op === "generate") {
       const controller = new AbortController();

@@ -11061,3 +11061,27 @@ n = 979 Hindi strings (759 studio, 220 Room), method: `node scripts/check-layout
 | U+FDD0 U+FDD1 U+FDD2 (control) | none | not applicable | yes | not run | uniform, as required |
 
 Every other string: unchanged (the uniformity half only narrows findings; a string the width diff passed is untouched). The finding reproduced identically on two runs 20 minutes apart, so it was not a load or font-loading flake (`rejected.md#glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words`). Not measured: real tofu on this machine (every installed face has Devanagari, so a missing webfont still renders letters here; the control is the only proof the detector would see it).
+
+## `ws-r72-review-queue-eval-129-of-129-2026-09-05`
+
+n = 129 checks (was 117 before this workstream, +12: `readEligibleShowcaseCards`
+positive read, a static WHERE-clause predicate check, an owner-scope
+negative control; `dismissFlaggedReply` positive dismissal, not-found
+refusal, owner-scope negative control, malformed-hash refusal;
+`neverRuleFromFlaggedReply` positive plus a NEW cross-owner negative control
+`evals/room-flags/run.mjs` did not yet carry). Method: `node
+evals/review-queue/run.mjs`, offline, deterministic, $0, against the fake
+database this suite already drives `api/_review-queue.js` through. Date
+2026-09-05. Result: 129/129 passed.
+
+## `ws-r72-room-doors-battery-549-of-549-2026-09-05`
+
+n = 549 checks (was 544 before this workstream's two new owner-bearer
+cases: `showcase_eligible` positive read plus cross-owner negative control,
+2 checks; `flag_dismiss` cross-owner refusal, unchanged-state check, and
+the real owner's own dismissal succeeding, 3 checks). Method: `node
+evals/room-doors/run.mjs`, offline, deterministic, $0, against
+`evals/room-doors/fixtures.mjs`'s fake database. Date 2026-09-05. Result:
+549/549 passed, all eight attack classes still exercised, zero uncased
+ops (`api/review-queue.js` remains deliberately outside the discovered
+door list, `ws-r72-review-queue-js-kept-outside-the-door-battery`).
