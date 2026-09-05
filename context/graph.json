@@ -9550,6 +9550,42 @@
       "kind": "rejection",
       "title": "Two rollupOptions.input keys pointing at the identical studio.html path do not produce two HTML outputs: Rollup keys an HTML entry by resolved file path, not the input key name, so the second key only orphaned a tiny JS facade chunk.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r110-room-telegram-voice-defaults-on-no-persisted-per-follower-toggle",
+      "kind": "decision",
+      "title": "Telegram voice replies deliver automatically (tier+ROOM_VOICE+ceiling only); no persisted per-follower /voice on|off toggle exists \u2014 no available column, no migration in this workstream.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r110-telegram-sendvoice-codec-requirement-not-live-verified",
+      "kind": "decision",
+      "title": "Telegram sendVoice is sent as a real WAV container over the voice multipart field; whether Telegram renders WAV (vs requiring OGG/Opus) as a playable voice message is unverified \u2014 the fetch tool truncates core.telegram.org/bots/api before sendVoice's own table.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r110-room-telegram-voice-preference-no-available-column",
+      "kind": "rejection",
+      "title": "Searched vy_room_follower_channel (checkins_enabled, stopped_code) and vy_room_follower (settings_reviewed_at) for a reusable JSON/flag column for a voice preference; both are committed to a different meaning. No column, no migration in this workstream \u2014 logged rather than repurposed.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r110-room-telegram-voice-evals-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/room-telegram-voice/run.mjs: 55 assertions, 0 failures. evals/room-telegram/run.mjs extended: 67 total (61 pre-existing + 6 new), 0 failures. Both offline, deterministic, $0.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r110-explaining-a-rejected-column-by-name-trips-the-leak-battery",
+      "kind": "rejection",
+      "title": "A doc-comment naming vy_room_follower_channel/vy_room_follower by literal identifier tripped room-leak's substring completeness sweep even though _room-telegram.js reads neither table directly; fixed by paraphrasing the comment, not weakening the sweep.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r110-voice-command-coverage-lives-in-room-telegram-not-room-doors",
+      "kind": "decision",
+      "title": "/voice on|off's no-quota-spend property is proven in evals/room-telegram(-voice)/run.mjs against the real Telegram fixture world, not added to evals/room-doors/run.mjs \u2014 room-tg.js reads no op literal (OP_COVERAGE has no seam) and /voice takes no cross-identity input.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18652,6 +18688,36 @@
       "src": "ws-r107-first-hindi-paint-after-preload-2026-09-05",
       "rel": "caused_by",
       "dst": "ws-r107-hindi-preload-is-a-conditional-inline-script-not-a-second-entry"
+    },
+    {
+      "src": "ws-r110-room-telegram-voice-defaults-on-no-persisted-per-follower-toggle",
+      "rel": "caused_by",
+      "dst": "ws-r110-room-telegram-voice-preference-no-available-column"
+    },
+    {
+      "src": "ws-r110-room-telegram-voice-defaults-on-no-persisted-per-follower-toggle",
+      "rel": "measured_by",
+      "dst": "ws-r110-room-telegram-voice-evals-2026-09-05"
+    },
+    {
+      "src": "ws-r110-telegram-sendvoice-codec-requirement-not-live-verified",
+      "rel": "constrains",
+      "dst": "ws-r110-room-telegram-voice-defaults-on-no-persisted-per-follower-toggle"
+    },
+    {
+      "src": "ws-r110-room-telegram-voice-defaults-on-no-persisted-per-follower-toggle",
+      "rel": "part_of",
+      "dst": "ws-r18-room-telegram"
+    },
+    {
+      "src": "ws-r110-room-telegram-voice-preference-no-available-column",
+      "rel": "caused_by",
+      "dst": "ws-r110-explaining-a-rejected-column-by-name-trips-the-leak-battery"
+    },
+    {
+      "src": "ws-r110-voice-command-coverage-lives-in-room-telegram-not-room-doors",
+      "rel": "part_of",
+      "dst": "ws-r18-room-telegram"
     }
   ]
 }

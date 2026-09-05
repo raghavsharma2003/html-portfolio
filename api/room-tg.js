@@ -26,6 +26,69 @@ import { consume } from "./_rate-limit.js";
 import { q } from "./_db.js";
 import { verifyRoomTelegramWebhook, handleRoomTelegramUpdate } from "./_room-telegram.js";
 import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
+// WS-R110: the SAME real voice wiring api/room.js's own "speak" op
+// constructs for the web Room - reused, never forked. Unlike that op
+// (asked for on demand, one follower click at a time), a Telegram voice
+// reply is automatic, so this door hands `_room-telegram.js` a FACTORY
+// (`buildVoiceDeps`, below) rather than the constructed objects themselves
+// - `attemptRoomVoiceDelivery`'s own header on why: nothing here is built
+// on `/start`, `/forget`, or any update that never reaches voice at all.
+import { createProductionProtectionAdapters } from "./_provenance/registry.js";
+import { protectReplicaStream } from "./_provenance/delivery.js";
+import { createOpenChatterboxPreviewProvider } from "./_voice/providers/open-chatterbox-preview.js";
+import { createNeonVoicePreviewLedger } from "./_replica-voice-preview.js";
+import { readPrivateReplicaObject } from "./_replica-storage.js";
+
+/**
+ * `api/room.js`'s own "speak" op, verbatim (`provider.synthesizePreview`
+ * fed by `readPrivateReplicaObject`, `protectReplicaStream` fed by
+ * `createProductionProtectionAdapters`/`createNeonVoicePreviewLedger`) -
+ * reused rather than re-derived, so the two transports can never quietly
+ * diverge on what "real voice wiring" means. Construction itself can throw
+ * (an absent `AZURE_OPEN_VOICE_ORIGIN` or HMAC secret, `api/room.js`'s own
+ * comment on this exact call) - caught here and folded into "nothing
+ * built", so `roomSpeak` takes its OWN, already-named `room_voice_
+ * unconfigured` branch rather than this door ever answering a webhook with
+ * anything but 200 (this file's own header, "Always 200").
+ */
+function buildRoomVoiceDeps() {
+  try {
+    const provider = createOpenChatterboxPreviewProvider();
+    const protection = createProductionProtectionAdapters({ db: q });
+    return {
+      synth: async ({ authorized, text: spoken }) => {
+        const stored = await readPrivateReplicaObject(authorized.reference, {
+          maxBytes: 20 * 1024 * 1024,
+          timeoutMs: 30_000,
+        });
+        return provider.synthesizePreview({
+          requestId: authorized.generation.generation_id,
+          text: spoken,
+          languageId: authorized.generation.preview_language_id,
+          seed: authorized.previewSeed,
+          reference: {
+            bytes: stored.body,
+            sha256: authorized.reference.sha256,
+            durationMs: authorized.reference.durationMs,
+            languageMode: authorized.reference.languageMode,
+            languageEvidenceScope: authorized.reference.languageEvidenceScope,
+          },
+          style: {
+            exaggeration: authorized.previewStyle.exaggeration,
+            cfgWeight: authorized.previewStyle.cfg_weight,
+            temperature: authorized.previewStyle.temperature,
+          },
+        });
+      },
+      protect: (input) => protectReplicaStream({
+        ...input,
+        adapters: Object.freeze({ ...protection, ledger: createNeonVoicePreviewLedger(q) }),
+      }),
+    };
+  } catch {
+    return {};
+  }
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
@@ -52,7 +115,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const out = await handleRoomTelegramUpdate(req.body || {}, { db: q });
+    // WS-R110: `buildVoiceDeps` is a FACTORY, called only if and when
+    // `attemptRoomVoiceDelivery` actually decides to attempt a clip
+    // (`ROOM_VOICE=1`, a non-empty reply) - never eagerly on every update.
+    const out = await handleRoomTelegramUpdate(req.body || {}, { db: q, buildVoiceDeps: buildRoomVoiceDeps });
     return res.status(200).json({ ok: true, handled: out?.ok !== false });
   } catch (e) {
     console.error("[room-tg] handler failure:", e?.message || "unknown");

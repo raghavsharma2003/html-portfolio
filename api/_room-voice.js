@@ -132,6 +132,47 @@ function fail(code, status, details) {
  * whose creator has not finished building a voice is "us", never a fault of
  * the follower who asked to hear it.
  */
+// ═════════════════════════════════════════════════════════════════════════
+// WS-R110: a CONTAINER for the SAME bytes, never a second synthesis path
+// ═════════════════════════════════════════════════════════════════════════
+//
+// `roomSpeak` returns raw `pcm_s16le` samples with no container at all
+// (`VOICE_PCM_FORMAT`, api/_voice/contracts.js) — the shape the web Room's
+// own client already assumes when it builds `data:audio/wav;base64,...`
+// (src/room/RoomApp.tsx), which a browser's `<audio>` element tolerates far
+// more permissively than a dedicated Bot API client does. Telegram's
+// `sendVoice` needs an actual audio FILE, not a bare sample stream, so this
+// wraps the exact same bytes in a minimal, standard 44-byte WAV header —
+// deterministic, lossless, and never touching a single sample: any
+// watermark verification that walks PAST byte 44 sees precisely the bytes
+// `protectReplicaStream` produced, untouched. This is a container, not a
+// re-encode — `roomSay`/`roomSpeak`'s own law ("never a second synthesis
+// path") is about NOT calling a model or a provider a second time, and
+// nothing here does either.
+export function pcmToWavBuffer(pcm, format = {}) {
+  const numChannels = Number(format.channels) > 0 ? Number(format.channels) : 1;
+  const sampleRate = Number(format.sampleRate) > 0 ? Number(format.sampleRate) : 24_000;
+  const bitsPerSample = 16; // pcm_s16le — VOICE_PCM_FORMAT's own, only, encoding
+  const blockAlign = (numChannels * bitsPerSample) / 8;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = pcm.length;
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0, "ascii");
+  header.writeUInt32LE(36 + dataSize, 4);
+  header.write("WAVE", 8, "ascii");
+  header.write("fmt ", 12, "ascii");
+  header.writeUInt32LE(16, 16); // PCM fmt sub-chunk size
+  header.writeUInt16LE(1, 20); // audio format 1 = PCM, no compression
+  header.writeUInt16LE(numChannels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write("data", 36, "ascii");
+  header.writeUInt32LE(dataSize, 40);
+  return Buffer.concat([header, pcm]);
+}
+
 export async function authorizeRoomVoice(db, ownerUserId, { replicaId, text, traceId } = {}) {
   const cleaned = cleanVoicePreviewText(text);
   const genomeVersion = await latestDraftGenomeVersion(db, replicaId);
