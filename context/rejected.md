@@ -12852,3 +12852,119 @@ shape is the existing precedent to copy) and re-runs
 `materialBoundaryStatus` against the real compiled prompt, measuring
 `"contained"` rather than `"fused"` on some non-zero fraction of the 41
 entries.
+
+## `ws-r108-full-fixture-seeding-for-readable-export-completeness` (2026-09-05, WS-R108)
+
+**Considered, and abandoned before being written.** The natural-looking way
+to prove "every table `roomExportManifest()` can name gets a section in the
+readable page" is the DYNAMIC one `evals/room-export/run.mjs`'s own layer 2
+already models: seed one follower's fixture world with real content in
+every one of the (now 46, not the 11 the oldest comments still say)
+manifest tables, run the real `roomExport()`, and assert the rendered
+document has a section named after each. This was the first plan for
+`evals/room-export-readable/run.mjs`'s own completeness proof, and it was
+dropped after actually reading `evals/room-export/fixtures.mjs` (WS-R27's
+own wrapper) rather than assuming it would cover what was needed.
+
+**What made it impractical, read from the fixture rather than guessed.**
+`evals/room-export/fixtures.mjs`'s `exportDb` models exactly ten of the
+fourteen `ROOM_EXPORT_EXTRA` tables (its own header still says "nine",
+written before WS-R67's tenth) — `vy_receipt` (WS-R100), `vy_room_follower_
+whatsapp` (WS-R29's masked-phone shape), `vy_renewal_reminder` (WS-R37) and
+`vy_room_referral` (WS-R86) are ALL absent, each one built for a different
+workstream's own suite (`evals/room-doors`, `evals/room-referrals`, ...)
+that seeds it a different way for a different purpose. `evals/room/
+fixtures.mjs`'s base `fakeDb` models exactly one of the 27 `vy_*`
+relationship-graph tables (`vy_fact`, standing in "for all of the manifest
+lanes" per its own comment — a stand-in for TESTING PURPOSES, not a promise
+every table has real content). Seeding the other 30 tables for one suite's
+own completeness proof would have meant either writing 30 new fixture
+branches into a file this workstream's brief does not list
+(`evals/room-export/fixtures.mjs`, owned by WS-R27 and read by three OTHER
+suites this workstream was told not to risk regressing — that file's own
+header names exactly this risk for a smaller change than this one would
+have been), or a brand-new fixture file duplicating logic four existing
+files already own correctly for their own purposes.
+
+**What replaced it.** `roomExportManifest()` needs no database at all — its
+only external dependency is `deps.personTables`, and the `ROOM_EXPORT_EXTRA`/
+`vy_room_referral` names are static constants in `api/_room-surface.js` — so
+the list of every table the readable builder must be able to explain is
+fully known WITHOUT running a single query. A direct name-list diff against
+`TABLE_COPY` proves the identical completeness claim for a fraction of the
+code, with a genuine RUNTIME negative control (a table absent from
+`TABLE_COPY` throws, named) proved separately at the actual builder function
+a live request calls, needing no seeded content either
+(`context/decisions.md#ws-r108-readable-export-completeness-proved-by-static-list-diff-not-full-fixture-seeding`).
+The dynamic, real-`roomExport()` half of the suite still exists, but scoped
+to what it actually needs to prove (rendering, the language walk, and the
+cross-follower leak check) rather than full manifest coverage — seeded with
+just `vy_fact` and `vy_room_handoff`, the two tables the existing fixtures
+already model with distinguishable, follower-specific content.
+
+**The rule.** Before choosing a DYNAMIC (seed-and-render) proof over a
+STATIC (list-diff) one for a completeness claim, check whether the thing
+being proven complete is itself computable without a database — when it is,
+the static proof is strictly cheaper, has no fixture-drift risk, and does
+not require extending a shared fixture file another suite already owns for
+a different reason.
+
+## `ws-r108-table-copy-as-a-keyed-object-failed-the-leak-batterys-static-reach-layer` (2026-09-05, WS-R108)
+
+**Tried.** `api/_room-export-readable.js`'s `TABLE_COPY` was first written
+as a plain object keyed by table name (`{ vy_room_checkin: { en: "...", hi:
+"..." }, ... }`), the obvious shape for a name-to-sentence lookup and the
+shape every draft of this file carried through its own offline eval passing
+174/174.
+
+**What broke.** `node scripts/verify-release.mjs`'s "eval suite" and "room
+leak battery" gates both failed on the first full run against the real,
+committed tree — three separate checks inside `evals/room-leak/run.mjs`,
+none of them touched by this workstream's own new eval: "no file outside
+the allowed set reads the Room's follower/thread tables", "no file outside
+Handoff's own lane reads or writes vy_room_handoff", and the generalized
+static reach layer's own `world: ... finds zero problems across every table
+it knows about`, flagging `_room-export-readable.js` on fifteen different
+tables as `unsafe-line`. `evals/room-leak/world.mjs`'s `staticReachProblems`
+scans every `api/*.js` file's SOURCE TEXT for any line naming a Room-scoped
+table, and — for a file that is neither a listed SQL "owner" nor an
+"aggregateOnly" reader of that table — requires every such line to match one
+of a short list of known-safe shapes (a comment, `delete from`, an
+`isTableAppliedFor` guard, or a manifest-entry shape: `table:\s*"vy_` or a
+bare `"vy_...",` on its own line). A plain object key (`vy_room_checkin: {`)
+matches NONE of those shapes: it is not a comment, not SQL, and not the
+`table: "vy_..."` manifest pattern the check was specifically built to admit
+for exactly this class of file (`ROOM_EXPORT_EXTRA` in `_room-surface.js`
+already relies on that same admission for its own manifest entries).
+`vy_room_handoff` carries an even stricter, hand-typed check with no
+pattern-matching fallback at all — any file outside two small named sets is
+flagged outright, full stop, requiring the file to be added by name rather
+than merely shaped safely.
+
+**What replaced it.** `TABLE_COPY` became an ARRAY of `{ table: "vy_...",
+en, hi }` entries — `ROOM_EXPORT_EXTRA`'s own shape, one indirection wider,
+with a small `Map` built once (`tableCopyFor`) for O(1) lookup rather than a
+linear `.find()` per render. Every line now naming a table is exactly
+`{ table: "vy_room_checkin",`, which matches `table:\s*"vy_` and passes the
+generalized layer for all 44 tables with no further edit anywhere. The two
+tables with their OWN hand-typed checks (`vy_room_thread`/`vy_room_follower`'s
+`ALLOWED` set, `vy_room_handoff`'s `ALLOWED`/`DELETE_ONLY` sets, both in
+`evals/room-leak/run.mjs`) still needed `_room-export-readable.js` added by
+name — `decisions.md#ws-r108-readable-export-locale-from-selfscopes-locale-not-the-session-token`'s
+own sibling decision names why that is a correct, narrow addition rather
+than scope creep: the file is a pure function of `roomExport`'s
+already-scoped return value, with no `db` parameter and no way to reach a
+row it was not already handed, which is a STRONGER guarantee than several
+existing members of those same sets already carry.
+
+**The rule.** A new file that names a Room-scoped table only as a STRING
+(a lookup key, a manifest entry, a log line) rather than in a SQL statement
+should shape that reference as `{ table: "vy_the_name", ... }` — an array
+entry, never a bare object key — from the first draft, matching
+`ROOM_EXPORT_EXTRA`'s own precedent, so `evals/room-leak`'s static reach
+layer admits it without a hand-typed exception. Run the FULL release gate
+(or at minimum `node evals/room-leak/run.mjs`) before considering a new
+`api/` file finished, even one that touches no database at all — an
+offline, deterministic suite testing the new file in isolation cannot catch
+a cross-file static scan that only runs when every `api/*.js` file is read
+together.

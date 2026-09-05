@@ -2514,6 +2514,17 @@ export async function roomExport(db, { session }, deps = {}) {
       "Everything this creator's AI holds about you. Your account, your device " +
       "links and your conversations with other creators are not in here because " +
       "this creator's AI does not hold them.",
+    // WS-R108: `who.locale` is `selfScope`'s own re-read of THIS follower's
+    // CURRENT `vy_room_follower.locale`, never the session token's own `loc`
+    // (which is only ever refreshed at join time - `roomSetLocale` updates the
+    // row without reissuing the token, this file's own header for that op
+    // explains why). `api/_room-export-readable.js`'s builder takes this
+    // field rather than re-deriving locale from the session itself, so the
+    // readable copy renders in whatever language the follower is reading the
+    // rest of this room in RIGHT NOW, not whatever it was when their session
+    // was minted - and so the builder stays a pure function of this object
+    // alone, never a second reader of `session`.
+    locale: who.locale,
     tables,
   };
 }

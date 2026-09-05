@@ -18537,3 +18537,77 @@ labelled material block for sheet-authored content (the fix this decision
 explicitly does NOT attempt), re-run `materialBoundaryStatus` against the
 real compiled prompt and expect `"contained"` rather than `"fused"` — a
 change from today's 0/41 would be the signal that fix landed.
+
+## `ws-r108-readable-export-locale-from-selfscopes-locale-not-the-session-token` (2026-09-05, WS-R108)
+
+**Decision.** `roomExport()`'s (`api/_room-surface.js`) return object gained
+one field, `locale: who.locale` — `selfScope`'s own re-read of THIS
+follower's CURRENT `vy_room_follower.locale` row, captured before `roomForget`
+would delete it (the comment right above it, WS-R24, restated for a reader
+rather than a writer). `api/_room-export-readable.js`'s builder takes this
+field to pick which locale to render in, rather than reading the session
+token's own `payload.loc` or re-deriving locale a second way.
+
+**Why.** `payload.loc` is frozen at session-mint time and is never reissued
+by `roomSetLocale` (that op updates the DB row and returns fresh disclosure
+text, but mints no new token — `api/_room-surface.js`'s own `roomSetLocale`
+function, read in full before this decision was made). A session is valid
+for up to 12 hours, so a follower who switches language mid-session and then
+opens their readable export minutes later would get a page in the language
+they left, not the one they are currently reading the rest of the room in,
+if the builder trusted the token. Reading `who.locale` costs nothing extra —
+`selfScope` already computed it for every caller of `roomExport`/`roomForget`
+— and keeps the builder a pure function of the export object alone (the
+workstream brief's own law: "never a second read of any table"), rather than
+handing it the raw `session` string and letting it decode locale itself,
+which would have made it a session-consuming function like every OTHER
+decision in `_room-surface.js` instead of the pure, table-free renderer the
+brief specifically asked for.
+
+**Reversal.** If a future workstream mints a fresh session token on every
+`roomSetLocale` call (closing the staleness gap at the SOURCE rather than by
+reading the row), `who.locale` and `payload.loc` become identical in every
+real case and this decision has no remaining cost either way — but the
+builder should still prefer `who.locale`/the export object's own field
+rather than start decoding `session` itself, since a pure builder with no
+session-decoding import is what keeps `evals/room-export-readable/run.mjs`
+able to test it with a plain object literal instead of a minted token.
+
+## `ws-r108-readable-export-completeness-proved-by-static-list-diff-not-full-fixture-seeding` (2026-09-05, WS-R108)
+
+**Decision.** `evals/room-export-readable/run.mjs` proves every table
+`roomExportManifest()` can name has a sentence in `api/_room-export-
+readable.js`'s `TABLE_COPY` (both locales) by comparing the two NAME LISTS
+directly — `roomExportManifest({ personTables: async () => PERSON_TABLES })`
+against `Object.keys(TABLE_COPY)` — rather than by seeding a fixture world
+with real content in all 46 tables and checking that every one lands in a
+rendered document's own sections.
+
+**Why.** `roomExportManifest()` needs no database at all (`roomScopedTables`'s
+only external dependency is `deps.personTables`, and the eleven-plus
+`ROOM_EXPORT_EXTRA`/`vy_room_referral` names are static constants in the same
+file) — the list of every table the builder must be able to explain is fully
+known WITHOUT ever running a query, so a name-list diff proves the same
+completeness a seeded-and-rendered world would, for a fraction of the code
+and with zero dependency on any OTHER suite's fixture continuing to model a
+table it has no independent reason to model (`evals/room-export/fixtures.mjs`
+covers ten of the fourteen `ROOM_EXPORT_EXTRA` tables, built for WS-R27's own
+purposes long before this workstream existed — leaning on it to also cover
+`vy_receipt`/`vy_room_follower_whatsapp`/`vy_renewal_reminder`/
+`vy_room_referral` would have meant either extending a file this workstream's
+brief does not list, or silently accepting weaker coverage of exactly the
+four newest, least-tested extras). The RUNTIME half of the same guarantee —
+that a table present in a real export but absent from `TABLE_COPY` fails
+loudly rather than rendering an incomplete page — is proved separately and
+directly, by calling `buildRoomExportReadableHtml` with a fabricated table
+name and asserting it throws, named (`evals/room-export-readable/run.mjs`
+§2) — this is the actual code path a live request goes through, and it does
+not depend on any fixture modelling any table's content at all.
+
+**Reversal.** If `roomExportManifest()` ever grows a genuine dependency on
+live data (not merely on migration-applied state, which `tableApplied` mocks
+today) such that its output cannot be computed offline, this decision's
+"needs no database at all" premise breaks and the static list-diff would
+need to fall back to a schema-scan approach instead, `evals/room-export/
+run.mjs`'s own layer-1 static check (against the checked-in DDL) rather than
+against the manifest function directly.

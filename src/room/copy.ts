@@ -596,6 +596,16 @@ const EN = {
   about: {
     linkLabel: "What this AI knows about you",
   },
+
+  /** WS-R108. The account page's second export control, next to
+   *  `menu.download`: the same data, laid out to read rather than to
+   *  parse - `api/_room-export-readable.js` builds the page server side,
+   *  this file only ever names the button. Busy state reuses `pay.working`
+   *  (`menu.download`'s own precedent) rather than a new key. */
+  exportReadable: {
+    open: "Open a readable copy",
+    openNote: "The same information as the download, laid out to read and print.",
+  },
 };
 
 /** The same shape as `EN`, in plain, functional Hindi (Devanagari). Written
@@ -936,6 +946,11 @@ const HI: typeof EN = {
 
   about: {
     linkLabel: "यह AI आपके बारे में क्या जानता है",
+  },
+
+  exportReadable: {
+    open: "पढ़ने लायक कॉपी खोलें",
+    openNote: "डाउनलोड जैसी ही जानकारी, पढ़ने और प्रिंट करने के लिए तैयार।",
   },
 };
 

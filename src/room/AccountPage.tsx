@@ -34,6 +34,7 @@ import {
   roomReferralLink,
   listReceipts,
   fetchReceiptHtml,
+  fetchRoomExportReadableHtml,
   type RoomFlag,
   type RoomForgetReceipt,
   type RoomSettings,
@@ -407,6 +408,31 @@ export default function AccountPage({
     }
   }, [auth, fixtureSettings, session, copy]);
 
+  /** WS-R108. `download` above turns the same op's JSON into a file; this
+   *  turns its `format:"html"` twin into a page a follower can actually
+   *  read - `printReceipt`'s own `window.open` shape below, since a POST
+   *  response has no URL a browser can navigate to on its own. No inline
+   *  script is written into that window (the builder's own "no script"
+   *  law): there is nothing here for `win.document.write` to attach an
+   *  event handler to, unlike the receipt's own print button. */
+  const openReadable = useCallback(async () => {
+    if (!auth || fixtureSettings) return;
+    setBusy("export_readable");
+    setError("");
+    try {
+      const html = await fetchRoomExportReadableHtml(session, auth.accessToken);
+      const win = window.open("", "_blank");
+      if (!win) throw new Error("popup_blocked");
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    } catch {
+      setError(copy.errors.generic);
+    } finally {
+      setBusy(null);
+    }
+  }, [auth, fixtureSettings, session, copy]);
+
   const confirmForget = useCallback(async () => {
     if (!auth || fixtureSettings) return;
     setBusy("forget");
@@ -681,6 +707,20 @@ export default function AccountPage({
           {busy === "export" ? copy.pay.working : copy.menu.download}
         </button>
         <p className="room-fine">{copy.menu.downloadNote}</p>
+
+        {/* WS-R108. The same data as the button above, laid out to read
+            rather than to parse - `api/_room-export-readable.js` builds the
+            page; this button only ever opens it. */}
+        <button
+          type="button"
+          className="room-btn"
+          disabled={busy === "export_readable" || !auth}
+          onPointerDown={() => void openReadable()}
+          onKeyDown={activateOnKey(() => void openReadable())}
+        >
+          {busy === "export_readable" ? copy.pay.working : copy.exportReadable.open}
+        </button>
+        <p className="room-fine">{copy.exportReadable.openNote}</p>
 
         {!confirmingForget ? (
           <button

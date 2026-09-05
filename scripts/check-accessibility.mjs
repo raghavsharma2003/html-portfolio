@@ -1008,6 +1008,59 @@ async function main() {
     await ctx.close();
   }
 
+  // ── the follower's READABLE export (WS-R108): `format:"html"` on the
+  // session-scoped `export` op has no client app to navigate to either -
+  // the creator-page/room-about blocks' own reason, restated a third time -
+  // so this calls the REAL, shipping `buildRoomExportReadableHtml`
+  // (`api/_room-export-readable.js`) directly, fed a representative export
+  // object covering every one of `roomExport`'s three row/count/masked-phone
+  // shapes plus a follower-typed handoff message, requested in Hindi - the
+  // language walk below is the entire reason this target exists: every
+  // column header is a raw, Latin-script DB identifier and every data cell
+  // is arbitrary content, both tagged per-node rather than trusted from the
+  // document's own `lang`, `api/_room-export-readable.js`'s own header names
+  // why.
+  if (!targetFilter || targetFilter === "room-export-readable") {
+    const { buildRoomExportReadableHtml } = await import(
+      pathToFileURL(join(ROOT, "api/_room-export-readable.js")).href
+    );
+    const fixtureExport = {
+      room: "anjali",
+      exported_at: "2026-09-05T10:00:00.000Z",
+      tables: {
+        vy_room_thread: [{ thread_id: "11111111-0000-4000-a000-000000000001", title: "getting started", created_at: "2026-09-01T00:00:00.000Z" }],
+        vy_room_handoff: [{ handoff_id: "11111111-0000-4000-a000-000000000002", payload_text: "please can a human reply", state: "sent" }],
+        vy_room_follower_day: { count: 3 },
+        vy_room_follower_whatsapp: { count: 1, state: "active", phone_masked: "+91 ••••••56" },
+      },
+    };
+    const html = buildRoomExportReadableHtml(fixtureExport, "hi");
+    const where = "room-export-readable:hi";
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await ctx.newPage();
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
+    await page.addScriptTag({ content: axeSource });
+    const result = await page.evaluate(
+      (tags) => window.axe.run(document, { runOnly: { type: "tag", values: tags } }),
+      AXE_TAGS,
+    );
+    pagesScanned++;
+    for (const v of result.violations) {
+      counts[v.impact] = (counts[v.impact] || 0) + 1;
+      axeFindings.push({
+        where, impact: v.impact, id: v.id, help: v.help,
+        nodesTotal: v.nodes.length,
+        nodes: v.nodes.map((n) => n.target.join(" ")),
+        detail: v.nodes.map((n) => n.failureSummary || "").filter(Boolean),
+      });
+    }
+    const langResult = await page.evaluate(langTagAudit);
+    devanagariNodesTotal += langResult.devanagariNodes;
+    taggedHiElementsTotal += langResult.taggedHiElements;
+    for (const f of langResult.findings) langFindings.push({ where, ...f });
+    await ctx.close();
+  }
+
   await browser.close();
   server.close();
   const runtimeMs = Date.now() - t0;

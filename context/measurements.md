@@ -12817,3 +12817,101 @@ beside a hostile pattern's own trigger word. The number is still small
 creator's archive; `decisions.md#ws-r105-no-material-instruction-boundary-mitigated-at-ingest-not-runtime`
 names the larger-corpus re-measurement this number needs before it gates a
 shipped review-card kind.
+
+## `ws-r108-readable-export-completeness-2026-09-05` — 46/46 manifest tables covered, 0 missing, 0 orphan
+
+**n = 46 (every table name `roomExportManifest()` returns against the real,
+un-mutated `PERSON_TABLES`), method: `Object.keys(TABLE_COPY)` (`api/
+_room-export-readable.js`) diffed against `roomExportManifest({personTables:
+async () => PERSON_TABLES})` in both directions, offline, no database; date
+2026-09-05, `evals/room-export-readable/run.mjs` §1.** Every one of the 46
+carries a non-empty English AND Hindi sentence, and every EN/HI pair was
+asserted to actually differ (not a shared, untranslated placeholder) — 138
+assertions from this one loop alone. The manifest itself is 31 agent-scoped
+`PERSON_TABLES` entries (`meera_log`/`meera_nodes`/`meera_edges`/
+`meera_forget` plus 27 `vy_*` relationship-graph tables) plus 14
+`ROOM_EXPORT_EXTRA` entries plus `vy_room_referral` — 46, not the 11 the
+oldest in-repo comments on `ROOM_EXPORT_EXTRA` still say (WS-R27's original
+nine, then WS-R67/WS-R100 raised it to fourteen without updating every prose
+count nearby; this measurement is against the REAL array's own length, never
+a comment).
+
+## `ws-r108-readable-export-eval-2026-09-05` — 174 assertions, 0 failures, offline, deterministic
+
+**n = 174, method: `node evals/room-export-readable/run.mjs` (also runnable
+as `node evals/run.mjs room-export-readable`), a full run against the real
+`api/_room-export-readable.js` and `api/_room-surface.js` with a fake `db`;
+date 2026-09-05.** Covers static completeness (see the entry above), the
+runtime negative control (a table absent from `TABLE_COPY` throws, named),
+both locales rendered from one real `roomExport()` output with no
+`<script>`/external resource and the correct `<html lang>`, the offline
+language walk (every rendered `<th>`/`<td>`/`<span>` tagged, 60 nodes
+checked on the Hindi render of one seeded follower, 0 mismatches), and the
+two-follower cross-export byte check (5 assertions: neither follower's page
+contains the other's secret token or person id). Two negative controls
+beyond the workstream brief's own one both fired correctly: a struck
+`TABLE_COPY` entry is caught by the static diff, and a deliberately
+mistagged `lang` attribute is caught by the language walk.
+
+## `ws-r108-readable-export-room-doors-case-2026-09-05` — 8 new assertions added to the door battery, 729/729 total, 0 failures
+
+**n = 8 new + 721 pre-existing = 729, method: `node evals/room-doors/
+run.mjs` full run; date 2026-09-05.** The new §17f case proves (statically)
+`api/room.js`'s `format:"html"` branch on `op:"export"` reads only the
+already-authorized `out`, is gated to `op==="export"` alone, and sits after
+both the bearer/session mismatch check and the `roomExport`/`roomForget`
+call; and (dynamically) that the real builder composes with a real
+`roomExport()` over one real follower's session with no throw, and that two
+followers in the same room each get a readable page carrying nothing about
+the other.
+
+## `ws-r108-accessibility-target-2026-09-05` — 0 findings, 1 page, both audits
+
+**n = 1 (the new `room-export-readable:hi` target), method:
+`node scripts/check-accessibility.mjs --target room-export-readable`
+(axe-core against WCAG 2.1 A/AA tags, plus the lang-tag walk) against a
+representative fixture covering all three `roomExport` shapes (rows, count,
+masked_phone) rendered in Hindi; date 2026-09-05.** 0 critical/serious/
+moderate/minor axe findings, 0 language-tag findings across 13 Devanagari
+text nodes checked (the page's own Hindi chrome, correctly inheriting
+`<html lang="hi">` with no per-node tag needed) and 0 own-attribute
+`lang="hi"` elements in this particular fixture (its data happens to be
+Latin-script throughout; a separate one-off manual check, not part of any
+gate, confirmed a genuinely Devanagari data cell IS tagged `lang="hi"`
+correctly even on an English-locale page).
+
+## `ws-r108-layout-gate-room-target-2026-09-05` — clean, no regression from the new account-page button
+
+**n = 1 full `--only room` run, method: `node scripts/check-layout.mjs
+--only room` (224 prose blocks across three viewport widths x thirteen
+screen states in both locales, 232 Hindi strings glyph-checked, no
+TAP-TARGET findings — `rejected.md#ws-r97-room-about-link-had-no-effect-
+until-given-its-own-display`'s own class of finding, checked for and absent
+here because the new "Open a readable copy" control is a real `<button
+className="room-btn">`, the same element and class the existing "download"
+button already uses); date 2026-09-05.**
+
+## `ws-r108-full-release-gate-2026-09-05` — 18/21 baseline, 21/21 after (second full run)
+
+**n = 3 full `node scripts/verify-release.mjs` runs on this workstream's own
+worktree, method: baseline (untouched tree, run before any edit) then two
+full runs on the changed tree, all on the shared build machine under
+wave-sixteen's own concurrent load (ten-plus sibling `verify-release.mjs`
+processes observed in `ps aux` throughout, load average 12-22); date
+2026-09-05.** Baseline: 18/21, three `EADDRINUSE` failures (layout
+readability 8931, performance budgets 8932, security headers 8934) — the
+documented sibling-worktree port collision, reproduced on the untouched
+tree, not this workstream's own finding. First run on the changed tree:
+also 18/21, but with THREE DIFFERENT, REAL failures this workstream caused
+and then fixed in the same session — `eval suite` and `room leak battery`
+(232/235, three static-reach-layer findings against the new
+`api/_room-export-readable.js`) plus `layout readability` (`EADDRINUSE`
+8931, environmental). Fixed
+(`rejected.md#ws-r108-table-copy-as-a-keyed-object-failed-the-leak-batterys-static-reach-layer`);
+`room leak battery` alone reconfirmed clean at 235/235 and the full
+`evals/run.mjs` registry (866 modules bundled, every suite including
+`room-leak` and `room-export-readable`) clean at exit 0. Second full run on
+the fixed tree: **21 of 21 passed**, no failures of any kind, contention
+included (`layout readability` 239329ms, `eval suite` 243829ms, both
+completed cleanly this run rather than colliding on a port). `node
+scripts/context.mjs --check`: clean, 1572 nodes / 1808 edges throughout.
