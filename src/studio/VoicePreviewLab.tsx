@@ -14,33 +14,48 @@ import {
   type VoicePreferenceChoice,
   type VoicePreferenceReason,
 } from "./voicePreviewApi";
+import { useStudioLocale } from "./localeContext";
+import type { StudioCopy } from "./copy";
 
-const STYLES = {
-  faithful: { label: "Faithful", copy: "Tighter identity and steadier pacing" },
-  balanced: { label: "Balanced", copy: "Natural delivery for everyday speech" },
-  expressive: { label: "Expressive", copy: "More emotional movement and risk" },
-} as const;
-type StyleKey = keyof typeof STYLES;
+type StyleKey = "faithful" | "balanced" | "expressive";
 type Preview = { url: string; generationId: string; modelCommitment: string; styleKey?: StyleKey };
-const CONDITION_LABELS: Record<string, string> = {
-  identity_anchor: "Identity anchor",
-  faithful: "Faithful",
-  steady_warm: "Steady warmth",
-  balanced: "Balanced",
-  warm_expressive: "Warm expression",
-  expressive: "Expressive",
-  animated: "Animated",
-};
+type VPC = StudioCopy["voicePreviewLab"];
 
-const PREFERENCE_REASONS: ReadonlyArray<{ value: VoicePreferenceReason; label: string }> = [
-  { value: "identity", label: "Voice identity" },
-  { value: "accent", label: "Accent" },
-  { value: "rhythm", label: "Rhythm" },
-  { value: "emotion", label: "Emotion" },
-  { value: "naturalness", label: "Naturalness" },
-  { value: "pronunciation", label: "Pronunciation" },
-  { value: "noise_or_artifact", label: "Fewer artifacts" },
-];
+function styleList(c: VPC): ReadonlyArray<{ key: StyleKey; label: string; copy: string }> {
+  return [
+    { key: "faithful", label: c.styleFaithfulLabel, copy: c.styleFaithfulCopy },
+    { key: "balanced", label: c.styleBalancedLabel, copy: c.styleBalancedCopy },
+    { key: "expressive", label: c.styleExpressiveLabel, copy: c.styleExpressiveCopy },
+  ];
+}
+
+/** `condition`/`champion_key` server codes -> plain-Hindi delivery-style
+ *  words a coach would understand, not a technical term-for-term gloss --
+ *  see `context/decisions.md#ws-r71-voice-lab-vocabulary`. */
+function conditionLabel(key: string, c: VPC): string {
+  const table: Record<string, string> = {
+    identity_anchor: c.conditionIdentityAnchor,
+    faithful: c.conditionFaithful,
+    steady_warm: c.conditionSteadyWarm,
+    balanced: c.conditionBalanced,
+    warm_expressive: c.conditionWarmExpressive,
+    expressive: c.conditionExpressive,
+    animated: c.conditionAnimated,
+  };
+  return table[key] || key;
+}
+
+function preferenceReasonList(c: VPC): ReadonlyArray<{ value: VoicePreferenceReason; label: string }> {
+  return [
+    { value: "identity", label: c.reasonIdentity },
+    { value: "accent", label: c.reasonAccent },
+    { value: "rhythm", label: c.reasonRhythm },
+    { value: "emotion", label: c.reasonEmotion },
+    { value: "naturalness", label: c.reasonNaturalness },
+    { value: "pronunciation", label: c.reasonPronunciation },
+    { value: "noise_or_artifact", label: c.reasonFewerArtifacts },
+  ];
+}
 
 const STARTERS = {
   en: "I know this voice is only a first draft. Listen for my rhythm, pauses, accent, and the way I hold the last word.",
@@ -52,6 +67,8 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
   replicaId: string;
   onAuthError: (cause: unknown) => void;
 }) {
+  const { t } = useStudioLocale();
+  const c = t.voicePreviewLab;
   const [review, setReview] = useState<ReplicaReview | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -81,7 +98,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
     try { setReview(await getReplicaReview(token, replicaId)); }
     catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "Voice preview status is unavailable");
+      setError(cause instanceof Error ? cause.message : c.errorStatusUnavailable);
     } finally { setLoading(false); }
   }, [onAuthError, replicaId, token]);
 
@@ -125,7 +142,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
       setPreview({ url: URL.createObjectURL(result.audio), generationId: result.generationId, modelCommitment: result.modelCommitment, styleKey });
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "The protected preview could not be generated");
+      setError(cause instanceof Error ? cause.message : c.errorPreviewNotGenerated);
     } finally { setGenerating(false); }
   }
 
@@ -148,7 +165,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
     } catch (cause) {
       if (left) URL.revokeObjectURL(left.url);
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
-      setPairError(cause instanceof Error ? cause.message : "The blind comparison could not be generated");
+      setPairError(cause instanceof Error ? cause.message : c.errorComparisonNotGenerated);
     } finally { setPairBusy(false); }
   }
 
@@ -172,7 +189,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
       await loadDelivery();
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
-      setPairError(cause instanceof Error ? cause.message : "The voice preference could not be secured");
+      setPairError(cause instanceof Error ? cause.message : c.errorPreferenceNotSecured);
     } finally { setPreferenceBusy(false); }
   }
 
@@ -184,7 +201,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
       await loadDelivery();
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
-      setPairError(cause instanceof Error ? cause.message : "Your voice delivery could not be frozen");
+      setPairError(cause instanceof Error ? cause.message : c.errorDeliveryNotFrozen);
     } finally { setDeliveryBusy(false); }
   }
 
@@ -203,7 +220,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
     } catch (cause) {
       if (left) URL.revokeObjectURL(left.url);
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
-      setPairError(cause instanceof Error ? cause.message : "The held-out comparison could not be generated");
+      setPairError(cause instanceof Error ? cause.message : c.errorHeldOutNotGenerated);
     } finally { setHoldoutBusy(false); }
   }
 
@@ -217,7 +234,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
       await loadDelivery();
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
-      setPairError(cause instanceof Error ? cause.message : "The held-out judgment could not be secured");
+      setPairError(cause instanceof Error ? cause.message : c.errorHeldOutJudgmentNotSecured);
     } finally { setHoldoutBusy(false); }
   }
 
@@ -230,7 +247,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
       await loadDelivery();
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
-      setPairError(cause instanceof Error ? cause.message : "The held-out result could not be finalized");
+      setPairError(cause instanceof Error ? cause.message : c.errorHeldOutResultNotFinalized);
     } finally { setHoldoutBusy(false); }
   }
 
@@ -238,38 +255,38 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
     <section className="voice-preview-lab" aria-labelledby="voice-preview-title">
       <div className="voice-preview-heading">
         <div>
-          <h2 id="voice-preview-title">Build a draft voice and compare two takes</h2>
-          <p>This private draft is for your ears and judgment. It cannot join calls or activate your AI.</p>
+          <h2 id="voice-preview-title">{c.title}</h2>
+          <p>{c.intro}</p>
         </div>
-        <button className="review-refresh" type="button" disabled={loading || generating || pairBusy} onClick={() => void load()}>{loading ? "Checking" : "Refresh draft"}</button>
+        <button className="review-refresh" type="button" disabled={loading || generating || pairBusy} onClick={() => void load()}>{loading ? c.checking : c.refreshDraft}</button>
       </div>
 
       <div className="voice-preview-workbench">
         <div className="voice-preview-compose">
           <div className="voice-preview-version">
-            <span>{draft ? `Draft voice model, version ${draft.version}` : "Draft required"}</span>
-            <small>{draft ? `${draft.embedding_families} identity models bound` : "Review and build your selected voice first"}</small>
+            <span>{draft ? c.draftVersionLabel.split("{n}").join(String(draft.version)) : c.draftRequired}</span>
+            <small>{draft ? c.identityModelsBound.split("{n}").join(String(draft.embedding_families)) : c.reviewFirst}</small>
           </div>
           <fieldset className="voice-preview-language">
-            <legend>Language</legend>
-            <button type="button" className={language === "en" ? "active" : ""} aria-pressed={language === "en"} onClick={() => changeLanguage("en")}>English</button>
-            <button type="button" className={language === "hi" ? "active" : ""} aria-pressed={language === "hi"} onClick={() => changeLanguage("hi")}>Hindi and Hinglish</button>
+            <legend>{c.languageLegend}</legend>
+            <button type="button" className={language === "en" ? "active" : ""} aria-pressed={language === "en"} onClick={() => changeLanguage("en")}>{c.languageEnglish}</button>
+            <button type="button" className={language === "hi" ? "active" : ""} aria-pressed={language === "hi"} onClick={() => changeLanguage("hi")}>{c.languageHindi}</button>
           </fieldset>
           <label className="voice-preview-script" htmlFor="voice-preview-text">
-            <span>What should the draft say?</span>
+            <span>{c.whatShouldDraftSay}</span>
             <textarea id="voice-preview-text" value={text} maxLength={600} rows={5} onChange={(event) => { setText(event.target.value); discardPair(); }} />
-            <small>{Array.from(text).length}/600 characters. The audible AI disclosure is added automatically.</small>
+            <small>{c.charactersLeft.split("{n}").join(String(Array.from(text).length))}</small>
           </label>
           <fieldset className="voice-preview-styles">
-            <legend>Delivery</legend>
-            {Object.entries(STYLES).map(([key, value]) => (
-              <button type="button" key={key} className={styleKey === key ? "active" : ""} aria-pressed={styleKey === key} onClick={() => setStyleKey(key as StyleKey)}>
-                <strong>{value.label}</strong><span>{value.copy}</span>
+            <legend>{c.deliveryLegend}</legend>
+            {styleList(c).map((style) => (
+              <button type="button" key={style.key} className={styleKey === style.key ? "active" : ""} aria-pressed={styleKey === style.key} onClick={() => setStyleKey(style.key)}>
+                <strong>{style.label}</strong><span>{style.copy}</span>
               </button>
             ))}
           </fieldset>
-          <button className="button primary-button voice-preview-generate" type="button" disabled={!draft || generating || pairBusy || !text.trim()} onClick={() => void generate()}>{generating ? "Protecting your preview" : "Generate private preview"}</button>
-          {generating && <p className="voice-preview-wait" role="status">The scale-to-zero voice lab may take a few minutes on its first run.</p>}
+          <button className="button primary-button voice-preview-generate" type="button" disabled={!draft || generating || pairBusy || !text.trim()} onClick={() => void generate()}>{generating ? c.protectingPreview : c.generatePreview}</button>
+          {generating && <p className="voice-preview-wait" role="status">{c.coldStartNotice}</p>}
           {error && <p className="inline-error" role="alert">{error}</p>}
         </div>
 
@@ -277,20 +294,20 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
           {preview ? (
             <>
               <div className="voice-preview-orbit" aria-hidden="true"><span /><span /><span /></div>
-              <h3>Your protected draft</h3>
-              <p>Listen once for identity, once for delivery, then change one control at a time.</p>
-              <audio controls autoPlay preload="metadata" src={preview.url}>Your browser cannot play this protected WAV.</audio>
+              <h3>{c.yourProtectedDraft}</h3>
+              <p>{c.listenOnceNote}</p>
+              <audio controls autoPlay preload="metadata" src={preview.url}>{c.audioFallback}</audio>
               <dl>
-                <div><dt>Disclosure</dt><dd>Audible</dd></div><div><dt>Watermarks</dt><dd>PerTh + AudioSeal</dd></div><div><dt>Provenance</dt><dd>C2PA signed</dd></div>
+                <div><dt>{c.disclosureRowLabel}</dt><dd>{c.disclosureRowValue}</dd></div><div><dt>{c.watermarksRowLabel}</dt><dd>PerTh + AudioSeal</dd></div><div><dt>{c.provenanceRowLabel}</dt><dd>{c.provenanceRowValue}</dd></div>
               </dl>
-              <small>Receipt {preview.generationId.slice(0, 8)}. Model {preview.modelCommitment.slice(0, 10)}.</small>
+              <small>{c.receiptLine.split("{n}").join(preview.generationId.slice(0, 8)).split("{n2}").join(preview.modelCommitment.slice(0, 10))}</small>
             </>
           ) : (
             <>
               <div className="voice-preview-empty-mark" aria-hidden="true">V</div>
-              <h3>{draft ? "The room is ready" : "No draft can speak yet"}</h3>
-              <p>{draft ? "Choose the words and delivery. No audio leaves the protection boundary unmarked." : "You need a processed recording first. Add one on the Feed step, and we will build a draft voice from it."}</p>
-              <div className="voice-preview-proof"><span>Owner-only</span><span>Self-only</span><span>No runtime access</span></div>
+              <h3>{draft ? c.roomReady : c.noDraftYet}</h3>
+              <p>{draft ? c.chooseWordsNote : c.needRecordingNote}</p>
+              <div className="voice-preview-proof"><span>{c.proofOwnerOnly}</span><span>{c.proofSelfOnly}</span><span>{c.proofNoRuntimeAccess}</span></div>
             </>
           )}
         </div>
@@ -298,88 +315,104 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
 
       <div className="voice-preference-lab">
         <div className="voice-preference-intro">
-          <div><span>Blind preference lab</span><h3>Teach your AI with your ears.</h3></div>
-          <p>The server balances a multilingual challenge deck and chooses the next most informative hidden contrast. Both sides keep the assigned words, identity evidence, voice engine, language, and sampling seed fixed.</p>
-          <button className="review-refresh" type="button" disabled={!draft || pairBusy || generating} onClick={() => void generateBlindPair()}>{pairBusy ? "Rendering A, then B" : pair ? "New blind pair" : "Start blind A/B"}</button>
+          <div><span>{c.preferenceLabTag}</span><h3>{c.preferenceLabHeading}</h3></div>
+          <p>{c.preferenceLabIntro}</p>
+          <button className="review-refresh" type="button" disabled={!draft || pairBusy || generating} onClick={() => void generateBlindPair()}>{pairBusy ? c.renderingAB : pair ? c.newBlindPair : c.startBlindAB}</button>
         </div>
         {pair ? (
           <div className="voice-preference-body">
-            <div className="voice-preference-progress"><span>Adaptive comparison {pair.progress.completed + 1}</span><span>{pair.progress.covered}/{pair.progress.total} conditions covered</span><span>{pair.progress.prompts}/{pair.progress.requiredPrompts} prompt families</span><span>{pair.progress.converged ? "Boundary converged" : "Still learning"}</span></div>
-            <div className="voice-preference-prompt"><span>{pair.prompt.domain.replaceAll("_", " ")} challenge</span><p>{pair.prompt.text}</p></div>
+            <div className="voice-preference-progress">
+              <span>{c.adaptiveComparisonLabel.split("{n}").join(String(pair.progress.completed + 1))}</span>
+              <span>{c.conditionsCoveredLabel.split("{n}").join(String(pair.progress.covered)).split("{n2}").join(String(pair.progress.total))}</span>
+              <span>{c.promptFamiliesLabel.split("{n}").join(String(pair.progress.prompts)).split("{n2}").join(String(pair.progress.requiredPrompts))}</span>
+              <span>{pair.progress.converged ? c.boundaryConverged : c.stillLearning}</span>
+            </div>
+            <div className="voice-preference-prompt"><span>{pair.prompt.domain.replaceAll("_", " ")} {c.challengeSuffix}</span><p>{pair.prompt.text}</p></div>
             <div className="voice-preference-players">
               {(["left", "right"] as const).map((side, index) => (
                 <article key={side} className={heard[side] ? "heard" : ""}>
-                  <span>{index === 0 ? "A" : "B"}</span>
-                  <div><strong>Protected candidate {index === 0 ? "A" : "B"}</strong><small>{heard[side] ? "Completed" : "Listen fully before deciding"}</small></div>
-                  <audio controls preload="metadata" src={pair[side].url} onEnded={() => setHeard((current) => ({ ...current, [side]: true }))}>Protected voice candidate.</audio>
+                  <span>{index === 0 ? c.candidateLetterA : c.candidateLetterB}</span>
+                  <div><strong>{c.protectedCandidateLabel} {index === 0 ? c.candidateLetterA : c.candidateLetterB}</strong><small>{heard[side] ? c.completedLabel : c.listenFullyNote}</small></div>
+                  <audio controls preload="metadata" src={pair[side].url} onEnded={() => setHeard((current) => ({ ...current, [side]: true }))}>{c.audioCandidateFallback}</audio>
                 </article>
               ))}
             </div>
             {preferenceSaved ? (
               <div className="voice-preference-saved" role="status">
-                <strong>Preference secured</strong>
-                <span>{preferenceSaved.choice === "neither" ? "Neither candidate qualified." : preferenceSaved.choice === "tie" ? "The candidates were equivalent." : `${preferenceSaved.choice === "left" ? "A" : "B"} was closer.`} A was {(CONDITION_LABELS[preferenceSaved.leftStyle] || "condition A").toLowerCase()}; B was {(CONDITION_LABELS[preferenceSaved.rightStyle] || "condition B").toLowerCase()}.</span>
-                <small>Evidence {preferenceSaved.id.slice(0, 8)} is exact-generation bound.</small>
+                <strong>{c.preferenceSecured}</strong>
+                <span>
+                  {preferenceSaved.choice === "neither" ? c.choiceNeither : preferenceSaved.choice === "tie" ? c.choiceTie : c.choiceCloser.split("{label}").join(preferenceSaved.choice === "left" ? c.candidateLetterA : c.candidateLetterB)}{" "}
+                  {c.conditionSummary
+                    .split("{label}").join((conditionLabel(preferenceSaved.leftStyle, c) || c.fallbackConditionA))
+                    .split("{label2}").join((conditionLabel(preferenceSaved.rightStyle, c) || c.fallbackConditionB))}
+                </span>
+                <small>{c.evidenceLine.split("{n}").join(preferenceSaved.id.slice(0, 8))}</small>
               </div>
             ) : (
               <>
                 <div className="voice-preference-reasons">
-                  <span>What separated them? <small>optional</small></span>
-                  <div>{PREFERENCE_REASONS.map((reason) => <button type="button" key={reason.value} className={preferenceReasons.includes(reason.value) ? "active" : ""} aria-pressed={preferenceReasons.includes(reason.value)} onClick={() => togglePreferenceReason(reason.value)}>{reason.label}</button>)}</div>
+                  <span>{c.whatSeparatedThem} <small>{c.optionalLabel}</small></span>
+                  <div>{preferenceReasonList(c).map((reason) => <button type="button" key={reason.value} className={preferenceReasons.includes(reason.value) ? "active" : ""} aria-pressed={preferenceReasons.includes(reason.value)} onClick={() => togglePreferenceReason(reason.value)}>{reason.label}</button>)}</div>
                 </div>
-                <div className="voice-preference-choice" aria-label="Choose the closer protected voice">
-                  <button type="button" disabled={!heard.left || !heard.right || preferenceBusy} onClick={() => void savePreference("left")}>A is closer</button>
-                  <button type="button" disabled={!heard.left || !heard.right || preferenceBusy} onClick={() => void savePreference("right")}>B is closer</button>
-                  <button type="button" disabled={!heard.left || !heard.right || preferenceBusy} onClick={() => void savePreference("tie")}>Both</button>
-                  <button type="button" disabled={!heard.left || !heard.right || preferenceBusy} onClick={() => void savePreference("neither")}>Neither</button>
+                <div className="voice-preference-choice" aria-label={c.chooseCloserAriaLabel}>
+                  <button type="button" disabled={!heard.left || !heard.right || preferenceBusy} onClick={() => void savePreference("left")}>{c.aIsCloser}</button>
+                  <button type="button" disabled={!heard.left || !heard.right || preferenceBusy} onClick={() => void savePreference("right")}>{c.bIsCloser}</button>
+                  <button type="button" disabled={!heard.left || !heard.right || preferenceBusy} onClick={() => void savePreference("tie")}>{c.both}</button>
+                  <button type="button" disabled={!heard.left || !heard.right || preferenceBusy} onClick={() => void savePreference("neither")}>{c.neither}</button>
                 </div>
-                {!heard.left || !heard.right ? <p className="voice-preference-gate">Finish both candidates to unlock the judgment.</p> : null}
+                {!heard.left || !heard.right ? <p className="voice-preference-gate">{c.finishBothToUnlock}</p> : null}
               </>
             )}
           </div>
-        ) : <div className="voice-preference-empty">{pairBusy ? "Two fully protected generations are being built. Cold starts can take a few minutes." : "No comparison is open. The lab will assign a new challenge sentence and hold it constant across both sides."}</div>}
+        ) : <div className="voice-preference-empty">{pairBusy ? c.buildingTwoTakes : c.noComparisonOpen}</div>}
         {pairError ? <p className="inline-error" role="alert">{pairError}</p> : null}
         {delivery ? (
           <div className="voice-delivery-freeze">
             <div>
-              <span>Voice Delivery</span>
-              <h4>{delivery.policies[0] ? `Version ${delivery.policies[0].version} is frozen` : "Build an immutable delivery candidate"}</h4>
-              <p>{delivery.policies[0] ? `${CONDITION_LABELS[delivery.policies[0].champion_key] || "Learned delivery"} is bound to ${delivery.policies[0].comparisons} exact judgments. It remains draft-only until held-out qualification.` : "The candidate is created only after the multilingual comparison boundary is deep and diverse enough."}</p>
+              <span>{c.voiceDeliveryTag}</span>
+              <h4>{delivery.policies[0] ? c.versionFrozen.split("{n}").join(String(delivery.policies[0].version)) : c.buildDeliveryCandidate}</h4>
+              <p>
+                {delivery.policies[0]
+                  ? c.championBoundNote
+                    .split("{label}").join(conditionLabel(delivery.policies[0].champion_key, c) || c.fallbackLearnedDelivery)
+                    .split("{n}").join(String(delivery.policies[0].comparisons))
+                  : c.candidateCreatedNote}
+              </p>
             </div>
             <div className="voice-delivery-readiness">
-              <span>{delivery.readiness.completed} comparisons</span>
-              <span>{delivery.readiness.covered_conditions}/{delivery.readiness.total_conditions} conditions</span>
-              <span>{delivery.readiness.unique_prompts}/{delivery.readiness.required_prompts} prompts</span>
+              <span>{c.comparisonsLabel.split("{n}").join(String(delivery.readiness.completed))}</span>
+              <span>{c.conditionsFractionLabel.split("{n}").join(String(delivery.readiness.covered_conditions)).split("{n2}").join(String(delivery.readiness.total_conditions))}</span>
+              <span>{c.promptsFractionLabel.split("{n}").join(String(delivery.readiness.unique_prompts)).split("{n2}").join(String(delivery.readiness.required_prompts))}</span>
             </div>
-            <button className="button primary-button" type="button" disabled={!delivery.readiness.ready || deliveryBusy} onClick={() => void freezeDeliveryPolicy()}>{deliveryBusy ? "Freezing evidence" : delivery.policies[0] ? "Freeze updated version" : "Freeze delivery candidate"}</button>
-            {!delivery.readiness.ready ? <small>More blind evidence is required. Repeating one familiar sentence cannot unlock this gate.</small> : <small>Freezing does not activate the voice. A separate held-out ABX gate is next.</small>}
+            <button className="button primary-button" type="button" disabled={!delivery.readiness.ready || deliveryBusy} onClick={() => void freezeDeliveryPolicy()}>{deliveryBusy ? c.freezingEvidence : delivery.policies[0] ? c.freezeUpdatedVersion : c.freezeDeliveryCandidate}</button>
+            {!delivery.readiness.ready ? <small>{c.moreEvidenceRequired}</small> : <small>{c.freezingDoesNotActivate}</small>}
           </div>
         ) : null}
         {delivery?.policies[0] ? (
           <div className="voice-holdout-lab">
             <div className="voice-holdout-heading">
-              <div><span>Unseen speech gate</span><h4>Does the frozen delivery generalize?</h4><p>Six prompts excluded from calibration, each tested with two deterministic seeds. The candidate stays hidden against its strongest runner-up.</p></div>
-              <div><strong>{delivery.policies[0].holdout.completed}/{delivery.policies[0].holdout.required}</strong><small>held-out judgments</small></div>
+              <div><span>{c.unseenSpeechTag}</span><h4>{c.unseenSpeechHeading}</h4><p>{c.unseenSpeechIntro}</p></div>
+              <div><strong>{delivery.policies[0].holdout.completed}/{delivery.policies[0].holdout.required}</strong><small>{c.heldOutJudgmentsLabel}</small></div>
             </div>
             {holdoutPair ? <>
-              <div className="voice-preference-prompt"><span>{holdoutPair.prompt.domain.replaceAll("_", " ")} holdout</span><p>{holdoutPair.prompt.text}</p></div>
+              <div className="voice-preference-prompt"><span>{holdoutPair.prompt.domain.replaceAll("_", " ")} {c.holdoutChallengeSuffix}</span><p>{holdoutPair.prompt.text}</p></div>
               <div className="voice-preference-players">
                 {(["left", "right"] as const).map((side, index) => <article key={side} className={holdoutHeard[side] ? "heard" : ""}>
-                  <span>{index === 0 ? "A" : "B"}</span><div><strong>Held-out candidate {index === 0 ? "A" : "B"}</strong><small>{holdoutHeard[side] ? "Completed" : "Listen fully"}</small></div>
-                  <audio controls preload="metadata" src={holdoutPair[side].url} onEnded={() => setHoldoutHeard((current) => ({ ...current, [side]: true }))}>Protected held-out voice candidate.</audio>
+                  <span>{index === 0 ? c.candidateLetterA : c.candidateLetterB}</span><div><strong>{c.heldOutCandidateLabel} {index === 0 ? c.candidateLetterA : c.candidateLetterB}</strong><small>{holdoutHeard[side] ? c.completedLabel : c.listenFully}</small></div>
+                  <audio controls preload="metadata" src={holdoutPair[side].url} onEnded={() => setHoldoutHeard((current) => ({ ...current, [side]: true }))}>{c.audioCandidateFallback}</audio>
                 </article>)}
               </div>
-              {holdoutSaved ? <div className="voice-preference-saved"><strong>Held-out judgment secured</strong><span>Start the next unseen cell when you are ready.</span></div> : <div className="voice-preference-choice" aria-label="Choose the closer held-out voice">
-                <button type="button" disabled={!holdoutHeard.left || !holdoutHeard.right || holdoutBusy} onClick={() => void saveHoldoutPreference("left")}>A is closer</button>
-                <button type="button" disabled={!holdoutHeard.left || !holdoutHeard.right || holdoutBusy} onClick={() => void saveHoldoutPreference("right")}>B is closer</button>
-                <button type="button" disabled={!holdoutHeard.left || !holdoutHeard.right || holdoutBusy} onClick={() => void saveHoldoutPreference("tie")}>Both</button>
-                <button type="button" disabled={!holdoutHeard.left || !holdoutHeard.right || holdoutBusy} onClick={() => void saveHoldoutPreference("neither")}>Neither</button>
+              {holdoutSaved ? <div className="voice-preference-saved"><strong>{c.heldOutJudgmentSecured}</strong><span>{c.startNextCellNote}</span></div> : <div className="voice-preference-choice" aria-label={c.chooseCloserHeldOutAriaLabel}>
+                <button type="button" disabled={!holdoutHeard.left || !holdoutHeard.right || holdoutBusy} onClick={() => void saveHoldoutPreference("left")}>{c.aIsCloser}</button>
+                <button type="button" disabled={!holdoutHeard.left || !holdoutHeard.right || holdoutBusy} onClick={() => void saveHoldoutPreference("right")}>{c.bIsCloser}</button>
+                <button type="button" disabled={!holdoutHeard.left || !holdoutHeard.right || holdoutBusy} onClick={() => void saveHoldoutPreference("tie")}>{c.both}</button>
+                <button type="button" disabled={!holdoutHeard.left || !holdoutHeard.right || holdoutBusy} onClick={() => void saveHoldoutPreference("neither")}>{c.neither}</button>
               </div>}
             </> : null}
             <div className="voice-holdout-actions">
-              {delivery.policies[0].holdout.verdict ? <p><strong>{delivery.policies[0].holdout.verdict === "owner_pass" ? "Owner holdout passed" : "Owner holdout failed"}</strong><span>This is not production qualification. Automated identity, intelligibility, artifact, watermark, privacy, and latency gates remain locked.</span></p> : null}
-              <button className="button primary-button" type="button" disabled={holdoutBusy || delivery.policies[0].holdout.completed >= delivery.policies[0].holdout.required} onClick={() => void generateHoldoutPair()}>{holdoutBusy ? "Securing trial" : holdoutPair ? "Next unseen pair" : "Start held-out A/B"}</button>
-              <button className="review-refresh" type="button" disabled={holdoutBusy || delivery.policies[0].holdout.completed !== delivery.policies[0].holdout.required || delivery.policies[0].holdout.verdict !== null} onClick={() => void finalizeHoldout()}>Finalize owner gate</button>
+              {delivery.policies[0].holdout.verdict ? <p><strong>{delivery.policies[0].holdout.verdict === "owner_pass" ? c.ownerHoldoutPassed : c.ownerHoldoutFailed}</strong><span>{c.notProductionQualificationNote}</span></p> : null}
+              <button className="button primary-button" type="button" disabled={holdoutBusy || delivery.policies[0].holdout.completed >= delivery.policies[0].holdout.required} onClick={() => void generateHoldoutPair()}>{holdoutBusy ? c.securingTrial : holdoutPair ? c.nextUnseenPair : c.startHeldOutAB}</button>
+              <button className="review-refresh" type="button" disabled={holdoutBusy || delivery.policies[0].holdout.completed !== delivery.policies[0].holdout.required || delivery.policies[0].holdout.verdict !== null} onClick={() => void finalizeHoldout()}>{c.finalizeOwnerGate}</button>
             </div>
           </div>
         ) : null}

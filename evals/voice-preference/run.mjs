@@ -117,7 +117,13 @@ const studio = readFileSync(join(ROOT, "src/studio/VoicePreviewLab.tsx"), "utf8"
 ok("the HTTP boundary is bearer-owner-only and rate limited", /requireUser/.test(handler) && /replica_voice_preference_user/.test(handler) && !/req\.body\.owner/.test(handler));
 ok("every generation records its server-owned style and content hash", /text_hash: textHash/.test(previewHandler) && /style_key: trial\?\.styleKey \|\| body\.style_key/.test(previewHandler) && /started\.previewStyle/.test(previewHandler));
 ok("the browser sends style keys rather than raw synthesis parameters", /style_key: input\.styleKey/.test(api) && !/cfg_weight|exaggeration|temperature/.test(api));
-ok("the Studio requests a server-assigned blind trial and withholds labels until decision", /issueVoiceTrial/.test(studio) && !/crypto\.getRandomValues/.test(studio) && studio.indexOf("Preference secured") < studio.indexOf("CONDITION_LABELS[preferenceSaved.leftStyle]"));
+// WS-R71: VoicePreviewLab.tsx's own literal strings moved into
+// src/studio/copy.ts (`t.voicePreviewLab`) and `CONDITION_LABELS` became a
+// `conditionLabel()` lookup function; the ordering check below now reads
+// the same two things by their NEW markers -- the `c.preferenceSecured`
+// render still precedes the `conditionLabel(preferenceSaved.leftStyle`
+// lookup in source order, same as the strings it replaced.
+ok("the Studio requests a server-assigned blind trial and withholds labels until decision", /issueVoiceTrial/.test(studio) && !/crypto\.getRandomValues/.test(studio) && studio.indexOf("{c.preferenceSecured}") < studio.indexOf("conditionLabel(preferenceSaved.leftStyle"));
 ok("both players must finish before exact-generation preference submission", /onEnded/.test(studio) && !/onPlay/.test(studio) && /!heard\.left \|\| !heard\.right/.test(studio) && /trialId: pair\.trialId/.test(studio) && /leftGenerationId: pair\.left\.generationId/.test(studio) && /rightGenerationId: pair\.right\.generationId/.test(studio));
 ok("new preference UI copy contains no em dash or en dash", !/[—–]/.test(studio));
 

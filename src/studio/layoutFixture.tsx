@@ -30,7 +30,7 @@ import "./design/mobile.css";
 // and report OK about a layout nobody ships.
 import "./design/review-queue.css";
 import type { Replica } from "./types";
-import { STUDIO_COPY_TABLE } from "./copy";
+import { loadStudioCopy, STUDIO_COPY_TABLE } from "./copy";
 
 /** WS-R52. `src/room/layoutFixture.tsx`'s own `flattenHiStrings` -- the
  *  measurement algorithm it feeds (`scripts/check-layout.mjs`'s `glyphAudit`)
@@ -453,14 +453,20 @@ if (!LOOPBACK.has(window.location.hostname)) {
 } else {
   installStubFetch();
   seedAuth();
-  // WS-R52: the live copy table, exposed exactly as `src/room/layoutFixture.tsx`
-  // exposes `ROOM_COPY_TABLE.hi` -- never a list re-typed in this file.
-  window.__STUDIO_HI_STRINGS__ = (() => {
-    const out: [string, string][] = [];
-    flattenHiStrings(STUDIO_COPY_TABLE.hi, "", out);
-    return out;
-  })();
-  // No StrictMode. Its double render is right for finding effect bugs and wrong
-  // for a layout gate, which wants one settled paint to measure.
-  ReactDOM.createRoot(root).render(<StudioApp />);
+  // The Hindi table is its own chunk (`src/studio/hiCopy.ts`, the WS-R71
+  // merge): install it through the app's own loader BEFORE the glyph list is
+  // built or the app mounts, so the gate's `__STUDIO_HI_STRINGS__` is the
+  // real table and a `?lang=hi` fixture paints Hindi on its first frame.
+  void loadStudioCopy("hi").then(() => {
+    // WS-R52: the live copy table, exposed exactly as `src/room/layoutFixture.tsx`
+    // exposes `ROOM_COPY_TABLE.hi` -- never a list re-typed in this file.
+    window.__STUDIO_HI_STRINGS__ = (() => {
+      const out: [string, string][] = [];
+      flattenHiStrings(STUDIO_COPY_TABLE.hi, "", out);
+      return out;
+    })();
+    // No StrictMode. Its double render is right for finding effect bugs and wrong
+    // for a layout gate, which wants one settled paint to measure.
+    ReactDOM.createRoot(root).render(<StudioApp />);
+  });
 }

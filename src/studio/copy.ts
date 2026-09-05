@@ -1001,6 +1001,447 @@ interface ReviewQueueFlagsCopy {
 interface PosterCopy {
   download: string;
 }
+// ── activityPanel: ActivityPanel.tsx (WS-R71, tier 2 wave two). Server-sent
+//    fields (`job.state_reason`, `lane.label`, `lane.missing`,
+//    `job.next_action.label`, `job.progress.unit`) stay English -- this
+//    workstream's own carve-out, `copy.ts`'s file header's law 1: they are
+//    authored by `api/_activity.js` and arrive over the wire regardless of
+//    what this file says, the same reason `ReadinessPanel.tsx`'s
+//    `part.label`/`part.detail` stay untranslated. ─────────────────────────
+interface ActivityPanelCopy {
+  groupYourTurn: string;
+  groupWorkingNow: string;
+  groupStopped: string;
+  groupFinished: string;
+  feedTitle: string;
+  feedLede: string;
+  meetTitle: string;
+  meetLede: string;
+  justNow: string;
+  minutesAgo: string; // "{n}"
+  hourAgoOne: string;
+  hoursAgoMany: string; // "{n}"
+  dayAgoOne: string;
+  daysAgoMany: string; // "{n}"
+  stepsDoneAriaLabel: string; // "{n} of {n2} steps done"
+  notConnectedTitle: string; // "{label}: not connected yet."
+  notConnectedBody: string;
+  notConnectedMissingLabel: string;
+  loadingGroupName: string;
+  emptyState: string;
+  ofCount: string; // "{n} of {n2}"
+  doneLabel: string;
+  retryingLabel: string;
+  errorCouldNotRead: string;
+  errorRetryFailed: string;
+  errorAlreadyMoved: string;
+}
+
+// ── channelsStudio: ChannelsStudio.tsx (WS-R71, tier 2 wave two). ─────────
+interface ChannelsStudioCopy {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  embedCardTitle: string;
+  embedCardBody: string;
+  embedSnippetAriaLabel: string;
+  copyEmbedCode: string;
+  copiedLabel: string;
+  disclosureNote: string;
+  loadingChannels: string;
+  statusLabel: string;
+  notSetUp: string;
+  webWidgetTitle: string;
+  webWidgetRefLabel: string;
+  webWidgetBlurb: string;
+  webWidgetCost: string;
+  telegramTitle: string;
+  telegramRefLabel: string;
+  telegramSecretLabel: string;
+  telegramBlurb: string;
+  telegramCost: string;
+  whatsappTitle: string;
+  whatsappRefLabel: string;
+  whatsappSecretLabel: string;
+  whatsappBlurb: string;
+  whatsappCost: string;
+  statusDraft: string;
+  statusConnected: string;
+  statusPaused: string;
+  statusRevoked: string;
+  secretOnFile: string;
+  secretVaultNote: string;
+  saving: string;
+  update: string;
+  connect: string;
+  pause: string;
+  resume: string;
+  retire: string;
+  retiredNote: string;
+  instagramTitle: string;
+  instagramNotOffered: string;
+  instagramWhatMetaRequiresLabel: string;
+  instagramRequirement: string;
+  instagramNoFakeButton: string;
+  liveNotice: string;
+  draftNotice: string;
+  errorRequestFailed: string;
+}
+
+// ── teacherSheetStudio: TeacherSheetStudio.tsx (WS-R71, tier 2 wave two).
+//    STRICTNESS_LABELS/WARMTH_LABELS are the creator's own confirmed
+//    self-description, not server-authored prose, so they move here in
+//    full, matching `ws-r61-roomstudio-money-and-tds-copy-translated-
+//    meaning-preserved`'s own "translate meaning, not just chrome" law. ────
+interface TeacherSheetStudioCopy {
+  eyebrow: string;
+  title: string; // "Review and confirm how {name} teaches"
+  titleFallbackName: string;
+  intro: string;
+  loadSavedDraft: string;
+  provenanceSeedNotice: string;
+  serviceUnavailableNotice: string;
+  subjectCardTitle: string;
+  subjectLabel: string;
+  subjectPhysics: string;
+  subjectChemistry: string;
+  subjectMaths: string;
+  scopeLabel: string;
+  chapterNote: string;
+  chapterCoverageAriaLabel: string;
+  strictnessCardTitle: string;
+  strictnessWarmthNote: string;
+  strictnessLabel: string;
+  strictness0: string;
+  strictness1: string;
+  strictness2: string;
+  strictness3: string;
+  strictness4: string;
+  warmthLabel: string;
+  warmth0: string;
+  warmth1: string;
+  warmth2: string;
+  warmth3: string;
+  warmth4: string;
+  ladderCardTitle: string;
+  ladderNote: string;
+  removeRungAriaLabel: string; // "{n}"
+  removeRung: string;
+  addRungPlaceholder: string;
+  addRung: string;
+  boundariesCardTitle: string;
+  boundariesNote: string;
+  identityLifeLabel: string;
+  mentorBoundaryLabel: string;
+  ingestedTitleDraft: string;
+  ingestedTitleEmpty: string;
+  ingestedNoteDraft: string;
+  ingestedNoteEmpty: string;
+  ingestedStatusDraft: string;
+  ingestedStatusEmpty: string;
+  languageVoiceRuleLabel: string;
+  sttSoundAlikesLabel: string;
+  boardVerbalismsLabel: string;
+  notationConventionsLabel: string;
+  analogyBankLabel: string;
+  commonMistakeBankLabel: string;
+  commonMistakeBankSummary: string; // "{n}"
+  publishNote: string;
+  saved: string;
+  savedLocalOnly: string;
+  saving: string;
+  save: string;
+}
+
+// ── voicePreviewLab: VoicePreviewLab.tsx (WS-R71, tier 2 wave two). The
+//    calibration bench: blind A/B preference pairs and a held-out unseen-
+//    speech gate. `context/decisions.md#ws-r71-voice-lab-vocabulary` names
+//    the plain-Hindi choices for "workbench"/"condition"/"holdout"/"trial". ─
+interface VoicePreviewLabCopy {
+  title: string;
+  intro: string;
+  checking: string;
+  refreshDraft: string;
+  draftVersionLabel: string; // "{n}"
+  draftRequired: string;
+  identityModelsBound: string; // "{n}"
+  reviewFirst: string;
+  languageLegend: string;
+  languageEnglish: string;
+  languageHindi: string;
+  whatShouldDraftSay: string;
+  charactersLeft: string; // "{n}"
+  disclosureAddedNote: string;
+  deliveryLegend: string;
+  styleFaithfulLabel: string;
+  styleFaithfulCopy: string;
+  styleBalancedLabel: string;
+  styleBalancedCopy: string;
+  styleExpressiveLabel: string;
+  styleExpressiveCopy: string;
+  protectingPreview: string;
+  generatePreview: string;
+  coldStartNotice: string;
+  yourProtectedDraft: string;
+  listenOnceNote: string;
+  audioFallback: string;
+  disclosureRowLabel: string;
+  disclosureRowValue: string;
+  watermarksRowLabel: string;
+  provenanceRowLabel: string;
+  provenanceRowValue: string;
+  receiptLine: string; // "{n}" "{n2}"
+  roomReady: string;
+  noDraftYet: string;
+  chooseWordsNote: string;
+  needRecordingNote: string;
+  proofOwnerOnly: string;
+  proofSelfOnly: string;
+  proofNoRuntimeAccess: string;
+  preferenceLabTag: string;
+  preferenceLabHeading: string;
+  preferenceLabIntro: string;
+  renderingAB: string;
+  newBlindPair: string;
+  startBlindAB: string;
+  adaptiveComparisonLabel: string; // "{n}"
+  conditionsCoveredLabel: string; // "{n}" "{n2}"
+  promptFamiliesLabel: string; // "{n}" "{n2}"
+  boundaryConverged: string;
+  stillLearning: string;
+  challengeSuffix: string;
+  candidateLetterA: string;
+  candidateLetterB: string;
+  protectedCandidateLabel: string;
+  completedLabel: string;
+  listenFullyNote: string;
+  audioCandidateFallback: string;
+  preferenceSecured: string;
+  choiceNeither: string;
+  choiceTie: string;
+  choiceCloser: string;
+  conditionSummary: string; // "{label}" "{label2}"
+  evidenceLine: string; // "{n}"
+  whatSeparatedThem: string;
+  optionalLabel: string;
+  chooseCloserAriaLabel: string;
+  aIsCloser: string;
+  bIsCloser: string;
+  both: string;
+  neither: string;
+  finishBothToUnlock: string;
+  buildingTwoTakes: string;
+  noComparisonOpen: string;
+  voiceDeliveryTag: string;
+  versionFrozen: string; // "{n}"
+  buildDeliveryCandidate: string;
+  championBoundNote: string; // "{label}" "{n}"
+  candidateCreatedNote: string;
+  comparisonsLabel: string; // "{n}"
+  conditionsFractionLabel: string; // "{n}" "{n2}"
+  promptsFractionLabel: string; // "{n}" "{n2}"
+  freezingEvidence: string;
+  freezeUpdatedVersion: string;
+  freezeDeliveryCandidate: string;
+  moreEvidenceRequired: string;
+  freezingDoesNotActivate: string;
+  unseenSpeechTag: string;
+  unseenSpeechHeading: string;
+  unseenSpeechIntro: string;
+  heldOutJudgmentsLabel: string;
+  holdoutChallengeSuffix: string;
+  heldOutCandidateLabel: string;
+  listenFully: string;
+  heldOutJudgmentSecured: string;
+  startNextCellNote: string;
+  chooseCloserHeldOutAriaLabel: string;
+  ownerHoldoutPassed: string;
+  ownerHoldoutFailed: string;
+  notProductionQualificationNote: string;
+  securingTrial: string;
+  nextUnseenPair: string;
+  startHeldOutAB: string;
+  finalizeOwnerGate: string;
+  conditionIdentityAnchor: string;
+  conditionFaithful: string;
+  conditionSteadyWarm: string;
+  conditionBalanced: string;
+  conditionWarmExpressive: string;
+  conditionExpressive: string;
+  conditionAnimated: string;
+  fallbackConditionA: string;
+  fallbackConditionB: string;
+  fallbackLearnedDelivery: string;
+  reasonIdentity: string;
+  reasonAccent: string;
+  reasonRhythm: string;
+  reasonEmotion: string;
+  reasonNaturalness: string;
+  reasonPronunciation: string;
+  reasonFewerArtifacts: string;
+  errorStatusUnavailable: string;
+  errorPreviewNotGenerated: string;
+  errorComparisonNotGenerated: string;
+  errorPreferenceNotSecured: string;
+  errorDeliveryNotFrozen: string;
+  errorHeldOutNotGenerated: string;
+  errorHeldOutJudgmentNotSecured: string;
+  errorHeldOutResultNotFinalized: string;
+}
+
+// ── voicePreviewPanel: VoicePreviewPanel.tsx (WS-R71, tier 2 wave two).
+//    "Preview my voice" -- the first, simple box, distinct from the
+//    calibration bench above (`voicePreviewLab`). `WELCOME`/`LANGUAGE_
+//    OPTIONS`' own sample greetings are what the AI SAYS, not studio chrome,
+//    and stay exactly as the component already has them; only the label/
+//    help text describing each language choice moves here. ────────────────
+interface VoicePreviewPanelCopy {
+  eyebrow: string;
+  title: string;
+  introTest: string;
+  introReal: string;
+  languageLegend: string;
+  languageHindiLabel: string;
+  languageHindiHelp: string;
+  languageHinglishLabel: string;
+  languageHinglishHelp: string;
+  languageEnglishLabel: string;
+  languageEnglishHelp: string;
+  yourLine: string;
+  charactersLeftTest: string; // "{n}"
+  charactersLeftReal: string; // "{n}"
+  disabledCheckingHeadline: string;
+  disabledCheckingNext: string;
+  disabledBusyWarming: string;
+  disabledBusyGenerating: string;
+  disabledBusyNext: string;
+  disabledEmptyHeadline: string;
+  disabledEmptyNext: string;
+  disabledOverLimitHeadline: string; // "{n}"
+  disabledOverLimitNext: string;
+  buttonGenerating: string;
+  buttonWaking: string;
+  buttonAnotherTake: string;
+  buttonPreview: string;
+  stateReady: string;
+  listenToThisTake: string;
+  audioFallback: string;
+  pronunciationPlanSummary: string; // "{n}"
+  spokenAsLabel: string;
+  originalTextUnchangedNote: string; // "{n}"
+  disclosureRowLabel: string;
+  disclosureRowValue: string;
+  watermarkRowLabel: string;
+  watermarkRowValue: string;
+  notRightYet: string;
+  editLineNote: string;
+  editLine: string;
+  receiptLine: string; // "{n}" "{n2}"
+  stateWarming: string;
+  runtimeStarting: string;
+  nextCheckLabel: string;
+  coldStartEstimateTitle: string;
+  coldStartEstimateLabel: string; // "{n}" "{n2}"
+  checkCompleteNote: string; // "{n}"
+  keepWorkingNote: string;
+  stateGenerating: string;
+  makingYourTake: string;
+  renderingTest: string;
+  renderingReal: string;
+  stateFailed: string;
+  previewStopped: string;
+  tryAgain: string;
+  stateIdle: string;
+  takeAppearsHere: string;
+  chooseLanguageNote: string;
+  firstWaitNote: string;
+  runtimeNotWokenHeadline: string;
+  ownerReportTooManyTimes: string; // "{n}" "{n2}"
+}
+
+// ── voiceExperimentPanel: VoiceExperimentPanel.tsx (WS-R71, tier 2 wave
+//    two). The blind listening pack: an owner-run experiment sealed against
+//    candidate identity until ratings lock. Every technical-vocabulary
+//    choice here follows the SAME plain-Hindi law
+//    `context/decisions.md#ws-r71-voice-lab-vocabulary` states for
+//    `voicePreviewLab` -- "trial", "sealed pack", "listener sheet". ────────
+interface VoiceExperimentPanelCopy {
+  kindPack: string;
+  kindRatings: string;
+  kindResult: string;
+  errorCleanupFailed: string;
+  errorMappingLeak: string;
+  errorBindingMismatch: string; // "{kind}"
+  errorSizeLimit: string; // "{kind}"
+  errorIntegrityCheck: string;
+  errorNoSignature: string;
+  errorNotValidExport: string; // "{kind}"
+  errorAudioCouldNotStart: string;
+  errorStorageFailedRemoving: string;
+  removeConfirm: string;
+  summaryTitle: string;
+  summarySubtitle: string;
+  statusIdentitiesUnlocked: string;
+  statusRatingsLocked: string;
+  statusReadyToLock: string;
+  statusRatedCount: string; // "{n}" "{n2}"
+  statusNoExperiment: string;
+  dismiss: string;
+  openSealedPackTitle: string;
+  openSealedPackBody: string;
+  checkingPack: string;
+  chooseSealedPack: string;
+  identitiesUnlockedTitle: string;
+  acceptedListenerNote: string; // "{n}"
+  signatureVerified: string;
+  languageHindi: string;
+  languageEnglish: string;
+  meanLabel: string;
+  noMean: string;
+  noneLabel: string;
+  noPromotionNote: string;
+  learnOwnerVoiceTitle: string;
+  headphonesNote: string;
+  playOwnerAgain: string;
+  playRealOwner: string;
+  startBlindRating: string;
+  ratingsLockedTitle: string;
+  ratingsLockedBody: string;
+  savedLocally: string;
+  exportBeforeLeaving: string;
+  exportLockedRatings: string;
+  importUnsealedReport: string;
+  privateGateCommandsSummary: string;
+  privateGateCommandsNote: string;
+  progressBarAriaLabel: string;
+  progressAriaValueText: string; // "{n}" "{n2}"
+  listeningCheck: string;
+  positionLabel: string; // "{n}" "{n2}"
+  playHiddenClipAgain: string;
+  playHiddenClip: string;
+  clipHeard: string;
+  playBeforeRating: string;
+  axisScaleLabel: string; // "{n}" "{n2}"
+  axisButtonAriaLabel: string; // "{label}" "{n}"
+  disclosureLegend: string;
+  noteQuestion: string;
+  playCheckAgain: string;
+  playCheck: string;
+  attentionPrompt: string;
+  back: string;
+  savingPack: string;
+  progressSavedLocally: string;
+  exportProgressBeforeLeaving: string;
+  lockRatings: string;
+  saveAndContinue: string;
+  lockIrreversibleNote: string;
+  exportProgress: string;
+  importProgress: string;
+  replaceClearsNote: string;
+  working: string;
+  replacePack: string;
+  removePrivateExperiment: string;
+}
 
 interface StudioCopy {
   classLabels: ClassLabels;
@@ -1032,6 +1473,12 @@ interface StudioCopy {
   showcasePicker: ShowcasePickerCopy;
   reviewQueueFlags: ReviewQueueFlagsCopy;
   poster: PosterCopy;
+  activityPanel: ActivityPanelCopy;
+  channelsStudio: ChannelsStudioCopy;
+  teacherSheetStudio: TeacherSheetStudioCopy;
+  voicePreviewLab: VoicePreviewLabCopy;
+  voicePreviewPanel: VoicePreviewPanelCopy;
+  voiceExperimentPanel: VoiceExperimentPanelCopy;
 }
 
 const EN: StudioCopy = {
@@ -2006,980 +2453,464 @@ const EN: StudioCopy = {
   poster: {
     download: "Download poster (A4)",
   },
-};
 
-const HI: StudioCopy = {
-  classLabels: { you: "आप पर निर्भर", us: "हम पर निर्भर" },
-
-  shell: {
-    languageGroupLabel: "हिन्दी / English",
-    tabsAriaLabel: "आपका AI, तीन टैब में",
-    tabTitle: { feed: "फ़ीड", meet: "मीट", share: "शेयर" },
-    tabPromise: {
-      feed: "अपनी सामग्री लाएं।",
-      meet: "अपने AI से मिलें: सुनें, ठीक करें, देखें यह कितना तैयार है।",
-      share: "अपना रूम पब्लिश करें और तय करें कि इसे कहां पहुंचाया जा सकता है।",
-    },
-    allPanelsLink: "सभी पैनल (पूरी बेंच)",
-    oneVideoTitle: "एक वीडियो, लिंक से",
-    oneVideoBlurb: "अभी बन रहा प्रवेश का चौथा तरीका।",
-    stillLockedTitle: "मीट पर अभी भी लॉक",
-    forYou: "{n} आप पर",
-    onUsCount: "{n} हम पर",
-  },
-
-  creatorPath: {
-    eyebrow: "आपके रूम के पब्लिश होने तक का रास्ता",
-    stepLabel: {
-      account_created: "आपका वर्कस्पेस",
-      studio_opened: "आपने स्टूडियो खोला",
-      first_source_uploaded: "आपका पहला सोर्स",
-      processing_finished: "हमने इसे प्रोसेस कर लिया",
-      first_preview_heard: "आपने अपना AI सुना",
-      readiness_first_measured: "हमने तैयारी मापी",
-      readiness_passed_lock: "तैयारी ने सीमा पार की",
-      disclosure_approved: "आपने मंज़ूरी दी कि फॉलोअर को क्या बताया जाता है",
-      room_created: "आपने अपना रूम बनाया",
-      publish_clicked: "आपने इसे पब्लिश किया",
-      room_published: "आपका रूम लाइव है",
-      first_follower_joined: "आपका पहला फॉलोअर जुड़ा",
-    },
-    currentSentence: {
-      account_created: "आपका वर्कस्पेस तैयार है।",
-      studio_opened: "आप अभी स्टूडियो में हैं।",
-      first_source_uploaded: "शुरू करने के लिए एक फ़ाइल, वीडियो, या लिंक जोड़ें।",
-      processing_finished: "हम अभी भी आपकी दी हुई चीज़ें प्रोसेस कर रहे हैं।",
-      first_preview_heard: "जाकर पहली बार अपना AI सुनें।",
-      readiness_first_measured: "अपने AI से बात करें ताकि हम तैयारी माप सकें।",
-      readiness_passed_lock: "हर हिस्से को {n} तक और पूरे को {n2} तक पहुंचाएं।",
-      disclosure_approved: "पढ़ें और मंज़ूरी दें कि हर फॉलोअर को पहले क्या बताया जाता है।",
-      room_created: "अपना रूम बनाएं।",
-      publish_clicked: "तैयार होने पर अपना रूम पब्लिश करें।",
-      room_published: "आपका रूम अभी लाइव हुआ।",
-      first_follower_joined: "आपके पहले फॉलोअर का इंतज़ार है।",
-    },
-    currentButton: {
-      account_created: "जारी रखें",
-      studio_opened: "जारी रखें",
-      first_source_uploaded: "अपना पहला सोर्स जोड़ें",
-      processing_finished: "देखें क्या हो रहा है",
-      first_preview_heard: "अपना AI सुनें",
-      readiness_first_measured: "अपने AI से बात करें",
-      readiness_passed_lock: "तैयारी सुधारें",
-      disclosure_approved: "पढ़ें और मंज़ूरी दें",
-      room_created: "अपना रूम बनाएं",
-      publish_clicked: "अपना रूम पब्लिश करें",
-      room_published: "अपना रूम खोलें",
-      first_follower_joined: "अपना रूम खोलें",
-    },
-    stateLabel: { done: "पूरा हुआ", current: "अभी", ahead: "बाद में" },
-    pausedSentence: "आपका रूम रुका हुआ है, इसलिए अभी कोई इस तक नहीं पहुंच सकता।",
-    pausedButton: "जाकर अपना रूम फिर शुरू करें",
+  activityPanel: {
+    groupYourTurn: "Your turn",
+    groupWorkingNow: "Working now",
+    groupStopped: "Stopped",
+    groupFinished: "Finished",
+    feedTitle: "Where each upload is right now",
+    feedLede: "Everything you have handed over, and what is happening to it. Anything that needs you is at the top.",
+    meetTitle: "What has finished, and what has not",
+    meetLede: "If your AI does not know something you are sure you gave it, the reason is usually here. Unfinished work first.",
+    justNow: "just now",
+    minutesAgo: "{n} min ago",
+    hourAgoOne: "1 hour ago",
+    hoursAgoMany: "{n} hours ago",
+    dayAgoOne: "1 day ago",
+    daysAgoMany: "{n} days ago",
+    stepsDoneAriaLabel: "{n} of {n2} steps done",
+    notConnectedTitle: "{label}: not connected yet.",
+    notConnectedBody: "Nothing in this lane can run until it is set up, so an empty list here does not mean nothing has happened.",
+    notConnectedMissingLabel: "What is missing:",
+    loadingGroupName: "Loading",
+    emptyState: "Nothing has been started yet. Add a recording, a file or your channel and it will show up here while it runs.",
+    ofCount: "{n} of {n2}",
+    doneLabel: "done",
+    retryingLabel: "Working",
+    errorCouldNotRead: "could not read activity",
+    errorRetryFailed: "the retry did not go through",
+    errorAlreadyMoved: "That upload had already moved on, so there was nothing to finish.",
   },
 
-  wizardRail: {
-    railLabel: "आपका AI, तीन चरणों में",
-    navAriaLabel: "स्टूडियो के चरण",
-    nothingOpenDone: "इस चरण पर कुछ भी खुला नहीं है।",
-    nothingOpenNotDone: "इस चरण पर अभी कुछ भी खुला नहीं है।",
-    seeWhatIsHappening: "देखें क्या हो रहा है",
-    goThere: "वहां जाएं",
-    whatIsStillOpen: "इस चरण पर अभी क्या खुला है",
-    everythingElse: "इस चरण पर बाकी सब",
-    youCanActOn: "{n} जिन पर आप कर सकते हैं",
-    onUsCount: "{n} हम पर",
-    hideWhy: "वजह छुपाएं",
-    whyThisStep: "यह चरण क्यों",
-    movedTo: "{label} पर पहुंचे।",
-    theSection: "इस हिस्से",
+  channelsStudio: {
+    eyebrow: "Channels",
+    title: "Where your AI can be reached",
+    intro: "Publishing makes your AI reachable. This is where it meets people. Every channel below is one you own: your site, your bot, your business number. You can pause or retire any of them at any time without asking us.",
+    embedCardTitle: "Get embed code",
+    embedCardBody: "Paste this into any page you control. It works on a plain HTML site, a WordPress theme, a Squarespace code block, anywhere a script tag is allowed. It sets no cookie and asks nothing of your visitors.",
+    embedSnippetAriaLabel: "Embed snippet",
+    copyEmbedCode: "Copy embed code",
+    copiedLabel: "Copied",
+    disclosureNote: "Every visitor sees the same disclosure card you approved, before their first message. It is sent by us with the reply, not rendered by the page. A site that removed it could not hold a conversation at all.",
+    loadingChannels: "Loading channels...",
+    statusLabel: "Status",
+    notSetUp: "Not set up",
+    webWidgetTitle: "Your website",
+    webWidgetRefLabel: "Public slug",
+    webWidgetBlurb: "A chat bubble on any page you control. One line of HTML, no account anywhere else.",
+    webWidgetCost: "Nothing to apply for. Live the moment you paste the line.",
+    telegramTitle: "Telegram",
+    telegramRefLabel: "Bot ID",
+    telegramSecretLabel: "Bot token",
+    telegramBlurb: "Your own bot, created in @BotFather, answering as your AI.",
+    telegramCost: "No review process. You create the bot and register one webhook URL we give you.",
+    whatsappTitle: "WhatsApp",
+    whatsappRefLabel: "Phone number ID",
+    whatsappSecretLabel: "Access token",
+    whatsappBlurb: "A WhatsApp Business number answering as your AI.",
+    whatsappCost: "Needs a Meta Business account, a verified business, and a number registered to the Cloud API. Meta's review is measured in days to weeks, and it is theirs, not ours.",
+    statusDraft: "Not live. Finish the details below.",
+    statusConnected: "Live",
+    statusPaused: "Paused. Nothing is answered here.",
+    statusRevoked: "Revoked. This address is retired for good.",
+    secretOnFile: "On file. Paste a new one to replace it.",
+    secretVaultNote: "Stored in our secret vault, never in the database and never shown again, not even to you. Replace it here if it is ever rotated.",
+    saving: "Saving...",
+    update: "Update",
+    connect: "Connect",
+    pause: "Pause",
+    resume: "Resume",
+    retire: "Retire",
+    retiredNote: "Retired for good. That address will never be reattached to your AI. Set up a new one instead if you need this channel back.",
+    instagramTitle: "Instagram DM",
+    instagramNotOffered: "Not offered yet, and this is what stands in the way rather than a date.",
+    instagramWhatMetaRequiresLabel: "What Meta requires",
+    instagramRequirement: "Advanced Access to Instagram messaging, which needs a verified business, an app in Live mode, and a full App Review with a recorded demonstration of the integration. Meta grants it per app, not per teacher, and the wait is measured in weeks to months.",
+    instagramNoFakeButton: "We will not put a button here that quietly does nothing.",
+    liveNotice: "{name} is live.",
+    draftNotice: "{name} saved as a draft. It needs the remaining detail before it can answer.",
+    errorRequestFailed: "request failed",
   },
 
-  readiness: {
-    eyebrow: "तैयारी",
-    workingOut: "पता लगाया जा रहा है कि आपका AI कहां खड़ा है।",
-    onUsHeadline: "यह हमारी वजह से है।",
-    couldNotRead: "अभी आपकी तैयारी पढ़ी नहीं जा सकी",
-    tryAgain: "फिर कोशिश करें",
-    stillApprenticeOne: "अभी भी अप्रेंटिस। एक हिस्सा अभी तक मापा नहीं गया, इसलिए कोई स्कोर नहीं दिया जा सकता।",
-    stillApprenticeMany: "अभी भी अप्रेंटिस। {n} हिस्से अभी तक मापे नहीं गए, इसलिए कोई स्कोर नहीं दिया जा सकता।",
-    outOf100: "100 में से, नीचे दिए पांच हिस्सों में",
-    notMeasuredYet: "अभी मापा नहीं गया",
-    how: "कैसे",
-    sample: "नमूना",
-    measured: "मापा गया",
-    publishingLocked: "पब्लिश करना लॉक है।",
-    publishingOpen: "पब्लिश करना खुला है।",
-    lockedWhyWeakest: "सबसे कमज़ोर: {name}। पब्लिश करने के लिए, हर हिस्से को {n} और पूरे को {n2} चाहिए।",
-    lockedWhyNoWeakest: "पब्लिश करने के लिए, हर हिस्से को {n} और पूरे को {n2} चाहिए।",
-    openWhy: "आपका AI अगले चरण में आपके चुने हुए लोगों तक पहुंच सकता है।",
-    trustLine: "आपकी आवाज़ कभी लिस्ट या शेयर नहीं होती।",
-    partHelp: {
-      knows_your_material: "क्या यह आपकी दी हुई सामग्री से जवाब दे सकता है।",
-      sounds_like_you: "क्या आपकी आवाज़ आपकी जैसी ही वापस आती है।",
-      thinks_like_you: "क्या आप इसके जवाब रखते हैं या ठीक करते हैं।",
-      knows_what_not_to_say: "वे लाइनें जो आपने इसे कभी पार न करने को कहा है।",
-      up_to_date: "क्या यह जो जानता है वह अभी भी सच है।",
-    },
+  teacherSheetStudio: {
+    eyebrow: "Sheet review",
+    title: "Review and confirm how {name} teaches",
+    titleFallbackName: "this teacher",
+    intro: "Only what you have to decide is editable here. What we drafted from your uploads is read only, and you correct it in the claims step.",
+    loadSavedDraft: "Load saved draft",
+    provenanceSeedNotice: "Nothing is saved for your AI yet. The fields below are blank or set to a middle default, and they carry your name because we will never show you somebody else's. Save when you are ready.",
+    serviceUnavailableNotice: "The sheet service did not answer. Anything you type stays in this browser and is not saved to your account.",
+    subjectCardTitle: "Subject & syllabus coverage",
+    subjectLabel: "Subject your AI answers in",
+    subjectPhysics: "Physics",
+    subjectChemistry: "Chemistry",
+    subjectMaths: "Maths",
+    scopeLabel: "Scope, and what it does not answer",
+    chapterNote: "Check every chapter your AI should teach. A physics teacher's AI answering organic chemistry is a misrepresentation of them.",
+    chapterCoverageAriaLabel: "Chapter coverage",
+    strictnessCardTitle: "Strictness & warmth",
+    strictnessWarmthNote: "You confirm these, we never infer them alone. An over-read here is a real harm to a 16-year-old.",
+    strictnessLabel: "Strictness: how bluntly a wrong answer is named",
+    strictness0: "Never names it, reframes every miss as nearly right",
+    strictness1: "Gentle, softens most corrections",
+    strictness2: "Direct about the answer, easy about the person",
+    strictness3: "Names a wrong step plainly, in the same breath it's met",
+    strictness4: "No cushioning, the sharpest read of a mistake",
+    warmthLabel: "Warmth: encouragement density, independent of strictness",
+    warmth0: "All business, no encouragement beyond the correction itself",
+    warmth1: "Occasional, and only for a real specific win",
+    warmth2: "Steady encouragement, always tied to something they did",
+    warmth3: "Warm by default, still specific",
+    warmth4: "Highest encouragement density this sheet allows",
+    ladderCardTitle: "Doubt-handling ladder",
+    ladderNote: "The ordered hint rungs given before any full solution. This is the academic integrity spine. A full solution is never the first response.",
+    removeRungAriaLabel: "Remove rung {n}",
+    removeRung: "Remove",
+    addRungPlaceholder: "Add the next rung",
+    addRung: "Add rung",
+    boundariesCardTitle: "Boundaries",
+    boundariesNote: "identityLife is yours to write and is never ingested. A teacher's private life is not consented material for your AI even when it appears in your own uploaded videos.",
+    identityLifeLabel: "Teaching life, in one breath",
+    mentorBoundaryLabel: "Mentor boundary - not editable here",
+    ingestedTitleDraft: "Drafted from your uploads",
+    ingestedTitleEmpty: "Nothing drafted yet",
+    ingestedNoteDraft: "Read only here. Review or correct each one in the claims step.",
+    ingestedNoteEmpty: "These fill in once your uploads are processed. Read only here either way, and corrected in the claims step.",
+    ingestedStatusDraft: "Drafted from your uploads",
+    ingestedStatusEmpty: "Not learned yet",
+    languageVoiceRuleLabel: "Language / voice ratio",
+    sttSoundAlikesLabel: "STT sound-alike pairs",
+    boardVerbalismsLabel: "Board verbalisms (catchphrase field)",
+    notationConventionsLabel: "Notation conventions",
+    analogyBankLabel: "Signature analogies",
+    commonMistakeBankLabel: "Common mistake bank",
+    commonMistakeBankSummary: "{n} rows, strand-scoped",
+    publishNote: "Saving here never publishes your AI. Publish runs the full floor and consent gate separately.",
+    saved: "Sheet draft saved.",
+    savedLocalOnly: "Not saved to your account. The sheet service did not answer, so this draft is still only in this browser.",
+    saving: "Saving...",
+    save: "Save sheet draft",
   },
 
-  driftWatch: {
-    eyebrow: "ड्रिफ्ट वॉच",
-    onUsHeadline: "यह हमारी वजह से है।",
-    couldNotCheck: "अभी ड्रिफ्ट की जांच नहीं हो सकी",
-    tryAgain: "फिर कोशिश करें",
-    notMeasuredHeadline: "अभी मापा नहीं गया।",
-    notMeasuredLede: "हमने आपकी आवाज़ को आपकी अपनी रिकॉर्डिंग से हाल ही में इतना नहीं मिलाया कि बता सकें कि यह अभी भी आपकी जैसी लगती है या नहीं।",
-    movedHeadline: "कुछ बदल गया।",
-    steadyHeadline: "अभी भी आपकी जैसी लगती है।",
-    ofYourOwn100: " आपके अपने 100 में से, {label} को मापा गया",
-    ofYourOwn100Bare: " आपके अपने 100 में से",
-    last30Days: "पिछले 30 दिन",
-    engineChanged: "इसके पीछे की वॉइस इंजन आखिरी बार {label} को बदली थी।",
-    engineUnchanged: "जब से हमने देखना शुरू किया, इसके पीछे की वॉइस इंजन नहीं बदली।",
-    anchorFallback: "इसके लिए हमारा अपना अलार्म अभी अपडेट नहीं है।",
-    movedReasons: {
-      model_commitment_changed: "आपके AI के पीछे की वॉइस इंजन हाल ही में बदली।",
-      score_dropped: "आपका वॉइस स्कोर सामान्य रोज़ के बदलाव से ज़्यादा गिरा।",
-    },
-    prosodyReasons: {
-      prosody_baseline_unavailable: "हम यह जांच नहीं सके कि इसके लिए हमारा अपना अलार्म अपडेट है या नहीं।",
-      prosody_baseline_never_established: "इसके लिए हमारा अपना अलार्म कभी सेट नहीं हुआ।",
-      prosody_baseline_last_run_alarmed: "इसके लिए हमारा अपना अलार्म पिछली जांच में बजा और अभी तक साफ़ नहीं हुआ।",
-      prosody_baseline_overdue: "इसके लिए हमारा अपना अलार्म काफी समय से नहीं चला।",
-    },
-    trendAriaOne: "{d1} को {v1} से {d2} को {v2} तक का रुझान, {n} मापे गए बिंदु पर।",
-    trendAriaMany: "{d1} को {v1} से {d2} को {v2} तक का रुझान, {n} मापे गए बिंदुओं पर।",
+  voicePreviewLab: {
+    title: "Build a draft voice and compare two takes",
+    intro: "This private draft is for your ears and judgment. It cannot join calls or activate your AI.",
+    checking: "Checking",
+    refreshDraft: "Refresh draft",
+    draftVersionLabel: "Draft voice build, version {n}",
+    draftRequired: "Draft required",
+    identityModelsBound: "{n} identity profiles bound",
+    reviewFirst: "Review and build your selected voice first",
+    languageLegend: "Language",
+    languageEnglish: "English",
+    languageHindi: "Hindi and Hinglish",
+    whatShouldDraftSay: "What should the draft say?",
+    charactersLeft: "{n}/600 characters. The audible AI disclosure is added automatically.",
+    disclosureAddedNote: "The audible AI disclosure is added automatically.",
+    deliveryLegend: "Delivery",
+    styleFaithfulLabel: "Faithful",
+    styleFaithfulCopy: "Tighter identity and steadier pacing",
+    styleBalancedLabel: "Balanced",
+    styleBalancedCopy: "Natural delivery for everyday speech",
+    styleExpressiveLabel: "Expressive",
+    styleExpressiveCopy: "More emotional movement and risk",
+    protectingPreview: "Protecting your preview",
+    generatePreview: "Generate private preview",
+    coldStartNotice: "The scale-to-zero voice lab may take a few minutes on its first run.",
+    yourProtectedDraft: "Your protected draft",
+    listenOnceNote: "Listen once for identity, once for delivery, then change one control at a time.",
+    audioFallback: "Your browser cannot play this protected WAV.",
+    disclosureRowLabel: "Disclosure",
+    disclosureRowValue: "Audible",
+    watermarksRowLabel: "Watermarks",
+    provenanceRowLabel: "Provenance",
+    provenanceRowValue: "C2PA signed",
+    receiptLine: "Receipt {n}. Build {n2}.",
+    roomReady: "The room is ready",
+    noDraftYet: "No draft can speak yet",
+    chooseWordsNote: "Choose the words and delivery. No audio leaves the protection boundary unmarked.",
+    needRecordingNote: "You need a processed recording first. Add one on the Feed step, and we will build a draft voice from it.",
+    proofOwnerOnly: "Owner-only",
+    proofSelfOnly: "Self-only",
+    proofNoRuntimeAccess: "No runtime access",
+    preferenceLabTag: "Blind preference lab",
+    preferenceLabHeading: "Teach your AI with your ears.",
+    preferenceLabIntro: "The server balances a multilingual challenge deck and chooses the next most informative hidden contrast. Both sides keep the assigned words, identity evidence, voice engine, language, and sampling seed fixed.",
+    renderingAB: "Rendering A, then B",
+    newBlindPair: "New blind pair",
+    startBlindAB: "Start blind A/B",
+    adaptiveComparisonLabel: "Adaptive comparison {n}",
+    conditionsCoveredLabel: "{n}/{n2} conditions covered",
+    promptFamiliesLabel: "{n}/{n2} prompt families",
+    boundaryConverged: "Boundary converged",
+    stillLearning: "Still learning",
+    challengeSuffix: "challenge",
+    candidateLetterA: "A",
+    candidateLetterB: "B",
+    protectedCandidateLabel: "Protected candidate",
+    completedLabel: "Completed",
+    listenFullyNote: "Listen fully before deciding",
+    audioCandidateFallback: "Protected voice candidate.",
+    preferenceSecured: "Preference secured",
+    choiceNeither: "Neither candidate qualified.",
+    choiceTie: "The candidates were equivalent.",
+    choiceCloser: "{label} was closer.",
+    conditionSummary: "A was {label}; B was {label2}.",
+    evidenceLine: "Evidence {n} is exact-generation bound.",
+    whatSeparatedThem: "What separated them?",
+    optionalLabel: "optional",
+    chooseCloserAriaLabel: "Choose the closer protected voice",
+    aIsCloser: "A is closer",
+    bIsCloser: "B is closer",
+    both: "Both",
+    neither: "Neither",
+    finishBothToUnlock: "Finish both candidates to unlock the judgment.",
+    buildingTwoTakes: "Two fully protected generations are being built. Cold starts can take a few minutes.",
+    noComparisonOpen: "No comparison is open. The lab will assign a new challenge sentence and hold it constant across both sides.",
+    voiceDeliveryTag: "Voice Delivery",
+    versionFrozen: "Version {n} is frozen",
+    buildDeliveryCandidate: "Build an immutable delivery candidate",
+    championBoundNote: "{label} is bound to {n} exact judgments. It remains draft-only until held-out qualification.",
+    candidateCreatedNote: "The candidate is created only after the multilingual comparison boundary is deep and diverse enough.",
+    comparisonsLabel: "{n} comparisons",
+    conditionsFractionLabel: "{n}/{n2} conditions",
+    promptsFractionLabel: "{n}/{n2} prompts",
+    freezingEvidence: "Freezing evidence",
+    freezeUpdatedVersion: "Freeze updated version",
+    freezeDeliveryCandidate: "Freeze delivery candidate",
+    moreEvidenceRequired: "More blind evidence is required. Repeating one familiar sentence cannot unlock this gate.",
+    freezingDoesNotActivate: "Freezing does not activate the voice. A separate held-out ABX gate is next.",
+    unseenSpeechTag: "Unseen speech gate",
+    unseenSpeechHeading: "Does the frozen delivery generalize?",
+    unseenSpeechIntro: "Six prompts excluded from calibration, each tested with two deterministic seeds. The candidate stays hidden against its strongest runner-up.",
+    heldOutJudgmentsLabel: "held-out judgments",
+    holdoutChallengeSuffix: "holdout",
+    heldOutCandidateLabel: "Held-out candidate",
+    listenFully: "Listen fully",
+    heldOutJudgmentSecured: "Held-out judgment secured",
+    startNextCellNote: "Start the next unseen cell when you are ready.",
+    chooseCloserHeldOutAriaLabel: "Choose the closer held-out voice",
+    ownerHoldoutPassed: "Owner holdout passed",
+    ownerHoldoutFailed: "Owner holdout failed",
+    notProductionQualificationNote: "This is not production qualification. Automated identity, intelligibility, artifact, watermark, privacy, and latency gates remain locked.",
+    securingTrial: "Securing trial",
+    nextUnseenPair: "Next unseen pair",
+    startHeldOutAB: "Start held-out A/B",
+    finalizeOwnerGate: "Finalize owner gate",
+    conditionIdentityAnchor: "Identity anchor",
+    conditionFaithful: "Faithful",
+    conditionSteadyWarm: "Steady warmth",
+    conditionBalanced: "Balanced",
+    conditionWarmExpressive: "Warm expression",
+    conditionExpressive: "Expressive",
+    conditionAnimated: "Animated",
+    fallbackConditionA: "condition A",
+    fallbackConditionB: "condition B",
+    fallbackLearnedDelivery: "Learned delivery",
+    reasonIdentity: "Voice identity",
+    reasonAccent: "Accent",
+    reasonRhythm: "Rhythm",
+    reasonEmotion: "Emotion",
+    reasonNaturalness: "Naturalness",
+    reasonPronunciation: "Pronunciation",
+    reasonFewerArtifacts: "Fewer artifacts",
+    errorStatusUnavailable: "Voice preview status is unavailable",
+    errorPreviewNotGenerated: "The protected preview could not be generated",
+    errorComparisonNotGenerated: "The blind comparison could not be generated",
+    errorPreferenceNotSecured: "The voice preference could not be secured",
+    errorDeliveryNotFrozen: "Your voice delivery could not be frozen",
+    errorHeldOutNotGenerated: "The held-out comparison could not be generated",
+    errorHeldOutJudgmentNotSecured: "The held-out judgment could not be secured",
+    errorHeldOutResultNotFinalized: "The held-out result could not be finalized",
   },
 
-  reviewQueue: {
-    eyebrow: "समीक्षा",
-    title: "देखें आपका AI क्या कहता है",
-    lede: "एक बार में एक जवाब। बताएं कि यह आपकी तरह लगता है, अपने शब्दों में ठीक करें, या इसे पूरी तरह रोक दें।",
-    cardOf: "कार्ड {n} में से {n2}",
-    dismiss: "हटाएं",
-    kindLabel: {
-      question: "एक सवाल जो लोग पूछेंगे",
-      claim: "कुछ जो हमें लगता है हमने सीखा",
-      delta: "कॉल पर सुनी गई एक आदत",
-      follower_declined: "एक सवाल जिसका आपका AI जवाब नहीं देगा",
-    },
-    noAnswerYet: "आपके AI ने अभी इसका जवाब नहीं दिया। लिखें कि आप क्या कहेंगे और वही जवाब बन जाएगा।",
-    buttonSoundsRight: "सही लगा",
-    buttonFixed: "करीब है, ठीक करें",
-    buttonNever: "यह कभी न कहें",
-    emptyTitle: "अभी समीक्षा के लिए कुछ नहीं।",
-    emptyBody: "आपका रूम खुलते ही यह असली बातचीत से खुद भर जाता है।",
-    looking: "देखा जा रहा है...",
-    lookForSomething: "समीक्षा के लिए कुछ ढूंढें",
-    fixQuestionLabel: "आप असल में क्या कहेंगे?",
-    fixPlaceholder: "जैसे आप जवाब देंगे, वैसे ही जवाब दें।",
-    fixNote: "यह आपके अपने सोर्स के रूप में सेव होता है और इसका हवाला दिया जाता है। यह कभी आपके AI में स्क्रिप्ट की तरह नहीं डाला जाता।",
-    saving: "सेव हो रहा है...",
-    saveThisAnswer: "यह जवाब सेव करें",
-    listening: "सुन रहे हैं, हो जाए तो छोड़ें",
-    savingHold: "सेव हो रहा है...",
-    holdToSayIt: "कहने के लिए दबाए रखें",
-    back: "वापस",
-    micDenied: "आपके ब्राउज़र ने माइक्रोफ़ोन नहीं दिया। इसके बजाय ठीक करके टाइप करें।",
-    noticeFixed: "सेव हो गया। पुराने जवाब से बना कुछ भी अब दोबारा बनाया जाएगा, पैच नहीं किया जाएगा।",
-    noticeNever: "सेव हो गया। आपका AI अब हर जगह यह कहने से रोका गया है।",
-    noticeSaved: "सेव हो गया।",
-    errorLoad: "समीक्षा कतार पढ़ी नहीं जा सकी",
-    errorSave: "वह फैसला सेव नहीं हो सका",
-    errorCorrection: "वह सुधार सेव नहीं हो सका",
-    errorRecording: "वह रिकॉर्डिंग सेव नहीं हो सकी",
-    errorFill: "कतार भरी नहीं जा सकी",
-    nothingRecorded: "कुछ भी रिकॉर्ड नहीं हुआ। बोलते समय बटन दबाए रखें।",
-    addedWithGenerator: "{n} जोड़े गए। इस डिप्लॉयमेंट पर सवाल जनरेटर अभी उपलब्ध नहीं है, इसलिए केवल आपकी अपनी सामग्री इस्तेमाल हुई।",
-    addedPlain: "{n} जोड़े गए।",
-    blockedAnswerOne: "{n} रोका गया जवाब हर जगह लागू है।",
-    blockedAnswerMany: "{n} रोके गए जवाब हर जगह लागू हैं।",
-    flaggedRepliesOne: "फ़ॉलोअर्स ने {n} जवाब को फ़्लैग किया है।",
-    flaggedRepliesMany: "फ़ॉलोअर्स ने {n} जवाबों को फ़्लैग किया है।",
+  voicePreviewPanel: {
+    eyebrow: "Your voice",
+    title: "Preview my voice",
+    introTest: "Type a line and hear the current draft in Hindi, Hinglish, or English.",
+    introReal: "A private draft, generated from your own consented recording. Every clip opens with the spoken AI disclosure and carries an inaudible watermark. Previewing does not activate anything and does not let anyone else hear it.",
+    languageLegend: "Preview language",
+    languageHindiLabel: "Hindi",
+    languageHindiHelp: "Write Hindi in Devanagari. Familiar English terms can stay in English.",
+    languageHinglishLabel: "Hinglish",
+    languageHinglishHelp: "Write natural Roman Hindi and English. Each segment is planned before synthesis.",
+    languageEnglishLabel: "English",
+    languageEnglishHelp: "Write the exact English line you want the draft to say.",
+    yourLine: "Your line",
+    charactersLeftTest: "{n} characters left.",
+    charactersLeftReal: "{n} characters left. The spoken AI disclosure is added for you.",
+    disabledCheckingHeadline: "We are still checking whether you have a draft voice.",
+    disabledCheckingNext: "This takes a moment. The button turns on by itself when the check comes back.",
+    disabledBusyWarming: "The voice runtime is starting up, which takes two to five minutes after a quiet period.",
+    disabledBusyGenerating: "Your line is being generated right now.",
+    disabledBusyNext: "It retries by itself. You can leave this open or go and do something else on this step.",
+    disabledEmptyHeadline: "The box is empty, so there is nothing to say.",
+    disabledEmptyNext: "Type a line for your AI to read aloud.",
+    disabledOverLimitHeadline: "That is longer than the {n} characters a preview can take.",
+    disabledOverLimitNext: "Shorten it and the button turns on.",
+    buttonGenerating: "Generating",
+    buttonWaking: "Waking the voice lab",
+    buttonAnotherTake: "Generate another take",
+    buttonPreview: "Preview my voice",
+    stateReady: "Ready",
+    listenToThisTake: "Listen to this take",
+    audioFallback: "Your browser cannot play this protected WAV.",
+    pronunciationPlanSummary: "{n} reviewed Hindi pronunciation changes applied",
+    spokenAsLabel: "Spoken as:",
+    originalTextUnchangedNote: "Your original text stays unchanged. Plan {n} is saved with this preview.",
+    disclosureRowLabel: "Disclosure",
+    disclosureRowValue: "Spoken, on every clip",
+    watermarkRowLabel: "Watermark",
+    watermarkRowValue: "PerTh, verified before release",
+    notRightYet: "Not right yet?",
+    editLineNote: "Edit the line or switch language, then generate another take.",
+    editLine: "Edit the line",
+    receiptLine: "Receipt {n} · build {n2}",
+    stateWarming: "Warming up",
+    runtimeStarting: "Your voice runtime is starting",
+    nextCheckLabel: "Next check",
+    coldStartEstimateTitle: "Cold start estimate",
+    coldStartEstimateLabel: "{n} to {n2} min",
+    checkCompleteNote: "Check {n} complete. This page retries by itself.",
+    keepWorkingNote: "You can keep working on this step while it starts. Your line and wait are kept if this tab reloads.",
+    stateGenerating: "Generating",
+    makingYourTake: "Making your take",
+    renderingTest: "Rendering your words in the current draft voice.",
+    renderingReal: "Rendering your words, adding the disclosure and the watermark.",
+    stateFailed: "Did not work",
+    previewStopped: "Preview stopped",
+    tryAgain: "Try again",
+    stateIdle: "Nothing generated yet",
+    takeAppearsHere: "Your take appears here",
+    chooseLanguageNote: "Choose the language, write one natural line, and generate the current draft.",
+    firstWaitNote: "The first run after a quiet period can take 2 to 5 minutes while the runtime starts. After that it is usually much faster while the runtime stays warm.",
+    runtimeNotWokenHeadline: "The voice runtime did not finish waking up",
+    ownerReportTooManyTimes: "It has been asked {n} times over about {n2} seconds and is still starting. Try again in a few minutes, or tell support the runtime is not coming up.",
   },
 
-  payouts: {
-    title: "पेआउट",
-    intro: "महीने में एक स्टेटमेंट, एक नंबर जिसे आप अपनी बैंक लाइन से मिला सकते हैं: फॉलोअर्स ने क्या दिया, प्लेटफ़ॉर्म ने क्या रखा, टैक्स के लिए क्या रोका गया, और आप तक क्या पहुंचता है।",
-    fundAccountLabel: "फंड अकाउंट रेफरेंस (आपके पेमेंट प्रोवाइडर से, यहां कभी बैंक की जानकारी न डालें)",
-    save: "सेव करें",
-    saving: "सेव हो रहा है...",
-    fundAccountNote: "यह प्लेटफ़ॉर्म कभी आपका बैंक अकाउंट नंबर या UPI आईडी नहीं मांगता। आपका पेमेंट प्रोवाइडर अपना ऑनबोर्डिंग पूरा होते ही एक रेफरेंस जारी करता है, और यहां सिर्फ वही रेफरेंस सेव होता है।",
-    saved: "फंड अकाउंट रेफरेंस सेव हो गया।",
-    hideStatement: "स्टेटमेंट छुपाएं",
-    showStatement: "स्टेटमेंट दिखाएं",
-    gross: "कुल",
-    platformTake: "प्लेटफ़ॉर्म का हिस्सा",
-    tdsWithheld: "TDS रोका गया",
-    netToYou: "आपको मिलने वाली राशि",
-    followerSubsThisPeriod: "इस अवधि में फॉलोअर सदस्यताएं: {n}।",
-    suiteShare: "{name} से एक Suite सीट हिस्सा शामिल है: {label}।",
-    suiteShareNoName: "एक Suite सीट हिस्सा शामिल है: {label}।",
-    tdsNote: "TDS वह दर दिखाता है जो प्लेटफ़ॉर्म ऑपरेटर ने सेट की है। अभी वह दर 0% है, इसलिए कुछ भी नहीं रोका जाता। ऑपरेटर मानता है कि भारत के इनकम टैक्स एक्ट की धारा 194J क्रिएटर के रूम की कमाई पर लागू होती है, लेकिन किसी अकाउंटेंट ने इसकी पुष्टि नहीं की है, और कोई असली पेआउट भेजे जाने से पहले यह दर बदल सकती है।",
-    stateLine: "स्थिति: {label}",
-    providerRef: ", प्रोवाइडर रेफरेंस {label}",
-    settledLine: "सेटल हुआ: {label}",
-    failureReasonLine: "असफलता का कारण: {label}",
-    downloadJson: "JSON के रूप में डाउनलोड करें",
-    downloadText: "टेक्स्ट के रूप में डाउनलोड करें",
-    couldNotLoadStatement: "यह स्टेटमेंट लोड नहीं हो सका।",
-    loadingStatement: "स्टेटमेंट लोड हो रहा है।",
-    noPayoutYet: "अभी आपके लिए कोई पेआउट नहीं बना। कमाई के साथ कोई अवधि बंद होते ही यह भर जाता है।",
-    stateLabel: {
-      built: "बना, अभी भेजा नहीं गया",
-      pending_account: "फंड अकाउंट का इंतज़ार",
-      queued: "प्रोवाइडर के पास कतार में",
-      sent: "भेजा गया",
-      settled: "निपटाया गया",
-      failed: "विफल",
-    },
-    netLabel: "{label} नेट - {label2}",
-    statementDocTitle: "पेआउट स्टेटमेंट, {label}",
-    statementDocBuilt: "बना",
-  },
-
-  checkins: {
-    title: "चेक-इन",
-    intro: "एक पेड फॉलोअर खुद इसमें शामिल होता है और अपना समय चुनता है; आपका AI उसी समय पर फॉलो-अप करता है, कभी इसलिए नहीं कि वे चुप हो गए। यहां जो जांचना है वह अपने AI के लिए एक नोट की तरह लिखें, कोई लाइन नहीं जो वह पढ़कर सुनाए; यह हर बार अपने ही शब्दों में कहेगा।",
-    working: "हो रहा है...",
-    pause: "रोकें",
-    resume: "फिर शुरू करें",
-    emptyList: "अभी तक कोई चेक-इन नहीं। यहां जोड़ा गया पहला चेक-इन ही वह है जिसमें कोई फॉलोअर शामिल हो सकता है।",
-    titleLabel: "शीर्षक",
-    titlePlaceholder: "शाम की सैर",
-    shapeLabel: "क्या जांचना है (अपने AI के लिए एक नोट: यह इसे खुद अपने शब्दों में कहेगा)",
-    shapePlaceholder: "पूछें कि क्या उन्होंने आज शाम की सैर की; हां हो तो थोड़ा जश्न मनाएं, न हो तो कोई शर्मिंदगी नहीं",
-    cadenceLabel: "समय-संकेत (फॉलोअर को दिखता है, जैसे \"रोज़ाना\")",
-    cadencePlaceholder: "रोज़ाना",
-    saving: "सेव हो रहा है...",
-    addCheckin: "चेक-इन जोड़ें",
-  },
-
-  handoff: {
-    title: "हैंडऑफ़",
-    intro: "डिफ़ॉल्ट रूप से बंद। जब यह चालू हो, तो एक फॉलोअर सीधे आपसे सुनने को कह सकता है - वे तय करते हैं कि क्या भेजा जाए, भेजने से पहले उसे शब्द दर शब्द देखते हैं, और आपका जवाब सिर्फ उनके अपने थ्रेड में पहुंचता है, आपके नाम से, कभी आपके AI के नाम से नहीं।",
-    on: "चालू",
-    off: "बंद",
-    forThisRoom: "इस रूम के लिए",
-    working: "हो रहा है...",
-    turnOff: "बंद करें",
-    turnOn: "चालू करें",
-    capLabel: "एक फॉलोअर महीने में जितनी रिक्वेस्ट भेज सकता है (0-50)",
-    waiting: "इंतज़ार में",
-    answered: "जवाब दिया गया",
-    whatTheySent: "उन्होंने जो भेजा, बिल्कुल वैसे ही जैसे भेजा",
-    yourReply: "आपका जवाब",
-    replyPlaceholder: "अपने शब्दों में जवाब दें - यह सिर्फ उन्हीं तक पहुंचता है, आपके नाम से।",
-    sending: "भेजा जा रहा है...",
-    sendReply: "जवाब भेजें",
-    nothingWaiting: "अभी कुछ भी इंतज़ार में नहीं है।",
-  },
-
-  inviteCreator: {
-    title: "एक क्रिएटर को न्योता दें",
-    intro: "आप तीन और क्रिएटर को अपना AI बनाने के लिए न्योता दे सकते हैं। एक कोड एक बार चलता है, उस व्यक्ति के लिए जिसे आप देते हैं, और यह स्क्रीन ही एकमात्र जगह है जहां यह पूरा दिखता है।",
-    publishFirst: "दूसरे क्रिएटर को न्योता देना शुरू करने के लिए अपना रूम पब्लिश करें।",
-    copied: "कॉपी हो गया",
-    copyCode: "कोड कॉपी करें",
-    sendNow: "इसे अभी उस व्यक्ति को भेजें जिसे आप न्योता दे रहे हैं। यह दोबारा नहीं दिखाया जाएगा।",
-    creating: "बनाया जा रहा है...",
-    createCode: "न्योता कोड बनाएं",
-    quota: "{n2} में से {n} इस्तेमाल हुए।",
-    quotaExhausted: " आप तीनों इस्तेमाल कर चुके हैं।",
-    usedAll: "आप तीनों न्योते इस्तेमाल कर चुके हैं, या आपका रूम अभी पब्लिश नहीं हुआ है।",
-    stateLabel: {
-      unused: "अभी इस्तेमाल नहीं हुआ",
-      redeemed: "भुनाया गया",
-      expired: "खत्म हो गया",
-    },
-  },
-
-  inviteGate: {
-    eyebrow: "फिलहाल सिर्फ न्योते से",
-    headline: "जब तक पहले रूम हाथ से बनाए जा रहे हैं, Vyakti सिर्फ न्योते से खुलता है।",
-    lede: "अगर यहां किसी ने आपको पहले ही कोड भेजा है, तो नीचे डालें। नहीं तो आप आवेदन कर सकते हैं, और हम संपर्क करेंगे।",
-    codeLabel: "न्योता कोड",
-    codePlaceholder: "XXXX-XXXX-XXXX",
-    checking: "जांचा जा रहा है",
-    continueLabel: "जारी रखें",
-    noCodeYet: "अभी कोड नहीं है?",
-    applyLink: "पहले रूम में से एक के लिए आवेदन करें",
-  },
-
-  suite: {
-    title: "Suites",
-    intro: "एक Suite एक संस्था है जो सीटों के लिए भुगतान करती है - हर रूम की एक सीट। कई रूम (एक कोच, एक टीचर, एक डॉक्टर) को एक ही रोस्टर में लाने के लिए एक बनाएं; एक एडमिन हर रूम के सिर्फ आंकड़े देखता है, कभी यह नहीं कि किसी फॉलोअर ने क्या कहा।",
-    creating: "आपका Suite बनाया जा रहा है।",
-    starting: "इसकी सीट सदस्यता शुरू की जा रही है।",
-    seatsUsedAdmin: "{n2} में से {n} सीटें इस्तेमाल हुईं - आप इस Suite के एडमिन हैं",
-    seatsUsedMember: "{n2} में से {n} सीटें इस्तेमाल हुईं - आप इसके सदस्य हैं",
-    working: "हो रहा है...",
-    inviteCreator: "एक क्रिएटर को न्योता दें",
-    hideMembers: "सदस्य छुपाएं",
-    showMembers: "सदस्य दिखाएं",
-    hideMoney: "पैसे छुपाएं",
-    showMoney: "पैसे दिखाएं",
-    attachThisRoom: "इस रूम को जोड़ें",
-    noSeatFree: "कोई सीट खाली नहीं",
-    removeFromSuite: "इस रूम को इस Suite से हटाएं",
-    loadingMembers: "सदस्य लोड हो रहे हैं।",
-    memberAdmin: "एडमिन",
-    memberCreator: "क्रिएटर",
-    loadingMoney: "पैसे लोड हो रहे हैं।",
-    seatsAtPrice: "{n} सीटें {label} प्रति महीना हर एक - स्थिति: {label2}।",
-    willNotRenew: "{label} के बाद नवीनीकृत नहीं होगी। हर जुड़ा हुआ रूम तब तक अपनी सीट रखता है।",
-    nextCharge: "अगला भुगतान: {label} को {label2}।",
-    platformTake: "Vyakti का प्लेटफ़ॉर्म हिस्सा {n}% है, हर रूम की अपनी फॉलोअर कीमत जितना ही।",
-    cancel: "रद्द करें",
-    updateSeats: "सीटें अपडेट करें",
-    noSubscriptionYet: "अभी कोई Suite सदस्यता नहीं है। जब तक एक शुरू नहीं होती, सीटें इस Suite की अपनी मुफ़्त सीट सीमा तक ही रहती हैं।",
-    startSubscription: "Suite सदस्यता शुरू करें",
-    noSuitesYet: "अभी कोई Suite नहीं है। नीचे एक बनाएं, या किसी Suite एडमिन के न्योते से जुड़ें।",
-    newSuiteName: "नए Suite का नाम",
-    namePlaceholder: "North Coaching",
-    plan: "प्लान",
-    planStarter: "Starter",
-    planInstitute: "Institute",
-    seats: "सीटें",
-    saving: "सेव हो रहा है...",
-    createSuite: "Suite बनाएं",
-    joinSuite: "एक Suite से जुड़ें (एडमिन ने जो आईडी शेयर की, वह पेस्ट करें)",
-    joinPlaceholder: "Suite आईडी",
-    join: "जुड़ें",
-    noticeCreated: "Suite बन गया। आप इसके एडमिन हैं।",
-    inviteNotice: "इस Suite की आईडी क्रिएटर के साथ शेयर करें: {orgId}।",
-    noticeJoined: "आप इस Suite से एक क्रिएटर के रूप में जुड़ गए हैं।",
-    noticeAttached: "यह रूम अब इस Suite का हिस्सा है।",
-    noticeDetached: "यह रूम अब उस Suite का हिस्सा नहीं है।",
-    noticeSubscriptionStarted: "Suite सदस्यता शुरू हो गई।",
-    noticeSeatsUpdated: "सीटें अपडेट हो गईं।",
-    noticeWillNotRenewSimple: "मौजूदा अवधि खत्म होने के बाद नवीनीकृत नहीं होगी।",
-    autoStartLiveStarted: "\"{name}\" लाइव है, और इसकी सीट सदस्यता शुरू हो गई है।",
-    autoStartLivePending: "\"{name}\" लाइव है। जब सीटों के लिए भुगतान लेने के लिए तैयार हों, तब नीचे इसकी सदस्यता शुरू करें।",
-  },
-
-  roomStudio: {
-    eyebrow: "आपका रूम",
-    loadingTitle: "आपका रूम लोड हो रहा है",
-    checkingExists: "जांचा जा रहा है कि आपका रूम अभी है या नहीं।",
-    setupTitle: "वह जगह बनाएं जहां आपका AI रहता है",
-    setupIntro:
-      "एक रूम हर फॉलोअर के लिए, जो आपके AI से बात करता है, एक निजी, लगातार चलने वाला पता है। यह हर एक को खुद " +
-      "याद रखता है, और कभी एक फॉलोअर को दूसरे को नहीं दिखाता। इसे एक बार बना लें, फिर जब नीचे के गेट खुल जाएं तो " +
-      "इसे पब्लिश करें।",
-    settingUp: "बनाया जा रहा है...",
-    setupButton: "अपना रूम बनाएं",
-    liveTitle: "वह जगह जहां आपका AI रहता है",
-    liveIntro:
-      "एक निजी, लगातार चलने वाला पता। हर फॉलोअर जो जुड़ता है, आपके AI के साथ अपना ही याद रखा हुआ रिश्ता पाता है, " +
-      "और उनमें से कोई भी कभी किसी और फॉलोअर की बातचीत, या आपकी, नहीं देखता।",
-    statusPaused: "रुका हुआ",
-    statusLive: "लाइव",
-    statusDraft: "पब्लिश नहीं हुआ",
-    addressCardTitle: "आपके रूम का पता",
-    copied: "कॉपी हो गया",
-    copyLink: "लिंक कॉपी करें",
-    downloadStoryCard: "स्टोरी कार्ड डाउनलोड करें",
-    partOf: "{label} का हिस्सा।",
-    suiteCoversRoom: "{label} में आपकी सीट इस रूम को कवर करती है।",
-    yourSuite: "आपका Suite",
-    tierGroupAriaLabel: "टियर",
-    tierFreeLabel: "आपका टियर: मुफ़्त क्षमता।",
-    working: "हो रहा है...",
-    upgradeToRoom: "Room में अपग्रेड करें ({label}/माह)",
-    upgradeToStudio: "Studio में अपग्रेड करें ({label}/माह)",
-    tierLabel: "आपका टियर: {label}।",
-    tierRoom: "Room",
-    tierStudio: "Studio",
-    willNotRenewOn: " {label} के बाद नवीनीकृत नहीं होगा।",
-    renewsOn: " {label} को नवीनीकृत होगा।",
-    cancel: "रद्द करें",
-    changeAddressLabel: "पता बदलें",
-    saving: "सेव हो रहा है...",
-    saveAddress: "पता सेव करें",
-    enterAddress: "अपने रूम के लिए एक पता डालें।",
-    addressInvalid: "3 से 40 अक्षर, अंक, या डैश के बीच।",
-    willReadAs: "यह ऐसे दिखेगा: {label}",
-    telegramCardTitle: "Telegram पर आपका रूम",
-    open: "खोलें",
-    telegramNotConnected:
-      "अभी नहीं जुड़ा। फॉलोअर्स फिर भी ऊपर वाले पते पर आपके रूम तक पहुंच सकते हैं; Telegram पहुंचने का एक दूसरा " +
-      "तरीका है, कोई ज़रूरत नहीं।",
-    ownSiteCardTitle: "अपनी खुद की साइट पर",
-    ownSiteIntro:
-      "इसे किसी भी पेज पर पेस्ट करें जो आप नियंत्रित करते हैं: एक कोचिंग साइट, एक Linktree, एक ब्लॉग पोस्ट। यह " +
-      "नीचे आपके रूम का डिस्क्लोज़र दिखाते हुए एक बटन दिखाता है, और क्लिक करने पर आपका रूम एक नए टैब में खोलता है। " +
-      "यह कोई कुकी सेट नहीं करता और आपके विज़िटर से कुछ नहीं मांगता।",
-    embedSnippetAriaLabel: "एम्बेड स्निपेट",
-    copySnippet: "स्निपेट कॉपी करें",
-    ownSiteFooter:
-      "विज़िटर वही भाषा में डिस्क्लोज़र देखते हैं जिसमें आपका रूम पहले दिखता है, अंग्रेज़ी या हिन्दी, और यह बटन " +
-      "आपके रूम को कभी उनके पेज के अंदर नहीं रखता। यह हमेशा आपके रूम का अपना पता खोलता है।",
-    publishCardTitlePublished: "पब्लिशिंग",
-    publishCardTitleUnpublished: "अपना रूम पब्लिश करें",
-    publishing: "पब्लिश हो रहा है...",
-    publishButton: "अपना रूम पब्लिश करें",
-    resume: "फिर शुरू करें",
-    pause: "रोकें",
-    liveSince:
-      "{label} से लाइव है। आपके रूम का पता रखने वाला कोई भी जुड़ सकता है और आपके AI के साथ अपना याद रखा हुआ " +
-      "रिश्ता शुरू कर सकता है।",
-    recently: "हाल ही में",
-    pausedNotice: "रुका हुआ है। जब तक आप इसे फिर शुरू नहीं करते, कोई भी आपके रूम तक नहीं पहुंच सकता।",
-    listMyRoomTitle: "मेरा रूम लिस्ट करें",
-    listMyRoomIntro:
-      "लिस्ट करने पर आपका रूम क्रिएटर डायरेक्टरी में दिखता है: आपका नाम, नीचे की एक-लाइन जानकारी, और जिस भाषा " +
-      "में आपके रूम की स्क्रीन बोलती हैं। यह कभी नहीं दिखाता कि आपके कितने फॉलोअर हैं।",
-    oneLineDescriptionLabel: "एक-लाइन जानकारी",
-    oneLineDescriptionPlaceholder: "आप किस बारे में बात करते हैं, एक लाइन में",
-    save: "सेव करें",
-    listedNote: "लिस्टेड है। डायरेक्टरी देखने वाला कोई भी आपका रूम ढूंढ सकता है।",
-    notListedNote: "लिस्टेड नहीं है। आपका रूम फिर भी लिंक रखने वाले किसी के लिए भी काम करता है।",
-    publishFirstNote: "पहले अपना रूम पब्लिश करें, फिर आप इसे लिस्ट कर सकते हैं।",
-    removeFromDirectory: "डायरेक्टरी से हटाएं",
-    listMyRoom: "मेरा रूम लिस्ट करें",
-    freeFollowersTitle: "मुफ़्त फॉलोअर्स",
-    freeFollowersIntro:
-      "जिस फॉलोअर ने भुगतान नहीं किया है उसे महीने में इतने मैसेज मिलते हैं, कोई वॉइस नहीं, कोई चेक-इन नहीं। " +
-      "आप इसे कभी भी बदल सकते हैं।",
-    freeMonthlyMessagesAriaLabel: "मुफ़्त मासिक मैसेज",
-    roomLanguageTitle: "रूम की भाषा",
-    roomLanguageIntro:
-      "आपका AI वही बोलता रहता है जो आप उससे बोलते हैं - यह सिर्फ ऐप की अपनी स्क्रीन चुनता है: बटन, डिस्क्लोज़र " +
-      "लाइन, मेन्यू। जो फॉलोअर पहले जुड़ चुका है, या जिसके अपने ब्राउज़र ने कोई भाषा बताई है, वह इसके बजाय वही " +
-      "देखता है; यह बाकी सबके लिए सिर्फ पहली स्क्रीन है।",
-    defaultRoomLanguageAriaLabel: "डिफ़ॉल्ट रूम भाषा",
-    paidFollowersTitle: "पेड फॉलोअर्स",
-    paidFollowersIntroPre: "फेयर-यूज़ सीमा के भीतर लगभग असीमित चैट, साथ ही वॉइस जवाब जब",
-    paidFollowersIntroPost: "चालू हो। दोनों नंबर प्लान की सीमा के भीतर आपके तय करने के लिए हैं।",
-    messagesAMonthLabel: "महीने में मैसेज",
-    paidMonthlyMessagesAriaLabel: "पेड मासिक मैसेज",
-    voiceMinutesAMonthLabel: "महीने में वॉइस मिनट",
-    paidMonthlyVoiceMinutesAriaLabel: "पेड मासिक वॉइस मिनट",
-    priceTitle: "कीमत",
-    priceIntro:
-      "ऊपर के मुफ़्त मैसेज के बाद, फेयर-यूज़ के भीतर असीमित के लिए एक फॉलोअर महीने में क्या देता है। {min} और " +
-      "{max} के बीच। Vyakti एक फॉलोअर के भुगतान का {pct}% रखता है; बाकी आपका है।",
-    followerPriceAriaLabel: "फॉलोअर कीमत",
-    noPriceYet: "अभी कोई कीमत तय नहीं है। जब तक आप एक तय नहीं करते, फॉलोअर्स सदस्यता नहीं ले सकते।",
-    moneyTitle: "पैसा",
-    subscribers: "सब्सक्राइबर्स",
-    leftThisMonth: "इस महीने छोड़ा",
-    yourShareThisMonth: "इस महीने आपका हिस्सा",
-    noSubscribersYet: "अभी कोई सब्सक्राइबर नहीं।",
-    lastPayout: "पिछला पेआउट: {label} ({label2}), {label3} से {label4} तक के लिए।",
-    noPayoutYet: "अभी कोई पेआउट नहीं है।",
-    howDoingTitle: "आपका रूम कैसा कर रहा है",
-    noFollowersYet: "अभी कोई फॉलोअर नहीं। इसे बदलने के लिए अपने रूम का पता शेयर करें।",
-    followers: "फॉलोअर्स",
-    activeToday: "आज सक्रिय",
-    messagesThisMonth: "इस महीने के मैसेज",
-    couldNotLoadCounts: "अभी आपके आंकड़े लोड नहीं हो सके। अगली बार लोड होने पर ये दिखेंगे।",
-    weekSixTitle: "छठा हफ़्ता",
-    weekSixIntro:
-      "किसी हफ़्ते में जुड़े फॉलोअर्स में से, छह हफ़्ते बाद भी आपके AI से बात कर रहे लोगों का हिस्सा। यह वह नंबर " +
-      "है जो सबसे ज़्यादा मायने रखता है, भेजे गए मैसेज या आज कितने आए उससे भी ज़्यादा।",
-    noCohortsYet: "अभी कोई कोहॉर्ट नहीं। आपके रूम के पहले फॉलोअर मिलते ही यह भरना शुरू होगा।",
-    weekOf: "{label} का हफ़्ता",
-    noFollowersThatWeek: "उस हफ़्ते कोई फॉलोअर नहीं",
-    stillTalkingPct: "{n}% अभी भी बात कर रहे हैं",
-    notMeasurableUntil: "{label} तक मापने लायक नहीं",
-    notMeasurableYetVerdict: "अभी मापने लायक नहीं। इसके लिए कम से कम छह हफ़्ते पुराना कोहॉर्ट चाहिए।",
-    belowGateBand: "25% के उस गेट से नीचे जो इस प्रोडक्ट को बिल्कुल काम करने के लिए चाहिए",
-    aboveCategoryBand: "40% की उस लाइन से ऊपर जहां यह एक श्रेणी बन जाता है",
-    betweenBand: "25% के गेट और 40% की श्रेणी लाइन के बीच",
-    cohortVerdictSentence: "आपका सबसे पुराना मापने लायक कोहॉर्ट, {label} के हफ़्ते का, {n}% वापस आया। यह {label2} है।",
-    soon: "जल्द",
-    gateLine: "गेट 25% या उससे ज़्यादा है। 40% या उससे ज़्यादा वह जगह है जहां यह एक फ़ीचर होना बंद कर एक श्रेणी बन जाता है।",
-    couldNotLoadRetry: "अभी यह लोड नहीं हो सका। अगली बार लोड होने पर यह दिखेगा।",
-    loading: "लोड हो रहा है।",
-    pulseTitle: "Pulse",
-    pulseIntro:
-      "आपके फॉलोअर्स किस बारे में बात कर रहे हैं, सिर्फ आंकड़ों के रूप में, और सिर्फ उन बातचीत से जिन्हें किसी " +
-      "फॉलोअर ने खुद गिनने देना चुना। कभी कोई मैसेज नहीं, कभी कोई नाम नहीं, और जब तक किसी नंबर के पीछे कम से कम " +
-      "पांच अलग-अलग फॉलोअर न हों, तब तक कभी नहीं दिखाया जाता।",
-    pulseTopicsAriaLabel: "Pulse विषय",
-    removeTopicAriaLabel: "विषय {label} हटाएं",
-    addTopicPlaceholder: "एक विषय जोड़ें, जैसे परीक्षा का तनाव",
-    add: "जोड़ें",
-    notEnoughOptins: "अभी तक पर्याप्त लोगों ने ऑप्ट-इन नहीं किया।",
-    enoughOptinsNoBucket: "पर्याप्त फॉलोअर्स ने ऑप्ट-इन किया है, लेकिन अभी किसी के पीछे पांच नहीं हैं।",
-    suppressedOne: "{n} संयोजन इस हफ़्ते रोका गया क्योंकि दिखाने से किसी का नाम पता चल जाता।",
-    suppressedMany: "{n} संयोजन इस हफ़्ते रोके गए क्योंकि दिखाने से किसी का नाम पता चल जाता।",
-    showMe: "मुझे दिखाएं",
-    noticeRoomSetup: "आपका रूम बन गया है। जब तैयार हों तब इसे पब्लिश करें।",
-    noticeAddressSaved: "पता सेव हो गया।",
-    noticeRoomLive: "आपका रूम लाइव है।",
-    noticeResumed: "फिर शुरू हुआ। आपका रूम फिर से लाइव है।",
-    noticeDefaultLocaleHi: "जिन नए फॉलोअर्स ने भाषा तय नहीं की, वे पहले हिन्दी देखेंगे।",
-    noticeDefaultLocaleEn: "जिन नए फॉलोअर्स ने भाषा तय नहीं की, वे पहले अंग्रेज़ी देखेंगे।",
-    noticeBioSaved: "आपकी एक-लाइन जानकारी सेव हो गई।",
-    noticeListed: "लिस्टेड है। आपका रूम अब क्रिएटर डायरेक्टरी में दिखता है।",
-    noticeUnlisted: "अनलिस्टेड है। आपका रूम डायरेक्टरी में नहीं है; ऊपर वाला लिंक फिर भी काम करता है।",
-    noticeFreeCap: "मुफ़्त फॉलोअर्स को अब महीने में {n} मैसेज मिलते हैं।",
-    noticePaidCeilings: "पेड फॉलोअर्स को अब महीने में {n} मैसेज और {n2} वॉइस मिनट मिलते हैं।",
-    noticePrice: "फॉलोअर्स अब महीने में {label} देते हैं।",
-    noticeTierStarted: "आपकी टियर सदस्यता शुरू हो गई है।",
-    noticeTierCancel: "मौजूदा अवधि खत्म होने के बाद नवीनीकृत नहीं होगी।",
-    dormancyTitle: "सीमित समय के लिए रखें",
-    dormancyIntro:
-      "डिफ़ॉल्ट रूप से बंद: फॉलोअर की बातचीत हमेशा के लिए रखी जाती है, ठीक वैसे ही जैसे आज है। इसे चालू करें और " +
-      "किसी शांत फॉलोअर को कुछ भी भुलाए जाने से पहले एक साफ़ सूचना मिलती है, लौटने का समय देकर।",
-    dormancyFloorNote: "कम से कम {n} दिन।",
-    dormancyOff: "बंद - हमेशा रखें",
-    dormancyDaysAriaLabel: "फॉलोअर को भुलाए जाने से पहले निष्क्रियता के दिन",
-    noticeDormancyOn: "किसी शांत फॉलोअर को उनकी आख़िरी विज़िट के {n} दिन बाद, पहले सूचना देकर भुला दिया जाता है।",
-    noticeDormancyOff: "बंद कर दिया गया। हर फॉलोअर की बातचीत फिर से हमेशा के लिए रखी जाएगी।",
-  },
-
-  videoLinkMount: {
-    eyebrow: "जल्द आ रहा है",
-    title: "एक वीडियो, लिंक से",
-    blurb:
-      "एक लेक्चर का URL पेस्ट करें और हम ऑडियो निकालते हैं, उसे ट्रांसक्राइब करते हैं, और बताते हैं कि यह आपके " +
-      "समझाने के तरीके के बारे में हमें क्या सिखाता है। यह हिस्सा अभी बन रहा है और अभी जुड़ा नहीं है।",
-    noBoxNote:
-      "अभी जानबूझकर यहां पेस्ट करने के लिए कोई बॉक्स नहीं है। एक फ़ील्ड जो लिंक ले ले और उसका कुछ न करे, आपसे " +
-      "पेस्ट और इंतज़ार दोनों लेगी, और आपको कुछ सच नहीं बताएगी।",
-    worksTodayNote:
-      "वीडियो के लिए आज क्या काम करता है: नीचे अपना चैनल जोड़ें, और हम आपकी दी हुई अनुमति से नए अपलोड देखते " +
-      "हैं। वह हिस्सा जो भी निकालता है, वह आपको बताया जाता है, खुद से लागू नहीं किया जाता।",
-  },
-
-  runtimeGate: {
-    labels: {
-      self_replica_only: "सिर्फ़-खुद की नीति",
-      replica_not_ready: "मंज़ूर आवाज़ और व्यवहार",
-      self_identity_not_bound: "अकाउंट-से-व्यक्ति की पुष्टि हुई बाइंडिंग",
-      adult_verification_required: "जीवित-वयस्क सत्यापन",
-      identity_verification_required: "पहचान सत्यापन",
-      liveness_verification_required: "लाइव एंटी-रीप्ले जांच",
-      inference_consent_required: "इन्फ़रेंस अनुमति",
-      person_profile_not_approved: "मंज़ूर: हमने आपके बारे में क्या सीखा",
-      calibration_not_approved: "मंज़ूर व्यवहार कैलिब्रेशन",
-      voice_genome_not_approved: "मंज़ूर आवाज़",
-      voice_not_ready: "प्रोडक्शन वॉइस मैपिंग",
-      production_voice_required: "गैर-टेस्ट वॉइस प्रोवाइडर",
-      qualification_incomplete: "सात-सुइट क्वालिफ़िकेशन",
-    },
-    eyebrow: "रनटाइम",
-    title: "आपका AI किसी से बात कर सके, उससे पहले क्या पास होना चाहिए",
-    intro:
-      "लॉन्च हमने आपके बारे में जो सीखा उसका सटीक वर्शन, सटीक आवाज़, प्रोवाइडर वॉइस, रिश्ते का नेमस्पेस, और " +
-      "मूल्यांकन सेट को बांधता है। नए ड्राफ्ट चुपचाप किसी सक्रिय AI को नहीं बदल सकते।",
-    sealActive: "सक्रिय",
-    sealSealed: "सील्ड",
-    sealSubActive: "सिर्फ़ निजी इस्तेमाल",
-    sealSubSealed: "कोई जनरेशन एक्सेस नहीं",
-    checkingGates: "हर लॉन्च गेट जांचा जा रहा है...",
-    retry: "फिर कोशिश करें",
-    qualificationSuitesPassed: "क्वालिफ़िकेशन सुइट पास हुए",
-    whatWeLearnedVersion: "हमने क्या सीखा: वर्शन",
-    calibrationVersion: "कैलिब्रेशन वर्शन",
-    voiceVersion: "आवाज़ वर्शन",
-    gatesClosedOne: "{n} लॉन्च गेट अभी भी बंद है",
-    gatesClosedMany: "{n} लॉन्च गेट अभी भी बंद हैं",
-    actionNote:
-      "आपके AI की कॉल सिर्फ़ सुरक्षित कैस्केड स्पीच इस्तेमाल करती हैं। किसी और क्लाउड वॉइस या डिवाइस टेक्स्ट " +
-      "टू स्पीच पर कोई फ़ॉलबैक नहीं है।",
-    freezing: "क्षमता फ़्रीज़ की जा रही है...",
-    runtimeActive: "रनटाइम सक्रिय है",
-    activateButton: "निजी रनटाइम सक्रिय करें",
-    readinessUnavailable: "रनटाइम की तैयारी अभी उपलब्ध नहीं है",
-    activationRefused: "रनटाइम सक्रिय करना अस्वीकार हुआ",
-  },
-
-  turnFeedback: {
-    dimensionLabel: {
-      wording: "शब्द चयन",
-      behavior: "व्यवहार",
-      relationship: "रिश्ता",
-      memory: "याददाश्त",
-      delivery: "डिलीवरी",
-      voice_identity: "आवाज़",
-    },
-    dimensionDescription: {
-      wording: "वाक्यांश और वाक्य की बनावट",
-      behavior: "आप कैसे प्रतिक्रिया देते और फैसले लेते हैं",
-      relationship: "इस व्यक्ति के साथ यह कैसा लगता है",
-      memory: "तथ्य, पुरानी बातें, और अनिश्चितता",
-      delivery: "गति, भाव, और बिना-शब्दों वाले संकेत",
-      voice_identity: "वह सुरक्षित ऑडियो जो आपने असल में सुना",
-    },
-    ratingLabel: { exact: "बिल्कुल सही", close: "करीब", off: "गलत" },
-    reasonLabel: {
-      too_generic: "बहुत सामान्य",
-      wrong_fact: "गलत तथ्य",
-      wrong_relationship: "गलत रिश्ता",
-      wrong_tone: "गलत लहजा",
-      wrong_wording: "गलत शब्द चयन",
-      too_long: "बहुत लंबा",
-      too_short: "बहुत छोटा",
-      voice_mismatch: "आवाज़ नहीं मिली",
-      emotion_mismatch: "भाव नहीं मिला",
-      unsafe_or_boundary: "एक सीमा पार की",
-      other: "कुछ और",
-    },
-    playVoiceFirst: "पहले सुरक्षित आवाज़ चलाएं",
-    savedRevision: "रिविज़न {n} सुरक्षित",
-    didThisFeelLikeYou: "क्या यह आपकी तरह लगा?",
-    thisIsMe: "यह मैं हूं",
-    tuneThis: "इसे ठीक करें",
-    teachDifference: "फ़र्क सिखाएं",
-    close: "बंद करें",
-    gradeOnlyNote: "सिर्फ़ वही रेट करें जो आपने देखा। बिना रेट किए हिस्से अनजान ही रहते हैं।",
-    whatMissed: "क्या चूक गया?",
-    correctionLabel: "आप असल में क्या कहेंगे?",
-    correctionOptionalNote: "वैकल्पिक, सेव होने से पहले एन्क्रिप्टेड",
-    correctionPlaceholder: "वह वर्शन लिखें जो आपकी तरह लगे।",
-    layersRatedOne: "{n} हिस्सा रेट किया गया",
-    layersRatedMany: "{n} हिस्से रेट किए गए",
-    chooseAtLeastOne: "कम से कम एक हिस्सा चुनें",
-    securing: "सुरक्षित किया जा रहा है...",
-    saveEvidence: "सबूत सेव करें",
-    errorFallback: "यह सटीकता नोट सुरक्षित नहीं हो सका",
-  },
-
-  replicaDialogueLab: {
-    eyebrow: "निजी बातचीत",
-    title: "अपने AI से निजी तौर पर, टेक्स्ट में बात करें",
-    intro:
-      "हर जवाब उस पर बनता है जो हमने आपके बारे में सीखा, आपके अपने कैलिब्रेशन, इस रिश्ते की निजी स्थिति, और " +
-      "हाल के टर्न। वॉइस प्लेबैक सिर्फ़ वही सर्वर-जारी जवाब बोल सकती है।",
-    statusPrivateLive: "निजी · लाइव",
-    statusSealed: "सील्ड",
-    lockedHeadline: "जब तक निजी रनटाइम हर गेट पास न करे, बातचीत उपलब्ध नहीं होगी।",
-    lockedNote: "कोई फ़ॉलबैक AI, सामान्य आवाज़, या आधा सक्रिय होना इस्तेमाल नहीं होता।",
-    stopVoice: "आवाज़ रोकें",
-    playProtectedVoice: "सुरक्षित आवाज़ चलाएं",
-    emptyHeadline: "कुछ ऐसा शुरू करें जो सिर्फ़ आप ही नोटिस करेंगे।",
-    emptyNote: "पहला टर्न एक निजी, वर्शन-बद्ध सेशन खोलता है।",
-    thinking: "सबूत-आधारित जवाब बनाया जा रहा है...",
-    messageLabel: "अपने AI को मैसेज करें",
-    messagePlaceholder: "यहां मैं क्या कहूंगा?",
-    sendPrivately: "निजी तौर पर भेजें",
-    dismiss: "हटाएं",
-    trustNote:
-      "ऑडियो के लिए सिंथेटिक डिस्क्लोज़र और वॉटरमार्किंग हमेशा ज़रूरी रहती है। बातचीत के लॉग निजी और मिटाए " +
-      "जा सकने वाले हैं; यह स्क्रीन कभी AI, एजेंट, व्यक्ति, स्टोरेज, या प्रोवाइडर की पहचान नहीं दिखाती।",
-    errorReadinessUnavailable: "निजी बातचीत की तैयारी अभी उपलब्ध नहीं है",
-    errorReconcileRequired:
-      "यह जवाब पूरा हो गया, लेकिन अगले पेड टर्न से पहले Azure इस्तेमाल को ऑपरेटर की तरफ़ से मिलाना ज़रूरी है।",
-    errorCouldNotAnswer: "आपका AI जवाब नहीं दे सका",
-    errorVoicePlayback: "सुरक्षित आवाज़ चलाई नहीं जा सकी",
-  },
-
-  calibrationStudio: {
-    layers: {
-      delivery: "डिलीवरी",
-      language: "भाषा",
-      behaviour: "व्यवहार",
-      memory: "याददाश्त",
-      relationship: "रिश्ता",
-    },
-    blockers: {
-      approved_person_profile_required: "पहले हमने आपके बारे में जो सीखा उसे मंज़ूर करें",
-      delivery_calibration_required: "कम से कम एक डिलीवरी तुलना चुनें",
-      language_calibration_required: "कम से कम एक भाषा तुलना चुनें",
-      behaviour_calibration_required: "कम से कम एक व्यवहार तुलना चुनें",
-      memory_calibration_required: "कम से कम एक याददाश्त तुलना चुनें",
-      relationship_calibration_required: "कम से कम एक रिश्ता तुलना चुनें",
-      calibration_depth_required: "कम से कम सात तुलनाएं हल करें",
-    },
-    eyebrow: "व्यवहार कैलिब्रेशन",
-    title: "इसे दिखाएं कि आप असल में कैसे जवाब देंगे",
-    intro:
-      "सुरक्षित व्यवहार तुलनाओं में से चुनें। हर सुधार वर्शन वाला प्राथमिकता सबूत बनता है, कभी किसी प्रॉम्प्ट " +
-      "में चिपकाया गया एक और वाक्य नहीं।",
-    approvedPolicyLabel: "मंज़ूर नीति",
-    preparingContrasts: "कैलिब्रेशन तुलनाएं तैयार की जा रही हैं...",
-    retry: "फिर कोशिश करें",
-    contrastsReviewedAriaLabel: "{n2} में से {n} तुलनाएं देखी गईं",
-    contrastsReviewed: "तुलनाएं देखी गईं",
-    calibrationScenariosAriaLabel: "कैलिब्रेशन परिदृश्य",
-    openContrastAriaLabel: "{label} तुलना {n} खोलें",
-    orWord: "या",
-    bothFeelLikeMe: "दोनों मेरी जैसी लगती हैं",
-    neitherIsMe: "कोई भी मेरी जैसी नहीं",
-    freeTextNote:
-      "फ़्री-टेक्स्ट नोट कभी व्यवहार में नहीं जोड़े जाते। सिर्फ़ देखी गई, सर्वर की अपनी रणनीतियां ही किसी " +
-      "फ़्रीज़ की गई रनटाइम क्षमता में जा सकती हैं।",
-    checkingChoices: "चुनाव जांचे जा रहे हैं...",
-    approveCalibrationVersion: "कैलिब्रेशन v{n} मंज़ूर करें",
-    buildingPolicy: "नीति बनाई जा रही है...",
-    buildCalibrationPolicy: "कैलिब्रेशन नीति बनाएं",
-    errorCouldNotLoad: "कैलिब्रेशन लोड नहीं हो सका",
-    errorChoiceNotSaved: "आपका कैलिब्रेशन चुनाव सेव नहीं हुआ",
-    errorBuildRefused: "कैलिब्रेशन बनाना अस्वीकार हुआ",
-    errorApproveChanged: "कैलिब्रेशन बदल गई और मंज़ूर नहीं हो सकी",
-  },
-
-  candidateEvaluationLab: {
-    dimensionCopy: {
-      overall: { label: "कुल मिलाकर", hint: "कौन-सा आपकी जैसा ज़्यादा लगता है?" },
-      wording: { label: "शब्द चयन", hint: "वाक्यांश, वाक्य की बनावट, और लंबाई" },
-      behavior: { label: "व्यवहार", hint: "प्रतिक्रिया, समझ, और जवाब देने का तरीका" },
-      relationship: { label: "रिश्ता", hint: "इस सटीक रिश्ते में आप कैसे बोलेंगे" },
-      memory: { label: "याददाश्त", hint: "तथ्य, पुरानी बातें, और ईमानदार अनिश्चितता" },
-      delivery: { label: "डिलीवरी", hint: "गति, ऊर्जा, और भाव की बनावट" },
-    },
-    choiceLabel: { a: "A ज़्यादा करीब है", tie: "कोई फ़र्क नहीं", b: "B ज़्यादा करीब है" },
-    loadErrorFallback: "यह तुलना लोड नहीं हो सकी",
-    eyebrow: "अंधी तुलना",
-    title: "बिना बताए, ज़्यादा करीब वाली आवाज़ चुनें",
-    intro: "दो छिपे हुए आउटपुट को परत दर परत मिलाएं। पूरी समीक्षा पूरी होने तक इनकी पहचान छिपी रहती है।",
-    sealAriaLabel: "समीक्षा की गोपनीयता स्थिति",
-    blindedLabel: "छिपा हुआ",
-    mappingNote: "A/B मैपिंग सिर्फ़ सर्वर पर रहती है",
-    loadingAriaLabel: "अंधी समीक्षा लोड हो रही है",
-    comparisonUnavailable: "तुलना उपलब्ध नहीं है",
-    tryAgain: "फिर कोशिश करें",
-    emptyHeadline: "अभी समीक्षा के लिए कोई योग्य उम्मीदवार नहीं है।",
-    emptyNote: "यह तभी खुलता है जब एक फ़्रीज़ किया टेस्ट सेट और दो एन्क्रिप्टेड उम्मीदवार आउटपुट कम से कम 30 तुलनाओं के लिए मौजूद हों।",
-    completeHeadline: "अंधी समीक्षा पूरी हुई",
-    completeNote: "{n} तुलनाएं सील हो गई हैं। सुरक्षा, निजता, और सांख्यिकी गेट तय करते हैं कि यह उम्मीदवार आगे बढ़ सकता है या नहीं।",
-    comparisonOfLabel: "तुलना {n2} में से {n}",
-    sealedCountLabel: "{n} सील हुईं",
-    situationLabel: "स्थिति",
-    optionsAriaLabel: "गुमनाम जवाब विकल्प",
-    anonymousOutput: "गुमनाम आउटपुट",
-    orWord: "या",
-    judgeEveryLayer: "हर परत परखें",
-    judgeInstruction: "सिर्फ़ इस स्थिति के आधार पर चुनें। बराबरी भी एक उपयोगी सबूत है।",
-    layersJudged: "{n2} में से {n} परतें परखी गईं",
-    sealingComparison: "तुलना सील की जा रही है...",
-    sealAndContinue: "सील करें और आगे बढ़ें",
-  },
-
-  processingReview: {
-    reasonLabel: {
-      accepted: {
-        matches_subject: "मुझसे मिलता है",
-        clean_identity_signal: "साफ़ पहचान संकेत",
-        measurement_verified: "मापन सत्यापित",
-        segment_verified: "स्पीकर सेगमेंट सत्यापित",
-      },
-      rejected: {
-        wrong_speaker: "गलत स्पीकर",
-        third_party_present: "कोई और व्यक्ति मौजूद है",
-        poor_quality: "क्वालिटी बहुत खराब है",
-        corrupt_or_incomplete: "करप्ट या अधूरा",
-        synthetic_or_replayed: "सिंथेटिक या रीप्ले किया गया",
-        privacy_risk: "गोपनीयता जोखिम",
-      },
-      superseded: {
-        better_variant_selected: "बेहतर वैरिएंट चुना गया",
-        newer_measurement: "नया मापन",
-        corrected_segmentation: "सेगमेंटेशन ठीक किया गया",
-        source_replaced: "सोर्स बदला गया",
-      },
-    },
-    recently: "हाल ही में",
-    contentWithheld: "कंटेंट रोका गया है। सिर्फ़ यहां दिखे समय, विश्वास स्तर, और उद्गम की समीक्षा करें।",
-    needsReview: "समीक्षा चाहिए",
-    reviewAriaLabel: "{label} की समीक्षा करें",
-    decisionSelectLabel: "फैसला",
-    reasonSelectLabel: "वजह",
-    optionAccept: "स्वीकार करें",
-    optionReject: "अस्वीकार करें",
-    optionSupersede: "बदलें",
-    saving: "सेव हो रहा है",
-    recordReview: "समीक्षा दर्ज करें",
-    decisionWithheldNote: "यहां फैसला उपलब्ध नहीं है क्योंकि सबूत की सामग्री जानबूझकर रोकी गई है।",
-    confidenceNotReported: "विश्वास स्तर नहीं बताया गया",
-    confidencePct: "{n}% विश्वास",
-    endpointSuffix: "{n} सेकंड एंडपॉइंट",
-    unreportedFamily: "न बताया गया परिवार",
-    unreportedAdapter: "न बताया गया एडाप्टर",
-    eyebrow: "आपकी समीक्षा",
-    title: "देखें हमने क्या निकाला, फिर मंज़ूर करें",
-    refreshing: "रीफ़्रेश हो रहा है",
-    refresh: "रीफ़्रेश करें",
-    intro:
-      "सिर्फ़ समीक्षा के लिए सुरक्षित माप दिखाए जाते हैं। कच्चे ट्रांसक्रिप्ट, वॉइस वेक्टर, स्टोरेज लोकेशन, " +
-      "प्रोवाइडर रेफरेंस, और स्थायी डाउनलोड लिंक कभी इस पेज पर नहीं आते। एक निजी सुनने का लिंक तभी बनता है जब " +
-      "आप सुनें दबाते हैं, और यह 60 सेकंड में खत्म हो जाता है।",
-    loadingReceipts: "निजी प्रोसेसिंग रसीदें लोड हो रही हैं",
-    emptyHeadline: "अभी कोई प्रोसेसिंग रसीद नहीं है",
-    emptyNote: "ऊपर एक सोर्स जोड़ें। यह तभी दिखेगा जब निजी प्रोसेसिंग शुरू होगी।",
-    sourceTitle: "{label} सोर्स",
-    pipelineStepOne: "{n} पाइपलाइन स्टेप",
-    pipelineStepMany: "{n} पाइपलाइन स्टेप",
-    derivedVariantOne: "{n} निकाला गया वैरिएंट",
-    derivedVariantMany: "{n} निकाले गए वैरिएंट",
-    evidenceRecordOne: "{n} सबूत रिकॉर्ड",
-    evidenceRecordMany: "{n} सबूत रिकॉर्ड",
-    pipelineStepsAriaLabel: "पाइपलाइन स्टेप",
-    noPipelineAttempt: "अभी कोई पाइपलाइन प्रयास दर्ज नहीं हुआ।",
-    attemptLabel: "प्रयास {n}",
-    selectedVoiceBadge: "चुनी गई आवाज़",
-    opening: "खोला जा रहा है",
-    listenPrivately: "निजी तौर पर सुनें",
-    selecting: "चुना जा रहा है",
-    selected: "चुना गया",
-    useThisVoice: "यह आवाज़ इस्तेमाल करें",
-    cannotPlayAudio: "आपका ब्राउज़र यह निजी ऑडियो नहीं चला सकता।",
-    linkExpiresNote: "यह साइन किया लिंक एक मिनट से कम में खुद खत्म हो जाता है।",
-    noReviewableEvidence: "इस सोर्स के लिए समीक्षा योग्य कोई सबूत नहीं भेजा गया।",
-    draftOnlyEyebrow: "सिर्फ़ ड्राफ्ट",
-    voiceBuildGateTitle: "वॉइस बिल्ड गेट",
-    voiceBuildGateIntro:
-      "क्यू में लगा बिल्ड इस्तेमाल के लिए तैयार नहीं होता। एक अलग मंज़ूरी और एक असली, अलग से रखा गया " +
-      "मूल्यांकन अभी भी ज़रूरी है।",
-    acousticFamilies: "ध्वनि परिवार",
-    voiceMeasurements: "आवाज़ माप",
-    qualityMeasurements: "क्वालिटी माप",
-    speakerSegments: "स्पीकर सेगमेंट",
-    queueingDraft: "ड्राफ्ट क्यू में डाला जा रहा है",
-    queueDraftVoice: "ड्राफ्ट आवाज़ क्यू में डालें",
-    buildLedger: "बिल्ड लेजर",
-    immutableDraftLedger: "अपरिवर्तनीय ड्राफ्ट लेजर",
-    voiceVersionStatus: "आवाज़ वर्शन {n}, {label}",
-    voicePrintFamiliesDetail: "{n} स्वतंत्र वॉइस-प्रिंट परिवार",
-    targetSegmentsDetail: "{n} टारगेट सेगमेंट",
-    enrollmentArtifactsDetail: "{n} निजी एनरोलमेंट कलाकृतियां",
-    draftsCannotSynthesize:
-      "ड्राफ्ट ऑडियो नहीं बना सकते। मंज़ूरी के लिए अभी भी मालिक का कैलिब्रेशन और एक असली, अलग से रखा गया " +
-      "पहचान मूल्यांकन ज़रूरी है।",
-    errorProcessingUnavailable: "प्रोसेसिंग समीक्षा अभी उपलब्ध नहीं है",
-    errorDecisionNotRecorded: "फैसला दर्ज नहीं हो सका",
-    errorDraftNotQueued: "ड्राफ्ट बिल्ड क्यू में नहीं लगाया जा सका",
-    errorAuditionNotOpened: "निजी सुनवाई नहीं खोली जा सकी",
-    errorCandidateNotSelected: "आवाज़ उम्मीदवार चुना नहीं जा सका",
-    noticeReviewRecorded: "समीक्षा का फैसला एक स्थायी रसीद के रूप में दर्ज हो गया।",
-    noticeCandidateSelected: "आवाज़ उम्मीदवार चुना गया। मौजूदा ड्राफ्ट हटा दिए गए ताकि अगला वॉइस बिल्ड यही सटीक ऑडियो इस्तेमाल करे।",
-    noticeDraftQueued: "ड्राफ्ट वॉइस बिल्ड क्यू में डाला गया। इस्तेमाल होने से पहले अभी भी आपकी मंज़ूरी चाहिए।",
-  },
-
-  personModelStudio: {
-    blockers: {
-      self_name_required: "वह नाम पुष्ट करें जो आपका AI खुद के लिए इस्तेमाल करता है",
-      language_identity_required: "इसकी भाषा और कोड-स्विचिंग पहचान पुष्ट करें",
-      behavior_evidence_required: "कम से कम एक व्यवहार या सुधार पैटर्न देखें",
-      boundary_evidence_required: "कम से कम एक निजी सीमा पुष्ट करें",
-      critical_identity_conflict: "टकराते हुए पहचान दावे सुलझाएं",
-    },
-    extractionBlockers: {
-      transcription_consent_required: "ट्रांसक्रिप्शन की अनुमति दें",
-      training_consent_required: "सहायता प्राप्त दावा निष्कर्षण के लिए AI-निर्माण अनुमति दें",
-      reviewed_subject_transcript_required: "कम से कम एक सत्यापित स्पीकर ट्रांसक्रिप्ट स्वीकार करें",
-    },
-    confidencePct: "{n}% विश्वास",
-    citedSourceOne: "{n} उद्धृत सोर्स",
-    citedSourceMany: "{n} उद्धृत सोर्स",
-    keepOut: "बाहर रखें",
-    notAccurate: "सही नहीं है",
-    outdated: "पुराना",
-    thisIsMe: "यह मैं हूं",
-    reviewClaimAriaLabel: "इस दावे की समीक्षा करें",
-    eyebrow: "हमने आपके बारे में क्या सीखा",
-    title: "हमें जो लगता है हमने आपके बारे में सीखा, एक-एक दावे के रूप में",
-    intro:
-      "पहचान, भाषा, व्यवहार, मूल्य, सीमाएं, और आत्मकथा को अलग-अलग सबूत-आधारित दावों के रूप में पुष्ट करें। " +
-      "टकराव छिपाए नहीं जाते, एक भरोसेमंद कल्पना में औसत नहीं किए जाते।",
-    approvedVersionLabel: "मंज़ूर वर्शन",
-    loadingClaims: "समीक्षा किए गए दावे लोड हो रहे हैं...",
-    retry: "फिर कोशिश करें",
-    proposedClaims: "प्रस्तावित दावे",
-    accepted: "स्वीकृत",
-    criticalConflicts: "गंभीर टकराव",
-    citedExtractionEyebrow: "उद्धृत निष्कर्षण",
-    citedExtractionTitle: "अपनी समीक्षा की गई रिकॉर्डिंग को अपने नियंत्रण वाले दावों में बदलें",
-    citedExtractionIntro:
-      "सिर्फ़ स्वीकृत, लक्षित-स्पीकर ट्रांसक्रिप्ट हिस्से ही योग्य हैं। कच्चे ट्रांसक्रिप्ट सिर्फ़ सर्वर पर रहते " +
-      "हैं, सीधी पहचान निष्कर्षण कॉल से पहले छिपाई जाती है, और हर नतीजा तब तक सिर्फ़ एक प्रस्ताव रहता है जब तक " +
-      "आप उसे नीचे न देख लें।",
-    eligibleSpans: "योग्य हिस्से",
-    lastProposed: "पिछली बार प्रस्तावित",
-    noExtractionRunYet: "अभी कोई निष्कर्षण नहीं हुआ",
-    extractingPrivately: "निजी तौर पर निकाला जा रहा है...",
-    extractNewEvidence: "नया सबूत निकालें",
-    extractCitedClaims: "उद्धृत दावे निकालें",
-    noClaimsHeadline: "अभी कोई व्यवहार या याददाश्त दावे नहीं हैं।",
-    noClaimsNote: "प्रोसेस किया गया सबूत यहां समीक्षा के लिए दिखेगा। कच्चे ट्रांसक्रिप्ट, वेक्टर, और स्टोरेज पाथ रोके रहते हैं।",
-    buildIsDeterministicNote: "एक बिल्ड निश्चित और वर्शन वाला होता है। इसे मंज़ूर करना कभी इन्फ़रेंस या आवाज़ बनाने की अनुमति नहीं देता।",
-    checkingEvidence: "सबूत जांचा जा रहा है...",
-    approveProfileVersion: "प्रोफ़ाइल v{n} मंज़ूर करें",
-    building: "बनाया जा रहा है...",
-    buildReviewDraft: "समीक्षा ड्राफ्ट बनाएं",
-    errorExtractionUnavailable: "उद्धृत निष्कर्षण की स्थिति लोड नहीं हो सकी",
-    errorProfileUnavailable: "हमने आपके बारे में जो सीखा वह लोड नहीं हो सका",
-    errorClaimNotSaved: "दावे की समीक्षा सेव नहीं हुई",
-    errorBuildRefused: "हमने आपके बारे में जो सीखा उसे बनाना अस्वीकार हुआ",
-    errorApproveChanged: "प्रोफ़ाइल बदल गई और मंज़ूर नहीं हो सकी",
-    errorExtractionFailed: "उद्धृत दावे नहीं निकाले जा सके",
-  },
-  showcase: {
-    title: "अपने पेज पर दिखाएं",
-    intro: "पांच तक सवाल जवाब, जो कोई अजनबी जुड़ने से पहले आपके अपने पब्लिक पेज पर देखेगा। आपके अपने शब्द, आपके अपने क्रम में।",
-    publishFirst: "पहले अपना रूम पब्लिश करें, फिर आप अपने पेज पर जवाब दिखा सकते हैं।",
-    slotLabel: "स्लॉट {n}, कुल 5 में से",
-    questionPlaceholder: "एक सवाल जो लोग सच में पूछते हैं",
-    answerPlaceholder: "आपका जवाब, आपके अपने शब्दों में",
-    save: "सेव करें",
-    saving: "सेव हो रहा है...",
-    remove: "हटाएं",
-    removing: "हटाया जा रहा है...",
-    removed: "आपके पेज से हटा दिया गया।",
-    saved: "आपके पेज पर सेव हो गया।",
-    copyViolation: "यह टेक्स्ट ऐसे नहीं चल सकता। डैश हटाएं या जिस शब्द पर निशान लगा है उसे बदलें, फिर दोबारा कोशिश करें।",
-  },
-  creatorExport: {
-    eyebrow: "मालिक नियंत्रण",
-    title: "सब कुछ डाउनलोड करें",
-    body: "यह प्लेटफ़ॉर्म आपके और आपके AI के बारे में जो कुछ भी रखता है, वह सब: आपकी सामग्री, आपकी आवाज़, आपके रूम की अपनी सेटिंग्स, आपकी पेमेंट, आपके रिव्यू फ़ैसले। किसी फॉलोअर ने आपके AI से निजी तौर पर जो कहा, वह कभी नहीं, और किसी फॉलोअर का डेटा पांच से कम की गिनती में भी कभी नहीं, वह हमेशा उन्हीं का रहता है।",
-    button: "सब कुछ डाउनलोड करें",
-    downloading: "आपका डाउनलोड तैयार हो रहा है...",
-    rateLimited: "आप यह दिन में एक बार मांग सकते हैं। कल फिर कोशिश करें।",
-    error: "आपका डाउनलोड तैयार नहीं हो सका। कृपया फिर कोशिश करें।",
-    done: "आपका डाउनलोड शुरू हो गया है।",
-  },
-  suiteSeatLock: {
-    mandateNote:
-      "अगर आप इस Suite के लिए UPI से भुगतान करते हैं, तो जब तक वह सदस्यता चलती है, उसकी सीट संख्या तय रहती है। बाद में बदलने के " +
-      "लिए, इसे रद्द करें, यह अवधि खत्म होने तक काम करती रहेगी, फिर जितनी सीटें चाहिए उतनी संख्या पर एक नई सदस्यता शुरू करें। " +
-      "कार्ड से भुगतान करने पर कभी भी अपडेट किया जा सकता है।",
-    seatsLockedByMandate:
-      "यह Suite UPI या बैंक ई-मैंडेट से भुगतान करता है, और Razorpay इस तरह की सदस्यता पर सीटें बदलने की अनुमति नहीं देता। नीचे " +
-      "इसे रद्द करें, यह अवधि खत्म होने तक काम करती रहेगी, फिर जितनी सीटें चाहिए उतनी संख्या पर एक नई सदस्यता शुरू करें।",
-  },
-  creatorPush: {
-    title: "इस हफ़्ते की खबर, आपके फ़ोन पर",
-    intro: "हर सोमवार सुबह, आपके रूम के बारे में एक छोटा सा पुश: नए फॉलोअर और मैसेज। इसके लिए इस डिप्लॉयमेंट की अपनी पुश-की ज़रूरी है।",
-    notConfigured: "इस डिप्लॉयमेंट पर पुश अलर्ट अभी सेट नहीं हैं।",
-    turnOn: "इस डिवाइस पर साप्ताहिक पुश चालू करें",
-    turnOff: "इस डिवाइस पर साप्ताहिक पुश बंद करें",
-    error: "इस डिवाइस पर अलर्ट सेटिंग नहीं बदली जा सकी।",
-  },
-  showcasePicker: {
-    pickButton: "अपनी समीक्षाओं में से चुनें",
-    pickTitle: "वे कार्ड जिन्हें आपने पहले ही सही कहा है",
-    pickEmpty: "अभी चुनने के लिए कुछ नहीं। पहले मिलें में कुछ कार्ड तय करें।",
-    pickLoading: "देखा जा रहा है...",
-    pickError: "आपके तय किए गए कार्ड पढ़े नहीं जा सके",
-    pickUse: "इसे इस्तेमाल करें",
-    pickCancel: "रद्द करें",
-  },
-  reviewQueueFlags: {
-    flagsTitle: "फ़ॉलोअर्स द्वारा फ़्लैग किए गए",
-    timesOne: "{n} बार फ़्लैग किया गया।",
-    timesMany: "{n} बार फ़्लैग किया गया।",
-    reasonsLabel: "कारण: {label}",
-    reasonWrong: "गलत",
-    reasonHarmful: "हानिकारक",
-    reasonNotThem: "यह वे नहीं हैं",
-    reasonOther: "अन्य",
-    soundsRightAnyway: "फिर भी सही लगा",
-    dismissing: "सेव हो रहा है...",
-    dismissed: "आपकी फ़्लैग सूची से हटा दिया गया।",
-    errorAction: "वह कार्रवाई सेव नहीं हो सकी",
-  },
-  poster: {
-    download: "पोस्टर डाउनलोड करें (A4)",
+  voiceExperimentPanel: {
+    kindPack: "pack",
+    kindRatings: "ratings",
+    kindResult: "result",
+    errorCleanupFailed: "The new pack was not loaded because browser storage could not fully remove the old private experiment. The current experiment remains open.",
+    errorMappingLeak: "This file reveals a candidate before ratings are locked, so it was refused.",
+    errorBindingMismatch: "This {kind} file belongs to a different sealed experiment.",
+    errorSizeLimit: "This {kind} file is outside the safe size limit.",
+    errorIntegrityCheck: "One audio file failed its integrity check. Export the sealed pack again.",
+    errorNoSignature: "This report has no valid private-pack signature, so candidate identities remain hidden.",
+    errorNotValidExport: "This {kind} file is not a valid Vyakti voice experiment export.",
+    errorAudioCouldNotStart: "Audio could not start. Check this browser's sound permission, then try again.",
+    errorStorageFailedRemoving: "Browser storage failed while removing this private experiment. The current experiment remains open. Try again before leaving this device.",
+    removeConfirm: "Remove this private experiment from this browser? Exported files on your computer are not deleted.",
+    summaryTitle: "Blind voice experiment",
+    summarySubtitle: "Compare real outputs before seeing which candidate made them.",
+    statusIdentitiesUnlocked: "Identities unlocked",
+    statusRatingsLocked: "Ratings locked",
+    statusReadyToLock: "Ready to lock",
+    statusRatedCount: "{n} of {n2} rated",
+    statusNoExperiment: "No experiment loaded",
+    dismiss: "Dismiss",
+    openSealedPackTitle: "Open a sealed listening pack",
+    openSealedPackBody: "Import the one-file Studio bundle. It contains opaque clips and score controls, never candidate names or the private answer key.",
+    checkingPack: "Checking pack...",
+    chooseSealedPack: "Choose sealed pack",
+    identitiesUnlockedTitle: "Experiment identities unlocked",
+    acceptedListenerNote: "{n} accepted listener sheet. These are descriptive means, not an automatic winner.",
+    signatureVerified: "Signature verified",
+    languageHindi: "Hindi",
+    languageEnglish: "English",
+    meanLabel: "mean",
+    noMean: "No mean",
+    noneLabel: "None",
+    noPromotionNote: "No candidate is promoted here. Use the ratings as evidence alongside pronunciation checks, speaker similarity, latency, and cost.",
+    learnOwnerVoiceTitle: "First, learn the owner's real voice",
+    headphonesNote: "Use headphones and keep one volume. Candidate identities remain outside this browser pack.",
+    playOwnerAgain: "Play owner again",
+    playRealOwner: "Play real owner",
+    startBlindRating: "Start blind rating",
+    ratingsLockedTitle: "Ratings locked on this browser",
+    ratingsLockedBody: "The candidate mapping is still sealed. Export this sheet, admit it through the private listening gate, then import the unsealed report.",
+    savedLocally: "Saved locally",
+    exportBeforeLeaving: "Export before leaving",
+    exportLockedRatings: "Export locked ratings",
+    importUnsealedReport: "Import unsealed report",
+    privateGateCommandsSummary: "Private gate commands",
+    privateGateCommandsNote: "Then import reports/unsealed-report.json above. A failed listening check does not unlock identities.",
+    progressBarAriaLabel: "Blind experiment progress",
+    progressAriaValueText: "{n} of {n2} ratings complete",
+    listeningCheck: "Listening check",
+    positionLabel: "{n} of {n2}",
+    playHiddenClipAgain: "Play hidden clip again",
+    playHiddenClip: "Play hidden clip",
+    clipHeard: "Clip heard",
+    playBeforeRating: "Play before rating",
+    axisScaleLabel: "1 {n} · 5 {n2}",
+    axisButtonAriaLabel: "{label}: {n} of 5",
+    disclosureLegend: "Was the spoken AI disclosure clear and complete?",
+    noteQuestion: "What sounded wrong, if anything?",
+    playCheckAgain: "Play check again",
+    playCheck: "Play check",
+    attentionPrompt: "Play the short check, then choose what you heard.",
+    back: "Back",
+    savingPack: "Saving pack...",
+    progressSavedLocally: "Progress saved locally",
+    exportProgressBeforeLeaving: "Export progress before leaving",
+    lockRatings: "Lock ratings",
+    saveAndContinue: "Save and continue",
+    lockIrreversibleNote: "Locking is irreversible in Studio. Export remains available afterward.",
+    exportProgress: "Export progress",
+    importProgress: "Import progress",
+    replaceClearsNote: "Replacing clears this pack, its local ratings, and any imported result from this browser.",
+    working: "Working...",
+    replacePack: "Replace pack",
+    removePrivateExperiment: "Remove private experiment",
   },
 };
 
-export const STUDIO_COPY_TABLE: Record<StudioLocale, StudioCopy> = { en: EN, hi: HI };
+
+// ── the copy table: English now, Hindi as its own chunk ──────────────────
+// `hi` starts as a placeholder that THROWS on any property read, never as
+// English: a renderer that reaches the Hindi table before `loadStudioCopy`
+// has installed it fails loudly (`studio_copy_hi_not_loaded`) instead of
+// silently showing English to a Hindi creator, which is the failure this
+// shape would otherwise invite. `StudioLocaleProvider` (localeContext.tsx)
+// renders nothing until `studioCopyReady(locale)` is true, so no component
+// under it can hit the placeholder; the layout fixture and the evals await
+// `loadStudioCopy("hi")` before they read `.hi`. See
+// context/decisions.md#studio-hindi-table-is-its-own-chunk.
+const HI_NOT_LOADED: StudioCopy = new Proxy({} as StudioCopy, {
+  get(_target, key) {
+    if (key === "then" || typeof key === "symbol") return undefined;
+    throw new Error(`studio_copy_hi_not_loaded: read of ${String(key)} before loadStudioCopy("hi")`);
+  },
+});
+
+export const STUDIO_COPY_TABLE: Record<StudioLocale, StudioCopy> = { en: EN, hi: HI_NOT_LOADED };
+
+const COPY_LOADED: Record<StudioLocale, boolean> = { en: true, hi: false };
+let hiLoading: Promise<StudioCopy> | null = null;
+
+/** True once `STUDIO_COPY_TABLE[locale]` is the real table for that locale. */
+export function studioCopyReady(locale: StudioLocale): boolean {
+  return COPY_LOADED[normalizeStudioLocale(locale)];
+}
+
+/** Installs the locale's table into `STUDIO_COPY_TABLE` (the Hindi one from
+ *  its own chunk, once) and resolves to it. Idempotent; concurrent callers
+ *  share one in-flight import. */
+export function loadStudioCopy(locale: StudioLocale): Promise<StudioCopy> {
+  const safe = normalizeStudioLocale(locale);
+  if (COPY_LOADED[safe]) return Promise.resolve(STUDIO_COPY_TABLE[safe]);
+  if (!hiLoading) {
+    hiLoading = import("./hiCopy").then((mod) => {
+      STUDIO_COPY_TABLE.hi = mod.HI;
+      COPY_LOADED.hi = true;
+      return mod.HI;
+    });
+  }
+  return hiLoading;
+}
 
 export type { StudioCopy };
 

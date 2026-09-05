@@ -22,8 +22,15 @@
 // `useStudioLocale()` never throws outside a provider: it falls back to
 // `en`, so a file rendered by an eval harness or Storybook-shaped fixture
 // with no provider still renders real English rather than crashing.
-import { createContext, useContext, useEffect, type ReactNode } from "react";
-import { normalizeStudioLocale, STUDIO_COPY_TABLE, type StudioCopy, type StudioLocale } from "./copy";
+import { createContext, useContext, useEffect, useReducer, type ReactNode } from "react";
+import {
+  loadStudioCopy,
+  normalizeStudioLocale,
+  STUDIO_COPY_TABLE,
+  studioCopyReady,
+  type StudioCopy,
+  type StudioLocale,
+} from "./copy";
 
 interface StudioLocaleValue {
   locale: StudioLocale;
@@ -48,9 +55,29 @@ export function getActiveStudioLocale(): StudioLocale {
 
 export function StudioLocaleProvider({ locale, children }: { locale: StudioLocale; children: ReactNode }) {
   const safe = normalizeStudioLocale(locale);
+  // The Hindi table is its own chunk (`src/studio/hiCopy.ts`, the WS-R71
+  // merge): until `loadStudioCopy` has installed it, `STUDIO_COPY_TABLE.hi`
+  // throws on read, so this provider renders NOTHING for a locale whose
+  // table is not ready yet - never English in its place - and re-renders
+  // once the chunk lands. English is ready at module load, so the English
+  // studio pays no wait at all; a Hindi creator waits one small fetch on
+  // first paint and never sees the wrong language.
+  const ready = studioCopyReady(safe);
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
     activeLocale = safe;
   }, [safe]);
+  useEffect(() => {
+    if (ready) return;
+    let alive = true;
+    loadStudioCopy(safe).then(() => {
+      if (alive) rerender();
+    });
+    return () => {
+      alive = false;
+    };
+  }, [safe, ready]);
+  if (!ready) return null;
   const value: StudioLocaleValue = { locale: safe, t: STUDIO_COPY_TABLE[safe] };
   return <StudioLocaleContext.Provider value={value}>{children}</StudioLocaleContext.Provider>;
 }

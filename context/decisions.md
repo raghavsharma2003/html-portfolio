@@ -15540,3 +15540,177 @@ notice template approved by Meta and names it via a new env var (e.g.
 `ROOM_WHATSAPP_DORMANCY_TEMPLATE`); `dormancySweep`'s WhatsApp branch is then
 a small addition reusing `activeWhatsappFollower`/`sendTemplate` exactly as
 `api/_checkins.js`'s own `deliverers.whatsappTemplate` already does.
+
+## `ws-r71-tier-2-second-wave-converted` (2026-09-05, WS-R71)
+
+**Decision.** Six of `evals/studio-locale/run.mjs`'s (then-)20 Tier 2 files
+move to Tier 1 this workstream: `ActivityPanel.tsx`, `ChannelsStudio.tsx`,
+`TeacherSheetStudio.tsx`, `VoicePreviewLab.tsx`, `VoicePreviewPanel.tsx`,
+`VoiceExperimentPanel.tsx` — roughly 2,430 lines of component source and
+395 new `copy.ts` leaf strings per locale (759 to 1,154; `measurements.md
+#ws-r71-studio-hindi-tier-2-second-wave-2026-09-05`). `src/studio/copy.ts`
+gained six new top-level sections (`activityPanel`, `channelsStudio`,
+`teacherSheetStudio`, `voicePreviewLab`, `voicePreviewPanel`,
+`voiceExperimentPanel`), added as new interface blocks and new object
+sections after the existing `creatorExport`/`showcase` ones rather than
+edited into them, per this wave's own append-only law for shared files.
+
+**Rationale.** This is the SAME cut WS-R52 and WS-R61 each made one wave
+earlier: convert the files with no honesty-gate, no consent-ceremony
+checkbox array and no KYC/biometric-adjacent statement set first, in one
+session, rather than a shallower pass across every remaining file. All six
+are informational/functional wizard or lab surfaces — job-status lists,
+channel connection forms, a teacher's own subject/strictness/ladder sheet, a
+blind A/B preference bench, a simple preview box, a blind listening
+experiment — with no affirmative "I understand/authorise/confirm" ceremony
+of their own. Reading all twenty Tier 2 files (not merely their allowlist
+one-liners) BEFORE choosing which six to convert is what let this workstream
+find four MORE files carrying the same consent-ceremony risk as
+`ModelConsentGate.tsx`/`IdentityProofing.tsx` — see
+`ws-r71-consent-ceremony-files-found-and-not-converted` below — files
+WS-R52's original one-line "deep wizard internal, deferred" label did not
+distinguish from these six at all.
+
+**What was NOT converted, and why, split three ways:**
+1. Four files newly found to carry a consent-ceremony statement array this
+   session (`VideoEnrollPanel.tsx`, `IngestChannelStudio.tsx`,
+   `LivenessCapture.tsx`, `VoiceIdentityChallenge.tsx`) — see the next
+   decision entry.
+2. Five files already carrying a strengthened, file-specific reason from
+   WS-R52/WS-R61 (`ModelConsentGate.tsx`, `IdentityProofing.tsx`,
+   `DisclosurePreview.tsx`, `QuickStartPath.tsx`, `StudioApp.tsx`) —
+   untouched, reasons unchanged.
+3. Four files simply not reached this session, time-boxed at six converted
+   files to match the pace WS-R52 (twelve files, one session) and WS-R61
+   (nine files, one session) each set (`ContextLockerPanel.tsx`,
+   `EnrollmentWorkspace.tsx`, `MirrorCallStudio.tsx`,
+   `VoiceEnrollmentLab.tsx`) — plus the two structural files that were
+   always going to stay regardless of session length
+   (`layoutFixture.tsx`, `main.tsx`) and `OpsBoard.tsx` (never
+   creator-facing). `ContextLockerPanel.tsx`'s own allowlist entry also
+   flags a SEVENTH consideration worth a future session's attention: one
+   consent-shaped checkbox of its own, not read closely enough this
+   session to classify either way.
+
+**Reversal condition.** A future workstream converting one of the four
+"not reached" files removes its allowlist entry and adds the file to
+`TIER_1_FILES` in the same change, exactly as `ws-r52-tier-2-studio-files-not-localized`
+and `ws-r61-tier-2-first-wave-converted` already state for their own waves.
+If `ContextLockerPanel.tsx`'s own checkbox turns out to be consent-ceremony
+shaped on a closer read, it joins the list the next entry names; if not, it
+converts with the rest of that file.
+
+## `ws-r71-consent-ceremony-files-found-and-not-converted` (2026-09-05, WS-R71)
+
+**Decision.** Four files this workstream read in full —
+`VideoEnrollPanel.tsx`, `IngestChannelStudio.tsx`, `LivenessCapture.tsx`,
+`VoiceIdentityChallenge.tsx` — were found to carry the same consent-ceremony
+shape `ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text`
+and `ws-r61-identity-proofing-consent-statements-deferred-not-attempted`
+already carve out for `ModelConsentGate.tsx`/`IdentityProofing.tsx`, and are
+left whole and unconverted for the same reason, with a strengthened,
+file-specific allowlist entry naming exactly what each one's ceremony is.
+
+**Rationale.** `VideoEnrollPanel.tsx`'s `ATTESTATION_COPY` and
+`IngestChannelStudio.tsx`'s `STATEMENT_COPY` are each a five-statement
+YouTube channel-ownership/rights/audio-extraction consent ceremony a teacher
+affirmatively checks before any video is read — functionally the SAME
+statement set (`owns_or_controls_channel`, `is_rights_holder_of_uploads`,
+`authorizes_audio_extraction_for_own_replica`,
+`understands_tos_exposure_is_not_copyright_permission`,
+`understands_revocation_stops_extraction`) rendered on two different
+screens. `LivenessCapture.tsx` and `VoiceIdentityChallenge.tsx` each gate a
+`consentActive`-controlled fieldset collecting BIOMETRIC consent (a face
+liveness challenge and a voice identity challenge respectively) — arguably
+the single most legally sensitive class of consent text in this product.
+None of the four is named by exact English substring in
+`scripts/roomsVocabAllowlist.mjs` the way four of `ModelConsentGate.tsx`'s
+own statements are, so this is not literally the SAME rule as that file's
+own entry — it is the SAME self-imposed caution
+`ws-r61-identity-proofing-consent-statements-deferred-not-attempted`
+already applies to a file with no such external citation either: a
+translation error in a rights-attestation or biometric-consent statement
+carries real legal/compliance weight, and no legal review of Hindi wording
+for any of these four was in scope for or possible within this session.
+`context/rejected.md#ws-r61-partial-modelconsentgate-translation-considered-and-rejected`
+is the reason none of the four was split into "translate the chrome, leave
+the statements": that entry's own finding — that translating the words
+AROUND a consent ceremony changes what the whole screen communicates before
+any scanner could object — generalises to all four exactly as it does to
+`ModelConsentGate.tsx`.
+
+**Reversal condition.** Unchanged from the two entries this one extends: a
+Hindi-language honesty/consent detector built for each specific ceremony,
+with legal sign-off on the translated wording, is what would let any of
+these four files move. Until then, this decision should be read as widening
+the SET of files that reversal condition covers, not weakening it.
+
+## `ws-r71-voice-lab-vocabulary` (2026-09-05, WS-R71)
+
+**Decision.** The voice lab's technical A/B-testing vocabulary is rendered
+in plain, functional Hindi a coach (not an ML engineer) would understand,
+never a transliteration of the English jargon: server `condition`/
+`champion_key` codes (`identity_anchor`, `faithful`, `steady_warm`,
+`balanced`, `warm_expressive`, `expressive`, `animated`) become "अंदाज़"
+(manner/style of delivery) throughout — "स्थिर गर्मजोशी" (steady warmth),
+"गर्म भाव" (warm expression), and so on — rather than a borrowed word for
+"condition" itself. "holdout"/"held-out" becomes "अनदेखा" (unseen) --
+"अनदेखी बोली की जांच" (unseen speech gate/check), "अनदेखा फ़ैसला" (unseen/
+held-out judgment) -- never a transliterated "होल्डआउट". "sealed listening
+pack" becomes "सील किया सुनने का पैक" (a sealed pack for listening),
+"listener sheet" becomes "सुनने वाली शीट". "candidate" keeps the
+already-established "उम्मीदवार" `ws-r52`/`ws-r61` copy already uses
+elsewhere in this same file, rather than inventing a second word for the
+same concept. The two protected-candidate slots stay the bare letters "A"/
+"B" in both locales (already effectively locale-neutral, and changing them
+would break the visual pairing with the audio players' own "A"/"B" labels).
+
+**Rationale.** The brief's own law 4 asks for exactly this: technical lab
+words "a coach would understand," not a literal gloss of internal
+engineering terms like "arm" or "condition" that would read as machine
+translation to a teacher deciding between two takes of their own voice.
+Reusing "उम्मीदवार" for "candidate" (rather than inventing "प्रतिस्पर्धी" or
+similar) keeps this file's vocabulary consistent with `personModelStudio`'s
+own voice-candidate copy from WS-R61, the same "one word per concept across
+the whole file" law `ws-r52`'s own header states for "चेक-इन"/"सदस्यता" etc.
+
+**Reversal condition.** If a Hindi-speaking coach or teacher reviews this
+wording and finds "अंदाज़" confusing for the specific A/B delivery-style
+comparison this screen does (as opposed to a broader "aandaz"/general
+manner sense), the fix is a `copy.ts` edit to a more precise term — nothing
+about the code structure depends on this specific word choice, only on
+every occurrence of the same English concept using the same Hindi word.
+
+
+## `studio-hindi-table-is-its-own-chunk` — the studio's Hindi copy ships only to Hindi creators
+
+**Decision (2026-09-05, the WS-R71 merge).** `src/studio/copy.ts` keeps the
+interfaces, the helpers and the English table; the Hindi table lives in
+`src/studio/hiCopy.ts`, reached only through `loadStudioCopy("hi")`'s dynamic
+`import()`, so Vite emits it as its own chunk and the English studio never
+downloads it. `STUDIO_COPY_TABLE.hi` is a placeholder that THROWS on any
+property read until the loader installs the real table (never English in
+its place); `StudioLocaleProvider` renders nothing for a locale whose table
+is not ready and re-renders once the chunk lands, the layout fixture awaits
+the loader before it builds the glyph list or mounts the app, and the two
+evals that read `.hi` (`studio-locale`, `lang-tag`) install it through the
+same loader. `evals/studio-locale` scans `hiCopy.ts` with the real copy
+gate; `scripts/check-copy.mjs` treats the file as a whole-file copy table by
+its own `COPY_FILES` name rule, which is why the basename ends in `Copy.ts`.
+
+**Why.** WS-R71 measured the studio's signed-out entry at 183.2 KB of gzipped
+JS against WS-R49's 180 KB budget and, rightly, refused to trim translated
+prose to game the number (`measurements.md#ws-r71-studio-js-budget-overage-2026-09-05`).
+On the fully merged wave-thirteen tree the figure was 186.1 KB; the Hindi
+table alone is 142 KB of source and 30.7 KB gzipped, and every English
+creator was paying for it. Splitting by locale is the fix that keeps every
+word: 157.8 KB after, 22 KB of headroom, no string changed.
+
+**Reversal.** If a Hindi creator's first paint is measured to wait more than
+one throttled round trip for the chunk (the performance gate's `studio-hi`
+target, when one exists, or a real phone on a bad day), preload the chunk
+from `studio.html` for `?lang=hi` or fold the table back and raise the
+budget with a measurement, never silently. If the placeholder ever throws in
+production (an incident row naming `studio_copy_hi_not_loaded`), the provider
+gate has a hole and the fix is in `localeContext.tsx`, not a softer
+placeholder.

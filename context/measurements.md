@@ -11361,3 +11361,117 @@ producing a `SyntaxError: missing ) after argument list` several hundred
 lines later at the next template literal. Caught immediately by
 `node --check api/_room-surface.js` before the first eval run, fixed by
 removing the backticks from the SQL comment.
+
+## `ws-r71-studio-hindi-tier-2-second-wave-2026-09-05`
+
+**n / method.** `node -e` script bundling `src/studio/copy.ts` with esbuild
+and walking `STUDIO_COPY_TABLE.en`/`.hi` to leaf-path lists (the exact
+method `evals/studio-locale/run.mjs`'s own §1 key-parity check uses),
+measured before this workstream's copy.ts edits (from the untouched tree's
+`git show HEAD:src/studio/copy.ts`) and after, both locales. Date
+2026-09-05.
+
+**Numbers.** `en`/`hi` leaf count: 759 before, 1,154 after — 395 new leaf
+strings per locale (790 total across both locales), matching exactly across
+`en` and `hi` (`evals/studio-locale/run.mjs`'s own "en and hi carry the
+exact same key set" check, 0 mismatches). Per new section: `activityPanel`
+26, `channelsStudio` 47, `teacherSheetStudio` 57, `voicePreviewLab` 129,
+`voicePreviewPanel` 61, `voiceExperimentPanel` 75. Component lines touched:
+`ActivityPanel.tsx` 377, `ChannelsStudio.tsx` 365, `TeacherSheetStudio.tsx`
+361, `VoicePreviewLab.tsx` 389, `VoicePreviewPanel.tsx` 508,
+`VoiceExperimentPanel.tsx` 430 — 2,430 lines of component source read and
+converted. `evals/studio-locale/run.mjs`'s `TIER_2_ALLOWLIST`: 20 entries
+before this workstream (WS-R61's ending count), 16 after (six moved to
+Tier 1, four newly added with strengthened consent-ceremony reasons that
+did not change the net count since none of the four were new files — see
+`decisions.md#ws-r71-tier-2-second-wave-converted`).
+
+**Gate results, both reconfirmed 2026-09-05.** `node evals/studio-locale/run.mjs`:
+56/56 (0 blank strings either locale, 0 literal English JSX text nodes
+across all 6 new Tier 1 files, all 1,154 real Hindi strings pass the real
+`scripts/check-copy.mjs` scanner). `node scripts/check-copy.mjs`: 6 scopes
+clean, 21 negative controls. `npx tsc -b --noEmit`: clean, first attempt, no
+type errors anywhere in the tree. Every sibling eval found to read one of
+the six converted files' raw source by name or by a distinctive English
+sentence (`evals/voicepanel.mjs`, `evals/voice-preference/run.mjs`,
+`evals/replicaactivity.mjs`, `evals/open-voice/run.mjs`,
+`evals/studio-self-test-ui/run.mjs`, `evals/voice-delivery-policy/run.mjs`,
+`evals/voice-preview-ui.mjs`, `evals/voice-delivery-holdout/run.mjs`) was
+found via `grep -rl` for each filename plus a second `grep -rl` pass for a
+dozen of the moved sentences' most distinctive substrings across `evals/`
+and `scripts/` — the same two-pass heuristic
+`ws-r61-assumed-studio-locale-and-check-copy-were-sufficient-gates-for-a-tier-2-move`
+recommends, run BEFORE the full gate rather than only after. All eight were
+updated to read `component (+ copy.ts, scoped to avoid an unrelated
+section's wording, per `ws-r71-tier-2-second-wave-converted`'s own
+`voice-preview-ui.mjs` finding) together and reconfirmed individually:
+`voicepanel.mjs` 95/95, `replicaactivity.mjs` 223/223,
+`voice-preference/run.mjs` 29/29, `open-voice/run.mjs` 64/64,
+`studio-self-test-ui/run.mjs` ALL PASS, `voice-delivery-policy/run.mjs`
+19/19, `voice-delivery-holdout/run.mjs` 22/22, `voice-preview-ui.mjs` 9/9.
+`node evals/run.mjs` (the full suite): run once to completion pre-edit
+(inside this session's own untouched-tree `verify-release.mjs` baseline,
+which reported "eval suite 270205ms" as part of 21/21) and once post-edit,
+but the post-edit standalone invocation exceeded a 590s foreground budget
+on this shared, multi-agent machine before finishing every suite
+alphabetically — partial output (~9,977 lines, through `room-paid-tier`)
+showed zero real failures (every "FAIL" substring found was inside a
+passing test's own descriptive name, e.g. "a halted mandate's local state
+is 'paused' — this assertion FAILS if it is 'active'"). The authoritative
+confirmation is this workstream's own end-of-session
+`node scripts/verify-release.mjs` full run, reported in the final report
+rather than here, because it is the only invocation that also re-bundles
+and re-links every suite together the way a shipped tree would.
+
+## `ws-r71-studio-js-budget-overage-2026-09-05`
+
+**n / method.** `node scripts/check-performance.mjs`, standalone, run THREE
+times: twice isolated (once right after the copy.ts edits, once after the
+component edits) and once inside a full `node scripts/verify-release.mjs`
+run alongside 8+ concurrent sibling gates on the same machine. Each run
+reads the real built `dist/studio.html` bundle in real Chromium under CDP
+network throttling and reports `encodedDataLength` (gzip-compressed
+transfer size, level 9 — the number a phone actually waits for, not a raw
+byte count) for every script response. Date 2026-09-05.
+
+**Numbers.** `/studio`'s JS transfer: 183.2KB, IDENTICAL across all three
+runs — the deterministic byte metric never moved. `/studio`'s TBT (Total
+Blocking Time, CPU-timing-based and CDP-throttled) DID move across the same
+three runs: 373-508ms on the loaded machine (`uptime`'s own load average
+measured at 12.5-14.3 on a 4-core box at the time, i.e. 3x+ oversubscribed)
+versus 125-177ms isolated — confirming the TBT swings were machine-load
+noise while the JS-byte overage is real and reproducible. Budget: 180KB.
+Overage: 3.2KB (1.8%). `src/studio/copy.ts` grew 168,806 to 256,049 raw
+bytes this session (`git diff --stat`); its post-gzip contribution is what
+crossed the ceiling — `/studio`'s bundle includes the WHOLE `copy.ts` table
+(both locales, all sections) regardless of which Tier 2 panel a visitor
+ever opens, because every consumer (`localeContext.tsx` and every panel)
+imports it eagerly and no dynamic-import boundary exists between panels'
+own code and their own copy sections. This is the fifth successive
+workstream (WS-R52, WS-R61, WS-R66, WS-R70, WS-R71) to grow this one file;
+the untouched-tree baseline this session's own first gate run measured was
+still under 180KB (`ok performance budgets 55217ms`, no finding), so the
+ceiling was already close before this session's own 395 new leaf strings
+per locale tipped it over.
+
+**Not attempted, stated plainly.** No architectural fix (locale-based or
+panel-based code-splitting of `copy.ts`) and no budget-threshold change —
+both are decisions for the main loop/owner, not a same-session patch this
+workstream applied. Trimming translated prose specifically to claw back
+3.2KB was considered and rejected on the same reasoning
+`context/decisions.md#ws-r71-tier-2-second-wave-converted` states for scope
+generally: this repo's own law is measure, don't game a metric at the cost
+of what it is a proxy for.
+
+
+## `studio-js-budget-after-the-hindi-split-2026-09-05` — the merged wave-thirteen studio under the 4G budget
+
+n = 5 targets x 3 cold runs, method: `node scripts/check-performance.mjs` on the fully merged wave-thirteen tree (all ten workstreams), Chromium under CDP throttling (4x CPU, 1.6 Mbps down, 750 Kbps up, 150 ms RTT), gzipped transfer as Vercel would serve it, 2026-09-05.
+
+| target | JS before the split | JS after | budget | LCP after |
+|---|---|---|---|---|
+| /studio (signed out, English) | 186.1 KB (FAIL) | 157.8 KB | 180 KB | 1572 ms |
+| /r/<slug> | 86.4 KB | 86.4 KB | 180 KB | 1272 ms |
+| /c/<slug> | 2.2 KB | 2.2 KB | 180 KB | 268 ms |
+
+Chunks: `localeContext-*.js` 197.5 KB raw / 52.7 KB gz before, 65.7 KB raw / 23.5 KB gz after; `hiCopy-*.js` 132.4 KB raw / 29.4 KB gz, loaded only for `hi`. Source: `src/studio/hiCopy.ts` 142,139 bytes, 30,677 gzipped. Every copy-reading eval unchanged in count after the split: studio-locale 57/57, lang-tag 31/31, copy gate 6 scopes clean. Not measured: a Hindi creator's first paint with the extra chunk (no `studio-hi` performance target exists yet; the layout and accessibility gates render the Hindi studio but do not time it).

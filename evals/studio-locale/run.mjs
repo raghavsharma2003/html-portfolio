@@ -60,7 +60,7 @@ async function loadStudioCopy() {
   const ENTRY = join(OUT, "entry.ts");
   writeFileSync(
     ENTRY,
-    `export { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale } from ${JSON.stringify(
+    `export { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale, loadStudioCopy } from ${JSON.stringify(
       join(REPO, "src/studio/copy"),
     )};\n`,
   );
@@ -71,7 +71,12 @@ async function loadStudioCopy() {
   );
   return import(pathToFileURL(BUNDLE).href);
 }
-const { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale } = await loadStudioCopy();
+const { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale, loadStudioCopy: installStudioCopy } = await loadStudioCopy();
+// The Hindi table is its own chunk since the WS-R71 merge (src/studio/hiCopy.ts,
+// context/decisions.md#studio-hindi-table-is-its-own-chunk): `STUDIO_COPY_TABLE.hi`
+// throws until the app's own loader has installed it, so this eval installs it
+// the same way the app does, never by importing the file around the loader.
+await installStudioCopy("hi");
 
 // ── 1. KEY PARITY ───────────────────────────────────────────────────────────
 {
@@ -182,37 +187,45 @@ const { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale } = await loadS
     "RoomStudio.tsx", "VideoLinkMount.tsx", "RuntimeGate.tsx", "TurnFeedback.tsx",
     "ReplicaDialogueLab.tsx", "CalibrationStudio.tsx", "CandidateEvaluationLab.tsx",
     "ProcessingReview.tsx", "PersonModelStudio.tsx",
+    // WS-R71 (tier 2, wave two). The six files with no honesty-gate, no
+    // consent-ceremony checkbox and no KYC-adjacent statement array -- the
+    // SAME selection criterion WS-R61 used one wave earlier. See
+    // context/decisions.md#ws-r71-tier-2-second-wave-converted for the full
+    // list, and #ws-r71-consent-ceremony-files-found-and-not-converted for
+    // four MORE files this workstream read, found to carry the same
+    // consent-ceremony risk `ModelConsentGate.tsx`/`IdentityProofing.tsx`
+    // already carve out, and deliberately left in the allowlist below.
+    "ActivityPanel.tsx", "ChannelsStudio.tsx", "TeacherSheetStudio.tsx",
+    "VoicePreviewLab.tsx", "VoicePreviewPanel.tsx", "VoiceExperimentPanel.tsx",
   ];
 
   // Every file this workstream did NOT convert, one line each. See
   // context/decisions.md#ws-r52-tier-2-studio-files-not-localized for the
-  // original argument and context/decisions.md#ws-r61-tier-2-first-wave-converted
-  // for what WS-R61 moved out of this list and why the rest stayed --
-  // context/rejected.md for what was tried and why a full pass in one
-  // session was rejected (both sessions).
+  // original argument, context/decisions.md#ws-r61-tier-2-first-wave-converted
+  // for what WS-R61 moved out of this list, and
+  // context/decisions.md#ws-r71-tier-2-second-wave-converted for what
+  // WS-R71 moved out (and, separately, the four files WS-R71 read and
+  // deliberately did NOT move despite being "deep wizard internal" in
+  // WS-R52's original label -- see that file's own strengthened reason
+  // below) -- context/rejected.md for what was tried and why a full pass in
+  // one session was rejected (all three sessions).
   const TIER_2_ALLOWLIST = {
     "layoutFixture.tsx": "The layout/accessibility gates' own signed-in harness, inert everywhere but loopback (its own header) -- never a page a creator reaches, so its literal strings (route stubs, fixture labels) are test data, not chrome.",
     "main.tsx": "The studio's real entry point (mounts StudioApp, no UI of its own); scanned here purely because it shares the .tsx extension with the panels that matter.",
-    "ActivityPanel.tsx": "Feed step's job-status list; deep wizard internal, deferred.",
-    "ChannelsStudio.tsx": "Channel connection flows; deep wizard internal, deferred.",
-    "ContextLockerPanel.tsx": "File/link ingestion; deep wizard internal, deferred.",
-    "DisclosurePreview.tsx": "Renders the FIXED disclosure card text a follower reads (never translated per-creator; it is the platform's own floor, identical for every published AI) alongside its own chrome; deferred as a unit rather than split.",
-    "EnrollmentWorkspace.tsx": "The largest single wizard file (~2,300 lines); source upload/consent internals, deferred.",
+    "ContextLockerPanel.tsx": "File/link ingestion; not reached this session (WS-R71 time-boxed at six converted files -- see context/decisions.md#ws-r71-tier-2-second-wave-converted). Carries one consent-shaped checkbox of its own (\"if I upload a chat export...\") worth reading closely before converting, not merely translating -- see this list's `VideoEnrollPanel.tsx` entry for the shape of that risk.",
+    "DisclosurePreview.tsx": "Renders the FIXED disclosure card text a follower reads (never translated per-creator; it is the platform's own floor, identical for every published AI) alongside its own chrome; deferred as a unit rather than split (WS-R61's own `ModelConsentGate.tsx` finding applies here too: `context/rejected.md#ws-r61-partial-modelconsentgate-translation-considered-and-rejected` argues splitting a consent-adjacent screen's chrome from its frozen wording changes what the WHOLE screen communicates, so this file is left whole rather than split).",
+    "EnrollmentWorkspace.tsx": "The largest single wizard file (~2,300 lines); carries a live `attestations` checkbox array (four booleans) alongside consent-receipt state, the same consent-ceremony shape this workstream declined to touch elsewhere in this wave -- not reached this session either way. See context/decisions.md#ws-r71-tier-2-second-wave-converted.",
     "IdentityProofing.tsx": "WS-R61 read this file and chose NOT to convert it: its `STATEMENTS` array is the exact English wording a creator affirmatively checks before submitting a government ID for age/identity verification (KYC-adjacent). Unlike this workstream's other wave-one files, a mistranslation here has real legal/compliance weight and no dedicated legal review was in scope for this session -- same caution `ModelConsentGate.tsx`'s own entry below states for a similar reason, see context/decisions.md#ws-r61-identity-proofing-consent-statements-deferred-not-attempted.",
-    "IngestChannelStudio.tsx": "YouTube channel ownership flow; deep wizard internal, deferred.",
-    "LivenessCapture.tsx": "Azure liveness challenge flow; deep wizard internal, deferred.",
-    "MirrorCallStudio.tsx": "Live Mirror Call + interview UI; deep wizard internal, deferred.",
+    "IngestChannelStudio.tsx": "WS-R71 read this file in full: `STATEMENT_COPY` is a FIVE-statement YouTube channel-ownership/audio-extraction consent ceremony, a teacher affirmatively checks each one before any video is read -- the same shape and the same risk `ModelConsentGate.tsx`/`IdentityProofing.tsx` are already carved out for, extended here to a THIRD screen this wave found. See context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted.",
+    "LivenessCapture.tsx": "WS-R71 read this file in full: its `consentActive`-gated fieldset (`biometric-consent-list`) is a biometric-data consent ceremony, the single most legally sensitive class of consent text in this product (per `docs/gurukul` and India's DPDP Act's own biometric-data provisions) -- left with the SAME reasoning as `ModelConsentGate.tsx`/`IdentityProofing.tsx`. See context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted.",
+    "MirrorCallStudio.tsx": "Live Mirror Call + interview UI; not reached this session. See context/decisions.md#ws-r71-tier-2-second-wave-converted.",
     "ModelConsentGate.tsx": "Its six `STATEMENTS` are pre-existing consent-ceremony legal text: four of them are named BY STRING, in this exact English wording, in scripts/roomsVocabAllowlist.mjs's own escape hatch (a teacher already affirmatively checked these exact words before any replica was built). WS-R61 read that file before touching this one and stopped: translating the ceremony would move the words a person already consented to, the precise failure roomsVocabAllowlist.mjs's own header names (`safety-floor-teacher.md` §2.1). See context/decisions.md#ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text.",
     "OpsBoard.tsx": "Internal operator dashboard (`?mode=ops`), never a creator-facing screen at all.",
     "QuickStartPath.tsx": "Owns BLOCKER_META, honesty-gated prose checked by evals/studiowizard.mjs's English-only BLAME_PATTERNS regex (copy.ts's own header); localizing it without a parallel Hindi honesty check would ship an ungated safety-adjacent surface.",
     "StudioApp.tsx": "Owns TEACHER_COPY/GENERIC_COPY/TEST_COPY (pre-existing, unrelated local `StudioCopy` auth-flow copy, WS-R31 era) plus every lazy-mounted Tier 2 panel's wiring; the shell mount, locale provider and language-switch wiring this workstream added ARE converted (see StudioShell.tsx).",
-    "TeacherSheetStudio.tsx": "Teacher sheet editor; deep wizard internal, deferred.",
-    "VideoEnrollPanel.tsx": "Video-link enrollment; deep wizard internal, deferred.",
-    "VoiceEnrollmentLab.tsx": "Voice consent + enrollment lab; deep wizard internal, deferred.",
-    "VoiceExperimentPanel.tsx": "Blind voice listening lab; deep wizard internal, deferred.",
-    "VoiceIdentityChallenge.tsx": "Voice identity challenge flow; deep wizard internal, deferred.",
-    "VoicePreviewLab.tsx": "Voice preview/delivery lab; deep wizard internal, deferred.",
-    "VoicePreviewPanel.tsx": "Voice preview control; deep wizard internal, deferred.",
+    "VideoEnrollPanel.tsx": "WS-R71 read this file in full: `ATTESTATION_COPY` is a FIVE-statement YouTube channel-ownership/rights/audio-extraction consent ceremony a teacher affirmatively checks (`owns_or_controls_channel`, `is_rights_holder_of_uploads`, `authorizes_audio_extraction_for_own_replica`, `understands_tos_exposure_is_not_copyright_permission`, `understands_revocation_stops_extraction`) -- essentially the same statement set as `IngestChannelStudio.tsx`'s own consent ceremony below, and the same risk `ModelConsentGate.tsx`/`IdentityProofing.tsx` are carved out for. `context/rejected.md#ws-r61-partial-modelconsentgate-translation-considered-and-rejected` argues against splitting a consent screen's chrome from its statements, so this file is left whole. See context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted.",
+    "VoiceEnrollmentLab.tsx": "Voice consent + enrollment lab; not reached this session. See context/decisions.md#ws-r71-tier-2-second-wave-converted.",
+    "VoiceIdentityChallenge.tsx": "WS-R71 read this file in full: it shares `LivenessCapture.tsx`'s own `consentActive`-gated biometric consent shape (voice identity is biometric data), so it carries the SAME reasoning -- see that entry and context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted.",
   };
 
   const missingAllowlistEntry = allTsx.filter(
@@ -393,7 +406,7 @@ const { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale } = await loadS
   const hiStrings = [];
   collectStrings(STUDIO_COPY_TABLE.hi, hiStrings);
   const asSource = hiStrings.map((s) => `const x = ${JSON.stringify(s)};`).join("\n");
-  const realHits = scanSource("src/studio/copy.ts", asSource, { rules: "full", codename: true, roomsVocab: true });
+  const realHits = scanSource("src/studio/hiCopy.ts", asSource, { rules: "full", codename: true, roomsVocab: true });
   ok(`every one of the ${hiStrings.length} real Hindi strings this workstream shipped passes the real copy gate`,
     realHits.length === 0, JSON.stringify(realHits.slice(0, 5)));
 }

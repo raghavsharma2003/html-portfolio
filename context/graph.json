@@ -8434,6 +8434,54 @@
       "kind": "component",
       "title": "Dormancy (migration 119): vy_room.dormancy_days (owner policy, off by default) and vy_room_follower.dormancy_notice_at, no new person table. api/_dormancy.js holds the two sweep statements and dormancySweep, folded into WS-R37s daily cron behind ROOM_DORMANCY; forgetting goes through the real roomForgetForFollower. api/_room-publish.js set_dormancy_days is the owner control; the followers account page and the studio both render it.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r71-tier-2-second-wave-converted",
+      "kind": "decision",
+      "title": "Six more studio Tier 2 files converted to Hindi (ActivityPanel, ChannelsStudio, TeacherSheetStudio, VoicePreviewLab, VoicePreviewPanel, VoiceExperimentPanel), 395 new copy.ts leaf strings per locale.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r71-consent-ceremony-files-found-and-not-converted",
+      "kind": "decision",
+      "title": "Four more studio files (VideoEnrollPanel, IngestChannelStudio, LivenessCapture, VoiceIdentityChallenge) found to carry a consent-ceremony statement array and left unconverted, same reasoning as ModelConsentGate/IdentityProofing.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r71-voice-lab-vocabulary",
+      "kind": "decision",
+      "title": "Voice lab technical vocabulary (condition/holdout/sealed pack) rendered in plain coach-level Hindi, never a transliteration of the English jargon.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r71-studio-hindi-tier-2-second-wave-2026-09-05",
+      "kind": "measurement",
+      "title": "759 to 1,154 copy.ts leaf strings per locale (395 new); 2,430 component lines converted; 8 sibling evals updated for the copy.ts move, all reconfirmed passing.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r71-concatenating-the-whole-copy-ts-leaked-a-sibling-sections-wording-into-an-unrelated-check",
+      "kind": "rejection",
+      "title": "Concatenating the whole copy.ts into an evals panelWithCopy check false-triggered on a sibling section's own correct negated wording; fixed by slicing just the one relevant section.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r71-studio-js-budget-overage-2026-09-05",
+      "kind": "open",
+      "title": "/studio JS transfer is 183.2KB against a 180KB budget, real and reproducible (not machine-load noise); copy.ts's whole table is bundled eagerly regardless of which panel opens. Needs a code-splitting or budget decision from the owner/main loop.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "studio-hindi-table-is-its-own-chunk",
+      "kind": "decision",
+      "title": "The studio's Hindi copy table is its own lazily loaded chunk (src/studio/hiCopy.ts) behind loadStudioCopy; the placeholder throws until installed and the locale provider renders nothing until ready, so English creators never download Hindi and Hindi creators never see English.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "studio-js-budget-after-the-hindi-split-2026-09-05",
+      "kind": "measurement",
+      "title": "The merged wave-thirteen studio entry went from 186.1 KB to 157.8 KB gzipped JS under the 4G budget after the Hindi table split, no string changed.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16616,6 +16664,51 @@
       "src": "ws-r75-dormancy-offline-batteries-2026-09-05",
       "rel": "part_of",
       "dst": "ws-r75-dormancy"
+    },
+    {
+      "src": "ws-r71-tier-2-second-wave-converted",
+      "rel": "part_of",
+      "dst": "ws-r61-tier-2-first-wave-converted"
+    },
+    {
+      "src": "ws-r71-tier-2-second-wave-converted",
+      "rel": "measured_by",
+      "dst": "ws-r71-studio-hindi-tier-2-second-wave-2026-09-05"
+    },
+    {
+      "src": "ws-r71-consent-ceremony-files-found-and-not-converted",
+      "rel": "part_of",
+      "dst": "ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text"
+    },
+    {
+      "src": "ws-r71-consent-ceremony-files-found-and-not-converted",
+      "rel": "part_of",
+      "dst": "ws-r61-identity-proofing-consent-statements-deferred-not-attempted"
+    },
+    {
+      "src": "ws-r71-voice-lab-vocabulary",
+      "rel": "part_of",
+      "dst": "ws-r71-tier-2-second-wave-converted"
+    },
+    {
+      "src": "ws-r71-concatenating-the-whole-copy-ts-leaked-a-sibling-sections-wording-into-an-unrelated-check",
+      "rel": "caused_by",
+      "dst": "ws-r71-studio-hindi-tier-2-second-wave-2026-09-05"
+    },
+    {
+      "src": "ws-r71-studio-js-budget-overage-2026-09-05",
+      "rel": "caused_by",
+      "dst": "ws-r71-tier-2-second-wave-converted"
+    },
+    {
+      "src": "studio-js-budget-after-the-hindi-split-2026-09-05",
+      "rel": "measured_by",
+      "dst": "studio-hindi-table-is-its-own-chunk"
+    },
+    {
+      "src": "studio-hindi-table-is-its-own-chunk",
+      "rel": "supersedes",
+      "dst": "ws-r71-studio-js-budget-overage-2026-09-05"
     }
   ]
 }

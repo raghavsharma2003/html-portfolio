@@ -58,10 +58,13 @@ const { ROOM_COPY_TABLE, detectRoomTextLang } = await loadTsExports(
   join(REPO, "src/room/copy"),
   ["ROOM_COPY_TABLE", "detectRoomTextLang"],
 );
-const { STUDIO_COPY_TABLE, detectStudioTextLang } = await loadTsExports(
+const { STUDIO_COPY_TABLE, detectStudioTextLang, loadStudioCopy } = await loadTsExports(
   join(REPO, "src/studio/copy"),
-  ["STUDIO_COPY_TABLE", "detectStudioTextLang"],
+  ["STUDIO_COPY_TABLE", "detectStudioTextLang", "loadStudioCopy"],
 );
+// The studio's Hindi table is its own chunk (src/studio/hiCopy.ts); install it
+// through the app's own loader before reading `.hi`, which throws until then.
+await loadStudioCopy("hi");
 const { buildCreatorPageHtml } = await import(pathToFileURL(join(REPO, "api/_creator-page.js")).href);
 
 // ── 1. the detection primitive, against every REAL translated leaf ────────

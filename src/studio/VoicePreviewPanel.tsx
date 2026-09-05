@@ -20,38 +20,29 @@ import { requestVoicePanelPreview, type VoicePanelWarming } from "./voicePanelAp
 import { disabledReason, type DisabledReason } from "./blockerClass";
 import { DisabledAction } from "./BlockerNotice";
 import { voicePreviewBlockReason, type WizardInput } from "./wizardModel";
+import { useStudioLocale } from "./localeContext";
+import type { StudioCopy } from "./copy";
 
 const MAX_TEXT = 280;
 
 // Shapes, not a phrase bank: three short greetings an owner will immediately
 // rewrite. Kept under the cap so the counter never opens on a violation.
+// These are what the AI SAYS (seed text for the box), not studio chrome, so
+// they stay exactly as before regardless of the studio's own UI locale.
 type PreviewLanguage = "hi" | "hi-latn" | "en";
 
-const LANGUAGE_OPTIONS: ReadonlyArray<{
+function languageOptions(c: StudioCopy["voicePreviewPanel"]): ReadonlyArray<{
   id: PreviewLanguage;
   label: string;
   help: string;
   inputLanguage: string;
-}> = [
-  {
-    id: "hi",
-    label: "Hindi",
-    help: "Write Hindi in Devanagari. Familiar English terms can stay in English.",
-    inputLanguage: "hi",
-  },
-  {
-    id: "hi-latn",
-    label: "Hinglish",
-    help: "Write natural Roman Hindi and English. Each segment is planned before synthesis.",
-    inputLanguage: "hi-Latn",
-  },
-  {
-    id: "en",
-    label: "English",
-    help: "Write the exact English line you want the draft to say.",
-    inputLanguage: "en",
-  },
-];
+}> {
+  return [
+    { id: "hi", label: c.languageHindiLabel, help: c.languageHindiHelp, inputLanguage: "hi" },
+    { id: "hi-latn", label: c.languageHinglishLabel, help: c.languageHinglishHelp, inputLanguage: "hi-Latn" },
+    { id: "en", label: c.languageEnglishLabel, help: c.languageEnglishHelp, inputLanguage: "en" },
+  ];
+}
 
 const WELCOME: Record<PreviewLanguage, string> = {
   hi: "नमस्ते! मैं आपका अपना एआई वर्ज़न हूँ। आज क्या पढ़ना है, फिज़िक्स, केमिस्ट्री या मैथ्स?",
@@ -173,6 +164,9 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
   onAuthError: (cause: unknown) => void;
   testEnvironment?: boolean;
 }) {
+  const { t } = useStudioLocale();
+  const c = t.voicePreviewPanel;
+  const LANGUAGE_OPTIONS = useMemo(() => languageOptions(c), [c]);
   const [review, setReview] = useState<ReplicaReview | null>(null);
   const [loading, setLoading] = useState(true);
   const [language, setLanguage] = useState<PreviewLanguage>("hi-latn");
@@ -222,8 +216,10 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
         if (attempt >= MAX_AUTO_RETRIES) {
           setPhase({
             kind: "error",
-            headline: "The voice runtime did not finish waking up",
-            detail: `It has been asked ${attempt} times over about ${Math.round((attempt * outcome.retryAfterMs) / 1000)} seconds and is still starting. Try again in a few minutes, or tell support the runtime is not coming up.`,
+            headline: c.runtimeNotWokenHeadline,
+            detail: c.ownerReportTooManyTimes
+              .split("{n}").join(String(attempt))
+              .split("{n2}").join(String(Math.round((attempt * outcome.retryAfterMs) / 1000))),
             canRetry: true,
           });
           return;
@@ -340,30 +336,28 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
   const reason: DisabledReason | null = loading
     ? disabledReason(
       "us",
-      "We are still checking whether you have a draft voice.",
-      "This takes a moment. The button turns on by itself when the check comes back.",
+      c.disabledCheckingHeadline,
+      c.disabledCheckingNext,
     )
     : !draft
       ? voicePreviewBlockReason(wizardInput)
       : busy
         ? disabledReason(
           "us",
-          phase.kind === "warming"
-            ? "The voice runtime is starting up, which takes two to five minutes after a quiet period."
-            : "Your line is being generated right now.",
-          "It retries by itself. You can leave this open or go and do something else on this step.",
+          phase.kind === "warming" ? c.disabledBusyWarming : c.disabledBusyGenerating,
+          c.disabledBusyNext,
         )
         : !text.trim()
           ? disabledReason(
             "you",
-            "The box is empty, so there is nothing to say.",
-            "Type a line for your AI to read aloud.",
+            c.disabledEmptyHeadline,
+            c.disabledEmptyNext,
           )
           : overLimit
             ? disabledReason(
               "you",
-              `That is longer than the ${MAX_TEXT} characters a preview can take.`,
-              "Shorten it and the button turns on.",
+              c.disabledOverLimitHeadline.split("{n}").join(String(MAX_TEXT)),
+              c.disabledOverLimitNext,
             )
             : null;
 
@@ -371,20 +365,16 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
     <section className="hear-voice" aria-labelledby="hear-voice-title">
       <div className="section-heading">
         <div>
-          {!testEnvironment && <p className="eyebrow">Your voice</p>}
-          <h2 id="hear-voice-title">Preview my voice</h2>
+          {!testEnvironment && <p className="eyebrow">{c.eyebrow}</p>}
+          <h2 id="hear-voice-title">{c.title}</h2>
         </div>
-        <p>
-          {testEnvironment
-            ? "Type a line and hear the current draft in Hindi, Hinglish, or English."
-            : "A private draft, generated from your own consented recording. Every clip opens with the spoken AI disclosure and carries an inaudible watermark. Previewing does not activate anything and does not let anyone else hear it."}
-        </p>
+        <p>{testEnvironment ? c.introTest : c.introReal}</p>
       </div>
 
       <div className="hear-voice-body">
         <div className="hear-voice-compose">
           <fieldset className="voice-preview-language">
-            <legend>Preview language</legend>
+            <legend>{c.languageLegend}</legend>
             {LANGUAGE_OPTIONS.map((option) => (
               <button
                 key={option.id}
@@ -400,7 +390,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
           <p className="voice-preview-language-help" id="hear-voice-language-help">{selectedLanguage.help}</p>
 
           <label className="voice-preview-script" htmlFor="hear-voice-text">
-            <span>Your line</span>
+            <span>{c.yourLine}</span>
             <textarea
               ref={textRef}
               id="hear-voice-text"
@@ -412,7 +402,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
               onChange={(event) => setText(event.target.value)}
             />
             <small id="hear-voice-counter" className={overLimit ? "hear-voice-over" : ""}>
-              {MAX_TEXT - Array.from(text).length} characters left{testEnvironment ? "." : ". The spoken AI disclosure is added for you."}
+              {(testEnvironment ? c.charactersLeftTest : c.charactersLeftReal).split("{n}").join(String(MAX_TEXT - Array.from(text).length))}
             </small>
           </label>
 
@@ -429,12 +419,12 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
               onClick={() => { if (!reason) void run(0); }}
             >
               {phase.kind === "synthesizing"
-                ? "Generating"
+                ? c.buttonGenerating
                 : phase.kind === "warming"
-                  ? "Waking the voice lab"
+                  ? c.buttonWaking
                   : phase.kind === "ready"
-                    ? "Generate another take"
-                    : "Preview my voice"}
+                    ? c.buttonAnotherTake
+                    : c.buttonPreview}
             </button>
           </DisabledAction>
         </div>
@@ -442,63 +432,61 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
         <div className={`hear-voice-stage hear-voice-stage-${phase.kind}`} aria-live="polite" aria-busy={busy}>
           {phase.kind === "ready" ? (
             <>
-              <p className="hear-voice-state ready">Ready</p>
-              <h3>Listen to this take</h3>
-              <audio controls preload="metadata" src={phase.url}>Your browser cannot play this protected WAV.</audio>
+              <p className="hear-voice-state ready">{c.stateReady}</p>
+              <h3>{c.listenToThisTake}</h3>
+              <audio controls preload="metadata" src={phase.url}>{c.audioFallback}</audio>
               {phase.transformationCount > 0 && (
                 <details className="hear-voice-pronunciation-plan">
-                  <summary>{phase.transformationCount} reviewed Hindi pronunciation changes applied</summary>
-                  <p>Spoken as: <span lang="hi">{phase.spokenText}</span></p>
-                  <small>Your original text stays unchanged. Plan {phase.textPlanSha256.slice(0, 10)} is saved with this preview.</small>
+                  <summary>{c.pronunciationPlanSummary.split("{n}").join(String(phase.transformationCount))}</summary>
+                  <p>{c.spokenAsLabel} <span lang="hi">{phase.spokenText}</span></p>
+                  <small>{c.originalTextUnchangedNote.split("{n}").join(phase.textPlanSha256.slice(0, 10))}</small>
                 </details>
               )}
               {!testEnvironment && <dl className="hear-voice-proof">
-                <div><dt>Disclosure</dt><dd>Spoken, on every clip</dd></div>
-                <div><dt>Watermark</dt><dd>PerTh, verified before release</dd></div>
+                <div><dt>{c.disclosureRowLabel}</dt><dd>{c.disclosureRowValue}</dd></div>
+                <div><dt>{c.watermarkRowLabel}</dt><dd>{c.watermarkRowValue}</dd></div>
               </dl>}
               <div className="hear-voice-correction">
-                <strong>Not right yet?</strong>
-                <span>Edit the line or switch language, then generate another take.</span>
-                <button className="review-refresh" type="button" onClick={focusComposer}>Edit the line</button>
+                <strong>{c.notRightYet}</strong>
+                <span>{c.editLineNote}</span>
+                <button className="review-refresh" type="button" onClick={focusComposer}>{c.editLine}</button>
               </div>
-              <small>Receipt {phase.generationId.slice(0, 8)} · model {phase.modelCommitment.slice(0, 10)}</small>
+              <small>{c.receiptLine.split("{n}").join(phase.generationId.slice(0, 8)).split("{n2}").join(phase.modelCommitment.slice(0, 10))}</small>
             </>
           ) : phase.kind === "warming" ? (
             <>
-              <p className="hear-voice-state warming">Warming up</p>
-              <h3>Your voice runtime is starting</h3>
+              <p className="hear-voice-state warming">{c.stateWarming}</p>
+              <h3>{c.runtimeStarting}</h3>
               <p className="hear-voice-message">{phase.warming.message}</p>
-              <div className="hear-voice-wait-metrics" aria-label="Voice runtime wait">
-                <div><span>Next check</span><strong>{remaining}s</strong></div>
-                <div><span>Cold start estimate</span><strong>{Math.ceil(phase.warming.etaSecondsLow / 60)} to {Math.ceil(phase.warming.etaSecondsHigh / 60)} min</strong></div>
+              <div className="hear-voice-wait-metrics" aria-label={c.nextCheckLabel}>
+                <div><span>{c.nextCheckLabel}</span><strong>{remaining}s</strong></div>
+                <div><span>{c.coldStartEstimateTitle}</span><strong>{c.coldStartEstimateLabel.split("{n}").join(String(Math.ceil(phase.warming.etaSecondsLow / 60))).split("{n2}").join(String(Math.ceil(phase.warming.etaSecondsHigh / 60)))}</strong></div>
               </div>
-              <p className="hear-voice-attempt">Check {phase.attempt + 1} complete. This page retries by itself.</p>
-              <small>
-                You can keep working on this step while it starts. Your line and wait are kept if this tab reloads.
-              </small>
+              <p className="hear-voice-attempt">{c.checkCompleteNote.split("{n}").join(String(phase.attempt + 1))}</p>
+              <small>{c.keepWorkingNote}</small>
             </>
           ) : phase.kind === "synthesizing" ? (
             <>
-              <p className="hear-voice-state working">Generating</p>
-              <h3>Making your take</h3>
-              <p className="hear-voice-message">{testEnvironment ? "Rendering your words in the current draft voice." : "Rendering your words, adding the disclosure and the watermark."}</p>
+              <p className="hear-voice-state working">{c.stateGenerating}</p>
+              <h3>{c.makingYourTake}</h3>
+              <p className="hear-voice-message">{testEnvironment ? c.renderingTest : c.renderingReal}</p>
             </>
           ) : phase.kind === "error" ? (
             <>
-              <p className="hear-voice-state failed">Did not work</p>
-              <h3>Preview stopped</h3>
+              <p className="hear-voice-state failed">{c.stateFailed}</p>
+              <h3>{c.previewStopped}</h3>
               <p className="hear-voice-message">{phase.headline}</p>
               <small>{phase.detail}</small>
               {phase.canRetry && (
-                <button className="review-refresh" type="button" onClick={() => void run(0)}>Try again</button>
+                <button className="review-refresh" type="button" onClick={() => void run(0)}>{c.tryAgain}</button>
               )}
             </>
           ) : (
             <>
-              <p className="hear-voice-state idle">Nothing generated yet</p>
-              <h3>Your take appears here</h3>
-              <p className="hear-voice-message">Choose the language, write one natural line, and generate the current draft.</p>
-              <p className="hear-voice-first-wait">The first run after a quiet period can take 2 to 5 minutes while the runtime starts. After that it is usually much faster while the runtime stays warm.</p>
+              <p className="hear-voice-state idle">{c.stateIdle}</p>
+              <h3>{c.takeAppearsHere}</h3>
+              <p className="hear-voice-message">{c.chooseLanguageNote}</p>
+              <p className="hear-voice-first-wait">{c.firstWaitNote}</p>
             </>
           )}
         </div>

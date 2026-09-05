@@ -568,6 +568,10 @@ section("client warmup budget");
 {
   const client = readFileSync(join(ROOT, "src/studio/VoicePreviewPanel.tsx"), "utf8");
   const clientApi = readFileSync(join(ROOT, "src/studio/voicePanelApi.ts"), "utf8");
+  // WS-R71: VoicePreviewPanel.tsx's own literal strings moved into
+  // src/studio/copy.ts; the two English-wording checks below now read this
+  // concatenation, `evals/readiness/run.mjs`'s own `panelWithCopy` shape.
+  const clientWithCopy = `${client}\n${readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8")}`;
   const retries = Number(client.match(/const MAX_AUTO_RETRIES\s*=\s*(\d+)/)?.[1]);
   // Once the 200 s wake belief expires, the next 30 s poll dispatches the
   // necessary second synthesis. Allow one minute for that warm synthesis and
@@ -590,12 +594,12 @@ section("client warmup budget");
   check("NEGATIVE CONTROL: the former seven-poll budget cannot finish the second synthesis",
     7 * WARMUP.retryAfterMs < requiredBudgetMs);
   check("the panel and its API fallback both tell the owner the five-minute ceiling",
-    /two to five minutes/.test(client) && /2 to 5 minutes/.test(clientApi) &&
+    /two to five minutes/.test(clientWithCopy) && /2 to 5 minutes/.test(clientApi) &&
       (clientApi.match(/etaSecondsHigh:\s*Number\([^\n]+\) \|\| 300/g) || []).length === 2);
   check("the warm-runtime copy promises only a relative improvement, not seconds",
-    /after that it is usually much faster/i.test(client) && !/after that it is seconds/i.test(client));
+    /after that it is usually much faster/i.test(clientWithCopy) && !/after that it is seconds/i.test(clientWithCopy));
   check("NEGATIVE CONTROL: no voice-panel path retains the disproved three-minute ceiling",
-    !/(?:two|2) to (?:three|3) minutes|2-3 minutes|etaSecondsHigh:[^\n]+\|\| 180/.test(`${client}\n${clientApi}`));
+    !/(?:two|2) to (?:three|3) minutes|2-3 minutes|etaSecondsHigh:[^\n]+\|\| 180/.test(`${clientWithCopy}\n${clientApi}`));
 }
 
 console.log(`\n  ${passed} checks passed, ${failures.length} failed`);
