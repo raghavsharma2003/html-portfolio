@@ -9334,6 +9334,30 @@
       "kind": "rejection",
       "title": "pkill -f verify-release.mjs, meant to clear this session's own stalled process, matched and killed the main tree's own release gate on the shared machine - never kill by pattern, only by a PID this session itself recorded.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r96-day-one-runbook",
+      "kind": "component",
+      "title": "The day-one runbook (WS-R96, no migration): docs/gurukul/DAY-ONE.md sequences every remaining owner action (infrastructure through the nine product steps) into one numbered table with exact env var names, Vercel project, cost, proving command and failure-if-skipped; scripts/day-one.mjs checks it for free against a real deployment (probe-live plus one GET /api/ops with an operator bearer); scripts/dayOneRunbook.mjs is the shared parser both files import.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r96-day-one-runbook-parses-its-own-table",
+      "kind": "decision",
+      "title": "DAY-ONE.md and day-one.mjs never hold two copies of the same steps; a three-prefix grammar (probe-live / self-check: / manual:) is enforced by dayOneRunbook.mjs, and a row missing a proving command fails the whole parse.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r96-self-check-optional-env-never-becomes-a-finding",
+      "kind": "rejection",
+      "title": "A self-check:env: row was tried for the OPTIONAL_ENV storage vars (SUPABASE_URL etc.); rejected because runSelfCheck() only ever turns REQUIRED_ENV entries into findings, so an optional name can be completely unset and self-check reports clean regardless.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r96-day-one-eval-offline-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/day-one/run.mjs: 37/37 checks offline against the real DAY-ONE.md table and a fake server wrapping the real probe-live fixture, in three self-check states plus a no-bearer and an unreachable-URL case; nothing here talks to a real deployment.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18236,6 +18260,26 @@
       "src": "ws-r98-eval-suite-counts-2026-09-05",
       "rel": "caused_by",
       "dst": "ws-r98-unregistered-eval-suite-passes-silently"
+    },
+    {
+      "src": "ws-r96-day-one-runbook",
+      "rel": "part_of",
+      "dst": "ws-r15-first-room-script"
+    },
+    {
+      "src": "ws-r96-day-one-runbook",
+      "rel": "part_of",
+      "dst": "ws-r64-live-probe"
+    },
+    {
+      "src": "ws-r96-day-one-runbook-parses-its-own-table",
+      "rel": "measured_by",
+      "dst": "ws-r96-day-one-eval-offline-2026-09-05"
+    },
+    {
+      "src": "ws-r96-self-check-optional-env-never-becomes-a-finding",
+      "rel": "constrains",
+      "dst": "ws-r96-day-one-runbook-parses-its-own-table"
     }
   ]
 }

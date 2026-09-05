@@ -12270,3 +12270,31 @@ the authoritative post-fix confirmation rather than paying for a fourth
 full gate run on an already heavily-loaded shared machine. Not measured:
 per-assertion timing (only exit codes and printed pass/fail counts were
 read).
+
+## `ws-r96-day-one-eval-offline-2026-09-05`
+
+n = 37 checks, method: `node evals/day-one/run.mjs` (also reachable as
+`node evals/run.mjs day-one`), offline, deterministic, $0, no DB, no real
+network beyond 127.0.0.1, no model call, date 2026-09-05. Breakdown: 6 checks
+on `scripts/dayOneRunbook.mjs#parseRunbook` against the REAL
+`docs/gurukul/DAY-ONE.md` table (23 steps, sequentially numbered, every
+proving-command kind recognised); 5 checks across two required negative
+controls (a blanked Proving Command cell, a dropped table column — both fail
+the WHOLE parse); 18 checks running the REAL `scripts/day-one.mjs` as a
+subprocess against `evals/day-one/fakeServer.mjs` (itself a thin wrapper
+around the REAL `evals/probe-live/fakeServer.mjs`) in three self-check
+states — stub config, half configured, complete — asserting the exact
+per-step done/blocked verdict each state should produce and that every
+`manual:` row is always `unknown`, never silently `done`; 5 checks with no
+operator bearer given (every `self-check:` row degrades to `unknown`,
+`probe-live` rows unaffected) and against an unreachable base URL (no crash,
+no step ever reported `done`). All 37 pass.
+
+**Not measured, and not measurable offline:** whether the runbook's own
+sequencing is correct against a REAL deployment — no step in this suite ever
+talks to a real Vercel project, a real Neon database, or a real `/api/ops`.
+That is exactly what `docs/gurukul/DAY-ONE.md`'s own closing section names as
+unproven: running `node scripts/day-one.mjs <base-url>` against the real
+`html-portfolio` and `vyakti-replica-lab` deployments, with a real operator
+bearer, is the only thing that can close that gap, and nobody has done it as
+of this writing.
