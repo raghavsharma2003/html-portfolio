@@ -23,6 +23,7 @@
 import { allow, ipOf } from "./_ratelimit.js";
 import { consume } from "./_rate-limit.js";
 import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 import { verifyRoomWhatsappWebhook, handleStatusWebhook } from "./_room-whatsapp.js";
 // WS-R104. Behind ROOM_WHATSAPP_CHAT=1 only — unset, this file's own inbound
 // branch is byte-for-byte what it always was (`handleStatusWebhook`'s auto
@@ -36,7 +37,7 @@ import { whatsappChatEnabled, handleRoomWhatsappChatWebhook } from "./_room-what
  *  reused verbatim: this webhook needs Vercel's body parser disabled. */
 export const config = { api: { bodyParser: false } };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "GET or POST only" });
   // IP first, so an unauthenticated flood costs no database round trip -
   // api/room-tg.js's own ordering, restated.
@@ -79,3 +80,5 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, handled: false });
   }
 }
+
+export default withDoor(q, "room-wa.js", handler);

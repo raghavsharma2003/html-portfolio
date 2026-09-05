@@ -5,6 +5,7 @@
 // push and Telegram deliverers).
 import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 import { sweep } from "./_renewals.js";
 // WS-R75 (migration 119). "The daily sweep (WS-R37's own cron) gains two
 // statements" — this workstream's own law 2 — folded into THIS handler
@@ -26,7 +27,7 @@ function authorized(req) {
   return expected.length >= 24 && expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "GET or POST only" });
   if (!authorized(req)) return res.status(401).json({ error: "unauthorized" });
@@ -52,3 +53,5 @@ export default async function handler(req, res) {
     return res.status(status).json({ error: status === 500 ? "renewals_sweep_failed" : error.code || error.message });
   }
 }
+
+export default withDoor(q, "renewals-sweep.js", handler);

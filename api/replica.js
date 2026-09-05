@@ -7,6 +7,7 @@
 // POST /api/replica {op:set_locale, replica_id, locale}   -- WS-R52, studio chrome only
 // POST /api/replica {op:export}                            -- WS-R70, one a day per owner
 import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import {
@@ -39,7 +40,7 @@ const cors = (res) => {
   res.setHeader("Cache-Control", "no-store");
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "GET or POST only" });
@@ -167,3 +168,5 @@ export default async function handler(req, res) {
     return res.status(status).json({ error: status === 500 ? "replica_failure" : error.message });
   }
 }
+
+export default withDoor(q, "replica.js", handler);

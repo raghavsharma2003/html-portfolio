@@ -15,7 +15,7 @@
 // risk runs the other way too: a fixture pulled in for one field it does
 // not use is a fixture nobody notices drifting for that field).
 import fs from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -542,6 +542,276 @@ ok("NEGATIVE CONTROL, second shape: a fixture INSERT with an `error_text` column
 const cleanFixture = `insert into vy_incident (incident_id, day, kind, door, status, count, created_at, updated_at)`;
 ok("the static scan is not vacuous: a clean fixture with only allowed columns still passes",
   insertColumnsOk(cleanFixture));
+
+// ═════════════════════════════════════════════════════════════════════════
+// §DOORS. WS-R123: "door observation as a computed property." WS-R58's
+// `withDoor` wrapped eleven doors by hand; this section asserts every door
+// evals/room-doors/run.mjs's own §0 derives (the 18 HTTP session-doors and,
+// since WS-R120, the 9 cron doors) is wrapped, plus the 4 server-rendered
+// page doors law 2 names explicitly (none of them read a request body, so
+// room-doors' own §0 rule (a) correctly never admits them - the identical
+// reasoning that file gives for room-embed.js/creators.js/sitemap.js,
+// restated for a door that renders HTML/PNG instead of JSON).
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §DOORS: every derived door + the 4 page doors is wrapped in withDoor ──");
+
+const API = join(REPO, "api");
+
+// mirror of evals/room-doors/run.mjs#EXPECTED_DOORS (not exported there —
+// law 1's own fallback). Checked below against the REAL room-doors/run.mjs
+// source so a future door added there and not wrapped here fails loudly
+// rather than drifting silently (`dead-writers`'s own "two fakes for the
+// same shape" risk, restated for a door list instead of a fixture).
+const MIRRORED_EXPECTED_DOORS = [
+  "account.js", "apply.js", "checkins.js", "handoff.js", "invites.js", "ops.js", "org.js",
+  "payments-webhook.js", "payments.js", "payout-webhook.js", "pulse.js", "readiness.js", "replica.js",
+  "room-pay.js", "room-publish.js", "room-tg.js", "room-wa.js", "room.js",
+].sort();
+
+// mirror of evals/room-doors/run.mjs#EXPECTED_CRON_DOORS
+const MIRRORED_EXPECTED_CRON_DOORS = [
+  "checkins-sweep.js", "creator-push-sweep.js", "drift-watch-sweep.js", "operator-digest-sweep.js",
+  "pulse-sweep.js", "receipt-sweep.js", "renewals-sweep.js", "replica-erasure-sweep.js", "self-check.js",
+];
+
+// Named rather than derived (law 2): a server-rendered page door. None
+// reads a request body, so room-doors' own §0 discovery rule correctly
+// never admits any of them into EXPECTED_DOORS.
+const PAGE_DOORS = ["creator-page.js", "room-about.js", "suites-about.js", "room-card.js"];
+
+// The FROZEN eleven-door list WS-R58 wrapped by hand, before this
+// workstream — the negative control law 2 names ("the old eleven-door list
+// is the frozen negative control, a superset assertion"): every one of
+// these must still be wrapped, unchanged, after this workstream's own
+// additions.
+const FROZEN_ELEVEN_DOORS = [
+  "room.js", "room-pay.js", "room-publish.js", "payments.js", "org.js", "invites.js",
+  "tg.js", "whatsapp.js", "checkins.js", "handoff.js", "apply.js",
+];
+
+// Extracts a `const NAME = [...]` string-array literal from a REAL source
+// file, by bracket balance rather than a single regex (the array itself
+// contains string literals, never nested brackets, so this is exact).
+function extractStringArrayLiteral(src, constName) {
+  const marker = `const ${constName} = [`;
+  const idx = src.indexOf(marker);
+  if (idx < 0) return null;
+  const start = idx + marker.length - 1; // the "["
+  let depth = 0, end = -1;
+  for (let i = start; i < src.length; i++) {
+    if (src[i] === "[") depth++;
+    else if (src[i] === "]") { depth--; if (depth === 0) { end = i; break; } }
+  }
+  if (end < 0) return null;
+  return [...src.slice(start + 1, end).matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+}
+
+const roomDoorsSrc = fs.readFileSync(join(REPO, "evals/room-doors/run.mjs"), "utf8");
+const realExpectedDoors = extractStringArrayLiteral(roomDoorsSrc, "EXPECTED_DOORS");
+ok("MIRRORED_EXPECTED_DOORS matches the REAL evals/room-doors/run.mjs#EXPECTED_DOORS exactly (no drift)",
+  Array.isArray(realExpectedDoors) &&
+  JSON.stringify([...MIRRORED_EXPECTED_DOORS].sort()) === JSON.stringify([...realExpectedDoors].sort()));
+
+const realExpectedCronDoors = extractStringArrayLiteral(roomDoorsSrc, "EXPECTED_CRON_DOORS");
+ok("MIRRORED_EXPECTED_CRON_DOORS matches the REAL evals/room-doors/run.mjs#EXPECTED_CRON_DOORS exactly (no drift)",
+  Array.isArray(realExpectedCronDoors) &&
+  JSON.stringify(MIRRORED_EXPECTED_CRON_DOORS) === JSON.stringify(realExpectedCronDoors));
+
+/** A door's default export is wrapped iff its own source says
+ *  `export default withDoor(` — `withDoor`'s own header states this is a
+ *  ONE-LINE adoption (`export default withDoor(q, "<name>", handler)` in
+ *  place of `export default handler`), so this is exact, not a heuristic. */
+function isDoorWrapped(apiFile) {
+  const p = join(API, apiFile);
+  if (!fs.existsSync(p)) return false;
+  return /export default withDoor\(/.test(fs.readFileSync(p, "utf8"));
+}
+
+for (const door of MIRRORED_EXPECTED_DOORS) {
+  ok(`[withDoor/${door}] the derived HTTP door's default export is wrapped in withDoor`, isDoorWrapped(door));
+}
+for (const door of MIRRORED_EXPECTED_CRON_DOORS) {
+  ok(`[withDoor/${door}] the derived cron door's default export is wrapped in withDoor`, isDoorWrapped(door));
+}
+for (const door of PAGE_DOORS) {
+  ok(`[withDoor/${door}] the named page door's default export is wrapped in withDoor`, isDoorWrapped(door));
+}
+
+// LAW 2's own "superset assertion": every door WS-R58 wrapped by hand
+// before this workstream is STILL wrapped now.
+ok("SUPERSET: every one of WS-R58's original eleven hand-wrapped doors is still wrapped",
+  FROZEN_ELEVEN_DOORS.every((d) => isDoorWrapped(d)));
+
+// NEGATIVE CONTROL: the check itself must actually fail a real unwrapped
+// handler, proving it is discriminating rather than vacuously true. A
+// frozen literal of the exact shape every door had BEFORE this workstream
+// wrapped it (`export default async function handler`), never the real
+// current file.
+const UNWRAPPED_HANDLER_FIXTURE = `
+export default async function handler(req, res) {
+  return res.status(200).json({ ok: true });
+}
+`;
+ok("NEGATIVE CONTROL: an unwrapped handler (the pre-workstream shape) is correctly flagged as NOT wrapped",
+  !/export default withDoor\(/.test(UNWRAPPED_HANDLER_FIXTURE));
+
+const doorCount = MIRRORED_EXPECTED_DOORS.length + MIRRORED_EXPECTED_CRON_DOORS.length + PAGE_DOORS.length;
+console.log(`  doors wrapped: ${MIRRORED_EXPECTED_DOORS.length} HTTP + ${MIRRORED_EXPECTED_CRON_DOORS.length} cron + ${PAGE_DOORS.length} page = ${doorCount} total`);
+
+// The ops board's own denominator (law 4) must equal the HTTP door list's
+// own count — the exact number law 4's example ("18 of 18 doors observed")
+// names — read from the real api/_incidents.js source rather than
+// re-imported, so this suite proves the CONSTANT stays truthful without
+// giving api/_incidents.js's own module a reason to import this file back.
+{
+  const incidentsSrc = fs.readFileSync(join(API, "_incidents.js"), "utf8");
+  const m = /export const OBSERVED_DOOR_COUNT = (\d+);/.exec(incidentsSrc);
+  ok("api/_incidents.js#OBSERVED_DOOR_COUNT equals the real, derived HTTP door-list length (law 4's own denominator)",
+    m !== null && Number(m[1]) === MIRRORED_EXPECTED_DOORS.length);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §PROVIDERS. Law 3: "every fetch to Telegram, Meta, Razorpay, the push
+// service and the reply seam records a failure under its own door name;
+// the list of call sites is derived from source (fetch( inside api/
+// reaching a non-127.0.0.1 host) and asserted covered."
+//
+// Discovery walks the REAL api/ tree for a `fetch(`/`.fetch(` call whose
+// nearby text is not a loopback address — the same shape as room-doors'
+// own body-reading rule (a): a structural fact about the source, not a
+// hand-typed list a new file could silently miss. Every discovered file is
+// then either COVERED (its own source, or the ONE named file that owns
+// turning ITS failure into an incident, contains a real `recordIncident(`
+// call) or EXCLUDED, named with a reason — room-doors' own
+// `EXCLUDED_CRON_DOORS` precedent, restated for a provider instead of a
+// cron file.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §PROVIDERS: every remote fetch( in api/ is covered or excluded, by name ──");
+
+function walkJsFiles(dir) {
+  let out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === "node_modules") continue;
+    const p = join(dir, entry.name);
+    if (entry.isDirectory()) out = out.concat(walkJsFiles(p));
+    else if (entry.name.endsWith(".js")) out.push(p);
+  }
+  return out;
+}
+
+/** A file "has a remote fetch" iff some `fetch(`/`.fetch(` call site's own
+ *  next 200 characters (its arguments — the URL, always the first one, in
+ *  every call site in this codebase) do NOT mention a loopback host. The
+ *  200-character window is generous enough to cover every real call site in
+ *  this file (checked against the NEGATIVE CONTROL below, which is the
+ *  inverse case), never so wide it would cross into an unrelated statement. */
+function discoverRemoteFetchFiles() {
+  const hits = [];
+  for (const abs of walkJsFiles(API)) {
+    const src = fs.readFileSync(abs, "utf8");
+    const re = /\.?fetch\(/g;
+    let m;
+    let found = false;
+    while (!found && (m = re.exec(src))) {
+      const windowText = src.slice(m.index, m.index + 200);
+      if (!/127\.0\.0\.1|localhost/.test(windowText)) found = true;
+    }
+    if (found) hits.push(relative(API, abs).split("\\").join("/"));
+  }
+  return hits.sort();
+}
+
+const DISCOVERED_REMOTE_FETCH_FILES = discoverRemoteFetchFiles();
+
+// DIRECT: the discovered file's OWN source must contain a real
+// `recordIncident(` call — verified below, per file.
+const PROVIDER_DIRECT_COVERED = ["_room-telegram.js"];
+
+// CALLER-MAPPED: the discovered file's fetch is the provider's own SEND
+// function; the ONE (or two) named file(s) that decide what its failure
+// MEANS and turn it into an incident are checked instead — the same split
+// `api/_checkins.js` already owns for its own sweep sends (WS-R34/R58/R62),
+// restated for the follower-facing reply lanes this workstream closes.
+const PROVIDER_CALLER_MAPPED = {
+  // Razorpay: every `provider.*` call site in api/_payments.js now runs
+  // through `withProviderIncident` (this workstream) or sendPayout's own
+  // inline record (WS-R58) — the provider module itself stays a pure HTTP
+  // client, exactly `fake.js`'s own twin shape, never a place that knows
+  // what INCIDENT_KINDS is.
+  "_payments/providers/razorpay.js": ["_payments.js"],
+  // The push service: `api/_checkins.js`'s own `deliverers.webPush`
+  // records `provider_webpush` on a real send failure (WS-R62) — the one
+  // production caller of `_push/webpush.js#send` this platform's operators
+  // ever see a failure from (`_incidents.js`'s own `notifyNewIncidentKinds`
+  // is the ALERTING mechanism itself; recording ITS OWN send failure through
+  // the identical incident table it exists to report on would be a self-
+  // referential loop with no operator action on the other end, so it is
+  // deliberately excluded, not merely unattended-to).
+  "_push/webpush.js": ["_checkins.js"],
+  // Meta/WhatsApp: `api/_room-whatsapp-chat.js`'s own `defaultRoomWhatsappChatClient`
+  // (this workstream, the follower reply lane) and `api/_checkins.js`'s own
+  // `deliverers.whatsappTemplate` (WS-R34, the sweep's template lane) are
+  // the two production callers of `_room-whatsapp.js`'s two send functions.
+  "_room-whatsapp.js": ["_room-whatsapp-chat.js", "_checkins.js"],
+  // The reply seam: `api/_surface.js#think()` is the actual fetch to the
+  // completion provider, shared with Meera's own non-Room surfaces
+  // (discord.js/tg.js/whatsapp.js) — Room-specific bookkeeping does not
+  // belong in a file neither product owns exclusively. `api/_room-surface.js
+  // #roomSay` (this workstream, every text reply on web/Telegram/WhatsApp)
+  // and `api/_checkins.js`'s own check-in delivery (this workstream) are
+  // the two Room-scoped callers that turn "nothing came back" into an
+  // incident.
+  "_surface.js": ["_room-surface.js", "_checkins.js"],
+};
+
+// EXCLUDED: Meera-only surfaces with their own dedicated batteries, or
+// platform infra with no per-request "a provider failed" meaning an
+// operator acts on through THIS board — the identical "not Room-scoped,
+// carries its own surface" reasoning `context/rejected.md
+// #ws-38-door-list-completeness-rule`/`#ws-89-consolidate-sweep-finding...`
+// already use, restated for a fetch call site instead of a whole door.
+const PROVIDER_EXCLUDED = [
+  "_azure.js", "_channel-secrets.js", "_db.js", "_embed.js", "_gcache.js", "_push.js", "_room-embed.js",
+  "account.js", "chat.js", "consolidate.js", "culture.js", "discord.js", "embed.js", "gif.js",
+  "live-token.js", "memory.js", "search.js", "speech.js", "tg.js", "whatsapp.js",
+];
+
+const providerAccountedFor = new Set([...PROVIDER_DIRECT_COVERED, ...Object.keys(PROVIDER_CALLER_MAPPED), ...PROVIDER_EXCLUDED]);
+ok(
+  "every file with a real remote fetch( is accounted for by name — covered directly, covered by a named caller, or excluded with a reason",
+  DISCOVERED_REMOTE_FETCH_FILES.length === providerAccountedFor.size &&
+    DISCOVERED_REMOTE_FETCH_FILES.every((f) => providerAccountedFor.has(f)),
+  DISCOVERED_REMOTE_FETCH_FILES.join(", ") !== [...providerAccountedFor].sort().join(", ")
+    ? `\n      discovered: ${DISCOVERED_REMOTE_FETCH_FILES.join(", ")}\n      accounted: ${[...providerAccountedFor].sort().join(", ")}`
+    : "",
+);
+console.log(`  remote fetch( files (${DISCOVERED_REMOTE_FETCH_FILES.length}): ${DISCOVERED_REMOTE_FETCH_FILES.join(", ")}`);
+
+function fileHasRecordIncident(relFile) {
+  const p = join(API, relFile);
+  if (!fs.existsSync(p)) return false;
+  // `recordIncidentFn(...)` is this codebase's own established alias for an
+  // INJECTABLE `recordIncident` (`ctx.roomDeps.recordIncident ?? recordIncident`,
+  // `api/_room-telegram.js`'s own `attemptRoomVoiceDelivery` precedent,
+  // WS-R58) — a call through the alias is exactly as real as a direct call.
+  return /recordIncident(Fn)?\(/.test(fs.readFileSync(p, "utf8"));
+}
+
+for (const f of PROVIDER_DIRECT_COVERED) {
+  ok(`[provider-coverage/${f}] its own source contains a real recordIncident( call`, fileHasRecordIncident(f));
+}
+const coveringFiles = new Set(Object.values(PROVIDER_CALLER_MAPPED).flat());
+for (const f of coveringFiles) {
+  ok(`[provider-coverage/${f}] (a named caller) contains a real recordIncident( call`, fileHasRecordIncident(f));
+}
+
+// NEGATIVE CONTROL: the discovery function itself must actually flag a
+// remote host and correctly SKIP a loopback one, proving it discriminates
+// rather than matching every `fetch(` unconditionally.
+ok("NEGATIVE CONTROL: a fetch( call to 127.0.0.1 is correctly treated as local (never flagged remote)",
+  /127\.0\.0\.1|localhost/.test('fetch("http://127.0.0.1:8934/health")'));
+ok("NEGATIVE CONTROL, the inverse: a fetch( call to a real host has no loopback text nearby",
+  !/127\.0\.0\.1|localhost/.test('fetch("https://api.example.com/v1/send")'));
 
 console.log(`\nincidents: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

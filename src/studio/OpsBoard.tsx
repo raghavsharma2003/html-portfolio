@@ -404,6 +404,15 @@ function IncidentsCard({ incidents }: { incidents: OpsIncidents }) {
       <p className="ops-board__slug">
         Every 5xx and every provider failure, last 7 days. Rows older than 90 days are deleted automatically.
       </p>
+      {/* WS-R123, law 4: the derived door count as this card's own
+          denominator - a completeness badge (`api/_incidents.js
+          #OBSERVED_DOOR_COUNT` on both sides), never a live count, so it
+          reads "18 of 18" whether or not any door has ever failed. */}
+      <p className="ops-board__slug">
+        <span className="ops-board__badge ops-board__badge--running">
+          {incidents.doors_observed} of {incidents.doors_total} doors observed
+        </span>
+      </p>
       {incidents.by_kind_door.length === 0 ? (
         <p className="ops-board__empty">None.</p>
       ) : (

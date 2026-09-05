@@ -12,6 +12,7 @@
 // publish AND list, read by anyone (or anyone's crawler). No bearer token,
 // no session, no cookie.
 import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { resolveCreatorPage, buildCreatorPageHtml } from "./_creator-page.js";
 
@@ -24,7 +25,7 @@ function originFromRequest(req) {
   return host ? `${proto}://${host}` : "";
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "HEAD") {
     return res.status(405).send("GET only");
   }
@@ -55,3 +56,5 @@ export default async function handler(req, res) {
     return res.status(200).send(buildCreatorPageHtml(null, { origin, slug, lang }));
   }
 }
+
+export default withDoor(q, "creator-page.js", handler);

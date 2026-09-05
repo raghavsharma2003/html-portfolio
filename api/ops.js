@@ -26,6 +26,7 @@
 // section for the full argument and `evals/room-doors/run.mjs`'s class (e)
 // negative control that exercises it directly, bypassing this door.
 import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import {
@@ -45,7 +46,7 @@ import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 
 export const config = { maxDuration: 30 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (!["GET", "POST"].includes(req.method)) return res.status(405).json({ error: "GET or POST only" });
   if (!allow(ipOf(req), "ops", 30)) return res.status(429).json({ error: "slow_down" });
@@ -101,3 +102,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "ops_overview_failed" });
   }
 }
+
+export default withDoor(q, "ops.js", handler);

@@ -13,6 +13,7 @@
 // measures buys nothing a creator would notice.
 import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 import { runPulseSweep } from "./_pulse.js";
 import { withSweepRun } from "./_sweep-run.js";
 
@@ -24,7 +25,7 @@ function authorized(req) {
   return expected.length >= 24 && expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "GET or POST only" });
   if (!authorized(req)) return res.status(401).json({ error: "unauthorized" });
@@ -38,3 +39,5 @@ export default async function handler(req, res) {
     return res.status(status).json({ error: status === 500 ? "pulse_sweep_failed" : error.code || error.message });
   }
 }
+
+export default withDoor(q, "pulse-sweep.js", handler);

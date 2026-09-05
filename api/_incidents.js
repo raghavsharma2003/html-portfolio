@@ -99,6 +99,22 @@ export const INCIDENT_KINDS = Object.freeze([
 ]);
 const INCIDENT_KIND_SET = new Set(INCIDENT_KINDS);
 
+/**
+ * WS-R123. The 18 HTTP session-doors `evals/room-doors/run.mjs`'s own §0
+ * derivation calls "the door list" and asserts complete — mirrored (and
+ * checked for drift against that file's real source, every gate run) by
+ * `evals/incidents/run.mjs`. Every one is now wrapped in `withDoor`
+ * (this workstream), so the ops board's Incidents card shows this literal
+ * number as BOTH halves of "N of N doors observed" — a completeness badge,
+ * not a live count, sourced from one constant so a future door added
+ * without a matching wrap fails the gate before this number could quietly
+ * go stale. A literal, not a runtime filesystem scan: this file ships
+ * serverless, and `INCIDENT_KINDS` one export up already sets the
+ * precedent that a closed list here is a literal checked by an eval, never
+ * something re-derived from disk at request time.
+ */
+export const OBSERVED_DOOR_COUNT = 18;
+
 /** WS-R102. The door prefix a `self_check` incident row carries when it
  *  names an OPTIONAL env var that is absent (`optional_absent: NAME`),
  *  never a failing check. Declared HERE, beside the kind list it qualifies,

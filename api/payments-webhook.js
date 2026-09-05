@@ -11,6 +11,7 @@
 import { allow, ipOf } from "./_ratelimit.js";
 import { obsBestEffort } from "./_obs.js";
 import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 import { PaymentsError, applyWebhook } from "./_payments.js";
 
 /** Vercel parses request bodies by default, which would destroy the exact
@@ -40,7 +41,7 @@ function cors(res) {
   res.setHeader("Cache-Control", "no-store");
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   cors(res);
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   // Generous and IP-only: the provider's own delivery IPs, not a person, and
@@ -80,3 +81,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "payments_webhook_failure" });
   }
 }
+
+export default withDoor(q, "payments-webhook.js", handler);

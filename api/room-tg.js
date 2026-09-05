@@ -24,6 +24,7 @@
 import { allow, ipOf } from "./_ratelimit.js";
 import { consume } from "./_rate-limit.js";
 import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 import { verifyRoomTelegramWebhook, handleRoomTelegramUpdate } from "./_room-telegram.js";
 import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 // WS-R110: the SAME real voice wiring api/room.js's own "speak" op
@@ -90,7 +91,7 @@ function buildRoomVoiceDeps() {
   }
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   // IP first, so an unauthenticated flood costs no database round trip.
   if (!allow(ipOf(req), "room_tg", 120)) return res.status(429).json({ error: "slow_down" });
@@ -125,3 +126,5 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, handled: false });
   }
 }
+
+export default withDoor(q, "room-tg.js", handler);

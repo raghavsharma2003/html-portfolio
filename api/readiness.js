@@ -27,6 +27,7 @@
 // `GET /api/readiness` re-reading afterwards already do — so this handler's
 // own error shape never has to merge two different failure vocabularies.
 import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { readOwnedReadiness } from "./_readiness.js";
@@ -72,7 +73,7 @@ async function handleMeasureNow(req, res, user) {
   return res.status(200).json({ recall_run: result });
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "GET or POST only" });
@@ -97,3 +98,5 @@ export default async function handler(req, res) {
     });
   }
 }
+
+export default withDoor(q, "readiness.js", handler);

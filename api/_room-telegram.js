@@ -419,17 +419,24 @@ const memoryKeyboard = (slug) => ({
 // THE OUTBOUND CLIENT - injectable, so the eval fakes it with no network
 // ─────────────────────────────────────────────────────────────────────────
 
+// `status` rides on every return shape below (WS-R123) purely so the
+// SHIPPING CLIENT's own wrapper (`defaultRoomTelegramClient`) can record a
+// `provider_telegram` incident with a real status rather than a bare
+// boolean — `0` for "never reached Telegram at all" (no token, or a network
+// failure `fetch` itself caught), Telegram's own HTTP status otherwise.
+// `recordIncident`'s own `validStatus` already accepts 0-999, so this adds
+// no new validation surface.
 async function tgCall(token, method, body) {
-  if (!token) return { ok: false, error: "no bot token" };
+  if (!token) return { ok: false, error: "no bot token", status: 0 };
   const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
-  if (!r) return { ok: false, error: "network" };
+  if (!r) return { ok: false, error: "network", status: 0 };
   const j = await r.json().catch(() => ({}));
-  return { ok: j?.ok === true, result: j?.result };
+  return { ok: j?.ok === true, result: j?.result, status: Number(r.status) || 0 };
 }
 
 /**
@@ -456,7 +463,7 @@ async function tgCall(token, method, body) {
  * api/_room-voice.js, states the format shortfall as a structural fact).
  */
 async function tgSendVoice(token, chatId, buffer, mimeType) {
-  if (!token) return { ok: false, error: "no bot token" };
+  if (!token) return { ok: false, error: "no bot token", status: 0 };
   const form = new FormData();
   form.append("chat_id", String(chatId));
   form.append("voice", new Blob([buffer], { type: mimeType }), `reply.${ROOM_TELEGRAM_VOICE_CONTAINER.extension}`);
@@ -465,13 +472,13 @@ async function tgSendVoice(token, chatId, buffer, mimeType) {
     body: form,
     signal: AbortSignal.timeout(30_000),
   }).catch(() => null);
-  if (!r) return { ok: false, error: "network" };
+  if (!r) return { ok: false, error: "network", status: 0 };
   const j = await r.json().catch(() => ({}));
-  return { ok: j?.ok === true, result: j?.result };
+  return { ok: j?.ok === true, result: j?.result, status: Number(r.status) || 0 };
 }
 
 async function tgSendDocument(token, chatId, buffer, filename, caption) {
-  if (!token) return { ok: false, error: "no bot token" };
+  if (!token) return { ok: false, error: "no bot token", status: 0 };
   const form = new FormData();
   form.append("chat_id", String(chatId));
   if (caption) form.append("caption", String(caption).slice(0, 1024));
@@ -481,16 +488,20 @@ async function tgSendDocument(token, chatId, buffer, filename, caption) {
     body: form,
     signal: AbortSignal.timeout(20_000),
   }).catch(() => null);
-  if (!r) return { ok: false, error: "network" };
+  if (!r) return { ok: false, error: "network", status: 0 };
   const j = await r.json().catch(() => ({}));
-  return { ok: j?.ok === true, result: j?.result };
+  return { ok: j?.ok === true, result: j?.result, status: Number(r.status) || 0 };
 }
 
 /**
  * The check-in sweep's own send (WS-R34, api/_checkins.js's
  * `deliverers.telegram`) - deliberately SEPARATE from `tgCall`/
- * `defaultRoomTelegramClient` above, which is the bot's reply wire and never
- * exposes an HTTP status or Telegram's own `retry_after`. The sweep needs
+ * `defaultRoomTelegramClient` above, which is the bot's reply wire. Both now
+ * expose an HTTP status (WS-R123 added it to `tgCall`/`tgSendVoice`/
+ * `tgSendDocument` for the reply wire's own incident recording, below), but
+ * only the sweep's own send ever reads Telegram's `retry_after` - the
+ * reply wire has no due row to reschedule, so a retry ladder would have no
+ * caller. The sweep needs
  * both: workstream law #3 tells "stop trying" (403 bot-blocked, 400 naming a
  * dead chat) apart from "try again later" (429, 5xx, honouring
  * `parameters.retry_after` when Telegram sends one) by the status code, not
@@ -547,19 +558,39 @@ export function resolveReplyThreadId(replyToMessageId, deps = {}) {
 
 /** The shipping client. `send()` is never called from an offline eval - the
  *  Do-not list this workstream carries: "No calls to Telegram from any
- *  eval." Every suite injects its own fake through `deps.tg`. */
-export function defaultRoomTelegramClient(token) {
+ *  eval." Every suite injects its own fake through `deps.tg`.
+ *
+ *  WS-R123: `deps.db`/`deps.recordIncident` are the SAME injection seam
+ *  `attemptRoomVoiceDelivery` already uses one function up (`ctx.roomDeps.
+ *  recordIncident ?? recordIncident`) — every method below records a
+ *  `provider_telegram` incident when Telegram was actually reached and
+ *  refused or errored (`result.status > 0`), never for "no bot token"
+ *  (an unconfigured deployment, `_self-check.js`'s own surface, not a
+ *  provider failure) — the identical refusal-vs-error split this file's own
+ *  `attemptRoomVoiceDelivery` already draws for voice. Fire-and-forget, own
+ *  catch inside `recordIncident` itself, never awaited: a reply already on
+ *  its way to (or already failed toward) a follower must never wait on a
+ *  bookkeeping write. */
+export function defaultRoomTelegramClient(token, deps = {}) {
+  const db = deps.db;
+  const recordIncidentFn = deps.recordIncident ?? recordIncident;
+  const noted = (result) => {
+    if (db && result?.ok === false && Number(result.status) > 0) {
+      recordIncidentFn(db, { kind: "provider_telegram", door: "room-tg", status: Number(result.status) || 0 });
+    }
+    return result;
+  };
   return {
     sendMessage: (chatId, text, extra = {}) =>
-      tgCall(token, "sendMessage", { chat_id: chatId, text, ...extra }),
+      tgCall(token, "sendMessage", { chat_id: chatId, text, ...extra }).then(noted),
     sendDocument: (chatId, buffer, filename, caption) =>
-      tgSendDocument(token, chatId, buffer, filename, caption),
+      tgSendDocument(token, chatId, buffer, filename, caption).then(noted),
     // WS-R110/WS-R114. `mimeType` is truthful; it is honestly NOT one of
     // sendVoice's own documented formats (`ROOM_TELEGRAM_VOICE_CONTAINER`,
     // api/_room-voice.js) — `tgSendVoice`'s own header states the citation.
-    sendVoice: (chatId, buffer, mimeType) => tgSendVoice(token, chatId, buffer, mimeType),
+    sendVoice: (chatId, buffer, mimeType) => tgSendVoice(token, chatId, buffer, mimeType).then(noted),
     answerCallbackQuery: (callbackQueryId, text = "") =>
-      tgCall(token, "answerCallbackQuery", { callback_query_id: callbackQueryId, text: String(text).slice(0, 200) }),
+      tgCall(token, "answerCallbackQuery", { callback_query_id: callbackQueryId, text: String(text).slice(0, 200) }).then(noted),
   };
 }
 
@@ -997,7 +1028,9 @@ export async function handleRoomTelegramUpdate(update, deps = {}) {
     if (!seen.ok) return { ok: true, skipped: "duplicate_update" };
   }
 
-  const tg = deps.tg ?? defaultRoomTelegramClient(String(env.ROOM_TELEGRAM_BOT_TOKEN || ""));
+  const tg = deps.tg ?? defaultRoomTelegramClient(String(env.ROOM_TELEGRAM_BOT_TOKEN || ""), {
+    db, recordIncident: deps.recordIncident,
+  });
   const ctx = {
     findPerson: deps.personForSurfaceUser ?? personForSurfaceUser,
     linkPerson: deps.linkSurfacePerson ?? linkSurfacePerson,

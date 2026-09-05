@@ -13,6 +13,7 @@
 // token, no session, no cookie, and no follower's own data is ever read
 // here — `api/_room-about.js`'s own header.
 import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { publicRoomAboutBySlug, buildRoomAboutHtml } from "./_room-about.js";
 
@@ -25,7 +26,7 @@ function originFromRequest(req) {
   return host ? `${proto}://${host}` : "";
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "HEAD") {
     return res.status(405).send("GET only");
   }
@@ -57,3 +58,5 @@ export default async function handler(req, res) {
     return res.status(200).send(buildRoomAboutHtml(null, { origin, slug, lang }));
   }
 }
+
+export default withDoor(q, "room-about.js", handler);

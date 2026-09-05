@@ -98,6 +98,15 @@ import { compileNeverRules } from "./_never-rules.js";
 // file (`roomSettings`'s own header names the wall: a file this one already
 // depends on may not import back).
 import { buildReceiptContext } from "./_receipt.js";
+// WS-R123. `_incidents.js` transitively reaches this file already
+// (`_incidents.js -> _operator-telegram.js -> _room-telegram.js ->
+// _room-surface.js`, a working cycle since WS-R58/R98 because nothing on
+// that path reads another's export at module-evaluation time, only inside
+// a function body) - this import closes the loop back
+// (`_room-surface.js -> _incidents.js`) rather than opening a new one, and
+// is used the identical way: `recordIncident` is called only inside
+// `roomSay`, never at this file's own top level.
+import { recordIncident } from "./_incidents.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -1847,6 +1856,25 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
       await memory.logTurn({ device, person: payload.p, role: "her", content: said, agentId: resolved.agentId });
       if (thread) await touchThread(db, thread.thread_id, resolved.agentId, payload.p);
     }
+  } else if (gatedOut.parsed === undefined) {
+    // WS-R123, "the reply seam". `api/_surface.js#gateReply` returns a
+    // `parsed` key on EVERY path that had real model text to work with —
+    // a clean reply, a never-rule suppression, a findings-suppression, all
+    // three carry `parsed: reply`. The ONLY two paths that omit it entirely
+    // are `if (!text) return {text:"", findings:[], gated:true}` (raw model
+    // text was empty — `think()`'s own fetch to the completion provider
+    // returned nothing, network failure or otherwise) and the engine-bundle-
+    // missing guard (`gated:false, reason:"gate unavailable"` — a stale
+    // build, a different infra defect, equally worth surfacing here). Either
+    // way this is `roomSay` — the ONE door every text reply on web, Telegram
+    // and WhatsApp leaves by — producing nothing for a reason that is NOT
+    // the honesty gate doing its job, and until this workstream it left no
+    // trace anywhere: a follower simply never heard back, silently, every
+    // time. Recorded under the existing generic `door_5xx` kind, named
+    // `door: "room-say-reply"` — the SAME "no new INCIDENT_KINDS member"
+    // posture `room-tg-voice` already uses one file over for the identical
+    // reason (this workstream carries no migration).
+    recordIncident(db, { kind: "door_5xx", door: "room-say-reply", status: 502 });
   }
 
   const nextTurns = said ? [...turns, { role: "assistant", content: said }] : turns;

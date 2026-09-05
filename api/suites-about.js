@@ -11,6 +11,14 @@
 // board. No bearer token, no session, no cookie, no follower table touched.
 import { allow, ipOf } from "./_ratelimit.js";
 import { buildSuitesAboutHtml } from "./_suites-about.js";
+// This page is a pure function with no `db` argument (this file's own
+// header) — `q` is imported ONLY so a page-render failure can still be
+// recorded through the SAME `withDoor` wrapper every other server-rendered
+// page door uses (WS-R123, law 2). `_db.js`'s own `q` is a lazy connection
+// factory, never a query issued at import time, so importing it here adds
+// no row read to a page that reads none.
+import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 
 /** `api/room-about.js`'s own `originFromRequest`, restated — each thin
  *  handler in this codebase derives its own origin from the request rather
@@ -21,7 +29,7 @@ function originFromRequest(req) {
   return host ? `${proto}://${host}` : "";
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "HEAD") {
     return res.status(405).send("GET only");
   }
@@ -47,3 +55,5 @@ export default async function handler(req, res) {
     return res.status(200).send(buildSuitesAboutHtml({ origin, lang: "" }));
   }
 }
+
+export default withDoor(q, "suites-about.js", handler);
