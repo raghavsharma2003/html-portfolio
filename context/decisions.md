@@ -18928,3 +18928,108 @@ measuring under 800ms would confirm either fix; absent either, the honest
 move is to raise `HINDI_CHUNK_WAIT_BUDGET_MS` from a fresh measurement
 (not copied from this one) the same way the sibling budget was raised, and
 record the new number's own reversal condition in the same commit.
+
+## `ws-r115-sendbuttons-refuses-more-than-three-buttons` (2026-09-05, WS-R115)
+
+**Decision.** `api/_room-whatsapp-chat.js`'s `defaultRoomWhatsappChatClient
+.sendButtons` now throws `room_wa_button_count_invalid` for any call with
+fewer than 1 or more than 3 buttons, rather than building and sending
+whatever array it was handed.
+
+**Rationale.** This workstream fetched Meta's own Cloud API document for
+interactive reply-button messages (developers.facebook.com/documentation/
+business-messaging/whatsapp/messages/interactive-reply-buttons-messages,
+fetched 2026-09-05 — redirected from the `/docs/whatsapp/cloud-api/...`
+URL WS-R41's own citations in `api/whatsapp.js` used) to verify WS-R104's
+own join-gate shapes, per this workstream's own brief law 2 ("pin every
+outbound shape... where the code disagrees with the document, fix the
+code"). The document states the button-label and body-text limits
+WS-R104's builder already truncated to (20 and 1024 characters,
+respectively — no disagreement there), but also states "up to three
+predefined replies" / "Supports up to 3 buttons" for the button array
+itself, and the builder had NO cap on `buttons.length` at all. Every real
+call site (`ageButtons`/`memoryButtons`) has only ever sent exactly two,
+so nothing shipped was ever actually wrong — but a caller bug reaching
+this function with four buttons would have built and sent a shape Meta's
+own document states it does not support, silently, with no local signal
+that anything was wrong until a real Cloud API call refused it. A refusal
+by name, matching `sendSessionMessage`'s own "`deps.fetch` REQUIRED" throw
+for a different missing precondition, is the same posture this codebase
+already takes elsewhere for a caller precondition rather than a runtime
+policy the following window/cap logic already owns.
+
+**Reversal condition.** If a future product need legitimately requires
+more than three quick-reply options on this wire (Meta's own document
+would have to change first — WhatsApp's own client UI has no room for a
+fourth button today), this throw would need to become a real branch that
+degrades to a list message or a text fallback rather than simply raising
+the cap, since the cap is Meta's own platform limit, not a value this
+codebase chose.
+
+## `ws-r115-window-ledger-reconfirmed-no-code-change` (2026-09-05, WS-R115)
+
+**Decision.** `api/whatsapp.js`'s `windowOpen`/`noteInbound` ledger and
+`api/_room-whatsapp.js`'s `sendSessionMessage` are left byte-for-byte
+unchanged by this workstream.
+
+**Rationale.** This workstream's own brief said to change `api/whatsapp.js`
+or `api/_room-whatsapp.js` "only if the ledger disagrees with the
+document." It does not. Re-fetched developers.facebook.com/documentation/
+business-messaging/whatsapp/messages/send-messages#customer-service-windows
+(2026-09-05, reached by following developers.facebook.com/docs/whatsapp/
+pricing's own redirect chain and its own "customer service window" link —
+the SAME rule WS-R41 already cited from the older `/docs/whatsapp/pricing`
+URL, now confirmed to still say the identical thing at the current URL):
+"a 24-hour timer... starts... If the user messages... again before the
+timer expires, the timer resets to 24 hours... When the window closes,
+you can only send pre-approved template messages." This is exactly what
+`noteInbound`(resets the clock on every inbound)/`windowOpen`(checks
+`now - lastInbound < WA_WINDOW_MS`)/`sendSessionMessage`'s own refusal
+already implement — the same conclusion WS-R41 reached fetching the older
+URL. `evals/room-whatsapp-chat/run.mjs`'s new "the REAL 24h ledger"
+section proves the boundary this workstream's own brief names (23:59
+sends, 24:01 does not, a new inbound reopens it, a struck ledger is
+caught) through the REAL sender, not a stub, closing the one thing WS-R41's
+own verification had not yet driven end to end through this specific
+join flow's shipping call path.
+
+**Reversal condition.** If Meta's document ever states a different window
+duration, a per-message-type window, or a client-visible reset behaviour
+this ledger does not model (e.g. a call opening or extending the window
+differently from a message — the document does mention calls extending
+the window, a case this platform's WhatsApp lane does not build or claim
+to handle), the ledger would need a real code change and this decision
+would no longer hold.
+
+## `ws-r115-age-gate-yes-does-not-recheck-room-availability` (2026-09-05, WS-R115)
+
+**Decision.** `api/_room-whatsapp-chat.js`'s `handleButton` is left
+unchanged: its `a1`/`a0` steps (the age question's own two answers) never
+call `resolveRoom`, so a Room that becomes unavailable (paused, or
+deleted) between the disclosure message and the age-gate tap is not
+caught until the FINAL `m1`/`m0` tap, which is the only step that actually
+calls `resolveRoom` before doing anything else.
+
+**Rationale.** Found while building `evals/room-doors/run.mjs`'s new
+`d9-join-paused-room` case (this workstream's own brief law 4): an
+`a1:<slug>` button tap for a Room paused after the disclosure was sent
+still receives the memory-gate question rather than an immediate refusal,
+because `handleButton`'s `a1` branch only ever reads `parsed.slug` to echo
+it back into `memoryButtons`, never resolving the room. This is NOT a
+scope leak or a half-join: no person, follower or pointer row exists
+until `m1`/`m0` completes, and THAT step does call `resolveRoom` first,
+refusing with the identical `roomUnavailableCard` a genuinely unknown slug
+gets (proven directly, `d9-join-paused-room`'s own final two assertions).
+The follower-visible cost is a wasted extra question, not a data or
+privacy problem, and this workstream's own brief scoped it to Meta's
+documents (which say nothing about this — a purely internal state-machine
+question), not a general audit of every button step's own availability
+check.
+
+**Reversal condition.** A product complaint that a follower answers the
+age question for a Room that turns out unavailable is confusing enough to
+fix would justify adding the identical `try { resolveRoom(...) } catch {
+...unavailable...}` guard `handleJoin` and the `m1`/`m0` branch already
+carry to the `a1` branch too — a small, contained change, deliberately not
+made here since nothing it would prevent is currently reachable by anyone
+but the honest, ordinary case Meta's document has no opinion on.

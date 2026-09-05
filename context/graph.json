@@ -9910,6 +9910,36 @@
       "kind": "rejection",
       "title": "The creator rehearsal counted the showcase picker's list at the instant its title appeared; the title renders while the list is still loading, so CI lost the race on both Node versions after every local gate had passed. Fixed by waiting for the item itself, bounded.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r115-sendbuttons-refuses-more-than-three-buttons",
+      "kind": "decision",
+      "title": "WS-R104's WhatsApp reply-button join gate (outbound interactive/text shapes, inbound button_reply parsing) verified against Meta's own Cloud API documents, fetched 2026-09-05; one real gap found and fixed (sendButtons had no cap on button count, Meta's own 'up to three predefined replies').",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r115-window-ledger-reconfirmed-no-code-change",
+      "kind": "decision",
+      "title": "api/whatsapp.js's windowOpen/noteInbound ledger re-verified against the current customer-service-window document URL (redirected from WS-R41's own citation) and left unchanged; the join flow's own 24h boundary (23:59 sends, 24:01 does not, reopen, struck-ledger negative control) proven through the real sendSessionMessage sender.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r115-age-gate-yes-does-not-recheck-room-availability",
+      "kind": "decision",
+      "title": "handleButton's a1/a0 steps never call resolveRoom (only the final m1/m0 tap does) - a Room paused mid-gate is not refused until the last step. Left unchanged: harmless (nothing created before m1/m0), a wasted extra question rather than a leak.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r115-whatsapp-interactive-eval-counts-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/room-whatsapp-chat/run.mjs 83/83 (17 new: 11 outbound-shape citations, 6 real-ledger boundary); evals/room-doors/run.mjs 764/764 (18 new: d8-cross-room-never-crosses 8, d9-join-paused-room 5, d10-flag-off-byte-identical 5). Offline, deterministic, $0.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r115-paused-room-button-test-assumed-a1-rechecks-availability",
+      "kind": "rejection",
+      "title": "d9-join-paused-room's button-path case first sent a1:<slug> expecting a refusal for a paused Room; handleButton's a1/a0 steps never call resolveRoom (only m1/m0 does) so it sent the memory gate instead - the test was fixed to use m1, not the code.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19297,6 +19327,36 @@
       "src": "rehearsal-counted-the-picker-list-before-it-loaded",
       "rel": "caused_by",
       "dst": "ws-r109-fold-rehearsal-harnesses-onto-one-contract"
+    },
+    {
+      "src": "ws-r115-sendbuttons-refuses-more-than-three-buttons",
+      "rel": "caused_by",
+      "dst": "ws-r104-whatsapp-join-gate-uses-reply-buttons-not-free-text"
+    },
+    {
+      "src": "ws-r115-sendbuttons-refuses-more-than-three-buttons",
+      "rel": "measured_by",
+      "dst": "ws-r115-whatsapp-interactive-eval-counts-2026-09-05"
+    },
+    {
+      "src": "ws-r115-window-ledger-reconfirmed-no-code-change",
+      "rel": "measured_by",
+      "dst": "ws-r115-whatsapp-interactive-eval-counts-2026-09-05"
+    },
+    {
+      "src": "ws-r115-age-gate-yes-does-not-recheck-room-availability",
+      "rel": "caused_by",
+      "dst": "ws-r104-whatsapp-join-gate-uses-reply-buttons-not-free-text"
+    },
+    {
+      "src": "ws-r115-paused-room-button-test-assumed-a1-rechecks-availability",
+      "rel": "caused_by",
+      "dst": "ws-r104-whatsapp-join-gate-uses-reply-buttons-not-free-text"
+    },
+    {
+      "src": "ws-r115-age-gate-yes-does-not-recheck-room-availability",
+      "rel": "caused_by",
+      "dst": "ws-r115-paused-room-button-test-assumed-a1-rechecks-availability"
     }
   ]
 }

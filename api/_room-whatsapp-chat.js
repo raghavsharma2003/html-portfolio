@@ -4,6 +4,34 @@
 // Business number (`WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID`), never
 // a second credential pair.
 //
+// WS-R115 (2026-09-05): WS-R104's own reply-button join gate was built and
+// merged with no live WhatsApp Business Account ever available to try it
+// against (`context/decisions.md#ws-r104-whatsapp-join-gate-uses-reply-
+// buttons-not-free-text`'s own reversal condition, stated in as many words).
+// This workstream verifies every outbound shape this file sends and the one
+// inbound shape it parses against Meta's own Cloud API documents — WS-R41's
+// method (api/whatsapp.js's own header), a citation with a URL and a fetch
+// date pinned against the exact field this codebase's own behaviour must
+// match, never a document skimmed and trusted from memory. The citations
+// live next to the code they verify: `defaultRoomWhatsappChatClient`'s own
+// header (outbound: text messages, interactive reply-button messages, the
+// three limits Meta's own document states) and
+// `classifyRoomWhatsappChatMessage`'s own header (inbound: the
+// `button_reply` webhook shape — NOT symmetric with the outbound `type`,
+// the one place a guess would have been wrong). The 24-hour window ledger
+// (`sendSessionMessage`'s own `windowOpen` check, api/_room-whatsapp.js)
+// was ALREADY verified against the identical document by WS-R41
+// (api/whatsapp.js's own header) — this workstream proves it again here at
+// the fake-clock boundary this specific join flow's brief names (23:59
+// sends, 24:01 does not, a new inbound reopens it, a struck ledger is
+// caught), through the REAL shipping sender rather than a stub, in
+// `evals/room-whatsapp-chat/run.mjs`'s own "the REAL 24h ledger" section —
+// not a second, independent verification of the rule itself, which WS-R41
+// already settled. ONE real disagreement was found and fixed: this file's
+// own `sendButtons` builder had no cap on button COUNT at all, though every
+// real call site has only ever sent two — see `defaultRoomWhatsappChatClient`'s
+// own header for the fix and the citation it closes.
+//
 // Every message that reaches a reply goes through the SAME follower lane the
 // web Room and the Telegram lane both use (api/_room-surface.js: resolve,
 // join, say, forget) and leaves through the ONE reply door (`gatedReply`,
@@ -233,7 +261,26 @@ const memoryButtons = (slug) => [
 /** One classified event per inbound Cloud API message — `api/whatsapp.js`'s
  *  own `parse()`, restated for the fields THIS file's state machine needs
  *  (a button's `id`, which that function never surfaces) rather than the
- *  generic surface-adapter shape. Never mutates, never reads a database. */
+ *  generic surface-adapter shape. Never mutates, never reads a database.
+ *
+ *  WS-R115: the `interactive`/`button_reply` branch below is verified
+ *  against Meta's own webhook example, not assumed symmetric with the
+ *  outbound shape above (they are NOT symmetric — this is the one place a
+ *  guess would have been wrong). developers.facebook.com/documentation/
+ *  business-messaging/whatsapp/messages/interactive-reply-buttons-messages
+ *  (fetched 2026-09-05), "## Webhooks" section, quoted verbatim: "When a
+ *  WhatsApp user taps on a reply button, a **messages** webhook is
+ *  triggered that describes their selection in a `button_reply` object" —
+ *  and the worked example webhook payload nests it as
+ *  `messages[].type: "interactive"`, `messages[].interactive.type:
+ *  "button_reply"` (NOT `"button"` — the outbound `type` and the inbound
+ *  `interactive.type` are two different strings on the two different sides
+ *  of the SAME tap), `messages[].interactive.button_reply: {id, title}`.
+ *  Matched exactly below: `m.type === "interactive"`,
+ *  `m.interactive.type === "button_reply"`, `m.interactive.button_reply.id`
+ *  — this file reads only `id` (the button's own opaque state, this file's
+ *  own header explains why), never `title`, which the doc's own object also
+ *  carries but this state machine has no use for. */
 export function classifyRoomWhatsappChatMessage(m) {
   const from = m?.from == null ? null : String(m.from);
   if (!from) return { kind: "ignore", reason: "no sender" };
@@ -261,22 +308,95 @@ export function classifyRoomWhatsappChatMessage(m) {
 // THE OUTBOUND CLIENT — injectable, so the eval fakes it with no network
 // ─────────────────────────────────────────────────────────────────────────
 
-/** The shipping client. `sendText`/`sendButtons` are never called from an
- *  offline eval — `_room-telegram.js`'s own "no calls to Telegram from any
- *  eval" restated for this wire. Every suite injects its own fake through
- *  `deps.wa`. `sendDeps` is the SAME deps object `handleRoomWhatsappChatWebhook`
- *  was itself called with — `env`, `now`, and (in production) `fetch:
+/** The shipping client. Every SUITE injects its own fake through `deps.wa`
+ *  when driving the join flow end to end, so `sendText`/`sendButtons` are
+ *  never reached from a webhook-shaped eval — `_room-telegram.js`'s own "no
+ *  calls to Telegram from any eval" restated for this wire. WS-R115 is the
+ *  one exception, and a narrow one: `evals/room-whatsapp-chat/run.mjs`'s own
+ *  "outbound shapes pinned against Meta's own Cloud API documents" section
+ *  calls `sendText`/`sendButtons` DIRECTLY, with a fake `fetch` (never a real
+ *  one — the shape law above is unchanged, only reached one layer deeper),
+ *  because pinning a wire shape against a citation means building the exact
+ *  bytes this function builds, not a copy of them re-typed into the test.
+ *  `sendDeps` is the SAME deps object `handleRoomWhatsappChatWebhook` was
+ *  itself called with — `env`, `now`, and (in production) `fetch:
  *  globalThis.fetch`, threaded through exactly as `api/checkins-sweep.js`
  *  threads it into `sweep()` — a business-logic module never assumes a
  *  global, `sendSessionMessage`'s own "deps.fetch REQUIRED" law one file
- *  over. */
+ *  over.
+ *
+ *  ── WS-R115: every shape below verified against Meta's own document,
+ *  never assumed ──
+ *
+ *  developers.facebook.com/documentation/business-messaging/whatsapp/
+ *  messages/interactive-reply-buttons-messages (redirected from the
+ *  `/docs/whatsapp/cloud-api/...` URL WS-R41's own citations in
+ *  api/whatsapp.js used; fetched 2026-09-05) — the worked request example
+ *  shows exactly `{type:"interactive", interactive:{type:"button",
+ *  body:{text}, footer:{text}, action:{buttons:[{type:"reply",
+ *  reply:{id,title}}]}}}` (this file sends no header/footer, both optional
+ *  per the doc's own request-parameters table). Three field limits, quoted
+ *  verbatim from that table: `<BODY_TEXT>` "Maximum 1024 characters.";
+ *  `<BUTTON_LABEL_TEXT>` "Maximum 20 characters."; `<BUTTON_ID>` "A unique
+ *  identifier for each button. Supports up to 3 buttons... Maximum 256
+ *  characters." — matched by `.slice(0,1024)`/`.slice(0,20)` below (body,
+ *  title) and, for the button COUNT specifically, a REFUSAL rather than a
+ *  truncation: `evals/room-whatsapp-chat/run.mjs`'s own shape-pinning suite
+ *  found this file's builder had NO cap on `buttons.length` at all before
+ *  this workstream — every real call site (`ageButtons`/`memoryButtons`
+ *  below) has only ever sent two, so nothing shipped was ever wrong, but a
+ *  caller bug that reached this function with four buttons would have built
+ *  and sent a shape Meta's own API document states it does not support. Per
+ *  this workstream's own law 2 ("where the code disagrees with the
+ *  document, fix the code"), `sendButtons` below now throws by name rather
+ *  than silently building an invalid Cloud API payload — the SAME posture
+ *  `sendSessionMessage`'s own "`deps.fetch` REQUIRED" throw already takes
+ *  for a different missing precondition, never a template substituted or a
+ *  message half-built. Button-id length is verified SOUND rather than
+ *  enforced: `parseButtonId`'s own slug capture group above caps a slug at
+ *  63 characters, so the longest id this file ever builds
+ *  (`"m0:" + 63 chars = 66`) sits far under 256 by construction — nothing to
+ *  truncate, and truncating an id would silently break `parseButtonId`'s own
+ *  round-trip on the reply.
+ *
+ *  developers.facebook.com/documentation/business-messaging/whatsapp/
+ *  messages/text-messages (fetched 2026-09-05) — `<BODY_TEXT>` "Maximum 4096
+ *  characters.", matching `ROOM_WA_TEXT_LIMIT`/`WA_TEXT_LIMIT` exactly
+ *  (api/whatsapp.js's own constant, restated in this file's own header).
+ *
+ *  developers.facebook.com/documentation/business-messaging/whatsapp/
+ *  messages/send-messages#customer-service-windows (fetched 2026-09-05,
+ *  reached by following developers.facebook.com/docs/whatsapp/pricing's own
+ *  redirect and its own "customer service window" link — WS-R41's citation
+ *  chain, now to the current URL) both lists "Interactive reply buttons" and
+ *  "Text messages" among the service message types a business MAY send
+ *  during an open customer service window, and states the window itself:
+ *  "a 24-hour timer... starts... If the user messages... again before the
+ *  timer expires, the timer resets to 24 hours. While the window is open,
+ *  you can send any of the service message types listed... When the window
+ *  closes, you can only send pre-approved template messages." — the exact
+ *  rule `sendSessionMessage`'s own `windowOpen` check (api/_room-whatsapp.js,
+ *  reusing api/whatsapp.js's ledger) enforces, and
+ *  `evals/room-whatsapp-chat/run.mjs`'s own "the REAL 24h ledger" section
+ *  proves with a fake clock: a message at 23:59 after the last inbound
+ *  sends, at 24:01 it does not, a fresh inbound resets the timer, and a
+ *  struck ledger (a cold start, this platform's own best-effort posture) is
+ *  caught and refused rather than silently allowed through. */
 export function defaultRoomWhatsappChatClient(sendDeps) {
   const send = (phone, messageBody) => sendSessionMessage(phone, messageBody, sendDeps);
   return {
     sendText: (phone, text) =>
       send(phone, { type: "text", text: { body: String(text).slice(0, ROOM_WA_TEXT_LIMIT) } }),
-    sendButtons: (phone, bodyText, buttons) =>
-      send(phone, {
+    sendButtons: (phone, bodyText, buttons) => {
+      // Meta's own document: "up to three predefined replies" — see this
+      // function's own header. A count outside [1,3] is a caller bug, never
+      // a shape to build and send anyway.
+      if (!Array.isArray(buttons) || buttons.length < 1 || buttons.length > 3) {
+        throw new Error(
+          `room_wa_button_count_invalid: ${Array.isArray(buttons) ? buttons.length : typeof buttons} (Meta's own Cloud API supports 1-3 reply buttons)`,
+        );
+      }
+      return send(phone, {
         type: "interactive",
         interactive: {
           type: "button",
@@ -285,7 +405,8 @@ export function defaultRoomWhatsappChatClient(sendDeps) {
             buttons: buttons.map((b) => ({ type: "reply", reply: { id: b.id, title: b.title.slice(0, 20) } })),
           },
         },
-      }),
+      });
+    },
   };
 }
 
