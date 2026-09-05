@@ -12441,3 +12441,96 @@ carries that assumption along invisibly. Any future control built as a real
 `display` before a `min-height`/`min-width` rule can do anything at all —
 checked here by the layout gate's own real-browser measurement, not by
 reading the CSS and assuming it applies.
+
+## `ws-r110-room-telegram-voice-preference-no-available-column` (2026-09-05, WS-R110)
+
+**What was tried.** WS-R110's own brief named a real contingency chain for
+where `/voice on`/`/voice off` (a follower's Telegram voice preference)
+should be stored, in order: a JSON or flag column on the channel pointer
+row (082's `vy_room_follower_channel`), else `vy_room_follower`'s own
+settings shape, else stop and log the rejection — this workstream carries
+no migration number, so "add a column" was never an option to fall back
+to. Both candidates were checked against the real, currently-merged
+`db/schema.sql` before writing a line of `/voice` handling code.
+
+**What broke.** Neither location has a spare column. `vy_room_follower_
+channel` carries exactly two booleans/flags beyond its identity columns,
+and both are already spoken for: `checkins_enabled` (migration 096,
+WS-R34) is a real boolean but its meaning is fixed — "does this channel
+carry check-ins" — and repurposing it for voice would silently turn a
+follower's `/checkins off` into `/voice off` and vice versa, corrupting
+BOTH features rather than adding one; `stopped_code` (the same migration)
+is a nullable text column whose own header states its complete meaning
+("null = sendable, set on a 403/400 from Telegram") — not a generic flag
+at all, a delivery-health marker. `vy_room_follower`'s only settings-
+shaped column, `settings_reviewed_at` (migration 101, WS-R39), is a
+nullable TIMESTAMP recording whether a follower has looked at their own
+settings PAGE — there is no boolean hiding in it to repurpose, and a
+timestamp cannot honestly encode a three-state "never set / on / off"
+preference by its own type. Grepped for a fourth candidate (any `jsonb`
+column anywhere in the follower or channel-pointer tables, any other
+`create table` named `pref`/`flag`/`setting`/`voice`) and found none —
+`vy_room_voice_usage` (migration 081) is a content-free day-granular USAGE
+ledger, not a preference store, and reusing it for anything other than
+seconds-and-clip-counts would break the drift-watch sweep that reads it by
+exact shape.
+
+**The rule.** "Store a preference on the existing row" is only actually
+available when a column search finds a column whose CURRENT, COMMITTED
+meaning is either general-purpose (a JSON blob, an actual flags bitmask)
+or already means exactly the new thing — never a column that merely has
+the RIGHT TYPE (a boolean, a nullable timestamp) but a different, already-
+relied-upon meaning. `checkins_enabled` looking boolean-shaped was the
+trap here: it would have type-checked, it would have "worked" in the sense
+that reads and writes would succeed, and it would have been silently wrong
+the first time a real follower toggled either feature. When a search like
+this comes up empty and the workstream's own brief forbids a migration,
+the honest move is exactly what `context/decisions.md#ws-r110-room-
+telegram-voice-defaults-on-no-persisted-per-follower-toggle` records: ship
+the feature that IS buildable (automatic delivery, gated on tier/env/
+ceiling) and say plainly, in the product-facing copy itself, that the
+per-conversation toggle does not exist yet — never invent a fake column
+reuse to make a brief's literal wording "work".
+
+## `ws-r110-explaining-a-rejected-column-by-name-trips-the-leak-battery` (2026-09-05, WS-R110)
+
+**What was tried.** The `/voice on`/`/voice off` doc-comment in
+`api/_room-telegram.js` (explaining, for the next reader, exactly which two
+columns were checked and rejected as storage for the preference —
+`context/rejected.md#ws-r110-room-telegram-voice-preference-no-available-
+column`, immediately above) originally named the two real table identifiers
+verbatim: `` `vy_room_follower_channel`'s ... `` and `` `vy_room_follower`'s
+only settings-shaped column ``.
+
+**What broke.** `node evals/room-leak/run.mjs`'s own completeness sweep
+(`§`"no file outside the allowed set reads the Room's follower/thread
+tables") scans EVERY file under `api/` for the plain substring
+`"vy_room_follower"` or `"vy_room_thread"` — comments included, by design
+(`evals/room-leak/run.mjs`'s own header: catching a reader this battery
+does not yet know about means matching the identifier wherever it appears,
+not only inside a real SQL statement, since a future edit could add a real
+query right next to an innocent-looking comment that already named the
+table). `api/_room-telegram.js` is not in that sweep's `ALLOWED`/
+`AGGREGATE_ONLY`/`TIER_WRITE_ONLY` sets (correctly — it reads no follower
+row directly, only through `api/_room-surface.js`'s own exported
+functions), so the substring alone, sitting in a comment that read no row
+and wrote nothing, failed the release gate: `FAIL no file outside the
+allowed set reads the Room's follower/thread tables   _room-telegram.js`.
+
+**The fix.** The comment now names the same two columns by what they DO
+(the channel pointer row's `checkins_enabled`/`stopped_code`, the follower
+row's `settings_reviewed_at`) without spelling either table's literal
+identifier, and cites migration numbers instead. No behavior changed —
+only prose.
+
+**The rule.** In `api/_room-telegram.js` specifically (a file this battery
+never admits as a follower/thread reader), a code comment must refer to
+`vy_room_follower`/`vy_room_thread` by paraphrase or migration number,
+never by the literal table name — the same discipline
+`context/rejected.md`'s own entries already practice when quoting a
+rejected SQL shape near a real query (`ws-r10-...`'s kind of care), just
+enforced here by a real gate rather than convention alone. A future
+workstream editing this file's comments should grep
+`evals/room-leak/run.mjs`'s own `ALLOWED`/`AGGREGATE_ONLY` sets before
+writing prose that names either table, not only before writing SQL that
+queries it.

@@ -2488,6 +2488,26 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-about": "room-about/run.mjs",
+  // WS-R110. Voice replies on Telegram: `roomSpeak` (WS-R19) reused by
+  // import, never a second synthesis path, bound to the SAME reply
+  // `roomSay` just delivered, metered by the SAME per-second ceiling, sent
+  // through Telegram's `sendVoice` wrapped in a real (never re-encoded)
+  // WAV container (`pcmToWavBuffer`, api/_room-voice.js). `/voice on` and
+  // `/voice off` are parsed and answered honestly rather than persisted —
+  // no available column exists on the channel pointer row or on
+  // `vy_room_follower`'s own settings shape without a migration this
+  // workstream does not have
+  // (`context/rejected.md#ws-r110-room-telegram-voice-preference-no-
+  // available-column`) — and neither command ever reaches `roomSay` or
+  // spends a follower's monthly cap. A free follower's ordinary message
+  // never reaches synthesis (NEGATIVE CONTROL, struck deliberately); the
+  // ceiling refusal sends a capped card at most once a day; a genuine
+  // synthesis failure records one incident (the existing `door_5xx` kind)
+  // and sends nothing, since the text reply has already arrived by then.
+  //
+  // Offline, deterministic, $0, no DB, no network, no Telegram call, no
+  // model call, no GPU.
+  "room-telegram-voice": "room-telegram-voice/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

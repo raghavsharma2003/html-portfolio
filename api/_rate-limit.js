@@ -158,6 +158,15 @@ export const DEFAULT_LIMITS = {
   // follower sharing with a handful of friends and firm against a stolen
   // session turning this op into an unbounded hash-generation engine.
   room_referral_follower: { limit: 10, windowMs: 24 * 60 * 60_000 },
+  // WS-R110. `roomSpeak`'s own ceiling (migration 081) already refuses a
+  // paid follower's clip once `paid_monthly_voice_seconds` is spent; this
+  // is only the notification's own throttle - a follower deep in a long
+  // Telegram conversation past their monthly voice minutes must read
+  // `voiceCappedCard` once a day, not after every single reply that keeps
+  // arriving as text. `room_flag_follower`'s own shape (a day, not a
+  // minute - an occasional state, never a chat burst), keyed on the
+  // follower's own `follower_id`.
+  room_tg_voice_capped_follower: { limit: 1, windowMs: 24 * 60 * 60_000 },
 };
 
 /**

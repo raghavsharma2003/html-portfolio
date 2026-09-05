@@ -12407,3 +12407,35 @@ median sits near the budget even without it. The mechanism is structural:
 the Hindi table is a dynamic import issued only after the main chunk has
 parsed and run (`main.tsx`'s early `loadStudioCopy("hi")` is still
 downstream of that parse), then React commits it.
+
+## `ws-r110-room-telegram-voice-evals-2026-09-05` — the two offline suites' own counts
+
+Method: `node evals/room-telegram-voice/run.mjs` and `node evals/room-telegram/run.mjs`, both run directly, 2026-09-05, offline, deterministic, $0, no DB, no network, no Telegram call, no model call, no GPU.
+
+`evals/room-telegram-voice/run.mjs` (new): n = 55 assertions, 0 failures,
+runtime under 300ms. Covers: `pcmToWavBuffer`'s byte-exact RIFF/WAVE header
+(13 checks, including determinism and format-is-actually-reflected, never
+hardcoded); `/voice on`/`/voice off` parsing and the honest acknowledgement
+card; `ROOM_VOICE` unset (the shipping default) attempting nothing and
+constructing nothing; the happy path (delivery order text-then-voice, mime
+type honestly reported, the WAV bytes carrying the SAME watermarked bytes
+`protect()` produced, the usage row, exactly one synth/protect call each);
+the NEGATIVE CONTROL (a free follower's ordinary message never reaches
+`synth`, refused by `roomSpeak`'s own structural gate, named
+`room_voice_paid_only`); the ceiling (refused, named `room_voice_cap_
+reached`, never reaches synth; the capped card sent exactly once across two
+capped turns the same day, via the real day-scoped `room_tg_voice_capped_
+follower` rate-limit scope); a synthesis failure (one incident recorded
+under the existing `door_5xx` kind, `door: "room-tg-voice"`, no new
+`INCIDENT_KINDS` member, no voice bubble, no extra text bubble); a static
+scan of `api/_room-telegram.js`'s own source pinning `tgSendVoice`'s request
+shape (`chat_id`, a `voice` multipart field, a real `Blob`, Telegram's
+`sendVoice` method by name) since `defaultRoomTelegramClient`'s own law
+("never called from an offline eval") forbids exercising it live even
+against a stub.
+
+`evals/room-telegram/run.mjs` (extended, WS-R18's own suite): was passing
+before this workstream; with the new `/voice` section appended, n = 67
+assertions total (was 61 before this workstream — 6 new checks: parsing,
+the honest card, no quota spent by either command, and the model never
+reached), 0 failures.

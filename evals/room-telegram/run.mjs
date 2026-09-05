@@ -90,6 +90,9 @@ const {
   cappedCard,
   stoppedCard,
   languageChangedCard,
+  // WS-R110
+  parseVoiceCommand,
+  voiceCommandCard,
 } = tg;
 const surface = await import(pathToFileURL(join(REPO, "api/_room-surface.js")).href);
 const { roomDisclosureCard } = surface;
@@ -524,6 +527,41 @@ console.log("── /hindi and /english re-send the disclosure card (WS-R84) ─
   await handleRoomTelegramUpdate(textUpdate("10001", "/hindi"), depsFor(state, db, tgClient, memlog, { reply }));
   ok("a repeated /hindi still re-sends the disclosure card, not just the confirmation",
     texts(sent, "10001").length === 2 && texts(sent, "10001")[0] === hiCard);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── /voice on and /voice off (WS-R110) — parsed, honest, no quota spent ──");
+// ═════════════════════════════════════════════════════════════════════════
+//
+// The full voice DELIVERY suite (paid gate, ceiling, the request shape to
+// Telegram, the synthesis-failure incident) lives in its own dedicated
+// `evals/room-telegram-voice/run.mjs` — this file's own reason for existing
+// (WS-R18's fixture world, "the code path a real webhook reaches"), kept to
+// the two things that belong HERE: the commands parse, and they never
+// masquerade as a chat turn.
+{
+  ok("/voice on parses", parseVoiceCommand("/voice on") === "on");
+  ok("/voice off parses", parseVoiceCommand("/voice off") === "off");
+  ok("a bare /voice is not one of the two — falls through, `parseCheckinsCommand`'s own rule",
+    parseVoiceCommand("/voice") === null);
+
+  const state = freshState();
+  const db = fakeDb(state);
+  const sent = {};
+  const tgClient = fakeTgClient(sent);
+  const memlog = [];
+  await fullJoin(state, db, tgClient, memlog, "10002", SLUG);
+  const before = state.followers[0]?.month_message_count;
+
+  sent["10002"] = [];
+  await handleRoomTelegramUpdate(textUpdate("10002", "/voice off"), depsFor(state, db, tgClient, memlog));
+  ok("/voice off gets the honest acknowledgement card", texts(sent, "10002").at(-1) === voiceCommandCard());
+  ok("/voice off spends no message from the monthly cap", state.followers[0]?.month_message_count === before);
+
+  let modelReached = false;
+  const poisonedReply = async () => { modelReached = true; return "unexpected"; };
+  await handleRoomTelegramUpdate(textUpdate("10002", "/voice on"), depsFor(state, db, tgClient, memlog, { reply: poisonedReply }));
+  ok("/voice on never reaches the model — it is a command, never an ordinary chat message", modelReached === false);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

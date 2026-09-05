@@ -50,6 +50,7 @@ import {
   roomNameFor,
   joinRoom,
   roomSay,
+  roomSpeak,
   roomExport,
   roomForget,
   roomSetLocale,
@@ -68,6 +69,16 @@ import {
 import { personForSurfaceUser, linkSurfacePerson } from "./_room.js";
 import { activeProviderName } from "./_payments.js";
 import { consume } from "./_rate-limit.js";
+// WS-R110: `pcmToWavBuffer` is the pure container helper — no synthesis, no
+// network — `api/_room-voice.js`'s own new header explains why this is not
+// a second synthesis path. `recordIncident` is the SAME closed-list ledger
+// `api/_checkins.js`'s own Telegram-send failures already write through —
+// this workstream adds no new `INCIDENT_KINDS` member (that CHECK lives in
+// migration 109, and this workstream carries no migration), so a real
+// voice-synthesis failure is recorded under the existing generic
+// `door_5xx` kind, named `door: "room-tg-voice"`.
+import { pcmToWavBuffer } from "./_room-voice.js";
+import { recordIncident } from "./_incidents.js";
 
 /** Telegram's own hard limit on a text message body - `roomSay`'s own bubbles
  *  are split at 4000 (`ROOM_TEXT_LIMIT`, api/_room-surface.js), which already
@@ -249,6 +260,38 @@ export function nothingToFlagCard(locale = "en") {
     : "There is no reply yet to flag.";
 }
 
+/** `/voice on` or `/voice off` (WS-R110). Neither toggles anything: this
+ *  deployment has no available place to STORE a per-follower preference
+ *  without a schema change this workstream is not permitted to make (both
+ *  candidate locations the brief named were checked and are already
+ *  committed to a different meaning — the channel pointer row's (082)
+ *  `checkins_enabled`/`stopped_code` columns, WS-R34/WS-R89's own migration
+ *  096, and the follower row's only settings-shaped column
+ *  (`settings_reviewed_at`), is a timestamp, not a flag — see
+ *  `context/rejected.md#ws-r110-room-telegram-voice-preference-no-
+ *  available-column`). Parsed and answered anyway, honestly, rather than
+ *  left to fall through to an ordinary message: a follower typing `/voice
+ *  off` must never have those two words sent to the creator's AI as a
+ *  chat turn, spending part of their monthly cap on a confused reply. */
+export function voiceCommandCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "जब आप पेड सदस्य हों, हर जवाब के साथ अपने आप एक वॉइस नोट आता है (आपकी मासिक सीमा तक)। " +
+      "यह डिवाइस अभी हर बातचीत के लिए इसे अलग से बंद करना याद नहीं रख सकता।"
+    : "A voice note already arrives automatically with every reply for paid members, up to your monthly minutes. " +
+      "This deployment cannot remember a separate on/off choice per conversation yet.";
+}
+
+/** `roomSpeak` refused `room_voice_cap_reached` (WS-R110, law 3). Sent AT
+ *  MOST once a day (`room_tg_voice_capped_follower`, api/_rate-limit.js) -
+ *  a follower deep in a long conversation past their monthly voice minutes
+ *  must not read this after every single reply. The text reply itself has
+ *  already arrived by the time this is ever sent. */
+export function voiceCappedCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "इस महीने आपके वॉइस मिनट खत्म हो गए हैं। जवाब यहां लिखे रहेंगे।"
+    : "You have used your voice minutes for this month. Replies will keep arriving here as text.";
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // PARSING - one Telegram update -> zero or one classified event
 // ─────────────────────────────────────────────────────────────────────────
@@ -332,6 +375,15 @@ export function parseCheckinsCommand(text) {
   return m ? m[1] : null;
 }
 
+/** `/voice on|off` (WS-R110), `parseCheckinsCommand`'s own shape, one
+ *  command over. Returns "on"/"off", or null for anything else (including a
+ *  bare `/voice`) - the caller falls through to ordinary dispatch on null,
+ *  exactly as every other command parser here does. */
+export function parseVoiceCommand(text) {
+  const m = /^\/voice(?:@[\w_]+)?\s+(on|off)\s*$/.exec(String(text || "").trim());
+  return m ? m[1] : null;
+}
+
 /** `/flag <reason>` (WS-R67), law 5: same lane rules as the web control -
  *  the reason off the SAME closed list (`FLAG_REASONS`, api/_room-surface.js)
  *  the web sheet offers, `parseCheckinsCommand`'s exact shape one command
@@ -374,6 +426,40 @@ async function tgCall(token, method, body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(15_000),
+  }).catch(() => null);
+  if (!r) return { ok: false, error: "network" };
+  const j = await r.json().catch(() => ({}));
+  return { ok: j?.ok === true, result: j?.result };
+}
+
+/**
+ * WS-R110: multipart upload of a voice clip's bytes.
+ *
+ * core.telegram.org/bots/api#sendvoice's own parameter table could not be
+ * retrieved live this session — the fetch tool truncates this specific
+ * page before reaching "Available methods", the SAME defect WS-R41 already
+ * logged for `setMessageReaction` (`context/decisions.md#ws-r41-telegram-
+ * bot-api-reply-shape-fixed-bind-mark-stays-open`); only the `Voice`
+ * object's own field table (`core.telegram.org/bots/api#voice`, fetched
+ * 2026-09-05: file_id, file_unique_id, duration, mime_type, file_size) was
+ * retrievable. The `chat_id` + multipart-file-field shape below matches
+ * `tgSendDocument` above (already live, already exercised by `/export`);
+ * whether Telegram requires OGG/OPUS specifically for the bytes to render
+ * as a PLAYABLE voice-message bubble (rather than an accepted-but-inert
+ * file) is carried from general knowledge of the Bot API, not a fetched
+ * citation, and stays UNVERIFIED —
+ * `context/decisions.md#ws-r110-telegram-sendvoice-codec-requirement-not-
+ * live-verified` states exactly what would close it.
+ */
+async function tgSendVoice(token, chatId, buffer, mimeType) {
+  if (!token) return { ok: false, error: "no bot token" };
+  const form = new FormData();
+  form.append("chat_id", String(chatId));
+  form.append("voice", new Blob([buffer], { type: mimeType }), "reply.wav");
+  const r = await fetch(`https://api.telegram.org/bot${token}/sendVoice`, {
+    method: "POST",
+    body: form,
+    signal: AbortSignal.timeout(30_000),
   }).catch(() => null);
   if (!r) return { ok: false, error: "network" };
   const j = await r.json().catch(() => ({}));
@@ -464,6 +550,9 @@ export function defaultRoomTelegramClient(token) {
       tgCall(token, "sendMessage", { chat_id: chatId, text, ...extra }),
     sendDocument: (chatId, buffer, filename, caption) =>
       tgSendDocument(token, chatId, buffer, filename, caption),
+    // WS-R110. `mimeType` is truthful, never asserted as Telegram's
+    // preferred codec — `tgSendVoice`'s own header on what stays unverified.
+    sendVoice: (chatId, buffer, mimeType) => tgSendVoice(token, chatId, buffer, mimeType),
     answerCallbackQuery: (callbackQueryId, text = "") =>
       tgCall(token, "answerCallbackQuery", { callback_query_id: callbackQueryId, text: String(text).slice(0, 200) }),
   };
@@ -676,6 +765,16 @@ async function handleRoomCommand(db, tg, now, env, ev, cmd, ctx) {
     return { ok: true, checkinsEnabled: enabled };
   }
 
+  // WS-R110: `/voice on|off`. No session write, no `roomSay`/`roomSpeak`
+  // call - `voiceCommandCard`'s own header states why there is nothing to
+  // persist. Reached only through `resolveActiveFollower`'s own gate above,
+  // so this still costs a stranger nothing (no card is sent to an unjoined
+  // chat here either).
+  if (cmd === "voice_on" || cmd === "voice_off") {
+    await tg.sendMessage(ev.chatId, voiceCommandCard(scope.locale));
+    return { ok: true, voiceAcknowledged: cmd === "voice_on" ? "on" : "off" };
+  }
+
   if (cmd.startsWith("flag:")) {
     // WS-R67, law 5: the LAST reply, never a hash the chat could supply -
     // `lastReplySha256` reads it back off this follower's own history, the
@@ -771,7 +870,97 @@ async function handleOrdinaryMessage(db, tg, now, env, ev, ctx) {
   for (const bubble of turn.bubbles) {
     if (bubble) await tg.sendMessage(ev.chatId, bubble);
   }
-  return { ok: true, said: turn.bubbles.length > 0, gate: turn.gate };
+  // WS-R110: attempted only AFTER the text reply above has already left -
+  // a voice failure of any kind must cost this follower nothing they
+  // already have. Never awaited-and-thrown past this point.
+  const voice = await attemptRoomVoiceDelivery(tg, ev, scope, turn, ctx);
+  return { ok: true, said: turn.bubbles.length > 0, gate: turn.gate, voice };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// VOICE DELIVERY (WS-R19's roomSpeak, reused - WS-R110)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Never a second synthesis path: the ONLY text this function may ever ask
+// `roomSpeak` to render is `turn.reply` - the exact string `roomSay` just
+// produced through `gatedReply`, one call up - and `roomSpeak` itself
+// re-verifies that by hash (`room_voice_reply_mismatch`) before touching a
+// provider. This function adds no authorization, no ceiling, no watermark
+// logic of its own; it is the transport glue `roomSpeak`'s own header says
+// a Room reply is: "a RENDERING of a reply, never a second way to make
+// this AI say something."
+//
+// `ctx.roomDeps.synth`/`.protect` (or a `buildVoiceDeps()` factory the real
+// door injects lazily, api/room-tg.js) are the SAME two required, no-default
+// seams `api/room.js`'s own "speak" op wires to the real provider and
+// `protectReplicaStream` - constructed in the door, never here
+// (`api/_room-voice.js`'s "NO GPU WAKES" header), so this workstream's own
+// evals reach every branch below with fakes and no network, exactly the
+// posture `evals/room-paid-tier/run.mjs` already proved for the web door.
+async function attemptRoomVoiceDelivery(tg, ev, scope, turn, ctx) {
+  const env = ctx.roomDeps.env ?? process.env;
+  if (String(env.ROOM_VOICE || "") !== "1") return { attempted: false, reason: "off" };
+  const text = String(turn?.reply || "").trim();
+  if (!text) return { attempted: false, reason: "nothing_said" };
+
+  // Constructed lazily, right before it is actually needed - never on
+  // `/start`, `/forget`, or any other update this function is never called
+  // for at all, and never for a silent turn just filtered out above.
+  const buildVoiceDeps = typeof ctx.roomDeps.buildVoiceDeps === "function" ? ctx.roomDeps.buildVoiceDeps : null;
+  const voiceDeps = { ...ctx.roomDeps, ...(buildVoiceDeps ? buildVoiceDeps() : {}) };
+
+  let spoken;
+  try {
+    spoken = await roomSpeak(voiceDeps, turn.session, { text });
+  } catch (error) {
+    const code = error?.code || "";
+    if (code === "room_voice_cap_reached") {
+      // Once a day, never on every subsequent message - `voiceCappedCard`'s
+      // own header. `ctx.roomDeps.consume` is injectable exactly like every
+      // other rate-gate call in this file.
+      const consumeFn = ctx.roomDeps.consume ?? consume;
+      const gate = await consumeFn(ctx.roomDeps.db, {
+        scope: "room_tg_voice_capped_follower",
+        key: String(scope.follower.follower_id),
+        now: ctx.roomDeps.now,
+        env,
+      });
+      if (gate.ok) await tg.sendMessage(ev.chatId, voiceCappedCard(scope.locale));
+      return { attempted: true, ok: false, reason: "capped" };
+    }
+    if (
+      code === "room_voice_paid_only" ||
+      code === "room_voice_join_required" ||
+      code === "room_voice_not_built_yet" ||
+      code === "room_voice_unavailable" ||
+      code === "room_voice_unconfigured" ||
+      code === "room_voice_reply_mismatch" ||
+      code === "room_disclosure_stale" ||
+      code === "room_voice_text_required" ||
+      code === "room_voice_text_too_long"
+    ) {
+      // A structural or "us"-classed refusal (a free follower, a creator
+      // whose voice is not built, a deployment with no real wiring, or a
+      // race the reply binding itself catches) - never surfaced
+      // mid-conversation as an error. The text reply already arrived.
+      return { attempted: true, ok: false, reason: code };
+    }
+    // A genuine synthesis/protection failure (law 3: "records one incident
+    // and sends nothing"). `door_5xx` is the existing generic kind - see
+    // this file's own import header on why no new INCIDENT_KINDS member is
+    // added.
+    const recordIncidentFn = ctx.roomDeps.recordIncident ?? recordIncident;
+    await recordIncidentFn(ctx.roomDeps.db, {
+      kind: "door_5xx",
+      door: "room-tg-voice",
+      status: Number(error?.status) || 503,
+    }).catch(() => {});
+    return { attempted: true, ok: false, reason: "failed" };
+  }
+
+  const wav = pcmToWavBuffer(Buffer.from(String(spoken.audio || ""), "base64"), spoken.format);
+  const result = await tg.sendVoice(ev.chatId, wav, "audio/wav");
+  return { attempted: true, ok: result?.ok !== false };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -839,6 +1028,15 @@ export async function handleRoomTelegramUpdate(update, deps = {}) {
   // for being checked ahead of the no-argument command table below.
   const flagReason = parseFlagCommand(ev.text);
   if (flagReason) return await handleRoomCommand(db, tg, now, env, ev, `flag:${flagReason}`, ctx);
+
+  // WS-R110: `/voice on|off` - `checkinsToggle`'s own reason for being
+  // checked ahead of the no-argument table, one command over. Handled
+  // (never falls through to an ordinary message) even though nothing is
+  // actually stored - `voiceCommandCard`'s own header on why.
+  const voiceToggle = parseVoiceCommand(ev.text);
+  if (voiceToggle) {
+    return await handleRoomCommand(db, tg, now, env, ev, voiceToggle === "on" ? "voice_on" : "voice_off", ctx);
+  }
 
   const cmd = parseRoomCommand(ev.text);
   if (cmd) return await handleRoomCommand(db, tg, now, env, ev, cmd, ctx);

@@ -17821,3 +17821,136 @@ main chunk, not after it (wave sixteen, WS-R107). When it lands and three
 consecutive gate runs measure under 700 ms, the budget returns to 800; if
 the preload lands and the paint does not move, the parse and commit are
 the cost and the studio's signed-out shell needs its own smaller entry.
+
+## `ws-r110-room-telegram-voice-defaults-on-no-persisted-per-follower-toggle` (2026-09-05, WS-R110)
+
+**Decision.** A paid follower's Telegram voice reply (WS-R110) is delivered
+automatically whenever `ROOM_VOICE=1`, the follower's tier is paid, and
+`roomSpeak`'s own per-second ceiling admits it — there is no persisted
+per-follower on/off preference. `/voice on` and `/voice off` are parsed (so
+neither is ever sent to the creator's AI as an ordinary chat message,
+burning part of a follower's monthly cap on a confused reply) and answered
+with an honest card explaining that this deployment cannot yet remember a
+separate choice per conversation, rather than silently no-opping or, worse,
+claiming a toggle that does not work.
+
+**Why.** The brief's own contingency, followed to the letter: store the
+preference on the channel pointer row (082's `vy_room_follower_channel`) if
+it carries an available JSON or flag column, else on `vy_room_follower`'s
+own settings shape, else stop and log the rejection — this workstream
+carries no migration number, so a genuinely absent column is a hard stop,
+not a judgement call. Both candidates were checked against the real,
+already-merged schema (`db/schema.sql`) before writing any code:
+`vy_room_follower_channel` carries `checkins_enabled` (WS-R34/WS-R89,
+migration 096 — a real boolean, but already committed to a different,
+unrelated meaning: whether check-ins ride this channel) and `stopped_code`
+(the SAME migration — `null`-means-sendable, set only on a 403/400 from
+Telegram, migration 096's own header is explicit that this is its whole
+meaning); `vy_room_follower`'s only settings-shaped column is
+`settings_reviewed_at` (migration 101, WS-R39) — a timestamp recording
+whether a follower has looked at their settings PAGE, not a flag of any
+kind. Reusing either for an unrelated boolean would be a correctness bug
+wearing a shortcut's clothes, not a clever reuse — see
+`context/rejected.md#ws-r110-room-telegram-voice-preference-no-available-
+column` for the full column-by-column argument. Delivering automatically
+(never silently, never claimed-and-broken) is the only shape left that is
+both honest and actually useful: a paid follower who never asked for voice
+still gets it exactly as the product brief describes ("a paid follower...
+can hear the reply as a voice note"), and nothing here claims a toggle
+exists when it does not.
+
+**Reversal condition.** The moment a future workstream is handed a real
+migration number for this table family (127 is the next free number as of
+this session, though this brief did not grant it to WS-R110 and no
+workstream may take a number its own brief did not name), add a boolean
+column to `vy_room_follower_channel` (matching `checkins_enabled`'s own
+shape) and change `/voice on`/`/voice off` to write it, and
+`attemptRoomVoiceDelivery` (api/_room-telegram.js) to read it before ever
+calling `roomSpeak` — the seam is already shaped for that: the ONLY change
+needed is one more predicate before the `ROOM_VOICE`/tier check already
+there.
+
+## `ws-r110-telegram-sendvoice-codec-requirement-not-live-verified` (2026-09-05, WS-R110)
+
+**Decision.** Telegram's voice clip is sent as a real WAV container
+(`pcmToWavBuffer`, api/_room-voice.js) over `sendVoice`'s `voice` multipart
+field, with mime type `audio/wav` — left as WAV rather than transcoded to
+OGG/Opus, and marked NOT LIVE-VERIFIED whether Telegram's clients render
+this as a playable "voice message" bubble (with waveform/duration/playback
+controls) as opposed to accepting-but-not-rendering it, or rejecting it
+outright.
+
+**Rationale.** WS-R41's own method (`context/decisions.md#ws-r41-telegram-
+bot-api-reply-shape-fixed-bind-mark-stays-open`) is to fetch and cite
+`core.telegram.org/bots/api` before shipping a shape against it. That fetch
+was attempted twice this session, for `#sendvoice` specifically: both times
+the fetch tool truncated the document before reaching "Available methods"
+at all (the exact defect WS-R41 already logged for `setMessageReaction`,
+same page, same failure mode) — confirmed by a third, narrower fetch asking
+only to locate the substrings "OGG"/"sendVoice" anywhere in the truncated
+text, which found only the changelog mention and the `Voice` TYPE's own
+description ("This object represents a voice note"), never the method's
+own parameter table. The `Voice` object's field table (`file_id`,
+`file_unique_id`, `duration`, `mime_type`, `file_size`) WAS retrievable and
+is cited above in `api/_room-telegram.js`'s own `tgSendVoice` header. Given
+the brief's own explicit instruction to use `sendVoice` (never `sendAudio`
+or `sendDocument`), building against well-established general knowledge of
+the Bot API (OGG/Opus is the documented preference for the "voice message"
+treatment) while marking the codec claim honestly unverified is the
+correct call under `AGENTS.md`'s "never claim what you did not run" — a
+raw, containerless PCM stream (what `roomSpeak` actually returns,
+`VOICE_PCM_FORMAT`, api/_voice/contracts.js) would almost certainly be
+rejected or unplayable, so the WAV wrap is a real, deterministic,
+lossless-of-the-watermarked-bytes improvement over sending raw PCM either
+way, whether or not it satisfies Telegram's stricter preference for OGG/
+Opus specifically.
+
+**Reversal condition.** The first real Telegram bot token and a live chat
+(a human step, not something this offline workstream can produce) settles
+it directly: send one real clip and look at whether Telegram's client
+renders a voice bubble or a generic file attachment. Short of that, a
+future session whose fetch tool can retrieve `core.telegram.org/bots/api
+#sendvoice`'s own "Available methods" table should re-check and, if it
+names OGG/Opus as required (not merely preferred) for the voice-message
+treatment, add a pure Opus encode step in `pcmToWavBuffer`'s place (a real
+dependency-bearing change, not a container wrap) before this ships to a
+live bot.
+
+## `ws-r110-voice-command-coverage-lives-in-room-telegram-not-room-doors` (2026-09-05, WS-R110)
+
+**Decision.** `/voice on`/`/voice off`'s "never spends a follower's monthly
+cap, never reaches the model" property is proven in `evals/room-telegram/
+run.mjs` (extended) and `evals/room-telegram-voice/run.mjs` (new), against
+the REAL Telegram identity-bridge fixture world those two files already
+share (`evals/room/fixtures.mjs`'s `fakeDb`, plus a local `fakePersonBridge`
+matching `_room.js`'s real `personForSurfaceUser`/`linkSurfacePerson`
+shape). No bespoke case for it was added to `evals/room-doors/run.mjs`.
+
+**Why.** Two independent reasons, either alone sufficient. First,
+structural: `evals/room-doors/run.mjs`'s own §18 completeness sweep
+asserts `computedOps("room-tg.js").length === 0` — this door reads no
+`op` literal at all, by design, so the `OP_COVERAGE` table (which the
+wave-sixteen brief's shorthand "a command is an op: coverage" points at)
+has no seam for a Telegram slash command to begin with; a Telegram command
+is not the class of thing that table tracks. Second, practical:
+`evals/room-doors/fixtures.mjs`'s own `freshDoorsState`/`doorsDb` carry no
+Telegram identity bridge (`surfaceIdentities`, the fixture shape `evals/
+room/fixtures.mjs` and `evals/room-telegram/run.mjs` already built and
+share) — building one there would either duplicate `fakePersonBridge`
+inside a second fixture file (two fakes for the same shape, the exact
+drift `evals/room/fixtures.mjs`'s own header warns against) or widen the
+shared `evals/room-doors/fixtures.mjs` beyond what this workstream's own
+brief named. `/voice` also takes no cross-identity input at all (no
+session, no body-supplied id naming another follower) — the shape §18's
+own per-op notes already treat as "excluded" for other ops on other
+doors — so it does not open a class a/b/c/e boundary room-doors exists to
+attack; the property worth proving is "never a chat turn", which the
+Telegram-native fixture world proves more directly than a second, thinner
+one would.
+
+**Reversal condition.** If a future workstream gives `/voice` (or any
+Telegram command) real cross-identity input — a body-supplied follower id,
+a bearer, anything naming someone other than the sender — build the
+Telegram identity bridge into `evals/room-doors/fixtures.mjs` for real
+rather than routing around it a second time, and add that command's own
+class there.
