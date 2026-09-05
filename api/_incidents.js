@@ -77,12 +77,21 @@ function opsOwnerIdsLocal(env) {
 // run.mjs` asserts the two stay equal in spirit by exercising every member
 // against the real INSERT text, the same "two fakes for the same shape
 // silently drifting apart" risk this repo names everywhere else.
+//
+// WS-R76 (migration 120) added `self_check`: `api/self-check.js` records one
+// incident per failing check (an env var missing by name, the database not
+// answering, a migration family absent from the live catalog, a sibling
+// sweep gone stale) through this SAME `recordIncident`, never a bespoke
+// write path — a self-check that cannot report a finding through the one
+// table every other door already reports through would be a second,
+// untested incident pipeline.
 export const INCIDENT_KINDS = Object.freeze([
   "door_5xx",
   "provider_payments",
   "provider_telegram",
   "provider_whatsapp",
   "provider_webpush",
+  "self_check",
 ]);
 const INCIDENT_KIND_SET = new Set(INCIDENT_KINDS);
 
