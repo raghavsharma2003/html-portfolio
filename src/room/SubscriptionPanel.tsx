@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { RoomCopy } from "./copy";
 import { withDate, withPrice } from "./copy";
 import { paymentStatus, cancelSubscription, RoomPayApiError, type RoomPaymentStatus } from "./roomPayApi";
+import { useDialogInView } from "./useDialogInView";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 function dateLabel(iso: string | null | undefined): string {
@@ -43,17 +44,9 @@ export default function SubscriptionPanel({
     void load();
   }, [load]);
 
-  // WS-R50 (WCAG 2.1.2, no keyboard trap). `DataMenu`'s own pattern
-  // (`RoomApp.tsx`), one file over: Escape closes this dialog.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.stopPropagation();
-      onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  // WS-R63: scroll into view, focus in, Escape closes, focus returns to the
+  // opener on close - `useDialogInView`'s own header.
+  const dialogRef = useDialogInView(onClose);
 
   const doCancel = useCallback(async () => {
     setBusy(true);
@@ -78,7 +71,13 @@ export default function SubscriptionPanel({
       : "";
 
   return (
-    <section className="room-menu room-subscription" role="dialog" aria-modal="true" aria-label={copy.subscription.title}>
+    <section
+      className="room-menu room-subscription"
+      role="dialog"
+      aria-modal="true"
+      aria-label={copy.subscription.title}
+      ref={dialogRef}
+    >
       <h2>{copy.subscription.title}</h2>
       {error && <p className="room-error">{error}</p>}
 

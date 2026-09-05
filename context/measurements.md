@@ -10846,3 +10846,78 @@ n = 1 migration (5 statements in one transaction), 5 API statements; method = ap
 | `neverRuleFromFlaggedReply`'s text lookup | `vy_room_owner_ix` then Index Scan on the room-and-reply index by hash |
 
 Not measured: no follower has flagged a reply; both tables have zero rows; no card has been drawn from a flag.
+
+## `ws-r63-dialog-in-view-negative-control-2026-09-05` (2026-09-05, WS-R63)
+
+n = 1 negative control, method: `node scripts/check-layout.mjs --only room`
+run against the built `dist/` twice — once with `src/room/useDialogInView.ts`'s
+scroll-into-view/focus-in half short-circuited (`if (false && el)`, the
+Escape/return-focus wiring left intact) and once restored, no other change
+between the two runs.
+
+| run | dialog-in-view findings | dialog-focus findings |
+|---|---|---|
+| hook disabled | 4 (`phone/room:more:checkins`, `phone/room:more:handoff`, `phone/room-hi:more:checkins`, `phone/room-hi:more:handoff`, each "opened but its bounding box does not intersect the viewport") | 4 (same four `where`s, "opened but document.activeElement is not inside it") |
+| hook restored | 0 | 0 |
+
+This is the assertion `scripts/check-layout.mjs` gained for WS-R63 law 2: a
+real Playwright click on `[data-dialog-open="checkins"]`/`"handoff"` (the
+header opener, on `layoutFixture.tsx`'s new `FIXTURE_TURNS_LONG`
+conversation, closed by default so the click is what opens it) followed by
+a check that the opened `.room-checkins`/`.room-handoff[role="dialog"]`'s
+bounding box intersects the viewport and `document.activeElement` is
+inside it. The disabled run reproduces
+`#ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view` exactly (a
+dialog that opened with nothing on screen or in focus to show for it); the
+restored run clears every finding, and the ordinary `roomChecks` audit
+(tap targets, clipped text, screenshots) still ran unchanged on both,
+proving the new assertion sits alongside the existing ones rather than
+replacing anything they already covered.
+
+## `ws-r63-layout-gate-runtime-before-after-2026-09-05` (2026-09-05, WS-R63)
+
+n = 1 timed run each side, method: `time node scripts/check-layout.mjs`
+(full, unfiltered — every target, not `--only room`) on a shared, loaded
+machine (ten-plus sibling `verify-release.mjs` runs active concurrently at
+the time of both measurements, so the absolute numbers carry real noise;
+the delta between them is the number this entry is for).
+
+| when | wall time | prose blocks judged |
+|---|---|---|
+| before (untouched tree) | 2m49.4s (169.4s) | 1485 |
+| after (this workstream's full change set) | 2m54.3s (174.3s) | 1505 |
+
++4.9s for four new click-and-assert checks (`checkins`/`handoff` x
+`room:more`/`room-hi:more`, each one Playwright click plus a 700ms settle
+wait plus one `page.evaluate`) added to page loads the gate already made —
+no new navigation, per the brief's own law 3. Both runs are comfortably
+under the "165s in the last full run under load" figure the brief's law 3
+names as the budget concern, given the shared-machine noise either side of
+that comparison already carries.
+
+## `ws-r63-accessibility-keyboard-order-regression-and-fix-2026-09-05` (2026-09-05, WS-R63)
+
+n = 1 reproduction, method: `node scripts/check-accessibility.mjs`, full
+run, before and after fixing `walkTabOrder`'s own focus reset in
+`scripts/check-accessibility.mjs`.
+
+Before this fix (hook shipped, gate script untouched): `room:account`
+failed `keyboard-order` — "14 Tab press(es) moved focus BACKWARD in
+DOM/visual order" — deterministically, reproduced twice. Debug tracing
+(`focusable` index dump plus a per-Tab index log, both removed before this
+commit) showed the first Tab after `document.body.focus()` landed on
+walk-index 14 of 20 (a mid-list "Turn off" button), not index 0, and that
+`document.activeElement` after that call read `BODY` regardless — meaning
+the reset itself "worked" by the only signal the gate checked, while
+Chromium's own separate sequential-focus-navigation position (which
+`useDialogInView.ts`'s mount-time `.focus()` call had set, since
+`room:account`'s fixture opens the account page already open) stayed
+unmoved by either `.focus()` on a non-tabbable `<body>` or a bare
+`document.activeElement.blur()`. Giving `<body>` a real, indexed target — a
+temporary `tabindex="-1"` for exactly the one `.focus()` call, removed
+immediately after — reset it correctly: the walk after ran index 0 through
+19 in order, 0 keyboard findings, matching the untouched tree's own
+baseline (`node scripts/check-accessibility.mjs` on the tree before any
+WS-R63 change: 0 keyboard findings, 1 pre-existing `site:/` color-contrast
+finding unrelated to the Room, reproduced on both trees and left
+untouched).

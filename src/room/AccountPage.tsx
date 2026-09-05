@@ -37,6 +37,7 @@ import {
 import { listCheckinDesignsAndPushKey, setTelegramCheckins } from "./roomCheckinsApi";
 import { paymentStatus, type RoomPaymentStatus } from "./roomPayApi";
 import { activateOnKey, LanguageSwitch } from "./RoomApp";
+import { useDialogInView } from "./useDialogInView";
 
 /** RFC 4648 base64url, both directions — `CheckinsPanel.tsx`'s own pair,
  *  reused verbatim rather than re-typed: the same encoding a browser
@@ -132,17 +133,9 @@ export default function AccountPage({
   const [flags, setFlags] = useState<RoomFlag[]>([]);
   const [withdrawingHash, setWithdrawingHash] = useState<string | null>(null);
 
-  // WS-R50 (WCAG 2.1.2, no keyboard trap). `DataMenu`'s own pattern
-  // (`RoomApp.tsx`), one component over: Escape closes this page.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.stopPropagation();
-      onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  // WS-R63: scroll into view, focus in, Escape closes, focus returns to the
+  // opener on close - `useDialogInView`'s own header.
+  const dialogRef = useDialogInView(onClose);
 
   // WS-R39: one composed read, once, when the page opens — never on a fixture
   // (the layout gate has no network at all, `RoomApp.tsx`'s own rule for
@@ -350,7 +343,13 @@ export default function AccountPage({
     : copy.account.subscriptionFree;
 
   return (
-    <section className="room-menu room-account" role="dialog" aria-modal="true" aria-label={copy.account.title}>
+    <section
+      className="room-menu room-account"
+      role="dialog"
+      aria-modal="true"
+      aria-label={copy.account.title}
+      ref={dialogRef}
+    >
       <h2>{copy.account.title}</h2>
       {error && <p className="room-error">{error}</p>}
 

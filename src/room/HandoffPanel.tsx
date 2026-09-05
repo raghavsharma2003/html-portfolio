@@ -10,6 +10,7 @@
 // that will reach the creator, never a paraphrase this component invented.
 import { useCallback, useEffect, useState } from "react";
 import { withName, type RoomCopy } from "./copy";
+import { useDialogInView } from "./useDialogInView";
 import {
   draftHandoff,
   sendHandoff,
@@ -65,17 +66,9 @@ export default function HandoffPanel({
     void load();
   }, [load]);
 
-  // WS-R50 (WCAG 2.1.2, no keyboard trap). `DataMenu`'s own pattern
-  // (`RoomApp.tsx`), one file over: Escape closes this dialog.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.stopPropagation();
-      onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  // WS-R63: scroll into view, focus in, Escape closes, focus returns to the
+  // opener on close - `useDialogInView`'s own header.
+  const dialogRef = useDialogInView(onClose);
 
   const togglePick = (i: number) =>
     setPicked((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i].sort((a, b) => a - b)));
@@ -133,7 +126,13 @@ export default function HandoffPanel({
   );
 
   return (
-    <section className="room-menu room-handoff" role="dialog" aria-modal="true" aria-label={withName(copy.handoff.title, creatorName)}>
+    <section
+      className="room-menu room-handoff"
+      role="dialog"
+      aria-modal="true"
+      aria-label={withName(copy.handoff.title, creatorName)}
+      ref={dialogRef}
+    >
       <h2>{withName(copy.handoff.title, creatorName)}</h2>
       {error && <p className="room-error">{error}</p>}
 
