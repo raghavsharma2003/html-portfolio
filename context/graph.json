@@ -8992,6 +8992,36 @@
       "kind": "measurement",
       "title": "The first real GitHub Actions run of the 21-check release gate took 8 minutes 34 seconds for Node 22 and 24 in parallel and passed; no job split needed.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r97-room-about-predicate-not-listed-at-gated",
+      "kind": "decision",
+      "title": "/r/<slug>/about gates on published+unpaused only, deliberately never listed_at, unlike /c/<slug>.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r97-page-numbers-are-api-to-api-imports-not-mirror-markers",
+      "kind": "decision",
+      "title": "Every number api/_room-about.js renders is a real ES import from its defining file, never a mirror-marker literal.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r97-plain-anchor-min-height-had-no-effect-until-given-its-own-display",
+      "kind": "rejection",
+      "title": "min-height on a plain inline <a> link did nothing until it got its own inline-flex display, caught by the layout gate.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r97-room-about-page-budget-2026-09-05",
+      "kind": "measurement",
+      "title": "The follower transparency page: LCP 260-328ms, 0 JS, 0 CSP violations across 8 header targets, 0 accessibility findings across 19 targets.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r97-room-about-eval-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/room-about/run.mjs: 48 assertions, 0 failures, offline, deterministic, plus 8 probe-live checks.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -17614,6 +17644,21 @@
       "src": "rooms-migrations-122-123-125-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r86-follower-referrals"
+    },
+    {
+      "src": "ws-r97-room-about-predicate-not-listed-at-gated",
+      "rel": "measured_by",
+      "dst": "ws-r97-room-about-eval-2026-09-05"
+    },
+    {
+      "src": "ws-r97-page-numbers-are-api-to-api-imports-not-mirror-markers",
+      "rel": "measured_by",
+      "dst": "ws-r97-room-about-eval-2026-09-05"
+    },
+    {
+      "src": "ws-r97-room-about-page-budget-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r97-room-about-eval-2026-09-05"
     }
   ]
 }

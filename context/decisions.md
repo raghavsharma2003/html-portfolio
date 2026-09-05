@@ -16768,3 +16768,61 @@ the budget is ever missed, the fix named in
 `#studio-hindi-table-is-its-own-chunk` (a `<link rel="modulepreload">` for
 the chunk, added when `?lang=hi` is in the URL) is unbuilt and unneeded this
 session — build it then, never by raising the budget instead.
+
+## `ws-r97-room-about-predicate-not-listed-at-gated` (2026-09-05, WS-R97)
+
+**Decision.** `api/_room-about.js`'s `publicRoomAboutBySlug` gates on exactly
+`published_at is not null and paused_at is null` — the same two clauses
+`api/_room-publish.js`'s `publicRoomBySlug` uses for `/r/<slug>` itself —
+and deliberately carries NO `listed_at is not null` clause, unlike
+`api/_creator-page.js`'s `publicCreatorPageRoomBySlug` for `/c/<slug>`.
+
+**Rationale.** `/c/<slug>` is a stranger's search result: `listed_at` is the
+creator's own opt-in to being FOUND, and a Room that never opted in gets the
+platform-only card exactly as an unknown slug would (`ws-r89-creator-page-
+slug-read-shares-slugof`'s own neighbour law). `/r/<slug>/about` is reached
+only from links a follower ALREADY holds — the account page, the join screen
+— never from search. A follower who already joined, or is deciding whether
+to, must be able to read what happens to their words whether or not the
+creator opted into the public directory; gating this page on `listed_at`
+would mean an unlisted creator's followers lose the one page that explains
+the product's own privacy promise to them, for a reason (search visibility)
+that has nothing to do with what this page is for.
+
+**Reversal condition.** If a future workstream finds this page is reachable
+from an UNAUTHENTICATED, UNLINKED context (a search engine, a directory) the
+way `/c/<slug>` is, revisit whether `listed_at` should gate it there too —
+this decision assumes the page is only ever reached from a link a follower
+was already given, and `evals/room-about/run.mjs`'s own test (an unlisted
+Room's page differs from the platform card) is the one to update first if
+that assumption stops holding.
+
+## `ws-r97-page-numbers-are-api-to-api-imports-not-mirror-markers` (2026-09-05, WS-R97)
+
+**Decision.** Every number `api/_room-about.js` renders (`PULSE_MIN_
+FOLLOWERS`, `DORMANCY_GRACE_DAYS`, `ROOM_FREE_MONTHLY_MESSAGES`, `ROOM_PAID_
+MONTHLY_MESSAGES`, `ROOM_PAID_MONTHLY_VOICE_SECONDS`) is a real ES import
+from the file that defines it (`api/_pulse.js`, `api/_dormancy.js`, `api/
+_room-surface.js`) — never a `// mirror of api/<file>.js#<NAME>` marker
+comment next to a retyped literal, the shape `scripts/check-mirrors.mjs`
+polices in `src/`/`site/`.
+
+**Rationale.** `scripts/check-mirrors.mjs`'s own header states why the
+marker shape exists at all: `src/` and `site/` are front-end code that
+STRUCTURALLY CANNOT import a server module, so the closest available
+guarantee is a marker plus a scan proving two numbers agree. `api/_room-
+about.js` is itself a server module, exactly like every file it reads a
+constant from — there is no boundary here for a marker to work around. An
+import IS the real export; asserting the two "agree" would be asserting a
+tautology a scan could never usefully fail on. `evals/room-about/run.mjs`
+proves the real thing instead: the rendered page carries the actual current
+value of each constant, AND a static source scan confirms the import
+statement itself exists (so a future edit that swapped an import for a
+hardcoded literal that happened to still match today's fixture numbers
+would still be caught).
+
+**Reversal condition.** If `api/_room-about.js` is ever split so its copy
+moves to a `.ts` file under `src/` (the same boundary `api/_creator-page.js`'s
+own `TASTE_COPY` crosses for `src/room/copy.ts`), add real `// mirror of`
+markers at that point — this decision holds only while the numbers and the
+page that renders them live on the same side of the `api/`/`src/` line.
