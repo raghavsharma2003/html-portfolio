@@ -20711,3 +20711,162 @@ enforceable verbatim — would need to re-open the safety argument
 `teacher-arc.md` §1.4 and `safety-floor-teacher.md` §3.1 both make for why
 that clause must be gone from the content, not merely gated; nothing in
 this workstream's own measurements argues for that reversal.
+
+## `ws-r122-readiness-load-reads-callbacks-through-a-ref-not-a-dependency` (2026-09-05, WS-R122)
+
+**Decision.** `ReadinessPanel.tsx`'s `load` `useCallback` depends on nothing
+but `replicaId`/`token`. `onAuthError`, `onReadiness` and the locale table
+`t` are read through refs (`onAuthErrorRef`, `onReadinessRef`, `tRef`)
+updated in the render body, never inside an effect.
+
+**Rationale.** The loop `ws-r119-full-page-reload-to-step-meet-races-
+readiness-panels-mount` found and left (40+ real `GET /api/readiness` calls
+in under two seconds on a fresh `?step=meet` navigation) traces to exactly
+the two preconditions that entry's own header names: `StudioShell.tsx`'s
+`onReadiness={(next) => { setReadiness(next); setReadinessChecked(true); }}`
+is a NEW closure on every one of the shell's own renders (confirmed by
+reading the prop, not guessed), and `load`'s own dependency array closed
+over it directly (`[onAuthError, onReadiness, replicaId, token, t]`) — so
+every shell re-render (including the one `load`'s own `onReadiness(next)`
+call triggers) minted a new `load`, re-fired the mount effect, and repeated.
+The fix stays inside `ReadinessPanel.tsx` only: `StudioShell.tsx` is a
+shared file outside this workstream's scope, and its own inline callback is
+not itself wrong to write — a panel's effect should not require its caller
+to memoize anything to behave. `t` was included in the same fix because it
+is also a value that can change identity (a locale switch), for the same
+class of reason, even though it was not observed to be the loop's own
+trigger in this instance.
+
+**What would reverse this.** If a future measurement finds `load` genuinely
+needs to re-run when `onReadiness`/`onAuthError` change (e.g. a caller that
+intentionally swaps which callback is live and expects an immediate
+re-read), the ref pattern would need to become a real dependency again,
+paired with `useCallback`/`useMemo` at the CALL SITE (`StudioShell.tsx`) so
+the identity is actually stable — not reverted to raw props without that
+memoization, since that is the exact shape that looped here.
+
+## `ws-r122-follower-rehearsal-primary-identity-swaps-per-locale-gate` (2026-09-05, WS-R122)
+
+**Decision.** `evals/rehearsal/follower.mjs`'s `runJourney` no longer
+hardcodes `followerBearer.A`/`followerPerson.A` as "the" primary follower
+and `.B` as "the referred one" regardless of locale. Instead `primaryBearer`/
+`primaryPerson` is `.B` on the `hi` gate and `.A` on `en`, with `referredBearer`/
+`referredPerson` the other pair.
+
+**Rationale.** `ws-r119-whatsapp-chat-export-rate-bucket-shared-across-
+full-locale-gates` found that `api/room.js`'s `op === "export"`/`"forget"`
+key their 3-per-minute bucket (`allow(authUserId, "room_<op>_user", 3)`) on
+the resolved auth user id, and both locale gates of one `--full` run share
+the same Node process — so the same `api/_ratelimit.js` module singleton —
+meaning `followerBearer.A`'s bucket saw 4 `op:"export"` calls (2 real per
+gate) against a cap of 3. `api/room.js`, the auth stub
+(`evals/rehearsal/stubs/auth-with-fake-user.mjs`) and the module loader
+(`evals/rehearsal/loader.mjs`) are all outside this workstream's file scope
+and none of them may be widened or touched to invent a third identity, so
+the only lever available from inside `follower.mjs`/`harness.mjs` is WHICH
+of the two ALREADY-KNOWN fixture identities plays which role — the auth-
+identity equivalent of WS-R109's distinct `x-real-ip` per locale gate for
+the IP-keyed doors. Verified by tracing every `op:"export"` call across both
+gates by hand: `en`'s two real calls land on A (2 total), `hi`'s two real
+calls land on B (2 total), and each gate's own cross-read negative control
+spends one more hit on the OTHER identity's bucket (A ends at 3, B ends at
+3) — every identity's bucket stays at or under 3, never over.
+
+**What would reverse this.** A third known fixture bearer added to
+`auth-with-fake-user.mjs` (a file a future workstream, not this one, is
+scoped to touch) would remove the need to swap roles at all — the primary
+follower could then stay `.A` in both gates and a dedicated third identity
+could absorb the negative control's own extra hit.
+
+## `ws-r122-hindi-context-locker-click-reads-the-real-hicopy-string` (2026-09-05, WS-R122)
+
+**Decision.** `evals/rehearsal/creator.mjs`'s Context Locker band click
+reads the real Hindi label off `src/studio/hiCopy.ts`'s own source
+(`hiCopyString("filesTitle")`/`hiCopyString("filesTitleTest")`, a small
+regex extractor that throws by name if the key is missing or ambiguous)
+rather than a hand-typed guess, for the `hi` locale; the `en` locale keeps
+its existing literal regex.
+
+**Rationale.** `ws-r119-creator-walk-hindi-full-blocked-before-this-
+workstreams-own-code` found the Hindi creator walk failing at this exact
+click, before this workstream ever wrote a line — the regex
+(`/^(Files, links, videos, channels|Add files and links)$/`) was English-
+only regardless of `locale`. The real cause, confirmed by reading
+`StudioApp.tsx` and both copy files: the studio is never built with
+`STUDIO_SELF_TEST_UI` on, so `t.studioApp.feed.filesTitle` (never
+`filesTitleTest`) is what actually renders, and under `hi` that string is
+`hiCopy.ts`'s own "फ़ाइलें, लिंक, वीडियो, चैनल" — nothing an English-only
+matcher could ever find. Reading the string from the source file (the same
+posture `evals/readiness/run.mjs` already takes toward `copy.ts`) rather
+than retyping it means a future copy edit cannot let this walk and the real
+rendered string drift apart silently a second time.
+
+**What would reverse this.** If `hiCopy.ts` ever carries more than one
+`filesTitle`/`filesTitleTest` key (a second section reusing the same key
+name), `hiCopyString`'s own ambiguity guard throws immediately — the fix
+then is a more specific extraction (matched within the `feed:` block only),
+not loosening the guard.
+
+## `ws-r122-hindi-rehearsals-scheduled-weekly-as-a-new-ci-job` (2026-09-05, WS-R122)
+
+**Decision.** `.github/workflows/release-gate.yml` gains a `schedule:`
+trigger (Sunday 04:37 UTC) and a new `hindi-rehearsals` job that runs both
+rehearsals under `REHEARSAL_FULL=1`, gated to fire only on `schedule` or
+`workflow_dispatch`. The existing `gate` job gains exactly one line
+(`if: github.event_name != 'schedule'`) so the new weekly trigger does not
+also re-run the full 21/23-check matrix for no reason; its steps are
+otherwise untouched.
+
+**Rationale.** `evals/run.mjs`'s own registry runs the English gate of
+each rehearsal only (both files' own headers state this, and neither
+workstream's brief authorized widening the default registry to `--full`,
+which would slow every push-triggered gate run and spend the shared
+rate-limit budget the fix above already accounts for exactly once per
+gate). Without a schedule, the Hindi creator and Hindi follower journeys
+would only ever run when a human happened to invoke them by hand — the
+same `gates-that-live-nowhere` shape this repo has already paid for twice
+(a suite exists, passes by hand, gates nothing because nobody wired it).
+
+**What would reverse this.** If `evals/run.mjs`'s own registry is ever
+changed to run `--full` by default (a decision for whoever owns that
+registry, weighing the added minutes and rate-limit exposure on every
+push), this weekly job becomes redundant and should be removed rather than
+left running the same coverage twice.
+
+## `ws-r122-three-more-english-only-locators-found-by-actually-running-full` (2026-09-05, WS-R122)
+
+**Decision.** Beyond the Context Locker click this workstream's brief
+named, three more English-only locators in `evals/rehearsal/creator.mjs`
+were found and fixed the same way, each read off the real copy source
+rather than hand-retyped: the "Meet" tab click (`shell.tabTitle.meet`,
+`hiAuthCopy.ts`, "मीट"), the "Your AIs" rail's own aria-label
+(`replicaList.yourAIsAriaLabel`, `hiCopy.ts`, "आपके AI"), and the "Owner
+control, including erasure" band click (`ownerAreaTitle`, `hiCopy.ts`,
+"मालिकाना नियंत्रण, मिटाना शामिल").
+
+**Rationale.** This workstream's own brief expected the Context Locker fix
+alone to be sufficient ("both rehearsals go green under `--full` (Hindi) by
+fixing the Context Locker click and the shared export-rate bucket"), and
+that expectation was reasonable given what WS-R119 had actually observed:
+the Hindi creator walk failed at the Context Locker click BEFORE it ever
+reached the Meet tab, the rail check, or the owner-control band, so none of
+those three later English-only locators had ever been exercised under `hi`
+by any previous session. Fixing the Context Locker click let the walk
+proceed far enough, for the first time, to hit each of the other three in
+turn — found one at a time by actually running `REHEARSAL_FULL=1`, reading
+the exact `TimeoutError`/empty-read each produced, and tracing it to the
+real English string versus the real Hindi one in `copy.ts`/`hiCopy.ts`/
+`hiAuthCopy.ts`, never assumed from the shape of the first fix. One of the
+four (the rail aria-label) was FIRST misdiagnosed as a timing race against
+the Hindi copy chunk's own async install and given a defensive poll before
+the actual cause (a selector that could never match in Hindi, race or not)
+was found by reading the copy tables directly — the poll is kept as
+harmless real defense, but the fix that actually mattered was the locale-
+aware selector.
+
+**What would reverse this.** None of these four fixes touch the studio's
+own product code — every one is a rehearsal-script locator becoming
+locale-aware. A future English-only locator added to this file for a new
+step would reproduce the same class of gap; the fix is the same pattern
+(`hiCopyString`/`hiAuthCopyTabTitle`, this file's own header) applied to
+the new step, not a reason to revisit this decision.

@@ -10684,6 +10684,66 @@
       "kind": "rejection",
       "title": "evals/rehearsal/creator.mjs failed twice at the same waitForFunction step under heavy concurrent sibling-worktree load; reproduced (a different failure at the same neighbourhood) on a detached worktree at the untouched base commit under the same load, confirming the failure is environmental (shared-machine contention), not a WS-R121 regression.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r122-readiness-load-reads-callbacks-through-a-ref-not-a-dependency",
+      "kind": "decision",
+      "title": "ReadinessPanel.tsx's load useCallback depends only on replicaId/token; onAuthError, onReadiness and the locale table are read through refs updated in render, closing the ws-r119 fetch loop without touching StudioShell.tsx.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r122-readiness-fetch-loop-reads-before-after-2026-09-05",
+      "kind": "measurement",
+      "title": "Before: 40+ real GET /api/readiness in under two seconds on a fresh ?step=meet nav (ws-r119's own number). After: 1 read per locale (en, hi) in the real browser check; a scaled timed simulation regression control confirms the pre-fix dependency shape exceeds the two-read budget (21-26 reads) while the fixed shape stays at 1.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r122-follower-rehearsal-primary-identity-swaps-per-locale-gate",
+      "kind": "decision",
+      "title": "evals/rehearsal/follower.mjs's primary/referred follower identity (followerBearer.A/.B) swaps per locale gate (A primary for en, B primary for hi) so each locale's export/forget calls land on a distinct room_export_user rate bucket, closing ws-r119's shared-bucket 429 without widening the real 3-per-minute limit.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r122-hindi-context-locker-click-reads-the-real-hicopy-string",
+      "kind": "decision",
+      "title": "evals/rehearsal/creator.mjs reads the real Hindi Context Locker label off hiCopy.ts's own source (hiCopyString helper) instead of an English-only regex, closing the walk-blocking gap ws-r119 found and left.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r122-three-more-english-only-locators-found-by-actually-running-full",
+      "kind": "decision",
+      "title": "Fixing the Context Locker click let the Hindi creator walk run far enough to hit three more English-only locators (the Meet tab, the Your AIs rail aria-label, the Owner control band) never exercised under hi before; all three now read the real hiCopy.ts/hiAuthCopy.ts strings.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r122-rail-hindi-failure-first-misdiagnosed-as-a-copy-chunk-race",
+      "kind": "rejection",
+      "title": "The Your AIs rail's empty read under hi was first (wrongly) diagnosed as a timing race against the Hindi copy chunk's async install and given a 15s poll; re-running still failed after the full poll window, and the real cause (an aria-label that is never 'Your AIs' in Hindi) was found only by reading copy.ts/hiCopy.ts directly.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r122-hindi-rehearsals-scheduled-weekly-as-a-new-ci-job",
+      "kind": "decision",
+      "title": "release-gate.yml gains a schedule trigger (Sunday 04:37 UTC) and a hindi-rehearsals job running both rehearsals under REHEARSAL_FULL=1 on schedule or workflow_dispatch; the existing gate job gains one line (if: github.event_name != 'schedule') so it does not also run weekly.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r122-hindi-walks-wall-clocks-2026-09-05",
+      "kind": "measurement",
+      "title": "Creator: 37 checks/28.1s (en only), 72 checks/31.0-41.6s (--full). Follower: 64 passed/33.8s (en only), 102 passed/34.4-47.8s (--full). All under the 40s per-walk budget for the English gate evals/run.mjs registers.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r122-readiness-comment-backtick-cascade-tripped-banned-word-scan",
+      "kind": "rejection",
+      "title": "A new ReadinessPanel.tsx comment used several short (<6 char) backtick-quoted identifiers (`t`, `load`, `token`) and one stray '=>' arrow; evals/readiness/run.mjs's own heuristic banned-word scanner (paired backtick/angle-bracket regexes, not a real parser) mis-paired across them and swallowed a pre-existing, unrelated comment's word 'clone' into its scanned text, failing a check untouched by this workstream's actual product change. Fixed by removing every short backtick span and the stray arrow from the new comment; the pre-existing single short pair elsewhere in the file was not the cause and was left alone.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r122-release-gate-untouched-vs-patched-2026-09-05",
+      "kind": "measurement",
+      "title": "Untouched tree: 19/21 checks (performance budgets studio-hi TBT and eval suite's rehearsal-creator both failed under measured heavy sandbox contention, load average 9-20, many concurrent sibling verify-release.mjs runs in ps aux). Patched tree: confirmed clean on the checks this workstream's diff touches (readiness suite, both rehearsals full and default, typecheck, check-copy); full-run port collisions (8931/8932 EADDRINUSE) reproduced on both trees, confirmed environmental per ws-common.md.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20691,6 +20751,56 @@
       "src": "ws-r121-all-three-stage-texts-as-static-material-every-turn",
       "rel": "constrains",
       "dst": "ws-r121-platform-owned-boundary-and-stage-shapes"
+    },
+    {
+      "src": "ws-r122-readiness-load-reads-callbacks-through-a-ref-not-a-dependency",
+      "rel": "supersedes",
+      "dst": "ws-r119-full-page-reload-to-step-meet-races-readiness-panels-mount"
+    },
+    {
+      "src": "ws-r122-readiness-load-reads-callbacks-through-a-ref-not-a-dependency",
+      "rel": "measured_by",
+      "dst": "ws-r122-readiness-fetch-loop-reads-before-after-2026-09-05"
+    },
+    {
+      "src": "ws-r122-readiness-fetch-loop-reads-before-after-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r119-readiness-panel-render-loop-2026-09-05"
+    },
+    {
+      "src": "ws-r122-follower-rehearsal-primary-identity-swaps-per-locale-gate",
+      "rel": "supersedes",
+      "dst": "ws-r119-whatsapp-chat-export-rate-bucket-shared-across-full-locale-gates"
+    },
+    {
+      "src": "ws-r122-hindi-context-locker-click-reads-the-real-hicopy-string",
+      "rel": "supersedes",
+      "dst": "ws-r119-creator-walk-hindi-full-blocked-before-this-workstreams-own-code"
+    },
+    {
+      "src": "ws-r122-three-more-english-only-locators-found-by-actually-running-full",
+      "rel": "caused_by",
+      "dst": "ws-r122-hindi-context-locker-click-reads-the-real-hicopy-string"
+    },
+    {
+      "src": "ws-r122-rail-hindi-failure-first-misdiagnosed-as-a-copy-chunk-race",
+      "rel": "part_of",
+      "dst": "ws-r122-three-more-english-only-locators-found-by-actually-running-full"
+    },
+    {
+      "src": "ws-r122-hindi-rehearsals-scheduled-weekly-as-a-new-ci-job",
+      "rel": "measured_by",
+      "dst": "ws-r122-hindi-walks-wall-clocks-2026-09-05"
+    },
+    {
+      "src": "ws-r122-hindi-walks-wall-clocks-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r119-rehearsal-wall-clocks-2026-09-05"
+    },
+    {
+      "src": "ws-r122-readiness-comment-backtick-cascade-tripped-banned-word-scan",
+      "rel": "caused_by",
+      "dst": "ws-r122-readiness-load-reads-callbacks-through-a-ref-not-a-dependency"
     }
   ]
 }
