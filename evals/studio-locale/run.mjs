@@ -29,6 +29,12 @@
 //    क्लोन or मॉडल fails its rooms-vocabulary rule; (c) an invalid locale
 //    value is refused BY NAME (`studio_locale_invalid`), never silently
 //    folded into "en".
+// 5. WS-R91: THE PRE-AUTH LOCALE ORDER. `studioLocalePreference.ts`'s pure
+//    `resolveStudioLocale` is bundled and called directly, every branch of
+//    the chain named in its own header (`?lang=` / a loaded replica's own
+//    row / a remembered local choice / "en") asserted in isolation, so the
+//    fallback order the sign-in screen actually renders from is proven
+//    rather than trusted to a browser fixture exercising only one path.
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { execSync } from "node:child_process";
@@ -216,6 +222,20 @@ await installStudioCopy("hi");
     // unrelated to translation debt -- moving them here is what lets the
     // allowlist narrow to the six consent-ceremony files it is meant to hold.
     "layoutFixture.tsx", "main.tsx",
+    // WS-R91: the sign-in screen, extracted whole out of `StudioApp.tsx`
+    // (that file's own `TIER_2_ALLOWLIST` entry, updated this session, says
+    // why it stays allowlisted anyway -- `TEACHER_COPY`/`GENERIC_COPY`/
+    // `TEST_COPY`/`CreateReplicaCard` are unrelated to this fix and remain
+    // there, unconverted). Every sentence `AuthGate.tsx` renders routes
+    // through `t.authGate`, this list's own law restated for a screen that
+    // now renders BEFORE a session exists rather than after one.
+    "AuthGate.tsx",
+    // WS-R91's own new file: `Mark`/`Spinner`, a shared leaf both
+    // `StudioApp.tsx` and `AuthGate.tsx` import so neither imports the
+    // other. `localeContext.tsx`/`Localized.tsx`'s own precedent above --
+    // no literal English text of its own (`label` is always a caller's own
+    // prop, an `aria-label` attribute value rather than a JSX text node).
+    "StudioChrome.tsx",
   ];
 
   // Every file this workstream did NOT convert, one line each. See
@@ -237,7 +257,7 @@ await installStudioCopy("hi");
     "ModelConsentGate.tsx": "Its six `STATEMENTS` are pre-existing consent-ceremony legal text: four of them are named BY STRING, in this exact English wording, in scripts/roomsVocabAllowlist.mjs's own escape hatch (a teacher already affirmatively checked these exact words before any replica was built). WS-R61 read that file before touching this one and stopped: translating the ceremony would move the words a person already consented to, the precise failure roomsVocabAllowlist.mjs's own header names (`safety-floor-teacher.md` §2.1). See context/decisions.md#ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text.",
     "OpsBoard.tsx": "Internal operator dashboard (`?mode=ops`), never a creator-facing screen at all.",
     "QuickStartPath.tsx": "Owns BLOCKER_META, honesty-gated prose checked by evals/studiowizard.mjs's English-only BLAME_PATTERNS regex (copy.ts's own header); localizing it without a parallel Hindi honesty check would ship an ungated safety-adjacent surface.",
-    "StudioApp.tsx": "Owns TEACHER_COPY/GENERIC_COPY/TEST_COPY (pre-existing, unrelated local `StudioCopy` auth-flow copy, WS-R31 era) plus every lazy-mounted Tier 2 panel's wiring; the shell mount, locale provider and language-switch wiring this workstream added ARE converted (see StudioShell.tsx).",
+    "StudioApp.tsx": "Owns TEACHER_COPY/GENERIC_COPY/TEST_COPY (pre-existing, unrelated local `StudioCopy` -- WS-R31 era, `CreateReplicaCard`'s own copy only since WS-R91 moved the sign-in fields out, see `context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in`) plus every lazy-mounted Tier 2 panel's wiring; the shell mount, locale provider and language-switch wiring this workstream added ARE converted (see StudioShell.tsx), and the sign-in screen itself moved out entirely to its own Tier 1 file, `AuthGate.tsx` (WS-R91).",
     "VideoEnrollPanel.tsx": "WS-R71 read this file in full: `ATTESTATION_COPY` is a FIVE-statement YouTube channel-ownership/rights/audio-extraction consent ceremony a teacher affirmatively checks (`owns_or_controls_channel`, `is_rights_holder_of_uploads`, `authorizes_audio_extraction_for_own_replica`, `understands_tos_exposure_is_not_copyright_permission`, `understands_revocation_stops_extraction`) -- essentially the same statement set as `IngestChannelStudio.tsx`'s own consent ceremony below, and the same risk `ModelConsentGate.tsx`/`IdentityProofing.tsx` are carved out for. `context/rejected.md#ws-r61-partial-modelconsentgate-translation-considered-and-rejected` argues against splitting a consent screen's chrome from its statements, so this file is left whole. See context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted.",
     "VoiceIdentityChallenge.tsx": "WS-R71 read this file in full: it shares `LivenessCapture.tsx`'s own `consentActive`-gated biometric consent shape (voice identity is biometric data), so it carries the SAME reasoning -- see that entry and context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted.",
   };
@@ -423,6 +443,52 @@ await installStudioCopy("hi");
   const realHits = scanSource("src/studio/hiCopy.ts", asSource, { rules: "full", codename: true, roomsVocab: true });
   ok(`every one of the ${hiStrings.length} real Hindi strings this workstream shipped passes the real copy gate`,
     realHits.length === 0, JSON.stringify(realHits.slice(0, 5)));
+}
+
+// ── 5. THE PRE-AUTH LOCALE ORDER (WS-R91) ───────────────────────────────────
+{
+  const OUT = mkdtempSync(join(tmpdir(), "studio-locale-pref-eval-"));
+  const ENTRY = join(OUT, "entry.ts");
+  writeFileSync(
+    ENTRY,
+    `export { resolveStudioLocale } from ${JSON.stringify(join(REPO, "src/studio/studioLocalePreference"))};\n`,
+  );
+  const BUNDLE = join(OUT, "pref.bundle.mjs");
+  execSync(
+    `npx esbuild ${ENTRY} --bundle --format=esm --platform=node --outfile=${BUNDLE} --log-level=error`,
+    { cwd: REPO, stdio: "inherit" },
+  );
+  const { resolveStudioLocale } = await import(pathToFileURL(BUNDLE).href);
+
+  ok("?lang= wins over everything, no replica and no remembered choice",
+    resolveStudioLocale({ urlLocale: "hi", replica: null, rememberedLocale: null }) === "hi");
+  ok("?lang= wins even over a LOADED replica whose own row says otherwise",
+    resolveStudioLocale({ urlLocale: "en", replica: { locale: "hi" }, rememberedLocale: "hi" }) === "en");
+  ok("a loaded replica's own row wins over the remembered local choice (WS-R52's order, unchanged)",
+    resolveStudioLocale({ urlLocale: null, replica: { locale: "hi" }, rememberedLocale: "en" }) === "hi");
+  ok("no url, no replica yet: the remembered local choice wins (the pre-auth screen, this workstream's own law 1)",
+    resolveStudioLocale({ urlLocale: null, replica: null, rememberedLocale: "hi" }) === "hi");
+  ok("nothing at all: \"en\", the same default every other locale read in this codebase falls back to",
+    resolveStudioLocale({ urlLocale: null, replica: null, rememberedLocale: null }) === "en");
+  ok("a replica row is trusted through normalizeStudioLocale, never raw -- an unrecognised value reads as \"en\"",
+    resolveStudioLocale({ urlLocale: null, replica: { locale: "fr" }, rememberedLocale: "hi" }) === "en");
+  ok("an EMPTY string urlLocale (never actually produced by the real ?lang= parse, which only ever passes \"en\"/\"hi\"/null) does not accidentally win over a real replica",
+    resolveStudioLocale({ urlLocale: "", replica: { locale: "hi" }, rememberedLocale: null }) === "hi");
+}
+
+// ── AuthGate.tsx itself is scanned by section 2 above (TIER_1_FILES). This
+// asserts the ONE thing that scan cannot: that its `variant.test` branch has
+// no `eyebrow` key at all in EITHER locale (never an intentionally blank
+// string, which section 1's "no blank string anywhere in the table" check
+// would otherwise have to special-case) — `copy.ts`'s own header names why.
+{
+  const testEn = STUDIO_COPY_TABLE.en.authGate.variant.test;
+  const testHi = STUDIO_COPY_TABLE.hi.authGate.variant.test;
+  ok("authGate.variant.test carries no eyebrow key in English", !("eyebrow" in testEn));
+  ok("authGate.variant.test carries no eyebrow key in Hindi", !("eyebrow" in testHi));
+  ok("authGate.variant.generic DOES carry a non-blank eyebrow in both locales",
+    !!STUDIO_COPY_TABLE.en.authGate.variant.generic.eyebrow.trim() &&
+    !!STUDIO_COPY_TABLE.hi.authGate.variant.generic.eyebrow.trim());
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -139,6 +139,18 @@ const BUDGETS = {
 // regression the way a lax budget would.
 const HINDI_CHUNK_WAIT_BUDGET_MS = 800;
 
+// WS-R91. The metric the brief originally asked for and WS-R82 could not
+// build: not a proxy any more, because `AuthGate.tsx` (this workstream) now
+// actually renders Hindi text on this exact screen. Same 800ms budget as
+// the chunk-wait metric above, for the same reason -- one throttled round
+// trip for a chunk comfortably under 40KB gzipped, with headroom for parse
+// and layout on a throttled CPU. Measured ALONGSIDE `hindiChunkWaitMs`,
+// never in place of it: the chunk wait proves the CHUNK itself is fast: this
+// proves the SCREEN a real visitor watches is fast, and the two can now
+// diverge (a slow re-render after a fast chunk load would move this one
+// without moving that one) in a way only a second, real measurement can see.
+const FIRST_HINDI_PAINT_BUDGET_MS = 800;
+
 /** Finds the built Hindi copy chunk (`dist/assets/hiCopy-<hash>.js`) by
  *  filename prefix rather than a hardcoded hash — content hashes change on
  *  every edit to `src/studio/hiCopy.ts`, and this gate must survive that
@@ -170,18 +182,22 @@ const TARGETS = [
   { name: "/vyakti", path: "/vyakti", label: "Vyakti landing (site/vyakti.html)" },
   { name: "/r/<slug>", path: "/r/anjali?screen=join", label: "Room join screen (room-layout-fixture.html data)" },
   { name: "/studio", path: "/studio", label: "Studio, signed out" },
-  // WS-R82. Same signed-out entry, `?lang=hi` — the shell (chrome, AuthGate)
-  // renders identically either way (StudioApp.tsx's `AuthGate` sits BEFORE
-  // `StudioLocaleProvider` mounts, so no Hindi text exists on the signed-out
-  // screen itself; that is a real, separate, out-of-scope finding — see
-  // context/rejected.md#ws-r82-studio-hi-signed-out-entry-never-shows-hindi).
-  // The LCP/JS budgets below are the SAME as `/studio`, on purpose: splitting
-  // the Hindi table into its own chunk must cost the signed-out visitor
-  // NOTHING, and this target is what proves that rather than assuming it.
-  // The named `hindiChunkWaitMs` metric measures the one thing that IS new
-  // and locale-specific: how long the Hindi chunk itself takes to become
-  // usable under this gate's own throttle, once something asks for it — see
-  // `measureOnce`'s own comment for exactly what is measured and why.
+  // WS-R82 built this target when the shell (chrome, AuthGate) rendered
+  // identically to `/studio` regardless of `?lang=hi` — `StudioApp.tsx`'s
+  // `AuthGate` sat BEFORE `StudioLocaleProvider` ever mounted, so no Hindi
+  // text existed on the signed-out screen at all
+  // (context/rejected.md#ws-r82-studio-hi-signed-out-entry-never-shows-hindi).
+  // WS-R91 fixed that (AuthGate.tsx is its own file now, reading `t.` under
+  // a provider mounted ABOVE the sign-in gate), so this screen genuinely
+  // paints Hindi text today. The LCP/JS budgets below stay the SAME as
+  // `/studio` regardless: splitting the Hindi table into its own chunk must
+  // still cost the signed-out visitor NOTHING, and this target is what
+  // proves that rather than assuming it. `hindiChunkWaitMs` measures how
+  // long the Hindi chunk itself takes to become usable once something asks
+  // for it; `firstHindiPaintMs` (WS-R91) measures the thing a real visitor
+  // actually watches, the first Devanagari text node painted on screen —
+  // see `measureOnce`'s own comment for exactly what each captures and why
+  // both are kept rather than one replacing the other.
   { name: "studio-hi", path: "/studio?lang=hi", label: "Studio, signed out, Hindi (?lang=hi)" },
   // WS-R66: the creator's public page — a stranger's search result, cold
   // cache, on the same phone the four targets above already model. Static
@@ -288,21 +304,21 @@ async function measureOnce(browser, target) {
   });
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: THROTTLE.cpuRate });
 
-  // WS-R82. `hiChunkPath` is set ONLY for the `studio-hi` target. What this
-  // measures, precisely, and why it is a proxy rather than a direct
-  // "first Hindi text node" read: the studio's signed-out entry never
-  // renders a Hindi text node at all — `StudioApp.tsx`'s `AuthGate` sits
-  // BEFORE `StudioLocaleProvider` mounts (`context/rejected.md#ws-r82-studio-hi-signed-out-entry-never-shows-hindi`),
-  // so `?lang=hi` on a signed-out visit changes nothing about what paints.
-  // What DOES change, and what this decision's own reversal condition
-  // actually asks about, is how long the Hindi chunk itself takes to become
-  // usable once a signed-in creator's own code calls `loadStudioCopy("hi")`
-  // — a fact about the CHUNK under this gate's throttle, independent of
-  // which exact screen triggers the fetch. This measures that directly: the
-  // instant the English shell's own first paint fires, it starts a real
-  // `import()` of the ACTUAL built chunk (found by `findHiCopyChunkPath()`,
-  // never a hand-typed filename that would drift from the real content
-  // hash) and times how long that import takes to resolve, under the SAME
+  // WS-R82 built `hiChunkPath` (set ONLY for the `studio-hi` target) as a
+  // PROXY, when the studio's signed-out entry never rendered a Hindi text
+  // node at all — `StudioApp.tsx`'s `AuthGate` sat BEFORE
+  // `StudioLocaleProvider` mounted (`context/rejected.md#ws-r82-studio-hi-signed-out-entry-never-shows-hindi`),
+  // so `?lang=hi` on a signed-out visit changed nothing about what painted.
+  // WS-R91 fixed that (`AuthGate.tsx` is its own file now, reading `t.`
+  // under a provider mounted ABOVE the sign-in gate), so the proxy is no
+  // longer the only available measurement — see `firstHindiPaintMs` below
+  // for the literal thing. This one still measures a real, useful, DIFFERENT
+  // fact: how long the Hindi CHUNK itself takes to become usable once
+  // anything asks for it, decoupled from render time. The instant the
+  // English shell's own first paint fires, it starts a real `import()` of
+  // the ACTUAL built chunk (found by `findHiCopyChunkPath()`, never a
+  // hand-typed filename that would drift from the real content hash) and
+  // times how long that import takes to resolve, under the SAME
   // network/CPU throttle already active on this page. `hindiChunkWaitMs` is
   // that duration.
   const hiChunkPath = target.name === "studio-hi" ? findHiCopyChunkPath() : null;
@@ -336,7 +352,10 @@ async function measureOnce(browser, target) {
   });
 
   await page.addInitScript((chunkPath) => {
-    window.__PERF__ = { lcp: 0, cls: 0, longtasks: [], firstPaintMs: null, hindiChunkWaitMs: null };
+    window.__PERF__ = {
+      lcp: 0, cls: 0, longtasks: [], firstPaintMs: null, hindiChunkWaitMs: null,
+      firstHindiPaintMs: null,
+    };
     try {
       new PerformanceObserver((list) => {
         for (const e of list.getEntries()) window.__PERF__.lcp = e.startTime;
@@ -364,6 +383,46 @@ async function measureOnce(browser, target) {
               .catch(() => { window.__PERF__.hindiChunkWaitMs = -1; }); // -1: the chunk itself failed to load, named rather than left as a silent null
           }
         }).observe({ type: "paint", buffered: true });
+      } catch {}
+      // WS-R91. The literal thing WS-R82 could not measure: the first
+      // Devanagari text node actually painted. `AuthGate.tsx`'s sign-in
+      // screen now renders real Hindi text once `StudioLocaleProvider`'s
+      // own chunk load resolves, so this watches `document.body`'s own
+      // text for the first Devanagari character to appear (U+0900-U+097F,
+      // `copy.ts#detectStudioTextLang`'s own range) and records the
+      // timestamp — `textContent`, never `innerText`, so the check itself
+      // never forces a layout the throttled run would otherwise not have
+      // paid for. A `MutationObserver` rather than polling: it fires
+      // exactly when React commits new text, not on some arbitrary tick
+      // that could itself add latency to the number being measured.
+      try {
+        const devanagari = /[ऀ-ॿ]/;
+        const markIfHindi = () => {
+          if (window.__PERF__.firstHindiPaintMs !== null) return true;
+          if (document.body && devanagari.test(document.body.textContent || "")) {
+            window.__PERF__.firstHindiPaintMs = performance.now();
+            return true;
+          }
+          return false;
+        };
+        if (!markIfHindi()) {
+          const mo = new MutationObserver(() => {
+            if (markIfHindi()) mo.disconnect();
+          });
+          // `document` itself, never `document.documentElement`: this script
+          // runs via `addInitScript` (CDP `Page.addScriptToEvaluateOnNewDocument`),
+          // BEFORE the navigation has produced an `<html>` element at all —
+          // `document.documentElement` is `null` at this exact instant, so
+          // observing it would throw, silently swallowed by this file's own
+          // `try {}` and leaving the observer never actually armed (the real
+          // bug behind this metric's first measured run: every value came
+          // back `null`, not because no Hindi text painted, but because
+          // nothing was ever watching for it). `document` is always a valid
+          // Node from the first tick, and observing it with `subtree: true`
+          // catches `<html>` itself being inserted along with everything
+          // under it.
+          mo.observe(document, { childList: true, subtree: true, characterData: true });
+        }
       } catch {}
     }
   }, hiChunkPath);
@@ -410,6 +469,15 @@ async function measureOnce(browser, target) {
     hindiChunkBytes,
     firstPaintMs: perf.firstPaintMs,
     hindiChunkWaitMs: perf.hindiChunkWaitMs,
+    // WS-R91. `null` if no Devanagari text ever painted (every target but
+    // `studio-hi`, since `hiChunkPath` gates the observer above) or if it
+    // painted before `firstPaintMs` was ever recorded (should not happen —
+    // `first-paint` fires before any text node can exist — but a `null`
+    // here is a fact to report, never a NaN to hide).
+    firstHindiPaintMs:
+      perf.firstHindiPaintMs !== null && perf.firstPaintMs !== null
+        ? perf.firstHindiPaintMs - perf.firstPaintMs
+        : null,
   };
 }
 
@@ -423,6 +491,10 @@ async function measureTarget(browser, target) {
   // "no measurement was attempted" rather than folded into the same bucket.
   const hindiChunkWaits = runs.map((r) => r.hindiChunkWaitMs).filter((v) => v !== null && v !== undefined);
   const hindiChunkFailed = hindiChunkWaits.some((v) => v === -1);
+  // WS-R91. Same shape one metric over: `null` on every target but
+  // `studio-hi` (the observer above only ever arms there), so an empty list
+  // here means "not applicable", never "regressed to zero".
+  const firstHindiPaints = runs.map((r) => r.firstHindiPaintMs).filter((v) => v !== null && v !== undefined);
   return {
     target: target.name,
     label: target.label,
@@ -440,6 +512,7 @@ async function measureTarget(browser, target) {
       requestCount: median(runs.map((r) => r.requestCount)),
       renderBlockingCount: median(runs.map((r) => r.renderBlocking.count)),
       hindiChunkWaitMs: hindiChunkWaits.length ? median(hindiChunkWaits.filter((v) => v !== -1)) : null,
+      firstHindiPaintMs: firstHindiPaints.length ? median(firstHindiPaints) : null,
     },
     hindiChunkFailed,
     thirdPartyRenderBlocking: [...new Set(runs.flatMap((r) => r.renderBlocking.thirdParty))],
@@ -497,6 +570,18 @@ function evaluateBudgets(result) {
         detail: `${Math.round(result.median.hindiChunkWaitMs)}ms > ${HINDI_CHUNK_WAIT_BUDGET_MS}ms budget`,
       });
     }
+    // WS-R91. The real metric now that `AuthGate.tsx` actually paints Hindi
+    // on this screen -- same three-way split as the chunk-wait check above,
+    // for the identical reason (an environmental "chunk not found" must
+    // never read as a regression this gate should fail the build over).
+    if (result.median.firstHindiPaintMs === null) {
+      findings.push({ metric: "First Hindi paint", detail: "no Devanagari text node was ever observed painting — see runs[].firstHindiPaintMs with --json" });
+    } else if (result.median.firstHindiPaintMs > FIRST_HINDI_PAINT_BUDGET_MS) {
+      findings.push({
+        metric: "First Hindi paint",
+        detail: `${Math.round(result.median.firstHindiPaintMs)}ms > ${FIRST_HINDI_PAINT_BUDGET_MS}ms budget`,
+      });
+    }
   }
   return findings;
 }
@@ -518,7 +603,10 @@ function printReport(results) {
         `${String(Math.round(m.renderBlockingCount)).padStart(9)}` +
         (m.hindiChunkWaitMs !== null && m.hindiChunkWaitMs !== undefined
           ? `   Hindi chunk wait: ${Math.round(m.hindiChunkWaitMs)}ms`
-          : r.target === "studio-hi" ? "   Hindi chunk wait: n/a" : ""),
+          : r.target === "studio-hi" ? "   Hindi chunk wait: n/a" : "") +
+        (m.firstHindiPaintMs !== null && m.firstHindiPaintMs !== undefined
+          ? `   First Hindi paint: ${Math.round(m.firstHindiPaintMs)}ms`
+          : r.target === "studio-hi" ? "   First Hindi paint: n/a" : ""),
     );
   }
   console.log("");
@@ -588,7 +676,7 @@ async function main() {
   if (asJson) {
     console.log(JSON.stringify({
       throttle: THROTTLE,
-      budgets: { ...BUDGETS, hindiChunkWaitMs: HINDI_CHUNK_WAIT_BUDGET_MS },
+      budgets: { ...BUDGETS, hindiChunkWaitMs: HINDI_CHUNK_WAIT_BUDGET_MS, firstHindiPaintMs: FIRST_HINDI_PAINT_BUDGET_MS },
       viewport: VIEWPORT,
       runs: RUNS,
       results,

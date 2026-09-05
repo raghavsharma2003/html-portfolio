@@ -248,6 +248,26 @@ const TARGETS = [
     panels: ".studio-tabbar, .studio-shell-headline, .studio-tab",
     minPanels: 2,
   },
+  // WS-R91. The one studio screen no fixture reached before: signed OUT, in
+  // Hindi (`?lang=hi&signedOut=1` -- `layoutFixture.tsx`'s own `SIGNED_OUT`
+  // branch, which now clears any session an earlier target in this same
+  // viewport's context already seeded rather than merely skipping seeding
+  // it). Phone only, `room:more`/`room:taste`'s own reason: a NEW screen
+  // state gets its own measured target rather than folding into `studio-hi`
+  // above, whose `steps` are all signed-in wizard steps this screen has
+  // none of. `AuthGate.tsx`'s own header states why this screen exists to
+  // measure at all: WS-R82 found it painted zero Hindi; this workstream
+  // fixed that and this target is what proves it stays fixed.
+  {
+    name: "studio-hi:signed-out",
+    fixture: "studio-layout-fixture.html",
+    query: () => "lang=hi&signedOut=1",
+    steps: ["signin"],
+    mounted: ".auth-page",
+    panels: ".auth-intro, .auth-card",
+    minPanels: 2,
+    onlyViewport: "phone",
+  },
   {
     name: "room",
     fixture: "room-layout-fixture.html",
