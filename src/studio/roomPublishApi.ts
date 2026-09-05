@@ -72,6 +72,23 @@ export interface RoomStats {
   messages_this_month: number;
 }
 
+// WS-R85 (migration 122). `api/_share-kit.js`'s own `buildShareKit` shape,
+// typed here unchanged — this file computes nothing, `opsApi.ts`'s own
+// header rule restated for a second file.
+export interface ShareKitRow {
+  channel: "whatsapp" | "instagram" | "youtube" | "telegram";
+  text: string;
+  url: string;
+  picture: "story" | "og" | null;
+}
+
+export interface ShareKit {
+  room_id: string;
+  // `null` for a Room that has never published — `api/_share-kit.js`'s own
+  // "nothing honest to share yet" rule.
+  kit: ShareKitRow[] | null;
+}
+
 /** Thrown by every op below with the server's own code and, when the server
  *  sent one, its blocker detail — `ReplicaApiError`'s own shape, one file
  *  over, so a caller already handling that type handles this one the same
@@ -209,6 +226,13 @@ export async function readOwnedRoomStats(token: string, replicaId: string): Prom
   return data.stats;
 }
 
+/** The Share tab's own share kit — `readOwnedRoomStats`'s own shape, one op
+ *  over. Returns `kit: null` for a Room that has never published rather
+ *  than throwing; `ShareKitCard.tsx` renders that as an honest empty state. */
+export async function readOwnedRoomShareKit(token: string, replicaId: string): Promise<ShareKit> {
+  return call<ShareKit>(token, { op: "share_kit", replica_id: replicaId });
+}
+
 /** Set one showcase slot (1..5): either typed/edited text (`question`/
  *  `answer`) or a source review card's own id (`sourceCardId`) — never both
  *  read as meaningful at once, `api/_room-publish.js`'s own precedence (a
@@ -286,6 +310,15 @@ export function storyCardLink(slug: string, origin = window.location.origin): st
  *  identical deployment. */
 export function posterLink(slug: string, origin = window.location.origin): string {
   return `${origin}/r/${slug}/poster.png`;
+}
+
+/** WS-R85. The unfurl/og image the share kit's YouTube row links to —
+ *  `/r/<slug>/og.png`, `api/_room-card.js`'s `og` kind — `storyCardLink`'s
+ *  own shape, the landscape size instead of the portrait one. Already
+ *  served (`evals/room-share/run.mjs`'s own `og:image` assertion), never
+ *  linked from the studio directly until now. */
+export function ogImageLink(slug: string, origin = window.location.origin): string {
+  return `${origin}/r/${slug}/og.png`;
 }
 
 // WS-R31. The one derived fact `StudioShell.tsx`'s Share tab needs from a

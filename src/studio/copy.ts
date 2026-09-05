@@ -1001,6 +1001,34 @@ interface ReviewQueueFlagsCopy {
 interface PosterCopy {
   download: string;
 }
+// ── shareKit: ShareKitCard.tsx (WS-R85, migration 122). Four rows -
+//    WhatsApp, Instagram, YouTube, Telegram - each with the exact text and
+//    link a creator copies. The four TEMPLATE strings are the canonical
+//    source `api/_share-kit.js`'s own `SHARE_KIT_COPY` restates byte for
+//    byte (`evals/share-kit/run.mjs`'s own parity section proves it against
+//    the real bundled export, `TASTE_COPY`'s own shape one file over) -
+//    the creator SEES this exact text before they copy it, so it lives with
+//    the rest of the Share tab's own chrome rather than only server-side.
+//    Every template carries exactly two holes, "{name}" and "{url}". ───────
+interface ShareKitCopy {
+  title: string;
+  intro: string;
+  loading: string;
+  whatsappLabel: string;
+  instagramLabel: string;
+  youtubeLabel: string;
+  telegramLabel: string;
+  copy: string;
+  copied: string;
+  openWhatsapp: string;
+  viewPicture: string;
+  notPublishedYet: string;
+  whatsappTemplate: string; // "{name}", "{url}"
+  instagramTemplate: string; // "{name}", "{url}"
+  youtubeTemplate: string; // "{name}", "{url}"
+  telegramTemplate: string; // "{name}", "{url}"
+}
+
 // ── activityPanel: ActivityPanel.tsx (WS-R71, tier 2 wave two). Server-sent
 //    fields (`job.state_reason`, `lane.label`, `lane.missing`,
 //    `job.next_action.label`, `job.progress.unit`) stay English -- this
@@ -1479,6 +1507,7 @@ interface StudioCopy {
   voicePreviewLab: VoicePreviewLabCopy;
   voicePreviewPanel: VoicePreviewPanelCopy;
   voiceExperimentPanel: VoiceExperimentPanelCopy;
+  shareKit: ShareKitCopy;
 }
 
 const EN: StudioCopy = {
@@ -2865,6 +2894,28 @@ const EN: StudioCopy = {
     working: "Working...",
     replacePack: "Replace pack",
     removePrivateExperiment: "Remove private experiment",
+  },
+
+  shareKit: {
+    title: "Share kit",
+    intro: "The exact text and picture for each place you already post. Copy one, or open WhatsApp with it ready to send.",
+    loading: "Loading your share kit...",
+    whatsappLabel: "WhatsApp",
+    instagramLabel: "Instagram bio",
+    youtubeLabel: "YouTube description",
+    telegramLabel: "Telegram channel post",
+    copy: "Copy",
+    copied: "Copied",
+    openWhatsapp: "Open WhatsApp",
+    viewPicture: "Picture",
+    notPublishedYet: "Publish your Room to get your share kit.",
+    whatsappTemplate:
+      "I have started {name} AI, a place to ask {name} anything, any time. It is upfront that it is an AI, not {name}, and it never shares what you say with anyone else. Talk to it here: {url}",
+    instagramTemplate: "{name} AI, talk any time: {url}",
+    youtubeTemplate:
+      "{name} AI is here.\n\nI built an AI version of myself so you can ask questions any time, even when I am offline. It is upfront that it is an AI, not {name}, and it never shares what you say with anyone else.\n\nTalk to it: {url}",
+    telegramTemplate:
+      "{name} AI is live. Ask anything, any time, right here: {url}\n\nIt is an AI built from {name}'s own material, not {name} themselves, and it never shares your messages with anyone.",
   },
 };
 

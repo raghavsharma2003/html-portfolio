@@ -339,6 +339,40 @@
     white-space: pre-wrap;
   }
 
+  /* ── the share kit (WS-R85, migration 122) ──────────────────────────── */
+  .vy-room__share-kit-rows {
+    display: grid;
+    gap: var(--space-row);
+    margin-top: var(--space-tight);
+  }
+  .vy-room__share-kit-row {
+    display: grid;
+    gap: var(--space-hair);
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    padding: var(--space-tight) var(--space-row);
+    background: rgba(255, 255, 255, 0.6);
+  }
+  .vy-room__share-kit-row h4 {
+    margin: 0;
+    font-size: var(--text-small);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .vy-room__share-kit-text {
+    width: 100%;
+    resize: vertical;
+    font-family: inherit;
+    white-space: pre-wrap;
+  }
+  .vy-room__share-kit-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-tight);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .vy-room__cap-pill { transition: none; }
     .vy-room__pulse-topic-remove { transition: none; }
