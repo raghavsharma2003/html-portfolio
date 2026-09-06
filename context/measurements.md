@@ -14527,3 +14527,55 @@ New suite `evals/payout-statement-readable/run.mjs`: **20/20** (parity across 60
 - Net: every one of the 21 checks has now been observed passing at least once against this exact patched tree; the two that never landed clean inside the SAME full run as each other were independently confirmed clean standalone, the same standing methodology this repo already uses for a heavily-contended shared machine.
 
 See `context/decisions.md#ws-r135-ops-board-gains-its-own-locale-resolution` for what was built and `context/rejected.md#ws-r135-readiness-eval-banned-word-cascade-from-a-short-backtick-span` for the `readiness` suite defect this workstream found and fixed in its own first patched-tree run.
+
+### `ws-r133-referral-reward-hardening-suite-counts-2026-09-06` (WS-R133)
+
+n = 1 run each, method: `node evals/<suite>/run.mjs` invoked directly (isolates
+each suite's own pass/fail count, not through `evals/run.mjs`'s worker pool),
+2026-09-06, this worktree, no `NEON_URL`. Base ("before") counts confirmed by
+temporarily writing each `048becd` file over the current one, running, then
+`git checkout --` to restore — `git status` clean after every check.
+
+| suite | before (`048becd`) | after (WS-R133) |
+|---|---|---|
+| `evals/room-referrals/run.mjs` | 59 passed, 0 failed | 63 passed, 0 failed (+4: new §10 decision-parity — OLD join-`exists` vs NEW nested-`exists`, 220 generated referrer histories, 0 disagreements on any friend's landed verdict, friend count, or grant decision) |
+| `evals/receipt-sweep/run.mjs` | 23 passed, 0 failed | 32 passed, 0 failed (+9: new §2b, the reward's own zero-amount receipt closed by the same sweep, plus two negative controls — a non-zero-amount `referral_reward` row is never swept, and a select without the reward-kind clause would never have found it) |
+| `evals/room-leak/run.mjs` | 269 passed, 0 failed | 308 passed, 0 failed (+39: new layer 17 — referral read-isolation across the seeded subset of followers/Rooms, byte-checked against every OTHER seeded referrer's own follower id, plus the three race orderings — A-then-B, B-then-A, concurrent `Promise.all` — each proving exactly one reward granted) |
+| `evals/payments/run.mjs` | 134 passed, 0 failed (unchanged) | 134 passed, 0 failed — the fixture's own SQL-text dispatch keys off `"with this_follower_first as"`, a fragment unaffected by the nested-`exists` rewrite inside that same statement, so no fixture change was needed or made |
+| `evals/room-receipt/run.mjs` | 66 passed, 0 failed (unchanged) | 66 passed, 0 failed — `issueFollowerReceipt`'s own shape untouched |
+| `evals/payments-reconcile/run.mjs` | not re-measured (untouched by this workstream) | 45 passed, 0 failed — unchanged, confirms no regression |
+
+`node scripts/verify-release.mjs` (full gate, this worktree, no `NEON_URL`,
+heavy sibling contention from a concurrent wave-nineteen build — ten-plus
+worktrees running gates on the same machine): FIRST full run, 2026-09-06,
+20/21 (typecheck 83413ms, layout readability 253827ms, performance budgets
+90593ms, room leak battery 51285ms/308 assertions, room export
+completeness 4040ms, room door battery 3147ms, accessibility 51612ms,
+security headers 13108ms) — the ONE failure was `eval suite`, itself
+failing on exactly one sub-suite, `probe-live` (unrelated to this
+workstream: it drives a local fixture server on a fixed loopback port and
+never touches `api/_payments.js`/`api/_room-surface.js`/`evals/room-leak`/
+`evals/room-referrals`/`evals/receipt-sweep`). `node evals/probe-live/run.mjs`
+run standalone immediately after: 0 findings, every check green — the
+failure was the sibling-gate port/CPU contention this same session's own
+wave-eighteen precedent already named
+(`context/measurements.md#ws-r129-quiet-hours-gate-results`: "every
+failure either an EADDRINUSE... or a Chromium timeout, never a content
+mismatch"), not a regression. `node evals/run.mjs` (the full registry,
+standalone, immediately after): exit 0, every suite including `probe-live`
+green. SECOND full run, same worktree, same tree, ports confirmed free
+first: 18/21 — THREE failures, all three EADDRINUSE (`performance budgets`
+on 8932, `eval suite` again on `probe-live`'s own fixed port, `accessibility`
+on 8933), none a content mismatch. Standalone re-run of each of the three
+immediately after, ports confirmed free first: `node scripts/check-performance.mjs`
+clean (8 targets x 3 runs, all within budget); `node scripts/check-accessibility.mjs`
+clean (0 critical/serious across 23 pages); `node evals/probe-live/run.mjs`
+clean (0 findings); `node evals/run.mjs` (the full registry, a third
+standalone run) exit 0, zero "failed suites" line at all. Across two full
+runs and repeated standalone confirmation, every one of the 21 checks has
+passed at least once, and the only failures anywhere were port collisions
+from concurrent sibling gates on this shared machine — never a regression
+this workstream's own diff caused. See
+`context/rejected.md#ws-r133-manual-tree-revert-for-baseline-gate-left-a-confusing-half-state`
+for the recovery this workstream's own resumption needed before any of the
+above could be measured.

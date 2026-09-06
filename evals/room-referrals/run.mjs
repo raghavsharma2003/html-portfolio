@@ -604,5 +604,169 @@ function paymentsWrapperDb(state, baseDb) {
     noGrantYet === null);
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+// §10 (WS-R133, referral-reward hardening, law 2). DECISION PARITY: the
+// friend-count `exists` inside `maybeGrantReferralReward`'s own
+// `referrer_progress` CTE (and `roomReferralProgress`'s identical count)
+// was rewritten from ONE `exists` over a `pe join rs` (frozen, never
+// executed again, as `REFERRAL_REWARD_LEGACY_FRIEND_EXISTS_SQL` in
+// api/_payments.js) to TWO nested `exists` (subscription, then event) so
+// the planner can drive each from its own index
+// (vy_room_subscription_follower_ix, vy_payment_event_subscription_ix)
+// instead of hashing the whole ledger once per call
+// (context/measurements.md#rooms-migrations-130-132-133-live-verification-2026-09-05
+// names the exact reversal condition this rewrite answers).
+//
+// Both SQL texts are the SAME existential predicate over the SAME two
+// tables, restated with a different join order - this section proves the
+// two join orders never disagree by reimplementing EACH one's OWN traversal
+// independently (never sharing one "landed" helper between them, which
+// would make the check vacuous) over a common, randomly generated
+// relational fixture, and comparing every friend's own landed/not-landed
+// verdict, every referrer's own friend count, and every referrer's own
+// grant decision (count >= REFERRAL_REWARD_FRIEND_THRESHOLD) across at
+// least 200 generated referrer histories.
+//
+// WHAT THIS DOES NOT PROVE: neither function below executes real SQL
+// against a real Postgres planner - there is no SQL engine anywhere in
+// this offline suite (AGENTS.md's own law: offline mocks cannot
+// type-check SQL). This proves the two SQL TEXTS' own join semantics are
+// equivalent BY CONSTRUCTION, over many random relational shapes; it does
+// not prove the live planner actually picks the expected access path -
+// that is EXPLAIN, run live by the main loop, per this workstream's own
+// brief.
+console.log("\n§10 WS-R133 law 2 - decision parity, OLD join-exists vs NEW nested-exists");
+{
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function rng() {
+      a |= 0; a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  const QUALIFYING_KINDS = new Set(["subscription.charged", "subscription.activated"]);
+  const NON_QUALIFYING_KINDS = ["subscription.paused", "subscription.cancelled", "payment.failed"];
+
+  /** One referrer's own randomly generated world: 0-6 credited friends,
+   *  each with 0-2 subscriptions, each subscription with 0-3 payment
+   *  events of a randomly picked kind/amount - deliberately allowed to
+   *  produce a friend with NO landed charge at all, a friend whose only
+   *  qualifying event sits on their SECOND subscription (the case a
+   *  single-join and a nested-lookup must agree on identically), and
+   *  referrer counts that land below, exactly at, and above
+   *  REFERRAL_REWARD_FRIEND_THRESHOLD across the generated set as a
+   *  whole. */
+  function generateHistory(rng) {
+    const friendCount = Math.floor(rng() * 7); // 0..6
+    const friendIds = [];
+    const subscriptions = []; // flat rows: {subscription_id, follower_id}
+    const paymentEvents = []; // flat rows: {subscription_id, kind, amount_inr}
+    let subSeq = 0;
+    let evSeq = 0;
+    for (let f = 0; f < friendCount; f++) {
+      const followerId = `friend-${f}`;
+      friendIds.push(followerId);
+      const subCount = Math.floor(rng() * 3); // 0..2
+      for (let s = 0; s < subCount; s++) {
+        const subId = `sub-${subSeq++}`;
+        subscriptions.push({ subscription_id: subId, follower_id: followerId });
+        const eventCount = Math.floor(rng() * 4); // 0..3
+        for (let e = 0; e < eventCount; e++) {
+          const qualifying = rng() < 0.5;
+          const kindPool = qualifying ? [...QUALIFYING_KINDS] : NON_QUALIFYING_KINDS;
+          const kind = kindPool[Math.floor(rng() * kindPool.length)];
+          const amount = qualifying
+            ? (rng() < 0.9 ? Math.floor(rng() * 1000) + 1 : 0) // occasionally a qualifying-kind but zero-amount row
+            : Math.floor(rng() * 500);
+          paymentEvents.push({ event_id: `ev-${evSeq++}`, subscription_id: subId, kind, amount_inr: amount });
+        }
+      }
+    }
+    return { friendIds, subscriptions, paymentEvents };
+  }
+
+  /** OLD shape's own join: REFERRAL_REWARD_LEGACY_FRIEND_EXISTS_SQL's
+   *  `exists (select 1 from vy_payment_event pe join vy_room_subscription
+   *  rs on rs.subscription_id = pe.subscription_id where rs.follower_id =
+   *  ... and pe.kind = any(...) and pe.amount_inr > 0)` - built here as a
+   *  SINGLE pass over every qualifying payment_event row, joined to ITS
+   *  OWN subscription to recover a follower_id, collected into a set,
+   *  THEN tested for membership - the join happens BEFORE the
+   *  per-follower filter, exactly the SQL's own join order. */
+  function landedLegacyJoin({ subscriptions, paymentEvents }, followerId) {
+    const qualifyingFollowerIds = new Set();
+    for (const pe of paymentEvents) {
+      if (!QUALIFYING_KINDS.has(pe.kind) || pe.amount_inr <= 0) continue;
+      const sub = subscriptions.find((s) => s.subscription_id === pe.subscription_id);
+      if (sub) qualifyingFollowerIds.add(sub.follower_id);
+    }
+    return qualifyingFollowerIds.has(followerId);
+  }
+
+  /** NEW shape: the rewritten SQL's own two-level nested `exists` -
+   *  subscription FIRST (filtered by follower_id, the friend's own row),
+   *  THEN event (filtered by subscription_id) - the per-follower filter
+   *  happens BEFORE the event join, the opposite order from the legacy
+   *  shape above. */
+  function landedNestedExists({ subscriptions, paymentEvents }, followerId) {
+    const ownSubs = subscriptions.filter((s) => s.follower_id === followerId);
+    return ownSubs.some((sub) =>
+      paymentEvents.some(
+        (pe) => pe.subscription_id === sub.subscription_id && QUALIFYING_KINDS.has(pe.kind) && pe.amount_inr > 0,
+      ));
+  }
+
+  const N_HISTORIES = 220;
+  const seed = Number(process.env.ROOM_REFERRALS_PARITY_SEED || 0x00000133); // WS-R133's own seed
+  const rng = mulberry32(seed);
+  let disagreements = 0;
+  let historiesWithAnyLanded = 0;
+  let historiesAtOrAboveThreshold = 0;
+  let historiesBelowThreshold = 0;
+  let friendsChecked = 0;
+
+  for (let h = 0; h < N_HISTORIES; h++) {
+    const history = generateHistory(rng);
+    let legacyCount = 0;
+    let nestedCount = 0;
+    for (const followerId of history.friendIds) {
+      friendsChecked++;
+      const legacy = landedLegacyJoin(history, followerId);
+      const nested = landedNestedExists(history, followerId);
+      if (legacy !== nested) {
+        disagreements++;
+        console.log(`  FAIL  §10 seed disagreement at history ${h}, friend ${followerId}: legacy=${legacy} nested=${nested}`);
+      }
+      if (legacy) legacyCount++;
+      if (nested) nestedCount++;
+    }
+    if (legacyCount !== nestedCount) {
+      disagreements++;
+      console.log(`  FAIL  §10 friend-count disagreement at history ${h}: legacy=${legacyCount} nested=${nestedCount}`);
+    }
+    if (legacyCount > 0) historiesWithAnyLanded++;
+    const legacyGrant = legacyCount >= REFERRAL_REWARD_FRIEND_THRESHOLD;
+    const nestedGrant = nestedCount >= REFERRAL_REWARD_FRIEND_THRESHOLD;
+    if (legacyGrant !== nestedGrant) {
+      disagreements++;
+      console.log(`  FAIL  §10 grant-decision disagreement at history ${h}: legacy=${legacyGrant} nested=${nestedGrant}`);
+    }
+    if (legacyGrant) historiesAtOrAboveThreshold++;
+    else historiesBelowThreshold++;
+  }
+
+  ok(`§10 ${N_HISTORIES} generated referrer histories (>= 200 required): OLD join-exists and NEW nested-exists agree on every friend's own landed verdict, every referrer's own friend count, and every referrer's own grant decision`,
+    disagreements === 0, `disagreements=${disagreements}, friends checked=${friendsChecked}`);
+  ok("§10 the generated set is NOT vacuous: at least one history has a landed friend",
+    historiesWithAnyLanded > 0, `histories with >=1 landed friend: ${historiesWithAnyLanded}/${N_HISTORIES}`);
+  ok("§10 the generated set is NOT vacuous: at least one history crosses the reward threshold",
+    historiesAtOrAboveThreshold > 0, `at/above threshold: ${historiesAtOrAboveThreshold}, below: ${historiesBelowThreshold}`);
+  ok("§10 the generated set is NOT vacuous: at least one history stays below the reward threshold",
+    historiesBelowThreshold > 0);
+}
+
 console.log(`\nroom-referrals: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -200,6 +200,14 @@ export function freshWorldState() {
     checkins: [],
     checkinDeliveries: [],
     forgetReceipts: [],
+    // WS-R133 (referral-reward hardening, layer 17). `base`'s own
+    // `referralCredits` (evals/room/fixtures.mjs) already carries the
+    // credit array `joinRoom`'s own write populates; `referralRewards` is
+    // this file's own addition, seeded directly (this layer's own subset
+    // of followers, below) rather than driven through a real webhook -
+    // this layer's OWN header states why a full payments pipeline is out
+    // of scope here.
+    referralRewards: [],
   };
 }
 
@@ -391,6 +399,46 @@ function worldExtraDb(state, base) {
       return [];
     }
 
+    // ── WS-R133 (referral-reward hardening, layer 17). The four reads
+    //    roomReferralProgress/roomExport ever issue against these two
+    //    tables — `api/_room-surface.js`'s own two functions, restated here
+    //    as fixture dispatch rather than executed as real SQL (no engine
+    //    offline). The base fixture (evals/room/fixtures.mjs) already
+    //    handles the ONE write (`insert into vy_room_referral_credit`,
+    //    `joinRoom`'s own credit write); every read below is new. ─────────
+    if (has("from vy_room_referral_credit rc") && has("count(*)::int as n")) {
+      // roomReferralProgress's own friend count — this layer seeds every
+      // credited friend as ALREADY landed (this section's own header
+      // states why a full payments pipeline is out of scope), so the
+      // nested `exists` this workstream's rewrite added is trivially true
+      // for every row; the isolation property under test is which ROWS
+      // are counted at all, never the landed predicate itself.
+      const [referrerFollowerId] = p;
+      const n = (state.referralCredits || []).filter((c) => c.referrer_follower_id === referrerFollowerId).length;
+      return [{ n }];
+    }
+    if (has("from vy_room_referral_reward") && has("order by granted_at desc")) {
+      // roomReferralProgress's own latest-reward read.
+      const [referrerFollowerId, roomId] = p;
+      const rows = (state.referralRewards || [])
+        .filter((r) => r.referrer_follower_id === referrerFollowerId && r.room_id === roomId)
+        .sort((a, b) => (a.granted_at < b.granted_at ? 1 : -1));
+      return rows.length ? [rows[0]] : [];
+    }
+    if (has("select count(*)::int as n from vy_room_referral_credit where referred_follower_id")) {
+      // roomExport's own "was I referred" read (the friend's own side).
+      const [referredFollowerId] = p;
+      const n = (state.referralCredits || []).filter((c) => c.referred_follower_id === referredFollowerId).length;
+      return [{ n }];
+    }
+    if (has("from vy_room_referral_reward") && has("referrer_person_id = ($2)::uuid")) {
+      // roomExport's own "how many rewards have I, the referrer, been
+      // granted in this Room" read.
+      const [roomId, referrerPersonId] = p;
+      const n = (state.referralRewards || []).filter((r) => r.room_id === roomId && r.referrer_person_id === referrerPersonId).length;
+      return [{ n }];
+    }
+
     return base(sql, params);
   };
 }
@@ -578,11 +626,58 @@ export async function runFullWorld(REPO) {
     compiledBy.get(key).push({ turn: step.t, system: compiled?.system ?? "", facts: capturedFacts ?? [] });
   }
 
+  // ── WS-R133 (referral-reward hardening), layer 17's own seed: referral
+  // credits, and one granted reward, for a SUBSET of followers across the
+  // first four Rooms — pushed directly into state (this battery's OWN
+  // established shortcut for a lane no fixture here drives through a real
+  // webhook, `state.facts.push` above is the SAME shortcut for a fact).
+  // Proves the READ side only (`roomReferralProgress`, `roomExport`'s own
+  // two referral-adjacent counts) — `joinRoom`'s own credit write and
+  // `maybeGrantReferralReward`'s own grant decision are proven elsewhere
+  // (evals/room-referrals). Each seeded referrer gets exactly
+  // REFERRAL_REWARD_FRIEND_THRESHOLD (3) credited friends, drawn from OTHER
+  // followers already primary in the SAME Room — never a follower who
+  // belongs to a different Room, so a leak here can only ever be a real
+  // cross-follower or cross-Room leak, never an artifact of overlap.
+  const referralSeed = [];
+  for (const r of ROOM_DEFS.slice(0, 4)) {
+    const roomIdx = ROOM_DEFS.indexOf(r);
+    const roomFollowerIdxs = world.followers.filter((f) => f.primaryRoom === roomIdx).map((f) => f.idx).slice(0, 4);
+    if (roomFollowerIdxs.length < 4) continue;
+    const [referrerIdx, ...friendIdxs] = roomFollowerIdxs;
+    const referrerKey = `${referrerIdx}:${roomIdx}`;
+    const referrerFollowerId = followerIdOf.get(referrerKey);
+    const referrerRow = state.followers.find((x) => x.follower_id === referrerFollowerId);
+    const friendFollowerIds = [];
+    for (const fIdx of friendIdxs) {
+      const friendFollowerId = followerIdOf.get(`${fIdx}:${roomIdx}`);
+      friendFollowerIds.push(friendFollowerId);
+      state.referralCredits.push({
+        credit_id: randomUUID(), room_id: r.room_id,
+        referred_follower_id: friendFollowerId, referrer_follower_id: referrerFollowerId,
+        referrer_person_id: referrerRow.person_id, created_at: "2026-09-01T00:00:00.000Z",
+      });
+    }
+    // The FIRST seeded Room's own referrer also gets a granted reward —
+    // every read-path handler above must scope THIS row correctly too, not
+    // only the credit rows every seeded referrer has.
+    let rewardGranted = false;
+    if (roomIdx === 0) {
+      state.referralRewards.push({
+        reward_id: randomUUID(), room_id: r.room_id,
+        referrer_follower_id: referrerFollowerId, referrer_person_id: referrerRow.person_id,
+        granted_at: "2026-09-04T00:00:00.000Z", period_extended_to: "2026-10-04T00:00:00.000Z", year_key: "2026-27",
+      });
+      rewardGranted = true;
+    }
+    referralSeed.push({ roomIdx, roomId: r.room_id, referrerIdx, referrerFollowerId, friendIdxs, friendFollowerIds, rewardGranted });
+  }
+
   return {
     world, state, db, deps: FULL_DEPS, loadAgent,
     room, pulse: { setOptIn, computeSnapshot, readPulse }, checkins: CI, whatsapp: wa, pushApi: push,
     sessionOf, followerIdOf, threadOf, compiledBy, paidFollowers, checkinPicks: new Set(checkinPicks),
-    roomExport, roomForget, roomExportManifest, roomStats, telegramChannelRoom,
+    roomExport, roomForget, roomExportManifest, roomStats, telegramChannelRoom, referralSeed,
   };
 }
 

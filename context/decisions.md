@@ -21358,3 +21358,109 @@ reversal of three earlier decisions' own named conditions. A future
 reversal would need a product reason to take the board English-only again
 (e.g. the operator population becoming exclusively non-Hindi-reading),
 which nothing in this workstream's brief or this repo's history suggests.
+
+## `ws-r133-referral-friend-count-correlated-exists` (2026-09-06, WS-R133)
+
+**Decision.** `maybeGrantReferralReward`'s `referrer_progress` CTE and
+`roomReferralProgress`'s identical friend-count read are rewritten from a
+single `exists (select 1 from vy_payment_event pe join vy_room_subscription
+rs on rs.subscription_id = pe.subscription_id where rs.follower_id = ...
+and pe.kind = any(...) and pe.amount_inr > 0)` into a TWO-LEVEL correlated
+`exists` (subscription first, filtered on `follower_id`; event second,
+filtered on `subscription_id`). The old shape is kept, byte-for-byte, as
+`REFERRAL_REWARD_LEGACY_FRIEND_EXISTS_SQL` in `api/_payments.js` — frozen,
+never executed by any caller — as the negative control for
+`evals/room-referrals/run.mjs`'s own §10 decision-parity assertion (two
+independent reimplementations of each join order, never sharing one
+"landed" helper, compared over 220 generated referrer histories: 0
+disagreements on any friend's landed verdict, any referrer's friend count,
+or any grant decision).
+
+**Rationale.** This is the exact rewrite `context/measurements.md#rooms-migrations-130-132-133-live-verification-2026-09-05`
+named as WS-R130's own reversal condition: the old shape plans as a hashed
+subplan over a seq scan of `vy_payment_event` filtered by kind/amount,
+materialized once per call regardless of how many friends a referrer has —
+accepted by name at merge time only because the ledger was small. The new
+shape gives the planner an equality on `rs.follower_id` to drive off
+`vy_room_subscription_follower_ix`, then an equality on
+`pe.subscription_id` to drive off `vy_payment_event_subscription_ix` — a
+Nested Loop Semi Join walking both indexes once per credited friend
+instead of hashing the whole ledger once per grant call. Both indexes
+already exist in `db/schema.sql` (no migration needed). The two SQL texts
+are the same existential predicate restated with a different join order;
+§10 proves them equivalent by construction over many random relational
+shapes, not by running a real planner (no SQL engine exists anywhere in
+this offline suite, `AGENTS.md`'s own law) — the live planner's actual
+choice is EXPLAIN, run by the main loop, never assumed here.
+
+**What would reverse it.** If the main loop's live EXPLAIN shows the
+planner does NOT pick a Nested Loop Semi Join over the two named indexes
+(e.g. it still hashes, or the referral credit table's own low cardinality
+makes a seq scan cheaper at current row counts), the frozen legacy shape
+should be un-frozen and reinstated, and this decision's own reversal
+condition (the ledger passing roughly 100k rows) revisited once there is
+a real row count to reason about instead of an accepted-by-name guess.
+
+## `ws-r133-receipt-sweep-kind-aware-zero-amount` (2026-09-06, WS-R133)
+
+**Decision.** `backfillReceipts`'s own SELECT admits a row either the OLD
+way (`e.kind = any(CREATOR_CHARGE_KINDS) and e.amount_inr > 0`) OR, newly,
+when `e.kind = 'referral_reward' and e.amount_inr = 0` — kind-aware, never
+a blanket `amount_inr >= 0` that would also sweep a genuinely broken
+zero-amount charge of a real charge kind. Proven by seeding a
+`referral_reward` event with no receipt (the exact gap
+`maybeGrantReferralReward`'s own `catch` names — a receipt mint that can
+silently fail after the grant and the ledger row both land) and running
+the sweep: the reward's receipt is issued, with the SAME atomic FY-counter
+claim and the SAME `vy_receipt` unique index as the only arbiter of
+"already receipted" as any other receipt, `issued_at` taken from the
+ledger row's own `received_at`, never the sweep's clock. A second run is
+idempotent (issues nothing new); a `referral_reward` row that is NOT
+exactly zero-amount (a shape migration 133's own CHECK should make
+impossible) is never swept, proving the branch is gated on `amount_inr = 0`
+specifically, never merely on the kind string.
+
+**Rationale.** WS-R130 named this gap in as many words and left it for a
+sweep that never actually closed it (`CREATOR_CHARGE_KINDS` never named
+`referral_reward`, and `amount_inr > 0` structurally excludes the reward's
+own `amount_inr = 0` row by construction). Everything past the SELECT is
+unchanged — the same `issueFollowerReceipt`, the same FY counter, the same
+uniqueness arbiter — this widens what the sweep looks at, never adds a
+second minting path.
+
+**What would reverse it.** A future reward-shaped kind that must NOT be
+receipted at zero amount (e.g. a partial-value reward) would need this
+admitted-at-zero clause to become kind-specific in a different way (per-kind
+amount predicate table) rather than a single named reason string.
+
+## `ws-r133-room-leak-layer-17-referral-isolation-and-race` (2026-09-06, WS-R133)
+
+**Decision.** `evals/room-leak`'s full world (layer 17) now seeds referral
+credits and one granted reward for a subset of followers across the first
+four Rooms and proves no read in any lane (`roomReferralProgress`,
+`roomExport`) returns another follower's credit, reward or progress
+(byte-check against every other seeded referrer's own follower id). The
+race half of law 4 is proven separately, directly against the REAL
+`maybeGrantReferralReward`, through a small "transaction shim" fake db that
+splits the statement's own read (count/decision) from its write (the
+unique-index-guarded insert) with a real microtask yield between them, so
+two concurrent webhook deliveries genuinely interleave rather than one
+finishing synchronously before the other starts. Both call orders and a
+`Promise.all` concurrent call are proven to grant exactly one reward.
+
+**Rationale.** The full-world fixture never drives a real webhook end to
+end (`world.mjs`'s own header states why — no payments pipeline is wired
+into that fixture), so the interleaving property could not be proven
+through it; a plain synchronous JS mock would prove nothing about a race
+since neither call would ever actually interleave. The shim is the
+smallest change that makes two "concurrent" calls share a real pre-write
+snapshot before either writes, which is what the live `on conflict
+(referrer_follower_id, room_id, year_key) do nothing` is there to guard
+against.
+
+**What would reverse it.** If `maybeGrantReferralReward` is ever
+restructured so its read and its write are no longer expressible as one
+statement (e.g. split into two round trips for a different reason), this
+shim's own split point would need to move to match, or the race property
+would need to be re-proven against whatever the new statement boundary
+actually is.

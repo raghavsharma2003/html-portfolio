@@ -95,6 +95,9 @@ import {
   runFullWorld, staticReachProblems, undeclaredRoomPersonTables, classifyOneFile,
   DEFAULT_SEED, ROOM_DEFS, roomForgetReceiptHash, survivorsFor, TABLE_ROLES,
 } from "./world.mjs";
+// WS-R133 (referral-reward hardening, layer 17). The interleaving/race half
+// of law 4 drives the REAL maybeGrantReferralReward directly.
+import { maybeGrantReferralReward } from "../../api/_payments.js";
 import { freshFlagState, flagsDb } from "../room-flags/fixtures.mjs";
 import { stripComments, importsOf as sharedImportsOf } from "../lib/source-scan.mjs";
 
@@ -2810,6 +2813,213 @@ console.log("\n── layer 17: the follower's monthly note (two followers, zero
   boundaryChecks++;
   ok("layer 17: a follower who turned memory off gets remembered_things_count: null, never a fabricated zero",
     noteNoMemory17.remembered_things_count === null);
+}
+
+// LAYER 18 (WS-R133, referral-reward hardening, law 4). The full world seeds
+// referral credits and a reward for a subset of followers across multiple
+// Rooms (`runFullWorld`'s own `referralSeed`, world.mjs); this layer proves
+// no read in any lane returns another follower's credit, reward or
+// progress. The SECOND half of law 4 — two webhooks for two referred
+// friends applied in both orders and concurrently proving exactly one
+// reward per year — is proven directly against the REAL
+// `maybeGrantReferralReward` through a small "transaction shim" fake db
+// built just below, never through the full-world fixture (which never
+// drives a real webhook at all, world.mjs's own header states why).
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 18: referral credits and rewards (WS-R133) — isolation, and the race ──");
+{
+  const w = await runFullWorld(REPO);
+  const { db, deps, room, sessionOf, referralSeed } = w;
+  const { roomReferralProgress, roomExport, REFERRAL_REWARD_FRIEND_THRESHOLD } = room;
+
+  ok("layer 18: the world seeded at least one referrer with credited friends (not vacuous)",
+    referralSeed.length > 0, referralSeed.length);
+  ok("layer 18: at least one seeded referrer crosses the reward threshold and has a granted reward",
+    referralSeed.some((s) => s.rewardGranted));
+
+  let checked = 0;
+  for (const seed of referralSeed) {
+    const key = `${seed.referrerIdx}:${seed.roomIdx}`;
+    const session = sessionOf.get(key);
+    const progress = await roomReferralProgress(db, { session }, deps);
+    checked++;
+    ok(`layer 18: referrer ${seed.referrerIdx} (Room ${seed.roomIdx})'s own progress reads ONLY their own credited friends (${seed.friendFollowerIds.length})`,
+      progress.friends_credited === Math.min(seed.friendFollowerIds.length, REFERRAL_REWARD_FRIEND_THRESHOLD),
+      JSON.stringify(progress));
+    if (seed.rewardGranted) {
+      checked++;
+      ok(`layer 18: referrer ${seed.referrerIdx}'s own progress read carries their OWN granted reward`, progress.reward !== null);
+    }
+
+    // ── every OTHER seeded referrer's own progress read never carries THIS
+    //    referrer's own follower id anywhere (BYTE-CHECK, this battery's
+    //    own established convention) ─────────────────────────────────────
+    for (const other of referralSeed) {
+      if (other === seed) continue;
+      const otherKey = `${other.referrerIdx}:${other.roomIdx}`;
+      const otherSession = sessionOf.get(otherKey);
+      const otherProgress = await roomReferralProgress(db, { session: otherSession }, deps);
+      checked++;
+      ok(`layer 18 BYTE-CHECK: referrer ${other.referrerIdx}'s own progress read never carries referrer ${seed.referrerIdx}'s follower id`,
+        !JSON.stringify(otherProgress).includes(seed.referrerFollowerId));
+    }
+
+    // ── each referred friend's own export shows exactly one "I was
+    //    referred" credit, and NEVER the referrer's own follower id ───────
+    for (const fIdx of seed.friendIdxs) {
+      const friendKey = `${fIdx}:${seed.roomIdx}`;
+      const friendSession = sessionOf.get(friendKey);
+      if (!friendSession) continue;
+      const friendExport = await roomExport(db, { session: friendSession }, deps);
+      checked++;
+      ok(`layer 18: referred friend ${fIdx}'s own export shows exactly one "I was referred" credit, never the referrer's identity`,
+        friendExport.tables?.vy_room_referral_credit?.count === 1 &&
+          !JSON.stringify(friendExport).includes(seed.referrerFollowerId));
+    }
+  }
+  ok(`layer 18: ${checked} referral read-isolation checks ran (not vacuous)`, checked > 0, checked);
+
+  // ── THE INTERLEAVING TEST (law 4, second half) ──────────────────────────
+  //
+  // `maybeGrantReferralReward`'s own header: "two webhook deliveries racing
+  // to credit the same referrer's third friend can both compute 'count
+  // reaches three,' but only one can ever insert successfully." A plain
+  // JS mock with no internal await would let one call's synchronous
+  // decision-and-write finish before the other even starts, proving
+  // nothing about that claim. This shim splits the SAME statement's own
+  // READ (the count/decision) from its WRITE (the unique-index-guarded
+  // insert) with a real microtask yield between them, so two "concurrent"
+  // calls genuinely interleave: both can compute "grant" from the SAME
+  // pre-write snapshot, and the write step re-checks the cap AT COMMIT
+  // TIME — the JS mirror of `on conflict (referrer_follower_id, room_id,
+  // year_key) do nothing`.
+  function raceWorld() {
+    const ROOM = "e1000000-0000-4000-8000-000000000001";
+    const REFERRER_FOLLOWER = "e2000000-0000-4000-8000-000000000002";
+    const REFERRER_PERSON = "e3000000-0000-4000-8000-000000000003";
+    const FRIEND_1 = "e4000000-0000-4000-8000-000000000004"; // already landed, baseline
+    const FRIEND_2 = "e5000000-0000-4000-8000-000000000005"; // crosses the threshold
+    const FRIEND_3 = "e6000000-0000-4000-8000-000000000006"; // ALSO crosses it, same instant
+    const state = {
+      referralCredits: [
+        { referred_follower_id: FRIEND_1, referrer_follower_id: REFERRER_FOLLOWER, referrer_person_id: REFERRER_PERSON, room_id: ROOM },
+        { referred_follower_id: FRIEND_2, referrer_follower_id: REFERRER_FOLLOWER, referrer_person_id: REFERRER_PERSON, room_id: ROOM },
+        { referred_follower_id: FRIEND_3, referrer_follower_id: REFERRER_FOLLOWER, referrer_person_id: REFERRER_PERSON, room_id: ROOM },
+      ],
+      subscriptions: [
+        { subscription_id: "race-sub-1", follower_id: FRIEND_1, state: "active", current_period_end: "2026-09-01T00:00:00.000Z" },
+        { subscription_id: "race-sub-2", follower_id: FRIEND_2, state: "active", current_period_end: "2026-09-15T00:00:00.000Z" },
+        { subscription_id: "race-sub-3", follower_id: FRIEND_3, state: "active", current_period_end: "2026-09-20T00:00:00.000Z" },
+        { subscription_id: "race-sub-referrer", follower_id: REFERRER_FOLLOWER, state: "active", current_period_end: "2026-09-01T00:00:00.000Z" },
+      ],
+      // FRIEND_1's own charge already landed BEFORE either race call — the
+      // count-1 baseline both FRIEND_2's and FRIEND_3's webhooks share.
+      paymentEvents: [
+        { event_id: "race-evt-1", subscription_id: "race-sub-1", kind: "subscription.charged", amount_inr: 399 },
+      ],
+      rewards: [],
+    };
+    return { state, ROOM, REFERRER_FOLLOWER, FRIEND_2, FRIEND_3 };
+  }
+
+  function raceDb(state) {
+    const KINDS = ["subscription.charged", "subscription.activated"];
+    const landed = (followerId, excludeEventId) => state.paymentEvents.some((pe) => {
+      if (excludeEventId != null && pe.event_id === excludeEventId) return false;
+      if (!KINDS.includes(pe.kind) || pe.amount_inr <= 0) return false;
+      const sub = state.subscriptions.find((s) => s.subscription_id === pe.subscription_id);
+      return sub && sub.follower_id === followerId;
+    });
+    return async (sql, params = []) => {
+      if (!sql.includes("with this_follower_first as")) return [];
+      const [followerId, eventId, roomId, threshold, yearKey] = params;
+      const fid = String(followerId);
+      // is_first = NOT EXISTS(another landed charge for this SAME follower,
+      // excluding this event) - `landed(...)` true means a DIFFERENT charge
+      // already landed, i.e. this is NOT the first: stop.
+      if (landed(fid, String(eventId))) return [];
+      const credit = state.referralCredits.find((c) => c.referred_follower_id === fid && c.room_id === String(roomId));
+      if (!credit) return [];
+      const siblingCredits = state.referralCredits.filter((c) => c.referrer_follower_id === credit.referrer_follower_id);
+      const n = siblingCredits.filter((c) => landed(c.referred_follower_id, null)).length;
+      if (n < Number(threshold)) return [];
+      // ── THE YIELD: the read is done; hand control back to the event
+      //    loop so a concurrently racing call's OWN read can run against
+      //    this SAME pre-write state before either writes. ────────────────
+      await Promise.resolve();
+      // ── THE WRITE, re-checked AT COMMIT TIME — the unique cap's own JS
+      //    mirror. ─────────────────────────────────────────────────────────
+      const already = state.rewards.find(
+        (r) => r.referrer_follower_id === credit.referrer_follower_id && r.room_id === String(roomId) && r.year_key === String(yearKey),
+      );
+      if (already) return [];
+      const referrerSub = state.subscriptions.find((s) => s.follower_id === credit.referrer_follower_id && s.state === "active");
+      const base = referrerSub ? new Date(referrerSub.current_period_end) : new Date();
+      const extended = new Date(base.getTime());
+      extended.setUTCMonth(extended.getUTCMonth() + 1);
+      const reward = {
+        reward_id: `race-reward-${state.rewards.length}`, room_id: String(roomId),
+        referrer_follower_id: credit.referrer_follower_id, referrer_person_id: credit.referrer_person_id,
+        granted_at: new Date().toISOString(), period_extended_to: extended.toISOString(), year_key: String(yearKey),
+      };
+      state.rewards.push(reward);
+      if (referrerSub) referrerSub.current_period_end = reward.period_extended_to;
+      return [{ ...reward }];
+    };
+  }
+
+  const grantArgs = (roomId, followerId, eventId) =>
+    [{ eventId, roomId, followerId, now: Date.parse("2026-09-05T00:00:00.000Z") }, { tableApplied: async () => true }];
+
+  // (a) FRIEND_2's webhook processed BEFORE FRIEND_3's.
+  {
+    const { state, ROOM, REFERRER_FOLLOWER, FRIEND_2, FRIEND_3 } = raceWorld();
+    state.paymentEvents.push({ event_id: "race-evt-2", subscription_id: "race-sub-2", kind: "subscription.charged", amount_inr: 399 });
+    state.paymentEvents.push({ event_id: "race-evt-3", subscription_id: "race-sub-3", kind: "subscription.charged", amount_inr: 399 });
+    const db2 = raceDb(state);
+    const r2 = await maybeGrantReferralReward(db2, ...grantArgs(ROOM, FRIEND_2, "race-evt-2"));
+    const r3 = await maybeGrantReferralReward(db2, ...grantArgs(ROOM, FRIEND_3, "race-evt-3"));
+    const grants = [r2, r3].filter((r) => r !== null);
+    ok("layer 18 RACE (order A, FRIEND_2 then FRIEND_3): exactly ONE reward is granted",
+      grants.length === 1, JSON.stringify([r2, r3]));
+    ok("layer 18 RACE (order A): exactly one reward row exists for this referrer/room/year",
+      state.rewards.filter((r) => r.referrer_follower_id === REFERRER_FOLLOWER).length === 1);
+  }
+
+  // (b) the OPPOSITE order — FRIEND_3's webhook processed BEFORE FRIEND_2's.
+  {
+    const { state, ROOM, REFERRER_FOLLOWER, FRIEND_2, FRIEND_3 } = raceWorld();
+    state.paymentEvents.push({ event_id: "race-evt-2", subscription_id: "race-sub-2", kind: "subscription.charged", amount_inr: 399 });
+    state.paymentEvents.push({ event_id: "race-evt-3", subscription_id: "race-sub-3", kind: "subscription.charged", amount_inr: 399 });
+    const db2 = raceDb(state);
+    const r3 = await maybeGrantReferralReward(db2, ...grantArgs(ROOM, FRIEND_3, "race-evt-3"));
+    const r2 = await maybeGrantReferralReward(db2, ...grantArgs(ROOM, FRIEND_2, "race-evt-2"));
+    const grants = [r2, r3].filter((r) => r !== null);
+    ok("layer 18 RACE (order B, FRIEND_3 then FRIEND_2): exactly ONE reward is granted",
+      grants.length === 1, JSON.stringify([r2, r3]));
+    ok("layer 18 RACE (order B): exactly one reward row exists for this referrer/room/year",
+      state.rewards.filter((r) => r.referrer_follower_id === REFERRER_FOLLOWER).length === 1);
+  }
+
+  // (c) CONCURRENTLY — both calls issued together (Promise.all), the shim's
+  //     own microtask yield is what lets them genuinely interleave.
+  {
+    const { state, ROOM, REFERRER_FOLLOWER, FRIEND_2, FRIEND_3 } = raceWorld();
+    state.paymentEvents.push({ event_id: "race-evt-2", subscription_id: "race-sub-2", kind: "subscription.charged", amount_inr: 399 });
+    state.paymentEvents.push({ event_id: "race-evt-3", subscription_id: "race-sub-3", kind: "subscription.charged", amount_inr: 399 });
+    const db2 = raceDb(state);
+    const [r2, r3] = await Promise.all([
+      maybeGrantReferralReward(db2, ...grantArgs(ROOM, FRIEND_2, "race-evt-2")),
+      maybeGrantReferralReward(db2, ...grantArgs(ROOM, FRIEND_3, "race-evt-3")),
+    ]);
+    const grants = [r2, r3].filter((r) => r !== null);
+    ok("layer 18 RACE (concurrent, Promise.all): exactly ONE reward is granted, never zero, never two",
+      grants.length === 1, JSON.stringify([r2, r3]));
+    ok("layer 18 RACE (concurrent): exactly one reward row exists for this referrer/room/year",
+      state.rewards.filter((r) => r.referrer_follower_id === REFERRER_FOLLOWER).length === 1);
+    ok("layer 18 RACE (concurrent): the referrer's OWN subscription was extended exactly once (the loser's write never re-extended it)",
+      state.subscriptions.find((s) => s.follower_id === REFERRER_FOLLOWER).current_period_end === "2026-10-01T00:00:00.000Z");
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
