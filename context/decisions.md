@@ -21635,3 +21635,12 @@ never opening it at all. If the `AccountPage`/`SubscriptionPanel`
 some other secondary screen this workstream did not touch, that screen
 needs the identical prop-and-internal-guard treatment, never a parent-
 level mount condition.
+
+## `wave-twenty-planned-not-built-handover-2026-09-06` (2026-09-06, session end)
+
+**Decision.** Wave twenty (WS-R141 to WS-R150) is handed over as briefs, not code. The ten briefs, the shared rules (`ws-common.md`) and a README on how a wave is run live under `docs/gurukul/waves/wave-20/`; the merge tools the main loop used at every merge since wave eleven live under `scripts/merge-tools/`. The ten agents launched over `77e0151` were stopped before any wrote a file; every worktree was verified clean at `77e0151`, so the tree at the handover commit is the gated wave-nineteen close plus documents and no gate was rerun for it.
+
+**Why.** The owner ended the session to continue with a local tool. A brief in the repo is worth more than a half-built worktree in an ephemeral container: it carries the product law, the assigned migration numbers (137 for R149, 138 for R150) and the sibling map, and it cannot be lost.
+
+**Reversal.** If a future wave finds a brief contradicts a live constraint (a migration number already taken, an op already cased, a table already present), the brief yields to the live state and the contradiction is logged here; the briefs are plans, never evidence.
+
