@@ -351,6 +351,11 @@ function fakeDb(state) {
       return params[1] === state.owner && state.row ? [state.row] : [];
     }
     if (sql.includes("insert into vy_teacher_sheet") || sql.includes("update vy_teacher_sheet s\n          set sheet")) {
+      if (state.purgeBeforeSheetWrite) {
+        state.owner = null;
+        state.row = null;
+        return [];
+      }
       if (params[1] !== state.owner) return [];
       state.row = {
         sheet_id: state.row?.sheet_id ?? "55555555-5555-4555-8555-555555555555",

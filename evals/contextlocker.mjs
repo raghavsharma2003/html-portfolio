@@ -55,7 +55,7 @@ import {
 } from "../api/_context-locker.js";
 import { citationResolves, citationViolations } from "../api/_context-mining.js";
 import { extractFile } from "../api/_context/extract.js";
-import { ContextRefusal } from "../api/_context/limits.js";
+import { ContextRefusal, MAX_DOCUMENT_EXPANDED_BYTES } from "../api/_context/limits.js";
 
 let pass = 0;
 let fail = 0;
@@ -92,7 +92,8 @@ function fakeDb(state) {
       const [itemId, replicaId, ownerUserId, kind, format, sourceName, sourceUrl, hash,
         byteSize, chars, extractor, status, refusalReason, routedTo, mineSkip, authorship,
         ownerSpeaker, consentScope, maxItems, maxBytes, body] = params;
-      if (!state.replicas.some((r) => r.replica_id === replicaId && r.owner_user_id === ownerUserId)) return [];
+      if (!state.replicas.some((r) => r.replica_id === replicaId && r.owner_user_id === ownerUserId &&
+          !["revoked", "purging"].includes(r.lifecycle))) return [];
       const mine = state.items.filter((i) => i.owner_user_id === ownerUserId);
       // the quota predicate, exactly as the statement spells it
       if (mine.length >= maxItems) return [];
@@ -132,21 +133,45 @@ function fakeDb(state) {
 
     if (sql.includes("insert into vy_ingest_run")) {
       const [runId, replicaId, ownerUserId, videoRef, stats, delta, count] = params;
+      if (state.purgeBeforeRunInsert) {
+        state.replicas.length = 0;
+        state.items.length = 0;
+        state.texts.clear();
+      }
+      if (!state.replicas.some((r) => r.replica_id === replicaId && r.owner_user_id === ownerUserId &&
+          !["revoked", "purging"].includes(r.lifecycle))) return [];
       if (state.runs.some((r) => r.replica_id === replicaId && r.video_ref === videoRef)) return [];
       const row = {
         run_id: runId, replica_id: replicaId, owner_user_id: ownerUserId, watch_id: null,
         video_ref: videoRef, transcript_source: "context_item", stats: JSON.parse(stats),
         proposed_delta: JSON.parse(delta), proposed_delta_count: count, status: "proposed",
-        approved_by_user_id: null, decided_at: null,
+        video_title: "", failure_code: "", approved_by_user_id: null, decided_at: null,
       };
       state.runs.push(row);
       return [{ run_id: runId, status: "proposed", proposed_delta_count: count }];
     }
 
-    if (sql.includes("delete from vy_context_item\n")) {
+    if (sql.includes("with target as") && sql.includes("scrubbed_run as")) {
       const [itemId, replicaId, ownerUserId] = params;
       const at = state.items.findIndex((i) => i.item_id === itemId && i.replica_id === replicaId && i.owner_user_id === ownerUserId);
       if (at < 0) return [];
+      const run = state.runs.find((r) =>
+        r.replica_id === replicaId
+        && r.owner_user_id === ownerUserId
+        && r.transcript_source === "context_item"
+        && r.video_ref === `context:${itemId}`);
+      if (run) {
+        run.stats = {};
+        run.proposed_delta = {};
+        run.proposed_delta_count = 0;
+        run.video_title = "";
+        run.failure_code = "context_source_removed";
+        if (run.status !== "applied" && run.status !== "rejected") {
+          run.status = "rejected";
+          run.approved_by_user_id = ownerUserId;
+          run.decided_at = "removed-now";
+        }
+      }
       state.items.splice(at, 1);
       state.texts.delete(itemId);
       return [{ item_id: itemId }];
@@ -189,7 +214,7 @@ function fakeDb(state) {
 }
 
 const freshState = () => ({
-  replicas: [{ replica_id: REPLICA, owner_user_id: OWNER }],
+  replicas: [{ replica_id: REPLICA, owner_user_id: OWNER, lifecycle: "active" }],
   items: [], texts: new Map(), runs: [],
 });
 
@@ -239,6 +264,31 @@ function makeDocx(paragraphs) {
   return Buffer.concat([header, name, data]);
 }
 
+function makeDeflatedDocx(documentBytes) {
+  const name = Buffer.from("word/document.xml", "utf8");
+  const data = Buffer.isBuffer(documentBytes) ? documentBytes : Buffer.from(documentBytes, "utf8");
+  const compressed = deflateRawSync(data);
+  const header = Buffer.alloc(30);
+  header.writeUInt32LE(0x04034b50, 0);
+  header.writeUInt16LE(20, 4);
+  header.writeUInt16LE(0, 6);
+  header.writeUInt16LE(8, 8);
+  header.writeUInt32LE(compressed.length, 18);
+  header.writeUInt32LE(data.length, 22);
+  header.writeUInt16LE(name.length, 26);
+  return Buffer.concat([header, name, compressed]);
+}
+
+function makeDeflatedPdf(streamBytes) {
+  const data = Buffer.isBuffer(streamBytes) ? streamBytes : Buffer.from(streamBytes, "latin1");
+  const compressed = deflateRawSync(data);
+  return Buffer.concat([
+    Buffer.from(`%PDF-1.4\n1 0 obj\n<< /Type /Page /Filter /FlateDecode /Length ${compressed.length} >>\nstream\n`, "latin1"),
+    compressed,
+    Buffer.from("\nendstream\nendobj\n%%EOF\n", "latin1"),
+  ]);
+}
+
 const EXPORT_LINES = [];
 for (let i = 0; i < 16; i++) {
   EXPORT_LINES.push(`08/03/2026, 21:${String(10 + i).padStart(2, "0")} - Arjun Sir: haan bilkul, dekho beta that is exactly the confusion everyone has here.`);
@@ -284,6 +334,13 @@ ok("scanned pdf (no text operators) refuses as pdf_no_text_layer",
   JSON.stringify(refusalOf("scan.pdf", Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /XObject /Subtype /Image /Length 4 >>\nstream\n\x00\x01\x02\x03\nendstream\nendobj\n", "latin1"))));
 ok("encrypted pdf refuses as pdf_encrypted",
   refusalOf("locked.pdf", Buffer.from("%PDF-1.4\ntrailer << /Encrypt 9 0 R >>\nstream\nx\nendstream\n", "latin1")).refused === "pdf_encrypted");
+const expandedBomb = Buffer.alloc(MAX_DOCUMENT_EXPANDED_BYTES + 1, 0x20);
+ok("high-ratio docx refuses before unbounded expansion",
+  refusalOf("bomb.docx", makeDeflatedDocx(expandedBomb)).refused === "docx_expanded_too_large",
+  JSON.stringify(refusalOf("bomb.docx", makeDeflatedDocx(expandedBomb))));
+ok("high-ratio pdf refuses before unbounded cumulative expansion",
+  refusalOf("bomb.pdf", makeDeflatedPdf(expandedBomb)).refused === "pdf_expanded_too_large",
+  JSON.stringify(refusalOf("bomb.pdf", makeDeflatedPdf(expandedBomb))));
 ok("legacy .doc refuses by name", refusalOf("old.doc", Buffer.from("\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1 legacy", "latin1")).refused === "doc_legacy_binary_unsupported");
 ok("rtf refuses by name", refusalOf("x.rtf", Buffer.from("{\\rtf1 hello}")).refused === "rtf_unsupported");
 ok("csv refuses by name (a spreadsheet is not prose)", refusalOf("x.csv", Buffer.from("a,b\n1,2\n")).refused === "csv_unsupported");
@@ -334,6 +391,27 @@ const uncited = JSON.parse(JSON.stringify(delta));
 uncited.additions[0].citations = [];
 ok("NEGATIVE CONTROL: an uncited addition FAILS the integrity check",
   citationViolations(uncited, storedBody).some((v) => v.code === "uncited_addition"));
+
+const staleContextState = freshState();
+staleContextState.purgeBeforeRunInsert = true;
+const staleContextDb = fakeDb(staleContextState);
+let staleContextError = null;
+try {
+  await addContextFile(staleContextDb, OWNER, REPLICA, {
+    filename: "stale-after-purge.txt",
+    bytes: Buffer.from(OWN_WRITING, "utf8"),
+    authorship: "mine",
+  });
+} catch (error) { staleContextError = error; }
+const staleContextRunSql = staleContextDb.calls.find((sql) => sql.includes("insert into vy_ingest_run")) || "";
+ok("a stale context mine cannot insert a non-FK run after the replica purge receipt",
+  staleContextError?.code === "context_item_write_failed" && staleContextState.runs.length === 0 &&
+  staleContextState.replicas.length === 0);
+ok("context item and proposal inserts both serialize on the exact active owner replica row",
+  staleContextDb.calls.filter((sql) => /insert into vy_(?:context_item|ingest_run)/.test(sql)).length === 2 &&
+  staleContextDb.calls.filter((sql) => /insert into vy_(?:context_item|ingest_run)/.test(sql)).every((sql) =>
+    /lifecycle not in \('revoked','purging'\)/.test(sql) && /for update of r/.test(sql)) &&
+  /with replica_gate as materialized/.test(staleContextRunSql));
 
 // ─────────────────────────────────────────────────────────────────────────
 // 3. somebody else's words are never mined
@@ -532,12 +610,62 @@ ok("...but mines NOTHING — it is not the owner's writing, whatever they tick",
 // ─────────────────────────────────────────────────────────────────────────
 console.log("\n── removal and the sheet law ──");
 
+const proposalRun = dedupState.runs[0];
+proposalRun.video_title = "My private chemistry notes";
+const proposalRunId = proposalRun.run_id;
+const proposalVideoRef = proposalRun.video_ref;
+const sourceDerivedFragment = proposalRun.proposed_delta.additions?.[0]?.fragment;
+ok("NEGATIVE CONTROL: the proposal contains a source-derived personal fragment before removal",
+  typeof sourceDerivedFragment === "string" && OWN_WRITING.includes(sourceDerivedFragment));
+
+const beforeStrangerAttempt = JSON.stringify(proposalRun);
+const strangerRemoval = await removeContextItem(dedupDb, OTHER, REPLICA, first.item.item_id);
+ok("owner isolation: another owner cannot remove the item", strangerRemoval === null);
+ok("owner isolation: another owner cannot scrub the proposal",
+  JSON.stringify(proposalRun) === beforeStrangerAttempt);
+ok("owner isolation: another owner's attempt leaves source text intact",
+  dedupState.texts.has(first.item.item_id));
+
 const removed = await removeContextItem(dedupDb, OWNER, REPLICA, first.item.item_id);
 ok("an item can be removed", removed?.removed === true);
 ok("...and its text goes with it", !dedupState.texts.has(first.item.item_id));
-ok("...but the PROPOSAL row is kept as a decision record", dedupState.runs.length === 1);
+ok("...and its item row goes with it",
+  !dedupState.items.some((item) => item.item_id === first.item.item_id));
+ok("the content-free ingest receipt is retained", dedupState.runs.length === 1
+  && proposalRun.run_id === proposalRunId && proposalRun.video_ref === proposalVideoRef);
+ok("the source-derived proposal payload is scrubbed",
+  Object.keys(proposalRun.proposed_delta).length === 0 && proposalRun.proposed_delta_count === 0);
+ok("the source-derived stats and title are scrubbed",
+  Object.keys(proposalRun.stats).length === 0 && proposalRun.video_title === "");
+ok("the removed undecided proposal becomes an owner decision receipt",
+  proposalRun.status === "rejected" && proposalRun.approved_by_user_id === OWNER
+  && proposalRun.decided_at === "removed-now" && proposalRun.failure_code === "context_source_removed");
+ok("no source-derived personal fragment survives in the receipt",
+  !JSON.stringify(proposalRun).includes(sourceDerivedFragment)
+  && !JSON.stringify(proposalRun).includes("private chemistry notes"));
 
-const everySql = [db.calls, chatDb.calls, wrongDb.calls, dedupDb.calls, linkDb.calls, ownDb.calls, quotaDb.calls, byteDb.calls].flat();
+const afterRemoval = JSON.stringify(proposalRun);
+const removedAgain = await removeContextItem(dedupDb, OWNER, REPLICA, first.item.item_id);
+ok("removal is idempotent", removedAgain === null);
+ok("idempotent removal does not rewrite the audit receipt", JSON.stringify(proposalRun) === afterRemoval);
+
+const decidedState = freshState();
+const decidedDb = fakeDb(decidedState);
+const decidedItem = await addContextFile(decidedDb, OWNER, REPLICA, {
+  filename: "approved-notes.txt", bytes: Buffer.from(OWN_WRITING), authorship: "mine",
+});
+const decidedRun = decidedState.runs[0];
+decidedRun.status = "applied";
+decidedRun.approved_by_user_id = OWNER;
+decidedRun.decided_at = "original-decision-time";
+await removeContextItem(decidedDb, OWNER, REPLICA, decidedItem.item.item_id);
+ok("removal preserves an existing human decision while scrubbing its payload",
+  decidedRun.status === "applied" && decidedRun.approved_by_user_id === OWNER
+  && decidedRun.decided_at === "original-decision-time"
+  && Object.keys(decidedRun.proposed_delta).length === 0);
+
+const everySql = [db.calls, chatDb.calls, wrongDb.calls, dedupDb.calls, decidedDb.calls,
+  linkDb.calls, ownDb.calls, quotaDb.calls, byteDb.calls].flat();
 ok(`NO statement names vy_teacher_sheet (${everySql.length} statements)`,
   !everySql.some((sql) => /vy_teacher_sheet/.test(sql)));
 ok("every statement that reads or writes an item carries an owner predicate",

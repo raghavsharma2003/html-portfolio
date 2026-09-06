@@ -147,6 +147,10 @@ function cellText(value) {
  * not stop at the edge of a gate's scan list.
  */
 export const TABLE_COPY = Object.freeze([
+  { table: "vy_replica_expression_observation",
+    en: "Short-lived measurements of how you spoke during a call. These do not describe your inner emotions.",
+    hi: "कॉल में आपके बोलने के ढंग के थोड़े समय तक रखे गए माप। ये आपकी अंदरूनी भावनाओं का वर्णन नहीं हैं।",
+  },
   // ── the legacy conversation engine (meera_*, agent-scoped by device) ─────
   { table: "meera_log",
     en: "The individual messages exchanged with this room's AI.",

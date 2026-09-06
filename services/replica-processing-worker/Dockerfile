@@ -37,7 +37,10 @@ COPY services/replica-processing-worker ./services/replica-processing-worker
 # instead, which is what makes keeping the refresh mandatory affordable. The
 # refresh is still fatal on failure: the point is to make current signatures
 # cheap, never to make stale ones acceptable.
-RUN freshclam --config-file=/srv/worker/services/replica-processing-worker/freshclam.conf --stdout \
+RUN sed -i 's/\r$//' \
+      /srv/worker/services/replica-processing-worker/freshclam.conf \
+      /srv/worker/services/replica-processing-worker/clamd.conf \
+    && freshclam --config-file=/srv/worker/services/replica-processing-worker/freshclam.conf --stdout \
     && chown -R processor:processor /var/lib/clamav
 
 RUN chown -R processor:processor /srv/worker

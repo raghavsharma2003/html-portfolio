@@ -164,8 +164,14 @@ const VIEWPORTS = [
 // would render "this room is not open" three times and report OK.
 const TARGETS = [
   {
+    name: "clone", fixture: "studio-layout-fixture.html",
+    query: (step) => step === "capture" ? "step=feed&scenario=public-capture" : `step=meet&scenario=voice-ready&view=${step}`,
+    steps: ["capture", "voice", "enrich"], mounted: ".vx-shell",
+    panels: ".vx-capture__center, .vx-room__panel, .vx-enrich-menu", minPanels: 1,
+  },
+  {
     name: "studio",
-    fixture: "studio-layout-fixture.html",
+    fixture: "creator-layout-fixture.html",
     // WS-R65: "feed-mid" is not a real wizard step, `room:more`'s own
     // pattern of folding a scenario name into `steps` restated here -- it
     // is `?step=feed` again, but with `scenario=processing` layered on top
@@ -207,7 +213,7 @@ const TARGETS = [
   // array every target in this file uses).
   {
     name: "studio:shell",
-    fixture: "studio-layout-fixture.html",
+    fixture: "creator-layout-fixture.html",
     query: (step) => `mode=teacher&step=${step}`,
     steps: ["feed", "meet", "deploy"],
     mounted: ".studio-tabshell",
@@ -223,7 +229,7 @@ const TARGETS = [
   // trusting the English one to stand in for it.
   {
     name: "studio-hi",
-    fixture: "studio-layout-fixture.html",
+    fixture: "creator-layout-fixture.html",
     // WS-R65: `studio`'s own "feed-mid" restated in Hindi, `studio-hi`'s
     // own reason for existing at all -- a collapsed Devanagari column in
     // the path card's step list or its current-step sentence needs its own
@@ -241,7 +247,7 @@ const TARGETS = [
   },
   {
     name: "studio:shell-hi",
-    fixture: "studio-layout-fixture.html",
+    fixture: "creator-layout-fixture.html",
     query: (step) => `mode=teacher&step=${step}&lang=hi`,
     steps: ["feed", "meet", "deploy"],
     mounted: ".studio-tabshell",
@@ -260,7 +266,7 @@ const TARGETS = [
   // fixed that and this target is what proves it stays fixed.
   {
     name: "studio-hi:signed-out",
-    fixture: "studio-layout-fixture.html",
+    fixture: "creator-layout-fixture.html",
     query: () => "lang=hi&signedOut=1",
     steps: ["signin"],
     mounted: ".auth-page",
@@ -278,7 +284,7 @@ const TARGETS = [
   // sync with the studio's stub-fetch/auth-seed plumbing.
   {
     name: "studio:ops",
-    fixture: "studio-layout-fixture.html",
+    fixture: "creator-layout-fixture.html",
     query: () => "mode=ops",
     steps: ["ops"],
     mounted: ".ops-board",
@@ -287,7 +293,7 @@ const TARGETS = [
   },
   {
     name: "studio-hi:ops",
-    fixture: "studio-layout-fixture.html",
+    fixture: "creator-layout-fixture.html",
     query: () => "mode=ops&lang=hi",
     steps: ["ops"],
     mounted: ".ops-board",
@@ -929,8 +935,8 @@ function glyphAudit({ fontStack, px, minDiffPct, uniformPx, stringsGlobal }) {
 
 async function main() {
   if (!existsSync(DIST)) {
-    console.log("  skip  layout readability: dist/ absent, run `npx vite build` first");
-    return 0;
+    console.log("FAIL  layout readability: dist/ absent, run `npx vite build` first");
+    return 1;
   }
   // Not a skip, for ANY target. A fixture is a build input (or, for a
   // `dir: "site"` target, a plain static file this gate serves straight
@@ -952,8 +958,8 @@ async function main() {
   try {
     ({ chromium } = await import("playwright"));
   } catch {
-    console.log("  skip  layout readability: playwright not installed");
-    return 0;
+    console.log("FAIL  layout readability: playwright not installed");
+    return 1;
   }
   const executablePath = [
     process.env.CHROMIUM_PATH,
@@ -966,8 +972,8 @@ async function main() {
   ).catch(() => null);
   if (!browser) {
     server.close();
-    console.log("  skip  layout readability: no chromium binary available");
-    return 0;
+    console.log("FAIL  layout readability: no chromium binary available");
+    return 1;
   }
 
   const limits = {

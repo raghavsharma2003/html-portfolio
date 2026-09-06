@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "date": "2026-09-06",
+  "sourceBase": "771feef9c124184a56abaea662bc16a079069ee1",
+  "destinationBase": "6260611ed29669e66f5bd936ba93aaa56025f81e",
+  "status": "review-required-not-applied",
+  "reason": "Numeric identities071-076 collide with distinct Rooms migrations. Inspect intended catalog and object definitions before assigning executable reconciliation identifiers.",
+  "applyOrder": [
+    "3f646e2920969077-066_replica_primary_voice_source.sql",
+    "269055eff60c4e47-067_replica_voice_preview_intent.sql",
+    "75269b6b85cae28b-068_replica_expression_observation.sql",
+    "6498f47627cf7bc2-069_replica_claim_nearline_queue.sql",
+    "ca5237efb1591566-070_context_canonical_evidence.sql",
+    "54d6bb668cde6ef0-071_mirror_delta_sheet_lineage.sql",
+    "9a9a8b3406311494-072_clone_creation_saga.sql",
+    "8dbe6349b6ac70bc-073_replica_upload_authorization_fence.sql",
+    "29f4079764469342-074_channel_extraction_storage_fence.sql",
+    "c84dc917e9c28d17-075_replica_source_storage_writer.sql",
+    "3c8b289b68c9099c-076_replica_owned_write_fence.sql"
+  ],
+  "entries": [
+    {
+      "originalPath": "db/migrations/066_replica_primary_voice_source.sql",
+      "sha256": "3f646e29209690770c651d66f44a174a9a008b4e4f79a1f59f1dbeefcb458033",
+      "artifact": "3f646e2920969077-066_replica_primary_voice_source.sql",
+      "catalogStatus": "unverified",
+      "applyAuthorized": false
+    },
+    {
+      "originalPath": "db/migrations/067_replica_voice_preview_intent.sql",
+      "sha256": "269055eff60c4e478cc19e6d2a40c90502f41c3d3cc50bf299716287ca16687a",
+      "artifact": "269055eff60c4e47-067_replica_voice_preview_intent.sql",
+      "catalogStatus": "unverified",
+      "applyAuthorized": false
+    },
+    {
+      "originalPath": "db/migrations/068_replica_expression_observation.sql",
+      "sha256": "75269b6b85cae28b994a3e6af197bd62dc2b917f49fe2c7273719087c56a5bb1",
+      "artifact": "75269b6b85cae28b-068_replica_expression_observation.sql",
+      "catalogStatus": "unverified",
+      "applyAuthorized": false
+    },
+    {
+      "originalPath": "db/migrations/069_replica_claim_nearline_queue.sql",
+      "sha256": "6498f47627cf7bc2625eff255a68341ca844a3a0957483b46835c411c6d90331",
+      "artifact": "6498f47627cf7bc2-069_replica_claim_nearline_queue.sql",
+      "catalogStatus": "unverified",
+      "applyAuthorized": false
+    },
+    {
+      "originalPath": "db/migrations/070_context_canonical_evidence.sql",
+      "sha256": "ca5237efb1591566589395a85c12fb873b2754b340e09ec721866b320f0c1767",
+      "artifact": "ca5237efb1591566-070_context_canonical_evidence.sql",
+      "catalogStatus": "unverified",
+      "applyAuthorized": false
+    },
+    {
+      "originalPath": "db/migrations/071_mirror_delta_sheet_lineage.sql",
+      "sha256": "54d6bb668cde6ef040d1c0de47b121bdc1a9a0802f84590d228496fe6a95f851",
+      "artifact": "54d6bb668cde6ef0-071_mirror_delta_sheet_lineage.sql",
+      "catalogStatus": "unverified",
+      "applyAuthorized": false
+    },
+    {
+      "originalPath": "db/migrations/072_clone_creation_saga.sql",
+      "sha256": "9a9a8b34063114941e9aab813915f17219fbafd45618615b74606b26456af50f",
+      "artifact": "9a9a8b3406311494-072_clone_creation_saga.sql",
+      "catalogStatus": "unverified",
+      "applyAuthorized": false
+    },
+    {
+      "originalPath": "db/migrations/073_replica_upload_authorization_fence.sql",
+      "sha256": "8dbe6349b6ac70bc7e33aa37162b11d21094bf838bdb650bb20defa809f3bbb4",
+      "artifact": "8dbe6349b6ac70bc-073_replica_upload_authorization_fence.sql",
+      "catalogStatus": "unverified",
+      "applyAuthorized": false
+    },
+    {
+      "originalPath": "db/migrations/074_channel_extraction_storage_fence.sql",
+      "sha256": "29f407976446934213dc74d0a35dce6a92c1ae875ee54001cda1936721bddd08",
+      "artifact": "29f4079764469342-074_channel_extraction_storage_fence.sql",
+      "catalogStatus": "unverified",
+      "applyAuthorized": false
+    },
+    {
+      "originalPath": "db/migrations/075_replica_source_storage_writer.sql",
+      "sha256": "c84dc917e9c28d17eb2a62e3007dd2b0d0f013ee0754f90b96e4e5f964f8e4a0",
+      "artifact": "c84dc917e9c28d17-075_replica_source_storage_writer.sql",
+      "catalogStatus": "unverified",
+      "applyAuthorized": false
+    },
+    {
+      "originalPath": "db/migrations/076_replica_owned_write_fence.sql",
+      "sha256": "3c8b289b68c9099c5230302e4f8ef9e0a4422789a9545cec5d971d1cda65880a",
+      "artifact": "3c8b289b68c9099c-076_replica_owned_write_fence.sql",
+      "catalogStatus": "unverified",
+      "applyAuthorized": false
+    }
+  ],
+  "developmentApplication": {
+    "database": "vyakti_expert_integration_20260906",
+    "date": "2026-09-06",
+    "state": "applied-only-to-isolated-development",
+    "productionApplied": false,
+    "planStatementCount": 1391
+  }
+}

@@ -102,6 +102,7 @@ function inputReferences(source, inputArtifacts) {
       storage_bucket: artifact.storage_bucket,
       sha256: assertSha256(artifact.sha256, "input artifact sha256"),
       mime: artifact.mime,
+      byte_size: artifact.byte_size,
       duration_ms: artifact.duration_ms,
       object_path: artifact.object_path,
     };
@@ -112,12 +113,13 @@ function inputReferences(source, inputArtifacts) {
     object_id: source.provenance?.storage_object_id || "",
     sha256: source.sha256,
     mime: source.mime,
+    byte_size: source.byte_size,
     duration_ms: source.duration_ms ?? null,
     object_path: source.object_path,
   }];
 }
 
-async function writeCandidates({ job, source, adapter, candidates, artifactStore, inputReferences }) {
+async function writeCandidates({ job, source, adapter, candidates, artifactStore, inputReferences, signal }) {
   if (!artifactStore || typeof artifactStore.writeImmutable !== "function") {
     throw new ProcessingContractError("immutable artifact store required", { code: "missing_artifact_store" });
   }
@@ -128,6 +130,7 @@ async function writeCandidates({ job, source, adapter, candidates, artifactStore
   const artifacts = [];
   const derivedInputs = inputReferences.filter((entry) => entry.artifact_id);
   for (const candidate of candidates) {
+    signal?.throwIfAborted();
     if (variants.has(candidate.variant_key)) {
       throw new ProcessingContractError("enhancement candidate variants must be unique", { code: "duplicate_candidate_variant" });
     }
@@ -165,6 +168,7 @@ async function writeCandidates({ job, source, adapter, candidates, artifactStore
       expectedSha256: candidate.sha256,
       ifNoneMatch: "*",
     });
+    signal?.throwIfAborted();
     const storedSha = assertSha256(stored.sha256, "stored artifact sha256");
     if (candidate.sha256 && storedSha !== assertSha256(candidate.sha256, "candidate sha256")) {
       throw new ProcessingContractError("stored candidate digest mismatch", { code: "artifact_integrity_mismatch" });
@@ -214,9 +218,9 @@ async function writeCandidates({ job, source, adapter, candidates, artifactStore
 // artifact` row: it is an INPUT this job constructs for itself, not an output
 // the DAG hands to a later step, and `commitProcessingOutput`'s collision
 // guard is written to expect exactly the artifact set a step's adapter
-// produces. Giving the studio a way to show which window was picked is a real
-// follow-up; the object path and score are on the retryable failure/complete
-// path below either way, so nothing about that follow-up needs re-deriving.
+// produces. Source erasure therefore treats the provider's exact
+// owner/replica/source prefix as authoritative and proves it empty; it never
+// assumes this temporary input is represented by an artifact row.
 async function buildOwnerReferenceWindowInput({ job, source, diarizeSegments, withMaterializedAudio, artifactStore, signal }) {
   if (typeof withMaterializedAudio !== "function") {
     throw Object.assign(new ProcessingContractError("reference window selection requires storage and ffmpeg"), {
@@ -225,6 +229,7 @@ async function buildOwnerReferenceWindowInput({ job, source, diarizeSegments, wi
   }
   const selected = await selectOwnerReferenceWindow({
     segments: diarizeSegments,
+    source,
     withMaterializedAudio,
     sourceInput: {
       source,
@@ -251,10 +256,12 @@ async function buildOwnerReferenceWindowInput({ job, source, diarizeSegments, wi
     ownerUserId: source.owner_user_id, replicaId: source.replica_id, sourceId: source.source_id,
     transformVersion: "reference-window-v1", stage: "separate", artifactId,
   });
+  signal?.throwIfAborted();
   const stored = await artifactStore.writeImmutable({
     bucket: source.storage_bucket, objectPath, body: selected.wavBytes, mime: "audio/wav",
     expectedSha256: sha256Hex(selected.wavBytes), ifNoneMatch: "*",
   });
+  signal?.throwIfAborted();
   const references = [{ artifact_id: null, storage_bucket: source.storage_bucket,
     sha256: stored.sha256, mime: "audio/wav", duration_ms: selected.durationMs, object_path: objectPath }];
   return { references, selected };
@@ -285,8 +292,13 @@ function passthroughSeparationCandidate({ selected, references }) {
       dominant_share: selected.dominantShare,
       cluster_count: selected.clusterCount,
       sample_rate: selected.sampleRate,
+      reference_selection_mode: selected.selectionMode,
     },
-    quality: { subject_selection_required: false, bandwidth_preserved: true },
+    quality: {
+      subject_selection_required: false,
+      bandwidth_preserved: true,
+      reference_selection_mode: selected.selectionMode,
+    },
   };
 }
 
@@ -363,7 +375,7 @@ async function runStage({ job, source, adapter, artifactStore, inputArtifacts, d
         ? { candidates: [passthroughSeparationCandidate({ selected: selectedReferenceWindow, references })] }
         : await adapter[method](common);
       const artifacts = await writeCandidates({
-        job, source, adapter, candidates: result?.candidates, artifactStore, inputReferences: references,
+        job, source, adapter, candidates: result?.candidates, artifactStore, inputReferences: references, signal,
       });
       return { artifacts, evidence: [], verifiedSha256: source.sha256 };
     }
@@ -393,7 +405,10 @@ async function runStage({ job, source, adapter, artifactStore, inputArtifacts, d
           },
         }));
       }
-      return { artifacts: [], evidence, verifiedSha256: source.sha256, providerUsage: result.usage };
+      return {
+        artifacts: [], evidence, verifiedSha256: source.sha256,
+        providerUsage: result.usage, providerTransport: result.transport,
+      };
     }
     case "voice_quality": {
       const result = await adapter.measure(common);
@@ -505,6 +520,7 @@ export async function executeProcessingJob(input) {
         next_steps: nextProcessingSteps(job.step, [...(input.completedSteps || []), job.step]),
         verified_input_sha256: output.verifiedSha256,
         billing_state: billingState,
+        ...(output.providerTransport ? { provider_transport: output.providerTransport } : {}),
       },
     });
   } catch (caught) {

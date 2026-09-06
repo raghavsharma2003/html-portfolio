@@ -61,6 +61,12 @@ const has = (name) => typeof env[name] === "string" && env[name].length > 0;
  * @param {string} def.target        deployment target this subsystem lives in
  * @param {string[]} def.required    var names that must ALL be set for LIVE
  *                                   (unless def.mode === "any")
+ * @param {{label:string,required:string[]}[]} [def.variants]
+ *                                   alternative complete configurations. LIVE
+ *                                   when any one variant is complete, DARK when
+ *                                   none of their vars is set, otherwise halfway.
+ * @param {string[]} [def.triggerAny] provider-specific vars that activate a
+ *                                   definition containing shared budget vars.
  * @param {"all"|"any"} [def.mode]   "any": LIVE if at least one required var
  *                                   is set, DARK if none — no halfway state
  *                                   is possible for an OR-gate (used for
@@ -79,6 +85,20 @@ const has = (name) => typeof env[name] === "string" && env[name].length > 0;
  * @param {string} def.note
  */
 function evaluate(def) {
+  if (Array.isArray(def.variants)) {
+    const complete = def.variants.find((variant) => variant.required.every(has));
+    if (complete) return { state: "LIVE", detail: `${complete.label} configuration complete` };
+    const touched = def.variants.some((variant) => variant.required.some(has));
+    if (!touched) return { state: "DARK", detail: "no provider configuration set" };
+    return {
+      state: "BROKEN-HALFWAY",
+      detail: `no provider configuration complete (${def.variants.map((variant) =>
+        `${variant.label}: ${variant.required.filter(has).length}/${variant.required.length}`).join(", ")})`,
+    };
+  }
+  if (Array.isArray(def.triggerAny) && !def.triggerAny.some(has)) {
+    return { state: "DARK", detail: "provider-specific trigger unset" };
+  }
   if (def.switch) {
     const switchVal = env[def.switch.var];
     const switchSet = typeof switchVal === "string" && switchVal.length > 0;
@@ -113,9 +133,13 @@ function evaluate(def) {
 // ── vercel-app subsystems (docs/gurukul/ENV-MANIFEST.md §1-15) ─────────────
 const VERCEL_APP = [
   {
-    id: "foundry_claim_extraction",
-    required: ["AZURE_FOUNDRY_ENDPOINT", "AZURE_FOUNDRY_API_KEY", "AZURE_FOUNDRY_CLAIM_MODEL"],
-    note: "WS-F ingestion's LLM claim pass (api/_claim-extraction/registry.js)",
+    id: "claim_extraction_provider",
+    variants: [
+      { label: "Azure Foundry", required: ["AZURE_FOUNDRY_ENDPOINT", "AZURE_FOUNDRY_API_KEY", "AZURE_FOUNDRY_CLAIM_MODEL"] },
+      { label: "OpenRouter canonical key", required: ["OPENROUTER_API_KEY", "OPENROUTER_CLAIM_MODEL"] },
+      { label: "OpenRouter compatibility key", required: ["OPENROUTER_KEY", "OPENROUTER_CLAIM_MODEL"] },
+    ],
+    note: "WS-F ingestion's cited claim pass; complete Azure is preferred, otherwise complete OpenRouter",
   },
   {
     id: "foundry_dialogue_generation",
@@ -124,8 +148,15 @@ const VERCEL_APP = [
   },
   {
     id: "foundry_spend_budget",
+    triggerAny: ["AZURE_FOUNDRY_CLAIM_MODEL", "AZURE_FOUNDRY_DIALOGUE_MODEL", "AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS", "AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS"],
     required: ["AZURE_REPLICA_APP_BUDGET_USD", "AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS", "AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS"],
     note: "fences both foundry subsystems above (api/_provider-budget.js reserveFoundrySpend)",
+  },
+  {
+    id: "openrouter_claim_spend_budget",
+    triggerAny: ["OPENROUTER_CLAIM_MODEL", "OPENROUTER_INPUT_USD_PER_MTOKENS", "OPENROUTER_OUTPUT_USD_PER_MTOKENS"],
+    required: ["AZURE_REPLICA_APP_BUDGET_USD", "OPENROUTER_INPUT_USD_PER_MTOKENS", "OPENROUTER_OUTPUT_USD_PER_MTOKENS"],
+    note: "fences OpenRouter claim extraction under the same durable application budget",
   },
   {
     id: "identity_verification",
@@ -157,6 +188,7 @@ const VERCEL_APP = [
   },
   {
     id: "voice_personal_voice_budget",
+    triggerAny: ["AZURE_PERSONAL_VOICE_ENABLED", "AZURE_PERSONAL_VOICE_USD_PER_PROFILE", "AZURE_PERSONAL_VOICE_SYNTHESIS_USD_PER_MCHARACTERS"],
     required: ["AZURE_REPLICA_APP_BUDGET_USD", "AZURE_PERSONAL_VOICE_USD_PER_PROFILE", "AZURE_PERSONAL_VOICE_SYNTHESIS_USD_PER_MCHARACTERS"],
     note: "fences voice_azure_personal_voice's training + synthesis spend",
   },
@@ -194,6 +226,7 @@ const VERCEL_APP = [
   },
   {
     id: "fast_transcription_budget",
+    triggerAny: ["AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR"],
     required: ["AZURE_REPLICA_APP_BUDGET_USD", "AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR"],
     note: "fenced Azure Speech fast-transcription spend. Dormant since WS-AN (2026-08-26): `transcribe` runs through Sarvam now, whose adapter sets no billing meter, so worker.js's `azure_speech_audio_ms` reservation path never fires. Left checked in case Azure Fast Transcription is ever reintroduced as a second lane",
   },
@@ -281,7 +314,7 @@ const SERVICES = [
   },
 ];
 
-function report(section, defs, target) {
+function report(section, defs) {
   console.log(`\n── ${section} ──`);
   const rows = defs.map((def) => ({ def, result: evaluate(def) }));
   for (const { def, result } of rows) {

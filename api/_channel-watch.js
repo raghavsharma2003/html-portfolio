@@ -197,11 +197,12 @@ export async function attestChannelOwnership(db, ownerUserId, id, input, options
     [rid, ownerUserId, channel.url, receipt.grantedAt],
   );
   const rows = await db(
-    `with owned as (
-       select replica_id from vy_replica
-        where replica_id = ($1)::uuid and owner_user_id = ($2)::uuid
-          and subject_mode = 'self'
-          and lifecycle not in ('revoked','purging')
+    `with owned as materialized (
+       select r.replica_id from vy_replica r
+        where r.replica_id = ($1)::uuid and r.owner_user_id = ($2)::uuid
+          and r.subject_mode = 'self'
+          and r.lifecycle not in ('revoked','purging')
+        for update of r
      )
      insert into vy_channel_attestation
        (attestation_id, replica_id, owner_user_id, channel_url, provider, statement_set,
@@ -266,7 +267,7 @@ export async function createChannelWatch(db, ownerUserId, id, input) {
   const rid = replicaId(id);
   const channel = channelRef(input?.channel_url);
   const rows = await db(
-    `with attested as (
+    `with attested as materialized (
        select a.attestation_id, a.channel_url
          from vy_channel_attestation a
          join vy_replica r
@@ -276,6 +277,7 @@ export async function createChannelWatch(db, ownerUserId, id, input) {
           and a.revoked_at is null and a.expires_at > now()
           and r.lifecycle not in ('revoked','purging')
         limit 1
+        for update of r,a
      )
      insert into vy_channel_watch
        (watch_id, replica_id, owner_user_id, channel_url, provider, attestation_id, status)

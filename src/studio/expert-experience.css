@@ -1,0 +1,73 @@
+/* Expert workspace extension. Existing warm Vyakti identity, clear task hierarchy. */
+.expert-entry-visual { margin: 28px 0 20px; max-width: 560px; }
+.expert-entry-visual img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 16px; }
+.expert-entry-visual figcaption { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; color: var(--ink-soft, #515c57); font-size: 13px; }
+.auth-page:has(.expert-entry-visual) { background: #f8f8f5; gap: 24px 6vw; font-family: "Instrument Sans Variable", sans-serif; }
+.auth-page:has(.expert-entry-visual)::before, .auth-page:has(.expert-entry-visual)::after, .auth-page:has(.expert-entry-visual) .ambient { display: none; }
+.auth-page:has(.expert-entry-visual) .auth-brand { color: #173e32; }
+.auth-page:has(.expert-entry-visual) .auth-intro { padding: 20px 0; color: #192b24; }
+.auth-page:has(.expert-entry-visual) .auth-intro h1 { font: 500 clamp(38px, 4.5vw, 64px)/1.04 "Instrument Sans Variable", sans-serif; letter-spacing: -.035em; max-width: 560px; text-wrap: balance; margin-bottom: 18px; }
+.auth-page:has(.expert-entry-visual) .auth-intro > p { color: #4b5b53; max-width: 460px; margin-bottom: 0; font-size: 17px; }
+.auth-page:has(.expert-entry-visual) .trust-strip { color: #42564b; font-size: 12px; gap: 14px; }
+.auth-page:has(.expert-entry-visual) .auth-card { border: 0; box-shadow: none; background: transparent; padding: 28px 0; max-width: 390px; backdrop-filter: none; }
+.auth-page:has(.expert-entry-visual) .auth-card h2 { font-family: "Instrument Sans Variable", sans-serif; font-size: 30px; font-weight: 500; }
+.auth-page:has(.expert-entry-visual) .secure-chip { background: none; padding: 0; color: #46594d; }
+.vx-room-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.vx-conversation-switch { display: flex; justify-content: center; gap: 6px; margin: 8px auto 20px; }
+.vx-conversation-switch button { min-height: 44px; border: 0; border-radius: 10px; padding: 10px 18px; background: transparent; color: #4b5b53; font: inherit; cursor: pointer; }
+.vx-conversation-switch button[aria-pressed="true"] { background: #e6ece7; color: #173e32; }
+.expert-conversation { --expert-line: #d4dcd4; --expert-ink: #253d31; width: min(100%, 760px); margin-inline: auto; text-align: left; color: var(--expert-ink); padding-bottom: 24px; }
+.expert-conversation__status { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--expert-line); }
+.expert-conversation__readiness, .expert-conversation__empty { padding: 28px 4px; }
+.expert-conversation h2 { margin: 0 0 12px; font-size: 24px; font-weight: 500; letter-spacing: -.025em; }
+.expert-conversation p { font-size: 15px; line-height: 1.65; max-width: 68ch; }
+.expert-conversation button { font: inherit; min-height: 44px; border: 1px solid var(--expert-line); padding: 10px 16px; border-radius: 10px; color: var(--expert-ink); background: transparent; cursor: pointer; }
+.expert-conversation button:hover:not(:disabled) { background: #e8eee8; }
+.expert-conversation button:disabled { opacity: .5; cursor: not-allowed; }
+.expert-conversation__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.expert-conversation__thread { max-height: 48svh; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: #94a398 transparent; scrollbar-width: thin; }
+.expert-exchange { padding-block: 20px; border-bottom: 1px solid var(--expert-line); }
+.expert-exchange__question { margin-left: 12%; padding: 14px 18px; border-radius: 12px; background: #e9eee7; }
+.expert-exchange__answer { padding: 24px 4px 0; }
+.expert-exchange span { font-size: 12px; color: #506256; }
+.expert-exchange p { margin-block: 7px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.expert-conversation__working { padding: 20px 4px; }
+.expert-conversation__error { padding: 14px 0; color: #a12b23; }
+.expert-conversation__composer { border: 1px solid var(--expert-line); border-radius: 14px; padding: 14px; margin-top: 18px; background: #fff; }
+.expert-conversation__composer label { display: block; font-size: 13px; margin-bottom: 8px; }
+.expert-conversation__composer textarea { resize: vertical; min-height: 64px; max-height: 180px; width: 100%; box-sizing: border-box; border: 0; background: transparent; color: var(--expert-ink); font: inherit; font-size: 16px; line-height: 1.5; caret-color: #173e32; }
+.expert-conversation__composer textarea::placeholder { color: #617064; }
+.expert-conversation__composer > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.expert-conversation__composer span { font-size: 12px; color: #546257; }
+.expert-conversation__composer button { background: #173e32; color: #fff; border: 0; min-width: 84px; }
+.expert-conversation__composer button:hover:not(:disabled) { background: #24573f; }
+.expert-conversation :focus-visible, .vx-conversation-switch button:focus-visible { outline: 2px solid #416f57; outline-offset: 4px; }
+.expert-conversation ::selection { background: #c6d9c6; color: #132e21; }
+.vx-expert-share { max-width: 860px; width: 100%; margin-inline: auto; text-align: left; padding-bottom: 30px; }
+.vx-expert-share > section { margin-top: 28px; }
+.vx-expert-share h2 { font-size: 22px; }
+.vx-expert-share p { font-size: 15px; line-height: 1.6; }
+@media (max-width: 800px) {
+  .auth-page:has(.expert-entry-visual) { padding: 20px 24px 40px; }
+  .auth-page:has(.expert-entry-visual) .auth-brand { margin: 0 0 12px; min-height: 44px; }
+  .auth-page:has(.expert-entry-visual) .auth-intro { padding: 12px 0 0; }
+  .auth-page:has(.expert-entry-visual) .trust-strip { display: none; }
+  .expert-entry-visual { margin: 20px 0 16px; }
+  .expert-entry-visual img { aspect-ratio: 2.6 / 1; object-position: 50% 43%; }
+  .auth-page:has(.expert-entry-visual) .auth-card { margin: 0; padding-block: 18px; width: 100%; max-width: none; }
+  .expert-entry-visual figcaption { font-size: 12px; }
+  .expert-conversation__status { flex-wrap: wrap; gap: 6px; }
+  .vx-conversation-switch button { padding-inline: 14px; }
+  .expert-conversation__thread { max-height: 45svh; }
+}
+@media (prefers-reduced-motion: reduce) { .expert-entry-visual, .expert-conversation * { scroll-behavior: auto; transition: none; } }
+
+/* A short settling movement, with content visible from the first frame. */
+@keyframes expert-entry-settle {
+  from { transform: translateY(8px); }
+  to { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .expert-entry-visual { animation: expert-entry-settle 420ms cubic-bezier(.22, 1, .36, 1) both; }
+}
+.auth-page:has(.expert-entry-visual) .auth-card > p:last-child { font-size: 12px; line-height: 1.5; }

@@ -8,20 +8,38 @@
 // Identity comes from `requireUser` and nowhere else. `replica_id` in the body
 // is a claim that the SQL fence in `beginOwnedVoicePreview` either accepts for
 // this owner or refuses — it is never treated as proof.
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
-import { readPrivateReplicaObject } from "./_replica-storage.js";
+import {
+  REPLICA_STORAGE_WRITE_BUCKET,
+  deleteReplicaObject,
+  readPrivateReplicaObject,
+  writeImmutableReplicaArtifact,
+} from "./_replica-storage.js";
+import {
+  acquireVoicePreviewSourceStorageWriter,
+  releaseSourceStorageWriter,
+  renewSourceStorageWriter,
+} from "./_replica-storage-writer.js";
 import { createProductionProtectionAdapters } from "./_provenance/registry.js";
 import { protectReplicaStream } from "./_provenance/delivery.js";
 import { createOpenChatterboxPreviewProvider } from "./_voice/providers/open-chatterbox-preview.js";
 import { handleVoicePreviewPanel } from "./_voice/preview-panel.js";
+import { markVoicePreviewResultDeleted } from "./_voice-preview-result-cleanup.js";
 import { voiceWarmth } from "./_voice/warmup.js";
 import {
   beginOwnedVoicePreview,
   createNeonVoicePreviewLedger,
+  expireVoicePreviewIntent,
+  markVoicePreviewAborted,
   markVoicePreviewFailed,
+  markVoicePreviewIntentRetryable,
+  markVoicePreviewIntentFailed,
+  markVoicePreviewIntentWarming,
+  renewVoicePreviewIntentLease,
+  sealVoicePreviewIntent,
 } from "./_replica-voice-preview.js";
 
 function cors(res) {
@@ -29,8 +47,39 @@ function cors(res) {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   res.setHeader("Access-Control-Expose-Headers",
-    "X-Vyakti-Generation, X-Vyakti-Disclosure, X-Vyakti-Model-Commitment, X-Vyakti-Voice-Model-Arm, X-Vyakti-Voice-Quality-State, X-Vyakti-Voice-Quality-Warnings, X-Vyakti-Voice-Effective-Cfg, X-Vyakti-Text-Plan, X-Vyakti-Text-Transformations, X-Vyakti-Spoken-Text, Retry-After");
+    "X-Vyakti-Generation, X-Vyakti-Preview-Intent, X-Vyakti-Preview-Reused, X-Vyakti-Disclosure, X-Vyakti-Model-Commitment, X-Vyakti-Voice-Model-Arm, X-Vyakti-Voice-Quality-State, X-Vyakti-Voice-Quality-Warnings, X-Vyakti-Voice-Effective-Cfg, X-Vyakti-Text-Plan, X-Vyakti-Text-Transformations, X-Vyakti-Spoken-Text, Retry-After");
   res.setHeader("Cache-Control", "no-store");
+}
+
+// Testable provider-boundary seam. A timeout intentionally does not release
+// the writer authority: the provider may acknowledge late, and source erasure
+// must continue waiting until the durable not-after before its final sweep.
+export async function storeVoicePreviewResult(db, ownerUserId, started, bodyBytes, signal, deps = {}) {
+  signal?.throwIfAborted?.();
+  const acquireWriter = deps.acquireWriter || acquireVoicePreviewSourceStorageWriter;
+  const renewWriter = deps.renewWriter || renewSourceStorageWriter;
+  const writeArtifact = deps.writeArtifact || writeImmutableReplicaArtifact;
+  const storageBucket = started.generation.preview_result_storage_bucket;
+  const objectPath = started.generation.preview_result_object_path;
+  const sha256 = createHash("sha256").update(bodyBytes).digest("hex");
+  let storageWriter = await acquireWriter(db, ownerUserId, started);
+  const stored = await writeArtifact({
+    storageBucket,
+    objectPath,
+    mime: "audio/wav",
+    body: bodyBytes,
+    expectedSha256: sha256,
+    ifNoneMatch: "*",
+  }, {
+    maxBytes: 64 * 1024 * 1024,
+    timeoutMs: 60_000,
+    signal,
+    beforeWriteRequest: async () => {
+      storageWriter = await renewWriter(db, storageWriter);
+    },
+  });
+  signal?.throwIfAborted?.();
+  return Object.freeze({ storageBucket, objectPath, storageWriter, ...stored });
 }
 
 export default async function handler(req, res) {
@@ -38,7 +87,10 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ state: "error", error: "POST only" });
   // Per-IP first, so an unauthenticated flood cannot reach Supabase either.
-  if (!allow(ipOf(req), "voice_preview_panel_ip", 12)) {
+  // Durable SQL intent admission is now the GPU-money guard. This outer limit
+  // only absorbs unauthenticated floods, so it must leave room for several
+  // phones behind one household or school NAT to observe their own intents.
+  if (!allow(ipOf(req), "voice_preview_panel_ip", 60)) {
     return res.status(429).json({ state: "error", error: "slow_down" });
   }
 
@@ -51,27 +103,65 @@ export default async function handler(req, res) {
     // Two buckets on purpose. `status` is cheap and the UI polls it while a
     // wake is in flight; `preview` is GPU money and gets four per minute.
     const bucket = String(body.op || "preview") === "status" ? "voice_preview_panel_status" : "voice_preview_panel_run";
-    if (!allow(user.id, bucket, bucket.endsWith("status") ? 20 : 4)) {
+    if (!allow(user.id, bucket, 30)) {
       return res.status(429).json({ state: "error", error: "slow_down" });
     }
 
-    const provider = createOpenChatterboxPreviewProvider();
-    const protection = createProductionProtectionAdapters({ db: q });
+    // Resolve deployment configuration only after the SQL ownership fence.
+    let provider;
     const result = await handleVoicePreviewPanel(body, {
       origin: process.env.AZURE_OPEN_VOICE_ORIGIN,
+      outputStorageBucket: REPLICA_STORAGE_WRITE_BUCKET,
       warmth: voiceWarmth,
       traceId: `panel_${randomUUID().replaceAll("-", "")}`,
       signal: aborter.signal,
-      provider,
+      get provider() { return provider ||= createOpenChatterboxPreviewProvider(); },
       authorize: (input) => beginOwnedVoicePreview(q, user.id, input),
+      markAborted: (generationId, reason) => markVoicePreviewAborted(q, user.id, generationId, reason),
       markFailed: (generationId, error) => markVoicePreviewFailed(q, user.id, generationId, error),
+      markWarming: (started, reason) => markVoicePreviewIntentWarming(q, user.id, started, reason),
+      markRetryable: (started, error) => markVoicePreviewIntentRetryable(q, user.id, started, error),
+      markTerminal: (started, error) => markVoicePreviewIntentFailed(q, user.id, started, error),
+      renewIntent: (started) => renewVoicePreviewIntentLease(q, user.id, started),
+      sealIntent: async (started, resultInput) => {
+        const sealed = await sealVoicePreviewIntent(q, user.id, started, resultInput);
+        if (resultInput?.storageWriter) {
+          // The result is now durably bound to its intent. A failed release is
+          // safe and only delays erasure until the authority expires.
+          await releaseSourceStorageWriter(q, resultInput.storageWriter).catch(() => false);
+        }
+        return sealed;
+      },
+      expireIntent: (started) => expireVoicePreviewIntent(q, user.id, started),
+      deleteResult: (locator) => deleteReplicaObject({
+        storageBucket: locator.storageBucket,
+        objectPath: locator.objectPath,
+      }),
+      markResultDeleted: (started, locator) => markVoicePreviewResultDeleted(q, {
+        intentId: started.intent.intentId,
+        replicaId: started.generation.replica_id,
+        ownerUserId: user.id,
+        generationId: started.generation.generation_id,
+        storageBucket: locator.storageBucket,
+        objectPath: locator.objectPath,
+      }),
       readObject: (locator) => readPrivateReplicaObject(locator, {
         maxBytes: 20 * 1024 * 1024,
         timeoutMs: 30_000,
       }),
+      readResult: (locator) => readPrivateReplicaObject(locator, {
+        maxBytes: 64 * 1024 * 1024,
+        timeoutMs: 30_000,
+      }),
+      storeResult: async (started, bodyBytes) => {
+        // The source id in this prefix is server-selected by the owner fence.
+        // Source erasure can find and remove this derivative before the intent
+        // and generation rows are cascaded.
+        return storeVoicePreviewResult(q, user.id, started, bodyBytes, aborter.signal);
+      },
       protect: (input) => protectReplicaStream({
         ...input,
-        adapters: Object.freeze({ ...protection, ledger: createNeonVoicePreviewLedger(q) }),
+        adapters: Object.freeze({ ...createProductionProtectionAdapters({ db: q }), ledger: createNeonVoicePreviewLedger(q) }),
       }),
     });
 

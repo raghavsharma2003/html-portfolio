@@ -10,7 +10,7 @@
 //
 // A DEFAULT export: `React.lazy(() => import("./DataMenu"))` requires one.
 import { useState } from "react";
-import type { StudioSession } from "../studio/types";
+import type { StudioSession } from "../creatorStudio/types";
 import { withName } from "./copy";
 import { exportRoomData, forgetRoomData, type RoomFollower, type RoomForgetReceipt } from "./roomApi";
 import { useDialogInView } from "./useDialogInView";

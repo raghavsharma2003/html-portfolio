@@ -91,14 +91,18 @@ export async function createSourceUpload(
   input: {
     replicaId: string;
     kind: SourceKind;
-    purpose: "memory" | "identity_document";
+    purpose: "memory" | "identity_document" | "mirror_window";
     mime: string;
     byteSize: number;
     sha256: string;
     containsThirdParties: boolean;
+    uploadIntentId?: string;
+    languageHint?: "en" | "hi" | "hi-latn";
+    mirrorSessionId?: string;
+    mirrorSeq?: number;
   },
 ) {
-  return replicaRequest<{ source: ReplicaSource; upload: SignedUpload }>(token, "/api/replica-source", {
+  return replicaRequest<{ source: ReplicaSource; upload: SignedUpload | null; replayed: boolean; finalized: boolean }>(token, "/api/replica-source", {
     method: "POST",
     body: JSON.stringify({
       op: "create_upload",
@@ -109,21 +113,27 @@ export async function createSourceUpload(
       byte_size: input.byteSize,
       sha256: input.sha256,
       contains_third_parties: input.containsThirdParties,
+      ...(input.uploadIntentId ? { upload_intent_id: input.uploadIntentId } : {}),
+      ...(input.languageHint ? { language_hint: input.languageHint } : {}),
+      ...(input.purpose === "mirror_window" ? {
+        mirror_session_id: input.mirrorSessionId,
+        mirror_seq: input.mirrorSeq,
+      } : {}),
     }),
   });
 }
 
 export async function retrySourceUpload(token: string, replicaId: string, sourceId: string) {
-  return replicaRequest<{ source: ReplicaSource; upload: SignedUpload }>(token, "/api/replica-source", {
+  return replicaRequest<{ source: ReplicaSource; upload: SignedUpload | null; replayed: boolean; finalized: boolean }>(token, "/api/replica-source", {
     method: "POST",
     body: JSON.stringify({ op: "retry_upload", replica_id: replicaId, source_id: sourceId }),
   });
 }
 
-export async function finalizeSource(token: string, replicaId: string, sourceId: string) {
-  const data = await replicaRequest<{ source: ReplicaSource }>(token, "/api/replica-source", {
+export async function finalizeSource(token: string, replicaId: string, sourceId: string, uploadIntentId?: string) {
+  const data = await replicaRequest<{ source: ReplicaSource; upload: null; replayed: boolean; finalized: boolean }>(token, "/api/replica-source", {
     method: "POST",
-    body: JSON.stringify({ op: "finalize", replica_id: replicaId, source_id: sourceId }),
+    body: JSON.stringify({ op: "finalize", replica_id: replicaId, source_id: sourceId, ...(uploadIntentId ? { upload_intent_id: uploadIntentId } : {}) }),
   });
   return data.source;
 }
@@ -181,12 +191,14 @@ export function putSignedUpload(
   return new Promise<void>((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open(upload.method, upload.url, true);
+    request.timeout = PRIVATE_UPLOAD_REQUEST_TIMEOUT_MS;
     for (const [name, value] of Object.entries(upload.headers)) request.setRequestHeader(name, value);
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
     };
     request.onerror = () => reject(new Error("Private upload connection failed"));
     request.onabort = () => reject(new Error("Private upload was cancelled"));
+    request.ontimeout = () => reject(new Error("Private upload request timed out"));
     request.onload = () => {
       if (request.status >= 200 && request.status < 300) {
         onProgress(100);
@@ -199,6 +211,23 @@ export function putSignedUpload(
   });
 }
 
+export async function setPrimaryVoiceSource(token: string, replicaId: string, sourceId: string) {
+  const data = await replicaRequest<{ source: ReplicaSource; rebuild: { build_id: string } | null }>(
+    token,
+    "/api/replica-source",
+    {
+      method: "POST",
+      body: JSON.stringify({ op: "set_primary_voice", replica_id: replicaId, source_id: sourceId }),
+    },
+  );
+  return data;
+}
+
+// Every direct provider request carries at most one 6-8 MiB chunk. A bounded
+// browser request plus the durable one-hour post-token fence prevents an
+// upload started at authorization expiry from landing after erasure proof.
+const PRIVATE_UPLOAD_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
+
 function tusRequest(
   method: "POST" | "HEAD" | "PATCH",
   url: string,
@@ -209,10 +238,12 @@ function tusRequest(
   return new Promise<{ status: number; location: string; offset: number }>((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open(method, url, true);
+    request.timeout = PRIVATE_UPLOAD_REQUEST_TIMEOUT_MS;
     for (const [name, value] of Object.entries(headers)) request.setRequestHeader(name, value);
     request.upload.onprogress = (event) => onChunkProgress(event.loaded);
     request.onerror = () => reject(new Error("Private resumable upload connection failed"));
     request.onabort = () => reject(new Error("Private resumable upload was cancelled"));
+    request.ontimeout = () => reject(new Error("Private resumable upload request timed out"));
     request.onload = () => {
       const offset = Number(request.getResponseHeader("upload-offset"));
       resolve({
@@ -344,10 +375,12 @@ function azureRequest(
   return new Promise<{ status: number }>((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open(method, url, true);
+    request.timeout = PRIVATE_UPLOAD_REQUEST_TIMEOUT_MS;
     for (const [name, value] of Object.entries(headers)) request.setRequestHeader(name, value);
     request.upload.onprogress = (event) => onChunkProgress(event.loaded);
     request.onerror = () => reject(new Error("Private Azure upload connection failed"));
     request.onabort = () => reject(new Error("Private Azure upload was cancelled"));
+    request.ontimeout = () => reject(new Error("Private Azure upload request timed out"));
     request.onload = () => {
       resolve({ status: request.status });
     };

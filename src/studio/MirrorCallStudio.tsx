@@ -1,3 +1,4 @@
+import MirrorTextCorrection from "./MirrorTextCorrection";
 // MirrorCallStudio.tsx — the Call tab (WS-Y).
 //
 // `docs/gurukul/MIRROR-CALL-SPEC.md`: the owner talks to their own clone and
@@ -31,45 +32,36 @@
 //    (`clone-initiative-record-has-no-absence`). There is no timer, no idle
 //    prompt, no "still there?" — a clone caption exists only as the result of
 //    an owner window.
-//
-// ── WS-R82: the studio's last four files ───────────────────────────────────
-// Every creator-visible string now reads through `t.mirrorCallStudio` (a
-// `useStudioLocale()` copy table); "A voice fine-tune is queued." became "A
-// voice build is queued." in the process — the same substitution
-// `noticeDraftQueued`/`draftVersionLabel` already make elsewhere in this
-// table — because `fine-tune` is a banned Rooms-vocabulary word the instant
-// this string moved into `copy.ts` (a whole-file copy scan, unlike this
-// component's own bare JSX ternary, which the scanner never reached). See
-// context/rejected.md#ws-r82-mirror-call-fine-tune-word-surfaced-by-the-move-to-copy-ts.
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import {
   actionMirrorCallDelta,
+  attestMirrorCallOwnerSpeaker,
   createMirrorCall,
   endMirrorCall,
-  fetchInterviewGaps,
   fetchMirrorCallTurnVoice,
   getMirrorCallStatus,
   ingestAudioWindow,
   listMirrorCallDeltas,
+  MAX_WINDOW_MS,
+  MIRROR_CALL_CONTRACT,
   MirrorCallBackendAbsent,
+  MirrorCallCapabilityUnavailable,
   probeMirrorCallBackend,
   saveMirrorCallTurnFeedback,
-  type InterviewPreview,
+  MIRROR_AUDIO_CORRECTIONS_SUPPORTED,
   type MirrorCallDelta,
-  type MirrorCallMode,
+  type MirrorCallSession,
+  type MirrorOwnerSpeakerAttestation,
 } from "./mirrorCallApi";
 import {
   callReducer,
   canCapture,
+  canConnect,
   canEnd,
   chipIsApplied,
   deferredChips,
   fidelityStatusLine,
-  gapEvidenceLine,
-  GAP_KIND_LABEL,
   INITIAL_CALL_STATE,
-  interviewRemainingMs,
-  interviewShouldStop,
   pendingChips,
   readMeasurementFidelity,
   readConditioningFidelity,
@@ -84,20 +76,56 @@ import {
 import { openCallCapture, type CallCapture } from "./callCapture";
 import { friendlyError } from "./errorCopy";
 import { ReplicaApiError } from "./replicaApi";
-import { useStudioLocale } from "./localeContext";
-import { withCount, withLabel, withPluralCount, type StudioCopy } from "./copy";
+import {
+  clearMirrorCallRecovery,
+  createMirrorCallOperationFence,
+  readMirrorCallRecovery,
+  rememberMirrorCall,
+  rememberMirrorCallEnd,
+  type MirrorCallRecoveryIntent,
+} from "./mirrorCallRecovery";
 
 type TabKey = "call" | "review";
+
+const KIND_LABEL: Record<MirrorCallDelta["kind"], string> = {
+  phrase_habit: "Phrase habit",
+  register: "Register",
+  boundary: "Boundary",
+  fact: "Fact",
+  delivery: "Delivery",
+};
 
 function percent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
-function Caption({ line, c, children }: { line: CaptionLine; c: StudioCopy["mirrorCallStudio"]; children?: ReactNode }) {
+function clock(at: number) {
+  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(at));
+}
+
+function attestationIsTerminal(value: MirrorOwnerSpeakerAttestation | null) {
+  return value !== null && value.state !== "needs_owner_choice";
+}
+
+function sessionForMirrorCallRecovery(value: MirrorCallRecoveryIntent): MirrorCallSession {
+  return {
+    session_id: value.sessionId,
+    replica_id: value.replicaId,
+    contract: MIRROR_CALL_CONTRACT,
+    state: "live",
+    gpu: { warm: false, estimated_ready_seconds: null },
+    window_ms_max: MAX_WINDOW_MS,
+    fidelity: null,
+    ops: ["end"],
+    reply_engine: { available: true, state: "ready", reason: null },
+  };
+}
+
+function Caption({ line, children }: { line: CaptionLine; children?: ReactNode }) {
   return (
     <article className={`mirror-caption mirror-caption-${line.kind}`}>
       <span className="mirror-caption-who">
-        {line.kind === "owner" ? c.captionWhoYou : line.kind === "clone" ? c.captionWhoClone : line.kind === "dropped" ? c.captionWhoDropped : c.captionWhoCall}
+        {line.kind === "owner" ? "You" : line.kind === "clone" ? "Your clone" : line.kind === "dropped" ? "Missed" : "Call"}
       </span>
       <p>{line.text}</p>
       {children}
@@ -110,46 +138,39 @@ export default function MirrorCallStudio({
   replicaId,
   stopped,
   onAuthError,
-  onInterviewPreview,
 }: {
   token: string;
   replicaId: string;
   stopped: boolean;
   onAuthError: (cause: unknown) => void;
-  /** WS-R31. Fed up so `StudioShell`'s Meet tab can name the interview's next
-   *  topic without a second fetch of the same preview. Additive: `undefined`
-   *  means "not looked yet" and `null` means "not offered on this
-   *  deployment", the same two-absence rule `preview`'s own state carries. */
-  onInterviewPreview?: (preview: InterviewPreview | null | undefined) => void;
 }) {
-  const { t } = useStudioLocale();
-  const c = t.mirrorCallStudio;
-  const KIND_LABEL: Record<MirrorCallDelta["kind"], string> = {
-    phrase_habit: c.kindPhraseHabit,
-    register: c.kindRegister,
-    boundary: c.kindBoundary,
-    fact: c.kindFact,
-    delivery: c.kindDelivery,
-  };
-
   const [state, dispatch] = useReducer(callReducer, INITIAL_CALL_STATE);
   const [tab, setTab] = useState<TabKey>("call");
   const [micLevel, setMicLevel] = useState(0);
   const [autoCutNotice, setAutoCutNotice] = useState(false);
+  const [micOpening, setMicOpening] = useState(false);
+  const [micError, setMicError] = useState("");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState<{ turnId: string } | null>(null);
-  // WS-R5. `undefined` is "we have not looked yet", `null` is "this deployment
-  // does not serve it". Two absences with different copy, because a missing
-  // button and a button we have not decided about yet look the same on screen
-  // and are not the same thing.
-  const [preview, setPreview] = useState<InterviewPreview | null | undefined>(undefined);
-  const [tick, setTick] = useState(0);
+  const [speakerAttestation, setSpeakerAttestation] = useState<MirrorOwnerSpeakerAttestation | null>(null);
+  const [speakerAttestationBusy, setSpeakerAttestationBusy] = useState<"only_me" | "not_sure_or_other_people" | null>(null);
+  const [speakerAttestationError, setSpeakerAttestationError] = useState("");
+  const [warmStartedAt, setWarmStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const [recoveryIntent, setRecoveryIntent] = useState<MirrorCallRecoveryIntent | null>(() => readMirrorCallRecovery(replicaId));
+  const [recoveryNotice, setRecoveryNotice] = useState("");
   const captureRef = useRef<CallCapture | null>(null);
   const correctionRef = useRef<CallCapture | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef("");
   const seqRef = useRef(0);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const recoveryAttemptRef = useRef("");
+  // React's `busy` state explains the wait to the screen. These synchronous
+  // fences own correctness before that state has had time to render.
+  const endFenceRef = useRef(createMirrorCallOperationFence());
+  const micFenceRef = useRef(createMirrorCallOperationFence());
+  const turnFenceRef = useRef(createMirrorCallOperationFence());
 
   // ── the deployment handshake ────────────────────────────────────────────
   useEffect(() => {
@@ -157,8 +178,12 @@ export default function MirrorCallStudio({
     dispatch({ type: "PROBE_START" });
     (async () => {
       try {
-        const { ops } = await probeMirrorCallBackend(token);
-        if (live) dispatch({ type: "PROBE_OK", voiceAvailable: ops.includes("turn_voice") });
+        const { ops, replyEngine } = await probeMirrorCallBackend(token);
+        if (live) dispatch({
+          type: "PROBE_OK",
+          voiceAvailable: ops.includes("turn_voice"),
+          replyEngineAvailable: replyEngine.available,
+        });
       } catch (cause) {
         if (!live) return;
         if (cause instanceof MirrorCallBackendAbsent) {
@@ -166,12 +191,18 @@ export default function MirrorCallStudio({
           return;
         }
         if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-        const friendly = friendlyError(cause, c.errorMirrorCallBackendUnreachable);
+        const friendly = friendlyError(cause, "The Mirror Call backend could not be reached");
         dispatch({ type: "FAIL", message: `${friendly.headline}. ${friendly.detail}` });
       }
     })();
     return () => { live = false; };
-  }, [onAuthError, token, c.errorMirrorCallBackendUnreachable]);
+  }, [onAuthError, token]);
+
+  useEffect(() => {
+    recoveryAttemptRef.current = "";
+    setRecoveryIntent(readMirrorCallRecovery(replicaId));
+    setRecoveryNotice("");
+  }, [replicaId]);
 
   // Mic level poll. rAF rather than an interval so it stops with the tab.
   useEffect(() => {
@@ -195,6 +226,10 @@ export default function MirrorCallStudio({
     const timer = setInterval(async () => {
       try {
         const status = await getMirrorCallStatus(token, sessionId);
+        if (live && !status.reply_engine.available) {
+          dispatch({ type: "REPLY_ENGINE_UNAVAILABLE" });
+          return;
+        }
         if (live && status.state === "live") dispatch({ type: "WARM" });
       } catch {
         // A failing status poll is not worth interrupting a call for; the
@@ -204,51 +239,12 @@ export default function MirrorCallStudio({
     return () => { live = false; clearInterval(timer); };
   }, [state.phase, state.session, token]);
 
-  // What the interview would ask, fetched once the handshake says the route is
-  // there. It is a preview, so a failure here is never a blocker: the tab keeps
-  // working as a calibration call and the interview entry says why it is not
-  // offered.
   useEffect(() => {
-    if (state.phase !== "idle" || preview !== undefined) return;
-    let live = true;
-    (async () => {
-      try {
-        const result = await fetchInterviewGaps(token, replicaId);
-        if (live) setPreview(result);
-      } catch {
-        if (live) setPreview(null);
-      }
-    })();
-    return () => { live = false; };
-  }, [preview, replicaId, state.phase, token]);
-
-  // WS-R31. Fire and forget, same rule as every other fed-up callback in this
-  // file: a host that does not pass one is unaffected, and a call here never
-  // blocks the panel it reports on.
-  useEffect(() => { onInterviewPreview?.(preview); }, [onInterviewPreview, preview]);
-
-  // The interview's own clock. One tick a second while an interview is live,
-  // and nothing at all otherwise, so a calibration call does not re-render for
-  // a timer it does not have.
-  useEffect(() => {
-    if (state.phase !== "live" || !state.interview) return;
-    const timer = setInterval(() => setTick((value) => value + 1), 1_000);
-    return () => clearInterval(timer);
-  }, [state.interview, state.phase]);
-
-  // Twenty minutes, then it stops itself. `interviewShouldStop` also fires when
-  // every gap has an answer, and it never fires mid-turn: an interview that cut
-  // the owner off in the middle of an answer would lose the answer AND the
-  // twenty minutes.
-  useEffect(() => {
-    if (busy || !interviewShouldStop(state)) return;
-    void end();
-    // `tick` is in the deps on purpose. The stop condition is a function of the
-    // clock, and without a dependency that changes with the clock this effect
-    // would only re-run when a window arrived, which is exactly the case an
-    // abandoned interview does not produce.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, state, tick]);
+    if (state.phase !== "warming") return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [state.phase]);
 
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight });
@@ -267,68 +263,197 @@ export default function MirrorCallStudio({
       dispatch({ type: "PROBE_ABSENT", detail: cause.detail });
       return;
     }
+    if (cause instanceof MirrorCallCapabilityUnavailable) {
+      dispatch({ type: "REPLY_ENGINE_UNAVAILABLE" });
+      return;
+    }
     const friendly = friendlyError(cause, context);
     dispatch({ type: "FAIL", message: `${friendly.headline}. ${friendly.detail}` });
   }, [onAuthError]);
 
-  async function connect(mode: MirrorCallMode = "calibrate") {
-    if (busy) return;
+  const failEnd = useCallback((cause: unknown, context: string) => {
+    if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
+    const friendly = friendlyError(cause, context);
+    dispatch({ type: "END_FAILED", message: `${friendly.headline}. ${friendly.detail}` });
+  }, [onAuthError]);
+
+  function settleEndResult(result: Awaited<ReturnType<typeof endMirrorCall>>, recovered: boolean) {
+    dispatch({ type: "ENDED", end: result });
+    setSpeakerAttestation(result.speaker_attestation);
+    setWarmStartedAt(null);
+    if (result.deferred.length) setTab("review");
+    if (attestationIsTerminal(result.speaker_attestation)) {
+      clearMirrorCallRecovery(replicaId);
+      setRecoveryIntent(null);
+    } else {
+      const current = recoveryIntent
+        ?? rememberMirrorCall(replicaId, result.session_id);
+      setRecoveryIntent(rememberMirrorCallEnd(current, result.ended_at));
+    }
+    setRecoveryNotice(recovered
+      ? "Recovered the saved end receipt. No recording was stored in this browser."
+      : "");
+  }
+
+  async function connect() {
+    if (busy || !canConnect(state)) return;
     setBusy(true);
-    dispatch({ type: "CONNECT", mode });
+    setSpeakerAttestation(null);
+    setSpeakerAttestationError("");
+    const requestedAt = Date.now();
+    setWarmStartedAt(requestedAt);
+    dispatch({ type: "CONNECT" });
     try {
-      const session = await createMirrorCall(token, replicaId, mode);
+      const session = await createMirrorCall(token, replicaId);
       seqRef.current = 0;
-      captureRef.current = await openCallCapture({
-        maxWindowMs: session.window_ms_max,
-        onAutoCut: () => setAutoCutNotice(true),
-      });
+      setRecoveryIntent(rememberMirrorCall(replicaId, session.session_id, requestedAt));
+      setRecoveryNotice("");
       dispatch({ type: "SESSION_OPEN", session });
+      if (session.state === "live") setWarmStartedAt(null);
     } catch (cause) {
       await captureRef.current?.close();
       captureRef.current = null;
-      fail(cause, c.errorMirrorCallCouldNotStart);
+      setWarmStartedAt(null);
+      fail(cause, "The Mirror Call could not start");
     } finally {
       setBusy(false);
     }
   }
 
   async function end() {
-    if (!state.session || busy) return;
+    const fence = endFenceRef.current;
+    if (!state.session || busy || micFenceRef.current.active || turnFenceRef.current.active || !canEnd(state) || !fence.tryEnter()) return;
     setBusy(true);
     captureRef.current?.discard();
+    const current = recoveryIntent
+      ?? rememberMirrorCall(replicaId, state.session.session_id);
+    setRecoveryIntent(rememberMirrorCallEnd(current));
     dispatch({ type: "END" });
     try {
       const result = await endMirrorCall(token, state.session.session_id);
-      dispatch({ type: "ENDED", end: result });
-      if (result.deferred.length) setTab("review");
+      settleEndResult(result, false);
     } catch (cause) {
-      fail(cause, c.errorCallCouldNotEndCleanly);
+      failEnd(cause, "The call could not be ended cleanly");
     } finally {
       await captureRef.current?.close();
       captureRef.current = null;
+      fence.leave();
       setBusy(false);
     }
   }
 
-  function startTalking() {
-    if (!canCapture(state) || !captureRef.current) return;
-    setAutoCutNotice(false);
+  async function recoverEndReceipt(intent: MirrorCallRecoveryIntent) {
+    const fence = endFenceRef.current;
+    if (busy || micFenceRef.current.active || turnFenceRef.current.active || !fence.tryEnter()) return;
+    setBusy(true);
+    setRecoveryNotice("Recovering the saved end receipt. No microphone or audio is being restored.");
+    const session = sessionForMirrorCallRecovery(intent);
+    dispatch({ type: "CONNECT" });
+    dispatch({ type: "SESSION_OPEN", session });
+    dispatch({ type: "END" });
+    setRecoveryIntent(rememberMirrorCallEnd(intent));
     try {
-      captureRef.current.begin();
-      dispatch({ type: "CAPTURE_START" });
+      const result = await endMirrorCall(token, intent.sessionId);
+      settleEndResult(result, true);
     } catch (cause) {
-      fail(cause, c.errorMicCouldNotOpen);
+      setRecoveryNotice("The saved end receipt could not be recovered yet. The session id is kept in this tab so you can try again.");
+      failEnd(cause, "The call end receipt could not be recovered");
+    } finally {
+      fence.leave();
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (state.phase !== "idle" || !recoveryIntent || busy) return;
+    if (recoveryAttemptRef.current === recoveryIntent.sessionId) return;
+    recoveryAttemptRef.current = recoveryIntent.sessionId;
+    void recoverEndReceipt(recoveryIntent);
+  }, [busy, recoveryIntent, state.phase]);
+
+  async function startTalking() {
+    const fence = micFenceRef.current;
+    if (!canCapture(state) || micOpening || endFenceRef.current.active || turnFenceRef.current.active || !fence.tryEnter()) return;
+    try {
+      setMicError("");
+      setMicOpening(true);
+      let capture = captureRef.current;
+      if (!capture) {
+        const pending = openCallCapture({
+          maxWindowMs: state.session?.window_ms_max,
+          onAutoCut: () => setAutoCutNotice(true),
+        });
+        let timer = 0;
+        try {
+          capture = await Promise.race([
+            pending,
+            new Promise<never>((_, reject) => {
+              timer = window.setTimeout(
+                () => reject(new Error("Microphone permission did not finish within 30 seconds.")),
+                30_000,
+              );
+            }),
+          ]);
+          captureRef.current = capture;
+        } catch (cause) {
+          // getUserMedia itself cannot be aborted. If the browser resolves its
+          // permission prompt after our bound, close that late stream rather
+          // than retaining a microphone the owner is no longer using.
+          void pending.then((late) => late.close()).catch(() => {});
+          const friendly = friendlyError(cause, "The microphone could not open");
+          setMicError(`${friendly.headline}. ${friendly.detail}`);
+          return;
+        } finally {
+          window.clearTimeout(timer);
+          setMicOpening(false);
+        }
+      } else {
+        setMicOpening(false);
+      }
+      setAutoCutNotice(false);
+      try {
+        capture.begin();
+        dispatch({ type: "CAPTURE_START" });
+      } catch (cause) {
+        const friendly = friendlyError(cause, "The microphone could not open");
+        setMicError(`${friendly.headline}. ${friendly.detail}`);
+      }
+    } finally {
+      fence.leave();
+    }
+  }
+
+  async function answerSpeakerAttestation(choice: "only_me" | "not_sure_or_other_people") {
+    if (!state.session || state.phase !== "ended" || speakerAttestationBusy) return;
+    setSpeakerAttestationBusy(choice);
+    setSpeakerAttestationError("");
+    try {
+      const result = await attestMirrorCallOwnerSpeaker(token, state.session.session_id, choice);
+      setSpeakerAttestation(result);
+      if (attestationIsTerminal(result)) {
+        clearMirrorCallRecovery(replicaId);
+        setRecoveryIntent(null);
+        setRecoveryNotice("Speaker check saved. This tab no longer needs the call recovery record.");
+      }
+    } catch (cause) {
+      if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
+      const friendly = friendlyError(cause, "The speaker check could not be saved");
+      setSpeakerAttestationError(`${friendly.headline}. ${friendly.detail}`);
+    } finally {
+      setSpeakerAttestationBusy(null);
     }
   }
 
   async function sendWindow() {
     const capture = captureRef.current;
-    if (!capture || state.turnPhase !== "capturing" || !state.session) return;
+    const fence = turnFenceRef.current;
+    if (!capture || state.turnPhase !== "capturing" || !state.session || endFenceRef.current.active || !fence.tryEnter()) return;
     dispatch({ type: "WINDOW_SENDING" });
     try {
       const window = await capture.finish();
       seqRef.current += 1;
       const result = await ingestAudioWindow(token, {
+        replicaId,
         sessionId: state.session.session_id,
         seq: seqRef.current,
         audio: window.blob,
@@ -342,7 +467,9 @@ export default function MirrorCallStudio({
       }
     } catch (cause) {
       dispatch({ type: "SPEAK_END" });
-      fail(cause, c.errorWindowCouldNotBeSent);
+      fail(cause, "That window could not be sent");
+    } finally {
+      fence.leave();
     }
   }
 
@@ -363,9 +490,13 @@ export default function MirrorCallStudio({
       objectUrlRef.current = url;
       const audio = new Audio(url);
       audioRef.current = audio;
-      audio.onended = () => dispatch({ type: "SPEAK_END" });
-      audio.onerror = () => dispatch({ type: "SPEAK_END" });
-      await audio.play();
+      await new Promise<void>((resolve, reject) => {
+        audio.onended = () => resolve();
+        audio.onerror = () => resolve();
+        audio.onpause = () => resolve();
+        void audio.play().catch(reject);
+      });
+      dispatch({ type: "SPEAK_END" });
     } catch (cause) {
       if (cause instanceof MirrorCallBackendAbsent) {
         // The synthesis seam is not wired. Captions only, said out loud —
@@ -382,7 +513,7 @@ export default function MirrorCallStudio({
     try {
       dispatch({ type: "DELTAS_SYNCED", deltas: await listMirrorCallDeltas(token, state.session.session_id) });
     } catch (cause) {
-      fail(cause, c.errorChangesCouldNotBeRefreshed);
+      fail(cause, "The proposed changes could not be refreshed");
     }
   }
 
@@ -398,7 +529,7 @@ export default function MirrorCallStudio({
       dispatch({ type: "CHIP_RESULT", delta });
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      const friendly = friendlyError(cause, action === "accept" ? c.errorChangeCouldNotBeApplied : c.errorChangeCouldNotBeDismissed);
+      const friendly = friendlyError(cause, `This change could not be ${action === "accept" ? "applied" : "dismissed"}`);
       dispatch({ type: "CHIP_FAILED", deltaId: chip.delta.delta_id, message: friendly.detail });
     }
   }
@@ -413,17 +544,18 @@ export default function MirrorCallStudio({
       });
       dispatch({ type: "RATE_TURN", turnId, rating, deltas: saved.deltas });
     } catch (cause) {
-      fail(cause, c.errorRatingCouldNotBeSaved);
+      fail(cause, "That rating could not be saved");
     }
   }
 
   async function startCorrection(turnId: string) {
+    if (!MIRROR_AUDIO_CORRECTIONS_SUPPORTED) return;
     try {
       correctionRef.current = await openCallCapture({ maxWindowMs: 30_000 });
       correctionRef.current.begin();
       setRecording({ turnId });
     } catch (cause) {
-      fail(cause, c.errorMicCouldNotOpenForRerecord);
+      fail(cause, "The microphone could not open for a re-record");
     }
   }
 
@@ -443,7 +575,7 @@ export default function MirrorCallStudio({
       });
       dispatch({ type: "RATE_TURN", turnId, rating: "down", deltas: saved.deltas });
     } catch (cause) {
-      fail(cause, c.errorRerecordCouldNotBeSaved);
+      fail(cause, "That re-record could not be saved");
     } finally {
       await capture.close();
       correctionRef.current = null;
@@ -457,52 +589,241 @@ export default function MirrorCallStudio({
   const deferred = deferredChips(state);
   const pending = pendingChips(state);
   const live = state.phase === "live";
+  const speakerChoicePending = state.phase === "ended" && speakerAttestation?.state === "needs_owner_choice";
+  const serverReadySeconds = state.session?.gpu.estimated_ready_seconds;
+  const observedHighAt = warmStartedAt == null
+    ? null
+    : warmStartedAt + 8 * 60_000;
+
+  const availability = useMemo(() => {
+    if (state.phase === "checking") return {
+      title: "Checking call availability",
+      phase: "Verifying the deployed call routes before showing Start call.",
+      range: "No finish estimate is shown until the server answers.",
+      next: "This check is running now.",
+      leave: "Keep this page open for the availability check.",
+    };
+    if (state.phase === "reply_unavailable") return {
+      title: "Calls are waiting on us",
+      phase: "The private call route is online, but its conversational reply service is not configured.",
+      range: "There is no start estimate yet.",
+      next: "Vyakti needs to restore the reply service before a call can begin.",
+      leave: "You can leave this page. Recording is off, and no new call session will be created.",
+    };
+    if (state.phase === "idle" && recoveryIntent) return {
+      title: "Recovering the previous call",
+      phase: "This tab found a saved session id and is replaying the same idempotent end request.",
+      range: "No audio, transcript, caption, proposal, or speaker decision was stored in this browser.",
+      next: "The saved end receipt is being requested now.",
+      leave: "Keep this tab open until the recovered receipt or a named retry appears.",
+    };
+    if (state.phase === "idle") return {
+      title: "Available to start",
+      phase: "The call routes are present. The GPU is requested only after you press Start call.",
+      range: "A cold voice GPU has an observed 2 to 8 minute start range. A warm GPU connects faster.",
+      next: "No GPU is running for this call yet.",
+      leave: "Start when you have time to keep this tab open through the connection step.",
+    };
+    if (state.phase === "connecting") return {
+      title: "Opening the private call",
+      phase: "Creating the server session and checking its signed voice-runtime readiness.",
+      range: "The server has not returned a GPU estimate yet.",
+      next: "The next state comes from the session response.",
+      leave: "Keep this tab open. The browser does not ask for microphone access until you press Talk.",
+    };
+    if (state.phase === "warming") return {
+      title: observedHighAt !== null && now > observedHighAt ? "GPU start is beyond the observed range" : "Voice GPU is starting",
+      phase: "The call session exists and the server is waiting for its private voice runtime.",
+      range: serverReadySeconds == null
+        ? "Observed cold-start range: 2 to 8 minutes."
+        : `Observed cold-start range: 2 to 8 minutes. The server's current estimate is about ${Math.max(1, Math.ceil(serverReadySeconds / 60))} ${Math.ceil(serverReadySeconds / 60) === 1 ? "minute" : "minutes"}, but that does not shorten the observed range.`,
+      next: "Next server readiness check within 6 seconds. The server estimate is refreshed from that response.",
+      leave: observedHighAt == null
+        ? "You may switch tabs or apps, but keep this tab open so the call can become ready."
+        : `${now > observedHighAt ? "The observed eight-minute window has passed; we are still checking." : `A useful time to return is around ${clock(observedHighAt)}, the high end of the observed range.`} You may switch tabs or apps, but keep this tab open. Reloading ends this call setup.`,
+    };
+    if (state.phase === "live") return {
+      title: "Call ready now",
+      phase: state.turnPhase === "capturing"
+        ? "Recording locally. Nothing is sent until you press Send this window."
+        : state.turnPhase === "uploading"
+          ? "Sending and transcribing the window you approved."
+          : state.turnPhase === "thinking"
+            ? "The clone is preparing its reply."
+            : state.turnPhase === "speaking"
+              ? "Playing the protected clone reply."
+              : "Ready for your next voice window. The microphone is off until you press Talk.",
+      range: "Turn completion has no measured range on this deployment, so no countdown is shown.",
+      next: state.turnPhase === "idle" ? "Waiting for you." : "This turn updates when its current server phase finishes.",
+      leave: state.turnPhase === "idle" ? "Keep this tab open for the live call." : "Keep this tab open until the current turn finishes.",
+    };
+    if (state.phase === "ending") return {
+      title: "Ending the call",
+      phase: "Saving the end receipt and moving untouched proposals to Review later.",
+      range: "No measured completion range is available for this step.",
+      next: "The server response closes the session.",
+      leave: "Keep this tab open until the end receipt appears.",
+    };
+    if (state.phase === "ended") return {
+      title: "Call ended",
+      phase: "The end receipt is saved. Unaccepted proposals remain unapplied in Review later.",
+      range: "The live call is complete.",
+      next: state.ended?.finetune.queued
+        ? "The server recorded a call-learning request. Check Activity for whether its runner is connected before expecting it to finish."
+        : "No call-learning request was recorded.",
+      leave: speakerChoicePending
+        ? "Choose who spoke before starting another call. Reloading this tab restores this question from the server."
+        : "You may leave now. Review items remain available when you return.",
+    };
+    if (recoveryIntent) return {
+      title: "Call recovery paused",
+      phase: state.error || "The end receipt did not reach this tab.",
+      range: "The server may already have ended the call. Starting a new call would not resolve that ambiguity.",
+      next: "Press Recover end receipt to replay the same session end safely.",
+      leave: "The content-free session id remains in this tab. No audio is stored here.",
+    };
+    return {
+      title: "Call stopped",
+      phase: state.error || "The call did not continue.",
+      range: "A stopped call has no completion estimate.",
+      next: "Start another call when you are ready.",
+      leave: "Nothing is recording or progressing silently in this call.",
+    };
+  }, [now, observedHighAt, recoveryIntent, serverReadySeconds, speakerChoicePending, state.ended?.finetune.queued, state.error, state.phase, state.turnPhase]);
+
+  const speakerAttestationCard = state.phase === "ended" && speakerAttestation &&
+    speakerAttestation.state !== "not_available" ? (
+      <aside className="mirror-speaker-attestation" aria-busy={speakerAttestationBusy !== null}>
+        {speakerAttestation.state === "attested" ? (
+          <div role="status" aria-live="polite">
+            <strong>Speaker check saved</strong>
+            <p>
+              {speakerAttestation.attested_windows} microphone window
+              {speakerAttestation.attested_windows === 1 ? "" : "s"} can now be checked for cited memory proposals.
+              Each proposal still waits for your review. Your clone voice did not change.
+            </p>
+          </div>
+        ) : speakerAttestation.state === "excluded" ? (
+          <div role="status" aria-live="polite">
+            <strong>These recordings will stay out of memory learning</strong>
+            <p>Your clone voice is unchanged. You can start another call when you have a clean recording.</p>
+          </div>
+        ) : speakerAttestation.state === "consent_required" ? (
+          <div role="status">
+            <strong>This call cannot enter memory learning</strong>
+            <p>
+              One or more permissions used for capture, storage, transcription, or learning is no longer active.
+              The recording stays out of claim proposals and does not change your clone voice.
+            </p>
+          </div>
+        ) : (
+          <fieldset>
+            <legend>Were you the only person speaking into your microphone?</legend>
+            <p>
+              Choose Yes only if every recorded window was you. This choice is final for this call. The clone's generated playback is excluded and
+              never counts as your speech. This only allows cited memory proposals to be prepared. Each proposal
+              still waits for your review, and this does not change the clone voice.
+            </p>
+            <div className="mirror-speaker-actions">
+              <button
+                className="button primary-button" type="button"
+                disabled={speakerAttestationBusy !== null}
+                onClick={() => void answerSpeakerAttestation("only_me")}
+              >
+                {speakerAttestationBusy === "only_me" ? "Saving..." : "Yes, only me"}
+              </button>
+              <button
+                className="button" type="button"
+                disabled={speakerAttestationBusy !== null}
+                onClick={() => void answerSpeakerAttestation("not_sure_or_other_people")}
+              >
+                {speakerAttestationBusy === "not_sure_or_other_people" ? "Saving..." : "No or not sure"}
+              </button>
+            </div>
+          </fieldset>
+        )}
+        {speakerAttestationError ? <p className="mirror-speaker-error" role="alert">{speakerAttestationError}</p> : null}
+      </aside>
+    ) : null;
 
   if (stopped) return null;
 
   return (
-    // `id` added by WS-R3: the readiness action table sends a creator here
-    // ("Run one Mirror Call"), and `jumpTo` returns silently on a missing
-    // target, so an action pointing at nothing would look exactly like a
-    // working button. Every anchor in that table is asserted to exist.
-    <section id="mirror-call" className="mirror-call" aria-labelledby="mirror-call-title">
+    <section className="mirror-call" aria-labelledby="mirror-call-title">
       <div className="mirror-call-head">
         <div>
-          <p className="eyebrow">{c.eyebrow}</p>
-          <h2 id="mirror-call-title">{c.title}</h2>
-          <p>{c.pitch}</p>
+          <p className="eyebrow">Mirror Call</p>
+          <h2 id="mirror-call-title">Talk to your clone and correct it while it listens.</h2>
+          <p>
+            Your side goes up in windows of up to 30 seconds. The deployed learner can suggest cited phrase or
+            slang patterns, and show advisory observations about fillers, laughter, stretched speech, and
+            code-switching. Only a cited proposal you tap Accept on can reach your sheet; everything else stays
+            in Review later.
+          </p>
         </div>
         <span className={`mirror-state mirror-state-${state.phase}`}>
-          {state.phase === "checking" && c.stateChecking}
-          {state.phase === "backend_absent" && c.stateNotDeployed}
-          {state.phase === "idle" && c.stateReady}
-          {state.phase === "connecting" && c.stateConnecting}
-          {state.phase === "warming" && c.stateGpuWarming}
-          {state.phase === "live" && c.stateLive}
-          {state.phase === "ending" && c.stateEnding}
-          {state.phase === "ended" && c.stateEnded}
-          {state.phase === "failed" && c.stateStopped}
+          {state.phase === "checking" && "CHECKING"}
+          {state.phase === "backend_absent" && "NOT DEPLOYED"}
+          {state.phase === "reply_unavailable" && "WAITING ON US"}
+          {state.phase === "idle" && "READY"}
+          {state.phase === "connecting" && "CONNECTING"}
+          {state.phase === "warming" && "GPU WARMING"}
+          {state.phase === "live" && "LIVE"}
+          {state.phase === "ending" && "ENDING"}
+          {state.phase === "ended" && "ENDED"}
+          {state.phase === "failed" && "STOPPED"}
         </span>
       </div>
 
-      <div className="mirror-tabs" role="tablist" aria-label={c.tabsAriaLabel}>
+      <div className="mirror-tabs" role="tablist" aria-label="Mirror Call">
         <button
           type="button" role="tab" id="mirror-tab-call" aria-controls="mirror-panel-call"
           aria-selected={tab === "call"} className={tab === "call" ? "active" : ""}
           onClick={() => setTab("call")}
-        >{c.callTab}</button>
+        >Call</button>
         <button
           type="button" role="tab" id="mirror-tab-review" aria-controls="mirror-panel-review"
           aria-selected={tab === "review"} className={tab === "review" ? "active" : ""}
           onClick={() => setTab("review")}
-        >{withLabel(c.reviewLaterTab, deferred.length ? ` · ${deferred.length}` : "")}</button>
+        >Review later{deferred.length ? ` · ${deferred.length}` : ""}</button>
       </div>
+
+      {state.phase !== "backend_absent" ? (
+        <aside className="mirror-availability" role="status" aria-live="polite">
+          <strong>{availability.title}</strong>
+          <p>{availability.phase}</p>
+          <dl>
+            <div><dt>Observed range</dt><dd>{availability.range}</dd></div>
+            <div><dt>Next check</dt><dd>{availability.next}</dd></div>
+            <div><dt>Leave or return</dt><dd>{availability.leave}</dd></div>
+          </dl>
+        </aside>
+      ) : null}
+
+      {recoveryNotice ? <p className="mirror-recovery-note" role="status">{recoveryNotice}</p> : null}
+
+      {speakerAttestationCard}
 
       {state.phase === "backend_absent" ? (
         <div className="mirror-absent" role="status">
-          <strong>{c.backendAbsentHeadline}</strong>
-          <p>{withLabel(c.backendAbsentBodyTemplate, String(state.absentDetail))}</p>
-          <small>{withLabel(c.backendAbsentMissing, ["create", "end", "ingest_window", "deltas", "delta_action", "turn_feedback"].join(", "))}</small>
+          <strong>The Mirror Call backend is not deployed on this environment.</strong>
+          <p>
+            This tab talks to <code>/api/mirror-call</code>, which answered nothing here ({state.absentDetail}).
+            There is no offline demo of a Mirror Call on purpose: a simulated call would look exactly like a
+            working one.
+          </p>
+          <small>What is missing: {["create", "end", "ingest_window", "deltas", "delta_action", "turn_feedback"].join(", ")}.</small>
+        </div>
+      ) : null}
+
+      {state.phase === "reply_unavailable" ? (
+        <div className="mirror-capability-unavailable" role="status" aria-live="polite">
+          <strong>Voice calls are not available yet.</strong>
+          <p>
+            Your microphone and clone are not the problem. Vyakti's conversational reply service is not ready
+            in this environment, so this screen will not start or record a call.
+          </p>
+          <small>No call session or GPU start is requested while this service is unavailable.</small>
         </div>
       ) : null}
 
@@ -515,102 +836,31 @@ export default function MirrorCallStudio({
                   the screen cannot keep, and a disabled one is a dead control
                   with no explanation next to it. */}
               {state.phase === "checking" ? (
-                <span className="mirror-note">{c.checkingBackend}</span>
-              ) : state.phase === "idle" || state.phase === "ended" || state.phase === "failed" ? (
-                <button className="button primary-button" type="button" disabled={busy} onClick={() => void connect("calibrate")}>
-                  {state.phase === "ended" ? c.startAnotherCallButton : c.startCallButton}
+                <span className="mirror-note">Checking whether this environment has the call backend.</span>
+              ) : state.phase === "reply_unavailable" ? (
+                state.session ? (
+                  <button className="button danger-button" type="button" disabled={busy} onClick={() => void end()}>
+                    {busy ? "Ending..." : "End call setup"}
+                  </button>
+                ) : null
+              ) : state.phase === "failed" && recoveryIntent ? (
+                <button className="button primary-button" type="button" disabled={busy} onClick={() => void recoverEndReceipt(recoveryIntent)}>
+                  {busy ? "Recovering receipt..." : "Recover end receipt"}
+                </button>
+              ) : canConnect(state) ? (
+                <button className="button primary-button" type="button" disabled={busy || speakerChoicePending} onClick={() => void connect()}>
+                  {speakerChoicePending ? "Finish the speaker check above" : state.phase === "ended" ? "Start another call" : "Start the call"}
                 </button>
               ) : (
-                <button className="button danger-button" type="button" disabled={!canEnd(state) || busy} onClick={() => void end()}>
-                  {state.phase === "ending" ? c.endingButton : c.endCallButton}
+                <button className="button danger-button" type="button" disabled={!canEnd(state) || busy || micOpening} onClick={() => void end()}>
+                  {state.phase === "ending"
+                    ? "Ending..."
+                    : state.turnPhase === "uploading" || state.turnPhase === "thinking" || state.turnPhase === "speaking"
+                      ? "Finish this reply before ending"
+                      : "End call"}
                 </button>
               )}
             </div>
-
-            {/* THE INTERVIEW ENTRY. Offered only before a call, and only when
-                the deployment actually serves it: a button that 400s when it is
-                pressed is worse than no button. Every gap is rendered with its
-                evidence count, because "we have nothing on this" and "we have
-                one thing" are different asks and a flat list would hide it. */}
-            {(state.phase === "idle" || state.phase === "ended" || state.phase === "failed") ? (
-              <div className="mirror-interview-entry">
-                <span className="metric-label">{c.interviewLabel}</span>
-                <p className="mirror-interview-pitch">{c.interviewPitch}</p>
-                {preview === undefined ? (
-                  <span className="mirror-note">{c.interviewPreviewWorking}</span>
-                ) : preview === null ? (
-                  <span className="mirror-note">{c.interviewNotAvailable}</span>
-                ) : preview.gaps.length === 0 ? (
-                  <span className="mirror-note">{c.interviewNothingOnList}</span>
-                ) : (
-                  <>
-                    <ol className="mirror-gap-list">
-                      {preview.gaps.map((gap) => (
-                        <li key={gap.gap_id} className={`mirror-gap mirror-gap-${gap.kind}`}>
-                          <span className="mirror-gap-kind">{GAP_KIND_LABEL[gap.kind]}</span>
-                          <strong>{gap.topic}</strong>
-                          <p>{gap.why}</p>
-                          <small>{gapEvidenceLine(gap)}</small>
-                        </li>
-                      ))}
-                    </ol>
-                    {/* Which detectors could run, beside the list, always. A
-                        short list because the material is complete and a short
-                        list because a detector could not run are different
-                        facts, and only one of them is good news. */}
-                    {preview.detectors && !preview.detectors.contradiction ? (
-                      <p className="mirror-note">{c.interviewCannotCheckContradiction}</p>
-                    ) : null}
-                    {preview.detectors && !preview.detectors.readiness ? (
-                      <p className="mirror-note">{c.interviewNoReadinessSnapshot}</p>
-                    ) : null}
-                    {preview.skipped_answered ? (
-                      <p className="mirror-note">{withCount(c.interviewSkippedAnsweredTemplate, preview.skipped_answered).split("{isare}").join(preview.skipped_answered === 1 ? "is" : "are")}</p>
-                    ) : null}
-                    <button
-                      className="button primary-button" type="button" disabled={busy}
-                      onClick={() => void connect("interview")}
-                    >{c.startInterviewButton}</button>
-                  </>
-                )}
-              </div>
-            ) : null}
-
-            {/* THE INTERVIEW, WHILE IT IS RUNNING. Counts and time left, and
-                nothing that grades an answer: the interview collects material,
-                it does not score the person giving it. */}
-            {state.interview && (state.phase === "live" || state.phase === "warming") ? (
-              <div className="mirror-interview-live" role="status">
-                <span className="metric-label">{c.interviewSummaryLabel}</span>
-                <p>
-                  {c.interviewAnsweredTemplate.split("{n}").join(String(state.interview.answers_captured)).split("{n2}").join(String(state.interview.gaps.length))}
-                  {state.interview.questions_asked > state.interview.answers_captured
-                    ? c.interviewOneQuestionWaiting
-                    : ""}
-                  {interviewRemainingMs(state) !== null
-                    ? withPluralCount(c.interviewMinutesLeftTemplate, Math.ceil((interviewRemainingMs(state) ?? 0) / 60_000))
-                    : ""}.
-                </p>
-                <small>{c.interviewStopsItselfNote}</small>
-              </div>
-            ) : null}
-
-            {state.phase === "warming" ? (
-              <div className="mirror-warming" role="status">
-                <span className="mirror-warm-dot" aria-hidden="true" />
-                <div>
-                  <strong>{c.gpuColdHeadline}</strong>
-                  <p>
-                    {withLabel(
-                      c.gpuColdBodyTemplate,
-                      state.session?.gpu.estimated_ready_seconds !== null && state.session?.gpu.estimated_ready_seconds !== undefined
-                        ? withCount(c.gpuColdEstimateTemplate, Math.round(state.session.gpu.estimated_ready_seconds / 60))
-                        : "",
-                    )}
-                  </p>
-                </div>
-              </div>
-            ) : null}
 
             {live ? (
               <div className="mirror-mic">
@@ -619,61 +869,69 @@ export default function MirrorCallStudio({
                 </div>
                 {state.turnPhase === "capturing" ? (
                   <div className="mirror-mic-actions">
-                    <button className="button primary-button" type="button" onClick={() => void sendWindow()}>{c.sendWindowButton}</button>
-                    <button className="text-button" type="button" onClick={cancelWindow}>{c.discardButton}</button>
+                    <button className="button primary-button" type="button" onClick={() => void sendWindow()}>Send this window</button>
+                    <button className="text-button" type="button" onClick={cancelWindow}>Discard</button>
                   </div>
                 ) : (
                   <button
                     className="button primary-button" type="button"
-                    disabled={!canCapture(state)}
-                    onClick={startTalking}
+                    disabled={!canCapture(state) || micOpening}
+                    onClick={() => void startTalking()}
                   >
-                    {state.turnPhase === "uploading" ? c.transcribingButton : state.turnPhase === "thinking" ? c.yourAiAnsweringButton : state.turnPhase === "speaking" ? c.yourAiSpeakingButton : c.talkButton}
+                    {micOpening ? "Opening microphone..." : state.turnPhase === "uploading" ? "Transcribing..." : state.turnPhase === "thinking" ? "Your clone is answering..." : state.turnPhase === "speaking" ? "Your clone is speaking..." : "Talk"}
                   </button>
                 )}
                 <small>
                   {state.turnPhase === "capturing"
-                    ? c.recordingNote
-                    : c.oneWindowNote}
+                    ? "Recording. The window is capped at 30 seconds. It is sent when you say so, or cut at the cap."
+                    : "One window at a time: your side, then its side. This is the cascade lane, not a duplex call."}
                 </small>
                 {autoCutNotice ? (
-                  <p className="mirror-autocut" role="status">{c.autoCutNotice}</p>
+                  <p className="mirror-autocut" role="status">
+                    The 30-second cap cut this window. Send it and say the rest in the next one. Nothing was quietly dropped.
+                  </p>
                 ) : null}
+                {micError ? <p className="mirror-autocut" role="alert">{micError} Tap Talk to try again.</p> : null}
                 {!state.voiceAvailable ? (
-                  <p className="mirror-note">{c.captionsOnlyNote}</p>
+                  <p className="mirror-note">Captions only on this environment. The clone's voice route is not deployed.</p>
                 ) : null}
               </div>
             ) : null}
 
             <div className="mirror-thread" ref={threadRef} aria-live="polite">
               {state.captions.length ? state.captions.map((line) => (
-                <Caption key={line.id} line={line} c={c}>
+                <Caption key={line.id} line={line}>
                   {line.kind === "clone" && line.turnId ? (
                     <div className="mirror-turn-feedback">
                       <button
-                        type="button" aria-label={c.soundedLikeMeLabel}
+                        type="button" aria-label="This sounded like me"
                         className={state.ratedTurns[line.turnId] === "up" ? "rated" : ""}
                         onClick={() => void rate(line.turnId!, "up")}
                       >👍</button>
                       <button
-                        type="button" aria-label={c.didNotSoundLikeMeLabel}
+                        type="button" aria-label="This did not sound like me"
                         className={state.ratedTurns[line.turnId] === "down" ? "rated" : ""}
                         onClick={() => void rate(line.turnId!, "down")}
                       >👎</button>
-                      {recording?.turnId === line.turnId ? (
-                        <button className="text-button" type="button" onClick={() => void finishCorrection()}>{c.stopAndSendButton}</button>
+                      {MIRROR_AUDIO_CORRECTIONS_SUPPORTED && (recording?.turnId === line.turnId ? (
+                        <button className="text-button" type="button" onClick={() => void finishCorrection()}>Stop and send</button>
                       ) : (
                         <button className="text-button" type="button" disabled={!!recording} onClick={() => void startCorrection(line.turnId!)}>
-                          {c.iWouldSayItLikeThis}
+                          I'd say it like this
                         </button>
-                      )}
+                      ))}
+                      <MirrorTextCorrection onSave={async (note) => {
+                        if (!state.session) throw new Error("The call is no longer open");
+                        const saved = await saveMirrorCallTurnFeedback(token, { sessionId: state.session.session_id, turnId: line.turnId!, rating: "down", note });
+                        dispatch({ type: "RATE_TURN", turnId: line.turnId!, rating: "down", deltas: saved.deltas });
+                      }} />
                     </div>
                   ) : null}
                 </Caption>
               )) : (
                 <div className="mirror-empty">
-                  <strong>{c.emptyThreadHeadline}</strong>
-                  <p>{c.emptyThreadBody}</p>
+                  <strong>Nothing has been said yet.</strong>
+                  <p>Your clone answers what you say and never opens a call on its own.</p>
                 </div>
               )}
             </div>
@@ -681,14 +939,14 @@ export default function MirrorCallStudio({
             {state.error ? (
               <div className="runtime-error" role="alert">
                 <span>{state.error}</span>
-                <button type="button" onClick={() => dispatch({ type: "RESET" })}>{c.dismissButton}</button>
+                <button type="button" onClick={() => dispatch({ type: "RESET" })}>Dismiss</button>
               </div>
             ) : null}
           </div>
 
           <aside className="mirror-side">
             <div className="mirror-fidelity">
-              <span className="metric-label">{c.voiceFidelityLabel}</span>
+              <span className="metric-label">Voice fidelity</span>
               {/* TWO meters. They move for different reasons and the note
                   between them says which — a single climbing number beside a
                   clone that mechanically cannot have changed is the honesty
@@ -703,18 +961,18 @@ export default function MirrorCallStudio({
                     <span style={{ transform: `scaleX(${meter.ofCeiling ?? 0})` }} />
                   </div>
                   <div className="mirror-fidelity-legend">
-                    <span>{meter.ceiling === null ? c.noCeilingPrinted : withLabel(c.ceilingTemplate, meter.ceiling.toFixed(4))}</span>
-                    <span>{meter.ofCeiling === null ? "\u2014" : withLabel(c.ofCeilingTemplate, percent(meter.ofCeiling))}</span>
+                    <span>{meter.ceiling === null ? "no printed ceiling" : `ceiling ${meter.ceiling.toFixed(4)}`}</span>
+                    <span>{meter.ofCeiling === null ? "\u2014" : `${percent(meter.ofCeiling)} of ceiling`}</span>
                     {meter.kind === "measurement" ? (
                       <>
-                        <span>{withPluralCount(c.windowsCountTemplate, meter.windows)}</span>
-                        <span>{withCount(c.secondsPooledTemplate, Math.round(meter.seconds))}</span>
-                        {meter.confidence !== null ? <span>{withLabel(c.confidenceTemplate, percent(meter.confidence))}</span> : null}
+                        <span>{meter.windows} window{meter.windows === 1 ? "" : "s"}</span>
+                        <span>{Math.round(meter.seconds)}s pooled</span>
+                        {meter.confidence !== null ? <span>{percent(meter.confidence)} confidence</span> : null}
                       </>
                     ) : (
                       <>
-                        <span>{meter.seconds ? withCount(c.windowOrNoWindowYet, Math.round(meter.seconds)) : c.noWindowYet}</span>
-                        <span>{withPluralCount(c.reselectionsTemplate, meter.selections)}</span>
+                        <span>{meter.seconds ? `${Math.round(meter.seconds)}s window` : "no window yet"}</span>
+                        <span>{meter.selections} re-selection{meter.selections === 1 ? "" : "s"}</span>
                       </>
                     )}
                   </div>
@@ -727,30 +985,29 @@ export default function MirrorCallStudio({
               <p className="mirror-fidelity-caveat">{FIDELITY_CAVEAT}</p>
               {state.reference ? (
                 <small>
-                  {c.referenceSetTemplate
-                    .split("{n}").join(String(state.reference.consented_windows))
-                    .split("{s}").join(state.reference.consented_windows === 1 ? "" : "s")
-                    .split("{n2}").join(String(Math.round(state.reference.total_seconds)))}
+                  Reference set: {state.reference.consented_windows} consented window
+                  {state.reference.consented_windows === 1 ? "" : "s"}, {Math.round(state.reference.total_seconds)}s.
                 </small>
               ) : null}
               {state.droppedWindows ? (
-                <small className="mirror-dropped-count">{withPluralCount(c.droppedWindowsTemplate, state.droppedWindows)}</small>
+                <small className="mirror-dropped-count">
+                  {state.droppedWindows} window{state.droppedWindows === 1 ? "" : "s"} did not make it through transcription.
+                </small>
               ) : null}
             </div>
 
             <div className="mirror-rail">
               <div className="mirror-rail-head">
-                <span className="metric-label">{c.proposedChangesLabel}</span>
+                <span className="metric-label">Proposed changes</span>
                 <small>
-                  {withCount(c.proposedWaitingTemplate, proposed.length)}
-                  {pending.length ? withCount(c.willRollIntoReviewTemplate, pending.length) : ""}
-                  {state.chipBudget.overflowed ? c.heldBackByCapTemplate.split("{n}").join(String(state.chipBudget.overflowed)).split("{n2}").join(String(CHIPS_PER_MINUTE)) : ""}
+                  {proposed.length} waiting{pending.length ? ` · ${pending.length} will roll into Review later if you end now` : ""}
+                  {state.chipBudget.overflowed ? ` · ${state.chipBudget.overflowed} held back by the ${CHIPS_PER_MINUTE}-per-minute cap` : ""}
                 </small>
                 {/* The rail is pushed by window results, so this is a repair
                     control, not the main path: a chip mined from a window
                     whose response was lost would otherwise be invisible until
                     the end-of-call sweep. */}
-                {live ? <button className="text-button" type="button" onClick={() => void refreshChips()}>{c.refreshButton}</button> : null}
+                {live ? <button className="text-button" type="button" onClick={() => void refreshChips()}>Refresh</button> : null}
               </div>
               {proposed.length ? proposed.map((chip) => (
                 <article key={chip.delta.delta_id} className={`mirror-chip mirror-chip-${chip.status} mirror-chip-ev-${evidenceStrength(chip.delta)}`}>
@@ -759,32 +1016,32 @@ export default function MirrorCallStudio({
                     {/* The evidence count, on every chip. One call is ~1,800-2,300
                         owner words, under every stylometric floor, so an n=1 chip
                         has to LOOK weaker than an n=9 one (adoption delta A4). */}
-                    <em>{withCount(c.heardTimesTemplate, chip.delta.evidence.occurrences_this_call)}</em>
+                    <em>heard {chip.delta.evidence.occurrences_this_call}x</em>
                   </span>
                   <p className="mirror-chip-proposal">{chip.delta.proposal}</p>
-                  <p className="mirror-chip-citation">{withLabel(c.becauseYouSaidTemplate, chip.delta.citation.quote)}</p>
+                  <p className="mirror-chip-citation">Because you said “{chip.delta.citation.quote}”</p>
                   <p className="mirror-chip-evidence">{evidenceLine(chip.delta)}</p>
                   <div className="mirror-chip-actions">
                     <button type="button" disabled={chip.status !== "proposed"} onClick={() => void actionChip(chip, "accept")}>
-                      {chip.status === "accepting" ? c.applyingButton : c.acceptButton}
+                      {chip.status === "accepting" ? "Applying..." : "Accept"}
                     </button>
                     <button type="button" disabled={chip.status !== "proposed"} onClick={() => void actionChip(chip, "reject")}>
-                      {chip.status === "rejecting" ? c.dismissingButton : c.rejectButton}
+                      {chip.status === "rejecting" ? "Dismissing..." : "Reject"}
                     </button>
                   </div>
                   {chip.error ? <p className="mirror-chip-error" role="alert">{chip.error}</p> : null}
                 </article>
               )) : (
                 <p className="mirror-rail-empty">
-                  {live ? c.nothingMinedLive : c.chipsAppearDuringCall}
+                  {live ? "Nothing mined from this call yet. Chips appear as you talk, each quoting what produced it." : "Chips appear during a call."}
                 </p>
               )}
               {actioned.length ? (
                 <div className="mirror-rail-actioned">
-                  <span className="metric-label">{c.actionedThisCallLabel}</span>
+                  <span className="metric-label">Actioned this call</span>
                   {actioned.map((chip) => (
                     <p key={chip.delta.delta_id} className={chipIsApplied(chip) ? "applied" : "dismissed"}>
-                      {chipIsApplied(chip) ? c.appliedLabel : chip.status === "accepted" ? c.acceptedNotOnSheetLabel : c.rejectedLabel} · {chip.delta.proposal}
+                      {chipIsApplied(chip) ? "Applied" : chip.status === "accepted" ? "Accepted, not yet on the sheet" : "Rejected"} · {chip.delta.proposal}
                     </p>
                   ))}
                 </div>
@@ -796,74 +1053,29 @@ export default function MirrorCallStudio({
 
       {tab === "review" && state.phase !== "backend_absent" ? (
         <div className="mirror-review" id="mirror-panel-review" role="tabpanel" aria-labelledby="mirror-tab-review">
-          {/* WHAT THE INTERVIEW LEARNED, AND WHAT THE NEXT ONE WOULD ASK.
-              `effect` is the load-bearing half: an owner who has just answered
-              five questions will assume something moved, and nothing did. The
-              answers became new material and that is all. */}
-          {state.ended?.interview ? (
-            <div className="mirror-interview-summary">
-              <span className="metric-label">{c.interviewSummaryLabel}</span>
-              <p>{c.interviewAskedAnsweredTemplate.split("{n}").join(String(state.ended.interview.questions_asked)).split("{n2}").join(String(state.ended.interview.answers_captured))}</p>
-              {state.ended.interview.learned.length ? (
-                <>
-                  <span className="metric-label">{c.whatItGotLabel}</span>
-                  <ul>
-                    {state.ended.interview.learned.map((row) => (
-                      <li key={`${row.kind}:${row.topic}`}>{row.topic}</li>
-                    ))}
-                  </ul>
-                </>
-              ) : (
-                <p className="mirror-note">{c.interviewNothingBackNote}</p>
-              )}
-              {state.ended.interview.next_would_ask.length ? (
-                <>
-                  <span className="metric-label">{c.nextAskLabel}</span>
-                  <ul>
-                    {state.ended.interview.next_would_ask.map((row) => (
-                      <li key={`${row.kind}:${row.topic}`}>
-                        <strong>{row.topic}</strong>
-                        <small>{row.why}</small>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : (
-                <p className="mirror-note">{c.interviewNothingLeftNote}</p>
-              )}
-              <p className="mirror-interview-effect">
-                {state.ended.interview.effect
-                  && !state.ended.interview.effect.voice_changed
-                  && !state.ended.interview.effect.persona_changed
-                  ? withPluralCount(c.interviewEffectUnchangedTemplate, state.ended.interview.effect.sources_added)
-                  : c.interviewEffectUnknownNote}
-              </p>
-            </div>
-          ) : null}
-          <p>{withCount(c.reviewNothingApplied, CHIPS_PER_MINUTE)}</p>
+          <p>
+            Nothing here was applied. These are the chips you did not action before the call ended, plus any the
+            {" "}{CHIPS_PER_MINUTE}-per-minute rail cap held back so the call did not turn into a stream of questions.
+            They went to the ordinary review queue, exactly like a delta mined from an upload.
+          </p>
           {deferred.length ? deferred.map((chip) => (
             <article key={chip.delta.delta_id} className="mirror-chip mirror-chip-deferred">
               <span className="mirror-chip-kind">{KIND_LABEL[chip.delta.kind] || chip.delta.kind}</span>
               <p className="mirror-chip-proposal">{chip.delta.proposal}</p>
-              <p className="mirror-chip-citation">{withLabel(c.becauseYouSaidTemplate, chip.delta.citation.quote)}</p>
+              <p className="mirror-chip-citation">Because you said “{chip.delta.citation.quote}”</p>
               <p className="mirror-chip-evidence">{evidenceLine(chip.delta)}</p>
               <span className="mirror-chip-state">
-                {chip.overflow ? c.neverShownHeldBack : c.notAppliedReviewLater}
+                {chip.overflow ? "Never shown · held back by the rail cap · not applied" : "Not applied · review later"}
               </span>
             </article>
-          )) : <p className="mirror-rail-empty">{c.reviewEmpty}</p>}
+          )) : <p className="mirror-rail-empty">Nothing is waiting for review.</p>}
           {state.ended ? (
             <div className="mirror-end-summary">
-              <span>
-                {c.acceptedRejectedDeferredTemplate
-                  .split("{n}").join(String(state.ended.accepted_count))
-                  .split("{n2}").join(String(state.ended.rejected_count))
-                  .split("{n3}").join(String(state.ended.deferred.length))}
-              </span>
+              <span>{state.ended.accepted_count} accepted · {state.ended.rejected_count} rejected · {state.ended.deferred.length} deferred</span>
               <small>
                 {state.ended.finetune.queued
-                  ? c.voiceBuildQueuedNote
-                  : withLabel(c.noVoiceBuildQueuedTemplate, state.ended.finetune.reason ? ` (${state.ended.finetune.reason.replaceAll("_", " ")})` : "")}
+                  ? "The server recorded a voice-learning request. This is not a completion claim; Activity must show its runner as connected before it can run."
+                  : `No fine-tune was queued${state.ended.finetune.reason ? ` (${state.ended.finetune.reason.replaceAll("_", " ")})` : ""}.`}
               </small>
             </div>
           ) : null}

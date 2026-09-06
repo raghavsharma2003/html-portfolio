@@ -69,7 +69,7 @@ export function createProductionChannelProvider(env = process.env, options = {})
   return createYouTubeExtractChannelProvider({
     base,
     extractClient: createMediaExtractClient({ config, fetchImpl: options.fetchImpl }),
-    signUpload: options.signUpload || defaultSignUpload,
+    signUpload: options.signUpload || defaultSignUpload(options.db),
   });
 }
 
@@ -77,11 +77,29 @@ export function createProductionChannelProvider(env = process.env, options = {})
  *  config — is not pulled into every module that merely wants to know whether
  *  a channel provider exists. The eval never reaches this function; it injects
  *  its own `signUpload`. */
-async function defaultSignUpload(objectPath) {
-  const { createSignedReplicaUpload, ensurePrivateReplicaBucket, REPLICA_STORAGE_WRITE_BUCKET } =
-    await import("../_replica-storage.js");
-  await ensurePrivateReplicaBucket(REPLICA_STORAGE_WRITE_BUCKET);
-  return createSignedReplicaUpload({ storageBucket: REPLICA_STORAGE_WRITE_BUCKET, objectPath });
+function defaultSignUpload(db) {
+  return async (objectPath, scope) => {
+    if (typeof db !== "function") {
+      throw Object.assign(new Error("channel_extraction_storage_db_required"), {
+        code: "channel_extraction_storage_db_required",
+        status: 503,
+      });
+    }
+    const { createSignedReplicaUpload, ensurePrivateReplicaBucket, REPLICA_STORAGE_WRITE_BUCKET } =
+      await import("../_replica-storage.js");
+    const { issueChannelExtractionUpload } = await import("./extraction-storage.js");
+    // The durable fence is committed before bucket access or capability mint.
+    // A later failure may delay erasure until this conservative expiry, but no
+    // successful mint can exist without an exact owner/replica/path ledger.
+    return issueChannelExtractionUpload(db, {
+      ...scope,
+      storageBucket: REPLICA_STORAGE_WRITE_BUCKET,
+      objectPath,
+    }, {
+      ensureBucket: ensurePrivateReplicaBucket,
+      createUpload: createSignedReplicaUpload,
+    });
+  };
 }
 
 /** The sweep endpoint's spelling: absent config DISABLES the lane rather than
@@ -98,6 +116,13 @@ export function configuredChannelProvider(env = process.env, options = {}) {
  *  offering a button that fails. */
 export function channelExtractionConfigured(env = process.env) {
   if (!env.AZURE_MEDIA_EXTRACT_ORIGIN || !env.MEDIA_EXTRACT_HMAC_SECRET) return false;
+  // A configured extractor with only the legacy Supabase single-PUT target is
+  // not a usable extraction lane. Keep readiness honest until that provider
+  // has a bounded protocol implementation.
+  const writeBucket = String(env.REPLICA_STORAGE_WRITE_BUCKET || env.REPLICA_STORAGE_BUCKET || "");
+  if (!/^azureblob:[a-z0-9]{3,24}:[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$/.test(writeBucket)) {
+    return false;
+  }
   try { mediaExtractConfig(env); return true; }
   catch { return false; }
 }

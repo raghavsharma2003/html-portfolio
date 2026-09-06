@@ -1,13 +1,13 @@
 # Fail-closed paid-provider budget
 
-Status: implemented for Azure Foundry token calls, Azure Speech fast
+Status: implemented for OpenRouter and Azure Foundry token calls, Azure Speech fast
 transcription and the approval-gated Azure Personal Voice adapter on `voice-cloning`,
-2026-08-24. Migration 028 is not deployed and no live Azure charge has been
-made.
+updated 2026-08-30. This document makes no claim about production deployment
+or live provider charges.
 
 ## Product law
 
-The application must never treat an Azure alert as a hard spending control.
+The application must never treat a provider alert as a hard spending control.
 Every metered request reserves against one database-serialized ceiling before
 provider network I/O. The response settles measured usage. An unknown provider
 outcome keeps the reservation locked for operator reconciliation instead of
@@ -17,7 +17,7 @@ guessing that the call was free and retrying it.
 immutable request id + conservative maximum units
   -> atomic budget reservation
   -> one-way in-flight marker
-  -> Azure request
+  -> paid provider request
   -> measured provider usage
   -> atomic release of reserve + actual charge
 ```
@@ -30,13 +30,15 @@ and lifecycle state.
 ## Configuration
 
 All values are server-only. The budget identity and ceiling are shared by
-every paid Azure adapter:
+every metered provider adapter:
 
 ```text
 AZURE_REPLICA_BUDGET_ID=azure-replica-grant-v1
 AZURE_REPLICA_APP_BUDGET_USD=1500
 AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS=<current deployed-model rate>
 AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS=<current deployed-model rate>
+OPENROUTER_INPUT_USD_PER_MTOKENS=<current selected-model rate>
+OPENROUTER_OUTPUT_USD_PER_MTOKENS=<current selected-model rate>
 AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR=<current resource/SKU rate>
 AZURE_PERSONAL_VOICE_USD_PER_PROFILE=<current approved-resource rate>
 AZURE_PERSONAL_VOICE_SYNTHESIS_USD_PER_MCHARACTERS=<current approved-resource rate>
@@ -45,9 +47,8 @@ AZURE_PERSONAL_VOICE_SYNTHESIS_USD_PER_MCHARACTERS=<current approved-resource ra
 The application cap cannot exceed `$2,000`. `$1,500` is the recommended
 initial cap, leaving `$500` outside this paid-request ledger for storage,
 controlled GPU evaluation and pricing variance. Rates are deliberately not
-hardcoded: deployment must copy the effective subscription/model rates from
-Azure immediately before activation. Missing, zero or malformed values fail
-closed.
+hardcoded: deployment must copy the effective provider and model rates
+immediately before activation. Missing, zero or malformed values fail closed.
 
 Input reservation uses one token per UTF-8 request byte, including JSON
 framing, which is intentionally more conservative than normal tokenizer
@@ -90,13 +91,14 @@ never replayed as if it were free.
 
 Reconciliation is intentionally not exposed through an owner API. Before any
 live call, the lab needs an authenticated operator-only procedure that compares
-the Azure usage record with the request commitment, then settles or releases
+the provider usage record with the request commitment, then settles or releases
 the reservation with a tamper-evident audit entry.
 
 ## Coverage and remaining gate
 
 Covered now:
 
+- OpenRouter cited-claim extraction;
 - Azure Foundry cited-claim extraction;
 - Azure Foundry private replica dialogue;
 - Azure Speech fast transcription, conservatively metered by per-request audio

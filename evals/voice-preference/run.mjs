@@ -113,12 +113,12 @@ ok("the canonical schema mirrors migration 065's final bounded constraint",
 const handler = readFileSync(join(ROOT, "api/replica-voice-preference.js"), "utf8");
 const previewHandler = readFileSync(join(ROOT, "api/replica-voice-preview.js"), "utf8");
 const api = readFileSync(join(ROOT, "src/studio/voicePreviewApi.ts"), "utf8");
-const studio = readFileSync(join(ROOT, "src/studio/VoicePreviewLab.tsx"), "utf8");
+const studio = readFileSync(join(ROOT, "src/creatorStudio/VoicePreviewLab.tsx"), "utf8");
 ok("the HTTP boundary is bearer-owner-only and rate limited", /requireUser/.test(handler) && /replica_voice_preference_user/.test(handler) && !/req\.body\.owner/.test(handler));
 ok("every generation records its server-owned style and content hash", /text_hash: textHash/.test(previewHandler) && /style_key: trial\?\.styleKey \|\| body\.style_key/.test(previewHandler) && /started\.previewStyle/.test(previewHandler));
 ok("the browser sends style keys rather than raw synthesis parameters", /style_key: input\.styleKey/.test(api) && !/cfg_weight|exaggeration|temperature/.test(api));
 // WS-R71: VoicePreviewLab.tsx's own literal strings moved into
-// src/studio/copy.ts (`t.voicePreviewLab`) and `CONDITION_LABELS` became a
+// src/creatorStudio/copy.ts (`t.voicePreviewLab`) and `CONDITION_LABELS` became a
 // `conditionLabel()` lookup function; the ordering check below now reads
 // the same two things by their NEW markers -- the `c.preferenceSecured`
 // render still precedes the `conditionLabel(preferenceSaved.leftStyle`

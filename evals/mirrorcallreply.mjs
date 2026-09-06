@@ -35,7 +35,7 @@
 // caught. If the strike ever stops being caught, the check that catches it has
 // become decoration.
 import { execSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -77,8 +77,10 @@ const reply = await load("api/_mirrorcall-reply.js");
 const store = await load("api/_mirrorcall-store.js");
 const wire = await load("api/_mirrorcall-wire.js");
 const warmup = await load("api/_voice/warmup.js");
+const mirrorRuntime = await load("api/_mirrorcall-runtime.js");
 const contracts = await load("api/_voice/contracts.js");
 const delivery = await load("api/_provenance/delivery.js");
+const replyCapability = await load("api/_reply-engine-capability.js");
 
 const OWNER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const STRANGER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -91,6 +93,40 @@ const SHEET_DRAFT = "22222222-2222-4222-8222-222222222222";
 const SHEET_PUB = "22222222-2222-4222-8222-222222222223";
 const CONSENT = "33333333-3333-4333-8333-333333333333";
 const SLUG = "arjun-sir-physics";
+
+// The route existing is not proof that the clone can answer. This capability
+// is content-free, shares the executor's exact predicate, and refuses session
+// creation before any durable or paid work.
+{
+  const unavailable = replyCapability.replyEngineCapability({});
+  const ready = replyCapability.replyEngineCapability({ OPENROUTER_API_KEY: "configured" });
+  eq(unavailable.available, false, "an absent reply credential reports unavailable");
+  eq(unavailable.reason, "reply_engine_unavailable", "the refusal uses a stable public reason");
+  eq(ready.available, true, "a configured reply executor reports ready");
+  eq(replyCapability.replyEngineCapability({ OPENROUTER_KEY: "configured" }).available, true,
+    "the required deployment key name is sufficient without its optional alias");
+  eq(replyCapability.replyEngineCapability({ OPENROUTER_KEY: "" }).available, false,
+    "an explicitly empty deployment key does not pretend that the executor is ready");
+  eq(
+    Object.keys(unavailable).sort().join(","),
+    "available,reason,state",
+    "the capability exposes no provider, model, env name, or credential detail",
+  );
+
+  const routeSource = readFileSync(join(REPO, "api/mirror-call.js"), "utf8");
+  const surfaceSource = readFileSync(join(REPO, "api/_surface.js"), "utf8");
+  const createStart = routeSource.indexOf("async function opCreate");
+  const createCapability = routeSource.indexOf("const replyEngine = replyEngineCapability()", createStart);
+  const createWrite = routeSource.indexOf("bootstrapSelfTestReplica", createStart);
+  ok(createCapability > createStart && createCapability < createWrite,
+    "CREATE refuses an absent brain before consent bootstrap, database writes, or a GPU wake");
+  ok((routeSource.match(/reply_engine:\s*replyEngineCapability\(\)/g) || []).length >= 2,
+    "CONTRACT and STATUS both publish the same reply capability");
+  ok(/reply_engine:\s*replyEngine/.test(routeSource),
+    "a created session carries the checked capability receipt");
+  ok(/const capability = replyEngineCapability\(\);[\s\S]*?if \(!capability\.available\) return "";/.test(surfaceSource),
+    "the actual reply executor uses the same predicate and has no optimistic fallback");
+}
 
 const sheetFor = (name, slug) => ({ ...DEMO_TEACHER, name, slug });
 const SHEET_BODY = sheetFor("Arjun Sir", SLUG);
@@ -296,12 +332,26 @@ console.log("\n── 1. reply assembly ──");
   ok(compiled, "the reply function was reached — the assembler did not short-circuit");
   eq(compiled.input.medium, "voice", "compiled as SPOKEN, not texted — the owner grades it as a voice");
   eq(compiled.input.mode, "call", "and in call mode, so the spoken-register rules apply");
-  eq(compiled.input.memories, "", "with NO retrieval — the Mirror Call has no memory lane and claims none");
+  eq(compiled.input.memories, "", "with no invented memory when no approved facts were retrieved");
   eq(compiled.input.latestUserText,
     "toh basically dekho, force ka matlab hai rate of change of momentum",
     "the owner's own transcript is what the clone answers");
   ok(compiled.input.agent && compiled.input.agent.slug === SLUG,
     "the agent compiled against is the OWNER'S module, built by sheetToModule from their own sheet");
+
+  let memoryCompiled = null;
+  const withMemory = await reply.assembleMirrorReply({
+    sheetRow: draftRow,
+    history: [],
+    latestText: "mera next step kya tha?",
+    memoryFacts: [{ body: "owner accepted that the next launch review is Monday" }],
+    engine,
+    reply: (c) => { memoryCompiled = c; return "Monday ko launch review hai."; },
+  });
+  ok(withMemory.ok, "an approved relational fact can reach the Mirror reply assembler");
+  eq(withMemory.recalled, 1, "the reply reports only the count of recalled facts");
+  ok(memoryCompiled.input.memories.includes("launch review is Monday"),
+    "the approved fact reaches the compiled memory slot");
 
   // §1g THE PUBLISHED SHEET WINS. Same assembler, a published+consented row.
   const pubRow = { sheet_id: SHEET_PUB, agent_id: AGENT, status: "published", consent_artifact_id: CONSENT, sheet: SHEET_BODY, slug: SLUG };
@@ -549,6 +599,23 @@ console.log("\n── 5. served ──");
   ok(!/turn_absent_reason: "clone_reply_lane_not_wired"/.test(route),
     "the hardcoded not-wired reason is gone from the ingest payload");
 
+  // A fresh internal-test workspace has no explicit consent ceremony. Source
+  // upload and Mirror Call must cross the same owned-self bootstrap before
+  // either reads its live SQL scopes. Production deployments stay fail-closed
+  // inside bootstrapSelfTestReplica when the exact environment contract is
+  // absent. The order is the regression: calling openMirrorSession first
+  // recreates the production `mirror_session_unavailable` failure.
+  ok(/import \{ bootstrapSelfTestReplica \} from "\.\/_replica-processing\/self-test\.js";/.test(route),
+    "Mirror Call imports the same owned-self test bootstrap used by private upload");
+  const bootstrapAt = route.indexOf("await bootstrapSelfTestReplica(db");
+  const openAt = route.indexOf("await openMirrorSession(db");
+  ok(bootstrapAt >= 0 && openAt > bootstrapAt,
+    "a fresh test call grants its owned-self scopes BEFORE opening the consent-gated session");
+  const strippedBootstrap = route.replace(/\s*await bootstrapSelfTestReplica\(db,[\s\S]*?\n\s*\}\);/, "");
+  ok(!/await bootstrapSelfTestReplica\(db/.test(strippedBootstrap) &&
+      /await openMirrorSession\(db/.test(strippedBootstrap),
+    "NEGATIVE CONTROL: removing the bootstrap leaves the old session-open path exposed");
+
   // THE CAP. `capMirrorReply` caps assembly at exactly what `capPanelText`
   // will accept. If one moves and the other does not, every long turn becomes a
   // 413 the owner reads as a broken clone.
@@ -626,7 +693,7 @@ console.log("\n── 6. synthesis ──");
   // It may READ whether the HMAC secret exists — that is the configuration
   // question `voiceRouteState` answers so an unset env var reads as an unset
   // env var and not as a mute clone. It may not SIGN with it.
-  ok(!/createHmac|createSign|\.digest\(/.test(route),
+  ok(!/createHmac|createSign|createPrivateKey|\.sign\(/.test(route),
     "and it signs nothing of its own — the only signer is WS-W's provider");
   ok(/turn\.text/.test(route) && !/text:\s*(?:query|req\.query|body)\??\.\w*text/.test(route),
     "THE BINDING: the synthesised text is the TURN ROW's, never the caller's");
@@ -705,6 +772,47 @@ console.log("\n── 7. warming ──");
   registry.note(origin, "waking", 2000);
   eq(registry.read(origin, 2100).state, "warming",
     "and a wake clears the ready belief rather than sitting beside it");
+
+  // Mirror Call must actively use the same signed readiness probe. Merely
+  // reading the process-local registry deadlocks: the browser keeps its mic
+  // closed while warming, so no turn_voice request exists to wake the GPU.
+  const callRegistry = warmup.createWarmthRegistry();
+  let probes = 0;
+  const cold = await mirrorRuntime.observeMirrorCallVoiceRuntime({
+    origin,
+    warmth: callRegistry,
+    now: () => 3000,
+    provider: { probeRuntimeReadiness: async () => { probes += 1; return false; } },
+  });
+  eq(probes, 1, "Mirror Call CREATE/STATUS invokes the canonical signed runtime probe");
+  eq(cold.state, "warming", "a signed not-ready answer is warming");
+  eq(cold.observed_by, "signed_runtime_status", "and names the remote observation, not a local guess");
+  eq(callRegistry.read(origin, 3001).state, "warming", "the shared registry records that wake");
+
+  const ready = await mirrorRuntime.observeMirrorCallVoiceRuntime({
+    origin,
+    warmth: callRegistry,
+    now: () => 4000,
+    provider: { probeRuntimeReadiness: async () => { probes += 1; return true; } },
+  });
+  eq(ready.state, "warm", "a signed ready answer opens capture");
+  eq(callRegistry.read(origin, 4001).state, "warm", "and records the measured ready state");
+
+  const deadRegistry = warmup.createWarmthRegistry();
+  const deadImplementation = () => deadRegistry.read(origin, 5000);
+  eq(deadImplementation().state, "cold",
+    "NEGATIVE CONTROL: process-local polling alone stays cold forever and cannot open capture");
+  ok(probes >= 2 && ready.state !== deadImplementation().state,
+    "the shipping helper escapes that deadlock only by calling signed readiness");
+
+  const unreachable = await mirrorRuntime.observeMirrorCallVoiceRuntime({
+    origin,
+    warmth: warmup.createWarmthRegistry(),
+    now: () => 6000,
+    provider: { probeRuntimeReadiness: async () => { throw Object.assign(new Error("no route"), { code: "probe_down" }); } },
+  });
+  eq(unreachable.state, "unreachable", "a failed signed probe is not guessed warm");
+  eq(unreachable.estimated_ready_seconds, null, "and carries no invented countdown");
 }
 
 // ═════════════════════════════════════════════════════════════════════════

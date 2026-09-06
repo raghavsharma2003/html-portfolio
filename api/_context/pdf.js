@@ -33,7 +33,13 @@
 // sample of real owner PDFs refuses above ~20%, the answer is a real font-map
 // pass or a vendored parser, not a loosening of the readability gate.
 import { inflateSync, inflateRawSync } from "node:zlib";
-import { assertReadable, canonicalText, paragraphSegments, refuse } from "./limits.js";
+import {
+  MAX_DOCUMENT_EXPANDED_BYTES,
+  assertReadable,
+  canonicalText,
+  paragraphSegments,
+  refuse,
+} from "./limits.js";
 
 const HEADER = Buffer.from("%PDF-");
 
@@ -131,6 +137,18 @@ function contentStreams(buffer) {
   let cursor = 0;
   let sawStream = false;
   let unsupportedFilter = false;
+  let expandedBytes = 0;
+  const addStream = (bytes) => {
+    if (bytes.length > MAX_DOCUMENT_EXPANDED_BYTES - expandedBytes) {
+      refuse("pdf_expanded_too_large", {
+        bytes: expandedBytes + bytes.length,
+        max: MAX_DOCUMENT_EXPANDED_BYTES,
+        note: "the document streams expand beyond the private extraction safety limit",
+      });
+    }
+    expandedBytes += bytes.length;
+    streams.push(bytes.toString("latin1"));
+  };
   for (;;) {
     const at = latin.indexOf("stream", cursor);
     if (at < 0) break;
@@ -151,11 +169,35 @@ function contentStreams(buffer) {
     if (/\/Type\s*\/(XRef|ObjStm|Metadata)\b/.test(dict)) continue;
     const raw = buffer.subarray(bodyStart, bodyEnd);
     if (/\/Filter/.test(dict) && !/\/FlateDecode/.test(dict)) { unsupportedFilter = true; continue; }
-    if (!/\/Filter/.test(dict)) { streams.push(raw.toString("latin1")); continue; }
+    if (!/\/Filter/.test(dict)) { addStream(raw); continue; }
+    const remaining = MAX_DOCUMENT_EXPANDED_BYTES - expandedBytes;
+    if (remaining <= 0) {
+      refuse("pdf_expanded_too_large", {
+        bytes: expandedBytes,
+        max: MAX_DOCUMENT_EXPANDED_BYTES,
+        note: "the document streams expand beyond the private extraction safety limit",
+      });
+    }
     try {
-      streams.push(inflateSync(raw).toString("latin1"));
-    } catch {
-      try { streams.push(inflateRawSync(raw).toString("latin1")); } catch { /* a stream we cannot read contributes nothing, and the readability gate decides */ }
+      addStream(inflateSync(raw, { maxOutputLength: remaining }));
+    } catch (error) {
+      if (error?.code === "ERR_BUFFER_TOO_LARGE") {
+        refuse("pdf_expanded_too_large", {
+          max: MAX_DOCUMENT_EXPANDED_BYTES,
+          note: "the document streams expand beyond the private extraction safety limit",
+        });
+      }
+      try {
+        addStream(inflateRawSync(raw, { maxOutputLength: remaining }));
+      } catch (rawError) {
+        if (rawError?.code === "ERR_BUFFER_TOO_LARGE") {
+          refuse("pdf_expanded_too_large", {
+            max: MAX_DOCUMENT_EXPANDED_BYTES,
+            note: "the document streams expand beyond the private extraction safety limit",
+          });
+        }
+        // A stream we cannot read contributes nothing, and the readability gate decides.
+      }
     }
   }
   return { streams, sawStream, unsupportedFilter };
@@ -166,7 +208,8 @@ function contentStreams(buffer) {
  * @returns `{ format, extractor, body, segments }`
  * @throws {ContextRefusal} with one of:
  *   `pdf_malformed`, `pdf_encrypted`, `pdf_no_text_layer`,
- *   `pdf_unsupported_filter`, `pdf_text_layer_unreadable`
+ *   `pdf_unsupported_filter`, `pdf_text_layer_unreadable`,
+ *   `pdf_expanded_too_large`
  */
 export function extractPdf(buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.length < 8 || !buffer.subarray(0, 5).equals(HEADER)) {

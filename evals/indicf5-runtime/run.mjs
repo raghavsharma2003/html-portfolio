@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const root = new URL("../../", import.meta.url);
-const read = (path) => readFileSync(new URL(path, root), "utf8");
+const read = (path) => readFileSync(new URL(path, root), "utf8").replace(/\r\n/g, "\n");
 const app = read("services/indicf5-runtime/app.py");
 const offlineVocoder = read("services/indicf5-runtime/offline_vocoder.py");
 const durationControl = read("services/indicf5-runtime/duration_control.py");

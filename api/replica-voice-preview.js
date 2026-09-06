@@ -53,6 +53,9 @@ export default async function handler(req, res) {
     ownerUserId = user.id;
     if (!allow(user.id, "replica_voice_preview_user", 8)) return res.status(429).json({ error: "slow_down" });
     const body = req.body || {};
+    // Ordinary previews use the durable intent, replay and storage path.
+    // This endpoint is reserved for the exact paired calibration trial.
+    if (!body.trial_id) return res.status(409).json({ error: "voice_preview_trial_required", preview_endpoint: "/api/voice-preview" });
     const languageId = String(body.language_id || "en").toLowerCase();
     if (!LANGUAGES.has(languageId)) return res.status(400).json({ error: "voice_preview_language_not_supported" });
     const text = cleanVoicePreviewText(body.text);

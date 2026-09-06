@@ -44,11 +44,16 @@ for (const [mode, environment] of [
 ok("the presentation guard accepts only the exact internal-owner-testing pair",
   model.studioSelfTestUiEnabled("true", "internal-owner-testing"));
 
-const testView = model.selfTestWizard(base);
+const waitingView = model.selfTestWizard(base, { sourceAdded: true, processing: true, voiceReady: false });
+const testView = model.selfTestWizard(base, { sourceAdded: true, processing: false, voiceReady: true });
 ok("test mode is a two-step source-first flow", testView.steps.length === 2 && testView.steps.map((step) => step.id).join(",") === "feed,meet");
 ok("source guidance never blocks interaction",
   testView.steps.every((step) => step.missing.length === 0 && step.top === null)
   && testView.steps[1].statusLabel === "Available now");
+ok("Test clone is never called available before a usable voice draft exists",
+  waitingView.steps[0].statusLabel === "Processing your recording"
+  && waitingView.steps[1].statusLabel === "Available after voice draft"
+  && waitingView.emberStep === null);
 ok("test mode carries no consent, verification, readiness, activation, or publishing ceremony",
   !ceremony.test(JSON.stringify(testView)), JSON.stringify(testView));
 ok("the production wizard object is not mutated", base.steps.length === 3 && base.steps[1].missing.length === 2);
@@ -60,22 +65,17 @@ const videoEnroll = readFileSync(join(ROOT, "src/studio/VideoEnrollPanel.tsx"), 
 const channelWatch = readFileSync(join(ROOT, "src/studio/IngestChannelStudio.tsx"), "utf8");
 const voiceExperiment = readFileSync(join(ROOT, "src/studio/VoiceExperimentPanel.tsx"), "utf8");
 const voiceExperimentContract = readFileSync(join(ROOT, "src/studio/voiceExperiment.ts"), "utf8");
-// WS-R71: VoiceExperimentPanel.tsx's own literal strings moved into
-// src/studio/copy.ts (`t.voiceExperimentPanel`); assertions below that check
-// for a literal ENGLISH SENTENCE (not JS/JSX structure) read this
-// concatenation instead of the component alone -- `evals/readiness/run.mjs`'s
-// own `panelWithCopy` shape (`ws-r52-existing-evals-updated-for-the-copy-ts-move`),
-// reused rather than re-derived.
-const copyTs = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
-const voiceExperimentWithCopy = `${voiceExperiment}\n${copyTs}`;
+const voicePreview = readFileSync(join(ROOT, "src/studio/VoicePreviewPanel.tsx"), "utf8");
 ok("the self-test presentation is gated by exact Vite mode and environment flags",
   /VITE_REPLICA_SELF_TEST_MODE/.test(studio)
   && /VITE_REPLICA_SELF_TEST_ENVIRONMENT/.test(studio)
   && /studioSelfTestUiEnabled/.test(studio));
-ok("test mode removes verification and review panels and has no Deploy step to mount activation or publishing",
+ok("test mode removes verification and raw processing panels, keeps owner claim review, and has no Deploy step",
   /!testEnvironment && <Band[\s\S]{0,3000}<IdentityProofing[\s\S]{0,3000}<LivenessCapture[\s\S]{0,3000}<ModelConsentGate/.test(studio)
   && /!testEnvironment && <ProcessingReview/.test(studio)
-  && /selfTestWizard\(base\)/.test(studio)
+  && /<PersonModelStudio[\s\S]{0,160}replicaId=\{replica\.replica_id\}/.test(studio)
+  && !/!testEnvironment && <PersonModelStudio/.test(studio)
+  && /selfTestWizard\(base, \{/.test(studio)
   && /STUDIO_SELF_TEST_UI && step === "deploy" \? "feed" : step/.test(studio));
 ok("test source intake opens immediately without silently recording an account attestation",
   /const intakeOpen = testEnvironment \|\| consentActive/.test(enrollment)
@@ -84,32 +84,56 @@ ok("test source intake opens immediately without silently recording an account a
 ok("test upload defaults to owner-only and removes identity-document and people declarations",
   /useState<boolean \| null>\(testEnvironment \? false : null\)/.test(enrollment)
   && /!testEnvironment && <option value="identity_document"/.test(enrollment)
-  && /!testEnvironment && uploadMode !== "identity_document"/.test(enrollment));
-ok("YouTube video and channel intake remain mounted in test mode",
+  && /!testEnvironment && !quickCaptureUpload && uploadMode !== "identity_document"/.test(enrollment));
+ok("YouTube video intake stays primary while the whole-channel path is deferred",
   /<VideoEnrollPanel/.test(studio) && /<IngestChannelStudio/.test(studio)
   && !/!testEnvironment && <VideoEnrollPanel/.test(studio)
-  && !/!testEnvironment && <IngestChannelStudio/.test(studio));
-ok("the test guide exposes the five source types without an item-count gate",
-  // WS-R106: the five labels moved from a literal `TEST_SOURCE_TYPES` array
-  // in `StudioApp.tsx` into `copy.ts#studioApp.testSourceGuide` (both
-  // locales) -- `TestSourceGuide`'s own component now names the five
-  // ANCHORS (`TEST_SOURCE_ANCHORS`, unchanged targets, never translated)
-  // while the labels it reads for each are locale-aware, `copyTs`'s own
-  // split from `studio` this file already draws one check up
-  // ("the Studio experiment... ENGLISH WORDING (now in copy.ts)"). The
-  // five ENGLISH words still live in `copy.ts`'s source text, just no
-  // longer in `StudioApp.tsx`'s.
-  ["Audio or video file", "Screenshot, document, or text file", "Text or web link", "YouTube video", "YouTube channel"]
-    .every((label) => copyTs.includes(label))
-  && /TEST_SOURCE_ANCHORS/.test(studio)
+  && /<details className="test-channel-later">/.test(studio)
+  && /Connect a whole YouTube channel later/.test(studio));
+ok("the test guide exposes immediate source types without an item-count gate",
+  ["Audio or video file", "Screenshot, document, or text file", "Text or web link", "YouTube video"]
+    .every((label) => studio.includes(label))
   && !/TEST_SOURCE_TARGET|testSourceCount|five-source target/i.test(studio));
+ok("test mode leads with measured milestones and one next action",
+  /function CloneOverview/.test(studio)
+  && /presentCloneProgress\(sources, runtimeStatus, activityView\)/.test(studio)
+  && /milestoneLabel/.test(studio)
+  && /Setup completion does not claim voice quality\./.test(readFileSync(join(ROOT, "src/studio/activityPresentation.ts"), "utf8"))
+  && /<CloneOverview/.test(studio));
+ok("long work shows only measured job progress instead of a fabricated timer",
+  /function LiveWorkToast/.test(studio)
+  && /job\.progress && job\.progress\.total > 0/.test(studio)
+  && /source checks complete/.test(studio)
+  && !/aria-label="Current processing progress"/.test(studio)
+  && !/estimatedProgress|fakeProgress|setInterval[\s\S]{0,160}Building your clone/.test(studio));
+ok("the owner can start over or delete the current clone without finding Deploy",
+  /Start new clone/.test(studio)
+  && /Delete this clone/.test(studio)
+  && /Clone deleted\. Stored data is being erased in the background/.test(studio)
+  && /items\.filter\(\(item\) => item\.replica_id !== result\.replica\.replica_id\)/.test(studio));
+ok("the voice draft names its bounded source lineage and links back to source management",
+  /aria-label="Voice draft sources"/.test(voicePreview)
+  && /Primary voice: your main recording/.test(voicePreview)
+  && /voice_role === "primary"/.test(voicePreview)
+  && /Private source \{sourceId\.slice\(0, 6\)\.toUpperCase\(\)\}/.test(voicePreview)
+  && /Manage sources/.test(voicePreview)
+  && /onManageSources=\{\(\) => onGoStep\("feed"\)\}/.test(studio));
 ok("testing removes the Context Locker acknowledgement click without blocking exports",
   /useState\(testEnvironment\)/.test(contextLocker)
   && /!testEnvironment && <label className="model-consent-check context-ack"/.test(contextLocker));
 ok("testing removes YouTube video attestation clicks while preserving the server payload",
   /testEnvironment \|\| VIDEO_ATTESTATIONS/.test(videoEnroll)
-  && /!testEnvironment && <fieldset>/.test(videoEnroll)
+  && /!testEnvironment && metadata && view\?\.extraction_configured/.test(videoEnroll)
+  && /<fieldset className="video-enroll-consent">/.test(videoEnroll)
   && /VIDEO_ATTESTATIONS\.map\(\(key\) => \[key, true\]\)/.test(videoEnroll));
+ok("testing turns YouTube video intake into one visible link check",
+  /inspectYouTubeVideo/.test(videoEnroll)
+  && /Checking video/.test(videoEnroll)
+  && /Video found/.test(videoEnroll)
+  && /Continue only if this is your video and you are the speaker\./.test(videoEnroll)
+  && /className="video-enroll-check"/.test(videoEnroll)
+  && /disabled=\{checking \|\| !videoUrl\.trim\(\)\}/.test(videoEnroll)
+  && /Upload the file instead/.test(videoEnroll));
 ok("testing records the channel predicate and starts the watch in one action",
   /testEnvironment && !liveFor\(channelUrl\)/.test(channelWatch)
   && /await attestChannel[\s\S]{0,300}await startChannelWatch/.test(channelWatch)
@@ -127,39 +151,34 @@ ok("the Studio experiment keeps identities sealed until a seal-bound accepted re
 ok("the Studio experiment saves locally and keeps an explicit portable answer path",
   /saveVoiceExperimentBundle/.test(voiceExperiment)
   && /localStorage\.setItem\(progressKey/.test(voiceExperiment)
-  && /Export progress/.test(voiceExperimentWithCopy)
-  && /Import progress/.test(voiceExperimentWithCopy)
+  && /Export progress/.test(voiceExperiment)
+  && /Import progress/.test(voiceExperiment)
   && /import-studio-answers/.test(voiceExperiment));
 ok("the Studio experiment counts only completed playback and makes its final lock irreversible",
   /audio\.onended = \(\) => \{[\s\S]{0,180}setReferencePlayed\(true\)[\s\S]{0,180}setPlayedTrialId\(playedTrial\)/.test(voiceExperiment)
   && /audioRef\.current\.onended = null/.test(voiceExperiment)
   && !/await audio\.play\(\)[\s\S]{0,120}set(?:ReferencePlayed|PlayedTrialId)/.test(voiceExperiment)
   && /setLockedAt\(new Date\(\)\.toISOString\(\)\)/.test(voiceExperiment)
-  && /Locking is irreversible in Studio/.test(voiceExperimentWithCopy)
+  && /Locking is irreversible in Studio/.test(voiceExperiment)
   && !/Review ratings/.test(voiceExperiment));
 ok("the Studio experiment exposes progress and keyboard focus semantics",
   /role="progressbar"/.test(voiceExperiment)
   && /aria-valuemin=\{0\}/.test(voiceExperiment)
   && /aria-valuemax=\{total\}/.test(voiceExperiment)
   && /aria-valuenow=\{completed\}/.test(voiceExperiment)
-  // WS-R71: the aria-valuetext now composes the localized "{n} of {n2}
-  // ratings complete" template from copy.ts rather than a hardcoded English
-  // backtick literal -- checked as two halves: the code SHAPE (still in the
-  // component) and the ENGLISH WORDING (now in copy.ts).
-  && /aria-valuetext=\{c\.progressAriaValueText\.split\("\{n\}"\)\.join\(String\(completed\)\)\.split\("\{n2\}"\)\.join\(String\(total\)\)\}/.test(voiceExperiment)
-  && /progressAriaValueText: "\{n\} of \{n2\} ratings complete"/.test(copyTs));
+  && /aria-valuetext=\{`\$\{completed\} of \$\{total\} ratings complete`\}/.test(voiceExperiment));
 ok("the Studio experiment verifies an asymmetric private-pack signature before revealing identities",
   /crypto\.subtle\.verify/.test(voiceExperimentContract)
   && /RSASSA-PKCS1-v1_5/.test(voiceExperimentContract)
   && /await verifyVoiceExperimentReportAttestation/.test(voiceExperimentContract)
   && /await parseVoiceExperimentResult/.test(voiceExperiment)
-  && /Signature verified/.test(voiceExperimentWithCopy)
-  && !/Seal matched/.test(voiceExperimentWithCopy));
+  && /Signature verified/.test(voiceExperiment)
+  && !/Seal matched/.test(voiceExperiment));
 ok("the Studio experiment can replace or remove one bounded replica run",
   /deleteVoiceExperimentBundle\(replicaId, runId\)/.test(voiceExperiment)
   && /clearStoredRun\(replicaId, runId\)/.test(voiceExperiment)
-  && /Replace pack/.test(voiceExperimentWithCopy)
-  && /Remove private experiment/.test(voiceExperimentWithCopy)
+  && /Replace pack/.test(voiceExperiment)
+  && /Remove private experiment/.test(voiceExperiment)
   && /window\.confirm/.test(voiceExperiment)
   && /objectStore\(STORE_NAME\)\.delete\(`\$\{replicaId\}:\$\{runId\}`\)/.test(voiceExperimentContract));
 

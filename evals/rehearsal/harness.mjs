@@ -167,6 +167,7 @@ const CONTENT_TYPES = {
 // happens to reach it.
 const CREATOR_DOOR_MODULES = {
   "/api/replica": "../../api/replica.js",
+  "/api/replica-consent": "../../api/replica-consent.js",
   "/api/context-items": "../../api/context-items.js",
   "/api/review-queue": "../../api/review-queue.js",
   "/api/readiness": "../../api/readiness.js",
@@ -189,7 +190,7 @@ const CREATOR_DOOR_MODULES = {
  * WS-R109, folded verbatim from `evals/rehearsal/harness-creator.mjs`'s own
  * table (unchanged): the REAL `StudioApp` reads several dozen `/api/*`
  * routes on mount, not only the five routed for real above — the same fact
- * `src/studio/layoutFixture.tsx`'s own `ROUTES` table exists to answer for
+ * `src/creatorStudio/layoutFixture.tsx`'s own `ROUTES` table exists to answer for
  * the layout gate. Every one of those routes gets its own safe empty shape
  * here, the same shapes that file already uses. Anything genuinely new to
  * both files gets `{}`, which is what an unguarded reader crashes on —

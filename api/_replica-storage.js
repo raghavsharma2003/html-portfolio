@@ -14,6 +14,9 @@ const MAX_BUCKET_BYTES = 1_073_741_824;
 const MAX_DERIVED_OBJECT_BYTES = 67_108_864;
 const AZURE_BLOB_VERSION = "2026-04-06";
 const AZURE_UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024;
+const STORAGE_ERASURE_CONCURRENCY = 16;
+const STORAGE_ERASURE_PAGE_SIZE = 1_000;
+const MAX_STORAGE_ERASURE_PASSES = 100;
 let configPromise;
 
 export class ReplicaStorageError extends Error {
@@ -238,7 +241,7 @@ function privilegedStorageHeaders(key) {
     : { apikey, Authorization: `Bearer ${apikey}` };
 }
 
-async function storageRequest(path, { method = "GET", body, headers = {}, fetchImpl = fetch, allow = [] } = {}) {
+async function storageRequest(path, { method = "GET", body, headers = {}, fetchImpl = fetch, allow = [], signal } = {}) {
   const { baseUrl, key } = await storageCredentials();
   let response;
   try {
@@ -250,7 +253,9 @@ async function storageRequest(path, { method = "GET", body, headers = {}, fetchI
         ...headers,
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      signal: AbortSignal.timeout(10_000),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
+        : AbortSignal.timeout(10_000),
     });
   } catch (error) {
     throw new ReplicaStorageError("private_storage_unreachable", 503, error?.message);
@@ -295,6 +300,50 @@ function exactObjectPath(objectPath, requireDerived = false) {
     throw new ReplicaStorageError("replica_derived_path_required", 400);
   }
   return objectPath;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function replicaSourceObjectPrefix(source) {
+  const ownerUserId = String(source?.ownerUserId || source?.owner_user_id || "").toLowerCase();
+  const replicaId = String(source?.replicaId || source?.replica_id || "").toLowerCase();
+  const sourceId = String(source?.sourceId || source?.source_id || "").toLowerCase();
+  if (![ownerUserId, replicaId, sourceId].every((value) => UUID.test(value))) {
+    throw new ReplicaStorageError("replica_source_scope_invalid", 400);
+  }
+  return `${ownerUserId}/${replicaId}/${sourceId}/`;
+}
+
+function exactSourceObjectPath(objectPath, prefix) {
+  const path = exactObjectPath(objectPath);
+  if (!path.startsWith(prefix) ||
+      (path !== `${prefix}original` && !path.startsWith(`${prefix}derived/`))) {
+    throw new ReplicaStorageError("replica_source_object_scope_invalid", 400);
+  }
+  return path;
+}
+
+function replicaObjectPrefix(scope) {
+  const ownerUserId = String(scope?.ownerUserId || scope?.owner_user_id || "").toLowerCase();
+  const replicaId = String(scope?.replicaId || scope?.replica_id || "").toLowerCase();
+  if (![ownerUserId, replicaId].every((value) => UUID.test(value))) {
+    throw new ReplicaStorageError("replica_storage_scope_invalid", 400);
+  }
+  return `${ownerUserId}/${replicaId}/`;
+}
+
+function exactReplicaObjectPath(objectPath, prefix) {
+  const path = exactObjectPath(objectPath);
+  if (!path.startsWith(prefix)) {
+    throw new ReplicaStorageError("replica_storage_object_scope_invalid", 400);
+  }
+  return path;
+}
+
+async function mapBatches(values, size, task) {
+  for (let offset = 0; offset < values.length; offset += size) {
+    await Promise.all(values.slice(offset, offset + size).map(task));
+  }
 }
 
 async function rawStorageFetch(path, options = {}) {
@@ -369,33 +418,88 @@ export async function readPrivateReplicaObject(locator, options = {}) {
   return Object.freeze({ body: bytes, byteSize: bytes.length, mime: object.mime, objectId: object.objectId });
 }
 
-export async function writeImmutableReplicaArtifact(input, options = {}) {
-  const locator = replicaStorageLocator(input, { requireDerived: true });
+async function writeImmutableReplicaObject(input, options = {}, requireDerived = false) {
+  const locator = replicaStorageLocator(input, { requireDerived });
   const objectPath = locator.objectPath;
+  options.signal?.throwIfAborted();
+  if (typeof options.beforeWriteRequest !== "function") {
+    throw new ReplicaStorageError("source_storage_writer_authority_required", 500);
+  }
   if (input.ifNoneMatch !== "*") throw new ReplicaStorageError("replica_artifact_create_only_required", 400);
   const mime = String(input.mime || "").split(";", 1)[0].trim().toLowerCase();
   if (!mime || !mime.includes("/")) throw new ReplicaStorageError("replica_artifact_mime_invalid", 400);
   const bytes = await collectStorageBody(input.body, options.maxBytes || MAX_DERIVED_OBJECT_BYTES, "replica_artifact_size_invalid");
+  options.signal?.throwIfAborted();
   const digest = createHash("sha256").update(bytes).digest("hex");
   if (input.expectedSha256 && String(input.expectedSha256).toLowerCase() !== digest) {
     throw new ReplicaStorageError("replica_artifact_digest_mismatch", 409);
   }
-  const upload = locator.provider === "azure_blob"
-    ? await azureStorageFetch(objectPath, {
-      credentials: await azureStorageCredentials(locator),
+  let upload;
+  if (locator.provider === "azure_blob") {
+    const credentials = await azureStorageCredentials(locator);
+    const blockIds = [];
+    for (let offset = 0, index = 0; offset < bytes.length; offset += AZURE_UPLOAD_CHUNK_BYTES, index += 1) {
+      options.signal?.throwIfAborted();
+      const chunk = bytes.subarray(offset, Math.min(bytes.length, offset + AZURE_UPLOAD_CHUNK_BYTES));
+      // Include the digest in deterministic, equal-length block ids so two
+      // conflicting create-only writers cannot accidentally compose a mixed
+      // block list. Azure requires every id for one blob to have equal length.
+      const blockId = Buffer.from(`${digest.slice(0, 32)}:${String(index).padStart(6, "0")}`, "utf8").toString("base64");
+      blockIds.push(blockId);
+      await options.beforeWriteRequest(Object.freeze({
+        provider: "azure_blob", phase: "block", index, byteSize: chunk.length,
+        storageBucket: locator.storageBucket, objectPath,
+      }));
+      options.signal?.throwIfAborted();
+      const block = await azureStorageFetch(objectPath, {
+        credentials,
+        method: "PUT",
+        permissions: "w",
+        query: { comp: "block", blockid: blockId },
+        headers: { "Content-Type": "application/octet-stream", "Content-Length": String(chunk.length) },
+        body: chunk,
+        fetchImpl: options.fetchImpl,
+        timeoutMs: options.timeoutMs,
+        signal: options.signal,
+      });
+      if (!block.ok) {
+        try { await block.body?.cancel(); } catch { /* response content is not evidence */ }
+        throw new ReplicaStorageError("private_storage_write_failed", block.status >= 500 ? 503 : 409);
+      }
+    }
+    const blockList = Buffer.from(
+      `<?xml version="1.0" encoding="utf-8"?><BlockList>${blockIds.map((id) => `<Latest>${id}</Latest>`).join("")}</BlockList>`,
+      "utf8",
+    );
+    await options.beforeWriteRequest(Object.freeze({
+      provider: "azure_blob", phase: "commit", blockCount: blockIds.length, byteSize: bytes.length,
+      storageBucket: locator.storageBucket, objectPath,
+    }));
+    options.signal?.throwIfAborted();
+    upload = await azureStorageFetch(objectPath, {
+      credentials,
       method: "PUT",
       permissions: "w",
+      query: { comp: "blocklist" },
       headers: {
-        "Content-Type": mime,
-        "Cache-Control": "private, max-age=31536000, immutable",
+        "Content-Type": "application/xml",
+        "Content-Length": String(blockList.length),
         "If-None-Match": "*",
-        "x-ms-blob-type": "BlockBlob",
+        "x-ms-blob-content-type": mime,
+        "x-ms-blob-cache-control": "private, max-age=31536000, immutable",
       },
-      body: bytes,
+      body: blockList,
       fetchImpl: options.fetchImpl,
       timeoutMs: options.timeoutMs,
-    })
-    : await rawStorageFetch(
+      signal: options.signal,
+    });
+  } else {
+    await options.beforeWriteRequest(Object.freeze({
+      provider: "supabase", phase: "object", byteSize: bytes.length,
+      storageBucket: locator.storageBucket, objectPath,
+    }));
+    options.signal?.throwIfAborted();
+    upload = await rawStorageFetch(
       `/object/${encodeURIComponent(locator.bucket)}/${segments(objectPath)}`,
       {
         method: "POST",
@@ -403,8 +507,10 @@ export async function writeImmutableReplicaArtifact(input, options = {}) {
         body: bytes,
         fetchImpl: options.fetchImpl,
         timeoutMs: options.timeoutMs,
+        signal: options.signal,
       },
     );
+  }
   const collision = locator.provider === "azure_blob"
     ? upload.status === 409 || upload.status === 412
     : upload.status === 400 || upload.status === 409;
@@ -418,12 +524,25 @@ export async function writeImmutableReplicaArtifact(input, options = {}) {
     fetchImpl: options.fetchImpl,
     timeoutMs: options.timeoutMs,
     maxBytes: options.maxBytes || MAX_DERIVED_OBJECT_BYTES,
+    signal: options.signal,
   });
+  options.signal?.throwIfAborted();
   const storedDigest = createHash("sha256").update(stored.body).digest("hex");
   if (storedDigest !== digest || stored.byteSize !== bytes.length || stored.mime !== mime) {
     throw new ReplicaStorageError(upload.ok ? "replica_artifact_verification_failed" : "immutable_artifact_collision", 409);
   }
-  return Object.freeze({ sha256: digest, byteSize: bytes.length, mime });
+  return Object.freeze({ sha256: digest, byteSize: bytes.length, mime, objectId: stored.objectId });
+}
+
+/** Server-side, create-only write of an original source. Context Locker uses
+ * this for its bounded base64 intake so an image or document that receives a
+ * canonical evidence row also has real private bytes behind its source UUID. */
+export async function writeImmutableReplicaSource(input, options = {}) {
+  return writeImmutableReplicaObject(input, options, false);
+}
+
+export async function writeImmutableReplicaArtifact(input, options = {}) {
+  return writeImmutableReplicaObject(input, options, true);
 }
 
 export async function ensurePrivateReplicaBucket(storageBucket, fetchImpl = fetch) {
@@ -534,7 +653,10 @@ export async function createSignedReplicaUpload(locatorInput, fetchImpl = fetch)
     headers: { "cache-control": "max-age=3600", "x-upsert": "false" },
     resumable: {
       protocol: "tus-1.0",
-      endpoint: `${resumableOrigin}/storage/v1/upload/resumable`,
+      // Only the signed TUS lifecycle route validates x-signature on every
+      // POST/PATCH/HEAD. The unsigned endpoint would either fail under RLS or
+      // silently rely on unrelated anon insert policy.
+      endpoint: `${resumableOrigin}/storage/v1/upload/resumable/sign`,
       headers: { apikey: publicKey, "x-signature": token, "x-upsert": "false" },
       metadata: {
         bucketName: locator.bucket,
@@ -634,7 +756,169 @@ export async function deleteReplicaObject(locator, fetchImpl = fetch) {
   return deleteReplicaObjects([locator], fetchImpl);
 }
 
-export async function deleteReplicaObjects(locatorInputs, fetchImpl = fetch) {
+function xmlText(value) {
+  return String(value || "").replace(/&(?:lt|gt|amp|quot|apos|#\d+|#x[0-9a-f]+);/gi, (entity) => {
+    if (entity === "&lt;") return "<";
+    if (entity === "&gt;") return ">";
+    if (entity === "&amp;") return "&";
+    if (entity === "&quot;") return '"';
+    if (entity === "&apos;") return "'";
+    const hex = /^&#x([0-9a-f]+);$/i.exec(entity);
+    const decimal = /^&#(\d+);$/.exec(entity);
+    const codePoint = Number.parseInt(hex?.[1] || decimal?.[1] || "", hex ? 16 : 10);
+    return Number.isSafeInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+      ? String.fromCodePoint(codePoint) : entity;
+  });
+}
+
+async function listAzurePrefixObjects(descriptor, prefix, validateObjectPath, fetchImpl, signal) {
+  const credentials = await azureStorageCredentials(descriptor);
+  const paths = [];
+  const seenMarkers = new Set();
+  let marker = "";
+  do {
+    if (seenMarkers.has(marker)) throw new ReplicaStorageError("azure_replica_storage_list_invalid", 503);
+    seenMarkers.add(marker);
+    const response = await azureStorageFetch("", {
+      credentials,
+      method: "GET",
+      permissions: "l",
+      resource: "c",
+      query: {
+        restype: "container",
+        comp: "list",
+        prefix,
+        maxresults: "5000",
+        // Recovery features are disabled by infrastructure, but erasure must
+        // fail closed if that control-plane posture ever drifts. Retained
+        // versions, snapshots, soft-deleted bytes or uncommitted blocks stay
+        // visible to the final empty-prefix proof.
+        include: "deleted,deletedwithversions,snapshots,versions,uncommittedblobs",
+        ...(marker ? { marker } : {}),
+      },
+      fetchImpl,
+      timeoutMs: 60_000,
+      signal,
+    });
+    if (!response.ok) {
+      try { await response.body?.cancel(); } catch { /* provider content is not evidence */ }
+      throw new ReplicaStorageError("azure_replica_storage_list_failed", response.status >= 500 ? 503 : 409);
+    }
+    const xml = await response.text();
+    if (xml.length > 8 * 1024 * 1024) throw new ReplicaStorageError("azure_replica_storage_list_invalid", 503);
+    for (const match of xml.matchAll(/<Blob(?:\s[^>]*)?>([\s\S]*?)<\/Blob>/g)) {
+      const name = /<Name>([\s\S]*?)<\/Name>/.exec(match[1]);
+      if (!name) throw new ReplicaStorageError("azure_replica_storage_list_invalid", 503);
+      paths.push(validateObjectPath(xmlText(name[1]), prefix));
+      // Delete this bounded exact-name page before asking the provider for
+      // more. Re-listing from the prefix after the page is gone makes forward
+      // progress without retaining an unbounded manifest in memory.
+      if (paths.length >= STORAGE_ERASURE_PAGE_SIZE) return paths;
+    }
+    marker = xmlText(/<NextMarker>([\s\S]*?)<\/NextMarker>/.exec(xml)?.[1] || "");
+  } while (marker);
+  return paths;
+}
+
+function supabaseChildName(value) {
+  const name = String(value || "");
+  if (!name || name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
+    throw new ReplicaStorageError("supabase_replica_storage_list_invalid", 503);
+  }
+  return name;
+}
+
+async function listSupabasePrefixObjects(descriptor, prefix, validateObjectPath, fetchImpl, signal) {
+  const root = prefix.slice(0, -1);
+  const queue = [root];
+  const queued = new Set(queue);
+  const paths = [];
+  while (queue.length) {
+    const folder = queue.shift();
+    for (let offset = 0; ; offset += 1000) {
+      const { data } = await storageRequest(`/object/list/${encodeURIComponent(descriptor.bucket)}`, {
+        method: "POST",
+        body: { prefix: folder, limit: 1000, offset, sortBy: { column: "name", order: "asc" } },
+        fetchImpl,
+        signal,
+      });
+      if (!Array.isArray(data)) throw new ReplicaStorageError("supabase_replica_storage_list_invalid", 503);
+      for (const entry of data) {
+        const child = `${folder}/${supabaseChildName(entry?.name)}`;
+        if (typeof entry?.id === "string" && entry.id) {
+          paths.push(validateObjectPath(child, prefix));
+          if (paths.length >= STORAGE_ERASURE_PAGE_SIZE) return paths;
+        } else {
+          validateObjectPath(`${child}/placeholder`, prefix);
+          if (!queued.has(child)) {
+            queue.push(child);
+            queued.add(child);
+          }
+        }
+      }
+      if (data.length < 1000) break;
+    }
+  }
+  return paths;
+}
+
+async function listSourceObjects(descriptor, prefix, fetchImpl, signal) {
+  return descriptor.provider === "azure_blob"
+    ? listAzurePrefixObjects(descriptor, prefix, exactSourceObjectPath, fetchImpl, signal)
+    : listSupabasePrefixObjects(descriptor, prefix, exactSourceObjectPath, fetchImpl, signal);
+}
+
+async function listReplicaObjects(descriptor, prefix, fetchImpl, signal) {
+  return descriptor.provider === "azure_blob"
+    ? listAzurePrefixObjects(descriptor, prefix, exactReplicaObjectPath, fetchImpl, signal)
+    : listSupabasePrefixObjects(descriptor, prefix, exactReplicaObjectPath, fetchImpl, signal);
+}
+
+async function supabaseExactObjectExists(locator, fetchImpl, signal) {
+  const parts = locator.objectPath.split("/");
+  const name = parts.pop();
+  const prefix = parts.join("/");
+  for (let offset = 0; ; offset += 1000) {
+    const { data } = await storageRequest(`/object/list/${encodeURIComponent(locator.bucket)}`, {
+      method: "POST",
+      body: { prefix, search: name, limit: 1000, offset, sortBy: { column: "name", order: "asc" } },
+      fetchImpl,
+      signal,
+    });
+    if (!Array.isArray(data)) throw new ReplicaStorageError("supabase_replica_storage_list_invalid", 503);
+    if (data.some((entry) => entry?.name === name && typeof entry?.id === "string" && entry.id)) return true;
+    if (data.length < 1000) return false;
+  }
+}
+
+async function replicaObjectExists(locator, fetchImpl, signal) {
+  if (locator.provider === "azure_blob") {
+    const response = await azureStorageFetch(locator.objectPath, {
+      credentials: await azureStorageCredentials(locator),
+      method: "HEAD",
+      permissions: "r",
+      fetchImpl,
+      timeoutMs: 30_000,
+      signal,
+    });
+    if (response.status === 404) return false;
+    if (!response.ok) throw new ReplicaStorageError("azure_replica_storage_read_failed", response.status >= 500 ? 503 : 409);
+    try { await response.body?.cancel(); } catch { /* HEAD normally has no body */ }
+    return true;
+  }
+  return supabaseExactObjectExists(locator, fetchImpl, signal);
+}
+
+async function requireReplicaObjectsAbsent(locators, fetchImpl, signal) {
+  await mapBatches(locators, STORAGE_ERASURE_CONCURRENCY, async (locator) => {
+    signal?.throwIfAborted();
+    if (await replicaObjectExists(locator, fetchImpl, signal)) {
+      throw new ReplicaStorageError("replica_storage_delete_not_confirmed", 503);
+    }
+  });
+}
+
+export async function deleteReplicaObjects(locatorInputs, fetchImpl = fetch, options = {}) {
   if (!Array.isArray(locatorInputs) || !locatorInputs.length || locatorInputs.length > 10_000) {
     throw new ReplicaStorageError("replica_delete_paths_invalid", 400);
   }
@@ -651,17 +935,19 @@ export async function deleteReplicaObjects(locatorInputs, fetchImpl = fetch) {
     byBucket.set(locator.storageBucket, group);
   }
   for (const bucketLocators of byBucket.values()) {
+    options.signal?.throwIfAborted();
     const descriptor = bucketLocators[0];
     if (descriptor.provider === "azure_blob") {
       const azure = await azureStorageCredentials(descriptor);
       for (let offset = 0; offset < bucketLocators.length; offset += 16) {
         const responses = await Promise.all(bucketLocators.slice(offset, offset + 16).map((locator) => azureStorageFetch(locator.objectPath, {
-        credentials: azure,
-        method: "DELETE",
-        permissions: "d",
-        headers: { "x-ms-delete-snapshots": "include" },
-        fetchImpl,
-        timeoutMs: 60_000,
+          credentials: azure,
+          method: "DELETE",
+          permissions: "d",
+          headers: { "x-ms-delete-snapshots": "include" },
+          fetchImpl,
+          timeoutMs: 60_000,
+          signal: options.signal,
         })));
         const failed = responses.find((response) => !response.ok && response.status !== 404);
         if (failed) throw new ReplicaStorageError("azure_replica_storage_delete_failed", failed.status >= 500 ? 503 : 409);
@@ -676,7 +962,113 @@ export async function deleteReplicaObjects(locatorInputs, fetchImpl = fetch) {
         method: "DELETE",
         body: { prefixes: paths.slice(offset, offset + 100) },
         fetchImpl,
+        signal: options.signal,
       });
     }
   }
+  await requireReplicaObjectsAbsent(locators, fetchImpl, options.signal);
+  return Object.freeze({ requested: locators.length, confirmedAbsent: locators.length });
+}
+
+async function deleteExactObjectBatches(locators, fetchImpl, options, deletedKeys) {
+  for (let offset = 0; offset < locators.length; offset += STORAGE_ERASURE_PAGE_SIZE) {
+    const batch = locators.slice(offset, offset + STORAGE_ERASURE_PAGE_SIZE);
+    await deleteReplicaObjects(batch, fetchImpl, options);
+    for (const locator of batch) {
+      deletedKeys.add(`${locator.storageBucket}\n${locator.objectPath}`);
+    }
+  }
+}
+
+async function drainExactReplicaPrefix({
+  manifest, descriptors, prefix, listObjects, fetchImpl, options, notEmptyCode,
+}) {
+  const deletedKeys = new Set();
+  await deleteExactObjectBatches(manifest, fetchImpl, options, deletedKeys);
+  let discovered = 0;
+  const discoveredKeys = new Set();
+  const maxPasses = Math.max(1, Math.min(1_000, Number(options.maxPasses || MAX_STORAGE_ERASURE_PASSES)));
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    let found = false;
+    for (const descriptor of descriptors.values()) {
+      options.signal?.throwIfAborted();
+      const paths = await listObjects(descriptor, prefix, fetchImpl, options.signal);
+      if (!paths.length) continue;
+      found = true;
+      const locators = paths.map((objectPath) => ({ ...descriptor, objectPath }));
+      for (const locator of locators) {
+        const key = `${locator.storageBucket}\n${locator.objectPath}`;
+        if (!discoveredKeys.has(key)) {
+          discoveredKeys.add(key);
+          discovered += 1;
+        }
+      }
+      await deleteExactObjectBatches(locators, fetchImpl, options, deletedKeys);
+    }
+    if (!found) {
+      return Object.freeze({ discovered, confirmedAbsent: deletedKeys.size, providers: descriptors.size });
+    }
+  }
+  // A writer or retained provider version is defeating monotonic cleanup.
+  // Keep every SQL manifest and retry under an explicit operational code;
+  // never convert a bounded-work ceiling into a successful receipt.
+  throw new ReplicaStorageError(notEmptyCode, 503);
+}
+
+// A source manifest names only the currently selected artifacts. Failed or
+// superseded processing attempts can still leave exact-source siblings in the
+// private store. Enumerate the source namespace, delete every discovered name
+// individually, then enumerate again. SQL may remove the source manifest only
+// after this function proves that every configured provider is empty for this
+// one owner/replica/source tuple.
+export async function deleteReplicaSourceObjects(source, locatorInputs, fetchImpl = fetch, options = {}) {
+  if (!Array.isArray(locatorInputs) || !locatorInputs.length) {
+    throw new ReplicaStorageError("replica_delete_paths_invalid", 400);
+  }
+  const prefix = replicaSourceObjectPrefix(source);
+  const manifest = locatorInputs.map((input) => {
+    const locator = replicaStorageLocator(input);
+    exactSourceObjectPath(locator.objectPath, prefix);
+    return locator;
+  });
+  const descriptors = new Map();
+  for (const locator of manifest) descriptors.set(locator.storageBucket, locator);
+  for (const configuredBucket of [REPLICA_STORAGE_BUCKET, REPLICA_STORAGE_WRITE_BUCKET]) {
+    const descriptor = replicaStorageBucketDescriptor(configuredBucket);
+    descriptors.set(descriptor.storageBucket, descriptor);
+  }
+
+  return drainExactReplicaPrefix({
+    manifest, descriptors, prefix, listObjects: listSourceObjects, fetchImpl, options,
+    notEmptyCode: "replica_source_storage_not_empty",
+  });
+}
+
+// Full-replica erasure must also reach objects that predate a per-source
+// manifest, including channel extraction uploads. Enumerate only the exact
+// owner/replica namespace, delete each discovered object by its full name,
+// then prove every durable/configured provider namespace is empty. This is
+// deliberately separate from deleteReplicaSourceObjects: source erasure keeps
+// its narrower owner/replica/source path law unchanged.
+export async function deleteReplicaPrefixObjects(scope, locatorInputs = [], fetchImpl = fetch, options = {}) {
+  if (!Array.isArray(locatorInputs)) {
+    throw new ReplicaStorageError("replica_delete_paths_invalid", 400);
+  }
+  const prefix = replicaObjectPrefix(scope);
+  const manifest = locatorInputs.map((input) => {
+    const locator = replicaStorageLocator(input);
+    exactReplicaObjectPath(locator.objectPath, prefix);
+    return locator;
+  });
+  const descriptors = new Map();
+  for (const locator of manifest) descriptors.set(locator.storageBucket, locator);
+  for (const configuredBucket of [REPLICA_STORAGE_BUCKET, REPLICA_STORAGE_WRITE_BUCKET]) {
+    const descriptor = replicaStorageBucketDescriptor(configuredBucket);
+    descriptors.set(descriptor.storageBucket, descriptor);
+  }
+
+  return drainExactReplicaPrefix({
+    manifest, descriptors, prefix, listObjects: listReplicaObjects, fetchImpl, options,
+    notEmptyCode: "replica_storage_prefix_not_empty",
+  });
 }

@@ -39,7 +39,14 @@ export async function leaseNextProcessingJob(db, options = {}) {
               (j.state in ('queued','retry') and j.next_attempt_at <= now())
            or (j.state = 'leased' and j.lease_expires_at <= now())
         )
-        order by j.next_attempt_at, j.created_at
+        -- Once a run has started one source, keep walking that source's
+        -- sequential DAG before opening another one. This is only a priority,
+        -- never an eligibility bypass: if the preferred source has no due
+        -- work the oldest global candidate still wins. Without this, a four
+        -- job run could touch four different uploads and leave all four at
+        -- the same shallow percentage even though one could have reached
+        -- ready in the same bounded run.
+        order by (j.source_id = $3::uuid) desc, j.next_attempt_at, j.created_at
         for update skip locked limit 1
      ), expired as (
        update vy_replica_processing_attempt a
@@ -63,10 +70,36 @@ export async function leaseNextProcessingJob(db, options = {}) {
        on conflict (job_id, attempt) do nothing
      )
      select * from leased`,
-    [leaseTokenHash(token), leaseMs],
+    [leaseTokenHash(token), leaseMs, options.preferredSourceId || null],
   );
   if (!rows[0]) return null;
   return Object.freeze({ job: publicJob(rows[0]), leaseToken: token });
+}
+
+/**
+ * Extend one still-owned lease while a legitimate long provider stage runs.
+ *
+ * The worker uses a short recoverable lease plus this heartbeat instead of a
+ * one-hour dead-worker penalty. A hard-killed container stops heartbeating and
+ * becomes eligible again after the short lease; a live long transcription or
+ * diarization pass keeps exclusive ownership.
+ */
+export async function renewProcessingLease(db, input) {
+  const leaseMs = Math.max(10_000, Math.min(3_600_000, Number(input.leaseMs || 600_000)));
+  const rows = await db(
+    `update vy_replica_processing_job j
+        set lease_expires_at = now() + ($3::integer * interval '1 millisecond')
+      where j.job_id = $1::uuid and j.state = 'leased' and j.lease_token_hash = $2
+        and j.lease_expires_at > now()
+        and exists (
+          select 1 from vy_replica_source s
+           where s.source_id=j.source_id and s.replica_id=j.replica_id
+             and s.owner_user_id=j.owner_user_id and s.state in ('quarantined','processing')
+        )
+      returning j.*`,
+    [input.jobId, leaseTokenHash(input.leaseToken), leaseMs],
+  );
+  return requireSettlement(rows, "processing lease expired before heartbeat");
 }
 
 export function processingCompletionReceipt(result) {
@@ -84,6 +117,27 @@ export function processingCompletionReceipt(result) {
     next_steps: nextSteps,
     verified_input_sha256: assertSha256(result.verified_input_sha256, "verified input sha256"),
   };
+  if (result.provider_transport != null) {
+    if (!Array.isArray(result.provider_transport) || !result.provider_transport.length || result.provider_transport.length > 4) {
+      throw new Error("valid provider transport required");
+    }
+    basis.provider_transport = result.provider_transport.map((entry) => {
+      const transform = String(entry?.transform || "");
+      const mime = String(entry?.mime || "").toLowerCase();
+      const byteSize = Number(entry?.byte_size);
+      if (!new Set(["none", "azure-asr-flac-16k-mono-v1"]).has(transform) ||
+          !/^audio\/[a-z0-9.+-]+$/.test(mime) || !Number.isSafeInteger(byteSize) || byteSize < 1) {
+        throw new Error("valid provider transport required");
+      }
+      return Object.freeze({
+        source_sha256: assertSha256(entry.source_sha256, "provider source sha256"),
+        transport_sha256: assertSha256(entry.transport_sha256, "provider transport sha256"),
+        transform,
+        byte_size: byteSize,
+        mime,
+      });
+    });
+  }
   return Object.freeze({ ...basis, manifest_hash: sha256Hex(basis) });
 }
 
@@ -105,6 +159,11 @@ export async function completeProcessingJob(db, input) {
               updated_at = now()
         where j.job_id = $1::uuid and j.state = 'leased' and j.lease_token_hash = $2
           and j.lease_expires_at > now() and j.step = $8
+          and exists (
+            select 1 from vy_replica_source s
+             where s.source_id=j.source_id and s.replica_id=j.replica_id
+               and s.owner_user_id=j.owner_user_id and s.state in ('quarantined','processing')
+          )
           and not exists (
             select 1 from jsonb_array_elements_text($3::jsonb -> 'artifact_ids') wanted(id)
              where not exists (

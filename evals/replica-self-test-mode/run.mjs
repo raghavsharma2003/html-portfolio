@@ -3,10 +3,12 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  SELF_TEST_ACCESS_ALL_AUTHENTICATED,
   SELF_TEST_ENVIRONMENT,
   SELF_TEST_GRANT_METADATA,
   applySelfTestAutoGrant,
   bootstrapSelfTestReplica,
+  reconcileSelfTestVoiceGenomes,
   selfTestModeEnabled,
 } from "../../api/_replica-processing/self-test.js";
 
@@ -19,6 +21,11 @@ const VALID_ENV = Object.freeze({
   REPLICA_SELF_TEST_MODE: "true",
   REPLICA_SELF_TEST_ENVIRONMENT: SELF_TEST_ENVIRONMENT,
   REPLICA_SELF_TEST_OWNER_USER_ID: OWNER,
+});
+const VALID_ALL_ACCOUNTS_ENV = Object.freeze({
+  REPLICA_SELF_TEST_MODE: "true",
+  REPLICA_SELF_TEST_ENVIRONMENT: SELF_TEST_ENVIRONMENT,
+  REPLICA_SELF_TEST_ACCESS: SELF_TEST_ACCESS_ALL_AUTHENTICATED,
 });
 let checks = 0;
 
@@ -41,6 +48,15 @@ ok("the allowlisted owner must be a real UUID", !selfTestModeEnabled({
 }, OWNER));
 ok("a different account cannot inherit the test bypass", !selfTestModeEnabled(VALID_ENV, OTHER_OWNER));
 ok("all three exact guards enable only the allowlisted owner", selfTestModeEnabled(VALID_ENV, OWNER));
+ok("the explicit internal all-account access marker admits any authenticated UUID",
+  selfTestModeEnabled(VALID_ALL_ACCOUNTS_ENV, OWNER)
+  && selfTestModeEnabled(VALID_ALL_ACCOUNTS_ENV, OTHER_OWNER));
+ok("all-account access still rejects a missing or malformed authenticated owner",
+  !selfTestModeEnabled(VALID_ALL_ACCOUNTS_ENV, "")
+  && !selfTestModeEnabled(VALID_ALL_ACCOUNTS_ENV, "owner"));
+ok("nearby access aliases cannot enable the all-account lane",
+  !selfTestModeEnabled({ ...VALID_ALL_ACCOUNTS_ENV, REPLICA_SELF_TEST_ACCESS: "all" }, OWNER)
+  && !selfTestModeEnabled({ ...VALID_ALL_ACCOUNTS_ENV, REPLICA_SELF_TEST_ACCESS: "ALL-AUTHENTICATED" }, OWNER));
 
 await assert.rejects(
   bootstrapSelfTestReplica(async () => { throw new Error("database must not be reached"); }, {
@@ -78,7 +94,19 @@ ok("the bootstrap advances only pre-enrollment lifecycle states so private previ
 ok("every automatic grant carries a revocable guard-contract marker",
   SELF_TEST_GRANT_METADATA.self_test_mode === true
   && SELF_TEST_GRANT_METADATA.granted_by === "REPLICA_SELF_TEST_MODE"
-  && SELF_TEST_GRANT_METADATA.guard_contract === "owner-only-internal-testing/v1");
+  && SELF_TEST_GRANT_METADATA.guard_contract === "authenticated-internal-testing/v2");
+
+const allAccountCalls = [];
+await bootstrapSelfTestReplica(async (sql, params) => {
+  allAccountCalls.push({ sql, params });
+  return [];
+}, { ownerUserId: OTHER_OWNER, replicaId: REPLICA, env: VALID_ALL_ACCOUNTS_ENV });
+ok("the all-account lane reaches the same owned self-replica SQL fence",
+  allAccountCalls.length === 1
+  && /r\.subject_mode='self'/.test(allAccountCalls[0].sql)
+  && /r\.owner_user_id=\$2::uuid/.test(allAccountCalls[0].sql)
+  && allAccountCalls[0].params[1] === OTHER_OWNER
+  && /\"access_scope\":\"all-authenticated\"/.test(allAccountCalls[0].params[2]));
 
 let postReadyDbCalls = 0;
 const postReadyRejected = await applySelfTestAutoGrant(async () => {
@@ -87,6 +115,40 @@ const postReadyRejected = await applySelfTestAutoGrant(async () => {
 }, { ownerUserId: OTHER_OWNER, replicaId: REPLICA, env: VALID_ENV });
 ok("post-processing auto-review uses the same owner guard",
   postReadyRejected.applied === false && postReadyDbCalls === 0);
+
+let disabledReconcileCalls = 0;
+const disabledReconcile = await reconcileSelfTestVoiceGenomes(async () => {
+  disabledReconcileCalls += 1;
+  return [];
+}, { env: {} });
+ok("the missing-draft reconciler is inert outside the exact internal test environment",
+  disabledReconcile.examined === 0 && disabledReconcileCalls === 0);
+
+const reconcileCalls = [];
+const recovered = await reconcileSelfTestVoiceGenomes(async (sql, params) => {
+  reconcileCalls.push({ sql, params });
+  return [
+    { replica_id: REPLICA, owner_user_id: OWNER },
+    { replica_id: "10000000-0000-4000-8000-000000000002", owner_user_id: OTHER_OWNER },
+    { replica_id: "10000000-0000-4000-8000-000000000003", owner_user_id: OWNER },
+  ];
+}, {
+  env: VALID_ALL_ACCOUNTS_ENV,
+  apply: async (_db, input) => {
+    if (input.replicaId.endsWith("0003")) throw new Error("one damaged replica");
+    return { applied: true, build: input.ownerUserId === OWNER ? { state: "queued" } : null };
+  },
+});
+ok("the level-triggered sweep repairs ready replicas with no current draft",
+  recovered.examined === 3 && recovered.queued === 1 && recovered.blocked === 1 && recovered.failed === 1);
+ok("one failed replica does not prevent the bounded recovery sweep from continuing", recovered.failed === 1);
+ok("missing-draft recovery is bounded and independently fenced to owned self replicas",
+  /r\.subject_mode='self'/.test(reconcileCalls[0].sql)
+  && /s\.state='ready'/.test(reconcileCalls[0].sql)
+  && /g\.status='draft'/.test(reconcileCalls[0].sql)
+  && /b\.state in \('queued','retry','leased','building'\)/.test(reconcileCalls[0].sql)
+  && reconcileCalls[0].params[0] === null
+  && reconcileCalls[0].params[1] === 20);
 
 const selectionCalls = [];
 const stopAfterCandidate = new Error("stop_after_candidate");
@@ -113,12 +175,42 @@ const selectionAttempt = selectionCalls.find(({ sql }) => /insert into vy_replic
 ok("the preferred candidate id is passed to the real append-only selector",
   selectionAttempt.params[2] === IDENTITY_ARTIFACT);
 
+const preservationCalls = [];
+const stopBeforeQueue = new Error("stop_before_queue");
+await assert.rejects(applySelfTestAutoGrant(async (sql) => {
+  preservationCalls.push(sql);
+  if (/self_test\.identity_consent_grant/.test(sql)) {
+    return [{ replica_id: REPLICA, granted_scopes: [] }];
+  }
+  if (/self_test\.evidence_bulk_accept/.test(sql)) return [{ accepted: 0 }];
+  if (/^\s*select a\.artifact_id[\s\S]*a\.stage='enhance'/.test(sql)) {
+    // The SQL guard represents an existing valid current selection, so there
+    // is deliberately no new candidate for the automatic reviewer.
+    return [];
+  }
+  if (/^select r\.replica_id, r\.liveness_verified_at/.test(sql)) throw stopBeforeQueue;
+  throw new Error(`unexpected SQL: ${sql.slice(0, 80)}`);
+}, { ownerUserId: OWNER, replicaId: REPLICA, env: VALID_ENV }), stopBeforeQueue);
+const preservationCandidateSql = preservationCalls.find((sql) =>
+  /^\s*select a\.artifact_id[\s\S]*a\.stage='enhance'/.test(sql));
+ok("an existing current enhance selection suppresses automatic reselection",
+  /current_decision\.decision='selected'/.test(preservationCandidateSql)
+  && /current_artifact\.stage='enhance'/.test(preservationCandidateSql)
+  && !preservationCalls.some((sql) => /insert into vy_replica_processing_artifact_decision/.test(sql)));
+
 const runtime = readFileSync(join(ROOT, "api/_replica-processing/runtime.js"), "utf8");
 ok("the processing caller checks the actual leased owner before invoking the bypass",
   /selfTestModeEnabled\(env, leased\.job\.owner_user_id\)/.test(runtime));
 const sourceRoute = readFileSync(join(ROOT, "api/replica-source.js"), "utf8");
 ok("the authenticated source route bootstraps before it checks upload consent",
-  sourceRoute.indexOf("await bootstrapSelfTestReplica") < sourceRoute.indexOf("await createPendingSource")
+  sourceRoute.indexOf("const bootstrap = await bootstrapSelfTestReplica") < sourceRoute.indexOf("await createPendingSource")
   && /ownerUserId: user\.id/.test(sourceRoute));
+ok("an applied internal bootstrap can never surface the consent-required error",
+  /bootstrap\.applied[\s\S]*\?[\s\S]*"private_upload_precondition_failed"[\s\S]*:[\s\S]*"capture_and_storage_consent_required"/.test(sourceRoute));
+const processingWorker = readFileSync(join(ROOT, "services/replica-processing-worker/run-once.js"), "utf8");
+const buildSweep = readFileSync(join(ROOT, "api/replica-model-build-sweep.js"), "utf8");
+ok("both independent scheduled consumers reconcile a missing draft before leasing builds",
+  processingWorker.indexOf("reconcileSelfTestVoiceGenomes") < processingWorker.lastIndexOf("runVoiceGenomeBuildSweep")
+  && buildSweep.indexOf("reconcileSelfTestVoiceGenomes") < buildSweep.indexOf("runVoiceGenomeBuildSweep({"));
 
 console.log(`\n${checks} replica self-test mode checks passed`);

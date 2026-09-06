@@ -102,6 +102,9 @@ const {
   blockerMeta,
   stepFromQuery,
   queryForStep,
+  replicaFromQuery,
+  queryForReplica,
+  queryWithoutReplica,
   STEP_ORDER,
   stepBlockReason,
   allBlockerCodes,
@@ -426,6 +429,15 @@ console.log("\n── 7. refresh, bookmark and Back all land where you were ─�
     "every step id survives a write then a read",
     STEP_ORDER.every((id) => stepFromQuery(queryForStep("?mode=teacher", id)) === id),
   );
+  const replicaId = "2e4da9e3-6f55-4e22-89e7-0b4d746c0324";
+  ok("the selected clone survives a write then a read",
+    replicaFromQuery(queryForReplica("?mode=teacher&step=meet", replicaId)) === replicaId);
+  ok("selecting a clone preserves the exact step",
+    stepFromQuery(queryForReplica("?mode=teacher&step=meet", replicaId)) === "meet");
+  ok("an invalid clone id is never treated as URL authority",
+    replicaFromQuery("?replica=not-a-real-clone&step=meet") === null);
+  ok("a deleted clone selector is removed without losing the current journey",
+    queryWithoutReplica(`?mode=generic&step=meet&replica=${replicaId}`) === "?mode=generic&step=meet");
 }
 
 // ── 8. the honesty split is a PROPERTY, not a rendering accident ──────────

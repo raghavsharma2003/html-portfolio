@@ -12,6 +12,11 @@ param brokerAppName string = 'vyakti-open-voice-admission'
 @description('Existing Container Apps managed environment with Consumption-GPU-NC8as-T4 quota.')
 param managedEnvironmentId string
 
+@minValue(1)
+@maxValue(2)
+@description('Bounded T4 replicas for simultaneous owner previews. Each replica owns one GPU; keep minReplicas at zero so idle cost remains zero.')
+param runtimeMaxReplicas int = 2
+
 @description('Immutable image reference. Tags are rejected.')
 param image string
 
@@ -95,7 +100,7 @@ resource runtime 'Microsoft.App/containerApps@2024-03-01' = {
           probes: [
             {
               type: 'Liveness'
-              httpGet: { path: '/healthz', port: 8080, scheme: 'HTTP' }
+              tcpSocket: { port: 8080 }
               initialDelaySeconds: 1
               periodSeconds: 30
               timeoutSeconds: 5
@@ -103,26 +108,36 @@ resource runtime 'Microsoft.App/containerApps@2024-03-01' = {
             }
             {
               type: 'Readiness'
-              httpGet: { path: '/healthz', port: 8080, scheme: 'HTTP' }
-              initialDelaySeconds: 60
-              periodSeconds: 36
+              // Uvicorn begins accepting only after the FastAPI lifespan has
+              // loaded CUDA, Chatterbox and PerTh. Azure's GPU HTTP probe was
+              // measured returning a blank-status failure even after that
+              // point; TCP makes the platform gate the actual listening port.
+              // The signed admission broker still checks /healthz before it
+              // reports runtime readiness or forwards synthesis.
+              tcpSocket: { port: 8080 }
+              initialDelaySeconds: 1
+              periodSeconds: 10
               timeoutSeconds: 5
               failureThreshold: 10
             }
             {
               type: 'Startup'
-              httpGet: { path: '/healthz', port: 8080, scheme: 'HTTP' }
-              initialDelaySeconds: 10
-              periodSeconds: 60
+              tcpSocket: { port: 8080 }
+              // The pinned runtime's measured cold model initialization took
+              // 24 s after the container started. Probing at 10 s produced a
+              // real production false failure and left healthy Uvicorn out of
+              // routing. Keep a bounded margin, then retry quickly.
+              initialDelaySeconds: 45
+              periodSeconds: 10
               timeoutSeconds: 5
-              failureThreshold: 10
+              failureThreshold: 12
             }
           ]
         }
       ]
       scale: {
         minReplicas: 0
-        maxReplicas: 1
+        maxReplicas: runtimeMaxReplicas
         rules: [
           { name: 'one-synthesis', http: { metadata: { concurrentRequests: '1' } } }
         ]

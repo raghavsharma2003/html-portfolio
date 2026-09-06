@@ -179,7 +179,7 @@ function fakeDb(state) {
       return [{ ...row, slug: agent.slug }];
     }
 
-    if (sql.includes("from vy_replica r")) {
+    if (sql.includes("from vy_replica r") && !sql.includes("insert into vy_clone_channel")) {
       const [replicaId, ownerId] = params;
       const r = state.replicas.find((x) => x.replica_id === replicaId && x.owner_user_id === ownerId);
       return r ? [{ replica_id: r.replica_id, agent_id: r.agent_id }] : [];
@@ -227,6 +227,14 @@ function fakeDb(state) {
     if (sql.includes("insert into vy_clone_channel")) {
       const [ownerId, replicaId, channelId, agentId, kind, ref, overallFloor, partFloor, cred, status] = params;
       const locked = status === "connected" && !readinessPasses(replicaId, ownerId, overallFloor, partFloor);
+      if (state.purgeBeforeChannelInsert) {
+        state.replicas = state.replicas.filter((replica) => replica.replica_id !== replicaId || replica.owner_user_id !== ownerId);
+        state.channels = state.channels.filter((channel) => channel.replica_id !== replicaId || channel.owner_user_id !== ownerId);
+      }
+      const replica = state.replicas.find((candidate) => candidate.replica_id === replicaId &&
+        candidate.owner_user_id === ownerId && candidate.agent_id === agentId &&
+        !["revoked", "purging"].includes(candidate.lifecycle));
+      if (!replica) return [];
       const row = gate({
         channel_id: channelId,
         agent_id: agentId,
@@ -300,8 +308,8 @@ const freshState = () => ({
     { agent_id: AGENT_B, slug: "meena-maam-chem" },
   ],
   replicas: [
-    { replica_id: REPLICA_A, owner_user_id: OWNER, agent_id: AGENT_A },
-    { replica_id: REPLICA_B, owner_user_id: OTHER_OWNER, agent_id: AGENT_B },
+    { replica_id: REPLICA_A, owner_user_id: OWNER, agent_id: AGENT_A, lifecycle: "active" },
+    { replica_id: REPLICA_B, owner_user_id: OTHER_OWNER, agent_id: AGENT_B, lifecycle: "active" },
   ],
   channels: [
     // two clones, two bots, one wire
@@ -739,6 +747,27 @@ console.log("\n\u2500\u2500 6a. the publish lock, at connect time (WS-R3) \u2500
     unmeasuredCode = e.code;
   }
   ok("a 90 with one part unmeasured is still locked", unmeasuredCode === CHANNEL_READINESS_BLOCKER);
+}
+{
+  const state = freshState();
+  state.purgeBeforeChannelInsert = true;
+  const db = fakeDb(state);
+  let code = "inserted";
+  try {
+    await saveCloneChannel(db, OWNER, REPLICA_A, {
+      kind: "web_embed",
+      externalRef: "stale-after-purge",
+    });
+  } catch (error) { code = error?.code || "failed"; }
+  const insertSql = db.calls.find((sql) => sql.includes("insert into vy_clone_channel")) || "";
+  ok("a stale channel save cannot insert a non-FK binding after the replica purge receipt",
+    code === "clone_channel_route_taken" &&
+    !state.channels.some((channel) => channel.replica_id === REPLICA_A && channel.owner_user_id === OWNER));
+  ok("clone channel insertion serializes on the exact active owner replica and agent binding",
+    /with replica_gate as materialized/.test(insertSql) && /for update of r/.test(insertSql) &&
+    /r\.agent_id=\(\$4\)::uuid/.test(insertSql) &&
+    /r\.replica_id=\(\$2\)::uuid[\s\S]*r\.owner_user_id=\(\$1\)::uuid/.test(insertSql) &&
+    /r\.lifecycle not in \('revoked','purging'\)/.test(insertSql));
 }
 
 // ─────────────────────────────────────────────────────────────────────────

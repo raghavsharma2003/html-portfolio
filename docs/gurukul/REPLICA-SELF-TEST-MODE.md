@@ -9,26 +9,28 @@ This document is the one place that describes the flag end to end: what it
 sets, on what it never runs, how to turn it off, and the one query that
 undoes everything it has ever done.
 
-## The exact three-part guard
+## The exact all-account internal-test guard
 
 ```
 REPLICA_SELF_TEST_MODE=true
 REPLICA_SELF_TEST_ENVIRONMENT=internal-owner-testing
-REPLICA_SELF_TEST_OWNER_USER_ID=<the owner's Supabase auth UUID>
+REPLICA_SELF_TEST_ACCESS=all-authenticated
 ```
 
 Set all three on both environments that can enter the flow: `vyakti-replica-
 lab` (Vercel) bootstraps the six scopes before source creation, and
 `vyakti-replica-processing` (Azure Container Apps Job) accepts evidence and
 queues the draft after processing. The flag by itself is inert: all three
-values must be exact, and the UUID must match the authenticated or leased job
-owner. Absent, unset, malformed, mismatched, or legacy
+values must be exact, and the API or leased job must still supply a valid
+authenticated owner UUID. Absent, unset, malformed, mismatched, or legacy
 `REPLICA_SELF_TEST_MODE=true` by itself is OFF and keeps the fail-closed
 production behaviour.
 
-This is an owner allowlist, not a global test switch. Even if the two string
-values are copied into the wrong deployment, no other account can receive an
-automatic grant.
+This is the explicit global switch for the isolated internal-test product. It
+does not allow anonymous access or cross-owner access: authentication, replica
+ownership and `subject_mode='self'` remain SQL predicates. The former
+single-owner configuration remains supported by omitting
+`REPLICA_SELF_TEST_ACCESS` and setting `REPLICA_SELF_TEST_OWNER_USER_ID`.
 
 The Vite-built studio also needs this public presentation pair:
 
@@ -38,19 +40,19 @@ VITE_REPLICA_SELF_TEST_ENVIRONMENT=internal-owner-testing
 ```
 
 Set both only on the internal owner test deployment, alongside the three server
-guards above. They reduce the studio to Add sources and Test your clone, open
+server guards above. They reduce the studio to Add sources and Test your clone, open
 file intake without a click, hide account-consent, verification, review,
 readiness, activation, and publishing panels, and show direct paths for the
 five source types: audio/video files, screenshots/documents/text files, text
 or web links, one YouTube video, and a YouTube channel. These are choices, not
 a five-item gate, and Test your clone is always reachable. The Vite flags grant
-no server authority: the API still enforces the three-part owner allowlist.
+no server authority: the API still enforces the three-part authenticated test guard.
 Both values must match the strings above exactly. If either is absent or
 different, the production studio renders unchanged.
 
 ## What happens on upload, with it on
 
-For an allowlisted replica with `subject_mode='self'`, the source endpoint
+For an authenticated, owned replica with `subject_mode='self'`, the source endpoint
 first grants `capture`, `transcription`, `storage`, `biometric`, `training`
 and `inference`, so upload does not need a consent-screen round trip. The
 moment a source it owns
@@ -94,7 +96,8 @@ never have to wonder later whether a clone was verified.
 
 Every row it writes carries `metadata.self_test_mode = true`,
 `metadata.granted_by = 'REPLICA_SELF_TEST_MODE'`, and
-`metadata.guard_contract = 'owner-only-internal-testing/v1'` (migration 063 added the
+`metadata.guard_contract = 'authenticated-internal-testing/v2'` and
+`metadata.access_scope = 'all-authenticated'` (migration 063 added the
 `metadata` column to `vy_replica`, `vy_replica_processing_evidence_decision`
 and `vy_replica_processing_artifact_decision` — `vy_replica_consent` already
 had one).
@@ -112,6 +115,6 @@ append-only shape a human reviewer's own reversal takes, never a delete.
 Proved live: `context/measurements.md#self-test-four-gates-measured-
 blocking`.
 
-**Run this before this product has any user who is not the owner.** That is
-this decision's own reversal condition
+**Run this before the internal test product becomes a public production
+service.** That is this decision's own reversal condition
 (`context/decisions.md#replica-self-test-mode`).

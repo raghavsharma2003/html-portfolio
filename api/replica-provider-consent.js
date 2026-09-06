@@ -9,6 +9,7 @@ import {
   issueOwnedProviderConsent,
   latestOwnedProviderConsent,
 } from "./_replica-provider-consent.js";
+import { assertUploadWithinSourceFence, reserveOwnedSourceUploadAuthorization } from "./_replica-source.js";
 import {
   createSignedReplicaUpload,
   ensurePrivateReplicaBucket,
@@ -68,7 +69,7 @@ export default async function handler(req, res) {
     }
     if (body.op === "create_upload") {
       await ensurePrivateReplicaBucket(REPLICA_STORAGE_WRITE_BUCKET);
-      const source = await createProviderConsentSource(
+      let source = await createProviderConsentSource(
         q,
         user.id,
         body.replica_id,
@@ -77,11 +78,14 @@ export default async function handler(req, res) {
       );
       if (!source) return res.status(409).json({ error: "provider_consent_expired_or_unavailable" });
       const providerConsent = await latestOwnedProviderConsent(q, user.id, body.replica_id);
-      const upload = await createSignedReplicaUpload({ storageBucket: source.storage_bucket, objectPath: source.object_path });
+      source = await reserveOwnedSourceUploadAuthorization(q, user.id, body.replica_id, source.source_id);
+      if (!source) return res.status(409).json({ error: "pending_source_state_changed" });
+      const upload = assertUploadWithinSourceFence(source,
+        await createSignedReplicaUpload({ storageBucket: source.storage_bucket, objectPath: source.object_path }));
       return res.status(201).json(uploadResponse(source, providerConsent, upload));
     }
     if (body.op === "retry_upload") {
-      const source = await getPendingProviderConsentSource(
+      let source = await getPendingProviderConsentSource(
         q,
         user.id,
         body.replica_id,
@@ -91,7 +95,10 @@ export default async function handler(req, res) {
       if (!source) return res.status(404).json({ error: "pending_provider_consent_source_not_found" });
       await ensurePrivateReplicaBucket(source.storage_bucket);
       const providerConsent = await latestOwnedProviderConsent(q, user.id, body.replica_id);
-      const upload = await createSignedReplicaUpload({ storageBucket: source.storage_bucket, objectPath: source.object_path });
+      source = await reserveOwnedSourceUploadAuthorization(q, user.id, body.replica_id, source.source_id);
+      if (!source) return res.status(409).json({ error: "pending_source_state_changed" });
+      const upload = assertUploadWithinSourceFence(source,
+        await createSignedReplicaUpload({ storageBucket: source.storage_bucket, objectPath: source.object_path }));
       return res.status(200).json(uploadResponse(source, providerConsent, upload));
     }
     if (body.op === "finalize") {

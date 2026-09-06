@@ -108,6 +108,8 @@ export function createReplicaProcessingStorage(options = {}) {
           fetchImpl,
           maxBytes: options.artifactMaxBytes || bufferedMaxBytes,
           timeoutMs: options.timeoutMs || 120_000,
+          signal: input.signal,
+          beforeWriteRequest: input.beforeWriteRequest,
         });
       },
     }),

@@ -308,6 +308,10 @@ export async function assembleMirrorReply(deps = {}) {
   if (!engine) return { ok: false, reason: "clone_engine_unavailable" };
 
   const history = Array.isArray(deps.history) ? deps.history : [];
+  const memoryFacts = (Array.isArray(deps.memoryFacts) ? deps.memoryFacts : [])
+    .map((fact) => String(fact?.body || "").trim().slice(0, 600))
+    .filter(Boolean)
+    .slice(0, 8);
   // A REQUEST/RESPONSE surface: the reply IS the response, so `send` has
   // nothing to transmit to. It is present because `makeCtx` requires an
   // adapter and because a `send` that threw would turn a future `deliver()`
@@ -351,11 +355,10 @@ export async function assembleMirrorReply(deps = {}) {
     watching: false,
     innerThread: "",
     innerWants: "",
-    // EMPTY, structurally. The Mirror Call has no retrieval lane: the owner is
-    // calibrating a persona, not resuming a relationship, and a clone that
-    // claimed a shared past here would be claiming it with the one person who
-    // can tell it is false.
-    memories: "",
+    // Only facts from explicitly owner-accepted, source-cited claims enter this
+    // calibration call. The database retrieval applies the shared disclosure
+    // predicate to the exact clone/owner dyad before this assembler sees text.
+    memories: memoryFacts.map((fact) => `- ${fact}`).join("\n"),
     herLife: "",
     cultureNoteText: "",
     latestUserText: latest,
@@ -385,6 +388,7 @@ export async function assembleMirrorReply(deps = {}) {
       // this function is deliberately databaseless so the offline suite can drive
       // the whole assembly. The caller that has the replica reads them.
       neverRules: Array.isArray(deps.neverRules) ? deps.neverRules : [],
+      record: memoryFacts,
     });
   } catch (error) {
     return { ok: false, reason: "clone_reply_failed", details: { code: String(error?.code || "") } };
@@ -406,6 +410,7 @@ export async function assembleMirrorReply(deps = {}) {
     sheetSource: built.sheetSource,
     sheetId: built.sheetId,
     agentSlug: built.slug,
+    recalled: memoryFacts.length,
     // Counts only, never the strings — `gateReply`'s rule.
     gate: { applied: Boolean(gated?.gated), findings: Array.isArray(gated?.findings) ? gated.findings.length : 0 },
     // WS-R5. Whether this turn carried an interview ask at all. A boolean, not

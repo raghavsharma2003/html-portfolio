@@ -39,7 +39,7 @@ import {
   createWarmthRegistry,
   probeAdmissionHealth,
 } from "../api/_voice/warmup.js";
-import { handleVoicePreviewPanel } from "../api/_voice/preview-panel.js";
+import { handleVoicePreviewPanel, isRetryableVoicePreviewFailure } from "../api/_voice/preview-panel.js";
 import { beginOwnedVoicePreview } from "../api/_replica-voice-preview.js";
 import { VOICE_PCM_FORMAT } from "../api/_voice/contracts.js";
 import { buildVoiceTextPlan, voiceTextPlanAudit } from "../api/_voice/hindi-text-frontend.js";
@@ -137,7 +137,25 @@ function fakeDb({ owner = OWNER, requireOwnerPredicate = true } = {}) {
     }
     if (params[0] !== REPLICA) return [];
     if (requireOwnerPredicate && params[1] !== owner) return [];
-    return [generationRow(params[1], params[4])];
+    const row = generationRow(params[1], params[4]);
+    if (sql.includes("vy_replica_voice_preview_intent")) {
+      row.generation_id = params[15];
+      row.intent_id = params[14];
+      row.intent_key = "i".repeat(64).replaceAll("i", "a");
+      row.regeneration_key = params[17] || "";
+      row.intent_state = "synthesizing";
+      row.intent_attempt = 1;
+      row.intent_lease_token_hash = params[16];
+      row.intent_started_at = PAST;
+      row.intent_updated_at = PAST;
+      row.intent_completed_at = null;
+      row.intent_next_attempt_at = PAST;
+      row.intent_failure_code = "";
+      row.result_metadata = {};
+      row.preview_result_storage_bucket = params[19];
+      row.preview_result_object_path = `${params[1]}/${REPLICA}/${SOURCE}/derived/voice-preview/${params[15]}.wav`;
+    }
+    return [row];
   };
   db.calls = calls;
   return db;
@@ -145,10 +163,12 @@ function fakeDb({ owner = OWNER, requireOwnerPredicate = true } = {}) {
 
 function fakeProvider(options = {}) {
   const seen = [];
-  return {
+  const statusChecks = [];
+  const provider = {
     name: "open_chatterbox_multilingual_v3",
     modelCommitment: "a".repeat(64),
     calls: seen,
+    statusChecks,
     async synthesizePreview(input) {
       seen.push(input);
       if (options.throws) throw options.throws;
@@ -165,6 +185,14 @@ function fakeProvider(options = {}) {
       };
     },
   };
+  if (Object.prototype.hasOwnProperty.call(options, "runtimeReady") || options.runtimeReadyThrows) {
+    provider.probeRuntimeReadiness = async (input) => {
+      statusChecks.push(input);
+      if (options.runtimeReadyThrows) throw options.runtimeReadyThrows;
+      return options.runtimeReady;
+    };
+  }
+  return provider;
 }
 
 function fakeProtect(generationIdRef) {
@@ -184,9 +212,13 @@ function harness(options = {}) {
   const provider = options.provider || fakeProvider();
   const db = options.db || fakeDb();
   const generationIdRef = { value: null };
-  const state = { reads: 0, healthFetches: [], failures: [], protections: 0, slept: 0 };
+  const state = {
+    reads: 0, healthFetches: [], failures: [], aborted: [], protections: 0, slept: 0,
+    storedResults: [], sealedIntents: [], retryable: [], renewals: 0, expired: 0, cleanupEvents: [],
+  };
   const deps = {
     origin: ORIGIN,
+    outputStorageBucket: "private-test",
     warmth,
     provider,
     traceId: `panel_${"a".repeat(24)}`,
@@ -207,6 +239,34 @@ function harness(options = {}) {
     markFailed: async (generationId, error) => {
       state.failures.push({ generationId, code: String(error?.code || error?.message || "") });
     },
+    markAborted: async (generationId, reason) => {
+      state.aborted.push({ generationId, code: String(reason?.code || reason?.message || "") });
+    },
+    markWarming: async (started, reason) => {
+      state.aborted.push({
+        generationId: started.generation.generation_id,
+        intentId: started.intent.intentId,
+        code: String(reason?.code || reason?.message || ""),
+      });
+    },
+    markRetryable: async (started, error) => {
+      state.retryable.push({
+        generationId: started.generation.generation_id,
+        intentId: started.intent.intentId,
+        code: String(error?.code || error?.message || ""),
+      });
+    },
+    markTerminal: async (started, error) => {
+      state.failures.push({
+        generationId: started.generation.generation_id,
+        intentId: started.intent.intentId,
+        code: String(error?.code || error?.message || ""),
+      });
+    },
+    renewIntent: async () => {
+      state.renewals += 1;
+      return options.renewLease !== false;
+    },
     readObject: async () => {
       state.reads += 1;
       return { body: REFERENCE, byteSize: REFERENCE.length, mime: "audio/wav" };
@@ -215,6 +275,41 @@ function harness(options = {}) {
       state.protections += 1;
       return fakeProtect(generationIdRef)(input);
     }),
+    storeResult: async (started, body) => {
+      const result = {
+        storageBucket: "private-test",
+        objectPath: `${OWNER}/${REPLICA}/${SOURCE}/derived/voice-preview/${started.generation.generation_id}.wav`,
+        mime: "audio/wav",
+        byteSize: body.length,
+        sha256: createHash("sha256").update(body).digest("hex"),
+      };
+      state.storedResults.push({ ...result, body: Buffer.from(body) });
+      return result;
+    },
+    sealIntent: async (started, result) => {
+      state.sealedIntents.push({ started, result });
+      if (options.sealThrows) throw options.sealThrows;
+      return { intent_id: started.intent.intentId };
+    },
+    readResult: async (locator) => {
+      const found = state.storedResults.find((entry) => entry.objectPath === locator.objectPath);
+      if (!found) throw Object.assign(new Error("not found"), { status: 404 });
+      return { body: found.body, byteSize: found.byteSize, mime: found.mime };
+    },
+    deleteResult: async (locator) => {
+      state.cleanupEvents.push("delete");
+      const index = state.storedResults.findIndex((entry) => entry.objectPath === locator.objectPath);
+      if (index >= 0) state.storedResults.splice(index, 1);
+    },
+    markResultDeleted: async () => {
+      state.cleanupEvents.push("confirm");
+      return true;
+    },
+    expireIntent: async (started) => {
+      state.cleanupEvents.push("settle");
+      state.expired += 1;
+      return started.intent?.result || null;
+    },
   };
   return { clock, deps, state, provider, db, warmth };
 }
@@ -331,7 +426,7 @@ section("admission wake (nothing is signed until /healthz answers)");
 
 section("failure classification");
 {
-  for (const code of ["open_voice_unreachable", "open_voice_http_504", "open_voice_http_503", "voice_preview_timeout"]) {
+  for (const code of ["open_voice_unreachable", "open_voice_http_504", "open_voice_http_503", "open_voice_runtime_warming", "voice_preview_timeout"]) {
     check(`${code} reads as warming`, classifyPreviewFailure({ code }).state === "warming");
   }
   for (const code of ["transport_binding_invalid", "transport_replay_denied", "open_voice_response_binding_invalid",
@@ -345,13 +440,27 @@ section("failure classification");
   const lenient = () => ({ state: "warming" });
   check("NEGATIVE CONTROL: a classifier that calls a wrong key a cold start is caught",
     lenient().state === "warming" && classifyPreviewFailure({ code: "transport_binding_invalid" }).state === "error");
+  for (const [code, status] of [
+    ["azure_replica_storage_unreachable", 503], ["private_storage_read_failed", 503],
+    ["private_storage_write_failed", 503], ["audio_protection_http_503", 503],
+    ["audio_protection_http_429", 429],
+  ]) {
+    check(`${code} is a bounded transient failure`, isRetryableVoicePreviewFailure({ code, status }));
+  }
+  for (const [code, status] of [
+    ["azure_replica_storage_read_failed", 409], ["private_storage_read_failed", 404],
+    ["open_voice_response_signature_invalid", 503], ["voice_preview_result_binding_failed", 409],
+  ]) {
+    check(`${code} at ${status} stays terminal`, !isRetryableVoicePreviewFailure({ code, status }));
+  }
 }
 
 // ── 5. ownership ────────────────────────────────────────────────────────────
 
 section("ownership");
 {
-  const intruder = harness({ callerId: INTRUDER });
+  const intruderProvider = fakeProvider({ runtimeReady: true });
+  const intruder = harness({ callerId: INTRUDER, provider: intruderProvider });
   const refused = await handleVoicePreviewPanel({ ...PREVIEW }, intruder.deps);
   check("a caller who does not own the replica is refused",
     refused.kind === "json" && refused.status === 409 && refused.body.error === "voice_preview_not_authorized",
@@ -360,7 +469,8 @@ section("ownership");
   // GPU would pass a status-code-only assertion.
   check("the refusal reads NOTHING from the private bucket", intruder.state.reads === 0);
   check("the refusal touches NO synthesis", intruder.provider.calls.length === 0);
-  check("the refusal does not even wake the broker", intruder.state.healthFetches.length === 0);
+  check("the refusal does not even wake or inspect the broker",
+    intruder.state.healthFetches.length === 0 && intruderProvider.statusChecks.length === 0);
 
   const wrongReplica = harness();
   const other = await handleVoicePreviewPanel({ ...PREVIEW, replica_id: randomUUID() }, wrongReplica.deps);
@@ -377,6 +487,13 @@ section("ownership");
   check("POSITIVE CONTROL: the real owner does get audio",
     allowed.kind === "audio" && allowed.status === 200, JSON.stringify(allowed.body || {}));
   check("POSITIVE CONTROL: the counters can move", owner.state.reads === 1 && owner.provider.calls.length === 1);
+  check("the executor renews its durable lease before protection and private storage",
+    owner.state.renewals === 1 && owner.state.protections === 1 && owner.state.sealedIntents.length === 1);
+  check("the one-click owner preview uses the model-native balanced preset instead of the rejected flat anchor",
+    owner.provider.calls[0]?.style?.cfgWeight === 0.5 &&
+      owner.provider.calls[0]?.style?.exaggeration === 0.5 &&
+      owner.provider.calls[0]?.style?.temperature === 0.8,
+    JSON.stringify(owner.provider.calls[0]?.style));
 
   // NEGATIVE CONTROL: strike the owner predicate out of the fence and the
   // intruder gets through. This is what makes the refusal above evidence about
@@ -400,6 +517,60 @@ section("ownership");
 
 // ── 6. the cold-start state machine, end to end ─────────────────────────────
 
+section("durable result replay and expiry");
+{
+  const h = harness();
+  h.warmth.note(ORIGIN, "ready", h.clock.t);
+  const first = await handleVoicePreviewPanel({ ...PREVIEW }, h.deps);
+  const settlement = h.state.sealedIntents[0];
+  const stored = h.state.storedResults[0];
+  const sealedIntent = {
+    ...settlement.started.intent,
+    role: "sealed",
+    state: "sealed",
+    completedAt: new Date(h.clock.t - 1_000).toISOString(),
+    result: {
+      storageBucket: stored.storageBucket,
+      objectPath: stored.objectPath,
+      mime: stored.mime,
+      byteSize: stored.byteSize,
+      sha256: stored.sha256,
+      objectId: "",
+      metadata: settlement.result.metadata,
+      expiresAt: new Date(h.clock.t + 60_000).toISOString(),
+    },
+  };
+  h.deps.authorize = async () => ({ ...settlement.started, intent: sealedIntent });
+  const replay = await handleVoicePreviewPanel({ ...PREVIEW }, h.deps);
+  check("a sealed exact retry returns the same protected private WAV without GPU work",
+    first.kind === "audio" && replay.kind === "audio" && replay.body.equals(first.body) &&
+    replay.headers["X-Vyakti-Preview-Reused"] === "true" && h.provider.calls.length === 1,
+    JSON.stringify({ first: first.kind, replay: replay.kind, syntheses: h.provider.calls.length }));
+
+  h.deps.authorize = async () => ({
+    ...settlement.started,
+    intent: { ...sealedIntent, result: { ...sealedIntent.result, expiresAt: new Date(h.clock.t - 1).toISOString() } },
+  });
+  const expired = await handleVoicePreviewPanel({ ...PREVIEW }, h.deps);
+  check("an expired sealed WAV is never served and returns deliberate retry progress",
+    expired.status === 202 && expired.body.stage === "result_expired" && h.provider.calls.length === 1);
+  check("expiry settles SQL state before idempotent private object deletion",
+    h.state.cleanupEvents.join(",") === "settle,delete,confirm" && h.state.storedResults.length === 0,
+    JSON.stringify(h.state.cleanupEvents));
+
+  const failedSeal = harness({
+    sealThrows: Object.assign(new Error("voice_preview_intent_seal_denied"), {
+      code: "voice_preview_intent_seal_denied", status: 409,
+    }),
+  });
+  failedSeal.warmth.note(ORIGIN, "ready", failedSeal.clock.t);
+  const failedSealResult = await handleVoicePreviewPanel({ ...PREVIEW }, failedSeal.deps);
+  check("a DB seal refusal removes and acknowledges the exact protected private object",
+    failedSealResult.status === 409 && failedSeal.state.storedResults.length === 0 &&
+    failedSeal.state.cleanupEvents.join(",") === "delete,confirm" && failedSeal.state.protections === 1,
+    JSON.stringify({ body: failedSealResult.body, cleanup: failedSeal.state.cleanupEvents }));
+}
+
 section("cold start");
 {
   // A cold runtime: the synthesis is dispatched and hangs past the flush window.
@@ -408,16 +579,17 @@ section("cold start");
   check("a cold runtime answers 202 warming, not a hung request",
     first.kind === "json" && first.status === 202 && first.body.state === "warming", JSON.stringify(first.body));
   check("the warming answer names the runtime as the reason", first.body.stage === "runtime_cold");
-  check("the warming answer carries the live-corrected 2-5 minute eta",
-    first.body.eta_seconds_low === 120 && first.body.eta_seconds_high === 300 &&
-      /2 to 5 minutes/.test(first.body.message), JSON.stringify(first.body));
+  check("the warming answer carries the measured 2-8 minute eta",
+    first.body.eta_seconds_low === 120 && first.body.eta_seconds_high === 480 &&
+      /2 to 8 minutes/.test(first.body.message), JSON.stringify(first.body));
   check("the warming answer carries a retry hint", first.body.retry_after_ms > 0);
   check("it sets Retry-After", Number(first.headers["Retry-After"]) > 0);
   check("the wake was actually DISPATCHED, not skipped", cold.provider.calls.length === 1);
   check("the wake is recorded so the next click does not pay again",
     cold.warmth.read(ORIGIN, cold.clock.t).state === "warming");
-  check("the abandoned generation is marked, not left authorized",
-    cold.state.failures.some((f) => f.code === "voice_preview_wake_dispatched"), JSON.stringify(cold.state.failures));
+  check("the dispatched durable attempt keeps its lease and is not settled as failure",
+    first.body.intent_id && first.body.generation_id && cold.state.aborted.length === 0 && cold.state.failures.length === 0,
+    JSON.stringify({ body: first.body, aborted: cold.state.aborted, failures: cold.state.failures }));
 
   // A second click while that wake is in flight must not buy a second GPU boot.
   const second = await handleVoicePreviewPanel({ ...PREVIEW }, cold.deps);
@@ -427,7 +599,8 @@ section("cold start");
 
   // The first HTTP response is already gone when a cold provider resolves.
   // That late success must still clear the per-process warming belief, while
-  // the discarded generation remains failed and never reaches protection.
+  // the durable attempt remains leased and never reaches protection in the
+  // disconnected request.
   let releaseLateWake;
   const lateWakeGate = new Promise((resolve) => { releaseLateWake = resolve; });
   const late = harness({ provider: fakeProvider({ gate: lateWakeGate }), flushMs: 40 });
@@ -440,9 +613,9 @@ section("cold start");
   await new Promise((resolve) => setImmediate(resolve));
   check("a provider success after the flush marks the runtime ready",
     late.warmth.read(ORIGIN, late.clock.t).state === "warm");
-  check("the discarded generation stays failed and is never protected or sealed",
-    late.state.failures.some((f) => f.code === "voice_preview_wake_dispatched") && late.state.protections === 0,
-    JSON.stringify({ failures: late.state.failures, protections: late.state.protections }));
+  check("the disconnected durable attempt stays leased and is never protected or sealed",
+    late.state.aborted.length === 0 && late.state.failures.length === 0 && late.state.protections === 0,
+    JSON.stringify({ aborted: late.state.aborted, failures: late.state.failures, protections: late.state.protections }));
 
   // Once warm, the same request returns audio.
   cold.warmth.note(ORIGIN, "ready", cold.clock.t);
@@ -473,10 +646,96 @@ section("cold start");
   const timedOut = harness({ provider: fakeProvider({ throws: Object.assign(new Error("open_voice_http_504"), { code: "open_voice_http_504", status: 503 }) }) });
   timedOut.warmth.note(ORIGIN, "ready", timedOut.clock.t);
   const gateway = await handleVoicePreviewPanel({ ...PREVIEW }, timedOut.deps);
-  check("a 504 from the runtime becomes warming", gateway.status === 202 && gateway.body.state === "warming",
+  check("a 504 after dispatch remains one processing intent behind its lease",
+    gateway.status === 202 && gateway.body.state === "processing" && gateway.body.stage === "synthesizing",
     JSON.stringify(gateway.body));
   check("a 504 clears the warm belief so the next click waits properly",
     timedOut.warmth.read(ORIGIN, timedOut.clock.t).state === "warming");
+
+  const ambiguous = harness({
+    provider: fakeProvider({
+      throws: Object.assign(new Error("open_voice_execution_may_continue"), {
+        code: "open_voice_execution_may_continue", status: 503,
+      }),
+    }),
+  });
+  ambiguous.warmth.note(ORIGIN, "ready", ambiguous.clock.t);
+  const ambiguousResult = await handleVoicePreviewPanel({ ...PREVIEW }, ambiguous.deps);
+  check("an ambiguous post-dispatch transport loss keeps the active SQL lease",
+    ambiguousResult.status === 202 && ambiguousResult.body.stage === "synthesizing" &&
+    ambiguous.state.retryable.length === 0 && ambiguous.state.failures.length === 0 &&
+    ambiguous.state.aborted.length === 0,
+    JSON.stringify({ body: ambiguousResult.body, state: ambiguous.state }));
+  check("an ambiguous server transport resets local warmth before lease recovery",
+    ambiguous.warmth.read(ORIGIN, ambiguous.clock.t).state === "warming");
+
+  const lostLease = harness({ renewLease: false });
+  lostLease.warmth.note(ORIGIN, "ready", lostLease.clock.t);
+  const lostLeaseResult = await handleVoicePreviewPanel({ ...PREVIEW }, lostLease.deps);
+  check("a lost lease refuses protection, storage and audio",
+    lostLeaseResult.status === 409 && lostLeaseResult.body.error === "voice_preview_intent_lease_lost" &&
+    lostLease.state.protections === 0 && lostLease.state.storedResults.length === 0,
+    JSON.stringify(lostLeaseResult.body));
+
+  // The admission broker uses this exact signed 503 while the Container App
+  // has allocated a replica but the private runtime has not passed readiness.
+  // It is a cold-start state, not a terminal preview failure.
+  const runtimeStarting = harness({ provider: fakeProvider({ throws: Object.assign(new Error("open_voice_runtime_warming"), { code: "open_voice_runtime_warming", status: 503 }) }) });
+  runtimeStarting.warmth.note(ORIGIN, "ready", runtimeStarting.clock.t);
+  const runtimeStartingResult = await handleVoicePreviewPanel({ ...PREVIEW }, runtimeStarting.deps);
+  check("the broker's explicit runtime-warming response remains a 202 wait state",
+    runtimeStartingResult.status === 202 && runtimeStartingResult.body.state === "warming" &&
+    runtimeStartingResult.body.stage === "runtime_cold", JSON.stringify(runtimeStartingResult.body));
+
+  // The local registry can say `warming` for 200 seconds even after Azure has
+  // made the private runtime application-ready. A signed broker status check
+  // is the remote source of truth and must let that same poll synthesize now.
+  const remotelyReadyProvider = fakeProvider({ runtimeReady: true });
+  const remotelyReady = harness({ provider: remotelyReadyProvider });
+  remotelyReady.warmth.note(ORIGIN, "waking", remotelyReady.clock.t);
+  const readyNow = await handleVoicePreviewPanel({ ...PREVIEW }, remotelyReady.deps);
+  check("private runtime readiness overrides a stale in-process warming hint",
+    readyNow.kind === "audio" && remotelyReadyProvider.statusChecks.length === 1 &&
+    remotelyReadyProvider.calls.length === 1 && remotelyReady.state.reads === 1,
+    JSON.stringify({ kind: readyNow.kind, statusChecks: remotelyReadyProvider.statusChecks.length,
+      syntheses: remotelyReadyProvider.calls.length, reads: remotelyReady.state.reads }));
+  check("remote readiness refreshes the local hint after successful synthesis",
+    remotelyReady.warmth.read(ORIGIN, remotelyReady.clock.t).state === "warm");
+
+  const remotelyColdProvider = fakeProvider({ runtimeReady: false });
+  const remotelyCold = harness({ provider: remotelyColdProvider });
+  const stillStarting = await handleVoicePreviewPanel({ ...PREVIEW }, remotelyCold.deps);
+  check("a signed not-ready result wakes without reading or synthesizing",
+    stillStarting.status === 202 && stillStarting.body.runtime_status_checked === true &&
+    remotelyColdProvider.statusChecks.length === 1 && remotelyColdProvider.calls.length === 0 &&
+    remotelyCold.state.reads === 0,
+    JSON.stringify({ body: stillStarting.body, statusChecks: remotelyColdProvider.statusChecks.length,
+      syntheses: remotelyColdProvider.calls.length, reads: remotelyCold.state.reads }));
+
+  const refusedStatusProvider = fakeProvider({
+    runtimeReadyThrows: Object.assign(new Error("transport_binding_invalid"), {
+      code: "transport_binding_invalid", status: 401,
+    }),
+  });
+  const refusedStatus = harness({ provider: refusedStatusProvider });
+  const refusedStatusResult = await handleVoicePreviewPanel({ ...PREVIEW }, refusedStatus.deps);
+  check("a readiness HMAC refusal stays terminal and spends no private bytes",
+    refusedStatusResult.status === 401 && refusedStatusResult.body.error === "transport_binding_invalid" &&
+    refusedStatusProvider.calls.length === 0 && refusedStatus.state.reads === 0,
+    JSON.stringify(refusedStatusResult.body));
+
+  for (const code of ["open_voice_runtime_status_timeout", "client_aborted"]) {
+    const readinessTimeoutProvider = fakeProvider({
+      runtimeReadyThrows: Object.assign(new Error(code), { code, status: 503 }),
+    });
+    const readinessTimeout = harness({ provider: readinessTimeoutProvider });
+    const readinessTimeoutResult = await handleVoicePreviewPanel({ ...PREVIEW }, readinessTimeout.deps);
+    check(`${code} before synthesis releases into delayed warming without GPU work`,
+      readinessTimeoutResult.status === 202 && readinessTimeoutResult.body.stage === "runtime_cold" &&
+      readinessTimeoutProvider.calls.length === 0 && readinessTimeout.state.aborted.length === 1 &&
+      readinessTimeout.state.retryable.length === 0 && readinessTimeout.state.failures.length === 0,
+      JSON.stringify({ body: readinessTimeoutResult.body, state: readinessTimeout.state }));
+  }
 
   // A wrong key must NOT be dressed as a cold start.
   const wrongKey = harness({ provider: fakeProvider({ throws: Object.assign(new Error("transport_binding_invalid"), { code: "transport_binding_invalid", status: 401 }) }) });
@@ -568,51 +827,47 @@ section("client warmup budget");
 {
   const client = readFileSync(join(ROOT, "src/studio/VoicePreviewPanel.tsx"), "utf8");
   const clientApi = readFileSync(join(ROOT, "src/studio/voicePanelApi.ts"), "utf8");
-  // WS-R71: VoicePreviewPanel.tsx's own literal strings moved into
-  // src/studio/copy.ts; the two English-wording checks below now read this
-  // concatenation, `evals/readiness/run.mjs`'s own `panelWithCopy` shape.
-  // WS-R82: concatenating the WHOLE of copy.ts (rather than just
-  // `t.voicePreviewPanel`'s own section) leaked a SIBLING section's wording
-  // into this file's own negative control the moment
-  // `mirrorCallStudio.gpuColdBodyTemplate` (an unrelated GPU cold-start
-  // message, carrying the SAME pre-existing "two to three minutes" phrase
-  // this file's own negative control bans) was added — the exact class of
-  // defect `evals/voice-preview-ui.mjs` already fixed for itself
-  // (`context/rejected.md#ws-r71-concatenating-the-whole-copy-ts-leaked-a-sibling-sections-wording-into-an-unrelated-check`),
-  // now applied here too rather than re-derived.
-  const copySource = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
-  const voicePreviewPanelCopyStart = copySource.indexOf("  voicePreviewPanel: {");
-  const voicePreviewPanelCopyEnd = copySource.indexOf("  voiceExperimentPanel: {", voicePreviewPanelCopyStart);
-  const voicePreviewPanelCopy = copySource.slice(voicePreviewPanelCopyStart, voicePreviewPanelCopyEnd);
-  const clientWithCopy = `${client}\n${voicePreviewPanelCopy}`;
-  const retries = Number(client.match(/const MAX_AUTO_RETRIES\s*=\s*(\d+)/)?.[1]);
-  // Once the 200 s wake belief expires, the next 30 s poll dispatches the
-  // necessary second synthesis. Allow one minute for that warm synthesis and
-  // one more polling interval for the fresh protected request to begin.
-  const secondSynthesisMs = 60_000;
-  const requiredBudgetMs = WARMUP.wakeInFlightMs + secondSynthesisMs + WARMUP.retryAfterMs;
-  const pollTimes = Array.from({ length: retries }, (_, index) => (index + 1) * WARMUP.retryAfterMs);
-  const secondDispatchAt = pollTimes.find((at) => at > WARMUP.wakeInFlightMs);
-  const secondReadyAt = secondDispatchAt + secondSynthesisMs;
-  const protectedRequestAt = pollTimes.find((at) => at > secondReadyAt);
-  check("the client's automatic retry budget covers wake, second synthesis, and a later protected request",
-    Number.isFinite(retries) && retries === 10 && retries * WARMUP.retryAfterMs >= requiredBudgetMs &&
-      secondDispatchAt === 210_000 && protectedRequestAt === 300_000,
-    JSON.stringify({ retries, retryAfterMs: WARMUP.retryAfterMs, wakeInFlightMs: WARMUP.wakeInFlightMs,
-      requiredBudgetMs, secondDispatchAt, secondReadyAt, protectedRequestAt }));
+  check("the client observes the durable intent for the life of the open page instead of stopping at a retry cap",
+    !/MAX_AUTO_RETRIES/.test(client) && /window\.setTimeout\(\(\) => void runIntent/.test(client) &&
+      /outcome\.retryAfterMs/.test(client));
+  const formerRequiredBudgetMs = WARMUP.wakeInFlightMs + 60_000 + WARMUP.retryAfterMs;
   // Negative controls: six polls stop inside the original wake window; seven
   // cross it but stop on the response that dispatches the second synthesis.
   check("NEGATIVE CONTROL: the former six-poll budget is caught",
     6 * WARMUP.retryAfterMs <= WARMUP.wakeInFlightMs);
   check("NEGATIVE CONTROL: the former seven-poll budget cannot finish the second synthesis",
-    7 * WARMUP.retryAfterMs < requiredBudgetMs);
-  check("the panel and its API fallback both tell the owner the five-minute ceiling",
-    /two to five minutes/.test(clientWithCopy) && /2 to 5 minutes/.test(clientApi) &&
-      (clientApi.match(/etaSecondsHigh:\s*Number\([^\n]+\) \|\| 300/g) || []).length === 2);
+    7 * WARMUP.retryAfterMs < formerRequiredBudgetMs);
+  check("the panel and its API fallback both tell the owner the eight-minute ceiling",
+    /OBSERVED_COLD_HIGH_SECONDS\s*=\s*480/.test(client) && /2 to 8 minutes/.test(clientApi) &&
+      /etaSecondsHigh:\s*positiveNumber\(data\?\.eta_seconds_high, 480\)/.test(clientApi) &&
+      /etaSecondsHigh:\s*Number\(data\?\.eta_seconds_high\) \|\| 480/.test(clientApi));
   check("the warm-runtime copy promises only a relative improvement, not seconds",
-    /after that it is usually much faster/i.test(clientWithCopy) && !/after that it is seconds/i.test(clientWithCopy));
+    /after that it is usually much faster/i.test(client) && !/after that it is seconds/i.test(client));
   check("NEGATIVE CONTROL: no voice-panel path retains the disproved three-minute ceiling",
-    !/(?:two|2) to (?:three|3) minutes|2-3 minutes|etaSecondsHigh:[^\n]+\|\| 180/.test(`${clientWithCopy}\n${clientApi}`));
+    !/(?:two|2) to (?:three|3) minutes|2-3 minutes|etaSecondsHigh:[^\n]+\|\| 180/.test(`${client}\n${clientApi}`));
+}
+
+section("ownership before deployment configuration");
+{
+  const route = readFileSync(join(ROOT, "api/voice-preview.js"), "utf8");
+  check("the real route defers provider configuration to an accessor",
+    /get provider\(\) \{ return provider \|\|= createOpenChatterboxPreviewProvider\(\); \}/.test(route));
+  const intruder = harness({ callerId: INTRUDER });
+  let constructions = 0;
+  Object.defineProperty(intruder.deps, "provider", { get() {
+    constructions += 1;
+    throw Object.assign(new Error("open_voice_origin_required"), { status: 503 });
+  } });
+  const refused = await handleVoicePreviewPanel({ ...PREVIEW }, intruder.deps);
+  check("ownership refusal wins over missing provider configuration",
+    refused.status === 409 && constructions === 0 && intruder.state.healthFetches.length === 0);
+  try { void intruder.deps.provider; } catch {}
+  check("positive control: accessing the missing provider really fails", constructions === 1);
+  const legacy = readFileSync(join(ROOT, "api/replica-voice-preview.js"), "utf8");
+  check("legacy ordinary preview is explicitly refused before allocating a durable lease",
+    legacy.indexOf('if (!body.trial_id)') > legacy.indexOf('await requireUser(req)') &&
+    legacy.indexOf('if (!body.trial_id)') < legacy.indexOf('started = await beginOwnedVoicePreview') &&
+    legacy.includes('voice_preview_trial_required'));
 }
 
 console.log(`\n  ${passed} checks passed, ${failures.length} failed`);

@@ -50,7 +50,7 @@ import { readFileSync } from "node:fs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
-const STUDIO = join(REPO, "src/studio");
+const STUDIO = join(REPO, "src/creatorStudio");
 
 let pass = 0;
 let fail = 0;

@@ -64,15 +64,24 @@ const readyEvidence = [
   evidence("transcript_span", 6, { value: { text: "private transcript" }, reason_code: "segment_verified" }),
 ];
 
-function dbFixture({ owned = true, evidenceRows = readyEvidence, selectedArtifact = true } = {}) {
+function dbFixture({ owned = true, evidenceRows = readyEvidence, selectedArtifact = true, genomeRows = [] } = {}) {
   const calls = [];
   const db = async (sql, params) => {
     calls.push({ sql, params });
     if (/select r\.replica_id,\s*r\.liveness_verified_at/i.test(sql) && !/with owned as/i.test(sql)) {
-      return owned ? [{ replica_id: RID, liveness_verified_at: "2026-08-24T00:00:00.000Z", biometric_consent: true, training_consent: true }] : [];
+      return owned ? [{
+        replica_id: RID,
+        age_verified_at: "2026-08-24T00:00:00.000Z",
+        identity_verified_at: "2026-08-24T00:00:00.000Z",
+        liveness_verified_at: "2026-08-24T00:00:00.000Z",
+        identity_expires_at: "2031-08-24T00:00:00.000Z",
+        biometric_consent: true,
+        training_consent: true,
+        inference_consent: true,
+      }] : [];
     }
     if (/select e\.evidence_id,e\.source_id/i.test(sql)) return evidenceRows;
-    if (/from vy_replica_source s join vy_replica r/i.test(sql)) return [];
+    if (/from vy_replica_source s\s+join vy_replica r/i.test(sql)) return [];
     if (/from vy_replica_processing_job j/i.test(sql)) return [];
     if (/from vy_replica_processing_attempt a/i.test(sql)) return [];
     if (/from vy_replica_processing_artifact a/i.test(sql)) return [{
@@ -85,13 +94,13 @@ function dbFixture({ owned = true, evidenceRows = readyEvidence, selectedArtifac
       selection_reviewed_at: selectedArtifact ? "2026-08-24T00:00:00.000Z" : null,
       created_at: "2026-08-24T00:00:00.000Z",
     }];
-    if (/from vy_replica_model_build b/i.test(sql)) return [];
-    if (/from vy_replica_voice_genome g/i.test(sql)) return [];
-    if (/insert into vy_replica_processing_evidence_decision/i.test(sql)) {
-      return owned ? [{ decision_id: RID, evidence_id: EID, decision: params[3], reason_code: params[4], created_at: "2026-08-24T00:00:00.000Z" }] : [];
-    }
     if (/insert into vy_replica_model_build/i.test(sql)) {
       return owned ? [{ build_id: RID, build_kind: "voice_genome", target_version: 1, builder_version: "voice-genome-builder/v1", state: "queued", attempt: 0, failure_code: "", created_at: "2026-08-24T00:00:00.000Z", updated_at: "2026-08-24T00:00:00.000Z" }] : [];
+    }
+    if (/from vy_replica_model_build b/i.test(sql)) return [];
+    if (/from vy_replica_voice_genome g/i.test(sql)) return genomeRows;
+    if (/insert into vy_replica_processing_evidence_decision/i.test(sql)) {
+      return owned ? [{ decision_id: RID, evidence_id: EID, decision: params[3], reason_code: params[4], created_at: "2026-08-24T00:00:00.000Z" }] : [];
     }
     throw new Error(`unexpected SQL: ${sql.slice(0, 100)}`);
   };
@@ -113,6 +122,15 @@ ok("owner status computes a ready VoiceGenome boundary from reviewed real eviden
 ok("every owner status query binds replica and verified owner", statusHarness.calls.every((call) => call.params[0] === RID && call.params[1] === OWNER));
 ok("status never returns evidence hashes or raw values", !/(record_hash|input_sha256|private_note|vector)/.test(JSON.stringify(review)));
 ok("cross-owner status resolves to not found", await ownedReviewStatus(dbFixture({ owned: false }).db, OWNER, RID) === null);
+const lineageReview = await ownedReviewStatus(dbFixture({ genomeRows: [{
+  version: 3, source_set_hash: HASH, status: "draft", created_at: "2026-08-24T01:00:00.000Z",
+  definition: { builder_version: "voice-genome-builder/v1", references: { enrollment_artifact_ids: [ARTIFACT] } },
+}] }).db, OWNER, RID);
+ok("owner status exposes a safe source-to-voice lineage without storage paths",
+  lineageReview.voice_genomes[0].source_ids[0] === SOURCE
+  && lineageReview.voice_genomes[0].references[0].artifact_id === ARTIFACT
+  && lineageReview.voice_genomes[0].references[0].duration_ms === 1000
+  && !/(object_path|storage_bucket|sha256)/.test(JSON.stringify(lineageReview.voice_genomes[0].references)));
 
 await assert.rejects(
   decideOwnedEvidence(dbFixture().db, OWNER, { replica_id: RID, evidence_id: EID, decision: "accepted", reason_code: "wrong_speaker" }),
@@ -168,6 +186,12 @@ ok("long-source readiness uses the accepted build window instead of the latest-3
 const queueCall = queueHarness.calls.find((call) => /insert into vy_replica_model_build/i.test(call.sql));
 ok("queue serialization uses a per-replica advisory transaction lock", /pg_advisory_xact_lock/i.test(queueCall.sql));
 ok("identical source sets are idempotent", /on conflict \(replica_id,build_kind,source_set_hash\)/i.test(queueCall.sql));
+ok("a retired or draftless review build is requeued at a fresh target version",
+  /when e\.state='review' and e\.has_draft then e\.target_version/i.test(queueCall.sql)
+  && /else n\.target_version end target_version/i.test(queueCall.sql)
+  && /current\.state in \('retired','failed'\)/i.test(queueCall.sql)
+  && /then 'queued' else current\.state end/i.test(queueCall.sql)
+  && /set target_version=excluded\.target_version/i.test(queueCall.sql));
 const changed = readyEvidence.map((row, index) => index === 0 ? { ...row, record_hash: "f".repeat(64) } : row);
 const changedHarness = dbFixture({ evidenceRows: changed });
 await queueOwnedVoiceGenome(changedHarness.db, OWNER, RID);
@@ -191,12 +215,12 @@ const route = readFileSync(join(ROOT, "api/replica-review.js"), "utf8");
 ok("HTTP route derives ownership from bearer authentication", /const user = await requireUser\(req\)/.test(route) && /user\.id/.test(route));
 ok("HTTP route never reads a request owner id", !/body\.(?:owner|owner_user_id|user_id|device)/.test(route));
 const studio = readFileSync(join(ROOT, "src/studio/ProcessingReview.tsx"), "utf8");
-// WS-R61: this file's own literal strings moved into src/studio/copy.ts
+// WS-R61: this file's own literal strings moved into src/creatorStudio/copy.ts
 // (the studio's locale table) -- `studio` alone no longer carries the
 // rendered English text, only `c.<key>` references. Read together, the same
 // pattern `evals/readiness/run.mjs` already established for this exact move
 // (context/decisions.md#ws-r52-existing-evals-updated-for-the-copy-ts-move).
-const copyTs = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
+const copyTs = readFileSync(join(ROOT, "src/creatorStudio/copy.ts"), "utf8");
 const studioWithCopy = `${studio}\n${copyTs}`;
 ok("Studio explicitly tells owners what remains withheld", /Raw transcripts, voice vectors, storage locations, provider references, and durable download links/.test(studioWithCopy));
 ok("Studio exposes only a short-lived private audition and explicit voice selection", /Listen privately/.test(studioWithCopy) && /Use this voice/.test(studioWithCopy) && /expires automatically in under one minute/.test(studioWithCopy));

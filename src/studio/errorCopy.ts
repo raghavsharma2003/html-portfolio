@@ -74,11 +74,16 @@ const REFUSAL_COPY: Record<string, { headline: string; detail: string; canRetry:
     detail: "This is our side rather than yours. If it persists, contact support and mention the voice preview.",
     canRetry: true,
   },
+  hindi_text_frontend_too_many_language_switches: {
+    headline: "This line changes writing systems too often for one preview",
+    detail: "Split mixed Devanagari and Roman text into two previews. Ordinary Roman Hinglish is accepted as one code-mixed passage.",
+    canRetry: false,
+  },
 };
 
 export function friendlyError(cause: unknown, context: string): FriendlyError {
   if (cause instanceof ReplicaApiError) {
-    const named = REFUSAL_COPY[cause.message.trim()];
+    const named = REFUSAL_COPY[cause.message.trim().replaceAll(" ", "_")];
     if (named) return named;
     if (cause.status === 429) {
       return {

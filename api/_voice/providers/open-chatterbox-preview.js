@@ -24,8 +24,7 @@ const MAX_REFERENCE_BYTES = 20 * 1024 * 1024;
 // attention projections is 3.93 M fp32 parameters = 15.8 MB.
 const MAX_ADAPTER_BYTES = 20 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 24 * 1024 * 1024;
-const SEGMENT_GAP_MS = 60;
-const SEGMENT_GAP = Buffer.alloc(VOICE_PCM_FORMAT.sampleRate * VOICE_PCM_FORMAT.channels * 2 * SEGMENT_GAP_MS / 1000);
+const MAX_STATUS_RESPONSE_BYTES = 4 * 1024;
 const ADAPTER_ID = /^[a-z0-9][a-z0-9_-]{2,63}$/;
 
 // What actually produced the audio. Mirrors `lora.synthesis_commitment` in
@@ -224,7 +223,21 @@ async function remote(config, value, fetchImpl, signal) {
       body,
       signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(210_000)]) : AbortSignal.timeout(210_000),
     });
-  } catch { fail("open_voice_unreachable"); }
+  } catch (error) {
+    // A failed synthesis POST is ambiguous: the broker may already have
+    // admitted GPU work even though this process did not receive a response.
+    // Preserve a named caller abort, otherwise fence recovery until the
+    // durable attempt lease expires.
+    if (signal?.aborted) {
+      const reason = String(signal.reason?.code || signal.reason?.message || "client_aborted")
+        .replace(/[^a-z0-9_.:-]/gi, "_").slice(0, 120);
+      fail(reason || "client_aborted", 503);
+    }
+    if (error?.name === "AbortError" || error?.name === "TimeoutError") {
+      fail("open_voice_execution_may_continue", 503);
+    }
+    fail("open_voice_execution_may_continue", 503);
+  }
   const bytes = Buffer.from(await response.arrayBuffer());
   if (!bytes.length || bytes.length > MAX_RESPONSE_BYTES) fail("open_voice_response_size_invalid");
   const responseHash = sha256Hex(bytes);
@@ -320,13 +333,69 @@ function verifiedResult(result, value, config) {
   });
 }
 
-function combinedResult(input, segments) {
-  const joined = [];
-  for (const [index, segment] of segments.entries()) {
-    if (index > 0) joined.push(SEGMENT_GAP);
-    joined.push(segment.pcm);
+async function remoteRuntimeReady(config, fetchImpl, signal) {
+  const path = "/v1/runtime-status";
+  const body = Buffer.from(canonicalJson({ op: "runtime_status" }));
+  const bodyHash = sha256Hex(body);
+  const timestamp = new Date().toISOString();
+  const nonce = randomBytes(18).toString("base64url");
+  let response;
+  try {
+    response = await fetchImpl(`${config.origin}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Vyakti-Protocol": PROTOCOL,
+        "X-Vyakti-Timestamp": timestamp,
+        "X-Vyakti-Nonce": nonce,
+        "X-Vyakti-Content-SHA256": bodyHash,
+        "X-Vyakti-Signature": signature(config.transportSecret, [PROTOCOL, "POST", path, timestamp, nonce, bodyHash]),
+      },
+      body,
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
+    });
+  } catch (error) {
+    // Readiness is a status probe, so an ordinary network failure is safely
+    // retryable. Preserve caller aborts so they are not misreported as a cold
+    // runtime.
+    if (signal?.aborted) {
+      const reason = String(signal.reason?.code || signal.reason?.message || "client_aborted")
+        .replace(/[^a-z0-9_.:-]/gi, "_").slice(0, 120);
+      fail(reason || "client_aborted", 503);
+    }
+    fail(error?.name === "TimeoutError" ? "open_voice_runtime_status_timeout" : "open_voice_unreachable");
   }
-  const pcm = Buffer.concat(joined);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (!bytes.length || bytes.length > MAX_STATUS_RESPONSE_BYTES) fail("open_voice_runtime_status_invalid");
+  const expected = signature(config.transportSecret, [
+    PROTOCOL, "response", path, nonce, String(response.status), sha256Hex(bytes),
+  ]);
+  if (!equal(response.headers.get("x-vyakti-response-signature"), expected)) {
+    fail("open_voice_response_signature_invalid");
+  }
+  let result;
+  try { result = JSON.parse(bytes.toString("utf8")); }
+  catch { fail("open_voice_runtime_status_invalid"); }
+  if (response.status === 503) {
+    if (result?.error === "open_voice_runtime_warming" && Object.keys(result).length === 1) return false;
+    fail("open_voice_runtime_status_invalid");
+  }
+  if (!response.ok) fail(String(result?.error || `open_voice_http_${response.status}`), response.status >= 500 ? 503 : 409);
+  if (response.status !== 200 || result?.ready !== true || Object.keys(result).length !== 1) {
+    fail("open_voice_runtime_status_invalid");
+  }
+  return true;
+}
+
+function combinedResult(input, segments) {
+  // A natural preview must be one continuous acoustic generation. Joining
+  // independently conditioned language fragments cannot preserve breath,
+  // pitch or co-articulation, even with a crossfade. Fail closed if a future
+  // text-plan change accidentally reintroduces that path.
+  if (segments.length !== 1 || input.textPlan.synthesisSegments.length !== 1) {
+    fail("open_voice_text_plan_not_continuous", 409);
+  }
+  const pcm = segments[0].pcm;
   if (!pcm.length || pcm.length > MAX_RESPONSE_BYTES) fail("open_voice_composite_audio_size_invalid", 413);
   const durationMs = pcm.length / 2 / VOICE_PCM_FORMAT.sampleRate * 1000;
   const elapsedMs = segments.reduce((sum, segment) => sum + segment.receipt.elapsedMs, 0);
@@ -347,10 +416,10 @@ function combinedResult(input, segments) {
     textFrontend: voiceTextPlanAudit(input.textPlan),
     segmentJoin: Object.freeze({
       contract: "vyakti-pcm-segment-join/v1",
-      strategy: "unaltered_segments_with_zero_gap",
-      gapMs: SEGMENT_GAP_MS,
-      gapBytes: SEGMENT_GAP.length,
-      segmentCount: segments.length,
+      strategy: "single_continuous_utterance",
+      gapMs: 0,
+      gapBytes: 0,
+      segmentCount: 1,
     }),
     synthesisSegments: Object.freeze(segments.map((segment, index) => Object.freeze({
       index,
@@ -378,6 +447,9 @@ export function createOpenChatterboxPreviewProvider(options = {}) {
     name: PROVIDER_NAME,
     modelCommitment: config.modelCommitment,
     modelArm: config.modelArm,
+    async probeRuntimeReadiness(input = {}) {
+      return remoteRuntimeReady(config, fetchImpl, input.signal);
+    },
     async synthesizePreview(raw) {
       const input = inputValues(raw, config);
       const segments = [];

@@ -25,7 +25,7 @@
 //      source finds no follower/session/person/thread identifier — proven by
 //      first showing the SAME scan catches a poisoned fixture.
 //   4. COPY PARITY. `SHARE_KIT_COPY` is byte-identical, both locales, to the
-//      REAL `src/studio/copy.ts`/`hiCopy.ts` `shareKit` section —
+//      REAL `src/creatorStudio/copy.ts`/`hiCopy.ts` `shareKit` section —
 //      `evals/studio-locale/run.mjs`'s own esbuild-bundle technique,
 //      `loadStudioCopy("hi")` awaited before `.hi` is read
 //      (`context/decisions.md#studio-hindi-table-is-its-own-chunk`).
@@ -131,7 +131,7 @@ console.log("\n── 3. static: no follower/session/person/thread identifier re
 }
 
 // ═══ 4. COPY PARITY ══════════════════════════════════════════════════════════
-console.log("\n── 4. SHARE_KIT_COPY is byte-identical to the REAL src/studio/copy.ts + hiCopy.ts ──");
+console.log("\n── 4. SHARE_KIT_COPY is byte-identical to the REAL src/creatorStudio/copy.ts + hiCopy.ts ──");
 {
   // `evals/studio-locale/run.mjs`'s own technique: `copy.ts` is plain TS with
   // no JSX, bundled with esbuild rather than imported directly (this file
@@ -142,7 +142,7 @@ console.log("\n── 4. SHARE_KIT_COPY is byte-identical to the REAL src/studio
   const ENTRY = join(OUT, "entry.ts");
   writeFileSync(
     ENTRY,
-    `export { STUDIO_COPY_TABLE, loadStudioCopy } from ${JSON.stringify(join(REPO, "src/studio/copy"))};\n`,
+    `export { STUDIO_COPY_TABLE, loadStudioCopy } from ${JSON.stringify(join(REPO, "src/creatorStudio/copy"))};\n`,
   );
   const BUNDLE = join(OUT, "copy.bundle.mjs");
   execSync(
@@ -151,7 +151,7 @@ console.log("\n── 4. SHARE_KIT_COPY is byte-identical to the REAL src/studio
   );
   const { STUDIO_COPY_TABLE, loadStudioCopy: installStudioCopy } = await import(pathToFileURL(BUNDLE).href);
   // The Hindi table is its own chunk since the WS-R71 merge
-  // (src/studio/hiCopy.ts, context/decisions.md#studio-hindi-table-is-its-
+  // (src/creatorStudio/hiCopy.ts, context/decisions.md#studio-hindi-table-is-its-
   // own-chunk): `STUDIO_COPY_TABLE.hi` throws until the app's own loader
   // has installed it, so this eval installs it the same way the app does.
   await installStudioCopy("hi");
@@ -161,7 +161,7 @@ console.log("\n── 4. SHARE_KIT_COPY is byte-identical to the REAL src/studio
     const real = STUDIO_COPY_TABLE[locale].shareKit;
     const mine = SHARE_KIT_COPY[locale];
     for (const channel of SHARE_KIT_CHANNELS) {
-      ok(`SHARE_KIT_COPY.${locale}.${channel} matches the REAL src/studio/copy.ts shareKit.${CHANNEL_KEY[channel]}`,
+      ok(`SHARE_KIT_COPY.${locale}.${channel} matches the REAL src/creatorStudio/copy.ts shareKit.${CHANNEL_KEY[channel]}`,
         mine[channel] === real[CHANNEL_KEY[channel]]);
     }
   }

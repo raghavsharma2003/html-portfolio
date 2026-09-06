@@ -35,6 +35,7 @@ export const MIRROR_CALL_OPS = Object.freeze([
   // without it runs calibration calls and the studio says the interview is not
   // available here rather than offering a button that 400s.
   "interview_gaps",
+  "speaker_attestation",
 ]);
 
 /** The two modes a Mirror Call can open in. `calibrate` is what every existing
@@ -104,7 +105,7 @@ const CLIENT_KIND = Object.freeze({
   feedback_note: "delivery",
 });
 
-/** Internal ASR failure codes -> the six drop reasons the studio's union
+/** Internal ASR/policy failure codes -> the named drop reasons the studio's union
  *  admits. The RAW code travels beside it: the studio needs a reason it can
  *  render, and an operator needs the code that was actually raised, and
  *  collapsing them would lose the second. Anything unmapped is
@@ -113,6 +114,7 @@ const CLIENT_KIND = Object.freeze({
  *  measure. */
 export function dropReason(failureCode) {
   const code = String(failureCode || "");
+  if (/live_asr_consent|consent_inactive|consent_revoked/i.test(code)) return "consent_inactive";
   if (/429|rate|slow_down/i.test(code)) return "rate_limited";
   if (/empty|transcript_missing/i.test(code)) return "asr_empty";
   if (/timeout|unreachable|abort/i.test(code)) return "asr_timeout";

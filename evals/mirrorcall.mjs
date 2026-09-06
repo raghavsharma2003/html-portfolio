@@ -54,19 +54,22 @@
 //    is run against a server payload that claims a rejected delta landed on
 //    the sheet, which is the wire-level version of the same failure.
 import { execSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..");
+const STUDIO_SOURCE = readFileSync(join(REPO, "src/studio/MirrorCallStudio.tsx"), "utf8");
+const STUDIO_CSS = readFileSync(join(REPO, "src/studio/studio.css"), "utf8");
 const OUT = mkdtempSync(join(tmpdir(), "mirrorcall-"));
 const ENTRY = join(OUT, "entry.ts");
 writeFileSync(
   ENTRY,
   `export * from ${JSON.stringify(join(REPO, "src/studio/mirrorCallMachine"))};\n` +
-    `export { normalizeDelta, normalizeFidelity, MAX_WINDOW_MS, REQUIRED_OPS, MIRROR_CALL_CONTRACT } from ${JSON.stringify(join(REPO, "src/studio/mirrorCallApi"))};\n`,
+    `export { ingestAudioWindow, normalizeDelta, normalizeFidelity, normalizeReplyEngineCapability, MAX_WINDOW_MS, REQUIRED_OPS, MIRROR_CALL_CONTRACT } from ${JSON.stringify(join(REPO, "src/studio/mirrorCallApi"))};\n`,
 );
 const BUNDLE = join(OUT, "mirrorcall.bundle.mjs");
 execSync(
@@ -82,6 +85,7 @@ const {
   deferredChips,
   pendingChips,
   canCapture,
+  canConnect,
   canEnd,
   dropCopy,
   readMeasurementFidelity,
@@ -95,7 +99,9 @@ const {
   MEASUREMENT_CAVEAT,
   CONDITIONING_CAVEAT,
   METER_PAIR_NOTE,
+  ingestAudioWindow,
   normalizeDelta,
+  normalizeReplyEngineCapability,
   MAX_WINDOW_MS,
   REQUIRED_OPS,
   MIRROR_CALL_CONTRACT,
@@ -110,6 +116,26 @@ const ok = (name, cond, extra = "") => {
 };
 
 const run = (events, start = INITIAL_CALL_STATE) => events.reduce(callReducer, start);
+const CONNECT_SOURCE = STUDIO_SOURCE.slice(
+  STUDIO_SOURCE.indexOf("async function connect()"),
+  STUDIO_SOURCE.indexOf("async function startTalking()"),
+);
+
+ok(
+  "call session opens before microphone permission is requested",
+  STUDIO_SOURCE.indexOf('dispatch({ type: "SESSION_OPEN", session })') <
+    STUDIO_SOURCE.indexOf("async function startTalking()"),
+);
+ok(
+  "microphone access starts only from the explicit Talk action",
+  !/openCallCapture\(/.test(CONNECT_SOURCE) &&
+    /async function startTalking\(\)[\s\S]*?openCallCapture\(/.test(STUDIO_SOURCE),
+);
+ok(
+  "microphone permission has a bounded recoverable wait",
+  /Microphone permission did not finish within 30 seconds/.test(STUDIO_SOURCE) &&
+    /Tap Talk to try again/.test(STUDIO_SOURCE),
+);
 
 const delta = (id, over = {}) => ({
   delta_id: id,
@@ -133,6 +159,7 @@ const session = (over = {}) => ({
   window_ms_max: MAX_WINDOW_MS,
   fidelity: null,
   ops: [...REQUIRED_OPS],
+  reply_engine: { available: true, state: "ready", reason: null },
   ...over,
 });
 
@@ -150,7 +177,7 @@ const windowResult = (over = {}) => ({
 
 const CONNECTED = [
   { type: "PROBE_START" },
-  { type: "PROBE_OK", voiceAvailable: true },
+  { type: "PROBE_OK", voiceAvailable: true, replyEngineAvailable: true },
   { type: "CONNECT" },
   { type: "SESSION_OPEN", session: session() },
 ];
@@ -173,14 +200,14 @@ ok(
 
 const warming = run([
   { type: "PROBE_START" },
-  { type: "PROBE_OK", voiceAvailable: true },
+  { type: "PROBE_OK", voiceAvailable: true, replyEngineAvailable: true },
   { type: "CONNECT" },
   { type: "SESSION_OPEN", session: session({ state: "warming", gpu: { warm: false, estimated_ready_seconds: 150 } }) },
 ]);
 ok("a cold GPU lands in warming and the mic stays shut", warming.phase === "warming" && !canCapture(warming), warming.phase);
 ok(
-  "the warming caption states the two-to-three minute cold start",
-  /two to three minutes/.test(warming.captions.at(-1).text),
+  "the warming caption states the observed two-to-eight minute cold range",
+  /two to eight minutes/.test(warming.captions.at(-1).text),
   warming.captions.at(-1).text,
 );
 ok("WARM opens the call", callReducer(warming, { type: "WARM" }).phase === "live");
@@ -189,6 +216,146 @@ const connected = run(CONNECTED);
 ok("a warm session is live and can capture", connected.phase === "live" && canCapture(connected));
 ok("end is offered while connecting, warming and live", canEnd(connected) && canEnd(warming));
 
+const capturing = callReducer(connected, { type: "CAPTURE_START" });
+const uploading = callReducer(capturing, { type: "WINDOW_SENDING" });
+ok("a local capture may be discarded by End", capturing.turnPhase === "capturing" && canEnd(capturing));
+ok(
+  "NEGATIVE CONTROL: End cannot enter while a window upload is in flight",
+  !canEnd(uploading) && callReducer(uploading, { type: "END" }) === uploading,
+);
+
+const unavailableCapability = normalizeReplyEngineCapability(undefined);
+ok(
+  "a missing reply capability normalizes unavailable, never ready",
+  unavailableCapability.available === false && unavailableCapability.state === "unavailable",
+);
+ok(
+  "only the exact ready capability normalizes available",
+  normalizeReplyEngineCapability({ available: true, state: "ready", provider: "must-not-matter" }).available === true &&
+    normalizeReplyEngineCapability({ available: true, state: "unknown" }).available === false,
+);
+const replyUnavailable = run([
+  { type: "PROBE_START" },
+  { type: "PROBE_OK", voiceAvailable: true, replyEngineAvailable: false },
+]);
+ok(
+  "a deployed route without a reply engine lands in waiting-on-us",
+  replyUnavailable.phase === "reply_unavailable" && !canConnect(replyUnavailable),
+  replyUnavailable.phase,
+);
+ok(
+  "NEGATIVE CONTROL: CONNECT cannot create a session while the reply engine is absent",
+  callReducer(replyUnavailable, { type: "CONNECT" }) === replyUnavailable,
+);
+ok(
+  "the unavailable UI names the platform boundary and never offers Start call",
+  /Calls are waiting on us/.test(STUDIO_SOURCE) &&
+    /state\.phase === "reply_unavailable"[\s\S]*?canConnect\(state\)/.test(STUDIO_SOURCE),
+);
+ok(
+  "the waiting-on-us card wraps safely and tightens its padding on a phone",
+  /\.mirror-capability-unavailable\s*\{[\s\S]*?overflow-wrap:\s*anywhere/.test(STUDIO_CSS) &&
+    /@media \(max-width:\s*590px\)[\s\S]*?\.mirror-capability-unavailable\s*\{\s*padding:\s*16px/.test(STUDIO_CSS),
+);
+
+// Production-shaped transport: execute the actual browser API function from
+// byte hashing through private upload/finalize to the Mirror JSON source
+// handle. This catches the shipped multipart/JSON mismatch without needing a
+// browser or real owner audio.
+{
+  const original = {
+    fetch: globalThis.fetch,
+    File: globalThis.File,
+    Worker: globalThis.Worker,
+    XMLHttpRequest: globalThis.XMLHttpRequest,
+  };
+  const seen = [];
+  globalThis.File ||= class File extends Blob {
+    constructor(parts, name, options = {}) { super(parts, options); this.name = name; }
+  };
+  globalThis.Worker = class HashWorker {
+    postMessage({ file }) {
+      file.arrayBuffer().then((bytes) => {
+        const hash = createHash("sha256").update(Buffer.from(bytes)).digest("hex");
+        this.onmessage?.({ data: { type: "complete", hash } });
+      }, () => this.onerror?.());
+    }
+    terminate() {}
+  };
+  globalThis.XMLHttpRequest = class UploadRequest {
+    constructor() { this.upload = {}; this.status = 200; }
+    open(method, url) { this.method = method; this.url = url; }
+    setRequestHeader() {}
+    send(file) {
+      seen.push({ lane: "signed_put", method: this.method, url: this.url, bytes: file.size });
+      queueMicrotask(() => this.onload?.());
+    }
+  };
+  globalThis.fetch = async (input, init = {}) => {
+    const target = String(input);
+    const body = init.body ? JSON.parse(String(init.body)) : null;
+    if (target === "/api/replica-source" && body?.op === "create_upload") {
+      seen.push({ lane: "create_upload", body, contentType: init.headers?.["Content-Type"] });
+      return Response.json({
+        source: { source_id: "11111111-1111-4111-8111-111111111111" },
+        upload: {
+          method: "PUT",
+          url: "https://private.invalid/mirror-window",
+          headers: { "content-type": "audio/wav" },
+          expires_at: "2026-08-29T12:00:00.000Z",
+        },
+      }, { status: 201 });
+    }
+    if (target === "/api/replica-source" && body?.op === "finalize") {
+      seen.push({ lane: "finalize", body });
+      return Response.json({ source: { source_id: body.source_id, state: "quarantined" } });
+    }
+    if (target.includes("/api/mirror-call?op=ingest_window")) {
+      seen.push({ lane: "ingest_window", body, contentType: init.headers?.["Content-Type"] });
+      return Response.json({ window: {
+        window_id: "22222222-2222-4222-8222-222222222222",
+        seq: body.seq,
+        dropped: null,
+        owner_transcript: "haan",
+        turn: null,
+        deltas: [],
+        fidelity: null,
+        reference: null,
+      } });
+    }
+    throw new Error(`unexpected transport ${target}`);
+  };
+  try {
+    const result = await ingestAudioWindow("owner-token", {
+      replicaId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      sessionId: "33333333-3333-4333-8333-333333333333",
+      seq: 7,
+      audio: new Blob([new Uint8Array(256)], { type: "audio/wav" }),
+      durationMs: 1200,
+    });
+    const create = seen.find((entry) => entry.lane === "create_upload");
+    const ingest = seen.find((entry) => entry.lane === "ingest_window");
+    ok("actual client uploads Mirror audio through the private source lane",
+      seen.map((entry) => entry.lane).join(",") === "create_upload,signed_put,finalize,ingest_window",
+      seen.map((entry) => entry.lane).join(","));
+    ok("the private source is session/sequence-bound and suppresses the enrollment DAG",
+      create?.body?.purpose === "mirror_window" &&
+        create.body.mirror_session_id === "33333333-3333-4333-8333-333333333333" &&
+        create.body.mirror_seq === 7);
+    ok("ingest sends JSON with only the finalized source handle, never multipart bytes",
+      ingest?.contentType === "application/json" &&
+        ingest.body.source_id === "11111111-1111-4111-8111-111111111111" &&
+        !(ingest.body.audio || ingest.body.file));
+    ok("the actual source-handle response completes the window", result.seq === 7 && !result.dropped);
+  } finally {
+    globalThis.fetch = original.fetch;
+    if (original.File === undefined) delete globalThis.File; else globalThis.File = original.File;
+    if (original.Worker === undefined) delete globalThis.Worker; else globalThis.Worker = original.Worker;
+    if (original.XMLHttpRequest === undefined) delete globalThis.XMLHttpRequest;
+    else globalThis.XMLHttpRequest = original.XMLHttpRequest;
+  }
+}
+
 // A window may not be sent from a machine that is not live. This is the guard
 // that stops a queued upload from a call the owner already ended.
 const afterEnd = run([...CONNECTED, { type: "END" }, {
@@ -196,6 +363,20 @@ const afterEnd = run([...CONNECTED, { type: "END" }, {
   end: { session_id: "s1", ended_at: "", deferred: [], accepted_count: 0, rejected_count: 0, finetune: { queued: true, job_id: "j1", reason: null }, fidelity: null },
 }]);
 ok("a window arriving after ENDED changes nothing", run([{ type: "WINDOW_RESULT", result: windowResult() }], afterEnd).cloneTurns === 0);
+const ending = callReducer(connected, { type: "END" });
+ok(
+  "NEGATIVE CONTROL: a late window cannot change an end in progress",
+  callReducer(ending, { type: "WINDOW_RESULT", result: windowResult() }) === ending,
+);
+ok(
+  "NEGATIVE CONTROL: a late turn failure cannot erase a persisted end receipt",
+  callReducer(afterEnd, { type: "FAIL", message: "late upload failure" }) === afterEnd && afterEnd.ended !== null,
+);
+const namedEndFailure = callReducer(ending, { type: "END_FAILED", message: "end route unavailable" });
+ok(
+  "a genuine End request failure stays recoverable instead of being swallowed as a late turn failure",
+  namedEndFailure.phase === "failed" && namedEndFailure.session?.session_id === "s1" && namedEndFailure.error === "end route unavailable",
+);
 
 // ── 2. dropped windows are loud and produce nothing ────────────────────────
 console.log("\n── a dropped window (no silent truncation) ──");
@@ -405,8 +586,10 @@ ok("the accepted chip stays applied through the sweep", appliedChips(swept).leng
 ok("nothing new became applied at end", appliedChips(swept).every((chip) => chip.delta.delta_id === "d1"));
 ok("a delta the client never saw still lands in the review rail", deferredChips(swept).some((c) => c.delta.delta_id === "d9"));
 ok(
-  "the end caption says the fine-tune is QUEUED, not running",
-  /queued/.test(swept.captions.at(-1).text) && /after the call/.test(swept.captions.at(-1).text),
+  "the end receipt does not claim a dead fine-tune runner is active",
+  /recorded a voice-learning request/.test(swept.captions.at(-1).text)
+    && /runner is connected/.test(swept.captions.at(-1).text)
+    && /does not claim the request is running/.test(swept.captions.at(-1).text),
   swept.captions.at(-1).text,
 );
 

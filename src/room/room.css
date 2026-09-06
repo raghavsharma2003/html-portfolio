@@ -1,17 +1,9 @@
 /* room.css — the Room's own components, and nothing else.
  *
- * WHAT THIS FILE DELIBERATELY DOES NOT CONTAIN: a palette. `src/room/main.tsx`
- * imports `../studio/design/tokens.css` for the scale and `../studio/studio.css`
- * for the palette and the base layer, in that order, exactly as the studio's own
- * entry does. The Room could have declared its own `--paper` and `--forest` in
- * fifteen lines and it would have been fifteen lines of drift: two surfaces of
- * one product whose greens diverge on the first tweak, in the one place a
- * follower and a creator both look. One palette, two callers, and the cost is a
- * stylesheet the Room does not use most of.
- *
- * Everything below writes into the `components` and `responsive` layers that
- * `studio.css` already declared, so it wins by source order on equal
- * specificity rather than by out-specifying anything.
+ * The entry imports tokens.css, then the shared design/foundation.css for
+ * the single palette, reset and base. Creator Studio consumes the same
+ * foundation through studio.css. Room components follow in the existing
+ * components and responsive layers, retaining their cascade precedence.
  *
  * MOBILE FIRST, and literally: every rule here is written for a 390px phone and
  * the only media query widens. A follower arrives from a bio link, which means

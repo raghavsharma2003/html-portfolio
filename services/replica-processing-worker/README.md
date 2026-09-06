@@ -65,7 +65,12 @@ on Vercel remains the lever that silences the sweep endpoint itself.
    wait for it to answer a real `--ping` rather than merely to have forked.
 5. Requeue jobs that failed only because a capability was absent and is not
    absent here any more.
-6. Drain, settle, and print one content-free line.
+6. Keep one source's sequential eight-step DAG together inside the bounded run,
+   using a renewable ten-minute lease so long work stays exclusive while a
+   killed worker recovers within ten minutes.
+7. Run the same durable VoiceGenome build sweep used by the independent Vercel
+   cron, removing an extra schedule interval after `voice_quality` completes.
+8. Settle and print one content-free line.
 
 ## Signatures
 
@@ -98,15 +103,68 @@ did exactly that, and step 2 above is what caught it.
   HTTPS-only, create-only service SAS. Replace it with managed-identity user
   delegation after an Azure Owner grants the data-plane roles, then disable
   Shared Key on the account.
-- 60-minute replica timeout with a 55-minute work budget and matching lease,
-  `parallelism: 1`, and a hard Azure budget alert. The longer bound is needed
-  for two-hour batch ASR and deterministic chunked diarization; it is still a
-  run-to-completion job, not a resident service.
-- `transcribe` runs through Sarvam (`SARVAM_API_KEY`), not Azure Speech, as of
-  WS-AN (2026-08-26): this subscription has zero Cognitive Services accounts,
-  and the owner's directive was to use the Sarvam adapters that already exist
-  rather than stand one up. See `api/_replica-processing/providers/
-  sarvam-transcription.js`'s header for the full reasoning.
+- 60-minute replica timeout with a 55-minute work budget, a renewable ten-minute
+  job lease, `parallelism: 1`, and a hard Azure budget alert. The heartbeat lets
+  long batch ASR and deterministic chunked diarization keep ownership, while a
+  killed execution no longer strands work behind a full-hour lease.
+- `transcribe` prefers Azure Speech when `AZURE_SPEECH_ENDPOINT` and
+  `AZURE_SPEECH_KEY` are both present. Set
+  `AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR` to the current official retail
+  meter for the resource region so the spend guard can reserve the request.
+  Sarvam remains the fallback only when Azure is absent. The earlier
+  Sarvam-only decision reversed when an Azure AI Services resource became
+  available; the live Sarvam account now returns HTTP 402.
 
 The worker emits only content-free outcome codes. It never logs tenant IDs,
 paths, transcripts, vectors, audio, or provider request IDs.
+
+## Explicit isolated-development invocation
+
+`dev-once.js` is a separate opt-in local entry. It requires the exact
+`VYAKTI_DEV_DATABASE=vyakti_expert_integration_20260906` (or another explicitly
+created date-suffixed integration database), the matching database path in
+`NEON_URL`, and a successful server `current_database()` check. The connection
+is captured once. A failed identity read never admits a worker call.
+`REPLICA_SELF_TEST_MODE=true` is refused. Credentials must be supplied privately
+through the process environment, never command arguments or committed files.
+
+With the development database and development storage credentials already
+loaded in that environment:
+
+```powershell
+$env:VYAKTI_DEV_DATABASE = 'vyakti_expert_integration_20260906'
+node services/replica-processing-worker/dev-once.js check
+# Only when a bounded development mutation is intended:
+$env:VYAKTI_DEV_WORKER = '1'
+node services/replica-processing-worker/dev-once.js processing
+# Alternatively, reconcile one source erasure:
+node services/replica-processing-worker/dev-once.js erasure
+```
+
+`processing` invokes one existing processing job with a 60-second abort signal
+and the normal renewable lease. Native integrity/scanner/probe capabilities
+must exist; ClamAV must already be running and configured. This command does
+not install tools, refresh signatures, start cloud jobs, requeue failures, run
+model-building sweeps, or generate voice. Configured analysis adapters may be
+called by that one job. Missing capabilities fail explicitly; this is not a
+replacement for the fully provisioned scheduled processing container.
+
+`erasure` considers at most one abandoned pending upload and leases at most one
+eligible source using the existing reconciler. Its 10-second scheduling budget
+is not a guarantee that a provider request finishes in 10 seconds. Upload SAS
+expiry, processing grace, storage-writer authority and erasure leases remain
+unchanged. It may return idle while authorization is still valid. It does not
+complete the separate full-replica erasure workflow or prove physical deletion
+unless the reconciler reports completion. Both commands apply to the isolated
+queue, not a caller-selected source.
+
+The existing scheduled worker also supports the optional
+`REPLICA_EXPECTED_DATABASE` guard through `createNeonDb`; omitting it retains
+existing deployment behavior. Setting it never rewrites a connection string.
+The new development entry always supplies a required expected database.
+
+Verification: `node evals/processing-worker/database-guard.mjs` exercises URL
+mismatch, server mismatch, connection failure, concurrent first queries,
+explicit opt-in, no-mutation check mode, and forbidden self-test grants using
+mocked HTTP and worker callbacks. These tests do not prove live SQL, native
+tools, provider processing, or completed erasure.

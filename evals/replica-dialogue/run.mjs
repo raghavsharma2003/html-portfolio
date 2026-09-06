@@ -123,7 +123,50 @@ ok("dialogue ledger stores a prompt hash and log id rather than duplicate conten
 ok("session ordinal advances atomically under the active capability", /next_turn_ordinal=s\.next_turn_ordinal\+1/i.test(beginCall.sql) && /c\.state='active'/i.test(beginCall.sql));
 const finishCall = calls.find((call) => /assistant_log as/i.test(call.sql));
 ok("assistant completion rechecks capability versions lifecycle and inference consent", /c\.profile_version=t\.profile_version/i.test(finishCall.sql) && /c\.calibration_version=t\.calibration_version/i.test(finishCall.sql) && /scope='inference'/i.test(finishCall.sql));
+ok("both raw-log writers serialize on the exact active replica parent",
+  /with authorized as materialized/i.test(beginCall.sql) && /for update of r/i.test(beginCall.sql) &&
+  /with authorized as materialized/i.test(finishCall.sql) && /for update of r/i.test(finishCall.sql));
 ok("client response omits provider model agent person and log ids", !/(provider|model|agent|person|log_id)/i.test(JSON.stringify(turn)));
+
+{
+  let purged = false;
+  let assistantRows = 0;
+  const staleCalls = [];
+  const staleDb = async (sql, params) => {
+    staleCalls.push({ sql, params });
+    if (/select r\.replica_id,r\.owner_user_id/i.test(sql)) return [contextRow()];
+    if (/insert into vy_replica_runtime_session/i.test(sql)) return [{ session_id: SESSION, replica_id: RID, channel: "private_chat", state: "active", started_at: "2026-08-24T00:00:00.000Z" }];
+    if (/from vy_rel_state/i.test(sql)) return [{ trust: 0.8, rupture_open: false, repair_state: "settled" }];
+    if (/from vy_phrase/i.test(sql)) return [];
+    if (/from vy_(?:pattern|ritual|currency|kin)/i.test(sql)) return [];
+    if (/select recent\.ordinal/i.test(sql)) return [];
+    if (/insert into vy_replica_dialogue_turn/i.test(sql)) return [{ turn_id: TURN, session_id: SESSION, ordinal: 1, created_at: "2026-08-24T00:00:01.000Z" }];
+    if (/assistant_log as/i.test(sql)) {
+      if (purged) return [];
+      assistantRows += 1;
+      return [{ turn_id: TURN, session_id: SESSION, ordinal: 1, created_at: "2026-08-24T00:00:01.000Z", completed_at: "2026-08-24T00:00:02.000Z" }];
+    }
+    if (/update vy_replica_dialogue_turn set state/i.test(sql)) return [];
+    throw new Error(`unexpected stale dialogue SQL ${sql.slice(0, 100)}`);
+  };
+  const staleGenerator = {
+    ...fakeGenerator,
+    async generate() {
+      // The provider finishes after full erasure deleted the exact replica and
+      // agent. The finishing statement must observe no parent and insert zero.
+      purged = true;
+      return { output };
+    },
+  };
+  await assert.rejects(
+    generateOwnedDialogue(staleDb, OWNER, {
+      replica_id: RID, channel: "private_chat", message: "Finish after purge", trace_id: "trace_dialogue_stale_001",
+    }, staleGenerator),
+    (error) => error?.code === "dialogue_authorization_changed",
+  );
+  ok("a provider response arriving after the purge receipt cannot recreate assistant raw-log bytes",
+    purged && assistantRows === 0 && staleCalls.some((call) => /assistant_log as/i.test(call.sql)));
+}
 
 const speechCalls = [];
 const speech = await loadOwnedDialogueSpeech(async (sql, params) => {

@@ -101,9 +101,12 @@ export async function commitProcessingOutput(db, input) {
   if (!adapter?.family || !adapter?.name || !adapter?.version) throw new Error("completion adapter provenance required");
   const rows = await db(
     `with eligible_job as materialized (
-       select * from vy_replica_processing_job
-        where job_id=$1::uuid and state='leased' and lease_token_hash=$2
-          and lease_expires_at>now() and step=$10
+       select j.* from vy_replica_processing_job j
+       join vy_replica_source s on s.source_id=j.source_id and s.replica_id=j.replica_id
+        and s.owner_user_id=j.owner_user_id
+        where j.job_id=$1::uuid and j.state='leased' and j.lease_token_hash=$2
+          and j.lease_expires_at>now() and j.step=$10
+          and s.state in ('quarantined','processing')
      ), desired_artifacts as materialized (
        select value item from jsonb_array_elements($3::jsonb)
      ), inserted_artifacts as (

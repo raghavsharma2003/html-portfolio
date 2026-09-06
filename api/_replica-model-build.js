@@ -24,6 +24,7 @@ function leaseRow(row, leaseToken) {
     targetVersion: Number(row.target_version),
     builderVersion: row.builder_version,
     sourceSetHash: row.source_set_hash,
+    candidateSourceId: row.candidate_source_id || null,
     attempt: Number(row.attempt),
     leaseToken,
     leaseExpiresAt: row.lease_expires_at,
@@ -37,19 +38,28 @@ export async function leaseNextVoiceGenomeBuild(db, options = {}) {
   const rows = await db(
     `with candidate as (
        select b.build_id,
-              case when b.state in ('leased','building') then 'lease_expired' else b.failure_code end prior_failure
+               case when b.state in ('leased','building') then 'lease_expired' else b.failure_code end prior_failure,
+               (select i.candidate_source_id
+                  from vy_replica_voice_build_intent i
+                 where i.build_id=b.build_id and i.replica_id=b.replica_id
+                   and i.owner_user_id=b.owner_user_id and i.state='queued'
+                 order by i.created_at,i.intent_id limit 1) candidate_source_id
          from vy_replica_model_build b
          join vy_replica r on r.replica_id=b.replica_id and r.owner_user_id=b.owner_user_id
         where b.build_kind='voice_genome' and b.attempt<$3::int4
           and ((b.state in ('queued','retry') and b.next_attempt_at<=now())
             or (b.state in ('leased','building') and b.lease_expires_at<=now()))
           and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
+          and r.age_verified_at is not null and r.identity_verified_at is not null
           and r.liveness_verified_at is not null and r.identity_expires_at>now()
           and exists (select 1 from vy_replica_consent c where c.replica_id=r.replica_id
-            and c.owner_user_id=r.owner_user_id and c.scope='biometric' and c.revoked_at is null
+            and c.owner_user_id=r.owner_user_id and c.scope='biometric' and c.policy_version=r.policy_version and c.revoked_at is null
             and (c.expires_at is null or c.expires_at>now()))
           and exists (select 1 from vy_replica_consent c where c.replica_id=r.replica_id
-            and c.owner_user_id=r.owner_user_id and c.scope='training' and c.revoked_at is null
+            and c.owner_user_id=r.owner_user_id and c.scope='training' and c.policy_version=r.policy_version and c.revoked_at is null
+            and (c.expires_at is null or c.expires_at>now()))
+          and exists (select 1 from vy_replica_consent c where c.replica_id=r.replica_id
+            and c.owner_user_id=r.owner_user_id and c.scope='inference' and c.policy_version=r.policy_version and c.revoked_at is null
             and (c.expires_at is null or c.expires_at>now()))
         order by b.next_attempt_at,b.created_at for update of b skip locked limit 1
      ), leased as (
@@ -58,7 +68,8 @@ export async function leaseNextVoiceGenomeBuild(db, options = {}) {
               failure_code=candidate.prior_failure,updated_at=now()
          from candidate where b.build_id=candidate.build_id
        returning b.*
-     ) select * from leased`,
+      ) select leased.*,candidate.candidate_source_id
+          from leased join candidate on candidate.build_id=leased.build_id`,
     [leaseHash, leaseSeconds, MAX_ATTEMPTS],
   );
   return leaseRow(rows[0], leaseToken);
@@ -80,15 +91,26 @@ export async function completeVoiceGenomeBuild(db, lease, draft, input) {
   const artifactIds = input.artifacts.map((row) => row.artifact_id).sort();
   const sourceIds = [...new Set(input.evidence.map((row) => row.source_id))].sort();
   const rows = await db(
-    `with biometric_consent as materialized (
+     `with biometric_consent as materialized (
        select c.consent_id from vy_replica_consent c
+        join vy_replica r on r.replica_id=c.replica_id and r.owner_user_id=c.owner_user_id
         where c.replica_id=$2::uuid and c.owner_user_id=$3::uuid and c.scope='biometric'
-          and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())
+          and c.policy_version=r.policy_version and c.revoked_at is null
+          and (c.expires_at is null or c.expires_at>now())
         order by c.granted_at desc limit 1 for update
      ), training_consent as materialized (
        select c.consent_id from vy_replica_consent c
+        join vy_replica r on r.replica_id=c.replica_id and r.owner_user_id=c.owner_user_id
         where c.replica_id=$2::uuid and c.owner_user_id=$3::uuid and c.scope='training'
-          and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())
+          and c.policy_version=r.policy_version and c.revoked_at is null
+          and (c.expires_at is null or c.expires_at>now())
+        order by c.granted_at desc limit 1 for update
+     ), inference_consent as materialized (
+       select c.consent_id from vy_replica_consent c
+        join vy_replica r on r.replica_id=c.replica_id and r.owner_user_id=c.owner_user_id
+        where c.replica_id=$2::uuid and c.owner_user_id=$3::uuid and c.scope='inference'
+          and c.policy_version=r.policy_version and c.revoked_at is null
+          and (c.expires_at is null or c.expires_at>now())
         order by c.granted_at desc limit 1 for update
      ), review_lock as materialized (
        select pg_try_advisory_xact_lock(hashtextextended($2::text || ':voice_genome_review',0)) acquired
@@ -107,17 +129,25 @@ export async function completeVoiceGenomeBuild(db, lease, draft, input) {
          from vy_replica_processing_artifact_decision d
         where d.replica_id=$2::uuid and d.owner_user_id=$3::uuid
         order by d.artifact_id,d.created_at desc,d.decision_id desc
+     ), selected_enhance_sources as materialized (
+       select distinct a.source_id
+         from vy_replica_processing_artifact a
+         join artifact_latest selected on selected.artifact_id=a.artifact_id and selected.decision='selected'
+        where a.replica_id=$2::uuid and a.owner_user_id=$3::uuid and a.stage='enhance'
+          and a.mime in ('audio/wav','audio/x-wav')
      ), target as (
        select b.build_id
          from vy_replica_model_build b
          join vy_replica r on r.replica_id=b.replica_id and r.owner_user_id=b.owner_user_id
          cross join biometric_consent biometric
          cross join training_consent training
+         cross join inference_consent inference
         where b.build_id=$1::uuid and b.replica_id=$2::uuid and b.owner_user_id=$3::uuid
           and b.build_kind='voice_genome' and b.target_version=$4::int4 and b.builder_version=$5
           and b.source_set_hash=$6 and b.state='building' and b.lease_token_hash=$7
           and b.lease_expires_at>now() and r.subject_mode='self'
-          and r.lifecycle not in ('revoked','purging') and r.liveness_verified_at is not null
+          and r.lifecycle not in ('revoked','purging') and r.age_verified_at is not null
+          and r.identity_verified_at is not null and r.liveness_verified_at is not null
           and r.identity_expires_at>now() and cardinality($10::uuid[])>0
           and (select count(*) from locked_sources)=cardinality($12::uuid[])
           and not exists (
@@ -130,7 +160,10 @@ export async function completeVoiceGenomeBuild(db, lease, draft, input) {
                 where e.evidence_id=required.evidence_id and e.replica_id=$2::uuid and e.owner_user_id=$3::uuid
                   and lower(e.adapter_family||' '||e.adapter_name||' '||e.adapter_version)
                     !~ '(fake|fixture|test|mock)'
-                  and (e.artifact_id is null or exists (
+                  and ((e.artifact_id is null and exists (
+                    select 1 from selected_enhance_sources selected_source
+                     where selected_source.source_id=e.source_id
+                  )) or exists (
                     select 1 from artifact_latest selected
                      where selected.artifact_id=e.artifact_id and selected.decision='selected'
                   ))
@@ -142,9 +175,13 @@ export async function completeVoiceGenomeBuild(db, lease, draft, input) {
             join vy_replica_source s on s.source_id=e.source_id and s.replica_id=e.replica_id
               and s.owner_user_id=e.owner_user_id and s.state='ready' and s.contains_third_parties=false
             where e.replica_id=$2::uuid and e.owner_user_id=$3::uuid and e.evidence_type=any($13::text[])
+              and e.source_id=any($12::uuid[])
               and lower(e.adapter_family||' '||e.adapter_name||' '||e.adapter_version)
                 !~ '(fake|fixture|test|mock)'
-              and (e.artifact_id is null or exists (
+              and ((e.artifact_id is null and exists (
+                select 1 from selected_enhance_sources selected_source
+                 where selected_source.source_id=e.source_id
+              )) or exists (
                 select 1 from artifact_latest selected
                  where selected.artifact_id=e.artifact_id and selected.decision='selected'
               ))
@@ -221,7 +258,10 @@ export async function retryVoiceGenomeBuild(db, lease, error, options = {}) {
 
 export async function buildLeasedVoiceGenome(db, lease) {
   await startVoiceGenomeBuild(db, lease);
-  const input = await loadAcceptedVoiceGenomeInput(db, lease.ownerUserId, lease.replicaId);
+  const input = await loadAcceptedVoiceGenomeInput(db, lease.ownerUserId, {
+    replica_id: lease.replicaId,
+    candidate_source_id: lease.candidateSourceId,
+  });
   if (input.sourceSetHash !== lease.sourceSetHash) fail("model_build_source_set_changed");
   const draft = buildVoiceGenomeDraft({
     version: lease.targetVersion,

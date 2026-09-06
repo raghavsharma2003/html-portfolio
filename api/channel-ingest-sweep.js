@@ -30,7 +30,7 @@ export default async function handler(req, res) {
   try {
     // WS-R21: the ops board's heartbeat (migration 084).
     const summary = await withSweepRun(q, "channel-ingest", async () => {
-      const channelProvider = configuredChannelProvider();
+      const channelProvider = configuredChannelProvider(process.env, { db: q });
       const asr = configuredAsrProvider();
       // BOTH lanes are required. A channel provider with no ASR would list
       // videos, fail every transcription, and write a failed run row per video

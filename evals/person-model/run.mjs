@@ -10,8 +10,10 @@ import {
   clientClaim,
   decideOwnedClaim,
   ownedPersonModelStatus,
+  personProfileValiditySql,
   personModelReadiness,
   personModelSourceHash,
+  reconcileUnsafePersonProfiles,
 } from "../../api/_person-model.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
 
@@ -72,6 +74,13 @@ ok("expired evidence is absent from the source commitment", personModelSourceHas
 
 const exposed = clientClaim({ ...claims[0], provider_ref: "secret", transcript: "raw", input_sha256: "a".repeat(64) });
 ok("client claim is whitelist-built", !/(provider_ref|transcript|input_sha256|source_ids)/.test(JSON.stringify(exposed)) && exposed.source_count === 1);
+const cited = clientClaim({
+  ...claims[0],
+  citation_previews: [{ excerpt: "I am Asha.", entailment: 0.97, evidence_id: RID, source_id: RID }],
+});
+ok("owner review exposes only bounded citation text and confidence, never evidence identifiers",
+  cited.citation_previews[0].excerpt === "I am Asha."
+  && !/(evidence_id|source_id)/.test(JSON.stringify(cited.citation_previews)));
 
 function rowForSql(item) {
   return { ...item, source_count: item.source_ids.length, reviewed_at: "2026-08-24T01:00:00.000Z" };
@@ -80,15 +89,29 @@ function rowForSql(item) {
 const statusCalls = [];
 const status = await ownedPersonModelStatus(async (sql, params) => {
   statusCalls.push({ sql, params });
-  if (/select replica_id from vy_replica/i.test(sql)) return [{ replica_id: RID }];
+  if (/select r\.replica_id,exists/i.test(sql)) return [{ replica_id: RID, training_consent: true }];
   if (/from vy_replica_claim c/i.test(sql)) return claims.map(rowForSql);
   if (/from vy_replica_profile p/i.test(sql)) return [];
   throw new Error(`unexpected SQL ${sql.slice(0, 60)}`);
 }, OWNER, RID);
 ok("owner sees reviewed claims without source identifiers", status.readiness.ready && !/source_ids/.test(JSON.stringify(status)));
 ok("all Person Model reads bind replica and authenticated owner", statusCalls.every((call) => call.params[0] === RID && call.params[1] === OWNER));
-const absent = await ownedPersonModelStatus(async (sql) => /select replica_id from vy_replica/i.test(sql) ? [] : [], OWNER, RID);
+const claimReadSql = statusCalls.find((call) => /from vy_replica_claim c/i.test(call.sql)).sql;
+ok("citation previews recheck exact quote hashes and reveal no evidence or source ids",
+  /cc\.end_char-cc\.start_char between 1 and 500/.test(claimReadSql)
+  && /encode\(digest\(convert_to/.test(claimReadSql)
+  && /\),'sha256'\),'hex'\)=cc\.quote_hash/.test(claimReadSql)
+  && !/jsonb_build_object\([\s\S]{0,160}(evidence_id|source_id)/.test(claimReadSql));
+const absent = await ownedPersonModelStatus(async (sql) => /select r\.replica_id,exists/i.test(sql) ? [] : [], OWNER, RID);
 ok("cross-owner Person Model resolves to not found", absent === null);
+const noTraining = await ownedPersonModelStatus(async (sql) => {
+  if (/select r\.replica_id,exists/i.test(sql)) return [{ replica_id: RID, training_consent: false }];
+  if (/from vy_replica_claim c/i.test(sql)) return claims.map(rowForSql);
+  if (/from vy_replica_profile p/i.test(sql)) return [];
+  return [];
+}, OWNER, RID);
+ok("status names current training revocation even when the claim set is otherwise ready",
+  !noTraining.readiness.ready && noTraining.readiness.blockers[0] === "training_consent_required");
 
 const decisionCalls = [];
 const decision = await decideOwnedClaim(async (sql, params) => {
@@ -100,6 +123,22 @@ ok("claim decision SQL binds claim, replica and owner before mutation", // claim
 // evals/sqlcast.mjs requires here differ per column; the property under test is
 // the binding order, not the spelling.
 /c\.claim_id=\$1(?:::\w+)? and c\.replica_id=\$2(?:::\w+)? and c\.owner_user_id=\$3(?:::\w+)?/i.test(decisionCalls[0].sql));
+ok("concurrent reviews serialize by exact claim and order after the lock is acquired",
+  /pg_advisory_xact_lock\(hashtextextended\(c\.replica_id::text\|\|':'\|\|c\.claim_id::text\|\|':claim_review'/.test(decisionCalls[0].sql)
+  && /clock_timestamp\(\)/.test(decisionCalls[0].sql)
+  && /from owned o,decision d/.test(decisionCalls[0].sql));
+ok("stale acceptance fails closed after supersession, lineage loss, lifecycle stop or training revocation",
+  /\$4<>'accepted' or \(/.test(decisionCalls[0].sql)
+  && /c\.status<>'superseded'/.test(decisionCalls[0].sql)
+  && /consent\.scope='training'/.test(decisionCalls[0].sql)
+  && /vy_replica_claim_citation/.test(decisionCalls[0].sql)
+  && /vy_replica_processing_evidence/.test(decisionCalls[0].sql));
+ok("rejecting a cited claim atomically retires its profile and closes dependent runtime work",
+  /affected_profiles as materialized/.test(decisionCalls[0].sql)
+  && /update vy_replica_profile p set status='retired'/.test(decisionCalls[0].sql)
+  && /update vy_replica_calibration c set status='retired'/.test(decisionCalls[0].sql)
+  && /update vy_replica_runtime_capability c[\s\S]*state='revoked'/.test(decisionCalls[0].sql)
+  && /person_profile_claim_invalidated/.test(decisionCalls[0].sql));
 await assert.rejects(decideOwnedClaim(async () => [], OWNER, { replica_id: RID, claim_id: "1", decision: "accepted", reason_code: "inaccurate" }), /invalid_claim_decision/);
 ok("decision and reason vocabularies cannot be mixed", true);
 
@@ -115,6 +154,13 @@ const draft = await buildOwnedPersonProfile(buildDb, OWNER, RID);
 ok("deterministic builder creates only a review draft", draft.version === 1 && draft.status === "draft");
 const buildCall = buildCalls.find((call) => /insert into vy_replica_profile/i.test(call.sql));
 ok("profile build serializes by replica and is source-set idempotent", /pg_advisory_xact_lock/i.test(buildCall.sql) && /on conflict \(replica_id,source_set_hash\)/i.test(buildCall.sql));
+ok("profile build requires a current policy training grant",
+  /c\.scope='training'/.test(buildCall.sql) && /c\.policy_version=r\.policy_version/.test(buildCall.sql)
+  && /c\.revoked_at is null/.test(buildCall.sql));
+ok("profile build revalidates every accepted claim after the pre-build read",
+  /jsonb_array_elements\(\$4::jsonb#>'\{provenance,claims\}'\)/.test(buildCall.sql)
+  && /latest_build_decision\.decision is distinct from 'accepted'/.test(buildCall.sql)
+  && /current_claim\.status<>'approved'/.test(buildCall.sql));
 ok("profile definition is server-built rather than request supplied", JSON.parse(buildCall.params[3]).schema === PERSON_MODEL_SCHEMA);
 
 const approveCalls = [];
@@ -129,6 +175,29 @@ const approved = await approveOwnedPersonProfile(approveDb, OWNER, { replica_id:
 ok("owner approval promotes an exact current source-set version", approved.status === "approved" && approveCalls.at(-1).params[3] === personModelSourceHash(claims));
 ok("approval retires the previous version atomically", /update vy_replica_profile p set status='retired'/i.test(approveCalls.at(-1).sql));
 ok("approval preserves a profile frozen by an active capability", /not exists\(select 1 from vy_replica_runtime_capability cap[\s\S]*cap\.profile_version=p\.version and cap\.state='active'/i.test(approveCalls.at(-1).sql));
+ok("profile approval rechecks lifecycle and the current policy training grant",
+  /r\.lifecycle not in \('revoked','purging'\)/.test(approveCalls.at(-1).sql)
+  && /c\.scope='training'/.test(approveCalls.at(-1).sql)
+  && /c\.policy_version=r\.policy_version/.test(approveCalls.at(-1).sql));
+ok("profile approval revalidates the exact compiled claim manifest at promotion time",
+  /jsonb_array_elements\(p\.definition#>'\{provenance,claims\}'\)/.test(approveCalls.at(-1).sql)
+  && /latest_profile_decision\.decision is distinct from 'accepted'/.test(approveCalls.at(-1).sql));
+
+let reconcileCall;
+const reconciled = await reconcileUnsafePersonProfiles(async (sql, params) => {
+  reconcileCall = { sql, params };
+  return [{ retired: 2 }];
+}, { limit: 500 });
+ok("bounded reconciliation retires invalid projections and every bound runtime surface",
+  reconciled.retired === 2 && reconcileCall.params[0] === 100
+  && /order by p\.created_at,p\.replica_id,p\.version[\s\S]*limit \$1::int4/.test(reconcileCall.sql)
+  && /revoked_sessions/.test(reconcileCall.sql) && /aborted_generations/.test(reconcileCall.sql));
+const validity = personProfileValiditySql("profile", "replica");
+ok("runtime profile validity requires a current training grant and latest accepted claim decisions",
+  /profile_consent\.scope='training'/.test(validity)
+  && /jsonb_array_length/.test(validity)
+  && /latest_profile_decision\.decision is distinct from 'accepted'/.test(validity)
+  && /current_claim\.status<>'approved'/.test(validity));
 
 const migration = readFileSync(join(ROOT, "db/migrations/024_person_model.sql"), "utf8");
 ok("Person Model migration is split-safe", splitSql(migration).length === 13);
@@ -138,13 +207,18 @@ ok("calibration preferences gain owner tenancy", /vy_replica_preference_owner_fk
 
 const route = readFileSync(join(ROOT, "api/replica-person-model.js"), "utf8");
 ok("Person Model route derives authority from bearer auth", /const user = await requireUser\(req\)/.test(route) && !/body\.(?:owner|owner_user_id|user_id|device)/.test(route));
+const consent = readFileSync(join(ROOT, "api/_replica-consent.js"), "utf8");
+ok("training consent revocation retires profiles and closes their active runtime work",
+  /profiles as \([\s\S]*'training' = any\(\$3::text\[\]\)[\s\S]*returning replica_id,version/.test(consent)
+  && /runtime_capabilities as \([\s\S]*c\.profile_version in \(select version from profiles\)/.test(consent)
+  && /person_profile_consent_revoked/.test(consent));
 const studio = readFileSync(join(ROOT, "src/studio/PersonModelStudio.tsx"), "utf8");
-// WS-R61: this file's own literal strings moved into src/studio/copy.ts
+// WS-R61: this file's own literal strings moved into src/creatorStudio/copy.ts
 // (the studio's locale table) -- `studio` alone no longer carries the
 // rendered English text, only `c.<key>` references. Read together, the same
 // pattern `evals/readiness/run.mjs` already established for this exact move
 // (context/decisions.md#ws-r52-existing-evals-updated-for-the-copy-ts-move).
-const copyTs = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
+const copyTs = readFileSync(join(ROOT, "src/creatorStudio/copy.ts"), "utf8");
 const studioWithCopy = `${studio}\n${copyTs}`;
 ok("Studio makes uncertainty and raw-evidence withholding visible", /Conflicts stay visible/.test(studioWithCopy) && /Raw transcripts, vectors, and storage paths remain withheld/.test(studioWithCopy));
 

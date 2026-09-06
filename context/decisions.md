@@ -21656,3 +21656,900 @@ Reversal: replace the row-keyed fake contract if provider-equivalence evidence r
 Follow-up: preserve label, customer reference and price in the fake subscription hash alongside the local row ID. The Suite signup fixture uses that hash to prove the actual provider input equals seats times the Starter price; row identity must not erase that existing price witness. Windows file URLs use fileURLToPath for filesystem paths and pathToFileURL for the day-one CLI entry guard, avoiding doubled drive letters and a silently skipped CLI. Reversal: replace the hash price witness with explicit captured provider inputs if the fake provider becomes opaque, retaining the same price assertion. The first-room happy-path assertion now reports child stderr on failure; this is diagnostic coverage, not a claim that its transient failure is repaired.
 
 The subsequent full registry run isolated first-room as the only failure and captured a Windows libuv UV_HANDLE_CLOSING assertion on forced process shutdown. Its final completion now sets process.exitCode, allowing pending HTTP handles/stdout to drain naturally; early refusal exits retain their fail-fast behavior. Reversal: replace this with explicit resource disposal if evidence shows natural shutdown hangs; never accept a runtime crash as a successful rehearsal.
+## `studio-test-journey-is-status-source-lineage-and-one-next-action` — the test Studio leads with what exists, what it came from, and what to do next (2026-08-28)
+
+The internal-owner Studio remains a light, two-step product, but its first
+viewport now carries one bounded setup status, one next action, visible
+start-new/delete controls, and a source-to-VoiceGenome lineage. Setup progress
+is derived only from source-present, source-ready, and voice-draft-present
+facts, so it can report 0/33/67/100 percent but cannot imply voice quality.
+Active background work shows a percentage only when the activity job supplies
+`done` and `total`; otherwise it names the stage without inventing time.
+
+This follows the strongest shared product pattern in the current competitor
+sweep: Fish Audio makes create a focused record/upload action before voice
+management, and ElevenLabs separates voice creation from My Voices. Vyakti
+adds the missing trust answer for a private clone: the owner can see exactly
+which bounded source IDs and selected reference durations built the draft.
+The single-video lane now resolves and displays a YouTube video's title and
+channel from one link before any media request. The whole-channel path is
+collapsed as a later option. If extraction is not configured, the interface
+routes to file upload instead of enabling a button known to return a 503.
+
+**Reversal condition:** replace this model only if observed owner tests show a
+different first-viewport information order reduces time-to-first-success
+without hiding source lineage, deletion, or a truthful platform blocker, or if
+the backend exposes a finer durable stage model that can replace the three
+setup facts without fabricating progress.
+
+## `alakh-lecture-remains-language-stress-not-owner-identity` — the named lecture can test the Hindi journey but cannot become an owner-training receipt (2026-08-28)
+
+The production front-end may use the already processed Alakh Pandey lecture to
+exercise Hindi and Hinglish synthesis, source lineage, cold start and replay.
+It must not describe the result as the uploader's personal identity clone or
+create an adapter-training receipt from the self-test account grant. The live
+Studio already contains the same 250.7 MiB lecture twice, including one source
+that completed all eight processing steps and supplied a 10-second reference;
+uploading it again adds a duplicate rather than stronger evidence.
+
+**Reversal condition:** this source can enter an identity-training lane only
+if the person speaking supplies verifiable, source-bound training consent and
+the source is bound to that verified speaker rather than to the uploader's
+self-test account.
+
+## `guided-browser-recording-is-primary-voice-intake` (2026-08-28)
+
+**Decision.** The source step now leads with an explicit browser recording
+action for English, Hindi, or Hinglish. Microphone access begins only after the
+owner clicks Start recording. The owner sees a language-specific prompt, live
+time and input level, reviews the WAV locally, and can retake it before placing
+it in the existing private upload queue. Existing audio-file upload remains a
+secondary path for recordings the owner already has.
+
+The guided target is 30 seconds, with a 12-second minimum and a 60-second hard
+stop. This does not claim that exactly ten seconds is universally sufficient.
+The current processing pipeline keeps the source, scores the owner's speech,
+and chooses a strongest short reference for the current zero-shot preview.
+Fish Audio's official guidance likewise treats clean single-speaker input as
+the first constraint, says short input can work, and says longer clean or
+multiple transcript-matched references can improve fidelity. The product
+therefore asks for enough clean speech to choose from without making the owner
+upload a lecture merely to begin.
+
+**What would reverse it.** Replace the 12/30/60-second bounds or make file
+upload primary only after measured owner sessions show a different bounded
+protocol improves accepted speaker likeness or first-source completion without
+adding permission surprise, clipping, silence, or abandonment. A longer
+duration by itself is not reversal evidence.
+
+## `one-explicit-primary-voice-reference-per-replica` (2026-08-29)
+
+**Decision.** Each replica has one explicit owner-chosen audio or video source
+that drives voice conditioning. A browser recording becomes that primary only
+after its private upload has finalized. The owner can switch the star from the
+source ledger; all other audio, video, files, links and text remain supporting
+context for the wider person and relational model. The durable pointer lives
+in `vy_replica_voice_reference`, keyed once per replica and bound by a composite
+owner/source foreign key. Preview and self-test artifact selection prefer this
+pointer while retaining the legacy selected-source fallback for old rows. A
+valid selected enhanced WAV is stable under level-triggered reconciliation:
+re-running self-test grants cannot rotate it to a different enhancement
+variant. Model-build authorization and settlement admit artifact-independent
+evidence only from the source IDs behind the current selected enhancement, and
+recheck that exact source scope before publishing the draft. Supporting audio
+can inform the wider replica but cannot silently enter its voice identity.
+
+This separates two product questions that the old UI collapsed: "what should
+my clone sound like?" and "what should my clone know?" It also makes deletion
+and source replacement understandable without pretending that every minute of
+every upload is mixed into the current zero-shot voice reference.
+
+**Reversal condition.** Replace the one-pointer model only after a matched,
+blinded multi-reference experiment beats the primary-source baseline on owner
+likeness, Hindi/Hinglish/English naturalness and intelligibility, and the UI can
+still show which exact references affected one generated clip.
+
+## `azure-fast-transcription-is-the-configured-long-audio-lane` (2026-08-29)
+
+**Decision.** The replica worker uses Azure Speech Fast Transcription for long
+source transcription when its Azure resource is configured, with Sarvam kept
+as a fallback rather than a hard dependency. Paid calls reserve the existing
+content-free provider budget first and settle actual audio milliseconds after
+the response. Azure's structurally empty zero-duration phrase is treated as a
+sentinel only when both text and words are empty; a nonempty zero-duration
+phrase must prove its span through positive word timestamps or fail closed.
+
+**Reversal condition.** Change the preferred provider only after a matched
+Hindi and Hinglish long-audio set shows lower error and equal or better
+availability and cost, with the same content-free budget and receipt controls.
+
+## `signed-runtime-warming-is-a-nonterminal-owner-state` (2026-08-29)
+
+**Decision.** The admission broker's signed `open_voice_runtime_warming` 503
+means the private GPU runtime has been requested but has not passed readiness.
+The web route must translate that exact code into the existing 202 warming
+contract so the Studio keeps the owner's line, shows the honest wait, and
+retries automatically. Authentication, replay, receipt, reference-binding and
+other provider errors remain terminal and are never hidden as latency. The
+automatic retry budget and displayed ceiling are 480 seconds because the first
+corrected production canary completed in 418 seconds; the previous 300-second
+ceiling is measured false.
+
+**Reversal condition.** Remove this translation only if the broker stops using
+that code as a readiness signal, or the runtime moves to a transport that can
+hold one request through cold start without gateway timeouts and without
+weakening the signed refusal distinctions.
+
+## `phone-touch-target-audit-covers-feed-and-meet` (2026-08-29)
+
+**Decision.** A phone release is not complete after auditing only the Add
+Sources screen. The authenticated production journey must also open Test your
+clone and measure every visible interactive element there. The logo and Mirror
+Call tabs now carry a real 44-pixel minimum hit area at phone width, with a
+static negative control for the former 35-pixel tabs.
+
+**Reversal condition.** Narrow the audit only if the Studio removes the Meet
+surface from the phone journey or an automated whole-page touch-target audit
+replaces the explicit feed-and-meet checks.
+
+## `internal-test-auto-grants-all-authenticated-self-replicas` (2026-08-29)
+
+**Decision.** The explicitly marked internal test product admits every
+authenticated account without showing identity, consent, readiness, or review
+ceremony. On the first owned operation, the server writes the same six
+time-bounded, auditable test grant rows for that account's own self-mode replica
+and then uses the ordinary private upload and processing path. Authentication,
+replica ownership, `subject_mode='self'`, private storage, malware scanning,
+spoken AI disclosure, watermarking, and erasure remain enforced.
+
+The exact server contract is `REPLICA_SELF_TEST_MODE=true`,
+`REPLICA_SELF_TEST_ENVIRONMENT=internal-owner-testing`, and
+`REPLICA_SELF_TEST_ACCESS=all-authenticated`. Nearby values fail closed. The
+legacy owner UUID allowlist remains available for a narrower deployment.
+
+**Reversal condition.** Before any public or non-test release, remove the
+all-authenticated marker and revoke every row tagged with
+`metadata.granted_by='REPLICA_SELF_TEST_MODE'`. Reinstate explicit ceremony if
+the product is opened beyond the isolated test population.
+
+## `worker-build-normalizes-every-consumed-line-config` (2026-08-29)
+
+**Decision.** Before either ClamAV executable runs, the Linux worker image
+normalizes line endings in both checked-in configuration files it consumes:
+`freshclam.conf` and `clamd.conf`. The build-time refresh and runtime daemon
+must therefore see the same Linux text shape even when the source archive was
+created from a Windows checkout. An executable worker gate requires both
+paths to occur after the normalization command and before the first
+`freshclam` invocation.
+
+**Reversal condition.** Remove the image normalization only when repository
+attributes plus a remote-build negative control prove every supported source
+archive produces byte-identical LF-only files for both tools.
+
+## `durable-replica-work-is-level-triggered-and-paged` (2026-08-29)
+
+**Decision.** Replica completion is recovered from durable state, not only from
+the event that first created a queue row. The scheduled worker runs every two
+minutes, prefers the source it already started, can traverse all eight source
+steps in one bounded execution, renews live leases, reconciles ready internal
+test replicas that still lack a usable draft, and runs the model-build sweep
+before it exits. The independent Vercel sweep performs the same draft
+reconciliation. A read-only watchdog returns a content-free 503 only after a
+due queue has had no live lease or recent transition for fifteen minutes, and
+Azure Monitor pages the owner on failed job executions.
+
+The Studio derives progress from durable source, job and draft state. It calls
+a missed worker "waiting on us", keeps retrying status after network loss or a
+tab reload, and never asks for another upload to repair platform availability.
+
+**Reversal condition.** Reduce the redundant reconciliation or paging only
+after production measurements show one independently durable owner catches
+every missed lease, source-to-draft handoff and failed execution within the
+same bound without false progress or duplicate work.
+
+## `voice-preview-readiness-is-remotely-probed` (2026-08-29)
+
+**Decision.** A Vercel process-local warming timestamp is only a hint. While a
+voice runtime is cold or warming, the server asks the HMAC-admitted broker for
+the private runtime's current health before deciding to wait. The broker
+rejects unauthenticated or replayed probes before touching private ingress and
+returns only a signed ready or warming state. The first poll after real
+readiness may therefore synthesize immediately while the GPU remains private
+and scale-to-zero.
+
+**Reversal condition.** Remove the readiness probe only if preview generation
+moves to a single durable scheduler whose state is authoritative across every
+serverless process, or the runtime can hold the original signed request across
+cold start without a gateway timeout.
+
+## `long-source-asr-uses-a-bounded-private-transport-derivative` (2026-08-29)
+
+**Decision.** A private source that exceeds Azure Fast Transcription's exact
+250,000,000-byte request boundary keeps its original bytes and SHA as the
+durable source and voice-reference authority. The worker materializes a
+temporary, full-duration 16 kHz mono FLAC only for ASR transport, streams that
+file with an exact multipart Content-Length, and records both source and
+transport hashes, MIME, byte count and transform name in the completion
+receipt. The temporary path is never durable evidence and the derivative never
+replaces the clone reference.
+
+Recovery attempts remain monotonically increasing across capability-recovery
+cycles. Attempt number is part of the provider idempotency key and the
+append-only attempt primary key, so a recovered paid call must never reuse a
+released reservation from an earlier attempt.
+
+**Reversal condition.** Remove the derivative only if the bound provider
+endpoint accepts the original verified media within its published request
+limit, or a different provider wins a matched long-Hindi/Hinglish audit with
+equal private streaming, budget, abort, receipt and recovery guarantees.
+
+## `continuous-learning-is-an-approved-experience-compiler` (2026-08-29)
+
+**Decision.** Calls, uploads, links and conversations append immutable events.
+They may produce confidence-bearing transcript, speaker and expression
+observations immediately, but durable facts, relationship state, persona
+changes and voice-reference changes remain source-cited candidates until the
+owner explicitly accepts, edits, rejects or defers them. Expression
+observations are turn- and dyad-scoped, expire within 24 hours, and never claim
+an inner emotion. Voice learning selects a better identity-verified bounded
+window; it never treats accumulated duration as automatic improvement.
+
+**Rationale.** Hot-path training compounds ASR and attribution errors, makes a
+persona drift without a reversible decision, and turns delivery cues into a
+permanent psychological profile. An experience compiler keeps the fast turn
+responsive while preserving provenance, review, rollback and erasure.
+
+**Reversal condition.** Allow a bounded field to auto-apply only after a
+pre-registered owner study shows lower correction burden and lower false-write
+rate than explicit review, with per-field preview, undo, citation, expiry and
+rollback preserved. Model-weight updates still require a separate measured and
+versioned training decision.
+
+## `studio-waits-use-server-facts-and-observed-bounds` (2026-08-29)
+
+**Decision.** Source preparation, VoiceGenome build, preview GPU wake and
+Mirror Call readiness are four separate waits. Each surface names its current
+server phase, the relevant observed range, the next real server check, whether
+work continues without the page and a useful return time derived from a durable
+server or session timestamp. A server estimate is shown separately from an
+observed range and cannot shorten the observed high bound. Setup milestones are
+ordinal and are never presented as processing percentage.
+
+**Reversal condition.** Replace an observed band only after a newer dated
+production measurement with method and n supersedes it, or when the backend
+supplies a durable per-job ETA whose calibration and coverage have been
+measured against completed production jobs.
+
+## `mirror-call-windows-are-session-bound-derived-evidence` (2026-08-29)
+
+**Decision.** Mirror Call audio uses the consented private source plane but is
+classified as session-bound derived evidence, not enrollment material. It is
+owner/open-session/sequence bound in SQL, hidden from normal source lists,
+verified inline before ASR and excluded from the eight-step enrollment DAG.
+Successful windows remain private with their citations until source or replica
+erasure. A call window cannot become a primary voice source or voice
+conditioning input without a server-measured owner-speaker verdict.
+
+**Reversal condition.** Replace this path only when a dedicated durable
+call-window processor proves equivalent ownership, consent, byte integrity,
+provenance, latency, erasure and ambiguous-response recovery guarantees.
+
+## `live-mirror-call-asr-uses-a-bound-azure-short-fallback` (2026-08-29)
+
+**Decision.** A live Mirror Call window continues to prefer the private
+self-hosted ASR lane when it is configured. Otherwise, the existing Azure
+Speech resource is the operational short-audio fallback before Sarvam. The
+fallback accepts only the private source handle already bound to the owner,
+open session and sequence; re-reads and verifies the stored byte count and
+SHA; derives a bounded 16 kHz mono PCM transport in memory; and leaves the
+stored 24 kHz source and its provenance unchanged. Provider failures retain a
+specific credential-free code instead of collapsing into a generic absence.
+
+This is an availability decision, not an accuracy or model-quality win. A
+transcript is still a cited observation, and it cannot directly mutate
+persona, relationships, inferred emotion, voice conditioning or model
+weights.
+
+**Reversal condition.** Prefer another live ASR lane only after it is both
+operationally available and wins a pre-registered owner Hindi/Hinglish audit
+on exact private windows while preserving equal ownership, integrity,
+latency, spend, erasure and fail-closed receipt guarantees.
+
+## `roman-hinglish-overflow-coalesces-as-one-audited-register` (2026-08-29)
+
+**Decision.** The Hindi/Hinglish text frontend keeps its reviewed token-level
+language plan while that plan fits the bounded provider-call budget. If a
+Latin-only Hinglish passage would exceed 16 synthesis segments, the frontend
+keeps the exact transformed text and source spans but renders it as one
+Hindi-conditioned code-mixed passage. The signed plan records
+`roman_hinglish_coalesced_for_bounded_synthesis`. Mixed Devanagari and Latin
+input does not receive this fallback and still fails closed at the same bound.
+
+**Rationale.** Roman Hinglish is one spoken register even when Hindi function
+words and English technical nouns alternate. Treating each lexical boundary
+as a separate model call made ordinary 400-character input fail and would
+also insert avoidable join gaps. Restricting the fallback to the owner-selected
+Hinglish lane preserves the explicit short-text and mixed-script controls.
+
+**Reversal condition.** Replace the one-register fallback only after a matched
+Hindi/Hinglish listening test shows that a different bounded segmentation has
+better pronunciation and naturalness without more receipt failures, ASR
+regression, provider calls or audible joins.
+
+## `short-primary-self-recordings-use-continuous-window-fallback` (2026-08-29)
+
+**Decision.** When diarization fragments a short recording so no dominant
+speaker cluster contains one contiguous ten-second run, the processing worker
+may score one continuous span from the original recording only when the source
+is the exact owner-selected primary voice, the replica is self-mode, the source
+is a WAV upload between ten and sixty seconds, the owner declared no third
+parties, at least ten seconds of non-overlapping speech was measured, and no
+segment is marked overlapping. The selected span remains one ordinary
+continuous extraction and the existing quality scorer still chooses it. A
+supporting, long, third-party, overlapping or non-WAV source remains rejected.
+
+**Rationale.** The production diarizer split two browser microphone monologues
+into four short clusters around natural pauses. Treating those cluster labels
+as stronger than the explicit primary/self recording declaration terminally
+stopped both otherwise valid sources. The bounded fallback accepts no generic
+upload and never stitches distant speech together.
+
+**Reversal condition.** Remove or tighten this fallback if a measured selected
+primary recording admits a second speaker, or if a speaker-disjoint audit shows
+that the continuous-window path has worse owner attribution than a replacement
+which still completes short natural recordings without requiring re-upload.
+
+## `clone-economics-separate-cold-capacity-from-warm-marginal-cost` (2026-08-29)
+
+**Decision.** Vyakti reports clone and call economics in two distinct modes.
+The sporadic mode includes the complete scale-from-zero GPU allocation window,
+including model startup and scale-down. The warm or batched mode reports only
+the incremental speech, reasoning and protection work while an already-running
+replica has capacity. A one-minute call always states its assumed user/clone
+speech split and number of model turns. PSTN carrier charges and fixed platform
+subscriptions remain separate line items.
+
+**Rationale.** The deployed T4 services scale from zero to one replica. Their
+warm synthesis work is cheap, but one isolated request can pay several minutes
+of model startup and cooldown. Folding those two workloads into one price hides
+the dominant cost and makes a low-traffic calling agent appear much cheaper
+than it is. Conversely, charging every concurrent user the whole cold window
+double-counts a warm replica shared by a batch.
+
+**Reversal condition.** Replace this split only when provider invoices and
+per-request allocation receipts support an attributed price with measured
+queueing and concurrency. Any replacement must still expose cold startup,
+reserved warm capacity, telephony and third-party subscription costs rather
+than collapsing them into one unexplained per-minute number.
+## `voice-preview-warmup-is-an-aborted-attempt` (2026-08-29)
+
+**Decision.** A preview generation which only wakes a scale-to-zero runtime, finds another wake in flight, or receives the signed runtime-warming response settles as `aborted`, not `failed`. Real reference, model, text-plan, HMAC, protection, or output faults continue to settle as failed. The owner-facing preview uses the `identity_anchor` preset until the owner accepts likeness; expressive variation belongs in a later calibration choice.
+
+**Rationale.** Production had 45 rows marked failed and every one was a normal cold-start state. Combining capacity lifecycle with model failure made the model appear unstable, polluted quality statistics, and sent the owner into repeated retries. Identity must also be optimized before expressiveness on the first owner check.
+
+**Reversal condition.** Replace the state only if the ledger gains a more precise terminal state which preserves the same separation in every API, UI, metric, and alert. Replace the identity-anchor default only after a locked owner and blinded-listener test shows another fixed preset improves likeness or naturalness without worse intelligibility, receipt integrity, or retry rate.
+
+## `phonellm-is-a-shadow-call-brain-not-a-clone-voice` (2026-08-29)
+
+**Decision.** PhoneLLM Alpha 1 enters the Mirror Call candidate matrix as an English shadow reasoning and tool-use arm. It does not replace ASR, TTS, the owner reference, or the protected voice runtime. Its PhoneBench-derived axes now extend the call evaluation contract with tool-call accuracy, say/do consistency, authentication discipline, escalation discipline, caller outcome, and full-pipeline latency.
+
+**Rationale.** The official model card describes an English text-generation model, not a speech or cloning model. Its concise, thinking-disabled, tool-oriented training is relevant to the call brain, while the current 63.17 GB BF16 closure and B200 or Modal measurements do not establish deployability on the 16 GiB T4 or quality in Hindi and Hinglish.
+
+**Reversal condition.** Promote PhoneLLM only after an exact pinned endpoint passes the frozen Hindi, Hinglish, and Indian-English call pack, real Vyakti tools, at least 30 deployed sessions per thermal/language/device/network cell, persona and honesty gates, and measured latency and cost against the incumbent. Remove it if it cannot pass those multilingual or operational gates at a competitive cost.
+
+## `owner-hindi-remains-general-chatterbox-and-hinglish-fanout-is-bounded` (2026-08-29)
+
+**Decision.** General Chatterbox V3 with the fixed identity-anchor preset remains the default Hindi and Hinglish voice for the current owner. Hindi-specific Chatterbox remains an evaluation arm. Latin-only Roman Hinglish keeps its exact lexical Hindi/English audit, but when that audit would create more than four acoustic calls, synthesis is one Hindi-conditioned code-mixed passage with an explicit signed warning.
+
+**Rationale.** On the same owner reference, general Chatterbox scored 0.858449 over two Hindi clips versus 0.832045 for the Hindi pack. The old fragmented Hinglish path produced a 25.98-second clip at 0.433967. One-pass synthesis reduced duration to 7.72 seconds and raised the general score to 0.825082; the Hindi pack was effectively tied at 0.826010. The frontend change fixed the identity failure without changing the model.
+
+**Reversal condition.** Promote the Hindi pack or another model only after locked owner and blinded listener ratings on exact matched Hindi, Hinglish and Indian-English prompts beat the incumbent without worse WER, protection, latency or receipt integrity. Change the four-call bound only when a matched segmentation study shows a better naturalness and pronunciation tradeoff.
+
+## `web-release-waits-for-personal-vercel-ownership` (2026-08-29)
+
+**Decision.** Azure work may continue in the explicitly personal subscription, but the combined web/API release is not deployed to the currently linked Vercel project while it is owned by `raghav-carbonsettle's projects`. The release waits for owner confirmation that this team is authorized or for a personal Vercel project with the required environment to be created and verified.
+
+**Rationale.** The user explicitly raised concern about using employer resources. A technically reversible deployment can still create organizational cost, access and data-boundary consequences. Local tests and personal Azure deployment do not grant authority over an employer-owned Vercel team.
+
+**Reversal condition.** Deploy after the owner confirms the existing team is authorized, or after readback proves a personal project owns the domain, environment variables and deployment.
+
+## `production-web-release-requires-owner-only-readback-and-real-canary` (2026-08-29)
+
+**Decision.** A production web release is allowed only after account membership and billing readback show that the deployment target belongs to the owner, and release completion requires one fresh authenticated clone to cross private upload, durable processing, draft creation, GPU readiness and protected playback. A green Vercel build or a previously existing clone is not enough.
+
+**Rationale.** The linked Vercel team name looked organizational, but readback found one member, the owner's personal identity, and a personal billing profile. After that evidence, the combined release was deployed. The first production canary then exposed an Azure startup-probe failure which the build gate could not reveal; only the complete owner journey found it.
+
+**Reversal condition.** Suspend release or migrate the project if team membership, billing ownership, domain authority or environment custody changes. Replace the canary requirement only if an automated production journey proves the same authentication, private-storage, queue, GPU, protection and playback boundaries with stronger evidence.
+
+## `phone-clone-starts-with-browser-owned-session-and-durable-upload` (2026-08-29)
+
+**Decision.** A phone clone journey starts by creating an authenticated session
+inside that phone browser through Google sign-in or the emailed magic link. No
+operator pre-mints, copies or injects a bearer token into another device. Once
+the recording is visibly listed as an uploaded source, its processing and
+VoiceGenome build are durable server work and the owner may leave the page;
+an unsubmitted recording remains local and must not be described as uploaded.
+
+**Rationale.** Supabase access and refresh tokens are browser-session
+credentials, not infrastructure which can be warmed centrally. Copying a
+desktop token to a phone weakens account isolation and still does not establish
+the phone's refresh lifecycle. The real production canary already proved the
+authenticated upload, eight processing stages, draft build and protected
+preview; the current readiness audit separately proves the phone sign-in
+surface, idle queue and scheduled workers without minting another identity.
+
+**Reversal condition.** Replace this only with a formally designed device-link
+flow which uses a short-lived one-time exchange, binds the destination device,
+never exposes a bearer token, and passes account-isolation, revocation and
+refresh tests. A copied JWT or support-issued long-lived link is not a valid
+replacement.
+
+## `ordinary-preview-needs-durable-cross-tab-idempotency` (2026-08-30)
+
+**Decision.** One ordinary owner preview intent must have one durable request
+identity across reloads, tabs and devices. The identity binds owner, replica,
+genome, selected artifact, language, text hash, style and seed. While that
+intent is warming or synthesizing, every caller observes the same status;
+after it seals, every caller receives the same protected result. A second GPU
+generation requires a changed intent or an explicit Regenerate action.
+
+Execution is fenced by an expiring, token-bound database lease. Transport loss
+after a synthesis POST preserves that lease because the GPU may still be
+running; a readiness failure before synthesis releases it into delayed warming.
+Protected results have a seven-day replay window, then a ten-minute bounded
+cleanup cron elects one generation claimant and records exact deletion before
+counting success. Source and owner erasure retain an independent exact-locator
+fallback.
+
+**Rationale.** Overnight production records showed the source and VoiceGenome
+pipelines were healthy, but multiple tabs or retries created new generation
+rows for the same text and seed. One clone produced six different sealed WAVs
+from one intent. Process-local wake deduplication prevents duplicate cold-start
+dispatch but cannot make a browser-visible preview idempotent across Vercel
+instances, tabs or accounts.
+
+**Reversal condition.** Replace the exact key only if a production concurrency
+test proves that it collapses two intentionally distinct owner requests, or if
+a durable request resource with stronger cancellation, replay and protected
+result-retention semantics supersedes it. Any replacement must still prove one
+synthesis for one owner intent under at least five concurrent clients.
+
+## `mirror-call-microphone-opens-on-talk-not-session-create` (2026-08-30)
+
+**Decision.** Mirror Call creates and displays its durable server session before
+requesting microphone access. Microphone permission is requested only after the
+owner taps Talk, is bounded to 30 seconds, and a denial or unresolved prompt is
+recoverable without discarding the live call session.
+
+**Rationale.** A signed-in production phone canary received HTTP 201 from the
+call-create route while the old screen remained indefinitely on Opening. The
+client had put `openCallCapture` between the returned session and
+`SESSION_OPEN`, so an ignored or invisible browser permission prompt hid the
+successful server state. After reversing that order, the same deployed canary
+showed Call ready now, kept the microphone off, and ended cleanly.
+
+**Reversal condition.** Recombine session creation and microphone acquisition
+only if a measured browser matrix proves the permission request cannot delay or
+hide the server response, the session remains explicitly cancellable, and no
+browser opens a microphone before the owner presses Talk.
+
+## `human-experience-compiler-reuses-cited-authorities` (2026-08-30)
+
+**Decision.** Multimodal learning extends the existing evidence, claim,
+decision, profile and RelationalOS authorities instead of creating a second
+durable "human profile" database. Calls may append canonical transcript and
+language evidence and collect bounded delivery mechanics. Facts, relationship
+events, persona changes and voice artifacts remain source-cited candidates
+until the authenticated owner accepts them. Expression observations are
+owner, dyad, turn and source scoped, expire within 24 hours, remain
+collect-only, and cannot claim an inner emotion.
+
+**Rationale.** The existing claim system already provides citations, owner
+decisions, version materialization and erasure. Reusing those authorities
+prevents a second truth store from silently disagreeing with them. Separating
+observable delivery mechanics from durable facts also prevents ASR, speaker
+attribution or cultural interpretation errors from becoming permanent
+personality claims.
+
+**Reversal condition.** Add a new durable authority only when an existing
+table cannot represent a measured requirement without breaking its
+constraints, and only after the replacement proves owner isolation,
+provenance, rollback, export and erasure. Permit an expression consumer only
+after a preregistered speaker-disjoint calibration and blinded response study
+beats the non-expression baseline without increasing cross-dyad or protected-
+inference failures.
+
+## `mirror-learning-requires-session-speaker-attestation-and-reversible-materialization` (2026-08-30)
+
+**Decision.** A Mirror Call may create canonical, private transcript evidence
+after live consent checks, but it cannot enter nearline claim extraction until
+the authenticated owner confirms the exact ended session contains only their
+voice. The confirmation applies to that session's evidence items, not a
+replica-wide queue. Facts and relationship events still require a second,
+citation-bearing owner decision before materialization. Rejecting,
+superseding, re-attributing or revoking an accepted claim retracts its exact
+RelationalOS materialization and retires every dependent person profile,
+calibration, capability, session and unfinished generation.
+
+Observable expression remains a separate, short-lived lane. It may record
+source-bound delivery mechanics such as duration, speech rate, script switches
+and canonical PCM energy, but it expires within 24 hours, is excluded when the
+speaker is rejected, and cannot claim mood, intent, personality or inner
+emotion. The runtime rechecks current inference authority and the current
+claim/profile manifest when a protected stream opens, when every segment is
+appended and when the stream seals.
+
+**Rationale.** A transcript can be accurate while the speaker is not the
+owner, and a once-valid accepted claim can later become invalid through owner
+correction, source re-attribution or consent withdrawal. Treating either as a
+permanent profile input would let another person's speech or an explicitly
+rejected memory continue shaping replies. Exact-session admission and
+reversible, live-checked materialization make every durable effect traceable
+and removable without weakening in-call responsiveness.
+
+**Reversal condition.** Remove the explicit speaker or claim review only after
+a production-calibrated, speaker-disjoint protocol proves lower attribution
+error than owner review and still provides exact citations, field-level undo,
+consent withdrawal, source erasure and dyad isolation. Promote expression into
+reply generation only after blinded, culturally diverse human evaluation
+shows an improvement over the no-expression baseline without increasing
+protected-inference, speaker-attribution or cross-relationship failures.
+
+## `source-erasure-removes-the-causal-mirror-chain` (2026-08-30)
+
+**Decision.** Erasing a private source must remove every exact Mirror Call
+derivative before the source handle disappears: window transcript and ASR
+lineage, clone turn, conditioning selection, feedback, mined delta and citation,
+canonical evidence, expression observation and dead fine-tune request. If an
+accepted delta changed a TeacherSheet phrase bank, erasure removes only that
+exact fragment from the exact recorded sheet, preserves independently supported
+fragments, and returns a changed published or validated sheet to draft review.
+Full replica erasure separately deletes the replica agent's no-FK TeacherSheets
+and push tokens before deleting the agent.
+
+**Rationale.** `ON DELETE SET NULL` retained Mirror transcripts while destroying
+their source locator, and no-FK agent tables could outlive the replica. Deleting
+only the nominal source would therefore create an unverifiable deletion receipt
+and leave content or credentials that could still influence the clone. Durable
+`applied_sheet_id` lineage makes future phrase reversal exact; legacy rows use a
+conservative owner-and-agent-bound fallback.
+
+**Reversal condition.** Replace explicit causal deletion only if every affected
+table gains an equivalent database cascade whose owner, replica, source and
+sheet reach are covered by live relational checks. Any alternative must still
+prove that erasure leaves no private text, derived behavior, active runtime
+effect, push credential or orphaned persona surface.
+
+## `studio-creation-is-two-action-and-meet-is-one-task-at-a-time` (2026-08-30)
+
+**Decision.** The phone-first Studio begins with a free-speech recording and
+requires two intentional product actions: start recording, then finish and
+build after the measured minimum. A clean sample uploads privately, becomes
+the primary voice and opens the preview task automatically. A weak sample
+stops for one retake. Meet mounts exactly one of Preview, Voice chat or Review,
+and the URL commits the exact clone, step and selected task. One in-flow status
+surface owns each processing wait; details and receipts stay behind an
+explicit disclosure.
+
+**Rationale.** The former path asked the owner to stop, review, choose the same
+recording as primary and upload after they had already chosen to record. Meet
+then stacked unrelated jobs on one mobile page and repeated one wait in several
+places. The new shape keeps the quality guard while removing confirmation taps
+that carried no new decision, preserves place across reloads and makes the
+current task and current wait unambiguous.
+
+**Reversal condition.** Restore a bounded review step only if measured owner
+recordings show that automatic clean-sample submission materially lowers
+accepted voice similarity. Change the three Meet tasks only if moderated phone
+testing shows people cannot find preview, call or review. A replacement status
+pattern must reduce missed recovery actions without duplicating or contradicting
+server state.
+
+## `hinglish-is-one-acoustic-utterance-and-model-promotion-is-listening-gated` (2026-08-30)
+
+**Decision.** Every Hindi or Hinglish preview is one continuous acoustic model
+generation. Token-level language and pronunciation transformations remain an
+exact signed semantic audit, but they cannot fan out into separate model calls,
+fresh seeds or inserted PCM gaps. Ordinary preview moves from the
+owner-rejected `identity_anchor` preset to Chatterbox's neutral `balanced`
+defaults. The former anchor stays available only as a blind calibration arm.
+The current Chatterbox path is an incumbent transport control, not a certified
+quality winner; MOSS-TTS v1.5 and VoxCPM2 remain listening-gated challengers.
+
+**Rationale.** The old fragmented owner clip lasted 25.98 seconds with 65.47%
+near-silence, while the same one-pass passage lasted 7.72 seconds with 24.58%
+near-silence. Independent calls discard cross-language co-articulation, breath,
+rhythm and local emphasis before any join can operate. Chatterbox also accepts
+one language tag per generation, so the continuous fix removes Vyakti's defect
+but cannot prove native mixed-language phonology. The owner's direct report of
+flat delivery is stronger evidence against the flat identity test preset than
+its original parameter rationale.
+
+**Reversal condition.** Reintroduce more than one acoustic generation only if
+a model exposes a native continuation or state-carrying code-switch contract
+and a matched blind study proves smoother switches without a new identity,
+pause or latency regression. Change the ordinary delivery preset or promote a
+new model only after same-reference, same-text listening beats the incumbent on
+pronunciation, switch smoothness, naturalness, Indian accent, owner likeness and
+teaching delivery, while protected provenance and rollback remain intact.
+
+## `mobile-studio-loads-the-active-task-before-advanced-labs` (2026-08-30)
+
+**Decision.** The phone Studio keeps recording, upload recovery, activity and
+the ordinary voice preview in the first eager bundle. Advanced verification,
+calibration, experiment, teaching, runtime and Mirror Call surfaces load only
+when the owner opens them. Mobile layout verification covers small portrait,
+ordinary portrait, landscape, tablet and desktop widths, and treats a visible
+control below 44 CSS pixels as a release failure. Status microcopy has an
+11-pixel floor and a two-step test rail sizes itself to two steps rather than
+reserving a third empty column.
+
+**Rationale.** A phone owner should reach the active recording or preview task
+before downloading laboratories they did not choose. Fixed desktop density had
+also allowed short URL fields, checkbox rows, tiny integrity copy and an empty
+rail column to pass a desktop-only gate. Deferring optional code reduces initial
+transfer while the broader browser matrix makes the real phone interaction
+contract executable.
+
+**Reversal condition.** Change the split only if representative slow-network
+phone measurements show that opening a deferred task creates a worse completed
+task time than the initial-load reduction, and an alternative preserves the
+same eager recording/recovery path. Reduce the viewport or touch-target gate
+only if a platform-native accessibility rule proves an equivalent or stronger
+reachable target for every visible action.
+
+## `public-studio-never-inherits-self-test-authority` (2026-08-30)
+
+**Decision.** The production Studio may present the streamlined phone journey,
+but it cannot carry the internal self-test authority that auto-grants consent,
+identity, evidence acceptance or artifact selection to every authenticated
+account. Production requires the ordinary recorded consent and review
+predicates. A claim-extraction provider with a disclosed or incomplete
+credential remains disabled and fail-closed rather than being enabled merely
+to make the learning status look active.
+
+**Rationale.** Friends were already using the production origin, while the
+all-account internal flags still authorized biometric and training actions.
+That exceeded the documented reversal boundary for the test harness. The
+tagged append-only records made exact rollback possible without deleting human
+review history. Removing the exposed OpenRouter key also prevents a newly
+scheduled nearline worker from spending through a credential that cannot be
+trusted.
+
+**Reversal condition.** Internal auto-grants may return only on a separately
+isolated owner-only deployment with its own origin, exact allowlist and tagged
+reversal path. Automatic claim extraction may be enabled only after a fresh
+provider credential, exact model, rates, application budget and a bounded
+production canary are all present and verified without exposing their values.
+
+## `clone-creation-and-replacement-are-owner-scoped-durable-sagas` (2026-09-02)
+
+**Decision.** Creating a clone, uploading its candidate voice and requesting
+its VoiceGenome build are three explicit, owner-scoped durable intents. A
+retry with the same creation intent observes the same replica. A retry with
+the same upload intent observes the same private source only when the declared
+bytes, media shape, source purpose and language are identical. The durable
+language vocabulary is exactly `en`, `hi` or `hi-latn`. A changed payload under
+the same intent is a named conflict, never a second hidden source.
+
+A replacement source is staged while the current primary remains usable. The
+replacement may become primary only when the exact candidate source has
+completed processing, an exact candidate-scoped build has produced a cited
+draft, and the current adult identity, liveness, biometric, training,
+inference and owner-review predicates still pass. Promotion swaps the primary
+and settles the build intent in one transaction. A newer waiting or queued
+owner intent supersedes an older one before either can promote.
+
+Source erasure uses the same VoiceGenome review arbiter and retires only
+genomes, profiles, model builds, runtime state and protected results causally
+derived from the erased source. The delete-request timestamp is durable, so a
+new replacement build created after that request survives physical completion
+unless its own source or source-set citation points back to the erased source.
+
+**Rationale.** Reloads, response loss, two tabs and a delayed erasure worker are
+normal distributed-system events. They must replay one owner action instead of
+creating a second clone or allowing an old-source cleanup to destroy a newer
+replacement. Keeping the previous primary until exact promotion also makes a
+failed candidate recoverable without leaving the owner voiceless.
+
+**Reversal condition.** Replace these three intents only with a durable request
+resource that proves the same owner isolation, exact replay, payload-conflict,
+candidate lineage, consent recheck, atomic promotion, erasure and source-loss
+recovery properties. A replacement is not qualified until a fault-injected
+same-account test loses responses at create, upload, finalize, build and
+promotion boundaries and still produces one intended clone while preserving
+the old primary on every incomplete path.
+
+## `personal-clone-first-run-is-one-full-viewport-state-at-a-time` (2026-09-02)
+
+**Decision.** The public first run is for any person making their own clone,
+not a teacher dashboard. Its ordinary sequence is Home, sign in, one
+purpose-specific agreement surface, a bounded brand reveal, natural free-speech
+recording, local review and language choice, durable build, Meet, custom text,
+enrichment, versioned evolution, call and deploy. One full-viewport state owns
+one primary action. On a standard phone the ordinary state does not require
+page hunting or stacked dashboard scrolling; short viewports, large text and
+open keyboards reflow into one explicit scroll owner rather than clipping.
+
+The prompt is optional guidance, not a reading requirement. Consent is short
+and consolidated, but every private service still rechecks the exact SQL
+predicate and asks again when scope changes, authority expires or identity is
+insufficient. Waiting surfaces show server phase, elapsed time, observed range,
+next check and who owns the next action. They do not turn milestones into a
+percentage. Voice, cited knowledge, observable delivery, owner-authored
+persona and dyad-scoped relationship memory remain distinct, reversible lanes.
+
+**Rationale.** The desk review found that the strongest products make capture
+and first playback focused, while their administration, training tiers and
+source libraries belong after the first useful result. Vyakti also has stricter
+lineage, erasure and reviewed-evolution duties, so those guarantees must stay
+real without being repeated as technical copy on every screen.
+
+**Reversal condition.** Change the one-state sequence only after moderated
+phone testing shows a different order improves completed first-clone rate or
+time to first accepted playback without reducing consent comprehension,
+source lineage, recovery, deletion or accessibility. Replace the latched
+recorder if fewer than 85 percent of first-time participants understand its
+stop gesture after one demonstration, and split the agreement surface only if
+legal review or measured comprehension shows the combined form prevents
+specific informed choice.
+
+## `deployment-identity-is-client-computed-and-deployment-scoped` (2026-09-02)
+
+**Decision.** The source identity for a Vercel release is computed by the
+authenticated deploy client over the exact local upload inputs before the
+deployment begins. The deploy wrapper passes the product, SHA-256 commitment,
+input-file count and input-byte count as reserved, deployment-scoped build
+metadata. The remote install validates those fields against the target product
+and materializes the marker; it does not recompute or reinterpret the uploaded
+identity from its working directory.
+
+**Rationale.** Vercel can restore and reconcile the remote workspace before a
+custom install command runs. Two remote builds contained the same committed
+paths as the client upload but already differed in bytes, so a build-time hash
+answered which bytes happened to be present after platform mutation rather
+than which bytes the deploy client authorized. Deployment-scoped metadata is
+non-secret, is bound to one deployment and keeps the identity boundary on the
+only side that still has the exact upload bytes.
+
+**Reversal condition.** Move commitment computation back into the remote build
+only if Vercel exposes an immutable, authenticated pre-mutation upload manifest
+whose paths, byte lengths and content hashes can be verified before any restore,
+install or framework hook. Any replacement must retain target-product binding,
+reserved-field rejection, stale-deployment detection and an offline negative
+control that changes one committed byte.
+
+## `legacy-self-test-clones-restart-through-full-erasure` (2026-09-02)
+
+**Decision.** A clone whose durable metadata records historical
+`REPLICA_SELF_TEST_MODE` authority remains fail-closed even after the tagged
+grants have been revoked. The public recovery is an owner-confirmed full clone
+revocation and verified erasure request followed by a newly created clone. The
+browser cannot clear the marker, adopt the old draft, or recreate consent.
+
+**Rationale.** Revocation removes the active authority but deliberately keeps
+append-only audit history. An already-built VoiceGenome may still cite evidence
+that was selected under the old bypass. Treating zero active tagged grants as
+proof that this historical draft is now public-safe would confuse revoked
+authority with newly completed identity, liveness and owner review. Full
+erasure preserves that distinction and gives the owner a recoverable path
+instead of a dead-end message.
+
+**Reversal condition.** An in-place recovery may replace full erasure only if
+one atomic, owner-scoped server operation retires every draft, build, profile,
+capability and protected result derived under self-test authority; proves no
+self-test-tagged decision is current; resets the historical state without
+deleting its audit trail; and forces every real consent, identity, liveness and
+review predicate to run again. Browser-only marker clearing can never satisfy
+this condition.
+
+## `official-brand-and-live-voice-signal-form-one-instrument` (2026-09-02)
+
+**Decision.** The personal-clone first run uses the official Vyakti website's
+wordmark, neutral light palette, type stack and motion timing. Its central
+recording object is one 96-ray VoiceField driven by the browser microphone's
+real analyser history and current level. The same visual language carries the
+owner through recording, upload, reveal and build, but a state without live
+microphone data remains still and cannot imply progress. Reduced Motion freezes
+ray movement and removes drawer and room travel while preserving every state,
+label and action.
+
+**Rationale.** The previous uppercase lab mark and generic loading ornaments
+made the product look separate from Vyakti and used motion without evidence.
+One functional instrument combines the strongest radial, ribbon and aperture
+ideas without inserting a stock illustration or a fabricated progress signal.
+Reusing it across the short journey preserves spatial continuity, while the
+real analyser makes its liveliness attributable to the owner rather than to a
+looping demo.
+
+**Reversal condition.** Change the tokens or wordmark when the authoritative
+Vyakti brand source changes. Replace the VoiceField only after measured phone
+testing shows another instrument improves recording comprehension or accepted
+sample quality while retaining real-signal attribution, state honesty,
+contrast, reflow and reduced-motion equivalence. A decorative loop or
+percentage without server evidence cannot satisfy that condition.
+
+## `erasure-receipts-cover-the-longest-confirmed-recovery-window` (2026-09-02)
+
+**Decision.** A verified replica erasure receipt uses a keyed, non-disclosed
+integrity secret and remains valid for 30 days, the longest confirmed provider
+backup recovery window in the current storage path. The erasure inventory must
+include every Neon branch before the receipt clock can begin. A non-primary
+branch that still contains target rows is live recoverable data, not a backup
+footnote, and must be deleted or purged before the primary erasure can be
+called complete.
+
+**Rationale.** The current Neon branch history is one day, Supabase database
+backup retention and point-in-time recovery are off, and the checked Azure
+recovery features are off. Neon provider backups may nevertheless persist for
+up to 30 days. More importantly, the one-off WS-AH child branch still held 13
+rows for one target replica and could have preserved those rows indefinitely.
+Deleting that exact branch after a no-non-target-write comparison removes the
+unbounded copy; a 30-day receipt then covers the remaining measured provider
+recovery boundary without exposing its signing key.
+
+**Reversal condition.** Shorten the receipt window only after every active data
+provider and every database branch independently proves a shorter maximum
+recoverability period and the erasure audit exercises that inventory. Extend
+it whenever a provider, legal requirement or enabled recovery feature can
+retain target data longer. Any newly created child branch reopens the inventory
+until it is proven target-free or removed.
+
+## `expert-integration-preserves-both-lineages-20260906` (2026-09-06)
+
+The expert integration starts at6260611 and ports the local771feef voice lineage without replacing Rooms, source histories or privacy gates. Local migration066–076 bytes remain content-addressed and excluded from automatic application. Rationale: six numeric identities collide semantically. Reversal condition: an inspected target catalog and reviewed reconciliation plan prove equivalent objects and establish safe executable numbering; only then promote the archived statements.
+
+## `groupai-bounded-adapter-and-migration-source-reconciliation-20260906` (2026-09-06)
+
+Keep the existing expert Room person-by-agent memory and narrow handoff while reusing GroupAI mechanisms behind explicit current-authority adapters. Preserve source migration identity through the SHA256 archive reader, never a matching numeric prefix. The source-purpose reconciliation candidate widens to the seven legitimate purposes but remains unexecuted until catalog inspection and a new allocation. Reversal condition: a fully connected GroupAI runtime demonstrates better measured client outcomes and current authorization/erasure/provider evidence without dual authoritative stores; migration promotion requires verified catalog equivalence and parser checks.
+
+## `isolated-expert-development-database-20260906` (2026-09-06)
+
+The owner authorized autonomous service use and the parent task explicitly requested a separate development database on existing Neon compute. Created vyakti_expert_integration_20260906 only after checking the name was absent; derived its connection path in memory and verified current_database before every bootstrap phase. Production records are not copied or modified. Rationale: exercise both branch lineages and real SQL without risking the20production orphan references. Reversal condition: retire this development database only after another isolated target supplies equivalent schema/API proof and the owner authorizes cleanup; never substitute a production alias.
+
+## `real-parser-fixtures-classify-top-level-operations-20260906` (2026-09-06)
+
+The person-model live parser fixture now recognizes top-level claim reads and interview-source reads separately and asserts the exact guarded profile mutation. Every query still reaches real EXPLAIN; unexpected operation shapes fail. Rationale: the new interview read had inflated a mutation counter, and an unanchored claim substring could also match a nested mutation query. Reversal condition: change fixture classification only when the actual domain operation contract changes, retaining positive SQL parsing and exact mutation counts.
+
+## `ordinary-preview-has-one-durable-owner-20260906` (2026-09-06)
+
+Ordinary preview now routes to the authoritative durable panel instead of maintaining a second lease/result lifecycle. Exact replica navigation uses mode=replica/view=voice/sample=1 so an active runtime cannot divert the owner to Conversation. A/B and held-out generators remain trial-bound. Provider/protection construction follows ownership and identity admission, so deployment configuration cannot conceal an authorization failure. Reversal condition: a unified shared durable preview can serve both UI locations without a second lease lifecycle, while maintaining the same exact identity, result and ownership semantics.
+
+## `trained-adapter-adoption-needs-caller-and-receipt-20260906` (2026-09-06)
+
+Report historical owner LoRA training separately from the ordinary reference-conditioned cloning path. A live training job and optional runtime adapter support do not prove a given preview used a trained adapter. Adoption requires exact artifact/base/source commitments, an ordinary caller carrying that adapter, a matching protected output receipt and held-out human evaluation. Reversal condition: a verified deployment/receipt trail proves those boundaries for the ordinary preview; then update the claim for that specific model version, not every voice service.
+
+
+## `expert-fidelity-is-a-correction-and-heldout-contract-20260907` (2026-09-07)
+
+The owner asks for faithful expert decisions, Hindi/Hinglish/English voice, listening, memory, relationships and editable growth. Reuse the existing experience compiler, person-model approval and Rooms path. Observable evidence, inferred behavior proposals and session expression remain distinct; no claim of copied inner feelings or exact human duplication. Prioritize the verified broken Mirror feedback contract and a reproducible older-memory crowd-out diagnostic before another OS or broad training campaign. Reversal condition: a controlled held-out comparison proves a replacement architecture improves owner-rated fidelity and client task outcomes while preserving approval, audience, retraction and cost boundaries. Research synthesis lives in docs/gurukul/research/expert-fidelity-20260907/report-source.md.
+
+
+## `mirror-query-relevance-stays-an-unpromoted-candidate-20260907` (2026-09-07)
+
+The parameterized simple-config term ranking retains all ownership, consent, approved-citation, disclosure and retraction predicates and the eight-fact budget. Ordinary Mirror calls retain baseline behavior. Rationale: synthetic improvements do not establish cross-script relevance, useful abstention, persisted lifecycle behavior or owner answer quality. Reversal condition: held-out multilingual questions and actual accept/retract/erase flows establish better useful recall without boundary, latency or answer regressions; then deliberately change the caller with a documented promotion decision.
+
+
+## `expert-dev-storage-is-a-separate-private-azure-container-20260907` (2026-09-07)
+
+Use existing Azure account vyaktireplicamedia and new private container expert-integration-20260906 for both development storage locators. The user authorized Azure services and isolated development. Container creation was preceded by404 absence and followed by private readback; no new compute or GPU warming. Added only exact localhost5177 CORS origins while preserving production CORS and other service properties. Keys stay in process environment, not files or logs. Rationale: the current adapter requires1GiB private bucket capacity; the previous Supabase global limit was a measured blocker. Reversal condition: another isolated storage backend proves upload/read/immutability/erasure at required capacity without changing production objects or privacy semantics.
+
+
+## `dev-processing-and-protection-need-exact-targets-20260907` (2026-09-07)
+
+Next integration phase must assert the exact isolated database before any processing or erasure lease, and use the dedicated dev storage locators. Existing worker db.js trusts its environment without current_database assertion. Identity fetches and audio protection provenance both require an HTTPS application origin; copying production configuration would send development source/generation IDs to production endpoints. Reuse integrated worker and pinned byte-in/byte-out voice services through bounded manual dev jobs, with separate runtime/compute limits. The1USD text ledger does not cap GPU/job infrastructure. Reversal condition: an alternative verified path provides exact target binding and correct authenticated provenance/identity callbacks without dev/prod crossover. Do not make localhost look protected by pointing at production receipts.
+
+
+## `release-performance-needs-retained-traces-20260907` (2026-09-07)
+
+Preserve per-run LCP elements, resource discovery and long-task timing through optional diagnostics; release runner retains sanitized complete gate outputs in ignored scratchpad. Keep existing budgets and metric definitions. Do not infer machine contention from a later pass alone. Reversal condition: a repeatable trace attributes a regression to application work and a controlled change improves it, or representative real-device evidence justifies revising the measurement model.
+
+
+## `dev-worker-verifies-database-before-work-20260907` (2026-09-07)
+
+The reusable Neon client optionally pins the URL database and verifies server current_database before caller statements. Concurrent initial calls share the check and a failed identity remains failed. dev-once defaults to read-only check; processing or source erasure requires explicit opt-in, dedicated development database name, no conflicting expectation and no self-test grants. Processing invokes one existing job without model recovery/build sweeps. Erasure preserves existing fences and bounds lease/cleanup counts, not a hard provider deadline. Reversal condition: an equivalent target-bound worker proves the same pre-work isolation and bounded behavior with fewer separate entry points.
+
+
+## `performance-prerequisites-are-release-requirements-20260907` (2026-09-07)
+
+Missing build, required fixture, site, Playwright or Chromium now produce a named failed prerequisite. An install check that could not run also fails. Diagnostic JSON is emitted after install/static checks and retains combined findings and exitCode. Metrics and budgets are unchanged. Reversal condition: an explicitly separate diagnostic-only command may omit optional targets, but the shipping gate must continue to require every advertised check.

@@ -100,9 +100,9 @@ ok("migration 050 is independently splitter-safe and mirrored in canonical schem
 ok("the API exposes explicit issue and finalize operations behind owner authentication", /issue_holdout/.test(route) && /finalize_holdout/.test(route) && /requireUser/.test(route));
 ok("only a resolved trial can override the default preview seed", /preview_seed: trial\?\.previewSeed/.test(previewRoute) && /input\?\.preview_seed == null/.test(previewCore));
 // WS-R71: VoicePreviewLab.tsx's own literal strings moved into
-// src/studio/copy.ts (`t.voicePreviewLab`); this check now reads the
+// src/creatorStudio/copy.ts (`t.voicePreviewLab`); this check now reads the
 // concatenation, `evals/readiness/run.mjs`'s own `panelWithCopy` shape.
-const studioWithCopy = `${studio}\n${readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8")}`;
+const studioWithCopy = `${studio}\n${readFileSync(join(ROOT, "src/creatorStudio/copy.ts"), "utf8")}`;
 ok("Studio keeps candidate identity blind and labels an owner pass as non-production", /Held-out candidate/.test(studioWithCopy) && /This is not production qualification/.test(studioWithCopy));
 ok("the documented firewall names every remaining automated gate", ["speaker identity", "intelligibility", "artifacts", "latency", "watermark", "provenance", "privacy"].every((term) => docs.includes(term)));
 ok("protocol and deck versions are pinned", VOICE_DELIVERY_HOLDOUT_REQUIRED === 12 && VOICE_DELIVERY_HOLDOUT_DECK_VERSION === "voice-delivery-holdout-deck/v1");

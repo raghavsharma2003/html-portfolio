@@ -13,8 +13,7 @@
 // `npx vite build` must already have produced `dist/` (this file does not
 // build it — `web build` runs earlier in scripts/verify-release.mjs, and this
 // gate is registered after it for exactly that reason; run standalone, it
-// prints a named skip rather than silently measuring a stale tree, the same
-// convention scripts/check-layout.mjs uses).
+// fails by prerequisite name rather than silently skipping a release check).
 //
 // A plain Node static server on 127.0.0.1:8932 (never 8931 — the layout gate
 // owns that port, and colliding with a sibling worktree's run of it produces
@@ -88,7 +87,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
 // WS-R59: the installable Room's own Chromium check — worker registration,
 // precache completeness, and no `/api/` URL ever cached — folded into THIS
@@ -364,7 +363,7 @@ function median(nums) {
   return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
 }
 
-async function measureOnce(browser, target) {
+async function measureOnce(browser, target, diagnostics = false) {
   const context = await browser.newContext({ viewport: VIEWPORT });
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
@@ -427,14 +426,27 @@ async function measureOnce(browser, target) {
     bytes.total += n;
   });
 
-  await page.addInitScript((chunkPath) => {
+  await page.addInitScript(({ chunkPath, diagnostics }) => {
+    // Public fixture diagnostics only: never retain text, query strings or credentials.
+    const resourceName = (value) => {
+      if (!value) return null;
+      try { const u = new URL(value, location.href); return `${u.origin}${u.pathname.startsWith("/api/") ? "/api/[redacted]" : u.pathname}`; } catch { return null; }
+    };
     window.__PERF__ = {
       lcp: 0, cls: 0, longtasks: [], firstPaintMs: null, hindiChunkWaitMs: null,
       firstHindiPaintMs: null,
+      ...(diagnostics ? { diagnostic: { lcpEntries: [], longtasks: [] } } : {}),
     };
     try {
       new PerformanceObserver((list) => {
-        for (const e of list.getEntries()) window.__PERF__.lcp = e.startTime;
+        for (const e of list.getEntries()) {
+          window.__PERF__.lcp = e.startTime;
+          if (diagnostics) window.__PERF__.diagnostic.lcpEntries.push({
+            startTime: e.startTime, renderTime: e.renderTime, loadTime: e.loadTime, size: e.size,
+            resource: resourceName(e.url),
+            element: e.element ? { tag: e.element.tagName, id: e.element.id, classes: Array.from(e.element.classList) } : null,
+          });
+        }
       }).observe({ type: "largest-contentful-paint", buffered: true });
     } catch {}
     try {
@@ -444,7 +456,13 @@ async function measureOnce(browser, target) {
     } catch {}
     try {
       new PerformanceObserver((list) => {
-        for (const e of list.getEntries()) window.__PERF__.longtasks.push(e.duration);
+        for (const e of list.getEntries()) {
+          window.__PERF__.longtasks.push(e.duration);
+          if (diagnostics) window.__PERF__.diagnostic.longtasks.push({
+            startTime: e.startTime, duration: e.duration, name: e.name,
+            attribution: Array.from(e.attribution || [], a => ({ name: a.name, containerType: a.containerType, containerSrc: resourceName(a.containerSrc) })),
+          });
+        }
       }).observe({ type: "longtask", buffered: true });
     } catch {}
     if (chunkPath) {
@@ -501,7 +519,7 @@ async function measureOnce(browser, target) {
         }
       } catch {}
     }
-  }, hiChunkPath);
+  }, { chunkPath: hiChunkPath, diagnostics });
 
   let crashed = null;
   page.on("pageerror", (e) => { crashed = String(e.message || e).slice(0, 200); });
@@ -531,9 +549,23 @@ async function measureOnce(browser, target) {
 
   const tbtMs = perf.longtasks.reduce((sum, d) => sum + Math.max(0, d - 50), 0);
 
+  const diagnostic = diagnostics ? await page.evaluate(() => {
+    const safeUrl = (value) => {
+      try { const u = new URL(value); return `${u.origin}${u.pathname.startsWith("/api/") ? "/api/[redacted]" : u.pathname}`; } catch { return null; }
+    };
+    const timing = (e) => ({ resource: safeUrl(e.name), initiatorType: e.initiatorType || "navigation",
+      startTime: e.startTime, duration: e.duration, fetchStart: e.fetchStart,
+      requestStart: e.requestStart, responseStart: e.responseStart, responseEnd: e.responseEnd,
+      transferSize: e.transferSize, encodedBodySize: e.encodedBodySize, decodedBodySize: e.decodedBodySize });
+    return { ...window.__PERF__.diagnostic,
+      navigation: performance.getEntriesByType("navigation").map(timing),
+      resources: performance.getEntriesByType("resource").map(timing),
+    };
+  }) : null;
   await context.close();
 
   return {
+    ...(diagnostics ? { diagnostic } : {}),
     lcpMs: perf.lcp,
     cls: perf.cls,
     tbtMs,
@@ -557,9 +589,9 @@ async function measureOnce(browser, target) {
   };
 }
 
-async function measureTarget(browser, target) {
+async function measureTarget(browser, target, diagnostics = false) {
   const runs = [];
-  for (let i = 0; i < RUNS; i++) runs.push(await measureOnce(browser, target));
+  for (let i = 0; i < RUNS; i++) runs.push(await measureOnce(browser, target, diagnostics));
   const crashes = runs.filter((r) => r.crashed);
   // WS-R82. Only the `studio-hi` target sets this at all (`hiChunkPath` is
   // null everywhere else, so `hindiChunkWaitMs` stays `null` on every run);
@@ -743,19 +775,33 @@ function checkHindiPreloadStatic() {
   return findings;
 }
 
+// A skipped prerequisite is a failed release check, never a measured pass.
+export function performanceGateResult({ budgetFindings = [], install = null, staticFindings = [], prerequisiteFindings = [] } = {}) {
+  const installFindings = install?.skipped
+    ? [{ target: "installable Room", metric: "prerequisite", detail: install.skipped }]
+    : (install?.findings || []).map(f => ({ target: "installable Room", metric: f.check, detail: f.detail }));
+  const findings = [...prerequisiteFindings, ...budgetFindings, ...installFindings, ...staticFindings];
+  return { status: findings.length ? "failed" : "passed", exitCode: findings.length ? 1 : 0, findings };
+}
+
 async function main() {
   const args = process.argv.slice(2);
-  const asJson = args.includes("--json");
+  const diagnostics = args.includes("--diagnostics");
+  const asJson = args.includes("--json") || diagnostics;
   const targetArg = args.includes("--target") ? args[args.indexOf("--target") + 1] : null;
+  const prerequisiteFailure = detail => {
+    const result = performanceGateResult({ prerequisiteFindings: [{ target: "performance budgets", metric: "prerequisite", detail }] });
+    if (asJson) console.log(JSON.stringify({ ...result, results: [] }, null, 2));
+    else console.log(`FAIL  performance budgets: ${detail}`);
+    return result.exitCode;
+  };
   const targets = targetArg ? TARGETS.filter((t) => t.name === targetArg) : TARGETS;
   if (targetArg && !targets.length) {
-    console.log(`FAIL  performance budgets: unknown --target "${targetArg}". Known: ${TARGETS.map((t) => t.name).join(", ")}`);
-    return 1;
+    return prerequisiteFailure(`unknown --target "${targetArg}". Known: ${TARGETS.map(t => t.name).join(", ")}`);
   }
 
   if (!existsSync(DIST)) {
-    console.log("  skip  performance budgets: dist/ absent, run `npx vite build` first");
-    return 0;
+    return prerequisiteFailure("dist/ absent, run `npx vite build` first");
   }
   // WS-R117: `/suites/about` needs no vite build step at all
   // (`scripts/build-suites-about-fixture.mjs`'s own header) -- generated
@@ -766,20 +812,17 @@ async function main() {
   const requiredFixtures = ["room-layout-fixture.html", "studio.html", "creator-page-fixture.html", "room-about-fixture.html", "suites-about-fixture.html"];
   const absent = requiredFixtures.filter((f) => !existsSync(join(DIST, f)));
   if (absent.length) {
-    console.log(`FAIL  performance budgets: dist/${absent.join(", dist/")} missing — vite inputs, restore rather than skip.`);
-    return 1;
+    return prerequisiteFailure(`dist/${absent.join(", dist/")} missing; restore the required fixtures.`);
   }
   if (!existsSync(join(SITE, "index.html")) || !existsSync(join(SITE, "vyakti.html"))) {
-    console.log("FAIL  performance budgets: site/index.html or site/vyakti.html missing.");
-    return 1;
+    return prerequisiteFailure("site/index.html or site/vyakti.html missing.");
   }
 
   let chromium;
   try {
     ({ chromium } = await import("playwright"));
   } catch {
-    console.log("  skip  performance budgets: playwright not installed");
-    return 0;
+    return prerequisiteFailure("playwright not installed");
   }
   const executablePath = [
     process.env.CHROMIUM_PATH,
@@ -798,29 +841,16 @@ async function main() {
   ).catch(() => null);
   if (!browser) {
     server.close();
-    console.log("  skip  performance budgets: no chromium binary available");
-    return 0;
+    return prerequisiteFailure("no chromium binary available");
   }
 
   const results = [];
   for (const target of targets) {
-    results.push(await measureTarget(browser, target));
+    results.push(await measureTarget(browser, target, diagnostics));
   }
 
   await browser.close();
   server.close();
-
-  if (asJson) {
-    console.log(JSON.stringify({
-      throttle: THROTTLE,
-      budgets: { ...BUDGETS, hindiChunkWaitMs: HINDI_CHUNK_WAIT_BUDGET_MS, firstHindiPaintMs: FIRST_HINDI_PAINT_BUDGET_MS },
-      viewport: VIEWPORT,
-      runs: RUNS,
-      results,
-    }, null, 2));
-  } else {
-    printReport(results);
-  }
 
   const allFindings = results.flatMap((r) => evaluateBudgets(r).map((f) => ({ target: r.target, ...f })));
 
@@ -830,31 +860,31 @@ async function main() {
   // different KIND of check (booleans, not a budget table) rather than a
   // fifth entry `targetArg` could ever name.
   const install = await runInstallCheck();
-  const installFindings = install.skipped
-    ? []
-    : install.findings.map((f) => ({ target: "installable Room", metric: f.check, detail: f.detail }));
-  if (install.skipped && !asJson) {
-    console.log(`  skip  installable Room: ${install.skipped}`);
-  }
-
   // WS-R107. Same "always on, folded into the same pass/fail" posture as
   // the install check just above.
   const hindiPreloadFindings = checkHindiPreloadStatic().map((f) => ({ target: "studio.html (static)", ...f }));
 
-  if (allFindings.length || installFindings.length || hindiPreloadFindings.length) {
-    if (!asJson) {
-      const total = allFindings.length + installFindings.length + hindiPreloadFindings.length;
-      console.log(`FAIL  performance budgets: ${total} finding(s)`);
-      for (const f of [...allFindings, ...installFindings, ...hindiPreloadFindings]) {
-        console.log(`        ${f.target.padEnd(20)} ${f.metric}: ${f.detail}`);
-      }
+  const outcome = performanceGateResult({ budgetFindings: allFindings, install, staticFindings: hindiPreloadFindings });
+  if (asJson) {
+    console.log(JSON.stringify({
+      ...outcome,
+      throttle: THROTTLE,
+      budgets: { ...BUDGETS, hindiChunkWaitMs: HINDI_CHUNK_WAIT_BUDGET_MS, firstHindiPaintMs: FIRST_HINDI_PAINT_BUDGET_MS },
+      viewport: VIEWPORT, runs: RUNS, results, install,
+      staticFindings: hindiPreloadFindings,
+    }, null, 2));
+  } else {
+    printReport(results);
+    if (outcome.findings.length) {
+      console.log(`FAIL  performance budgets: ${outcome.findings.length} finding(s)`);
+      for (const f of outcome.findings) console.log(`        ${f.target.padEnd(20)} ${f.metric}: ${f.detail}`);
     }
-    return 1;
   }
+  if (outcome.exitCode) return outcome.exitCode;
   if (!asJson) {
     console.log(`  ok    performance budgets: ${results.length} target(s) x ${RUNS} runs, all within budget (${THROTTLE.cpuRate}x CPU, ${(THROTTLE.downloadBps * 8 / 1024 / 1024).toFixed(1)}Mbps/${(THROTTLE.uploadBps * 8 / 1024).toFixed(0)}Kbps/${THROTTLE.latencyMs}ms)${install.skipped ? "" : "; installable Room: worker registers, precache complete, no /api/ URL ever cached"}`);
   }
   return 0;
 }
 
-process.exit(await main());
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exit(await main());

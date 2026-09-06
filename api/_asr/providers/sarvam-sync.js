@@ -119,6 +119,7 @@ export function createSarvamSyncProvider(options = {}) {
           turns: [{ speaker: "SPEAKER_00", text: transcript, t0: 0, t1: ref.durationMs || 0 }],
           provider: NAME,
           model,
+          transcriptConfidence: payload?.confidence ?? null,
         },
         { name: NAME, model },
       );

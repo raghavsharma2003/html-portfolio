@@ -160,6 +160,12 @@ const REASONS = Object.freeze({
     "Your recording passed diarization. The tool that trims your voice down to the short reference clip is not installed on the machine that picked this up. This is on us, not on your file. It will carry on by itself once the tool is installed.",
   voice_evidence_unconfigured:
     "Your recording got as far as the voice analysis, which runs on a separate service that is not switched on yet. This is on us, not on your file. It will carry on by itself once that service is connected.",
+  voice_evidence_unreachable:
+    "Your recording reached voice analysis, but our private voice service could not be reached. This is on us, not on your file. We will retry it automatically.",
+  voice_evidence_not_ready:
+    "Your recording reached voice analysis while our private voice service was still starting. This is on us, not on your file. We will retry it automatically.",
+  azure_asr_input_unavailable:
+    "Your recording reached transcription, but our private reader could not prepare it for the transcription service. This is on us, not on your file. We will retry it automatically.",
   asr_unconfigured:
     "Your recording got as far as the transcription step, and the transcription service is not connected yet. This is on us, not on your file. It will carry on by itself once that service is connected.",
   // ── extraction routes (WS-AI) ───────────────────────────────────────────
@@ -393,6 +399,15 @@ export function normaliseUpload(row) {
   }
   if (row.state === "uploaded") {
     return job({ ...base, state: "queued", state_reason: "Received. Waiting for a worker to pick it up." });
+  }
+  if (row.worker_overdue) {
+    // A due queue row that has missed a complete worker schedule is not
+    // currently being worked on. Keep the bytes and say this is our recovery
+    // problem. Asking for another upload would duplicate private media while
+    // leaving the unavailable worker unchanged.
+    return job({ ...base, state: "blocked", progress,
+      state_reason: "Our processing worker missed this recording. You do not need to upload it again.",
+      next_action: action("wait", "We will retry it automatically") });
   }
   const step = String(row.active_step || "").replaceAll("_", " ");
   return job({ ...base, state: "running", progress,
@@ -764,6 +779,10 @@ export async function readReplicaActivity(db, ownerUserId, id, options = {}) {
                  filter (where j.state in ('failed','blocked')))[1] as failure_state,
               (array_agg(j.step order by j.updated_at desc)
                  filter (where j.state in ('leased','queued','retry')))[1] as active_step,
+              coalesce(bool_or(
+                (j.state in ('queued','retry') and j.next_attempt_at <= now() - interval '7 minutes')
+                or (j.state='leased' and j.lease_expires_at <= now())
+              ),false) as worker_overdue,
               max(j.attempt)::int as attempts
          from vy_replica_source s
          left join vy_replica_processing_job j

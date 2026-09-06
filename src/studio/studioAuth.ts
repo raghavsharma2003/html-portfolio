@@ -50,34 +50,6 @@ export async function verifyEmailOtp(email: string, token: string) {
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
- * PHONE, added by the Room (WS-R1) and added HERE rather than beside it.
- *
- * `api/account.js` has carried `send_sms` / `verify_sms` since it was written;
- * nothing called them, which is `dead-writers` in its mildest form. The Room
- * is the first surface whose audience signs in on a phone by default, so this
- * is where they get a caller.
- *
- * They live in this module and not in a `src/room/roomAuth.ts` because a
- * second sign-in module is a second place where a session shape, a refresh
- * rule and an error taxonomy can drift, and the two products would then
- * disagree about what being signed in means. One module, two callers.
- *
- * The phone is normalised to digits and a leading plus before it leaves, the
- * same shape `api/account.js` normalises to on arrival, so a number typed with
- * spaces is not a different rate-limit bucket than the same number typed
- * without them.
- */
-const phoneDigits = (phone: string) => phone.replace(/[^\d+]/g, "");
-
-export function sendPhoneOtp(phone: string) {
-  return accountPost({ op: "send_sms", phone: phoneDigits(phone) });
-}
-
-export async function verifyPhoneOtp(phone: string, token: string) {
-  return toSession(await accountPost({ op: "verify_sms", phone: phoneDigits(phone), token }));
-}
-
-/* ───────────────────────────────────────────────────────────────────────────
  * THE PRODUCT A PERSON COMES BACK TO MUST BE THE PRODUCT THEY LEFT.
  *
  * `StudioApp.readStudioMode()` reads `?mode=teacher` ONCE at mount and nowhere
@@ -93,9 +65,10 @@ export async function verifyPhoneOtp(phone: string, token: string) {
  *      `/studio`, so the fastest way in was also the way that changed product
  *      underneath you. Email OTP never had the bug because it never leaves the
  *      page — so the failure reached only the users who took the quick path.
- *   2. COMING BACK TOMORROW. `/` redirects to `/studio?mode=teacher`, but a
- *      teacher who bookmarks the page they actually work in bookmarks
- *      `/studio`, and the mode is gone on the next visit.
+ *   2. COMING BACK TOMORROW. Earlier public links stored teacher mode and
+ *      silently restored the vertical on a later bare `/studio` visit. The
+ *      public product is now personal-clone first, so an old teacher memory
+ *      must not override a bare public URL.
  *
  * The fix is deliberately NOT "add the query to the OAuth redirect". That
  * would work only if the value survives the provider's redirect allow list,
@@ -109,8 +82,8 @@ export async function verifyPhoneOtp(phone: string, token: string) {
  *   - an explicit `?mode=` in the URL always wins, and is remembered
  *     (including `?mode=replica`, which is how a person deliberately returns
  *     to the generic lab and makes that stick)
- *   - no `?mode=` at all: the remembered choice is reapplied
- *   - nothing remembered: generic, exactly as today
+ *   - no `?mode=` at all: generic; a legacy remembered teacher choice is
+ *     removed instead of being reapplied
  *
  * The URL is rewritten with `replaceState`, so the address bar tells the truth
  * about which product is on screen and the page stays copy-pasteable. Storage
@@ -134,6 +107,10 @@ export function restoreStudioMode(): string {
       return explicit;
     }
     const remembered = localStorage.getItem(STUDIO_MODE_KEY);
+    if (remembered === "teacher") {
+      localStorage.removeItem(STUDIO_MODE_KEY);
+      return "";
+    }
     if (remembered !== "teacher" && remembered !== "replica") return "";
     params.set("mode", remembered);
     history.replaceState(null, "", `${window.location.pathname}?${params}${window.location.hash}`);
@@ -144,22 +121,8 @@ export function restoreStudioMode(): string {
   }
 }
 
-/**
- * @param returnPath where the provider sends the browser back to. Defaults to
- *   `/studio`, so every existing caller is byte-identical. The Room passes its
- *   own address, because a follower who signs in from `/r/anjali` and lands in
- *   a creator's studio has been handed somebody else's product.
- *
- *   THE DEPENDENCY, STATED RATHER THAN ASSUMED: this value must be on the
- *   Supabase project's redirect allow list, which is configured outside this
- *   repo. `/r/*` needs adding there before Google sign-in works in a Room.
- *   Until it is, the provider refuses the redirect and the follower gets
- *   Supabase's own error, not ours. Phone sign-in has no such dependency and
- *   is the reason it is offered first.
- */
-export async function googleSignIn(returnPath = "/studio") {
-  const path = returnPath.startsWith("/") ? returnPath : "/studio";
-  const redirect = window.location.origin + path;
+export async function googleSignIn() {
+  const redirect = window.location.origin + "/studio";
   const { url } = await accountPost({ op: "google_url", redirect });
   if (typeof url !== "string" || !url.startsWith("https://")) throw new Error("Google sign-in is unavailable");
   window.location.assign(url);

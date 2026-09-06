@@ -49,24 +49,63 @@ const mixed = buildVoiceTextPlan({
   text: "आज we will study physics aur maths.",
   languageId: "hi",
 });
-assert.deepEqual(mixed.synthesisSegments.map((segment) => segment.languageId), ["hi", "en", "hi"]);
-assert.equal(mixed.synthesisSegments[1].text, "we will study");
-ok("unknown English is an explicit English segment instead of a Hindi-tagged silent fallback", true);
-ok("reviewed classroom borrowings return to the Hindi segment",
-  mixed.synthesisSegments[2].text === "फिज़िक्स और मैथ्स.");
+assert.deepEqual(mixed.synthesisSegments.map((segment) => segment.languageId), ["hi"]);
+ok("mixed-script Hinglish stays one continuous acoustic utterance",
+  mixed.synthesisSegments[0].text === mixed.targetText &&
+  mixed.warnings.includes("hinglish_single_context_synthesis"));
+ok("unknown English remains explicit in the semantic audit instead of being silently rewritten",
+  mixed.semanticSegments.some((segment) => segment.languageId === "en" && segment.text.trim() === "we will study"));
+ok("curated Indian-English orthography stays inside the continuous Hindi utterance",
+  mixed.semanticSegments.some((segment) => segment.languageId === "hi" && segment.text.trim() === "फिज़िक्स और मैथ्स."));
 ok("an unresolved Latin warning survives in the auditable plan",
   mixed.warnings.includes("unresolved_latin_retained_as_english"));
 
 const confusable = buildVoiceTextPlan({ text: "he hai", languageId: "hi" });
-assert.deepEqual(confusable.synthesisSegments.map((segment) => segment.languageId), ["hi", "en", "hi"]);
+assert.deepEqual(confusable.synthesisSegments.map((segment) => segment.languageId), ["hi"]);
 ok("the English confusable he is never silently accepted as Hindi hai",
-  confusable.synthesisSegments[1].text === "he" && confusable.synthesisSegments[2].text === "है");
+  confusable.semanticSegments.some((segment) => segment.languageId === "en" && segment.text.trim() === "he") &&
+  confusable.semanticSegments.some((segment) => segment.languageId === "hi" && segment.text.trim() === "है"));
 
 const englishArticle = buildVoiceTextPlan({ text: "the formula hai", languageId: "hi" });
-assert.deepEqual(englishArticle.synthesisSegments.map((segment) => segment.languageId), ["hi", "en", "hi"]);
+assert.deepEqual(englishArticle.synthesisSegments.map((segment) => segment.languageId), ["hi"]);
 ok("the English article the is never silently rewritten as Hindi the",
-  englishArticle.synthesisSegments[1].text === "the" &&
-  englishArticle.synthesisSegments[2].text === "फ़ॉर्मूला है");
+  englishArticle.semanticSegments.some((segment) => segment.languageId === "en" && segment.text.trim() === "the") &&
+  englishArticle.semanticSegments.some((segment) => segment.languageId === "hi" && segment.text.trim() === "फ़ॉर्मूला है"));
+
+const technicalInitialisms = buildVoiceTextPlan({
+  text: "AI aur RLHF ke liye GPU, API, TTS aur STT samjho.",
+  languageId: "hi",
+});
+ok("curated technical initialisms receive deterministic Indian-script targets",
+  technicalInitialisms.targetText.includes("एआई और आरएलएचएफ") &&
+  technicalInitialisms.targetText.includes("जीपीयू") &&
+  technicalInitialisms.targetText.includes("एपीआई") &&
+  technicalInitialisms.targetText.includes("टीटीएस और एसटीटी"));
+ok("technical initialisms still render in the same continuous utterance",
+  technicalInitialisms.synthesisSegments.length === 1 &&
+  technicalInitialisms.synthesisSegments[0].text === technicalInitialisms.targetText);
+
+const unseenInitialisms = buildVoiceTextPlan({
+  text: "IIT JEE mein H aur O ka API check karo, but NEET ko word ki tarah bolo.",
+  languageId: "hi",
+});
+ok("curated initialisms and single-letter symbols receive deterministic Indian-script targets",
+  unseenInitialisms.targetText.includes("आईआईटी") && unseenInitialisms.targetText.includes("जेईई") &&
+  unseenInitialisms.targetText.includes("एच") && unseenInitialisms.targetText.includes("ओ") &&
+  unseenInitialisms.targetText.includes("एपीआई") && unseenInitialisms.targetText.includes("नीट") &&
+  unseenInitialisms.transformations.some((item) => item.kind === "reviewed_hindi_borrowing" && item.source === "IIT") &&
+  unseenInitialisms.transformations.some((item) => item.kind === "reviewed_latin_symbol" && item.source === "H"));
+
+const ordinaryUppercaseWord = buildVoiceTextPlan({ text: "NASA ka launch dekho.", languageId: "hi" });
+ok("a curated word acronym keeps its conventional orthography instead of arbitrary letter spelling",
+  ordinaryUppercaseWord.targetText.includes("नासा") &&
+  ordinaryUppercaseWord.transformations.some((item) => item.kind === "reviewed_hindi_borrowing" && item.source === "NASA"));
+
+const unknownUppercase = buildVoiceTextPlan({ text: "Aaj QZXV ka result dekho.", languageId: "hi" });
+ok("an unknown uppercase token remains exact and auditable rather than receiving a guessed pronunciation",
+  unknownUppercase.semanticSegments.some((item) => item.languageId === "en" && item.text.trim() === "QZXV") &&
+  unknownUppercase.unresolvedLatin.some((item) => item.source === "QZXV") &&
+  !unknownUppercase.transformations.some((item) => item.source === "QZXV"));
 
 for (const transformation of hindi.transformations) {
   assert.equal(
@@ -81,7 +120,10 @@ ok("plans are deterministic and content addressed",
 const audit = voiceTextPlanAudit(hindi);
 ok("the persisted audit binds input, target, languages, transformations, and plan hash without raw text",
   audit.inputSha256 === hindi.inputSha256 && audit.targetSha256 === hindi.targetSha256 &&
+  audit.synthesisStrategy === "single_continuous_utterance" &&
+  audit.pronunciationLexicon === hindi.pronunciationLexicon &&
   audit.planSha256 === hindi.planSha256 && audit.transformationCount === hindi.transformations.length &&
+  audit.unresolvedLatinCount === hindi.unresolvedLatin.length &&
   !Object.values(audit).includes(currentDefault));
 
 const english = buildVoiceTextPlan({ text: "Hello, let us study today.", languageId: "en" });
@@ -89,17 +131,42 @@ ok("English remains byte-identical after its fixed English disclosure",
   english.targetText === `${SYNTHETIC_AUDIO_DISCLOSURES.en} Hello, let us study today.` &&
   english.transformations.length === 0 && english.synthesisSegments.length === 1);
 
-const alternating = Array.from({ length: 9 }, (_, index) => `main x${index}`).join(" ");
-assert.throws(
-  () => buildVoiceTextPlan({ text: alternating, languageId: "hi" }),
-  /hindi_text_frontend_too_many_language_switches/,
-);
-ok("pathological code switching fails by name instead of falling back to one wrong language", true);
+const naturalRomanHinglish = "India mein RLHF ka future kaafi promising hai, kyunki global AI companies ko diverse languages, cultural context aur high quality human feedback ki growing need hogi. Bharat ke paas English ke saath Hindi, Tamil, Telugu, Bengali, Marathi aur regional languages mein expertise hai.";
+assert.equal(Array.from(naturalRomanHinglish).length, 280);
+const boundedRomanHinglish = buildVoiceTextPlan({ text: naturalRomanHinglish, languageId: "hi" });
+ok("a maximum-length Studio Roman Hinglish paragraph stays inside the synthesis bound instead of failing on lexical switches",
+  boundedRomanHinglish.synthesisSegments.length === 1 &&
+  boundedRomanHinglish.synthesisSegments[0].languageId === "hi");
+ok("the reported long Roman Hinglish paragraph has a complete curated orthography plan",
+  boundedRomanHinglish.unresolvedLatin.length === 0 &&
+  !boundedRomanHinglish.warnings.includes("native_code_switch_pronunciation_unqualified"));
+ok("bounded Roman Hinglish preserves every source transformation span",
+  boundedRomanHinglish.transformations.every((transformation) =>
+    boundedRomanHinglish.inputText.slice(transformation.sourceStartUtf16, transformation.sourceEndUtf16) === transformation.source));
 
-assert.throws(
-  () => buildVoiceTextPlan({ text: "आज unknown", languageId: "hi", supportedLanguages: ["hi"] }),
-  /hindi_text_frontend_segment_language_unsupported/,
-);
-ok("the Hindi-only model refuses unresolved English before inference", true);
+const ordinaryRomanHinglish = buildVoiceTextPlan({
+  text: "Aaj hum is concept ko simple example ke saath samjhenge, phir answer check karenge.",
+  languageId: "hi",
+});
+ok("an ordinary Roman Hinglish classroom line avoids identity-damaging acoustic fan-out",
+  ordinaryRomanHinglish.synthesisSegments.length === 1 &&
+  ordinaryRomanHinglish.synthesisSegments[0].languageId === "hi" &&
+  ordinaryRomanHinglish.unresolvedLatin.length === 0);
+ok("the bounded context rule resolves Hindi `is` without making it an unconditional alias",
+  ordinaryRomanHinglish.transformations.some((item) =>
+    item.kind === "reviewed_roman_hindi_context" && item.source === "is" && item.target === "इस"));
+
+const alternating = Array.from({ length: 9 }, (_, index) => `आज x${index}`).join(" ");
+const continuousAlternating = buildVoiceTextPlan({ text: alternating, languageId: "hi" });
+ok("even dense mixed-script input cannot reintroduce acoustic fan-out",
+  continuousAlternating.synthesisSegments.length === 1 &&
+  continuousAlternating.synthesisSegments[0].semanticIndexes.length === continuousAlternating.semanticSegments.length &&
+  continuousAlternating.warnings.includes("hinglish_single_context_synthesis"));
+
+const hindiOnlyMixed = buildVoiceTextPlan({ text: "आज unknown", languageId: "hi", supportedLanguages: ["hi"] });
+ok("the Hindi-only arm receives one auditable code-mixed utterance instead of a hidden English sub-call",
+  hindiOnlyMixed.synthesisSegments.length === 1 &&
+  hindiOnlyMixed.synthesisSegments[0].languageId === "hi" &&
+  hindiOnlyMixed.semanticSegments.some((segment) => segment.languageId === "en"));
 
 console.log(`\nhindi text frontend: ${passed} checks passed`);

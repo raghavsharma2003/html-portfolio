@@ -5,8 +5,10 @@
 //
 // DEFAULT OFF. Absent or unset is today's behaviour, bit for bit. The mode is
 // enabled only when three independent guards agree: the explicit flag, the
-// internal-testing environment marker, and the exact owner UUID allowlist.
-// The replica must also be `subject_mode='self'`. Ownership and subject mode
+// internal-testing environment marker, and an exact access mode. The access
+// mode is either the legacy single-owner UUID allowlist or the explicit
+// `all-authenticated` internal-test lane. The replica must also be
+// `subject_mode='self'`. Ownership and subject mode
 // are re-checked at the SQL level inside the functions this module calls
 // (`api/_replica-review.js`), not only here, so a caller mistake cannot widen
 // the blast radius.
@@ -20,7 +22,7 @@
 //
 // WHAT EVERY WRITE CARRIES: `metadata.self_test_mode = true`,
 // `metadata.granted_by = 'REPLICA_SELF_TEST_MODE'`, and the versioned
-// `owner-only-internal-testing/v1` guard contract, so
+// `authenticated-internal-testing/v2` guard contract, so
 // `docs/gurukul/REPLICA-SELF-TEST-MODE.md`'s one revocation query can find
 // and undo everything this module has ever written, for every replica, in
 // one statement. See context/decisions.md#replica-self-test-mode for the
@@ -32,25 +34,30 @@ import { replicaId as parseReplicaId } from "../_replica.js";
 export const SELF_TEST_GRANT_METADATA = Object.freeze({
   self_test_mode: true,
   granted_by: "REPLICA_SELF_TEST_MODE",
-  guard_contract: "owner-only-internal-testing/v1",
+  guard_contract: "authenticated-internal-testing/v2",
 });
 
 export const SELF_TEST_ENVIRONMENT = "internal-owner-testing";
+export const SELF_TEST_ACCESS_ALL_AUTHENTICATED = "all-authenticated";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
  * This consequential bypass deliberately has no truthy-string heuristics and
- * no environment-only form. All three values must be present and exact, and
- * the caller must supply the owner UUID for the row it is about to touch.
- * `REPLICA_SELF_TEST_MODE=true` on its own is therefore inert.
+ * no environment-only form. Mode and environment must be exact. Access is
+ * either an exact `all-authenticated` marker or the legacy exact owner UUID.
+ * The authenticated caller must always supply a real UUID for the row it is
+ * about to touch. `REPLICA_SELF_TEST_MODE=true` on its own remains inert.
  */
 export function selfTestModeEnabled(env = process.env, ownerUserId) {
   if (env.REPLICA_SELF_TEST_MODE !== "true") return false;
   if (env.REPLICA_SELF_TEST_ENVIRONMENT !== SELF_TEST_ENVIRONMENT) return false;
-  const configuredOwner = String(env.REPLICA_SELF_TEST_OWNER_USER_ID || "");
   const requestedOwner = String(ownerUserId || "");
-  return UUID.test(configuredOwner) && UUID.test(requestedOwner)
+  if (!UUID.test(requestedOwner)) return false;
+  const access = String(env.REPLICA_SELF_TEST_ACCESS || "");
+  if (access) return access === SELF_TEST_ACCESS_ALL_AUTHENTICATED;
+  const configuredOwner = String(env.REPLICA_SELF_TEST_OWNER_USER_ID || "");
+  return UUID.test(configuredOwner)
     && configuredOwner.toLowerCase() === requestedOwner.toLowerCase();
 }
 
@@ -114,9 +121,37 @@ async function pickUnselectedEnhanceCandidate(db, ownerUserId, replicaId) {
        from vy_replica_processing_artifact a
        join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id
         and s.owner_user_id=a.owner_user_id
+       left join vy_replica_voice_reference vr on vr.replica_id=s.replica_id
+        and vr.owner_user_id=s.owner_user_id and vr.source_id=s.source_id
       where a.replica_id=$1::uuid and a.owner_user_id=$2::uuid and a.stage='enhance'
         and a.mime in ('audio/wav','audio/x-wav') and s.state='ready' and s.contains_third_parties=false
         and lower(a.adapter_family||' '||a.adapter_name||' '||a.adapter_version) !~ '(fake|fixture|test|mock)'
+        -- Reconciliation is level-triggered and can run every few minutes. If
+        -- a usable enhance artifact is already the current selection, preserve
+        -- that review decision. Looking only for an unselected row here made
+        -- every pass choose the next variant and retire the previous build.
+        and not exists (
+          select 1
+            from vy_replica_processing_artifact current_artifact
+            join vy_replica_source current_source
+              on current_source.source_id=current_artifact.source_id
+             and current_source.replica_id=current_artifact.replica_id
+             and current_source.owner_user_id=current_artifact.owner_user_id
+            join (
+              select distinct on (d.artifact_id) d.artifact_id,d.decision
+                from vy_replica_processing_artifact_decision d
+               where d.replica_id=a.replica_id and d.owner_user_id=a.owner_user_id
+               order by d.artifact_id,d.created_at desc,d.decision_id desc
+            ) current_decision on current_decision.artifact_id=current_artifact.artifact_id
+             and current_decision.decision='selected'
+           where current_artifact.replica_id=a.replica_id
+             and current_artifact.owner_user_id=a.owner_user_id
+             and current_artifact.stage='enhance'
+             and current_artifact.mime in ('audio/wav','audio/x-wav')
+             and current_source.state='ready' and current_source.contains_third_parties=false
+             and lower(current_artifact.adapter_family||' '||current_artifact.adapter_name||' '||current_artifact.adapter_version)
+               !~ '(fake|fixture|test|mock)'
+        )
         and not exists (
           select 1 from (
             select distinct on (d.artifact_id) d.artifact_id, d.decision
@@ -130,7 +165,8 @@ async function pickUnselectedEnhanceCandidate(db, ownerUserId, replicaId) {
       -- preservation candidate; full noise suppression must never win merely
       -- because it was inserted later. The variant-key branch preserves that
       -- preference for artifacts written before quality metadata was durable.
-      order by case
+      order by case when vr.source_id is not null then 0 else 1 end,
+      case
         when a.manifest#>>'{quality,identity_preservation_candidate}'='true' then 0
         when lower(a.variant_key) like '%-identity-preserving' then 1
         when lower(a.variant_key) like '%-noise-suppressing' then 3
@@ -143,20 +179,89 @@ async function pickUnselectedEnhanceCandidate(db, ownerUserId, replicaId) {
 
 /**
  * Satisfies only the enrollment ceremony gates needed before source creation.
- * The authenticated API caller supplies ownerUserId; the environment allowlist
- * must match it, and the SQL independently requires that owner plus a self-mode
+ * The authenticated API caller supplies ownerUserId. The explicit access mode
+ * must admit it, and SQL independently requires that owner plus a self-mode
  * replica. Technical upload, scanning, evidence and model-build gates remain.
  */
 export async function bootstrapSelfTestReplica(db, { ownerUserId, replicaId, env = process.env } = {}) {
   if (!selfTestModeEnabled(env, ownerUserId)) return { applied: false, reason: "flag_off" };
   const rid = parseReplicaId(replicaId);
-  const metadataJson = JSON.stringify(SELF_TEST_GRANT_METADATA);
+  const metadataJson = JSON.stringify({
+    ...SELF_TEST_GRANT_METADATA,
+    access_scope: env.REPLICA_SELF_TEST_ACCESS === SELF_TEST_ACCESS_ALL_AUTHENTICATED
+      ? SELF_TEST_ACCESS_ALL_AUTHENTICATED
+      : "single-owner",
+  });
   const identity = await grantSelfTestIdentityAndConsent(db, ownerUserId, rid, metadataJson);
   if (!identity) return { applied: false, reason: "not_a_self_replica" };
   return {
     applied: true,
     granted_scopes: Array.isArray(identity.granted_scopes) ? identity.granted_scopes : [],
   };
+}
+
+/**
+ * Recover ready internal-test replicas whose current draft disappeared.
+ *
+ * The ordinary fast path queues a build when `voice_quality` commits. That is
+ * an edge trigger: it never fires again after a later primary-source change or
+ * a retired draft. This bounded level-triggered sweep finds the durable state
+ * instead, then reuses the exact grant, selection and queue functions below.
+ */
+export async function reconcileSelfTestVoiceGenomes(db, options = {}) {
+  const env = options.env || process.env;
+  if (env.REPLICA_SELF_TEST_MODE !== "true" || env.REPLICA_SELF_TEST_ENVIRONMENT !== SELF_TEST_ENVIRONMENT) {
+    return Object.freeze({ examined: 0, queued: 0, blocked: 0, failed: 0 });
+  }
+  const allAuthenticated = env.REPLICA_SELF_TEST_ACCESS === SELF_TEST_ACCESS_ALL_AUTHENTICATED;
+  const onlyOwner = allAuthenticated ? null : String(env.REPLICA_SELF_TEST_OWNER_USER_ID || "");
+  if (!allAuthenticated && !UUID.test(onlyOwner)) {
+    return Object.freeze({ examined: 0, queued: 0, blocked: 0, failed: 0 });
+  }
+  const limit = Math.max(1, Math.min(100, Number(options.limit || 20)));
+  const candidates = await db(
+    `select r.replica_id,r.owner_user_id
+       from vy_replica r
+      where r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
+        and ($1::uuid is null or r.owner_user_id=$1::uuid)
+        and exists (
+          select 1 from vy_replica_source s
+           where s.replica_id=r.replica_id and s.owner_user_id=r.owner_user_id
+             and s.state='ready' and s.contains_third_parties=false
+        )
+        and not exists (
+          select 1 from vy_replica_voice_genome g
+           where g.replica_id=r.replica_id and g.status='draft'
+        )
+        and not exists (
+          select 1 from vy_replica_model_build b
+           where b.replica_id=r.replica_id and b.owner_user_id=r.owner_user_id
+             and b.build_kind='voice_genome' and b.state in ('queued','retry','leased','building')
+        )
+      order by r.updated_at limit $2::int4`,
+    [onlyOwner, limit],
+  );
+  let queued = 0;
+  let blocked = 0;
+  let failed = 0;
+  const apply = options.apply || applySelfTestAutoGrant;
+  for (const candidate of candidates) {
+    if (!selfTestModeEnabled(env, candidate.owner_user_id)) continue;
+    try {
+      const result = await apply(db, {
+        ownerUserId: candidate.owner_user_id,
+        replicaId: candidate.replica_id,
+        env,
+      });
+      if (result?.build?.state === "queued") queued += 1;
+      else blocked += 1;
+    } catch {
+      // One damaged replica must not keep every other ready replica from
+      // reaching the durable model-build lease in this same sweep.
+      failed += 1;
+    }
+  }
+  return Object.freeze({ examined: candidates.length, queued, blocked, failed });
 }
 
 /**

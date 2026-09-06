@@ -25,6 +25,14 @@ param privateEvidenceOrigin string = ''
 @description('Sarvam ASR model override. Empty uses the adapter default (saaras:v3).')
 param sarvamAsrModel string = ''
 
+@description('Azure AI Services endpoint for Speech fast transcription. Supply with azureSpeechKey to prefer Azure over Sarvam.')
+param azureSpeechEndpoint string = ''
+@secure()
+param azureSpeechKey string = ''
+@description('Azure Speech fast-transcription retail rate in USD per audio hour. Keep this aligned with the official Azure Retail Prices meter for the resource region.')
+@minLength(1)
+param azureSpeechFastTranscriptionUsdPerHour string = '0.36'
+
 // Inline secrets, not Key Vault references.
 //
 // The bicep used to take `@secure() ...SecretUri` parameters plus a
@@ -44,10 +52,17 @@ param evidenceHmacSecret string = ''
 @secure()
 param sarvamApiKey string = ''
 
-@description('DANGEROUS: owner-only internal test bypass. Defaults false. When true, replicaSelfTestOwnerUserId is mandatory and only that authenticated owner can be auto-granted enrollment ceremony gates.')
+@description('DANGEROUS: internal test bypass. Defaults false. Access is either one allowlisted owner or every authenticated account in the isolated test product.')
 param replicaSelfTestMode bool = false
 
-@description('Supabase auth UUID allowlisted for owner-only internal testing. Must remain empty unless replicaSelfTestMode is true.')
+@allowed([
+  'single-owner'
+  'all-authenticated'
+])
+@description('Exact self-test access scope. all-authenticated remains fenced by authentication, replica ownership, subject_mode=self and the internal-testing environment marker.')
+param replicaSelfTestAccess string = 'single-owner'
+
+@description('Supabase auth UUID allowlisted for single-owner internal testing. Must be empty for all-authenticated access.')
 param replicaSelfTestOwnerUserId string = ''
 
 @secure()
@@ -60,6 +75,9 @@ param acrUsername string = 'vyaktivoiceacr'
 @maxValue(2000)
 param azureApplicationBudgetUsd int = 1500
 
+@description('Optional Azure Monitor action group resource ID. When set, a failed worker execution pages this group.')
+param monitorActionGroupId string = ''
+
 var checkedImage = contains(image, '@sha256:') ? image : fail('image must be immutable by sha256 digest')
 var checkedSupabaseUrl = startsWith(supabaseUrl, 'https://') ? supabaseUrl : fail('supabaseUrl must use HTTPS')
 var azureStorageEnabled = !empty(azureReplicaStorageAccount) && !empty(azureReplicaStorageAccountKey) && !empty(azureReplicaStorageContainer)
@@ -71,7 +89,14 @@ var checkedWriteBucket = replicaStorageWriteBucket == expectedAzureLocator
   : fail('replicaStorageWriteBucket must match the configured storage backend')
 var checkedSelfTestOwner = !replicaSelfTestMode
   ? (empty(replicaSelfTestOwnerUserId) ? '' : fail('replicaSelfTestOwnerUserId must be empty while replicaSelfTestMode is false'))
-  : (length(replicaSelfTestOwnerUserId) == 36 ? replicaSelfTestOwnerUserId : fail('replicaSelfTestOwnerUserId must be a UUID when replicaSelfTestMode is true'))
+  : replicaSelfTestAccess == 'all-authenticated'
+    ? (empty(replicaSelfTestOwnerUserId) ? '' : fail('replicaSelfTestOwnerUserId must be empty for all-authenticated access'))
+    : (length(replicaSelfTestOwnerUserId) == 36 ? replicaSelfTestOwnerUserId : fail('replicaSelfTestOwnerUserId must be a UUID for single-owner access'))
+var azureSpeechEnabled = !empty(azureSpeechEndpoint) && !empty(azureSpeechKey)
+var azureSpeechDisabled = empty(azureSpeechEndpoint) && empty(azureSpeechKey)
+var checkedAzureSpeech = azureSpeechEnabled
+  ? (startsWith(azureSpeechEndpoint, 'https://') ? true : fail('azureSpeechEndpoint must use HTTPS'))
+  : (azureSpeechDisabled ? false : fail('azureSpeechEndpoint and azureSpeechKey must be configured together'))
 
 var evidenceEnv = empty(privateEvidenceOrigin) ? [] : [
   { name: 'AZURE_VOICE_EVIDENCE_ORIGIN', value: privateEvidenceOrigin }
@@ -82,11 +107,18 @@ var sarvamEnv = empty(sarvamApiKey) ? [] : concat([
 ], empty(sarvamAsrModel) ? [] : [
   { name: 'SARVAM_ASR_MODEL', value: sarvamAsrModel }
 ])
-var selfTestEnv = replicaSelfTestMode ? [
+var azureSpeechEnv = checkedAzureSpeech ? [
+  { name: 'AZURE_SPEECH_ENDPOINT', value: azureSpeechEndpoint }
+  { name: 'AZURE_SPEECH_KEY', secretRef: 'azure-speech-key' }
+  { name: 'AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR', value: azureSpeechFastTranscriptionUsdPerHour }
+] : []
+var selfTestEnv = replicaSelfTestMode ? concat([
   { name: 'REPLICA_SELF_TEST_MODE', value: 'true' }
   { name: 'REPLICA_SELF_TEST_ENVIRONMENT', value: 'internal-owner-testing' }
+  { name: 'REPLICA_SELF_TEST_ACCESS', value: replicaSelfTestAccess }
+], replicaSelfTestAccess == 'single-owner' ? [
   { name: 'REPLICA_SELF_TEST_OWNER_USER_ID', value: checkedSelfTestOwner }
-] : []
+] : []) : []
 
 resource worker 'Microsoft.App/jobs@2024-03-01' = {
   name: jobName
@@ -97,13 +129,16 @@ resource worker 'Microsoft.App/jobs@2024-03-01' = {
     configuration: {
       triggerType: 'Schedule'
       replicaTimeout: 3600
-      replicaRetryLimit: 0
+      // Retry one container-level startup failure immediately. Job-level
+      // retries remain token-fenced in Neon; this covers failures before a
+      // lease exists, such as a transient signature refresh or daemon start.
+      replicaRetryLimit: 1
       scheduleTriggerConfig: {
-        // Every five minutes, matching the Vercel sweeps. The earlier `*/2`
-        // can start an execution while the previous one is still inside its
-        // replica timeout, which stacks executions competing for the
-        // same leases to no benefit.
-        cronExpression: '*/5 * * * *'
+        // Two-minute pickup keeps a new short recording inside the product's
+        // one-to-five-minute target. Overlapping executions do not duplicate
+        // work: the database lease is atomic, and pendingWork exits before
+        // ClamAV startup when another execution already owns the due jobs.
+        cronExpression: '*/2 * * * *'
         parallelism: 1
         replicaCompletionCount: 1
       }
@@ -117,7 +152,9 @@ resource worker 'Microsoft.App/jobs@2024-03-01' = {
         { name: 'evidence-hmac', value: evidenceHmacSecret }
       ], empty(sarvamApiKey) ? [] : [
         { name: 'sarvam-key', value: sarvamApiKey }
-      ])
+      ], checkedAzureSpeech ? [
+        { name: 'azure-speech-key', value: azureSpeechKey }
+      ] : [])
       registries: [
         {
           server: acrServer
@@ -139,17 +176,58 @@ resource worker 'Microsoft.App/jobs@2024-03-01' = {
             { name: 'CLAMAV_ADAPTER_VERSION', value: 'clamav-1.4.3-debian12' }
             { name: 'FFPROBE_ADAPTER_VERSION', value: 'ffprobe-debian12' }
             { name: 'AZURE_REPLICA_APP_BUDGET_USD', value: string(azureApplicationBudgetUsd) }
-            { name: 'PROCESSING_JOBS_PER_RUN', value: '4' }
+            { name: 'PROCESSING_JOBS_PER_RUN', value: '12' }
             { name: 'PROCESSING_RUN_BUDGET_MS', value: '3300000' }
           ], checkedAzureStorage ? [
             { name: 'AZURE_REPLICA_STORAGE_ACCOUNT', value: azureReplicaStorageAccount }
             { name: 'AZURE_REPLICA_STORAGE_ACCOUNT_KEY', secretRef: 'azure-replica-storage-key' }
             { name: 'AZURE_REPLICA_STORAGE_CONTAINER', value: azureReplicaStorageContainer }
-          ] : [], evidenceEnv, sarvamEnv, selfTestEnv)
+          ] : [], evidenceEnv, azureSpeechEnv, sarvamEnv, selfTestEnv)
           resources: { cpu: json('1.0'), memory: '2Gi' }
         }
       ]
     }
+  }
+}
+
+resource workerExecutionFailedAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = if (!empty(monitorActionGroupId)) {
+  name: '${jobName}-execution-failed'
+  location: 'global'
+  properties: {
+    description: 'The replica processing job had a failed execution. User uploads may be waiting before a lease was taken.'
+    severity: 1
+    enabled: true
+    scopes: [worker.id]
+    evaluationFrequency: 'PT5M'
+    windowSize: 'PT5M'
+    autoMitigate: true
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          criterionType: 'StaticThresholdCriterion'
+          name: 'failed-execution'
+          metricNamespace: 'Microsoft.App/jobs'
+          metricName: 'Executions'
+          dimensions: [
+            {
+              name: 'state'
+              operator: 'Include'
+              values: ['Failed']
+            }
+          ]
+          operator: 'GreaterThan'
+          threshold: 0
+          timeAggregation: 'Total'
+          skipMetricValidation: false
+        }
+      ]
+    }
+    actions: [
+      {
+        actionGroupId: monitorActionGroupId
+      }
+    ]
   }
 }
 

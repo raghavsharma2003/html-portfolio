@@ -65,13 +65,17 @@ export function retryDelayMs(attempt, failureCode = "processing_adapter_error") 
 
 export function classifyProcessingFailure(error, attempt, options = {}) {
   const maxAttempts = Number(options.maxAttempts || 5);
+  // Attempts are durable and monotonic because they also fence provider spend
+  // and append-only attempt evidence. A capability recovery starts the next
+  // bounded group without renumbering old attempts: 1..5, then 6..10, etc.
+  const cycleAttempt = ((Math.max(1, Number(attempt) || 1) - 1) % maxAttempts) + 1;
   const code = String(error?.code || "processing_worker_error").slice(0, 96);
   const retryable = error instanceof ProcessingAdapterError ? error.retryable : error?.retryable === true;
-  if (retryable && Number(attempt) < maxAttempts) {
+  if (retryable && cycleAttempt < maxAttempts) {
     return Object.freeze({
       outcome: "retry",
       failure_code: code,
-      retry_after_ms: retryDelayMs(attempt, code),
+      retry_after_ms: retryDelayMs(cycleAttempt, code),
     });
   }
   return Object.freeze({

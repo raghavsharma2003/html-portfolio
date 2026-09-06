@@ -42,6 +42,7 @@
 // beats an intention; four predicates say it four times.
 import { audioRef, videoListing } from "../contracts.js";
 import { createYouTubeOAuthChannelProvider } from "./youtube-oauth.js";
+import { channelExtractionObjectPath } from "../extraction-storage.js";
 
 const NAME = "youtube-owner-extract";
 const VERSION = "1";
@@ -68,10 +69,6 @@ function keyFromUrl(url) {
  *  failed at once, and `/original` because that is the suffix
  *  `api/_replica-processing/storage.js` admits — an extracted lecture and an
  *  uploaded one are the same kind of object and are stored the same way. */
-function objectPathFor(watch, video) {
-  return `${watch.ownerUserId}/${watch.replicaId}/${watch.watchId}/${video.videoId}/original`;
-}
-
 /**
  * @param {object} options
  * @param {object} options.extractClient  `createMediaExtractClient()`'s value.
@@ -137,9 +134,16 @@ export function createYouTubeExtractChannelProvider(options = {}) {
         fail("channel_extract_duration_over_ceiling", 413, { durationMs: video.durationMs, ceiling });
       }
 
-      const objectPath = objectPathFor(watch, video);
+      const storageScope = {
+        ownerUserId: watch.ownerUserId,
+        replicaId: watch.replicaId,
+        scopeKind: context?.storageScopeKind,
+        scopeId: watch.watchId,
+        videoId: video.videoId,
+      };
+      const objectPath = channelExtractionObjectPath(storageScope);
       let upload;
-      try { upload = await signUpload(objectPath); }
+      try { upload = await signUpload(objectPath, storageScope); }
       catch { fail("channel_extract_upload_target_unavailable", 503); }
 
       const result = await extractClient.extractAudio({

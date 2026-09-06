@@ -1,0 +1,838 @@
+@layer components {
+  .cvj-shell,
+  .cvj-shell * {
+    box-sizing: border-box;
+  }
+
+  .cvj-shell {
+    --cvj-paper: var(--vx-paper, #f8f8f5);
+    --cvj-paper-deep: var(--vx-paper-deep, #efefea);
+    --cvj-ink: var(--vx-ink, #0c0e0d);
+    --cvj-muted: var(--vx-muted, #50524f);
+    --cvj-line: var(--vx-line, #d7d7d0);
+    --cvj-green: var(--vx-green, #1f6b54);
+    --cvj-green-bright: var(--vx-green-bright, #2d866c);
+    --cvj-green-soft: var(--vx-green-soft, #dfece6);
+    --cvj-blue: var(--vx-blue, #4e8ee6);
+    --cvj-danger: var(--vx-danger, #b93627);
+    --cvj-ease: var(--vx-ease, cubic-bezier(0.23, 1, 0.32, 1));
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    width: 100%;
+    height: 100dvh;
+    min-height: 560px;
+    overflow: hidden;
+    color: var(--cvj-ink);
+    background:
+      radial-gradient(ellipse 58% 44% at 50% 55%, rgba(23, 131, 97, 0.05), transparent 72%),
+      var(--cvj-paper);
+    font-family: var(--vx-font, "Geist Variable", "Instrument Sans Variable", system-ui, sans-serif);
+  }
+
+  .cvj-shell button,
+  .cvj-shell input,
+  .cvj-shell select {
+    font: inherit;
+  }
+
+  .cvj-shell button,
+  .cvj-file-picker,
+  .cvj-declaration {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .cvj-shell button:focus-visible,
+  .cvj-shell input:focus-visible,
+  .cvj-shell select:focus-visible,
+  .cvj-shell summary:focus-visible,
+  .cvj-file-picker:focus-within {
+    outline: 3px solid color-mix(in srgb, var(--cvj-blue) 58%, transparent);
+    outline-offset: 3px;
+  }
+
+  .cvj-file-input:focus-visible + .cvj-file-picker {
+    outline: 3px solid color-mix(in srgb, var(--cvj-blue) 58%, transparent);
+    outline-offset: 3px;
+  }
+
+  .cvj-header {
+    position: relative;
+    z-index: 3;
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: calc(72px + env(safe-area-inset-top));
+    padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+    border-bottom: 1px solid var(--cvj-line);
+    background: color-mix(in srgb, var(--cvj-paper) 94%, transparent);
+  }
+
+  .cvj-icon-button {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    color: var(--cvj-ink);
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .cvj-icon-button:hover {
+    background: var(--cvj-green-soft);
+  }
+
+  .cvj-icon-button svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .cvj-header__identity {
+    display: grid;
+    min-width: 0;
+    gap: 1px;
+  }
+
+  .cvj-header__identity strong,
+  .cvj-header__identity span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cvj-header__identity strong {
+    font-size: 14px;
+    font-weight: 720;
+    letter-spacing: -0.01em;
+  }
+
+  .cvj-header__identity span {
+    color: var(--cvj-muted);
+    font-size: 12px;
+  }
+
+  .cvj-progress {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 56px;
+  }
+
+  .cvj-progress i {
+    display: block;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--cvj-muted) 24%, transparent);
+    transform-origin: center;
+    transition: transform 240ms var(--cvj-ease), background-color 180ms ease-out;
+  }
+
+  .cvj-progress i[data-state="done"] {
+    background: var(--cvj-green-bright);
+  }
+
+  .cvj-progress i[data-state="current"] {
+    transform: scaleX(2.85);
+    background: var(--cvj-green);
+  }
+
+  .cvj-stage {
+    width: 100%;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: clamp(24px, 5dvh, 56px) max(18px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+    scrollbar-color: color-mix(in srgb, var(--cvj-green) 28%, transparent) transparent;
+    scrollbar-width: thin;
+  }
+
+  .cvj-stage::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .cvj-stage::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--cvj-green) 28%, transparent);
+  }
+
+  .cvj-focus,
+  .cvj-document,
+  .cvj-build,
+  .cvj-review-stage,
+  .cvj-shell > .cvj-stage > .identity-section,
+  .cvj-shell > .cvj-stage > .liveness-section,
+  .cvj-shell > .cvj-stage > .model-consent-section {
+    width: min(100%, 700px);
+    margin: 0 auto;
+    animation: cvj-arrive 340ms var(--cvj-ease) both;
+  }
+
+  .cvj-focus {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    min-height: 100%;
+    gap: 26px;
+    text-align: center;
+  }
+
+  .cvj-focus > div {
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+  }
+
+  .cvj-focus__mark {
+    display: grid;
+    width: 68px;
+    height: 68px;
+    place-items: center;
+    border-radius: 24px;
+    color: var(--cvj-green);
+    background: var(--cvj-green-soft);
+    box-shadow: 0 14px 34px rgba(16, 33, 27, 0.09);
+  }
+
+  .cvj-focus__mark svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .cvj-focus--blocked .cvj-focus__mark {
+    color: var(--cvj-danger);
+    background: color-mix(in srgb, var(--cvj-danger) 10%, var(--cvj-paper));
+  }
+
+  .cvj-focus--ready .cvj-focus__mark {
+    color: #fff;
+    background: var(--cvj-green);
+  }
+
+  .cvj-focus h1,
+  .cvj-document h1,
+  .cvj-build h1 {
+    max-width: 16ch;
+    margin: 0;
+    color: var(--cvj-ink);
+    font-size: clamp(32px, 8vw, 52px);
+    font-weight: 620;
+    letter-spacing: -0.035em;
+    line-height: 0.98;
+    text-wrap: balance;
+  }
+
+  .cvj-focus p,
+  .cvj-document__intro p,
+  .cvj-build > div > p {
+    max-width: 48ch;
+    margin: 0;
+    color: var(--cvj-muted);
+    font-size: 16px;
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  .cvj-primary,
+  .cvj-quiet,
+  .cvj-shell .button,
+  .cvj-shell .review-refresh,
+  .cvj-shell .review-save,
+  .cvj-shell .artifact-actions button,
+  .cvj-shell .text-button {
+    min-height: 48px;
+    padding: 0 22px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 680;
+    cursor: pointer;
+    transition: transform 150ms ease-out, background-color 180ms ease-out, color 180ms ease-out;
+  }
+
+  .cvj-primary,
+  .cvj-shell .primary-button,
+  .cvj-shell .review-save,
+  .cvj-shell .artifact-select {
+    border: 1px solid var(--cvj-green);
+    color: #fff;
+    background: var(--cvj-green);
+    box-shadow: 0 10px 24px rgba(11, 91, 69, 0.16);
+  }
+
+  .cvj-primary:hover,
+  .cvj-shell .primary-button:hover,
+  .cvj-shell .review-save:hover {
+    background: color-mix(in srgb, var(--cvj-green) 88%, #000);
+  }
+
+  .cvj-primary--danger {
+    border-color: var(--cvj-danger);
+    background: var(--cvj-danger);
+    box-shadow: 0 10px 24px color-mix(in srgb, var(--cvj-danger) 18%, transparent);
+  }
+
+  .cvj-primary--danger:hover {
+    background: color-mix(in srgb, var(--cvj-danger) 88%, #000);
+  }
+
+  .cvj-primary:active,
+  .cvj-quiet:active,
+  .cvj-shell button:active {
+    transform: scale(0.98);
+  }
+
+  .cvj-quiet,
+  .cvj-shell .secondary-button,
+  .cvj-shell .review-refresh,
+  .cvj-shell .artifact-actions button,
+  .cvj-shell .text-button {
+    border: 1px solid var(--cvj-line);
+    color: var(--cvj-ink);
+    background: color-mix(in srgb, #fff 82%, transparent);
+  }
+
+  .cvj-primary:disabled,
+  .cvj-quiet:disabled,
+  .cvj-shell button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    transform: none;
+  }
+
+  .cvj-document {
+    display: grid;
+    align-content: center;
+    min-height: 100%;
+    gap: 18px;
+  }
+
+  .cvj-document__intro {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 8px;
+  }
+
+  .cvj-document__intro > div {
+    display: grid;
+    gap: 9px;
+  }
+
+  .cvj-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .cvj-file-picker {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    min-height: 72px;
+    padding: 12px 16px;
+    border: 1px solid var(--cvj-line);
+    border-radius: 16px;
+    background: color-mix(in srgb, #fff 84%, transparent);
+    cursor: pointer;
+  }
+
+  .cvj-file-picker:hover {
+    border-color: color-mix(in srgb, var(--cvj-green) 44%, transparent);
+    background: #fff;
+  }
+
+  .cvj-file-picker > svg {
+    width: 24px;
+    height: 24px;
+    color: var(--cvj-green);
+  }
+
+  .cvj-file-picker span {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  .cvj-file-picker strong,
+  .cvj-file-picker small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cvj-file-picker strong {
+    font-size: 15px;
+  }
+
+  .cvj-file-picker small {
+    color: var(--cvj-muted);
+    font-size: 13px;
+  }
+
+  .cvj-declaration {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    color: var(--cvj-ink);
+    font-size: 14px;
+    line-height: 1.4;
+    cursor: pointer;
+  }
+
+  .cvj-declaration input,
+  .cvj-shell .identity-statements input,
+  .cvj-shell .biometric-consent-list input,
+  .cvj-shell .model-consent-check input {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    accent-color: var(--cvj-green);
+  }
+
+  .cvj-upload-state {
+    display: grid;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    color: var(--cvj-ink);
+    background: var(--cvj-green-soft);
+  }
+
+  .cvj-upload-state > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 13px;
+  }
+
+  .cvj-upload-state progress {
+    width: 100%;
+    height: 5px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 999px;
+    appearance: none;
+  }
+
+  .cvj-upload-state progress::-webkit-progress-bar {
+    background: rgba(11, 91, 69, 0.13);
+  }
+
+  .cvj-upload-state progress::-webkit-progress-value,
+  .cvj-upload-state progress::-moz-progress-bar {
+    background: var(--cvj-green);
+  }
+
+  .cvj-indeterminate {
+    display: block;
+    width: 32%;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--cvj-green);
+    animation: cvj-scan 1.3s ease-in-out infinite alternate;
+  }
+
+  .cvj-error,
+  .cvj-success,
+  .cvj-wait,
+  .cvj-platform-stop {
+    margin: 0;
+    padding: 13px 15px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .cvj-error,
+  .cvj-platform-stop {
+    color: #7e251f;
+    background: #fae9e7;
+  }
+
+  .cvj-success,
+  .cvj-wait {
+    color: var(--cvj-green);
+    background: var(--cvj-green-soft);
+  }
+
+  .cvj-privacy {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    color: var(--cvj-muted);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .cvj-privacy svg {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+  }
+
+  .cvj-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .cvj-reset-confirm {
+    display: grid;
+    width: min(100%, 560px);
+    justify-items: center;
+    gap: 14px;
+    padding: 18px;
+    border: 1px solid color-mix(in srgb, var(--cvj-danger) 22%, transparent);
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--cvj-danger) 5%, var(--cvj-paper));
+  }
+
+  .cvj-reset-confirm p {
+    font-size: 14px;
+  }
+
+  .cvj-document--waiting {
+    justify-items: center;
+    text-align: center;
+  }
+
+  .cvj-document--waiting > div:not(.cvj-actions) {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+  }
+
+  .cvj-build {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    min-height: 100%;
+    gap: 26px;
+    text-align: center;
+  }
+
+  .cvj-build > div {
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+  }
+
+  .cvj-build__signal {
+    position: relative;
+    display: block;
+    width: min(220px, 58vw);
+    aspect-ratio: 1;
+  }
+
+  .cvj-build__signal .vx-voice-field {
+    width: 100%;
+  }
+
+  .cvj-build dl {
+    display: grid;
+    width: min(100%, 480px);
+    margin: 0;
+    border-top: 1px solid var(--cvj-line);
+  }
+
+  .cvj-build dl div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: 18px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--cvj-line);
+    text-align: left;
+  }
+
+  .cvj-build dt {
+    color: var(--cvj-muted);
+  }
+
+  .cvj-build dd {
+    margin: 0;
+    font-weight: 650;
+  }
+
+  .cvj-review-stage {
+    display: grid;
+    gap: 14px;
+  }
+
+  .cvj-platform-stop {
+    display: grid;
+    gap: 3px;
+  }
+
+  /* Existing safety components retain their behavior, but shed the old
+     dashboard furniture inside this single-stage journey. */
+  .cvj-shell .identity-section,
+  .cvj-shell .liveness-section,
+  .cvj-shell .model-consent-section,
+  .cvj-shell .processing-review,
+  .cvj-shell .identity-body,
+  .cvj-shell .liveness-body,
+  .cvj-shell .processing-review-content {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .cvj-shell .eyebrow {
+    display: none;
+  }
+
+  .cvj-shell .panel-title-row,
+  .cvj-shell .section-heading {
+    align-items: start;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  .cvj-shell .panel-title-row h3,
+  .cvj-shell .section-heading h2,
+  .cvj-shell #processing-review-title {
+    max-width: 18ch;
+    margin: 0;
+    color: var(--cvj-ink);
+    font-size: clamp(30px, 7vw, 48px);
+    font-weight: 620;
+    letter-spacing: -0.035em;
+    line-height: 1;
+    text-wrap: balance;
+  }
+
+  .cvj-shell .permission-badge,
+  .cvj-shell .model-consent-state {
+    flex: 0 0 auto;
+    min-height: 28px;
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .cvj-shell .identity-intro,
+  .cvj-shell .voice-enrollment-intro,
+  .cvj-shell .review-intro,
+  .cvj-shell .identity-boundary,
+  .cvj-shell .liveness-boundary,
+  .cvj-shell .voice-enrollment-note {
+    max-width: 68ch;
+    color: var(--cvj-muted);
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  .cvj-shell .identity-statements,
+  .cvj-shell .biometric-consent-list,
+  .cvj-shell .model-consent-statements {
+    display: grid;
+    gap: 8px;
+    padding: 0;
+    border: 0;
+  }
+
+  .cvj-shell .identity-statements label,
+  .cvj-shell .biometric-consent-list label,
+  .cvj-shell .model-consent-check {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+    min-height: 48px;
+    padding: 12px 14px;
+    border: 1px solid var(--cvj-line);
+    border-radius: 14px;
+    background: color-mix(in srgb, #fff 78%, transparent);
+  }
+
+  .cvj-shell .identity-form,
+  .cvj-shell .challenge-empty,
+  .cvj-shell .model-consent-ceremony,
+  .cvj-shell .model-consent-active,
+  .cvj-shell .recording-review,
+  .cvj-shell .capture-setup {
+    display: grid;
+    gap: 14px;
+  }
+
+  .cvj-shell .field,
+  .cvj-shell select,
+  .cvj-shell input[type="text"] {
+    min-height: 48px;
+  }
+
+  .cvj-shell .identity-state,
+  .cvj-shell .verification-pending,
+  .cvj-shell .evidence-gate,
+  .cvj-shell .challenge-card,
+  .cvj-shell .official-face-gate,
+  .cvj-shell .capture-privacy,
+  .cvj-shell .review-source,
+  .cvj-shell .build-readiness {
+    border: 1px solid var(--cvj-line);
+    border-radius: 16px;
+    background: color-mix(in srgb, #fff 78%, transparent);
+    box-shadow: none;
+  }
+
+  .cvj-shell .review-source-list,
+  .cvj-shell .review-evidence-list,
+  .cvj-shell .artifact-grid {
+    gap: 10px;
+  }
+
+  .cvj-shell .review-source summary {
+    min-height: 52px;
+  }
+
+  .cvj-shell audio,
+  .cvj-shell video {
+    max-width: 100%;
+  }
+
+  @media (min-width: 760px) {
+    .cvj-header {
+      padding-inline: max(28px, env(safe-area-inset-left));
+    }
+
+    .cvj-stage {
+      padding-inline: 32px;
+    }
+
+    .cvj-document__intro {
+      gap: 24px;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .cvj-header {
+      grid-template-columns: 44px minmax(0, 1fr) 56px;
+    }
+
+    .cvj-header__identity strong {
+      font-size: 13px;
+    }
+
+    .cvj-progress {
+      justify-content: flex-end;
+      gap: 4px;
+    }
+
+    .cvj-stage {
+      padding-top: clamp(20px, 4dvh, 34px);
+    }
+
+    .cvj-document__intro {
+      grid-template-columns: 1fr;
+      justify-items: start;
+    }
+
+    .cvj-document__intro .cvj-focus__mark {
+      width: 54px;
+      height: 54px;
+      border-radius: 19px;
+    }
+
+    .cvj-focus h1,
+    .cvj-document h1,
+    .cvj-build h1 {
+      font-size: clamp(31px, 10vw, 42px);
+    }
+
+    .cvj-primary,
+    .cvj-quiet,
+    .cvj-document > .cvj-primary,
+    .cvj-document > .cvj-quiet {
+      width: 100%;
+    }
+
+    .cvj-shell .panel-title-row,
+    .cvj-shell .section-heading {
+      display: grid;
+      grid-template-columns: 1fr;
+    }
+
+    .cvj-shell .permission-badge,
+    .cvj-shell .model-consent-state {
+      justify-self: start;
+    }
+
+    .cvj-shell .review-source summary {
+      grid-template-columns: 36px minmax(0, 1fr);
+    }
+
+    .cvj-shell .review-source summary .source-state {
+      grid-column: 2;
+      justify-self: start;
+    }
+
+    .cvj-build dl div {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+  }
+
+  @media (max-height: 660px) {
+    .cvj-shell {
+      min-height: 0;
+    }
+
+    .cvj-focus,
+    .cvj-document,
+    .cvj-build {
+      align-content: start;
+      min-height: auto;
+    }
+
+    .cvj-focus {
+      gap: 18px;
+    }
+
+    .cvj-focus__mark {
+      width: 54px;
+      height: 54px;
+      border-radius: 19px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cvj-shell *,
+    .cvj-shell *::before,
+    .cvj-shell *::after {
+      scroll-behavior: auto;
+      animation-duration: 1ms;
+      animation-iteration-count: 1;
+      transition-duration: 1ms;
+    }
+  }
+
+  @keyframes cvj-arrive {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes cvj-scan {
+    from { transform: translateX(0); }
+    to { transform: translateX(210%); }
+  }
+
+}

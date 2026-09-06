@@ -30,6 +30,23 @@ import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { obsBestEffort } from "./_obs.js";
 import {
+  createPendingSource,
+  discardUnboundContextSource,
+  finalizeOwnedContextSource,
+  markOwnedSourceDeleting,
+} from "./_replica-source.js";
+import {
+  REPLICA_STORAGE_WRITE_BUCKET,
+  ensurePrivateReplicaBucket,
+  writeImmutableReplicaSource,
+} from "./_replica-storage.js";
+import {
+  acquireContextSourceStorageWriter,
+  releaseSourceStorageWriter,
+  renewSourceStorageWriter,
+} from "./_replica-storage-writer.js";
+import { bootstrapSelfTestReplica } from "./_replica-processing/self-test.js";
+import {
   ContextItemError,
   MAX_ITEM_BYTES,
   addContextFile,
@@ -92,6 +109,72 @@ async function settle(entries, run) {
   return out;
 }
 
+// Kept outside the HTTP adapter so the provider-timeout interleaving is an
+// executable contract. In particular, once a durable writer authority has
+// been acquired, no error path is allowed to hard-delete the source manifest:
+// an acknowledged timeout can still become a late provider commit.
+export async function createStoredContextSource(db, ownerUserId, replicaId, input, deps = {}) {
+  const createSource = deps.createSource || createPendingSource;
+  const acquireWriter = deps.acquireWriter || acquireContextSourceStorageWriter;
+  const renewWriter = deps.renewWriter || renewSourceStorageWriter;
+  const releaseWriter = deps.releaseWriter || releaseSourceStorageWriter;
+  const writeSource = deps.writeSource || writeImmutableReplicaSource;
+  const finalizeSource = deps.finalizeSource || finalizeOwnedContextSource;
+  const markDeleting = deps.markDeleting || markOwnedSourceDeleting;
+  const discardSource = deps.discardSource || discardUnboundContextSource;
+  let source = null;
+  let storageWriter = null;
+  try {
+    source = await createSource(db, ownerUserId, replicaId, {
+      kind: input.kind,
+      mime: input.mime,
+      byte_size: input.bytes.length,
+      sha256: input.contentSha256,
+      contains_third_parties: input.containsThirdParties,
+      purpose: "context_item",
+    });
+    if (!source) throw new ContextItemError("context_source_permissions_required", 409);
+    storageWriter = await acquireWriter(db, {
+      sourceId: source.source_id,
+      replicaId,
+      ownerUserId,
+    });
+    const stored = await writeSource({
+      storageBucket: source.storage_bucket,
+      objectPath: source.object_path,
+      mime: input.mime,
+      body: input.bytes,
+      expectedSha256: input.contentSha256,
+      ifNoneMatch: "*",
+    }, {
+      maxBytes: MAX_ITEM_BYTES,
+      beforeWriteRequest: async () => {
+        storageWriter = await renewWriter(db, storageWriter);
+      },
+    });
+    const ready = await finalizeSource(db, ownerUserId, replicaId, source.source_id, stored);
+    if (!ready || ready.state !== "ready") {
+      throw new ContextItemError(ready?.rejection_code || "context_source_finalize_failed", 409);
+    }
+    // A release failure is fail-closed: its active row delays erasure until
+    // not-after, but a complete context item remains usable.
+    await releaseWriter(db, storageWriter).catch(() => false);
+    return ready;
+  } catch (error) {
+    if (source) {
+      try {
+        if (storageWriter) {
+          await markDeleting(db, ownerUserId, replicaId, source.source_id);
+        } else {
+          await discardSource(db, ownerUserId, replicaId, source.source_id);
+        }
+      } catch { /* the retained source manifest remains cleanup authority */ }
+    }
+    if (error instanceof ContextItemError) throw error;
+    throw new ContextItemError(String(error?.code || "context_private_storage_failed"), Number(error?.status || 503));
+  }
+}
+
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
@@ -123,6 +206,25 @@ export default async function handler(req, res) {
       const files = Array.isArray(body.files) ? body.files : [];
       if (!files.length) return res.status(400).json({ error: "files_required" });
       if (files.length > MAX_BATCH) return res.status(413).json({ error: "batch_too_large", details: { files: files.length, max: MAX_BATCH } });
+      await bootstrapSelfTestReplica(q, {
+        ownerUserId: user.id,
+        replicaId: replicaIdValue,
+        env: process.env,
+      });
+      const bucketReady = ensurePrivateReplicaBucket(REPLICA_STORAGE_WRITE_BUCKET);
+      const sourceDeps = {
+        createCanonicalSource: async (input) => {
+          await bucketReady;
+          return createStoredContextSource(q, user.id, replicaIdValue, input);
+        },
+        discardCanonicalSource: async (source) => {
+          // This source has already crossed the provider boundary. Even an
+          // acknowledged exact DELETE is not a proof that a timed-out earlier
+          // write cannot land later, so retain the manifest and let the
+          // authority-aware prefix sweeper retire it.
+          await markOwnedSourceDeleting(q, user.id, replicaIdValue, source.source_id);
+        },
+      };
       let denied = false;
       const results = await settle(files, async (file) => {
         const result = await addContextFile(q, user.id, replicaIdValue, {
@@ -131,7 +233,7 @@ export default async function handler(req, res) {
           authorship: file?.authorship,
           owner_speaker: file?.owner_speaker,
           third_party_acknowledged: file?.third_party_acknowledged === true,
-        });
+        }, sourceDeps);
         if (!result) { denied = true; return { item: null, error: "replica_not_found" }; }
         return result;
       });

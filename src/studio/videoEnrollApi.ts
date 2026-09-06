@@ -62,6 +62,13 @@ export interface VideoEnrollView {
   extraction_configured: boolean;
 }
 
+export interface YouTubeVideoMetadata {
+  video_id: string;
+  title: string;
+  channel_name: string;
+  channel_url: string;
+}
+
 export interface VideoEnrollReceipt {
   stage: string;
   outcome: "ok" | "failed" | "refused" | "degraded";
@@ -112,6 +119,14 @@ export async function loadEnrollmentWindows(token: string, enrollmentId: string)
     `/api/video-enroll?enrollment_id=${encodeURIComponent(enrollmentId)}`,
   );
   return data.windows || [];
+}
+
+export async function inspectYouTubeVideo(token: string, videoUrl: string): Promise<YouTubeVideoMetadata> {
+  const data = await replicaRequest<{ metadata: YouTubeVideoMetadata }>(
+    token,
+    `/api/video-enroll?video_url=${encodeURIComponent(videoUrl)}`,
+  );
+  return data.metadata;
 }
 
 export async function enrollFromVideoLink(

@@ -152,6 +152,10 @@ export const OWNER_LANE_TABLES = Object.freeze([
   { table: "vy_channel_watch", scope: "replica" },
   { table: "vy_clone_channel", scope: "replica" },
   { table: "vy_channel_attestation", scope: "replica" },
+  { table: "vy_channel_extraction_object", scope: "replica" },
+  { table: "vy_replica_claim_extraction_queue", scope: "replica" },
+  { table: "vy_replica_claim_extraction_queue_item", scope: "replica" },
+  { table: "vy_replica_source_storage_writer", scope: "replica" },
 
   // ── voice and identity ─────────────────────────────────────────────────
   { table: "vy_replica_voice_profile", scope: "replica" },

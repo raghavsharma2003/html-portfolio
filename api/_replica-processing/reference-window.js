@@ -60,6 +60,14 @@ const BYTES_PER_SAMPLE = 2;
 // window at THIS rate, once, from the ORIGINAL recording -- never at the 16
 // kHz `SAMPLE_RATE` scoring uses.
 const ENROLLMENT_SAMPLE_RATE = 24_000;
+// Browser microphone capture is deliberately bounded to one minute. A short,
+// explicitly selected primary recording can be over-clustered when natural
+// pauses leave only a few seconds in each ECAPA cluster. In that one narrow
+// case, the owner's explicit primary/self/no-third-party declaration is
+// stronger identity evidence than treating every short cluster as a different
+// person. Longer uploads and any source that is not the selected primary keep
+// the dominant-cluster-only rule below.
+export const PRIMARY_SELF_CAPTURE_MAX_MS = 60_000;
 
 function fail(code) {
   throw Object.assign(new Error(code), { code, retryable: false });
@@ -156,6 +164,29 @@ export function mergeRuns(segments, gapMs = MERGE_GAP_MS) {
   return runs;
 }
 
+/** Whether a fragmented source may be scored as one continuous recording.
+ * This is intentionally stricter than "the file is short": it must be the
+ * exact owner-selected voice source for a self replica, a browser-shaped WAV,
+ * explicitly declared free of third parties, and contain at least one full
+ * window of diarized non-overlapping speech. */
+export function primarySelfCaptureFallback(source, segments) {
+  const durationMs = Number(source?.duration_ms);
+  const voicedMs = Array.isArray(segments)
+    ? segments.reduce((sum, segment) => sum + Math.max(0, Number(segment.end_ms) - Number(segment.start_ms)), 0)
+    : 0;
+  return Object.freeze({
+    eligible: source?.is_primary_voice === true && source?.subject_mode === "self"
+      && source?.kind === "audio" && source?.capture_mode === "upload"
+      && String(source?.mime || "").split(";", 1)[0].toLowerCase() === "audio/wav"
+      && source?.contains_third_parties === false
+      && Number.isFinite(durationMs) && durationMs >= WINDOW_MS && durationMs <= PRIMARY_SELF_CAPTURE_MAX_MS
+      && voicedMs >= WINDOW_MS
+      && segments.every((segment) => segment?.overlap !== true),
+    durationMs,
+    voicedMs,
+  });
+}
+
 /** A minimal canonical PCM16 mono WAV, same shape `windows.js` reads (at the
  *  default 16 kHz) and the voice-evidence service accepts. Rewritten rather
  *  than sliced out of ffmpeg's header because a byte-range slice of an
@@ -193,17 +224,28 @@ export function wavBytesForSamples(samples, sampleRate = SAMPLE_RATE) {
  *   withMaterializedAudio  from `createNativeToolRunners`.
  * @param {Buffer} sourceBytes  the ORIGINAL recording, already resolved.
  */
-export async function selectOwnerReferenceWindow({ segments, withMaterializedAudio, sourceBytes, sourceInput }) {
+export async function selectOwnerReferenceWindow({ segments, withMaterializedAudio, sourceBytes, sourceInput, source }) {
   if (!Array.isArray(segments) || !segments.length) fail("reference_window_no_diarization");
   const owner = ownerClusterSegments(segments);
   if (!owner.segments.length) fail("reference_window_no_owner_cluster");
 
   let runs = mergeRuns(owner.segments).filter((run) => run.end_ms - run.start_ms >= WINDOW_MS);
+  let selectionMode = "dominant_cluster";
+  let separationSkipped = shouldSkipSeparation(owner);
   if (!runs.length) {
-    // Nothing reaches one full window contiguously. Report this rather than
-    // padding or splicing to manufacture a candidate that was not there --
-    // "prefer an error to a believable value".
-    return null;
+    const fallback = primarySelfCaptureFallback(source || sourceInput?.source, segments);
+    if (!fallback.eligible) {
+      // Nothing reaches one full window contiguously and the source is not a
+      // bounded owner-selected microphone recording. Report this rather than
+      // padding or splicing a generic or multi-speaker upload.
+      return null;
+    }
+    // This is one continuous extraction of the original recording. It is not
+    // a splice: the window scorer still selects one ordinary 10-second span.
+    // Silence between phrases is allowed and penalized by the existing scorer.
+    runs = [{ start_ms: 0, end_ms: fallback.durationMs }];
+    selectionMode = "primary_self_capture";
+    separationSkipped = true;
   }
   runs.sort((a, b) => (b.end_ms - b.start_ms) - (a.end_ms - a.start_ms));
   let budget = MAX_TOTAL_EXTRACT_MS;
@@ -279,9 +321,10 @@ export async function selectOwnerReferenceWindow({ segments, withMaterializedAud
       speakerKey: owner.speakerKey,
       windowsConsidered: bounded.length,
       scoreSource: best.window.score_source,
+      selectionMode,
       // Whether `separate`'s neural model should run at all for this source --
       // see `shouldSkipSeparation`'s header for the reasoning and threshold.
-      separationSkipped: shouldSkipSeparation(owner),
+      separationSkipped,
       dominantShare: owner.dominantShare,
       clusterCount: owner.clusterCount,
     });

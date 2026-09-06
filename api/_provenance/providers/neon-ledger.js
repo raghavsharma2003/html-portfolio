@@ -2,6 +2,18 @@
 // Every segment insert re-checks the active replica capability in the same SQL
 // statement. Revocation therefore fences the next 240 ms segment before its
 // bytes can be released by protectReplicaStream.
+import { personProfileValiditySql } from "../../_person-model.js";
+
+const liveInferenceConsentSql = (replicaAlias = "r") => `exists (
+  select 1 from vy_replica_consent live_inference
+   where live_inference.replica_id=${replicaAlias}.replica_id
+     and live_inference.owner_user_id=${replicaAlias}.owner_user_id
+     and live_inference.scope='inference'
+     and live_inference.policy_version=${replicaAlias}.policy_version
+     and live_inference.revoked_at is null
+     and (live_inference.expires_at is null or live_inference.expires_at>now())
+)`;
+
 function one(rows, code) {
   if (!rows?.[0]) throw Object.assign(new Error(code), { code });
   return rows[0];
@@ -17,7 +29,7 @@ export function createNeonProvenanceLedger(db) {
             set state='streaming',streaming_at=coalesce(streaming_at,now()),
                 disclosure_scheme=$4,watermark_algorithm=$5,provenance_standard=$6,
                 watermark_token_hash=$7,updated_at=now()
-           from vy_replica r,vy_replica_runtime_capability c
+           from vy_replica r,vy_replica_runtime_capability c,vy_replica_profile pp
           where g.generation_id=$1 and g.replica_id=$2 and g.owner_user_id=$3
             and r.replica_id=g.replica_id and r.owner_user_id=g.owner_user_id
             and r.lifecycle='active'
@@ -25,6 +37,9 @@ export function createNeonProvenanceLedger(db) {
             and c.agent_id=r.agent_id and c.state='active'
             and c.voice_profile_id=g.voice_profile_id and c.genome_version=g.genome_version
             and c.profile_version=g.profile_version and c.calibration_version=g.calibration_version
+            and pp.replica_id=r.replica_id and pp.version=g.profile_version and pp.status='approved'
+            and (${personProfileValiditySql("pp", "r")})
+            and (${liveInferenceConsentSql("r")})
             and g.state='authorized'
           returning g.generation_id`,
         [input.generationId,input.replicaId,input.ownerUserId,input.disclosureScheme,
@@ -45,8 +60,12 @@ export function createNeonProvenanceLedger(db) {
             and c.agent_id=r.agent_id and c.state='active'
             and c.voice_profile_id=g.voice_profile_id and c.genome_version=g.genome_version
             and c.profile_version=g.profile_version and c.calibration_version=g.calibration_version
+           join vy_replica_profile pp
+            on pp.replica_id=r.replica_id and pp.version=g.profile_version and pp.status='approved'
           where g.generation_id=$1 and g.replica_id=$2 and g.owner_user_id=$3
             and g.state='streaming' and r.lifecycle='active'
+            and (${personProfileValiditySql("pp", "r")})
+            and (${liveInferenceConsentSql("r")})
          on conflict (generation_id,sequence) do update
            set issued_at=vy_replica_generation_segment_receipt.issued_at
          where vy_replica_generation_segment_receipt.byte_offset=excluded.byte_offset
@@ -73,13 +92,16 @@ export function createNeonProvenanceLedger(db) {
               set state='sealed',audio_sha256=$4,watermark_token_hash=$5,manifest_sha256=$6,
                   ledger_envelope_hash=$7,segment_count=$8,final_chain_sha256=$9,
                   sealed_at=$10,updated_at=now()
-             from vy_replica r,vy_replica_runtime_capability c
+             from vy_replica r,vy_replica_runtime_capability c,vy_replica_profile pp
             where g.generation_id=$1 and g.replica_id=$2 and g.owner_user_id=$3
               and r.replica_id=g.replica_id and r.owner_user_id=g.owner_user_id
               and r.lifecycle='active' and c.replica_id=r.replica_id
               and c.owner_user_id=r.owner_user_id and c.agent_id=r.agent_id and c.state='active'
               and c.voice_profile_id=g.voice_profile_id and c.genome_version=g.genome_version
               and c.profile_version=g.profile_version and c.calibration_version=g.calibration_version
+              and pp.replica_id=r.replica_id and pp.version=g.profile_version and pp.status='approved'
+              and (${personProfileValiditySql("pp", "r")})
+              and (${liveInferenceConsentSql("r")})
               and g.state='streaming'
            returning g.generation_id
          ), public_receipt as (

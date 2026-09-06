@@ -14,6 +14,11 @@ This spec is the synthesis of four commissioned drafts in this directory —
 audits. Where this file and a draft disagree, this file wins; the drafts keep
 their full detail.
 
+The implementation boundary that turns recordings, calls, documents, images,
+and authorized channel data into cited owner-reviewable learning is defined in
+`HUMAN-EXPERIENCE-COMPILER.md`. Its research basis is
+`research/MULTIMODAL-HUMAN-EXPERIENCE-COMPILER-2026-08-30.md`.
+
 ---
 
 ## 0. What this branch is

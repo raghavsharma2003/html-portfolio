@@ -342,12 +342,17 @@ ok("Studio microphone capture keeps its processing graph silent", /silent\.gain\
 // silence would turn the enumeration into a bypass list.
 const callCapture = code(src("src/studio/callCapture.ts"));
 ok("Mirror Call capture keeps its processing graph silent", /silent\.gain\.value\s*=\s*0/.test(callCapture));
+for (const file of ["src/creatorStudio/wavCapture.ts", "src/creatorStudio/callCapture.ts"]) {
+  ok(`${file} capture graph stays silent`, /silent\.gain\.value\s*=\s*0/.test(code(src(file))));
+}
 const AUDIO_CONTEXT_OWNERS = new Set([
   "src/voice/speech.ts",
   "src/voice/liveCall.ts",
   "src/sound/index.ts",
   "src/studio/wavCapture.ts",
   "src/studio/callCapture.ts",
+  "src/creatorStudio/wavCapture.ts",
+  "src/creatorStudio/callCapture.ts",
 ]);
 for (const f of files) {
   if (AUDIO_CONTEXT_OWNERS.has(f)) continue;

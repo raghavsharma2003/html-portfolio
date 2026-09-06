@@ -148,6 +148,15 @@ export const MIRROR_REFERENCE_SCOPE = "training";
  *  Mirror Call is runnable today and only its voice loop is gated. */
 export const MIRROR_SESSION_SCOPES = Object.freeze(["capture", "storage", "transcription"]);
 
+/** Durable or reusable learning from a call is a derivation over the owner's
+ * private recording. It therefore requires the live session scopes plus the
+ * verified training grant at the instant of the derived write, not merely the
+ * session's frozen start receipt. */
+export const MIRROR_DERIVATION_SCOPES = Object.freeze([
+  ...MIRROR_SESSION_SCOPES,
+  MIRROR_REFERENCE_SCOPE,
+]);
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export class MirrorCallError extends Error {

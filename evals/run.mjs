@@ -34,6 +34,7 @@ execSync(
 );
 
 const suites = {
+  "performance-prerequisites": "performance-prerequisites.mjs",
   parse: "parse.mjs",
   // WS-BURST. The multi-message wait policy — pure, offline, no model call,
   // wired here under the same `dead-writers` test as the suites below.
@@ -140,6 +141,29 @@ const suites = {
   // Unknown words and English confusables remain errors; coverage is explicit.
   hinglishscore: "speech/hinglish-script-score.test.mjs",
   hinditextfrontend: "speech/hindi-text-frontend.test.mjs",
+  voicecodeswitch: "voice-code-switch-frontier/run.mjs",
+  // Research-backed control plane for continuous call learning. This is a
+  // contract gate, not a quality claim: it keeps immutable events, ephemeral
+  // expression observations, dyad-scoped relation candidates, owner-approved
+  // materialization and empirical ETA semantics from collapsing into one
+  // silent "learn from everything" path.
+  continuoushumanclone: "continuous-human-clone/run.mjs",
+  // Deterministic boundary for every multimodal learning adapter. It binds
+  // immutable evidence to reviewable candidates, owner decisions and
+  // versioned materialization without inventing a second memory authority.
+  // Observable expression expires and can never claim a person's inner state.
+  experiencecompiler: "experience-compiler/run.mjs",
+  contextcanonical: "context-canonical-evidence/run.mjs",
+  acceptedclaimrelational: "experience-compiler/relational-materializer.mjs",
+  mirrorrelationalrecall: "mirrorcall-relational-recall/run.mjs",
+  // Migration 068's durable half: one closed numeric feature per row, exact
+  // source/span commitments, scoped active reads, 24-hour retention, owner
+  // export and replica erasure. No response or persona path consumes it.
+  expressionobservations: "expression-observations/run.mjs",
+  azuresurfacereply: "azure-surface-reply/run.mjs",
+  // Collect-only Mirror producer: four rule-derived turn mechanics enter the
+  // 24-hour ledger atomically with a successfully transcribed window.
+  mirrorexpression: "mirror-expression-observation/run.mjs",
   voicefrontier: "voice-bakeoff/frontier-plan.mjs",
   indicf5: "indicf5-runtime/run.mjs",
   indicf5pronunciation: "indicf5-pronunciation/run.mjs",
@@ -166,6 +190,7 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no browser, ~2s.
   mirrorcall: "mirrorcall.mjs",
+  mirrorownerspeaker: "mirrorcall-owner-speaker-attestation/run.mjs",
   // WS-I (Gurukul stays-current loop). The re-ingestion worker end to end:
   // a new video on a watched channel becomes a PROPOSED delta on a
   // `vy_ingest_run` row, and stops there.
@@ -598,6 +623,7 @@ const suites = {
   // uploaded only through a short-lived capability into a verified private
   // bucket. Offline, deterministic, no DB or storage call.
   replicaenrollment: "replica-enrollment/run.mjs",
+  clonecreationsaga: "clone-creation-saga/run.mjs",
   // Azure Blob large-media seam: create-only browser SAS, durable provider
   // locators, deterministic checksummed blocks, mixed-provider processing and
   // exact erasure. Every provider response is an offline fixture.
@@ -606,11 +632,17 @@ const suites = {
   // automatic detection, and a selected or processing calibration never reads
   // as a ready Hindi/Hinglish reference. Offline, deterministic, no media call.
   studioenrollmentquality: "studio-enrollment-quality/run.mjs",
+  quickvoicecapture: "quick-voice-capture/run.mjs",
+  primaryvoice: "primary-voice-source/run.mjs",
   // Explicit owner-only test builds remove verification and publishing
   // ceremony from the mounted UI while production remains the default. The
   // suite carries the naive "hide Deploy only" negative control so old
   // identity/liveness blockers cannot leak back into the simplified rail.
   studioselftestui: "studio-self-test-ui/run.mjs",
+  creatorstudioselftestui: "creator-studio-self-test-ui/run.mjs",
+  creatorvoicepreviewui: "creator-voice-preview-ui.mjs",
+  creatorvoicepanel: "creator-voicepanel.mjs",
+  expertworkspacenavigation: "expert-workspace-navigation.mjs",
   // Noisy-evidence processing: immutable derivatives, composite ownership,
   // retry-safe leases, provenance-carrying ASR/diarization/analysis evidence
   // and draft-only VoiceGenome builds. Fake adapters prove contracts only;
@@ -654,6 +686,11 @@ const suites = {
   // negative control, because an assertion that a scanner refuses is worthless
   // unless something proves the scanner could have said yes.
   processingsweep: "processing-sweep/run.mjs",
+  // A worker can die before it takes a lease, leaving an honest queue runner
+  // with no failure row at all. This content-free watchdog detects missed
+  // schedule windows in both processing and model-build lanes and never
+  // touches their leases.
+  replicapipelinewatchdog: "replica-pipeline-watchdog/run.mjs",
   // Owner processing review: strict tenant binding, append-only controlled
   // decisions, privacy-safe summaries, real-evidence readiness and an
   // idempotent draft-only VoiceGenome queue.
@@ -738,6 +775,11 @@ const suites = {
   // character-preserving direct-identifier redaction, strict Azure Foundry
   // structured output, exact quote citations and proposal-only persistence.
   replicaextract: "replica-claim-extraction/run.mjs",
+  // Canonical Mirror transcripts enter a durable content-free queue. A
+  // CRON_SECRET worker leases one replica at a time and writes only cited,
+  // review-pending proposals outside the call request latency path.
+  replicaclaimnearline: "replica-claim-nearline/run.mjs",
+  mirrorcallevidence: "mirrorcall-canonical-evidence/run.mjs",
   // Version-frozen private dialogue: typed Person Model + calibration,
   // agent/person-scoped relationship context, erasable raw logs, strict
   // structured output and server-bound protected speech.
@@ -803,10 +845,18 @@ const suites = {
   // original+derivative removal, external-voice fencing, claim deletion and
   // conservative scrubbing/retirement of models that cannot prove exclusion.
   sourceerasure: "source-erasure/run.mjs",
+  // Server writes keep a separate, token-fenced provider quiescence row.
+  // Every Azure mutation is <=8 MiB and renews that row before the request;
+  // source/full erasure recheck it before both lease and receipt.
+  sourcestoragewriter: "source-storage-writer/run.mjs",
   // Full replica deletion: child provider/storage fencing, exact synthetic
   // agent memory purge, encrypted private-row cascade and an unlinkable
   // content-free receipt with explicit backup-policy expiry.
   replicaerasure: "replica-erasure/run.mjs",
+  // Direct media-extractor capabilities are registered before mint, fenced
+  // through expiry, and physically drained by exact owner/replica prefix
+  // before full erasure can acknowledge storage or issue its receipt.
+  channelstorageerasure: "channel-storage-erasure/run.mjs",
   // Exact-version, multidimensional owner adjudication of a private turn,
   // including encrypted correction exemplars and sealed-audio lineage.
   replicafeedback: "replica-feedback/run.mjs",
@@ -1203,6 +1253,8 @@ const suites = {
   // Offline, deterministic, $0, no DB and no network: the real fence, the real
   // warm-up module and the real handler on a virtual clock.
   voicepanel: "voicepanel.mjs",
+  voicepreviewintent: "voice-preview-intent/run.mjs",
+  voicepreviewcleanup: "voice-preview-result-cleanup/run.mjs",
   // Owner-facing Meet UI: three visible language choices bound to the two
   // real synthesis language ids, honest warm-up timing, correction, mobile
   // layout and self-test ceremony removal. Protected receipts stay required.
@@ -1250,6 +1302,8 @@ const suites = {
   // WS-X's backend suite for the same feature, and the two gate different
   // halves of the same wire contract.
   mirrorcallapi: "mirrorcallapi.mjs",
+  "mirror-feedback-transport": "mirror-feedback-transport.mjs",
+  "processing-database-guard": "processing-worker/database-guard.mjs",
 
   // WS-AC. The CLONE'S REPLY inside a Mirror Call — the half `mirrorcallapi`
   // above explicitly did not have, back when `turn_voice` answered 501 and
@@ -1657,7 +1711,7 @@ const suites = {
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "rate-limit": "rate-limit/run.mjs",
   // WS-R31. The studio collapsed to Feed/Meet/Share: bundles the REAL
-  // `src/studio/studioShellModel.ts` (`evals/mirrorcall.mjs`'s pattern) and
+  // `src/creatorStudio/studioShellModel.ts` (`evals/mirrorcall.mjs`'s pattern) and
   // asserts every existing panel is reachable from `StudioShell.tsx` or
   // `StudioApp.tsx`'s "All panels" view (a static text scan against the
   // real `src/studio/` listing), the headline state for each tab under
@@ -1963,7 +2017,7 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-card": "room-card/run.mjs",
-  // WS-R52, migration 112. The studio in Hindi: src/studio/copy.ts is a
+  // WS-R52, migration 112. The studio in Hindi: src/creatorStudio/copy.ts is a
   // locale table with the SAME shape as src/room/copy.ts, reusing
   // evals/room-locale/run.mjs's own proof shape rather than a second
   // mechanism -- KEY PARITY (STUDIO_COPY_TABLE.en and .hi carry the exact
@@ -2047,7 +2101,7 @@ const suites = {
   // no model call, no GPU, no browser.
   "probe-live": "probe-live/run.mjs",
   // WS-R65: the creator's first five minutes, the Feed tab's own path card
-  // (`src/studio/CreatorPath.tsx`). The step order equals
+  // (`src/creatorStudio/CreatorPath.tsx`). The step order equals
   // `api/_funnel.js#FUNNEL_STEPS` byte for byte (both derived from the SAME
   // mirrored string, `CREATOR_PATH_STEPS_ORDER`/`FUNNEL_STEPS_ORDER`); the
   // Readiness floors (70/55) mirror `api/_readiness.js` exactly;
@@ -2263,7 +2317,7 @@ const suites = {
   // kit at all — nothing honest to share yet; a static scan proves no
   // follower/session/person/thread identifier is reachable from this file's
   // own code; and copy parity — `SHARE_KIT_COPY` is byte-identical, both
-  // locales, to the REAL `src/studio/copy.ts`/`hiCopy.ts` `shareKit` section
+  // locales, to the REAL `src/creatorStudio/copy.ts`/`hiCopy.ts` `shareKit` section
   // (`evals/studio-locale/run.mjs`'s own esbuild-bundle technique). THREE
   // NEGATIVE CONTROLS: (a) a text over its own channel's limit THROWS rather
   // than truncating; (b) a follower-identifier fixture is caught by the same
@@ -2441,6 +2495,7 @@ const suites = {
   // locales pass; Hindi is not in this gate's own time budget). $0, no
   // model call, no GPU; Chromium only (never `playwright install` —
   // /opt/pw-browsers is pre-installed).
+  "rehearsal-context-storage": "rehearsal/context-storage.mjs",
   "rehearsal-creator": "rehearsal/creator.mjs",
   // WS-R98. The operator digest/incident/self-check alert reaching
   // Telegram, no migration: `api/_operator-telegram.js`'s

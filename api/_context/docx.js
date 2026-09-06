@@ -14,7 +14,13 @@
 // fooled by a mismatched central directory into reading a different member than
 // the one it names.
 import { inflateRawSync } from "node:zlib";
-import { assertReadable, canonicalText, paragraphSegments, refuse } from "./limits.js";
+import {
+  MAX_DOCUMENT_EXPANDED_BYTES,
+  assertReadable,
+  canonicalText,
+  paragraphSegments,
+  refuse,
+} from "./limits.js";
 
 const LOCAL_HEADER = 0x04034b50;
 
@@ -33,6 +39,7 @@ function zipEntries(buffer) {
     const flags = buffer.readUInt16LE(offset + 6);
     const method = buffer.readUInt16LE(offset + 8);
     let compressedSize = buffer.readUInt32LE(offset + 18);
+    const expandedSize = buffer.readUInt32LE(offset + 22);
     const nameLength = buffer.readUInt16LE(offset + 26);
     const extraLength = buffer.readUInt16LE(offset + 28);
     const nameAt = offset + 30;
@@ -47,7 +54,12 @@ function zipEntries(buffer) {
       compressedSize = (next < 0 ? buffer.length : next) - dataAt - 16;
       if (compressedSize <= 0) break;
     }
-    entries.set(name, { method, data: buffer.subarray(dataAt, dataAt + compressedSize) });
+    if (dataAt > buffer.length || compressedSize > buffer.length - dataAt) break;
+    entries.set(name, {
+      method,
+      expandedSize,
+      data: buffer.subarray(dataAt, dataAt + compressedSize),
+    });
     offset = dataAt + compressedSize;
   }
   return entries;
@@ -55,9 +67,26 @@ function zipEntries(buffer) {
 
 function inflateEntry(entry) {
   if (!entry) return null;
+  if (entry.expandedSize > MAX_DOCUMENT_EXPANDED_BYTES || entry.data.length > MAX_DOCUMENT_EXPANDED_BYTES) {
+    refuse("docx_expanded_too_large", {
+      bytes: Math.max(entry.expandedSize || 0, entry.data.length),
+      max: MAX_DOCUMENT_EXPANDED_BYTES,
+      note: "the document expands beyond the private extraction safety limit",
+    });
+  }
   if (entry.method === 0) return entry.data;
   if (entry.method !== 8) return null;
-  try { return inflateRawSync(entry.data); } catch { return null; }
+  try {
+    return inflateRawSync(entry.data, { maxOutputLength: MAX_DOCUMENT_EXPANDED_BYTES });
+  } catch (error) {
+    if (error?.code === "ERR_BUFFER_TOO_LARGE") {
+      refuse("docx_expanded_too_large", {
+        max: MAX_DOCUMENT_EXPANDED_BYTES,
+        note: "the document expands beyond the private extraction safety limit",
+      });
+    }
+    return null;
+  }
 }
 
 const XML_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
@@ -98,7 +127,7 @@ function textFromDocumentXml(xml) {
 
 /**
  * @throws {ContextRefusal} `docx_malformed`, `docx_encrypted`,
- *   `docx_no_text`, `docx_unreadable`
+ *   `docx_no_text`, `docx_unreadable`, `docx_expanded_too_large`
  */
 export function extractDocx(buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.length < 30 || buffer.readUInt32LE(0) !== LOCAL_HEADER) {

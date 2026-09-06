@@ -10,7 +10,7 @@
 // UNDER that proof rather than duplicating it:
 //
 // 1. `detectRoomTextLang`/`detectStudioTextLang` (`src/room/copy.ts`,
-//    `src/studio/copy.ts`) — the one-line rule every `Localized` component
+//    `src/creatorStudio/copy.ts`) — the one-line rule every `Localized` component
 //    and every server-side `langSpan` call defers to — against every real
 //    leaf string in `ROOM_COPY_TABLE.hi`/`STUDIO_COPY_TABLE.hi` that
 //    actually DIFFERS from its English counterpart (a real translation, not
@@ -39,7 +39,7 @@ const ok = (name, cond, extra = "") => {
   console.log(`${cond ? "  ok  " : "FAIL  "}${name}${extra ? `   ${extra}` : ""}`);
 };
 
-// `src/room/copy.ts`/`src/studio/copy.ts` are plain TS with no JSX —
+// `src/room/copy.ts`/`src/creatorStudio/copy.ts` are plain TS with no JSX —
 // `evals/room-locale/run.mjs`'s own `loadRoomCopy` shape, reused verbatim
 // per surface rather than re-derived.
 async function loadTsExports(modulePath, names) {
@@ -59,10 +59,10 @@ const { ROOM_COPY_TABLE, detectRoomTextLang, loadRoomCopy } = await loadTsExport
   ["ROOM_COPY_TABLE", "detectRoomTextLang", "loadRoomCopy"],
 );
 const { STUDIO_COPY_TABLE, detectStudioTextLang, loadStudioCopy } = await loadTsExports(
-  join(REPO, "src/studio/copy"),
+  join(REPO, "src/creatorStudio/copy"),
   ["STUDIO_COPY_TABLE", "detectStudioTextLang", "loadStudioCopy"],
 );
-// The studio's Hindi table is its own chunk (src/studio/hiCopy.ts); install it
+// The studio's Hindi table is its own chunk (src/creatorStudio/hiCopy.ts); install it
 // through the app's own loader before reading `.hi`, which throws until then.
 await loadStudioCopy("hi");
 // WS-R139: the Room's Hindi table is now TWO lazy chunks (`hiTalkCopy.ts` +

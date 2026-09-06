@@ -46,7 +46,7 @@ import { readFileSync, readdirSync, statSync } from "fs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 
-export const SCAN_DIRS = ["src/studio/", "src/room/", "src/gurukul/", "src/replica/", "src/components/", "site/"];
+export const SCAN_DIRS = ["src/studio/", "src/creatorStudio/", "src/room/", "src/gurukul/", "src/replica/", "src/components/", "site/"];
 export const SCAN_FILES = ["studio.html", "room.html"];
 const EXT = /\.(tsx?|jsx?|html?)$/;
 

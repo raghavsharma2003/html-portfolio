@@ -322,7 +322,8 @@ const SHA = "d".repeat(64);
   ok("signed upload is a time-limited capability, never a public URL", upload.url.includes("token=signed-token") && !upload.url.includes("/public/"));
   ok("large uploads receive direct signed TUS without exposing the service role",
     upload.resumable?.protocol === "tus-1.0"
-    && upload.resumable.endpoint === "https://unit-test.storage.supabase.co/storage/v1/upload/resumable"
+    && upload.resumable.endpoint === "https://unit-test.storage.supabase.co/storage/v1/upload/resumable/sign"
+    && !upload.resumable.endpoint.endsWith("/storage/v1/upload/resumable")
     && upload.resumable.chunk_size === 6 * 1024 * 1024
     && upload.resumable.headers.apikey === "unit-test-public-anon-key"
     && !Object.values(upload.resumable.headers).includes("unit-test-service-role-secret"));
@@ -372,7 +373,7 @@ const SHA = "d".repeat(64);
     mime: "application/octet-stream",
     body: rawBytes,
     ifNoneMatch: "*",
-  }, { fetchImpl: rawFetch });
+  }, { fetchImpl: rawFetch, beforeWriteRequest: async () => {} });
   ok("sb_secret raw object GET and POST use apikey without Bearer authorization",
     written.byteSize === rawBytes.length
     && rawCalls.some((call) => call.init.method === "POST" && call.url.includes("/storage/v1/object/"))
@@ -415,6 +416,7 @@ const SHA = "d".repeat(64);
   const azureBucket = "azureblob:vyaktireplicatest:replica-private";
   const calls = [];
   const artifact = Buffer.from("azure immutable artifact", "utf8");
+  const liveAzurePaths = new Set([`${OWNER}/${REPLICA}/${SOURCE}/original`]);
   const azureFetch = async (rawUrl, init = {}) => {
     const url = new URL(rawUrl);
     calls.push({ url, init });
@@ -422,15 +424,23 @@ const SHA = "d".repeat(64);
       if (init.method === "HEAD" && url.searchParams.get("restype") === "container") {
         return new Response(null, { status: 200 });
       }
+      const objectPath = decodeURIComponent(url.pathname.slice("/replica-private/".length));
       if (init.method === "HEAD") {
+        if (!liveAzurePaths.has(objectPath)) return new Response(null, { status: 404 });
         return new Response(null, { status: 200, headers: {
           "content-length": url.pathname.includes("/derived/") ? String(artifact.length) : "4096",
           "content-type": url.pathname.includes("/derived/") ? "application/octet-stream" : "audio/wav",
           etag: '"azure-etag"',
         } });
       }
-      if (init.method === "PUT") return new Response(null, { status: 201 });
-      if (init.method === "DELETE") return new Response(null, { status: 202 });
+      if (init.method === "PUT") {
+        liveAzurePaths.add(objectPath);
+        return new Response(null, { status: 201 });
+      }
+      if (init.method === "DELETE") {
+        liveAzurePaths.delete(objectPath);
+        return new Response(null, { status: 202 });
+      }
       if (!init.method || init.method === "GET") return new Response(artifact, { status: 200, headers: {
         "content-length": String(artifact.length), "content-type": "application/octet-stream",
       } });
@@ -472,10 +482,10 @@ const SHA = "d".repeat(64);
     mime: "application/octet-stream",
     body: artifact,
     ifNoneMatch: "*",
-  }, { fetchImpl: azureFetch });
+  }, { fetchImpl: azureFetch, beforeWriteRequest: async () => {} });
   ok("Azure derived artifacts are create-only and byte-verified after write",
     written.byteSize === artifact.length && calls.some((call) => call.init.method === "PUT"
-      && call.init.headers["If-None-Match"] === "*" && call.init.headers["x-ms-blob-type"] === "BlockBlob"));
+      && call.url.searchParams.get("comp") === "blocklist" && call.init.headers["If-None-Match"] === "*"));
   await Storage.deleteReplicaObjects([locator], azureFetch);
   ok("erasure dispatches only to the provider persisted with the object",
     calls.some((call) => call.url.hostname.endsWith(".blob.core.windows.net") && call.init.method === "DELETE")
@@ -526,6 +536,10 @@ for (const endpoint of ["api/replica-consent.js", "api/replica-source.js"]) {
     && /file\.slice\(offset, end\)/.test(browserUpload)
     && /upload-offset/.test(browserUpload)
     && !/file\.arrayBuffer\(/.test(browserUpload));
+  ok("every ordinary TUS and Azure upload request has an explicit bounded timeout",
+    /const PRIVATE_UPLOAD_REQUEST_TIMEOUT_MS = 5 \* 60 \* 1000/.test(browserUpload) &&
+    (browserUpload.match(/request\.timeout = PRIVATE_UPLOAD_REQUEST_TIMEOUT_MS/g) || []).length === 3 &&
+    (browserUpload.match(/request\.ontimeout =/g) || []).length === 3);
   ok("browser Azure uploads restage deterministic blocks and commit create-only without read or whole-file buffering",
     /putAzureBlockUpload/.test(browserUpload) && /azureBlockId\(index\)/.test(browserUpload)
     && /file\.slice\(start, end\)/.test(browserUpload) && /"If-None-Match":\s*"\*"/.test(browserUpload)
@@ -566,7 +580,7 @@ for (const endpoint of ["api/replica-consent.js", "api/replica-source.js"]) {
     /pending\.capture_mode === "live_challenge"/.test(sourceEndpoint)
     && /use_liveness_finalize/.test(sourceEndpoint));
   ok("generic finalization preserves an owner-scoped terminal rejection on retry",
-    /getOwnedSource\(q, user\.id, body\.replica_id, body\.source_id\)/.test(sourceEndpoint)
+    /getOwnedSource\(q, user\.id, body\.replica_id, sourceId\)/.test(sourceEndpoint)
     && /existing\.rejection_code \|\| `source_/.test(sourceEndpoint)
     && !/if \(!pending\) return res\.status\(404\)\.json\(\{ error: "pending_source_not_found" \}\);/.test(sourceEndpoint));
 }

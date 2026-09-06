@@ -28,7 +28,7 @@
 //   multi-field flows (a file drop zone, a review card's three buttons in
 //   an unknown exact DOM shape) this workstream did not have the budget to
 //   reverse-engineer blind against a React tree with no `data-testid`
-//   convention (`grep -r data-testid src/studio` finds none); driving them
+//   convention (`grep -r data-testid src/creatorStudio` finds none); driving them
 //   by the same HTTP contract `scripts/first-room.mjs` already proves a
 //   human would use is a truthful rehearsal of the CONTRACT even where it
 //   is not a rehearsal of the FORM. Every one of these steps is followed by
@@ -74,7 +74,7 @@ const FULL = process.env.REHEARSAL_FULL === "1";
 // (`context/rejected.md#ws-r119-creator-walk-hindi-full-blocked-before-this-
 // workstreams-own-code`). Throws by name if the key is missing or ambiguous
 // rather than silently matching the wrong section.
-const HI_COPY_SOURCE = readFileSync(join(ROOT, "src/studio/hiCopy.ts"), "utf8");
+const HI_COPY_SOURCE = readFileSync(join(ROOT, "src/creatorStudio/hiCopy.ts"), "utf8");
 function hiCopyString(key) {
   const pattern = new RegExp(`\\b${key}:\\s*"([^"]+)"`, "g");
   const hits = [...HI_COPY_SOURCE.matchAll(pattern)];
@@ -97,7 +97,7 @@ function hiCopyString(key) {
 // "मीट" — not named in this workstream's own brief, which expected the
 // Context Locker fix alone to reach this section, but the walk did not
 // get far enough under `hi` before that fix to have ever hit this one.
-const HI_AUTH_COPY_SOURCE = readFileSync(join(ROOT, "src/studio/hiAuthCopy.ts"), "utf8");
+const HI_AUTH_COPY_SOURCE = readFileSync(join(ROOT, "src/creatorStudio/hiAuthCopy.ts"), "utf8");
 function hiAuthCopyTabTitle(tab) {
   const block = HI_AUTH_COPY_SOURCE.match(/tabTitle:\s*\{([^}]+)\}/);
   if (!block) throw new Error("hiAuthCopy.ts: could not find shell.tabTitle");
@@ -179,8 +179,8 @@ async function walkLocale(locale) {
     page.on("pageerror", (error) => console.error(`  [browser error, ${locale}]`, error.message));
 
     // ── SIGN-IN: the fixture's seeded session, never a real OTP ───────────
-    // `src/studio/session.ts`'s own `isSession` shape — the SAME localStorage
-    // key `src/studio/layoutFixture.tsx`'s own `seedAuth()` uses.
+    // `src/creatorStudio/session.ts`'s own `isSession` shape — the SAME localStorage
+    // key `src/creatorStudio/layoutFixture.tsx`'s own `seedAuth()` uses.
     await context.addInitScript(({ token, ownerId }) => {
       localStorage.setItem("meera.state.v1", JSON.stringify({
         auth: {
@@ -298,6 +298,28 @@ async function walkLocale(locale) {
       return el && el.textContent ? el.textContent : false;
     }, railAriaLabel, { timeout: 15_000, polling: 200 }).then((handle) => handle.jsonValue()).catch(() => "");
     ok(`${locale}: the created replica renders in the studio's own "Your AIs" rail`, railText.includes("Anjali Physics"), railText.slice(0, 80));
+
+    // Source persistence now uses the canonical consent fence. Drive the
+    // actual attestation controls; never seed grants into the fixture.
+    const permissionPanel = page.locator(".consent-panel");
+    await permissionPanel.waitFor({ state: "visible", timeout: 15_000 });
+    const permissionChecks = permissionPanel.locator('input[type="checkbox"]');
+    ok(`${locale}: source permission asks for all four owner attestations`, await permissionChecks.count() === 4);
+    const recordPermission = permissionPanel.locator(".consent-button");
+    ok(`${locale}: source permission cannot be recorded before attestation`, await recordPermission.isDisabled());
+    for (let index = 0; index < await permissionChecks.count(); index++) {
+      await permissionChecks.nth(index).check();
+    }
+    const permissionResponsePromise = page.waitForResponse((response) =>
+      response.url().includes("/api/replica-consent") && response.request().method() === "POST");
+    await recordPermission.click();
+    const permissionResponse = await permissionResponsePromise;
+    const permissionBody = await permissionResponse.json();
+    ok(`${locale}: the visible permission action records real scoped consent receipts`,
+      permissionResponse.status() === 201 && ["capture", "transcription", "storage"].every((scope) =>
+        permissionBody.consents?.some((receipt) => receipt.scope === scope)),
+      JSON.stringify(permissionBody).slice(0, 180));
+    await page.locator(".consent-panel.consent-active").waitFor({ state: "visible", timeout: 15_000 });
 
     // ── ADD ONE TEXT SOURCE, through the Context Locker's REAL drop zone
     //    (WS-R109) — `ContextLockerPanel.tsx`'s own `<input type="file"
@@ -672,7 +694,7 @@ async function walkLocale(locale) {
     // the mechanism (see the navigation step's own comment); with the real
     // mount condition met, the Share tab, its showcase picker, and the
     // share kit below are all driven through real clicks, no HTTP fallback.
-    // `SHARE_COPY` below (`src/studio/copy.ts`/`hiCopy.ts`'s own
+    // `SHARE_COPY` below (`src/creatorStudio/copy.ts`/`hiCopy.ts`'s own
     // `tabTitle`/`showcasePicker`/`shareKit` strings, read off both files
     // directly): WS-R95's original strings here were English-only
     // regardless of `locale`, never noticed because the `?mode=teacher` gap
@@ -735,7 +757,7 @@ async function walkLocale(locale) {
       forcedFollowerPick.status >= 400 || forcedFollowerPick.body?.showcase?.every((s) => s.answer !== cards[2]?.answer_text));
 
     // ── SHARE KIT: open it, copy the WhatsApp text — a real click where a
-    //    real button exists (`shareKit.copy`, src/studio/copy.ts). ────────
+    //    real button exists (`shareKit.copy`, src/creatorStudio/copy.ts). ────────
     // WS-R109: `?mode=teacher` mounts `ShareKitCard` for real (this file's
     // own navigation-step comment), so "Copy" is now a real click, waited
     // on against the real network round trip its own `load()` effect makes

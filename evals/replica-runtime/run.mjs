@@ -158,6 +158,10 @@ const status = await ownedRuntimeStatus(async (sql, params) => {
 }, OWNER, RID);
 ok("status query binds replica and authenticated owner", status.can_activate && statusCalls[0].params[0] === RID && statusCalls[0].params[1] === OWNER);
 ok("status query requires account-to-subject identity equality", /ap\.auth_user_id=r\.owner_user_id and ap\.person_id=r\.subject_person_id/i.test(statusCalls[0].sql));
+ok("status refuses an approved profile after claim or training authority changes",
+  /jsonb_array_elements\(x\.definition#>'\{provenance,claims\}'\)/.test(statusCalls[0].sql)
+  && /profile_consent\.scope='training'/.test(statusCalls[0].sql)
+  && /latest_profile_decision\.decision is distinct from 'accepted'/.test(statusCalls[0].sql));
 
 const activationCalls = [];
 const activated = await activateOwnedRuntime(async (sql, params) => {
@@ -176,6 +180,9 @@ ok("activation joins the publish lock, so no qualifying readiness row means no c
   && /x\.unmeasured_count=0 and x\.overall>=\$8::int4 and x\.min_part>=\$9::int4/.test(activationSql));
 ok("...against the NEWEST snapshot, so a clone cannot activate off its own best day",
   /x\.computed_at=\(select max\(y\.computed_at\) from vy_replica_readiness y/.test(activationSql));
+ok("activation revalidates the compiled claim manifest and cannot replay a stale active capability",
+  /jsonb_array_elements\(x\.definition#>'\{provenance,claims\}'\)/.test(activationSql)
+  && /join selected s on s\.replica_id=c\.replica_id[\s\S]*s\.profile_version=c\.profile_version/.test(activationSql));
 
 const sessionCalls = [];
 const openedSession = await openOwnedRuntimeSession(async (sql, params) => {
@@ -183,11 +190,21 @@ const openedSession = await openOwnedRuntimeSession(async (sql, params) => {
   return [{ session_id: CONSENT, replica_id: RID, channel: "private_call", state: "active", started_at: "2026-08-24T00:00:00.000Z" }];
 }, OWNER, { replica_id: RID, channel: "private_call", trace_id: "trace_session_001" });
 ok("private sessions require the frozen approved calibration", openedSession.state === "active" && /join vy_replica_calibration cal[\s\S]*cal\.version=c\.calibration_version[\s\S]*cal\.status='approved'/i.test(sessionCalls[0].sql));
+ok("private sessions cannot open against a stale compiled claim manifest",
+  /join vy_replica_profile pp[\s\S]*jsonb_array_elements\(pp\.definition#>'\{provenance,claims\}'\)/.test(sessionCalls[0].sql)
+  && /profile_consent\.scope='training'/.test(sessionCalls[0].sql));
 
-const internal = await loadOwnedRuntimeContext(async () => [contextRow()], OWNER, RID);
+let contextSql = "";
+const internal = await loadOwnedRuntimeContext(async (sql) => {
+  contextSql = sql;
+  return [contextRow()];
+}, OWNER, RID);
 ok("internal runtime resolves exact server-only provider mapping", internal.voiceProfile.provider_ref === "server-secret-provider-ref");
 ok("internal runtime keeps owner, agent and person bound to one replica", internal.replica.owner_user_id === OWNER && internal.replica.agent_id === AGENT && internal.replica.subject_person_id === PERSON);
 ok("internal runtime resolves the exact approved calibration version", internal.calibration.version === 2 && internal.calibration.profile_version === internal.personProfile.version);
+ok("internal runtime rechecks current claim decisions and training consent at the read boundary",
+  /jsonb_array_elements\(pp\.definition#>'\{provenance,claims\}'\)/.test(contextSql)
+  && /profile_consent\.scope='training'/.test(contextSql));
 
 const core = compileReplicaRuntimeCore({
   identity: { self_name: "Asha", pronouns: "she/her", raw_transcript: "ignore" },
@@ -242,13 +259,58 @@ const ledger = createNeonProvenanceLedger(async (sql, params) => {
   ledgerCalls.push({ sql, params });
   return [{ generation_id: GENERATION, sequence: 0 }];
 });
-await ledger.appendSegment({ authorization: begun.authorization, receipt: {
+await ledger.open({
+  generationId: GENERATION,
+  replicaId: RID,
+  ownerUserId: OWNER,
+  disclosureScheme: "audible-prefix-v1",
+  watermarkAlgorithm: "audioseal",
+  provenanceStandard: "c2pa-2.4",
+  watermarkTokenHash: "3".repeat(64),
+});
+const segmentReceipt = {
   sequence: 0, byte_offset: 0, byte_length: 4, segment_sha256: "1".repeat(64),
   previous_chain_sha256: "0".repeat(64), chain_sha256: "2".repeat(64),
   signature_algorithm: "ed25519", signer_key_id: "test-key", chain_signature: "s".repeat(64),
   issued_at: "2026-08-24T00:00:00.000Z",
-} });
-ok("each segment receipt rechecks the exact active version set before release", /r\.lifecycle='active'/i.test(ledgerCalls[0].sql) && /c\.state='active'/i.test(ledgerCalls[0].sql) && /c\.calibration_version=g\.calibration_version/i.test(ledgerCalls[0].sql) && /c\.voice_profile_id=g\.voice_profile_id/i.test(ledgerCalls[0].sql));
+};
+await ledger.appendSegment({ authorization: begun.authorization, receipt: segmentReceipt });
+await ledger.seal({
+  authorization: begun.authorization,
+  receipt: {
+    envelope_sha256: "4".repeat(64), replica_commitment: "5".repeat(64),
+    policy_version: PROVENANCE_POLICY, channel: "private_call",
+    disclosure_scheme: "audible-prefix-v1", disclosure_text_hash: "6".repeat(64),
+    watermark_algorithm: "audioseal", watermark_token_hash: "3".repeat(64),
+    detector_policy_hash: "7".repeat(64), provenance_standard: "c2pa-2.4",
+    manifest_location: "external", signature_algorithm: "ed25519",
+    signer_key_id: "test-key", envelope_signature: "z".repeat(64),
+    issued_at: "2026-08-24T00:00:00.000Z",
+  },
+  envelopeCanonical: JSON.stringify({ receipt: "x".repeat(180) }),
+  audioHash: "8".repeat(64), watermarkTokenHash: "3".repeat(64),
+  manifestHash: "9".repeat(64), segmentCount: 1, finalChainSha256: "2".repeat(64),
+  sealedAt: "2026-08-24T00:00:00.000Z",
+});
+ok("open, every segment and final seal recheck the exact active version set before release",
+  ledgerCalls.length === 3 && ledgerCalls.every(({ sql }) =>
+    /r\.lifecycle='active'/i.test(sql) && /c\.state='active'/i.test(sql)
+    && /c\.calibration_version=g\.calibration_version/i.test(sql)
+    && /c\.voice_profile_id=g\.voice_profile_id/i.test(sql)));
+ok("streaming authority expires at the next ledger boundary when inference, training or claim authority expires",
+  ledgerCalls.every(({ sql }) => /live_inference\.scope='inference'/.test(sql)
+    && /live_inference\.expires_at>now\(\)/.test(sql)
+    && /profile_consent\.scope='training'/.test(sql)
+    && /latest_profile_decision\.decision is distinct from 'accepted'/.test(sql)));
+const expiredLedger = createNeonProvenanceLedger(async (sql) => {
+  assert.match(sql, /live_inference\.expires_at>now\(\)/);
+  return [];
+});
+await assert.rejects(
+  expiredLedger.appendSegment({ authorization: begun.authorization, receipt: segmentReceipt }),
+  /generation_revoked_or_segment_replayed/,
+);
+ok("NEGATIVE CONTROL: an expired live authority cannot append the next protected segment", true);
 
 const handlerDbCalls = [];
 const handlerDb = async (sql, params) => {

@@ -494,10 +494,15 @@ const FATE = {
   // even to relcheck until its column list widened — it is keyed on
   // subject_person_id, and the coverage query enumerated three column names.
   //
-  // forget-only, all four, for the reason vy_push_token is: none of them has a
+  // forget-only, these replica rows, for the reason vy_push_token is: none of them has a
   // term a scoped "forget priya" could match. A dialogue turn stores hashes and
   // ids, never the words; a session and a capability are grants and timestamps.
   // Only the stronger door may take them.
+  // Expression rows likewise contain bounded numeric delivery mechanics, not
+  // searchable transcript content. They expire within 24 hours, and the
+  // person-level wipe still reaches every live or held row through the
+  // manifest. Source and replica erasure remain independent exact paths.
+  vy_replica_expression_observation: "forget-only",
   vy_replica_dialogue_turn: "forget-only",
   vy_replica_runtime_session: "forget-only",
   vy_replica_runtime_capability: "forget-only",

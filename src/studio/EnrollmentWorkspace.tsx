@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { putSignedUpload, sha256File } from "./enrollmentApi";
+import QuickVoiceCapture from "./QuickVoiceCapture";
 import {
   deriveEnrollmentLanguageReadiness,
   ENROLLMENT_LANGUAGE_LABELS,
@@ -252,9 +253,11 @@ interface Props {
     byteSize: number;
     sha256: string;
     containsThirdParties: boolean;
-  }) => Promise<{ source: ReplicaSource; upload: SignedUpload }>;
-  onRetryUpload: (sourceId: string) => Promise<{ source: ReplicaSource; upload: SignedUpload }>;
+  }) => Promise<{ source: ReplicaSource; upload: SignedUpload | null; finalized: boolean }>;
+  onRetryUpload: (sourceId: string) => Promise<{ source: ReplicaSource; upload: SignedUpload | null; finalized: boolean }>;
   onFinalizeUpload: (sourceId: string) => Promise<ReplicaSource>;
+  onSetPrimaryVoice: (sourceId: string) => Promise<ReplicaSource>;
+  onPrimaryVoiceQueued?: (source: ReplicaSource) => void;
   onDeleteSource: (sourceId: string) => Promise<"complete" | "pending">;
 }
 
@@ -269,6 +272,8 @@ export default function EnrollmentWorkspace({
   onCreateUpload,
   onRetryUpload,
   onFinalizeUpload,
+  onSetPrimaryVoice,
+  onPrimaryVoiceQueued,
   onDeleteSource,
 }: Props) {
   const [attestations, setAttestations] = useState([false, false, false, false]);
@@ -289,18 +294,22 @@ export default function EnrollmentWorkspace({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState("");
   const [uploadError, setUploadError] = useState("");
+  const [autoUploadKey, setAutoUploadKey] = useState<string | null>(null);
   const [pendingRetryId, setPendingRetryId] = useState<string | null>(null);
+  const [primaryBusyId, setPrimaryBusyId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ReplicaSource | null>(null);
   const [deleteText, setDeleteText] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const durationProbe = useRef(0);
   const retryFiles = useRef(new Map<string, File>());
+  const primaryFileKeys = useRef(new Set<string>());
   // A successful PUT and a successful manifest finalization are two distinct
   // durability boundaries. Keep the exact file plus this marker until both
   // finish so a transient finalize error never forces an impossible re-PUT to
   // an x-upsert=false object that already exists.
   const uploadedObjects = useRef(new Set<string>());
+  const uploadRef = useRef<() => Promise<void>>(async () => undefined);
 
   const consentActive = hasEnrollmentConsent(consents);
   const intakeOpen = testEnvironment || consentActive;
@@ -320,6 +329,8 @@ export default function EnrollmentWorkspace({
   const voiceSources = useMemo(() => voiceEnrollmentSources(sources), [sources]);
   const labeledVoiceSourceCount = voiceSources.filter((source) => sourceLanguages[source.source_id] && sourceLanguages[source.source_id] !== "unknown").length;
   const isVoiceUpload = uploadMode === "audio" || uploadMode === "video";
+  const quickCaptureUpload = files.length === 1 && primaryFileKeys.current.has(fileKey(files[0]));
+  const quickCaptureNeedsRecovery = quickCaptureUpload && Boolean(uploadError) && !uploadBusy;
 
   useEffect(() => {
     try {
@@ -351,11 +362,15 @@ export default function EnrollmentWorkspace({
     setAttestations((current) => current.map((checked, item) => item === index ? !checked : checked));
   }
 
-  function selectFiles(nextFiles: File[]) {
+  function selectFiles(
+    nextFiles: File[],
+    language: EnrollmentLanguageChoice = calibrationLanguage || "unknown",
+    makePrimary = false,
+  ) {
     const probe = ++durationProbe.current;
-    const defaultLanguage: EnrollmentLanguageChoice = calibrationLanguage || "unknown";
     setFiles(nextFiles);
-    setFileLanguages(Object.fromEntries(nextFiles.map((selectedFile) => [fileKey(selectedFile), defaultLanguage])));
+    primaryFileKeys.current = new Set(makePrimary && nextFiles[0] ? [fileKey(nextFiles[0])] : []);
+    setFileLanguages(Object.fromEntries(nextFiles.map((selectedFile) => [fileKey(selectedFile), language])));
     setFileDurations({});
     setUploadError("");
     if (!isVoiceUpload || !nextFiles.length) return;
@@ -368,10 +383,20 @@ export default function EnrollmentWorkspace({
   function resetSelectedFiles() {
     durationProbe.current += 1;
     setFiles([]);
+    primaryFileKeys.current.clear();
     setFileLanguages({});
     setFileDurations({});
     if (fileRef.current) fileRef.current.value = "";
   }
+
+  useEffect(() => {
+    if (!autoUploadKey || uploadBusy || pendingRetryId || files.length !== 1) return;
+    const selectedFile = files[0];
+    const key = fileKey(selectedFile);
+    if (key !== autoUploadKey || containsThirdParties !== false || !fileLanguages[key]) return;
+    setAutoUploadKey(null);
+    void uploadRef.current();
+  }, [autoUploadKey, containsThirdParties, fileLanguages, files, pendingRetryId, uploadBusy]);
 
   function markSourceLanguage(sourceId: string, language: EnrollmentLanguageChoice) {
     setSourceLanguages((current) => ({ ...current, [sourceId]: language }));
@@ -435,6 +460,7 @@ export default function EnrollmentWorkspace({
     setUploadError("");
     setUploadBusy(true);
     setUploadProgress(0);
+    let queuedPrimary: ReplicaSource | null = null;
     try {
       for (const [index, current] of files.entries()) {
         setActiveFileIndex(index);
@@ -459,11 +485,17 @@ export default function EnrollmentWorkspace({
         }
         retryFiles.current.set(result.source.source_id, current);
         setPendingRetryId(result.source.source_id);
-        setUploadPhase(`${prefix}Uploading directly to private storage`);
-        await putSignedUpload(current, result.upload, setUploadProgress);
-        uploadedObjects.current.add(result.source.source_id);
-        setUploadPhase(`${prefix}Verifying stored file`);
-        await onFinalizeUpload(result.source.source_id);
+        if (!result.finalized) {
+          if (!result.upload) throw new Error("Private upload authorization is missing.");
+          setUploadPhase(`${prefix}Uploading directly to private storage`);
+          await putSignedUpload(current, result.upload, setUploadProgress);
+          uploadedObjects.current.add(result.source.source_id);
+          setUploadPhase(`${prefix}Verifying stored file`);
+          await onFinalizeUpload(result.source.source_id);
+        }
+        if (primaryFileKeys.current.has(fileKey(current))) {
+          queuedPrimary = await onSetPrimaryVoice(result.source.source_id);
+        }
         uploadedObjects.current.delete(result.source.source_id);
         retryFiles.current.delete(result.source.source_id);
         setPendingRetryId(null);
@@ -474,6 +506,7 @@ export default function EnrollmentWorkspace({
       setContainsThirdParties(null);
       setCalibrationLanguage(null);
       setTimeout(() => setUploadPhase(""), 2200);
+      if (queuedPrimary) onPrimaryVoiceQueued?.(queuedPrimary);
     } catch (cause) {
       releaseTerminalRetry(cause);
       setUploadError(cause instanceof Error ? cause.message : "Upload could not be completed");
@@ -493,16 +526,23 @@ export default function EnrollmentWorkspace({
     setUploadError("");
     setUploadBusy(true);
     setUploadProgress(0);
+    let queuedPrimary: ReplicaSource | null = null;
     try {
       if (!uploadedObjects.current.has(sourceId)) {
         setUploadPhase("Renewing private upload authorization");
         const result = await onRetryUpload(sourceId);
-        setUploadPhase("Retrying private upload");
-        await putSignedUpload(retryFile, result.upload, setUploadProgress);
+        if (!result.finalized) {
+          if (!result.upload) throw new Error("Private upload authorization is missing.");
+          setUploadPhase("Retrying private upload");
+          await putSignedUpload(retryFile, result.upload, setUploadProgress);
+        }
         uploadedObjects.current.add(sourceId);
       }
       setUploadPhase("Verifying stored file");
       await onFinalizeUpload(sourceId);
+      if (primaryFileKeys.current.has(fileKey(retryFile))) {
+        queuedPrimary = await onSetPrimaryVoice(sourceId);
+      }
       uploadedObjects.current.delete(sourceId);
       retryFiles.current.delete(sourceId);
       setPendingRetryId(null);
@@ -512,6 +552,7 @@ export default function EnrollmentWorkspace({
       setContainsThirdParties(null);
       setCalibrationLanguage(null);
       setTimeout(() => setUploadPhase(""), 2200);
+      if (queuedPrimary) onPrimaryVoiceQueued?.(queuedPrimary);
     } catch (cause) {
       releaseTerminalRetry(cause);
       setUploadError(cause instanceof Error ? cause.message : "Upload retry could not be completed");
@@ -541,6 +582,40 @@ export default function EnrollmentWorkspace({
       setUploadPhase("");
     } finally {
       setUploadBusy(false);
+    }
+  }
+
+  async function discardQuickCaptureAndRetake() {
+    setUploadBusy(true);
+    setUploadError("");
+    try {
+      if (pendingRetryId) {
+        await onDeleteSource(pendingRetryId);
+        uploadedObjects.current.delete(pendingRetryId);
+        retryFiles.current.delete(pendingRetryId);
+        setPendingRetryId(null);
+      }
+      resetSelectedFiles();
+      setAutoUploadKey(null);
+      setContainsThirdParties(null);
+    } catch (cause) {
+      setUploadError(cause instanceof Error ? cause.message : "The failed upload could not be discarded. Retry it or remove it from Sources.");
+    } finally {
+      setUploadBusy(false);
+    }
+  }
+
+  uploadRef.current = upload;
+
+  async function makePrimaryVoice(sourceId: string) {
+    setUploadError("");
+    setPrimaryBusyId(sourceId);
+    try {
+      await onSetPrimaryVoice(sourceId);
+    } catch (cause) {
+      setUploadError(cause instanceof Error ? cause.message : "Could not choose this voice recording");
+    } finally {
+      setPrimaryBusyId(null);
     }
   }
 
@@ -588,7 +663,7 @@ export default function EnrollmentWorkspace({
           <h2 id="enrollment-title">{testEnvironment ? "Add audio, video, screenshots, or documents" : "Permission first, then anything you upload"}</h2>
         </div>
         {!testEnvironment && (
-          <p>Account consent opens private source intake. Voice setup, building your AI, running it, and sharing stay locked.</p>
+          <p>Account consent opens private source intake. Biometric modeling, training, inference, and sharing stay locked.</p>
         )}
       </div>
 
@@ -607,8 +682,8 @@ export default function EnrollmentWorkspace({
           {consentActive ? (
             <>
               <p className="consent-lede">
-                You permitted Vyakti to receive, transcribe, and privately store sources for your AI.
-                This is not permission for biometric setup, building your AI's voice, generation, sharing, telephony, or improving your AI.
+                You permitted Vyakti to receive, transcribe, and privately store sources for this replica.
+                This is not permission for biometric modeling, voice training, generation, sharing, telephony, or model improvement.
               </p>
               <div className="receipt-grid">
                 {REQUIRED_SCOPES.map((scope) => (
@@ -623,7 +698,7 @@ export default function EnrollmentWorkspace({
           ) : (
             <>
               <p className="consent-lede">
-                These permissions cover only source intake. You can withdraw them later. Withdrawal makes your AI non-operational
+                These permissions cover only source intake. You can withdraw them later. Withdrawal makes the replica non-operational
                 and queues its private sources for erasure.
               </p>
               <div className="scope-grid" aria-label="Permissions being requested">
@@ -713,7 +788,7 @@ export default function EnrollmentWorkspace({
                       <p>
                         {voiceSources.length && labeledVoiceSourceCount < voiceSources.length
                           ? "One or more existing voice sources have no language label. Label them in the source ledger, or add a short calibration."
-                          : "Add a short, clean sample in the missing language before you judge that language in your AI."}
+                          : "Add a short, clean sample in the missing language before you judge that language in the clone."}
                       </p>
                     </div>
                     <div className="language-gap-actions">
@@ -749,7 +824,21 @@ export default function EnrollmentWorkspace({
                 )}
               </section>}
 
-              <div className="upload-grid">
+              {uploadMode === "audio" && files.length === 0 && !pendingRetryId && (
+                <QuickVoiceCapture
+                  disabled={uploadBusy || Boolean(pendingRetryId)}
+                  onUseRecording={(recording, language) => {
+                    setCalibrationLanguage(language === "english" ? null : language);
+                    setContainsThirdParties(false);
+                    selectFiles([recording], language, true);
+                    setAutoUploadKey(fileKey(recording));
+                  }}
+                />
+              )}
+
+              {!quickCaptureUpload && <details className="file-upload-alternative" open={uploadMode !== "audio"}>
+                <summary>{uploadMode === "audio" ? "Upload an existing audio file instead" : "Choose a source file"}</summary>
+                <div className="upload-grid">
                 <label>
                   <span className="field-label">Source type</span>
                   <select
@@ -785,14 +874,15 @@ export default function EnrollmentWorkspace({
                   </span>
                   <span className="file-action">Browse</span>
                 </label>
-              </div>
+                </div>
+              </details>}
 
               {files.length > 0 && (
                 <section className="intake-queue" aria-labelledby="intake-queue-title" aria-live="polite">
                   <div className="intake-queue-head">
                     <div>
-                      <h4 id="intake-queue-title">Selected file queue</h4>
-                      <p>This tab uploads one file at a time. Each completed file then moves to private processing.</p>
+                      <h4 id="intake-queue-title">{quickCaptureUpload ? "Starting your clone" : "Selected file queue"}</h4>
+                      <p>{quickCaptureUpload ? "Your recording uploads securely, becomes the primary voice, and then Meet opens automatically." : "This tab uploads one file at a time. Each completed file then moves to private processing."}</p>
                     </div>
                     <span>{isVoiceUpload && files.every((selectedFile) => typeof fileDurations[fileKey(selectedFile)] === "number")
                       ? `${durationLabel(files.reduce((total, selectedFile) => total + (fileDurations[fileKey(selectedFile)] || 0), 0))} total`
@@ -841,7 +931,7 @@ export default function EnrollmentWorkspace({
                 </section>
               )}
 
-              {!testEnvironment && uploadMode !== "identity_document" && <fieldset className="people-declaration">
+              {!testEnvironment && !quickCaptureUpload && uploadMode !== "identity_document" && <fieldset className="people-declaration">
                 <legend>Whose voice, face, or private information appears?</legend>
                 <label>
                   <input type="radio" name="people" checked={containsThirdParties === false} onChange={() => setContainsThirdParties(false)} />
@@ -861,7 +951,7 @@ export default function EnrollmentWorkspace({
 
               {uploadMode === "identity_document" && (
                 <p className="identity-source-note" role="status">
-                  Identity-only mode bypasses memory extraction and the queues that build your AI. The document is available only to the independent identity and live-match gates, then queued for erasure.
+                  Identity-only mode bypasses memory extraction and model-training queues. The document is available only to the independent identity and live-match gates, then queued for erasure.
                 </p>
               )}
 
@@ -879,25 +969,36 @@ export default function EnrollmentWorkspace({
                 </div>
               )}
               {uploadError && <p className="inline-error" role="alert">{uploadError}</p>}
-              <button
-                className="button primary-button upload-button"
-                type="button"
-                disabled={uploadBusy || !file || containsThirdParties === null}
-                onClick={() => void (pendingRetryId ? retryUpload(pendingRetryId) : upload())}
-              >
-                {uploadBusy
-                  ? "Securing source"
-                  : pendingRetryId && uploadedObjects.current.has(pendingRetryId)
-                    ? "Retry stored-file verification"
-                    : pendingRetryId
-                      ? "Retry interrupted upload"
-                      : "Upload to private intake"}
-              </button>
+              {(!quickCaptureUpload || quickCaptureNeedsRecovery) && <div className="upload-recovery-actions">
+                <button
+                  className="button primary-button upload-button"
+                  type="button"
+                  disabled={uploadBusy || !file || containsThirdParties === null}
+                  onClick={() => void (pendingRetryId ? retryUpload(pendingRetryId) : upload())}
+                >
+                  {uploadBusy
+                    ? "Securing source"
+                    : pendingRetryId && uploadedObjects.current.has(pendingRetryId)
+                      ? "Retry stored-file verification"
+                      : pendingRetryId
+                        ? "Retry interrupted upload"
+                        : quickCaptureNeedsRecovery
+                          ? "Retry secure upload"
+                          : "Upload to private intake"}
+                </button>
+                {quickCaptureNeedsRecovery && <button
+                  className="button secondary-button"
+                  type="button"
+                  onClick={() => void discardQuickCaptureAndRetake()}
+                >
+                  {pendingRetryId ? "Discard failed upload and record again" : "Record again"}
+                </button>}
+              </div>}
 
               <div className="source-ledger">
                 <div className="source-ledger-heading">
-                  <div><p className="eyebrow">Source ledger</p><h4>{sources.length ? `${sources.length} private source${sources.length === 1 ? "" : "s"}` : "No sources yet"}</h4></div>
-                  <span>Original names are not stored</span>
+                  <div><p className="eyebrow">Sources used by this clone</p><h4>{sources.length ? `${sources.length} source${sources.length === 1 ? "" : "s"}` : "No sources yet"}</h4></div>
+                  <span>One starred recording drives the voice. Other sources support memory and context.</span>
                 </div>
                 {sources.length > 0 && (
                   <div className="source-list">
@@ -905,7 +1006,8 @@ export default function EnrollmentWorkspace({
                       <div className="source-row" key={source.source_id}>
                         <span className="source-kind">{source.kind.slice(0, 2).toUpperCase()}</span>
                         <div className="source-copy">
-                          <strong>{source.capture_mode === "identity_document" ? "Government ID (identity only)" : SOURCE_POLICY[source.kind].label}</strong>
+                          <strong>{source.capture_mode === "identity_document" ? "Government ID (identity only)" : source.voice_role === "primary" ? "Your main voice recording" : SOURCE_POLICY[source.kind].label}</strong>
+                          {source.voice_role === "primary" && <span className="source-primary-badge">Primary voice</span>}
                           <span>{bytesLabel(source.byte_size)} · added {dateLabel(source.created_at)}{source.contains_third_parties ? " · includes others" : ""}</span>
                           {(source.kind === "audio" || source.kind === "video") && (
                             <label className="source-language-label">
@@ -921,10 +1023,28 @@ export default function EnrollmentWorkspace({
                               </select>
                             </label>
                           )}
+                          <details className="source-technical-details">
+                            <summary>Source details</summary>
+                            <small>Private source {source.source_id.slice(0, 6).toUpperCase()}</small>
+                          </details>
                           {source.rejection_code && <small>{source.rejection_code.replaceAll("_", " ")}</small>}
                         </div>
                         <SourceState state={source.state} />
                         <span className="source-actions">
+                          {(source.kind === "audio" || source.kind === "video")
+                            && ["quarantined", "processing", "ready"].includes(source.state)
+                            && !source.contains_third_parties
+                            && source.capture_mode !== "live_challenge"
+                            && source.capture_mode !== "provider_consent" && (
+                            <button
+                              className={`source-primary-action ${source.voice_role === "primary" ? "active" : ""}`}
+                              type="button"
+                              disabled={uploadBusy || primaryBusyId !== null || source.voice_role === "primary"}
+                              onClick={() => void makePrimaryVoice(source.source_id)}
+                            >
+                              {primaryBusyId === source.source_id ? "Choosing" : source.voice_role === "primary" ? "Voice source" : "Use for voice"}
+                            </button>
+                          )}
                           {source.state === "pending_upload" && retryFiles.current.has(source.source_id) && (
                             <button className="source-retry" type="button" disabled={uploadBusy} onClick={() => void retryUpload(source.source_id)}>
                               {uploadedObjects.current.has(source.source_id) ? "Verify" : "Retry"}
@@ -962,7 +1082,7 @@ export default function EnrollmentWorkspace({
             <div className="modal-stop">PAUSE</div>
             <h2 id="withdraw-title">Withdraw source permissions?</h2>
             <p>
-              Your AI becomes non-operational. Capture and storage permission end immediately, and every private source is queued for erasure.
+              The replica becomes non-operational. Capture and storage permission end immediately, and every private source is queued for erasure.
               You can grant new permission later, but erased sources cannot be recovered.
             </p>
             <label className="field-label" htmlFor="withdraw-confirmation">Type WITHDRAW to confirm</label>
@@ -983,7 +1103,7 @@ export default function EnrollmentWorkspace({
             <div className="modal-stop">ERASE</div>
             <h2 id="delete-source-title">Erase this private source?</h2>
             <p>
-              The original file is deleted from private storage. Claims and AI versions derived from it must be invalidated and rebuilt.
+              The original file is deleted from private storage. Claims and model versions derived from it must be invalidated and rebuilt.
               This action cannot be undone.
             </p>
             <label className="field-label" htmlFor="delete-source-confirmation">Type ERASE to confirm</label>

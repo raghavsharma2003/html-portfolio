@@ -1,5 +1,5 @@
 import { replicaRequest } from "./replicaApi";
-import type { EvidenceDecision, ReplicaReview } from "./types";
+import type { EvidenceDecision, ReplicaReview, VoiceBuildIntent } from "./types";
 
 export async function getReplicaReview(token: string, replicaId: string) {
   const data = await replicaRequest<{ review: ReplicaReview }>(token, "/api/replica-review", {
@@ -36,4 +36,17 @@ export async function selectVoiceArtifact(token: string, input: { replicaId: str
     method: "POST",
     body: JSON.stringify({ op: "select_artifact", replica_id: input.replicaId, artifact_id: input.artifactId }),
   });
+}
+
+export async function requestVoiceGenomeBuild(token: string, input: { replicaId: string; candidateSourceId: string; buildIntentId: string }) {
+  const data = await replicaRequest<{ build_intent: VoiceBuildIntent }>(token, "/api/replica-review", {
+    method: "POST",
+    body: JSON.stringify({
+      op: "request_voice_genome_build",
+      replica_id: input.replicaId,
+      candidate_source_id: input.candidateSourceId,
+      build_intent_id: input.buildIntentId,
+    }),
+  });
+  return data.build_intent;
 }

@@ -28,6 +28,7 @@ createRoot(document.getElementById("root")!).render(
       onCreateUpload={async () => { throw new Error("offline visual harness"); }}
       onRetryUpload={async () => { throw new Error("offline visual harness"); }}
       onFinalizeUpload={async () => { throw new Error("offline visual harness"); }}
+      onSetPrimaryVoice={async () => { throw new Error("offline visual harness"); }}
       onDeleteSource={async () => "pending"}
     />
   </main></div>,

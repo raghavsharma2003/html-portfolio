@@ -5,6 +5,9 @@ import {
   requeueRecoveredProcessingJobs,
 } from "../../api/_replica-processing/composition.js";
 import { runNextProcessingJob } from "../../api/_replica-processing/runtime.js";
+import { runVoiceGenomeBuildSweep } from "../../api/_replica-model-build.js";
+import { reconcileSelfTestVoiceGenomes } from "../../api/_replica-processing/self-test.js";
+import { reconcileVoiceBuildIntents } from "../../api/_replica-build-intent.js";
 import { CLAMD_CONFIG_PATH, refreshSignatures, startClamd } from "./clamav.js";
 import { createNeonDb } from "./db.js";
 
@@ -83,7 +86,12 @@ export async function pendingWork(db, capabilities, options = {}) {
 }
 
 async function main() {
-  const maxJobs = boundedInteger(process.env.PROCESSING_JOBS_PER_RUN, 4, 1, 20, "processing_jobs_per_run_invalid");
+  // One source is an eight-step sequential DAG. The old default of four
+  // guaranteed that even a short clean recording needed a second scheduled
+  // execution before it could become ready. Twelve completes one whole source
+  // and still leaves bounded capacity to start another without weakening the
+  // wall-clock budget below.
+  const maxJobs = boundedInteger(process.env.PROCESSING_JOBS_PER_RUN, 12, 1, 20, "processing_jobs_per_run_invalid");
   const maxRuntimeMs = boundedInteger(process.env.PROCESSING_RUN_BUDGET_MS, 3_300_000, 60_000, 3_500_000, "processing_run_budget_invalid");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error("processing-run-budget")), maxRuntimeMs);
@@ -104,11 +112,24 @@ async function main() {
     });
   }
 
-  const report = { capabilities, processed: 0, requeued: 0, clamd_ready_ms: null, outcomes: [] };
+  const report = {
+    capabilities, processed: 0, requeued: 0, clamd_ready_ms: null, outcomes: [],
+    model_builds: { leased: 0, built: 0, retried: 0, failed: 0 },
+    model_recovery: { examined: 0, queued: 0, blocked: 0, failed: 0 },
+    build_intents: { examined: 0, waiting: 0, queued: 0, review: 0, failed: 0 },
+  };
   let clamdChild = null;
   try {
     const pending = await pendingWork(db, composed.capabilities);
     if (!pending.total) {
+      // A completed voice_quality job queues its VoiceGenome after the source
+      // DAG is already empty. Running the same durable model-build sweep here
+      // removes an otherwise unavoidable extra cron interval. The independent
+      // Vercel cron remains the recovery owner; both consumers use the same
+      // token-fenced model-build lease.
+      report.model_recovery = await reconcileSelfTestVoiceGenomes(db, { env: process.env });
+      report.build_intents = await reconcileVoiceBuildIntents(db, { limit: 12 });
+      report.model_builds = await runVoiceGenomeBuildSweep({ db, maxJobs: 4 });
       report.idle = true;
       return report;
     }
@@ -130,6 +151,7 @@ async function main() {
     }
 
     const started = Date.now();
+    let preferredSourceId = null;
     for (let count = 0; count < maxJobs && Date.now() - started < maxRuntimeMs - 20_000; count++) {
       const outcome = await runNextProcessingJob({
         db,
@@ -138,10 +160,16 @@ async function main() {
         resolveInput: composed.resolveInput,
         withMaterializedAudio: composed.withMaterializedAudio,
         budgetEnv: process.env,
-        leaseMs: 3_600_000,
+        // A ten-minute recoverable lease with a one-minute heartbeat lets a
+        // legitimate long stage run to the worker ceiling while a killed
+        // container becomes eligible again in at most ten minutes.
+        leaseMs: 600_000,
+        heartbeatMs: 60_000,
+        preferredSourceId,
         maxAttempts: 5,
         signal: controller.signal,
       });
+      if (outcome.source_id) preferredSourceId = outcome.source_id;
       report.outcomes.push({
         outcome: outcome.outcome,
         step: outcome.step || null,
@@ -150,6 +178,9 @@ async function main() {
       if (outcome.outcome === "idle") break;
     }
     report.processed = report.outcomes.filter((entry) => entry.outcome !== "idle").length;
+    report.model_recovery = await reconcileSelfTestVoiceGenomes(db, { env: process.env });
+    report.build_intents = await reconcileVoiceBuildIntents(db, { limit: 12 });
+    report.model_builds = await runVoiceGenomeBuildSweep({ db, maxJobs: 4 });
     return report;
   } finally {
     clearTimeout(timer);

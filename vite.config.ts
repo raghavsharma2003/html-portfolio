@@ -292,6 +292,7 @@ export default defineConfig({
         // the signed-in screens without a secret. Inert off loopback and
         // unlinked. See src/studio/layoutFixture.tsx.
         "studio-layout-fixture": "studio-layout-fixture.html",
+        "creator-layout-fixture": "creator-layout-fixture.html",
         // The same harness for the Room, and it needs its own because every
         // Room screen worth measuring is SIGNED IN: pointed at the real page
         // the gate would render "this room is not open" three times and report

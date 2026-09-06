@@ -249,7 +249,19 @@ Do this in the manifest's (a) → (b) → (c) order — each subset is runnable 
 independently useful without the next one, and (c) is the only tier gated on
 an external approval with unknown lead time (Phase 4).
 
-### 2a. Foundry only (ENV-MANIFEST §23a)
+### 2a. Claim extraction provider (ENV-MANIFEST §23a)
+
+For OpenRouter claim extraction without Foundry dialogue:
+
+```
+OPENROUTER_API_KEY or OPENROUTER_KEY
+OPENROUTER_CLAIM_MODEL
+AZURE_REPLICA_APP_BUDGET_USD
+OPENROUTER_INPUT_USD_PER_MTOKENS
+OPENROUTER_OUTPUT_USD_PER_MTOKENS
+```
+
+For Azure claim extraction plus Foundry dialogue:
 
 ```
 AZURE_FOUNDRY_ENDPOINT
@@ -261,9 +273,11 @@ AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS
 AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS
 ```
 
-Verify: `node scripts/check-replica-env.mjs` shows `foundry_claim_extraction`,
-`foundry_dialogue_generation`, and `foundry_spend_budget` all LIVE, everything
-else still DARK.
+Verify: `node scripts/check-replica-env.mjs` shows
+`claim_extraction_provider` plus its matching spend budget LIVE. The Azure
+configuration should also show `foundry_dialogue_generation` LIVE. Never use a
+claim provider when its matching rate variables or the application budget are
+missing.
 
 ### 2b. + Chatterbox voice lane (ENV-MANIFEST §23b)
 

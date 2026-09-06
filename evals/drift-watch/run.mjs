@@ -451,15 +451,15 @@ ok("all three new files are on the SQL strict surface from their first commit",
 // ═════════════════════════════════════════════════════════════════════════
 console.log("\n── 11. the studio card ──");
 
-const card = readFileSync(join(ROOT, "src/studio/DriftWatchCard.tsx"), "utf8");
-const cardCss = readFileSync(join(ROOT, "src/studio/drift-watch.css"), "utf8");
-const app = readFileSync(join(ROOT, "src/studio/StudioApp.tsx"), "utf8");
-// WS-R52: this card's own literal strings moved into src/studio/copy.ts (a
+const card = readFileSync(join(ROOT, "src/creatorStudio/DriftWatchCard.tsx"), "utf8");
+const cardCss = readFileSync(join(ROOT, "src/creatorStudio/drift-watch.css"), "utf8");
+const app = readFileSync(join(ROOT, "src/creatorStudio/StudioApp.tsx"), "utf8");
+// WS-R52: this card's own literal strings moved into src/creatorStudio/copy.ts (a
 // locale table, English and Hindi) - `card` alone no longer carries the
 // rendered English text, only `t.driftWatch.<key>` references. `cardWithCopy`
 // is what the two rendered-text checks below actually read, matching
 // `evals/readiness/run.mjs`'s own fix for the identical shape one card over.
-const copyTs = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
+const copyTs = readFileSync(join(ROOT, "src/creatorStudio/copy.ts"), "utf8");
 const cardWithCopy = `${card}\n${copyTs}`;
 
 ok('the card renders "Not measured yet" rather than a zero', /Not measured yet/.test(cardWithCopy));

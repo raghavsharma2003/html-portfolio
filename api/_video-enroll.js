@@ -204,17 +204,18 @@ export async function enrollFromVideo(db, ownerUserId, input, deps = {}) {
   assertVideoEnrollAdmission({ usage, limits });
 
   const created = await db(
-    `with owned as (
-       select replica_id from vy_replica
-        where replica_id = ($1)::uuid and owner_user_id = ($2)::uuid
-          and subject_mode = 'self'
-          and lifecycle not in ('revoked','purging')
+    `with owned as materialized (
+       select r.replica_id from vy_replica r
+        where r.replica_id = ($1)::uuid and r.owner_user_id = ($2)::uuid
+          and r.subject_mode = 'self'
+          and r.lifecycle not in ('revoked','purging')
+        for update of r
      )
      insert into vy_video_enrollment
        (enrollment_id, replica_id, owner_user_id, video_id, channel_url, provider,
-        attestation_id, state, score_source)
+        attestation_id, state, score_source, upload_authorization_expires_at)
      select ($3)::uuid, owned.replica_id, ($2)::uuid, $4, $5, 'youtube',
-            ($6)::uuid, 'extracting', $7
+            ($6)::uuid, 'extracting', $7, now()
        from owned
      on conflict (owner_user_id, video_id, enrollment_day) do nothing
      returning enrollment_id, replica_id, video_id, channel_url, state, failure_code,
@@ -371,19 +372,35 @@ export async function enrollFromVideo(db, ownerUserId, input, deps = {}) {
   // is `gen_random_uuid()` (built in since PG13) rather than a parallel array
   // parameter — pairing an array against a recordset by position is a join
   // waiting to be silently off by one.
-  await db(
-    `insert into vy_video_enrollment_window
+  const storedWindows = await db(
+    `with enrollment_gate as materialized (
+       select e.enrollment_id,e.replica_id,e.owner_user_id
+         from vy_video_enrollment e
+         join vy_replica r on r.replica_id=e.replica_id and r.owner_user_id=e.owner_user_id
+        where e.enrollment_id=($1)::uuid and e.replica_id=($2)::uuid
+          and e.owner_user_id=($3)::uuid and e.state='scoring'
+          and r.lifecycle not in ('revoked','purging')
+        for update of e,r
+     )
+     insert into vy_video_enrollment_window
        (window_id, enrollment_id, replica_id, owner_user_id, rank, start_ms, end_ms,
         score, voiced_fraction, snr_db, clipping_fraction, speaker_purity, score_source, metrics)
-     select gen_random_uuid(), ($1)::uuid, ($2)::uuid, ($3)::uuid, w.rank, w.start_ms, w.end_ms,
-            w.score, w.voiced_fraction, w.snr_db, w.clipping_fraction, w.speaker_purity, $4, w.metrics
-       from jsonb_to_recordset(($5)::jsonb) as w(rank int4, start_ms int4, end_ms int4,
+     select gen_random_uuid(),g.enrollment_id,g.replica_id,g.owner_user_id,w.rank,w.start_ms,w.end_ms,
+            w.score,w.voiced_fraction,w.snr_db,w.clipping_fraction,w.speaker_purity,$4,w.metrics
+       from enrollment_gate g
+       cross join jsonb_to_recordset(($5)::jsonb) as w(rank int4, start_ms int4, end_ms int4,
             score numeric, voiced_fraction numeric, snr_db numeric, clipping_fraction numeric,
             speaker_purity numeric, metrics jsonb)
-     on conflict (enrollment_id, start_ms) do nothing`,
+     on conflict (enrollment_id, start_ms) do nothing
+     returning window_id`,
     [enrollmentId, rid, ownerUserId, WINDOW_SCORE_SOURCE,
       JSON.stringify(ranking.candidates.map((window) => ({ ...window, metrics: window })))],
   );
+  if (storedWindows.length !== ranking.candidates.length) {
+    const code = "video_enroll_write_fenced";
+    await mark("failed", { failureCode: code, receipts });
+    fail(code, 409, { stage: "score_windows" });
+  }
 
   // ── 5. the window becomes the replica's active voice reference ─────────
   // NOT by relaxing anything. `beginOwnedVoicePreview`'s fence requires an

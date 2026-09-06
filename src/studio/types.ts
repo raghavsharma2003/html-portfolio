@@ -18,12 +18,6 @@ export interface Replica {
   age_verified: boolean;
   identity_verified: boolean;
   liveness_verified: boolean;
-  /** WS-R52 (migration 112). The STUDIO's own chrome language -- never the
-   *  AI's own replies, never the Room a follower sees (that is
-   *  src/room/copy.ts's business). Read from `?lang=` first, then this
-   *  stored value; src/studio/copy.ts's STUDIO_LOCALES is the source of
-   *  truth for what values are valid. */
-  locale: "en" | "hi";
   created_at: string;
   updated_at: string;
 }
@@ -78,11 +72,14 @@ export interface ReplicaSource {
   source_id: string;
   replica_id: string;
   kind: SourceKind;
-  capture_mode: "live_challenge" | "provider_consent" | "identity_document" | "identity_challenge" | "upload" | "import" | "derived";
+  capture_mode: "live_challenge" | "provider_consent" | "identity_document" | "upload" | "import" | "derived";
   mime: string;
   byte_size: number;
   state: SourceState;
   contains_third_parties: boolean;
+  voice_role: "primary" | "supporting";
+  upload_intent_id?: string | null;
+  language_hint?: "en" | "hi" | "hi-latn" | null;
   rejection_code: string;
   created_at: string;
   updated_at: string;
@@ -100,6 +97,23 @@ export interface SignedUpload {
     chunk_size: number;
   };
   expires_at: string;
+}
+
+export interface VoiceBuildIntent {
+  intent_id: string;
+  replica_id: string;
+  candidate_source_id: string;
+  state: "waiting" | "queued" | "review" | "failed";
+  build_id: string | null;
+  build_state: string | null;
+  target_version: number | null;
+  blockers: string[];
+  last_error_code: string;
+  promoted_at: string | null;
+  next_check_at: string;
+  created_at: string;
+  updated_at: string;
+  replayed: boolean;
 }
 
 export type LivenessState = "issued" | "uploaded" | "verifying" | "passed" | "failed" | "expired";
@@ -120,30 +134,6 @@ export interface LivenessChallenge {
   face_session_expires_at: string | null;
   issued_at: string;
   expires_at: string;
-  updated_at: string;
-}
-
-// WS-R2, migration 072. The voice identity challenge: the owner proves they
-// are the voice in their own enrollment by reading a freshly issued sentence.
-export type VoiceIdentityState = "issued" | "captured" | "verifying" | "verified" | "failed" | "expired";
-/** "" until a verdict exists. `review` is a real, recorded outcome that does
- *  NOT open the gate, because false acceptance on this metric is unmeasured. */
-export type VoiceIdentityDecision = "" | "accept" | "review" | "reject";
-
-export interface VoiceIdentityChallenge {
-  challenge_id: string;
-  replica_id: string;
-  sentence: string;
-  state: VoiceIdentityState;
-  decision: VoiceIdentityDecision;
-  attempt: number;
-  captured_source_id: string | null;
-  transcript_source_id: string | null;
-  failure_code: string;
-  similarity: number | null;
-  issued_at: string;
-  expires_at: string;
-  decided_at: string | null;
   updated_at: string;
 }
 
@@ -226,13 +216,25 @@ export interface ReplicaReview {
    * blockerClass.ts's `disabledReason("us", ...)` for how the studio must
    * say so on screen -- never silently. */
   self_test_mode: boolean;
-  sources: Array<Pick<ReplicaSource, "source_id" | "kind" | "capture_mode" | "mime" | "byte_size" | "state" | "contains_third_parties" | "rejection_code" | "created_at" | "updated_at"> & { duration_ms: number | null }>;
+  sources: Array<Pick<ReplicaSource, "source_id" | "kind" | "capture_mode" | "mime" | "byte_size" | "state" | "contains_third_parties" | "voice_role" | "rejection_code" | "created_at" | "updated_at"> & { duration_ms: number | null }>;
   jobs: Array<{ job_id: string; source_id: string; step: string; revision: number; state: string; attempt: number; failure_code: string; next_attempt_at: string; created_at: string; updated_at: string }>;
   attempts: Array<{ job_id: string; attempt: number; outcome: string; provenance: ReviewProvenance; failure_code: string; facts: Record<string, string | number | boolean>; started_at: string; finished_at: string | null }>;
   artifacts: Array<{ artifact_id: string; source_id: string; parent_artifact_id: string | null; created_by_job_id: string | null; stage: string; variant_key: string; mime: string; byte_size: number; duration_ms: number | null; transform: { name: string; version: string }; provenance: ReviewProvenance; selection_decision: "selected" | "rejected" | "superseded" | null; selection_reason: string; selection_reviewed_at: string | null; created_at: string }>;
   evidence: ReviewEvidence[];
   builds: Array<{ build_id: string; build_kind: string; target_version: number; builder_version: string; state: string; attempt: number; failure_code: string; created_at: string; updated_at: string }>;
-  voice_genomes: Array<{ version: number; status: "draft" | "approved" | "retired"; source_set_hash: string; manifest_hash: string; builder_version: string; embedding_families: number; target_segments: number; enrollment_artifacts: number; created_at: string }>;
+  voice_genomes: Array<{
+    version: number;
+    status: "draft" | "approved" | "retired";
+    source_set_hash: string;
+    manifest_hash: string;
+    builder_version: string;
+    embedding_families: number;
+    target_segments: number;
+    enrollment_artifacts: number;
+    source_ids: string[];
+    references: Array<{ artifact_id: string; source_id: string; variant_key: string; duration_ms: number | null }>;
+    created_at: string;
+  }>;
   voice_genome_readiness: { ready: boolean; blockers: string[]; reviewed_real_evidence: number; embedding_families: number; voice_measurements: number; quality_measurements: number; speaker_segments: number };
 }
 
@@ -304,6 +306,7 @@ export interface ReplicaClaim {
   status: "proposed" | "approved" | "rejected" | "superseded";
   sensitive: boolean;
   source_count: number;
+  citation_previews: Array<{ excerpt: string; entailment: number }>;
   decision: "accepted" | "rejected" | "superseded" | null;
   reason_code: string;
   reviewed_at: string | null;
@@ -338,6 +341,16 @@ export interface ClaimExtractionRun {
 export interface ClaimExtractionStatus {
   replica_id: string;
   readiness: { ready: boolean; blockers: string[]; eligible_spans: number };
+  nearline?: {
+    queued: boolean;
+    state: "queued" | "running" | "waiting" | "complete" | "ready_for_manual_extraction" | "waiting_for_readiness" | string;
+    pending_items: number;
+    complete_items: number;
+    next_attempt_at: string | null;
+    last_error_code: string;
+    automatic_sweep: { route: string };
+    owner_action: { route: string; op: string };
+  };
   runs: ClaimExtractionRun[];
 }
 
@@ -391,84 +404,4 @@ export interface CandidateEvaluation {
   progress?: { completed: number; total: number };
   dimensions?: CandidateEvalDimension[];
   assignment?: CandidateEvalAssignment | null;
-}
-
-// WS-R4, the review queue. `has_correction` rather than the source id: an
-// internal handle has no use on a screen, and the studio only has to know
-// whether the owner's better answer landed.
-// WS-R112: 'instruction_shaped' appended (migration 129) - a source whose
-// text reads like an instruction aimed at the AI, flagged at ingestion by
-// api/_material-detector.js and surfaced as a card here rather than mined
-// or blocked silently. `ReviewCardState` is UNCHANGED (migration 129 widens
-// only the `kind` CHECK): 'remove_source' below writes state='never', the
-// closer of the two closeable non-'fixed' states to "we acted against
-// this" (`context/decisions.md#ws-r112-remove-source-reuses-the-never-
-// state`).
-export type ReviewCardKind = "question" | "claim" | "delta" | "follower_declined" | "instruction_shaped";
-export type ReviewCardState = "open" | "sounds_right" | "fixed" | "never";
-export type ReviewDecision = "sounds_right" | "fixed" | "never" | "remove_source";
-
-export interface ReviewCard {
-  card_id: string;
-  kind: ReviewCardKind;
-  prompt_text: string;
-  answer_text: string;
-  source_refs: Array<Record<string, unknown>>;
-  state: ReviewCardState;
-  decided_at: string | null;
-  has_correction: boolean;
-  created_at: string;
-}
-
-export interface ReviewQueue {
-  replica_id: string;
-  cards: ReviewCard[];
-  open_count: number;
-  decided_count: number;
-  fixed_count: number;
-  never_count: number;
-  active_never_rules: number;
-  cap: number;
-}
-
-// WS-R67 (migration 116). Ten followers flagging the same reply is ONE
-// entry here with count=10, never ten - `api/_review-queue.js`'s
-// `readFlaggedReplies` groups by reply on the server, so the studio never
-// has to. `suggest_never` is true the moment even one follower named
-// `harmful` - the workstream brief's own words, "Never say this"
-// pre-selected for harmful.
-export type FlagReason = "wrong" | "harmful" | "not_them" | "other";
-
-export interface FlaggedReply {
-  reply_sha256: string;
-  reply_text: string;
-  count: number;
-  reasons: Record<FlagReason, number>;
-  suggest_never: boolean;
-  last_flagged_at: string;
-}
-
-export interface ReviewCorrectionUpload {
-  source: { source_id: string; mime: string; state: string };
-  upload: {
-    method: string;
-    url: string;
-    headers: Record<string, string>;
-    expires_at: string;
-  };
-}
-
-// WS-R72. The showcase picker's own list — a DECIDED review card the owner
-// can copy straight onto their public page, `api/_review-queue.js`'s
-// `readEligibleShowcaseCards`. Never a `ReviewCard`: this shape carries none
-// of the OPEN-queue fields (`state`, `decided_at`, `source_refs`,
-// `has_correction`) because every row this endpoint returns is already
-// `state: 'sounds_right'` by construction — the server's own WHERE clause,
-// never a client-side filter (`context/decisions.md#ws-r66-showcase-
-// eligibility-is-a-where-clause-on-kind`, restated for this read).
-export interface ShowcaseEligibleCard {
-  card_id: string;
-  kind: ReviewCardKind;
-  prompt_text: string;
-  answer_text: string;
 }

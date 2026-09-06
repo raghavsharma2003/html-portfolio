@@ -1,6 +1,7 @@
 import { createSarvamSaarasProvider } from "./providers/sarvam-saaras.js";
 import { createSarvamSyncProvider } from "./providers/sarvam-sync.js";
 import { createSelfHostedAsrProvider } from "./providers/self-hosted.js";
+import { createAzureSpeechShortProvider } from "./providers/azure-speech-short.js";
 
 // api/_claim-extraction/registry.js's pattern: read the env, throw a coded
 // 503 when it is incomplete, construct otherwise. No fixture fallback — see
@@ -64,6 +65,13 @@ export function configuredAsrProvider(env = process.env) {
 export function createLiveAsrProvider(env = process.env) {
   if (env.ASR_SELF_HOSTED_ORIGIN && env.ASR_HMAC_SECRET) {
     return createSelfHostedAsrProvider({ env });
+  }
+  // The existing Azure Speech resource is the paid operational fallback for
+  // live calls when the Sarvam account is unavailable. This is availability,
+  // not a quality win: Hindi/Hinglish model choice remains subject to the
+  // matched human audit.
+  if (env.AZURE_SPEECH_ENDPOINT && env.AZURE_SPEECH_KEY) {
+    return createAzureSpeechShortProvider({ env });
   }
   const apiKey = env.SARVAM_API_KEY;
   if (!apiKey) {

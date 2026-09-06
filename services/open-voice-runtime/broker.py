@@ -28,6 +28,7 @@ from fastapi.responses import JSONResponse, Response
 
 PROTOCOL = "vyakti-open-voice/v1"
 PATH = "/v1/synthesize"
+RUNTIME_STATUS_PATH = "/v1/runtime-status"
 MAX_CLOCK_SKEW_SECONDS = 60
 MAX_REQUEST_BYTES = 32 * 1024 * 1024
 MAX_RESPONSE_BYTES = 24 * 1024 * 1024
@@ -69,7 +70,7 @@ def _signed_response(request: Request, body: bytes, status: int) -> Response:
     nonce = request.headers.get("x-vyakti-nonce", "")
     response = Response(status_code=status, content=body, media_type="application/json")
     response.headers["X-Vyakti-Response-Signature"] = _signature(
-        app.state.secret, (PROTOCOL, "response", PATH, nonce, str(status), _sha(body))
+        app.state.secret, (PROTOCOL, "response", request.url.path, nonce, str(status), _sha(body))
     )
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -177,6 +178,32 @@ async def synthesize(request: Request) -> Response:
         if not hmac.compare_digest(expected, upstream.headers.get("x-vyakti-response-signature", "")):
             raise BrokerError("runtime_response_signature_invalid", 503)
         return _signed_response(request, response_body, upstream.status_code)
+    except BrokerError as error:
+        return _signed_error(request, error.code, error.status)
+    except Exception:
+        return _signed_error(request, "open_voice_runtime_unreachable", 503)
+
+
+@app.post(RUNTIME_STATUS_PATH)
+async def runtime_status(request: Request) -> Response:
+    """Return private-runtime readiness only after the caller passes HMAC admission.
+
+    The GPU app remains internal. This endpoint is intentionally a signed POST,
+    not a public health route: unauthenticated traffic is rejected before the
+    broker probes the private origin, so it cannot wake billable GPU capacity.
+    """
+    try:
+        body, _ = await _admit(request)
+        try:
+            value = json.loads(body)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise BrokerError("runtime_status_request_invalid", 400) from exc
+        if value != {"op": "runtime_status"}:
+            raise BrokerError("runtime_status_request_invalid", 400)
+        if not await _runtime_is_ready():
+            raise BrokerError("open_voice_runtime_warming", 503)
+        ready = json.dumps({"ready": True}, sort_keys=True, separators=(",", ":")).encode()
+        return _signed_response(request, ready, 200)
     except BrokerError as error:
         return _signed_error(request, error.code, error.status)
     except Exception:

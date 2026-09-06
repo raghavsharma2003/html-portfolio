@@ -44,6 +44,8 @@
 // works, everything returns 200, and she is quietly someone else.
 import { q } from "./_db.js";
 import { OPENROUTER_KEY } from "./_config.js";
+import { replyEngineCapability } from "./_reply-engine-capability.js";
+import { azureSurfaceReply } from "./_azure-surface-reply.js";
 import { MEERA_AGENT_ID } from "./_agentscope.js";
 // WS-R4. The owner's "Never say this" rules, as a predicate on the assembled
 // reply. `api/_never-rules.js` imports NOTHING, on purpose: this file is on
@@ -294,7 +296,12 @@ export async function think(engine, compiled, turns) {
   // set and the alias unset passed its own self-check while every Room,
   // Mirror Call and channel reply came back empty (WS-R96's finding,
   // `docs/gurukul/DAY-ONE.md`'s section 2).
-  const key = process.env.OPENROUTER_API_KEY || OPENROUTER_KEY || "";
+  const capability = replyEngineCapability();
+  if (!capability.available) return "";
+  if (process.env.VYAKTI_REPLY_PROVIDER === "azure_foundry") {
+    return azureSurfaceReply({ compiled, turns, db: q });
+  }
+  const key = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY || OPENROUTER_KEY || "";
   const body = {
     model: "google/gemini-3.6-flash",
     messages: [

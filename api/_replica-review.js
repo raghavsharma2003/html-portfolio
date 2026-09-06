@@ -111,9 +111,14 @@ function readiness(rows, replica, artifacts = []) {
   const count = (type) => accepted.filter((row) => row.evidence_type === type).length;
   const families = new Set(accepted.filter((row) => row.evidence_type === "voice_embedding").map((row) => String(row.value?.family || "")).filter(Boolean));
   const blockers = [];
-  if (!replica?.liveness_verified_at) blockers.push("liveness_verification_required");
+  const identityCurrent = Boolean(replica?.identity_expires_at)
+    && new Date(replica.identity_expires_at).getTime() > Date.now();
+  if (!replica?.age_verified_at || !identityCurrent) blockers.push("adult_age_verification_required");
+  if (!replica?.identity_verified_at || !identityCurrent) blockers.push("identity_verification_required");
+  if (!replica?.liveness_verified_at || !identityCurrent) blockers.push("liveness_verification_required");
   if (!replica?.biometric_consent) blockers.push("biometric_consent_required");
   if (!replica?.training_consent) blockers.push("training_consent_required");
+  if (!replica?.inference_consent) blockers.push("inference_consent_required");
   if (families.size < 2) blockers.push("two_independent_embedding_families_required");
   if (count("voice_measurement") < 1) blockers.push("reviewed_voice_measurement_required");
   if (count("quality_measurement") < 1) blockers.push("reviewed_quality_measurement_required");
@@ -132,10 +137,12 @@ function readiness(rows, replica, artifacts = []) {
   };
 }
 
-const OWNED = `select r.replica_id, r.liveness_verified_at, r.identity_expires_at,
+const OWNED = `select r.replica_id, r.liveness_verified_at, r.age_verified_at,
+  r.identity_verified_at, r.identity_expires_at,
   coalesce(r.metadata->>'self_test_mode','')='true' self_test_mode,
-  exists(select 1 from vy_replica_consent c where c.replica_id=r.replica_id and c.owner_user_id=$2::uuid and c.scope='biometric' and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())) biometric_consent,
-  exists(select 1 from vy_replica_consent c where c.replica_id=r.replica_id and c.owner_user_id=$2::uuid and c.scope='training' and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())) training_consent
+  exists(select 1 from vy_replica_consent c where c.replica_id=r.replica_id and c.owner_user_id=$2::uuid and c.scope='biometric' and c.policy_version=r.policy_version and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())) biometric_consent,
+  exists(select 1 from vy_replica_consent c where c.replica_id=r.replica_id and c.owner_user_id=$2::uuid and c.scope='training' and c.policy_version=r.policy_version and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())) training_consent,
+  exists(select 1 from vy_replica_consent c where c.replica_id=r.replica_id and c.owner_user_id=$2::uuid and c.scope='inference' and c.policy_version=r.policy_version and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())) inference_consent
   from vy_replica r where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.lifecycle not in ('revoked','purging')`;
 
 const EVIDENCE_SQL = `with owned as (${OWNED}), latest as (
@@ -152,7 +159,13 @@ const BUILD_EVIDENCE_SQL = `with owned as (${OWNED}), latest as (
   from vy_replica_processing_evidence_decision d order by d.evidence_id,d.created_at desc,d.decision_id desc), artifact_latest as (
   select distinct on (d.artifact_id) d.artifact_id,d.decision
   from vy_replica_processing_artifact_decision d
-  order by d.artifact_id,d.created_at desc,d.decision_id desc)
+  order by d.artifact_id,d.created_at desc,d.decision_id desc), selected_enhance_sources as (
+  select distinct a.source_id
+    from vy_replica_processing_artifact a
+    join artifact_latest selected on selected.artifact_id=a.artifact_id and selected.decision='selected'
+   where a.replica_id=$1::uuid and a.owner_user_id=$2::uuid and a.stage='enhance'
+     and a.mime in ('audio/wav','audio/x-wav')
+     and ($4::uuid is null or a.source_id=$4::uuid))
  select e.evidence_id,e.source_id,e.artifact_id,e.evidence_type,e.span_start_ms,e.span_end_ms,
   e.confidence,e.value,e.input_sha256,e.record_hash,e.adapter_family,e.adapter_name,e.adapter_version,
   e.created_at,l.decision,l.reason_code,l.reviewed_at,s.contains_third_parties
@@ -161,14 +174,27 @@ const BUILD_EVIDENCE_SQL = `with owned as (${OWNED}), latest as (
   and s.owner_user_id=$2::uuid and s.state='ready' and s.contains_third_parties=false
  join latest l on l.evidence_id=e.evidence_id and l.decision='accepted'
  where e.evidence_type=any($3::text[])
-   and (e.artifact_id is null or exists (
+   and ($4::uuid is null or e.source_id=$4::uuid)
+   and ((e.artifact_id is null and exists (
+     select 1 from selected_enhance_sources selected_source where selected_source.source_id=e.source_id
+   )) or exists (
      select 1 from artifact_latest selected where selected.artifact_id=e.artifact_id and selected.decision='selected'
    ))
  order by e.evidence_id limit 2001`;
 
+function voiceBuildScope(value) {
+  const scoped = value && typeof value === "object" && !Array.isArray(value);
+  return Object.freeze({
+    replicaId: replicaId(scoped ? value.replica_id : value),
+    candidateSourceId: scoped && value.candidate_source_id
+      ? replicaId(value.candidate_source_id)
+      : null,
+  });
+}
+
 export async function loadAcceptedVoiceGenomeInput(db, ownerUserId, value) {
-  const rid = replicaId(value);
-  const evidenceRows = await db(BUILD_EVIDENCE_SQL, [rid, ownerUserId, [...VOICE_REVIEW_TYPES]]);
+  const { replicaId: rid, candidateSourceId } = voiceBuildScope(value);
+  const evidenceRows = await db(BUILD_EVIDENCE_SQL, [rid, ownerUserId, [...VOICE_REVIEW_TYPES], candidateSourceId]);
   if (evidenceRows.length > 2_000) throw Object.assign(new Error("voice_genome_evidence_limit_exceeded"), { status: 409 });
   const evidence = evidenceRows.filter((row) => VOICE_REVIEW_TYPES.has(row.evidence_type) && isRealEvidence(row)).map((row) => ({
     ...row,
@@ -223,7 +249,15 @@ export async function ownedReviewStatus(db, ownerUserId, value) {
   const rid = replicaId(value);
   const [replicas, sources, jobs, attempts, artifacts, evidence, builds, genomes] = await Promise.all([
     db(OWNED, [rid, ownerUserId]),
-    db(`select s.source_id,s.kind,s.capture_mode,s.mime,s.byte_size,s.duration_ms,s.state,s.contains_third_parties,s.rejection_code,s.created_at,s.updated_at from vy_replica_source s join vy_replica r on r.replica_id=s.replica_id and r.owner_user_id=$2::uuid where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid order by s.created_at desc limit 100`, [rid, ownerUserId]),
+    db(`select s.source_id,s.kind,s.capture_mode,s.mime,s.byte_size,s.duration_ms,s.state,s.contains_third_parties,
+               case when vr.source_id is not null then 'primary' else 'supporting' end voice_role,
+               s.rejection_code,s.created_at,s.updated_at
+          from vy_replica_source s
+          join vy_replica r on r.replica_id=s.replica_id and r.owner_user_id=$2::uuid
+          left join vy_replica_voice_reference vr on vr.replica_id=s.replica_id
+           and vr.owner_user_id=s.owner_user_id and vr.source_id=s.source_id
+         where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid
+         order by s.created_at desc limit 100`, [rid, ownerUserId]),
     db(`select j.job_id,j.source_id,j.step,j.revision,j.state,j.attempt,j.failure_code,j.next_attempt_at,j.created_at,j.updated_at from vy_replica_processing_job j join vy_replica r on r.replica_id=j.replica_id and r.owner_user_id=$2::uuid where j.replica_id=$1::uuid and j.owner_user_id=$2::uuid order by j.created_at desc limit 500`, [rid, ownerUserId]),
     db(`select a.job_id,a.attempt,a.outcome,a.adapter_family,a.adapter_name,a.adapter_version,a.failure_code,a.facts,a.started_at,a.finished_at from vy_replica_processing_attempt a join vy_replica_processing_job j on j.job_id=a.job_id join vy_replica r on r.replica_id=j.replica_id and r.owner_user_id=$2::uuid where j.replica_id=$1::uuid and j.owner_user_id=$2::uuid order by a.started_at desc limit 500`, [rid, ownerUserId]),
     db(`with latest as (select distinct on (d.artifact_id) d.artifact_id,d.decision,d.reason_code,d.created_at reviewed_at from vy_replica_processing_artifact_decision d where d.replica_id=$1::uuid and d.owner_user_id=$2::uuid order by d.artifact_id,d.created_at desc,d.decision_id desc) select a.artifact_id,a.source_id,a.parent_artifact_id,a.created_by_job_id,a.stage,a.variant_key,a.mime,a.byte_size,a.duration_ms,a.transform_name,a.transform_version,a.adapter_family,a.adapter_name,a.adapter_version,a.created_at,l.decision selection_decision,l.reason_code selection_reason,l.reviewed_at selection_reviewed_at from vy_replica_processing_artifact a join vy_replica r on r.replica_id=a.replica_id and r.owner_user_id=$2::uuid left join latest l on l.artifact_id=a.artifact_id where a.replica_id=$1::uuid and a.owner_user_id=$2::uuid order by a.created_at desc limit 500`, [rid, ownerUserId]),
@@ -243,18 +277,31 @@ export async function ownedReviewStatus(db, ownerUserId, value) {
     artifacts: artifacts.map((row) => ({ artifact_id: row.artifact_id, source_id: row.source_id, parent_artifact_id: row.parent_artifact_id || null, created_by_job_id: row.created_by_job_id || null, stage: row.stage, variant_key: row.variant_key, mime: row.mime, byte_size: Number(row.byte_size), duration_ms: row.duration_ms == null ? null : Number(row.duration_ms), transform: { name: row.transform_name, version: row.transform_version }, provenance: { family: row.adapter_family, name: row.adapter_name, version: row.adapter_version }, selection_decision: row.selection_decision || null, selection_reason: row.selection_reason || "", selection_reviewed_at: row.selection_reviewed_at || null, created_at: row.created_at })),
     evidence: evidence.map(clientEvidence),
     builds: builds.map((row) => ({ ...row, target_version: Number(row.target_version), attempt: Number(row.attempt) })),
-    voice_genomes: genomes.map((row) => ({
-      version: Number(row.version),
-      status: row.status,
-      source_set_hash: row.source_set_hash,
-      manifest_hash: sha256Hex(row.definition),
-      builder_version: String(row.definition?.builder_version || ""),
-      embedding_families: Object.keys(row.definition?.speaker_identity?.embedding_families || {}).length,
-      target_segments: Array.isArray(row.definition?.target_segments) ? row.definition.target_segments.length : 0,
-      enrollment_artifacts: Array.isArray(row.definition?.references?.enrollment_artifact_ids)
-        ? row.definition.references.enrollment_artifact_ids.length : 0,
-      created_at: row.created_at,
-    })),
+    voice_genomes: genomes.map((row) => {
+      const enrollmentArtifactIds = Array.isArray(row.definition?.references?.enrollment_artifact_ids)
+        ? row.definition.references.enrollment_artifact_ids.map(String) : [];
+      const referenceArtifacts = enrollmentArtifactIds
+        .map((artifactId) => artifacts.find((artifact) => String(artifact.artifact_id) === artifactId))
+        .filter(Boolean);
+      return {
+        version: Number(row.version),
+        status: row.status,
+        source_set_hash: row.source_set_hash,
+        manifest_hash: sha256Hex(row.definition),
+        builder_version: String(row.definition?.builder_version || ""),
+        embedding_families: Object.keys(row.definition?.speaker_identity?.embedding_families || {}).length,
+        target_segments: Array.isArray(row.definition?.target_segments) ? row.definition.target_segments.length : 0,
+        enrollment_artifacts: enrollmentArtifactIds.length,
+        source_ids: [...new Set(referenceArtifacts.map((artifact) => String(artifact.source_id)))].sort(),
+        references: referenceArtifacts.map((artifact) => ({
+          artifact_id: String(artifact.artifact_id),
+          source_id: String(artifact.source_id),
+          variant_key: String(artifact.variant_key || ""),
+          duration_ms: artifact.duration_ms == null ? null : Number(artifact.duration_ms),
+        })),
+        created_at: row.created_at,
+      };
+    }),
     voice_genome_readiness: readiness(evidence, replicas[0], artifacts),
   };
 }
@@ -407,7 +454,7 @@ export async function acceptAllOwnedEvidenceForSelfTest(db, ownerUserId, replica
 }
 
 export async function queueOwnedVoiceGenome(db, ownerUserId, value) {
-  const rid = replicaId(value);
+  const { replicaId: rid, candidateSourceId } = voiceBuildScope(value);
   const replicas = await db(OWNED, [rid, ownerUserId]);
   if (!replicas[0]) return null;
   // Readiness must use the same bounded, accepted evidence set that the build
@@ -415,20 +462,72 @@ export async function queueOwnedVoiceGenome(db, ownerUserId, value) {
   // 300 rows, but a long recording can contain thousands of speaker segments;
   // using that UI window here starved early speaker evidence and made an
   // otherwise complete source impossible to build.
-  const evidence = await db(BUILD_EVIDENCE_SQL, [rid, ownerUserId, [...VOICE_REVIEW_TYPES]]);
+  const evidence = await db(BUILD_EVIDENCE_SQL, [rid, ownerUserId, [...VOICE_REVIEW_TYPES], candidateSourceId]);
   if (evidence.length > 2_000) throw Object.assign(new Error("voice_genome_evidence_limit_exceeded"), { status: 409 });
   const selectedArtifacts = await db(
     `with latest as (select distinct on (d.artifact_id) d.artifact_id,d.decision from vy_replica_processing_artifact_decision d where d.replica_id=$1::uuid and d.owner_user_id=$2::uuid order by d.artifact_id,d.created_at desc,d.decision_id desc)
      select a.artifact_id,a.stage,l.decision selection_decision from vy_replica_processing_artifact a
      join latest l on l.artifact_id=a.artifact_id and l.decision='selected'
-     join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id and s.owner_user_id=a.owner_user_id
-     where a.replica_id=$1::uuid and a.owner_user_id=$2::uuid and a.stage='enhance' and s.state='ready' and s.contains_third_parties=false`,
-    [rid, ownerUserId],
+      join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id and s.owner_user_id=a.owner_user_id
+      where a.replica_id=$1::uuid and a.owner_user_id=$2::uuid and a.stage='enhance' and s.state='ready' and s.contains_third_parties=false
+        and ($3::uuid is null or a.source_id=$3::uuid)`,
+    [rid, ownerUserId, candidateSourceId],
   );
   const state = readiness(evidence, replicas[0], selectedArtifacts);
   if (!state.ready) throw Object.assign(new Error("voice_genome_not_ready"), { status: 409, details: state });
-  const acceptedInput = await loadAcceptedVoiceGenomeInput(db, ownerUserId, rid);
+  const acceptedInput = await loadAcceptedVoiceGenomeInput(db, ownerUserId, {
+    replica_id: rid,
+    candidate_source_id: candidateSourceId,
+  });
   const sourceSetHash = acceptedInput.sourceSetHash;
-  const rows = await db(`with owned as (${OWNED}), locked as materialized (select o.replica_id,pg_advisory_xact_lock(hashtextextended(o.replica_id::text || ':voice_genome',0)) from owned o), candidate as (select l.replica_id,coalesce((select target_version from vy_replica_model_build where replica_id=$1::uuid and build_kind='voice_genome' and source_set_hash=$3 order by target_version desc limit 1),(select coalesce(max(target_version)+1,1) from vy_replica_model_build where replica_id=$1::uuid and build_kind='voice_genome')) target_version from locked l), inserted as (insert into vy_replica_model_build(replica_id,owner_user_id,build_kind,target_version,builder_version,source_set_hash,state) select c.replica_id,$2::uuid,'voice_genome',c.target_version,'voice-genome-builder/v1',$3,'queued' from candidate c on conflict (replica_id,build_kind,source_set_hash) do update set source_set_hash=excluded.source_set_hash returning build_id,build_kind,target_version,builder_version,state,attempt,failure_code,created_at,updated_at) select * from inserted`, [rid, ownerUserId, sourceSetHash]);
+  const rows = await db(
+    `with owned as (${OWNED}),
+     locked as materialized (
+       select o.replica_id,pg_advisory_xact_lock(hashtextextended(o.replica_id::text || ':voice_genome',0))
+         from owned o
+     ), existing as materialized (
+       select b.build_id,b.target_version,b.state,
+              exists(select 1 from vy_replica_voice_genome g where g.replica_id=b.replica_id
+                and g.version=b.target_version and g.status='draft') has_draft
+         from vy_replica_model_build b join locked l on l.replica_id=b.replica_id
+        where b.build_kind='voice_genome' and b.source_set_hash=$3
+        order by b.target_version desc limit 1
+     ), next_version as (
+       select coalesce(max(b.target_version)+1,1) target_version
+         from locked l left join vy_replica_model_build b on b.replica_id=l.replica_id
+     ), candidate as (
+       select l.replica_id,
+              case when e.build_id is null then n.target_version
+                   when e.state in ('queued','retry','leased','building') then e.target_version
+                   when e.state='review' and e.has_draft then e.target_version
+                   else n.target_version end target_version
+         from locked l cross join next_version n left join existing e on true
+     ), inserted as (
+       insert into vy_replica_model_build as current
+         (replica_id,owner_user_id,build_kind,target_version,builder_version,source_set_hash,state)
+       select c.replica_id,$2::uuid,'voice_genome',c.target_version,'voice-genome-builder/v1',$3,'queued'
+         from candidate c
+       on conflict (replica_id,build_kind,source_set_hash) do update
+         set target_version=excluded.target_version,
+             state=case when current.state in ('retired','failed') or
+               (current.state='review' and not exists (
+                 select 1 from vy_replica_voice_genome g where g.replica_id=current.replica_id
+                   and g.version=current.target_version and g.status='draft'
+               )) then 'queued' else current.state end,
+             attempt=case when current.state in ('retired','failed') or
+               (current.state='review' and not exists (
+                 select 1 from vy_replica_voice_genome g where g.replica_id=current.replica_id
+                   and g.version=current.target_version and g.status='draft'
+               )) then 0 else current.attempt end,
+             failure_code=case when current.state in ('retired','failed','review') then '' else current.failure_code end,
+             next_attempt_at=case when current.state in ('retired','failed','review') then now() else current.next_attempt_at end,
+             lease_token_hash=case when current.state in ('retired','failed','review') then '' else current.lease_token_hash end,
+             leased_at=case when current.state in ('retired','failed','review') then null else current.leased_at end,
+             lease_expires_at=case when current.state in ('retired','failed','review') then null else current.lease_expires_at end,
+             updated_at=case when current.state in ('retired','failed','review') then now() else current.updated_at end
+       returning build_id,build_kind,target_version,builder_version,state,attempt,failure_code,created_at,updated_at
+     ) select * from inserted`,
+    [rid, ownerUserId, sourceSetHash],
+  );
   return rows[0] ? { ...rows[0], target_version: Number(rows[0].target_version), attempt: Number(rows[0].attempt) } : null;
 }

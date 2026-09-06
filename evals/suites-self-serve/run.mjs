@@ -3,7 +3,7 @@
 //   node evals/suites-self-serve/run.mjs
 //
 // site/suites.html (the B2B front door), the self-serve "Start a Suite" flow
-// (src/studio/startSuiteDraft.ts + the existing SuiteCard.tsx/orgApi.ts,
+// (src/creatorStudio/startSuiteDraft.ts + the existing SuiteCard.tsx/orgApi.ts,
 // WS-R28/R33's own createOrg/startOrgSubscription, never a new write path),
 // the apply-form intent (api/_apply.js, migration 107), and the two ops
 // board lines (api/_funnel.js's suitesFunnelThisWeek, api/_ops.js).
@@ -498,7 +498,7 @@ console.log("\n── §5: startSuiteDraft.ts's own boundary logic, bundled from
   const ENTRY = join(OUT, "entry.ts");
   writeFileSync(
     ENTRY,
-    `export { sanitizeStartSuiteDraft } from ${JSON.stringify(join(REPO, "src/studio/startSuiteDraft"))};\n`,
+    `export { sanitizeStartSuiteDraft } from ${JSON.stringify(join(REPO, "src/creatorStudio/startSuiteDraft"))};\n`,
   );
   const BUNDLE = join(OUT, "draft.bundle.mjs");
   execSync(
@@ -527,7 +527,7 @@ console.log("\n── §5: startSuiteDraft.ts's own boundary logic, bundled from
 console.log("\n── §6: the wiring is real, not just the pieces ──");
 // ═════════════════════════════════════════════════════════════════════════
 {
-  const mainSrc = readFileSync(join(REPO, "src/studio/main.tsx"), "utf8");
+  const mainSrc = readFileSync(join(REPO, "src/creatorStudio/main.tsx"), "utf8");
   ok("main.tsx imports restoreStartSuiteDraft",
     /import \{ restoreStartSuiteDraft \} from ".\/startSuiteDraft"/.test(mainSrc));
   const modeAt = mainSrc.indexOf("restoreStudioMode();");
@@ -540,7 +540,7 @@ console.log("\n── §6: the wiring is real, not just the pieces ──");
   ok("main.tsx calls restoreStartSuiteDraft() BEFORE React mounts (after restoreStudioMode(), before createRoot().render)",
     modeAt !== -1 && draftAt !== -1 && renderAt !== -1 && modeAt < draftAt && draftAt < renderAt);
 
-  const cardSrc = readFileSync(join(REPO, "src/studio/SuiteCard.tsx"), "utf8");
+  const cardSrc = readFileSync(join(REPO, "src/creatorStudio/SuiteCard.tsx"), "utf8");
   ok("SuiteCard.tsx imports takeStartSuiteDraft",
     /import \{ takeStartSuiteDraft \} from ".\/startSuiteDraft"/.test(cardSrc));
   ok("SuiteCard.tsx's auto-start effect calls the SAME createSuite/startSuiteSubscription the manual form uses, never a second write path",
@@ -589,12 +589,12 @@ console.log("\n── §7 (WS-R73): the UPI-fixes-your-seat-count disclosure is 
   // SuiteCard.tsx and this suite can check the words came from, and
   // SuiteCard.tsx is checked for actually READING it, `evals/payments/run.mjs`
   // §15's own "copy existing is not enough, it must be rendered" precedent.
-  // The Hindi table is its own file since the WS-R71 merge (src/studio/hiCopy.ts,
+  // The Hindi table is its own file since the WS-R71 merge (src/creatorStudio/hiCopy.ts,
   // context/decisions.md#studio-hindi-table-is-its-own-chunk): both locales
   // are read together, English from copy.ts and Hindi from hiCopy.ts.
-  const copySrc = readFileSync(join(REPO, "src/studio/copy.ts"), "utf8")
-    + "\n" + readFileSync(join(REPO, "src/studio/hiCopy.ts"), "utf8");
-  const suiteCardSrc = readFileSync(join(REPO, "src/studio/SuiteCard.tsx"), "utf8");
+  const copySrc = readFileSync(join(REPO, "src/creatorStudio/copy.ts"), "utf8")
+    + "\n" + readFileSync(join(REPO, "src/creatorStudio/hiCopy.ts"), "utf8");
+  const suiteCardSrc = readFileSync(join(REPO, "src/creatorStudio/SuiteCard.tsx"), "utf8");
   ok("copy.ts and hiCopy.ts define suiteSeatLock.mandateNote and .seatsLockedByMandate in BOTH locales",
     (copySrc.match(/mandateNote:\s*\n?\s*"/g) || []).length >= 2 &&
       (copySrc.match(/seatsLockedByMandate:\s*\n?\s*"/g) || []).length >= 2);

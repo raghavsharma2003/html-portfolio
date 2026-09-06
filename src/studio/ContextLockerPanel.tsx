@@ -31,24 +31,10 @@
 //    file is read, because neither is knowable from a filename.
 //
 // ── copy is mapped, never swallowed ──────────────────────────────────────
-// `t.contextLockerPanel.reasons` renders a server code in plain language; a
-// code it does not know renders the CODE. IngestChannelStudio.tsx makes the
-// same choice for the same reason: a list that quietly drops the one row it
-// did not recognise is how a person learns nothing from the screen that
-// exists to tell them.
-//
-// ── WS-R82: the third-party checkbox is a control, not a ceremony ─────────
-// The one consent-shaped checkbox this file carries ("if I upload a chat
-// export...") was flagged by WS-R71 for a closer read before converting.
-// Read closely, it is a single, conditional, feature-gating acknowledgement
-// (third-party privacy for one specific upload path) — not a formal,
-// multi-statement enrollment ceremony like `ModelConsentGate.tsx`'s six
-// `STATEMENTS` or `EnrollmentWorkspace.tsx`'s four attestations. It is not
-// named by exact wording in `scripts/roomsVocabAllowlist.mjs` the way those
-// are, so no already-approved English wording is at stake. It is translated
-// here as one unit with the rest of the screen, exactly as any other
-// checkbox label on this file's other controls would be. See
-// context/decisions.md#ws-r82-context-locker-checkbox-is-a-control-not-a-ceremony.
+// `REASON_COPY` renders a server code in plain language; a code it does not
+// know renders the CODE. IngestChannelStudio.tsx makes the same choice for the
+// same reason: a list that quietly drops the one row it did not recognise is
+// how a person learns nothing from the screen that exists to tell them.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReplicaApiError } from "./replicaApi";
 import {
@@ -65,10 +51,73 @@ import type {
   ContextLockerView,
   ContextSpeaker,
 } from "./contextLockerApi";
-import { useStudioLocale } from "./localeContext";
-import { withCount, withLabel, withNameAndCount } from "./copy";
+
+const REASON_COPY: Record<string, string> = {
+  // refusals — files
+  pdf_no_text_layer: "This PDF is a scan. There is no text in it to read, only pictures of text. We have no OCR, so we would rather say so than store it empty.",
+  pdf_text_layer_unreadable: "We found text in this PDF but it does not read as language. The fonts use an encoding we cannot map. Export it as text or DOCX instead.",
+  pdf_encrypted: "This PDF is password-protected. Remove the password and try again.",
+  pdf_unsupported_filter: "This PDF compresses its text in a way we do not read.",
+  pdf_malformed: "This file is not a readable PDF.",
+  docx_malformed: "This file is not a readable Word document.",
+  docx_encrypted: "This Word document is password-protected.",
+  docx_no_text: "This Word document has no text in its body.",
+  doc_legacy_binary_unsupported: "The old .doc format is not read. Save it as .docx and try again.",
+  rtf_unsupported: "RTF is not read. Save it as .docx or plain text.",
+  odt_unsupported: "OpenDocument is not read. Export as .docx or text.",
+  pages_unsupported: "Pages files are not read. Export as .docx or a PDF with real text in it.",
+  epub_unsupported: "EPUB is not read.",
+  archive_unsupported: "We do not unpack archives. Upload the files inside it.",
+  csv_unsupported: "A spreadsheet is not prose. Mining it would put column headers in your phrasing.",
+  spreadsheet_unsupported: "A spreadsheet is not prose.",
+  slides_unsupported: "Slides are titles and fragments, not how you talk. Export the speaker notes if that is what you meant.",
+  structured_data_unsupported: "Structured data is not prose.",
+  html_upload_unsupported: "Paste the page's link instead. An uploaded HTML file has no source to cite.",
+  text_not_utf8: "This file is not UTF-8 text. Re-save it as UTF-8.",
+  text_unreadable: "This file does not read as language.",
+  format_unsupported: "We do not read this file type.",
+  image_format_unsupported: "Use a PNG, JPEG, or WebP image. Other image containers are not read yet.",
+  image_dimensions_unreadable: "We could not verify this image's pixel dimensions, so no image evidence was kept.",
+  image_dimensions_invalid: "This image reports invalid pixel dimensions.",
+  image_malformed: "This is not a readable image.",
+  extracted_text_too_large: "This document is longer than one item may be. Split it and upload the parts. We do not trim anything silently.",
+  file_too_large: "This file is larger than one upload may be.",
+  chat_export_third_party_consent_required: "This is a chat export, so it contains someone else's private messages. Tick the box above and add it again. We only ever mine your own messages, and theirs are read only to tell them apart.",
+  chat_export_too_many_speakers: "This is a large group chat, mostly other people's words. Export a one-to-one chat instead.",
+  whatsapp_export_unparseable: "This looks like a chat export but no line in it matched a message. Export the chat again 'Without media' and upload the .txt unchanged.",
+  // refusals — links
+  link_unparseable: "That is not a link.",
+  link_scheme_unsupported: "Only https links are read.",
+  link_host_not_public: "We only read links on public websites.",
+  article_fetch_not_configured: "This deployment cannot read links yet. Upload the text instead.",
+  article_fetch_failed: "We could not load that page.",
+  article_no_text: "That page had no readable text.",
+  article_unreadable: "That page did not read as language.",
+  // routing
+  channel_lane: "This is YouTube. It belongs to the channel lane, which asks you to confirm the channel is yours before reading a single video.",
+  voice_evidence_lane: "This is audio. It belongs to the voice lane, which carries the consent your voice needs.",
+  // mined-nothing reasons
+  not_owner_authored_no_style_evidence: "Read, but not used for how you talk, because it is not your own writing. Mark it as yours if it is.",
+  speaker_unattributed_no_style_evidence: "Read. Tell us which of these people is you and we will mine only your messages.",
+  declared_speaker_not_in_export: "Nobody by that name sends messages in this export.",
+  no_candidates_cleared_held_out: "Read, but nothing in it repeated often enough to be worth proposing. That is normal for a short document.",
+  citation_integrity_failed: "Read, but the proposals could not be traced back to the text they came from, so none were kept.",
+  proposal_already_exists: "Already proposed. See Review.",
+  image_ocr_not_configured: "Stored privately with an exact image hash and pixel region. OCR and visual interpretation are not connected, so no claim was made from it.",
+  context_source_permissions_required: "Record source capture and private storage permission before adding this file.",
+  context_private_storage_failed: "Private storage could not retain this file. Nothing was claimed from it. Try again.",
+  context_locker_response_invalid: "Private context returned an unreadable response. Nothing was added. Try again.",
+  // quotas
+  context_item_quota_exhausted: "Your locker is full. Remove something to add more.",
+  context_byte_quota_exhausted: "Your locker is out of space. Remove something to add more.",
+  replica_not_found: "That clone is not yours.",
+};
+
+const copyFor = (code: string) => REASON_COPY[code] ?? code;
 
 const KB = 1024;
+const humanBytes = (n: number) =>
+  n >= KB * KB ? `${(n / (KB * KB)).toFixed(1)} MB` : n >= KB ? `${Math.round(n / KB)} KB` : `${n} bytes`;
 
 type Row = {
   key: string;
@@ -112,17 +161,6 @@ export default function ContextLockerPanel({
    *  and more honest than a second fetch that could disagree with this one. */
   onItemCount?: (count: number) => void;
 }) {
-  const { t } = useStudioLocale();
-  const c = t.contextLockerPanel;
-  const copyFor = useCallback((code: string) => c.reasons[code] ?? code, [c.reasons]);
-  const humanBytes = useCallback(
-    (n: number) =>
-      n >= KB * KB ? withCount(c.bytesMB, Math.round((n / (KB * KB)) * 10) / 10)
-        : n >= KB ? withCount(c.bytesKB, Math.round(n / KB))
-          : withCount(c.bytesBytes, n),
-    [c.bytesBytes, c.bytesKB, c.bytesMB],
-  );
-
   const [view, setView] = useState<ContextLockerView | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -148,6 +186,14 @@ export default function ContextLockerPanel({
     setLoading(true);
     try {
       const next = await loadContextLocker(token, replicaId);
+      if (!next
+        || !Array.isArray(next.items)
+        || !next.quota
+        || !next.limits
+        || !Number.isFinite(next.limits.max_item_bytes)
+        || !Array.isArray(next.limits.accepted_file_formats)) {
+        throw new Error("context_locker_response_invalid");
+      }
       setView(next);
       onItemCount?.(next.items.length);
       setError("");
@@ -245,36 +291,6 @@ export default function ContextLockerPanel({
     return map;
   }, [recent]);
 
-  /** The five states, and nothing else. */
-  const stateLabel = useCallback(
-    (row: Row): string => {
-      if (!row.item) return c.stateNotAdded;
-      if (row.item.status === "mined") {
-        return row.proposed ? withCount(c.stateProposalCount, row.proposed) : c.stateProposalsReady;
-      }
-      if (row.item.status === "refused") return c.stateNotRead;
-      if (row.item.status === "routed") return c.stateBelongsElsewhere;
-      if (row.item.status === "extracted") return c.stateRead;
-      return c.stateWorking;
-    },
-    [c],
-  );
-
-  /** Every state carries its reason. `copyFor` falls back to the raw code
-   *  rather than to silence, so an unmapped server code is visible instead
-   *  of missing. */
-  const stateDetail = useCallback(
-    (row: Row): string => {
-      if (!row.item) return copyFor(row.error || c.detailRequestFailed);
-      if (row.item.status === "refused") return copyFor(row.item.refusal_reason);
-      if (row.item.status === "routed") return copyFor(row.item.routed_to);
-      if (row.item.status === "mined") return c.detailMinedWaiting;
-      if (row.item.status === "extracted") return copyFor(row.item.mine_skip_reason || "no_candidates_cleared_held_out");
-      return "";
-    },
-    [c.detailMinedWaiting, c.detailRequestFailed, copyFor],
-  );
-
   // `id` matches the anchor `wizardModel.ts`'s `no_material` blocker already
   // carries (`#context-locker`), so "Go there" actually lands somewhere
   // instead of `jumpTo` silently finding nothing.
@@ -282,8 +298,12 @@ export default function ContextLockerPanel({
     <section id="context-locker" className="stage-section context-locker" aria-labelledby="context-locker-title">
       <header className="section-heading">
         <div>
-          <h2 id="context-locker-title">{c.title}</h2>
-          <p className="field-note">{c.intro}</p>
+          <h2 id="context-locker-title">Bring your context</h2>
+          <p className="field-note">
+            Everything you have already written about yourself, or that is already about you. Drop the
+            files in, paste the links. Each one tells you what it became, and anything we cannot
+            honestly read, we say so instead of quietly keeping it.
+          </p>
         </div>
       </header>
 
@@ -297,9 +317,12 @@ export default function ContextLockerPanel({
         onDragLeave={() => setDragging(false)}
         onDrop={drop}
       >
-        <p className="context-dropzone-title">{c.dropzoneTitle}</p>
+        <p className="context-dropzone-title">Drop your files here</p>
         <p className="field-note">
-          {withLabel(c.dropzoneHelpTemplate, view ? humanBytes(view.limits.max_item_bytes) : c.bytesFewMB)}
+          Text, Markdown, Word documents, PDFs with real text, WhatsApp chat exports, and PNG, JPEG, or WebP images.
+          Up to {view ? humanBytes(view.limits.max_item_bytes) : "a few MB"} each.
+          Audio goes to the voice lane and YouTube goes to the channel lane. Paste those and we will
+          point you there rather than doing it twice.
         </p>
         <button
           type="button"
@@ -307,11 +330,12 @@ export default function ContextLockerPanel({
           disabled={busy}
           onClick={() => fileInput.current?.click()}
         >
-          {busy ? c.readingButton : c.chooseFilesButton}
+          {busy ? "Reading…" : "Choose files"}
         </button>
         <input
           ref={fileInput}
           type="file"
+          accept=".txt,.text,.log,.md,.markdown,.pdf,.docx,.png,.jpg,.jpeg,.webp,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg,image/webp"
           multiple
           className="context-file-input"
           onChange={(event) => {
@@ -327,20 +351,23 @@ export default function ContextLockerPanel({
           checked={acknowledged}
           onChange={(event) => setAcknowledged(event.target.checked)}
         />
-        <span>{c.thirdPartyAck}</span>
+        <span>
+          If I upload a chat export, I understand it contains another person's private messages, that
+          only MY messages are ever used, and that theirs are read only to tell the two apart.
+        </span>
       </label>}
 
       <label className="field">
-        <span>{c.linksLabel}</span>
+        <span>Or paste links, one per line</span>
         <textarea
           rows={3}
           value={links}
-          placeholder={`${c.linksPlaceholderLine1}\n${c.linksPlaceholderLine2}`}
+          placeholder={"https://example.com/an-interview-with-me\nhttps://example.com/my-essay"}
           onChange={(event) => setLinks(event.target.value)}
         />
       </label>
       <button type="button" className="button" disabled={busy || !links.trim()} onClick={() => void sendLinks()}>
-        {c.addLinksButton}
+        Add links
       </button>
 
       {recent.length > 0 && (
@@ -363,7 +390,7 @@ export default function ContextLockerPanel({
                       disabled={busy}
                       onClick={() => void remine(row.item!.item_id, { owner_speaker: speaker.name })}
                     >
-                      {withNameAndCount(c.iAmSpeaker, speaker.name, speaker.messages)}
+                      I am {speaker.name} ({speaker.messages})
                     </button>
                   ))}
                 </span>
@@ -379,7 +406,7 @@ export default function ContextLockerPanel({
                     disabled={busy}
                     onClick={() => void remine(row.item!.item_id, { authorship: "mine" })}
                   >
-                    {c.thisIsMyOwnWriting}
+                    This is my own writing
                   </button>
                 </span>
               )}
@@ -388,11 +415,11 @@ export default function ContextLockerPanel({
         </ul>
       )}
 
-      <h3 className="context-list-title">{c.inYourLocker}</h3>
+      <h3 className="context-list-title">In your locker</h3>
       {loading ? (
-        <p className="field-note" role="status">{c.loading}</p>
+        <p className="field-note" role="status">Loading…</p>
       ) : items.length === 0 ? (
-        <p className="field-note">{c.nothingYet}</p>
+        <p className="field-note">Nothing yet.</p>
       ) : (
         <ul className="context-results">
           {items.map((item) => (
@@ -400,8 +427,8 @@ export default function ContextLockerPanel({
               <span className="context-result-name">{item.source_name || item.source_url}</span>
               <span className="context-result-state">{stateLabel({ key: item.item_id, item, label: "" })}</span>
               <span className="field-note">
-                {item.format} · {item.extracted_chars ? withCount(c.charactersSuffix, item.extracted_chars) : humanBytes(item.byte_size)}
-                {item.owner_speaker ? withLabel(c.yourMessagesAs, item.owner_speaker) : ""}
+                {item.format} · {item.extracted_chars ? `${item.extracted_chars.toLocaleString()} characters` : humanBytes(item.byte_size)}
+                {item.owner_speaker ? ` · your messages as ${item.owner_speaker}` : ""}
               </span>
               <span className="field-note">{stateDetail({ key: item.item_id, item, label: "" })}</span>
               <span className="context-result-actions">
@@ -417,7 +444,7 @@ export default function ContextLockerPanel({
                       .finally(() => setBusy(false));
                   }}
                 >
-                  {c.removeButton}
+                  Remove
                 </button>
               </span>
             </li>
@@ -427,13 +454,32 @@ export default function ContextLockerPanel({
 
       {quota && (
         <p className="field-note">
-          {c.quotaSummary
-            .split("{n}").join(String(quota.items))
-            .split("{n2}").join(String(quota.max_items))
-            .split("{label}").join(humanBytes(quota.bytes))
-            .split("{label2}").join(humanBytes(quota.max_bytes))}
+          {quota.items} of {quota.max_items} items · {humanBytes(quota.bytes)} of {humanBytes(quota.max_bytes)}.
         </p>
       )}
     </section>
   );
+}
+
+/** The five states, and nothing else. */
+function stateLabel(row: Row): string {
+  if (!row.item) return "Not added";
+  if (row.item.status === "mined") {
+    return row.proposed ? `${row.proposed} proposal${row.proposed === 1 ? "" : "s"}` : "Proposals ready";
+  }
+  if (row.item.status === "refused") return "Not read";
+  if (row.item.status === "routed") return "Belongs elsewhere";
+  if (row.item.status === "extracted") return "Read";
+  return "Working…";
+}
+
+/** Every state carries its reason. `copyFor` falls back to the raw code rather
+ *  than to silence, so an unmapped server code is visible instead of missing. */
+function stateDetail(row: Row): string {
+  if (!row.item) return copyFor(row.error || "request_failed");
+  if (row.item.status === "refused") return copyFor(row.item.refusal_reason);
+  if (row.item.status === "routed") return copyFor(row.item.routed_to);
+  if (row.item.status === "mined") return "Waiting for you in Review. Nothing is applied to your clone until you approve it.";
+  if (row.item.status === "extracted") return copyFor(row.item.mine_skip_reason || "no_candidates_cleared_held_out");
+  return "";
 }

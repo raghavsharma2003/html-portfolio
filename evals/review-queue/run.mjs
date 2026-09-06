@@ -731,13 +731,13 @@ console.log("\n── 7. migration 074, erasure reach, and the copy ──");
   // apply to every string on this screen.
   //
   // WS-R52: this component's own literal strings moved into
-  // src/studio/copy.ts (a locale table, English and Hindi) - `component`
+  // src/creatorStudio/copy.ts (a locale table, English and Hindi) - `component`
   // alone no longer carries the rendered English text, only
   // `t.reviewQueue.<key>` references. `componentWithCopy` is what every
   // rendered-text check below actually reads, matching
   // `evals/readiness/run.mjs`'s own fix for the identical shape.
-  const component = read("src/studio/ReviewQueue.tsx");
-  const copyTs = read("src/studio/copy.ts");
+  const component = read("src/creatorStudio/ReviewQueue.tsx");
+  const copyTs = read("src/creatorStudio/copy.ts");
   const componentWithCopy = `${component}\n${copyTs}`;
   ok(componentWithCopy.includes("Nothing to review yet."), "the empty state is honest about being empty");
   ok(componentWithCopy.includes("It fills itself from real conversations once your Room is open."),

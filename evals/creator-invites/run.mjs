@@ -36,7 +36,7 @@
 //          fixture read of every issued row's own keys;
 //      (c) a card string with an em dash, or the banned word "clone", fails
 //          `scripts/check-copy.mjs`'s real scanner under the exact options
-//          `src/studio/`'s own SCOPES entry uses.
+//          `src/creatorStudio/`'s own SCOPES entry uses.
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
@@ -390,15 +390,15 @@ function fakeDb(state) {
 {
   const STUDIO_OPTS = { rules: "full", codename: true, roomsVocab: true };
   const emdash = 'export default function X() { return <p>Invite a creator — now</p>; }';
-  const dashHits = scanSource("src/studio/fixture-em-dash.tsx", emdash, STUDIO_OPTS).map((o) => o.rule);
+  const dashHits = scanSource("src/creatorStudio/fixture-em-dash.tsx", emdash, STUDIO_OPTS).map((o) => o.rule);
   ok("an em dash in a Share-tab-shaped fixture fails the copy gate's dash rule", dashHits.includes("dash"));
 
   const badWord = 'export default function X() { return <p>Invite a creator to build their own clone</p>; }';
-  const wordHits = scanSource("src/studio/fixture-banned-word.tsx", badWord, STUDIO_OPTS).map((o) => o.rule);
+  const wordHits = scanSource("src/creatorStudio/fixture-banned-word.tsx", badWord, STUDIO_OPTS).map((o) => o.rule);
   ok("the banned word \"clone\" in a Share-tab-shaped fixture fails the Rooms vocabulary rule", wordHits.includes("rooms-vocabulary"));
 
   const clean = 'export default function X() { return <p>Invite up to three other creators to build their own AI.</p>; }';
-  const cleanHits = scanSource("src/studio/fixture-clean.tsx", clean, STUDIO_OPTS);
+  const cleanHits = scanSource("src/creatorStudio/fixture-clean.tsx", clean, STUDIO_OPTS);
   ok("the real card's own wording shape passes clean", cleanHits.length === 0);
 }
 

@@ -3,7 +3,7 @@
 //   node evals/studio-shell/run.mjs
 //
 // Offline, deterministic, $0, no DB, no network, no browser. Bundles the REAL
-// `src/studio/studioShellModel.ts` on every run (`evals/mirrorcall.mjs`'s
+// `src/creatorStudio/studioShellModel.ts` on every run (`evals/mirrorcall.mjs`'s
 // pattern: a temp entry file re-exporting the real source, then esbuild),
 // so this suite gates the tree being shipped rather than a frozen snapshot.
 // The orphan check below reads `StudioShell.tsx` / `StudioApp.tsx` off disk
@@ -15,7 +15,7 @@
 //    moves" — every panel component that lived in the old wizard rail must
 //    still be reachable from SOMEWHERE (the shell's own tabs, or the "All
 //    panels" view `StudioApp.tsx` falls back to). A static text scan of both
-//    files, compared against the real `src/studio/` directory listing, so a
+//    files, compared against the real `src/creatorStudio/` directory listing, so a
 //    panel dropped in later and never wired into either view is caught by
 //    name rather than discovered in production.
 //
@@ -51,7 +51,7 @@ import { scanSource } from "../../scripts/check-copy.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
-const STUDIO_DIR = join(REPO, "src/studio");
+const STUDIO_DIR = join(REPO, "src/creatorStudio");
 
 let pass = 0;
 let fail = 0;
@@ -79,7 +79,7 @@ ok("TAB_STEP maps share onto the wizard's existing deploy step", TAB_STEP.share 
 
 // ── 1. ORPHAN CHECK ────────────────────────────────────────────────────────
 
-// Files under src/studio/ that are NOT a panel mounted standalone somewhere
+// Files under src/creatorStudio/ that are NOT a panel mounted standalone somewhere
 // in the wizard/shell tree. Each exclusion is a decision, named, not a
 // guess — the check below fails loudly the day a real panel is added here
 // by mistake to make the suite quiet.
@@ -271,12 +271,12 @@ ok(
   // design, so the fixture has to look like the copy this file actually
   // writes, the same shape `TAB_PROMISE`'s own entries take.
   const bad = 'const label = "we will train your model this week";';
-  const hits = scanSource("src/studio/StudioShell.tsx", bad, { rules: "full", codename: true, roomsVocab: true });
+  const hits = scanSource("src/creatorStudio/StudioShell.tsx", bad, { rules: "full", codename: true, roomsVocab: true });
   ok("negative control: a string with 'train'/'model' fails scripts/check-copy.mjs", hits.length > 0);
 }
 {
   const clean = 'const label = "your AI is ready to publish";';
-  const hits = scanSource("src/studio/StudioShell.tsx", clean, { rules: "full", codename: true, roomsVocab: true });
+  const hits = scanSource("src/creatorStudio/StudioShell.tsx", clean, { rules: "full", codename: true, roomsVocab: true });
   ok("sanity: ordinary shell copy passes the same scan clean", hits.length === 0);
 }
 

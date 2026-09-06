@@ -5,13 +5,18 @@ function neonConfig(env = process.env) {
   if (!new Set(["postgres:", "postgresql:"]).has(parsed.protocol) || !parsed.hostname || !parsed.username || !parsed.password) {
     throw new Error("neon_url_invalid");
   }
-  return Object.freeze({ connection, endpoint: `https://${parsed.hostname}/sql` });
+  return Object.freeze({ connection, database: decodeURIComponent(parsed.pathname.slice(1)), endpoint: `https://${parsed.hostname}/sql` });
 }
 
 export function createNeonDb(options = {}) {
-  const config = neonConfig(options.env || process.env);
+  const env = options.env || process.env;
+  const config = neonConfig(env);
+  const expected = options.expectedDatabase ?? env.REPLICA_EXPECTED_DATABASE;
+  if (expected !== undefined && (!/^[a-z][a-z0-9_]{0,62}$/.test(expected) || config.database !== expected)) {
+    throw new Error("neon_expected_database_mismatch");
+  }
   const fetchImpl = options.fetchImpl || globalThis.fetch;
-  return async (query, params = [], timeoutMs = 30_000) => {
+  const queryDb = async (query, params = [], timeoutMs = 30_000) => {
     let response;
     try {
       response = await fetchImpl(config.endpoint, {
@@ -45,6 +50,18 @@ export function createNeonDb(options = {}) {
     const value = await response.json().catch(() => null);
     if (!value || !Array.isArray(value.rows)) throw new Error("neon_response_invalid");
     return value.rows;
+  };
+  // Fixed connection captured above; concurrent first calls share one identity
+  // read. A failed/mismatched check remains rejected, never authorizes a retry.
+  let verified;
+  return async (query, params = [], timeoutMs = 30_000) => {
+    if (expected !== undefined) {
+      verified ||= queryDb("SELECT current_database() AS name", [], timeoutMs).then((rows) => {
+        if (rows.length !== 1 || rows[0]?.name !== expected) throw new Error("neon_expected_database_mismatch");
+      });
+      await verified;
+    }
+    return queryDb(query, params, timeoutMs);
   };
 }
 

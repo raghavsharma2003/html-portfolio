@@ -152,6 +152,9 @@ for (const code of CAPABILITY_ABSENCE_CODES) {
   assert.ok(!/[—–]/.test(`${view.state_reason} ${view.next_action.label}`), `${code} copy must obey the dash law`);
 }
 ok(`every capability absence reads as a plain reason plus a next action (${CAPABILITY_ABSENCE_CODES.length} codes)`, true);
+ok("temporary private voice runtime failures recover without another upload",
+  ["voice_evidence_unreachable", "voice_evidence_not_ready"].every((code) =>
+    CAPABILITY_ABSENCE_CODES.includes(code) && isCapabilityAbsence(code)));
 
 // The control on THAT: a genuine failure must still route to the owner.
 const realFailure = normaliseUpload({
@@ -271,8 +274,29 @@ ok("requeue only ever targets steps that are live in this process right now",
   requeueParams[0].join(",") === "integrity,malware_scan");
 ok("requeue only ever matches capability-absence codes, never a real failure",
   requeueParams[1].every(isCapabilityAbsence) &&
+  requeueParams[1].includes("azure_asr_input_unavailable") &&
+  !requeueParams[1].includes("azure_asr_input_integrity_mismatch") &&
+  !requeueParams[1].includes("azure_asr_input_mime_invalid") &&
+  !requeueParams[1].includes("azure_asr_input_size_mismatch") &&
   !requeueParams[1].includes("integrity_mismatch") && !requeueParams[1].includes("malware_detected"));
 ok("requeue reports what it moved", recovered.requeued === 1 && recovered.steps.join(",") === "malware_scan");
+
+let azureRecoverySql = "";
+let azureRecoveryParams = null;
+await requeueRecoveredProcessingJobs(async (sql, params) => {
+  azureRecoverySql = sql;
+  azureRecoveryParams = params;
+  return [{ step: "transcribe" }];
+}, Object.fromEntries(COMPOSED_STEPS.map((step) => [
+  step, { available: step === "transcribe", code: step === "transcribe" ? "" : "capability_absent" },
+])));
+ok("an exhausted Azure private-input transport failure resumes only when transcribe is live",
+  azureRecoveryParams[0].join(",") === "transcribe" &&
+  azureRecoveryParams[1].includes("azure_asr_input_unavailable") &&
+  !azureRecoveryParams[1].includes("azure_asr_input_integrity_mismatch") &&
+  /state = 'failed'/.test(azureRecoverySql) && !/attempt = 0/.test(azureRecoverySql));
+ok("capability recovery keeps attempt numbers monotonic for spend and audit idempotency",
+  !/set state = 'queued',\s*attempt\s*=/.test(azureRecoverySql));
 
 const nothingLive = await requeueRecoveredProcessingJobs(
   async () => { throw new Error("must not query when nothing is live"); },

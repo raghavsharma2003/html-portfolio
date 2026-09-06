@@ -14,14 +14,14 @@ structural claim rather than a description:
      upload target, and the service will only PUT to the single host named by
      `MEDIA_EXTRACT_UPLOAD_HOST`. Without that env it refuses to start.
 
-  3. It never holds the media in memory. yt-dlp writes to a per-request temp
-     directory, the digest is taken in chunks, and the upload streams from
-     disk. An hour of lecture audio is ~55 MB of 16 kHz mono WAV and it is
-     never a Python object.
+  3. It never holds the whole media in memory. yt-dlp writes to a per-request
+     temp directory, the digest is taken in chunks, and Azure receives bounded
+     blocks of at most 8 MiB. An hour of lecture audio is ~55 MB of 16 kHz mono
+     WAV, while the largest Python upload object remains one bounded block.
 
-It receives no account, replica, person, owner or transcript id — the same
-rule `services/voice-evidence/app.py` states for itself, for the same reason:
-a service that cannot name a person cannot leak one.
+It receives no separate account, replica, person, owner, or transcript field.
+The opaque exact storage locator is the only scope it can write, and it cannot
+choose or broaden that locator.
 
 The legal posture this implements is written out in README.md and in
 `context/decisions.md#youtube-extraction-in-house`. The one-line version:
@@ -44,6 +44,7 @@ import tempfile
 import time
 import wave
 from typing import Any
+from urllib.parse import quote
 
 import anyio
 import requests
@@ -67,6 +68,8 @@ MAX_CLOCK_SKEW_SECONDS = 60
 MAX_DURATION_SECONDS = min(6 * 60 * 60, max(60, int(os.getenv("MEDIA_EXTRACT_MAX_DURATION_SECONDS", 4 * 60 * 60))))
 MAX_AUDIO_BYTES = min(512 * 1024 * 1024, max(1024 * 1024, int(os.getenv("MEDIA_EXTRACT_MAX_AUDIO_BYTES", 256 * 1024 * 1024))))
 EXTRACT_TIMEOUT_SECONDS = min(3600, max(60, int(os.getenv("MEDIA_EXTRACT_TIMEOUT_SECONDS", 1800))))
+MAX_UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024
+MIN_UPLOAD_CHUNK_BYTES = 64 * 1024
 
 # The normalized shape `api/_replica-processing` and the ASR lane already
 # speak: 16 kHz mono signed 16-bit PCM WAV. Not negotiable per-request — a
@@ -208,16 +211,47 @@ def _upload_target(value: Any) -> dict[str, Any]:
         raise ServiceError("upload_target_invalid", 400)
     if parts.hostname != app.state.upload_host:
         raise ServiceError("upload_host_forbidden", 403)
-    headers = value.get("headers") or {}
-    if not isinstance(headers, dict) or len(headers) > 8:
+    if parts.fragment:
         raise ServiceError("upload_target_invalid", 400)
-    clean = {}
-    for key, header_value in headers.items():
-        key = str(key)
-        if not re.fullmatch(r"[A-Za-z0-9-]{1,64}", key) or key.lower() in {"host", "content-length"}:
+
+    def clean_headers(value: Any) -> dict[str, str]:
+        headers = value or {}
+        if not isinstance(headers, dict) or len(headers) > 8:
             raise ServiceError("upload_target_invalid", 400)
-        clean[key] = str(header_value)[:512]
-    return {"url": url, "headers": clean}
+        clean: dict[str, str] = {}
+        for key, header_value in headers.items():
+            key = str(key)
+            rendered = str(header_value)
+            if (not re.fullmatch(r"[A-Za-z0-9-]{1,64}", key)
+                    or key.lower() in {"host", "content-length"}
+                    or len(rendered.encode("utf-8")) > 512):
+                raise ServiceError("upload_target_invalid", 400)
+            clean[key] = rendered
+        return clean
+
+    resumable = value.get("resumable")
+    if not isinstance(resumable, dict) or resumable.get("protocol") != "azure-block-v1":
+        raise ServiceError("upload_protocol_unsupported", 503)
+    endpoint = str(resumable.get("endpoint") or "")
+    try:
+        chunk_size = int(resumable.get("chunk_size") or 0)
+    except (TypeError, ValueError) as exc:
+        raise ServiceError("upload_protocol_invalid", 400) from exc
+    if (endpoint != url or chunk_size < MIN_UPLOAD_CHUNK_BYTES
+            or chunk_size > MAX_UPLOAD_CHUNK_BYTES):
+        raise ServiceError("upload_protocol_invalid", 400)
+    metadata = resumable.get("metadata") or {}
+    if not isinstance(metadata, dict) or len(metadata) > 8 or any(
+        len(str(key)) > 64 or len(str(item).encode("utf-8")) > 2048
+        for key, item in metadata.items()
+    ):
+        raise ServiceError("upload_target_invalid", 400)
+    return {
+        "url": url,
+        "headers": clean_headers(value.get("headers")),
+        "resumable_headers": clean_headers(resumable.get("headers")),
+        "chunk_size": chunk_size,
+    }
 
 
 # ── yt-dlp ───────────────────────────────────────────────────────────────────
@@ -232,7 +266,14 @@ def _ytdlp_version() -> str:
         return "unknown"
 
 
-def _run(argv: list[str], timeout: int) -> subprocess.CompletedProcess[bytes]:
+def _remaining(deadline: float, ceiling: float | None = None) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise ServiceError("extractor_timeout", 504)
+    return min(remaining, ceiling) if ceiling is not None else remaining
+
+
+def _run(argv: list[str], timeout: float) -> subprocess.CompletedProcess[bytes]:
     try:
         return subprocess.run(argv, capture_output=True, timeout=timeout, check=False)  # noqa: S603
     except subprocess.TimeoutExpired as exc:
@@ -362,7 +403,7 @@ def _common_args(route: dict[str, str] | None = None) -> list[str]:
     return argv
 
 
-def _probe(video_id: str, route: dict[str, str] | None = None) -> dict[str, Any]:
+def _probe(video_id: str, route: dict[str, str] | None, deadline: float) -> dict[str, Any]:
     """Metadata FIRST, always. This is the ordering that turns the attestation
     from a claim into a check: the uploader is read from YouTube itself before
     a single media byte is requested, so a mismatched video costs one metadata
@@ -370,7 +411,7 @@ def _probe(video_id: str, route: dict[str, str] | None = None) -> dict[str, Any]
     """
     result = _run(
         _common_args(route) + ["--skip-download", "--dump-single-json", f"https://www.youtube.com/watch?v={video_id}"],
-        timeout=min(180, EXTRACT_TIMEOUT_SECONDS),
+        timeout=_remaining(deadline, 180),
     )
     if result.returncode != 0:
         raise ServiceError(_classify(result.stderr), 502)
@@ -392,7 +433,7 @@ def _binds_to(info: dict[str, Any], channel_key: str) -> bool:
     return key in candidates
 
 
-def _extract_to_wav(video_id: str, workdir: str, route: dict[str, str] | None = None) -> str:
+def _extract_to_wav(video_id: str, workdir: str, route: dict[str, str] | None, deadline: float) -> str:
     template = os.path.join(workdir, "audio.%(ext)s")
     result = _run(
         _common_args(route)
@@ -414,7 +455,7 @@ def _extract_to_wav(video_id: str, workdir: str, route: dict[str, str] | None = 
             template,
             f"https://www.youtube.com/watch?v={video_id}",
         ],
-        timeout=EXTRACT_TIMEOUT_SECONDS,
+        timeout=_remaining(deadline),
     )
     if result.returncode != 0:
         raise ServiceError(_classify(result.stderr), 502)
@@ -455,24 +496,86 @@ def _wav_facts(path: str) -> dict[str, Any]:
     }
 
 
-def _upload(path: str, target: dict[str, Any]) -> None:
-    with open(path, "rb") as handle:
-        try:
-            response = requests.put(
-                target["url"],
-                data=handle,  # streams from disk; never a bytes object
-                headers={"Content-Type": "audio/wav", **target["headers"]},
-                timeout=(15, EXTRACT_TIMEOUT_SECONDS),
-            )
-        except requests.RequestException as exc:
-            raise ServiceError("upload_unreachable", 503) from exc
-    if response.status_code == 409:
+def _azure_block_url(endpoint: str, **values: str | int) -> str:
+    separator = "&" if "?" in endpoint else "?"
+    query = "&".join(f"{key}={quote(str(value), safe='')}" for key, value in values.items())
+    return f"{endpoint}{separator}{query}"
+
+
+def _put(url: str, body: bytes, headers: dict[str, str], deadline: float) -> requests.Response:
+    remaining = _remaining(deadline)
+    try:
+        response = requests.put(
+            url,
+            data=body,
+            headers={**headers, "Content-Length": str(len(body))},
+            # One request cannot inherit a fresh full timeout. Every block and
+            # the final block-list commit consumes the same operation budget.
+            timeout=(min(15, remaining), remaining),
+        )
+    except requests.RequestException as exc:
+        raise ServiceError("upload_unreachable", 503) from exc
+    _remaining(deadline)
+    if response.status_code in (409, 412):
         raise ServiceError("upload_conflict", 409)
     if not response.ok:
         raise ServiceError("upload_failed", 502)
+    return response
+
+
+def _upload(path: str, target: dict[str, Any], deadline: float) -> None:
+    """Create one block blob with <=8 MiB requests and one bounded commit.
+
+    The shared 210-minute authority fence covers the two-hour SAS plus Azure's
+    documented maximum service time for one legitimate 8 MiB request and ten
+    minutes of margin. It does not pretend to revoke deliberate reuse of a
+    copied SAS by its owner before that SAS expires.
+    """
+    block_ids: list[str] = []
+    with open(path, "rb") as handle:
+        index = 0
+        while True:
+            chunk = handle.read(target["chunk_size"])
+            if not chunk:
+                break
+            block_id = base64.b64encode(f"vyakti-{index:08d}".encode("ascii")).decode("ascii")
+            block_ids.append(block_id)
+            _put(
+                _azure_block_url(
+                    target["url"], comp="block", blockid=block_id,
+                    timeout=max(1, int(_remaining(deadline))),
+                ),
+                chunk,
+                {"Content-Type": "application/octet-stream", **target["resumable_headers"]},
+                deadline,
+            )
+            index += 1
+    if not block_ids:
+        raise ServiceError("audio_size_invalid", 413)
+    block_list = (
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?><BlockList>"
+        + "".join(f"<Latest>{block_id}</Latest>" for block_id in block_ids)
+        + "</BlockList>"
+    ).encode("utf-8")
+    _put(
+        _azure_block_url(
+            target["url"], comp="blocklist",
+            timeout=max(1, int(_remaining(deadline))),
+        ),
+        block_list,
+        {
+            "Content-Type": "application/xml",
+            "If-None-Match": "*",
+            "x-ms-blob-content-type": "audio/wav",
+            "x-ms-blob-cache-control": "private, max-age=3600",
+            **target["resumable_headers"],
+        },
+        deadline,
+    )
 
 
 def _extract(payload: dict[str, Any]) -> dict[str, Any]:
+    deadline = time.monotonic() + EXTRACT_TIMEOUT_SECONDS
     video_id = str(payload.get("video_id") or "")
     if not VIDEO_ID_RE.fullmatch(video_id):
         raise ServiceError("video_id_invalid", 400)
@@ -486,7 +589,7 @@ def _extract(payload: dict[str, Any]) -> dict[str, Any]:
     # rather than whatever the bot check happened to say today.
     route = _route(payload)
 
-    info = _probe(video_id, route)
+    info = _probe(video_id, route, deadline)
     if not _binds_to(info, attestation["channel_key"]):
         raise ServiceError("channel_binding_mismatch", 403)
     duration_ms = int(round(float(info.get("duration") or 0) * 1000))
@@ -499,9 +602,9 @@ def _extract(payload: dict[str, Any]) -> dict[str, Any]:
 
     workdir = tempfile.mkdtemp(prefix="mx-", dir=app.state.workroot)
     try:
-        path = _extract_to_wav(video_id, workdir, route)
+        path = _extract_to_wav(video_id, workdir, route, deadline)
         facts = _wav_facts(path)
-        _upload(path, target)
+        _upload(path, target, deadline)
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
     return {

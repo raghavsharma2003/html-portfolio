@@ -17,9 +17,9 @@ const consents: ConsentReceipt[] = (["capture", "transcription", "storage"] as c
 }));
 
 const sources: ReplicaSource[] = [
-  { source_id: "english-ready", replica_id: RID, kind: "audio", capture_mode: "upload", mime: "audio/wav", byte_size: 18_000_000, state: "ready", contains_third_parties: false, rejection_code: "", created_at: now, updated_at: now },
-  { source_id: "hindi-processing", replica_id: RID, kind: "audio", capture_mode: "upload", mime: "audio/wav", byte_size: 24_000_000, state: "processing", contains_third_parties: false, rejection_code: "", created_at: now, updated_at: now },
-  { source_id: "unlabeled-ready", replica_id: RID, kind: "video", capture_mode: "import", mime: "video/mp4", byte_size: 42_000_000, state: "ready", contains_third_parties: false, rejection_code: "", created_at: now, updated_at: now },
+  { source_id: "english-ready", replica_id: RID, kind: "audio", capture_mode: "upload", voice_role: "primary", mime: "audio/wav", byte_size: 18_000_000, state: "ready", contains_third_parties: false, rejection_code: "", created_at: now, updated_at: now },
+  { source_id: "hindi-processing", replica_id: RID, kind: "audio", capture_mode: "upload", voice_role: "supporting", mime: "audio/wav", byte_size: 24_000_000, state: "processing", contains_third_parties: false, rejection_code: "", created_at: now, updated_at: now },
+  { source_id: "unlabeled-ready", replica_id: RID, kind: "video", capture_mode: "import", voice_role: "supporting", mime: "video/mp4", byte_size: 42_000_000, state: "ready", contains_third_parties: false, rejection_code: "", created_at: now, updated_at: now },
 ];
 
 window.localStorage.setItem(`vyakti:enrollment-languages:${RID}`, JSON.stringify({
@@ -39,6 +39,7 @@ createRoot(document.getElementById("root")!).render(
       onCreateUpload={async () => { throw new Error("offline visual harness"); }}
       onRetryUpload={async () => { throw new Error("offline visual harness"); }}
       onFinalizeUpload={async () => { throw new Error("offline visual harness"); }}
+      onSetPrimaryVoice={async () => { throw new Error("offline visual harness"); }}
       onDeleteSource={async () => "pending"}
     />
   </main></div>,

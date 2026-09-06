@@ -33,7 +33,10 @@ snapshot_download(
     repo_id=MODEL_REPO,
     revision=MODEL_REVISION,
     local_dir=MODEL_ROOT,
-    allow_patterns=MODEL_FILES if MODEL_ARM == "general" else ["ve.pt"],
+    # Runtime startup installs and verifies the pinned offline tokenizer
+    # resolver before selecting an arm. The Hindi pack has its own grapheme
+    # tokenizer, but that shared verifier still binds Cangjie5_TC.json.
+    allow_patterns=MODEL_FILES if MODEL_ARM == "general" else ["ve.pt", "Cangjie5_TC.json"],
 )
 
 if MODEL_ARM == "hindi_v3":

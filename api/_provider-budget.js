@@ -121,11 +121,36 @@ export function personalVoiceReservationMicrousd(operation, units, config) {
   return amount;
 }
 
+export function openRouterBudgetConfig(env = process.env) {
+  const budgetId = String(env.AZURE_REPLICA_BUDGET_ID || "azure-replica-grant-v1").trim();
+  if (!BUDGET_ID.test(budgetId)) fail("provider_budget_id_invalid");
+  const limitUsd = positive(env.AZURE_REPLICA_APP_BUDGET_USD, "provider_budget_limit_required", 2_000);
+  const inputUsdPerMillion = positive(env.OPENROUTER_INPUT_USD_PER_MTOKENS, "provider_input_rate_required", 10_000);
+  const outputUsdPerMillion = positive(env.OPENROUTER_OUTPUT_USD_PER_MTOKENS, "provider_output_rate_required", 10_000);
+  return Object.freeze({
+    budget_id: budgetId,
+    limit_microusd: Math.floor(limitUsd * 1_000_000),
+    input_usd_per_million: inputUsdPerMillion,
+    output_usd_per_million: outputUsdPerMillion,
+  });
+}
+
+async function ensureProviderBudget(db, config) {
+  await db(
+    `insert into vy_provider_budget (budget_id,limit_microusd,state)
+     values ($1,$2,'active')
+     on conflict (budget_id) do nothing`,
+    [config.budget_id, config.limit_microusd],
+  );
+}
+
 export async function reserveFoundrySpend(db, { operation, requestKey, adapter, messages, env = process.env }) {
   if (typeof db !== "function") fail("provider_budget_db_required");
   if (!OPERATIONS.has(operation)) fail("provider_budget_operation_invalid");
-  if (adapter?.billing?.meter !== "azure_foundry_tokens") return null;
-  const config = foundryBudgetConfig(env);
+  if (!new Set(["azure_foundry_tokens", "openrouter_tokens"]).has(adapter?.billing?.meter)) return null;
+  const config = adapter.billing.meter === "openrouter_tokens"
+    ? openRouterBudgetConfig(env)
+    : foundryBudgetConfig(env);
   const inputUnits = conservativeTokenEstimate(messages);
   const outputUnits = integer(adapter.billing.max_output_tokens, "provider_output_units_invalid");
   const reservedMicrousd = tokenReservationMicrousd(inputUnits, outputUnits, config);
@@ -137,41 +162,32 @@ export async function reserveFoundrySpend(db, { operation, requestKey, adapter, 
     provider_version: adapter.version,
     model: adapter.model,
   }));
+  await ensureProviderBudget(db, config);
   const rows = await db(
     `with budget as (
-       insert into vy_provider_budget (budget_id,limit_microusd,state)
-       values ($1,$2,'active')
-       on conflict (budget_id) do update set updated_at=vy_provider_budget.updated_at
-         where vy_provider_budget.limit_microusd=excluded.limit_microusd
-       returning budget_id,limit_microusd,reserved_microusd,spent_microusd,state
+       select budget_id from vy_provider_budget
+        where budget_id=$1 and limit_microusd=$2 and state='active'
+          and spent_microusd+reserved_microusd+$11<=limit_microusd
+        for update
      ), candidate as (
        insert into vy_provider_spend
          (budget_id,operation,provider_family,provider_name,provider_version,model,request_hash,unit_kind,
           reserved_input_units,reserved_output_units,reserved_microusd,state)
-       select budget_id,$3,$4,$5,$6,$7,$8,'tokens',$9,$10,$11,'pending' from budget
+       select budget_id,$3,$4,$5,$6,$7,$8,'tokens',$9,$10,$11,'reserved' from budget
        on conflict (budget_id,operation,request_hash) do nothing
        returning *
      ), allocated as (
        update vy_provider_budget b
           set reserved_microusd=b.reserved_microusd+$11,updated_at=now()
          from candidate c
-        where b.budget_id=c.budget_id and b.state='active'
-          and b.spent_microusd+b.reserved_microusd+$11<=b.limit_microusd
+        where b.budget_id=c.budget_id
        returning b.budget_id
-     ), finalized as (
-       update vy_provider_spend s set state='reserved',updated_at=now()
-         from candidate c,allocated a
-        where s.reservation_id=c.reservation_id and s.budget_id=a.budget_id
-       returning s.*
-     ), rejected as (
-       delete from vy_provider_spend s using candidate c
-        where s.reservation_id=c.reservation_id and not exists(select 1 from allocated)
-       returning s.reservation_id
      ), existing as (
        select s.* from vy_provider_spend s
-        where s.budget_id=$1 and s.operation=$3 and s.request_hash=$8 and s.state<>'pending'
+        where s.budget_id=$1 and s.operation=$3 and s.request_hash=$8
      )
-     select * from finalized union all select * from existing limit 1`,
+     select c.* from candidate c join allocated a on a.budget_id=c.budget_id
+     union all select * from existing limit 1`,
     [config.budget_id, config.limit_microusd, operation, adapter.family, adapter.name, adapter.version,
       adapter.model, requestHash, inputUnits, outputUnits, reservedMicrousd],
   );
@@ -213,35 +229,29 @@ export async function reserveAzureSpeechSpend(db, { requestKey, adapter, inputs,
     meter: adapter.billing.meter,
     inputs: normalizedInputs,
   }));
+  await ensureProviderBudget(db, config);
   const rows = await db(
     `with budget as (
-       insert into vy_provider_budget (budget_id,limit_microusd,state)
-       values ($1,$2,'active')
-       on conflict (budget_id) do update set updated_at=vy_provider_budget.updated_at
-         where vy_provider_budget.limit_microusd=excluded.limit_microusd
-       returning budget_id,limit_microusd,reserved_microusd,spent_microusd,state
+       select budget_id from vy_provider_budget
+        where budget_id=$1 and limit_microusd=$2 and state='active'
+          and spent_microusd+reserved_microusd+$9<=limit_microusd
+        for update
      ), candidate as (
        insert into vy_provider_spend
          (budget_id,operation,provider_family,provider_name,provider_version,model,request_hash,unit_kind,
           reserved_input_units,reserved_output_units,reserved_microusd,state)
-       select budget_id,'transcription',$3,$4,$5,$6,$7,'audio_ms',$8,0,$9,'pending' from budget
+       select budget_id,'transcription',$3,$4,$5,$6,$7,'audio_ms',$8,0,$9,'reserved' from budget
        on conflict (budget_id,operation,request_hash) do nothing
        returning *
      ), allocated as (
        update vy_provider_budget b set reserved_microusd=b.reserved_microusd+$9,updated_at=now()
-         from candidate c where b.budget_id=c.budget_id and b.state='active'
-          and b.spent_microusd+b.reserved_microusd+$9<=b.limit_microusd
+         from candidate c where b.budget_id=c.budget_id
        returning b.budget_id
-     ), finalized as (
-       update vy_provider_spend s set state='reserved',updated_at=now() from candidate c,allocated a
-        where s.reservation_id=c.reservation_id and s.budget_id=a.budget_id returning s.*
-     ), rejected as (
-       delete from vy_provider_spend s using candidate c where s.reservation_id=c.reservation_id
-         and not exists(select 1 from allocated) returning s.reservation_id
      ), existing as (
        select s.* from vy_provider_spend s where s.budget_id=$1 and s.operation='transcription'
-         and s.request_hash=$7 and s.state<>'pending'
-     ) select * from finalized union all select * from existing limit 1`,
+         and s.request_hash=$7
+     ) select c.* from candidate c join allocated a on a.budget_id=c.budget_id
+       union all select * from existing limit 1`,
     [config.budget_id, config.limit_microusd, adapter.family, adapter.name, adapter.version,
       String(adapter.model || "speech-fast-transcription"), requestHash, audioMs, reservedMicrousd],
   );
@@ -291,34 +301,28 @@ async function reserveMeteredVoiceSpend(
     model: adapter.model,
     meter: expectedMeter,
   }));
+  await ensureProviderBudget(db, config);
   const rows = await db(
     `with budget as (
-       insert into vy_provider_budget (budget_id,limit_microusd,state)
-       values ($1,$2,'active')
-       on conflict (budget_id) do update set updated_at=vy_provider_budget.updated_at
-         where vy_provider_budget.limit_microusd=excluded.limit_microusd
-       returning budget_id,limit_microusd,reserved_microusd,spent_microusd,state
+       select budget_id from vy_provider_budget
+        where budget_id=$1 and limit_microusd=$2 and state='active'
+          and spent_microusd+reserved_microusd+$11<=limit_microusd
+        for update
      ), candidate as (
        insert into vy_provider_spend
          (budget_id,operation,provider_family,provider_name,provider_version,model,request_hash,unit_kind,
           reserved_input_units,reserved_output_units,reserved_microusd,state)
-       select budget_id,$3,$4,$5,$6,$7,$8,$9,$10,0,$11,'pending' from budget
+       select budget_id,$3,$4,$5,$6,$7,$8,$9,$10,0,$11,'reserved' from budget
        on conflict (budget_id,operation,request_hash) do nothing returning *
      ), allocated as (
        update vy_provider_budget b set reserved_microusd=b.reserved_microusd+$11,updated_at=now()
-         from candidate c where b.budget_id=c.budget_id and b.state='active'
-          and b.spent_microusd+b.reserved_microusd+$11<=b.limit_microusd
+         from candidate c where b.budget_id=c.budget_id
        returning b.budget_id
-     ), finalized as (
-       update vy_provider_spend s set state='reserved',updated_at=now() from candidate c,allocated a
-        where s.reservation_id=c.reservation_id and s.budget_id=a.budget_id returning s.*
-     ), rejected as (
-       delete from vy_provider_spend s using candidate c where s.reservation_id=c.reservation_id
-         and not exists(select 1 from allocated) returning s.reservation_id
      ), existing as (
        select s.* from vy_provider_spend s where s.budget_id=$1 and s.operation=$3
-         and s.request_hash=$8 and s.state<>'pending'
-     ) select * from finalized union all select * from existing limit 1`,
+         and s.request_hash=$8
+     ) select c.* from candidate c join allocated a on a.budget_id=c.budget_id
+       union all select * from existing limit 1`,
     [config.budget_id, config.limit_microusd, operation, adapter.family, adapter.name, adapter.version,
       adapter.model, requestHash, unitKind, units, reservedMicrousd],
   );

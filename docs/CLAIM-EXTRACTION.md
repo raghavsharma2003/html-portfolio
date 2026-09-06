@@ -1,8 +1,9 @@
 # Private cited claim extraction
 
-Status: implemented control-plane slice on `voice-cloning`, 2026-08-24. The
+Status: implemented control-plane slice on `voice-cloning`, updated 2026-08-30. The
 first lane accepts reviewed target-speaker transcript evidence only. It is not
-yet a general multimodal extractor, and no live Azure request has been made.
+yet a general multimodal extractor. Offline protocol tests do not establish
+live provider quality, privacy, latency or cost.
 
 ## Contract
 
@@ -29,31 +30,47 @@ credential patterns are replaced with character-preserving masks before the
 provider request. The provider never receives owner ids, replica ids, source
 ids, storage paths, raw audio or credentials.
 
-## Azure Foundry adapter
+## Production provider registry
 
-The production adapter uses Azure Foundry Model Inference chat completions at
+The preferred adapter uses Azure Foundry Model Inference chat completions at
 `/models/chat/completions?api-version=2024-05-01-preview` with strict JSON
 schema output. The interface follows Microsoft's [Model Inference REST
 reference](https://learn.microsoft.com/en-us/rest/api/microsoftfoundry/model-inference/get-chat-completions/get-chat-completions?view=rest-microsoftfoundry-model-inference-2024-05-01-preview)
 and [structured outputs guidance](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs).
 
-Configuration is fail-closed:
+When that full Azure configuration is absent, claim extraction can use the
+OpenRouter chat-completions endpoint with the same strict schema and server-side
+validation contract. The deployed fallback model is selected explicitly with
+`OPENROUTER_CLAIM_MODEL`; `google/gemini-2.5-flash` is the evaluated configuration,
+not a source-code default. OpenRouter routing requires providers that support
+all requested parameters. It does not silently downgrade structured output.
+
+Configuration is fail-closed and deterministic:
 
 - `AZURE_FOUNDRY_ENDPOINT` must be HTTPS under `*.services.ai.azure.com`;
 - `AZURE_FOUNDRY_CLAIM_MODEL` names the deployed model;
 - exactly one credential path is allowed; the current production registry uses
   `AZURE_FOUNDRY_API_KEY`;
+- complete Azure endpoint, key and claim model wins over OpenRouter;
+- otherwise OpenRouter requires `OPENROUTER_CLAIM_MODEL` and either
+  `OPENROUTER_API_KEY` or the compatibility name `OPENROUTER_KEY`;
+- a partial Azure configuration does not prevent a complete OpenRouter fallback,
+  but no incomplete provider arm is ever called;
 - request and response sizes are bounded, the deadline covers the full response
   body, and errors never include provider bodies, transcripts or secrets;
 - there is no fake or offline fallback in the production route.
 
-The actual model must support strict structured output for the chosen
-deployment. The route now reserves the configured worst-case token cost under
+The selected model must support strict structured output. The route reserves
+the configured worst-case token cost under
 migration 028 before provider I/O and settles only provider-reported usage.
 Unknown outcomes retain their reserve and block duplicate charging. Before a
-live call, deploy that migration, verify the current model rates and grant
-coverage, add the independent Azure budget alerts and operator reconciliation
-procedure, then run the consented noisy-Hinglish evaluation set. See
+live call, deploy that migration, verify the current model rates and budget
+coverage, add independent budget alerts and an operator reconciliation
+procedure, then run the consented noisy-Hinglish evaluation set. OpenRouter
+uses `OPENROUTER_INPUT_USD_PER_MTOKENS` and
+`OPENROUTER_OUTPUT_USD_PER_MTOKENS`; both are mandatory and share the durable
+`AZURE_REPLICA_APP_BUDGET_USD` ceiling with the other metered replica providers.
+See
 [the paid-provider budget](PROVIDER-BUDGET.md).
 
 ## Citation and review invariants
@@ -84,7 +101,7 @@ Studio.
 - Text, chat, document, image and video claim extraction are not implemented.
   They require modality-specific evidence, third-party/PII handling and the
   same exact citation contract.
-- The Azure adapter has been exercised against mocked protocol responses only;
+- The Azure and OpenRouter adapters have been exercised against mocked protocol responses only;
   no quality, privacy, latency or grant-cost claim is made.
 - Extracted claims do not yet drive a production dialogue model. They become
   eligible only after owner review and a separately approved Person Model.

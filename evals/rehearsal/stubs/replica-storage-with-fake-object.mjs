@@ -1,15 +1,8 @@
-// WS-R119 (wave seventeen, third pass). `../loader.mjs` redirects any
-// relative import ending in `_replica-storage.js` here. `readPrivateReplicaObject`
-// is the ONE function `api/room-tg.js`'s own `buildRoomVoiceDeps.synth`
-// closure calls directly (reading the owner's enrolled voice reference bytes
-// before handing them to the provider) — real Supabase Storage over a real
-// network, which this rehearsal may not reach (`ws-common.md`'s own "no
-// network beyond 127.0.0.1"). Every other real export is re-exported
-// unchanged, `stubs/surface-with-fake-model.mjs`'s own "re-export
-// everything, override one name" shape, since `_replica-storage.js` is a
-// generic-basename-free but widely reused module (replica export/erasure,
-// the studio's upload panel) whose OTHER functions this rehearsal never
-// calls but Node still has to LINK.
+// Rehearsal storage seam. Voice enrollment reads use the existing fixed
+// reference fixture. Creator source writes run the production immutable
+// storage code with an in-memory provider transport; ownership, source
+// consent, writer renewal, digest and readback checks remain exercised.
+// Unrelated exports remain real so every production handler can link.
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -20,8 +13,9 @@ const REAL = await import(REAL_URL);
 export const {
   REPLICA_STORAGE_BUCKET, REPLICA_STORAGE_WRITE_BUCKET, ReplicaStorageError,
   replicaStorageBucketDescriptor, replicaStorageLocator, streamPrivateReplicaObject,
-  writeImmutableReplicaArtifact, ensurePrivateReplicaBucket, createSignedReplicaUpload,
+  writeImmutableReplicaArtifact, createSignedReplicaUpload,
   createSignedReplicaRead, replicaObjectInfo, deleteReplicaObject, deleteReplicaObjects,
+  deleteReplicaPrefixObjects, deleteReplicaSourceObjects,
 } = REAL;
 
 /** A fixed, small, non-empty reference buffer — nothing downstream reads its
@@ -36,3 +30,29 @@ export async function readPrivateReplicaObject(_locator, _options = {}) {
     objectId: "rehearsal-fake-object",
   });
 }
+
+// Only transport is fake: real bucket privacy, locator, create-only, digest,
+// readback and per-write authority checks execute unchanged.
+process.env.SUPABASE_URL = "https://rehearsal-storage.invalid";
+process.env.SUPABASE_SERVICE_ROLE_KEY = "rehearsal-synthetic-service-key";
+const objects = new Map();
+export async function rehearsalObjectFetch(rawUrl, init = {}) {
+  const url = new URL(rawUrl);
+  if (url.origin !== "https://rehearsal-storage.invalid") throw new Error("rehearsal_storage_origin_denied");
+  const path = decodeURIComponent(url.pathname.replace("/storage/v1", ""));
+  if (path.startsWith("/bucket/")) return Response.json({ public: false, file_size_limit: 1073741824 });
+  if (path.startsWith("/object/") && init.method === "POST") {
+    const key = path.slice("/object/".length);
+    if (init.headers["x-upsert"] !== "false") throw new Error("rehearsal_create_only_required");
+    if (objects.has(key)) return new Response(null, {status:409});
+    objects.set(key, { bytes: Buffer.from(init.body), mime: init.headers["Content-Type"] });
+    return Response.json({ Key:key }, {status:201});
+  }
+  if (path.startsWith("/object/authenticated/")) {
+    const value = objects.get(path.slice("/object/authenticated/".length));
+    return value ? new Response(value.bytes, {headers:{"content-type":value.mime,"content-length":String(value.bytes.length),etag:'"rehearsal-immutable"'}}) : new Response(null,{status:404});
+  }
+  throw new Error("rehearsal_storage_operation_not_modelled");
+}
+export const ensurePrivateReplicaBucket = (bucket) => REAL.ensurePrivateReplicaBucket(bucket, rehearsalObjectFetch);
+export const writeImmutableReplicaSource = (input, options = {}) => REAL.writeImmutableReplicaSource(input, { ...options, fetchImpl: rehearsalObjectFetch });

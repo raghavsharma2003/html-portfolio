@@ -1,6 +1,7 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { sha256Hex } from "./_replica-processing/contracts.js";
 import { REPLICA_POLICY_VERSION } from "./_replica.js";
+import { cleanupReplicaChannelExtractionStorage } from "./_channel/extraction-storage.js";
 
 export const REPLICA_ERASURE_RECEIPT_VERSION = "replica-erasure-receipt/v1";
 const MAX_RETRY_MS = 6 * 60 * 60 * 1000;
@@ -40,7 +41,7 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
     deletedClasses: Object.freeze([
       "provider_voice", "provider_face_session", "provider_consent", "private_originals", "private_derivatives",
       "replica_models", "replica_feedback", "replica_runtime", "replica_audit",
-      "agent_relational_memory", "agent_identity",
+      "agent_relational_memory", "agent_identity", "replica_persona_sheet", "agent_push_credentials",
       // WS-AB. The Context Locker is its own CLASS on the receipt, not a
       // detail of one: it is the only place this platform stores the person's
       // OWN DOCUMENTS in full — a CV, a chat export, an article they saved —
@@ -52,6 +53,10 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // from it, and a deletion receipt that could not say those were included
       // would be answering a narrower question than the one asked.
       "mirror_call_sessions",
+      // 068. Short-lived does not mean outside erasure. These rows carry exact
+      // source spans and dyad/turn scopes, so the receipt names their deletion
+      // even though the database FK also cascades them from the replica.
+      "transient_expression_observations",
       // 060 (WS-AF). The activity trail is its own class for the same reason
       // the two above are: it is a dated record of what this person handed us
       // and when, video titles included, and a receipt that did not name it
@@ -152,6 +157,7 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // name it would understate what was held. Additive; the eval asserts
       // membership, never the exact list.
       "owner_room_showcase",
+      "channel_extraction_media",
     ]),
   });
 }
@@ -201,6 +207,11 @@ export async function prepareReplicaErasures(db, options = {}) {
        update vy_replica_source s set state='deleting',updated_at=now()
          from replicas r where s.replica_id=r.replica_id and s.owner_user_id=r.owner_user_id
        returning s.source_id
+     ), channel_watches as (
+       update vy_channel_watch w set status='revoked',backfill_state='idle'
+         from replicas r where w.replica_id=r.replica_id and w.owner_user_id=r.owner_user_id
+          and w.status<>'revoked'
+       returning w.watch_id
      ), voices as (
        update vy_replica_voice_profile v set status='deleting',updated_at=now()
          from replicas r where v.replica_id=r.replica_id and v.owner_user_id=r.owner_user_id
@@ -221,7 +232,10 @@ export async function prepareReplicaErasures(db, options = {}) {
               lease_expires_at=null,next_attempt_at=now(),
                provider_status=coalesce(j.provider_status,'{}'::jsonb)||
                  jsonb_build_object('voice','pending','voice_count',(select count(*) from voices),'face','pending'),
-              storage_status=jsonb_build_object('source','pending','count',(select count(*) from sources)),updated_at=now()
+              storage_status=jsonb_build_object(
+                'source','pending','count',(select count(*) from sources),
+                'channel','pending','watch_count',(select count(*) from channel_watches)
+              ),updated_at=now()
          from replicas r where j.replica_id=r.replica_id and j.owner_user_id=r.owner_user_id
        returning j.job_id,j.replica_id
      ) select * from jobs`,
@@ -250,6 +264,26 @@ export async function leaseNextReplicaErasure(db, options = {}) {
           (j.state='running' and (j.lease_expires_at is null or j.lease_expires_at<=now()))
          ) and not exists (select 1 from vy_replica_voice_profile v where v.replica_id=j.replica_id)
            and not exists (select 1 from vy_replica_source s where s.replica_id=j.replica_id)
+           and not exists (
+             select 1 from vy_replica_source_storage_writer sw
+              where sw.replica_id=j.replica_id and sw.owner_user_id=j.owner_user_id
+                and sw.state='active' and sw.storage_write_not_after>now()
+           )
+           and not exists (
+             select 1 from vy_channel_extraction_object x
+              where x.replica_id=j.replica_id and x.owner_user_id=j.owner_user_id
+                and coalesce(x.upload_authorization_expires_at,'infinity'::timestamptz)>now()
+           )
+           and not exists (
+             select 1 from vy_ingest_run x
+              where x.replica_id=j.replica_id and x.owner_user_id=j.owner_user_id
+                and coalesce(x.upload_authorization_expires_at,'infinity'::timestamptz)>now()
+           )
+           and not exists (
+             select 1 from vy_video_enrollment x
+              where x.replica_id=j.replica_id and x.owner_user_id=j.owner_user_id
+                and coalesce(x.upload_authorization_expires_at,'infinity'::timestamptz)>now()
+           )
            and not exists (
              select 1 from vy_replica_liveness_challenge ch where ch.replica_id=j.replica_id
                and ch.owner_user_id=j.owner_user_id and ch.face_session_state in (
@@ -293,6 +327,85 @@ function requireSettlement(rows, code) {
   return rows[0];
 }
 
+export async function renewReplicaErasureLease(db, lease, options = {}) {
+  const leaseMs = Math.max(60_000, Math.min(300_000, Number(options.leaseMs || 240_000)));
+  const rows = await db(
+    `update vy_replica_erasure_job j
+        set lease_expires_at=now()+($5::integer*interval '1 millisecond'),updated_at=now()
+      where j.job_id=$1::uuid and j.replica_id=$2::uuid and j.owner_user_id=$3::uuid
+        and j.state='running' and j.lease_token_hash=$4 and j.lease_expires_at>now()
+      returning j.job_id`,
+    [lease.jobId, lease.replicaId, lease.ownerUserId,
+      replicaErasureLeaseTokenHash(lease.leaseToken), leaseMs],
+  );
+  return requireSettlement(rows, "lost_replica_erasure_lease");
+}
+
+async function withReplicaErasureLeaseHeartbeat(db, lease, renew, task, options = {}) {
+  const heartbeatMs = Math.max(100, Math.min(120_000, Number(options.heartbeatMs || 60_000)));
+  let stop = false;
+  let wake;
+  let leaseError = null;
+  const aborter = new AbortController();
+  const stopped = new Promise((resolve) => { wake = resolve; });
+  const wait = () => {
+    let timer;
+    const delay = new Promise((resolve) => {
+      timer = setTimeout(resolve, heartbeatMs);
+    });
+    return Promise.race([delay, stopped]).finally(() => clearTimeout(timer));
+  };
+  const heartbeat = (async () => {
+    while (!stop) {
+      await wait();
+      if (stop) break;
+      try { await renew(db, lease, { leaseMs: 240_000 }); }
+      catch (error) {
+        leaseError = error;
+        aborter.abort(error);
+        break;
+      }
+    }
+  })();
+  try {
+    const result = await task(aborter.signal);
+    if (leaseError) throw leaseError;
+    return result;
+  } finally {
+    stop = true;
+    wake();
+    await heartbeat;
+  }
+}
+
+export async function confirmReplicaChannelStorageErasure(db, lease) {
+  const rows = await db(
+    `update vy_replica_erasure_job j
+        set storage_status=coalesce(j.storage_status,'{}'::jsonb)||jsonb_build_object('channel','confirmed'),
+            updated_at=now()
+      where j.job_id=$1::uuid and j.replica_id=$2::uuid and j.owner_user_id=$3::uuid
+        and j.state='running' and j.lease_token_hash=$4 and j.lease_expires_at>now()
+        and not exists (
+          select 1 from vy_channel_extraction_object x
+           where x.replica_id=j.replica_id and x.owner_user_id=j.owner_user_id
+             and coalesce(x.upload_authorization_expires_at,'infinity'::timestamptz)>now()
+        )
+        and not exists (
+          select 1 from vy_ingest_run x
+           where x.replica_id=j.replica_id and x.owner_user_id=j.owner_user_id
+             and coalesce(x.upload_authorization_expires_at,'infinity'::timestamptz)>now()
+        )
+        and not exists (
+          select 1 from vy_video_enrollment x
+           where x.replica_id=j.replica_id and x.owner_user_id=j.owner_user_id
+             and coalesce(x.upload_authorization_expires_at,'infinity'::timestamptz)>now()
+        )
+      returning j.job_id`,
+    [lease.jobId, lease.replicaId, lease.ownerUserId, replicaErasureLeaseTokenHash(lease.leaseToken)],
+  );
+  return requireSettlement(rows, "replica_channel_storage_erasure_not_confirmed");
+}
+
 export async function retryReplicaErasure(db, lease, input = {}) {
   const delayMs = Math.max(30_000, Math.min(MAX_RETRY_MS, Number(input.retryAfterMs || 30_000)));
   const failureCode = normalizeReplicaErasureFailure(input.error || input.failureCode);
@@ -334,8 +447,19 @@ export async function completeReplicaErasure(db, lease, receipt) {
          left join vy_agent a on a.agent_id=r.agent_id
         where j.job_id=$1::uuid and j.replica_id=$2::uuid and j.owner_user_id=$3::uuid and j.state='running'
           and j.lease_token_hash=$4 and j.lease_expires_at>now() and r.lifecycle='purging'
+           and j.storage_status->>'channel'='confirmed'
            and not exists (select 1 from vy_replica_voice_profile v where v.replica_id=r.replica_id)
            and not exists (select 1 from vy_replica_source s where s.replica_id=r.replica_id)
+           and not exists (
+             select 1 from vy_replica_source_storage_writer sw
+              where sw.replica_id=r.replica_id and sw.owner_user_id=r.owner_user_id
+                and sw.state='active' and sw.storage_write_not_after>now()
+           )
+           and not exists (
+             select 1 from vy_channel_extraction_object x
+              where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
+                and coalesce(x.upload_authorization_expires_at,'infinity'::timestamptz)>now()
+           )
            and not exists (
              select 1 from vy_replica_liveness_challenge ch where ch.replica_id=r.replica_id
                and ch.owner_user_id=r.owner_user_id and ch.face_session_state in (
@@ -387,6 +511,8 @@ export async function completeReplicaErasure(db, lease, receipt) {
      sessions as (delete from vy_session x using target t where x.agent_id=t.agent_id),
      episodes as (delete from vy_episode x using target t where x.agent_id=t.agent_id),
      audit as (delete from vy_replica_audit x using target t where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     channel_extraction_objects as (delete from vy_channel_extraction_object x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      -- WS-R. Step 5 of docs/REPLICA-ERASURE.md says "all remaining
      -- replica-local rows … through database cascades". Walking the LIVE FK
      -- graph found four owner-keyed tables that "delete from vy_replica" does
@@ -451,6 +577,12 @@ export async function completeReplicaErasure(db, lease, receipt) {
      --
      -- The order is the FK order: the conditioning selection points at a
      -- window, so it goes first.
+     claim_extraction_queue_items as (delete from vy_replica_claim_extraction_queue_item x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     claim_extraction_queues as (delete from vy_replica_claim_extraction_queue x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     expression_observations as (delete from vy_replica_expression_observation x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      mirror_conditioning as (delete from vy_mirror_conditioning x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      mirror_finetune as (delete from vy_mirror_finetune_job x using target t
@@ -818,6 +950,8 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- reference, not a different KIND of record from anything a receipt
      -- already names.
      room_org_attachments as (delete from vy_room_org_attachment x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      -- 110 (WS-R53), taste turn counts. Reached by room_id via the SAME
      -- vy_room subquery room_arrivals just above uses, for the identical
      -- reason: no agent binding of its own. Carries a real FK CASCADE from
@@ -925,6 +1059,20 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- reasoning restated.
      creator_push_subscriptions as (delete from vy_creator_push_subscription x using target t
        where x.owner_user_id=t.owner_user_id),
+     -- TeacherSheet is intentionally agent-shaped without an FK. It contains
+     -- the persona fields that drive the clone, so deleting the replica/agent
+     -- without naming this table would leave the person's sheet orphaned.
+     -- target.agent_id is admitted only by the exact owner/replica lease and
+     -- selfReplica slug binding above; no owner-wide or global sheet delete is
+     -- possible here.
+     teacher_sheets as (delete from vy_teacher_sheet x using target t
+       where t.agent_id is not null and x.agent_id=t.agent_id
+       returning x.sheet_id),
+     -- Push credentials are also agent-shaped without an FK. The exact
+     -- selfReplica agent binding in target is the only deletion authority.
+     push_tokens as (delete from vy_push_token x using target t
+       where t.agent_id is not null and x.agent_id=t.agent_id
+       returning x.device_id),
      receipt as (
        insert into vy_replica_deletion_receipt
          (replica_id_hash,owner_user_hash,policy_version,reason,deleted_classes,processor_status,
@@ -936,6 +1084,8 @@ export async function completeReplicaErasure(db, lease, receipt) {
        returning t.agent_id
      ), removed_agent as (
        delete from vy_agent a using removed_replica r where a.agent_id=r.agent_id
+         and (select count(*) from teacher_sheets)>=0
+         and (select count(*) from push_tokens)>=0
        returning a.agent_id
      ) select receipt_id from receipt`,
     [lease.jobId, lease.replicaId, lease.ownerUserId, replicaErasureLeaseTokenHash(lease.leaseToken),
@@ -952,6 +1102,9 @@ export async function runReplicaErasureFinalizer(options) {
   const lease = options.lease || leaseNextReplicaErasure;
   const complete = options.complete || completeReplicaErasure;
   const retry = options.retry || retryReplicaErasure;
+  const cleanupChannelStorage = options.cleanupChannelStorage || cleanupReplicaChannelExtractionStorage;
+  const confirmChannelStorage = options.confirmChannelStorage || confirmReplicaChannelStorageErasure;
+  const renew = options.renew || renewReplicaErasureLease;
   const receiptFactory = options.receiptFactory || ((claimed) =>
     createReplicaErasureReceipt(claimed.replicaId, claimed.ownerUserId, process.env, {
       erasureRequestId: claimed.jobId,
@@ -963,6 +1116,11 @@ export async function runReplicaErasureFinalizer(options) {
     if (!claimed) break;
     summary.leased += 1;
     try {
+      await withReplicaErasureLeaseHeartbeat(db, claimed, renew, async (signal) => {
+        await cleanupChannelStorage(db, claimed, { signal });
+        signal.throwIfAborted();
+        await confirmChannelStorage(db, claimed);
+      }, { heartbeatMs: options.heartbeatMs });
       const receipt = receiptFactory(claimed);
       await complete(db, claimed, receipt);
       summary.completed += 1;
@@ -993,7 +1151,8 @@ export async function getReplicaErasureStatus(db, ownerUserId, requestId) {
             case when exists (
               select 1 from vy_replica_source s
                where s.replica_id=j.replica_id and s.owner_user_id=j.owner_user_id
-            ) then 'pending' else 'confirmed' end storage_state,
+            ) or coalesce(j.storage_status->>'channel','pending')<>'confirmed'
+              then 'pending' else 'confirmed' end storage_state,
             '{}'::text[] deleted_classes
        from vy_replica_erasure_job j where j.job_id=$1::uuid and j.owner_user_id=$2::uuid
      union all

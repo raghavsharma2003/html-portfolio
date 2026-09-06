@@ -19,6 +19,7 @@ const personModel: PersonModelStatus = {
       status: "proposed",
       sensitive: false,
       source_count: 2,
+      citation_previews: [{ excerpt: "I usually answer briefly and directly.", entailment: 0.93 }],
       decision: null,
       reason_code: "",
       reviewed_at: null,

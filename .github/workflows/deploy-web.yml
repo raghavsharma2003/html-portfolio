@@ -207,9 +207,12 @@ jobs:
         # --archive=tgz: a plain upload of this tree (photos included) has
         # failed with "fetch failed" mid-transfer; the tarball path is what
         # actually completes.
-        run: npx --yes vercel@latest deploy --prod --yes --archive=tgz
+        run: node scripts/deploy-vercel.mjs --product meera-companion --prod --yes --archive=tgz
 
       # Deployed is not the same as serving the new code. Vercel reports READY
       # for a build whose functions still 500, so assert the live site answers.
       - name: Verify production is actually serving
-        run: node scripts/verify-deploy.mjs
+        # This workflow owns the companion project. verify-deploy defaults to
+        # the generic Vyakti clone product, so name this older surface
+        # explicitly and keep wrong-project detection meaningful for both.
+        run: node scripts/verify-deploy.mjs https://meera-silk.vercel.app --product meera-companion

@@ -2486,6 +2486,7 @@ create index if not exists vy_mirror_turn_owner_ix on vy_mirror_turn (owner_user
 -- api/_video-enroll.js; the reference-window ranking is the measurement
 -- (context/measurements.md#reference-window-beats-the-finetune) and that is
 -- why the windows are columns rather than jsonb.
+create table if not exists vy_video_enrollment (
   enrollment_id   uuid primary key,
   replica_id      uuid not null,
   owner_user_id   uuid not null,
@@ -4648,3 +4649,760 @@ create index if not exists vy_room_follower_month_note_follower_built_ix
   on vy_room_follower_month_note (follower_id, built_at desc);
 create index if not exists vy_room_follower_month_note_room_person_ix
   on vy_room_follower_month_note (room_id, person_id);
+
+-- INTEGRATION CANDIDATE: local voice lineage; catalog verification pending.
+-- Migration 067 - durable, owner-scoped ordinary voice-preview intents.
+create table if not exists vy_replica_voice_preview_intent (
+  intent_id             uuid primary key,
+  replica_id            uuid not null,
+  owner_user_id         uuid not null,
+  genome_version        integer not null check (genome_version > 0),
+  preview_artifact_id   uuid not null,
+  language_id           text not null check (language_id in ('en','hi')),
+  text_hash              text not null check (text_hash ~ '^[0-9a-f]{64}$'),
+  text_plan_sha256       text not null check (text_plan_sha256 ~ '^[0-9a-f]{64}$'),
+  model_commitment       text not null check (model_commitment ~ '^[0-9a-f]{64}$'),
+  style                  jsonb not null,
+  preview_seed           integer not null check (preview_seed between 1 and 2147483647),
+  regeneration_key       text not null default '',
+  intent_key             text not null check (intent_key ~ '^[0-9a-f]{64}$'),
+  state                  text not null check (state in ('warming','synthesizing','sealed','retryable','failed')),
+  attempt                integer not null default 1 check (attempt > 0),
+  generation_id          uuid,
+  lease_token_hash       text not null default '',
+  leased_at              timestamptz,
+  lease_expires_at       timestamptz,
+  next_attempt_at        timestamptz not null default now(),
+  failure_code           text not null default '',
+  failure_count          integer not null default 0 check (failure_count between 0 and 3),
+  result_storage_bucket  text,
+  result_object_path     text,
+  result_mime            text,
+  result_byte_size       bigint,
+  result_sha256          text,
+  result_object_id       text,
+  result_metadata        jsonb not null default '{}'::jsonb,
+  result_expires_at      timestamptz,
+  started_at             timestamptz not null default now(),
+  completed_at           timestamptz,
+  updated_at             timestamptz not null default now(),
+  constraint vy_replica_voice_preview_intent_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_voice_preview_intent_artifact_fk
+    foreign key (preview_artifact_id, replica_id, owner_user_id)
+    references vy_replica_processing_artifact(artifact_id, replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_voice_preview_intent_style_shape
+    check (jsonb_typeof(style)='object' and octet_length(style::text) between 2 and 2048),
+  constraint vy_replica_voice_preview_intent_regeneration_key_shape
+    check (regeneration_key='' or regeneration_key ~ '^[A-Za-z0-9_-]{8,96}$'),
+  constraint vy_replica_voice_preview_intent_lease_shape check (
+    (state<>'synthesizing' and lease_token_hash='' and leased_at is null and lease_expires_at is null)
+    or
+    (state='synthesizing' and lease_token_hash ~ '^[0-9a-f]{64}$'
+      and leased_at is not null and lease_expires_at>leased_at)
+  ),
+  constraint vy_replica_voice_preview_intent_result_shape check (
+    (
+      state='sealed' and generation_id is not null and completed_at is not null
+      and result_expires_at>completed_at
+      and lease_token_hash='' and failure_code=''
+      and result_storage_bucket is not null and result_object_path is not null
+      and result_mime='audio/wav' and result_byte_size between 45 and 67108864
+      and result_sha256 ~ '^[0-9a-f]{64}$'
+      and jsonb_typeof(result_metadata)='object' and octet_length(result_metadata::text)<=2048
+    ) or (
+      state<>'sealed' and completed_at is null
+      and result_expires_at is null
+      and result_storage_bucket is null and result_object_path is null
+      and result_mime is null and result_byte_size is null and result_sha256 is null
+      and result_object_id is null
+    )
+  ),
+  constraint vy_replica_voice_preview_intent_exact_identity unique
+    (owner_user_id, replica_id, genome_version, preview_artifact_id, language_id,
+     text_hash, text_plan_sha256, model_commitment, style, preview_seed, regeneration_key),
+  constraint vy_replica_voice_preview_intent_key_identity unique
+    (owner_user_id, intent_key, regeneration_key),
+  constraint vy_replica_voice_preview_intent_owner_identity unique
+    (intent_id, replica_id, owner_user_id)
+);
+
+create index if not exists vy_replica_voice_preview_intent_observe_ix
+  on vy_replica_voice_preview_intent
+    (owner_user_id, replica_id, updated_at desc);
+
+create index if not exists vy_replica_voice_preview_intent_recovery_ix
+  on vy_replica_voice_preview_intent
+    (state, next_attempt_at, lease_expires_at)
+  where state in ('warming','synthesizing','retryable');
+
+alter table vy_replica_generation
+  add column if not exists preview_intent_id uuid;
+
+alter table vy_replica_generation
+  add column if not exists preview_intent_attempt integer;
+
+alter table vy_replica_generation
+  add column if not exists preview_regeneration_key text not null default '';
+
+alter table vy_replica_generation
+  add column if not exists preview_result_storage_bucket text not null default '';
+
+alter table vy_replica_generation
+  add column if not exists preview_result_object_path text not null default '';
+
+alter table vy_replica_generation
+  add column if not exists preview_result_deleted_at timestamptz;
+
+alter table vy_replica_generation
+  add column if not exists preview_result_cleanup_claimed_at timestamptz;
+
+alter table vy_replica_generation
+  drop constraint if exists vy_replica_generation_preview_intent_shape;
+
+alter table vy_replica_generation
+  add constraint vy_replica_generation_preview_intent_shape check (
+    (preview_intent_id is null and preview_intent_attempt is null and preview_regeneration_key=''
+      and preview_result_storage_bucket='' and preview_result_object_path=''
+      and preview_result_deleted_at is null and preview_result_cleanup_claimed_at is null)
+    or
+    (purpose='voice_preview' and preview_trial_id is null and preview_intent_id is not null
+      and preview_intent_attempt>0
+      and (preview_regeneration_key='' or preview_regeneration_key ~ '^[A-Za-z0-9_-]{8,96}$')
+      and preview_result_storage_bucket<>''
+      and preview_result_object_path like '%/derived/voice-preview/%.wav')
+  );
+
+alter table vy_replica_generation
+  drop constraint if exists vy_replica_generation_preview_intent_fk;
+
+alter table vy_replica_generation
+  add constraint vy_replica_generation_preview_intent_fk
+    foreign key (preview_intent_id, replica_id, owner_user_id)
+    references vy_replica_voice_preview_intent(intent_id, replica_id, owner_user_id) on delete cascade;
+
+create unique index if not exists vy_replica_generation_preview_intent_attempt_ix
+  on vy_replica_generation (preview_intent_id, preview_intent_attempt)
+  where preview_intent_id is not null;
+
+-- Migration 066 - one owner-chosen audio or video source drives voice
+-- conditioning. Every other source remains available to the wider person
+-- model as supporting context.
+create unique index if not exists vy_replica_source_owner_locator_ix
+  on vy_replica_source (source_id, replica_id, owner_user_id);
+
+create table if not exists vy_replica_voice_reference (
+  replica_id      uuid primary key,
+  owner_user_id   uuid not null,
+  source_id       uuid not null unique,
+  selected_at     timestamptz not null default now(),
+  constraint vy_replica_voice_reference_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_voice_reference_source_fk
+    foreign key (source_id, replica_id, owner_user_id)
+    references vy_replica_source(source_id, replica_id, owner_user_id) on delete cascade
+);
+
+with latest_selection as (
+  select distinct on (d.artifact_id)
+         d.artifact_id, d.decision, d.created_at, d.decision_id
+    from vy_replica_processing_artifact_decision d
+   order by d.artifact_id, d.created_at desc, d.decision_id desc
+), candidates as (
+  select distinct on (s.replica_id)
+         s.replica_id, s.owner_user_id, s.source_id
+    from vy_replica_source s
+    join vy_replica_processing_artifact a
+      on a.source_id=s.source_id and a.replica_id=s.replica_id and a.owner_user_id=s.owner_user_id
+    join latest_selection d on d.artifact_id=a.artifact_id and d.decision='selected'
+   where s.kind in ('audio','video') and s.capture_mode in ('upload','import','derived')
+     and s.state='ready' and s.contains_third_parties=false and a.stage='enhance'
+   order by s.replica_id, d.created_at desc, d.decision_id desc, a.created_at desc
+)
+insert into vy_replica_voice_reference(replica_id,owner_user_id,source_id)
+select replica_id,owner_user_id,source_id from candidates
+on conflict (replica_id) do nothing;
+
+-- Migration 068 - short-lived, source-cited expression observations. One row
+-- is one measurable delivery or turn-taking feature, never an inner state.
+create unique index if not exists vy_replica_expression_scope_ix
+  on vy_replica (replica_id, owner_user_id, agent_id);
+create unique index if not exists vy_replica_source_expression_scope_ix
+  on vy_replica_source (source_id, replica_id, owner_user_id, sha256);
+create unique index if not exists vy_mirror_session_expression_scope_ix
+  on vy_mirror_session (session_id, replica_id, owner_user_id);
+create unique index if not exists vy_mirror_window_expression_scope_ix
+  on vy_mirror_window (window_id, session_id, replica_id, owner_user_id);
+create unique index if not exists vy_mirror_turn_expression_scope_ix
+  on vy_mirror_turn (turn_id, window_id, session_id, replica_id, owner_user_id);
+
+create table if not exists vy_replica_expression_observation (
+  observation_id          text primary key
+                          check (observation_id ~ '^obs_[0-9a-f]{64}$'),
+  replica_id               uuid not null,
+  owner_user_id            uuid not null,
+  source_id                uuid not null,
+  source_commitment_id     text not null
+                          check (source_commitment_id ~ '^src_[0-9a-f]{64}$'),
+  source_record_hash       text not null
+                          check (source_record_hash ~ '^[0-9a-f]{64}$'),
+  source_content_sha256    text not null
+                          check (source_content_sha256 ~ '^[0-9a-f]{64}$'),
+  source_consent_id        uuid not null,
+  session_id               uuid,
+  window_id                uuid,
+  mirror_turn_id           uuid,
+  turn_id                  text not null
+                          check (turn_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$'),
+  dyad_id                  text not null
+                          check (dyad_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$'),
+  agent_id                 uuid,
+  person_id                uuid,
+  span_unit                text not null
+                          check (span_unit in ('audio_ms','video_ms','utf8_bytes')),
+  span_start               bigint not null check (span_start >= 0),
+  span_end                 bigint not null check (span_end > span_start),
+  span_content_sha256      text not null
+                          check (span_content_sha256 ~ '^[0-9a-f]{64}$'),
+  span_hash                text not null
+                          check (span_hash ~ '^[0-9a-f]{64}$'),
+  feature_name             text not null check (feature_name in (
+                            'speech_rate_wpm','articulation_rate_sps',
+                            'pause_ratio','mean_pause_ms','pause_count',
+                            'turn_latency_ms','turn_duration_ms',
+                            'overlap_ratio','interruption_count','backchannel_count',
+                            'laughter_ratio','laughter_count',
+                            'energy_rms_db','pitch_median_hz','pitch_range_hz',
+                            'voiced_ratio','emphasis_rate','code_switch_ratio',
+                            'token_count','syllable_count'
+                          )),
+  feature_value            double precision not null,
+  feature_unit             text not null check (feature_unit in (
+                            'words_per_minute','syllables_per_second','ratio',
+                            'milliseconds','count','decibels_rms','hertz',
+                            'events_per_minute'
+                          )),
+  epistemic_status         text not null check (epistemic_status in ('observed','inferred')),
+  confidence               double precision not null check (confidence between 0 and 1),
+  producer_kind            text not null
+                          check (producer_kind in ('direct_measurement','model','rules','human_annotation')),
+  producer_name            text not null
+                          check (producer_name ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$'),
+  producer_revision        text not null
+                          check (producer_revision ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$'),
+  producer_code_hash       text not null
+                          check (producer_code_hash ~ '^[0-9a-f]{64}$'),
+  calibration_status       text not null check (calibration_status in ('calibrated','uncalibrated')),
+  calibration_method       text not null
+                          check (calibration_method ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$'),
+  calibration_revision     text not null
+                          check (calibration_revision ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$'),
+  calibration_sample_size  integer not null check (calibration_sample_size >= 0),
+  calibration_dataset_hash text,
+  calibration_measured_at  timestamptz,
+  observed_at               timestamptz not null,
+  expires_at                timestamptz not null,
+  compiler_revision         text not null check (compiler_revision='experience-compiler-contract-v1'),
+  claim_target              text not null check (claim_target='delivery_cue'),
+  interpretation            text not null check (interpretation='observer_interpretation'),
+  may_claim_inner_emotion   boolean not null default false
+                           check (may_claim_inner_emotion=false),
+  record_hash               text not null unique
+                           check (record_hash ~ '^[0-9a-f]{64}$'),
+  created_at                timestamptz not null default now(),
+  constraint vy_replica_expression_observation_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_expression_observation_agent_scope_fk
+    foreign key (replica_id, owner_user_id, agent_id)
+    references vy_replica(replica_id, owner_user_id, agent_id) on delete cascade,
+  constraint vy_replica_expression_observation_person_fk
+    foreign key (person_id) references vy_person(person_id) on delete cascade,
+  constraint vy_replica_expression_observation_source_fk
+    foreign key (source_id, replica_id, owner_user_id, source_content_sha256)
+    references vy_replica_source(source_id, replica_id, owner_user_id, sha256) on delete cascade,
+  constraint vy_replica_expression_observation_consent_fk
+    foreign key (source_consent_id, replica_id, owner_user_id)
+    references vy_replica_consent(consent_id, replica_id, owner_user_id),
+  constraint vy_replica_expression_observation_session_fk
+    foreign key (session_id, replica_id, owner_user_id)
+    references vy_mirror_session(session_id, replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_expression_observation_window_fk
+    foreign key (window_id, session_id, replica_id, owner_user_id)
+    references vy_mirror_window(window_id, session_id, replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_expression_observation_turn_fk
+    foreign key (mirror_turn_id, window_id, session_id, replica_id, owner_user_id)
+    references vy_mirror_turn(turn_id, window_id, session_id, replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_expression_observation_mirror_scope check (
+    (session_id is null and window_id is null and mirror_turn_id is null)
+    or
+    (session_id is not null and
+      (window_id is not null or mirror_turn_id is null) and
+      (mirror_turn_id is null or window_id is not null))
+  ),
+  constraint vy_replica_expression_observation_turn_binding
+    check (mirror_turn_id is null or turn_id=mirror_turn_id::text),
+  constraint vy_replica_expression_observation_finite
+    check (feature_value > '-Infinity'::double precision
+      and feature_value < 'Infinity'::double precision),
+  constraint vy_replica_expression_observation_feature_shape check (
+    (feature_name='speech_rate_wpm' and feature_unit='words_per_minute' and feature_value between 0 and 1000)
+    or (feature_name='articulation_rate_sps' and feature_unit='syllables_per_second' and feature_value between 0 and 50)
+    or (feature_name in ('pause_ratio','overlap_ratio','laughter_ratio','voiced_ratio','code_switch_ratio')
+      and feature_unit='ratio' and feature_value between 0 and 1)
+    or (feature_name in ('mean_pause_ms','turn_latency_ms') and feature_unit='milliseconds' and feature_value between 0 and 300000)
+    or (feature_name='turn_duration_ms' and feature_unit='milliseconds' and feature_value between 1 and 86400000)
+    or (feature_name in ('pause_count','interruption_count','backchannel_count','laughter_count')
+      and feature_unit='count' and feature_value between 0 and 10000 and feature_value=trunc(feature_value))
+    or (feature_name in ('token_count','syllable_count')
+      and feature_unit='count' and feature_value between 0 and 1000000 and feature_value=trunc(feature_value))
+    or (feature_name='energy_rms_db' and feature_unit='decibels_rms' and feature_value between -200 and 50)
+    or (feature_name in ('pitch_median_hz','pitch_range_hz') and feature_unit='hertz' and feature_value between 0 and 5000)
+    or (feature_name='emphasis_rate' and feature_unit='events_per_minute' and feature_value between 0 and 1000)
+  ),
+  constraint vy_replica_expression_observation_epistemic_producer check (
+    (epistemic_status='observed' and producer_kind in ('direct_measurement','human_annotation'))
+    or
+    (epistemic_status='inferred' and producer_kind in ('model','rules'))
+  ),
+  constraint vy_replica_expression_observation_calibration_shape check (
+    (calibration_status='uncalibrated' and calibration_sample_size=0
+      and calibration_dataset_hash is null and calibration_measured_at is null)
+    or
+    (calibration_status='calibrated' and calibration_sample_size>0
+      and calibration_dataset_hash ~ '^[0-9a-f]{64}$' and calibration_measured_at is not null)
+  ),
+  constraint vy_replica_expression_observation_expiry check (
+    expires_at>observed_at and expires_at<=observed_at+interval '24 hours'
+  )
+);
+
+create index if not exists vy_replica_expression_observation_active_ix
+  on vy_replica_expression_observation
+    (owner_user_id, replica_id, expires_at, observed_at desc);
+create index if not exists vy_replica_expression_observation_dyad_ix
+  on vy_replica_expression_observation
+    (owner_user_id, replica_id, dyad_id, observed_at desc);
+create index if not exists vy_replica_expression_observation_source_ix
+  on vy_replica_expression_observation
+    (source_id, span_start, span_end, feature_name);
+
+-- migration 069 - durable nearline claim extraction queue
+
+alter table vy_replica_claim_extraction
+  add column if not exists lease_token_hash text not null default '';
+alter table vy_replica_claim_extraction
+  add column if not exists leased_at timestamptz;
+alter table vy_replica_claim_extraction
+  add column if not exists lease_expires_at timestamptz;
+alter table vy_replica_claim_extraction
+  drop constraint if exists vy_replica_claim_extraction_lease_shape;
+alter table vy_replica_claim_extraction
+  add constraint vy_replica_claim_extraction_lease_shape check (
+    (state='extracting' and (
+      (lease_token_hash='' and leased_at is null and lease_expires_at is null)
+      or
+      (lease_token_hash ~ '^[0-9a-f]{64}$' and leased_at is not null
+        and lease_expires_at is not null and lease_expires_at>leased_at)
+    ))
+    or
+    (state<>'extracting' and lease_token_hash='' and leased_at is null and lease_expires_at is null)
+  );
+
+create table if not exists vy_replica_claim_extraction_input (
+  run_id          uuid not null,
+  replica_id      uuid not null,
+  owner_user_id   uuid not null,
+  evidence_id     uuid not null,
+  source_id       uuid not null,
+  created_at      timestamptz not null default now(),
+  primary key (run_id,evidence_id),
+  constraint vy_replica_claim_extraction_input_run_fk
+    foreign key (run_id,replica_id,owner_user_id)
+    references vy_replica_claim_extraction(run_id,replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_claim_extraction_input_evidence_fk
+    foreign key (evidence_id,replica_id,owner_user_id)
+    references vy_replica_processing_evidence(evidence_id,replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_claim_extraction_input_source_fk
+    foreign key (source_id,replica_id,owner_user_id)
+    references vy_replica_source(source_id,replica_id,owner_user_id) on delete cascade
+);
+create index if not exists vy_replica_claim_extraction_input_evidence_ix
+  on vy_replica_claim_extraction_input (owner_user_id,replica_id,evidence_id);
+
+create table if not exists vy_replica_claim_extraction_queue (
+  job_id             uuid primary key default gen_random_uuid(),
+  replica_id         uuid not null,
+  owner_user_id      uuid not null,
+  state              text not null default 'queued'
+                     check (state in ('queued','running','waiting','complete')),
+  attempt            integer not null default 0 check (attempt>=0),
+  next_attempt_at    timestamptz not null default now(),
+  lease_token_hash   text not null default '',
+  leased_at          timestamptz,
+  lease_expires_at   timestamptz,
+  last_error_code    text not null default '',
+  created_at         timestamptz not null default now(),
+  completed_at       timestamptz,
+  updated_at         timestamptz not null default now(),
+  constraint vy_replica_claim_extraction_queue_owner_fk
+    foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_claim_extraction_queue_owner_unique
+    unique (replica_id,owner_user_id),
+  constraint vy_replica_claim_extraction_queue_owner_tuple
+    unique (job_id,replica_id,owner_user_id),
+  constraint vy_replica_claim_extraction_queue_lease_shape check (
+    (state='running' and lease_token_hash ~ '^[0-9a-f]{64}$'
+      and leased_at is not null and lease_expires_at is not null
+      and lease_expires_at>leased_at and completed_at is null)
+    or
+    (state<>'running' and lease_token_hash='' and leased_at is null and lease_expires_at is null)
+  ),
+  constraint vy_replica_claim_extraction_queue_waiting_reason check (
+    state<>'waiting' or last_error_code<>''
+  ),
+  constraint vy_replica_claim_extraction_queue_complete_shape check (
+    (state='complete' and completed_at is not null)
+    or
+    (state<>'complete' and completed_at is null)
+  )
+);
+create index if not exists vy_replica_claim_extraction_queue_due_ix
+  on vy_replica_claim_extraction_queue (next_attempt_at,created_at)
+  where state in ('queued','waiting','running');
+
+create table if not exists vy_replica_claim_extraction_queue_item (
+  job_id          uuid not null,
+  replica_id      uuid not null,
+  owner_user_id   uuid not null,
+  evidence_id     uuid not null,
+  source_id       uuid not null,
+  state           text not null default 'pending' check (state in ('pending','complete')),
+  created_at      timestamptz not null default now(),
+  completed_at    timestamptz,
+  primary key (job_id,evidence_id),
+  constraint vy_replica_claim_extraction_queue_item_evidence_unique unique (evidence_id),
+  constraint vy_replica_claim_extraction_queue_item_job_fk
+    foreign key (job_id,replica_id,owner_user_id)
+    references vy_replica_claim_extraction_queue(job_id,replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_claim_extraction_queue_item_evidence_fk
+    foreign key (evidence_id,replica_id,owner_user_id)
+    references vy_replica_processing_evidence(evidence_id,replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_claim_extraction_queue_item_source_fk
+    foreign key (source_id,replica_id,owner_user_id)
+    references vy_replica_source(source_id,replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_claim_extraction_queue_item_complete_shape check (
+    (state='complete' and completed_at is not null)
+    or
+    (state='pending' and completed_at is null)
+  )
+);
+create index if not exists vy_replica_claim_extraction_queue_item_pending_ix
+  on vy_replica_claim_extraction_queue_item (job_id,created_at,evidence_id)
+  where state='pending';
+
+-- migration 070 - Context Locker sources and canonical text/image evidence
+
+alter table vy_replica_processing_evidence
+  drop constraint if exists vy_replica_processing_evidence_evidence_type_check;
+alter table vy_replica_processing_evidence
+  add constraint vy_replica_processing_evidence_evidence_type_check check (
+    evidence_type in (
+      'media_probe','speaker_segment','transcript_span','language_span',
+      'voice_embedding','voice_measurement','quality_measurement',
+      'text_span','image_region'
+    )
+  );
+
+alter table vy_context_item add column if not exists source_id uuid;
+create unique index if not exists vy_context_item_owner_tuple_ix
+  on vy_context_item (item_id, replica_id, owner_user_id);
+create unique index if not exists vy_context_item_source_ix
+  on vy_context_item (source_id) where source_id is not null;
+alter table vy_context_item drop constraint if exists vy_context_item_source_fk;
+alter table vy_context_item add constraint vy_context_item_source_fk
+  foreign key (source_id, replica_id, owner_user_id)
+  references vy_replica_source(source_id, replica_id, owner_user_id) on delete cascade;
+alter table vy_context_item_text drop constraint if exists vy_context_item_text_item_fk;
+alter table vy_context_item_text add constraint vy_context_item_text_item_fk
+  foreign key (item_id, replica_id, owner_user_id)
+  references vy_context_item(item_id, replica_id, owner_user_id) on delete cascade;
+
+-- migration 071 - exact TeacherSheet materialization lineage for Mirror deltas
+
+alter table vy_mirror_delta add column if not exists applied_sheet_id uuid;
+alter table vy_mirror_delta drop constraint if exists vy_mirror_delta_applied_sheet_shape;
+alter table vy_mirror_delta add constraint vy_mirror_delta_applied_sheet_shape
+  check (applied_sheet_id is null or applied_at is not null);
+alter table vy_mirror_delta drop constraint if exists vy_mirror_delta_applied_sheet_fk;
+alter table vy_mirror_delta add constraint vy_mirror_delta_applied_sheet_fk
+  foreign key (applied_sheet_id) references vy_teacher_sheet(sheet_id) on delete set null;
+create index if not exists vy_mirror_delta_applied_sheet_ix
+  on vy_mirror_delta (applied_sheet_id) where applied_sheet_id is not null;
+
+-- migration 072 - idempotent public clone creation saga
+
+alter table vy_replica add column if not exists creation_intent_id uuid;
+create unique index if not exists vy_replica_owner_creation_intent_ix
+  on vy_replica (owner_user_id, creation_intent_id)
+  where creation_intent_id is not null;
+
+alter table vy_replica_source add column if not exists upload_intent_id uuid;
+alter table vy_replica_source add column if not exists language_hint text;
+alter table vy_replica_source drop constraint if exists vy_replica_source_language_hint_check;
+alter table vy_replica_source add constraint vy_replica_source_language_hint_check
+  check (language_hint is null or language_hint in ('en','hi','hi-latn'));
+create unique index if not exists vy_replica_source_owner_upload_intent_ix
+  on vy_replica_source (owner_user_id, replica_id, upload_intent_id)
+  where upload_intent_id is not null;
+
+create table if not exists vy_replica_voice_build_intent (
+  intent_id        uuid primary key,
+  replica_id       uuid not null,
+  owner_user_id    uuid not null,
+  candidate_source_id uuid not null,
+  state            text not null default 'waiting'
+                   check (state in ('waiting','queued','review','failed')),
+  build_id         uuid,
+  blockers         text[] not null default '{}'::text[],
+  last_error_code  text not null default '',
+  promoted_at      timestamptz,
+  next_check_at    timestamptz not null default now(),
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  constraint vy_replica_voice_build_intent_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_voice_build_intent_candidate_fk
+    foreign key (candidate_source_id, replica_id, owner_user_id)
+    references vy_replica_source(source_id, replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_voice_build_intent_build_fk
+    foreign key (build_id) references vy_replica_model_build(build_id) on delete cascade,
+  constraint vy_replica_voice_build_intent_owner_tuple
+    unique (intent_id, replica_id, owner_user_id),
+  constraint vy_replica_voice_build_intent_shape check (
+    (state='waiting' and build_id is null and promoted_at is null)
+    or
+    (state='queued' and build_id is not null and promoted_at is null)
+    or
+    (state='review' and build_id is not null and promoted_at is not null)
+    or
+    (state='failed' and promoted_at is null)
+  ),
+  constraint vy_replica_voice_build_intent_blocker_shape check (
+    cardinality(blockers)<=16 and (
+      cardinality(blockers)=0
+      or array_to_string(blockers,',') ~ '^[a-z0-9_]{1,96}(,[a-z0-9_]{1,96}){0,15}$'
+    )
+  ),
+  constraint vy_replica_voice_build_intent_error_shape check (
+    last_error_code='' or last_error_code ~ '^[a-z0-9_]{1,96}$'
+  )
+);
+create index if not exists vy_replica_voice_build_intent_due_ix
+  on vy_replica_voice_build_intent (next_check_at, created_at)
+  where state in ('waiting','queued');
+create index if not exists vy_replica_voice_build_intent_owner_ix
+  on vy_replica_voice_build_intent (owner_user_id, replica_id, created_at desc);
+
+-- Migration 073 - direct upload authorization fence for physical erasure.
+alter table vy_replica_source
+  add column if not exists upload_authorization_expires_at timestamptz;
+
+update vy_replica_source
+   set upload_authorization_expires_at=now()+interval '210 minutes'
+ where upload_authorization_expires_at is null;
+
+-- Migration 074 - durable channel extraction storage authority.
+alter table vy_ingest_run
+  add column if not exists upload_authorization_expires_at timestamptz
+  default (now()+interval '210 minutes');
+update vy_ingest_run
+   set upload_authorization_expires_at=now()+interval '210 minutes'
+ where upload_authorization_expires_at is null;
+alter table vy_video_enrollment
+  add column if not exists upload_authorization_expires_at timestamptz
+  default (now()+interval '210 minutes');
+update vy_video_enrollment
+   set upload_authorization_expires_at=now()+interval '210 minutes'
+ where upload_authorization_expires_at is null;
+create table if not exists vy_channel_extraction_object (
+  extraction_object_id uuid primary key,
+  replica_id           uuid not null,
+  owner_user_id        uuid not null,
+  scope_kind           text not null
+                       check (scope_kind in ('channel_watch','video_enrollment')),
+  scope_id             uuid not null,
+  video_id             text not null
+                       check (video_id ~ '^[A-Za-z0-9_-]{11}$'),
+  storage_bucket       text not null
+                       check (
+                         storage_bucket ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$'
+                         or storage_bucket ~ '^azureblob:[a-z0-9]{3,24}:[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$'
+                       ),
+  object_path          text not null
+                       check (length(object_path) between 1 and 1024),
+  upload_authorization_expires_at timestamptz not null,
+  created_at           timestamptz not null default now(),
+  updated_at           timestamptz not null default now(),
+  constraint vy_channel_extraction_object_scope_path check (
+    object_path = owner_user_id::text || '/' || replica_id::text || '/' ||
+      scope_id::text || '/' || video_id || '/original'
+  ),
+  constraint vy_channel_extraction_object_locator_unique
+    unique (replica_id, storage_bucket, object_path),
+  constraint vy_channel_extraction_object_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade
+);
+create index if not exists vy_channel_extraction_object_owner_ix
+  on vy_channel_extraction_object (owner_user_id, replica_id, created_at desc);
+create index if not exists vy_channel_extraction_object_authority_ix
+  on vy_channel_extraction_object (replica_id, upload_authorization_expires_at);
+
+-- Migration 075 - durable token-fenced authority for server storage writes.
+alter table vy_replica_source
+  alter column upload_authorization_expires_at
+  set default (now()+interval '12 hours');
+create table if not exists vy_replica_source_storage_writer (
+  writer_id              uuid primary key,
+  source_id              uuid not null,
+  replica_id             uuid not null,
+  owner_user_id          uuid not null,
+  purpose                text not null
+                         check (purpose in (
+                           'context_source','processing_artifact','voice_preview_result','legacy_rollout'
+                         )),
+  guard_id               uuid not null,
+  guard_token_hash       text not null
+                         check (guard_token_hash ~ '^[0-9a-f]{64}$'),
+  token_hash             text not null
+                         check (token_hash ~ '^[0-9a-f]{64}$'),
+  state                  text not null default 'active'
+                         check (state in ('active','released')),
+  storage_write_not_after timestamptz not null,
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now(),
+  released_at            timestamptz,
+  constraint vy_replica_source_storage_writer_release_shape check (
+    (state='active' and released_at is null)
+    or (state='released' and released_at is not null)
+  ),
+  constraint vy_replica_source_storage_writer_source_fk
+    foreign key (source_id,replica_id,owner_user_id)
+    references vy_replica_source(source_id,replica_id,owner_user_id) on delete cascade
+);
+create index if not exists vy_replica_source_storage_writer_active_ix
+  on vy_replica_source_storage_writer (source_id,storage_write_not_after)
+  where state='active';
+create index if not exists vy_replica_source_storage_writer_owner_ix
+  on vy_replica_source_storage_writer (owner_user_id,replica_id,created_at desc);
+create table if not exists vy_replica_storage_writer_rollout (
+  rollout_key text primary key check (rollout_key='075'),
+  completed_at timestamptz not null default now()
+);
+with first_apply as (
+  insert into vy_replica_storage_writer_rollout (rollout_key)
+  values ('075')
+  on conflict (rollout_key) do nothing
+  returning rollout_key
+)
+insert into vy_replica_source_storage_writer
+  (writer_id,source_id,replica_id,owner_user_id,purpose,guard_id,guard_token_hash,
+   token_hash,state,storage_write_not_after)
+select s.source_id,s.source_id,s.replica_id,s.owner_user_id,'legacy_rollout',
+       s.source_id,repeat('0',64),repeat('0',64),'active',now()+interval '12 hours'
+  from vy_replica_source s
+  cross join first_apply
+on conflict (writer_id) do nothing;
+
+-- Migration 076 - structural write-after-erasure fence for owner/replica rows.
+-- vy_replica_audit intentionally remains NOT VALID because live preflight
+-- found historical content-free orphan rows; new writes are still enforced.
+alter table vy_replica_audit
+  drop constraint if exists vy_replica_audit_replica_owner_fk,
+  add constraint vy_replica_audit_replica_owner_fk
+    foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade not valid;
+alter table vy_clone_channel
+  drop constraint if exists vy_clone_channel_replica_owner_fk,
+  add constraint vy_clone_channel_replica_owner_fk
+    foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade not valid;
+alter table vy_channel_attestation
+  drop constraint if exists vy_channel_attestation_replica_owner_fk,
+  add constraint vy_channel_attestation_replica_owner_fk
+    foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade not valid;
+alter table vy_channel_watch
+  drop constraint if exists vy_channel_watch_replica_owner_fk,
+  add constraint vy_channel_watch_replica_owner_fk
+    foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade not valid;
+alter table vy_ingest_run
+  drop constraint if exists vy_ingest_run_replica_owner_fk,
+  add constraint vy_ingest_run_replica_owner_fk
+    foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade not valid;
+alter table vy_context_item
+  drop constraint if exists vy_context_item_replica_owner_fk,
+  add constraint vy_context_item_replica_owner_fk
+    foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade not valid;
+alter table vy_context_item_text
+  drop constraint if exists vy_context_item_text_replica_owner_fk,
+  add constraint vy_context_item_text_replica_owner_fk
+    foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade not valid;
+alter table vy_video_enrollment
+  drop constraint if exists vy_video_enrollment_replica_owner_fk,
+  add constraint vy_video_enrollment_replica_owner_fk
+    foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade not valid;
+alter table vy_video_enrollment_window
+  drop constraint if exists vy_video_enrollment_window_replica_owner_fk,
+  add constraint vy_video_enrollment_window_replica_owner_fk
+    foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade not valid;
+alter table meera_log
+  drop constraint if exists meera_log_agent_fk,
+  add constraint meera_log_agent_fk
+    foreign key (agent_id) references vy_agent(agent_id) on delete cascade not valid;
+alter table vy_episode
+  drop constraint if exists vy_episode_agent_fk,
+  add constraint vy_episode_agent_fk
+    foreign key (agent_id) references vy_agent(agent_id) on delete cascade not valid;
+alter table vy_fact
+  drop constraint if exists vy_fact_agent_fk,
+  add constraint vy_fact_agent_fk
+    foreign key (agent_id) references vy_agent(agent_id) on delete cascade not valid;
+alter table vy_teacher_sheet
+  drop constraint if exists vy_teacher_sheet_agent_fk,
+  add constraint vy_teacher_sheet_agent_fk
+    foreign key (agent_id) references vy_agent(agent_id) on delete cascade not valid;
+alter table vy_clone_channel validate constraint vy_clone_channel_replica_owner_fk;
+alter table vy_channel_attestation validate constraint vy_channel_attestation_replica_owner_fk;
+alter table vy_channel_watch validate constraint vy_channel_watch_replica_owner_fk;
+alter table vy_ingest_run validate constraint vy_ingest_run_replica_owner_fk;
+alter table vy_context_item validate constraint vy_context_item_replica_owner_fk;
+alter table vy_context_item_text validate constraint vy_context_item_text_replica_owner_fk;
+alter table vy_video_enrollment validate constraint vy_video_enrollment_replica_owner_fk;
+alter table vy_video_enrollment_window validate constraint vy_video_enrollment_window_replica_owner_fk;
+alter table meera_log validate constraint meera_log_agent_fk;
+alter table vy_episode validate constraint vy_episode_agent_fk;
+alter table vy_fact validate constraint vy_fact_agent_fk;
+alter table vy_teacher_sheet validate constraint vy_teacher_sheet_agent_fk;
+
+-- Integration source-purpose reconciliation candidate, unexecuted.
+-- Integration candidate only. Not applied or catalog-verified.
+-- Preserve every known source purpose from Rooms and the local clone lineage.
+-- Before execution, inspect pg_constraint and distinct purpose values on the
+-- intended database; any value or CHECK beyond this set requires review.
+-- One atomic statement: no window without the constraint.
+alter table vy_replica_source
+  drop constraint if exists vy_replica_source_purpose_check,
+  add constraint vy_replica_source_purpose_check
+    check (purpose in ('memory','identity_document','identity_challenge','correction','interview','mirror_window','context_item'));

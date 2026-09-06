@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const root = new URL("../../", import.meta.url);
-const read = (path) => readFileSync(new URL(path, root), "utf8");
+const read = (path) => readFileSync(new URL(path, root), "utf8").replace(/\r\n/g, "\n");
 const normalizer = read("services/indicf5-runtime/pronunciation_normalizer.py");
 const tests = read("evals/indicf5-pronunciation/test_normalizer.py");
 const expectedImpact = JSON.parse(read("evals/indicf5-pronunciation/expected-impact.v1.json"));

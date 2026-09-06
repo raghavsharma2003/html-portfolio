@@ -553,17 +553,17 @@ ok("...scoped by BOTH replica and owner, like every other line in that CTE",
 // offer a button that scrolls to an element nobody added.
 console.log("\n\u2500\u2500 10. the screen \u2500\u2500");
 
-const panel = readFileSync(join(ROOT, "src/studio/ReadinessPanel.tsx"), "utf8");
-const panelCss = readFileSync(join(ROOT, "src/studio/readiness.css"), "utf8");
-const app = readFileSync(join(ROOT, "src/studio/StudioApp.tsx"), "utf8");
-// WS-R52: this panel's own literal strings moved into src/studio/copy.ts
+const panel = readFileSync(join(ROOT, "src/creatorStudio/ReadinessPanel.tsx"), "utf8");
+const panelCss = readFileSync(join(ROOT, "src/creatorStudio/readiness.css"), "utf8");
+const app = readFileSync(join(ROOT, "src/creatorStudio/StudioApp.tsx"), "utf8");
+// WS-R52: this panel's own literal strings moved into src/creatorStudio/copy.ts
 // (a locale table, English and Hindi) — `panel` alone no longer carries the
 // rendered English text, only `t.readiness.<key>` references. The checks
 // below that read rendered copy ("Still an apprentice", the banned-word
 // scan) now read `panel + copy` together, so they keep checking what a
 // creator actually sees rather than a snapshot of where the string used to
 // live.
-const copyTs = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
+const copyTs = readFileSync(join(ROOT, "src/creatorStudio/copy.ts"), "utf8");
 const panelWithCopy = `${panel}\n${copyTs}`;
 
 ok("the panel renders words, not a zero, when a part is unmeasured",
@@ -627,7 +627,7 @@ ok("the readiness copy also carries no banned product word from the server",
 // between the action table and a button that does nothing quietly.
 const studioSources = ["StudioApp.tsx", "MirrorCallStudio.tsx", "PersonModelStudio.tsx",
   "ContextLockerPanel.tsx", "VoiceEnrollmentLab.tsx"]
-  .map((name) => readFileSync(join(ROOT, "src/studio", name), "utf8")).join("\n");
+  .map((name) => readFileSync(join(ROOT, "src/creatorStudio", name), "utf8")).join("\n");
 for (const row of Object.values(READINESS_ACTIONS)) {
   ok(`the anchor for "${row.label}" exists in the studio (${row.anchor})`,
     studioSources.includes(`id="${row.anchor.slice(1)}"`));

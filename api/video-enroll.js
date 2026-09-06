@@ -32,6 +32,7 @@ import {
   readVideoEnrollmentWindows,
   videoEnrollLimits,
 } from "./_video-enroll.js";
+import { resolveYouTubeVideoMetadata } from "./_video-enroll/youtube-metadata.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -56,7 +57,7 @@ function cors(res) {
  * is the honest state, and is visible on the response rather than inferred.
  */
 function productionDeps(env = process.env) {
-  const provider = configuredChannelProvider(env);
+  const provider = configuredChannelProvider(env, { db: q });
   const asr = configuredAsrProvider(env);
   return {
     env,
@@ -83,6 +84,7 @@ function productionDeps(env = process.env) {
         {
           watch: { watchId: enrollmentId, ownerUserId, replicaId, channel: { url: attestation.channelUrl } },
           attestation,
+          storageScopeKind: "video_enrollment",
           maxDurationMs,
         },
       );
@@ -116,6 +118,10 @@ export default async function handler(req, res) {
     if (!allow(user.id, "video_enroll_user", 12)) return res.status(429).json({ error: "slow_down" });
 
     if (req.method === "GET") {
+      if (req.query?.video_url) {
+        const metadata = await resolveYouTubeVideoMetadata(req.query.video_url);
+        return res.status(200).json({ metadata });
+      }
       if (req.query?.enrollment_id) {
         const windows = await readVideoEnrollmentWindows(q, user.id, req.query.enrollment_id);
         return res.status(200).json({ windows });

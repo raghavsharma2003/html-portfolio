@@ -9,6 +9,7 @@ import {
   conservativeTokenEstimate,
   conservativeCharacterUnits,
   foundryBudgetConfig,
+  openRouterBudgetConfig,
   markFoundrySpendUncertain,
   releaseFoundrySpendBeforeCall,
   reserveAzureSpeechSpend,
@@ -43,6 +44,14 @@ const config = foundryBudgetConfig(env);
 ok("explicit application budget reserves infrastructure headroom below the grant", config.limit_microusd === 1_500_000_000);
 assert.throws(() => foundryBudgetConfig({ ...env, AZURE_REPLICA_APP_BUDGET_USD: "2001" }), /provider_budget_limit_required/);
 assert.throws(() => foundryBudgetConfig({ ...env, AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "" }), /provider_input_rate_required/);
+const openRouterConfig = openRouterBudgetConfig({
+  ...env,
+  OPENROUTER_INPUT_USD_PER_MTOKENS: "0.30",
+  OPENROUTER_OUTPUT_USD_PER_MTOKENS: "2.50",
+});
+ok("OpenRouter token rates use the same bounded durable provider budget",
+  openRouterConfig.input_usd_per_million === 0.30 && openRouterConfig.output_usd_per_million === 2.50
+  && openRouterConfig.limit_microusd === config.limit_microusd);
 ok("missing or grant-exceeding budget configuration fails closed", true);
 const estimated = conservativeTokenEstimate([{ role: "user", content: "नमस्ते, scene kya hai?" }]);
 ok("token reservation conservatively counts UTF-8 request bytes", estimated === Buffer.byteLength(JSON.stringify([{ role: "user", content: "नमस्ते, scene kya hai?" }]), "utf8"));
@@ -88,9 +97,52 @@ const reservation = await reserveFoundrySpend(async (sql, params) => {
   }];
 }, { operation: "dialogue", requestKey: "turn-opaque-1", adapter, messages: [{ role: "user", content: "hello" }], env });
 ok("reservation returns only content-free spend authority", reservation.reservation_id === RESERVATION && /^[0-9a-f]{64}$/.test(reservation.request_hash));
-ok("atomic SQL creates a unique pending request before incrementing the budget", /on conflict \(budget_id,operation,request_hash\) do nothing/i.test(calls[0].sql) && /reserved_microusd=b\.reserved_microusd\+\$11/i.test(calls[0].sql));
-ok("reservation checks spent plus outstanding reservations against the hard ceiling", /spent_microusd\+b\.reserved_microusd\+\$11<=b\.limit_microusd/i.test(calls[0].sql));
-ok("budget ledger receives no prompt owner replica or raw request key", !calls[0].params.includes("hello") && !calls[0].params.includes("turn-opaque-1"));
+ok("reservation locks the budget before creating one reserved request", /for update/i.test(calls[1].sql) && /on conflict \(budget_id,operation,request_hash\) do nothing/i.test(calls[1].sql) && /reserved_microusd=b\.reserved_microusd\+\$11/i.test(calls[1].sql));
+ok("reservation checks spent plus outstanding reservations against the hard ceiling", /spent_microusd\+reserved_microusd\+\$11<=limit_microusd/i.test(calls[1].sql));
+ok("budget ledger receives no prompt owner replica or raw request key", !calls[1].params.includes("hello") && !calls[1].params.includes("turn-opaque-1"));
+
+const openRouterAdapter = {
+  family: "claim-extraction",
+  name: "openrouter-structured-output",
+  version: "openrouter-v1:claim-extractor/v1",
+  model: "google/gemini-2.5-flash",
+  billing: { meter: "openrouter_tokens", max_output_tokens: 4_000 },
+};
+const openRouterEnv = {
+  ...env,
+  OPENROUTER_INPUT_USD_PER_MTOKENS: "0.30",
+  OPENROUTER_OUTPUT_USD_PER_MTOKENS: "2.50",
+};
+const openRouterSpendCalls = [];
+const openRouterReservation = await reserveFoundrySpend(async (sql, params) => {
+  openRouterSpendCalls.push({ sql, params });
+  return [{
+    reservation_id: RESERVATION,
+    budget_id: params[0],
+    request_hash: params[7],
+    state: "reserved",
+    reserved_microusd: params[10],
+  }];
+}, {
+  operation: "claim_extraction",
+  requestKey: "claim-run-opaque-1",
+  adapter: openRouterAdapter,
+  messages: [{ role: "user", content: "hello" }],
+  env: openRouterEnv,
+});
+ok("OpenRouter reservations use OpenRouter rates rather than the Azure Foundry rate variables",
+  openRouterReservation.config.input_usd_per_million === 0.30
+  && openRouterReservation.config.output_usd_per_million === 2.50
+  && openRouterSpendCalls[1].params[10] === tokenReservationMicrousd(
+    conservativeTokenEstimate([{ role: "user", content: "hello" }]),
+    openRouterAdapter.billing.max_output_tokens,
+    openRouterConfig,
+  ));
+assert.throws(() => openRouterBudgetConfig({
+  ...openRouterEnv,
+  OPENROUTER_OUTPUT_USD_PER_MTOKENS: "",
+}), /provider_output_rate_required/);
+ok("OpenRouter reservations fail closed when either configured rate is missing", true);
 
 const beginCalls = [];
 await beginFoundrySpend(async (sql, params) => {
@@ -129,8 +181,8 @@ const audioReservation = await reserveAzureSpeechSpend(async (sql, params) => {
   audioSpendCalls.push({ sql, params });
   return [{ reservation_id: RESERVATION, budget_id: params[0], request_hash: params[6], state: "reserved", reserved_microusd: params[8] }];
 }, { requestKey: "job:1:1", adapter: speechAdapter, inputs: [{ artifact_id: "a", sha256: "d".repeat(64), duration_ms: 10_000 }], env: speechEnv });
-ok("Azure Speech reserves conservatively billable audio duration under the shared grant ceiling", audioReservation.reserved_units === 10_000 && audioReservation.reserved_microusd === 1_000 && /'audio_ms'/.test(audioSpendCalls[0].sql));
-ok("audio reservation commitment binds artifact digest duration and retry identity", !audioSpendCalls[0].params.includes("job:1:1") && /^[0-9a-f]{64}$/.test(audioReservation.request_hash));
+ok("Azure Speech reserves conservatively billable audio duration under the shared grant ceiling", audioReservation.reserved_units === 10_000 && audioReservation.reserved_microusd === 1_000 && /'audio_ms'/.test(audioSpendCalls[1].sql));
+ok("audio reservation commitment binds artifact digest duration and retry identity", !audioSpendCalls[1].params.includes("job:1:1") && /^[0-9a-f]{64}$/.test(audioReservation.request_hash));
 const audioSettleCalls = [];
 await settleAzureSpeechSpend(async (sql, params) => {
   audioSettleCalls.push({ sql, params });
@@ -215,7 +267,7 @@ ok("database enforces a nonnegative bounded global spend counter", /spent_microu
 
 const claims = readFileSync(join(ROOT, "api/_replica-claims.js"), "utf8");
 const dialogue = readFileSync(join(ROOT, "api/_replica-dialogue.js"), "utf8");
-ok("claim extraction reserves and starts spend before contacting Azure", /reservation = await reserveFoundrySpend[\s\S]*await beginFoundrySpend[\s\S]*extractor\.extract/.test(claims));
+ok("claim extraction reserves and starts spend before contacting its selected provider", /reservation = await reserveFoundrySpend[\s\S]*await beginFoundrySpend[\s\S]*extractor\.extract/.test(claims));
 ok("dialogue reserves and starts spend before contacting Azure", /reservation = await reserveFoundrySpend[\s\S]*await beginFoundrySpend[\s\S]*generator\.generate/.test(dialogue));
 ok("both paid paths release a failed begin before provider I/O", /releaseFoundrySpendBeforeCall[\s\S]*extractor\.extract/.test(claims) && /releaseFoundrySpendBeforeCall[\s\S]*generator\.generate/.test(dialogue));
 ok("both paid paths preserve uncertain reservations instead of guessing no charge", /markFoundrySpendUncertain/.test(claims) && /markFoundrySpendUncertain/.test(dialogue));

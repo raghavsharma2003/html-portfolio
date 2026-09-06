@@ -125,14 +125,25 @@ function bounded(value) {
  */
 async function openRun(db, watch, video, transcriptSource) {
   const rows = await db(
-    `insert into vy_ingest_run (run_id, replica_id, owner_user_id, watch_id, video_ref, video_title, transcript_source, status)
-     values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $7, $6, 'fetched')
-     on conflict (replica_id, video_ref) do update
-        set status = 'fetched', failure_code = '', transcript_source = excluded.transcript_source,
-            video_title = coalesce(nullif(excluded.video_title, ''), vy_ingest_run.video_title),
-            updated_at = now()
-      where vy_ingest_run.status = 'failed' and vy_ingest_run.owner_user_id = $3::uuid
-     returning run_id, replica_id, owner_user_id, video_ref, video_title, status`,
+    `with replica_gate as materialized (
+       select r.replica_id,r.owner_user_id
+         from vy_replica r
+        where r.replica_id=$2::uuid and r.owner_user_id=$3::uuid
+          and r.lifecycle not in ('revoked','purging')
+        for update of r
+     ), inserted as (
+       insert into vy_ingest_run
+         (run_id, replica_id, owner_user_id, watch_id, video_ref, video_title,
+          transcript_source, status, upload_authorization_expires_at)
+       select $1::uuid,g.replica_id,g.owner_user_id,$4::uuid,$5,$7,$6,'fetched',now()
+         from replica_gate g
+       on conflict (replica_id, video_ref) do update
+          set status = 'fetched', failure_code = '', transcript_source = excluded.transcript_source,
+              video_title = coalesce(nullif(excluded.video_title, ''), vy_ingest_run.video_title),
+              updated_at = now()
+        where vy_ingest_run.status = 'failed' and vy_ingest_run.owner_user_id = $3::uuid
+       returning run_id, replica_id, owner_user_id, video_ref, video_title, status
+     ) select * from inserted`,
     [randomUUID(), watch.replicaId, watch.ownerUserId, watch.watchId, video.videoId, transcriptSource,
       String(video.title || "").slice(0, 200)],
   );
@@ -182,7 +193,11 @@ async function transcriptFor(channelProvider, asr, video, watch, deps = {}) {
   // has no resolver, passes null, and the OAuth provider's honest refusal is
   // what happens — a null here is never silently treated as permission.
   const attestation = typeof deps.attestations === "function" ? await deps.attestations(watch) : null;
-  const audio = await channelProvider.fetchAudio(video, watch.oauthGrantRef, { watch, attestation });
+  const audio = await channelProvider.fetchAudio(video, watch.oauthGrantRef, {
+    watch,
+    attestation,
+    storageScopeKind: "channel_watch",
+  });
   const result = await asr.transcribe(audio, "hi-IN");
   return { source: "asr", turns: result.turns, provider: result.provider, model: result.model };
 }

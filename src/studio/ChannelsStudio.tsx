@@ -35,36 +35,62 @@ import {
   type ChannelKind,
   type CloneChannel,
 } from "./channelsApi";
-import { useStudioLocale } from "./localeContext";
-import type { StudioCopy } from "./copy";
 
 interface KindSpec {
   kind: ChannelKind;
+  title: string;
   /** What the owner pastes into `external_ref`. */
+  refLabel: string;
   refPlaceholder: string;
+  /** What the owner pastes as the credential, or null for a web kind. */
+  secretLabel: string | null;
   secretPlaceholder: string;
-  /** True for the one kind (`web_widget`) with no credential field. */
-  hasSecret: boolean;
+  blurb: string;
+  /** The honest cost of this surface, stated before the owner starts. */
+  cost: string;
 }
 
 const KINDS: ReadonlyArray<KindSpec> = [
-  { kind: "web_widget", refPlaceholder: "arjun-sir-physics", secretPlaceholder: "", hasSecret: false },
-  { kind: "telegram", refPlaceholder: "8123456789", secretPlaceholder: "8123456789:AA…", hasSecret: true },
-  { kind: "whatsapp", refPlaceholder: "1029384756…", secretPlaceholder: "EAAG…", hasSecret: true },
+  {
+    kind: "web_widget",
+    title: "Your website",
+    refLabel: "Public slug",
+    refPlaceholder: "arjun-sir-physics",
+    secretLabel: null,
+    secretPlaceholder: "",
+    blurb: "A chat bubble on any page you control. One line of HTML, no account anywhere else.",
+    cost: "Nothing to apply for. Live the moment you paste the line.",
+  },
+  {
+    kind: "telegram",
+    title: "Telegram",
+    refLabel: "Bot ID",
+    refPlaceholder: "8123456789",
+    secretLabel: "Bot token",
+    secretPlaceholder: "8123456789:AA…",
+    blurb: "Your own bot, created in @BotFather, answering as your clone.",
+    cost: "No review process. You create the bot and register one webhook URL we give you.",
+  },
+  {
+    kind: "whatsapp",
+    title: "WhatsApp",
+    refLabel: "Phone number ID",
+    refPlaceholder: "1029384756…",
+    secretLabel: "Access token",
+    secretPlaceholder: "EAAG…",
+    blurb: "A WhatsApp Business number answering as your clone.",
+    cost:
+      "Needs a Meta Business account, a verified business, and a number registered to the Cloud API. " +
+      "Meta's review is measured in days to weeks, and it is theirs, not ours.",
+  },
 ];
 
-function kindCopy(kind: ChannelKind, c: StudioCopy["channelsStudio"]) {
-  if (kind === "web_widget") return { title: c.webWidgetTitle, refLabel: c.webWidgetRefLabel, secretLabel: null as string | null, blurb: c.webWidgetBlurb, cost: c.webWidgetCost };
-  if (kind === "telegram") return { title: c.telegramTitle, refLabel: c.telegramRefLabel, secretLabel: c.telegramSecretLabel as string | null, blurb: c.telegramBlurb, cost: c.telegramCost };
-  return { title: c.whatsappTitle, refLabel: c.whatsappRefLabel, secretLabel: c.whatsappSecretLabel as string | null, blurb: c.whatsappBlurb, cost: c.whatsappCost };
-}
-
-function statusCopy(status: CloneChannel["status"], c: StudioCopy["channelsStudio"]): string {
-  return status === "draft" ? c.statusDraft
-    : status === "connected" ? c.statusConnected
-    : status === "paused" ? c.statusPaused
-    : c.statusRevoked;
-}
+const STATUS_COPY: Record<CloneChannel["status"], string> = {
+  draft: "Not live. Finish the details below.",
+  connected: "Live",
+  paused: "Paused. Nothing is answered here.",
+  revoked: "Revoked. This address is retired for good.",
+};
 
 export default function ChannelsStudio({
   token,
@@ -78,8 +104,6 @@ export default function ChannelsStudio({
   slug: string;
   onAuthError?: (error: ReplicaApiError) => void;
 }) {
-  const { t } = useStudioLocale();
-  const c = t.channelsStudio;
   const [channels, setChannels] = useState<CloneChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<ChannelKind | null>(null);
@@ -105,7 +129,7 @@ export default function ChannelsStudio({
       // `channel_secret_store_unconfigured` are both things a teacher can act
       // on — the first by publishing, the second by telling us — and softening
       // them into "something went wrong" would remove the only actionable part.
-      setError(e instanceof Error ? e.message : c.errorRequestFailed);
+      setError(e instanceof Error ? e.message : "request failed");
     },
     [onAuthError],
   );
@@ -134,21 +158,20 @@ export default function ChannelsStudio({
       try {
         const externalRef = (refs[spec.kind] ?? (spec.kind === "web_widget" ? slug : "")).trim();
         const secret = (secrets[spec.kind] ?? "").trim();
-        const channel = spec.hasSecret && secret
+        const channel = spec.secretLabel && secret
           ? await connectChannel(token, replicaId, spec.kind, externalRef, secret)
           : await saveChannel(token, replicaId, spec.kind, externalRef);
         // Cleared in the same tick as the response, before any re-render can
         // put it back on screen. See the header.
         setSecrets((current) => ({ ...current, [spec.kind]: "" }));
         setChannels((current) => {
-          const rest = current.filter((ch) => ch.channel_id !== channel.channel_id);
+          const rest = current.filter((c) => c.channel_id !== channel.channel_id);
           return [...rest, channel];
         });
-        const title = kindCopy(spec.kind, c).title;
         setNotice(
           channel.status === "connected"
-            ? c.liveNotice.split("{name}").join(title)
-            : c.draftNotice.split("{name}").join(title),
+            ? `${spec.title} is live.`
+            : `${spec.title} saved as a draft. It needs the remaining detail before it can answer.`,
         );
       } catch (e) {
         fail(e);
@@ -165,8 +188,8 @@ export default function ChannelsStudio({
       setError("");
       try {
         const next = await setChannelStatus(token, replicaId, channel.channel_id, status);
-        setChannels((current) => current.map((ch) => (ch.channel_id === next.channel_id ? next : ch)));
-        setNotice(statusCopy(next.status, c));
+        setChannels((current) => current.map((c) => (c.channel_id === next.channel_id ? next : c)));
+        setNotice(STATUS_COPY[next.status]);
       } catch (e) {
         fail(e);
       } finally {
@@ -182,16 +205,23 @@ export default function ChannelsStudio({
     <section className="stage-section" aria-labelledby="channels-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">{c.eyebrow}</p>
-          <h2 id="channels-title">{c.title}</h2>
-          <p>{c.intro}</p>
+          <p className="eyebrow">Channels</p>
+          <h2 id="channels-title">Where your clone can be reached</h2>
+          <p>
+            Publishing makes the clone exist. This is where it meets people. Every channel below is one you
+            own: your site, your bot, your business number. You can pause or retire any of them at any time
+            without asking us.
+          </p>
         </div>
       </div>
 
       <article className="teacher-sheet-card">
-        <h3>{c.embedCardTitle}</h3>
-        <p className="field-note">{c.embedCardBody}</p>
-        <pre className="embed-snippet" aria-label={c.embedSnippetAriaLabel}><code>{snippet}</code></pre>
+        <h3>Get embed code</h3>
+        <p className="field-note">
+          Paste this into any page you control. It works on a plain HTML site, a WordPress theme, a Squarespace
+          code block, anywhere a script tag is allowed. It sets no cookie and asks nothing of your visitors.
+        </p>
+        <pre className="embed-snippet" aria-label="Embed snippet"><code>{snippet}</code></pre>
         <button
           className="button secondary-button"
           type="button"
@@ -202,55 +232,60 @@ export default function ChannelsStudio({
             );
           }}
         >
-          {copied ? c.copiedLabel : c.copyEmbedCode}
+          {copied ? "Copied" : "Copy embed code"}
         </button>
-        <p className="field-note">{c.disclosureNote}</p>
+        <p className="field-note">
+          Every visitor sees the same disclosure card you approved, before their first message. It is sent by us
+          with the reply, not rendered by the page. A site that removed it could not hold a conversation at all.
+        </p>
       </article>
 
       {loading ? (
-        <p className="field-note" role="status">{c.loadingChannels}</p>
+        <p className="field-note" role="status">Loading channels…</p>
       ) : (
         <div className="teacher-sheet-grid">
           {KINDS.map((spec) => {
             const channel = byKind.get(spec.kind);
             const live = channel?.status === "connected";
             const retired = channel?.status === "revoked";
-            const kc = kindCopy(spec.kind, c);
             return (
               <article className="teacher-sheet-card" key={spec.kind}>
-                <h3>{kc.title}</h3>
-                <p className="field-note">{kc.blurb}</p>
+                <h3>{spec.title}</h3>
+                <p className="field-note">{spec.blurb}</p>
                 <div className="teacher-sheet-readonly">
-                  <span className="claim-meta">{c.statusLabel}</span>
-                  <p>{channel ? statusCopy(channel.status, c) : c.notSetUp}</p>
-                  <small>{kc.cost}</small>
+                  <span className="claim-meta">Status</span>
+                  <p>{channel ? STATUS_COPY[channel.status] : "Not set up"}</p>
+                  <small>{spec.cost}</small>
                 </div>
 
                 {!retired && (
                   <>
-                    <label className="field-label" htmlFor={`ref-${spec.kind}`}>{kc.refLabel}</label>
+                    <label className="field-label" htmlFor={`ref-${spec.kind}`}>{spec.refLabel}</label>
                     <input
                       id={`ref-${spec.kind}`}
                       className="field"
                       placeholder={spec.refPlaceholder}
                       value={refs[spec.kind] ?? channel?.external_ref ?? (spec.kind === "web_widget" ? slug : "")}
-                      onChange={(event) => setRefs((current) => ({ ...current, [spec.kind]: event.target.value }))}
+                      onChange={(event) => setRefs((c) => ({ ...c, [spec.kind]: event.target.value }))}
                     />
 
-                    {kc.secretLabel && (
+                    {spec.secretLabel && (
                       <>
-                        <label className="field-label" htmlFor={`secret-${spec.kind}`}>{kc.secretLabel}</label>
+                        <label className="field-label" htmlFor={`secret-${spec.kind}`}>{spec.secretLabel}</label>
                         <input
                           id={`secret-${spec.kind}`}
                           className="field"
                           type="password"
                           autoComplete="off"
                           spellCheck={false}
-                          placeholder={channel?.credential === "present" ? c.secretOnFile : spec.secretPlaceholder}
+                          placeholder={channel?.credential === "present" ? "On file. Paste a new one to replace it." : spec.secretPlaceholder}
                           value={secrets[spec.kind] ?? ""}
-                          onChange={(event) => setSecrets((current) => ({ ...current, [spec.kind]: event.target.value }))}
+                          onChange={(event) => setSecrets((c) => ({ ...c, [spec.kind]: event.target.value }))}
                         />
-                        <p className="field-note">{c.secretVaultNote}</p>
+                        <p className="field-note">
+                          Stored in our secret vault, never in the database and never shown again, not even to
+                          you. Replace it here if it is ever rotated.
+                        </p>
                       </>
                     )}
 
@@ -261,7 +296,7 @@ export default function ChannelsStudio({
                         disabled={busy === spec.kind}
                         onClick={() => void submit(spec)}
                       >
-                        {busy === spec.kind ? c.saving : live ? c.update : c.connect}
+                        {busy === spec.kind ? "Saving…" : live ? "Update" : "Connect"}
                       </button>
                       {channel && live && (
                         <button
@@ -270,7 +305,7 @@ export default function ChannelsStudio({
                           disabled={busy === spec.kind}
                           onClick={() => void changeStatus(channel, "paused")}
                         >
-                          {c.pause}
+                          Pause
                         </button>
                       )}
                       {channel && channel.status === "paused" && (
@@ -280,7 +315,7 @@ export default function ChannelsStudio({
                           disabled={busy === spec.kind}
                           onClick={() => void changeStatus(channel, "connected")}
                         >
-                          {c.resume}
+                          Resume
                         </button>
                       )}
                       {channel && !retired && (
@@ -290,25 +325,34 @@ export default function ChannelsStudio({
                           disabled={busy === spec.kind}
                           onClick={() => void changeStatus(channel, "revoked")}
                         >
-                          {c.retire}
+                          Retire
                         </button>
                       )}
                     </div>
                   </>
                 )}
 
-                {retired && <p className="field-note">{c.retiredNote}</p>}
+                {retired && (
+                  <p className="field-note">
+                    Retired for good. That address will never be reattached to this clone. Set up a new one
+                    instead if you need this channel back.
+                  </p>
+                )}
               </article>
             );
           })}
 
           <article className="teacher-sheet-card">
-            <h3>{c.instagramTitle}</h3>
-            <p className="field-note">{c.instagramNotOffered}</p>
+            <h3>Instagram DM</h3>
+            <p className="field-note">Not offered yet, and this is what stands in the way rather than a date.</p>
             <div className="teacher-sheet-readonly">
-              <span className="claim-meta">{c.instagramWhatMetaRequiresLabel}</span>
-              <p>{c.instagramRequirement}</p>
-              <small>{c.instagramNoFakeButton}</small>
+              <span className="claim-meta">What Meta requires</span>
+              <p>
+                Advanced Access to Instagram messaging, which needs a verified business, an app in Live mode, and
+                a full App Review with a recorded demonstration of the integration. Meta grants it per app, not
+                per teacher, and the wait is measured in weeks to months.
+              </p>
+              <small>We will not put a button here that quietly does nothing.</small>
             </div>
           </article>
         </div>

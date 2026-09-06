@@ -25,6 +25,13 @@
 // real ops. If WS-X versions the contract past v1, `assertContract` fails
 // loudly rather than half-working.
 import { ReplicaApiError } from "./replicaApi";
+import {
+  createSourceUpload,
+  deleteSource,
+  finalizeSource,
+  putSignedUpload,
+  sha256File,
+} from "./enrollmentApi";
 
 export const MIRROR_CALL_ROUTE = "/api/mirror-call";
 export const MIRROR_CALL_CONTRACT = "mirror-call/v1";
@@ -44,14 +51,8 @@ export type MirrorCallOp =
   | "delta_action"
   | "turn_voice"
   | "turn_feedback"
-  | "status"
-  | "interview_gaps";
-
-/** Two modes, one call (WS-R5). `calibrate` is the incumbent behaviour and is
- *  what a client that sends no mode gets, so an old studio against a new
- *  deployment is byte-identical. `interview` asks the owner only what the
- *  archive could not answer. */
-export type MirrorCallMode = "calibrate" | "interview";
+  | "speaker_attestation"
+  | "status";
 
 /** Every op this UI calls, in the order a call uses them. WS-X's `contract`
  *  response is checked against this list, so an op quietly missing from the
@@ -63,6 +64,7 @@ export const REQUIRED_OPS: readonly MirrorCallOp[] = [
   "deltas",
   "delta_action",
   "turn_feedback",
+  "speaker_attestation",
 ];
 
 /** `turn_voice` is deliberately NOT in REQUIRED_OPS. WS-W owns synthesis; if
@@ -73,7 +75,7 @@ export const REQUIRED_OPS: readonly MirrorCallOp[] = [
  *  show the GPU's own ESTIMATE of when it will be warm, and an estimate shown
  *  as a fact is the fake-progress-bar failure the spec forbids. With it, the
  *  studio waits on a real answer. Absent, the copy says it is an estimate. */
-export const OPTIONAL_OPS: readonly MirrorCallOp[] = ["turn_voice", "status", "interview_gaps"];
+export const OPTIONAL_OPS: readonly MirrorCallOp[] = ["turn_voice", "status"];
 
 /**
  * The clone's voice runtime is booting. NOT an error and NOT an absent seam.
@@ -116,6 +118,16 @@ export class MirrorCallBackendAbsent extends Error {
     super("The Mirror Call backend is not deployed on this environment.");
     this.name = "MirrorCallBackendAbsent";
     this.detail = detail;
+  }
+}
+
+export class MirrorCallCapabilityUnavailable extends Error {
+  reason: string;
+
+  constructor(reason = "reply_engine_unavailable") {
+    super("The call reply service is not available yet.");
+    this.name = "MirrorCallCapabilityUnavailable";
+    this.reason = reason;
   }
 }
 
@@ -218,89 +230,6 @@ export interface MirrorCallDelta {
   created_at: string;
 }
 
-/**
- * One gap the interview would ask about (WS-R5).
- *
- * There is NO question text here and there is none on the wire either. The
- * server renders the question through the engine at call time out of a SHAPE,
- * because a stored question is a line and `recited-prompt` is measured: a line
- * in a prompt gets recited. What the studio renders is the topic, the evidence
- * count and why it matters, which is what an owner needs to decide whether to
- * spend twenty minutes on it.
- */
-export interface InterviewGap {
-  gap_id: string;
-  kind: "contradiction" | "sheet_field" | "thin_topic" | "readiness";
-  topic: string;
-  /** How much the archive already has on this. 0 is the common case and it is
-   *  the whole point of the feature, so it renders as a number and not as a
-   *  warning. */
-  evidence_count: number;
-  why: string;
-  rank: number;
-  answered?: boolean;
-}
-
-/**
- * WHICH DETECTORS COULD RUN. Rendered beside every gap list.
- *
- * `false` is NOT "found nothing" — it is "this detector was not available on
- * this deployment", and a short gap list means two completely different things
- * in the two cases. A UI that showed only the list would be stating that the
- * archive is complete on the strength of a detector that never ran, which is
- * the `plausible-return-hides-a-dead-pipeline` shape.
- */
-export interface InterviewDetectors {
-  contradiction: boolean;
-  sheet_field: boolean;
-  thin_topic: boolean;
-  readiness: boolean;
-}
-
-export interface InterviewPreview {
-  length_ms: number;
-  opening_gaps: number;
-  gaps: InterviewGap[];
-  total_gaps: number;
-  skipped_answered: number;
-  detectors: InterviewDetectors | null;
-}
-
-/** The live interview, as it rides on the session, on every window result and
- *  on the end payload. */
-export interface InterviewState {
-  interview_id: string;
-  started_at: string;
-  ended_at: string | null;
-  length_ms: number;
-  expired: boolean;
-  questions_asked: number;
-  answers_captured: number;
-  gaps: InterviewGap[];
-  detectors: InterviewDetectors | null;
-  /** Non-null on the window that actually captured an answer. */
-  answer_captured: { topic: string; audio_kept: boolean } | null;
-  asked_this_turn: boolean;
-}
-
-/** The end-of-interview summary: what it learned, and what the next one would
- *  ask. `effect` is the honest half and it is not decoration —
- *  `mirror-reference-accumulation-was-inert` is the entry that says a growing
- *  pool is not a changing clone, and an owner who has just answered five
- *  questions will otherwise assume something moved. */
-export interface InterviewSummary {
-  questions_asked: number;
-  answers_captured: number;
-  learned: { kind: string; topic: string }[];
-  next_would_ask: { kind: string; topic: string; why: string }[];
-  effect: {
-    sources_added: number;
-    voice_changed: boolean;
-    persona_changed: boolean;
-    note: string;
-  } | null;
-}
-
 export interface MirrorCallTurn {
   turn_id: string;
   /** The clone's reply text, for the live caption. */
@@ -315,7 +244,8 @@ export type MirrorCallDropReason =
   | "too_short"
   | "too_long"
   | "audio_unusable"
-  | "rate_limited";
+  | "rate_limited"
+  | "consent_inactive";
 
 export interface MirrorCallWindowResult {
   window_id: string;
@@ -330,13 +260,25 @@ export interface MirrorCallWindowResult {
    *  (`clone-initiative-record-has-no-absence`). */
   turn: MirrorCallTurn | null;
   deltas: MirrorCallDelta[];
-  /** Null on a calibration call. On an interview it is the live counts plus
-   *  whether THIS window captured an answer. */
-  interview: InterviewState | null;
   fidelity: MirrorCallFidelity | null;
   /** How the consented reference set grew from this window, or null when the
    *  window was not admitted to it. */
   reference: { consented_windows: number; total_seconds: number } | null;
+}
+
+export interface MirrorReplyEngineCapability {
+  available: boolean;
+  state: "ready" | "unavailable";
+  reason: string | null;
+}
+
+export function normalizeReplyEngineCapability(raw: any): MirrorReplyEngineCapability {
+  const available = raw?.available === true && raw?.state === "ready";
+  return {
+    available,
+    state: available ? "ready" : "unavailable",
+    reason: available ? null : "reply_engine_unavailable",
+  };
 }
 
 export interface MirrorCallSession {
@@ -352,12 +294,9 @@ export interface MirrorCallSession {
   fidelity: MirrorCallFidelity | null;
   /** Ops this deployment actually serves (echoes the handshake). */
   ops: MirrorCallOp[];
-  /** The mode the SERVER opened, never the one the client asked for. An
-   *  interview whose gap model could not be built opens as a calibration call
-   *  and says so, rather than presenting itself as an interview that asks
-   *  nothing. */
-  mode: MirrorCallMode;
-  interview: InterviewState | null;
+  /** Whether this deployment can produce the clone's conversational reply.
+   *  Provider and credential details never cross this boundary. */
+  reply_engine: MirrorReplyEngineCapability;
 }
 
 export interface MirrorCallEnd {
@@ -372,8 +311,46 @@ export interface MirrorCallEnd {
    *  a reason is an honest answer; a fake progress bar is not. */
   finetune: { queued: boolean; job_id: string | null; reason: string | null };
   fidelity: MirrorCallFidelity | null;
-  /** Null on a calibration call. */
-  interview: InterviewSummary | null;
+  speaker_attestation: MirrorOwnerSpeakerAttestation | null;
+}
+
+export type MirrorOwnerSpeakerAttestationState =
+  | "needs_owner_choice"
+  | "attested"
+  | "excluded"
+  | "consent_required"
+  | "not_available";
+
+export interface MirrorOwnerSpeakerAttestation {
+  statement_set: string;
+  state: MirrorOwnerSpeakerAttestationState;
+  eligible_windows: number;
+  attested_windows: number;
+  newly_attested_windows: number;
+  consent_ready: boolean;
+  queued: boolean;
+  claim_job_state: string;
+  next_attempt_at: string | null;
+}
+
+function normalizeSpeakerAttestation(raw: any): MirrorOwnerSpeakerAttestation | null {
+  if (!raw || typeof raw !== "object") return null;
+  const allowed = new Set<MirrorOwnerSpeakerAttestationState>([
+    "needs_owner_choice", "attested", "excluded", "consent_required", "not_available",
+  ]);
+  const state = String(raw.state || "") as MirrorOwnerSpeakerAttestationState;
+  if (!allowed.has(state)) throw new Error("Mirror Call speaker attestation state was malformed");
+  return {
+    statement_set: String(raw.statement_set || ""),
+    state,
+    eligible_windows: Math.max(0, Number(raw.eligible_windows) || 0),
+    attested_windows: Math.max(0, Number(raw.attested_windows) || 0),
+    newly_attested_windows: Math.max(0, Number(raw.newly_attested_windows) || 0),
+    consent_ready: raw.consent_ready === true,
+    queued: raw.queued === true,
+    claim_job_state: String(raw.claim_job_state || ""),
+    next_attempt_at: typeof raw.next_attempt_at === "string" ? raw.next_attempt_at : null,
+  };
 }
 
 // ── plumbing ───────────────────────────────────────────────────────────────
@@ -476,101 +453,6 @@ function normalizeDeltas(raw: any): MirrorCallDelta[] {
   return Array.isArray(raw) ? raw.map(normalizeDelta) : [];
 }
 
-const GAP_KINDS = ["contradiction", "sheet_field", "thin_topic", "readiness"] as const;
-
-/**
- * One gap, at the door.
- *
- * A gap carrying a `question` field is REFUSED rather than rendered, and that
- * is the client half of `recited-prompt`. The server does not put question text
- * on the wire; if a future one did, this UI would be the place a ready-made
- * line entered the product, so it fails loudly instead of displaying it.
- */
-export function normalizeInterviewGap(raw: any): InterviewGap {
-  const kind = GAP_KINDS.includes(raw?.kind) ? raw.kind : null;
-  if (!kind) throw new Error("An interview gap arrived with an unknown kind");
-  if (typeof raw?.question === "string" && raw.question) {
-    throw new Error("An interview gap arrived carrying question text, which this studio does not render");
-  }
-  return {
-    gap_id: String(raw.gap_id || ""),
-    kind,
-    topic: String(raw.topic || ""),
-    evidence_count: Number.isFinite(raw.evidence_count) ? Number(raw.evidence_count) : 0,
-    why: String(raw.why || ""),
-    rank: Number.isFinite(raw.rank) ? Number(raw.rank) : 0,
-    ...(typeof raw.answered === "boolean" ? { answered: raw.answered } : {}),
-  };
-}
-
-function normalizeDetectors(raw: any): InterviewDetectors | null {
-  if (!raw || typeof raw !== "object") return null;
-  return {
-    contradiction: raw.contradiction === true,
-    sheet_field: raw.sheet_field === true,
-    thin_topic: raw.thin_topic === true,
-    readiness: raw.readiness === true,
-  };
-}
-
-export function normalizeInterview(raw: any): InterviewState | null {
-  if (!raw || typeof raw !== "object") return null;
-  const id = typeof raw.interview_id === "string" ? raw.interview_id : "";
-  if (!id) return null;
-  const asked = Number.isFinite(raw.questions_asked) ? Number(raw.questions_asked) : 0;
-  const captured = Number.isFinite(raw.answers_captured) ? Number(raw.answers_captured) : 0;
-  if (captured > asked) {
-    // The server's own CHECK makes this row impossible (migration 075). The
-    // client refusing it anyway is the second layer, and it is the one that
-    // survives somebody widening the constraint.
-    throw new Error("The interview reported more answers than questions");
-  }
-  return {
-    interview_id: id,
-    started_at: String(raw.started_at || ""),
-    ended_at: typeof raw.ended_at === "string" ? raw.ended_at : null,
-    length_ms: Number.isFinite(raw.length_ms) ? Number(raw.length_ms) : 20 * 60 * 1000,
-    expired: raw.expired === true,
-    questions_asked: asked,
-    answers_captured: captured,
-    gaps: Array.isArray(raw.gaps) ? raw.gaps.map(normalizeInterviewGap) : [],
-    detectors: normalizeDetectors(raw.detectors),
-    answer_captured: raw.answer_captured && typeof raw.answer_captured === "object"
-      ? {
-        topic: String(raw.answer_captured.topic || ""),
-        audio_kept: raw.answer_captured.audio_kept === true,
-      }
-      : null,
-    asked_this_turn: raw.asked_this_turn === true,
-  };
-}
-
-export function normalizeInterviewSummary(raw: any): InterviewSummary | null {
-  if (!raw || typeof raw !== "object") return null;
-  const list = (value: any) => (Array.isArray(value) ? value : []).map((row: any) => ({
-    kind: String(row?.kind || ""),
-    topic: String(row?.topic || ""),
-    why: String(row?.why || ""),
-  }));
-  return {
-    questions_asked: Number(raw.questions_asked) || 0,
-    answers_captured: Number(raw.answers_captured) || 0,
-    learned: list(raw.learned).map(({ kind, topic }) => ({ kind, topic })),
-    next_would_ask: list(raw.next_would_ask),
-    effect: raw.effect && typeof raw.effect === "object"
-      ? {
-        sources_added: Number(raw.effect.sources_added) || 0,
-        // Defaults in the SAFE direction: a payload that omits these is read as
-        // "something changed and we cannot say what", which is the reading that
-        // makes somebody look, rather than the one that reassures.
-        voice_changed: raw.effect.voice_changed !== false,
-        persona_changed: raw.effect.persona_changed !== false,
-        note: String(raw.effect.note || ""),
-      }
-      : null,
-  };
-}
-
 // ── ops ────────────────────────────────────────────────────────────────────
 
 /**
@@ -578,7 +460,11 @@ export function normalizeInterviewSummary(raw: any): InterviewSummary | null {
  * not there at all, which is the state this UI renders honestly instead of
  * pretending to dial.
  */
-export async function probeMirrorCallBackend(token: string): Promise<{ contract: string; ops: MirrorCallOp[] }> {
+export async function probeMirrorCallBackend(token: string): Promise<{
+  contract: string;
+  ops: MirrorCallOp[];
+  replyEngine: MirrorReplyEngineCapability;
+}> {
   let response: Response;
   try {
     response = await fetch(url("contract"), {
@@ -604,21 +490,31 @@ export async function probeMirrorCallBackend(token: string): Promise<{ contract:
   }
   const missing = REQUIRED_OPS.filter((op) => !ops.includes(op));
   if (missing.length) throw new Error(`The Mirror Call backend is missing: ${missing.join(", ")}`);
-  return { contract: data.contract, ops };
+  return {
+    contract: data.contract,
+    ops,
+    // Missing or malformed capability data is unavailable, never optimistic.
+    // This also prevents a newer Studio from opening calls against an older
+    // route that only proved its endpoints existed.
+    replyEngine: normalizeReplyEngineCapability(data?.reply_engine),
+  };
 }
 
-export async function createMirrorCall(
-  token: string,
-  replicaId: string,
-  mode: MirrorCallMode = "calibrate",
-): Promise<MirrorCallSession> {
+export async function createMirrorCall(token: string, replicaId: string): Promise<MirrorCallSession> {
   const response = await fetch(url("create"), {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ replica_id: replicaId, contract: MIRROR_CALL_CONTRACT, mode }),
+    body: JSON.stringify({ replica_id: replicaId, contract: MIRROR_CALL_CONTRACT }),
     signal: AbortSignal.timeout(45_000),
   });
   if (response.status === 404) throw new MirrorCallBackendAbsent("create answered 404");
+  if (response.status === 503) {
+    const refusal = await response.clone().json().catch(() => ({}) as any);
+    if (refusal?.error === "mirror_reply_engine_unavailable") {
+      const capability = normalizeReplyEngineCapability(refusal?.reply_engine);
+      throw new MirrorCallCapabilityUnavailable(capability.reason || undefined);
+    }
+  }
   if (!response.ok) throw await readError(response, `mirror call could not start (${response.status})`);
   const data = await response.json().catch(() => ({}) as any);
   const session = data?.session;
@@ -626,6 +522,8 @@ export async function createMirrorCall(
     throw new Error("The Mirror Call session did not come back with an id");
   }
   const windowMax = Number(session.window_ms_max);
+  const replyEngine = normalizeReplyEngineCapability(session.reply_engine);
+  if (!replyEngine.available) throw new MirrorCallCapabilityUnavailable(replyEngine.reason || undefined);
   return {
     session_id: session.session_id,
     replica_id: String(session.replica_id || replicaId),
@@ -638,50 +536,18 @@ export async function createMirrorCall(
     window_ms_max: Number.isFinite(windowMax) && windowMax > 0 ? Math.min(windowMax, MAX_WINDOW_MS) : MAX_WINDOW_MS,
     fidelity: normalizeFidelity(session.fidelity ?? null, "session"),
     ops: Array.isArray(session.ops) ? session.ops : [...REQUIRED_OPS],
-    // The server's answer, never the request's. A deployment that does not
-    // serve the interview answers `calibrate` here and the studio runs a
-    // calibration call, visibly.
-    mode: session.mode === "interview" ? "interview" : "calibrate",
-    interview: normalizeInterview(session.interview),
+    reply_engine: replyEngine,
   };
 }
 
 /**
- * What the interview would ask, before anyone opens a call.
- *
- * Optional op — see OPTIONAL_OPS. A deployment without it throws
- * `MirrorCallBackendAbsent` and the studio says the interview is not available
- * here, rather than offering a button that fails when it is pressed.
- */
-export async function fetchInterviewGaps(token: string, replicaId: string): Promise<InterviewPreview> {
-  const response = await fetch(url("interview_gaps", { replica_id: replicaId }), {
-    headers: { Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (response.status === 404 || response.status === 400 || response.status === 501) {
-    throw new MirrorCallBackendAbsent(`interview_gaps answered ${response.status}`);
-  }
-  if (!response.ok) throw await readError(response, `the interview list failed (${response.status})`);
-  const data = await response.json().catch(() => ({}) as any);
-  const raw = data?.interview;
-  if (!raw || typeof raw !== "object") throw new Error("The interview list was malformed");
-  return {
-    length_ms: Number.isFinite(raw.length_ms) ? Number(raw.length_ms) : 20 * 60 * 1000,
-    opening_gaps: Number.isFinite(raw.opening_gaps) ? Number(raw.opening_gaps) : 5,
-    gaps: Array.isArray(raw.gaps) ? raw.gaps.map(normalizeInterviewGap) : [],
-    total_gaps: Number(raw.total_gaps) || 0,
-    skipped_answered: Number(raw.skipped_answered) || 0,
-    detectors: normalizeDetectors(raw.detectors),
-  };
-}
-
-/**
- * One ≤30s owner window. Multipart because the payload is audio; every other
- * op on this route is JSON. If WS-X would rather take a signed upload handle
- * (the `enrollmentApi` pattern), that is a change to THIS function and nothing
- * else in the UI.
+ * One bounded owner window using the server-declared source-handle transport.
+ * Bytes enter through a signed private upload; this route receives only the
+ * finalized source handle. The source is bound to this session and sequence,
+ * remains as provenance, and does not enter the enrollment processing DAG.
  */
 export async function ingestAudioWindow(token: string, input: {
+  replicaId: string;
   sessionId: string;
   seq: number;
   audio: Blob;
@@ -695,20 +561,65 @@ export async function ingestAudioWindow(token: string, input: {
     // bug, and sending it would spend a paid ASR call to be told so.
     throw new Error(`A ${Math.round(input.durationMs / 1000)}s window exceeds the ${MAX_WINDOW_MS / 1000}s cap`);
   }
-  const form = new FormData();
-  form.append("session_id", input.sessionId);
-  form.append("seq", String(input.seq));
-  form.append("duration_ms", String(Math.round(input.durationMs)));
-  if (input.clientHint) form.append("client_hint", input.clientHint);
-  form.append("audio", input.audio, `window-${input.seq}.wav`);
+  // The ordinary source lane is the single owner of upload authorization,
+  // consent, content binding and private storage. Mirror Call receives only a
+  // finalized source handle; its route intentionally rejects multipart bytes.
+  const file = new File([input.audio], `mirror-window-${input.seq}.wav`, { type: "audio/wav" });
+  let sourceId = "";
+  try {
+    const sha256 = await sha256File(file);
+    const created = await createSourceUpload(token, {
+      replicaId: input.replicaId,
+      kind: "audio",
+      purpose: "mirror_window",
+      mime: "audio/wav",
+      byteSize: file.size,
+      sha256,
+      containsThirdParties: false,
+      mirrorSessionId: input.sessionId,
+      mirrorSeq: input.seq,
+    });
+    sourceId = created.source.source_id;
+    if (!created.finalized) {
+      if (!created.upload) throw new Error("Private upload authorization is missing.");
+      await putSignedUpload(file, created.upload, () => {});
+      await finalizeSource(token, input.replicaId, sourceId);
+    }
+  } catch (cause) {
+    // No Mirror Call row can cite the source yet, so a definite upload failure
+    // is safe to erase and should not accumulate as an owner-visible orphan.
+    if (sourceId) await deleteSource(token, input.replicaId, sourceId).catch(() => null);
+    throw cause;
+  }
+
+  // A lost response is ambiguous: the server may already have committed the
+  // window. There is intentionally no cleanup around this fetch, so a timeout
+  // cannot erase provenance beneath a server-side pending window.
   const response = await fetch(url("ingest_window"), {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: form,
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      session_id: input.sessionId,
+      seq: input.seq,
+      duration_ms: Math.round(input.durationMs),
+      source_id: sourceId,
+      ...(input.clientHint ? { client_hint: input.clientHint } : {}),
+    }),
     signal: AbortSignal.timeout(120_000),
   });
-  if (response.status === 404) throw new MirrorCallBackendAbsent("ingest_window answered 404");
-  if (!response.ok) throw await readError(response, `the window could not be sent (${response.status})`);
+  if (response.status === 404) {
+    await deleteSource(token, input.replicaId, sourceId).catch(() => null);
+    throw new MirrorCallBackendAbsent("ingest_window answered 404");
+  }
+  if (!response.ok) {
+    // A client error is a definite pre-commit refusal. A server error is
+    // ambiguous: the pending window may already cite this source, so keep its
+    // provenance for reconciliation instead of erasing evidence underneath it.
+    if (response.status < 500) {
+      await deleteSource(token, input.replicaId, sourceId).catch(() => null);
+    }
+    throw await readError(response, `the window could not be sent (${response.status})`);
+  }
   const data = await response.json().catch(() => ({}) as any);
   const result = data?.window;
   if (!result || typeof result.window_id !== "string") throw new Error("The window result was malformed");
@@ -728,7 +639,6 @@ export async function ingestAudioWindow(token: string, input: {
     owner_transcript: String(result.owner_transcript || ""),
     turn,
     deltas: normalizeDeltas(result.deltas),
-    interview: normalizeInterview(result.interview),
     fidelity: normalizeFidelity(result.fidelity ?? null, "window"),
     reference: result.reference
       ? {
@@ -744,6 +654,7 @@ export async function getMirrorCallStatus(token: string, sessionId: string): Pro
   state: "warming" | "live" | "ended";
   gpu: { warm: boolean; estimated_ready_seconds: number | null };
   fidelity: MirrorCallFidelity | null;
+  reply_engine: MirrorReplyEngineCapability;
 }> {
   const response = await fetch(url("status", { session_id: sessionId }), {
     headers: { Authorization: `Bearer ${token}` },
@@ -763,6 +674,7 @@ export async function getMirrorCallStatus(token: string, sessionId: string): Pro
       estimated_ready_seconds: nullableNumber(raw?.gpu?.estimated_ready_seconds ?? null, "gpu estimate"),
     },
     fidelity: normalizeFidelity(raw?.fidelity ?? null, "status"),
+    reply_engine: normalizeReplyEngineCapability(raw?.reply_engine),
   };
 }
 
@@ -798,7 +710,9 @@ export async function actionMirrorCallDelta(token: string, input: {
   return delta;
 }
 
-/** 👍 / 👎 on a clone turn, with an optional re-recorded "I'd say it like this". */
+export const MIRROR_AUDIO_CORRECTIONS_SUPPORTED = false;
+
+/** Rating or written wording suggestion; audio needs a canonical source contract first. */
 export async function saveMirrorCallTurnFeedback(token: string, input: {
   sessionId: string;
   turnId: string;
@@ -807,19 +721,13 @@ export async function saveMirrorCallTurnFeedback(token: string, input: {
   correctionAudio?: Blob | null;
   correctionMs?: number;
 }): Promise<{ feedback_id: string; deltas: MirrorCallDelta[] }> {
-  const form = new FormData();
-  form.append("session_id", input.sessionId);
-  form.append("turn_id", input.turnId);
-  form.append("rating", input.rating);
-  if (input.note) form.append("note", input.note);
-  if (input.correctionAudio) {
-    form.append("correction_audio", input.correctionAudio, `correction-${input.turnId}.wav`);
-    form.append("correction_ms", String(Math.round(input.correctionMs || 0)));
+  if (input.correctionAudio != null || input.correctionMs != null) {
+    throw new Error("Audio corrections are not available yet. Type your wording instead.");
   }
   const response = await fetch(url("turn_feedback"), {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: form,
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: input.sessionId, turn_id: input.turnId, rating: input.rating, ...(input.note ? { note: input.note } : {}) }),
     signal: AbortSignal.timeout(60_000),
   });
   if (response.status === 404) throw new MirrorCallBackendAbsent("turn_feedback answered 404");
@@ -885,6 +793,25 @@ export async function endMirrorCall(token: string, sessionId: string): Promise<M
       reason: typeof end?.finetune?.reason === "string" ? end.finetune.reason : null,
     },
     fidelity: normalizeFidelity(end?.fidelity ?? null, "end"),
-    interview: normalizeInterviewSummary(end?.interview),
+    speaker_attestation: normalizeSpeakerAttestation(end?.speaker_attestation),
   };
+}
+
+export async function attestMirrorCallOwnerSpeaker(
+  token: string,
+  sessionId: string,
+  choice: "only_me" | "not_sure_or_other_people",
+): Promise<MirrorOwnerSpeakerAttestation> {
+  const response = await fetch(url("speaker_attestation"), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId, choice }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (response.status === 404) throw new MirrorCallBackendAbsent("speaker_attestation answered 404");
+  if (!response.ok) throw await readError(response, `the speaker check could not be saved (${response.status})`);
+  const data = await response.json().catch(() => ({}) as any);
+  const result = normalizeSpeakerAttestation(data?.speaker_attestation);
+  if (!result) throw new Error("Mirror Call speaker attestation response was malformed");
+  return result;
 }

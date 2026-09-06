@@ -6,13 +6,24 @@ import type {
   CandidateEvalDimension,
   CandidateEvaluation,
 } from "./types";
-import { useStudioLocale } from "./localeContext";
-import { withCount, type StudioCopy } from "./copy";
 
-const CHOICE_VALUES: CandidateEvalChoice[] = ["a", "tie", "b"];
+const DIMENSION_COPY: Record<CandidateEvalDimension, { label: string; hint: string }> = {
+  overall: { label: "Overall", hint: "Which one feels more like you?" },
+  wording: { label: "Wording", hint: "Phrases, sentence shape, and length" },
+  behavior: { label: "Behavior", hint: "Reaction, judgment, and way of responding" },
+  relationship: { label: "Relationship", hint: "How you would speak in this exact bond" },
+  memory: { label: "Memory", hint: "Facts, callbacks, and honest uncertainty" },
+  delivery: { label: "Delivery", hint: "Implied pace, energy, and emotional shape" },
+};
 
-function loadError(t: StudioCopy, cause: unknown) {
-  return cause instanceof Error ? cause.message.replaceAll("_", " ") : t.candidateEvaluationLab.loadErrorFallback;
+const CHOICES: Array<{ value: CandidateEvalChoice; label: string }> = [
+  { value: "a", label: "A is closer" },
+  { value: "tie", label: "No difference" },
+  { value: "b", label: "B is closer" },
+];
+
+function loadError(cause: unknown) {
+  return cause instanceof Error ? cause.message.replaceAll("_", " ") : "The comparison could not be loaded";
 }
 
 export default function CandidateEvaluationLab({
@@ -26,8 +37,6 @@ export default function CandidateEvaluationLab({
   stopped: boolean;
   onAuthError: (cause: unknown) => void;
 }) {
-  const { t } = useStudioLocale();
-  const c = t.candidateEvaluationLab;
   const [evaluation, setEvaluation] = useState<CandidateEvaluation | null>(null);
   const [ratings, setRatings] = useState<Partial<Record<CandidateEvalDimension, CandidateEvalChoice>>>({});
   const [loading, setLoading] = useState(true);
@@ -44,11 +53,11 @@ export default function CandidateEvaluationLab({
       setRatings({});
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(loadError(t, cause));
+      setError(loadError(cause));
     } finally {
       setLoading(false);
     }
-  }, [onAuthError, replicaId, stopped, token, t]);
+  }, [onAuthError, replicaId, stopped, token]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -69,7 +78,7 @@ export default function CandidateEvaluationLab({
       await load();
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(loadError(t, cause));
+      setError(loadError(cause));
     } finally {
       setBusy(false);
     }
@@ -83,86 +92,86 @@ export default function CandidateEvaluationLab({
     <section className="candidate-eval-lab" aria-labelledby="candidate-eval-title">
       <div className="candidate-eval-head">
         <div>
-          <p className="eyebrow">{c.eyebrow}</p>
-          <h2 id="candidate-eval-title">{c.title}</h2>
-          <p>{c.intro}</p>
+          <p className="eyebrow">Blind comparison</p>
+          <h2 id="candidate-eval-title">Pick the closer voice, without being told which is which</h2>
+          <p>Compare two hidden outputs layer by layer. Their identity stays sealed until the full evaluation is complete.</p>
         </div>
-        <div className="candidate-eval-seal" aria-label={c.sealAriaLabel}>
-          <strong>{c.blindedLabel}</strong>
-          <span>{c.mappingNote}</span>
+        <div className="candidate-eval-seal" aria-label="Evaluation blinding status">
+          <strong>BLINDED</strong>
+          <span>A/B mapping stays server-side</span>
         </div>
       </div>
 
       {loading ? (
-        <div className="candidate-eval-loading" role="status" aria-label={c.loadingAriaLabel}>
+        <div className="candidate-eval-loading" role="status" aria-label="Loading blind evaluation">
           <span /><span /><span />
         </div>
       ) : error ? (
         <div className="candidate-eval-error" role="alert">
-          <div><strong>{c.comparisonUnavailable}</strong><p>{error}</p></div>
-          <button type="button" onClick={() => void load()}>{c.tryAgain}</button>
+          <div><strong>Comparison unavailable</strong><p>{error}</p></div>
+          <button type="button" onClick={() => void load()}>Try again</button>
         </div>
       ) : !evaluation?.available ? (
         <div className="candidate-eval-empty">
           <div className="candidate-eval-empty-mark" aria-hidden="true">A/B</div>
           <div>
-            <strong>{c.emptyHeadline}</strong>
-            <p>{c.emptyNote}</p>
+            <strong>No qualified candidate is waiting for review.</strong>
+            <p>This opens only after a frozen test set and two encrypted model outputs exist for at least 30 comparisons.</p>
           </div>
         </div>
       ) : evaluation.state === "complete" || !evaluation.assignment ? (
         <div className="candidate-eval-complete" role="status">
           <span aria-hidden="true">✓</span>
           <div>
-            <strong>{c.completeHeadline}</strong>
-            <p>{withCount(c.completeNote, progress.completed)}</p>
+            <strong>Blind review complete</strong>
+            <p>{progress.completed} comparisons are sealed. Safety, privacy, and statistical gates decide whether this candidate can advance.</p>
           </div>
         </div>
       ) : (
         <>
           <div className="candidate-eval-progress">
-            <span>{c.comparisonOfLabel.split("{n}").join(String(evaluation.assignment.sequence)).split("{n2}").join(String(progress.total))}</span>
-            <strong>{withCount(c.sealedCountLabel, progress.completed)}</strong>
+            <span>Comparison {evaluation.assignment.sequence} of {progress.total}</span>
+            <strong>{progress.completed} sealed</strong>
           </div>
 
           <article className="candidate-eval-context">
-            <span>{c.situationLabel}</span>
+            <span>Situation</span>
             <p>{evaluation.assignment.context}</p>
           </article>
 
-          <div className="candidate-eval-options" aria-label={c.optionsAriaLabel}>
+          <div className="candidate-eval-options" aria-label="Anonymous response options">
             <article>
-              <header><span>A</span><small>{c.anonymousOutput}</small></header>
+              <header><span>A</span><small>Anonymous output</small></header>
               <p>{evaluation.assignment.option_a}</p>
             </article>
-            <div className="candidate-eval-versus" aria-hidden="true">{c.orWord}</div>
+            <div className="candidate-eval-versus" aria-hidden="true">OR</div>
             <article>
-              <header><span>B</span><small>{c.anonymousOutput}</small></header>
+              <header><span>B</span><small>Anonymous output</small></header>
               <p>{evaluation.assignment.option_b}</p>
             </article>
           </div>
 
           <form className="candidate-eval-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
             <div className="candidate-eval-instruction">
-              <strong>{c.judgeEveryLayer}</strong>
-              <span>{c.judgeInstruction}</span>
+              <strong>Judge every layer</strong>
+              <span>Choose based on this situation only. A tie is useful evidence.</span>
             </div>
             <div className="candidate-eval-dimensions">
               {dimensions.map((dimension) => {
-                const copy = c.dimensionCopy[dimension];
+                const copy = DIMENSION_COPY[dimension];
                 return (
                   <fieldset key={dimension}>
                     <legend><strong>{copy.label}</strong><span>{copy.hint}</span></legend>
                     <div>
-                      {CHOICE_VALUES.map((choice) => (
+                      {CHOICES.map((choice) => (
                         <button
-                          key={choice}
-                          className={ratings[dimension] === choice ? "selected" : ""}
+                          key={choice.value}
+                          className={ratings[dimension] === choice.value ? "selected" : ""}
                           type="button"
-                          aria-pressed={ratings[dimension] === choice}
-                          onClick={() => setRatings((current) => ({ ...current, [dimension]: choice }))}
+                          aria-pressed={ratings[dimension] === choice.value}
+                          onClick={() => setRatings((current) => ({ ...current, [dimension]: choice.value }))}
                         >
-                          {c.choiceLabel[choice]}
+                          {choice.label}
                         </button>
                       ))}
                     </div>
@@ -171,9 +180,9 @@ export default function CandidateEvaluationLab({
               })}
             </div>
             <div className="candidate-eval-submit">
-              <span>{c.layersJudged.split("{n}").join(String(answered)).split("{n2}").join(String(dimensions.length))}</span>
+              <span>{answered} of {dimensions.length} layers judged</span>
               <button className="button primary-button" type="submit" disabled={busy || answered !== dimensions.length}>
-                {busy ? c.sealingComparison : c.sealAndContinue}
+                {busy ? "Sealing comparison..." : "Seal and continue"}
               </button>
             </div>
           </form>

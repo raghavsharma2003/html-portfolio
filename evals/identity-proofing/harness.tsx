@@ -14,6 +14,7 @@ const source: ReplicaSource = {
   replica_id: RID,
   kind: "image",
   capture_mode: "identity_document",
+  voice_role: "supporting",
   mime: "image/jpeg",
   byte_size: 1_248_000,
   state: "quarantined",

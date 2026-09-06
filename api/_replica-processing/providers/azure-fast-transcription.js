@@ -1,3 +1,7 @@
+import { createHash, randomBytes } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { stat as statFile } from "node:fs/promises";
+import { Readable } from "node:stream";
 import { ProcessingAdapterError, assertSha256, sha256Hex } from "../contracts.js";
 
 export const AZURE_FAST_TRANSCRIPTION_API_VERSION = "2025-10-15";
@@ -6,7 +10,7 @@ export const AZURE_FAST_TRANSCRIPTION_MAX_DURATION_MS = 2 * 60 * 60 * 1_000;
 export const AZURE_HINGLISH_LOCALES = Object.freeze(["en-IN", "hi-IN"]);
 
 const DEFAULT_TIMEOUT_MS = 180_000;
-const DEFAULT_MAX_INPUT_BYTES = 64 * 1024 * 1024;
+const DEFAULT_MAX_INPUT_BYTES = AZURE_FAST_TRANSCRIPTION_MAX_BYTES;
 const DEFAULT_MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 const AZURE_HOST = /^(?:[a-z0-9-]+\.cognitiveservices\.azure\.com|[a-z0-9-]+\.api\.cognitive\.microsoft\.com)$/i;
 const LOCALE = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})+$/;
@@ -164,7 +168,120 @@ async function resolvePrivateInput(resolver, source, input, maxBytes, signal) {
   }
   const expectedSha = assertSha256(input.sha256, "Azure ASR input sha256");
   if (sha256Hex(bytes) !== expectedSha) throw adapterError("azure_asr_input_integrity_mismatch");
-  return { bytes, mime, extension: SUPPORTED_MIME.get(mime) };
+  return {
+    bytes,
+    byteSize: bytes.length,
+    sha256: expectedSha,
+    mime,
+    extension: SUPPORTED_MIME.get(mime),
+    transform: "none",
+  };
+}
+
+async function hashPrivateFile(path, signal, createFileStream) {
+  const digest = createHash("sha256");
+  const stream = createFileStream(path, { signal, highWaterMark: 64 * 1024 });
+  for await (const chunk of stream) {
+    throwIfAborted(signal);
+    const bytes = Buffer.isBuffer(chunk)
+      ? chunk
+      : ArrayBuffer.isView(chunk)
+        ? Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength)
+        : null;
+    if (!bytes) throw adapterError("azure_asr_input_body_invalid");
+    digest.update(bytes);
+  }
+  throwIfAborted(signal);
+  return digest.digest("hex");
+}
+
+async function resolvePrivateInputFile(file, input, maxBytes, signal, io, transformed = false) {
+  if (!file || typeof file !== "object" || "audioUrl" in file || "signedReadUrl" in file || "url" in file) {
+    throw adapterError("azure_asr_private_url_forbidden");
+  }
+  if (typeof file.path !== "string" || !file.path) throw adapterError("azure_asr_input_body_invalid");
+  const mime = transformed
+    ? String(file.mime || "").split(";", 1)[0].trim().toLowerCase()
+    : normalizedMime(file, input);
+  if (transformed && !SUPPORTED_MIME.has(mime)) throw adapterError("azure_asr_input_mime_invalid");
+  let details;
+  try { details = await io.statFile(file.path); }
+  catch (error) {
+    if (signal.aborted) throw error;
+    throw adapterError("azure_asr_input_unavailable", true);
+  }
+  if (!details?.isFile?.()) throw adapterError("azure_asr_input_body_invalid");
+  const byteSize = Number(details.size);
+  if (!Number.isSafeInteger(byteSize) || byteSize < 1 || byteSize > maxBytes) {
+    throw adapterError("azure_asr_input_size_invalid");
+  }
+  const declaredSizes = [file.byteSize, transformed ? null : input.byte_size].filter((value) => value != null);
+  if (declaredSizes.some((value) => Number(value) !== byteSize)) {
+    throw adapterError("azure_asr_input_size_mismatch");
+  }
+  const expectedSha = assertSha256(input.sha256, "Azure ASR input sha256");
+  if (transformed && (
+    file.transform !== "azure-asr-flac-16k-mono-v1" ||
+    assertSha256(file.sourceSha256, "Azure ASR transformed source sha256") !== expectedSha ||
+    Number(file.sourceByteSize) !== Number(input.byte_size) ||
+    Number(file.sourceDurationMs) !== Number(input.duration_ms)
+  )) {
+    throw adapterError("azure_asr_input_integrity_mismatch");
+  }
+  const transportSha = file.sha256 == null
+    ? expectedSha
+    : assertSha256(file.sha256, "Azure ASR resolved sha256");
+  if (!transformed && transportSha !== expectedSha) throw adapterError("azure_asr_input_integrity_mismatch");
+  let actualSha;
+  try { actualSha = await hashPrivateFile(file.path, signal, io.createFileStream); }
+  catch (error) {
+    if (error instanceof ProcessingAdapterError || signal.aborted) throw error;
+    throw adapterError("azure_asr_input_unavailable", true);
+  }
+  if (actualSha !== transportSha) throw adapterError("azure_asr_input_integrity_mismatch");
+  return Object.freeze({
+    path: file.path,
+    byteSize,
+    sha256: transportSha,
+    mime,
+    extension: SUPPORTED_MIME.get(mime),
+    transform: transformed ? file.transform : "none",
+  });
+}
+
+function multipartFileBody(audio, definition, signal, createFileStream) {
+  const boundary = `----vyakti-${randomBytes(18).toString("hex")}`;
+  const opening = Buffer.from(
+    `--${boundary}\r\n` +
+    `Content-Disposition: form-data; name="audio"; filename="evidence.${audio.extension}"\r\n` +
+    `Content-Type: ${audio.mime}\r\n\r\n`,
+    "utf8",
+  );
+  const closing = Buffer.from(
+    `\r\n--${boundary}\r\n` +
+    "Content-Disposition: form-data; name=\"definition\"\r\n" +
+    "Content-Type: application/json; charset=utf-8\r\n\r\n" +
+    `${JSON.stringify(definition)}\r\n` +
+    `--${boundary}--\r\n`,
+    "utf8",
+  );
+  const body = Readable.from((async function* () {
+    yield opening;
+    const stream = createFileStream(audio.path, { signal, highWaterMark: 64 * 1024 });
+    for await (const chunk of stream) {
+      throwIfAborted(signal);
+      yield chunk;
+    }
+    throwIfAborted(signal);
+    yield closing;
+  })());
+  return Object.freeze({
+    body,
+    headers: Object.freeze({
+      "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      "Content-Length": String(opening.length + audio.byteSize + closing.length),
+    }),
+  });
 }
 
 function retryAfterMilliseconds(value) {
@@ -220,14 +337,36 @@ function milliseconds(value, allowZero = true) {
   return number;
 }
 
+function isEmptyAzureSentinel(phrase) {
+  const start = Number(phrase?.offsetMilliseconds);
+  const confidence = Number(phrase?.confidence);
+  const language = String(phrase?.locale || "").trim();
+  return Number.isInteger(start) && start >= 0 && Number(phrase?.durationMilliseconds) === 0 &&
+    typeof phrase?.text === "string" && phrase.text.trim() === "" &&
+    Array.isArray(phrase.words) && phrase.words.length === 0 && LOCALE.test(language) &&
+    Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 &&
+    (phrase.speaker == null || (Number.isInteger(Number(phrase.speaker)) && Number(phrase.speaker) >= 0)) &&
+    (phrase.channel == null || (Number.isInteger(Number(phrase.channel)) && Number(phrase.channel) >= 0));
+}
+
 export function normalizeAzureFastTranscription(payload, input) {
   if (!payload || !Array.isArray(payload.phrases) || !payload.phrases.length) {
     throw adapterError("azure_asr_response_invalid");
   }
+  // Long-file responses can include a zero-length, content-free sentinel
+  // before the real phrases. It carries no transcript or timing evidence and
+  // is safe to omit only when every observed structural field matches that
+  // exact shape. Missing words on any non-empty phrase remain a hard failure.
+  const phrases = payload.phrases.filter((phrase) => !isEmptyAzureSentinel(phrase));
+  if (!phrases.length) throw adapterError("azure_asr_response_invalid");
   const locales = new Set();
-  const segments = payload.phrases.map((phrase) => {
+  const segments = phrases.map((phrase) => {
     const start = milliseconds(phrase?.offsetMilliseconds);
-    const duration = milliseconds(phrase?.durationMilliseconds, false);
+    // Azure occasionally returns a zero phrase duration for long recordings
+    // while still returning complete, positive word-level spans. Treat the
+    // words as the authoritative end bound in that one documented response
+    // shape; never invent a span when the words cannot prove one.
+    const duration = milliseconds(phrase?.durationMilliseconds);
     const text = typeof phrase?.text === "string" ? phrase.text.trim() : "";
     const language = String(phrase?.locale || "").trim();
     if (!text || !LOCALE.test(language) || !Array.isArray(phrase.words) || !phrase.words.length) {
@@ -239,7 +378,7 @@ export function normalizeAzureFastTranscription(payload, input) {
       const wordStart = milliseconds(word?.offsetMilliseconds);
       const wordDuration = milliseconds(word?.durationMilliseconds, false);
       const wordText = typeof word?.text === "string" ? word.text.trim() : "";
-      if (!wordText || wordStart < start || wordStart + wordDuration > start + duration) {
+      if (!wordText || wordStart < start || (duration > 0 && wordStart + wordDuration > start + duration)) {
         throw adapterError("azure_asr_response_invalid");
       }
       return Object.freeze({
@@ -249,12 +388,16 @@ export function normalizeAzureFastTranscription(payload, input) {
         confidence: word.confidence == null ? null : finiteConfidence(word.confidence),
       });
     });
+    const end = duration > 0 ? start + duration : Math.max(...words.map((word) => word.end_ms));
+    if (!Number.isInteger(end) || end <= start || words.some((word) => word.end_ms > end)) {
+      throw adapterError("azure_asr_response_invalid");
+    }
     const speaker = phrase.speaker == null ? null : milliseconds(phrase.speaker);
     const channel = phrase.channel == null ? null : milliseconds(phrase.channel);
     return {
       artifact_id: input.artifact_id || null,
       start_ms: start,
-      end_ms: start + duration,
+      end_ms: end,
       confidence,
       text,
       language,
@@ -268,16 +411,29 @@ export function normalizeAzureFastTranscription(payload, input) {
   return Object.freeze(segments.map((segment) => Object.freeze({ ...segment, code_switch: codeSwitch })));
 }
 
-async function postTranscription({ endpoint, authHeaders, input, audio, definition, fetchImpl, maxResponseBytes, signal, beforeProviderRequest }) {
-  const form = new FormData();
-  form.append("audio", new Blob([audio.bytes], { type: audio.mime }), `evidence.${audio.extension}`);
-  form.append("definition", JSON.stringify(definition));
+async function postTranscription({ endpoint, authHeaders, input, audio, definition, fetchImpl, maxResponseBytes, signal, beforeProviderRequest, createFileStream }) {
+  let request;
+  if (audio.path) {
+    const multipart = multipartFileBody(audio, definition, signal, createFileStream);
+    request = {
+      method: "POST",
+      headers: { ...authHeaders, ...multipart.headers },
+      body: multipart.body,
+      duplex: "half",
+      signal,
+    };
+  } else {
+    const form = new FormData();
+    form.append("audio", new Blob([audio.bytes], { type: audio.mime }), `evidence.${audio.extension}`);
+    form.append("definition", JSON.stringify(definition));
+    request = { method: "POST", headers: authHeaders, body: form, signal };
+  }
   let response;
   try {
     await beforeProviderRequest();
     response = await fetchImpl(
       `${endpoint}speechtotext/transcriptions:transcribe?api-version=${AZURE_FAST_TRANSCRIPTION_API_VERSION}`,
-      { method: "POST", headers: authHeaders, body: form, signal },
+      request,
     );
   } catch (error) {
     if (signal.aborted) throw error;
@@ -296,7 +452,9 @@ async function postTranscription({ endpoint, authHeaders, input, audio, definiti
 }
 
 export function createAzureFastTranscriptionAdapter(options = {}) {
-  if (typeof options.resolveInput !== "function") throw adapterError("azure_asr_input_resolver_missing");
+  if (typeof options.resolveInput !== "function" && typeof options.withInputFile !== "function") {
+    throw adapterError("azure_asr_input_resolver_missing");
+  }
   if (typeof (options.fetchImpl || globalThis.fetch) !== "function" || typeof FormData !== "function" || typeof Blob !== "function") {
     throw adapterError("azure_asr_runtime_unsupported");
   }
@@ -310,6 +468,13 @@ export function createAzureFastTranscriptionAdapter(options = {}) {
   );
   const maxResponseBytes = boundedInteger(options.maxResponseBytes, DEFAULT_MAX_RESPONSE_BYTES, 1_024, 64 * 1024 * 1024);
   const timeoutMs = boundedInteger(options.timeoutMs, DEFAULT_TIMEOUT_MS, 10, 15 * 60_000);
+  const io = Object.freeze({
+    statFile: options.statFile || statFile,
+    createFileStream: options.createFileStream || createReadStream,
+  });
+  if (typeof io.statFile !== "function" || typeof io.createFileStream !== "function") {
+    throw adapterError("azure_asr_runtime_unsupported");
+  }
   const maxSpeakers = options.diarizationMaxSpeakers == null
     ? null
     : boundedInteger(options.diarizationMaxSpeakers, null, 2, 35);
@@ -330,6 +495,7 @@ export function createAzureFastTranscriptionAdapter(options = {}) {
       }
       if (typeof billing?.beforeProviderRequest !== "function") throw adapterError("azure_asr_budget_hook_required");
       const segments = [];
+      const transport = [];
       let audioMs = 0;
       for (const input of inputs) {
         if (!Number.isInteger(input?.duration_ms) || input.duration_ms < 1 ||
@@ -338,13 +504,56 @@ export function createAzureFastTranscriptionAdapter(options = {}) {
         }
         const deadline = operationDeadline(signal, timeoutMs);
         try {
-          const audio = await resolvePrivateInput(options.resolveInput, source, input, maxInputBytes, deadline.signal);
-          const authHeaders = await getAuthHeaders(deadline.signal);
-          segments.push(...await postTranscription({
-            endpoint, authHeaders, input, audio, definition,
-            fetchImpl, maxResponseBytes, signal: deadline.signal,
-            beforeProviderRequest: billing.beforeProviderRequest,
-          }));
+          const run = async (audio) => {
+            const authHeaders = await getAuthHeaders(deadline.signal);
+            segments.push(...await postTranscription({
+              endpoint, authHeaders, input, audio, definition,
+              fetchImpl, maxResponseBytes, signal: deadline.signal,
+              beforeProviderRequest: billing.beforeProviderRequest,
+              createFileStream: io.createFileStream,
+            }));
+            transport.push(Object.freeze({
+              source_sha256: assertSha256(input.sha256, "Azure ASR input sha256"),
+              transport_sha256: assertSha256(audio.sha256, "Azure ASR transport sha256"),
+              transform: audio.transform,
+              byte_size: audio.byteSize,
+              mime: audio.mime,
+            }));
+          };
+          if (typeof options.withInputFile === "function") {
+            try {
+              await options.withInputFile({ source, input, signal: deadline.signal }, async (file) => {
+                const original = await resolvePrivateInputFile(
+                  file, input, AZURE_FAST_TRANSCRIPTION_MAX_BYTES * 4, deadline.signal, io,
+                );
+                if (original.byteSize <= maxInputBytes) {
+                  await run(original);
+                  return;
+                }
+                if (typeof options.prepareInputFile !== "function") {
+                  throw adapterError("azure_asr_input_size_invalid");
+                }
+                await options.prepareInputFile({
+                  source, input, file: original, signal: deadline.signal, maxBytes: maxInputBytes,
+                }, async (prepared) => {
+                  await run(await resolvePrivateInputFile(
+                    prepared, input, maxInputBytes, deadline.signal, io, true,
+                  ));
+                });
+              });
+            } catch (error) {
+              if (error instanceof ProcessingAdapterError || deadline.signal.aborted) throw error;
+              if (error?.code === "azure_asr_prepare_tool_unavailable") {
+                throw adapterError("azure_asr_input_unavailable", true);
+              }
+              if (/^azure_asr_[a-z0-9_]+$/.test(String(error?.code || ""))) {
+                throw adapterError(String(error.code), error.retryable === true);
+              }
+              throw adapterError("azure_asr_input_unavailable", true);
+            }
+          } else {
+            await run(await resolvePrivateInput(options.resolveInput, source, input, maxInputBytes, deadline.signal));
+          }
           // Azure Speech-to-text is billed per second. Each input is a
           // separate request, so round each request upward independently.
           audioMs += Math.ceil(input.duration_ms / 1_000) * 1_000;
@@ -357,7 +566,11 @@ export function createAzureFastTranscriptionAdapter(options = {}) {
           deadline.cleanup();
         }
       }
-      return Object.freeze({ segments: Object.freeze(segments), usage: Object.freeze({ audio_ms: audioMs }) });
+      return Object.freeze({
+        segments: Object.freeze(segments),
+        usage: Object.freeze({ audio_ms: audioMs }),
+        transport: Object.freeze(transport),
+      });
     },
   });
 }

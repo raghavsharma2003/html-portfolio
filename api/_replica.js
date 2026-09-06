@@ -21,6 +21,14 @@ export function replicaId(value) {
   return id;
 }
 
+export function clientIntentId(value, code = "valid_intent_id_required") {
+  const id = String(value || "").trim();
+  if (!UUID.test(id)) {
+    throw Object.assign(new Error(code), { status: 400, code });
+  }
+  return id;
+}
+
 export function replicaDisplayName(value) {
   const name = Array.from(String(value || ""))
     .filter((character) => {
@@ -90,26 +98,18 @@ export function clientReplica(row) {
   };
 }
 
-const RETURNING = `replica_id, display_name, subject_mode, lifecycle, policy_version,
+const RETURNING = `replica_id, display_name, subject_mode, lifecycle, policy_version, creation_intent_id,
   age_verified_at, identity_verified_at, liveness_verified_at, identity_expires_at, locale, created_at, updated_at`;
+const EXISTING_SELECT = `existing.replica_id, existing.display_name, existing.subject_mode,
+  existing.lifecycle, existing.policy_version, existing.creation_intent_id, existing.age_verified_at,
+  existing.identity_verified_at, existing.liveness_verified_at, existing.identity_expires_at,
+  existing.locale, existing.created_at, existing.updated_at`;
 
-/**
- * `options.invitesRequired` (`INVITES_REQUIRED=1`, read by the HTTP layer,
- * api/replica.js, never here - the thin-handler law) and `options.inviteCode`
- * (raw, hashed below before it ever reaches SQL) implement WS-R23's front
- * door: replica creation requires a valid, unredeemed, unexpired invite for
- * the signing-in account, OR an account that already owns a replica. The
- * predicate lives INSIDE the same statement that creates the replica, as a
- * CTE that redeems the invite (an UPDATE, guarded so a redeemed or expired
- * code matches zero rows) and only then permits the INSERT to run - not a JS
- * check before or after it, which is exactly the shape a race could slip
- * through. When `invitesRequired` is false the gate CTE is unconditionally
- * true and every statement below runs byte-identically to before this
- * workstream, so an existing test account with `INVITES_REQUIRED` unset is
- * unaffected.
- */
-export async function createSelfReplica(db, ownerUserId, displayName, options = {}) {
+export async function createSelfReplicaWithIntent(db, ownerUserId, displayName, creationIntentId, options = {}) {
   const name = replicaDisplayName(displayName);
+  const intentId = creationIntentId == null || creationIntentId === ""
+    ? null
+    : clientIntentId(creationIntentId, "valid_creation_intent_id_required");
   const invitesRequired = Boolean(options.invitesRequired);
   const rawCode = typeof options.inviteCode === "string" ? options.inviteCode.trim() : "";
   if (invitesRequired && !rawCode) {
@@ -167,30 +167,50 @@ export async function createSelfReplica(db, ownerUserId, displayName, options = 
        end as ok
      ), replica as (
        insert into vy_replica
-         (owner_user_id, subject_person_id, display_name, subject_mode, lifecycle, policy_version)
-       select $1::uuid, person_id, $2, 'self', 'consent_pending', $3
+         (owner_user_id, subject_person_id, display_name, subject_mode, lifecycle, policy_version,
+          creation_intent_id)
+       select $1::uuid, person_id, $2, 'self', 'consent_pending', $3, $6::uuid
          from account_bridge, gate
         where gate.ok
+       on conflict (owner_user_id, creation_intent_id)
+         where creation_intent_id is not null do nothing
        returning ${RETURNING}
+     ), resolved as (
+       select replica.*,true created from replica
+       union all
+       select ${EXISTING_SELECT},false created
+         from vy_replica existing, owner_lock
+        where $6::uuid is not null and existing.owner_user_id=$1::uuid
+          and existing.creation_intent_id=$6::uuid
+          and not exists (select 1 from replica)
+       limit 1
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
        select replica_id, $1::uuid, 'replica.create', 'replica', replica_id::text, $3, 'allowed', '{}'::jsonb
          from replica
      )
-     select * from replica`,
-    [ownerUserId, name, REPLICA_POLICY_VERSION, codeHash, invitesRequired],
+     select * from resolved`,
+    [ownerUserId, name, REPLICA_POLICY_VERSION, codeHash, invitesRequired, intentId],
   );
-  if (!rows[0]) {
-    // Reached only when invitesRequired and the gate refused: a code was
-    // offered (or the pre-check above would already have thrown
-    // invite_required) and it did not redeem - wrong, already spent, or
-    // expired. The CTE does not distinguish those from each other, on
-    // purpose: telling a stranger WHY a specific code failed is more
-    // information than a front door should hand back.
+  if (!rows[0] && invitesRequired) {
     throw Object.assign(new Error("invite_invalid"), { status: 403, code: "invite_invalid" });
   }
-  return clientReplica(rows[0]);
+  if (!rows[0]) {
+    throw Object.assign(new Error("replica_creation_intent_conflict"), {
+      status: 409,
+      code: "replica_creation_intent_conflict",
+    });
+  }
+  return Object.freeze({
+    replica: clientReplica(rows[0]),
+    creation_intent_id: rows[0].creation_intent_id || null,
+    replayed: !rows[0].created,
+  });
+}
+
+export async function createSelfReplica(db, ownerUserId, displayName, options = {}) {
+  return (await createSelfReplicaWithIntent(db, ownerUserId, displayName, null, options)).replica;
 }
 
 export async function listOwnedReplicas(db, ownerUserId) {

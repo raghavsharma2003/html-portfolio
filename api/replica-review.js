@@ -3,6 +3,7 @@ import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { ownedReviewStatus, decideOwnedEvidence, getOwnedArtifactAudition, queueOwnedVoiceGenome, selectOwnedVoiceArtifact } from "./_replica-review.js";
 import { createSignedReplicaRead } from "./_replica-storage.js";
+import { requestOwnedVoiceGenomeBuild } from "./_replica-build-intent.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -50,6 +51,14 @@ export default async function handler(req, res) {
     if (body.op === "queue_voice_genome") {
       const build = await queueOwnedVoiceGenome(q, user.id, body.replica_id);
       return build ? res.status(201).json({ build }) : res.status(404).json({ error: "replica_not_found" });
+    }
+    if (body.op === "request_voice_genome_build") {
+      const intent = await requestOwnedVoiceGenomeBuild(q, user.id, body);
+      if (!intent) return res.status(404).json({ error: "replica_not_found" });
+      if (intent.state === "failed") {
+        return res.status(409).json({ error: intent.last_error_code || "voice_genome_build_failed", build_intent: intent });
+      }
+      return res.status(intent.state === "review" ? 200 : 202).json({ build_intent: intent });
     }
     return res.status(400).json({ error: "unknown_op" });
   } catch (error) {

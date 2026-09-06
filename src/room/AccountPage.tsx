@@ -15,7 +15,7 @@
  * reach it.
  */
 import { useCallback, useEffect, useState } from "react";
-import type { StudioSession } from "../studio/types";
+import type { StudioSession } from "../creatorStudio/types";
 import type { RoomCopy, RoomLocale } from "./copy";
 import { LocalizedName, LocalizedDisclosure } from "./Localized";
 import { withPrice, withDuration, dormancyDurationLabel } from "./copy";

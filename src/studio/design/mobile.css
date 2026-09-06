@@ -81,8 +81,23 @@
       height: calc(52px + env(safe-area-inset-top));
     }
     .studio-logo .mark { width: 26px; height: 26px; }
+    .studio-logo {
+      min-height: 44px;
+      min-width: 44px;
+      padding: 9px 0;
+    }
     .studio-logo strong { font-size: var(--text-small); letter-spacing: 0.1em; }
     .studio-logo small { display: none; }
+
+    /* The Meet screen is part of the same phone journey as enrollment. Its
+     * two tabs used line-height plus 10px padding and measured only 35px high
+     * on the authenticated production page. Keep the visible control itself,
+     * not surrounding whitespace, at the touch-target floor. */
+    .mirror-tabs button {
+      min-height: 44px;
+      min-width: 44px;
+      padding-block: 12px;
+    }
 
     /* 44pt is the floor and it is REAL hit area, not a painted box: the
      * padding is what the finger lands on. A 10px-tall "Sign out" with 44px of
@@ -121,7 +136,9 @@
 
     .compact-rail-steps {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      /* Self-test has two steps; production has three. Auto-fit prevents the
+       * removed Deploy step from leaving a dead third column on a phone. */
+      grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
       gap: 4px;
       margin: 0;
       padding: 3px;
@@ -517,6 +534,9 @@
     .studio-shell input,
     .studio-shell textarea,
     .studio-shell select { font-size: 16px; }
+    .studio-shell input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]) {
+      min-height: 44px;
+    }
     .studio-shell .field { min-height: 48px; }
 
     /* Wide content scrolls inside its own box. The page body must never scroll

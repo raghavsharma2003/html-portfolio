@@ -582,8 +582,8 @@ ok("the server half is off by default and reads exactly one variable",
 
 const handler = readFileSync(join(ROOT, "api/replica-voice-identity.js"), "utf8");
 const sweepEndpoint = readFileSync(join(ROOT, "api/replica-voice-identity-sweep.js"), "utf8");
-const studio = readFileSync(join(ROOT, "src/studio/VoiceIdentityChallenge.tsx"), "utf8");
-const app = readFileSync(join(ROOT, "src/studio/StudioApp.tsx"), "utf8");
+const studio = readFileSync(join(ROOT, "src/creatorStudio/VoiceIdentityChallenge.tsx"), "utf8");
+const app = readFileSync(join(ROOT, "src/creatorStudio/StudioApp.tsx"), "utf8");
 const vercel = JSON.parse(readFileSync(join(ROOT, "vercel.json"), "utf8"));
 ok("an unflagged deployment cannot reach the endpoint at all",
   /voiceIdentityChallengeEnabled\(\)/.test(handler) && /not_found/.test(handler));
@@ -600,7 +600,7 @@ ok("the studio band is behind its own flag and replaces the Azure cards rather t
 ok("the studio panel holds no audio graph and reuses wavCapture's tap and encoder",
   /from "\.\/wavCapture"/.test(studio) && /openStreamWavTap/.test(studio) &&
   !/new\s+AudioContext/.test(studio) && !/function encodeWav\b/.test(studio));
-const wavCapture = readFileSync(join(ROOT, "src/studio/wavCapture.ts"), "utf8");
+const wavCapture = readFileSync(join(ROOT, "src/creatorStudio/wavCapture.ts"), "utf8");
 ok("the shared tap keeps its processing graph silent, the same proof the other two carry",
   /export function openStreamWavTap/.test(wavCapture) &&
   (wavCapture.match(/silent\.gain\.value\s*=\s*0/g) || []).length >= 2);

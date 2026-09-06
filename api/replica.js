@@ -12,6 +12,7 @@ import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import {
   createSelfReplica,
+  createSelfReplicaWithIntent,
   getOwnedReplica,
   listOwnedReplicas,
   requestOwnedReplicaErasure,
@@ -68,13 +69,21 @@ async function handler(req, res) {
     // WS-R89: the one shared cap every POST door checks first.
     if (bodyTooLarge(body, ROOM_DOOR_BODY_CAP_BYTES)) return res.status(413).json({ error: "body_too_large" });
     if (body.op === "create") {
-      // WS-R23 (migration 086): INVITES_REQUIRED is read here, the HTTP
-      // layer, and passed down as an explicit option so createSelfReplica
-      // stays reachable with a fake db and no env mutation in its evals.
-      const replica = await createSelfReplica(q, user.id, body.display_name, {
+      const createOptions = {
         invitesRequired: process.env.INVITES_REQUIRED === "1",
         inviteCode: body.invite_code,
-      });
+      };
+      if (body.creation_intent_id) {
+        const result = await createSelfReplicaWithIntent(
+          q,
+          user.id,
+          body.display_name,
+          body.creation_intent_id,
+          createOptions,
+        );
+        return res.status(result.replayed ? 200 : 201).json(result);
+      }
+      const replica = await createSelfReplica(q, user.id, body.display_name, createOptions);
       return res.status(201).json({ replica });
     }
     if (body.op === "revoke") {

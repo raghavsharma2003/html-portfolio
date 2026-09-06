@@ -242,9 +242,10 @@ export async function createProviderConsentSource(db, ownerUserId, id, consent, 
      ), inserted as (
        insert into vy_replica_source
          (source_id,replica_id,owner_user_id,consent_id,kind,capture_mode,storage_bucket,
-          object_path,mime,byte_size,duration_ms,sha256,contains_third_parties,provenance)
+           object_path,mime,byte_size,duration_ms,sha256,contains_third_parties,provenance,
+           upload_authorization_expires_at)
        select $4::uuid,challenge.replica_id,$2::uuid,capture.consent_id,'audio','provider_consent',$5,
-              $6,$7,$8::int8,$9::int8,$10,false,$11::jsonb from challenge cross join capture cross join gates
+               $6,$7,$8::int8,$9::int8,$10,false,$11::jsonb,null from challenge cross join capture cross join gates
        returning ${SOURCE_RETURNING}
      ), attached as (
        update vy_replica_provider_consent pc set source_id=inserted.source_id,updated_at=now()

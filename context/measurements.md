@@ -14682,3 +14682,1400 @@ Follow-up on the same date: n=1 Windows full release run with explicit installed
 After preserving the fake provider price witness and repairing Windows URL conversion, n=1 targeted rerun each: suites-self-serve 70/0, handoff 40/0, day-one zero failing. First-room reran 33/0 after adding stderr diagnostics only; the original transient failure is not explained by that diagnostic change. A complete registry rerun is required before treating these targeted results as aggregate evidence. None of these runs used a live database or paid model/provider.
 
 The complete four-worker registry rerun at 35f21efb failed only firstroom; all other registered suites passed. Its new diagnostic captured exit 3221226505 and `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\\win\\async.c, line 76` in the CLI child. After replacing only the final forced exit with process.exitCode, n=5 consecutive complete first-room runs passed 33 checks each (165/165), including happy path, refusals and empty-body negative controls. This is local Windows Node 24.13.0 evidence, not a proof that no runtime shutdown failure can recur.
+## `studio-owner-journey-responsive-local-2026-08-28` — focused clone status and one-link video metadata pass local executable and browser checks (2026-08-28)
+
+- **n / method:** one real `StudioApp` layout fixture at 1440x1000 desktop,
+  390x844 phone, and 844x390 landscape; scenarios `empty`, `processing`, and
+  `voice-ready`; controlled in the in-app browser against the local Vite
+  server. Measured document scroll width equalled client width at all three
+  sizes. No visible button was below 44 CSS px after the final pass.
+- **Status truth:** the processing fixture rendered setup progress 33% from
+  one of three completed setup facts and current-work progress 63% from the
+  job's real 5/8 counters. The no-source fixture rendered 0%. No interval,
+  remaining-time guess, or quality percentage exists in the new status path.
+- **Lineage:** the voice-ready fixture displayed Voice draft v2, one bounded
+  source ID, its 10-second selected reference, source type/date, and a working
+  Manage sources action. The review response exposes no storage locator or
+  transcript content.
+- **Lifecycle actions:** the local browser reached the explicit DELETE dialog
+  from the first viewport and reached the create-new-workspace screen without
+  erasing the existing clone. Test UI displays Building/Ready to test rather
+  than the production consent lifecycle label.
+- **YouTube metadata:** `evals/videoenroll.mjs` passed 84 checks, including a
+  validated-id oEmbed URL, valid title/channel response, invalid channel
+  refusal, and 404 refusal. The browser one-link fixture displayed the found
+  video and channel with no second channel field in the immediate video form,
+  then offered file upload because live extraction is unconfigured.
+- **Focused gates:** TypeScript build; replica review 37/37; self-test UI all
+  checks; voice preview UI 10/10; scoped lint and diff checks passed before the
+  final release phase.
+- **Limit:** this is local product-flow and contract evidence, not a successful
+  live YouTube audio extraction and not a voice-quality result.
+- **Release and live readback:** `node scripts/verify-release.mjs` passed all
+  16 checks, including the 850,141 ms broad eval and both live relational
+  gates. Vercel production deployment `5K3iACm9xeKrxqRc2KCi1r57qmUT` reached
+  Ready and aliased `vyakti-replica-lab.vercel.app`. An authenticated owner
+  readback showed 100% setup for the ready clone, visible start-new/delete
+  actions, Voice draft v1 bound to one source and its 10-second reference, and
+  no `consent pending` test label. A live one-link metadata request resolved a
+  real YouTube title/channel, hid the second channel field, and offered file
+  upload because extraction remained unconfigured.
+
+## `production-front-end-lecture-clone-journey-2026-08-28` — the real owner UI reaches protected replay but cold-start recovery needs two manual retries (2026-08-28)
+
+- **n / method:** one authenticated production browser journey at
+  `vyakti-replica-lab.vercel.app`, driven only through visible Studio controls,
+  using the existing `Hinglish Lecture Test` whose two 251 MiB source rows
+  correspond to the supplied 262,879,879-byte lecture.
+- **Source and build:** Source `1ECB89` showed Ready and 8/8 processing steps;
+  duplicate Source `B9AA12` showed Stopped at 3/8 with `Voice evidence not
+  ready`. Setup showed 100%. Voice draft v1 named Source `1ECB89` and a
+  10-second selected reference.
+- **Preview:** the first Hinglish request stopped after about one minute with
+  `open voice runtime warming`. One manual retry entered automatic checks but
+  returned the same terminal error. A second manual retry completed the cold
+  start, rendered a 7.92-second protected clip, and showed receipt prefix
+  `bf61f537`, model commitment prefix `b66dbbe202`, and 15 reviewed Hindi
+  pronunciation changes.
+- **Replay:** the native audio control loaded at readyState 4, playback moved
+  from 0 to 7.92 seconds, and finished with `ended=true`, `paused=true`.
+- **Journey verdict:** source upload history, setup progress, lineage,
+  generation state and replay are understandable. The cold-start experience
+  is not yet acceptable because a user must press `Try again` twice before the
+  successful automatic cycle. This is one run and not a voice-likeness or
+  naturalness result.
+
+## `guided-voice-capture-local-2026-08-28`
+
+**Measured 2026-08-28, n=1 real StudioApp loopback fixture, n=1 deterministic
+local microphone stream, n=1 completed Hinglish recording, n=1 review, n=1
+queue admission, desktop plus 390 by 844 phone viewport.** Microphone
+initialization occurred only after Start recording. The live state exposed a
+timer, real sample level and 30-second target. Stop and review produced a 24
+kHz WAV. Use this recording created a timestamped
+`vyakti-hinglish-voice-*.wav`; the existing selected-file queue showed its
+duration, Hinglish label and enabled private-upload action.
+
+Phone document scroll width and client width were both 375 CSS pixels. Browser
+console and warning logs were empty. All three language controls and primary
+actions were at least 44 CSS pixels high. `quickvoicecapture` passed 10 of 10
+checks with an eager-microphone negative control. `studioselftestui`,
+`replicaenrollment`, TypeScript, copy and targeted lint passed in the same
+source state. This fixture proves browser capture, PCM/WAV handling, cleanup,
+review and queue integration. It is not a live production upload, model run,
+speaker-similarity result, or proof that the selected reference is optimal.
+
+## `primary-voice-pointer-local-and-live-schema-2026-08-29`
+
+**Measured 2026-08-29.** In one real Studio loopback browser session, two
+separate Hinglish recordings cleared the 12-second minimum, reviewed locally,
+uploaded through the real create/PUT/finalize UI sequence and reached the
+processing state without a blank page. The first recording was auto-starred
+after finalize. The second recording then became primary and the first became
+supporting. An explicit "Use for voice" action switched the star back. At every
+point the ledger showed exactly one "Primary voice" badge and retained both
+sources.
+
+Migration 066 applied live as three independently repeatable Neon requests.
+Readback found its primary key, unique source constraint, and both owner and
+source `ON DELETE CASCADE` foreign keys. Its selected-artifact backfill created
+four existing replica pointers; two of those pointers cover the two owner test
+projects repaired from the 38-percent processing failure. Focused gates were
+13/13 primary-source checks, 12/12 browser-capture checks, the full enrollment
+suite, OpenVoice 64/64, TypeScript and targeted lint. This is selection and
+journey evidence, not a speaker-likeness result.
+
+## `azure-fast-transcription-long-source-repair-2026-08-29`
+
+**Measured 2026-08-29, n=3 live source jobs across two owner test replicas.**
+The sources were 351,480 ms, 377,928 ms and 377,928 ms. After the exact worker
+adapter accepted Azure's structurally empty sentinel phrase and derived spans
+only from positive word evidence, all three transcription jobs completed, all
+three voice-quality jobs completed on their first attempt, and all three source
+rows reached `ready` with empty rejection and failure codes. The two replicas
+then held draft VoiceGenome builds in review.
+
+Azure provider-budget readback was 332,400 micro-USD spent and zero reserved,
+or USD 0.3324 settled for the worker attempts. A direct adapter check against
+the exact 6 minute 18 second WAV produced 19 spans and 738 words without
+printing transcript content. This cost is the internal reservation ledger, not
+an ingested Azure invoice.
+
+## `primary-recording-production-journey-2026-08-29`
+
+**Measured 2026-08-29, n=1 authenticated production desktop journey, n=1
+375-CSS-pixel phone viewport, n=1 real scale-to-zero protected Hinglish
+preview.** Vercel deployment `GRxpUwY83thixTLhChXyFEjnhZCR` reached Ready and
+aliased `vyakti-replica-lab.vercel.app`. The signed-in Studio showed the guided
+12-to-60-second recorder first, retained file/audio/video/document/context
+options, and identified one exact primary source plus its selected 10-second
+voice reference. The phone source screen had document scroll width 375 and
+client width 375, zero visible sub-44-pixel controls, and no console warnings
+or errors.
+
+The first post-deploy request proved the previous defect: the signed broker
+code `open_voice_runtime_warming` rendered as terminal Preview stopped. After
+the bounded classifier fix and redeploy, the identical path stayed on Warming
+up and completed automatic checks without a user click. Ready was first
+observed 418 seconds after the click, outside the displayed 120-to-300-second
+estimate. The measured result moved the server and Studio range to 120-to-480
+seconds and expanded the automatic client retry budget to the same 480-second
+ceiling; the former five-minute ceiling is now an executable negative control.
+It then exposed a nine-second WAV, receipt prefix `d45d9285`, model
+commitment prefix `b66dbbe202`, and 15 reviewed Hindi pronunciation changes.
+Native playback advanced and completed at 0:09 of 0:09. This proves delivery,
+receipt rendering, playback and retry recovery. It does not prove likeness,
+naturalness, a one-to-five-minute cold start, or a winner over another model.
+
+## `production-meet-phone-target-audit-2026-08-29`
+
+**Measured 2026-08-29, n=1 authenticated production Meet page at a 390 by 844
+viewport.** The page measured inner width 390, document client width 375 and
+document scroll width 375, so there was no horizontal overflow. The final
+deployment showed the corrected two-to-eight-minute cold-start copy. A
+whole-page interactive-element scan found the logo at 26 pixels high and the
+Mirror Call tabs at 35 pixels high; the transparent file input was excluded
+because its visible 48-pixel label is the real control. The final mobile CSS
+gives the logo and both tabs a 44-pixel minimum, and the focused Meet UI suite
+passes 12/12 including the old 35-pixel negative control. After deployment
+`dpl_Fe1PSBYbASm7JRz1eNYurJvZfjKM`, the same authenticated 390 by 844 page
+remeasured 375 client and scroll width, showed the two-to-eight-minute copy and
+the exact primary-source lineage, and returned zero visible opaque interactive
+elements below 44 pixels.
+
+## `vercel-self-test-backend-flags-empty-2026-08-29`
+
+**Measured 2026-08-29, n=1 production environment read before correction,
+n=1 read after correction, n=24 active self replicas, n=1 exact upload
+authorization canary, and n=1 Azure worker execution.** A production
+`vercel env pull` showed both Vite
+test markers populated, while `REPLICA_SELF_TEST_MODE`,
+`REPLICA_SELF_TEST_ENVIRONMENT`, and `REPLICA_SELF_TEST_OWNER_USER_ID` were
+empty. That exact split made the browser say Internal test workspace while the
+upload API skipped its bootstrap and returned
+`capture_and_storage_consent_required`. After replacing the three backend
+settings with exact non-sensitive values, a second production read returned
+`true`, `internal-owner-testing`, and `all-authenticated`.
+
+The all-account bootstrap then evaluated every active self replica through the
+production function: 24 of 24 applied, 118 missing scope rows were inserted,
+and the live readback found all 24 fully granted. An exact one-byte private
+source authorization canary on the signed-in `Ashutosh 2` replica entered
+`pending_upload` without the consent error and was immediately moved to
+`deleting`; no blob was uploaded. Vercel deployment
+`GbibmXP1QeSgoiPYj2NuYZLdVkbr` reached Ready on
+`vyakti-replica-lab.vercel.app`. Remote ACR run `cu2n` produced worker digest
+`sha256:2776f1d8e866011afd7de55eb6d1a5010105dc44fa7dd334047776e451528c23`,
+and manual job execution `vyakti-replica-processing-wdb1znv` pulled that exact
+digest and succeeded in 25 seconds. A final authenticated production browser
+reload exposed recording and file intake with no consent ceremony or consent
+error. Focused guard checks pass 25/25. No local Docker was used.
+
+## `fd4006-processing-recovery-2026-08-29`
+
+**Measured 2026-08-29, n=1 production browser recording, n=2 failed scheduled
+executions, n=1 remote image build, n=2 recovery executions.** The signed-in
+`Me` replica's 1,978,412-byte, 41,216-millisecond Hinglish source `FD4006`
+finalized successfully but remained `quarantined` at `integrity/queued`, attempt
+zero. Scheduled executions at 22:10Z and 22:15Z failed before leasing it. The
+surviving 22:15Z replica log contained exactly
+`{"error":"clamd_exited_during_startup"}`; its processor exited 1.
+
+The Windows source copy contained carriage-return line endings in
+`clamd.conf`, while the image normalized only `freshclam.conf`. Focused worker
+checks passed 37/37 after the second path was added. Remote ACR run `cu2p`
+succeeded in 98.727 seconds and produced immutable worker digest
+`sha256:dc8829be70c6c8aa8fdf53460aec8a1725d7897ed4f095c7a79a7a3207bee4bd`.
+The job readback preserved 21 environment bindings, seven secret bindings and
+the five-minute schedule. Recovery executions `y0vefkv` and `ptxtqbg` pulled
+that exact digest and both succeeded. All eight source steps completed on
+their first attempt with empty failure codes; the source reached `ready` at
+22:28:47Z. VoiceGenome build v1 then reached `review` with a draft genome and
+no failure code at 22:31:27Z. The four following scheduled executions at
+22:30Z, 22:35Z, 22:40Z and 22:45Z also pulled the corrected digest and
+succeeded. The final release runner passed all 16 gates, including the live
+relational checks. This is processing and build-delivery evidence, not a
+voice-likeness result. No local Docker was used.
+
+## `pipeline-reliability-live-release-2026-08-29`
+
+**Measured 2026-08-29, n=1 remote worker build, n=1 deployment, n=1 bounded
+manual recovery execution, n=1 retired-draft replica and n=1 live alert.** ACR
+run `cu2r` succeeded in 95.4 seconds and produced immutable worker digest
+`sha256:605b8921b675ce4307fdb75c08b4948da6ebba69ef4cb81c6caa30d757cb62b0`.
+Live readback preserved 21 environment bindings, seven configured secrets, the
+3,300,000-millisecond run budget and 3,600-second timeout while changing the
+schedule from five to two minutes, container startup retry from zero to one,
+and jobs per run from four to twelve. Manual execution
+`vyakti-replica-processing-bm3hbuz` succeeded from 23:27:01Z to 23:33:48Z.
+
+The `Ashutosh 2` replica had only retired build v1 before this release. The
+level-triggered reconciliation created v2 and brought it to `review` with an
+empty failure code at 23:28:20Z without a new upload or owner action. At
+readback there were zero overdue jobs. One older 262,879,879-byte lecture had
+instead reached a new, separately diagnosed Azure transcription input
+boundary; its retry was paused before attempt exhaustion and is not counted as
+repaired by this measurement.
+
+Azure action group `vyakti-replica-ops` is enabled with the owner's email, and
+severity-one metric alert `vyakti-replica-processing-execution-failed` is
+enabled on failed Container Apps Job executions at a five-minute evaluation
+frequency. Focused worker, queue, recovery, model-build, activity and watchdog
+gates passed; the release runner passed all 16 checks. No local Docker was
+used. This proves scheduling and recovery delivery, not voice quality.
+
+## `voice-preview-stale-warmth-baseline-2026-08-29`
+
+**Measured 2026-08-29, n=1 authenticated production Hinglish preview from a
+zero-replica start.** Generation authorization began at 22:56:55.712Z. The
+private runtime completed application startup at 22:59:14.500Z, 138.788
+seconds later, but the next synthesis was not authorized until 23:05:38.273Z.
+The protected generation sealed at 23:06:43.305Z, 587.593 seconds after the
+first authorization. Thus the runtime was already ready for 383.773 seconds
+while independent Vercel processes continued returning local warming state.
+The browser ultimately rendered a playable seven-second protected WAV with
+receipt, model commitment and pronunciation plan.
+
+Remote ACR run `cu2q` then produced admission-broker digest
+`sha256:30fd5c6157db558c1a2fcf0d24f3f2ffe7d24a374966c688efa7379628212f5c`,
+which is live with min replicas zero and max replicas two. The private runtime
+remained on digest
+`sha256:625edc223f7063e744d6463dd7443daeaa7097552997a7a4e47c99888cfa86d8`
+with external ingress false. This measurement establishes the old latency and
+the broker deployment; it does not yet claim the post-web-deploy latency or
+speaker likeness.
+
+## `long-source-private-asr-recovery-live-2026-08-29`
+
+**Measured 2026-08-29, n=1 exact production source, n=4 transcription
+attempts, n=1 successful paid provider call.** Source `B9AA12` is the owner's
+duplicate of the supplied 262,879,879-byte, 6,571,992-millisecond lecture.
+Attempts one through three stopped before a provider result while the
+large-input transport was absent. A mistaken operator recovery reset exposed a
+released-reservation collision on attempt one; no duplicate paid result was
+accepted. The corrected monotonic recovery leased attempt four at 00:08:58Z,
+settled transcription at 00:11:14Z, completed voice quality at 00:14:04Z, and
+left the source `ready` with all eight jobs complete and empty failure codes.
+Manual execution `vyakti-replica-processing-pxdbpu4` succeeded at 00:14:24Z.
+
+ACR run `cu2t` produced immutable worker digest
+`sha256:61b43aa71be78bf8ae1be412b4e1b056a89bb3021ea6434085a57434a14f990d`.
+The live job readback preserved the two-minute schedule, retry limit one,
+3,600-second timeout, 3,300,000-millisecond run budget, twelve jobs per run,
+21 environment bindings and seven secret bindings. The completion receipt
+binds original SHA `632c30c9...9df9d` to a 103,191,942-byte FLAC transport SHA
+`5ad5491c...e987e` using transform `azure-asr-flac-16k-mono-v1`; the durable
+source bytes were not replaced. The internal provider ledger settled
+6,572,000 audio milliseconds for 657,200 micro-USD, or USD 0.6572. This is the
+application budget ledger, not an ingested Azure invoice, and it is pipeline
+delivery evidence rather than transcription-accuracy or voice-likeness
+evidence.
+
+## `primary-voice-isolation-and-preview-live-2026-08-29`
+
+**Measured 2026-08-29, n=1 production replica with two ready duplicate audio
+sources, n=1 rebuilt worker, n=1 VoiceGenome build and n=1 authenticated cold
+preview.** Before the isolation fix, level-triggered self-test reconciliation
+could replace an existing valid selected enhancement with a later candidate,
+and the review/build query could admit accepted artifact-independent evidence
+from both ready sources. The aggregate exceeded 2,000 accepted evidence rows,
+so the primary star shown in Studio did not fully constrain the built voice.
+
+Remote ACR run `cu2u` produced the final worker digest
+`sha256:bc56c1cf0172ed33f6aeec2bc92bb97989a55f2a7c5cc5124b40b5f9da37b40f`.
+The live `Hinglish Lecture Test` readback then produced VoiceGenome v2 in
+`review` with an empty failure code, exactly one enrollment artifact
+`c6759c8d-1c65-53e9-a75d-a6770f769f39`, exactly one source
+`1ecb89fc-b12d-4d84-a714-ffca2d5b021c`, and 1,683 target-speaker evidence
+segments. The second ready duplicate remained supporting material and did not
+enter the voice build. The due processing queue read zero.
+
+Production Vercel deployment `dpl_GD9DMfUvSDz18rtuH52LvAFAVHLB` reached
+Ready. From a zero-replica start, the authenticated browser stayed in a
+nonterminal warming/generating state and rendered protected audio after 342
+seconds. Generation `ab5741b0-7818-43f3-9b9e-7f02bf6b3e16` sealed against
+genome v2 and the exact selected artifact with model
+`open_chatterbox_multilingual_v3`; the browser loaded the 8.72-second WAV and
+native playback completed at 8.72 of 8.72 seconds with no media error. The
+unauthenticated watchdog probe returned 401 as expected. The final release
+runner passed all 16 checks. This proves source isolation, processing,
+protected delivery and replay. It does not prove speaker likeness,
+naturalness, accent quality or a winning model. No local Docker was used.
+
+## `mirror-call-dead-path-audit-local-2026-08-29`
+
+**Measured on 2026-08-29.** The live database contained n=1 Mirror Call
+session and n=0 windows, turns, deltas, conditioning selections and fine-tune
+jobs. Static tracing found two independent dead seams: the browser sent
+multipart audio while the server required a JSON source handle, and call create
+and status read process-local warmth without waking or probing the private
+runtime. After the bounded local fix, production-shaped suites passed 120/120
+reply checks, 464 API/store checks and 67 client/state checks; the client test
+executed hash, private upload, finalize and JSON ingest. Three read-only live
+Neon EXPLAIN statements parsed at total costs 10.65, 9.48 and 16.65.
+
+**Boundary.** No deployment or real call window occurred in this measurement.
+Owner-speaker ECAPA production scoring remains absent, so voice adaptation is
+correctly blocked and no likeness or call-quality improvement is claimed.
+
+## `mirror-call-production-call-window-and-gpu-canary-2026-08-29`
+
+**Measured 2026-08-29, n=1 dedicated production account, n=1 replica, n=1
+open call session, n=1 successful 7,650-millisecond synthetic call window and
+n=1 private T4 cold start.** Vercel deployment
+`dpl_9zgrwUbGNMukFnx4gT5Tc82NWqUN` reached Ready after the final standard
+encrypted Azure Speech bindings were attached. The public Studio path created
+an owned session, authorized a signed private upload, finalized an exact
+24 kHz mono PCM16 derived source, and ingested it through the deployed Mirror
+Call endpoint. Azure Speech returned a 77-character transcript in 6,618
+milliseconds. The database settled sequence 6 as `transcribed` with provider
+`azure-speech-short`, model `azure-speech-short-v1`, purpose
+`mirror_window`, capture mode `derived`, zero ordinary processing jobs and
+zero fine-tune jobs. The ordinary source-list endpoint hid every canary call
+window.
+
+The first signed runtime status was cold/unreachable, the next was warming
+with a 480-second server estimate, and the same private T4 reached
+`live`/`warm` after 291 seconds. The session ended successfully with model
+training not connected, searchable relational memory not connected, emotion
+not measured, and voice adaptation blocked because production owner-speaker
+scoring is absent. The replica was revoked, an erasure request was created,
+and the dedicated auth user returned 404 after deletion. Both full release
+runs passed all 16 gates; the final broad eval took 613,690 milliseconds.
+
+**Boundary.** The canary audio was Windows synthetic speech, not the owner's
+microphone, and no audio was listened to. This proves deployed transport,
+ASR, isolation, truthful readiness and cleanup. It does not prove call
+naturalness, owner likeness, Hindi/Hinglish accuracy, relational learning,
+emotion understanding, expressive voice adaptation or a winning voice model.
+
+## `roman-hinglish-overflow-frontend-local-2026-08-29`
+
+**Measured locally on 2026-08-29.** One production owner attempt with a full
+280-character Roman Hinglish preview returned
+`hindi_text_frontend_too_many_language_switches` before inference. A
+production-shaped 280-character regression paragraph with alternating Hindi
+function words and English technical terms now produces one Hindi-conditioned
+synthesis segment, retains every UTF-16 transformation source span and carries
+the explicit bounded-coalescing warning in its content-addressed plan. A
+separate n=1 alternating Devanagari/Latin negative control still returns the
+named 413 refusal.
+
+The focused text frontend passed 18/18 checks, OpenVoice 70/70 and the voice
+panel 101/101. TypeScript, the user-visible copy gate and the Impeccable
+detector also passed; the detector reported zero findings for the changed error
+surface.
+
+**Boundary.** This is parser, receipt and UI-copy evidence. It does not yet
+prove a deployed preview, audible pronunciation, naturalness, owner likeness
+or a model-quality win.
+
+## `roman-hinglish-overflow-production-canary-2026-08-29`
+
+**Measured on production on 2026-08-29, n=1 protected output.** Vercel
+deployment `dpl_EZg65L18aXHLHxB5mN3pveefmqUX` reached Ready after all 16
+release checks passed. The owner-bound preview API accepted the exact
+280-character Roman Hinglish regression at the Studio limit, returned honest
+202 cold-GPU responses, then returned generation
+`16b179e9-4200-42f9-8d3b-23f2ed592cbd` as a 985,004-byte `audio/wav`. The
+response carried a valid 64-hex text-plan binding and reported 12 reviewed
+pronunciation transformations. The old language-switch refusal did not recur.
+
+**Boundary.** The browser's existing session expired during the deployment
+reload, so the terminal canary used the same owner-authenticated production API
+contract rather than claiming an authenticated browser completion. The WAV was
+not played or judged. This proves deployed parsing, cold-start progression,
+protected delivery and receipt binding, not pronunciation quality,
+naturalness, likeness or a winning model.
+
+## `short-primary-reference-fragmentation-production-2026-08-29`
+
+**Measured on production on 2026-08-29, n=2 independent authenticated
+replicas.** The `dad` primary WAV was 20,992 ms with 10,640 ms of measured
+non-overlapping speech; the `Aryan` primary WAV was 32,683 ms with 19,835 ms of
+measured non-overlapping speech. Both completed integrity, malware scan, media
+probe and diarization, then failed once at `separate` with
+`reference_window_no_candidate`. At the readback there were zero due jobs and
+zero live leases, so shared-user queue contention did not cause either stop.
+The local production-shaped eligibility function accepted exactly these two
+primary/self/no-third-party WAVs. Focused processing passed, the worker suite
+passed 40/40, the processing sweep passed 44/44, live Neon parsed the expanded
+owner-scoped source query, TypeScript passed and the full release runner passed
+all 16 gates.
+
+**Boundary.** This is failure diagnosis and pre-deploy contract evidence. At
+this checkpoint the corrected worker image had not yet been built or deployed,
+the two stopped jobs had not been requeued, and no recovered reference audio or
+voice-quality result existed.
+
+**Production recovery, same date.** Remote ACR build `cu2w` succeeded in
+109.798 seconds and produced immutable worker digest
+`sha256:ebd9fd8bdf49a7300d6cee565dfc3b729626ebeff38833d30b3f5096bd211cd6`.
+Image-only deployment preserved the two-minute schedule, parallelism one,
+twelve jobs per run, retry limit one, 3,600-second timeout, 21 environment
+bindings, six secret references and 1 CPU/2 GiB. The exact `dad` recovery
+execution succeeded in 94 seconds. A friend replaced the first `Aryan` source
+during the build; the final audit found its new 21,419 ms source had failed on
+the old image one minute before deployment, and its separately guarded
+recovery execution succeeded in 91 seconds. Both sources reached `ready` with
+8/8 complete jobs, one 10,000 ms `primary_self_capture` pass-through reference,
+an identity-preserving selected enhancement, VoiceGenome v1 `draft` and model
+build `review`. Final global readback found zero queued, retry, leased, blocked
+or failed processing jobs. No local Docker command ran.
+
+**Quality boundary.** This proves deployed completion, lineage and isolation.
+The recovered audio was not played or compared with either owner, so it does
+not prove likeness, naturalness, pronunciation or a winning voice model.
+
+## `clone-and-call-unit-economics-live-2026-08-29`
+
+**Measured 2026-08-29 from live Azure resource readback, n=2 production T4
+apps, n=1 processing Job, n=98 recent scheduled executions and n=94 bounded
+idle-shaped executions.** Both `vyakti-voice-evidence` and
+`vyakti-open-voice` use the Central India `Consumption-GPU-NC8as-T4` profile
+at 8 vCPU and 56 GiB, with min replicas zero and max replicas one. The worker
+runs every two minutes, one execution replica at a time, at 1 vCPU and 2 GiB,
+and admits up to twelve sequential processing jobs per execution. The durable
+queue read zero queued, retry, leased or failed processing jobs. In the last
+two hours, three ordinary sources were ready and three VoiceGenome builds were
+in review.
+
+The official Azure Retail Prices API returned Central India meters of USD
+0.000102 per T4 GPU-second, USD 0.000024 per active vCPU-second and USD
+0.000003 per active GiB-second. The fully active deployed T4 profile is
+therefore USD 1.6632 per hour. Azure Speech returned USD 1.00 per audio hour
+for S1 real-time speech-to-text and USD 0.36 per audio hour for Fast
+Transcription. The live Basic ACR returned USD 0.1666 per day plus USD 0.10
+per stored GB-month above its included 10 GB. Live ACR usage was
+144,368,004,482 bytes.
+
+Among 94 recent scheduled executions lasting no more than 40 seconds, mean
+wall time was 24.064 seconds, p50 24 seconds and p90 28 seconds. At 720
+executions per day, that shape costs an estimated USD 15.59 per 30-day month
+before the Container Apps monthly CPU/memory grants, or USD 10.19 if those
+grants are otherwise unused. The current ACR list estimate is about USD 18.5
+per month including overage storage. These are shared fixed Azure costs;
+Vercel, Neon and Supabase plan charges are not attributed here.
+
+**Derived unit estimates, not invoice line items.** A clean 30-second primary
+recording uses about USD 0.003 of Fast Transcription and about USD 0.009 of
+five-minute worker CPU/memory. Applying the previously measured 489 to 534
+second evidence-T4 allocation window adds USD 0.226 to USD 0.247, so one
+isolated cold short clone is budgeted at USD 0.24 to USD 0.30. Five short
+clones sharing one warm allocation are budgeted at roughly USD 0.06 to USD
+0.10 each, with queueing rather than five-way GPU parallelism. A long upload
+adds USD 0.006 per source-audio minute for Fast Transcription; the already
+measured 109.5-minute production lecture settled USD 0.6572 in the internal
+provider ledger.
+
+For a one-minute web/app conversation assumed to contain 30 seconds of user
+speech, 30 seconds of clone speech and two model replies: Azure real-time STT
+is USD 0.0083; Chatterbox at the measured warm RTF 0.79 consumes about 23.7
+T4 seconds or USD 0.0109; the current Gemini 3.6 Flash reasoning lane is about
+USD 0.0092 to USD 0.0202 for two measured cached-to-uncached turns; CPU audio
+protection and request/storage overhead stay below about USD 0.002. The warm
+marginal estimate is therefore USD 0.030 to USD 0.042 per conversation minute.
+One full minute of clone speech, rather than a half-duplex 30 seconds, consumes
+about USD 0.0219 of warm T4 synthesis before reasoning and STT.
+
+A first scale-from-zero call can additionally pay roughly USD 0.23 to USD 0.35
+of T4 allocation, consistent with measured 291 to 418 second production cold
+readiness plus cooldown. Keeping one replica always available is estimated at
+USD 1.0584 per idle-classified hour to USD 1.6632 per active hour, or about USD
+773 to USD 1,214 for 730 hours. This is why the current min-zero deployment is
+cheap while idle but is not yet an instant-answer telephony service. PSTN or
+SIP carrier charges are excluded because no carrier is connected and rates are
+destination-specific.
+
+**Boundary.** The arithmetic uses public retail meters, live resource shapes,
+recent execution walls and dated internal provider measurements. It is not an
+ingested Azure invoice, does not allocate shared free grants across products,
+and does not prove five-way latency or call quality. Actual agreement pricing,
+tax, foreign exchange, carrier charges, Vercel, Neon and Supabase plans can
+change the billed total.
+## `voice-preview-and-worker-reliability-production-2026-08-29`
+
+**Measured 2026-08-29, production read-only audit plus one bounded worker deployment.** The prior 12-hour preview ledger contained n=58 generations: n=13 sealed and n=45 marked failed. All 45 failure codes were scale-to-zero lifecycle states: 32 `open_voice_runtime_warming`, 12 `voice_preview_wake_in_flight`, and one `voice_preview_wake_dispatched`. Recent sealed outputs bound distinct selected owner-scoped 10,000 ms PCM references, so the reference wire was connected even though likeness remained unproved.
+
+Remote ACR run `cu2x` built the combined processing worker in 114.172 seconds at 2 CPU. Registry readback resolved immutable digest `sha256:1a72cbe44822743bde71893201d0b3dd046206d163dea054b82518874564ae25`, 386,937,008 compressed bytes. Image-only deployment preserved schedule `*/2 * * * *`, retry limit one, timeout 3,600 seconds, parallelism one, twelve jobs per run, 21 environment bindings, seven secret references, and 1 CPU / 2 GiB. Manual execution `vyakti-replica-processing-6d022t6` ran the exact digest and succeeded in 26 seconds. A live Neon readback found 88 complete jobs and zero jobs in every other state.
+
+The isolated Hindi admission app was updated from broker digest `sha256:3229c647...` to already-qualified digest `sha256:e6539e6975eff9dd90db570cdf735c2ad245ead8da74269d6b69d111e3cadde9`; the HMAC secret reference, private runtime origin, min replicas zero, max replicas two, and Hindi runtime digest were preserved. This removed a signed text-plan receipt mismatch; it is not a Hindi model-quality result.
+
+**Boundary.** The worker canary was idle-shaped because the durable queue was already complete. It proves the new image starts, reconciles, and exits successfully, not a fresh long-audio provider run. The selected voice references and protected clips were not listened to in this measurement.
+
+## `phonellm-official-closure-review-2026-08-29`
+
+**Measured 2026-08-29, n=1 exact public model revision and n=34 repository files, using the official Hugging Face model card and unauthenticated model API.** Revision `8e76aaa6e8ce4765ac943ba3fb339494d4d48dca` was public and ungated. The LFS closure totalled 63,174,634,906 bytes. The official card specifies English, a 30B-total and 3.5B-active hybrid Mamba-Transformer mixture-of-experts architecture, 262,144-token context, BF16 weights, `temperature=0`, thinking disabled, and vLLM or SGLang serving. The modifications are BSD-2-Clause while the underlying Nemotron work retains NVIDIA license and attribution obligations.
+
+The model card's sub-100 ms single-request TTFT and high-concurrency sub-600 ms target are reported on B200 or an optimized Modal configuration. The card lists no deployed inference provider and no Hindi or Hinglish evaluation. These are official vendor measurements, not Vyakti latency, cost, language, or quality evidence.
+
+PhoneBench Alpha 1, a separate official Pipecat source, reports PhoneLLM at 72.3%, 331 ms P50 and about 600 ms P95 time to first answer token, and an estimated USD 0.0025 per conversation minute for the LLM. Its scoring axes include telephone speaking style, tool-call accuracy, say/do consistency, factual grounding, conversation coherence, authentication discipline, escalation discipline and caller outcome. These remain vendor results.
+
+**Boundary.** No weights were downloaded, no endpoint was deployed, no GPU was scheduled, and no PhoneLLM response was generated. The executable continuous-human-clone manifest passed with eight stages, eight hard gates, nine negative controls, and 37 primary sources after the official benchmark source was added.
+
+## `continuous-human-clone-frontier-contract-2026-08-29`
+
+**Measured 2026-08-29, n=1 executable architecture manifest, using local deterministic contract checks.** The manifest passed eight ordered stages, eight hard gates, nine deliberate negative controls and 37 primary sources. It preregisters call interaction, memory, persona, expression, voice, safety/provenance and operations/status protocols. The production-shaped Mirror Call suites separately passed 120/120 reply checks, 464 API checks and 67 client/state checks.
+
+**Boundary.** These are architecture and control-flow checks. They are not a deployed always-available call, a PhoneLLM response, a human voice-quality result, a calibrated expression model, or proof that durable relational retrieval improves conversations.
+
+## `mirror-call-window-contract-local-2026-08-29`
+
+**Measured 2026-08-29, n=1 live database audit plus three production-shaped local suites.** Before the fix, the live database contained one Mirror Call session and zero windows, turns, deltas, conditioning selections or fine-tune jobs. Static tracing found that the browser sent multipart audio while the server required a finalized JSON source handle, and create/status relied on process-local warmth. After the fix, reply checks passed 120/120, API checks passed 464, and client/state checks passed 67, including an executed hash, private upload, finalize and JSON ingest journey. Live Neon `EXPLAIN` parsed the session source, window insert and end-call statements at total costs 10.65, 9.48 and 16.65.
+
+**Boundary.** The tests prove contract and SQL shape. A deployed authenticated multi-turn canary is still required. Real call windows remain unverified for voice adaptation because no production caller supplies server-side owner-speaker similarity.
+
+## `studio-owner-timing-and-auth-continuity-frontend-2026-08-29`
+
+**Measured 2026-08-29, n=5 focused frontend suites.** Journey timing passed 10/10, activity resilience 17/17, voice preview 13/13, authentication continuity 10/10 and Mirror Call 67/67. TypeScript, Vite production build and the final 16-check release runner passed. The release runner included a 466,773 ms eval suite and both live relational gates.
+
+The UI binds existing timing evidence separately: source preparation about 5 to 15 minutes after worker pickup, VoiceGenome build about 1 to 3 minutes after pickup, and preview/call cold GPU readiness about 2 to 8 minutes. It does not treat a shorter server estimate as the observed ceiling.
+
+One final in-app-browser pass mounted the real local Studio `voice-warming` fixture. After Preview, it rendered the separate 30-second next check, 2-to-5-minute server estimate, 2-to-8-minute observed cold range, useful return time and leave-or-return guidance. At a 390 by 844 viewport, document and client width were both 375 CSS pixels, every visible button was at least 44 by 44 CSS pixels, Preview remained visible, the old capture-consent error string was absent, and the browser recorded zero warning or error console entries.
+
+**Boundary.** This verifies local frontend behavior and rendered-copy contracts, not a newly measured deployment latency distribution. The current Vercel production project did not receive this release because its team ownership is unresolved.
+
+## `owner-current-reference-general-hindi-hinglish-2026-08-29`
+
+**Measured 2026-08-29, one exact owner-selected 10,000 ms reference, two fixed Hindi prompts per arm and one fixed Roman Hinglish prompt per arm, using signed protected Azure synthesis and the same 192-dimensional ECAPA evidence service.** General Chatterbox Hindi scored mean 0.858449, p10/worst 0.838685, n=2. Hindi-pack Hindi scored mean 0.832045, p10/worst 0.826045, n=2. The old general fragmented Hinglish clip lasted 25,980 ms and scored 0.433967. One-pass coalesced general Hinglish lasted 7,720 ms and scored 0.825082. One-pass Hindi-pack Hinglish lasted 9,240 ms and scored 0.826010. Every new output was HMAC-bound to the same reference and seed and had PerTh score 1.0.
+
+Azure Speech short-audio ASR made three zero-retry calls. Raw and curated script-aware WER were both 0.652174 for the old fragmented clip and 0.434783 for each coalesced clip. The equal raw/script-aware values show that the bounded alias lexicon did not remove the Roman-to-Devanagari disagreement for this prompt.
+
+The isolated Hindi image was rebuilt remotely after the first image omitted the shared Cangjie tokenizer file. Accepted ACR run `cu30` produced digest `sha256:9dc374366a6ac9c1d2569e4e824faca12321679e24941e4e345319aca8576b83`, 9,843,276,760 compressed bytes. The Hindi evaluation runtime returned to inactive zero replicas. The evidence service remains active at min zero and read back zero replicas after scoring.
+
+**Boundary.** ECAPA is a speaker-identity proxy and Azure Speech disagreement is one-provider ASR evidence. Neither measures naturalness, Indian accent, expression or human preference. No listening occurred and no cross-language winner is claimed.
+
+## `open-voice-readiness-broker-production-2026-08-29`
+
+**Measured 2026-08-29, n=1 remote ACR build, n=1 production broker deployment and n=1 signed cold-status probe.** ACR run `cu31` completed in 32.105 seconds from source-manifest SHA-256 `41c6314475de8f494a04a0835d9d506aabc4ec04b30dcdecdd326ad3e43b054e`. Production admission now runs immutable digest `sha256:b6786b4d3c99bf6731cc4d0059233f363a910c93406dfa54d3d26fbe4d47b64e`, with the prior HMAC secret reference, private runtime origin, public ingress, min replicas zero and max replicas two preserved. Health returned 200. The first authenticated `/v1/runtime-status` request returned a valid signed `ready:false` while waking the zero-replica runtime.
+
+**Boundary.** The probe verifies remote readiness truth and HMAC response integrity, not synthesis quality. It intentionally did not wait for or request audio.
+
+**Final scale audit.** Read-only Azure CLI readback after the cooldown found zero Running replicas on production general runtime and admission, isolated Hindi runtime, voice evidence, Qwen runtime and gate, VoxCPM2 runtime and gate, and IndicF5 runtime and gate. Every listed app retains `minReplicas=0`; no GPU was left warm. The isolated Hindi revision list had no active revision, while production general, production admission and evidence retained their required active scale-to-zero revisions.
+
+## `production-owner-clone-canary-2026-08-29`
+
+**Measured 2026-08-29, n=1 fresh authenticated production clone, using the deployed Vercel APIs and personal Azure services.** The canary privately uploaded one exact 480,044-byte, 10,000 ms, 24 kHz mono PCM16 WAV and selected it as the primary voice. The source advanced from quarantine through all eight durable checks to ready, and VoiceGenome v1 draft was built, in about 4 minutes 7 seconds from replica creation. No re-upload was used.
+
+The first runtime revision loaded Chatterbox and PerTh but remained outside routing after Azure reported a blank-status HTTP startup-probe failure. After the probe contract was changed to delayed TCP startup and readiness on port 8080, revision `tcp45` reported `Running`, `started=true`, `ready=true` and zero restarts. The signed broker continued to check the private application's `/healthz` before synthesis.
+
+The authenticated preview then returned HTTP 200 with a 337,964-byte, 7.04-second, 24 kHz mono PCM16 WAV. The response carried a protected generation ID, `audible-prefix-v1`, the exact 64-hex general-model commitment, a 64-hex text-plan commitment, spoken-text receipt, `model_arm=general`, and `quality_state=script_match_observed`. Focused OpenVoice checks passed 70/70 after the infrastructure change.
+
+**Boundary.** The in-app browser created the real production replica and rendered the released Studio, but browser file-chooser automation stopped before transmission. The same authenticated production endpoints were then driven directly for the private upload and preview; this does not replace a real phone microphone canary. Receipt and geometry evidence prove the deployed clone path works, not that owner likeness or naturalness is acceptable before listening.
+
+**Final validation.** The production runtime and admission broker each read back zero replicas with min replicas zero after cooldown. The final Bicep template compiled, the context graph passed at 830 nodes and 1,032 edges, OpenVoice passed 70/70, and `node scripts/verify-release.mjs` passed all 16 gates. The central eval phase took 872,253 ms and both live relational database gates passed.
+
+## `production-phone-clone-readiness-audit-2026-08-29`
+
+**Measured 2026-08-29, one live phone-width signed-out surface, one separate
+authenticated production surface, eight recent worker executions and one
+content-free live queue audit.** At a 390 by 844 viewport, the deployed sign-in
+page had document and client widths of 375 CSS pixels, two 48-pixel actions,
+the primary magic-link action and optional-code guidance. A separate live
+authenticated session rendered the Create workspace state at the same phone
+width with no horizontal overflow.
+
+The personal Azure processing Job read `Succeeded`, schedule `*/2 * * * *`,
+retry limit one, twelve jobs per run and immutable image
+`sha256:1a72cbe44822743bde71893201d0b3dd046206d163dea054b82518874564ae25`.
+Its eight most recent scheduled executions all succeeded in 21 to 25 seconds.
+The live watchdog reported zero due jobs and zero live leases in both source
+processing and model build. Production voice runtime and admission read
+`Succeeded`, `Healthy`, `ScaledToZero`, zero replicas and min zero; their exact
+runtime and broker digests remained `625edc...86d8` and `b6786b...7b64e`.
+
+Four focused local contract suites also passed on the current shared source:
+authentication continuity 10/10, guided quick capture 12/12, pipeline watchdog
+13/13 and OpenVoice 70/70.
+
+**Boundary.** This is a current readiness and mobile-layout audit layered on
+the earlier fresh production canary. It did not send another sign-in email,
+record through physical phone microphone hardware, create another clone or
+generate another audio clip. Five simultaneous preview requests were not load
+tested; the production GPU remains max one and serializes synthesis, so
+concurrent previews may queue even though account-owned clone state remains
+isolated.
+
+## `overnight-multi-account-clone-audit-2026-08-30`
+
+**Measured 2026-08-30, read-only production audit of n=3 user clones created
+overnight, plus current Azure and queue state.** `Me` reached source ready with
+8/8 complete jobs in 5 minutes 40 seconds and VoiceGenome v2 review with no
+failure. `Aryan` reached ready 8/8 in 4 minutes 39 seconds and v1 review. `2`
+reached ready 8/8 in 4 minutes 2 seconds and v1 review. There were zero source
+processing failures, zero stopped jobs and zero model-build failure codes.
+
+Preview told a different operational story. From first request to first sealed
+audio, `Me` took 3 minutes 56 seconds with three aborted warming rows and two
+sealed outputs; `Aryan` took 4 minutes 24 seconds with six warming rows and
+three sealed outputs; `2` took 5 minutes 37 seconds with four warming rows and
+six sealed outputs. Across these three clones that is n=13 normal warming
+aborts, n=11 sealed outputs and n=0 real generation failures. The six outputs
+for `2` shared one text hash and one seed but had six audio hashes, proving
+duplicate synthesis rather than one result being polled.
+
+At the 08:14 IST follow-up, both durable lanes reported zero due work and zero
+live leases. Eleven preceding scheduled worker executions had succeeded in 20
+to 29 seconds and the current two-minute execution was running normally.
+Production runtime and admission were provisioned, healthy and scaled to zero
+with zero replicas.
+
+**Boundary.** No audio was played and no signed-in overnight browser session
+was available, so this does not measure likeness, naturalness or the exact copy
+the owner saw. It distinguishes durable source/build outcomes from generation
+outcomes and proves duplicate work from database commitments; it does not yet
+prove which combination of manual taps, tabs or automatic retries initiated
+each duplicate.
+
+## `durable-preview-release-gate-2026-08-30`
+
+**Measured 2026-08-30, local contract suites plus read-only/live Neon parser
+checks and one complete release run.** Migrations 065, 066 and 067 applied as
+18 independently repeatable SQL-over-HTTP statements; the amended 067 replay
+added one cleanup-claim column and reapplied 15 statements without error. Live
+constraint readback found the exact-intent uniqueness, owner cascade and
+generation cascade present. Live `EXPLAIN (format json)` parsed the full intent
+claim, cleanup claim and deletion-acknowledgement statements without executing
+them.
+
+Focused results on the settled source were: durable intent 35/35, five-client
+concurrency red team 53/53, preview panel 121/121, OpenVoice 73/73, result
+cleanup 12/12, Studio preview UI 23/23 and real Chrome phone fixture 13/13. The
+full `node scripts/verify-release.mjs` run passed all 16 checks; its central eval
+ran for 352,966 ms and both live relational gates passed.
+
+Production infrastructure readback before the web release showed the exact
+existing runtime image `sha256:625edc223f7063e744d6463dd7443daeaa7097552997a7a4e47c99888cfa86d8`
+at min zero, max two, one concurrent request per replica. The corrected
+processing worker image
+`sha256:be1288fb73c3d0c2f3e489c05a691ca3147b22f1e91be7091d17f7e18f398115`
+completed one manual execution; the live queue then read zero due jobs, zero
+live leases and zero failed jobs.
+
+**Boundary.** This proves database shape, SQL parsing, local concurrency
+semantics, a real browser fixture, the full release gate and worker deployment.
+At this measurement point the new web/API bundle had not yet been deployed and
+no production concurrent preview canary had run. It makes no owner-likeness,
+naturalness or model-winner claim.
+
+## `production-preview-concurrency-and-call-canary-2026-08-30`
+
+**Measured 2026-08-30, deployed production API and signed-in phone browser.**
+Vercel deployment `dpl_7sGpb1SEArF2nAzgtKW5sTzSeX7G` reached Ready and the
+production alias. Five clients replaying one semantic preview intent made 50
+HTTP requests across ten bounded rounds. Every response named one intent; one
+generation sealed and all final clients replayed the same 329,324-byte
+protected WAV with SHA-256
+`296b03c543345e181e9fe29242700e572c9a98094023737b09c65698cd040aa1`.
+
+Five genuinely distinct owner preview intents were then submitted concurrently.
+All five returned signed HTTP 200 results on their first synthesis attempt in
+29.656, 31.621, 33.359, 36.014 and 41.202 seconds. Every result had a distinct
+intent, generation and protected-audio hash, with exactly one sealed generation
+per intent. Azure scheduled a second bounded runtime replica during this burst;
+runtime and admission later read zero Running replicas with min replicas zero.
+
+At a 390 by 844 viewport, the signed-in production Studio rendered at 375 CSS
+pixels with zero horizontal overflow, no console warning or error, and no
+visible button below 44 pixels. The selected canary showed 3 of 3 setup
+milestones complete, exact primary-source lineage, the observed 2 to 8 minute
+cold-start range, and both preview and Mirror Call controls.
+
+The first call-start canary exposed an independent UI sequencing bug: production
+logged HTTP 201 while the page stayed on Opening because microphone permission
+was awaited before the session was rendered. After the bounded fix and final
+deployment, Start call reached Call ready now in 18 seconds while the microphone
+remained off; End call saved a clean end receipt. The temporary auth session was
+globally revoked. The final release runner passed all 16 gates; the central eval
+phase took 378,944 ms and both relational gates passed.
+
+**Boundary.** The call canary did not capture or transmit microphone audio, so
+it proves deployed session creation, signed GPU readiness, honest UI state and
+clean termination, not transcription, reply quality, relational learning,
+emotion inference or voice adaptation. Preview WAVs were not listened to, so
+these results do not claim owner likeness, naturalness or a model winner.
+
+## `human-experience-compiler-first-slice-2026-08-30`
+
+**Measured 2026-08-30, local deterministic suites plus live Neon DDL and
+read-only parser checks.** The compiler contract passed 82 named checks and
+1,000 deterministic property trials. The expiring expression ledger passed
+39 checks; the collect-only Mirror producer passed 29; canonical Mirror
+evidence and live-consent behavior passed 25; the accepted-claim RelationalOS
+materializer passed 23; claim extraction passed 26; and the production-shaped
+Mirror Call API suite passed 475. Migration 068 applied as nine independently
+idempotent SQL-over-HTTP statements and a complete second application also
+passed. Live `EXPLAIN (FORMAT JSON)` parsed the six-parameter pre-ASR consent
+query and the 12-parameter atomic settlement without `ANALYZE` or writes.
+
+The four collected features are turn duration, token count, speech rate and
+adjacent Latin/Devanagari script-transition ratio. All are rule-derived,
+source-audio-hash bound, tied to a real current consent row, capped at 24-hour
+retention and unused by response generation. Accepted event or relationship
+claims write one private dyad-bound episode and cited fact; retries return the
+same materialization.
+
+**Boundary.** These numbers prove contracts, database shape and SQL parsing,
+not expression accuracy, emotion recognition, human similarity, reply quality
+or deployment. No microphone-audio production canary, expression consumer,
+owner-speaker scorer, automatic claim worker or voice fine-tune ran in this
+measurement.
+
+## `human-experience-compiler-production-release-2026-08-30`
+
+**Measured 2026-08-30, full release runner, Vercel control-plane readback,
+deployed browser and unauthenticated route controls.** The stable source passed
+all 16 release gates. Its aggregate eval phase took 619,749 ms; live zero-
+orphan and citation gates passed in 9,519 ms and 2,776 ms. The gate exposed and
+then verified two privacy repairs: `vy_replica_expression_observation` is now a
+44th person-table manifest entry for export/whole wipe, and Recall assigns it
+the written `forget-only` fate because scoped text deletion cannot match its
+numeric mechanics. Person Tables passed and Recall passed 230 assertions.
+
+Vercel deployment `dpl_6NqnWzJDpMcdBAh4iFa6g29oinNa` reached Ready and was
+aliased to `https://vyakti-replica-lab.vercel.app`. Team readback showed one
+member, the authenticated account, with OWNER role. At a 390 by 844 deployed
+viewport, the signed-out Studio had document width 375, no horizontal overflow,
+two 48-pixel actions and zero browser warnings/errors. Unauthenticated reads of
+the expression sweep, claim sweep and Mirror Call routes each returned HTTP
+401.
+
+**Boundary.** The available browser session was signed out. No JWT was copied,
+no login link or OTP was requested, no microphone audio was transmitted and no
+owner decision was created. This release proves deployment, privacy reach,
+route authentication and signed-out responsive rendering; it does not prove a
+deployed call transcript, learned relationship, expression usefulness or
+human-perceived clone quality.
+
+## `human-experience-compiler-reversal-production-release-2026-08-30`
+
+**Measured 2026-08-30, canonical release runner, Vercel production readback,
+protected-route controls and deployed responsive browser inspection.** The
+final integrated source passed all 16 release checks. The aggregate eval suite
+took 645,868 ms; live zero-orphan and citation-discipline gates passed in
+11,602 ms and 2,820 ms. The same source also passed the independent settled
+audit, including 48/48 source-erasure checks, 23/23 full-erasure checks, 75/75
+Mirror state checks, 46/46 runtime-authority checks and the SQL cast scan over
+576 statements with zero conflicts, uncast parameters or unparseable shapes.
+
+Vercel deployment `dpl_HApDX7dozFx99DzTMJiNfEGQJPm8` reached Ready and was
+aliased to `https://vyakti-replica-lab.vercel.app`. Unauthenticated production
+requests to the claim sweep, expression sweep, pipeline watchdog and preview
+result cleanup each returned HTTP 401, proving that the four newly deployed
+routes exist and fail closed without their scheduler authority. At a 390 by
+844 deployed viewport the signed-out Studio had document width 375, no
+horizontal overflow, two 48-pixel actions and zero browser warnings or errors.
+
+**Boundary.** The available in-app browser session was signed out. No sign-in
+link, OTP, microphone recording, private source, provider request, owner
+speaker decision or claim materialization was created. Automatic claim
+extraction remains intentionally disabled because the existing OpenRouter key
+must be rotated before the model, rates and shared budget are enabled.
+Production also remains an explicitly internal self-test workspace; its tagged
+automatic grants are not real consent and must be reversed before public use.
+This release proves code, database boundaries, deployment, route authentication
+and signed-out responsive behavior, not a signed-in call-learning result,
+five-account capacity, expression quality or owner-perceived voice likeness.
+
+## `human-experience-compiler-reversal-gate-2026-08-30`
+
+**Measured 2026-08-30, deterministic local suites plus read-only live Neon
+parser checks.** The integrated source passed: compiler 82 named checks plus
+1,000 property trials; exact-session owner-speaker attestation 37/37;
+canonical Mirror evidence and consent 25/25; expression producer 37/37;
+expression storage and erasure 41/41; nearline claim queue 30/30; claim
+extraction 41/41; provider budget 41/41; Person Model 43/43; protected runtime
+authority 46/46; accepted-claim RelationalOS materialization 31/31; Mirror
+relational recall 15/15; Context Locker 91/91; Mirror Call state 75/75; and
+same-tab ended-session recovery 16/16. TypeScript and the scoped whitespace
+gate passed.
+
+Read-only `EXPLAIN (FORMAT JSON)` against live Neon parsed Context canonical
+evidence write and re-attribution cleanup plus all 12 current Person
+Model/runtime authority statements: claim decision and invalidation, unsafe
+profile reconciliation, build, approval, runtime status, activation, context
+load, session open, training-consent closure, protected stream open, per-segment
+append and seal. No modifying statement was executed by those checks.
+
+**Boundary.** This is integration and database-parser evidence, not a deployed
+call-learning canary. No claim-extraction provider request, microphone-audio
+production run, inner-emotion inference, profile auto-acceptance, perceptual
+voice test or model-winner experiment ran. The production OpenRouter claim lane
+remains intentionally fail closed until its exposed credential is rotated and
+the model, price and shared budget settings are installed. Production also
+remains an explicitly internal self-test workspace; the tagged automatic test
+grants have not been represented as real consent or as a public release.
+
+## `mirror-source-erasure-repair-2026-08-30`
+
+**Measured 2026-08-30, local negative controls, live Neon migration and
+read-only parser/inventory checks, followed by bounded historical cleanup.**
+Migration 071 applied as six independently idempotent SQL-over-HTTP statements
+and added exact `vy_mirror_delta.applied_sheet_id` lineage. Source erasure
+passed 48/48, full replica erasure 23/23, Mirror state 75/75 and the
+production-shaped Mirror API 475 checks. Live `EXPLAIN (FORMAT JSON)` parsed
+the final atomic source/Mirror erasure transaction, bounded historical cleanup,
+full replica erasure, TeacherSheet cleanup and push-token cleanup without
+executing them.
+
+The pre-cleanup content-free inventory found eight Mirror windows whose source
+foreign key was already null. Three rows across two owners, replicas and
+sessions still held transcript/provider/model data; all three had zero turns,
+deltas, conditioning selections or expression observations. The owner-scoped,
+maximum-25 repair was dry-run first, then permanently deleted exactly one and
+two rows for the two exact replicas. Readback found five content-empty legacy
+windows, zero private-content orphan windows and zero eligible cleanup targets.
+Live TeacherSheet and push-token inventories were also zero rows and zero
+orphans.
+
+**Boundary.** The three deleted rows are intentionally unrecoverable. No raw
+transcript, provider response, model output, sheet body or credential was read
+or returned by the inventory and cleanup tools. This proves erasure reach and
+historical repair, not a production call-learning result or perceptual quality.
+
+## `mobile-studio-minimum-click-journey-2026-08-30`
+
+**Measured 2026-08-30, source inspection, deterministic focused suites and real
+Chromium against the signed-in Studio fixture.** The clean microphone path has
+two intentional product actions after entering Create: Start recording and
+Finish and build. The quick-capture suite passed 16/16, including automatic
+private upload, primary-voice selection, direct navigation to Preview, weak
+sample rejection, failed-authorization retry and discard/retake recovery, one
+selected Meet task and an in-flow rather than fixed wait surface. The final
+quick-capture suite passed 20/20. The phone preview suite passed 14/14 twice at
+375 CSS pixels after its offline event and server shutdown were made
+deterministic. The wizard
+suite passed 83/83, including exact clone URL serialization and an invalid-id
+negative control. TypeScript, the production Vite build, copy check and
+targeted lint passed before the finish review.
+
+At the inspected 1280 by 720 fixture, Review was the only selected Meet task,
+the blind comparison was available inside Review, the document did not
+overflow horizontally and browser logs contained no error. Earlier focused
+phone fixture inspection at 390 by 844 also found no horizontal overflow. The
+independent finish review measured the 375 by 812 Meet tabs at y=477 and the
+active Voice chat task at y=547, both in the first viewport, with no console
+warning or error. It found no remaining product P0 or P1 after the upload
+recovery, true-peak clipping, live-region and above-the-fold fixes.
+
+Vercel production deployment `dpl_BeZ5XwaLidy8sUWiitUcjnExNXMq` reached Ready
+and was aliased to `https://vyakti-replica-lab.vercel.app`. A read-only
+post-deploy Chromium pass at 1280 by 720 loaded the expected protected Studio
+sign-in shell with zero horizontal overflow and zero console errors attributed
+to the production origin. The browser was signed out, so the authenticated
+workspace was not mutated during this final readback.
+
+**Boundary.** This is interface, deployment-control-plane and signed-out
+production browser evidence, not a physical-phone microphone canary,
+voice-similarity result, GPU wait measurement or five-account capacity test.
+The observed ranges displayed by the UI come from the existing measured
+activity contracts, not from this UI suite.
+
+The final canonical `node scripts/verify-release.mjs` run on the settled source
+passed all 16 checks. Typecheck took 63,947 ms; the web build 21,158 ms; signed-in
+layout readability 8,317 ms; the combined eval suite 1,067,469 ms; live Neon
+zero-orphan 10,300 ms; and live citation discipline 2,939 ms. This final gate
+adds integrated release and live relational evidence, but it still does not add
+a microphone, synthesis, listening-quality or multi-account load result.
+
+## `hinglish-continuity-release-candidate-2026-08-30`
+
+**Measured 2026-08-30, local contract tests plus read-only analysis of existing
+owner-bound WAV artifacts.** Hindi text frontend passed 25/25, OpenVoice passed
+73/73, the durable preview panel passed 121/121, and the new 16-prompt stress
+corpus passed seven named gates plus 128 prompt assertions. The corpus covers
+Roman Hinglish, mixed script, dense switches, confusable English tokens,
+questions, emphasis, repairs, proper names, numbers, technical terms,
+initialisms and single-letter symbols. Every prompt produced one deterministic
+Hindi-conditioned synthesis segment with complete semantic coverage and exact
+UTF-16 transformation spans. The provider contains no digital segment-gap path
+and rejects any future multi-call plan.
+
+The artifact analysis compared n=2 exact prior outputs for the same owner
+reference and Hinglish passage shape. Method: 40 ms PCM16 frames, 10 ms hop,
+near-silence defined as frame RMS below 0.008. The old token-fragmented output
+was 25.98 seconds with 65.47% near-silence; the already-generated continuous
+output was 7.72 seconds with 24.58% near-silence. Existing sealed evaluation
+reported ECAPA 0.433967 and 0.825082 respectively. The continuous output's
+pitch coefficient of variation was 0.3072 versus 0.2291 for the fragmented
+output under one bounded autocorrelation probe, but that probe is not a
+perceptual expressiveness metric.
+
+**Boundary.** No new TTS, ASR, cloud, GPU or human listening call ran. The tests
+prove text-plan continuity, deterministic reviewed pronunciation transforms and
+receipt binding. They do not prove correct arbitrary-word pronunciation,
+naturalness, emotional delivery, owner likeness or a model winner. The release
+candidate is not production until deployment and an authenticated canary are
+explicitly authorized.
+
+The final canonical `node scripts/verify-release.mjs` run on the same settled
+source passed all 16 checks. The integrated eval suite took 672,892 ms; live
+Neon zero-orphan took 9,828 ms and citation discipline took 2,855 ms. This adds
+release and database-integrity evidence, not perceptual audio evidence.
+
+## `studio-mobile-hardening-and-entry-bundle-2026-08-30`
+
+**Measured 2026-08-30, local production and internal-test builds in real system
+Chrome.** The layout gate rendered Feed, Meet and Deploy at 360 by 640, 390 by
+844, 844 by 390, 834 by 1112 and 1355 by 800. The production fixture judged 226
+visible prose/control blocks and the internal-test fixture judged 196, with
+zero final readability, overflow, contrast or visible touch-target findings.
+The protected-preview journey passed 14/14 at 375 by 812, including first-
+viewport task access, durable intent recovery, one live region, 44-pixel main
+action, offline return guidance, terminal regeneration and protected replay.
+
+The measured initial Studio JavaScript module-preload set changed from about
+639.60 kB raw and 186.22 kB gzip before the split to about 417.98 kB raw and
+129.39 kB gzip after it. Method: Vite production build output plus the exact
+modulepreload entries emitted in `dist/studio.html`; this is a 34.7% raw and
+30.5% gzip reduction. Recording, enrollment recovery and simple preview stayed
+eager; advanced task chunks remain available on demand.
+
+Focused checks on the settled UI passed: quick voice capture 21/21, wizard
+83/83, journey timing 10/10, Studio self-test 36/36, recovery 16/16 and preview
+UI 24/24. TypeScript and the production build passed. The Impeccable detector
+was run once and found only two incumbent, untouched warnings: the existing
+Inter declaration and decorative grid background.
+
+**Boundary.** These measurements cover deterministic browser rendering and
+local bundle transfer size, not a physical-phone network trace, authenticated
+production microphone upload, production GPU synthesis, perceptual voice
+quality or deployed Core Web Vitals. The source was not deployed in this phase.
+
+The final canonical `node scripts/verify-release.mjs` run on the same settled
+source passed all 16 checks. The five-viewport signed-in layout gate took
+41,855 ms, the combined eval suite took 836,477 ms, live Neon zero-orphan took
+10,111 ms and citation discipline took 2,921 ms. This adds integrated release
+and database-integrity evidence, not a deployed phone or listening result.
+
+## `mobile-studio-public-safety-release-2026-08-30`
+
+**Measured 2026-08-30, Vercel production control plane, live Neon tagged-row
+rollback and signed-out production browser.** Seven production environment
+entries were removed without printing values: the six server/client self-test
+authority entries and the exposed, disabled OpenRouter credential. Deployment
+`dpl_B2oNUR5XnCPnshhXhP86eFDi4Daq` reached Ready and was aliased to
+`https://vyakti-replica-lab.vercel.app` with the measured lazy Studio bundle.
+
+The dry-run inventory before rollback found 171 active tagged consents, 33
+self-test-verified replicas, 5,009 currently accepted tagged evidence rows and
+13 tagged selected artifacts. One idempotent append-only reversal statement
+revoked or reversed exactly those counts. Immediate readback and a second
+dry-run found zero in all four categories. Human-granted rows were outside the
+tag predicate. The four deployed maintenance routes for claim extraction,
+expression expiry, pipeline watchdog and preview-result cleanup each returned
+HTTP 401 without the cron credential.
+
+The deployed sign-in shell had zero horizontal overflow at 1,280 CSS pixels,
+two 48-pixel actions, no Internal test workspace marker and the explicit
+recorded-consent boundary. Live read-only EXPLAIN parsed the nearline queue,
+Context canonical-evidence and source-erasure SQL; the content-free nearline
+inventory was zero queues, zero items and zero linked Context rows.
+
+The first Vercel-scheduled executions on the new immutable deployment returned
+HTTP 200 for pipeline watchdog, claim extraction, expression expiry,
+preview-result cleanup, model-build sweep, erasure sweep and face-session
+sweep. Separate unauthenticated requests to the four newly protected routes
+returned HTTP 401. This proves production cron admission and route availability;
+it does not prove a configured claim provider or a nonempty learning job.
+
+**Boundary.** The selected browser had no authenticated session and no Chrome
+extension connection was available, so this phase did not mutate a user
+workspace, record from a physical phone or synthesize/listen to a production
+voice. Automatic claim extraction remains deliberately unavailable until a
+fresh provider credential plus model/rate/budget configuration is qualified.
+
+## `clone-creation-saga-live-release-2026-09-02`
+
+**Measured 2026-09-02 with deterministic local suites, live Neon migration and
+read-only SQL parsing, one remote image build, one Azure worker execution,
+tagged self-test rollback, and production Vercel control-plane/API readback.**
+The clone-creation saga passed 28/28 focused checks. The expanded source-erasure
+suite passed 51/51, including a three-build delete-old/build-new interleaving:
+the pre-request old build and the post-request old-source settlement were
+retired, while the post-request replacement with a different source-set hash
+survived. Clone verification passed 29/29 and the integrated experience
+recovery surface passed 12/12.
+
+Migration 072 applied live as ten independently idempotent SQL-over-HTTP
+statements. Live `EXPLAIN (FORMAT JSON)` parsed the owner-scoped replica-create
+replay, source-create replay, build-intent and atomic promotion shapes without
+`ANALYZE` or writes. The live relational check counted 109 owner-keyed tables,
+68 owner-lane-reachable tables and passed its 34 assertions.
+
+The processing worker was built remotely from 237 files and 3,670,709 bytes,
+bound to source-manifest SHA-256
+`7ddac066f69f56c7b22b8f587fe720f855dca1e83ac5adc4f747b4c3e5d056fc`.
+ACR run `cu34` produced a Linux/amd64 image at immutable digest
+`sha256:e521b8f38c7bcf4401927c6f264c5b6fb728277a7a6136169a4a3c1fa723b63c`.
+Image-only deployment preserved schedule `*/2 * * * *`, timeout 3,600 seconds,
+retry limit one, parallelism one, 1 CPU and 2 GiB, and read back zero self-test
+environment entries. Execution `vyakti-replica-processing-fpjd66u` pulled that
+digest and succeeded; its content-free log reported zero build intents to
+examine. The prior digest
+`sha256:be1288fb73c3d0c2f3e489c05a691ca3147b22f1e91be7091d17f7e18f398115`
+is the recorded image rollback point.
+
+A final tagged self-test inventory found three active automatic consents, one
+test-verified replica, 20 automatically accepted evidence rows and one
+automatically selected artifact. The exact revocation path reversed 3, 1, 20
+and 1 respectively. Immediate readback and a second dry run returned zero in
+all four categories.
+
+The sanitized Vercel deployment
+`dpl_6BivhdGGQwVf9PtRcARSSDxocZb9` reached Ready and owns
+`https://vyakti-replica-lab.vercel.app`. Its build generated runtime
+configuration from the Vercel environment rather than the local ignored
+configuration file. A dedicated content-free authenticated canary returned
+HTTP 200 from replica list, review and activity, and the one-time auth exchange
+and logout returned 200, 200 and 204. The settled source before the deployment-
+payload exclusion patch passed all 16 canonical release gates; its aggregate
+eval took 816,193 ms, live zero-orphan 10,114 ms and citation discipline 2,855
+ms. That run is not represented as post-patch evidence for the new exclusion
+itself.
+
+The pre-sanitization deployment whose identifier begins `dpl_9zGsf` was first
+verified as distinct from current deployment `dpl_6BivhdGGQwVf9PtRcARSSDxocZb9`.
+Only that exact old deployment was then removed. Its immutable deployment URL
+returned HTTP 404 after removal, while the public alias remained HTTP 200 on
+the sanitized deployment. No project-wide or alias deletion was performed.
+
+The post-incident upload-boundary gate passed five required credential-path
+rules with zero re-inclusions and zero tracked credential-shaped paths. Its
+negative controls independently removed each rule and explicitly re-included
+`api/_config.js`. The environment-independent `/vyakti-release.json` source
+commitment and deploy verifier passed six Vyakti and three companion positive
+checks, two stale/wrong-project negative controls and 25 fixture HTTP requests;
+it made zero legacy `/api/chat` or `/api/speech` requests. Workflow validation
+passed all five workflow files. Two consecutive deterministic release-identity
+runs hashed the same 717 inputs and 21,773,110 bytes.
+
+A local invocation of `scripts/vercel-build.sh` reached and passed the Vite
+build over 805 modules in 10.60 seconds, then stopped in the pre-existing
+Windows OTA step because `ota-bundle.mjs` resolved a malformed `C:\C:\...`
+path. Bash and Node syntax checks, scoped lint and diff checks passed. This is
+not recorded as a complete Vercel build or canonical release pass; the full
+settled-tree release gate remains a separate root workstream.
+
+**Boundary.** The worker canary had no due source or build intent and therefore
+proves image startup, scheduler shape and reconciler availability, not a new
+phone recording through all eight stages. No five-account end-to-end clone load
+was run; parallelism one remains a queueing design, not five simultaneous
+processing replicas. Production has no fresh configured OpenRouter or Foundry
+conversation/claim-extraction credential, so the conversational brain and
+nearline claim extraction remain fail-closed. No provider request, microphone
+capture, protected synthesis, playback or human listening ran in this release
+measurement.
+
+## `generic-personal-clone-experience-and-mobile-qa-2026-09-02`
+
+**Measured 2026-09-02 by source-derived contract suites, a current first-party
+desk review and real system-Chrome layout inspection.** The generic entry suite
+passed 25/25, the integrated clone-experience recovery suite passed 12/12 and
+the verification journey passed 29/29. These checks cover personal-clone-first
+copy, no teacher framing in the entry surface, natural free-speech capture,
+exact candidate recovery, finalized upload replay, old-draft rejection,
+server-backed verification, one mobile scroll owner, 48-pixel primary actions,
+reduced motion, visible focus and malformed video/context response recovery.
+
+The research brief is 741 text lines and contains 53 linked citations across
+52 unique URLs. Method: PowerShell line count and link-regex count over
+`PERSONAL-CLONE-ONBOARDING-AND-EVOLUTION-UX-2026-09-01.md`. It compares the
+current official documentation, policies or primary research for Fish Audio,
+ElevenLabs, Cartesia, PlayAI, Resemble, Hume, Tavus, Delphi, HeyGen, Synthesia,
+Web Content Accessibility Guidelines, Apple interface guidance and supporting
+voice/memory research. No competitor account or signed-in competitor flow was
+used.
+
+The final local Chrome pass covered five layouts: 375 by 812, 390 by 844, 844
+by 390, 1,440 by 900 and 720 by 450 CSS pixels. The inspected generic capture,
+candidate-ready verification and Add-room states had no horizontal overflow,
+header collision or visible action below the 44-pixel product floor. Short
+landscape moved overflow into the active verification or room panel rather
+than clipping the fixed navigation. The retained screenshots include the 390
+by 844 candidate-ready state and the 844 by 390 contained-files state.
+
+**Boundary.** These are local UI contracts and rendered-layout measurements.
+They do not prove that a first-time person understands the latched recording
+gesture, that a physical phone microphone uploads successfully, that the
+deployed authenticated screen matches every local state, or that a clone
+finishes or sounds acceptable. The 85-percent gesture-comprehension, first-run
+completion, keyboard-open and 200-percent text-zoom targets remain future
+moderated and device tests.
+
+## `hindi-hinglish-code-switch-frontier-2026-09-02`
+
+**Measured 2026-09-02 with deterministic text-plan/runtime suites and
+read-only analysis of two already generated owner-bound artifacts.** The Hindi
+text frontend passed 26/26 checks and the Open Voice contract passed 73/73.
+The code-switch frontier passed 18 named checks and verified 29 adversarial
+prompt plans across structural and exact-span invariants. The corpus covers
+Roman Hinglish, mixed script, technical terms, English/Hindi confusables,
+questions, repairs, proper names, emphasis, initialisms, switch-adjacent word
+errors, repeated switch words, abnormal dragging, synthetic switch pauses and
+observable prosody fixtures. The active orthography contract is
+`vyakti-curated-hi-in-orthography/v2`; an unknown uppercase token remains
+unchanged and explicitly unresolved instead of receiving a guessed spelling.
+
+The n=2 artifact comparison reused the same prior owner-reference passage
+shape. Method: 40 ms PCM16 frames, 10 ms hop, near-silence at frame RMS below
+0.008. The old token-fragmented output lasted 25.98 seconds, spent 65.47 percent
+of frames near silence and had existing ECAPA 0.433967. The existing one-pass
+output lasted 7.72 seconds, spent 24.58 percent near silence and had existing
+ECAPA 0.825082. The current provider contract rejects more than one acoustic
+call for a Hindi/Hinglish preview and inserts no digital language-boundary gap.
+
+**Boundary.** No new TTS, ASR, GPU call or listening test ran. ECAPA is a
+speaker-identity proxy, silence is not naturalness and deterministic
+orthography does not prove that an arbitrary word is pronounced correctly.
+Chatterbox still receives one language condition for the entire utterance, so
+one Hindi-conditioned call removes Vyakti's fragmentation defect but does not
+certify native code-switch phonology, Indian accent, emotion, emphasis,
+naturalness or owner likeness. Chatterbox remains a fallback incumbent;
+VoxCPM2 and MOSS-TTS remain challenger paths pending same-reference, same-text,
+blinded listening. No model-quality winner or perceptual improvement is
+claimed.
+
+## `guarded-personal-clone-production-release-2026-09-02`
+
+**Measured 2026-09-02 with two rejected remote-build identity probes, one
+guarded client-side deployment, immutable Vercel readback, deterministic
+release suites and live read-only production checks.** Both rejected in-build
+commitment probes observed the same uploaded path set as the deploy client but
+measured byte deltas of -369 and -200 respectively. The final guarded wrapper
+computed and the install marker accepted
+`sha256:63358f56b36ade8911e2cf096abe1641771013c8f2791fc6f27f1690a48122e8`
+over 719 deployment inputs before upload.
+
+Vercel deployment `dpl_8c9E4CYSZ7AgdMTjDDUBZVQ2sqww` reached Ready and owns
+the production alias. The immutable deployment passed all 6 post-deploy checks.
+The canonical release runner passed all 19 gates on the released source. Its
+aggregate eval took 461,696 ms, live zero-orphan took 9,886 ms and citation
+discipline took 2,736 ms. The replica pipeline watchdog passed 20/20 focused
+checks, and its live Neon `EXPLAIN` parsed without `ANALYZE` or writes. Final
+pipeline readback was healthy with due count zero in processing, model-build
+and erasure lanes. The tagged self-test inventory was 0 active automatic
+consents, 0 test-verified replicas, 0 automatically accepted evidence rows and
+0 automatically selected artifacts. The live relational check passed all 34
+assertions.
+
+The first-run reveal now has one deterministic 420 ms Web Audio signature
+created inside the explicit Agree gesture, a persisted visible mute choice,
+no audio under Reduce Motion and visual equivalence when audio is unavailable.
+The fake-AudioContext test proved mute/reduced-motion silence, one-shot
+scheduling and idempotent cleanup; focused lint, copy, module typecheck and the
+production bundle passed.
+
+**Boundary.** No OpenRouter or Foundry conversation provider is configured, so
+Mirror Call replies and nearline claim learning remain fail-closed. No new
+audio was generated or listened to, and the 420 ms mark was not feel-checked on
+a physical device. This release did not run an authenticated physical-phone
+microphone-to-playback clone journey and did not measure five-account clone
+capacity. It therefore licenses no new claim about voice likeness, naturalness,
+phone capture success, sonic preference, call learning or five-user latency.
+
+## `legacy-self-test-reset-recovery-2026-09-02`
+
+**Measured 2026-09-02 with one read-only production row inspection, focused
+deterministic suites and local system Chrome.** Replica
+`cb59648c-ede1-40c8-b5fa-4db586d2db1f` was `enrolling` with its historical
+self-test marker still true, all three identity/liveness timestamps false,
+zero active self-test consents, zero currently accepted evidence rows and zero
+currently selected artifacts. It still had one draft and one retired
+VoiceGenome. Three active non-self-test source consents remained. This explains
+why the global tagged-state inventory was 0/0/0/0 while the review API still
+returned `self_test_mode=true`: the inventory measures current authority; the
+review field preserves historical draft provenance.
+
+The clone-verification suite passed 31/31 and clone-experience QA passed 12/12.
+Application TypeScript, focused oxlint and the copy gate passed. A local Chrome
+run covered 360 by 640, 375 by 812 and 844 by 390 verification layouts plus the
+390 by 844 legacy-reset layout. All four had no horizontal overflow, visible
+actions were at least 44 pixels high, the first reset tap caused no mutation,
+and only the second explicit `Erase and start again` tap invoked the fixture's
+revoke callback.
+
+**Boundary.** The database inspection was read-only. No production replica was
+revoked or erased, no deployment ran and no new clone was created. The browser
+callback was a deterministic fixture, so these checks prove the guarded UI
+wiring and existing full-erasure API path, not completion of a production
+erasure worker or an authenticated fresh-clone phone journey.
+
+## `functional-voice-field-and-premium-recorder-qa-2026-09-02`
+
+**Measured 2026-09-02 with deterministic UI suites, the Impeccable static
+detector and real system-Chrome layout inspection.** The settled clone
+experience suite passed 19/19 and the verification journey passed 31/31. The
+detector returned an empty finding set. The recorder, upload, reveal and build
+states share one 96-ray SVG VoiceField; recording rays consume the exact live
+microphone analyser history and level, while non-recording states do not
+fabricate analyser activity. The official Vyakti wordmark and website-derived
+light tokens replace the prior lab mark.
+
+The browser pass covered n=3 base viewports, 390 by 844, 844 by 390 and 1,440
+by 900 CSS pixels, plus one 200-percent reflow condition. At 390 by 844 the
+wordmark measured 117.4 by 44 CSS pixels. At 844 by 390 the recorder subtitle
+remained 13 CSS pixels and the page had no horizontal overflow. Contrast and
+Capacitor web/native asset synchronization checks passed. Reduced Motion
+froze the field rays and removed drawer and room travel without removing the
+state or its actions.
+
+**Boundary.** These are local deterministic and rendered-browser results, not
+an authenticated production microphone-to-clone run, a physical-device motion
+review or a deployment result. No generated voice was listened to and no
+claim about likeness, pronunciation, emotion or expression follows from the
+visual work.
+
+## `frontend-dependency-remediation-2026-09-02`
+
+**Measured 2026-09-02 with package reach inspection, package-manager security
+audit and the existing mobile synchronization checks.** The unused
+`@capacitor/assets` development package was removed and `sharp` was upgraded
+to 0.35.4. The settled audit reported n=0 critical findings, n=0 high findings
+and n=3 moderate findings. The contrast gate and Capacitor synchronization
+gate passed after the dependency change.
+
+**Boundary.** An Android APK was not built because this machine has no JDK.
+The audit and synchronization checks establish the JavaScript dependency and
+web-to-native asset state; they do not establish that Gradle compiles or that
+the experience works on a physical Android device.
+
+## `erasure-retention-and-stale-branch-preflight-2026-09-02`
+
+**Measured 2026-09-02 with provider control-plane readback, exact Neon branch
+comparison and Vercel environment-name readback.** Across n=3 persistence
+planes, Neon exposed one day of current branch history while its provider
+backup boundary is up to 30 days; Supabase reported zero retained backups with
+point-in-time recovery off; and every checked Azure recovery feature was off.
+Production Vercel now has an erasure-receipt integrity key and
+`REPLICA_BACKUP_RETENTION_DAYS=30`; the secret value was neither printed nor
+recorded.
+
+The exact stale Neon child branch
+`br-round-frost-avv3g04c` (`ws-ah-processing-drain-verify`) was a one-off WS-AH
+verification branch. Before deletion it contained n=13 target rows belonging
+to exactly n=1 target replica, and the primary-to-child comparison found n=0
+non-target branch-specific writes. That exact branch was deleted before the
+main erasure. A fresh branch list found n=0 matching child branches and n=1
+remaining branch, the primary.
+
+**Boundary.** This measurement includes deletion of that exact stale child
+branch and configuration of the two erasure environment entries. It does not
+claim that any main-branch clone has been revoked or erased, that an erasure
+receipt has been issued, or that the current application source has been
+deployed.
+
+## `expert-integration-context-schema-union-20260906` (2026-09-06)
+
+Measured2026-09-06: n=5 context files merged, n=11 source migration files archived with SHA256, n=0 duplicate CREATE TABLE names in the combined schema, and the pre-entry graph check passed1980nodes/2314edges. Method: three-way index stages, section union by heading, graph union by node ID and edge triple, byte hashing and declaration scan. These checks do not parse SQL or verify any live schema, deployment or voice likeness.
+
+## `azure-api-resource-and-synthetic-probe-20260906` (2026-09-06)
+
+Measured2026-09-06 by the parent task using service-principal Azure APIs: n=33 resources and n=16 AI deployments inventoried. A single synthetic question over a source stating Monday10AM used gpt4.1mini and returned HTTP200, valid strict JSON and the correct exact source, in2794ms wall time; usage83input+26output=109tokens. Evidence: parent scratchpad/expert-tools/azure-inventory.json and azure-probe-result.json. No user data was sent, provider key stayed in process memory, and no cloud configuration changed. This proves connectivity and one structured response, not voice likeness, benchmark superiority or a complete product. Existing IndicF5/Qwen3TTS/VoxCPM2/OpenVoice services are evaluation candidates, not accepted owner fine-tunes.
+
+## `reconciled-migration-reader-negative-controls-20260906` (2026-09-06)
+
+Measured2026-09-06: n=12 offline suites updated to use exact original migration identities, n=11 artifacts checked against their full SHA256, and n=6 helper tests passed. Controls reject wrong-lineage numeric collisions, tampered bytes, duplicate identity and path traversal. No SQL executes through this helper. Full product suites were not rerun for this bounded reader change during parallel API integration.
+
+## `neon-readonly-dual-lineage-catalog-and-orphans-20260906` (2026-09-06)
+
+Direct read-only catalog inspection through the original checkout's configured Neon connection returned n=195 public tables, n=2263 columns and n=1161 constraints; no public migration-ledger table matched the catalog search. The connection remained in memory and was neither printed nor copied. Missing integration tables: vy_channel_extraction_object, vy_replica_source_storage_writer, vy_replica_storage_writer_rollout. Missing upload_authorization_expires_at columns: vy_replica_source, vy_ingest_run, vy_video_enrollment. All13 named FKs introduced by local076 were absent. The live purpose CHECK accepts memory/identity_document/correction/interview; aggregate purpose counts found13memory sources and no other purpose values. Earlier local added-column existence is not full semantic equivalence.
+
+Original-root relcheck ran read-only and failed3checks:17newer Rooms tables absent from its older person manifest;20owner tables outside its older code/cascade erasure reach;20meera_log rows with dangling episode_id. The first two require integrated-code rerun; the20dangling rows are a real integrity finding. No rows were modified or deleted, no private content was queried, and no migrations executed. Evidence: root scratchpad/expert-tools/neon-catalog-inventory.json and neon-local-lineage-gap-summary.json. A first static expected-table regex mistakenly included the token if from a comment and was corrected locally; it was not a missing database table.
+
+## `isolated-expert-schema-bootstrap-and-parser-gates-20260906` (2026-09-06)
+
+Measured2026-09-06: additive CREATE DATABASE on existing compute succeeded; no new compute or plan. A migration-aware plan applied1391single-statement requests to the exact development database, producing198public tables. Plan comprised legacy bootstrap, ordered top-level migrations,11content-addressed local voice migrations and the seven-purpose union. Static preflight found0forward FKreferences. Thirty historical guardedDO blocks were expanded to plain DDL; noDO statements sent. Source-erasure/token-fenced-storage-writer/orphan-cleanup EXPLAIN checks passed. Integrated relcheck passed34checks in9240ms with93owner-lane tables (72cascade,21named erasure), and zero orphan counts on the fresh store. These are empty/synthetic development proofs, not production repair or load evidence. Person-model gate initially failed its fixture mutation-count expectation after two parser checks; full-erasure parser returned42601 near taste_turns at position38518. Both remain named work, not green. Credentials stayed in memory; no private production records copied.
+
+## `integrated-release-first-pass-and-layout-readback-20260906` (2026-09-06)
+
+Parent task reported2026-09-06: first integrated release gate failed5of24checks: typecheck(stale prop being repaired), deployment commitment(source changed during gate), eval suite(21suites failed), accessibility and security(browser unavailable). Matching Playwright Chromium1234 was subsequently installed. An initial layout check returned a misleading success in1307ms after skipping; the parent changed missing dist/package/browser paths from skip0 to FAIL1. Actual browser inspection at390x844 found a broad .auth-brand span:last-child selector hiding the logo; narrowing to the intended direct child restored it and kept the first sign-in action above the fold. Shared Azure reply fixture checks passed17tests; the separate109token synthetic provider probe is logged independently. No full integrated gate pass is claimed here.
+
+## `person-parser-and-live-relational-isolation-20260906` (2026-09-06)
+
+Measured2026-09-06 against vyakti_expert_integration_20260906 only: the repaired person-model parser gate passed12logged cases, including profile build/approval, runtime checks, consent closure and protected stream boundaries. Synthetic relational integration inserted2people,2agents and3authored facts, then passed8actual dmRecall/roomRecall checks: correct same-person/expert recall, distinct-person/expert isolation, unknown identity denial, group denial and repeated recall. Positive controls prevent swallowed SQL errors from passing as empty responses. Cleanup deleted only exact invocation-created agent IDs through installed fact FKcascades, then exact person IDs; readback confirmed0created rows remain. No model calls or production mutations occurred.
+
+## `api-integration-repair-suite-and-erasure-parser-20260906` (2026-09-06)
+
+Reported by the API repair agent2026-09-06:15assigned suite groups passed individually: expression41, IndicF541, pronunciation10, extraction81, voiceevidence25, preference29, processing45, sourceerasure59, storagewriter22, previewintent37, creatorexport40, readableexport189, locale93, ops155; environment manifest reported0failures. The real guarded development full-erasure EXPLAIN now exits0. Its actual42601cause was the merged room_org_attachments CTE missing owner/room WHERE scope and its closing separator; both were restored. The manifest generator Windows file-URL comparison had exited0without writing; pathToFileURL repairs freshness, yielding125app/175total environment entries. These are deterministic/API parser results, not voice quality, latency or full release evidence.
+
+## `azure-rate-and-devserver-route-evidence-20260906` (2026-09-06)
+
+Parent evidence2026-09-06: Azure Retail Prices API eastus2Global meters show GPT4.1mini inputUSD0.0004/1K and outputUSD0.0016/1K, equalUSD0.40/1M input andUSD1.60/1M output; deployment readback is GlobalStandard. Source retained at root scratchpad/expert-tools/azure-reply-rate-evidence.json with official prices.azure.com API link. The existing n=1probe83input/26output tokens modelsUSD0.0000748 at these retail rates, excluding taxes/other charges; this is a calculation, not an invoice. Parent development server5177 targets only the isolated dev DB, real auth, explicitly opted-in Azure calls and a USD1cap. Route smoke: studio200, unauthenticated replica401, config404, attempted production-config @fs403, malformedJSON400. Parent observed these routes; this agent did not independently repeat them. No full product completion or release pass follows.
+
+## `model-lineage-and-owner-lora-scope-20260906` (2026-09-06)
+
+Readback 2026-09-06 from repository evidence: IndicF5 is pinned pretrained Hindi reference-conditioned inference; Qwen3-TTS is pinned pretrained English-only reference-conditioned evaluation. Neither is an accepted owner fine-tune. Historical measurement lora-vs-zero-shot-71s records actual Chatterbox owner LoRA training: one speaker, 71-second recording (62.1 seconds transcribed), 60 epochs on Azure T4 in 140.4 seconds. Same-session zero-shot mean ECAPA 0.775278 versus LoRA 0.795857, n=2 independent runs per arm; this proxy licenses no human-likeness or acceptance claim. Optional adapter support exists in runtime/provider code, while ordinary Studio adapter selection remains unproven. The historical experiment reports no held-out training partition, no blinded ABX or ElevenLabs comparison, and about 26% slower synthesis. No private checkpoint storage or current cloud checkpoint was inspected. Sources: services/indicf5-runtime/README.md, services/qwen3-tts-runtime/README.md, services/open-voice-runtime/app.py, api/_voice/providers/open-chatterbox-preview.js and the cited historical measurement.
+
+## `azure-live-ledger-synthetic-answers-20260906` (2026-09-06)
+
+Parent measured 2026-09-06: two retained synthetic responses through the real Azure adapter and durable isolated-development ledger. A workshop-time question was grounded to Monday 10 AM; an unsupported price question correctly returned unknown. Wall times 3241 ms and 1836 ms include SQL accounting. Four total settled receipts sum to 152 micro-USD (USD 0.000152), because the first two paid outputs were not retained after a collector query failed with SQLSTATE 42703. Collector used nonexistent status instead of state; fixed to state and now writes outputs first. Evidence: root scratchpad/expert-tools/azure-live-ledger-result.json. No private user data was used. This is connectivity, fixture grounding and cost-accounting evidence, not product quality or a latency benchmark.
+
+## `authenticated-dev-first-clone-smoke-20260906` (2026-09-06)
+
+API agent reported 2026-09-06 around18:02 UTC: n=3 smoke rounds on local5177 with real Supabase temporary confirmed example.invalid accounts and isolated development DB. Create/replay/list/get, cross-owner read and consent denial, and source-capture/transcription/storage consent passed. First legacy ordinary preview failed500 because its caller omitted output_storage_bucket. A bucket-only repair was rejected because it could strand an unsealed durable intent. Legacy endpoint became trial-only409 and ordinary UI moved to authoritative panel. Second modern preview failed503 because provider construction preceded ownership; lazy provider/protection construction fixed that ordering. Third full smoke exited0 with modern preview409 voice_preview_identity_incomplete, before provider or audio calls. Voice panel125 and intent37 tests passed; guarded development durable-preview/diagnosis EXPLAIN passed. Six synthetic auth users were deleted with200responses; three synthetic replicas were revoked with200responses and pending erasure receipts. Pending erasure is not complete deletion.
+
+## `preview-navigation-and-auth-lazy-panels-20260906` (2026-09-06)
+
+Frontend agent reported 2026-09-06: duplicate ordinary VoicePreviewLab synthesis removed in both namespaces; exact durable-panel navigation and legacy-call inspection passed. Targeted voice UI24+9, QA20, preference29, policy19 and holdout22 tests passed, as did a forced npm build. Auth lazily loads seven signed-in panels, reducing eager import dependencies. No fresh browser performance or voice-quality measurement follows from this import change.
+
+## `azure-voice-arm-provenance-20260906` (2026-09-06)
+
+Measured 2026-09-06 using authorized service-principal ARM GETs: 33 resources total; 15 relevant Container Apps and two jobs; 16 of17 images digest-pinned. Ten active revisions reported ScaledToZero, Healthy and0replicas; active revision images matched application templates. Every app retained minReplicas=0. Chatterbox runtime625edc22, Qwen e6ee1143, IndicF5 3b88af88, VoxCPM2 40df335c and OpenVoice ba777d18 full image digests matched repository evidence strings. No allowlisted explicit model/revision env identifiers were exposed; secret values were neither requested via list-secrets nor printed/saved. Manual voice-finetune job uses mutable voice-finetune:v3 and retains Succeeded metadata for2026-08-26 12:50:04–12:54:43UTC plus an earlier Failed run. No job started, no model/audio call, no checkpoint read and no scale/deployment change. Exact job image digest and ordinary adapter adoption remain unproven. Full sanitized metadata and paths are in docs/gurukul/research/AZURE-VOICE-PROVENANCE-2026-09-06.md.
+
+
+## `targeted-expert-browser-repairs-20260907` (2026-09-07)
+
+Measured 2026-09-06/07 on the integration worktree. Repaired accessibility run: n=30 pages, zero axe/keyboard/language findings, 665 Devanagari nodes and 54 lang=hi attributes, 82.3 seconds. Fixes were a capture input accessible label and sufficient hear-voice-state contrast. Creator rehearsal: n=40 checks, 40 passed in 35.3 seconds, browser with fixture APIs; actual visible four-checkbox source-use grant and canonical immutable-storage fixture transport are exercised. This is not live upload or voice proof. Independent throttled performance uses three-run medians: Studio initial JS 98.9 KB versus earlier185.9 KB after authenticated panels became lazy; English Room TBT307 ms exceeds300 ms budget. The complete release runner has NOT passed. Logs: scratchpad/expert-accessibility-repaired.log, expert-rehearsal-consented.log, expert-performance-after-lazy.log in original checkout.
+
+
+## `mirror-memory-shadow-comparison-20260907` (2026-09-07)
+
+Measured 2026-09-06 UTC / 2026-09-07 India. Baseline:40 schema-typed synthetic CTE snapshots through actual approvedMirrorRecall SELECT,0 observed boundary failures,2 older-fact omissions with8/16 newer distractors. Expanded comparison:52 scenarios x2 arms=104 actual PostgreSQL SELECTs,0 observed boundary failures; required evidence missing in6 baseline cases versus1 lexical-shadow case. Hindi, Roman Hinglish, mixed-script and English cases included; Roman query to Devanagari fact remains unresolved. No writes, real record lifecycle, provider calls or owner ratings. Default actual Mirror caller unchanged; candidate is explicit opt-in only and NOT_PROMOTED. Exact hashes/timestamps/results: evals/mirror-memory-frontier/baseline.json and comparison.json.
+
+
+## `shared-room-foundation-performance-20260907` (2026-09-07)
+
+Measured integration build on 2026-09-07 India. Shared reset/palette/base extracted once and consumed by creator Studio and Room. AST comparison preserved1767 selector/declaration/layer/media scopes. Compressed Room CSS30985 to4459 bytes (85.6% reduction); wire CSS4809 bytes. One three-cold-context throttled run at390x844,4xCPU/150msRTT: medianTBT191ms versus earlier307ms, LCP1336ms,CLS0,JS81097bytes. Forced TypeScript/Vite, motion/copy/contrast and Room EN/HI layout236blocks/252Hindi strings at390/834/1355 passed. Evidence: integration scratchpad/room-css-*. Whole release runner remains separate.
+
+
+## `mirror-feedback-json-repair-20260907` (2026-09-07)
+
+Both Studio clients now send JSON ratings and written correction notes. Actual client-to-handler-to-store fixture regression passes; Mirror core475 checks, UI81 checks and forced TypeScript build pass. Audio/source-ID payloads reject before writes and UI guards before microphone capture. Written notes remain proposals, never automatic persona approval. No authenticated recorded-correction lifecycle or human improvement measurement ran.
+
+
+## `dev-azure-storage-real-adapter-smokes-20260907` (2026-09-07)
+
+Measured 2026-09-07 India. New container ARM absent404/create201/private readback; account public blob access remained false. Two exact localhost PUT preflights returned200 after an additive CORS rule. Three bounded synthetic-object attempts used existing actual storage adapters, each finally deleted only its exact object and verifiedHEAD404. Final attempt: create201, duplicate403 with explicit UnauthorizedBlobOverwrite, exact50byte original readback unchanged, anonymousread409 denied, delete202 thenHEAD404. First two diagnostics stopped on an incorrect expected duplicate status/code; they are retained as failures, not retroactively passes. No source database rows, provider calls or voice generation in these three adapter tests. Evidence ROOT scratchpad/expert-tools/dev-storage-container.json, dev-storage-cors.json, dev-storage-smoke.json, dev-storage-smoke-second.json, dev-storage-smoke-third.json.
+
+
+## `authenticated-dev-source-upload-quarantine-20260907` (2026-09-07)
+
+Measured 2026-09-07 India. ONE new confirmed synthetic Supabase account, noemail; real local5177 replica create201, source-useconsent201 for capture/storage/transcription only, upload authorization201, actual client CRC64 block upload201, blocklistcommit201, finalize200 and read200. Input624044bytes is generated13second mono24kHz16bitPCM, not owner speech. Source state quarantined. No training/identity/inference bypass, worker or voice provider ran. Supported source delete202 left erasurepending; replica revoke200 receipt7b521773-62c2-4188-bffa-a04675ee4688. Replica c7319d23-d41f-421d-bcf1-2164c4e90045/source cca2695c-1707-4f6e-a7c5-cb140f3eaf1d remain pending physical erasure; auth user deletion200 completed. Do not equate receipt with removed bytes. Script ROOT scratchpad/live-source-upload-smoke.mjs; keys/JWT/SAS/password not persisted.
+
+
+## `dev-source-erasure-waits-for-upload-capability-expiry-20260907` (2026-09-07)
+
+Read-only audit at2026-09-06 19:14:46UTC proved current_database=vyakti_expert_integration_20260906. Exact synthetic source cca2695c-1707-4f6e-a7c5-cb140f3eaf1d was deleting, attempts0, no erasurelease/error; nextattempt19:08:28UTC alreadydue. Sole observed blocker: upload_authorization_expires_at2026-09-06 22:38:29.455953UTC, which is2026-09-07 04:08:29IST. Active storagewriters, processinglease-grace, voicelease and face-session blockers each0. This is earliest eligibility assuming no state change, not completed erasure. Preserve the upload-capability fence; do not expire tokens or delete early just to make cleanup green. The hourly continuation should recheck the exact isolated target after eligibility and use the supported erasure lifecycle.
+
+
+## `release-four-and-targeted-diagnostics-20260907` (2026-09-07)
+
+Measured 2026-09-07 India. Third full run:23/24, eval suite failed stale quick-voice/open-voice source assertions. Repaired those assertions with actual mounted lazy components and negative controls. Fourth full run:23/24, full eval suite passed441865ms, only performance failed: /vyakti TBT412ms versus300 and /studio LCP2532ms versus2500. Main runner skipped relational gates; separately guarded real development relcheck34 and citations/person/source/full-erasure EXPLAIN passed. Later sequential diagnostics after two redundant Vite servers stopped: n3 cold contexts per target,390x844,4xCPU,150msRTT. /vyakti LCP580ms,TBT0, no long tasks in all3; /studio LCP2076ms,TBT35,CLS0.071875. This shows run variance, not its cause or a full release pass. Evidence ROOT scratchpad/expert-integrated-release-{3,4}.log and integration scratchpad/{vyakti,studio}-diagnostic.json.
+
+
+## `dev-worker-guard-tests-and-real-identity-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Agent ran17 database/opt-in fixture checks plus45 existing worker checks and syntax validation, all pass. Root independently read implementation and ran dev-once mode check against actual isolated Neon via process-only derived connection. Result database=vyakti_expert_integration_20260906, work_started=false. No lease, recording processing, provider, cloud job or deletion executed. Script ROOT scratchpad/expert-tools/check-dev-worker-identity.mjs. New processing-database-guard is registered in evals/run.mjs; no subsequent whole release pass yet.
+
+
+## `complete-performance-diagnostic-after-revert-20260907` (2026-09-07)
+
+Measured2026-09-07 01:09IST after reverting image preload and forced TypeScript/Vite rebuild: performance diagnostic exited0, nine targets x three cold contexts under4xCPU/150msRTT. Median /vyakti LCP604ms,TBT0; /studio LCP2020ms,TBT40,CLS0.071875; English Room LCP1388ms,TBT164; Hindi Room LCP1728ms,TBT145. Hindi Studio chunk wait43.9ms, first Hindi paint193.3ms. Evidence integration scratchpad/performance-final-diagnostic.json. Existing diagnostics JSON omitted install/static check outcomes, although exit status included their failures; do not invent missing per-check evidence. This subsequent individual gate pass does not establish stable timing or replace full release run4.
+
+
+## `performance-prerequisite-negative-controls-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Agent and root each ran evals/performance-prerequisites.mjs:9checks passed including real CLI missing-dist, missing-fixture, invalid-target and missing-Playwright cases, plus install-prerequisite and combined-result controls. Those tests do not launch a browser. Existing completed browser measurements remain evidence of runs with installed prerequisites. Windows standalone install checker entry detection now uses pathToFileURL.
+
+Root then ran the corrected real-browser diagnostic on /studio: three cold contexts, median LCP1972ms, TBT32ms, CLS0.071875. Final JSON status passed, exitCode0, zero budget/install/static findings; evidence scratchpad/studio-final-gate-diagnostic.json. This is a targeted check, not a fresh full release pass.

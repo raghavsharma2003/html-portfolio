@@ -25,6 +25,7 @@
 import { extractPdf } from "./pdf.js";
 import { extractDocx } from "./docx.js";
 import { extractWhatsAppExport, looksLikeChatExport } from "./whatsapp.js";
+import { inspectImage, looksLikeImage } from "./image.js";
 import { audioRouting } from "./link.js";
 import {
   MAX_EXTRACTED_CHARS,
@@ -96,6 +97,17 @@ export function extractFile(filename, buffer) {
     return { route: { routedTo: "voice_evidence_lane", note: "Audio belongs to the Voice step, which carries the biometric consent gate and the diarization this lane does not have." } };
   }
 
+  if (looksLikeImage(buffer) || new Set(["png", "jpg", "jpeg", "webp", "heic", "heif"]).has(ext)) {
+    const image = inspectImage(buffer);
+    return {
+      format: image.format,
+      extractor: "verified-image-header/v1",
+      body: "",
+      segments: [],
+      image,
+    };
+  }
+
   if (magic === "pdf") return withCap(extractPdf(buffer));
   if (magic === "ole") {
     refuse("doc_legacy_binary_unsupported", { note: "this is a legacy Microsoft binary document. Save it as .docx or export as text." });
@@ -134,6 +146,7 @@ export function extractFile(filename, buffer) {
  *  it. Over the cap is a refusal that names both numbers — never a slice.
  *  `silent-truncation` is why. */
 function withCap(result) {
+  if (result?.image && result.body === "") return result;
   if (result.body.length > MAX_EXTRACTED_CHARS) {
     refuse("extracted_text_too_large", {
       chars: result.body.length,

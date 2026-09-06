@@ -16,8 +16,19 @@ if [ ! -d src ]; then
   curl -fsSL "$TARBALL" -o /tmp/meera-src.tgz
   mkdir -p /tmp/meera-src
   tar -xzf /tmp/meera-src.tgz -C /tmp/meera-src --strip-components=1
-  # -n: payload files (notably api/_config.js with the key) always win
+  # -n: explicit payload files (notably this build contract) always win. Local
+  # api/_config.js is excluded before upload and must never arrive here.
   cp -Rn /tmp/meera-src/. .
+fi
+
+DEPLOY_PRODUCT="$(node scripts/vercel-product.mjs)"
+RELEASE_MARKER=".vercel-release-preinstall.json"
+if [ ! -f "$RELEASE_MARKER" ]; then
+  # Local/manual build fallback. Vercel's install phase always writes this
+  # before npm ci, which is the release boundary used in production.
+  node scripts/deploy-commitment.mjs \
+    --product "$DEPLOY_PRODUCT" \
+    --write "$RELEASE_MARKER"
 fi
 
 # api/_config.js is gitignored, so builds driven by Vercel's own GitHub
@@ -51,8 +62,7 @@ mv dist/index.html dist/chat.html
 # vyakti product's branch family, matched as a pattern so a rename inside the
 # family needs no script change) — so the replica project shows the studio at /
 # with no per-project env var, while the companion branch keeps Meera's landing.
-case "${VERCEL_GIT_COMMIT_REF:-}" in claude/gurukul-platform|claude/vyakti-cloning-platform-*|codex/vyakti-*) PLATFORM_BRANCH=1 ;; *) PLATFORM_BRANCH=0 ;; esac
-if [ "${STUDIO_ROOT:-}" = "1" ] || [ "$PLATFORM_BRANCH" = "1" ]; then
+if [ "$DEPLOY_PRODUCT" = "vyakti-clone" ]; then
   # Vyakti's own landing, not a redirect. `/` used to be a one-line meta
   # refresh into /studio?mode=teacher, which meant the product had no
   # indexable page at all, no way to explain itself before asking a teacher
@@ -87,3 +97,8 @@ cp -R site/assets/. dist/assets/
 # the same reason privacy.html DOES need one and this does not.
 cp site/creators.html dist/creators.html
 cp site/robots.txt dist/robots.txt
+# A stable source commitment, separate from environment-sensitive Vite chunk
+# names. scripts/verify-deploy.mjs compares this exact release identity after
+# deployment, so a stale alias or wrong project still fails without treating a
+# different build-time environment as stale source.
+cp "$RELEASE_MARKER" dist/vyakti-release.json

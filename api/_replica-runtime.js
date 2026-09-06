@@ -8,6 +8,7 @@ import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
 import { calibrationDirectives } from "./_replica-calibration.js";
 import { FIDELITY_BLOCKER, FIDELITY_POLICY_VERSION } from "./_fidelity.js";
 import { READINESS_BLOCKER, READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR } from "./_readiness.js";
+import { personProfileValiditySql } from "./_person-model.js";
 
 export const RUNTIME_POLICY_VERSION = "replica-runtime-v1";
 export const REPLICA_CORE_CAP = 12_000;
@@ -209,6 +210,7 @@ left join lateral (
   select x.version,x.status from vy_replica_profile x
    where x.replica_id=r.replica_id and x.status='approved'
      and (cap.state is null or x.version=cap.profile_version)
+     and (${personProfileValiditySql("x", "r")})
    order by x.version desc limit 1
 ) pp on true
 left join lateral (
@@ -300,8 +302,9 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
          join vy_person person on person.person_id=r.subject_person_id and person.age_tier='adult_verified'
          join lateral (
            select x.version from vy_replica_profile x
-            where x.replica_id=r.replica_id and x.status='approved'
-            order by x.version desc limit 1
+             where x.replica_id=r.replica_id and x.status='approved'
+               and (${personProfileValiditySql("x", "r")})
+             order by x.version desc limit 1
          ) p on true
          join lateral (
            select x.version from vy_replica_calibration x
@@ -376,7 +379,13 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
        having count(*) filter (where latest.verdict='pass')=$5
           and count(distinct latest.suite)=$5
      ), existing_capability as (
-       select c.* from vy_replica_runtime_capability c join locked r on r.replica_id=c.replica_id
+       select c.* from vy_replica_runtime_capability c
+       join locked r on r.replica_id=c.replica_id
+       join selected s on s.replica_id=c.replica_id
+        and s.profile_version=c.profile_version
+        and s.calibration_version=c.calibration_version
+        and s.genome_version=c.genome_version
+        and s.voice_profile_id=c.voice_profile_id
         where c.owner_user_id=$2::uuid and c.state='active'
      ), created_agent as (
        insert into vy_agent (agent_id,slug,display_name,persona_version,register,status)
@@ -457,6 +466,7 @@ export async function loadOwnedRuntimeContext(db, ownerUserId, id) {
          on vg.replica_id=c.replica_id and vg.version=c.genome_version and vg.status='approved'
        join vy_replica_profile pp
          on pp.replica_id=c.replica_id and pp.version=c.profile_version and pp.status='approved'
+        and (${personProfileValiditySql("pp", "r")})
        join vy_replica_calibration cal
          on cal.replica_id=c.replica_id and cal.owner_user_id=c.owner_user_id
         and cal.version=c.calibration_version and cal.profile_version=c.profile_version and cal.status='approved'
@@ -549,6 +559,9 @@ export async function openOwnedRuntimeSession(db, ownerUserId, input) {
        join vy_replica_calibration cal
          on cal.replica_id=c.replica_id and cal.owner_user_id=c.owner_user_id
         and cal.version=c.calibration_version and cal.profile_version=c.profile_version and cal.status='approved'
+       join vy_replica_profile pp
+         on pp.replica_id=c.replica_id and pp.version=c.profile_version and pp.status='approved'
+        and (${personProfileValiditySql("pp", "r")})
       where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.lifecycle='active'
         and exists(select 1 from vy_replica_consent x
           where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id

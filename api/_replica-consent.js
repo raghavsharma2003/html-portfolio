@@ -380,12 +380,30 @@ export async function revokeOwnedConsent(db, ownerUserId, id, value) {
         where replica_id = $1::uuid and status <> 'retired' and exists (select 1 from revoked)
           and ('storage' = any($3::text[]) or 'capture' = any($3::text[])
                or 'biometric' = any($3::text[]) or 'training' = any($3::text[]))
-     ), profiles as (
-       update vy_replica_profile set status = 'retired'
-        where replica_id = $1::uuid and status <> 'retired' and exists (select 1 from revoked)
-          and ('storage' = any($3::text[]) or 'capture' = any($3::text[])
-               or 'training' = any($3::text[]))
-     ), voices as (
+      ), profiles as (
+        update vy_replica_profile set status = 'retired'
+         where replica_id = $1::uuid and status <> 'retired' and exists (select 1 from revoked)
+           and ('storage' = any($3::text[]) or 'capture' = any($3::text[])
+                or 'training' = any($3::text[]))
+        returning replica_id,version
+     ), runtime_capabilities as (
+       update vy_replica_runtime_capability c set state='revoked',revoked_at=coalesce(c.revoked_at,now())
+        where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.state in ('active','paused')
+          and c.profile_version in (select version from profiles)
+        returning c.capability_id,c.replica_id,c.owner_user_id,c.profile_version
+     ), runtime_sessions as (
+       update vy_replica_runtime_session s
+          set state='revoked',ended_at=coalesce(s.ended_at,now()),updated_at=now()
+        from runtime_capabilities c
+       where s.capability_id=c.capability_id and s.replica_id=c.replica_id
+         and s.owner_user_id=c.owner_user_id and s.state='active'
+     ), open_generations as (
+       update vy_replica_generation g
+          set state='aborted',failure_code='person_profile_consent_revoked',updated_at=now()
+       where g.replica_id=$1::uuid and g.owner_user_id=$2::uuid
+         and g.profile_version in (select version from profiles)
+         and g.state in ('authorized','streaming')
+      ), voices as (
        update vy_replica_voice_profile set status = 'deleting', updated_at = now()
         where replica_id = $1::uuid and status <> 'deleting'
           and exists (select 1 from revoked)

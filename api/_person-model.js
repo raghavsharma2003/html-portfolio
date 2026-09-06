@@ -1,5 +1,9 @@
 import { canonicalJson, sha256Hex } from "./_provenance/contracts.js";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
+import {
+  materializeAcceptedClaimToRelationalOs,
+  retractClaimRelationalMaterialization,
+} from "./_experience-compiler/relational-materializer.js";
 
 export const PERSON_MODEL_SCHEMA = "vyakti.person-model.v1";
 export const PERSON_MODEL_BUILDER = "person-model-builder/v1";
@@ -10,6 +14,49 @@ const DECISIONS = Object.freeze({
   superseded: new Set(["outdated", "replaced"]),
 });
 const CRITICAL_IDENTITY_KEYS = new Set(["self_name", "pronouns"]);
+
+// A profile is a compiled projection, not an authority of its own. Runtime
+// consumers and the reconciler both use this predicate so an approved JSON
+// snapshot cannot outlive a rejected, superseded, missing or unconsented claim
+// set. Legacy profiles without the v1 claim manifest fail closed and must be
+// rebuilt from the current owner-reviewed claims.
+export function personProfileValiditySql(profileAlias = "p", replicaAlias = "r") {
+  return `jsonb_typeof(${profileAlias}.definition#>'{provenance,claims}')='array'
+    and jsonb_array_length(${profileAlias}.definition#>'{provenance,claims}')>0
+    and exists (
+      select 1 from vy_replica_consent profile_consent
+       where profile_consent.replica_id=${replicaAlias}.replica_id
+         and profile_consent.owner_user_id=${replicaAlias}.owner_user_id
+         and profile_consent.scope='training'
+         and profile_consent.policy_version=${replicaAlias}.policy_version
+         and profile_consent.revoked_at is null
+         and (profile_consent.expires_at is null or profile_consent.expires_at>now())
+    )
+    and not exists (
+      select 1
+        from jsonb_array_elements(${profileAlias}.definition#>'{provenance,claims}') claim_ref
+        left join vy_replica_claim current_claim
+          on current_claim.claim_id=case
+               when claim_ref->>'claim_id' ~ '^[1-9][0-9]{0,18}$'
+               then (claim_ref->>'claim_id')::int8
+             end
+         and current_claim.replica_id=${profileAlias}.replica_id
+         and current_claim.owner_user_id=${replicaAlias}.owner_user_id
+        left join lateral (
+          select d.decision
+            from vy_replica_claim_decision d
+           where d.claim_id=current_claim.claim_id
+             and d.replica_id=current_claim.replica_id
+             and d.owner_user_id=current_claim.owner_user_id
+           order by d.created_at desc,d.decision_id desc limit 1
+        ) latest_profile_decision on true
+       where current_claim.claim_id is null
+          or current_claim.status<>'approved'
+          or latest_profile_decision.decision is distinct from 'accepted'
+    )`;
+}
+
+export const CURRENT_PERSON_PROFILE_SQL = personProfileValiditySql("p", "r");
 
 function fail(code, status = 400, details) {
   const error = Object.assign(new Error(code), { code, status });
@@ -229,6 +276,13 @@ export function personModelSourceHash(claims, now = Date.now()) {
 }
 
 export function clientClaim(row) {
+  const citationPreviews = (Array.isArray(row.citation_previews) ? row.citation_previews : [])
+    .map((citation) => ({
+      excerpt: clean(citation?.excerpt, 500),
+      entailment: number(citation?.entailment),
+    }))
+    .filter((citation) => citation.excerpt)
+    .slice(0, 3);
   return {
     claim_id: String(row.claim_id),
     domain: row.domain,
@@ -239,6 +293,7 @@ export function clientClaim(row) {
     status: row.status,
     sensitive: Boolean(row.sensitive),
     source_count: Array.isArray(row.source_ids) ? row.source_ids.length : number(row.source_count),
+    citation_previews: citationPreviews,
     decision: row.decision || null,
     reason_code: row.reason_code || "",
     reviewed_at: row.reviewed_at || null,
@@ -255,21 +310,48 @@ export function clientClaim(row) {
 // already paid for more than once. `clientClaim` still emits only the count.
 const CLAIMS_SQL = `select c.claim_id,c.domain,c.key,c.body,c.origin,c.confidence,c.status,c.sensitive,
   c.source_ids,cardinality(c.source_ids) as source_count,c.t_valid_from,c.t_valid_to,c.created_at,c.updated_at,
-  d.decision,d.reason_code,d.created_at as reviewed_at
+  d.decision,d.reason_code,d.created_at as reviewed_at,citation.citation_previews
 from vy_replica_claim c
 join vy_replica r on r.replica_id=c.replica_id and r.owner_user_id=$2::uuid
 left join lateral (
   select x.decision,x.reason_code,x.created_at from vy_replica_claim_decision x
    where x.claim_id=c.claim_id and x.replica_id=c.replica_id and x.owner_user_id=c.owner_user_id
-   order by x.created_at desc limit 1
+   order by x.created_at desc,x.decision_id desc limit 1
 ) d on true
+left join lateral (
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'excerpt',preview.excerpt,'entailment',preview.entailment
+  ) order by preview.created_at,preview.start_char),'[]'::jsonb) citation_previews
+  from (
+    select substring(e.value->>'text' from cc.start_char+1 for cc.end_char-cc.start_char) excerpt,
+           cc.entailment,cc.created_at,cc.start_char
+      from vy_replica_claim_citation cc
+      join vy_replica_processing_evidence e
+        on e.evidence_id=cc.evidence_id and e.source_id=cc.source_id
+       and e.replica_id=cc.replica_id and e.owner_user_id=cc.owner_user_id
+     where cc.claim_id=c.claim_id and cc.replica_id=c.replica_id and cc.owner_user_id=c.owner_user_id
+       and e.evidence_type='transcript_span' and jsonb_typeof(e.value->'text')='string'
+       and cc.end_char-cc.start_char between 1 and 500
+       and encode(digest(convert_to(
+         substring(e.value->>'text' from cc.start_char+1 for cc.end_char-cc.start_char),'UTF8'
+       ),'sha256'),'hex')=cc.quote_hash
+     order by cc.created_at,cc.start_char limit 3
+  ) preview
+) citation on true
 where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid
 order by c.created_at desc limit 500`;
 
 export async function ownedPersonModelStatus(db, ownerUserId, id) {
   const rid = replicaId(id);
   const [owned, rows, profiles] = await Promise.all([
-    db(`select replica_id from vy_replica where replica_id=$1::uuid and owner_user_id=$2::uuid limit 1`, [rid, ownerUserId]),
+    db(`select r.replica_id,exists (
+          select 1 from vy_replica_consent c where c.replica_id=r.replica_id
+           and c.owner_user_id=r.owner_user_id and c.scope='training'
+           and c.policy_version=r.policy_version and c.revoked_at is null
+           and (c.expires_at is null or c.expires_at>now())
+        ) training_consent
+        from vy_replica r where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
+          and r.lifecycle not in ('revoked','purging') limit 1`, [rid, ownerUserId]),
     db(CLAIMS_SQL, [rid, ownerUserId]),
     db(`select p.version,p.source_set_hash,p.status,p.created_at
           from vy_replica_profile p join vy_replica r on r.replica_id=p.replica_id and r.owner_user_id=$2::uuid
@@ -277,10 +359,16 @@ export async function ownedPersonModelStatus(db, ownerUserId, id) {
   ]);
   if (!owned[0]) return null;
   const rawClaims = rows.map((row) => ({ ...row, claim_id: String(row.claim_id) }));
+  const readiness = personModelReadiness(rawClaims);
+  const trainingConsent = owned[0].training_consent === true || owned[0].training_consent === "true";
+  if (!trainingConsent && !readiness.blockers.includes("training_consent_required")) {
+    readiness.blockers.unshift("training_consent_required");
+    readiness.ready = false;
+  }
   return {
     replica_id: rid,
     claims: rawClaims.map(clientClaim),
-    readiness: personModelReadiness(rawClaims),
+    readiness,
     profiles: profiles.map((row) => ({ version: number(row.version), status: row.status, created_at: row.created_at })),
   };
 }
@@ -293,22 +381,185 @@ export async function decideOwnedClaim(db, ownerUserId, input) {
   if (!DECISIONS[decision]?.has(reason)) fail("invalid_claim_decision");
   const status = decision === "accepted" ? "approved" : decision;
   const rows = await db(
-    `with owned as (
-       select c.claim_id,c.replica_id,c.owner_user_id
+    `with owned as materialized (
+       select c.claim_id,c.replica_id,c.owner_user_id,
+              pg_advisory_xact_lock(hashtextextended(c.replica_id::text||':'||c.claim_id::text||':claim_review',0)) locked
          from vy_replica_claim c join vy_replica r on r.replica_id=c.replica_id
-        where c.claim_id=$1::int8 and c.replica_id=$2::uuid and c.owner_user_id=$3::uuid and r.owner_user_id=$3::uuid
+        where c.claim_id=$1::int8 and c.replica_id=$2::uuid and c.owner_user_id=$3::uuid
+          and r.owner_user_id=$3::uuid and r.lifecycle not in ('revoked','purging')
+          and ($4<>'accepted' or (
+            c.status<>'superseded'
+            and exists (
+              select 1 from vy_replica_consent consent
+               where consent.replica_id=r.replica_id and consent.owner_user_id=r.owner_user_id
+                 and consent.scope='training' and consent.policy_version=r.policy_version
+                 and consent.revoked_at is null and (consent.expires_at is null or consent.expires_at>now())
+            )
+            and exists (
+              select 1 from vy_replica_claim_citation cc
+               where cc.claim_id=c.claim_id and cc.replica_id=c.replica_id
+                 and cc.owner_user_id=c.owner_user_id
+            )
+            and not exists (
+              select 1 from unnest(c.source_ids) wanted(source_id)
+              left join vy_replica_source s on s.source_id=wanted.source_id
+               and s.replica_id=c.replica_id and s.owner_user_id=c.owner_user_id
+             where s.source_id is null or not (
+               s.state='ready' or (
+                 s.state='quarantined' and s.capture_mode='derived'
+                 and s.contains_third_parties=false
+                 and s.provenance->>'purpose'='mirror_window'
+               )
+             )
+            )
+            and not exists (
+              select 1 from vy_replica_claim_citation cc
+              left join vy_replica_processing_evidence e
+                on e.evidence_id=cc.evidence_id and e.source_id=cc.source_id
+               and e.replica_id=cc.replica_id and e.owner_user_id=cc.owner_user_id
+              left join vy_replica_source s
+                on s.source_id=cc.source_id and s.replica_id=cc.replica_id
+               and s.owner_user_id=cc.owner_user_id
+             where cc.claim_id=c.claim_id and cc.replica_id=c.replica_id
+               and cc.owner_user_id=c.owner_user_id
+               and (e.evidence_id is null or s.source_id is null
+                 or not (cc.source_id=any(c.source_ids))
+                 or not (s.state='ready' or (
+                   s.state='quarantined' and s.capture_mode='derived'
+                   and s.contains_third_parties=false
+                   and s.provenance->>'purpose'='mirror_window'
+                   and e.value#>>'{provenance,origin}'='mirror_call'
+                   and e.value#>>'{provenance,source_id}'=s.source_id::text
+                 )))
+            )
+          ))
      ), decision as (
        insert into vy_replica_claim_decision
-         (claim_id,replica_id,owner_user_id,decision,reason_code,policy_version)
-       select claim_id,replica_id,owner_user_id,$4,$5,$6 from owned
+         (claim_id,replica_id,owner_user_id,decision,reason_code,policy_version,created_at)
+       select claim_id,replica_id,owner_user_id,$4,$5,$6,clock_timestamp() from owned
        returning decision_id,claim_id,decision,reason_code,created_at
      ), state as (
        update vy_replica_claim c set status=$7,updated_at=now()
-        from owned o where c.claim_id=o.claim_id and c.replica_id=o.replica_id and c.owner_user_id=o.owner_user_id
+        from owned o,decision d where c.claim_id=o.claim_id and c.replica_id=o.replica_id
+          and c.owner_user_id=o.owner_user_id and d.claim_id=o.claim_id
+       returning c.claim_id,c.replica_id,c.owner_user_id
+     ), affected_profiles as materialized (
+       select p.replica_id,p.version,st.owner_user_id
+         from state st join vy_replica_profile p on p.replica_id=st.replica_id
+        where $4 in ('rejected','superseded') and p.status<>'retired'
+          and jsonb_typeof(p.definition#>'{provenance,claims}')='array'
+          and exists (
+            select 1 from jsonb_array_elements(p.definition#>'{provenance,claims}') claim_ref
+             where claim_ref->>'claim_id'=st.claim_id::text
+          )
+     ), retired_profiles as (
+       update vy_replica_profile p set status='retired'
+        from affected_profiles a
+       where p.replica_id=a.replica_id and p.version=a.version and p.status<>'retired'
+       returning p.replica_id,p.version,a.owner_user_id
+     ), retired_calibrations as (
+       update vy_replica_calibration c set status='retired'
+        from retired_profiles p
+       where c.replica_id=p.replica_id and c.owner_user_id=p.owner_user_id
+         and c.profile_version=p.version and c.status<>'retired'
+     ), revoked_capabilities as (
+       update vy_replica_runtime_capability c
+          set state='revoked',revoked_at=coalesce(c.revoked_at,now())
+        from retired_profiles p
+       where c.replica_id=p.replica_id and c.owner_user_id=p.owner_user_id
+         and c.profile_version=p.version and c.state in ('active','paused')
+       returning c.capability_id,c.replica_id,c.owner_user_id,c.profile_version
+     ), revoked_sessions as (
+       update vy_replica_runtime_session s
+          set state='revoked',ended_at=coalesce(s.ended_at,now()),updated_at=now()
+        from revoked_capabilities c
+       where s.capability_id=c.capability_id and s.replica_id=c.replica_id
+         and s.owner_user_id=c.owner_user_id and s.state='active'
+     ), aborted_generations as (
+       update vy_replica_generation g
+          set state='aborted',failure_code='person_profile_claim_invalidated',updated_at=now()
+        from retired_profiles p
+       where g.replica_id=p.replica_id and g.owner_user_id=p.owner_user_id
+         and g.profile_version=p.version and g.state in ('authorized','streaming')
      ) select * from decision`,
     [cid, rid, ownerUserId, decision, reason, REPLICA_POLICY_VERSION, status],
   );
   return rows[0] || null;
+}
+
+/**
+ * Repairs invalid Person Model projections created by non-review invalidation
+ * paths such as source deletion, context re-attribution and consent expiry.
+ * The scan is content-free and bounded. Every derived runtime surface tied to
+ * an unsafe profile is closed in the same statement.
+ */
+export async function reconcileUnsafePersonProfiles(db, options = {}) {
+  const limit = Math.max(1, Math.min(100, Number(options.limit || 20)));
+  const rows = await db(
+    `with unsafe_profiles as materialized (
+       select p.replica_id,p.version,r.owner_user_id
+         from vy_replica_profile p
+         join vy_replica r on r.replica_id=p.replica_id
+        where p.status<>'retired'
+          and not (${personProfileValiditySql("p", "r")})
+        order by p.created_at,p.replica_id,p.version
+        limit $1::int4
+     ), retired_profiles as (
+       update vy_replica_profile p set status='retired'
+        from unsafe_profiles u
+       where p.replica_id=u.replica_id and p.version=u.version and p.status<>'retired'
+       returning p.replica_id,p.version,u.owner_user_id
+     ), retired_calibrations as (
+       update vy_replica_calibration c set status='retired'
+        from retired_profiles p
+       where c.replica_id=p.replica_id and c.owner_user_id=p.owner_user_id
+         and c.profile_version=p.version and c.status<>'retired'
+     ), revoked_capabilities as (
+       update vy_replica_runtime_capability c
+          set state='revoked',revoked_at=coalesce(c.revoked_at,now())
+        from retired_profiles p
+       where c.replica_id=p.replica_id and c.owner_user_id=p.owner_user_id
+         and c.profile_version=p.version and c.state in ('active','paused')
+       returning c.capability_id,c.replica_id,c.owner_user_id,c.profile_version
+     ), revoked_sessions as (
+       update vy_replica_runtime_session s
+          set state='revoked',ended_at=coalesce(s.ended_at,now()),updated_at=now()
+        from revoked_capabilities c
+       where s.capability_id=c.capability_id and s.replica_id=c.replica_id
+         and s.owner_user_id=c.owner_user_id and s.state='active'
+     ), aborted_generations as (
+       update vy_replica_generation g
+          set state='aborted',failure_code='person_profile_claim_invalidated',updated_at=now()
+        from retired_profiles p
+       where g.replica_id=p.replica_id and g.owner_user_id=p.owner_user_id
+         and g.profile_version=p.version and g.state in ('authorized','streaming')
+     )
+     select count(*)::int retired from retired_profiles`,
+    [limit],
+  );
+  return Object.freeze({ retired: number(rows[0]?.retired) });
+}
+
+/** The explicit owner review action is the only caller of accepted-claim
+ * materialization. Acceptance re-reads strict current lineage. Rejection or
+ * supersession retracts any exact fact created by an earlier acceptance; the
+ * recall query independently rechecks the latest decision as a fail-safe. */
+export async function decideAndMaterializeOwnedClaim(db, ownerUserId, input) {
+  const decision = await decideOwnedClaim(db, ownerUserId, input);
+  if (!decision) return null;
+  const materialization = decision.decision === "accepted"
+    ? await materializeAcceptedClaimToRelationalOs(db, ownerUserId, {
+      replica_id: input?.replica_id,
+      claim_id: input?.claim_id,
+    })
+    : null;
+  const retraction = ["rejected", "superseded"].includes(decision.decision)
+    ? await retractClaimRelationalMaterialization(db, ownerUserId, {
+      replica_id: input?.replica_id,
+      claim_id: input?.claim_id,
+    })
+    : null;
+  return Object.freeze({ decision, materialization, retraction });
 }
 
 async function acceptedClaims(db, ownerUserId, rid) {
@@ -354,6 +605,33 @@ export async function buildOwnedPersonProfile(db, ownerUserId, id) {
        select r.replica_id,pg_advisory_xact_lock(hashtextextended(r.replica_id::text||':person_profile',0))
          from vy_replica r where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
           and r.lifecycle not in ('revoked','purging')
+          and exists (
+            select 1 from vy_replica_consent c where c.replica_id=r.replica_id
+             and c.owner_user_id=r.owner_user_id and c.scope='training'
+             and c.policy_version=r.policy_version and c.revoked_at is null
+             and (c.expires_at is null or c.expires_at>now())
+          )
+          and jsonb_typeof($4::jsonb#>'{provenance,claims}')='array'
+          and jsonb_array_length($4::jsonb#>'{provenance,claims}')>0
+          and not exists (
+            select 1
+              from jsonb_array_elements($4::jsonb#>'{provenance,claims}') claim_ref
+              left join vy_replica_claim current_claim
+                on current_claim.claim_id=case
+                     when claim_ref->>'claim_id' ~ '^[1-9][0-9]{0,18}$'
+                     then (claim_ref->>'claim_id')::int8
+                   end
+               and current_claim.replica_id=r.replica_id
+               and current_claim.owner_user_id=r.owner_user_id
+              left join lateral (
+                select d.decision from vy_replica_claim_decision d
+                 where d.claim_id=current_claim.claim_id and d.replica_id=current_claim.replica_id
+                   and d.owner_user_id=current_claim.owner_user_id
+                 order by d.created_at desc,d.decision_id desc limit 1
+              ) latest_build_decision on true
+             where current_claim.claim_id is null or current_claim.status<>'approved'
+                or latest_build_decision.decision is distinct from 'accepted'
+          )
      ), candidate as (
        select o.replica_id,coalesce((select version from vy_replica_profile
          where replica_id=$1::uuid and source_set_hash=$3 limit 1),
@@ -391,6 +669,14 @@ export async function approveOwnedPersonProfile(db, ownerUserId, input) {
        select p.replica_id,p.version from vy_replica_profile p
        join vy_replica r on r.replica_id=p.replica_id and r.owner_user_id=$2::uuid
        where p.replica_id=$1::uuid and p.version=$3::int4 and p.status='draft' and p.source_set_hash=$4
+         and r.lifecycle not in ('revoked','purging')
+         and (${personProfileValiditySql("p", "r")})
+         and exists (
+           select 1 from vy_replica_consent c where c.replica_id=r.replica_id
+            and c.owner_user_id=r.owner_user_id and c.scope='training'
+            and c.policy_version=r.policy_version and c.revoked_at is null
+            and (c.expires_at is null or c.expires_at>now())
+         )
        for update
      ), retired as (
        update vy_replica_profile p set status='retired'

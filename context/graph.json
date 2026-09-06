@@ -153,12 +153,12 @@
     {
       "id": "persona",
       "kind": "component",
-      "title": "persona.ts \u2014 where her personality lives"
+      "title": "persona.ts — where her personality lives"
     },
     {
       "id": "inner",
       "kind": "component",
-      "title": "inner.ts \u2014 carried feeling, wants, taste, mood arc"
+      "title": "inner.ts — carried feeling, wants, taste, mood arc"
     },
     {
       "id": "memory-graph",
@@ -511,19 +511,19 @@
     {
       "id": "free-pool-capacity",
       "kind": "measurement",
-      "title": "Free pool ceiling ~75 calls/day; fresh incumbent trips its own Devanagari hard-fail (1/74) \u2014 axis recalibration flagged",
+      "title": "Free pool ceiling ~75 calls/day; fresh incumbent trips its own Devanagari hard-fail (1/74) — axis recalibration flagged",
       "at": "2026-08-15"
     },
     {
       "id": "deepseek-pro-judge",
       "kind": "measurement",
-      "title": "DeepSeek-V4-Pro FAILS judging: 30.9% pooled CI[22.4,40.8], same slot-A pathology as Flash \u2014 family out at any size",
+      "title": "DeepSeek-V4-Pro FAILS judging: 30.9% pooled CI[22.4,40.8], same slot-A pathology as Flash — family out at any size",
       "at": "2026-08-15"
     },
     {
       "id": "mistral-judge",
       "kind": "measurement",
-      "title": "Mistral-Large-3 FAILS judging: 29.2% pooled, 90% slot-A \u2014 most extreme position bias measured",
+      "title": "Mistral-Large-3 FAILS judging: 29.2% pooled, 90% slot-A — most extreme position bias measured",
       "at": "2026-08-15"
     },
     {
@@ -559,13 +559,13 @@
     {
       "id": "relstate-zero-rows",
       "kind": "measurement",
-      "title": "vy_rel_state: 0 rows for 40 persons \u2014 UPDATE-writers with no INSERT owner; whole relational surface silently invisible",
+      "title": "vy_rel_state: 0 rows for 40 persons — UPDATE-writers with no INSERT owner; whole relational surface silently invisible",
       "at": "2026-08-15"
     },
     {
       "id": "felt-wiring-landed",
       "kind": "measurement",
-      "title": "Write half shipped: upserts, WE classification+backfill, day-1 seed, currency op, closeness card \u2014 deployed 4/4",
+      "title": "Write half shipped: upserts, WE classification+backfill, day-1 seed, currency op, closeness card — deployed 4/4",
       "at": "2026-08-15"
     },
     {
@@ -577,7 +577,7 @@
     {
       "id": "r4-english-control",
       "kind": "measurement",
-      "title": "English translation does not rescue judges (recovery within noise floor) \u2014 failure is deeper than code-switching",
+      "title": "English translation does not rescue judges (recovery within noise floor) — failure is deeper than code-switching",
       "at": "2026-08-18"
     },
     {
@@ -595,7 +595,7 @@
     {
       "id": "ground-truth-ceiling",
       "kind": "measurement",
-      "title": "opus-4.8 self-agreement 77.1% [67.7,84.4] \u2014 the 80% bar exceeds its own ground truth's ceiling; opus-5 100% on 17 parsed but INVALID (reasoning trap)",
+      "title": "opus-4.8 self-agreement 77.1% [67.7,84.4] — the 80% bar exceeds its own ground truth's ceiling; opus-5 100% on 17 parsed but INVALID (reasoning trap)",
       "at": "2026-08-18"
     },
     {
@@ -613,7 +613,7 @@
     {
       "id": "r2-axis-decomposition",
       "kind": "measurement",
-      "title": "Per-axis judge failure partially concentrates: brevity a clustered-CI outlier (55.2%), humour indistinguishable from specificity/personhood \u2014 three tiers, not the predicted binary; every axis still fails 80% bar",
+      "title": "Per-axis judge failure partially concentrates: brevity a clustered-CI outlier (55.2%), humour indistinguishable from specificity/personhood — three tiers, not the predicted binary; every axis still fails 80% bar",
       "at": "2026-08-18"
     },
     {
@@ -643,7 +643,7 @@
     {
       "id": "age-tier-never-realtime",
       "kind": "rejection",
-      "title": "The second assembler dropped FORGET_DECISION and AGE_TIER_SAFETY_OVERRIDE \u2014 a safety rule never reached the realtime lane",
+      "title": "The second assembler dropped FORGET_DECISION and AGE_TIER_SAFETY_OVERRIDE — a safety rule never reached the realtime lane",
       "at": "2026-08-20"
     },
     {
@@ -655,7 +655,7 @@
     {
       "id": "startup-failure-is-invisible",
       "kind": "rejection",
-      "title": "secrets in a job-level if: makes the whole workflow invalid \u2014 15 red runs, 0 jobs, 9 days with no auto-deploy",
+      "title": "secrets in a job-level if: makes the whole workflow invalid — 15 red runs, 0 jobs, 9 days with no auto-deploy",
       "at": "2026-08-20"
     },
     {
@@ -757,7 +757,7 @@
     {
       "id": "logged-but-unindexed",
       "kind": "rejection",
-      "title": "16 entries written up with no graph row \u2014 --check validated one direction only",
+      "title": "16 entries written up with no graph row — --check validated one direction only",
       "at": "2026-08-20"
     },
     {
@@ -793,7 +793,7 @@
     {
       "id": "manifest-sourcestatus",
       "kind": "rejection",
-      "title": "sourceStatus reports wired against a compile that rendered 0 of 3 blocks \u2014 an anti-signal, not a weak one",
+      "title": "sourceStatus reports wired against a compile that rendered 0 of 3 blocks — an anti-signal, not a weak one",
       "at": "2026-08-20"
     },
     {
@@ -907,7 +907,7 @@
     {
       "id": "nine-dark-tail-slots",
       "kind": "measurement",
-      "title": "Production: 9 declared tail slots render 0 bytes; only T5/T7/T10/T11 render \u2014 three investigations in one queryable row",
+      "title": "Production: 9 declared tail slots render 0 bytes; only T5/T7/T10/T11 render — three investigations in one queryable row",
       "at": "2026-08-20"
     },
     {
@@ -919,19 +919,19 @@
     {
       "id": "engine-bundle-check-uncalled",
       "kind": "rejection",
-      "title": "build-engine-bundle --check works, caught real drift, and is invoked by nothing \u2014 dead-writers in the guard",
+      "title": "build-engine-bundle --check works, caught real drift, and is invoked by nothing — dead-writers in the guard",
       "at": "2026-08-20"
     },
     {
       "id": "busy-held-across-recursion",
       "kind": "rejection",
-      "title": "the burst branch recursed while still holding `busy`, so the one path written for bursts was the only one that could not reply \u2014 and the chat stayed dead",
+      "title": "the burst branch recursed while still holding `busy`, so the one path written for bursts was the only one that could not reply — and the chat stayed dead",
       "at": "2026-08-21"
     },
     {
       "id": "surface-bypasses-parse",
       "kind": "rejection",
-      "title": "api/_surface.js returns the model's raw string and never calls parseBubbles, so no engine guarantee \u2014 honesty, dash, protocol extraction \u2014 reaches Telegram",
+      "title": "api/_surface.js returns the model's raw string and never calls parseBubbles, so no engine guarantee — honesty, dash, protocol extraction — reaches Telegram",
       "at": "2026-08-21"
     },
     {
@@ -961,7 +961,7 @@
     {
       "id": "proactive-reason-contingent",
       "kind": "decision",
-      "title": "she may text first because something HAPPENED, never because he went quiet \u2014 the test is on the trigger, not the frequency",
+      "title": "she may text first because something HAPPENED, never because he went quiet — the test is on the trigger, not the frequency",
       "at": "2026-08-21"
     },
     {
@@ -1009,7 +1009,7 @@
     {
       "id": "theme-choosable",
       "kind": "decision",
-      "title": "light, dark or follow the phone \u2014 and 'system' stamps no attribute so the media query keeps deciding",
+      "title": "light, dark or follow the phone — and 'system' stamps no attribute so the media query keeps deciding",
       "at": "2026-08-21"
     },
     {
@@ -1021,7 +1021,7 @@
     {
       "id": "gates-that-live-nowhere-2",
       "kind": "rejection",
-      "title": "the eval suite had never run in CI, and could not have \u2014 a gitignored import killed it first",
+      "title": "the eval suite had never run in CI, and could not have — a gitignored import killed it first",
       "at": "2026-08-21"
     },
     {
@@ -1189,7 +1189,7 @@
     {
       "id": "prosody-reads-hearing-not-feeling",
       "kind": "decision",
-      "title": "Usage signals may inform hearing, never feeling; content-vs-usage test in the charter with the \u00a7H reversal",
+      "title": "Usage signals may inform hearing, never feeling; content-vs-usage test in the charter with the §H reversal",
       "at": "2026-08-22"
     },
     {
@@ -1219,7 +1219,7 @@
     {
       "id": "minifier-eats-runtime-tokens",
       "kind": "rejection",
-      "title": "Runtime token reads get the minifier value; entrance never ran; settle truncated \u2014 frame-sampling found all three",
+      "title": "Runtime token reads get the minifier value; entrance never ran; settle truncated — frame-sampling found all three",
       "at": "2026-08-22"
     },
     {
@@ -1376,7 +1376,7 @@
       "id": "sound-layer",
       "kind": "component",
       "at": "2026-08-23",
-      "title": "src/sound/ \u2014 vocabulary, synth, and the one gated path to the speaker"
+      "title": "src/sound/ — vocabulary, synth, and the one gated path to the speaker"
     },
     {
       "id": "sound-browser-2026-08-23",
@@ -1574,7 +1574,7 @@
       "id": "watch-exit-returns-to-live",
       "kind": "decision",
       "at": "2026-08-24",
-      "title": "All three native-watch exits reconnect to live; #96 landed the reconnect but missed watch_consent_denied because a denial is not a stop \u2014 the likeliest path, downgrading the call in exchange for a share that never happened"
+      "title": "All three native-watch exits reconnect to live; #96 landed the reconnect but missed watch_consent_denied because a denial is not a stop — the likeliest path, downgrading the call in exchange for a share that never happened"
     },
     {
       "id": "model-twins-pinned",
@@ -1634,7 +1634,7 @@
       "id": "personality-is-a-sheet",
       "kind": "decision",
       "at": "2026-08-24",
-      "title": "RelationalOS proven: Kabir authored as a 29-field sheet on Maya's core \u2014 412/412 invariants across 2 agents, Maya byte-identical throughout"
+      "title": "RelationalOS proven: Kabir authored as a 29-field sheet on Maya's core — 412/412 invariants across 2 agents, Maya byte-identical throughout"
     },
     {
       "id": "fixed-fuse-on-a-variable-upstream",
@@ -1670,19 +1670,19 @@
       "id": "accent-joins-the-sky",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "sky states carry a sky-solved accent (>=4.75:1 over veiled stops, gated); the theme rose measured 2.26:1 on morning blue \u2014 owner-felt, now structural"
+      "title": "sky states carry a sky-solved accent (>=4.75:1 over veiled stops, gated); the theme rose measured 2.26:1 on morning blue — owner-felt, now structural"
     },
     {
       "id": "residues-zero",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "leak-guard residues 95->0 in three byte-identical batches; ratchet pinned at 0 \u2014 character prose in core is now a build failure"
+      "title": "leak-guard residues 95->0 in three byte-identical batches; ratchet pinned at 0 — character prose in core is now a build failure"
     },
     {
       "id": "never-internals-floor",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "sixth floor category: architecture silence with playful deflection, per-module gated on 4 lanes \u2014 from the live gpt-4o disclosure incident"
+      "title": "sixth floor category: architecture silence with playful deflection, per-module gated on 4 lanes — from the live gpt-4o disclosure incident"
     },
     {
       "id": "session-2026-08-25-close",
@@ -1694,13 +1694,13 @@
       "id": "ws-gamefeel",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "tester defect wave: her-side loop fence, game-idea substrate, board-derived terminal claims, opening variety, adaptive strength \u2014 layer-tagged OS vs engine"
+      "title": "tester defect wave: her-side loop fence, game-idea substrate, board-derived terminal claims, opening variety, adaptive strength — layer-tagged OS vs engine"
     },
     {
       "id": "ws-gamefeel-shipped",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "defect wave shipped same-day: state-law fence, idea line, weighted variety, adaptive strength, loop fence \u2014 uniform-draw and streamed-line learnings logged"
+      "title": "defect wave shipped same-day: state-law fence, idea line, weighted variety, adaptive strength, loop fence — uniform-draw and streamed-line learnings logged"
     },
     {
       "id": "cache-plateau",
@@ -1785,7 +1785,7 @@
       "id": "watchcost-measured",
       "kind": "measurement",
       "at": "2026-08-25",
-      "title": "watch mode measured \u20b91.1-1.6/min (est. was 2-3x high; video is the smallest component); burst frames collapse; voiceConfig bills +201 audio tokens/turn on every live call"
+      "title": "watch mode measured ₹1.1-1.6/min (est. was 2-3x high; video is the smallest component); burst frames collapse; voiceConfig bills +201 audio tokens/turn on every live call"
     },
     {
       "id": "internals-harden-after",
@@ -1914,7 +1914,7 @@
     {
       "id": "recall-bench-v1",
       "kind": "measurement",
-      "title": "memory recall benchmark harness \u2014 3 dyads, 50 questions, deliberately unmeasured until a keyed run",
+      "title": "memory recall benchmark harness — 3 dyads, 50 questions, deliberately unmeasured until a keyed run",
       "at": "2026-08-26"
     },
     {
@@ -1980,7 +1980,7 @@
     {
       "id": "fake-the-instagram-adapter",
       "kind": "rejection",
-      "title": "an Instagram adapter against credentials that cannot exist \u2014 the gap is App Review, not code",
+      "title": "an Instagram adapter against credentials that cannot exist — the gap is App Review, not code",
       "at": "2026-08-26"
     },
     {
@@ -2095,7 +2095,7 @@
       "id": "statement-shapes-postgres-will-not-parse",
       "kind": "rejection",
       "at": "2026-08-26",
-      "title": "bare FOR UPDATE over a LEFT JOIN, and a referenced data-modifying CTE with no RETURNING \u2014 three shipped statements that could never execute"
+      "title": "bare FOR UPDATE over a LEFT JOIN, and a referenced data-modifying CTE with no RETURNING — three shipped statements that could never execute"
     },
     {
       "id": "coverage-lists-that-enumerate-a-subset",
@@ -2286,7 +2286,7 @@
     {
       "id": "owner-intent-is-the-spec",
       "kind": "decision",
-      "title": "owner states intent; platform fills every gap \u2014 product/UX quality is a hard bar, not polish",
+      "title": "owner states intent; platform fills every gap — product/UX quality is a hard bar, not polish",
       "at": "2026-08-26"
     },
     {
@@ -2616,7 +2616,7 @@
     {
       "id": "copy-law-is-a-gate-not-a-guideline",
       "kind": "decision",
-      "title": "check-copy.mjs enforces DESIGN-LAW \u00a71 mechanically: dash broadly on comment-stripped lines, word bans only on proven-visible strings",
+      "title": "check-copy.mjs enforces DESIGN-LAW §1 mechanically: dash broadly on comment-stripped lines, word bans only on proven-visible strings",
       "at": "2026-08-26"
     },
     {
@@ -4778,7 +4778,7 @@
     {
       "id": "ws-r1-the-room",
       "kind": "component",
-      "title": "The Room \u2014 api/room.js + api/_room-surface.js + src/room/ + migration 071: a follower's private, continuing relationship with a creator's published AI at /r/<slug>",
+      "title": "The Room — api/room.js + api/_room-surface.js + src/room/ + migration 071: a follower's private, continuing relationship with a creator's published AI at /r/<slug>",
       "at": "2026-09-03"
     },
     {
@@ -4862,7 +4862,7 @@
     {
       "id": "ws-r8-leak-battery",
       "kind": "component",
-      "title": "evals/room-leak/run.mjs \u2014 Vyakti Rooms' Phase 1 leak battery, gate0-structural-shaped, gating every push",
+      "title": "evals/room-leak/run.mjs — Vyakti Rooms' Phase 1 leak battery, gate0-structural-shaped, gating every push",
       "at": "2026-09-03"
     },
     {
@@ -4898,7 +4898,7 @@
     {
       "id": "ws-r7-room-publish",
       "kind": "component",
-      "title": "The Room, the creator's side \u2014 api/_room-publish.js + api/room-publish.js + src/studio/RoomStudio.tsx: create/rename/publish/pause/resume/set_free_cap/stats for the owner's vy_room row WS-R1 built a reader for but nothing ever wrote",
+      "title": "The Room, the creator's side — api/_room-publish.js + api/room-publish.js + src/studio/RoomStudio.tsx: create/rename/publish/pause/resume/set_free_cap/stats for the owner's vy_room row WS-R1 built a reader for but nothing ever wrote",
       "at": "2026-09-03"
     },
     {
@@ -5060,7 +5060,7 @@
     {
       "id": "ws-r15-first-room-script",
       "kind": "component",
-      "title": "scripts/first-room.mjs \u2014 one command from consent through the processing DAG, Readiness, the review queue, Room publish, and a second follower session, against the live deployment",
+      "title": "scripts/first-room.mjs — one command from consent through the processing DAG, Readiness, the review queue, Room publish, and a second follower session, against the live deployment",
       "at": "2026-09-03"
     },
     {
@@ -6524,7 +6524,7 @@
     {
       "id": "ws-r46-room-embed",
       "kind": "component",
-      "title": "The Room on a creator's own site \u2014 api/room-embed.js + api/_room-embed.js + vercel.json's /room-embed.js rewrite + src/studio/RoomStudio.tsx's \"On your own site\" card: a dependency-free script (data-room=\"<slug>\") rendering one button, the server's own disclosure text, and a link to /r/<slug>?via=embed in a new tab. No iframe, no migration.",
+      "title": "The Room on a creator's own site — api/room-embed.js + api/_room-embed.js + vercel.json's /room-embed.js rewrite + src/studio/RoomStudio.tsx's \"On your own site\" card: a dependency-free script (data-room=\"<slug>\") rendering one button, the server's own disclosure text, and a link to /r/<slug>?via=embed in a new tab. No iframe, no migration.",
       "at": "2026-09-04"
     },
     {
@@ -6758,7 +6758,7 @@
     {
       "id": "ws-r45-backtick-command-substitution-corrupts-commit-dash-m-messages",
       "kind": "rejection",
-      "title": "A git commit -m message inside a double-quoted shell string, containing backticks around code identifiers, silently lost the backtick-quoted span to bash command substitution (vite build ran and failed, its empty stdout replaced the text) with git commit itself exiting 0 \u2014 fixed by composing the message in a file and using git commit -F.",
+      "title": "A git commit -m message inside a double-quoted shell string, containing backticks around code identifiers, silently lost the backtick-quoted span to bash command substitution (vite build ran and failed, its empty stdout replaced the text) with git commit itself exiting 0 — fixed by composing the message in a file and using git commit -F.",
       "at": "2026-09-04"
     },
     {
@@ -6926,7 +6926,7 @@
     {
       "id": "ws-r41-rfc8291-appendix-a-reproduced-rs-is-a-ceiling-not-exact-length",
       "kind": "decision",
-      "title": "RFC 8291 Appendix A's own vector reproduced byte-for-byte; webpush decoder's rs check widened from exact-match to ceiling per RFC 8291 \u00a74's MUST",
+      "title": "RFC 8291 Appendix A's own vector reproduced byte-for-byte; webpush decoder's rs check widened from exact-match to ceiling per RFC 8291 §4's MUST",
       "at": "2026-09-04"
     },
     {
@@ -6980,13 +6980,13 @@
     {
       "id": "ws-r44-door-battery-case-counts-2026-09-04",
       "kind": "measurement",
-      "title": "evals/room-doors/run.mjs: 297 assertions (was 109), 15 doors (unchanged), 8 named attack classes plus door-list completeness (\u00a70), 6 new dynamic sections (\u00a79-\u00a714) and a computed op-list section (\u00a716), 0 failures, offline, ~1.32s standalone / 1441ms inside verify-release.mjs (was ~1.26s / 1208ms). 0 findings required a fix in a door or decision module; 2 test-harness bugs found and fixed in this workstream's own new code. Gate: 19/19 before and after.",
+      "title": "evals/room-doors/run.mjs: 297 assertions (was 109), 15 doors (unchanged), 8 named attack classes plus door-list completeness (§0), 6 new dynamic sections (§9-§14) and a computed op-list section (§16), 0 failures, offline, ~1.32s standalone / 1441ms inside verify-release.mjs (was ~1.26s / 1208ms). 0 findings required a fix in a door or decision module; 2 test-harness bugs found and fixed in this workstream's own new code. Gate: 19/19 before and after.",
       "at": "2026-09-04"
     },
     {
       "id": "ws-r40-share-and-arrival",
       "kind": "component",
-      "title": "Share and arrival \u2014 api/room-page.js + api/_room-page.js over api/_room-publish.js's publicRoomBySlug (crawler-only unfurl at /r/<slug>, vercel.json bot rewrite), the Room header's Share control (src/room/RoomApp.tsx), api/_room-surface.js's recordRoomArrival/resolveArrivalVia (the arrival upsert), and api/_funnel.js's shareArrivalsThisWeek (the creator's n>=5 floored growth line). Migration 102, vy_room_arrival.",
+      "title": "Share and arrival — api/room-page.js + api/_room-page.js over api/_room-publish.js's publicRoomBySlug (crawler-only unfurl at /r/<slug>, vercel.json bot rewrite), the Room header's Share control (src/room/RoomApp.tsx), api/_room-surface.js's recordRoomArrival/resolveArrivalVia (the arrival upsert), and api/_funnel.js's shareArrivalsThisWeek (the creator's n>=5 floored growth line). Migration 102, vy_room_arrival.",
       "at": "2026-09-04"
     },
     {
@@ -7184,7 +7184,7 @@
     {
       "id": "ws-r55-resvg-devanagari-shaping",
       "kind": "rejection",
-      "title": "@resvg/resvg-js (2.6.2 stable and 2.7.0-alpha.2 prerelease alike) corrupts the ordinary Devanagari consonant+matra+consonant cluster (\"\u092c\u093e\u0924\") and drops spaces adjacent to certain vowel-sign clusters, with the identical current-release font bytes that render correctly through @napi-rs/canvas",
+      "title": "@resvg/resvg-js (2.6.2 stable and 2.7.0-alpha.2 prerelease alike) corrupts the ordinary Devanagari consonant+matra+consonant cluster (\"बात\") and drops spaces adjacent to certain vowel-sign clusters, with the identical current-release font bytes that render correctly through @napi-rs/canvas",
       "at": "2026-09-04"
     },
     {
@@ -7268,7 +7268,7 @@
     {
       "id": "ws-r57-header-route-scope-is-the-six-named-targets-not-every-vercel-json-path",
       "kind": "decision",
-      "title": "vercel.json headers[], check-headers.mjs and evals/ops/run.mjs \u00a76 cover exactly the Room, the studio, /, /vyakti, /suites, /creators and /api/(.*) - the briefs own closed list - not every path vercel.json rewrites (/privacy, /embed.js, /sitemap.xml left uncovered, named as a gap).",
+      "title": "vercel.json headers[], check-headers.mjs and evals/ops/run.mjs §6 cover exactly the Room, the studio, /, /vyakti, /suites, /creators and /api/(.*) - the briefs own closed list - not every path vercel.json rewrites (/privacy, /embed.js, /sitemap.xml left uncovered, named as a gap).",
       "at": "2026-09-04"
     },
     {
@@ -7832,7 +7832,7 @@
     {
       "id": "ws-r69-npci-org-in-unreachable-by-this-sessions-fetch-tool",
       "kind": "rejection",
-      "title": "Six attempts (two HTML pages, two PDFs, cross-checked by WebSearch first) to reach npci.org.in for the UPI Autopay pre-debit notification sender all returned only the bare site-shell title, no body content \u2014 no CDN mirror found the way WS-R60 found one for razorpay.com.",
+      "title": "Six attempts (two HTML pages, two PDFs, cross-checked by WebSearch first) to reach npci.org.in for the UPI Autopay pre-debit notification sender all returned only the bare site-shell title, no body content — no CDN mirror found the way WS-R60 found one for razorpay.com.",
       "at": "2026-09-05"
     },
     {
@@ -8072,7 +8072,7 @@
     {
       "id": "glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words",
       "kind": "rejection",
-      "title": "The layout gate's glyph probe flagged two correct three-consonant Hindi words (\u0917\u0932\u0924, \u0935\u091c\u0939) as tofu because their letters' advances summed to a box-width run; the probe now also requires the base letters to be uniform in width, as only a .notdef run is, and runs a noncharacter control every time.",
+      "title": "The layout gate's glyph probe flagged two correct three-consonant Hindi words (गलत, वजह) as tofu because their letters' advances summed to a box-width run; the probe now also requires the base letters to be uniform in width, as only a .notdef run is, and runs a noncharacter control every time.",
       "at": "2026-09-05"
     },
     {
@@ -8090,7 +8090,7 @@
     {
       "id": "ws-r73-no-distinct-upi-to-card-upgrade-endpoint",
       "kind": "rejection",
-      "title": "Searched for a Razorpay in-place UPI-to-card mandate upgrade endpoint; none exists \u2014 cancel and recreate is the only documented path.",
+      "title": "Searched for a Razorpay in-place UPI-to-card mandate upgrade endpoint; none exists — cancel and recreate is the only documented path.",
       "at": "2026-09-05"
     },
     {
@@ -8120,7 +8120,7 @@
     {
       "id": "ws-r77-glyph-detector-null-uniform-treated-as-flaggable-2026-09-06",
       "kind": "measurement",
-      "title": "\u0938\u092d\u0940 (threads.all) measured 9.6% width-diff with uniform=null against the real Noto Sans Devanagari font, the first time this repo rendered its Hindi corpus through the CSS actual first-choice font.",
+      "title": "सभी (threads.all) measured 9.6% width-diff with uniform=null against the real Noto Sans Devanagari font, the first time this repo rendered its Hindi corpus through the CSS actual first-choice font.",
       "at": "2026-09-06"
     },
     {
@@ -8174,7 +8174,7 @@
     {
       "id": "ws-r80-room-taste-eval-2026-09-05",
       "kind": "measurement",
-      "title": "evals/room-taste/run.mjs: 32 assertions including a new \u00a76 (9 assertions) statically scanning the taste island for its one fetch target, one op literal, and textContent-only rendering, all pass.",
+      "title": "evals/room-taste/run.mjs: 32 assertions including a new §6 (9 assertions) statically scanning the taste island for its one fetch target, one op literal, and textContent-only rendering, all pass.",
       "at": "2026-09-05"
     },
     {
@@ -8222,13 +8222,13 @@
     {
       "id": "ws-r76-self-check-cron-built",
       "kind": "component",
-      "title": "api/self-check.js (migration 120): a daily cron that checks env var presence by name, whether the database answers select 1, whether every migration family the tree ships is present in the live catalog, and whether every other cron has run recently enough \u2014 reporting each failure as a content-free vy_incident row (kind self_check) through the existing incident ledger, with a new Self-check line on the ops board.",
+      "title": "api/self-check.js (migration 120): a daily cron that checks env var presence by name, whether the database answers select 1, whether every migration family the tree ships is present in the live catalog, and whether every other cron has run recently enough — reporting each failure as a content-free vy_incident row (kind self_check) through the existing incident ledger, with a new Self-check line on the ops board.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r76-self-check-reports-through-the-existing-incident-ledger-not-a-second-pipeline",
       "kind": "decision",
-      "title": "Self-check findings are recordIncident rows (kind: self_check) through api/_incidents.js, never a dedicated table or a second board/push path \u2014 migration 120 is one CHECK widening, not a new subsystem.",
+      "title": "Self-check findings are recordIncident rows (kind: self_check) through api/_incidents.js, never a dedicated table or a second board/push path — migration 120 is one CHECK widening, not a new subsystem.",
       "at": "2026-09-05"
     },
     {
@@ -8606,13 +8606,13 @@
     {
       "id": "ws-r81-room-sw-push-kind-coverage-before-after-2026-09-05",
       "kind": "measurement",
-      "title": "evals/room-push/run.mjs \u00a78, real Chromium via CDP ServiceWorker.deliverPushMessage against the real built dist/room-sw.js: after the fix all 3 listed kinds each show one correct notification and an unlisted kind shows none; the exact pre-fix guard reproduced in a second worker at a distinct scope shows NOTHING for the same renewal payload the real worker shows correctly. 69 assertions, 0 failed.",
+      "title": "evals/room-push/run.mjs §8, real Chromium via CDP ServiceWorker.deliverPushMessage against the real built dist/room-sw.js: after the fix all 3 listed kinds each show one correct notification and an unlisted kind shows none; the exact pre-fix guard reproduced in a second worker at a distinct scope shows NOTHING for the same renewal payload the real worker shows correctly. 69 assertions, 0 failed.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r81-dormancy-web-push-now-real-2026-09-05",
       "kind": "measurement",
-      "title": "Before WS-R81, api/_dormancy.js's dormancySweep discarded its own active-subscription read (void pushSubs), 0 sends ever attempted. After: evals/room-dormancy/run.mjs \u00a78 shows exactly 1 send for 1 due follower with 1 active subscription and VAPID configured, carrying t=dormancy and never the room's own dormancy_days value; 0 sends in two negative controls (VAPID unconfigured; no active subscription).",
+      "title": "Before WS-R81, api/_dormancy.js's dormancySweep discarded its own active-subscription read (void pushSubs), 0 sends ever attempted. After: evals/room-dormancy/run.mjs §8 shows exactly 1 send for 1 due follower with 1 active subscription and VAPID configured, carrying t=dormancy and never the room's own dormancy_days value; 0 sends in two negative controls (VAPID unconfigured; no active subscription).",
       "at": "2026-09-05"
     },
     {
@@ -8996,7 +8996,7 @@
     {
       "id": "room-push-chromium-headless-shell-shows-no-notification",
       "kind": "rejection",
-      "title": "The CI release gate on 04395e2 failed room-push \u00a78 alone: with no known binary path on a GitHub runner Playwright launched its chromium-headless-shell, which grants no notification permission, so every showNotification produced nothing; fixed by launching the full build by channel plus a named notification-service control.",
+      "title": "The CI release gate on 04395e2 failed room-push §8 alone: with no known binary path on a GitHub runner Playwright launched its chromium-headless-shell, which grants no notification permission, so every showNotification produced nothing; fixed by launching the full build by channel plus a named notification-service control.",
       "at": "2026-09-05"
     },
     {
@@ -9092,7 +9092,7 @@
     {
       "id": "ws-r99-room-never-rules-not-wired",
       "kind": "open",
-      "title": "Neither roomSay (api/_room-surface.js) nor roomTaste (api/_room-taste.js) passes neverRules into gatedReply \u2014 a creator's \"Never say this\" rule (WS-R4 migration 074, WS-R67 migration 116) has zero effect on /r/<slug> today, only on the widget (_clonechat.js) and Mirror Call (_mirrorcall-reply.js). Found by WS-R99; out of that workstream's file scope to fix.",
+      "title": "Neither roomSay (api/_room-surface.js) nor roomTaste (api/_room-taste.js) passes neverRules into gatedReply — a creator's \"Never say this\" rule (WS-R4 migration 074, WS-R67 migration 116) has zero effect on /r/<slug> today, only on the widget (_clonechat.js) and Mirror Call (_mirrorcall-reply.js). Found by WS-R99; out of that workstream's file scope to fix.",
       "at": "2026-09-05"
     },
     {
@@ -9224,7 +9224,7 @@
     {
       "id": "ws-r100-no-dedicated-room-leak-layer-14",
       "kind": "decision",
-      "title": "vy_receipt gets a TABLE_ROLES entry (covered by the existing generic static layer 8) but no dedicated dynamic layer 14 - the cross-follower isolation it would prove is already proven twice, by room-doors \u00a717e and room-receipt \u00a75.",
+      "title": "vy_receipt gets a TABLE_ROLES entry (covered by the existing generic static layer 8) but no dedicated dynamic layer 14 - the cross-follower isolation it would prove is already proven twice, by room-doors §17e and room-receipt §5.",
       "at": "2026-09-05"
     },
     {
@@ -9260,7 +9260,7 @@
     {
       "id": "ws-r95-readiness-floor-crossing-is-seeded-never-computed",
       "kind": "decision",
-      "title": "Crossing the Readiness publish floor in the creator rehearsal is a direct fixture seed, never a computed screen \u2014 confirmed to be the ONLY reachable path today, not a convenience.",
+      "title": "Crossing the Readiness publish floor in the creator rehearsal is a direct fixture seed, never a computed screen — confirmed to be the ONLY reachable path today, not a convenience.",
       "at": "2026-09-05"
     },
     {
@@ -9272,13 +9272,13 @@
     {
       "id": "ws-r95-rehearsal-fixture-generic-matcher-shadowed-by-a-more-specific-later-statement",
       "kind": "rejection",
-      "title": "Four cases of a standalone-read fixture matcher shadowing a later, larger CTE statement that embeds the same SQL substring \u2014 the WS-R72 ordering lesson relearned a third time.",
+      "title": "Four cases of a standalone-read fixture matcher shadowing a later, larger CTE statement that embeds the same SQL substring — the WS-R72 ordering lesson relearned a third time.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r95-roomsay-does-not-wire-never-rules-into-gatedreply",
       "kind": "open",
-      "title": "api/_room-surface.js roomSay never passes neverRules into gatedReply, unlike the widget (_clonechat.js) and Mirror Call lanes \u2014 a creator's Never-say-this rules do not protect the Room a follower actually talks to.",
+      "title": "api/_room-surface.js roomSay never passes neverRules into gatedReply, unlike the widget (_clonechat.js) and Mirror Call lanes — a creator's Never-say-this rules do not protect the Room a follower actually talks to.",
       "at": "2026-09-05"
     },
     {
@@ -9554,19 +9554,19 @@
     {
       "id": "ws-r110-room-telegram-voice-defaults-on-no-persisted-per-follower-toggle",
       "kind": "decision",
-      "title": "Telegram voice replies deliver automatically (tier+ROOM_VOICE+ceiling only); no persisted per-follower /voice on|off toggle exists \u2014 no available column, no migration in this workstream.",
+      "title": "Telegram voice replies deliver automatically (tier+ROOM_VOICE+ceiling only); no persisted per-follower /voice on|off toggle exists — no available column, no migration in this workstream.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r110-telegram-sendvoice-codec-requirement-not-live-verified",
       "kind": "decision",
-      "title": "Telegram sendVoice is sent as a real WAV container over the voice multipart field; whether Telegram renders WAV (vs requiring OGG/Opus) as a playable voice message is unverified \u2014 the fetch tool truncates core.telegram.org/bots/api before sendVoice's own table.",
+      "title": "Telegram sendVoice is sent as a real WAV container over the voice multipart field; whether Telegram renders WAV (vs requiring OGG/Opus) as a playable voice message is unverified — the fetch tool truncates core.telegram.org/bots/api before sendVoice's own table.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r110-room-telegram-voice-preference-no-available-column",
       "kind": "rejection",
-      "title": "Searched vy_room_follower_channel (checkins_enabled, stopped_code) and vy_room_follower (settings_reviewed_at) for a reusable JSON/flag column for a voice preference; both are committed to a different meaning. No column, no migration in this workstream \u2014 logged rather than repurposed.",
+      "title": "Searched vy_room_follower_channel (checkins_enabled, stopped_code) and vy_room_follower (settings_reviewed_at) for a reusable JSON/flag column for a voice preference; both are committed to a different meaning. No column, no migration in this workstream — logged rather than repurposed.",
       "at": "2026-09-05"
     },
     {
@@ -9584,7 +9584,7 @@
     {
       "id": "ws-r110-voice-command-coverage-lives-in-room-telegram-not-room-doors",
       "kind": "decision",
-      "title": "/voice on|off's no-quota-spend property is proven in evals/room-telegram(-voice)/run.mjs against the real Telegram fixture world, not added to evals/room-doors/run.mjs \u2014 room-tg.js reads no op literal (OP_COVERAGE has no seam) and /voice takes no cross-identity input.",
+      "title": "/voice on|off's no-quota-spend property is proven in evals/room-telegram(-voice)/run.mjs against the real Telegram fixture world, not added to evals/room-doors/run.mjs — room-tg.js reads no op literal (OP_COVERAGE has no seam) and /voice takes no cross-identity input.",
       "at": "2026-09-05"
     },
     {
@@ -9770,7 +9770,7 @@
     {
       "id": "ws-r108-readable-export-room-doors-case-2026-09-05",
       "kind": "measurement",
-      "title": "evals/room-doors/run.mjs's new \u00a717f case: 8 new assertions, 729/729 total, 0 failures.",
+      "title": "evals/room-doors/run.mjs's new §17f case: 8 new assertions, 729/729 total, 0 failures.",
       "at": "2026-09-05"
     },
     {
@@ -9824,7 +9824,7 @@
     {
       "id": "ws-r101-recall-run-neverrules-uncompiled-silently-does-nothing",
       "kind": "rejection",
-      "title": "A raw {rule_id,pattern,revoked_at} row handed straight to gatedReply matches nothing and throws nothing \u2014 the answer comes back unsuppressed, gated:true, ordinary text. Fixed by compiling before the call.",
+      "title": "A raw {rule_id,pattern,revoked_at} row handed straight to gatedReply matches nothing and throws nothing — the answer comes back unsuppressed, gated:true, ordinary text. Fixed by compiling before the call.",
       "at": "2026-09-05"
     },
     {
@@ -9950,13 +9950,13 @@
     {
       "id": "ws-r116-env-manifest-names-before-and-after",
       "kind": "measurement",
-      "title": "api/_self-check.js#envPresence reported on 17 names before this workstream (REQUIRED_ENV 2 + OPTIONAL_ENV 15) and 127 after (+MANIFEST_ONLY_ENV 110) \u2014 a 7.5x widening, n = the real docs/gurukul/ENV-MANIFEST.md document parsed by scripts/envManifest.mjs, method in context/measurements.md#ws-r116-env-manifest-names-before-and-after.",
+      "title": "api/_self-check.js#envPresence reported on 17 names before this workstream (REQUIRED_ENV 2 + OPTIONAL_ENV 15) and 127 after (+MANIFEST_ONLY_ENV 110) — a 7.5x widening, n = the real docs/gurukul/ENV-MANIFEST.md document parsed by scripts/envManifest.mjs, method in context/measurements.md#ws-r116-env-manifest-names-before-and-after.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r116-env-manifest-md-carries-two-header-shapes",
       "kind": "measurement",
-      "title": "36 env-var tables in docs/gurukul/ENV-MANIFEST.md use two different literal five-column headers (30 name|consumed at|required|fallback|breaks without it, 6 later Var|Read by|Required?|Exact value|What changes with it) \u2014 a grep for the first shape alone undercounts by 6 tables, 7 names.",
+      "title": "36 env-var tables in docs/gurukul/ENV-MANIFEST.md use two different literal five-column headers (30 name|consumed at|required|fallback|breaks without it, 6 later Var|Read by|Required?|Exact value|What changes with it) — a grep for the first shape alone undercounts by 6 tables, 7 names.",
       "at": "2026-09-05"
     },
     {
@@ -10250,13 +10250,13 @@
     {
       "id": "ws-r111-boundary-containment-25-of-41",
       "kind": "measurement",
-      "title": "evals/room-adversarial-creator/run.mjs \u00a71, real MATERIAL_BLOCK_OPEN/CLOSE markers (not a heuristic): boundary status contained 0/41 -> 25/41, fused 41/41 -> 16/41, n=41, 2026-09-05, offline deterministic. The 25 are exactly the five-covered-field entries; the 16 are the four excluded fields, unchanged from WS-105's own measurement.",
+      "title": "evals/room-adversarial-creator/run.mjs §1, real MATERIAL_BLOCK_OPEN/CLOSE markers (not a heuristic): boundary status contained 0/41 -> 25/41, fused 41/41 -> 16/41, n=41, 2026-09-05, offline deterministic. The 25 are exactly the five-covered-field entries; the 16 are the four excluded fields, unchanged from WS-105's own measurement.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r111-secret-shaped-leak-rate-0-of-5",
       "kind": "measurement",
-      "title": "evals/room-adversarial-creator/run.mjs \u00a73, same method as ws-r105-secret-shaped-material-leak-rate, re-run 2026-09-05: delivered-reply leak rate for secret-shaped material dropped 2/5 -> 0/5 (identityWho and identityLife no longer leak). All five entries land on covered fields; unmeasured directly for the four excluded fields by this run.",
+      "title": "evals/room-adversarial-creator/run.mjs §3, same method as ws-r105-secret-shaped-material-leak-rate, re-run 2026-09-05: delivered-reply leak rate for secret-shaped material dropped 2/5 -> 0/5 (identityWho and identityLife no longer leak). All five entries land on covered fields; unmeasured directly for the four excluded fields by this run.",
       "at": "2026-09-05"
     },
     {
@@ -10580,43 +10580,43 @@
     {
       "id": "ws-r130-referral-reward-needs-a-second-identity-table-vy-room-referral-credit",
       "kind": "decision",
-      "title": "The reward is computed from a NEW table, vy_room_referral_credit, resolved by recomputing referralHashFor at join time \u2014 never from vy_room_referral, whose whole design is that it names no one.",
+      "title": "The reward is computed from a NEW table, vy_room_referral_credit, resolved by recomputing referralHashFor at join time — never from vy_room_referral, whose whole design is that it names no one.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r130-referral-credit-and-reward-tables-carry-no-fk-on-identity-columns",
       "kind": "decision",
-      "title": "vy_room_referral_credit/vy_room_referral_reward carry no FK on their identity columns (only room_id cascades) \u2014 a granted reward is a financial-ledger fact that must survive either party's later forget, vy_receipt's own precedent restated.",
+      "title": "vy_room_referral_credit/vy_room_referral_reward carry no FK on their identity columns (only room_id cascades) — a granted reward is a financial-ledger fact that must survive either party's later forget, vy_receipt's own precedent restated.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r130-referral-reward-grant-is-a-second-statement-not-a-fifth-cte",
       "kind": "decision",
-      "title": "maybeGrantReferralReward runs as its own statement after issueFollowerReceipt, never folded into applyWebhook's own ledger-write CTE chain \u2014 WS-R100's own receipt-placement argument restated.",
+      "title": "maybeGrantReferralReward runs as its own statement after issueFollowerReceipt, never folded into applyWebhook's own ledger-write CTE chain — WS-R100's own receipt-placement argument restated.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r130-referral-progress-rides-the-referral-link-response-not-a-new-op",
       "kind": "decision",
-      "title": "roomReferralProgress is not its own op \u2014 api/room.js's referral_link handler merges roomReferralLink and roomReferralProgress into one response.",
+      "title": "roomReferralProgress is not its own op — api/room.js's referral_link handler merges roomReferralLink and roomReferralProgress into one response.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r130-sql-comment-backticks-terminated-the-template-literal-yet-again",
       "kind": "rejection",
-      "title": "A new comment inside api/_replica-full-erasure.js's giant SQL template literal used backtick-quoted identifiers and terminated the literal early \u2014 the sixth-plus instance of this exact repo-wide trap, caught only by node --check.",
+      "title": "A new comment inside api/_replica-full-erasure.js's giant SQL template literal used backtick-quoted identifiers and terminated the literal early — the sixth-plus instance of this exact repo-wide trap, caught only by node --check.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r130-erasure-comment-naming-vy-room-follower-whatsapp-chat-tripped-the-static-scanner",
       "kind": "rejection",
-      "title": "Naming vy_room_follower_whatsapp_chat by name in a new api/_replica-full-erasure.js comment tripped that file's own 'every vy_room_follower-substring line must be a delete' static check \u2014 a third instance of the table-name-in-a-comment defect class.",
+      "title": "Naming vy_room_follower_whatsapp_chat by name in a new api/_replica-full-erasure.js comment tripped that file's own 'every vy_room_follower-substring line must be a delete' static check — a third instance of the table-name-in-a-comment defect class.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r130-shared-room-fixture-would-have-silently-misrouted-the-new-credit-insert",
       "kind": "rejection",
-      "title": "evals/room/fixtures.mjs's plain substring match for 'insert into vy_room_referral' would have silently swallowed the new, superstring 'insert into vy_room_referral_credit' statement and mis-destructured its params \u2014 fixed by checking the more specific pattern first, caught before any test ran red.",
+      "title": "evals/room/fixtures.mjs's plain substring match for 'insert into vy_room_referral' would have silently swallowed the new, superstring 'insert into vy_room_referral_credit' statement and mis-destructured its params — fixed by checking the more specific pattern first, caught before any test ran red.",
       "at": "2026-09-05"
     },
     {
@@ -10628,13 +10628,13 @@
     {
       "id": "ws-r130-referral-reward-new-sql-2026-09-05",
       "kind": "measurement",
-      "title": "1 new migration (133), 5 DDL statements; new API statements in joinRoom, maybeGrantReferralReward, roomReferralProgress, roomExport, reconcilePeriod, api/memory.js and api/_replica-full-erasure.js \u2014 none run against a live Postgres, no NEON_URL in this environment.",
+      "title": "1 new migration (133), 5 DDL statements; new API statements in joinRoom, maybeGrantReferralReward, roomReferralProgress, roomExport, reconcilePeriod, api/memory.js and api/_replica-full-erasure.js — none run against a live Postgres, no NEON_URL in this environment.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r130-static-import-of-room-surface-in-the-shared-fixture-broke-whatsapps-frozen-module-secret",
       "kind": "rejection",
-      "title": "A new static import of referralHashFor in evals/room/fixtures.mjs transitively pulled in api/whatsapp.js before evals/room-whatsapp/run.mjs set its own frozen module secrets, breaking that suite's webhook signature checks \u2014 fixed with a lazy dynamic import, caught only by running the whole eval registry.",
+      "title": "A new static import of referralHashFor in evals/room/fixtures.mjs transitively pulled in api/whatsapp.js before evals/room-whatsapp/run.mjs set its own frozen module secrets, breaking that suite's webhook signature checks — fixed with a lazy dynamic import, caught only by running the whole eval registry.",
       "at": "2026-09-05"
     },
     {
@@ -10652,7 +10652,7 @@
     {
       "id": "ws-r121-boundary-containment-41-of-41",
       "kind": "measurement",
-      "title": "evals/room-adversarial-creator/run.mjs \u00a71: boundary status \"contained\" 25/41 -> 41/41, \"fused\" 16/41 -> 0/41, n=41 corpus entries, all nine injectable fields now covered.",
+      "title": "evals/room-adversarial-creator/run.mjs §1: boundary status \"contained\" 25/41 -> 41/41, \"fused\" 16/41 -> 0/41, n=41 corpus entries, all nine injectable fields now covered.",
       "at": "2026-09-05"
     },
     {
@@ -11012,7 +11012,7 @@
     {
       "id": "ws-r131-quiet-hours-follower-row-sql",
       "kind": "component",
-      "title": "api/_quiet-hours.js: quietHoursOkForFollowerRowSql(alias, paramIndex) reads the follower's own row directly, NULL (never TRUE) when unset; quietHoursOkForFollowerSql is now coalesce(rowSql, WS-R129's own not-exists proxy) \u2014 one SQL expression, own row wins.",
+      "title": "api/_quiet-hours.js: quietHoursOkForFollowerRowSql(alias, paramIndex) reads the follower's own row directly, NULL (never TRUE) when unset; quietHoursOkForFollowerSql is now coalesce(rowSql, WS-R129's own not-exists proxy) — one SQL expression, own row wins.",
       "at": "2026-09-05"
     },
     {
@@ -11036,7 +11036,7 @@
     {
       "id": "ws-r131-quiet-hours-gate-results",
       "kind": "measurement",
-      "title": "evals/quiet-hours widened 28->41 (new SS5, own row beats proxy); evals/checkins 43->59 (new \u00a77, inheritance); evals/renewals 79->87 (new \u00a78b, four boundary instants); evals/room-dormancy 53->61 (new \u00a79b); evals/room-doors gained set_quiet_hours across every attack class (OP_COVERAGE+OP_INVOKE cased). node scripts/check-accessibility.mjs --target room: 0 keyboard findings after the type=time fix (was 2, keyboard-unreachable + keyboard-focus-invisible). Method: node evals/run.mjs full registry run and node scripts/check-accessibility.mjs --target room, both direct, 2026-09-05.",
+      "title": "evals/quiet-hours widened 28->41 (new SS5, own row beats proxy); evals/checkins 43->59 (new §7, inheritance); evals/renewals 79->87 (new §8b, four boundary instants); evals/room-dormancy 53->61 (new §9b); evals/room-doors gained set_quiet_hours across every attack class (OP_COVERAGE+OP_INVOKE cased). node scripts/check-accessibility.mjs --target room: 0 keyboard findings after the type=time fix (was 2, keyboard-unreachable + keyboard-focus-invisible). Method: node evals/run.mjs full registry run and node scripts/check-accessibility.mjs --target room, both direct, 2026-09-05.",
       "at": "2026-09-05"
     },
     {
@@ -11110,6 +11110,1205 @@
       "kind": "rejection",
       "title": "Reject treating a zero-exit browser skip as successful validation",
       "at": "2026-09-06"
+    },
+    {
+      "id": "studio-test-journey-is-status-source-lineage-and-one-next-action",
+      "kind": "decision",
+      "title": "The test Studio leads with status, source lineage, and one next action",
+      "at": "2026-08-28",
+      "status": "live on Vercel production; YouTube audio extraction still needs residential egress"
+    },
+    {
+      "id": "studio-owner-journey-responsive-local-2026-08-28",
+      "kind": "measurement",
+      "title": "Focused Studio journey passes desktop, phone, landscape, and contract checks",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "second-channel-field-and-dead-extractor-button-do-not-belong-in-test-journey",
+      "kind": "rejection",
+      "title": "A second channel field and dead extractor action do not belong in the test journey",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "alakh-lecture-remains-language-stress-not-owner-identity",
+      "kind": "decision",
+      "title": "The Alakh lecture remains language stress data, not owner identity evidence",
+      "at": "2026-08-28",
+      "status": "production front-end journey measured; identity training refused"
+    },
+    {
+      "id": "production-front-end-lecture-clone-journey-2026-08-28",
+      "kind": "measurement",
+      "title": "The production lecture journey reaches protected replay after two manual retries",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "uploading-the-same-third-party-lecture-again-does-not-test-the-journey",
+      "kind": "rejection",
+      "title": "A third upload of the same lecture adds duplication, not journey evidence",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "guided-browser-recording-is-primary-voice-intake",
+      "kind": "decision",
+      "title": "Guided browser recording is the primary voice intake",
+      "at": "2026-08-28",
+      "status": "implemented, deployed and verified in authenticated production UI"
+    },
+    {
+      "id": "guided-voice-capture-local-2026-08-28",
+      "kind": "measurement",
+      "title": "Guided voice capture reaches the existing private upload queue",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "long-audio-duration-is-not-the-conditioning-unit",
+      "kind": "rejection",
+      "title": "Long audio duration is not the current preview conditioning unit",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "one-explicit-primary-voice-reference-per-replica",
+      "kind": "decision",
+      "title": "One explicit owner-chosen source drives each replica voice",
+      "at": "2026-08-29",
+      "status": "live; migration 066 applied; build and settlement source-isolated; production browser verified"
+    },
+    {
+      "id": "primary-voice-pointer-local-and-live-schema-2026-08-29",
+      "kind": "measurement",
+      "title": "Two-recording browser journey and live primary-pointer schema pass",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "all-ready-audio-cannot-silently-compete-for-the-clone-voice",
+      "kind": "rejection",
+      "title": "All ready audio cannot silently compete for clone identity",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "azure-fast-transcription-is-the-configured-long-audio-lane",
+      "kind": "decision",
+      "title": "Azure Fast Transcription is the configured long-audio lane",
+      "at": "2026-08-29",
+      "status": "worker live; three repaired sources ready"
+    },
+    {
+      "id": "azure-fast-transcription-long-source-repair-2026-08-29",
+      "kind": "measurement",
+      "title": "Three long sources completed transcription and voice quality",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "an-empty-azure-sentinel-is-not-a-failed-transcription",
+      "kind": "rejection",
+      "title": "An empty Azure sentinel is not a failed transcription",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "signed-runtime-warming-is-a-nonterminal-owner-state",
+      "kind": "decision",
+      "title": "Signed runtime warming is a nonterminal owner state",
+      "at": "2026-08-29",
+      "status": "implemented, deployed and production-canary verified"
+    },
+    {
+      "id": "primary-recording-production-journey-2026-08-29",
+      "kind": "measurement",
+      "title": "Primary recording production journey reaches protected playback",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "signed-runtime-warming-cannot-render-preview-stopped",
+      "kind": "rejection",
+      "title": "Signed runtime warming cannot render Preview stopped",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "phone-touch-target-audit-covers-feed-and-meet",
+      "kind": "decision",
+      "title": "Phone touch-target audit covers Feed and Meet",
+      "at": "2026-08-29",
+      "status": "implemented, release-gated and production remeasured"
+    },
+    {
+      "id": "production-meet-phone-target-audit-2026-08-29",
+      "kind": "measurement",
+      "title": "Production Meet exposed undersized phone targets",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "feed-only-phone-audit-cannot-clear-the-studio",
+      "kind": "rejection",
+      "title": "Feed-only phone audit cannot clear the Studio",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "internal-test-auto-grants-all-authenticated-self-replicas",
+      "kind": "decision",
+      "title": "Internal test auto-grants every authenticated self replica",
+      "at": "2026-08-29",
+      "status": "live and verified for every authenticated internal-test account"
+    },
+    {
+      "id": "vercel-self-test-backend-flags-empty-2026-08-29",
+      "kind": "measurement",
+      "title": "Vercel test UI and backend flags were split",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "test-ui-with-empty-server-bypass-is-a-consent-trap",
+      "kind": "rejection",
+      "title": "A test UI with an empty server bypass is a consent trap",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "worker-build-normalizes-every-consumed-line-config",
+      "kind": "decision",
+      "title": "Worker builds normalize every consumed line config",
+      "at": "2026-08-29",
+      "status": "live and verified on FD4006"
+    },
+    {
+      "id": "fd4006-processing-recovery-2026-08-29",
+      "kind": "measurement",
+      "title": "FD4006 completed after the ClamAV line-ending repair",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "normalizing-only-freshclam-config-does-not-protect-clamd",
+      "kind": "rejection",
+      "title": "Normalizing only freshclam config does not protect clamd",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "sensitive-vercel-env-pull-placeholder-is-not-live-absence",
+      "kind": "rejection",
+      "title": "A sensitive Vercel env pull placeholder is not live absence",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "durable-replica-work-is-level-triggered-and-paged",
+      "kind": "decision",
+      "title": "Durable replica work is level-triggered and paged",
+      "at": "2026-08-29",
+      "status": "worker, web watchdog and Azure alert live"
+    },
+    {
+      "id": "pipeline-reliability-live-release-2026-08-29",
+      "kind": "measurement",
+      "title": "Pipeline reliability release repairs a retired-draft trap",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "edge-only-build-and-believable-progress-cannot-own-recovery",
+      "kind": "rejection",
+      "title": "Edge-only build and believable progress cannot own recovery",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "voice-preview-readiness-is-remotely-probed",
+      "kind": "decision",
+      "title": "Voice preview readiness is remotely probed",
+      "at": "2026-08-29",
+      "status": "broker and web caller live; production canary verified"
+    },
+    {
+      "id": "voice-preview-stale-warmth-baseline-2026-08-29",
+      "kind": "measurement",
+      "title": "Process-local warming added more than six ready minutes",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "per-process-warming-memory-is-not-runtime-readiness",
+      "kind": "rejection",
+      "title": "Per-process warming memory is not runtime readiness",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "long-source-asr-uses-a-bounded-private-transport-derivative",
+      "kind": "decision",
+      "title": "Long-source ASR uses a bounded private transport derivative",
+      "at": "2026-08-29",
+      "status": "live and verified on the exact 262879879-byte source"
+    },
+    {
+      "id": "long-source-private-asr-recovery-live-2026-08-29",
+      "kind": "measurement",
+      "title": "The exact long private source completed ASR recovery",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "large-private-audio-cannot-be-buffered-or-reset-to-attempt-zero",
+      "kind": "rejection",
+      "title": "Large private audio cannot be buffered or reset to attempt zero",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "primary-voice-isolation-and-preview-live-2026-08-29",
+      "kind": "measurement",
+      "title": "Primary voice isolation and protected production preview pass",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "level-triggered-review-cannot-rotate-or-merge-the-primary-voice",
+      "kind": "rejection",
+      "title": "Level-triggered review cannot rotate or merge the primary voice",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "continuous-learning-is-an-approved-experience-compiler",
+      "kind": "decision",
+      "title": "Continuous learning is an approved experience compiler",
+      "at": "2026-08-29",
+      "status": "local contract and research; durable relational and voice writers not connected"
+    },
+    {
+      "id": "studio-waits-use-server-facts-and-observed-bounds",
+      "kind": "decision",
+      "title": "Studio waits use server facts and observed bounds",
+      "at": "2026-08-29",
+      "status": "implemented locally; deployment pending"
+    },
+    {
+      "id": "mirror-call-windows-are-session-bound-derived-evidence",
+      "kind": "decision",
+      "title": "Mirror Call windows are session-bound derived evidence",
+      "at": "2026-08-29",
+      "status": "live"
+    },
+    {
+      "id": "continuous-human-clone-frontier-contract-2026-08-29",
+      "kind": "measurement",
+      "title": "Continuous human clone frontier contract passes",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "studio-owner-timing-and-auth-continuity-frontend-2026-08-29",
+      "kind": "measurement",
+      "title": "Studio timing and auth continuity frontend checks pass",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "mirror-call-dead-path-audit-local-2026-08-29",
+      "kind": "measurement",
+      "title": "Mirror Call dead path audit and local repair pass",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "hot-path-training-and-durable-emotion-profiles",
+      "kind": "rejection",
+      "title": "Hot-path training and durable emotion profiles are rejected",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "ordinary-enrollment-sources-cannot-carry-live-call-windows",
+      "kind": "rejection",
+      "title": "Ordinary enrollment sources cannot carry live call windows",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "fine-tune-queue-without-runner-is-not-progress",
+      "kind": "rejection",
+      "title": "A fine-tune queue without a runner is not progress",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "live-mirror-call-asr-uses-a-bound-azure-short-fallback",
+      "kind": "decision",
+      "title": "Live Mirror Call ASR uses a bound Azure short-audio fallback",
+      "at": "2026-08-29",
+      "status": "live"
+    },
+    {
+      "id": "mirror-call-production-call-window-and-gpu-canary-2026-08-29",
+      "kind": "measurement",
+      "title": "Production Mirror Call window and GPU canary passes",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "mirror-call-create-without-test-bootstrap-is-not-owner-access",
+      "kind": "rejection",
+      "title": "Mirror Call create without test bootstrap is not owner access",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "mirror-window-purpose-literals-cannot-diverge",
+      "kind": "rejection",
+      "title": "Mirror Call purpose literals cannot diverge",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "sarvam-http-402-cannot-own-live-call-availability",
+      "kind": "rejection",
+      "title": "Sarvam HTTP 402 cannot own live call availability",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "vercel-sensitive-stdin-presence-is-not-runtime-delivery",
+      "kind": "rejection",
+      "title": "Vercel sensitive stdin presence is not runtime delivery",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "roman-hinglish-overflow-coalesces-as-one-audited-register",
+      "kind": "decision",
+      "title": "Roman Hinglish overflow coalesces as one audited register",
+      "at": "2026-08-29",
+      "status": "live; protected production preview passed"
+    },
+    {
+      "id": "roman-hinglish-overflow-frontend-local-2026-08-29",
+      "kind": "measurement",
+      "title": "Natural Roman Hinglish stays inside the synthesis bound",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "roman-hinglish-overflow-production-canary-2026-08-29",
+      "kind": "measurement",
+      "title": "Production Roman Hinglish preview returns protected audio",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "per-token-switch-budget-cannot-reject-natural-roman-hinglish",
+      "kind": "rejection",
+      "title": "Per-token switch budgets cannot reject natural Roman Hinglish",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "short-primary-self-recordings-use-continuous-window-fallback",
+      "kind": "decision",
+      "title": "Short primary self recordings use a bounded continuous-window fallback",
+      "at": "2026-08-29",
+      "status": "live; two production recoveries passed"
+    },
+    {
+      "id": "short-primary-reference-fragmentation-production-2026-08-29",
+      "kind": "measurement",
+      "title": "Two production microphone recordings stop on fragmented reference windows",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "diarizer-cluster-contiguity-cannot-veto-primary-microphone-samples",
+      "kind": "rejection",
+      "title": "Diarizer cluster contiguity cannot veto primary microphone samples",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "clone-economics-separate-cold-capacity-from-warm-marginal-cost",
+      "kind": "decision",
+      "title": "Clone economics separates cold capacity from warm marginal cost",
+      "at": "2026-08-29",
+      "status": "live measurement model"
+    },
+    {
+      "id": "clone-and-call-unit-economics-live-2026-08-29",
+      "kind": "measurement",
+      "title": "Live clone and call unit economics",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "one-flat-voice-price-cannot-hide-cold-gpu-and-carrier-cost",
+      "kind": "rejection",
+      "title": "One flat voice price cannot hide cold GPU and carrier cost",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "voice-preview-warmup-is-an-aborted-attempt",
+      "kind": "decision",
+      "title": "Preview warmups settle as aborted attempts",
+      "at": "2026-08-29",
+      "status": "implemented locally; Vercel deployment pending"
+    },
+    {
+      "id": "voice-preview-and-worker-reliability-production-2026-08-29",
+      "kind": "measurement",
+      "title": "Production preview audit and combined worker deployment",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "cold-gpu-attempts-cannot-be-model-failures",
+      "kind": "rejection",
+      "title": "Cold GPU attempts cannot be model failures",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "stale-admission-broker-cannot-judge-hindi-model-quality",
+      "kind": "rejection",
+      "title": "A stale admission broker cannot judge Hindi model quality",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "phonellm-is-a-shadow-call-brain-not-a-clone-voice",
+      "kind": "decision",
+      "title": "PhoneLLM is a shadow call brain, not a clone voice",
+      "at": "2026-08-29",
+      "status": "research shadow only"
+    },
+    {
+      "id": "phonellm-official-closure-review-2026-08-29",
+      "kind": "measurement",
+      "title": "PhoneLLM exact official closure and serving review",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "phonellm-b200-benchmarks-cannot-certify-hindi-or-t4",
+      "kind": "rejection",
+      "title": "PhoneLLM B200 benchmarks cannot certify Hindi or T4",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "owner-hindi-remains-general-chatterbox-and-hinglish-fanout-is-bounded",
+      "kind": "decision",
+      "title": "Owner Hindi remains on general Chatterbox and Hinglish fanout is bounded",
+      "at": "2026-08-29",
+      "status": "live in production; owner perceptual listening pending"
+    },
+    {
+      "id": "web-release-waits-for-personal-vercel-ownership",
+      "kind": "decision",
+      "title": "Web release waits for personal Vercel ownership",
+      "at": "2026-08-29",
+      "status": "superseded after owner-only personal membership and billing readback"
+    },
+    {
+      "id": "mirror-call-window-contract-local-2026-08-29",
+      "kind": "measurement",
+      "title": "Mirror Call window transport and derived-evidence contract pass",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "owner-current-reference-general-hindi-hinglish-2026-08-29",
+      "kind": "measurement",
+      "title": "Owner current-reference Hindi and Hinglish model comparison",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "open-voice-readiness-broker-production-2026-08-29",
+      "kind": "measurement",
+      "title": "Production admission broker signed remote readiness probe",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "milestone-percent-silent-auth-reset-and-queued-means-running",
+      "kind": "rejection",
+      "title": "Milestone percent, silent auth reset and queued-means-running are rejected",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "hindi-pack-and-segmented-hinglish-cannot-be-promoted-from-this-pack",
+      "kind": "rejection",
+      "title": "Hindi pack and segmented Hinglish cannot be promoted from this pack",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "hindi-image-without-shared-cangjie-closure",
+      "kind": "rejection",
+      "title": "Hindi image without the shared Cangjie closure is rejected",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "employer-owned-vercel-team-cannot-be-an-assumed-release-target",
+      "kind": "rejection",
+      "title": "An employer-owned Vercel team cannot be an assumed release target",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "production-web-release-requires-owner-only-readback-and-real-canary",
+      "kind": "decision",
+      "title": "Production web release requires owner-only readback and a real canary",
+      "at": "2026-08-29",
+      "status": "live production canary passed"
+    },
+    {
+      "id": "production-owner-clone-canary-2026-08-29",
+      "kind": "measurement",
+      "title": "Fresh production owner clone crosses upload, build and protected preview",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "gpu-http-startup-probe-cannot-be-the-only-routing-gate",
+      "kind": "rejection",
+      "title": "GPU HTTP startup probe cannot be the only routing gate",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "phone-clone-starts-with-browser-owned-session-and-durable-upload",
+      "kind": "decision",
+      "title": "Phone cloning starts with a browser-owned session and durable upload",
+      "at": "2026-08-29",
+      "status": "live path ready"
+    },
+    {
+      "id": "production-phone-clone-readiness-audit-2026-08-29",
+      "kind": "measurement",
+      "title": "Production phone clone readiness audit",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "preissued-jwt-cannot-be-a-phone-onboarding-step",
+      "kind": "rejection",
+      "title": "A preissued JWT cannot be a phone onboarding step",
+      "at": "2026-08-29"
+    },
+    {
+      "id": "ordinary-preview-needs-durable-cross-tab-idempotency",
+      "kind": "decision",
+      "title": "Ordinary preview needs durable cross-tab idempotency",
+      "at": "2026-08-30",
+      "status": "live; five-client production canaries passed"
+    },
+    {
+      "id": "overnight-multi-account-clone-audit-2026-08-30",
+      "kind": "measurement",
+      "title": "Overnight multi-account clone and preview audit",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "warming-and-duplicate-preview-cannot-be-called-clone-processing-failure",
+      "kind": "rejection",
+      "title": "Warming and duplicate preview cannot be called clone processing failure",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "durable-preview-release-gate-2026-08-30",
+      "kind": "measurement",
+      "title": "Durable preview migration, live SQL and release gates pass",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "browser-retry-is-not-permission-for-another-gpu-synthesis",
+      "kind": "rejection",
+      "title": "A browser retry is not permission for another GPU synthesis",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "mirror-call-microphone-opens-on-talk-not-session-create",
+      "kind": "decision",
+      "title": "Mirror Call microphone opens on Talk, not session create",
+      "at": "2026-08-30",
+      "status": "live production canary passed"
+    },
+    {
+      "id": "production-preview-concurrency-and-call-canary-2026-08-30",
+      "kind": "measurement",
+      "title": "Production preview concurrency and Mirror Call canary",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "mirror-call-session-cannot-wait-behind-microphone-permission",
+      "kind": "rejection",
+      "title": "Mirror Call session cannot wait behind microphone permission",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "human-experience-compiler",
+      "kind": "component",
+      "title": "Cited multimodal evidence, reviewed candidates, expiring delivery observations and guarded materialization",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "human-experience-compiler-reuses-cited-authorities",
+      "kind": "decision",
+      "title": "The human experience compiler reuses cited truth authorities",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "human-experience-compiler-first-slice-2026-08-30",
+      "kind": "measurement",
+      "title": "First compiler slice passes contracts and live SQL boundaries",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "one-omniscient-profile-and-hot-path-emotion-training",
+      "kind": "rejection",
+      "title": "One omniscient profile and hot-path emotion training are rejected",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "human-experience-compiler-production-release-2026-08-30",
+      "kind": "measurement",
+      "title": "Human Experience Compiler first slice is live behind owner authentication",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "mirror-learning-requires-session-speaker-attestation-and-reversible-materialization",
+      "kind": "decision",
+      "title": "Mirror learning requires exact-session speaker attestation and reversible materialization",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "human-experience-compiler-reversal-gate-2026-08-30",
+      "kind": "measurement",
+      "title": "Compiler reversal, recovery and runtime authority integration gate",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "replica-wide-nearline-queue-before-speaker-attestation",
+      "kind": "rejection",
+      "title": "Replica-wide nearline queue before speaker attestation is unsafe",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "source-erasure-removes-the-causal-mirror-chain",
+      "kind": "decision",
+      "title": "Source erasure removes the complete causal Mirror chain",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "mirror-source-erasure-repair-2026-08-30",
+      "kind": "measurement",
+      "title": "Mirror source erasure and historical orphan repair",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "nulling-a-mirror-source-handle-is-not-erasure",
+      "kind": "rejection",
+      "title": "Nulling a Mirror source handle is not erasure",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "human-experience-compiler-reversal-production-release-2026-08-30",
+      "kind": "measurement",
+      "title": "Reversible Human Experience Compiler fail-closed release is live",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "studio-creation-is-two-action-and-meet-is-one-task-at-a-time",
+      "kind": "decision",
+      "title": "Studio creation is two-action and Meet is one task at a time",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "mobile-studio-minimum-click-journey-2026-08-30",
+      "kind": "measurement",
+      "title": "Mobile Studio minimum-click journey passes focused browser gates",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "four-action-recording-and-stacked-meet",
+      "kind": "rejection",
+      "title": "Four-action recording and stacked Meet are rejected",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "hinglish-is-one-acoustic-utterance-and-model-promotion-is-listening-gated",
+      "kind": "decision",
+      "title": "Hinglish is one acoustic utterance and model promotion is listening gated",
+      "at": "2026-08-30",
+      "status": "release candidate; not deployed; perceptual qualification pending"
+    },
+    {
+      "id": "hinglish-continuity-release-candidate-2026-08-30",
+      "kind": "measurement",
+      "title": "Hindi and Hinglish continuity release candidate",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "per-token-voice-fanout-and-flat-identity-anchor",
+      "kind": "rejection",
+      "title": "Per-token voice fanout and the flat identity anchor are rejected",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "mobile-studio-loads-the-active-task-before-advanced-labs",
+      "kind": "decision",
+      "title": "Mobile Studio loads the active task before advanced labs",
+      "at": "2026-08-30",
+      "status": "release candidate; not deployed"
+    },
+    {
+      "id": "studio-mobile-hardening-and-entry-bundle-2026-08-30",
+      "kind": "measurement",
+      "title": "Studio mobile hardening and entry bundle measurement",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "desktop-density-and-eager-advanced-labs-on-phone",
+      "kind": "rejection",
+      "title": "Desktop density and eager advanced labs on phone are rejected",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "public-studio-never-inherits-self-test-authority",
+      "kind": "decision",
+      "title": "Public Studio never inherits self-test authority",
+      "at": "2026-08-30",
+      "status": "live"
+    },
+    {
+      "id": "mobile-studio-public-safety-release-2026-08-30",
+      "kind": "measurement",
+      "title": "Mobile Studio public-safety release and self-test rollback",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "production-all-account-self-test-bootstrap",
+      "kind": "rejection",
+      "title": "Production all-account self-test bootstrap is rejected",
+      "at": "2026-08-30"
+    },
+    {
+      "id": "clone-creation-saga",
+      "kind": "component",
+      "title": "Owner-scoped durable clone, upload, candidate-build and promotion saga",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "personal-clone-experience",
+      "kind": "component",
+      "title": "Generic phone-first personal clone creation, evolution, call and deployment experience",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "clone-creation-and-replacement-are-owner-scoped-durable-sagas",
+      "kind": "decision",
+      "title": "Clone creation and replacement are owner-scoped durable sagas",
+      "at": "2026-09-02",
+      "status": "live control plane; fresh owner microphone and five-account canaries pending"
+    },
+    {
+      "id": "personal-clone-first-run-is-one-full-viewport-state-at-a-time",
+      "kind": "decision",
+      "title": "Personal clone first run is one full-viewport state at a time",
+      "at": "2026-09-02",
+      "status": "live shell; moderated gesture and comprehension tests pending"
+    },
+    {
+      "id": "clone-creation-saga-live-release-2026-09-02",
+      "kind": "measurement",
+      "title": "Clone creation saga, migration, worker and sanitized web release",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "generic-personal-clone-experience-and-mobile-qa-2026-09-02",
+      "kind": "measurement",
+      "title": "Generic personal clone experience and five-viewport mobile QA",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "hindi-hinglish-code-switch-frontier-2026-09-02",
+      "kind": "measurement",
+      "title": "Hindi and Hinglish code-switch structural frontier without perceptual claim",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "replica-wide-delayed-source-erasure-cannot-retire-a-new-replacement",
+      "kind": "rejection",
+      "title": "Replica-wide delayed source erasure cannot retire a new replacement",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "gitignore-does-not-exclude-a-file-from-the-vercel-payload",
+      "kind": "rejection",
+      "title": "Git ignore does not exclude a file from the Vercel payload",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "structural-code-switch-passes-cannot-certify-perceptual-voice-quality",
+      "kind": "rejection",
+      "title": "Structural code-switch passes cannot certify perceptual voice quality",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "one-idle-worker-canary-cannot-certify-five-user-clone-capacity",
+      "kind": "rejection",
+      "title": "One idle worker canary cannot certify five-user clone capacity",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "deployment-identity-is-client-computed-and-deployment-scoped",
+      "kind": "decision",
+      "title": "Deployment identity is client-computed and deployment-scoped",
+      "at": "2026-09-02",
+      "status": "live"
+    },
+    {
+      "id": "guarded-personal-clone-production-release-2026-09-02",
+      "kind": "measurement",
+      "title": "Guarded personal-clone production release and final release gates",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "in-build-recomputation-cannot-identify-uploaded-vercel-source",
+      "kind": "rejection",
+      "title": "In-build recomputation cannot identify uploaded Vercel source",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "legacy-self-test-clones-restart-through-full-erasure",
+      "kind": "decision",
+      "title": "Legacy self-test clones restart through full erasure",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "legacy-self-test-reset-recovery-2026-09-02",
+      "kind": "measurement",
+      "title": "Legacy self-test reset diagnosis and recovery verification",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "zero-active-self-test-grants-do-not-sanitize-an-old-draft",
+      "kind": "rejection",
+      "title": "Zero active self-test grants do not sanitize an old draft",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "official-brand-and-live-voice-signal-form-one-instrument",
+      "kind": "decision",
+      "title": "Official brand and live voice signal form one instrument",
+      "at": "2026-09-02",
+      "status": "local release candidate; not deployed"
+    },
+    {
+      "id": "erasure-receipts-cover-the-longest-confirmed-recovery-window",
+      "kind": "decision",
+      "title": "Erasure receipts cover the longest confirmed recovery window",
+      "at": "2026-09-02",
+      "status": "retention configured and stale child removed; main erasure pending"
+    },
+    {
+      "id": "functional-voice-field-and-premium-recorder-qa-2026-09-02",
+      "kind": "measurement",
+      "title": "Functional VoiceField and premium recorder QA",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "frontend-dependency-remediation-2026-09-02",
+      "kind": "measurement",
+      "title": "Frontend dependency remediation and mobile build boundary",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "erasure-retention-and-stale-branch-preflight-2026-09-02",
+      "kind": "measurement",
+      "title": "Erasure retention and stale Neon branch preflight",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "a-thirty-day-receipt-cannot-start-while-a-child-branch-retains-the-records",
+      "kind": "rejection",
+      "title": "A thirty-day receipt cannot start while a child branch retains the records",
+      "at": "2026-09-02"
+    },
+    {
+      "id": "expert-integration-preserves-both-lineages-20260906",
+      "kind": "decision",
+      "title": "Preserve both clone and Rooms histories",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "expert-integration-context-schema-union-20260906",
+      "kind": "measurement",
+      "title": "Context and schema union verified offline",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "expert-integration-numeric-migration-replay-20260906",
+      "kind": "rejection",
+      "title": "Do not replay colliding migration numbers",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "azure-api-resource-and-synthetic-probe-20260906",
+      "kind": "measurement",
+      "title": "Azure API inventory and synthetic connectivity probe",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "groupai-bounded-adapter-and-migration-source-reconciliation-20260906",
+      "kind": "decision",
+      "title": "Reuse GroupAI through explicit adapter boundaries",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "reconciled-migration-reader-negative-controls-20260906",
+      "kind": "measurement",
+      "title": "Archived migration reader verified with negative controls",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "emotional-schema-and-hosted-kernel-are-not-live-capability-20260906",
+      "kind": "rejection",
+      "title": "Do not equate affect schemas or hosted kernels with live emotional understanding",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "neon-readonly-dual-lineage-catalog-and-orphans-20260906",
+      "kind": "measurement",
+      "title": "Read-only Neon catalog shows dual lineage and unresolved orphan references",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "isolated-expert-development-database-20260906",
+      "kind": "decision",
+      "title": "Use an isolated same-compute development database",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "isolated-expert-schema-bootstrap-and-parser-gates-20260906",
+      "kind": "measurement",
+      "title": "Isolated schema bootstrap and real parser checks",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "schema-mirror-is-not-standalone-bootstrap-20260906",
+      "kind": "rejection",
+      "title": "Do not execute the schema mirror as a fresh bootstrap",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "integrated-release-first-pass-and-layout-readback-20260906",
+      "kind": "measurement",
+      "title": "First integrated gate and phone layout evidence",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "missing-browser-is-not-a-passing-layout-gate-20260906",
+      "kind": "rejection",
+      "title": "A skipped browser render cannot certify layout",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "real-parser-fixtures-classify-top-level-operations-20260906",
+      "kind": "decision",
+      "title": "Preserve strict mutation counting while identifying new read phases",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "person-parser-and-live-relational-isolation-20260906",
+      "kind": "measurement",
+      "title": "Real person-model parsing and synthetic memory isolation",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "new-read-phase-is-not-a-mutation-20260906",
+      "kind": "rejection",
+      "title": "Do not count every non-claim query as a profile mutation",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "api-integration-repair-suite-and-erasure-parser-20260906",
+      "kind": "measurement",
+      "title": "API integration repairs pass targeted suites and real erasure parse",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "azure-rate-and-devserver-route-evidence-20260906",
+      "kind": "measurement",
+      "title": "Azure retail rate and development route readback",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "model-lineage-and-owner-lora-scope-20260906",
+      "kind": "measurement",
+      "title": "Pretrained voice candidates and historical owner LoRA evidence",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "azure-live-ledger-synthetic-answers-20260906",
+      "kind": "measurement",
+      "title": "Two retained synthetic answers and four settled Azure receipts",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "accounting-readback-must-not-discard-paid-output-20260906",
+      "kind": "rejection",
+      "title": "Preserve paid output before optional ledger readback",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "authenticated-dev-first-clone-smoke-20260906",
+      "kind": "measurement",
+      "title": "Authenticated development clone smoke and ownership admission",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ordinary-preview-has-one-durable-owner-20260906",
+      "kind": "decision",
+      "title": "One durable ordinary preview and admission before provider configuration",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "legacy-preview-composer-was-a-dead-ordinary-caller-20260906",
+      "kind": "rejection",
+      "title": "Do not patch a legacy ordinary composer around durable admission",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "preview-navigation-and-auth-lazy-panels-20260906",
+      "kind": "measurement",
+      "title": "Preview navigation and signed-in panel loading checks",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "azure-voice-arm-provenance-20260906",
+      "kind": "measurement",
+      "title": "Fresh read-only voice image and training-job provenance",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "trained-adapter-adoption-needs-caller-and-receipt-20260906",
+      "kind": "decision",
+      "title": "Require exact adapter caller and output receipt before adoption claims",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "mutable-training-tag-is-not-checkpoint-provenance-20260906",
+      "kind": "rejection",
+      "title": "A mutable training image tag cannot identify the active owner adapter",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "expert-fidelity-is-a-correction-and-heldout-contract-20260907",
+      "kind": "decision",
+      "title": "Expert fidelity requires separate held-out behavior and voice evidence",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "targeted-expert-browser-repairs-20260907",
+      "kind": "measurement",
+      "title": "Targeted accessibility and creator rehearsal pass after concrete repairs",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "declared-learning-loop-had-unusable-feedback-20260907",
+      "kind": "rejection",
+      "title": "Mirror feedback caller and API disagree and audio lineage is incomplete",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "mirror-memory-shadow-comparison-20260907",
+      "kind": "measurement",
+      "title": "Real SQL synthetic comparison improves lexical retrieval without promotion",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "mirror-query-relevance-stays-an-unpromoted-candidate-20260907",
+      "kind": "decision",
+      "title": "Keep lexical retrieval shadowed until language and lifecycle evidence supports promotion",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "lexical-retrieval-does-not-bridge-roman-and-devanagari-20260907",
+      "kind": "rejection",
+      "title": "Literal relevance fails cross-script memory and retains unrelated fallback",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "shared-room-foundation-performance-20260907",
+      "kind": "measurement",
+      "title": "Shared CSS removes unused panels and clears the measured Room budget",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "mirror-feedback-json-repair-20260907",
+      "kind": "measurement",
+      "title": "Actual feedback client and handler contract now preserves written suggestions",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-dev-storage-is-a-separate-private-azure-container-20260907",
+      "kind": "decision",
+      "title": "Use isolated Azure storage rather than repeat the Supabase capacity failure",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "dev-azure-storage-real-adapter-smokes-20260907",
+      "kind": "measurement",
+      "title": "Private Azure storage passes actual adapter behavior after status diagnosis",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "create-only-azure-sas-overwrite-is-a-named-403-20260907",
+      "kind": "rejection",
+      "title": "Overwrite refusal was not the assumed conflict status",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authenticated-dev-source-upload-quarantine-20260907",
+      "kind": "measurement",
+      "title": "Real authenticated source upload reaches quarantine without pretending processing ran",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "dev-processing-and-protection-need-exact-targets-20260907",
+      "kind": "decision",
+      "title": "Guard the dev worker database and give callbacks a dev HTTPS origin",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "stored-vectors-are-not-connected-approved-mirror-memory-20260907",
+      "kind": "rejection",
+      "title": "Existing embeddings require an approved writer and fresh derivative identity",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "dev-source-erasure-waits-for-upload-capability-expiry-20260907",
+      "kind": "measurement",
+      "title": "Exact source is fenced until its upload capability expires",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release-performance-needs-retained-traces-20260907",
+      "kind": "decision",
+      "title": "Retain performance evidence before attributing variance",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release-four-and-targeted-diagnostics-20260907",
+      "kind": "measurement",
+      "title": "Fourth integrated gate passes 23 of 24; isolated diagnostics differ",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "early-image-preload-did-not-improve-paint-20260907",
+      "kind": "rejection",
+      "title": "Earlier image discovery did not improve the measured main paint",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "dev-worker-verifies-database-before-work-20260907",
+      "kind": "decision",
+      "title": "Development processing requires exact database identity and explicit opt-in",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "dev-worker-guard-tests-and-real-identity-20260907",
+      "kind": "measurement",
+      "title": "Development guard passes negative checks and a real read-only identity query",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "one-processing-job-was-not-a-one-action-worker-20260907",
+      "kind": "rejection",
+      "title": "Scheduled worker also runs model sweeps",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "complete-performance-diagnostic-after-revert-20260907",
+      "kind": "measurement",
+      "title": "All nine performance targets pass one subsequent diagnostic run",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "performance-prerequisites-are-release-requirements-20260907",
+      "kind": "decision",
+      "title": "Missing browser prerequisites must fail the gate",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "performance-prerequisite-negative-controls-20260907",
+      "kind": "measurement",
+      "title": "Nine prerequisite and result checks pass",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "performance-skip-zero-was-not-a-valid-release-pass-20260907",
+      "kind": "rejection",
+      "title": "Successful skips concealed a missing measurement",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -21510,6 +22709,1326 @@
       "src": "codex-takeover-product-boundaries-and-row-keyed-fake-subscriptions",
       "rel": "measured_by",
       "dst": "codex-subscription-reference-regression-2026-09-06"
+    },
+    {
+      "src": "studio-test-journey-is-status-source-lineage-and-one-next-action",
+      "rel": "measured_by",
+      "dst": "studio-owner-journey-responsive-local-2026-08-28"
+    },
+    {
+      "src": "studio-test-journey-is-status-source-lineage-and-one-next-action",
+      "rel": "caused_by",
+      "dst": "second-channel-field-and-dead-extractor-button-do-not-belong-in-test-journey"
+    },
+    {
+      "src": "studio-test-journey-is-status-source-lineage-and-one-next-action",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "studio-owner-journey-responsive-local-2026-08-28",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "second-channel-field-and-dead-extractor-button-do-not-belong-in-test-journey",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "alakh-lecture-remains-language-stress-not-owner-identity",
+      "rel": "measured_by",
+      "dst": "production-front-end-lecture-clone-journey-2026-08-28"
+    },
+    {
+      "src": "alakh-lecture-remains-language-stress-not-owner-identity",
+      "rel": "caused_by",
+      "dst": "uploading-the-same-third-party-lecture-again-does-not-test-the-journey"
+    },
+    {
+      "src": "alakh-lecture-remains-language-stress-not-owner-identity",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "production-front-end-lecture-clone-journey-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "uploading-the-same-third-party-lecture-again-does-not-test-the-journey",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "guided-browser-recording-is-primary-voice-intake",
+      "rel": "measured_by",
+      "dst": "guided-voice-capture-local-2026-08-28"
+    },
+    {
+      "src": "guided-browser-recording-is-primary-voice-intake",
+      "rel": "caused_by",
+      "dst": "long-audio-duration-is-not-the-conditioning-unit"
+    },
+    {
+      "src": "guided-browser-recording-is-primary-voice-intake",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "guided-voice-capture-local-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "long-audio-duration-is-not-the-conditioning-unit",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "one-explicit-primary-voice-reference-per-replica",
+      "rel": "measured_by",
+      "dst": "primary-voice-pointer-local-and-live-schema-2026-08-29"
+    },
+    {
+      "src": "one-explicit-primary-voice-reference-per-replica",
+      "rel": "caused_by",
+      "dst": "all-ready-audio-cannot-silently-compete-for-the-clone-voice"
+    },
+    {
+      "src": "one-explicit-primary-voice-reference-per-replica",
+      "rel": "supersedes",
+      "dst": "guided-browser-recording-is-primary-voice-intake"
+    },
+    {
+      "src": "one-explicit-primary-voice-reference-per-replica",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "primary-voice-pointer-local-and-live-schema-2026-08-29",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "all-ready-audio-cannot-silently-compete-for-the-clone-voice",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "azure-fast-transcription-is-the-configured-long-audio-lane",
+      "rel": "measured_by",
+      "dst": "azure-fast-transcription-long-source-repair-2026-08-29"
+    },
+    {
+      "src": "azure-fast-transcription-is-the-configured-long-audio-lane",
+      "rel": "caused_by",
+      "dst": "an-empty-azure-sentinel-is-not-a-failed-transcription"
+    },
+    {
+      "src": "azure-fast-transcription-is-the-configured-long-audio-lane",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "azure-fast-transcription-long-source-repair-2026-08-29",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "an-empty-azure-sentinel-is-not-a-failed-transcription",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "signed-runtime-warming-is-a-nonterminal-owner-state",
+      "rel": "measured_by",
+      "dst": "primary-recording-production-journey-2026-08-29"
+    },
+    {
+      "src": "signed-runtime-warming-is-a-nonterminal-owner-state",
+      "rel": "caused_by",
+      "dst": "signed-runtime-warming-cannot-render-preview-stopped"
+    },
+    {
+      "src": "signed-runtime-warming-is-a-nonterminal-owner-state",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "primary-recording-production-journey-2026-08-29",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "signed-runtime-warming-cannot-render-preview-stopped",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "phone-touch-target-audit-covers-feed-and-meet",
+      "rel": "measured_by",
+      "dst": "production-meet-phone-target-audit-2026-08-29"
+    },
+    {
+      "src": "phone-touch-target-audit-covers-feed-and-meet",
+      "rel": "caused_by",
+      "dst": "feed-only-phone-audit-cannot-clear-the-studio"
+    },
+    {
+      "src": "phone-touch-target-audit-covers-feed-and-meet",
+      "rel": "part_of",
+      "dst": "journey-is-a-surface-not-a-stack"
+    },
+    {
+      "src": "production-meet-phone-target-audit-2026-08-29",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "feed-only-phone-audit-cannot-clear-the-studio",
+      "rel": "part_of",
+      "dst": "journey-is-a-surface-not-a-stack"
+    },
+    {
+      "src": "internal-test-auto-grants-all-authenticated-self-replicas",
+      "rel": "measured_by",
+      "dst": "vercel-self-test-backend-flags-empty-2026-08-29"
+    },
+    {
+      "src": "internal-test-auto-grants-all-authenticated-self-replicas",
+      "rel": "caused_by",
+      "dst": "test-ui-with-empty-server-bypass-is-a-consent-trap"
+    },
+    {
+      "src": "internal-test-auto-grants-all-authenticated-self-replicas",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "vercel-self-test-backend-flags-empty-2026-08-29",
+      "rel": "part_of",
+      "dst": "journey-is-a-surface-not-a-stack"
+    },
+    {
+      "src": "test-ui-with-empty-server-bypass-is-a-consent-trap",
+      "rel": "part_of",
+      "dst": "journey-is-a-surface-not-a-stack"
+    },
+    {
+      "src": "worker-build-normalizes-every-consumed-line-config",
+      "rel": "measured_by",
+      "dst": "fd4006-processing-recovery-2026-08-29"
+    },
+    {
+      "src": "worker-build-normalizes-every-consumed-line-config",
+      "rel": "caused_by",
+      "dst": "normalizing-only-freshclam-config-does-not-protect-clamd"
+    },
+    {
+      "src": "worker-build-normalizes-every-consumed-line-config",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "fd4006-processing-recovery-2026-08-29",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "sensitive-vercel-env-pull-placeholder-is-not-live-absence",
+      "rel": "part_of",
+      "dst": "journey-is-a-surface-not-a-stack"
+    },
+    {
+      "src": "durable-replica-work-is-level-triggered-and-paged",
+      "rel": "measured_by",
+      "dst": "pipeline-reliability-live-release-2026-08-29"
+    },
+    {
+      "src": "durable-replica-work-is-level-triggered-and-paged",
+      "rel": "caused_by",
+      "dst": "edge-only-build-and-believable-progress-cannot-own-recovery"
+    },
+    {
+      "src": "durable-replica-work-is-level-triggered-and-paged",
+      "rel": "part_of",
+      "dst": "journey-is-a-surface-not-a-stack"
+    },
+    {
+      "src": "pipeline-reliability-live-release-2026-08-29",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "edge-only-build-and-believable-progress-cannot-own-recovery",
+      "rel": "part_of",
+      "dst": "journey-is-a-surface-not-a-stack"
+    },
+    {
+      "src": "voice-preview-readiness-is-remotely-probed",
+      "rel": "measured_by",
+      "dst": "voice-preview-stale-warmth-baseline-2026-08-29"
+    },
+    {
+      "src": "voice-preview-readiness-is-remotely-probed",
+      "rel": "caused_by",
+      "dst": "per-process-warming-memory-is-not-runtime-readiness"
+    },
+    {
+      "src": "voice-preview-readiness-is-remotely-probed",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "voice-preview-stale-warmth-baseline-2026-08-29",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "per-process-warming-memory-is-not-runtime-readiness",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "long-source-asr-uses-a-bounded-private-transport-derivative",
+      "rel": "measured_by",
+      "dst": "long-source-private-asr-recovery-live-2026-08-29"
+    },
+    {
+      "src": "long-source-asr-uses-a-bounded-private-transport-derivative",
+      "rel": "caused_by",
+      "dst": "large-private-audio-cannot-be-buffered-or-reset-to-attempt-zero"
+    },
+    {
+      "src": "long-source-asr-uses-a-bounded-private-transport-derivative",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "long-source-private-asr-recovery-live-2026-08-29",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "large-private-audio-cannot-be-buffered-or-reset-to-attempt-zero",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "one-explicit-primary-voice-reference-per-replica",
+      "rel": "measured_by",
+      "dst": "primary-voice-isolation-and-preview-live-2026-08-29"
+    },
+    {
+      "src": "one-explicit-primary-voice-reference-per-replica",
+      "rel": "caused_by",
+      "dst": "level-triggered-review-cannot-rotate-or-merge-the-primary-voice"
+    },
+    {
+      "src": "primary-voice-isolation-and-preview-live-2026-08-29",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "level-triggered-review-cannot-rotate-or-merge-the-primary-voice",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "continuous-learning-is-an-approved-experience-compiler",
+      "rel": "measured_by",
+      "dst": "continuous-human-clone-frontier-contract-2026-08-29"
+    },
+    {
+      "src": "continuous-learning-is-an-approved-experience-compiler",
+      "rel": "caused_by",
+      "dst": "hot-path-training-and-durable-emotion-profiles"
+    },
+    {
+      "src": "continuous-learning-is-an-approved-experience-compiler",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "continuous-human-clone-frontier-contract-2026-08-29",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "hot-path-training-and-durable-emotion-profiles",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "studio-waits-use-server-facts-and-observed-bounds",
+      "rel": "measured_by",
+      "dst": "studio-owner-timing-and-auth-continuity-frontend-2026-08-29"
+    },
+    {
+      "src": "studio-waits-use-server-facts-and-observed-bounds",
+      "rel": "part_of",
+      "dst": "journey-is-a-surface-not-a-stack"
+    },
+    {
+      "src": "studio-owner-timing-and-auth-continuity-frontend-2026-08-29",
+      "rel": "part_of",
+      "dst": "journey-is-a-surface-not-a-stack"
+    },
+    {
+      "src": "mirror-call-windows-are-session-bound-derived-evidence",
+      "rel": "measured_by",
+      "dst": "mirror-call-dead-path-audit-local-2026-08-29"
+    },
+    {
+      "src": "mirror-call-windows-are-session-bound-derived-evidence",
+      "rel": "caused_by",
+      "dst": "ordinary-enrollment-sources-cannot-carry-live-call-windows"
+    },
+    {
+      "src": "mirror-call-windows-are-session-bound-derived-evidence",
+      "rel": "part_of",
+      "dst": "journey-is-a-surface-not-a-stack"
+    },
+    {
+      "src": "mirror-call-dead-path-audit-local-2026-08-29",
+      "rel": "caused_by",
+      "dst": "fine-tune-queue-without-runner-is-not-progress"
+    },
+    {
+      "src": "mirror-call-dead-path-audit-local-2026-08-29",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "ordinary-enrollment-sources-cannot-carry-live-call-windows",
+      "rel": "part_of",
+      "dst": "journey-is-a-surface-not-a-stack"
+    },
+    {
+      "src": "fine-tune-queue-without-runner-is-not-progress",
+      "rel": "part_of",
+      "dst": "journey-is-a-surface-not-a-stack"
+    },
+    {
+      "src": "live-mirror-call-asr-uses-a-bound-azure-short-fallback",
+      "rel": "measured_by",
+      "dst": "mirror-call-production-call-window-and-gpu-canary-2026-08-29"
+    },
+    {
+      "src": "live-mirror-call-asr-uses-a-bound-azure-short-fallback",
+      "rel": "caused_by",
+      "dst": "sarvam-http-402-cannot-own-live-call-availability"
+    },
+    {
+      "src": "live-mirror-call-asr-uses-a-bound-azure-short-fallback",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "mirror-call-production-call-window-and-gpu-canary-2026-08-29",
+      "rel": "caused_by",
+      "dst": "mirror-call-create-without-test-bootstrap-is-not-owner-access"
+    },
+    {
+      "src": "mirror-call-production-call-window-and-gpu-canary-2026-08-29",
+      "rel": "caused_by",
+      "dst": "mirror-window-purpose-literals-cannot-diverge"
+    },
+    {
+      "src": "mirror-call-production-call-window-and-gpu-canary-2026-08-29",
+      "rel": "caused_by",
+      "dst": "vercel-sensitive-stdin-presence-is-not-runtime-delivery"
+    },
+    {
+      "src": "mirror-call-production-call-window-and-gpu-canary-2026-08-29",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "mirror-call-create-without-test-bootstrap-is-not-owner-access",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "mirror-window-purpose-literals-cannot-diverge",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "sarvam-http-402-cannot-own-live-call-availability",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "vercel-sensitive-stdin-presence-is-not-runtime-delivery",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "roman-hinglish-overflow-coalesces-as-one-audited-register",
+      "rel": "measured_by",
+      "dst": "roman-hinglish-overflow-frontend-local-2026-08-29"
+    },
+    {
+      "src": "roman-hinglish-overflow-coalesces-as-one-audited-register",
+      "rel": "measured_by",
+      "dst": "roman-hinglish-overflow-production-canary-2026-08-29"
+    },
+    {
+      "src": "roman-hinglish-overflow-coalesces-as-one-audited-register",
+      "rel": "caused_by",
+      "dst": "per-token-switch-budget-cannot-reject-natural-roman-hinglish"
+    },
+    {
+      "src": "roman-hinglish-overflow-coalesces-as-one-audited-register",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "roman-hinglish-overflow-frontend-local-2026-08-29",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "roman-hinglish-overflow-production-canary-2026-08-29",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "per-token-switch-budget-cannot-reject-natural-roman-hinglish",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "short-primary-self-recordings-use-continuous-window-fallback",
+      "rel": "measured_by",
+      "dst": "short-primary-reference-fragmentation-production-2026-08-29"
+    },
+    {
+      "src": "short-primary-self-recordings-use-continuous-window-fallback",
+      "rel": "caused_by",
+      "dst": "diarizer-cluster-contiguity-cannot-veto-primary-microphone-samples"
+    },
+    {
+      "src": "short-primary-self-recordings-use-continuous-window-fallback",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "short-primary-reference-fragmentation-production-2026-08-29",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "diarizer-cluster-contiguity-cannot-veto-primary-microphone-samples",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "clone-economics-separate-cold-capacity-from-warm-marginal-cost",
+      "rel": "measured_by",
+      "dst": "clone-and-call-unit-economics-live-2026-08-29"
+    },
+    {
+      "src": "clone-economics-separate-cold-capacity-from-warm-marginal-cost",
+      "rel": "caused_by",
+      "dst": "one-flat-voice-price-cannot-hide-cold-gpu-and-carrier-cost"
+    },
+    {
+      "src": "clone-and-call-unit-economics-live-2026-08-29",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "clone-and-call-unit-economics-live-2026-08-29",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "one-flat-voice-price-cannot-hide-cold-gpu-and-carrier-cost",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "voice-preview-warmup-is-an-aborted-attempt",
+      "rel": "measured_by",
+      "dst": "voice-preview-and-worker-reliability-production-2026-08-29"
+    },
+    {
+      "src": "voice-preview-warmup-is-an-aborted-attempt",
+      "rel": "caused_by",
+      "dst": "cold-gpu-attempts-cannot-be-model-failures"
+    },
+    {
+      "src": "voice-preview-warmup-is-an-aborted-attempt",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "voice-preview-and-worker-reliability-production-2026-08-29",
+      "rel": "caused_by",
+      "dst": "stale-admission-broker-cannot-judge-hindi-model-quality"
+    },
+    {
+      "src": "voice-preview-and-worker-reliability-production-2026-08-29",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "cold-gpu-attempts-cannot-be-model-failures",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "stale-admission-broker-cannot-judge-hindi-model-quality",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "phonellm-is-a-shadow-call-brain-not-a-clone-voice",
+      "rel": "measured_by",
+      "dst": "phonellm-official-closure-review-2026-08-29"
+    },
+    {
+      "src": "phonellm-is-a-shadow-call-brain-not-a-clone-voice",
+      "rel": "caused_by",
+      "dst": "phonellm-b200-benchmarks-cannot-certify-hindi-or-t4"
+    },
+    {
+      "src": "phonellm-is-a-shadow-call-brain-not-a-clone-voice",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "phonellm-b200-benchmarks-cannot-certify-hindi-or-t4",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "owner-hindi-remains-general-chatterbox-and-hinglish-fanout-is-bounded",
+      "rel": "measured_by",
+      "dst": "owner-current-reference-general-hindi-hinglish-2026-08-29"
+    },
+    {
+      "src": "owner-hindi-remains-general-chatterbox-and-hinglish-fanout-is-bounded",
+      "rel": "caused_by",
+      "dst": "hindi-pack-and-segmented-hinglish-cannot-be-promoted-from-this-pack"
+    },
+    {
+      "src": "owner-hindi-remains-general-chatterbox-and-hinglish-fanout-is-bounded",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "hindi-image-without-shared-cangjie-closure",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "web-release-waits-for-personal-vercel-ownership",
+      "rel": "caused_by",
+      "dst": "employer-owned-vercel-team-cannot-be-an-assumed-release-target"
+    },
+    {
+      "src": "web-release-waits-for-personal-vercel-ownership",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "mirror-call-windows-are-session-bound-derived-evidence",
+      "rel": "measured_by",
+      "dst": "mirror-call-window-contract-local-2026-08-29"
+    },
+    {
+      "src": "mirror-call-window-contract-local-2026-08-29",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "studio-waits-use-server-facts-and-observed-bounds",
+      "rel": "caused_by",
+      "dst": "milestone-percent-silent-auth-reset-and-queued-means-running"
+    },
+    {
+      "src": "open-voice-readiness-broker-production-2026-08-29",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "voice-preview-readiness-is-remotely-probed",
+      "rel": "measured_by",
+      "dst": "open-voice-readiness-broker-production-2026-08-29"
+    },
+    {
+      "src": "production-web-release-requires-owner-only-readback-and-real-canary",
+      "rel": "supersedes",
+      "dst": "web-release-waits-for-personal-vercel-ownership"
+    },
+    {
+      "src": "production-web-release-requires-owner-only-readback-and-real-canary",
+      "rel": "measured_by",
+      "dst": "production-owner-clone-canary-2026-08-29"
+    },
+    {
+      "src": "production-web-release-requires-owner-only-readback-and-real-canary",
+      "rel": "caused_by",
+      "dst": "gpu-http-startup-probe-cannot-be-the-only-routing-gate"
+    },
+    {
+      "src": "production-web-release-requires-owner-only-readback-and-real-canary",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "production-owner-clone-canary-2026-08-29",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "gpu-http-startup-probe-cannot-be-the-only-routing-gate",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "phone-clone-starts-with-browser-owned-session-and-durable-upload",
+      "rel": "measured_by",
+      "dst": "production-phone-clone-readiness-audit-2026-08-29"
+    },
+    {
+      "src": "phone-clone-starts-with-browser-owned-session-and-durable-upload",
+      "rel": "caused_by",
+      "dst": "preissued-jwt-cannot-be-a-phone-onboarding-step"
+    },
+    {
+      "src": "phone-clone-starts-with-browser-owned-session-and-durable-upload",
+      "rel": "part_of",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "production-phone-clone-readiness-audit-2026-08-29",
+      "rel": "part_of",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "preissued-jwt-cannot-be-a-phone-onboarding-step",
+      "rel": "part_of",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "ordinary-preview-needs-durable-cross-tab-idempotency",
+      "rel": "measured_by",
+      "dst": "overnight-multi-account-clone-audit-2026-08-30"
+    },
+    {
+      "src": "ordinary-preview-needs-durable-cross-tab-idempotency",
+      "rel": "caused_by",
+      "dst": "warming-and-duplicate-preview-cannot-be-called-clone-processing-failure"
+    },
+    {
+      "src": "ordinary-preview-needs-durable-cross-tab-idempotency",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "overnight-multi-account-clone-audit-2026-08-30",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "warming-and-duplicate-preview-cannot-be-called-clone-processing-failure",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "ordinary-preview-needs-durable-cross-tab-idempotency",
+      "rel": "measured_by",
+      "dst": "durable-preview-release-gate-2026-08-30"
+    },
+    {
+      "src": "ordinary-preview-needs-durable-cross-tab-idempotency",
+      "rel": "caused_by",
+      "dst": "browser-retry-is-not-permission-for-another-gpu-synthesis"
+    },
+    {
+      "src": "durable-preview-release-gate-2026-08-30",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "browser-retry-is-not-permission-for-another-gpu-synthesis",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "ordinary-preview-needs-durable-cross-tab-idempotency",
+      "rel": "measured_by",
+      "dst": "production-preview-concurrency-and-call-canary-2026-08-30"
+    },
+    {
+      "src": "production-preview-concurrency-and-call-canary-2026-08-30",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "mirror-call-microphone-opens-on-talk-not-session-create",
+      "rel": "measured_by",
+      "dst": "production-preview-concurrency-and-call-canary-2026-08-30"
+    },
+    {
+      "src": "mirror-call-microphone-opens-on-talk-not-session-create",
+      "rel": "caused_by",
+      "dst": "mirror-call-session-cannot-wait-behind-microphone-permission"
+    },
+    {
+      "src": "mirror-call-microphone-opens-on-talk-not-session-create",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "mirror-call-session-cannot-wait-behind-microphone-permission",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "human-experience-compiler-reuses-cited-authorities",
+      "rel": "measured_by",
+      "dst": "human-experience-compiler-first-slice-2026-08-30"
+    },
+    {
+      "src": "human-experience-compiler-reuses-cited-authorities",
+      "rel": "caused_by",
+      "dst": "one-omniscient-profile-and-hot-path-emotion-training"
+    },
+    {
+      "src": "human-experience-compiler-reuses-cited-authorities",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "human-experience-compiler-first-slice-2026-08-30",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "one-omniscient-profile-and-hot-path-emotion-training",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "human-experience-compiler",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "human-experience-compiler",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "human-experience-compiler-reuses-cited-authorities",
+      "rel": "measured_by",
+      "dst": "human-experience-compiler-production-release-2026-08-30"
+    },
+    {
+      "src": "human-experience-compiler-production-release-2026-08-30",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "mirror-learning-requires-session-speaker-attestation-and-reversible-materialization",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "mirror-learning-requires-session-speaker-attestation-and-reversible-materialization",
+      "rel": "measured_by",
+      "dst": "human-experience-compiler-reversal-gate-2026-08-30"
+    },
+    {
+      "src": "mirror-learning-requires-session-speaker-attestation-and-reversible-materialization",
+      "rel": "caused_by",
+      "dst": "replica-wide-nearline-queue-before-speaker-attestation"
+    },
+    {
+      "src": "human-experience-compiler-reversal-gate-2026-08-30",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "replica-wide-nearline-queue-before-speaker-attestation",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "source-erasure-removes-the-causal-mirror-chain",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "source-erasure-removes-the-causal-mirror-chain",
+      "rel": "measured_by",
+      "dst": "mirror-source-erasure-repair-2026-08-30"
+    },
+    {
+      "src": "source-erasure-removes-the-causal-mirror-chain",
+      "rel": "caused_by",
+      "dst": "nulling-a-mirror-source-handle-is-not-erasure"
+    },
+    {
+      "src": "mirror-source-erasure-repair-2026-08-30",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "nulling-a-mirror-source-handle-is-not-erasure",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "mirror-learning-requires-session-speaker-attestation-and-reversible-materialization",
+      "rel": "measured_by",
+      "dst": "human-experience-compiler-reversal-production-release-2026-08-30"
+    },
+    {
+      "src": "human-experience-compiler-reversal-production-release-2026-08-30",
+      "rel": "part_of",
+      "dst": "human-experience-compiler"
+    },
+    {
+      "src": "studio-creation-is-two-action-and-meet-is-one-task-at-a-time",
+      "rel": "measured_by",
+      "dst": "mobile-studio-minimum-click-journey-2026-08-30"
+    },
+    {
+      "src": "studio-creation-is-two-action-and-meet-is-one-task-at-a-time",
+      "rel": "caused_by",
+      "dst": "four-action-recording-and-stacked-meet"
+    },
+    {
+      "src": "studio-creation-is-two-action-and-meet-is-one-task-at-a-time",
+      "rel": "part_of",
+      "dst": "three-step-wizard-ia"
+    },
+    {
+      "src": "mobile-studio-minimum-click-journey-2026-08-30",
+      "rel": "part_of",
+      "dst": "three-step-wizard-ia"
+    },
+    {
+      "src": "four-action-recording-and-stacked-meet",
+      "rel": "part_of",
+      "dst": "three-step-wizard-ia"
+    },
+    {
+      "src": "hinglish-is-one-acoustic-utterance-and-model-promotion-is-listening-gated",
+      "rel": "measured_by",
+      "dst": "hinglish-continuity-release-candidate-2026-08-30"
+    },
+    {
+      "src": "hinglish-is-one-acoustic-utterance-and-model-promotion-is-listening-gated",
+      "rel": "caused_by",
+      "dst": "per-token-voice-fanout-and-flat-identity-anchor"
+    },
+    {
+      "src": "hinglish-is-one-acoustic-utterance-and-model-promotion-is-listening-gated",
+      "rel": "supersedes",
+      "dst": "owner-hindi-remains-general-chatterbox-and-hinglish-fanout-is-bounded"
+    },
+    {
+      "src": "hinglish-is-one-acoustic-utterance-and-model-promotion-is-listening-gated",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "hinglish-continuity-release-candidate-2026-08-30",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "per-token-voice-fanout-and-flat-identity-anchor",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "mobile-studio-loads-the-active-task-before-advanced-labs",
+      "rel": "measured_by",
+      "dst": "studio-mobile-hardening-and-entry-bundle-2026-08-30"
+    },
+    {
+      "src": "mobile-studio-loads-the-active-task-before-advanced-labs",
+      "rel": "caused_by",
+      "dst": "desktop-density-and-eager-advanced-labs-on-phone"
+    },
+    {
+      "src": "mobile-studio-loads-the-active-task-before-advanced-labs",
+      "rel": "part_of",
+      "dst": "three-step-wizard-ia"
+    },
+    {
+      "src": "studio-mobile-hardening-and-entry-bundle-2026-08-30",
+      "rel": "part_of",
+      "dst": "three-step-wizard-ia"
+    },
+    {
+      "src": "desktop-density-and-eager-advanced-labs-on-phone",
+      "rel": "part_of",
+      "dst": "three-step-wizard-ia"
+    },
+    {
+      "src": "public-studio-never-inherits-self-test-authority",
+      "rel": "measured_by",
+      "dst": "mobile-studio-public-safety-release-2026-08-30"
+    },
+    {
+      "src": "public-studio-never-inherits-self-test-authority",
+      "rel": "caused_by",
+      "dst": "production-all-account-self-test-bootstrap"
+    },
+    {
+      "src": "public-studio-never-inherits-self-test-authority",
+      "rel": "part_of",
+      "dst": "three-step-wizard-ia"
+    },
+    {
+      "src": "mobile-studio-public-safety-release-2026-08-30",
+      "rel": "part_of",
+      "dst": "three-step-wizard-ia"
+    },
+    {
+      "src": "production-all-account-self-test-bootstrap",
+      "rel": "part_of",
+      "dst": "three-step-wizard-ia"
+    },
+    {
+      "src": "clone-creation-and-replacement-are-owner-scoped-durable-sagas",
+      "rel": "measured_by",
+      "dst": "clone-creation-saga-live-release-2026-09-02"
+    },
+    {
+      "src": "clone-creation-and-replacement-are-owner-scoped-durable-sagas",
+      "rel": "caused_by",
+      "dst": "replica-wide-delayed-source-erasure-cannot-retire-a-new-replacement"
+    },
+    {
+      "src": "clone-creation-and-replacement-are-owner-scoped-durable-sagas",
+      "rel": "part_of",
+      "dst": "clone-creation-saga"
+    },
+    {
+      "src": "clone-creation-saga-live-release-2026-09-02",
+      "rel": "part_of",
+      "dst": "clone-creation-saga"
+    },
+    {
+      "src": "replica-wide-delayed-source-erasure-cannot-retire-a-new-replacement",
+      "rel": "part_of",
+      "dst": "clone-creation-saga"
+    },
+    {
+      "src": "clone-creation-saga",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "clone-creation-saga-live-release-2026-09-02",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "clone-creation-saga-live-release-2026-09-02",
+      "rel": "caused_by",
+      "dst": "gitignore-does-not-exclude-a-file-from-the-vercel-payload"
+    },
+    {
+      "src": "gitignore-does-not-exclude-a-file-from-the-vercel-payload",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "one-idle-worker-canary-cannot-certify-five-user-clone-capacity",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "personal-clone-first-run-is-one-full-viewport-state-at-a-time",
+      "rel": "measured_by",
+      "dst": "generic-personal-clone-experience-and-mobile-qa-2026-09-02"
+    },
+    {
+      "src": "personal-clone-first-run-is-one-full-viewport-state-at-a-time",
+      "rel": "part_of",
+      "dst": "personal-clone-experience"
+    },
+    {
+      "src": "generic-personal-clone-experience-and-mobile-qa-2026-09-02",
+      "rel": "part_of",
+      "dst": "personal-clone-experience"
+    },
+    {
+      "src": "personal-clone-experience",
+      "rel": "part_of",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "hinglish-is-one-acoustic-utterance-and-model-promotion-is-listening-gated",
+      "rel": "measured_by",
+      "dst": "hindi-hinglish-code-switch-frontier-2026-09-02"
+    },
+    {
+      "src": "hindi-hinglish-code-switch-frontier-2026-09-02",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "structural-code-switch-passes-cannot-certify-perceptual-voice-quality",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "deployment-identity-is-client-computed-and-deployment-scoped",
+      "rel": "measured_by",
+      "dst": "guarded-personal-clone-production-release-2026-09-02"
+    },
+    {
+      "src": "deployment-identity-is-client-computed-and-deployment-scoped",
+      "rel": "caused_by",
+      "dst": "in-build-recomputation-cannot-identify-uploaded-vercel-source"
+    },
+    {
+      "src": "deployment-identity-is-client-computed-and-deployment-scoped",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "guarded-personal-clone-production-release-2026-09-02",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "guarded-personal-clone-production-release-2026-09-02",
+      "rel": "part_of",
+      "dst": "personal-clone-experience"
+    },
+    {
+      "src": "in-build-recomputation-cannot-identify-uploaded-vercel-source",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "legacy-self-test-clones-restart-through-full-erasure",
+      "rel": "measured_by",
+      "dst": "legacy-self-test-reset-recovery-2026-09-02"
+    },
+    {
+      "src": "legacy-self-test-clones-restart-through-full-erasure",
+      "rel": "caused_by",
+      "dst": "zero-active-self-test-grants-do-not-sanitize-an-old-draft"
+    },
+    {
+      "src": "legacy-self-test-clones-restart-through-full-erasure",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "legacy-self-test-reset-recovery-2026-09-02",
+      "rel": "part_of",
+      "dst": "personal-clone-experience"
+    },
+    {
+      "src": "zero-active-self-test-grants-do-not-sanitize-an-old-draft",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "official-brand-and-live-voice-signal-form-one-instrument",
+      "rel": "measured_by",
+      "dst": "functional-voice-field-and-premium-recorder-qa-2026-09-02"
+    },
+    {
+      "src": "official-brand-and-live-voice-signal-form-one-instrument",
+      "rel": "part_of",
+      "dst": "personal-clone-experience"
+    },
+    {
+      "src": "functional-voice-field-and-premium-recorder-qa-2026-09-02",
+      "rel": "part_of",
+      "dst": "personal-clone-experience"
+    },
+    {
+      "src": "frontend-dependency-remediation-2026-09-02",
+      "rel": "part_of",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "erasure-receipts-cover-the-longest-confirmed-recovery-window",
+      "rel": "measured_by",
+      "dst": "erasure-retention-and-stale-branch-preflight-2026-09-02"
+    },
+    {
+      "src": "erasure-receipts-cover-the-longest-confirmed-recovery-window",
+      "rel": "caused_by",
+      "dst": "a-thirty-day-receipt-cannot-start-while-a-child-branch-retains-the-records"
+    },
+    {
+      "src": "erasure-receipts-cover-the-longest-confirmed-recovery-window",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "erasure-retention-and-stale-branch-preflight-2026-09-02",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "a-thirty-day-receipt-cannot-start-while-a-child-branch-retains-the-records",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "expert-integration-preserves-both-lineages-20260906",
+      "rel": "measured_by",
+      "dst": "expert-integration-context-schema-union-20260906"
+    },
+    {
+      "src": "expert-integration-numeric-migration-replay-20260906",
+      "rel": "constrains",
+      "dst": "expert-integration-preserves-both-lineages-20260906"
+    },
+    {
+      "src": "groupai-bounded-adapter-and-migration-source-reconciliation-20260906",
+      "rel": "measured_by",
+      "dst": "reconciled-migration-reader-negative-controls-20260906"
+    },
+    {
+      "src": "emotional-schema-and-hosted-kernel-are-not-live-capability-20260906",
+      "rel": "constrains",
+      "dst": "groupai-bounded-adapter-and-migration-source-reconciliation-20260906"
+    },
+    {
+      "src": "groupai-bounded-adapter-and-migration-source-reconciliation-20260906",
+      "rel": "measured_by",
+      "dst": "neon-readonly-dual-lineage-catalog-and-orphans-20260906"
+    },
+    {
+      "src": "isolated-expert-development-database-20260906",
+      "rel": "measured_by",
+      "dst": "isolated-expert-schema-bootstrap-and-parser-gates-20260906"
+    },
+    {
+      "src": "schema-mirror-is-not-standalone-bootstrap-20260906",
+      "rel": "constrains",
+      "dst": "isolated-expert-development-database-20260906"
+    },
+    {
+      "src": "missing-browser-is-not-a-passing-layout-gate-20260906",
+      "rel": "measured_by",
+      "dst": "integrated-release-first-pass-and-layout-readback-20260906"
+    },
+    {
+      "src": "real-parser-fixtures-classify-top-level-operations-20260906",
+      "rel": "measured_by",
+      "dst": "person-parser-and-live-relational-isolation-20260906"
+    },
+    {
+      "src": "new-read-phase-is-not-a-mutation-20260906",
+      "rel": "constrains",
+      "dst": "real-parser-fixtures-classify-top-level-operations-20260906"
+    },
+    {
+      "src": "accounting-readback-must-not-discard-paid-output-20260906",
+      "rel": "measured_by",
+      "dst": "azure-live-ledger-synthetic-answers-20260906"
+    },
+    {
+      "src": "ordinary-preview-has-one-durable-owner-20260906",
+      "rel": "measured_by",
+      "dst": "authenticated-dev-first-clone-smoke-20260906"
+    },
+    {
+      "src": "ordinary-preview-has-one-durable-owner-20260906",
+      "rel": "measured_by",
+      "dst": "preview-navigation-and-auth-lazy-panels-20260906"
+    },
+    {
+      "src": "legacy-preview-composer-was-a-dead-ordinary-caller-20260906",
+      "rel": "constrains",
+      "dst": "ordinary-preview-has-one-durable-owner-20260906"
+    },
+    {
+      "src": "trained-adapter-adoption-needs-caller-and-receipt-20260906",
+      "rel": "measured_by",
+      "dst": "azure-voice-arm-provenance-20260906"
+    },
+    {
+      "src": "mutable-training-tag-is-not-checkpoint-provenance-20260906",
+      "rel": "constrains",
+      "dst": "trained-adapter-adoption-needs-caller-and-receipt-20260906"
+    },
+    {
+      "src": "expert-fidelity-is-a-correction-and-heldout-contract-20260907",
+      "rel": "measured_by",
+      "dst": "targeted-expert-browser-repairs-20260907"
+    },
+    {
+      "src": "declared-learning-loop-had-unusable-feedback-20260907",
+      "rel": "constrains",
+      "dst": "expert-fidelity-is-a-correction-and-heldout-contract-20260907"
+    },
+    {
+      "src": "mirror-query-relevance-stays-an-unpromoted-candidate-20260907",
+      "rel": "measured_by",
+      "dst": "mirror-memory-shadow-comparison-20260907"
+    },
+    {
+      "src": "lexical-retrieval-does-not-bridge-roman-and-devanagari-20260907",
+      "rel": "constrains",
+      "dst": "mirror-query-relevance-stays-an-unpromoted-candidate-20260907"
+    },
+    {
+      "src": "expert-dev-storage-is-a-separate-private-azure-container-20260907",
+      "rel": "measured_by",
+      "dst": "dev-azure-storage-real-adapter-smokes-20260907"
+    },
+    {
+      "src": "create-only-azure-sas-overwrite-is-a-named-403-20260907",
+      "rel": "constrains",
+      "dst": "expert-dev-storage-is-a-separate-private-azure-container-20260907"
+    },
+    {
+      "src": "dev-processing-and-protection-need-exact-targets-20260907",
+      "rel": "measured_by",
+      "dst": "authenticated-dev-source-upload-quarantine-20260907"
+    },
+    {
+      "src": "release-performance-needs-retained-traces-20260907",
+      "rel": "measured_by",
+      "dst": "release-four-and-targeted-diagnostics-20260907"
+    },
+    {
+      "src": "early-image-preload-did-not-improve-paint-20260907",
+      "rel": "constrains",
+      "dst": "release-performance-needs-retained-traces-20260907"
+    },
+    {
+      "src": "dev-worker-verifies-database-before-work-20260907",
+      "rel": "measured_by",
+      "dst": "dev-worker-guard-tests-and-real-identity-20260907"
+    },
+    {
+      "src": "one-processing-job-was-not-a-one-action-worker-20260907",
+      "rel": "constrains",
+      "dst": "dev-worker-verifies-database-before-work-20260907"
+    },
+    {
+      "src": "performance-prerequisites-are-release-requirements-20260907",
+      "rel": "measured_by",
+      "dst": "performance-prerequisite-negative-controls-20260907"
+    },
+    {
+      "src": "performance-skip-zero-was-not-a-valid-release-pass-20260907",
+      "rel": "constrains",
+      "dst": "performance-prerequisites-are-release-requirements-20260907"
     }
   ]
 }

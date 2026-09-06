@@ -1,6 +1,7 @@
 // Offline structural gate for noisy-evidence processing. The providers and
 // bytes are deterministic fixtures: this suite proves boundaries, lineage and
 // retry behavior, never speech quality or human similarity.
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { Readable } from "node:stream";
@@ -118,6 +119,15 @@ const secondDiarize = await Worker.executeProcessingJob({
 });
 ok("transient adapter failures become bounded retries, not false completion",
   firstDiarize.outcome === "retry" && firstDiarize.retry_after_ms >= 2_000 && secondDiarize.outcome === "complete");
+const retryableCapability = new Contracts.ProcessingAdapterError("temporary capability", {
+  code: "voice_evidence_not_ready", retryable: true,
+});
+const exhaustedFirstCycle = Pipeline.classifyProcessingFailure(retryableCapability, 5, { maxAttempts: 5 });
+const firstRecoveredAttempt = Pipeline.classifyProcessingFailure(retryableCapability, 6, { maxAttempts: 5 });
+const exhaustedSecondCycle = Pipeline.classifyProcessingFailure(retryableCapability, 10, { maxAttempts: 5 });
+ok("capability recovery gets a fresh bounded retry cycle without renumbering durable attempts",
+  exhaustedFirstCycle.outcome === "failed" && firstRecoveredAttempt.outcome === "retry"
+  && exhaustedSecondCycle.outcome === "failed" && firstRecoveredAttempt.retry_after_ms < 3_000);
 
 const diarization = await Worker.executeProcessingJob({
   job: job("diarize"), source, adapters, artifactStore: store, completedSteps: dependencies.diarize,
@@ -264,6 +274,52 @@ const noOwnerRun = await Worker.executeProcessingJob({
 ok("separate refuses rather than pad or splice when no owner run reaches one full window",
   noOwnerRun.outcome === "failed" && noOwnerRun.failure_code === "reference_window_no_candidate");
 
+const fragmentedPrimarySegments = [
+  { start_ms: 0, end_ms: 4_016, speaker_key: "cluster-1", confidence: 1, overlap: false },
+  { start_ms: 5_328, end_ms: 6_832, speaker_key: "cluster-2", confidence: 1, overlap: false },
+  { start_ms: 10_832, end_ms: 12_624, speaker_key: "cluster-3", confidence: 0.96, overlap: false },
+  { start_ms: 13_264, end_ms: 15_984, speaker_key: "cluster-3", confidence: 0.96, overlap: false },
+  { start_ms: 17_808, end_ms: 18_416, speaker_key: "cluster-4", confidence: 1, overlap: false },
+];
+const fragmentedPrimary = await Worker.executeProcessingJob({
+  job: job("separate"),
+  source: {
+    ...source, duration_ms: 20_992, capture_mode: "upload", subject_mode: "self",
+    is_primary_voice: true, contains_third_parties: false,
+  },
+  adapters, artifactStore: Fake.createFakeImmutableArtifactStore(), completedSteps: dependencies.separate,
+  diarizeSegments: fragmentedPrimarySegments,
+  resolveInput: resolveFixtureInput, withMaterializedAudio: withFixtureMaterializedAudio,
+});
+ok("a short selected self-recording survives diarizer over-fragmentation without running speaker separation",
+  fragmentedPrimary.outcome === "complete" &&
+  fragmentedPrimary.artifacts[0].quality.reference_selection_mode === "primary_self_capture" &&
+  fragmentedPrimary.artifacts[0].transform.name === "reference-window-passthrough");
+const fragmentedSupporting = await Worker.executeProcessingJob({
+  job: job("separate"),
+  source: {
+    ...source, duration_ms: 20_992, capture_mode: "upload", subject_mode: "self",
+    is_primary_voice: false, contains_third_parties: false,
+  },
+  adapters, artifactStore: Fake.createFakeImmutableArtifactStore(), completedSteps: dependencies.separate,
+  diarizeSegments: fragmentedPrimarySegments,
+  resolveInput: resolveFixtureInput, withMaterializedAudio: withFixtureMaterializedAudio,
+});
+ok("the fragmented-window fallback refuses a supporting or unselected upload",
+  fragmentedSupporting.outcome === "failed" && fragmentedSupporting.failure_code === "reference_window_no_candidate");
+const fragmentedOverlap = await Worker.executeProcessingJob({
+  job: job("separate"),
+  source: {
+    ...source, duration_ms: 20_992, capture_mode: "upload", subject_mode: "self",
+    is_primary_voice: true, contains_third_parties: false,
+  },
+  adapters, artifactStore: Fake.createFakeImmutableArtifactStore(), completedSteps: dependencies.separate,
+  diarizeSegments: fragmentedPrimarySegments.map((segment, index) => ({ ...segment, overlap: index === 0 })),
+  resolveInput: resolveFixtureInput, withMaterializedAudio: withFixtureMaterializedAudio,
+});
+ok("the fragmented-window fallback refuses overlapping speech even on a selected source",
+  fragmentedOverlap.outcome === "failed" && fragmentedOverlap.failure_code === "reference_window_no_candidate");
+
 const enhanced = await Worker.executeProcessingJob({
   job: job("enhance"), source, adapters, artifactStore: store, completedSteps: dependencies.enhance,
   inputArtifacts: separated.artifacts,
@@ -326,7 +382,8 @@ ok("ASR keeps transcript and language spans cited to candidate artifacts",
   const spendCalls = [];
   const spendDb = async (sql, params) => {
     spendCalls.push({ sql, params });
-    if (/insert into vy_provider_budget/i.test(sql)) return [{
+    if (/insert into vy_provider_budget/i.test(sql)) return [];
+    if (/with budget as/i.test(sql) && /for update/i.test(sql)) return [{
       reservation_id: "11111111-1111-4111-8111-111111111111", budget_id: params[0], request_hash: params[6],
       state: "reserved", reserved_microusd: params[8],
     }];
@@ -393,12 +450,38 @@ ok("ASR keeps transcript and language spans cited to candidate artifacts",
     azure.family === "asr" && azure.name === "azure-speech-fast-transcription" && azureTranscripts.length === 2 &&
     azureOutput.result.billing_state === "settled");
   ok("Azure audio cost is reserved before fetch and settled from rounded billable duration",
-    /insert into vy_provider_budget/i.test(spendCalls[0].sql) && /state='in_flight'/i.test(spendCalls[1].sql) &&
-    /with settled as/i.test(spendCalls[2].sql) && spendCalls[2].params[3] === 3_000);
+    /insert into vy_provider_budget/i.test(spendCalls[0].sql) && /for update/i.test(spendCalls[1].sql) &&
+    /state='in_flight'/i.test(spendCalls[2].sql) && /with settled as/i.test(spendCalls[3].sql) &&
+    spendCalls[3].params[3] === 3_000);
   ok("Azure phrases normalize Hinglish locale and word millisecond timestamps",
     azureTranscripts[0].value.language === "en-IN" && azureTranscripts[1].value.language === "hi-IN" &&
     azureTranscripts.every((entry) => entry.value.words.every((word) => word.end_ms > word.start_ms)) &&
     azureOutput.evidence.filter((entry) => entry.evidence_type === "language_span").every((entry) => entry.value.code_switch));
+  const sentinelFiltered = AzureFast.normalizeAzureFastTranscription({
+    phrases: [
+      {
+        offsetMilliseconds: 0, durationMilliseconds: 0, text: "", locale: "en-IN",
+        confidence: 0, words: [],
+      },
+      payload.phrases[0],
+    ],
+  }, azureArtifact);
+  ok("Azure long-file empty sentinel is omitted without weakening non-empty phrase evidence",
+    sentinelFiltered.length === 1 && sentinelFiltered[0].text === payload.phrases[0].text &&
+    sentinelFiltered[0].words.length === payload.phrases[0].words.length);
+  const zeroDurationPhrase = AzureFast.normalizeAzureFastTranscription({
+    phrases: [{
+      offsetMilliseconds: 12_000, durationMilliseconds: 0,
+      text: "Live Azure long-recording shape", locale: "en-IN", confidence: 0.82, speaker: 1,
+      words: [
+        { text: "Live", offsetMilliseconds: 12_000, durationMilliseconds: 180 },
+        { text: "shape", offsetMilliseconds: 12_220, durationMilliseconds: 260 },
+      ],
+    }],
+  }, azureArtifact);
+  ok("Azure zero-duration phrases derive a truthful positive span from timestamped words",
+    zeroDurationPhrase.length === 1 && zeroDurationPhrase[0].start_ms === 12_000 &&
+    zeroDurationPhrase[0].end_ms === 12_480 && zeroDurationPhrase[0].words.length === 2);
   ok("Azure request uses direct inline multipart bytes and never a storage URL",
     requests.length === 1 && requests[0].url ===
       "https://fixture-speech.cognitiveservices.azure.com/speechtotext/transcriptions:transcribe?api-version=2025-10-15" &&
@@ -409,6 +492,188 @@ ok("ASR keeps transcript and language spans cited to candidate artifacts",
   ok("Azure key stays in the auth header rather than URL or multipart body",
     requests[0].init.headers["Ocp-Apim-Subscription-Key"] === "fixture-key-never-sent-to-azure" &&
     !requests[0].url.includes("fixture-key") && !requests[0].uploaded.includes("fixture-key"));
+
+  // A virtual 65 MiB private file proves the production lane crosses the old
+  // 64 MiB buffered ceiling without ever allocating or concatenating 65 MiB.
+  // The same one-MiB chunk is yielded repeatedly for both the verification
+  // pass and the multipart upload pass.
+  const virtualChunk = Buffer.alloc(1024 * 1024, 0x5a);
+  const virtualTail = Buffer.from("streamed-tail", "utf8");
+  const virtualRepeats = 65;
+  const virtualByteSize = virtualChunk.length * virtualRepeats + virtualTail.length;
+  const virtualHash = createHash("sha256");
+  for (let index = 0; index < virtualRepeats; index++) virtualHash.update(virtualChunk);
+  virtualHash.update(virtualTail);
+  const virtualSha = virtualHash.digest("hex");
+  const virtualFile = () => Readable.from((async function* () {
+    for (let index = 0; index < virtualRepeats; index++) yield virtualChunk;
+    yield virtualTail;
+  })());
+  let virtualStreamPasses = 0;
+  let virtualUploadBytes = 0;
+  let virtualBudgetStarts = 0;
+  let virtualHeaders = null;
+  let virtualDuplex = null;
+  const largeInput = {
+    ...azureArtifact,
+    object_path: `${source.object_path}/derived/large.mp3`,
+    sha256: virtualSha,
+    mime: "audio/mpeg",
+    byte_size: virtualByteSize,
+  };
+  const streamedAzure = AzureFast.createAzureFastTranscriptionAdapter({
+    endpoint: "https://fixture-speech.cognitiveservices.azure.com/",
+    apiKey: "fixture-key-never-sent-to-azure",
+    timeoutMs: 5_000,
+    resolveInput: async () => { throw new Error("buffered resolver must not run"); },
+    withInputFile: async (_request, fn) => fn({
+      path: "private-virtual-input.mp3", mime: "audio/mpeg", byteSize: virtualByteSize, sha256: virtualSha,
+    }),
+    statFile: async () => ({ size: virtualByteSize, isFile: () => true }),
+    createFileStream: () => { virtualStreamPasses += 1; return virtualFile(); },
+    fetchImpl: async (_url, init) => {
+      for await (const chunk of init.body) virtualUploadBytes += chunk.length;
+      virtualHeaders = init.headers;
+      virtualDuplex = init.duplex;
+      return new Response(JSON.stringify(payload), { status: 200 });
+    },
+  });
+  const streamedResult = await streamedAzure.transcribe({
+    source, inputs: [largeInput],
+    billing: { beforeProviderRequest: async () => { virtualBudgetStarts += 1; } },
+  });
+  ok("Azure streams a private input above 64 MiB with bounded reusable chunks",
+    streamedResult.segments.length === 2 && virtualStreamPasses === 2 &&
+    virtualUploadBytes > virtualByteSize && virtualBudgetStarts === 1 &&
+    Number(virtualHeaders?.["Content-Length"]) === virtualUploadBytes &&
+    /^multipart\/form-data; boundary=----vyakti-/.test(virtualHeaders?.["Content-Type"] || "") &&
+    virtualDuplex === "half");
+
+  const exactLargeByteSize = 262_879_879;
+  const exactChunk = Buffer.alloc(8 * 1024 * 1024, 0x3c);
+  const exactWholeChunks = Math.floor(exactLargeByteSize / exactChunk.length);
+  const exactTail = Buffer.alloc(exactLargeByteSize % exactChunk.length, 0x3c);
+  const exactDigest = createHash("sha256");
+  for (let index = 0; index < exactWholeChunks; index++) exactDigest.update(exactChunk);
+  exactDigest.update(exactTail);
+  const exactSha = exactDigest.digest("hex");
+  const exactSourceStream = () => Readable.from((async function* () {
+    for (let index = 0; index < exactWholeChunks; index++) yield exactChunk;
+    yield exactTail;
+  })());
+  const derivativeBytes = Buffer.from("bounded speech derivative", "utf8");
+  const derivativeSha = Contracts.sha256Hex(derivativeBytes);
+  const exactInput = {
+    ...azureArtifact,
+    object_path: source.object_path,
+    sha256: exactSha,
+    mime: "audio/mpeg",
+    byte_size: exactLargeByteSize,
+    duration_ms: 6_540_000,
+  };
+  let exactPrepared = 0;
+  let exactPrepareRequest = null;
+  let exactProviderStarts = 0;
+  let exactUploadedBytes = 0;
+  const exactAzure = AzureFast.createAzureFastTranscriptionAdapter({
+    endpoint: "https://fixture-speech.cognitiveservices.azure.com/",
+    apiKey: "fixture-key-never-sent-to-azure",
+    timeoutMs: 20_000,
+    withInputFile: async (_request, fn) => fn({
+      path: "exact-262879879.mp3", mime: "audio/mpeg", byteSize: exactLargeByteSize, sha256: exactSha,
+    }),
+    prepareInputFile: async (request, fn) => {
+      exactPrepared += 1;
+      exactPrepareRequest = request;
+      return fn({
+        path: "derived-16k-mono.flac", mime: "audio/flac", byteSize: derivativeBytes.length,
+        sha256: derivativeSha, transform: "azure-asr-flac-16k-mono-v1",
+        sourceSha256: exactSha, sourceByteSize: exactLargeByteSize, sourceDurationMs: exactInput.duration_ms,
+      });
+    },
+    statFile: async (path) => ({
+      size: path.startsWith("exact-") ? exactLargeByteSize : derivativeBytes.length,
+      isFile: () => true,
+    }),
+    createFileStream: (path) => path.startsWith("exact-")
+      ? exactSourceStream()
+      : Readable.from(derivativeBytes),
+    fetchImpl: async (_url, init) => {
+      for await (const chunk of init.body) exactUploadedBytes += chunk.length;
+      return new Response(JSON.stringify(payload), { status: 200 });
+    },
+  });
+  const exactOutput = await exactAzure.transcribe({
+    source, inputs: [exactInput],
+    billing: { beforeProviderRequest: async () => { exactProviderStarts += 1; } },
+  });
+  const exactReceipt = exactOutput.transport[0];
+  ok("exact 262,879,879-byte source uses a bounded whole-duration derivative with dual-SHA receipt",
+    exactPrepared === 1 && exactPrepareRequest.file.byteSize === exactLargeByteSize &&
+    exactPrepareRequest.maxBytes === 250_000_000 && exactProviderStarts === 1 &&
+    exactUploadedBytes > derivativeBytes.length &&
+    exactReceipt.source_sha256 === exactSha && exactReceipt.transport_sha256 === derivativeSha &&
+    exactReceipt.transform === "azure-asr-flac-16k-mono-v1" && exactReceipt.mime === "audio/flac");
+  const exactReceiptManifest = Queue.processingCompletionReceipt({
+    step: "transcribe", artifact_ids: [], evidence_ids: [], next_steps: ["voice_quality"],
+    verified_input_sha256: exactSha, provider_transport: exactOutput.transport,
+  });
+  ok("processing completion manifest binds original and derivative hashes without a private path",
+    exactReceiptManifest.provider_transport[0].source_sha256 === exactSha &&
+    exactReceiptManifest.provider_transport[0].transport_sha256 === derivativeSha &&
+    !JSON.stringify(exactReceiptManifest).includes("exact-262879879"));
+
+  let oversizedProviderStarts = 0;
+  const oversizedWithoutPreparation = await captureAsync(() => AzureFast.createAzureFastTranscriptionAdapter({
+    endpoint: "https://fixture-speech.cognitiveservices.azure.com/",
+    apiKey: "fixture-key-never-sent-to-azure",
+    timeoutMs: 20_000,
+    withInputFile: async (_request, fn) => fn({
+      path: "exact-262879879.mp3", mime: "audio/mpeg", byteSize: exactLargeByteSize, sha256: exactSha,
+    }),
+    statFile: async () => ({ size: exactLargeByteSize, isFile: () => true }),
+    createFileStream: () => exactSourceStream(),
+    fetchImpl: async () => { throw new Error("provider must not start"); },
+  }).transcribe({
+    source, inputs: [exactInput],
+    billing: { beforeProviderRequest: async () => { oversizedProviderStarts += 1; } },
+  }));
+  ok("exact oversized metadata fails before spend when no audited derivative lane exists",
+    oversizedWithoutPreparation?.code === "azure_asr_input_size_invalid" &&
+    oversizedWithoutPreparation.retryable === false && oversizedProviderStarts === 0);
+
+  let invalidFileFetches = 0;
+  let invalidFileBudgetStarts = 0;
+  const fileInput = { ...azureArtifact, byte_size: azureAudio.length };
+  const invalidFileBase = (file, input = fileInput) => AzureFast.createAzureFastTranscriptionAdapter({
+    endpoint: "https://fixture-speech.cognitiveservices.azure.com/",
+    apiKey: "fixture-key-never-sent-to-azure",
+    withInputFile: async (_request, fn) => fn(file),
+    statFile: async () => ({ size: azureAudio.length, isFile: () => true }),
+    createFileStream: () => Readable.from(azureAudio),
+    fetchImpl: async () => { invalidFileFetches += 1; return new Response(JSON.stringify(payload), { status: 200 }); },
+  }).transcribe({
+    source, inputs: [input],
+    billing: { beforeProviderRequest: async () => { invalidFileBudgetStarts += 1; } },
+  });
+  const privateFileUrl = await captureAsync(() => invalidFileBase({
+    signedReadUrl: "https://private.invalid/short-lived", mime: "audio/wav",
+  }));
+  const privateFileMime = await captureAsync(() => invalidFileBase({
+    path: "private.wav", mime: "audio/mpeg", byteSize: azureAudio.length, sha256: azureArtifact.sha256,
+  }));
+  const privateFileSize = await captureAsync(() => invalidFileBase({
+    path: "private.wav", mime: "audio/wav", byteSize: azureAudio.length + 1, sha256: azureArtifact.sha256,
+  }));
+  const privateFileSha = await captureAsync(() => invalidFileBase({
+    path: "private.wav", mime: "audio/wav", byteSize: azureAudio.length, sha256: "f".repeat(64),
+  }));
+  ok("streamed Azure input keeps URL, MIME, size and SHA failures permanent and pre-spend",
+    privateFileUrl?.code === "azure_asr_private_url_forbidden" && privateFileUrl.retryable === false &&
+    privateFileMime?.code === "azure_asr_input_mime_invalid" && privateFileMime.retryable === false &&
+    privateFileSize?.code === "azure_asr_input_size_mismatch" && privateFileSize.retryable === false &&
+    privateFileSha?.code === "azure_asr_input_integrity_mismatch" && privateFileSha.retryable === false &&
+    invalidFileFetches === 0 && invalidFileBudgetStarts === 0);
 
   const sarvamFixture = sarvamLanguageFixture();
   const sarvam = SarvamBatch.createSarvamTranscriptionAdapter({
@@ -501,6 +766,14 @@ ok("ASR keeps transcript and language spans cited to candidate artifacts",
   }).transcribe({ source, inputs: [azureArtifact], billing: budgetHook }));
   ok("missing word timestamps fail closed instead of degrading the evidence contract",
     invalidResponse?.code === "azure_asr_response_invalid" && invalidResponse.retryable === false);
+  const emptyZeroDuration = await captureAsync(() => Promise.resolve(AzureFast.normalizeAzureFastTranscription({
+    phrases: [{
+      offsetMilliseconds: 0, durationMilliseconds: 0,
+      text: "No timing proof", locale: "en-IN", confidence: 0.8, words: [],
+    }],
+  }, azureArtifact)));
+  ok("zero-duration phrases still fail closed when words cannot prove a positive span",
+    emptyZeroDuration?.code === "azure_asr_response_invalid" && emptyZeroDuration.retryable === false);
 
   const timeout = await captureAsync(() => baseAzure({
     timeoutMs: 20,
@@ -622,6 +895,29 @@ ok("one embedding family is rejected as insufficient identity evidence", (await 
     /join vy_replica_source s[\s\S]*s\.source_id = j\.source_id[\s\S]*s\.owner_user_id = j\.owner_user_id/.test(calls[0].sql));
   ok("raw lease capability is returned once and only its digest is persisted",
     leased.leaseToken === token && calls[0].params[0] === Queue.leaseTokenHash(token) && !calls[0].params.includes(token));
+  ok("a worker can prefer the next due step from the source it already started",
+    /order by \(j\.source_id = \$3::uuid\) desc/.test(calls[0].sql) && calls[0].params[2] === null);
+  const preferredCalls = [];
+  await Queue.leaseNextProcessingJob(async (sql, params) => {
+    preferredCalls.push({ sql, params });
+    return [{ ...job("integrity"), state: "leased", lease_expires_at: "later" }];
+  }, { token, leaseMs: 30_000, preferredSourceId: SOURCE });
+  ok("source affinity is parameterized and never interpolated into lease SQL",
+    preferredCalls[0].params[2] === SOURCE && !preferredCalls[0].sql.includes(SOURCE));
+  const renewCalls = [];
+  await Queue.renewProcessingLease(async (sql, params) => {
+    renewCalls.push({ sql, params });
+    return [{ ...job("integrity"), state: "leased", lease_expires_at: "later" }];
+  }, { jobId: job("integrity").job_id, leaseToken: token, leaseMs: 600_000 });
+  ok("long work renews only the still-live token-fenced lease",
+    /state = 'leased'/.test(renewCalls[0].sql) && /lease_token_hash = \$2/.test(renewCalls[0].sql)
+    && /lease_expires_at > now\(\)/.test(renewCalls[0].sql)
+    && /vy_replica_source s[\s\S]*s\.state in \('quarantined','processing'\)/.test(renewCalls[0].sql)
+    && renewCalls[0].params[2] === 600_000);
+  ok("a missing heartbeat row is a lost lease, never a successful renewal",
+    await throwsAsync(() => Queue.renewProcessingLease(async () => [], {
+      jobId: job("integrity").job_id, leaseToken: token, leaseMs: 600_000,
+    }), "lost_processing_lease"));
   const completionCalls = [];
   await Queue.completeProcessingJob(async (sql, params) => {
     completionCalls.push({ sql, params });
@@ -632,7 +928,8 @@ ok("one embedding family is rejected as insufficient identity evidence", (await 
   ok("completion SQL proves every artifact/evidence id belongs to the leased owner tuple",
     /vy_replica_processing_artifact/.test(completionCalls[0].sql) &&
     /vy_replica_processing_evidence/.test(completionCalls[0].sql) && /owner_user_id = j\.owner_user_id/.test(completionCalls[0].sql) &&
-    /j\.lease_expires_at > now\(\)/.test(completionCalls[0].sql));
+    /j\.lease_expires_at > now\(\)/.test(completionCalls[0].sql) &&
+    /vy_replica_source s[\s\S]*s\.state in \('quarantined','processing'\)/.test(completionCalls[0].sql));
   ok("a lost lease cannot be marked complete", await throwsAsync(() => Queue.completeProcessingJob(async () => [], {
     jobId: job("integrity").job_id, leaseToken: token, adapter: integrity.adapter, result: integrity.result,
   }), "lost_processing_lease"));

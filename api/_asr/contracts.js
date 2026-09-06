@@ -151,9 +151,14 @@ export function asrResult(value, provider) {
   }
   if (languageSource === "provider_detected" && languageCode == null) fail("asr_detected_language_missing");
   if (languageSource !== "provider_detected" && languageProbability != null) fail("asr_language_probability_unbound");
+  const rawTranscriptConfidence = value?.transcriptConfidence ?? value?.transcript_confidence ?? null;
+  const transcriptConfidence = rawTranscriptConfidence == null ? null : Number(rawTranscriptConfidence);
+  if (transcriptConfidence != null && (!Number.isFinite(transcriptConfidence) || transcriptConfidence < 0 || transcriptConfidence > 1)) {
+    fail("asr_transcript_confidence_invalid");
+  }
   return Object.freeze({
     turns: Object.freeze(out), provider: name, model,
-    languageCode, languageProbability, languageSource,
+    languageCode, languageProbability, languageSource, transcriptConfidence,
   });
 }
 

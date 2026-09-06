@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,7 +13,10 @@ import {
   validateExtractionOutput,
 } from "../../api/_claim-extraction/contracts.js";
 import { createAzureFoundryClaimExtractor } from "../../api/_claim-extraction/providers/azure-foundry.js";
+import { createOpenRouterClaimExtractor } from "../../api/_claim-extraction/providers/openrouter.js";
+import { createProductionClaimExtractor } from "../../api/_claim-extraction/registry.js";
 import { ELIGIBLE_TRANSCRIPTS_SQL, extractOwnedClaims, ownedClaimExtractionStatus } from "../../api/_replica-claims.js";
+import { createClaimRequestAbort } from "../../api/replica-claims.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -104,6 +108,75 @@ ok("Azure adapter returns validated proposals and bounded usage", azureResult.ou
 assert.throws(() => createAzureFoundryClaimExtractor({ endpoint: "https://evil.example.com", model: "x", apiKey: "x".repeat(20) }), /azure_foundry_endpoint_invalid/);
 ok("Azure adapter refuses non-Azure endpoints", true);
 
+let openRouterRequest;
+const openRouter = createOpenRouterClaimExtractor({
+  model: "google/gemini-2.5-flash",
+  apiKey: "test-key-not-a-real-secret-123",
+  fetchImpl: async (url, init) => {
+    openRouterRequest = { url: String(url), init, body: JSON.parse(init.body) };
+    return new Response(JSON.stringify({
+      choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ claims: rawOutput.claims.slice(0, 2) }) } }],
+      usage: { prompt_tokens: 101, completion_tokens: 41 },
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  },
+});
+const openRouterResult = await openRouter.extract({ batch });
+ok("OpenRouter fallback pins one model and requires strict structured-output routing",
+  openRouterRequest.url === "https://openrouter.ai/api/v1/chat/completions"
+  && openRouterRequest.body.model === "google/gemini-2.5-flash"
+  && openRouterRequest.body.provider.require_parameters === true
+  && openRouterRequest.body.response_format.json_schema.strict === true);
+ok("OpenRouter fallback returns the same validated proposal and metered usage contract",
+  openRouterResult.output.proposals.length === 2 && openRouterResult.usage.input_tokens === 101
+  && openRouter.billing.meter === "openrouter_tokens");
+const openRouterEnv = {
+  OPENROUTER_KEY: "test-key-not-a-real-secret-123",
+  OPENROUTER_CLAIM_MODEL: "google/gemini-2.5-flash",
+};
+const productionFallback = createProductionClaimExtractor(openRouterEnv);
+ok("production registry uses the bounded OpenRouter arm only when Azure Foundry is absent",
+  productionFallback.name === "openrouter-structured-output" && productionFallback.model === "google/gemini-2.5-flash");
+const productionPreferred = createProductionClaimExtractor({
+  ...openRouterEnv,
+  AZURE_FOUNDRY_ENDPOINT: "https://unit.services.ai.azure.com",
+  AZURE_FOUNDRY_CLAIM_MODEL: "claim-model-v1",
+  AZURE_FOUNDRY_API_KEY: "test-key-not-a-real-secret-456",
+});
+ok("production registry keeps a fully configured Azure deployment ahead of the fallback",
+  productionPreferred.name === "azure-foundry-structured-output" && productionPreferred.model === "claim-model-v1");
+assert.throws(() => createProductionClaimExtractor({
+  AZURE_FOUNDRY_ENDPOINT: "https://unit.services.ai.azure.com",
+  AZURE_FOUNDRY_CLAIM_MODEL: "claim-model-v1",
+}), /claim_extractor_unavailable/);
+ok("partial Azure configuration without a complete fallback fails closed", true);
+
+const preAborted = new AbortController();
+preAborted.abort(Object.assign(new Error("already-gone"), { code: "client_aborted" }));
+let preAbortedFetchCalled = false;
+const preAbortedAdapter = createOpenRouterClaimExtractor({
+  ...openRouterEnv,
+  apiKey: openRouterEnv.OPENROUTER_KEY,
+  model: openRouterEnv.OPENROUTER_CLAIM_MODEL,
+  fetchImpl: async (_url, init) => {
+    preAbortedFetchCalled = true;
+    if (init.signal.aborted) throw init.signal.reason;
+    throw new Error("unexpected_unaborted_fetch");
+  },
+});
+await assert.rejects(preAbortedAdapter.extract({ batch, signal: preAborted.signal }), /claim_extraction_aborted/);
+ok("an already-aborted request cannot begin a provider request", preAbortedFetchCalled === false);
+
+const oversizedAdapter = createOpenRouterClaimExtractor({
+  apiKey: openRouterEnv.OPENROUTER_KEY,
+  model: openRouterEnv.OPENROUTER_CLAIM_MODEL,
+  fetchImpl: async () => new Response(`{"padding":"${"x".repeat(1_000_001)}"}`, {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  }),
+});
+await assert.rejects(oversizedAdapter.extract({ batch }), /openrouter_response_too_large/);
+ok("chunked provider responses are stopped at the one-megabyte bound", true);
+
 function owned(training = true) {
   return {
     replica_id: RID, lifecycle: "calibrating", subject_mode: "self", policy_version: "replica-self-v1",
@@ -118,9 +191,10 @@ const status = await ownedClaimExtractionStatus(async (sql, params) => {
   if (/select r\.replica_id,r\.lifecycle/i.test(sql)) return [owned()];
   if (/latest_speaker_decision/i.test(sql)) return [transcript()];
   if (/from vy_replica_claim_extraction x join/i.test(sql)) return [];
+  if (/from vy_replica_claim_extraction_queue q/i.test(sql)) return [];
   throw new Error(`unexpected status SQL ${sql.slice(0, 80)}`);
 }, OWNER, RID);
-ok("status exposes counts and blockers without transcript content", status.readiness.ready && status.readiness.eligible_spans === 1 && !JSON.stringify(status).includes("Asha"));
+ok("status exposes counts and blockers without transcript content", status.readiness.ready && status.readiness.eligible_spans === 1 && status.nearline.state === "ready_for_manual_extraction" && !JSON.stringify(status).includes("Asha"));
 ok("eligible transcripts require accepted target-speaker overlap and reject declared third parties or test adapters", /d\.decision='accepted'/i.test(ELIGIBLE_TRANSCRIPTS_SQL) && /s\.contains_third_parties=false/i.test(ELIGIBLE_TRANSCRIPTS_SQL) && /!~ '\(fake\|fixture\|test\|mock\)'/i.test(ELIGIBLE_TRANSCRIPTS_SQL));
 ok("all extraction status reads remain owner-bound", statusCalls.every((call) => call.params[0] === RID && call.params[1] === OWNER));
 
@@ -133,24 +207,62 @@ const fakeExtractor = {
 const completed = await extractOwnedClaims(async (sql, params) => {
   serviceCalls.push({ sql, params });
   if (/jsonb_to_recordset/i.test(sql)) return [{ run_id: RUN, state: "complete", proposed_count: 2, rejected_count: 2, attempt: 1, created_at: "2026-08-24T00:00:00.000Z", completed_at: "2026-08-24T00:00:01.000Z" }];
-  if (/insert into vy_replica_claim_extraction/i.test(sql)) return [{ run_id: RUN, state: "extracting", proposed_count: 0, rejected_count: 0, attempt: 1, created_at: "2026-08-24T00:00:00.000Z", completed_at: null }];
+  if (/insert into vy_replica_claim_extraction/i.test(sql)) return [{ run_id: RUN, state: "extracting", acquired: true, proposed_count: 0, rejected_count: 0, attempt: 1, created_at: "2026-08-24T00:00:00.000Z", completed_at: null }];
   if (/select r\.replica_id,r\.lifecycle/i.test(sql)) return [owned()];
   if (/latest_speaker_decision/i.test(sql)) return [transcript()];
   if (/from vy_replica_claim_extraction x join/i.test(sql)) return [];
+  if (/from vy_replica_claim_extraction_queue q/i.test(sql)) return [];
   throw new Error(`unexpected extraction SQL ${sql.slice(0, 80)}`);
 }, OWNER, RID, fakeExtractor);
 ok("extraction completes with proposals still pending owner review", completed.state === "complete" && completed.proposed_count === 2);
 ok("provider receives redacted spans and no owner or source id", providerBatch.spans[0].redactions === 2 && !providerBatch.spans[0].text.includes("example.com") && !JSON.stringify(providerBatch.spans.map(({ source_id: _, ...span }) => span)).includes(OWNER));
 const persistCall = serviceCalls.find((call) => /jsonb_to_recordset/i.test(call.sql));
 ok("persistence inserts proposed claims and exact citation lineage atomically", /'proposed'/.test(persistCall.sql) && /insert into vy_replica_claim_citation/i.test(persistCall.sql) && /state='complete'/i.test(persistCall.sql));
-ok("persistence payload has quote hashes but no transcript quotes", !persistCall.params[5].includes(shortQuote) && /quote_hash/.test(persistCall.params[5]));
+ok("persistence payload has quote hashes but no transcript quotes", !persistCall.params[6].includes(shortQuote) && /quote_hash/.test(persistCall.params[6]));
 ok("persistence rechecks both consents at the mutation boundary", /transcription_consent=true and a\.training_consent=true/i.test(persistCall.sql));
+ok("persistence rechecks latest accepted speaker evidence after the provider returns",
+  /latest_speaker_decision as materialized/.test(persistCall.sql)
+  && /sd\.evidence_id=speaker\.evidence_id and sd\.decision='accepted'/.test(persistCall.sql)
+  && /speaker\.span_start_ms<e\.span_end_ms/.test(persistCall.sql));
+ok("an all-or-nothing authorization guard precedes every claim and citation write",
+  persistCall.sql.indexOf("authorization_guard as materialized") < persistCall.sql.indexOf("insert into vy_replica_claim")
+  && /from active_run r cross join proposal_rows p cross join authorization_guard g/.test(persistCall.sql)
+  && /from valid_citations v join claim_rows c/.test(persistCall.sql)
+  && /count\(\*\) from valid_citations\)=\$10::int4/.test(persistCall.sql));
+ok("the mutation boundary rechecks exact run inputs source state and immutable transcript lineage",
+  /vy_replica_claim_extraction_input/.test(persistCall.sql)
+  && /s\.contains_third_parties=false/.test(persistCall.sql)
+  && /s\.state='quarantined' and s\.capture_mode='derived'/.test(persistCall.sql)
+  && /e\.value#>>'\{provenance,origin\}'='mirror_call'/.test(persistCall.sql));
+
+let racedProviderCalled = false;
+let racedPersistSql = "";
+await assert.rejects(extractOwnedClaims(async (sql) => {
+  if (/jsonb_to_recordset/i.test(sql)) {
+    racedPersistSql = sql;
+    return [];
+  }
+  if (/insert into vy_replica_claim_extraction/i.test(sql)) return [{ run_id: RUN, state: "extracting", acquired: true }];
+  if (/select r\.replica_id,r\.lifecycle/i.test(sql)) return [owned()];
+  if (/latest_speaker_decision/i.test(sql)) return [transcript()];
+  if (/from vy_replica_claim_extraction x join/i.test(sql)) return [];
+  if (/from vy_replica_claim_extraction_queue q/i.test(sql)) return [];
+  if (/update vy_replica_claim_extraction/i.test(sql)) return [];
+  return [];
+}, OWNER, RID, { ...fakeExtractor, async extract() {
+  racedProviderCalled = true;
+  return { output: validated };
+} }), /claim_extraction_persist_denied/);
+ok("NEGATIVE CONTROL: speaker rejection during provider work denies persistence after the paid call",
+  racedProviderCalled && /latest_speaker_decision/.test(racedPersistSql)
+  && /authorization_guard/.test(racedPersistSql));
 
 let providerCalled = false;
 await assert.rejects(extractOwnedClaims(async (sql) => {
   if (/select r\.replica_id,r\.lifecycle/i.test(sql)) return [owned(false)];
   if (/latest_speaker_decision/i.test(sql)) return [transcript()];
   if (/from vy_replica_claim_extraction x join/i.test(sql)) return [];
+  if (/from vy_replica_claim_extraction_queue q/i.test(sql)) return [];
   return [];
 }, OWNER, RID, { ...fakeExtractor, async extract() { providerCalled = true; } }), /claim_extraction_not_ready/);
 ok("missing training consent prevents any provider call", providerCalled === false);
@@ -160,5 +272,30 @@ ok("claim extraction migration remains one-statement-runner safe", splitSql(migr
 ok("citation lineage is composite owner claim evidence and source bound", /foreign key \(claim_id,replica_id,owner_user_id\)/i.test(migration) && /foreign key \(evidence_id,replica_id,owner_user_id\)/i.test(migration) && /foreign key \(source_id,replica_id,owner_user_id\)/i.test(migration));
 const route = readFileSync(join(ROOT, "api/replica-claims.js"), "utf8");
 ok("production route derives bearer ownership and has no fake override", /const user = await requireUser\(req\)/.test(route) && /createProductionClaimExtractor\(\)/.test(route) && !/allowFake|testOnly/.test(route));
+
+const request = new EventEmitter();
+request.aborted = false;
+const response = new EventEmitter();
+response.writableEnded = false;
+response.headersSent = false;
+response.destroyed = false;
+const requestAbort = createClaimRequestAbort(request, response, { timeoutMs: 5_000 });
+request.emit("close");
+ok("a normal completed request close does not cancel paid extraction", requestAbort.signal.aborted === false);
+request.emit("aborted");
+ok("the actual client-aborted event cancels provider work with a named reason",
+  requestAbort.signal.aborted && requestAbort.signal.reason?.code === "client_aborted");
+requestAbort.dispose();
+
+const completedRequest = new EventEmitter();
+const completedResponse = new EventEmitter();
+completedResponse.writableEnded = true;
+const completedAbort = createClaimRequestAbort(completedRequest, completedResponse, { timeoutMs: 5_000 });
+completedResponse.emit("close");
+ok("a response close after the response ended is not misclassified as a client abort", !completedAbort.signal.aborted);
+completedAbort.dispose();
+ok("claim extraction owns a bounded deadline below the platform wall",
+  /Math\.min\(45_000/.test(route) && /claim_extraction_timeout/.test(route)
+  && !/req\.on\?\.\("close"/.test(route));
 
 console.log(`\n${checks} replica claim extraction checks passed`);

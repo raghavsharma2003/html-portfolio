@@ -5,7 +5,7 @@ import { allow, ipOf } from "./_ratelimit.js";
 import {
   approveOwnedPersonProfile,
   buildOwnedPersonProfile,
-  decideOwnedClaim,
+  decideAndMaterializeOwnedClaim,
   ownedPersonModelStatus,
 } from "./_person-model.js";
 
@@ -30,8 +30,8 @@ export default async function handler(req, res) {
     }
     const body = req.body || {};
     if (body.op === "decide_claim") {
-      const decision = await decideOwnedClaim(q, user.id, body);
-      return decision ? res.status(201).json({ decision }) : res.status(404).json({ error: "claim_not_found" });
+      const reviewed = await decideAndMaterializeOwnedClaim(q, user.id, body);
+      return reviewed ? res.status(201).json(reviewed) : res.status(404).json({ error: "claim_not_found" });
     }
     if (body.op === "build_profile") {
       const profile = await buildOwnedPersonProfile(q, user.id, body.replica_id);

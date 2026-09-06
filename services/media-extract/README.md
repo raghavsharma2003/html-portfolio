@@ -159,8 +159,8 @@ Saying so is cheaper than implying a coverage we do not have.
 and body digest; 60 s skew window; nonce replay denied; the response carries
 `X-Vyakti-Response-Signature` over the nonce, status and response digest.
 
-Request body (the whole of it — note the absence of any owner, replica,
-person or transcript identifier):
+Request body (the whole of it; there are no separate owner, replica, person,
+or transcript identity fields):
 
 ```json
 {
@@ -171,9 +171,28 @@ person or transcript identifier):
     "channel_key": "@arjun-sir-physics",
     "expires_at": "2027-08-26T00:00:00.000Z"
   },
-  "upload": { "url": "https://<project>.supabase.co/storage/v1/...token=...", "headers": {} }
+  "upload": {
+    "url": "https://<account>.blob.core.windows.net/<container>/<exact-path>?<sas>",
+    "headers": { "x-ms-version": "2026-04-06" },
+    "resumable": {
+      "protocol": "azure-block-v1",
+      "endpoint": "https://<account>.blob.core.windows.net/<container>/<exact-path>?<sas>",
+      "headers": { "x-ms-version": "2026-04-06" },
+      "metadata": { "objectName": "<exact-path>" },
+      "chunk_size": 8388608
+    }
+  }
 }
 ```
+
+The service refuses the former URL-only single-PUT shape. It stages blocks of
+at most 8 MiB and then sends one create-only block-list commit, all under the
+same `MEDIA_EXTRACT_TIMEOUT_SECONDS` deadline. The application records a
+210-minute erasure fence before minting the two-hour SAS: 120 minutes of
+capability, Azure's documented 80-minute ceiling for one legitimate 8 MiB
+request, and 10 minutes of margin. This protects the shipped in-flight write
+path; it is not a promise to revoke a SAS deliberately copied and reused by
+the same owner before that SAS expires.
 
 Response:
 
@@ -198,7 +217,7 @@ Response:
 | name | required | meaning |
 |---|---|---|
 | `MEDIA_EXTRACT_HMAC_SECRET` | **yes** | ≥32 bytes, hex or base64url. Startup fails without it. Its own copy — same *name* as the app plane's, a different *setting*. |
-| `MEDIA_EXTRACT_UPLOAD_HOST` | **yes** | the one host PUTs may go to (the Supabase project host). Startup fails without it. |
+| `MEDIA_EXTRACT_UPLOAD_HOST` | **yes** | the one Azure Blob host block writes may go to. Startup fails without it. |
 | `MEDIA_EXTRACT_MAX_DURATION_SECONDS` | no | default `14400` (4 h), clamped to 6 h |
 | `MEDIA_EXTRACT_MAX_AUDIO_BYTES` | no | default `268435456` (256 MB), clamped to 512 MB |
 | `MEDIA_EXTRACT_TIMEOUT_SECONDS` | no | default `1800` |

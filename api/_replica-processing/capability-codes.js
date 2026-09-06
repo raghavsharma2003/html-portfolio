@@ -21,6 +21,16 @@ export const CAPABILITY_ABSENCE_CODES = Object.freeze([
   "media_probe_tool_unavailable",
   "reference_window_tool_unavailable",
   "voice_evidence_unconfigured",
+  // Configured but temporarily unavailable is still a platform capability
+  // problem. A different recording cannot wake or repair the private GPU, so
+  // these must recover through the worker rather than asking for re-upload.
+  "voice_evidence_unreachable",
+  "voice_evidence_not_ready",
+  // Private input transport is a platform-owned condition, including jobs
+  // exhausted before a corrected streamed reader was deployed. Requeueing is
+  // safe because integrity, MIME and size failures have separate permanent
+  // codes and can never match this entry.
+  "azure_asr_input_unavailable",
   "asr_unconfigured",
 ]);
 

@@ -1,3 +1,4 @@
+import { contextStorageFixture } from "../rehearsal/stubs/context-storage-fixture.mjs";
 // WS-R38 (the door battery). Shared fixture world for evals/room-doors/run.mjs.
 //
 // This is deliberately a THIN LAYER over evals/room/fixtures.mjs's own
@@ -1955,6 +1956,8 @@ export function rehearsalCreatorDb(state) {
   const db = async (sql, params = []) => {
     calls.push(sql);
     const has = (s) => sql.includes(s);
+    const storageHit = contextStorageFixture(state, sql, params);
+    if (storageHit !== undefined) return storageHit;
     const hit = rehearsalPatterns(state, sql, params, has);
     if (hit !== undefined) return hit;
     return doors(sql, params);

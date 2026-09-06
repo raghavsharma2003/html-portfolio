@@ -45,7 +45,7 @@ import { existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const DIST = join(ROOT, "dist");
@@ -290,11 +290,11 @@ export async function runInstallCheck() {
   return { findings };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const result = await runInstallCheck();
   if (result.skipped) {
-    console.log(`  skip  installable Room: ${result.skipped}`);
-    process.exit(0);
+    console.log(`FAIL  installable Room prerequisite: ${result.skipped}`);
+    process.exit(1);
   }
   if (result.findings.length) {
     console.log(`FAIL  installable Room: ${result.findings.length} finding(s)`);

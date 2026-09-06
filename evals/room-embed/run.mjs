@@ -413,7 +413,7 @@ console.log("\n── 10. negative control: the copy gate catches an em dash ─
 
 {
   // The Share-tab card's own sentences, byte-identical to what
-  // `src/studio/RoomStudio.tsx` renders — a designated fixture, not a
+  // `src/creatorStudio/RoomStudio.tsx` renders — a designated fixture, not a
   // re-derivation, so a future edit to the real copy that quietly grows a
   // dash is still caught the moment this fixture is updated to match it.
   const CLEAN_SNIPPET = `
@@ -429,14 +429,14 @@ console.log("\n── 10. negative control: the copy gate catches an em dash ─
       );
     }
   `;
-  const cleanHits = scanSource("src/studio/fixture.tsx", CLEAN_SNIPPET, { rules: "full", codename: true, roomsVocab: true });
+  const cleanHits = scanSource("src/creatorStudio/fixture.tsx", CLEAN_SNIPPET, { rules: "full", codename: true, roomsVocab: true });
   ok("the real Share-tab copy passes the copy gate clean", cleanHits.length === 0, JSON.stringify(cleanHits));
 
   const DASHED_SNIPPET = CLEAN_SNIPPET.replace(
     "a coaching site, a Linktree, a blog post",
     "a coaching site — a Linktree, a blog post",
   );
-  const dashedHits = scanSource("src/studio/fixture.tsx", DASHED_SNIPPET, { rules: "full", codename: true, roomsVocab: true });
+  const dashedHits = scanSource("src/creatorStudio/fixture.tsx", DASHED_SNIPPET, { rules: "full", codename: true, roomsVocab: true });
   ok(
     "NEGATIVE CONTROL: an em dash slipped into the same sentence is caught",
     dashedHits.some((h) => h.rule === "dash"),

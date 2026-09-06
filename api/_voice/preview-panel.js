@@ -31,6 +31,11 @@ import {
 } from "./warmup.js";
 
 const LANGUAGES = new Set(["en", "hi"]);
+// The prior identity-anchor preset deliberately suppressed variation
+// (0.2 exaggeration, 0.78 CFG, 0.6 temperature). The owner consistently heard
+// that delivery as flat and robotic. Start from Chatterbox Multilingual's
+// official neutral settings instead; the calibration lab still owns any more
+// expressive choice and can reverse this per owner with matched blind trials.
 const PANEL_STYLE_KEY = "balanced";
 
 function jsonResult(status, body, headers = {}) {
@@ -41,6 +46,59 @@ function warmingResult(stage, extra) {
   return jsonResult(202, warmingBody(stage, extra), {
     "Retry-After": String(Math.ceil(WARMUP.retryAfterMs / 1000)),
   });
+}
+
+function intentProgress(started, stage, extra = {}) {
+  const intent = started.intent;
+  const state = stage === "synthesizing" ? "processing" : "warming";
+  const warm = warmingBody(stage, extra);
+  return jsonResult(202, {
+    ...warm,
+    state,
+    stage,
+    phase: stage,
+    intent_id: intent.intentId,
+    generation_id: intent.generationId || null,
+    attempt: intent.attempt,
+    reused: intent.role === "observe" || intent.reused,
+    started_at: intent.startedAt,
+    updated_at: intent.updatedAt,
+    completed_at: intent.completedAt,
+    next_attempt_at: intent.nextAttemptAt,
+    ...extra,
+  }, { "Retry-After": String(Math.ceil(WARMUP.retryAfterMs / 1000)) });
+}
+
+function previewAudioHeaders(started, textFrontend, textPlan, metadata = {}, reused = false) {
+  return Object.freeze({
+    "Content-Type": "audio/wav",
+    "X-Vyakti-Text-Plan": textFrontend.planSha256,
+    "X-Vyakti-Text-Transformations": String(textFrontend.transformationCount),
+    "X-Vyakti-Spoken-Text": encodeURIComponent(textPlan.targetText),
+    "X-Content-Type-Options": "nosniff",
+    "X-Vyakti-Generation": started.generation.generation_id,
+    "X-Vyakti-Preview-Intent": started.intent?.intentId || "",
+    "X-Vyakti-Preview-Reused": reused ? "true" : "false",
+    "X-Vyakti-Disclosure": "audible-prefix-v1",
+    "X-Vyakti-Model-Commitment": metadata.modelCommitment || started.generation.preview_model_commitment,
+    "X-Vyakti-Voice-Model-Arm": metadata.modelArm || "general",
+    "X-Vyakti-Voice-Quality-State": metadata.qualityState || started.voiceConditioning.qualityState,
+    "X-Vyakti-Voice-Quality-Warnings": (metadata.qualityWarnings || started.voiceConditioning.qualityWarnings).join(","),
+    "X-Vyakti-Voice-Effective-Cfg": String(metadata.effectiveCfgWeight ?? started.voiceConditioning.effectiveCfgWeight),
+  });
+}
+
+export function isRetryableVoicePreviewFailure(error) {
+  const code = String(error?.code || error?.message || "");
+  const status = Number(error?.status);
+  if (/^(?:azure_replica_storage_unreachable|private_storage_unreachable|audio_protection_unreachable)$/.test(code)) {
+    return true;
+  }
+  if (code === "open_voice_http_429" || code === "audio_protection_http_429") return true;
+  if (status >= 500 && status <= 599 && /^(?:azure_replica_storage_(?:read|write)_failed|private_storage_(?:read|write)_failed|private_storage_failure|audio_protection_http_5\d\d)$/.test(code)) {
+    return true;
+  }
+  return false;
 }
 
 export function wavHeader(pcmBytes, format) {
@@ -59,7 +117,9 @@ export function wavHeader(pcmBytes, format) {
 /**
  * @param body   parsed request JSON — NEVER a source of identity.
  * @param deps   { ownerUserId, db, authorize, readObject, provider, protect,
- *                 warmth, origin, now, fetchImpl, sleep, markFailed,
+ *                 warmth, origin, now, fetchImpl, sleep, markFailed, markAborted,
+ *                 markWarming, markRetryable, readResult, storeResult, sealIntent,
+ *                 renewIntent,
  *                 textHash, traceId, signal, flushMs, healthBudgetMs }
  */
 export async function handleVoicePreviewPanel(body, deps) {
@@ -101,6 +161,7 @@ export async function handleVoicePreviewPanel(body, deps) {
   // OWNERSHIP FIRST, before a byte of storage or a second of GPU is spent. A
   // caller who does not own this replica must pay nothing and learn nothing.
   let started;
+  let providerStarted = false;
   try {
     started = await deps.authorize({
       replica_id: body?.replica_id,
@@ -111,6 +172,8 @@ export async function handleVoicePreviewPanel(body, deps) {
       text_language_mode: textLanguageMode,
       text_frontend: textFrontend,
       style_key: PANEL_STYLE_KEY,
+      regeneration_key: body?.regeneration_key,
+      output_storage_bucket: deps.outputStorageBucket,
     });
   } catch (error) {
     const status = Number.isInteger(error?.status) ? error.status : 500;
@@ -119,6 +182,70 @@ export async function handleVoicePreviewPanel(body, deps) {
       error: status === 500 ? "voice_preview_failed" : String(error?.code || error?.message),
     });
   }
+
+  // `beginOwnedVoicePreview` is both claim and observation. Only the lease
+  // holder may touch private reference bytes or the GPU. Every other tab and
+  // every other Vercel instance receives the same durable intent and waits.
+  if (started.intent?.role === "observe") {
+    const stage = started.intent.state === "synthesizing" ? "synthesizing" : "runtime_cold";
+    return intentProgress(started, stage, { failure_code: started.intent.failureCode || undefined });
+  }
+
+
+  if (started.intent?.role === "failed") {
+    return jsonResult(409, {
+      state: "error",
+      error: started.intent.failureCode || "voice_preview_intent_failed",
+      intent_id: started.intent.intentId,
+      generation_id: started.intent.generationId || null,
+      attempt: started.intent.attempt,
+      started_at: started.intent.startedAt,
+      updated_at: started.intent.updatedAt,
+    });
+  }
+
+  if (started.intent?.role === "sealed") {
+    try {
+      if (!started.intent.result.expiresAt || Date.parse(started.intent.result.expiresAt) <= now()) {
+        const expired = await deps.expireIntent(started);
+        // Settle the durable state before deleting bytes. If the SQL statement
+        // fails, the sealed row still points at an existing object. If another
+        // reader won the row lock, this caller still returns non-audio progress.
+        if (expired) {
+          try {
+            await deps.deleteResult(expired);
+            await deps.markResultDeleted(started, expired);
+          } catch {}
+        }
+        return intentProgress(started, "result_expired", { failure_code: "voice_preview_result_expired" });
+      }
+      const stored = await deps.readResult(started.intent.result);
+      const digest = createHash("sha256").update(stored.body).digest("hex");
+      if (stored.mime !== "audio/wav" || stored.byteSize !== started.intent.result.byteSize ||
+          stored.byteSize !== stored.body.length || digest !== started.intent.result.sha256) {
+        throw Object.assign(new Error("voice_preview_result_binding_failed"), {
+          code: "voice_preview_result_binding_failed", status: 409,
+        });
+      }
+      return Object.freeze({
+        kind: "audio",
+        status: 200,
+        body: stored.body,
+        headers: previewAudioHeaders(started, textFrontend, textPlan, started.intent.result.metadata, true),
+      });
+    } catch (error) {
+      const status = Number.isInteger(error?.status) ? error.status : 500;
+      return jsonResult(status, {
+        state: "error",
+        error: status === 500 ? "voice_preview_failed" : String(error?.code || error?.message),
+      });
+    }
+  }
+
+  const abortWarmup = async (code) => {
+    if (started.intent) await deps.markWarming(started, { code });
+    else await deps.markAborted(started.generation.generation_id, { code });
+  };
 
   try {
     // Wake the CPU broker on the UNAUTHENTICATED health route and sign nothing
@@ -131,19 +258,44 @@ export async function handleVoicePreviewPanel(body, deps) {
       budgetMs: deps.healthBudgetMs,
     });
     if (!health.ok) {
-      await deps.markFailed(started.generation.generation_id, { code: health.code });
       if (health.code === "voice_origin_invalid") {
+        await deps.markFailed(started.generation.generation_id, { code: health.code });
         return jsonResult(503, { state: "error", error: "voice_origin_invalid" });
       }
-      return warmingResult("admission_cold", { probe_ms: health.elapsedMs, probe_attempts: health.attempts });
+      await abortWarmup(health.code);
+      return started.intent
+        ? intentProgress(started, "admission_cold", { probe_ms: health.elapsedMs, probe_attempts: health.attempts })
+        : warmingResult("admission_cold", { probe_ms: health.elapsedMs, probe_attempts: health.attempts });
     }
 
-    const warmth = deps.warmth.read(deps.origin, now());
+    let warmth = deps.warmth.read(deps.origin, now());
+    // A Vercel function's warmth registry is only a hint. Another invocation
+    // can land on a different process, and an old `waking` record can outlive
+    // the GPU app's real boot. Ask the admission broker for the private
+    // runtime's current health before trusting either local `cold` or local
+    // `warming`. The broker endpoint is HMAC admitted before it touches the
+    // internal origin, so this neither exposes the GPU ingress nor lets public
+    // traffic wake billable capacity.
+    if (warmth.state !== "warm" && typeof deps.provider.probeRuntimeReadiness === "function") {
+      const runtimeReady = await deps.provider.probeRuntimeReadiness({ signal: deps.signal });
+      if (runtimeReady) {
+        deps.warmth.note(deps.origin, "ready", now());
+        warmth = deps.warmth.read(deps.origin, now());
+      } else {
+        deps.warmth.note(deps.origin, "waking", now());
+        await abortWarmup("open_voice_runtime_warming");
+        return started.intent
+          ? intentProgress(started, "runtime_cold", { runtime_status_checked: true })
+          : warmingResult("runtime_cold", { runtime_status_checked: true });
+      }
+    }
     if (warmth.state === "warming") {
       // Somebody's click is already paying for this wake. Charging a second
       // GPU cold start for the same replica would be paying twice for one boot.
-      await deps.markFailed(started.generation.generation_id, { code: "voice_preview_wake_in_flight" });
-      return warmingResult("wake_in_flight", { wake_age_ms: warmth.ageMs });
+      await abortWarmup("voice_preview_wake_in_flight");
+      return started.intent
+        ? intentProgress(started, "wake_in_flight", { wake_age_ms: warmth.ageMs })
+        : warmingResult("wake_in_flight", { wake_age_ms: warmth.ageMs });
     }
 
     const stored = await deps.readObject(started.reference);
@@ -154,25 +306,30 @@ export async function handleVoicePreviewPanel(body, deps) {
       });
     }
 
-    const synthesize = () => deps.provider.synthesizePreview({
-      requestId: started.generation.generation_id,
-      text,
-      languageId,
-      seed: started.previewSeed,
-      reference: {
-        bytes: stored.body,
-        sha256: started.reference.sha256,
-        durationMs: started.reference.durationMs,
-        languageMode: started.reference.languageMode,
-        languageEvidenceScope: started.reference.languageEvidenceScope,
-      },
-      style: {
-        exaggeration: started.previewStyle.exaggeration,
-        cfgWeight: started.previewStyle.cfg_weight,
-        temperature: started.previewStyle.temperature,
-      },
-      signal: deps.signal,
-    });
+    const synthesize = () => {
+      // Set this before entering provider code. Any transport loss after this
+      // point may have left an admitted broker/GPU request running.
+      providerStarted = true;
+      return deps.provider.synthesizePreview({
+        requestId: started.generation.generation_id,
+        text,
+        languageId,
+        seed: started.previewSeed,
+        reference: {
+          bytes: stored.body,
+          sha256: started.reference.sha256,
+          durationMs: started.reference.durationMs,
+          languageMode: started.reference.languageMode,
+          languageEvidenceScope: started.reference.languageEvidenceScope,
+        },
+        style: {
+          exaggeration: started.previewStyle.exaggeration,
+          cfgWeight: started.previewStyle.cfg_weight,
+          temperature: started.previewStyle.temperature,
+        },
+        signal: deps.signal,
+      });
+    };
 
     let raw;
     if (warmth.state === "warm") {
@@ -182,7 +339,7 @@ export async function handleVoicePreviewPanel(body, deps) {
       // waiting after the flush window rather than holding the owner's
       // connection open until Container Apps kills it at ~240 s. A provider
       // success after that flush still proves the runtime is ready. Record
-      // only that runtime fact: the abandoned generation stays failed and its
+      // only that runtime fact: the abandoned generation stays aborted and its
       // discarded stream never enters the protection/sealing path below.
       deps.warmth.note(deps.origin, "waking", now());
       const outcome = await dispatchWake(async () => {
@@ -192,8 +349,13 @@ export async function handleVoicePreviewPanel(body, deps) {
         return value;
       }, { flushMs: deps.flushMs, sleep: deps.sleep });
       if (outcome.kind === "flushed") {
-        await deps.markFailed(started.generation.generation_id, { code: "voice_preview_wake_dispatched" });
-        return warmingResult("runtime_cold", { wake_dispatched: true });
+        // The remote CUDA call can outlive this HTTP response. Keep the SQL
+        // lease until its 290-second expiry so a browser abort or another tab
+        // cannot submit duplicate GPU work while that call is still running.
+        if (!started.intent) await abortWarmup("voice_preview_wake_dispatched");
+        return started.intent
+          ? intentProgress(started, "runtime_cold", { wake_dispatched: true })
+          : warmingResult("runtime_cold", { wake_dispatched: true });
       }
       if (outcome.kind === "rejected") throw outcome.error;
       raw = outcome.value;
@@ -207,6 +369,11 @@ export async function handleVoicePreviewPanel(body, deps) {
     if (synthesized.receipt?.textFrontend?.planSha256 !== textFrontend.planSha256) {
       throw Object.assign(new Error("voice_preview_text_plan_binding_failed"), {
         code: "voice_preview_text_plan_binding_failed", status: 409,
+      });
+    }
+    if (started.intent && !await deps.renewIntent(started)) {
+      throw Object.assign(new Error("voice_preview_intent_lease_lost"), {
+        code: "voice_preview_intent_lease_lost", status: 409,
       });
     }
     const protectedAudio = await deps.protect({
@@ -229,33 +396,73 @@ export async function handleVoicePreviewPanel(body, deps) {
       throw Object.assign(new Error("voice_preview_receipt_binding_failed"), { code: "voice_preview_receipt_binding_failed" });
     }
 
+    const bodyBytes = Buffer.concat([wavHeader(pcm.length, synthesized.format), pcm]);
+    const metadata = Object.freeze({
+      modelCommitment: deps.provider.modelCommitment,
+      modelArm: synthesized.receipt?.modelArm || deps.provider.modelArm || "general",
+      qualityState: synthesized.receipt?.qualityState || started.voiceConditioning.qualityState,
+      qualityWarnings: synthesized.receipt?.qualityWarnings || started.voiceConditioning.qualityWarnings,
+      effectiveCfgWeight: synthesized.receipt?.effectiveCfgWeight ?? started.voiceConditioning.effectiveCfgWeight,
+    });
+    if (started.intent) {
+      const storedResult = await deps.storeResult(started, bodyBytes);
+      try {
+        await deps.sealIntent(started, { ...storedResult, metadata });
+      } catch (error) {
+        // Storage is create-only and generation-scoped. If the DB settlement
+        // loses its lease, remove the exact object before allowing recovery so
+        // a protected but unreachable WAV does not become an orphan.
+        try {
+          await deps.deleteResult(storedResult);
+          await deps.markResultDeleted(started, storedResult);
+        } catch {}
+        throw error;
+      }
+    }
     deps.warmth.note(deps.origin, "ready", now());
     return Object.freeze({
       kind: "audio",
       status: 200,
-      body: Buffer.concat([wavHeader(pcm.length, synthesized.format), pcm]),
-      headers: Object.freeze({
-        "Content-Type": "audio/wav",
-        "X-Vyakti-Text-Plan": textFrontend.planSha256,
-        "X-Vyakti-Text-Transformations": String(textFrontend.transformationCount),
-        "X-Vyakti-Spoken-Text": encodeURIComponent(textPlan.targetText),
-        "X-Content-Type-Options": "nosniff",
-        "X-Vyakti-Generation": started.generation.generation_id,
-        "X-Vyakti-Disclosure": "audible-prefix-v1",
-        "X-Vyakti-Model-Commitment": deps.provider.modelCommitment,
-        "X-Vyakti-Voice-Model-Arm": synthesized.receipt?.modelArm || deps.provider.modelArm || "general",
-        "X-Vyakti-Voice-Quality-State": synthesized.receipt?.qualityState || started.voiceConditioning.qualityState,
-        "X-Vyakti-Voice-Quality-Warnings": (synthesized.receipt?.qualityWarnings || started.voiceConditioning.qualityWarnings).join(","),
-        "X-Vyakti-Voice-Effective-Cfg": String(synthesized.receipt?.effectiveCfgWeight ?? started.voiceConditioning.effectiveCfgWeight),
-      }),
+      body: bodyBytes,
+      headers: previewAudioHeaders(started, textFrontend, textPlan, metadata, false),
     });
   } catch (error) {
-    await deps.markFailed(started.generation.generation_id, error);
+    const code = String(error?.code || error?.message || "");
+    const readinessRetryable = !providerStarted && /^(?:client_aborted|voice_preview_timeout|open_voice_runtime_status_timeout|open_voice_unreachable)$/.test(code);
+    if (started.intent && readinessRetryable) {
+      // No synthesis POST was admitted. It is safe to release this attempt
+      // into a delayed warming state; holding the 290-second execution fence
+      // here would punish a status-probe timeout without preventing GPU work.
+      await abortWarmup(code);
+      deps.warmth.note(deps.origin, "waking", now());
+      return intentProgress(started, "runtime_cold", { failure_code: code });
+    }
+    const transportMayStillBeRunning = providerStarted && (
+      /^(?:client_aborted|voice_preview_timeout|open_voice_execution_may_continue|open_voice_(?:runtime_)?unreachable)$/.test(code) ||
+      /^open_voice_http_5\d\d$/.test(code)
+    );
+    if (started.intent && (transportMayStillBeRunning || code === "voice_preview_wake_dispatched")) {
+      // The provider may still be running after our socket is gone. Observers
+      // keep seeing the same leased intent until the lease expires; only then
+      // may one request recover it with a new generation.
+      if (/^open_voice_(?:execution_may_continue|(?:runtime_)?unreachable|http_5\d\d)$/.test(code)) {
+        deps.warmth.note(deps.origin, "waking", now());
+      }
+      return intentProgress(started, "synthesizing", { failure_code: code });
+    }
     const verdict = classifyPreviewFailure(error);
     if (verdict.state === "warming") {
+      await abortWarmup(verdict.code);
       deps.warmth.note(deps.origin, "waking", now());
-      return warmingResult(verdict.stage, { failure_code: verdict.code });
+      return started.intent
+        ? intentProgress(started, verdict.stage, { failure_code: verdict.code })
+        : warmingResult(verdict.stage, { failure_code: verdict.code });
     }
+    if (started.intent) {
+      const retryable = isRetryableVoicePreviewFailure(error);
+      if (retryable) await deps.markRetryable(started, error);
+      else await deps.markTerminal(started, error);
+    } else await deps.markFailed(started.generation.generation_id, error);
     const status = Number.isInteger(error?.status) ? error.status : 500;
     return jsonResult(status, {
       state: "error",

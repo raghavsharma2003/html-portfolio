@@ -130,17 +130,7 @@ export interface WizardInput {
    * literal in a status position wearing a variable's clothes.
    */
   connectedChannels: number | null;
-  /**
-   * Is the owner's Room (WS-R7, `/r/<slug>`) published right now?
-   *
-   * `null` is UNKNOWN, not "not published" — `RoomStudio` has not answered
-   * yet, the same rule `connectedChannels` above already carries, so Deploy
-   * can never claim "not published" before the Room panel has ever loaded.
-   * A published Room is a second, independent way Deploy reads DONE: it is
-   * the primary, remembering address a follower actually reaches, not a
-   * channel on somebody else's platform.
-   */
-  roomPublished: boolean | null;
+  roomPublished?: boolean | null;
   /**
    * What the PLATFORM is doing, reduced from `/api/replica-activity` (WS-AF).
    *
@@ -244,9 +234,9 @@ const TITLES: Record<StepId, {
   },
   meet: {
     title: "Meet it",
-    promise: "Talk to your AI, hear it, and correct it while it listens.",
-    nextPhrase: "talk to your AI",
-    backPhrase: "talking to your AI",
+    promise: "Talk to your clone, hear it, and correct it while it listens.",
+    nextPhrase: "talk to your clone",
+    backPhrase: "talking to your clone",
   },
   deploy: {
     title: "Deploy it",
@@ -312,10 +302,10 @@ const BLOCKER_META: Record<string, {
   inference_consent_required: {
     label: "Inference permission",
     owner: "you", step: "meet", anchor: "#model-consent-gate",
-    note: "Grant build and inference permission in Advanced on this step.",
+    note: "Grant training and inference permission in Advanced on this step.",
   },
   person_profile_not_approved: {
-    label: "Approved: what we learned about you",
+    label: "Approved person model",
     owner: "you", step: "meet", anchor: "#person-model-studio",
     note: "Review and confirm your claims in Advanced on this step.",
     needsProcessedMaterial: true,
@@ -339,9 +329,9 @@ const BLOCKER_META: Record<string, {
   // A production run measured the old copy telling an owner "nothing to do
   // here" while their own review-and-approve tap was the entire blocker.
   voice_genome_not_approved: {
-    label: "Approved voice",
+    label: "Approved voice model",
     owner: "you", step: "meet", anchor: "#processing-review",
-    note: "Review the evidence and queue a draft voice under Check it and correct it on this step.",
+    note: "Review the evidence and queue a draft voice model under Check it and correct it on this step.",
     needsProcessedMaterial: true,
   },
   voice_not_ready: {
@@ -360,7 +350,7 @@ const BLOCKER_META: Record<string, {
     note: "Runs automatically once every other gate is closed.",
   },
   replica_not_ready: {
-    label: "Approved voice and behavior",
+    label: "Approved voice and behavior models",
     owner: "platform", step: "deploy", anchor: "#runtime-gate",
     note: "Depends on the gates above being closed first.",
   },
@@ -514,7 +504,7 @@ function meetMissing(input: WizardInput): Missing[] {
       code: "sheet_not_saved",
       label: "A saved teaching sheet",
       owner: "you",
-      note: "Review the sheet and save it, so your AI answers as you and not as an example.",
+      note: "Review the sheet and save it, so the clone answers as you and not as an example.",
       anchor: "#teacher-sheet-studio",
     }, input));
   }
@@ -547,19 +537,13 @@ function deployMissing(input: WizardInput): Missing[] {
       anchor: "#runtime-gate",
     }, input));
   }
-  // WS-R7: a published Room is a reachable address in its own right, so a
-  // KNOWN zero channels no longer asks for one while the Room already
-  // answers. `roomPublished` defaults to `null` (unknown) wherever this
-  // build never mounts `RoomStudio`, which reduces to the old condition
-  // exactly — the same backward-compatible shape `connectedChannels` itself
-  // uses for "has not answered yet".
   if (input.connectedChannels === 0 && input.roomPublished !== true) {
     rows.push(missing({
       code: "no_channel",
       label: "One place it can be reached",
       owner: "you",
-      note: "Publish your Room, or connect at least one channel, after you have read the disclosure card.",
-      anchor: "#room-studio",
+      note: "Connect at least one channel after you have read the disclosure card.",
+      anchor: "#channels-studio",
     }, input));
   }
   return rows;
@@ -577,9 +561,7 @@ function deployDone(input: WizardInput): boolean {
   if (!input.runtime?.active) return false;
   // Unknown channel state cannot complete the step: "we did not ask" is not
   // "one is connected". It is also not a blocker with a name, which is why
-  // `deployMissing` stays quiet about it. WS-R7: a published Room is the
-  // other honest way this step reads done, since it is the primary address a
-  // follower actually reaches.
+  // `deployMissing` stays quiet about it.
   return (input.connectedChannels ?? 0) > 0 || input.roomPublished === true;
 }
 
@@ -838,4 +820,41 @@ export function queryForStep(search: string, step: StepId): string {
   }
   params.set("step", step);
   return `?${params.toString()}`;
+}
+
+/** The exact clone selected in a durable Studio URL. */
+export function replicaFromQuery(search: string): string | null {
+  try {
+    const value = new URLSearchParams(search).get("replica")?.trim() || "";
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+      ? value
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Preserve the current step and mode while selecting a specific clone. */
+export function queryForReplica(search: string, replicaId: string): string {
+  let params: URLSearchParams;
+  try {
+    params = new URLSearchParams(search);
+  } catch {
+    params = new URLSearchParams();
+  }
+  params.set("replica", replicaId);
+  return `?${params.toString()}`;
+}
+
+/** Preserve the current view while removing a clone that no longer exists. */
+export function queryWithoutReplica(search: string): string {
+  let params: URLSearchParams;
+  try {
+    params = new URLSearchParams(search);
+  } catch {
+    params = new URLSearchParams();
+  }
+  params.delete("replica");
+  const query = params.toString();
+  return query ? `?${query}` : "";
 }

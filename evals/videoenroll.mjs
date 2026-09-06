@@ -55,11 +55,10 @@
 //    mostly a second speaker must be disqualified BY NAME.
 import { createHash } from "node:crypto";
 import {
-  VideoEnrollError,
-  VideoEnrollQuotaError,
   enrollFromVideo,
   parseVideoUrl,
 } from "../api/_video-enroll.js";
+import { resolveYouTubeVideoMetadata } from "../api/_video-enroll/youtube-metadata.js";
 import {
   HOP_MS,
   WINDOW_MS,
@@ -275,6 +274,41 @@ refuses("a channel URL is not a video", async () => parseVideoUrl("https://www.y
 refuses("an empty link is refused", async () => parseVideoUrl(""), "video_url_required");
 refuses("garbage is refused", async () => parseVideoUrl("not a url"), "video_url_invalid");
 
+console.log("\nâ”€â”€ one link resolves its channel before extraction â”€â”€");
+{
+  const metadataLink = "https://www.youtube.com/watch?v=Q5_BtWc-G7Y";
+  const metadataChannel = "https://www.youtube.com/@ownteacher";
+  let requested = "";
+  const metadata = await resolveYouTubeVideoMetadata(metadataLink, {
+    fetchImpl: async (url) => {
+      requested = String(url);
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          title: "Parabola in one class",
+          author_name: "Own Teacher",
+          author_url: metadataChannel,
+        }),
+      };
+    },
+  });
+  ok("one video link resolves a bounded title and channel", metadata.video_id === "Q5_BtWc-G7Y"
+    && metadata.title === "Parabola in one class" && metadata.channel_url === metadataChannel);
+  ok("the metadata fetch is rebuilt from the validated id", requested.startsWith("https://www.youtube.com/oembed?")
+    && requested.includes(encodeURIComponent("https://www.youtube.com/watch?v=Q5_BtWc-G7Y")));
+  await refuses("metadata without a valid YouTube channel is refused", async () => resolveYouTubeVideoMetadata(metadataLink, {
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ title: "Video", author_name: "Unknown", author_url: "https://example.com/person" }),
+    }),
+  }), "video_metadata_channel_invalid");
+  await refuses("a missing video is a named refusal", async () => resolveYouTubeVideoMetadata(metadataLink, {
+    fetchImpl: async () => ({ ok: false, status: 404, text: async () => "" }),
+  }), "video_metadata_not_found");
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // 5. the caps
 // ─────────────────────────────────────────────────────────────────────────
@@ -321,20 +355,43 @@ const LINK = "https://www.youtube.com/watch?v=Q5_BtWc-G7Y";
 
 function fakeDb(options = {}) {
   const calls = [];
-  const state = { rows: [], windows: [], usage: options.usage || { owner_today: 0, global_today: 0 } };
+  const state = {
+    replicas: [{ replica_id: REPLICA, owner_user_id: OWNER, lifecycle: "active" }],
+    rows: [], windows: [], usage: options.usage || { owner_today: 0, global_today: 0 },
+  };
   const db = async (sql, params = []) => {
     calls.push(sql);
     if (/from vy_video_enrollment\b[\s\S]*count\(\*\)/.test(sql) || /count\(\*\) filter/.test(sql)) {
       return [state.usage];
     }
     if (/insert into vy_video_enrollment_window/.test(sql)) {
-      state.windows.push(...JSON.parse(params[4]));
-      return [];
+      if (options.purgeBeforeWindowInsert) {
+        state.replicas = [];
+        state.rows = [];
+        state.windows = [];
+      }
+      const replica = state.replicas.find((candidate) => candidate.replica_id === params[1]
+        && candidate.owner_user_id === params[2]
+        && !["revoked", "purging"].includes(candidate.lifecycle));
+      const enrollment = state.rows.find((candidate) => candidate.enrollment_id === params[0]
+        && candidate.replica_id === params[1] && candidate.owner_user_id === params[2]
+        && candidate.state === "scoring");
+      if (!replica || !enrollment) return [];
+      const inserted = JSON.parse(params[4]).map((window, index) => ({
+        ...window,
+        window_id: `90000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+      }));
+      state.windows.push(...inserted);
+      return inserted.map(({ window_id }) => ({ window_id }));
     }
     if (/insert into vy_video_enrollment\b/.test(sql)) {
-      if (options.notOwned) return [];
+      if (options.purgeBeforeEnrollmentInsert) state.replicas = [];
+      const replica = state.replicas.find((candidate) => candidate.replica_id === params[0]
+        && candidate.owner_user_id === params[1]
+        && candidate.lifecycle !== "revoked" && candidate.lifecycle !== "purging");
+      if (options.notOwned || !replica) return [];
       const row = {
-        enrollment_id: params[2], replica_id: params[0], video_id: params[3],
+        enrollment_id: params[2], replica_id: params[0], owner_user_id: params[1], video_id: params[3],
         channel_url: params[4], state: "extracting", failure_code: null,
         duration_ms: null, audio_bytes: null, attestation_id: params[5],
         selected_window_start_ms: null, selected_window_length_ms: null,
@@ -462,6 +519,33 @@ await refuses("another owner's replica is UNREACHABLE, not forbidden",
   async () => enrollFromVideo(fakeDb({ notOwned: true }), OWNER,
     { replica_id: REPLICA, video_url: LINK, channel_url: CHANNEL, attestations: fullAttestations }, deps()),
   "replica_not_found");
+
+{
+  const db = fakeDb({ purgeBeforeEnrollmentInsert: true });
+  await refuses("a replica purged after admission cannot gain a non-FK video enrollment",
+    async () => enrollFromVideo(db, OWNER,
+      { replica_id: REPLICA, video_url: LINK, channel_url: CHANNEL, attestations: fullAttestations }, deps()),
+    "replica_not_found");
+  ok("the initial enrollment insert locks the exact active owner replica row",
+    db.calls.some((sql) => /insert into vy_video_enrollment\b/.test(sql)
+      && /for update of r/.test(sql)
+      && /lifecycle not in \('revoked','purging'\)/.test(sql)));
+  ok("the completed purge leaves no video enrollment behind", db.state.rows.length === 0);
+}
+
+{
+  const db = fakeDb({ purgeBeforeWindowInsert: true });
+  await refuses("a replica purged during scoring cannot gain late non-FK window rows",
+    async () => enrollFromVideo(db, OWNER,
+      { replica_id: REPLICA, video_url: LINK, channel_url: CHANNEL, attestations: fullAttestations }, deps()),
+    "video_enroll_write_fenced");
+  ok("the late window insert locks both enrollment and exact active owner replica",
+    db.calls.some((sql) => /insert into vy_video_enrollment_window/.test(sql)
+      && /for update of e,r/.test(sql)
+      && /returning window_id/.test(sql)));
+  ok("the completed purge leaves no ranked window or enrollment behind",
+    db.state.windows.length === 0 && db.state.rows.length === 0);
+}
 
 await refuses("the owner daily cap stops the lane before extraction",
   async () => enrollFromVideo(fakeDb({ usage: { owner_today: 2, global_today: 2 } }), OWNER,

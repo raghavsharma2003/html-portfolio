@@ -23,6 +23,9 @@ import { assertRouteServed, audioRouteFor } from "./extract-routes.js";
 const PROTOCOL = "vyakti-media-extract/v1";
 const SHA256 = /^[0-9a-f]{64}$/;
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+const MAX_REQUEST_BYTES = 64 * 1024;
+const MAX_UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024;
+const UPLOAD_PROTOCOL = "azure-block-v1";
 
 export class MediaExtractError extends Error {
   constructor(code, status = 502, details) {
@@ -100,6 +103,9 @@ function equal(left, right) {
 
 async function call(config, path, payload, fetchImpl) {
   const body = Buffer.from(canonicalJson(payload));
+  if (!body.length || body.length > MAX_REQUEST_BYTES) {
+    fail("media_extract_request_size_invalid", 413);
+  }
   // A content digest and a MAC are different primitives; they get different
   // helpers here rather than one helper with a mode argument, because that is
   // how a signature ends up keyed on the wrong thing.
@@ -112,6 +118,7 @@ async function call(config, path, payload, fetchImpl) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Content-Length": String(body.length),
         "X-Vyakti-Protocol": PROTOCOL,
         "X-Vyakti-Timestamp": timestamp,
         "X-Vyakti-Nonce": nonce,
@@ -141,6 +148,41 @@ async function call(config, path, payload, fetchImpl) {
     fail(`channel_extract_${code}`, response.status === 403 || response.status === 413 ? response.status : 502);
   }
   return value;
+}
+
+function boundedUploadTarget(upload) {
+  const url = String(upload?.url || "");
+  const resumable = upload?.resumable;
+  const endpoint = String(resumable?.endpoint || "");
+  const chunkSize = Number(resumable?.chunk_size);
+  if (!url || url.length > 8192 || resumable?.protocol !== UPLOAD_PROTOCOL ||
+      endpoint !== url || !Number.isSafeInteger(chunkSize) || chunkSize < 1 ||
+      chunkSize > MAX_UPLOAD_CHUNK_BYTES) {
+    fail("channel_extract_upload_protocol_unsupported", 503);
+  }
+  const boundedMap = (value, maxEntries, maxValueBytes) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    const entries = Object.entries(value);
+    if (entries.length > maxEntries || entries.some(([key, item]) =>
+      !/^[A-Za-z0-9_-]{1,64}$/.test(key) || Buffer.byteLength(String(item)) > maxValueBytes)) {
+      fail("channel_extract_upload_target_invalid", 500);
+    }
+    return Object.fromEntries(entries.map(([key, item]) => [key, String(item)]));
+  };
+  const headers = boundedMap(upload?.headers, 8, 512);
+  const resumableHeaders = boundedMap(resumable?.headers, 8, 512);
+  const metadata = boundedMap(resumable?.metadata, 8, 2048);
+  return {
+    url,
+    headers,
+    resumable: {
+      protocol: UPLOAD_PROTOCOL,
+      endpoint,
+      headers: resumableHeaders,
+      metadata,
+      chunk_size: chunkSize,
+    },
+  };
 }
 
 /** The attestation envelope, validated on the way OUT as well as being
@@ -179,12 +221,15 @@ export function createMediaExtractClient(options = {}) {
       if (!VIDEO_ID.test(String(videoId || ""))) fail("channel_extract_video_id_invalid", 400);
       const ceiling = Number(maxDurationMs || config.maxDurationMs);
       if (!Number.isSafeInteger(ceiling) || ceiling < 1000) fail("channel_extract_ceiling_invalid", 400);
-      if (!upload?.url || typeof upload.url !== "string") fail("channel_extract_upload_target_invalid", 500);
+      const uploadTarget = boundedUploadTarget(upload);
       const result = await call(config, "/v1/extract", {
         video_id: String(videoId),
         max_duration_ms: ceiling,
         attestation: envelope(attestation),
-        upload: { url: upload.url, headers: upload.headers || {} },
+        // The complete bounded protocol is signed into the control request.
+        // Dropping this to url+headers would silently restore an unbounded
+        // single PUT and invalidate the 210-minute erasure authority contract.
+        upload: uploadTarget,
         // Named in the request and therefore covered by the same signature as
         // the attestation. A service that received an unsigned route could be
         // told to use the cheap one by anything sitting on the wire.

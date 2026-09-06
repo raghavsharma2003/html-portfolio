@@ -163,7 +163,12 @@ export function createSelfHostedAsrProvider(options = {}) {
           (config.modelCommitment && String(result?.model_commitment || "") !== config.modelCommitment)) {
         fail("asr_response_binding_invalid", 409);
       }
-      return asrResult({ turns: result?.turns, provider: NAME, model: config.model }, { name: NAME, model: config.model });
+      return asrResult({
+        turns: result?.turns,
+        provider: NAME,
+        model: config.model,
+        transcriptConfidence: result?.transcript_confidence ?? null,
+      }, { name: NAME, model: config.model });
     },
   });
 }

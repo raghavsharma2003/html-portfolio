@@ -16,6 +16,8 @@
 import { execFile } from "child_process";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
 const run = promisify(execFile);
 // URL.pathname produces `/C:/...` on Windows, which is not a valid cwd there.
@@ -29,26 +31,52 @@ const args = process.argv.slice(2);
 const liveAt = args.includes("--live") ? args[args.indexOf("--live") + 1] : null;
 const mp = args.includes("--mp");
 
+// Preserve complete gate output, including successful metrics, in ignored local evidence.
+// Never store an environment dump, command arguments, credentials or signed URL queries.
+const logDirectory = join(ROOT, "scratchpad", "release-logs", `${new Date().toISOString().replace(/[:.]/g, "-")}-${process.pid}`);
+await mkdir(logDirectory, { recursive: true });
+const secretValues = Object.entries(process.env)
+  .filter(([name, value]) => /(?:KEY|SECRET|TOKEN|PASSWORD|CONNECTION|NEON_URL)/i.test(name) && value && value.length >= 8)
+  .map(([, value]) => value).sort((a, b) => b.length - a.length);
+function safeGateOutput(value) {
+  let output = String(value || "");
+  for (const secret of secretValues) output = output.split(secret).join("[redacted]");
+  return output
+    .replace(/(?:https?|postgres(?:ql)?):\/\/[^\s<>"']+/gi, raw => {
+      try { const url = new URL(raw); url.username = ""; url.password = ""; url.search = ""; url.hash = ""; return url.href; }
+      catch { return "[redacted-url]"; }
+    })
+    .replace(/(Bearer\s+)[A-Za-z0-9._~+\/=-]+/gi, "$1[redacted]")
+    .replace(/((?:[A-Z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD))["']?\s*[:=]\s*)[^\s,;}]+/gi, "$1[redacted]");
+}
 const results = [];
 const record = (name, ok, detail) => {
   results.push({ name, ok, detail });
   console.log(`${ok ? "  ok  " : "FAIL  "}${name.padEnd(30)} ${detail ?? ""}`);
 };
 
+async function saveGateLog(name, stdout, stderr) {
+  const stem = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  await writeFile(join(logDirectory, `${stem}.stdout.log`), safeGateOutput(stdout));
+  await writeFile(join(logDirectory, `${stem}.stderr.log`), safeGateOutput(stderr));
+}
+console.log(`Gate output: ${logDirectory}`);
 const gate = async (name, cmd, cmdArgs) => {
   const t0 = Date.now();
   try {
-    await run(cmd, cmdArgs, { cwd: ROOT, maxBuffer: 32 * 1024 * 1024 });
+    const completed = await run(cmd, cmdArgs, { cwd: ROOT, maxBuffer: 32 * 1024 * 1024 });
+    await saveGateLog(name, completed.stdout, completed.stderr);
     record(name, true, `${Date.now() - t0}ms`);
   } catch (e) {
     // the useful part of a failed build is its output, not the exit code
-    const out = `${e.stdout ?? ""}${e.stderr ?? ""}`.trim().split("\n").slice(-12).join("\n      ");
+    await saveGateLog(name, e.stdout, e.stderr);
+    const out = safeGateOutput(`${e.stdout ?? ""}${e.stderr ?? ""}`).trim().split("\n").slice(-12).join("\n      ");
     record(name, false, `\n      ${out}`);
   }
 };
 
 console.log("── static gates ──");
-await gate("typecheck", NODE, [fileURLToPath(TSC), "-b"]);
+await gate("typecheck", NODE, [fileURLToPath(TSC), "-b", "--force"]);
 await gate("prompt budget", NODE, ["scripts/check-prompt-budget.mjs"]);
 // The gates below all run the code. This one lints a file the code never reads,
 // which is exactly why nothing caught it: `deploy-web.yml` gated a job on the
@@ -57,6 +85,16 @@ await gate("prompt budget", NODE, ["scripts/check-prompt-budget.mjs"]);
 // runs, no auto-deploy, and the job whose purpose was to announce that the
 // deploy was unconfigured never ran either.
 await gate("workflow lint", NODE, ["scripts/check-workflows.mjs"]);
+// `.gitignore` is not a Vercel upload boundary. A local api/_config.js once
+// entered a CLI deployment even though Git correctly ignored it, baking a
+// workstation credential into the function bundle. Exact .vercelignore rules,
+// no re-inclusions, and no tracked copy for the build's GitHub-tarball fallback.
+await gate("Vercel upload boundary", NODE, ["scripts/check-vercel-upload-boundary.mjs"]);
+// Deployment identity is a source commitment, not a Vite filename. Exercise
+// the generic clone verifier against an offline server: arbitrary chunk name
+// accepted, stale commitment rejected, wrong product rejected, and no legacy
+// chat/speech provider requests.
+await gate("deploy verifier", NODE, ["evals/deploy-verifier/run.mjs"]);
 // The animation rejection checklist, mechanised. Same reasoning as the workflow
 // lint above: it checks a property of files the code never reads, so no test
 // that RUNS the code can see it. A design standard nobody enforces is a
@@ -68,6 +106,11 @@ await gate("workflow lint", NODE, ["scripts/check-workflows.mjs"]);
 // transitions, keyframes with no reduced-motion answer) and leaves judgment to
 // eyes. Exceptions are written next to the code with a reason.
 await gate("motion lint", NODE, ["scripts/check-motion.mjs"]);
+// The one first-run sonic mark is gesture-owned and must stay optional. Its
+// deterministic fake AudioContext proves the 420 ms score, mute persistence,
+// reduced-motion silence, one-shot scheduling and idempotent cleanup. A source
+// assertion pins context creation before the Agree handler's first await.
+await gate("brand reveal sound", NODE, ["evals/brand-reveal/run.mjs"]);
 // Board legibility floors + the ttt keyframe's explicit end state. Same
 // species as the motion lint: properties of files the code never reads,
 // invisible to every test that runs the code. Each numbered floor in it is

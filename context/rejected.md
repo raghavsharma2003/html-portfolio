@@ -15471,3 +15471,829 @@ a fixed sleep sized against today's (synchronous) load time.
 The untouched release runner reported layout readability and performance budgets as ok, but direct invocation showed "skip layout readability: no chromium binary available". Their exit-zero skip was hidden by the outer runner's success summary. Accessibility/security checks failed separately for the absent expected browser. Treating this as browser validation was rejected: use an explicit installed full Chromium path and inspect the substantive results. Likewise an npm .cmd launch error is not evidence that the registry is unreachable, and a CRLF checkout mismatch is not evidence that the committed LF engine bundle changed.
 
 Reversal: an explicit runner-level skip status, or mandatory browser prerequisites that fail before any browser gate, would make the outer summary sufficient. Until then, retain separate evidence for skipped versus executed checks.
+## `second-channel-field-and-dead-extractor-button-do-not-belong-in-test-journey` (2026-08-28)
+
+**Rejected:** ask the internal tester for both a YouTube video URL and channel
+URL, render the full channel-ingestion form in the same expanded section, and
+leave the final extraction button enabled when the deployment has no working
+extraction route.
+
+**What broke:** the owner could not tell which field was required for which
+job, the single-video task became visually entangled with continuous channel
+watching, and the apparently available action was structurally known to end in
+`channel_extraction_unavailable` or the already measured datacenter bot check.
+The replacement resolves bounded display metadata from one validated video
+ID, shows the discovered channel before media work, collapses whole-channel
+watching as a later option, and offers file upload when extraction is absent.
+The extractor's uploader/channel equality gate remains authoritative; UI
+simplification does not turn a third-party video into owner voice evidence.
+
+## `uploading-the-same-third-party-lecture-again-does-not-test-the-journey` (2026-08-28)
+
+**Rejected:** create another workspace and upload the named 250.7 MiB Alakh
+Pandey lecture a third time merely to say the front-end path was exercised.
+
+**What specifically broke:** production already has two source rows of the
+same size in `Hinglish Lecture Test`: one completed 8/8 and built the current
+voice draft, while the later retry stopped at 3/8. A third upload would spend
+storage and processing, worsen the duplicate-source problem, and still would
+not create speaker consent. The bounded replacement was to continue the real
+existing source through Voice draft v1, protected synthesis and native replay,
+while keeping the lecture classified as third-party language stress.
+
+## `long-audio-duration-is-not-the-conditioning-unit` (2026-08-28)
+
+**Rejected:** teach owners that a larger file or more hours automatically make
+the current clone stronger, then keep large-file upload as the default first
+action.
+
+**What specifically broke:** current preview generation conditions on one
+selected short reference artifact, not every minute of every source. Longer
+clean recordings can give processing more candidate windows, and future
+multi-reference or adaptation lanes can use more evidence, but duration alone
+also adds silence, other speakers, compression, noise and upload failure
+surface. The owner's 109-minute lecture already demonstrated that a large
+source can yield only one current ten-second reference and still sound wrong.
+
+**What replaced it:** a guided local 12-to-60-second recording with a
+30-second target, language-specific text, level feedback, playback and retake.
+It enters the same private source pipeline, so full-file upload remains
+available when it carries genuinely useful additional evidence rather than
+serving as a proxy for quality.
+
+## `all-ready-audio-cannot-silently-compete-for-the-clone-voice` (2026-08-29)
+
+**Rejected:** let every selected ready audio artifact silently compete at
+preview time, while telling the owner only that a draft was "built from N
+sources."
+
+**What specifically broke:** adding a second recording could change the voice
+without an understandable owner action, and removing or replacing an earlier
+source gave no clear answer to which recording now controlled identity. The
+same screen also mixed knowledge sources with voice references, encouraging
+the false belief that a longer batch is automatically a stronger clone. The
+replacement is one durable primary pointer, an automatic star only for the
+guided recording after finalize, and explicit supporting labels for everything
+else.
+
+## `an-empty-azure-sentinel-is-not-a-failed-transcription` (2026-08-29)
+
+**Rejected:** reject the entire Azure Fast Transcription response whenever any
+phrase reports duration zero.
+
+**What specifically broke:** Azure returned an otherwise valid long-audio
+result with a leading phrase whose text was empty, words were empty and
+duration was zero. Treating that sentinel as spoken content turned three paid,
+provider-complete calls into `azure_asr_response_invalid`, left the Studio at
+38 percent, and encouraged blind retries. The replacement drops only that
+precise empty shape. Nonempty zero-duration phrases remain invalid unless
+positive word spans prove their duration; the negative control keeps missing
+timing evidence fail closed.
+
+## `signed-runtime-warming-cannot-render-preview-stopped` (2026-08-29)
+
+**Rejected:** treat the broker's signed `open_voice_runtime_warming` 503 as a
+generic terminal preview error and ask the owner to press Try again.
+
+**What specifically broke:** the production broker uses that exact response
+after a GPU replica has been requested but before its application readiness
+probe passes. The route's failure classifier recognized generic 5xx and
+unreachable codes but omitted the broker's named warming code. The complete
+release suite therefore passed while the real owner journey fell into Preview
+stopped after every automatic attempt. The replacement classifies only this
+named readiness code as runtime-cold, retains all security refusals as errors,
+and has an executable route-level negative control. A live corrected canary
+stayed in automatic warming and reached protected audio without a manual retry.
+
+## `feed-only-phone-audit-cannot-clear-the-studio` (2026-08-29)
+
+**Rejected:** declare the phone journey accessible after measuring only the Add
+Sources screen.
+
+**What specifically broke:** the production feed screen had no visible control
+below 44 pixels, but the next owner step still exposed a 26-pixel logo link and
+two 35-pixel Mirror Call tabs. The narrower audit therefore produced a true
+number and a false product conclusion. The replacement opens both owner steps,
+measures the actual visible hit boxes, excludes transparent file inputs whose
+visible labels own the interaction, and holds the former Meet sizes in an
+executable negative control.
+
+## `test-ui-with-empty-server-bypass-is-a-consent-trap` (2026-08-29)
+
+**Rejected:** hide consent and verification in a Vite-built test interface
+while leaving the server-side test settings empty.
+
+**What specifically broke:** the signed-in owner saw Internal test workspace
+and no consent controls, but `bootstrapSelfTestReplica` correctly stayed off.
+The next SQL predicate therefore found no capture/storage grants and the API
+repeatedly returned `capture_and_storage_consent_required`. Retrying or making
+a new clone could never repair a deployment configuration split. The
+replacement uses one exact all-authenticated internal contract on both Vercel
+and the processing worker, retains the owned-self SQL fence, and tests that an
+applied bootstrap cannot surface the consent-required error.
+
+## `normalizing-only-freshclam-config-does-not-protect-clamd` (2026-08-29)
+
+**Rejected:** normalize the updater configuration during the image build but
+copy the daemon configuration byte-for-byte from a Windows checkout.
+
+**What specifically broke:** `freshclam` built successfully, so an empty-queue
+smoke execution passed. The first real recording made the worker start
+`clamd`; its CRLF configuration caused the daemon to exit before the source
+could be leased. Two scheduled runs failed and the UI stayed at 33 percent on
+integrity. The replacement normalizes both consumed files before either tool
+runs and holds the ordering in an executable gate.
+
+## `sensitive-vercel-env-pull-placeholder-is-not-live-absence` (2026-08-29)
+
+**Rejected:** treat `CRON_SECRET=""` in a pulled production dotenv file as
+proof that the sensitive live variable is unset.
+
+**What specifically broke:** Vercel redacts sensitive values in this read
+surface. The voice build reached review at 22:31:27Z through the existing cron,
+before the unnecessary rotation deployment completed, proving the scheduler
+was authorized. The replacement treats a sensitive pull placeholder as
+unknown and uses deployment validation plus an authenticated live invocation
+or scheduled outcome as evidence. The secret was nevertheless rotated to a
+fresh whitespace-free value and the accepted deployment is Ready.
+
+## `edge-only-build-and-believable-progress-cannot-own-recovery` (2026-08-29)
+
+**Rejected:** rely on the source-ready edge to queue exactly one model build,
+run four globally oldest jobs every five minutes, and let the browser infer
+that an old retired build means a new clone is ready.
+
+**What specifically broke:** one short source needed at least two scheduled
+executions to cross an eight-step DAG, a dead worker could hold a one-hour
+lease, and `Ashutosh 2` retained only retired v1 while the Studio displayed 100
+percent. Re-uploading would duplicate private media without repairing any of
+those states. The replacement uses source-affinity, bounded lease heartbeats,
+level-triggered draft reconciliation in two consumers, server-derived
+progress, a content-free queue watchdog and an Azure failed-execution alert.
+
+## `per-process-warming-memory-is-not-runtime-readiness` (2026-08-29)
+
+**Rejected:** keep returning warming until each Vercel process's local
+200-second timestamp expires, without asking whether the private GPU runtime
+is already healthy.
+
+**What specifically broke:** in one production run the private runtime was
+ready after 138.788 seconds, yet the next synthesis did not begin for another
+383.773 seconds. Automatic polling was functioning, but different serverless
+processes each carried a plausible and stale local answer. The replacement is
+a signed broker readiness probe that reveals no content and cannot reach
+private health until HMAC, timestamp and replay checks pass.
+
+## `large-private-audio-cannot-be-buffered-or-reset-to-attempt-zero` (2026-08-29)
+
+**Rejected:** read a 250 MiB private source into a server heap for Azure Fast
+Transcription, or recover the job by resetting its paid-provider attempt
+counter to zero.
+
+**What specifically broke:** the exact 262,879,879-byte lecture exceeded both
+the old 64 MiB in-memory materialization path and the endpoint's 250,000,000
+byte request boundary. After a streamed derivative fixed that boundary, an
+operator reset of `attempt` reused the request key for a released reservation;
+the provider-budget layer correctly rejected it as
+`provider_budget_reservation_invalid` before a new call. The replacement keeps
+the original source immutable, streams a bounded ASR-only derivative, binds
+both hashes in the receipt, and advances attempts monotonically across bounded
+five-attempt recovery cycles.
+
+## `level-triggered-review-cannot-rotate-or-merge-the-primary-voice` (2026-08-29)
+
+**Rejected:** let every level-triggered reconciliation choose the latest
+eligible enhancement again, then let accepted evidence from every ready audio
+source satisfy the same VoiceGenome build.
+
+**What specifically broke:** a durable primary pointer existed in the UI, but
+background reconciliation could still rotate the selected enhancement variant
+and the build query could aggregate evidence from a second duplicate source.
+The owner-visible star therefore did not fully determine voice identity. The
+replacement preserves an existing usable selection and constrains both build
+authorization and settlement to the source IDs behind that exact selection.
+The supporting source remains available to the wider replica without entering
+the clone voice silently.
+
+## `hot-path-training-and-durable-emotion-profiles` (2026-08-29)
+
+**Rejected:** train model weights during a live call, silently update persona or
+relational memory from ASR output, or convert momentary delivery cues into a
+durable emotion profile.
+
+**What specifically breaks:** transcription and speaker-attribution errors
+become permanent behavior; relationship scope leaks across people; a contextual
+expression is misrepresented as an inner state; and the owner cannot identify
+or reverse which interaction moved the clone. The replacement is an experience
+compiler: immutable events, short-lived observations, source-cited candidates,
+explicit owner action, versioned materialization and rollback.
+
+## `ordinary-enrollment-sources-cannot-carry-live-call-windows` (2026-08-29)
+
+**Rejected:** finalize every live call window as an ordinary uploaded source.
+
+**What specifically breaks:** generic finalize queues integrity and then the
+full eight-step enrollment DAG, exposes each short window as enrollment
+material and can produce dozens of irrelevant jobs during one call. The
+replacement uses session-bound derived sources, inline integrity checks, hidden
+source presentation and ordinary replica-erasure coverage.
+
+## `fine-tune-queue-without-runner-is-not-progress` (2026-08-29)
+
+**Rejected:** insert an end-of-call fine-tune row and tell the owner training is
+queued when no consumer exists.
+
+**What specifically breaks:** `vy_mirror_finetune_job` has no lease, attempt
+counter or runner, so the row becomes believable dead progress. Mirror Call now
+creates no training row, returns reviewable cited proposals and names model
+training, relational writes, trait inference, emotion inference and expressive
+voice learning as not connected where those producers are absent.
+
+## `mirror-call-create-without-test-bootstrap-is-not-owner-access` (2026-08-29)
+
+**Rejected:** let internal-test upload authorization bootstrap owned-self
+scopes while Mirror Call session creation independently requires those scopes
+to pre-exist.
+
+**What specifically broke.** A dedicated authenticated production canary could
+create a private upload but received `mirror_session_unavailable` on Start
+call. Retrying or creating another clone could not repair the split. Mirror
+Call create now invokes the same owner-bound self-test bootstrap before the
+SQL session predicate; authentication, ownership, private storage and all
+technical safety gates remain.
+
+## `mirror-window-purpose-literals-cannot-diverge` (2026-08-29)
+
+**Rejected:** write provenance purpose `mirror_window` in the browser while
+server readers and source-list exclusions look for `mirror_call_window`.
+
+**What specifically broke.** The first finalized production call window was
+dropped as `source_not_finalized`, and the mismatched exclusion could expose a
+call window to the ordinary source list or primary-voice selection. One
+canonical literal now binds create, SQL resolution, source hiding and tests.
+The production canary subsequently resolved the exact source, remained hidden
+from enrollment and created zero processing jobs.
+
+## `sarvam-http-402-cannot-own-live-call-availability` (2026-08-29)
+
+**Rejected:** keep the synchronous Sarvam account as the only configured live
+ASR after its production request returned HTTP 402.
+
+**What specifically broke.** A correctly finalized and source-bound call
+window was dropped before transcription, so no reply or review proposal could
+exist. The existing paid Azure Speech resource now provides the bounded
+short-audio fallback. This does not promote Azure on quality; that requires a
+matched Hindi/Hinglish audit.
+
+## `vercel-sensitive-stdin-presence-is-not-runtime-delivery` (2026-08-29)
+
+**Rejected:** treat two named Vercel production variables as delivered because
+`env ls` showed them, after adding both through PowerShell stdin as Sensitive.
+
+**What specifically broke.** The deployed provider returned
+`azure_asr_short_endpoint_required`; a clean production `env run` also saw
+both values absent. Recreating them as standard encrypted variables through
+stdin left one carriage-return byte on each value, making the endpoint
+unparseable. The accepted procedure removes and recreates the exact variables
+with `--value`, then proves only safe structure before deployment: endpoint
+length 67, expected Azure host and `/` path, key present at length 84. No value
+is printed or committed.
+
+## `per-token-switch-budget-cannot-reject-natural-roman-hinglish` (2026-08-29)
+
+**Rejected:** count every reviewed Roman Hindi word and unresolved English
+term as a separate synthesis-language switch, then reject the entire preview
+when the count exceeds 16.
+
+**What specifically broke.** A normal owner-written Hinglish paragraph about
+RLHF alternated Hindi grammar with English technical vocabulary and exhausted
+the segment budget before any GPU request. Retrying was deterministic and the
+UI could only repeat the server code. The replacement preserves the exact
+transformed content and audit spans, marks the bounded fallback in the signed
+plan and renders long Latin-only Hinglish as one code-mixed register. The old
+fail-closed behavior remains for pathological mixed-script alternation.
+
+## `diarizer-cluster-contiguity-cannot-veto-primary-microphone-samples` (2026-08-29)
+
+**Rejected:** require one diarizer cluster to contain a contiguous ten-second
+run for every source, including a short owner-selected browser microphone
+recording.
+
+**What specifically broke.** Natural pauses split two self-only primary
+recordings into several small ECAPA clusters. Both had more than ten seconds of
+measured non-overlapping speech, but neither dominant cluster alone reached the
+window length, so the deterministic selector terminally stopped at four of
+eight source checks. Waiting, retrying the page and parallel-user capacity
+could not change that content-independent result. The replacement keeps the
+cluster rule for generic and multi-speaker material but gives the bounded
+owner-selected short-recording case one continuous scored window.
+
+## `one-flat-voice-price-cannot-hide-cold-gpu-and-carrier-cost` (2026-08-29)
+
+**Rejected:** quote one per-clone or per-call-minute price without stating
+whether the T4 is cold, shared warm or permanently reserved, and without
+separating web audio from PSTN telephony.
+
+**What specifically broke.** Warm Chatterbox synthesis for 30 seconds of clone
+speech is about one cent at the measured RTF, while a single cold request can
+pay roughly twenty-three to thirty-five cents of startup and cooldown. An
+always-warm replica is instead a hundreds-of-dollars monthly reservation.
+Those are different products and different capacity guarantees. The accepted
+cost model names the speech split, turn count, cold allocation, warm marginal
+work, shared fixed infrastructure and destination-specific carrier cost as
+separate rows.
+## `cold-gpu-attempts-cannot-be-model-failures` (2026-08-29)
+
+**Rejected:** settle a normal cold-runtime wake, deduplicated wake, or signed warming response as a failed voice generation.
+
+**What specifically broke:** all 45 recent rows labelled failed were normal scale-to-zero lifecycle responses. The false failures inflated the visible failure rate, contaminated operational alerts, and taught the owner to retry a request already doing useful wake work. They now settle as aborted while real model, receipt, reference, and protection faults remain failed.
+
+## `stale-admission-broker-cannot-judge-hindi-model-quality` (2026-08-29)
+
+**Rejected:** interpret a `disclosed_text_invalid` response from the isolated Hindi arm as a Hindi TTS quality failure.
+
+**What specifically broke:** the Hindi gate used an older broker which did not return the current signed text-plan/disclosure fields. The Hindi runtime never received the qualifying synthesis call. Updating only the gate to the already-qualified current broker preserved every model and secret binding and moved the experiment back to the actual model-quality question.
+
+## `phonellm-b200-benchmarks-cannot-certify-hindi-or-t4` (2026-08-29)
+
+**Rejected:** replace the live Mirror Call brain or the clone voice because PhoneLLM reports very low latency and cost on B200 or Modal.
+
+**What specifically breaks:** PhoneLLM is an English text model, not TTS; its BF16 closure is 63.17 GB; the official card contains no Hindi/Hinglish result; and the reported cost divides a highly utilized B200 configuration across 88 agent processes. None of those facts predicts an isolated Azure T4, a low-utilization owner call, speaker likeness, or end-to-end Hindi voice latency. The replacement is a pinned English shadow arm with multilingual, tool, persona, latency, and cost gates.
+
+## `milestone-percent-silent-auth-reset-and-queued-means-running` (2026-08-29)
+
+**Rejected:** use fixed milestone percentages as elapsed progress, call a cold GPU late at the server's shorter estimate, silently reset an expired authenticated journey, or describe a recorded call-learning request as active training.
+
+**What specifically broke:** 33% and 38% could remain unchanged while the job was healthy, delayed, stale or stopped. The UI called work late near five minutes although observed cold readiness reached eight. Session expiry discarded the selected clone and step without explanation, while a queue receipt implied a runner that did not exist. The replacement separates stages from time, uses observed bounds and server next-check facts, preserves intended navigation through magic-link recovery, and names disconnected training honestly.
+
+## `hindi-pack-and-segmented-hinglish-cannot-be-promoted-from-this-pack` (2026-08-29)
+
+**Rejected:** route Hindi automatically to the Hindi-specific pack or keep per-token model calls for Roman Hinglish.
+
+**What specifically broke:** the Hindi pack scored 0.832045 versus 0.858449 for general Chatterbox on two matched Hindi clips. The old fragmented Hinglish path reset reference conditioning across lexical language switches, stretched a short line to 25.98 seconds and collapsed ECAPA to 0.433967. One-pass code-mixed synthesis raised the general score to 0.825082 and cut duration to 7.72 seconds. Model switching did not explain or fix the failure.
+
+## `hindi-image-without-shared-cangjie-closure` (2026-08-29)
+
+**Rejected:** build the Hindi runtime with only `ve.pt` because the official Hindi pack itself names that checkpoint.
+
+**What specifically broke:** the common offline startup verifier also requires the pinned Cangjie mapping used by the shared tokenizer closure. ACR run `cu2y` failed closed with `cangjie_commitment_invalid` before an image could be accepted. The corrected fetch includes both official files, and bounded rebuild `cu30` produced the accepted immutable digest.
+
+## `employer-owned-vercel-team-cannot-be-an-assumed-release-target` (2026-08-29)
+
+**Rejected:** deploy the combined web/API release to the linked Vercel project merely because the CLI is authenticated.
+
+**What specifically breaks:** readback shows the project belongs to `raghav-carbonsettle's projects`, while the user explicitly asked whether employer resources were being used. CLI access proves capability, not authority or cost ownership. The release waits for explicit authorization or a verified personal Vercel project.
+
+## `gpu-http-startup-probe-cannot-be-the-only-routing-gate` (2026-08-29)
+
+**Rejected:** use Azure Container Apps' HTTP startup probe as the only platform gate for the private Chatterbox GPU runtime.
+
+**What specifically broke:** the immutable runtime loaded CUDA, Chatterbox, PerTh and Uvicorn successfully with zero restarts, yet Azure recorded a startup-probe failure with a blank status and kept `started=false`, `ready=false`. Moving the HTTP probe from 10 seconds to 45 seconds did not fix that platform response. A delayed TCP probe on port 8080 passed after the FastAPI lifespan completed, while the signed admission broker retained the application-level `/healthz` check before any synthesis. The accepted production revision became started and ready and returned protected audio.
+
+## `preissued-jwt-cannot-be-a-phone-onboarding-step` (2026-08-29)
+
+**Rejected:** generate or copy a JWT outside the owner's phone and install it
+there as preparation for cloning.
+
+**What specifically breaks:** the bearer token grants account access, belongs
+to one browser session and must participate in that browser's refresh and
+revocation lifecycle. A copied desktop session can cross account and device
+boundaries, can expire while the upload continues, and turns a simple magic
+link into a secret-transfer ceremony. The accepted flow creates the session in
+the phone through Google or the emailed link, then relies on durable server
+state after the recording is visibly uploaded.
+
+## `warming-and-duplicate-preview-cannot-be-called-clone-processing-failure` (2026-08-30)
+
+**Rejected:** describe every red-looking retry or missing immediate playback
+as a failed clone-processing job.
+
+**What specifically broke:** all three overnight sources reached ready at 8/8
+and all three VoiceGenome builds reached review without a failure code. The
+repeated rows occurred later: signed cold-runtime responses were correctly
+stored as aborted warming attempts, while multiple preview intents created
+eleven protected outputs. Calling this a processing failure sends diagnosis to
+the healthy worker and hides the actual cross-tab idempotency and single-GPU
+queue problem. The owner experience is still unacceptable; it must be fixed at
+the preview request boundary, not by re-uploading or rerunning the source DAG.
+
+## `browser-retry-is-not-permission-for-another-gpu-synthesis` (2026-08-30)
+
+**Rejected:** treat a tab retry, connection timeout, reload or process-local
+warmth cache as permission to create another preview generation.
+
+**What specifically broke:** the browser's 90-second deadline can expire while
+an admitted CUDA request is still running, and another request may land on a
+different Vercel process. Releasing the attempt immediately therefore admits
+duplicate GPU work. Production records showed six different protected WAV
+hashes for one text hash and seed. Process-local wake and broker nonce maps do
+not establish cross-tab or cross-instance idempotency.
+
+**What replaced it:** one exact owner-scoped intent, a token-bound execution
+lease, observer-only retries, immutable protected-result replay, three-failure
+terminal settlement and an explicit Regenerate key for the only user-authorized
+duplicate. Pre-synthesis readiness failures may return to warming; ambiguous
+post-synthesis transport preserves the lease until expiry.
+
+## `mirror-call-session-cannot-wait-behind-microphone-permission` (2026-08-30)
+
+**Rejected:** request microphone access as part of Start call and render the
+returned server session only after that permission resolves.
+
+**What specifically broke:** the deployed create route returned HTTP 201, but
+an unresolved browser permission prompt left the phone UI on Opening with End
+call disabled. The backend and GPU state existed while the owner saw neither.
+The replacement renders the server session first, asks for the microphone only
+on the explicit Talk tap, bounds that permission wait to 30 seconds, closes any
+late stream, and keeps permission failure recoverable inside the live session.
+
+## `one-omniscient-profile-and-hot-path-emotion-training` (2026-08-30)
+
+**Rejected:** merge every upload and call into one mutable human profile, infer
+the speaker's inner emotion from audio or images, and fine-tune the live clone
+after each interaction.
+
+**What specifically breaks:** a transcript error becomes a fact, a diarization
+error becomes the owner's voice, an observer's cultural interpretation becomes
+a permanent emotion trait, and one relationship can leak into another. A
+hot-path weight update has no field-level citation, owner preview, rollback or
+source-erasure boundary. More media then increases the rate and durability of
+false writes instead of making the clone more human.
+
+**What replaced it:** immutable evidence atoms feed separately versioned
+knowledge, persona, relationship, observable-expression and voice/style lanes.
+Durable changes require exact citations and an owner decision. Expression
+mechanics expire and stay collect-only until calibrated; voice learns by
+selecting a better verified window or evaluated artifact, not by accumulating
+duration.
+
+## `replica-wide-nearline-queue-before-speaker-attestation` (2026-08-30)
+
+**Rejected:** enqueue every transcribed Mirror window into one replica-wide
+claim job before the owner identifies the speaker, then treat an accepted
+person profile as valid until a later manual rebuild.
+
+**What specifically broke:** two sessions with different speaker decisions
+shared one queue. Rejecting session B could complete the queue while accepted
+session A still had actionable evidence, and accepting A while B remained
+unreviewed could reopen the same content-addressed extraction forever. A later
+speaker correction, claim rejection, source re-attribution or training-consent
+withdrawal could also leave an already approved profile and active runtime
+capability using the disowned claim.
+
+**What replaced it:** ASR settlement stores canonical evidence without
+claiming it is the owner. A positive decision queues only the exact ended
+session's evidence; a negative decision excludes its expression rows and
+cannot close another session's work. Claim invalidation retracts exact
+RelationalOS facts, retires dependent profile/runtime state and is rechecked at
+every protected-stream boundary. Mixed-session decisions, stale review,
+revocation and late network failures are deterministic negative controls.
+
+## `nulling-a-mirror-source-handle-is-not-erasure` (2026-08-30)
+
+**Rejected:** rely on `vy_mirror_window.source_id ON DELETE SET NULL`, source
+row deletion and ordinary foreign-key cascades as proof that a private Mirror
+source is gone.
+
+**What specifically broke:** the source handle vanished while the window kept
+its transcript, ASR provider and model. The same causal content could also
+survive in a delta citation, an accepted TeacherSheet phrase, a clone turn or a
+conditioning selection. Full replica deletion had a related no-FK hole:
+TeacherSheets and push credentials were keyed by agent but were not named by
+the purge transaction. Live inventory found three private-content windows in
+the first orphaned state.
+
+**What replaced it:** source erasure materializes the exact owner, replica and
+source window set before unlinking, reverses exact sheet effects, deletes the
+whole derivative chain and only then removes the source. Full erasure names the
+no-FK agent tables explicitly. Migration 071 records the exact sheet changed by
+new accepted deltas, and a dry-run-first bounded cleanup permanently removed
+the three historical private rows after proving they had no dependents.
+
+## `four-action-recording-and-stacked-meet` (2026-08-30)
+
+**Rejected:** after recording, require a separate Stop, Review, Use as primary
+and Upload sequence, then place preview, call, learning review and advanced
+labs on one long Meet page.
+
+**What specifically broke:** three of the post-recording taps repeated a choice
+the owner had already made, while mobile Meet made unrelated tasks compete for
+the same viewport. The same processing state could appear in the rail,
+overview, banner, activity panel and destination panel. Reload preserved only
+the broad step, so an older clone could reopen as the visible selection.
+
+**What replaced it:** a measured browser quality check admits a clean sample
+from Finish and build or stops for one retake. Private upload, primary selection
+and Preview navigation then happen as one guarded continuation. Meet mounts one
+task at a time, one status surface owns the wait, and the exact clone and task
+are URL-bound.
+
+## `per-token-voice-fanout-and-flat-identity-anchor` (2026-08-30)
+
+**Rejected:** synthesize each detected Hindi or English token run independently,
+join the clips with silence or a crossfade, and use the identity-test preset as
+the ordinary expressive voice.
+
+**What specifically broke:** every lexical switch reset seed, reference
+conditioning, rhythm, breath and phrase-level emphasis. The join added 60 ms of
+digital silence, but removing or crossfading that gap could not recover the
+co-articulation and prosody already lost. The saved fragmented owner clip was
+3.36 times longer than the one-pass clip and spent 65.47% of analysis frames
+near silence. Separately, `identity_anchor` intentionally suppressed variation
+with 0.2 exaggeration, 0.78 CFG and 0.6 temperature; the owner heard that exact
+failure as flat and robotic.
+
+**What replaced it:** one Hindi-conditioned acoustic utterance retains the
+exact semantic language audit, reviewed Roman-Hindi and technical
+pronunciation transformations, and zero inserted gap. The ordinary preview
+starts at neutral model defaults. Stronger expressive settings and new models
+remain matched blind comparisons. Arbitrary transliteration and parameter-only
+promotion are also rejected because neither certifies pronunciation.
+
+## `desktop-density-and-eager-advanced-labs-on-phone` (2026-08-30)
+
+**Rejected:** validate the Studio at one desktop width, reserve three equal rail
+columns for a two-step flow, keep integrity copy at 9 pixels, rely on native
+checkbox glyph dimensions and preload every advanced laboratory before the
+phone owner can record or preview.
+
+**What specifically broke:** the broader browser gate exposed an empty third
+rail column, short URL inputs and consent rows below the 44-pixel interaction
+floor, plus status copy below the product's readable microcopy floor. The
+initial Studio preload also included about 640 kB raw and 186 kB gzip of
+JavaScript, including teaching and advanced review code that the primary phone
+journey had not requested. A first touch-target implementation also counted a
+visually hidden file input; that audit false positive was rejected and the gate
+now ignores only genuinely hidden controls while continuing to measure their
+visible labels.
+
+**What replaced it:** five production-shaped viewport classes, visible-label
+aware touch-target checks, content-count rail sizing, a readable status floor
+and route-level lazy loading that leaves recording, retry and ordinary preview
+eager. The exact post-change preload and browser results are logged in
+`studio-mobile-hardening-and-entry-bundle-2026-08-30`.
+
+## `production-all-account-self-test-bootstrap` (2026-08-30)
+
+**Rejected:** keep the internal `all-authenticated` self-test bootstrap on the
+public production origin so friends can skip every consent, identity, evidence
+review and artifact-selection decision.
+
+**What specifically broke:** the live tagged inventory had grown to 171 active
+auto-consents, 33 test-verified replicas, 5,009 auto-accepted evidence rows and
+13 auto-selected artifacts. Those records were valid for a reversible internal
+harness, not evidence that each public account had knowingly authorized voice
+training or biometric processing. The same production environment also held an
+OpenRouter key that had been exposed earlier; enabling the scheduled learner
+with it would have converted a dormant security defect into automatic spend.
+
+**What replaced it:** the public deployment has no self-test server or Vite
+authority variables, every tagged self-test grant was reversed through the
+append-only ledgers, and the exposed provider key was removed. The phone flow
+stays short, but consent and owner review are real predicates. Nearline learning
+stays visibly fail-closed until a fresh bounded provider configuration exists.
+
+## `replica-wide-delayed-source-erasure-cannot-retire-a-new-replacement` (2026-09-02)
+
+**Rejected:** mark every genome, profile, model build, runtime capability and
+generation on a replica as derived from whichever source deletion finishes
+next.
+
+**What specifically broke:** deleting an old recording changed that source to
+`deleting`, but the physical object and database cleanup completed later. In
+the intervening window the owner could upload a clean replacement and create a
+new build. Both the synchronous delete request and delayed completion selected
+derived state by replica rather than by exact source citation, so completion of
+the old deletion could retire the new genome/build/profile and recreate the
+same apparent 38-percent or missing-voice failure after a successful upload.
+
+**What replaced it:** the request durably records its timestamp and captures
+the exact cited genomes and profiles. Physical completion retires builds that
+predate the request or carry one of the erased source-set hashes, while a newer
+different-source replacement survives. Source erasure and VoiceGenome review
+share one advisory transaction arbiter so a concurrent settlement cannot fall
+between lineage discovery and retirement. The 51-check erasure suite includes
+the delete-old/build-new interleaving as a negative control.
+
+**Evidence that would reverse this rejection:** a different deletion design
+must prove exact source and owner reach, late old-source settlement cleanup,
+new replacement survival, protected-blob deletion, consent withdrawal and
+zero causal orphans under the same interleaving. A replica-wide update that is
+merely faster is not equivalent.
+
+## `gitignore-does-not-exclude-a-file-from-the-vercel-payload` (2026-09-02)
+
+**Rejected:** assume a local configuration file cannot reach a Vercel build
+because Git ignores it.
+
+**What specifically broke:** the first Vercel CLI payload included the local,
+gitignored `api/_config.js`. The deployed chat trace then reached an old
+revoked provider credential and received upstream HTTP 401. Git status remained
+clean for that file, so repository secrecy and deployment-payload exclusion
+had diverged. No secret value is needed to diagnose the failure: the packaged
+filename and credential-free response code are sufficient.
+
+**What replaced it:** `.vercelignore` explicitly excludes `api/_config.js`,
+`_config.env`, `keyring.json` and `google-keys.env`. Production deployment
+`dpl_6BivhdGGQwVf9PtRcARSSDxocZb9` was built after that boundary and generated
+configuration from Vercel environment bindings. The missing fresh conversation
+provider configuration remains a named blocker rather than falling back to a
+local credential. The exact pre-sanitization deployment with identifier prefix
+`dpl_9zGsf` was verified not to be current and was removed by its deployment
+identity; its immutable URL now returns 404 while the public alias stays 200 on
+the sanitized deployment. An executable upload-boundary gate now requires the
+credential exclusions, rejects explicit re-inclusions, scans tracked paths for
+credential-shaped names and exercises removal and re-inclusion negative
+controls. The source-content release commitment and generic-clone verifier
+replace environment-dependent bundle hashes and legacy chat/speech probes.
+
+**Evidence that would reverse this rejection:** only a deployment mechanism
+which builds from a committed, allowlisted artifact and executable-tests that
+these four paths cannot enter the upload would make the explicit exclusion
+redundant. Git ignore alone can never supply that evidence.
+
+## `structural-code-switch-passes-cannot-certify-perceptual-voice-quality` (2026-09-02)
+
+**Rejected:** call one-pass synthesis, 29 passing prompt plans, a curated Hindi
+orthography table or a higher ECAPA proxy a pronunciation, expression or
+human-likeness win.
+
+**What specifically breaks:** the checks prevent independent token-level model
+calls, preserve exact transformation spans and expose unresolved words, but
+they do not listen. Chatterbox still receives one Hindi language condition for
+the entire code-mixed utterance. Its curated table covers named entries, not
+arbitrary words, and the existing 0.825082 ECAPA score measures speaker
+embedding proximity rather than native switch pronunciation, Indian accent,
+prosody, emotional emphasis or naturalness. The owner's reported robotic and
+wrong-switch output therefore remains valid quality evidence.
+
+**What replaces the claim:** describe the release only as a structural
+continuity and auditability repair. Promote a provider or preset only after an
+exact same-reference, same-text, seed-controlled, protected matched pack is
+scored for switch-boundary error and then rated blind by the owner and native
+Hindi/Hinglish listeners. VoxCPM2 and MOSS-TTS remain challengers rather than
+marketing labels.
+
+## `one-idle-worker-canary-cannot-certify-five-user-clone-capacity` (2026-09-02)
+
+**Rejected:** infer that five people can create clones concurrently because one
+new worker image starts successfully or because a prior five-intent preview
+test sealed protected speech.
+
+**What specifically breaks:** the September 2 worker canary examined zero build
+intents. The production Job readback is parallelism one, one execution replica,
+and a two-minute schedule. A prior voice-preview concurrency result exercised
+the synthesis lane after sources were ready; it did not run five independent
+uploads through integrity, media probe, diarization, enhancement,
+transcription, voice quality and candidate-scoped build promotion. These are
+different queues and capacity shapes.
+
+**What replaces the claim:** state that concurrent owners queue durably and
+that five-account completion time is unmeasured. A capacity guarantee requires
+five independently authenticated, policy-valid accounts, distinct private
+recordings, induced response loss, one replacement during an old-source
+erasure, all eight processing stages, exact promotion, protected preview and
+post-run orphan/spend checks. Until that production-shaped load finishes, no
+five-user latency or success-rate number exists.
+
+## `in-build-recomputation-cannot-identify-uploaded-vercel-source` (2026-09-02)
+
+**Rejected:** compute the deployment source commitment inside Vercel's custom
+install or build command and treat a matching path list as proof that the
+remote bytes are the bytes the deploy client uploaded.
+
+**What specifically breaks:** Vercel mutates the remote working directory
+before the custom install hook. Two bounded attempts saw the same committed
+paths on both sides but produced byte deltas of -369 and -200. A remote hash
+therefore described post-upload workspace state. Retrying the same idea at a
+later build hook only moved the measurement farther from the upload boundary;
+it could not distinguish a legitimate platform mutation from stale or changed
+client source.
+
+**What replaces the attempt:** `scripts/deploy-vercel.mjs` computes the exact
+source commitment on the client and reserves the four `VYAKTI_SOURCE_*` build
+metadata fields from caller override. The remote install validates and records
+that deployment-scoped identity before dependency installation. Verification
+then compares the immutable deployed marker with the same client checkout and
+target product. A platform-owned pre-mutation, content-addressed upload
+manifest may replace this only when it proves the same byte boundary.
+
+## `zero-active-self-test-grants-do-not-sanitize-an-old-draft` (2026-09-02)
+
+**Rejected:** clear or ignore a replica's historical self-test marker when the
+tagged revocation inventory reaches zero, then allow its existing draft to
+continue through public verification.
+
+**What specifically broke:** the revocation operation correctly revoked tagged
+consents, reset identity timestamps and appended reversals for accepted
+evidence and selected artifacts. It intentionally did not erase the historical
+replica marker, and the affected clone still had a draft VoiceGenome. The
+review API read that permanent marker while the inventory counted only current
+authority. Both were truthful, but the UI described the result as an
+unrecoverable platform reset and offered no action. Ignoring the marker would
+have made a draft built under bypassed ceremonies eligible for later use.
+
+**What replaced it:** keep the historical blocker and offer two-step,
+owner-confirmed full clone revocation plus verified erasure. The clean-clone
+screen opens only after the server accepts that erasure request. A failed
+request leaves the old clone blocked and shows a retryable error. No client
+state clears consent, identity, evidence or the self-test marker.
+
+**Evidence that would reverse this rejection:** an owner-scoped atomic server
+reset must prove complete retirement of every self-test-derived artifact and
+runtime descendant while preserving audit history, then force all public
+verification predicates to run from zero. A zero count in the current-grant
+inventory alone is not that proof.
+
+## `a-thirty-day-receipt-cannot-start-while-a-child-branch-retains-the-records` (2026-09-02)
+
+**Rejected:** configure a 30-day backup-retention receipt, erase only the
+primary Neon branch and call the owner's target data deleted while an old child
+branch still contains it.
+
+**What specifically broke:** the one-off
+`br-round-frost-avv3g04c` (`ws-ah-processing-drain-verify`) branch contained 13
+target rows for one target replica. A persistent child branch is an independent
+recoverable database state and can outlive a 30-day provider backup window.
+Starting the receipt clock while it existed would therefore have described
+provider retention while ignoring an active copy under the same project.
+
+**What replaced it:** compare the child with primary, prove it has no non-target
+branch-specific writes, delete that exact branch, and read the branch list
+again before the main erasure begins. The fresh inventory has zero matching
+child branches and only the primary remains. The 30-day configured receipt
+window now covers the longest measured provider backup boundary, but no main
+clone erasure or receipt issuance is claimed yet.
+
+**Evidence that would reverse this rejection:** a provider-enforced,
+cross-branch erasure primitive may replace explicit branch inventory only if a
+negative-control test proves one owner-scoped request removes the target from
+primary, every current child and every future recovery surface without deleting
+non-target writes. A time-based receipt by itself is not that primitive.
+
+## `expert-integration-numeric-migration-replay-20260906` (2026-09-06)
+
+Rejected copying local071–076 into the top-level migration directory as if numeric identity matched Rooms071–076. The same prefixes designate different schema changes, while the runner auto-discovers top-level SQL. The replacement archives exact bytes in a nested content-addressed directory pending catalog reconciliation. Also rejected assuming git apply --3way --check exit0 proves no conflicts: this check reported48 conflict paths while leaving the target tree clean.
+
+## `emotional-schema-and-hosted-kernel-are-not-live-capability-20260906` (2026-09-06)
+
+Rejected describing the relationship dimension schema as an implemented EmotionalOS or measured emotional estimator. Its bounds validate shape, not feelings or human benefit. Also rejected calling GroupAI019 complete merely because hosted SQL verification passed: its latest handoff still names immediate pre-provider witness revalidation and provider/KMS/participant boundaries as unfinished. The replacement reports observable expression evidence, exact connected caller scope and independent human quality gates.
+
+## `schema-mirror-is-not-standalone-bootstrap-20260906` (2026-09-06)
+
+Rejected blindly executing db/schema.sql on a new database: static inspection found922statements, missing base replica declarations and forward references, plus historicalDO blocks despite the stated noDO convention. The replacement uses the actual ordered migration files with legacy-only bootstrap, archives appended in source order and plain-DDL equivalents for guarded constraints. Separate preflight found198created tables and0forward references; actual application succeeded. Also rejected assuming mock erasure tests certify SQL: the real development EXPLAIN caught42601 near taste_turns.
+
+## `missing-browser-is-not-a-passing-layout-gate-20260906` (2026-09-06)
+
+Rejected reporting the1307ms layout check as a rendered pass while missing build/package/browser caused skip0. The replacement treats each missing prerequisite as FAIL1 and installs matching Chromium before real390x844inspection. A broad descendant CSS selector hid the logo despite valid component markup, so source review alone was insufficient. This is parent-reported integration evidence, not an invented independent browser run.
+
+## `new-read-phase-is-not-a-mutation-20260906` (2026-09-06)
+
+Rejected treating every query not matching a loose from-claim substring as a guarded mutation. The added interview-source SELECT made the old count incorrect; nested claim references made the substring classification ambiguous in the other direction. The corrected fixture identifies top-level SELECTs, requires actual profile write syntax for the remaining operation and still asserts exactly1guarded mutation. Real EXPLAIN is retained, not replaced with a mock.
+
+## `accounting-readback-must-not-discard-paid-output-20260906` (2026-09-06)
+
+Rejected placing the output artifact write after an accounting query using an unverified status column. The provider had already returned paid results, but SQLSTATE 42703 prevented saving them. The replacement uses the actual state column and writes outputs first; ledger reports all four settled receipts, not just the two retained answers. Reversal requires an atomic durable provider-result record with independent recovery, not another best-effort collector ordering.
+
+## `legacy-preview-composer-was-a-dead-ordinary-caller-20260906` (2026-09-06)
+
+Rejected adding a bucket field to the old ordinary preview request as an isolated fix. It would conceal an obsolete caller and risk stranded unsealed intents; after the endpoint became trial-only409 the duplicate composer was a dead UI path. The replacement navigates to the single durable panel. Also rejected constructing the voice provider before ownership checks: missing origin produced503 before identity could produce its correct409. The lazy constructor restores admission ordering.
+
+## `mutable-training-tag-is-not-checkpoint-provenance-20260906` (2026-09-06)
+
+Rejected treating voice-finetune:v3 plus Succeeded execution metadata as proof of current fine-tuned preview output. The tag supplies no immutable image identity, ARM job metadata does not reveal the private checkpoint, and the ordinary adapter-supplying caller remains unproven. The replacement preserves exact digest evidence for deployed apps while naming missing adapter/checkpoint/receipt evidence. No unrequested cloud action was taken to fill those gaps.
+
+
+## `declared-learning-loop-had-unusable-feedback-20260907` (2026-09-07)
+
+Read-only caller trace found saveMirrorCallTurnFeedback sends FormData even for plain ratings; active turn_feedback rejects multipart with415 mirror_feedback_expects_json. Audio correction source IDs also were not validated or persisted by that branch. Do not present a successful-looking rating or discard correction audio. Repair supported JSON feedback and explicitly withhold unsupported audio until a canonical-source ingest and durable lineage exists. This source-level finding is not an authenticated runtime reproduction; subsequent repair tests must be logged separately.
+
+
+## `lexical-retrieval-does-not-bridge-roman-and-devanagari-20260907` (2026-09-07)
+
+Tried bounded Unicode term ranking against52 schema-typed synthetic scenarios. Roman query to Devanagari evidence still omits the older required fact; empty/no-match/stopword-only queries exactly preserve priority/recency fallback, which returns unrelated facts and is not abstention. Do not market keyword ranking as semantic multilingual memory. The comparison was intentionally left unpromoted, not hidden by expecting bad outcomes as product passes.
+
+
+## `create-only-azure-sas-overwrite-is-a-named-403-20260907` (2026-09-07)
+
+The first storage diagnostic assumed repeat create would be409/412 and failed on403. A bounded second attempt read the original bytes unchanged and captured UnauthorizedBlobOverwrite, then failed because the expected403code had been too narrow. The final diagnostic accepts only a named overwrite/permission refusal together with first-create success and unchanged bytes; a generic403 is not proof. Microsoft service SAS documentation distinguishes create permission c from write permission w. All three exact synthetic objects were cleaned; no broad prefix or production deletion was used.
+
+
+## `stored-vectors-are-not-connected-approved-mirror-memory-20260907` (2026-09-07)
+
+Read-only follow-up found generic memory.js has embedding writes and semantic recall over vy_embedding halfvec1536; Rooms dmRecall still uses priority/recency. Approved Mirror claim materialization has no embedding writer caller. Generic memory recall has a broader corpus than Mirror eligibility and cannot simply replace it. Stored vectors lack reviewed content/model revision commitments; nonfinite coordinate handling and source-level derivative cleanup need validation before new writes. Reuse the existing store only behind current approval, exact agent/person, body identity and erasure guards. No semantic model calls or cross-script quality measurement ran.
+
+
+## `early-image-preload-did-not-improve-paint-20260907` (2026-09-07)
+
+Tried personal-entry image preload before dynamic React import. Sequential n3 cold-context comparison under same configured throttle: median image discovery1565ms to411ms, LCP2076ms to2156ms, TBT35ms unchanged, CLS0.071875 to0.001143; transferred JS+258bytes. Lower movement is useful but no demonstrated critical-paint improvement, and signed-in personal sessions would fetch the unused52KB entry image. Reverted exact experimental code. No claim statistical significance or universal regression. Evidence integration scratchpad/studio-preload-diagnostic.json.
+
+
+## `one-processing-job-was-not-a-one-action-worker-20260907` (2026-09-07)
+
+Read-only inspection found the existing scheduled run-once worker runs model recovery/build sweeps in addition to processing maxJobs=1. That limit alone is not a bounded development invocation. The new opt-in launcher calls runNextProcessingJob directly and checks native integrity/malware/media capabilities before lease. No native processing or voice quality is inferred from passing guard fixtures.
+
+
+## `performance-skip-zero-was-not-a-valid-release-pass-20260907` (2026-09-07)
+
+Inspection after the complete diagnostic found check-performance still returned0 for missing browser prerequisites and ignored install.skipped. The earlier layout hardening did not cover this separate runner. Also, JSON printed before install/static checks hid their outcomes. Replaced successful skips with failures and retained final combined diagnostic evidence. Do not relabel earlier actual browser measurements as skipped; the flaw concerns unavailable prerequisites.

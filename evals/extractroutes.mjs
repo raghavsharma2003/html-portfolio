@@ -273,7 +273,12 @@ console.log("\n── 3b. the transport asserts the echo end to end ──");
     channelKey: "@teacher",
     expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
   };
-  const request = { videoId: "Q5_BtWc-G7Y", attestation, upload: { url: "https://store.example/o", headers: {} } };
+  const request = { videoId: "Q5_BtWc-G7Y", attestation, upload: {
+    url: "https://store.example/o", headers: {}, resumable: {
+      protocol: "azure-block-v1", endpoint: "https://store.example/o",
+      chunk_size: 8 * 1024 * 1024, headers: {}, metadata: {},
+    },
+  } };
   const env = { ...ENV_BASE, MEDIA_EXTRACT_ROUTE: "proxy", MEDIA_EXTRACT_PROXY_URL: "http://proxy.example:8080" };
 
   const honest = createMediaExtractClient({ env, fetchImpl: fakeService("proxy") });

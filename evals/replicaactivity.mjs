@@ -252,6 +252,20 @@ console.log("\n── 3. failures say why ──");
   ok(/no audio track/.test(rejected.state_reason), "...and the reason is the actual problem with the file");
 }
 
+{
+  const missed = A.normaliseUpload({
+    source_id: "11111111-1111-4111-8111-111111111111", kind: "audio", mime: "audio/wav",
+    byte_size: 4_400_000, duration_ms: 41_000, state: "quarantined", rejection_code: "",
+    created_at: ts(20), updated_at: ts(20), steps_done: 0, last_job_at: ts(20),
+    failed_step: null, failure_code: null, failure_state: null, active_step: "integrity",
+    attempts: 0, worker_overdue: true,
+  });
+  eq(missed.state, "blocked", "a due upload missed by the worker stops pretending to be in flight");
+  eq(missed.in_flight, false, "...and does not keep an endless working poll alive");
+  eq(missed.next_action.kind, "wait", "...because automatic worker recovery needs no second upload");
+  ok(/do not need to upload/.test(missed.state_reason), "...and explicitly preserves the owner's existing bytes");
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // 4. THE FINE-TUNE LANE SAYS NOBODY IS RUNNING IT
 // ═════════════════════════════════════════════════════════════════════════
@@ -354,7 +368,10 @@ ok(A.POLL_FLOOR_MS >= 3_000, "the floor is not faster than any lane can change")
   // reimplemented here: `dead-writers` in the other direction, a property that
   // is only true in the test is not true.
   const panel = read("src/studio/ActivityPanel.tsx");
-  ok(/delay === null\) return/.test(panel), "the panel returns rather than rescheduling on a null interval");
+  ok(/schedule\(delay \?\? bridgeDelay\)/.test(panel),
+    "a null server interval only hands off to the bounded journey reconciliation bridge");
+  ok(/shouldReconcileActivity\(latest\.current, journeyPending\)/.test(panel),
+    "...and that bridge is conditional on durable clone work still being owed");
   ok(!/setInterval\(/.test(panel), "the panel uses a self-scheduling timeout, never a fixed setInterval");
   ok(/clearTimeout/.test(panel), "...and clears its pending timer on unmount");
   const api = read("src/studio/activityApi.ts");
@@ -607,10 +624,10 @@ console.log("\n── 11. the surface ──");
   const panel = read("src/studio/ActivityPanel.tsx");
   const css = read("src/studio/activity.css");
   // WS-R71: ActivityPanel.tsx's own literal strings moved into
-  // src/studio/copy.ts (`t.activityPanel`); the one English-wording check
+  // src/creatorStudio/copy.ts (`t.activityPanel`); the one English-wording check
   // below now also reads copy.ts, `evals/readiness/run.mjs`'s own
   // `panelWithCopy` shape.
-  const copyTs = read("src/studio/copy.ts");
+  const copyTs = read("src/creatorStudio/copy.ts");
 
   // Comments are stripped the way scripts/check-copy.mjs strips them, and
   // BEFORE anything is asserted. Every rule below is about what SHIPS to a
@@ -631,7 +648,10 @@ console.log("\n── 11. the surface ──");
   ok(/NotConnected/.test(codeOnly) && /not connected yet/.test(codeOnly + copyTs),
     "an undeployed lane renders a named notice rather than an empty list");
   ok(/lane\.missing\.join/.test(codeOnly), "...and names the missing piece");
-  ok(/onPointerDown/.test(codeOnly), "press feedback fires on pointerdown, not on release");
+  ok(/onClick/.test(codeOnly) && !/onPointerDown|onKeyDown/.test(codeOnly),
+    "actions use native click semantics without duplicate pointer or keyboard handlers");
+  ok(/vy-activity__act:active/.test(css),
+    "...while the active pseudo-class gives immediate visual press feedback");
 
   // WS-AE's slot asks for two MOODS, not one panel shown twice. The data is
   // identical; the order and the framing are not.
@@ -658,10 +678,11 @@ console.log("\n── 11. the surface ──");
     "...and the shimmer stops entirely under it, rather than merely speeding up");
 
   // Everything that can come from a token does. The exceptions are the physical
-  // sizes a token scale does not have a name for: hairlines, the state dot and
-  // the skeleton bones. Listed, so adding an eleventh ad-hoc value is a failing
+  // sizes a token scale does not have a name for: hairlines, the state dot,
+  // skeleton bones, the 44px accessible touch floor and the Studio's incumbent
+  // 590px phone breakpoint. Listed, so adding another ad-hoc value is a failing
   // check rather than a habit.
-  const AD_HOC_ALLOWED = new Set(["1px", "2px", "3px", "4px", "6px", "10px", "12px", "13px", "14px", "5px", "64px", "260px", "400px"]);
+  const AD_HOC_ALLOWED = new Set(["1px", "2px", "3px", "4px", "6px", "10px", "12px", "13px", "14px", "5px", "44px", "64px", "260px", "400px", "590px"]);
   const strays = [...new Set([...cssCode.matchAll(/(\d+px)/g)].map((m) => m[1]))]
     .filter((value) => !AD_HOC_ALLOWED.has(value));
   eq(strays.join(","), "", "no ad-hoc sizes beyond the listed hairlines, dot and skeleton bones");

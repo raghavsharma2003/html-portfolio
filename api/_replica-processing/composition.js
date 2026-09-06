@@ -3,6 +3,7 @@ import { ProcessingAdapterError } from "./contracts.js";
 import { createNativeToolRunners, nativeToolStatus } from "./native-tools.js";
 import { createChunkedDiarizationAdapter } from "./chunked-diarization.js";
 import { createAzureVoiceEvidenceAdapters } from "./providers/azure-voice-evidence.js";
+import { createAzureFastTranscriptionAdapter } from "./providers/azure-fast-transcription.js";
 import { createNativeMediaAdapters } from "./providers/native-media.js";
 import { createSarvamTranscriptionAdapter } from "./providers/sarvam-transcription.js";
 import { createReplicaProcessingStorage } from "./storage.js";
@@ -50,6 +51,12 @@ export const COMPOSED_STEPS = Object.freeze(Object.keys(STEP_METHOD));
 // set lives in a leaf module for the activity surface's benefit. Only codes in
 // this set are ever requeued automatically.
 export { CAPABILITY_ABSENCE_CODES };
+
+export function selectTranscriptionLane(env, azure, sarvam) {
+  // A half-configured Azure lane must fail with its own configuration code,
+  // never disappear behind a silent vendor fallback.
+  return env.AZURE_SPEECH_ENDPOINT || env.AZURE_SPEECH_KEY ? azure : sarvam;
+}
 
 function boundedInteger(value, fallback, min, max) {
   const number = value == null || value === "" ? fallback : Number(value);
@@ -210,12 +217,25 @@ export function composeProcessingAdapters(options = {}) {
   }
 
   // ── the ASR family: transcribe ───────────────────────────────────────────
-  // Sarvam, not Azure Fast Transcription (owner directive, 2026-08-26): this
-  // subscription has zero Cognitive Services accounts, and standing that up
-  // was explicitly ruled out in favour of the Sarvam adapters that already
-  // exist and are proven on Hinglish. See providers/sarvam-transcription.js
-  // for the full reasoning, including why confidence is reported as 0.
-  const asr = tryBuild(() => createSarvamTranscriptionAdapter({
+  // Prefer Azure only when explicitly configured. The prior Sarvam-only
+  // decision reversed once Azure AI Services became available; Sarvam remains
+  // the no-Azure fallback.
+  const azureAsr = tryBuild(() => createAzureFastTranscriptionAdapter({
+    endpoint: env.AZURE_SPEECH_ENDPOINT,
+    apiKey: env.AZURE_SPEECH_KEY,
+    locales: ["en-IN", "hi-IN"],
+    resolveInput: storage.resolveInput,
+    withInputFile: storage.withResolvedInputFile,
+    prepareInputFile: runners.withAzureAsrFile,
+    // Includes private download, integrity pass, an oversized-source speech
+    // derivative, multipart upload and synchronous transcription. The old
+    // three-minute default could expire before a 109-minute source reached
+    // Azure; this remains bounded below the worker's 55-minute run budget and
+    // its renewable lease.
+    timeoutMs: 15 * 60_000,
+    fetchImpl: options.fetchImpl,
+  }));
+  const sarvamAsr = tryBuild(() => createSarvamTranscriptionAdapter({
     apiKey: env.SARVAM_API_KEY,
     model: env.SARVAM_ASR_MODEL,
     langHint: env.ASR_INGEST_LANG_HINT,
@@ -223,6 +243,7 @@ export function composeProcessingAdapters(options = {}) {
     withInputFile: storage.withResolvedInputFile,
     fetchImpl: options.fetchImpl,
   }));
+  const asr = selectTranscriptionLane(env, azureAsr, sarvamAsr);
   //
   // The factory says `sarvam_asr_config_missing` when the key is unset. That
   // is normalised to `asr_unconfigured` for the same reason the evidence
@@ -231,7 +252,7 @@ export function composeProcessingAdapters(options = {}) {
   // job that never recovers and a sentence the owner never sees. Any OTHER
   // code from the factory is a real misconfiguration and is passed through
   // unchanged, because it needs a human.
-  const asrUnconfigured = new Set(["sarvam_asr_config_missing", ""]);
+  const asrUnconfigured = new Set(["azure_asr_config_missing", "sarvam_asr_config_missing", ""]);
   if (asr.value) {
     adapters.transcribe = asr.value;
     declare("transcribe", "");
@@ -284,9 +305,11 @@ export function capabilitySummary(capabilities) {
  * hit, a digest mismatch, a bad recording) can never match, because its code
  * is not in the set.
  *
- * `attempt` is reset so the recovered job gets its full retry budget against
- * the capability that has actually arrived, rather than inheriting attempts
- * spent against one that had not.
+ * `attempt` stays monotonic. It is part of the paid-provider idempotency key
+ * and the append-only attempt primary key, so resetting it can collide with a
+ * previously released pre-call reservation and make recovery fail before the
+ * provider is reached. Failure classification treats each consecutive group
+ * of maxAttempts as a new bounded recovery cycle instead.
  */
 export async function requeueRecoveredProcessingJobs(db, capabilities, options = {}) {
   const liveSteps = COMPOSED_STEPS.filter((step) => capabilities?.[step]?.available);
@@ -302,7 +325,7 @@ export async function requeueRecoveredProcessingJobs(db, capabilities, options =
         limit $3::int4
      )
      update vy_replica_processing_job j
-        set state = 'queued', attempt = 0, failure_code = '', result = '{}'::jsonb,
+        set state = 'queued', failure_code = '', result = '{}'::jsonb,
             next_attempt_at = now(), lease_token_hash = '', leased_at = null,
             lease_expires_at = null, updated_at = now()
        from recovered r

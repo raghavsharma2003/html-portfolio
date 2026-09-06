@@ -90,7 +90,7 @@ async function loadSessionHistory(db, ownerUserId, runtime, sessionId) {
 
 async function beginDialogueTurn(db, ownerUserId, runtime, session, generator, input, prompt) {
   const rows = await db(
-    `with authorized as (
+    `with authorized as materialized (
        select s.session_id,s.capability_id,s.replica_id,s.owner_user_id,s.agent_id,s.person_id,s.channel,
               c.profile_version,c.calibration_version,pd.device_id
          from vy_replica_runtime_session s
@@ -108,6 +108,7 @@ async function beginDialogueTurn(db, ownerUserId, runtime, session, generator, i
             where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
               and x.scope='inference' and x.policy_version=$13 and x.revoked_at is null
               and (x.expires_at is null or x.expires_at>now()))
+        for update of r
      ), advanced as (
        update vy_replica_runtime_session s
           set next_turn_ordinal=s.next_turn_ordinal+1,last_active_at=now(),updated_at=now()
@@ -138,7 +139,7 @@ async function beginDialogueTurn(db, ownerUserId, runtime, session, generator, i
 
 async function finishDialogueTurn(db, ownerUserId, runtime, turn, output) {
   const rows = await db(
-    `with authorized as (
+    `with authorized as materialized (
        select t.turn_id,t.session_id,t.replica_id,t.owner_user_id,t.agent_id,t.person_id,t.device_id,t.ordinal,t.user_log_id,
               s.channel
          from vy_replica_dialogue_turn t
@@ -155,6 +156,7 @@ async function finishDialogueTurn(db, ownerUserId, runtime, turn, output) {
             where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
               and x.scope='inference' and x.policy_version=$7 and x.revoked_at is null
               and (x.expires_at is null or x.expires_at>now()))
+        for update of r
      ), assistant_log as (
        insert into meera_log (device_id,role,channel,kind,content,at,agent_id)
        select a.device_id,'her',case when a.channel='private_call' then 'call' else 'chat' end,

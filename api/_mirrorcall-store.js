@@ -33,6 +33,7 @@ import { randomUUID } from "node:crypto";
 import {
   MIRROR_OWNER_SIMILARITY_FLOOR,
   MIRROR_REFERENCE_SCOPE,
+  MIRROR_DERIVATION_SCOPES,
   MIRROR_SESSION_SCOPES,
   MirrorCallError,
   corpusConfidence,
@@ -55,7 +56,7 @@ const WINDOW_COLUMNS = `window_id, session_id, replica_id, owner_user_id, seq, s
 
 const DELTA_COLUMNS = `delta_id, session_id, replica_id, owner_user_id, kind, fragment,
   target_field, origin, occurrences, corpus_tokens, evidence, citation, cited_windows, state,
-  applied_at, decided_at, created_at, updated_at`;
+  applied_at, applied_sheet_id, decided_at, created_at, updated_at`;
 
 /** The two UN-ACTIONED states. 'proposed' is on the live rail; 'deferred' is
  *  what the per-minute chip budget held back for the review queue. Both are
@@ -297,12 +298,27 @@ export async function recordMirrorWindow(db, ownerUserId, replicaIdValue, sessio
        select src.source_id from vy_replica_source src
         where src.source_id = $5::uuid and src.replica_id = $2::uuid
           and src.owner_user_id = $3::uuid and src.state = 'quarantined'
+          and src.capture_mode = 'derived'
+          and src.provenance->>'purpose' = 'mirror_window'
+          and src.provenance->>'mirror_session_id' = $1::text
+          and src.provenance->>'mirror_seq' = $6::text
+     ), live_reference as (
+       select exists (
+         select 1 from vy_replica r join vy_replica_consent c
+           on c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
+          and c.scope=$8 and c.policy_version=r.policy_version
+          and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())
+          where r.replica_id=$2::uuid and r.owner_user_id=$3::uuid
+            and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
+       ) active
      ), admission as (
        select sess.session_id, sess.replica_id, sess.owner_user_id,
               (sess.reference_consent and exists (select 1 from stored)
+                 and (select active from live_reference)
                  and $9 = 'owner_verified') as admitted,
               case
                 when not sess.reference_consent then 'consent_scope_missing:' || $8
+                when not (select active from live_reference) then 'consent_scope_inactive:' || $8
                 when not exists (select 1 from stored) then 'no_stored_object'
                 when $9 = 'clone_overlap' then 'own_voice_clone_overlap'
                 when $9 = 'foreign_speaker' then 'own_voice_foreign_speaker'
@@ -376,6 +392,12 @@ export async function selectConditioningWindow(db, ownerUserId, replicaIdValue, 
        select r.replica_id from vy_replica r
         where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
           and r.lifecycle not in ('revoked','purging')
+          and exists (
+            select 1 from vy_replica_consent c
+             where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
+               and c.scope='training' and c.policy_version=r.policy_version
+               and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())
+          )
      ), standing as (
        select c.selection_id, c.score from vy_mirror_conditioning c join owned o on o.replica_id = c.replica_id
         where c.owner_user_id = $2::uuid and c.superseded_at is null
@@ -470,15 +492,226 @@ export async function mirrorCorpusTokens(db, ownerUserId, replicaIdValue) {
  */
 export async function settleMirrorWindow(db, ownerUserId, replicaIdValue, windowIdValue, result) {
   const transcribed = Boolean(result?.transcript);
+  const evidence = transcribed && Array.isArray(result?.evidence) ? result.evidence : [];
+  const expressionObservations = transcribed && Array.isArray(result?.expressionObservations)
+    ? result.expressionObservations : [];
   const rows = await db(
-    `update vy_mirror_window w
-        set asr_state = $4, transcript = $5, asr_provider = $6, asr_model = $7,
-            failure_code = $8, updated_at = now()
-      where w.window_id = $1::uuid and w.replica_id = $2::uuid and w.owner_user_id = $3::uuid
-        and w.asr_state = 'pending'
-        and exists (select 1 from vy_mirror_session s
-                     where s.session_id = w.session_id and s.state = 'open')
-     returning ${WINDOW_COLUMNS}`,
+    `with consent_at_settlement as materialized (
+       select w.window_id,
+              exists (
+                select 1 from vy_replica r
+                 where r.replica_id=w.replica_id and r.owner_user_id=w.owner_user_id
+                   and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
+                   and not exists (
+                     select 1 from unnest($11::text[]) required(scope)
+                      where not exists (
+                        select 1 from vy_replica_consent c
+                         where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
+                           and c.scope=required.scope and c.policy_version=r.policy_version
+                           and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())
+                      )
+                   )
+              ) as asr_authorized,
+              exists (
+                select 1 from vy_replica r
+                 where r.replica_id=w.replica_id and r.owner_user_id=w.owner_user_id
+                   and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
+                   and not exists (
+                     select 1 from unnest($12::text[]) required(scope)
+                      where not exists (
+                        select 1 from vy_replica_consent c
+                         where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
+                           and c.scope=required.scope and c.policy_version=r.policy_version
+                           and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())
+                      )
+                   )
+              ) as derivation_authorized
+         from vy_mirror_window w
+        where w.window_id=$1::uuid and w.replica_id=$2::uuid and w.owner_user_id=$3::uuid
+          and w.asr_state='pending'
+          and exists (select 1 from vy_mirror_session s
+                       where s.session_id=w.session_id and s.state='open')
+     ), settled as (
+       update vy_mirror_window w
+        set asr_state = case when $4='transcribed' and not c.asr_authorized then 'dropped' else $4 end,
+            transcript = case when $4='transcribed' and not c.asr_authorized then '' else $5 end,
+            asr_provider = case when $4='transcribed' and not c.asr_authorized then '' else $6 end,
+            asr_model = case when $4='transcribed' and not c.asr_authorized then '' else $7 end,
+            failure_code = case when $4='transcribed' and not c.asr_authorized
+                                then 'mirror_live_asr_consent_inactive' else $8 end,
+            updated_at = now()
+        from consent_at_settlement c
+       where w.window_id=c.window_id
+       returning w.*
+     ), desired_evidence as materialized (
+       select value item from jsonb_array_elements($9::jsonb)
+        where exists (select 1 from settled w where w.asr_state='transcribed')
+     ), inserted_evidence as (
+       insert into vy_replica_processing_evidence
+         (evidence_id,replica_id,owner_user_id,source_id,artifact_id,created_by_job_id,
+          evidence_type,span_start_ms,span_end_ms,confidence,value,input_sha256,
+          adapter_family,adapter_name,adapter_version,record_hash)
+       select (item->>'evidence_id')::uuid,(item->>'replica_id')::uuid,
+              (item->>'owner_user_id')::uuid,(item->>'source_id')::uuid,null,null,
+              item->>'evidence_type',(item#>>'{span,start_ms}')::integer,
+              (item#>>'{span,end_ms}')::integer,nullif(item->>'confidence','')::double precision,
+              item->'value',item->>'input_sha256',item#>>'{adapter,family}',
+              item#>>'{adapter,name}',item#>>'{adapter,version}',item->>'record_hash'
+         from desired_evidence d join settled w
+           on w.replica_id=(d.item->>'replica_id')::uuid
+          and w.owner_user_id=(d.item->>'owner_user_id')::uuid
+          and w.source_id=(d.item->>'source_id')::uuid
+          and w.window_id=(d.item#>>'{value,provenance,window_id}')::uuid
+          and w.session_id=(d.item#>>'{value,provenance,session_id}')::uuid
+          and w.seq=(d.item#>>'{value,provenance,seq}')::integer
+          and w.asr_state='transcribed'
+          and w.duration_ms=(d.item#>>'{span,end_ms}')::integer
+          and (d.item#>>'{span,start_ms}')::integer=0
+          and d.item->>'evidence_type' in ('transcript_span','language_span')
+          and d.item#>>'{value,provenance,origin}'='mirror_call'
+          and d.item#>>'{value,provenance,source_id}'=w.source_id::text
+          and d.item#>>'{value,provenance,asr_provider}'=w.asr_provider
+          and d.item#>>'{value,provenance,asr_model}'=w.asr_model
+         join vy_replica_source src
+           on src.source_id=w.source_id and src.replica_id=w.replica_id
+          and src.owner_user_id=w.owner_user_id and src.sha256=d.item->>'input_sha256'
+        where d.item->>'evidence_type'='language_span'
+           or (d.item->>'evidence_type'='transcript_span' and w.transcript=d.item#>>'{value,text}')
+       on conflict do nothing
+       returning evidence_id
+     ), valid_evidence as materialized (
+       select count(*)::integer total from desired_evidence d
+        where (d.item->>'evidence_id')::uuid in (select evidence_id from inserted_evidence)
+           or exists (
+             select 1 from vy_replica_processing_evidence e
+              where e.evidence_id=(d.item->>'evidence_id')::uuid
+                and e.replica_id=(d.item->>'replica_id')::uuid
+                and e.owner_user_id=(d.item->>'owner_user_id')::uuid
+                and e.source_id=(d.item->>'source_id')::uuid
+                and e.input_sha256=d.item->>'input_sha256'
+                and e.record_hash=d.item->>'record_hash')
+     ), desired_expression as materialized (
+       select value item from jsonb_array_elements($10::jsonb)
+        where exists (
+          select 1 from settled w join consent_at_settlement c on c.window_id=w.window_id
+           where w.asr_state='transcribed' and c.derivation_authorized
+        )
+          and exists (
+            select 1 from settled w
+            join vy_replica r on r.replica_id=w.replica_id and r.owner_user_id=w.owner_user_id
+            join vy_replica_consent exact_consent
+              on exact_consent.consent_id=(value->>'source_consent_id')::uuid
+             and exact_consent.replica_id=r.replica_id
+             and exact_consent.owner_user_id=r.owner_user_id
+             and exact_consent.scope='training'
+             and exact_consent.policy_version=r.policy_version
+             and exact_consent.granted_at<=w.created_at
+             and exact_consent.revoked_at is null
+             and (exact_consent.expires_at is null or exact_consent.expires_at>now())
+             where w.asr_state='transcribed'
+          )
+     ), inserted_expression as (
+       insert into vy_replica_expression_observation (
+         observation_id,replica_id,owner_user_id,source_id,source_commitment_id,
+         source_record_hash,source_content_sha256,session_id,window_id,mirror_turn_id,turn_id,dyad_id,
+         agent_id,person_id,span_unit,span_start,span_end,span_content_sha256,span_hash,
+         feature_name,feature_value,feature_unit,epistemic_status,confidence,
+         producer_kind,producer_name,producer_revision,producer_code_hash,
+         calibration_status,calibration_method,calibration_revision,calibration_sample_size,
+         calibration_dataset_hash,calibration_measured_at,observed_at,expires_at,
+         compiler_revision,claim_target,interpretation,may_claim_inner_emotion,record_hash,source_consent_id)
+       select item->>'observation_id',(item->>'replica_id')::uuid,(item->>'owner_user_id')::uuid,
+              (item->>'source_id')::uuid,item->>'source_commitment_id',item->>'source_record_hash',
+              item->>'source_content_sha256',(item->>'session_id')::uuid,(item->>'window_id')::uuid,
+              nullif(item->>'mirror_turn_id','')::uuid,item->>'turn_id',item->>'dyad_id',
+              (item->>'agent_id')::uuid,(item->>'person_id')::uuid,item->>'span_unit',
+              (item->>'span_start')::bigint,(item->>'span_end')::bigint,
+              item->>'span_content_sha256',item->>'span_hash',item->>'feature_name',
+              (item->>'feature_value')::double precision,item->>'feature_unit',
+              item->>'epistemic_status',(item->>'confidence')::double precision,
+              item->>'producer_kind',item->>'producer_name',item->>'producer_revision',
+              item->>'producer_code_hash',item->>'calibration_status',item->>'calibration_method',
+              item->>'calibration_revision',(item->>'calibration_sample_size')::integer,
+              nullif(item->>'calibration_dataset_hash',''),
+              nullif(item->>'calibration_measured_at','')::timestamptz,
+              (item->>'observed_at')::timestamptz,(item->>'expires_at')::timestamptz,
+              item->>'compiler_revision',item->>'claim_target',item->>'interpretation',
+              (item->>'may_claim_inner_emotion')::boolean,item->>'record_hash',
+              (item->>'source_consent_id')::uuid
+         from desired_expression d
+         join settled w on w.replica_id=(d.item->>'replica_id')::uuid
+          and w.owner_user_id=(d.item->>'owner_user_id')::uuid
+          and w.source_id=(d.item->>'source_id')::uuid
+          and w.session_id=(d.item->>'session_id')::uuid
+          and w.window_id=(d.item->>'window_id')::uuid
+          and d.item->>'turn_id'=w.window_id::text
+          and nullif(d.item->>'mirror_turn_id','') is null
+          and d.item->>'span_unit'='audio_ms'
+          and (d.item->>'span_start')::bigint=0
+          and (d.item->>'span_end')::bigint=w.duration_ms
+          and (
+            (d.item->>'feature_name'='energy_rms_db'
+              and d.item->>'epistemic_status'='observed'
+              and d.item->>'producer_kind'='direct_measurement')
+            or
+            (d.item->>'feature_name' in ('turn_duration_ms','token_count','speech_rate_wpm','code_switch_ratio')
+              and d.item->>'epistemic_status'='inferred'
+              and d.item->>'producer_kind'='rules')
+          )
+          and d.item->>'claim_target'='delivery_cue'
+          and d.item->>'interpretation'='observer_interpretation'
+          and (d.item->>'may_claim_inner_emotion')::boolean=false
+         join vy_mirror_session ms on ms.session_id=w.session_id
+          and ms.replica_id=w.replica_id and ms.owner_user_id=w.owner_user_id
+          and ms.consent_scopes @> array['capture','storage','transcription']::text[]
+         join vy_replica r on r.replica_id=w.replica_id and r.owner_user_id=w.owner_user_id
+          and r.agent_id=(d.item->>'agent_id')::uuid
+          and r.subject_person_id=(d.item->>'person_id')::uuid
+          and d.item->>'dyad_id'='dyad:' || r.agent_id::text || ':' || r.subject_person_id::text
+         join vy_replica_consent c on c.consent_id=(d.item->>'source_consent_id')::uuid
+          and c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
+          and c.scope='training' and c.policy_version=r.policy_version
+          and c.granted_at<=w.created_at
+          and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())
+         join vy_replica_source src on src.source_id=w.source_id
+          and src.replica_id=w.replica_id and src.owner_user_id=w.owner_user_id
+          and src.sha256=d.item->>'source_content_sha256'
+        where w.asr_state='transcribed'
+          and d.item->>'feature_name' in ('turn_duration_ms','token_count','speech_rate_wpm','code_switch_ratio','energy_rms_db')
+          and not exists (
+            select 1 from unnest(array['capture','storage','transcription']::text[]) required(scope)
+             where not exists (
+               select 1 from vy_replica_consent live
+                where live.replica_id=r.replica_id and live.owner_user_id=r.owner_user_id
+                  and live.scope=required.scope and live.policy_version=r.policy_version
+                  and live.revoked_at is null and (live.expires_at is null or live.expires_at>now())
+             )
+          )
+       on conflict (observation_id) do nothing
+       returning observation_id
+     ), valid_expression as materialized (
+       select count(*)::integer total from desired_expression d
+        where d.item->>'observation_id' in (select observation_id from inserted_expression)
+           or exists (
+             select 1 from vy_replica_expression_observation o
+              where o.observation_id=d.item->>'observation_id'
+                and o.record_hash=d.item->>'record_hash'
+                and o.replica_id=(d.item->>'replica_id')::uuid
+                and o.owner_user_id=(d.item->>'owner_user_id')::uuid
+                and o.source_id=(d.item->>'source_id')::uuid
+                and o.session_id=(d.item->>'session_id')::uuid
+                and o.window_id=(d.item->>'window_id')::uuid
+                and o.agent_id=(d.item->>'agent_id')::uuid
+                and o.person_id=(d.item->>'person_id')::uuid
+                and o.source_consent_id=(d.item->>'source_consent_id')::uuid)
+     ), collision_guard as materialized (
+       select 1 / case
+         when not exists (select 1 from settled) then 1
+         when (select count(*) from desired_evidence)=(select total from valid_evidence)
+          and (select count(*) from desired_expression)=(select total from valid_expression) then 1
+         else 0 end ok
+     )
+     select ${WINDOW_COLUMNS} from settled w cross join collision_guard g where g.ok=1`,
     [
       mirrorUuid(windowIdValue, "mirror_window_id_invalid"),
       mirrorUuid(replicaIdValue, "mirror_replica_id_invalid"),
@@ -495,6 +728,10 @@ export async function settleMirrorWindow(db, ownerUserId, replicaIdValue, window
       // Never '' on a drop — migration 058's CHECK refuses a reasonless drop,
       // so a caller that forgot the code gets a 23514 rather than a silent gap.
       transcribed ? "" : String(result?.failureCode || "asr_unavailable"),
+      JSON.stringify(evidence),
+      JSON.stringify(expressionObservations),
+      MIRROR_SESSION_SCOPES,
+      MIRROR_DERIVATION_SCOPES,
     ],
   );
   return rows[0] || null;
@@ -546,9 +783,21 @@ export async function proposeMirrorDelta(db, ownerUserId, replicaIdValue, sessio
   const deltaId = options.deltaId || randomUUID();
   const rows = await db(
     `with sess as (
-       select s.session_id, s.replica_id, s.owner_user_id from vy_mirror_session s
-        where s.session_id = $1::uuid and s.replica_id = $2::uuid
-          and s.owner_user_id = $3::uuid and s.state = 'open'
+       select s.session_id,s.replica_id,s.owner_user_id
+         from vy_mirror_session s join vy_replica r
+           on r.replica_id=s.replica_id and r.owner_user_id=s.owner_user_id
+          and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
+        where s.session_id=$1::uuid and s.replica_id=$2::uuid
+          and s.owner_user_id=$3::uuid and s.state='open'
+          and not exists (
+            select 1 from unnest($15::text[]) required(scope)
+             where not exists (
+               select 1 from vy_replica_consent c
+                where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
+                  and c.scope=required.scope and c.policy_version=r.policy_version
+                  and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())
+             )
+          )
      ), upserted as (
        insert into vy_mirror_delta
          (delta_id, session_id, replica_id, owner_user_id, kind, fragment, target_field,
@@ -586,6 +835,7 @@ export async function proposeMirrorDelta(db, ownerUserId, replicaIdValue, sessio
       // budget held back. Both are UN-ACTIONED and both are decidable — the
       // budget rate-limits the RAIL, it does not decide anything for the owner.
       delta.state === "deferred" ? "deferred" : "proposed",
+      MIRROR_DERIVATION_SCOPES,
     ],
   );
   return rows[0] || null;
@@ -616,32 +866,118 @@ export async function getProposedMirrorDelta(db, ownerUserId, replicaIdValue, se
 /**
  * The consented private object behind one window, as an `asrInput` ref.
  *
- * `state = 'quarantined'` is the finalized-and-verified state
- * (`finalizeOwnedSource`), so a source whose upload never completed cannot be
- * sent to a transcriber. The path is read from the COLUMN rather than rebuilt
+ * `state = 'quarantined'` is the finalized, metadata-verified state. Mirror
+ * Call then verifies the stored bytes against this row's SHA-256 inline before
+ * ASR because these short-lived sources intentionally skip the enrollment
+ * DAG. The path is read from the COLUMN rather than rebuilt
  * from `privateObjectPath`, because the column is what storage actually holds
  * and a recomputed path that drifts would read someone else's object or none.
  */
-export async function mirrorWindowAudioRef(db, ownerUserId, replicaIdValue, sourceIdValue) {
+export async function mirrorWindowAudioRef(
+  db, ownerUserId, replicaIdValue, sourceIdValue, sessionIdValue, seqValue,
+) {
   const rows = await db(
-    `select s.storage_bucket, s.object_path, s.sha256, s.mime, s.byte_size from vy_replica_source s
-      where s.source_id = $1::uuid and s.replica_id = $2::uuid and s.owner_user_id = $3::uuid
-        and s.kind = 'audio' and s.state = 'quarantined' limit 1`,
+    `with target as (
+       select src.source_id,src.storage_bucket,src.object_path,src.sha256,src.mime,src.byte_size,
+              r.policy_version
+         from vy_replica_source src
+         join vy_mirror_window w on w.source_id=src.source_id and w.replica_id=src.replica_id
+          and w.owner_user_id=src.owner_user_id and w.session_id=$4::uuid and w.seq=$5::int
+         join vy_mirror_session s on s.session_id=w.session_id and s.replica_id=w.replica_id
+          and s.owner_user_id=w.owner_user_id and s.state='open'
+         join vy_replica r on r.replica_id=w.replica_id and r.owner_user_id=w.owner_user_id
+          and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
+        where src.source_id=$1::uuid and src.replica_id=$2::uuid and src.owner_user_id=$3::uuid
+          and src.kind='audio' and src.state='quarantined' and src.capture_mode='derived'
+          and src.provenance->>'purpose'='mirror_window'
+          and src.provenance->>'mirror_session_id'=$4::text
+          and src.provenance->>'mirror_seq'=$5::text
+     ), live_scopes as (
+       select coalesce(array_agg(distinct c.scope) filter (where c.scope is not null), '{}'::text[]) scopes
+         from target t left join vy_replica_consent c
+           on c.replica_id=$2::uuid and c.owner_user_id=$3::uuid
+          and c.policy_version=t.policy_version and c.revoked_at is null
+          and (c.expires_at is null or c.expires_at>now())
+     )
+     select t.source_id,t.storage_bucket,t.object_path,t.sha256,t.mime,t.byte_size,
+            s.scopes as live_consent_scopes,
+            s.scopes @> $6::text[] as live_consent_authorized
+       from target t cross join live_scopes s limit 1`,
     [
       mirrorUuid(sourceIdValue, "mirror_window_source_invalid"),
       mirrorUuid(replicaIdValue, "mirror_replica_id_invalid"),
       ownerUserId,
+      mirrorUuid(sessionIdValue, "mirror_session_id_invalid"),
+      Number(seqValue),
+      MIRROR_SESSION_SCOPES,
     ],
   );
   const row = rows[0];
   if (!row) return null;
   return {
+    sourceId: row.source_id,
     storageBucket: row.storage_bucket,
     storagePath: row.object_path,
     sha256: row.sha256,
     mime: row.mime,
     byteSize: Number(row.byte_size),
+    liveConsentAuthorized: row.live_consent_authorized === true || row.live_consent_authorized === "true",
+    liveConsentScopes: Array.isArray(row.live_consent_scopes) ? row.live_consent_scopes : [],
+    requiredScopes: [...MIRROR_SESSION_SCOPES],
   };
+}
+
+/** Resolve every server-owned scope needed to commit an ephemeral expression
+ * observation. No client value can select the agent, person, source hash,
+ * consent receipt time, or capture time. Missing identity binding returns null
+ * and therefore collects nothing rather than inventing a dyad. */
+export async function mirrorExpressionScope(
+  db, ownerUserId, replicaIdValue, sessionIdValue, windowIdValue,
+) {
+  const rows = await db(
+    `select r.agent_id,r.subject_person_id,w.source_id,w.duration_ms,w.own_voice_state,
+            w.created_at,c.granted_at as expression_consent_granted_at,
+            c.consent_id as expression_consent_id,c.scope as expression_consent_scope,
+            array['capture','storage','transcription']::text[] as consent_scopes,
+            src.sha256,src.byte_size
+       from vy_mirror_window w
+       join vy_mirror_session s on s.session_id=w.session_id and s.replica_id=w.replica_id
+        and s.owner_user_id=w.owner_user_id and s.state='open'
+       join vy_replica r on r.replica_id=w.replica_id and r.owner_user_id=w.owner_user_id
+        and r.lifecycle not in ('revoked','purging')
+       join lateral (
+         select grant_row.consent_id,grant_row.scope,grant_row.granted_at
+           from vy_replica_consent grant_row
+          where grant_row.replica_id=r.replica_id and grant_row.owner_user_id=r.owner_user_id
+            and grant_row.scope='training' and grant_row.policy_version=r.policy_version
+            and grant_row.granted_at<=w.created_at
+            and grant_row.revoked_at is null
+            and (grant_row.expires_at is null or grant_row.expires_at>now())
+          order by grant_row.granted_at desc,grant_row.consent_id desc limit 1
+       ) c on true
+       join vy_replica_source src on src.source_id=w.source_id and src.replica_id=w.replica_id
+        and src.owner_user_id=w.owner_user_id and src.state='quarantined'
+      where w.window_id=$1::uuid and w.replica_id=$2::uuid and w.owner_user_id=$3::uuid
+        and w.session_id=$4::uuid and w.asr_state='pending'
+        and r.agent_id is not null and r.subject_person_id is not null
+        and not exists (
+          select 1 from unnest(array['capture','storage','transcription']::text[]) required(scope)
+           where not exists (
+             select 1 from vy_replica_consent live
+              where live.replica_id=r.replica_id and live.owner_user_id=r.owner_user_id
+                and live.scope=required.scope and live.policy_version=r.policy_version
+                and live.revoked_at is null and (live.expires_at is null or live.expires_at>now())
+           )
+        )
+      limit 1`,
+    [
+      mirrorUuid(windowIdValue, "mirror_window_id_invalid"),
+      mirrorUuid(replicaIdValue, "mirror_replica_id_invalid"),
+      ownerUserId,
+      mirrorUuid(sessionIdValue, "mirror_session_id_invalid"),
+    ],
+  );
+  return rows[0] || null;
 }
 
 /**
@@ -714,17 +1050,30 @@ export async function decideMirrorDelta(db, ownerUserId, replicaIdValue, session
   }
 
   const rows = await db(
-    `with owned as (
-       select r.replica_id, r.agent_id from vy_replica r
+    `with owned as materialized (
+       select r.replica_id, r.agent_id, r.policy_version from vy_replica r
         where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
           and r.lifecycle not in ('revoked','purging')
+        for update of r
      ), sess as (
        select s.session_id from vy_mirror_session s join owned o on o.replica_id = s.replica_id
         where s.session_id = $3::uuid and s.owner_user_id = $2::uuid and s.state = 'open'
+     ), derivation_gate as (
+       select o.replica_id from owned o
+        where not exists (
+          select 1 from unnest($9::text[]) required(scope)
+           where not exists (
+             select 1 from vy_replica_consent c
+              where c.replica_id=o.replica_id and c.owner_user_id=$2::uuid
+                and c.scope=required.scope and c.policy_version=o.policy_version
+                and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())
+           )
+        )
      ), candidate as (
        select d.delta_id, d.target_field from vy_mirror_delta d
         join sess on sess.session_id = d.session_id
         where d.delta_id = $4::uuid and d.state in ('proposed','deferred')
+          and ($5 <> 'accepted' or d.target_field='' or exists (select 1 from derivation_gate))
      ), writable as (
        select c.delta_id from candidate c
         where c.target_field <> '' and $5 = 'accepted' and $6::jsonb is not null
@@ -749,7 +1098,9 @@ export async function decideMirrorDelta(db, ownerUserId, replicaIdValue, session
      ), decided as (
        update vy_mirror_delta d
           set state = $5, decided_at = now(), updated_at = now(),
-              applied_at = case when exists (select 1 from landed) then now() else d.applied_at end
+              applied_at = case when exists (select 1 from landed) then now() else d.applied_at end,
+              applied_sheet_id = case when exists (select 1 from landed)
+                then (select sheet_id from landed limit 1) else d.applied_sheet_id end
          from candidate c
         where d.delta_id = c.delta_id and d.state in ('proposed','deferred')
           and (not exists (select 1 from writable) or exists (select 1 from landed))
@@ -766,7 +1117,7 @@ export async function decideMirrorDelta(db, ownerUserId, replicaIdValue, session
          from decided
      )
      select * from decided`,
-    [rid, ownerUserId, sid, did, decision, mergedJson, draft.sheetId, randomUUID()],
+    [rid, ownerUserId, sid, did, decision, mergedJson, draft.sheetId, randomUUID(), MIRROR_DERIVATION_SCOPES],
   );
   return { row: rows[0] || null, sheetMerged: mergedJson !== null, draftSheetId: draft.sheetId };
 }
@@ -835,7 +1186,8 @@ export async function listMirrorFeedback(db, ownerUserId, replicaIdValue, sessio
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * End the call: flip the session, trigger re-embedding, queue the fine-tune.
+ * End the call: flip the session, preserve reviewable proposals, and trigger
+ * re-embedding only for identity-admitted reference windows.
  *
  * Three things happen and each is honest about what it is:
  *
@@ -846,24 +1198,34 @@ export async function listMirrorFeedback(db, ownerUserId, replicaIdValue, sessio
  *     that measured 71 s -> 4 windows -> 8 embeddings in 4 977 ms warm. It is
  *     inserted for ADMITTED windows only, which today is none of them.
  *
- *  2. THE FINE-TUNE IS A QUEUE ROW AND NOTHING RUNS IT. There is no lease, no
- *     attempt counter and no worker in this repo. The row means "the owner
- *     asked and nothing has happened yet"; anything else would be the fake
- *     progress bar the spec forbids by name.
+ *  2. MODEL TRAINING IS NOT QUEUED. `vy_mirror_finetune_job` has no lease,
+ *     attempt counter or worker. Writing a row there would create believable
+ *     progress with no consumer, so this endpoint names the lane as not
+ *     connected and creates no row.
  *
  *  3. UN-ACTIONED CHIPS ARE NOT APPLIED. They stay 'proposed' and are left for
  *     the ordinary review queue — the spec's own words. Nothing here sweeps
  *     them into the sheet, and that absence is the point.
  */
-export async function endMirrorSession(db, ownerUserId, replicaIdValue, sessionIdValue, options = {}) {
-  const jobId = options.jobId || randomUUID();
+export async function endMirrorSession(db, ownerUserId, replicaIdValue, sessionIdValue) {
   const rows = await db(
-    `with sess as (
+    `with target as materialized (
+       select s.session_id,s.replica_id,s.owner_user_id,s.policy_version,s.state,s.ended_at
+         from vy_mirror_session s
+        where s.session_id=$1::uuid and s.replica_id=$2::uuid
+          and s.owner_user_id=$3::uuid and s.state in ('open','ended')
+     ), ended_now as (
        update vy_mirror_session s
           set state = 'ended', ended_at = now(), updated_at = now()
-        where s.session_id = $1::uuid and s.replica_id = $2::uuid
-          and s.owner_user_id = $3::uuid and s.state = 'open'
-       returning s.session_id, s.replica_id, s.owner_user_id, s.policy_version
+         from target t
+        where s.session_id=t.session_id and s.replica_id=t.replica_id
+          and s.owner_user_id=t.owner_user_id and t.state='open' and s.state='open'
+       returning s.session_id,s.replica_id,s.owner_user_id,s.policy_version,s.ended_at,true newly_ended
+     ), sess as materialized (
+       select * from ended_now
+       union all
+       select t.session_id,t.replica_id,t.owner_user_id,t.policy_version,t.ended_at,false newly_ended
+         from target t where t.state='ended' and not exists (select 1 from ended_now)
      ), admitted as (
        select w.source_id, w.duration_ms from vy_mirror_window w
         join sess on sess.session_id = w.session_id
@@ -875,35 +1237,59 @@ export async function endMirrorSession(db, ownerUserId, replicaIdValue, sessionI
          from sess cross join admitted a
        on conflict (source_id, step, revision) do nothing
        returning job_id
-     ), finetune as (
-       insert into vy_mirror_finetune_job
-         (job_id, session_id, replica_id, owner_user_id, state, reference_windows, reference_ms)
-       select $4::uuid, sess.session_id, sess.replica_id, sess.owner_user_id, 'queued',
-              (select count(*)::int from admitted),
-              (select coalesce(sum(a.duration_ms), 0)::int from admitted a)
-         from sess where exists (select 1 from admitted)
-       on conflict (session_id) do nothing
-       returning job_id, reference_windows, reference_ms
+     ), canonical_transcripts as (
+       select count(*)::int total
+         from sess join vy_mirror_window w on w.session_id=sess.session_id
+         join vy_replica_processing_evidence e
+           on e.source_id=w.source_id and e.replica_id=sess.replica_id
+          and e.owner_user_id=sess.owner_user_id and e.evidence_type='transcript_span'
+        where e.value#>>'{provenance,origin}'='mirror_call'
+          and e.value#>>'{provenance,session_id}'=sess.session_id::text
+          and e.value#>>'{provenance,window_id}'=w.window_id::text
+     ), claim_queue as materialized (
+       select q.job_id,q.state,q.next_attempt_at,
+              count(i.evidence_id) filter (where i.state='pending')::int pending_items
+         from sess join vy_replica_claim_extraction_queue q
+           on q.replica_id=sess.replica_id and q.owner_user_id=sess.owner_user_id
+         left join vy_replica_claim_extraction_queue_item i
+           on i.job_id=q.job_id and i.replica_id=q.replica_id and i.owner_user_id=q.owner_user_id
+        group by q.job_id
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
        select $2::uuid, $3::uuid, 'mirror_call.end', 'mirror_session', sess.session_id::text,
               sess.policy_version, 'allowed',
               jsonb_build_object('reembedding_jobs', (select count(*) from reembed),
-                                 'finetune_queued', exists (select 1 from finetune))
-         from sess
+                                 'reference_windows', (select count(*) from admitted),
+                                 'finetune_queued', false,
+                                 'model_training', 'not_connected',
+                                 'persona_mutation', 'owner_review_required',
+                                 'canonical_transcript_spans', (select total from canonical_transcripts),
+                                 'claim_extraction_queued', coalesce((select state in ('queued','running') from claim_queue),false),
+                                 'claim_extraction_state', coalesce((select state from claim_queue),'not_enqueued'),
+                                 'claim_extraction_trigger', 'scheduled_nearline_sweep')
+         from sess where sess.newly_ended
      )
-     select sess.session_id,
+     select sess.session_id,sess.ended_at,sess.newly_ended,
             (select count(*)::int from reembed) as reembedding_jobs,
-            (select job_id from finetune) as finetune_job_id,
-            (select reference_windows from finetune) as finetune_reference_windows,
-            (select reference_ms from finetune) as finetune_reference_ms
+            (select total from canonical_transcripts) as canonical_transcript_spans,
+            (select job_id from claim_queue) as claim_extraction_job_id,
+            coalesce((select state from claim_queue),'not_enqueued') as claim_extraction_job_state,
+            coalesce((select pending_items from claim_queue),0)::int as claim_extraction_pending_items,
+            (select next_attempt_at from claim_queue) as claim_extraction_next_attempt_at,
+            null::uuid as finetune_job_id,
+            (select count(*)::int from admitted) as finetune_reference_windows,
+            (select coalesce(sum(a.duration_ms), 0)::int from admitted a) as finetune_reference_ms,
+            case
+              when not exists (select 1 from admitted) then 'blocked_owner_voice_unverified'
+              when exists (select 1 from reembed) then 'evidence_reembedding_queued'
+              else 'evidence_already_queued'
+            end as voice_adaptation_state
        from sess`,
     [
       mirrorUuid(sessionIdValue, "mirror_session_id_invalid"),
       mirrorUuid(replicaIdValue, "mirror_replica_id_invalid"),
       ownerUserId,
-      jobId,
     ],
   );
   return rows[0] || null;

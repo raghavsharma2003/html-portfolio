@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { replicaId } from "./_replica.js";
+import { clientIntentId, replicaId } from "./_replica.js";
 import { REPLICA_STORAGE_WRITE_BUCKET } from "./_replica-storage.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -62,7 +62,19 @@ export function sourceUploadInput(value) {
   if (!SHA256.test(sha256)) fail("lowercase SHA-256 is required");
   if (typeof input.contains_third_parties !== "boolean") fail("contains_third_parties declaration required");
   const purpose = String(input.purpose || "memory").trim();
-  if (!new Set(["memory", "identity_document", "identity_challenge", "correction", "interview"]).has(purpose)) fail("unsupported source purpose");
+  if (!new Set(["memory", "identity_document", "mirror_window", "context_item", "identity_challenge", "correction", "interview"]).has(purpose)) fail("unsupported source purpose");
+  const uploadIntentId = input.upload_intent_id == null || input.upload_intent_id === ""
+    ? null
+    : clientIntentId(input.upload_intent_id, "valid_upload_intent_id_required");
+  const languageHint = input.language_hint == null || input.language_hint === ""
+    ? null
+    : String(input.language_hint).trim().toLowerCase();
+  if (languageHint && !new Set(["en", "hi", "hi-latn"]).has(languageHint)) {
+    fail("source_language_hint_invalid");
+  }
+  if (uploadIntentId && purpose === "memory" && new Set(["audio", "video"]).has(kind) && !languageHint) {
+    fail("source_language_hint_required");
+  }
   if (purpose === "identity_document") {
     const accepted = (kind === "image" && new Set(["image/jpeg", "image/png"]).has(mime)) ||
       (kind === "document" && mime === "application/pdf");
@@ -81,7 +93,7 @@ export function sourceUploadInput(value) {
   }
   const captureMode = purpose === "identity_document" ? "identity_document"
     : purpose === "identity_challenge" ? "identity_challenge"
-      : "upload";
+      : purpose === "mirror_window" ? "derived" : "upload";
   // WS-R4. A correction is the owner's better answer to a review card. It is
   // typed or dictated, so it is text or audio and nothing else, and it names
   // only the owner — a correction that declares third parties would put someone
@@ -89,6 +101,16 @@ export function sourceUploadInput(value) {
   if (purpose === "correction") {
     if (!new Set(["text", "audio"]).has(kind)) fail("a correction must be text or audio");
     if (input.contains_third_parties) fail("a correction must contain only the owner");
+  }
+  let mirrorSessionId = null;
+  let mirrorSeq = null;
+  if (purpose === "mirror_window") {
+    mirrorSessionId = String(input.mirror_session_id || "").trim();
+    mirrorSeq = Number(input.mirror_seq);
+    if (!UUID.test(mirrorSessionId)) fail("mirror session id required");
+    if (!Number.isSafeInteger(mirrorSeq) || mirrorSeq < 1) fail("mirror window sequence required");
+    if (kind !== "audio" || mime !== "audio/wav") fail("mirror window must be WAV audio");
+    if (input.contains_third_parties) fail("mirror window must contain only the owner");
   }
   return {
     kind,
@@ -98,6 +120,10 @@ export function sourceUploadInput(value) {
     containsThirdParties: input.contains_third_parties,
     captureMode,
     purpose,
+    uploadIntentId,
+    languageHint,
+    mirrorSessionId,
+    mirrorSeq,
   };
 }
 
@@ -120,6 +146,9 @@ export function clientSource(row) {
     byte_size: Number(row.byte_size),
     state: row.state,
     contains_third_parties: Boolean(row.contains_third_parties),
+    voice_role: row.voice_role === "primary" ? "primary" : "supporting",
+    upload_intent_id: row.upload_intent_id || null,
+    language_hint: row.language_hint || null,
     rejection_code: row.rejection_code || "",
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -127,8 +156,49 @@ export function clientSource(row) {
 }
 
 const SOURCE_RETURNING = `source_id, replica_id, owner_user_id, kind, capture_mode, purpose, storage_bucket,
-  object_path, mime, byte_size, sha256, state, contains_third_parties,
-  rejection_code, created_at, updated_at`;
+  object_path, mime, byte_size, sha256, state, contains_third_parties, upload_intent_id,
+  language_hint, provenance, rejection_code, upload_authorization_expires_at, created_at, updated_at`;
+const SOURCE_SELECT = `s.source_id, s.replica_id, s.owner_user_id, s.kind, s.capture_mode, s.purpose, s.storage_bucket,
+  s.object_path, s.mime, s.byte_size, s.sha256, s.state, s.contains_third_parties, s.upload_intent_id,
+  s.language_hint, s.provenance, s.rejection_code, s.upload_authorization_expires_at, s.created_at, s.updated_at`;
+
+// Reserve the entire lifetime of a direct-to-provider upload grant before the
+// grant is minted. If capability construction or the HTTP response is lost,
+// erasure still has a durable not-after fence and waits safely. The grant is
+// usable for two hours; a separate ninety-minute quiescence interval covers
+// the shipped 8 MiB Azure block's official 80-minute service ceiling plus a
+// ten-minute acknowledgement margin. This is the legitimate shipped-write
+// contract, not revocation of a capability deliberately copied out of the
+// client: using such a capability later is a new owner-side resubmission and
+// is outside the deletion receipt's provider-revocation claim.
+export async function reserveOwnedSourceUploadAuthorization(db, ownerUserId, id, source, options = {}) {
+  const horizonMs = Math.max(60_000, Math.min(220 * 60 * 1000,
+    Number(options.horizonMs || 210 * 60 * 1000)));
+  const rows = await db(
+    `update vy_replica_source s
+        set upload_authorization_expires_at=greatest(
+              coalesce(s.upload_authorization_expires_at,'-infinity'::timestamptz),
+              now()+($4::bigint*interval '1 millisecond')
+            ),updated_at=now()
+      where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.source_id=$3::uuid
+        and s.state='pending_upload'
+      returning ${SOURCE_RETURNING}`,
+    [replicaId(id), ownerUserId, replicaId(source), horizonMs],
+  );
+  return rows[0] || null;
+}
+
+export function assertUploadWithinSourceFence(source, upload) {
+  const fence = Date.parse(String(source?.upload_authorization_expires_at || ""));
+  const issued = Date.parse(String(upload?.expires_at || ""));
+  if (!Number.isFinite(fence) || !Number.isFinite(issued) || issued > fence) {
+    throw Object.assign(new Error("signed_upload_exceeds_source_fence"), {
+      code: "signed_upload_exceeds_source_fence",
+      status: 503,
+    });
+  }
+  return upload;
+}
 
 export async function createPendingSource(db, ownerUserId, id, value, options = {}) {
   const rid = replicaId(id);
@@ -140,6 +210,11 @@ export async function createPendingSource(db, ownerUserId, id, value, options = 
     declaration: "client_sha256",
     sha256_status: "pending_server_verification",
     filename_retained: false,
+    purpose: input.purpose,
+    ...(input.mirrorSessionId ? {
+      mirror_session_id: input.mirrorSessionId,
+      mirror_seq: input.mirrorSeq,
+    } : {}),
   });
   const rows = await db(
     `with owned as (
@@ -163,37 +238,81 @@ export async function createPendingSource(db, ownerUserId, id, value, options = 
        select 1 from owned cross join pending_lock
         where (select count(*) from vy_replica_source s
                 where s.owner_user_id=$2::uuid and s.state='pending_upload')<8
+     ), mirror_binding as (
+       select 1 from owned where $12 <> 'derived'
+       union all
+       select 1 from vy_mirror_session ms join owned o on o.replica_id=ms.replica_id
+        where $12 = 'derived' and ms.session_id=$13::uuid and ms.owner_user_id=$2::uuid
+          and ms.state='open' and $14::int > 0
      ), inserted as (
        insert into vy_replica_source
          (source_id, replica_id, owner_user_id, consent_id, kind, capture_mode,
           storage_bucket, object_path, mime, byte_size, sha256,
-          contains_third_parties, provenance, purpose)
+           contains_third_parties, provenance, upload_intent_id, language_hint,
+           purpose, upload_authorization_expires_at)
        select $3::uuid, owned.replica_id, $2::uuid, capture.consent_id, $4, $12,
-              $5, $6, $7, $8::int8, $9, $10::bool, $11::jsonb, $13::text
-         from owned cross join capture cross join storage_ok cross join pending_budget
-       returning ${SOURCE_RETURNING}
-     ), audit as (
+              $5, $6, $7, $8::int8, $9, $10::bool, $11::jsonb, $16::uuid, $17, $15::text, null
+         from owned cross join capture cross join storage_ok cross join pending_budget cross join mirror_binding
+       on conflict (owner_user_id, replica_id, upload_intent_id)
+         where upload_intent_id is not null do nothing
+       returning ${SOURCE_RETURNING},false intent_replayed
+      ), replay as (
+        select ${SOURCE_SELECT},true intent_replayed
+          from vy_replica_source s cross join owned cross join capture cross join storage_ok cross join mirror_binding
+         where $16::uuid is not null and s.replica_id=$1::uuid and s.owner_user_id=$2::uuid
+           and s.upload_intent_id=$16::uuid and not exists (select 1 from inserted)
+         limit 1
+      ), recovered as (
+        -- A finalized source is an observation of the already-committed
+        -- action, not a new capture or storage grant. This branch never
+        -- returns pending_upload, so it can never mint a new upload
+        -- capability after either consent has expired.
+        select ${SOURCE_SELECT},true intent_replayed
+          from vy_replica_source s cross join owned
+         where $16::uuid is not null and s.replica_id=$1::uuid and s.owner_user_id=$2::uuid
+           and s.upload_intent_id=$16::uuid and s.state<>'pending_upload'
+           and not exists (select 1 from inserted) and not exists (select 1 from replay)
+         limit 1
+      ), resolved as (
+        select * from inserted
+        union all
+        select * from replay
+        union all
+        select * from recovered
+      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
        select $1::uuid, $2::uuid, 'source.create_upload', 'source', source_id::text,
               (select policy_version from owned), 'allowed',
               jsonb_build_object('kind', kind, 'byte_size', byte_size,
                                  'contains_third_parties', contains_third_parties,
-                                 'capture_mode', capture_mode, 'purpose', purpose)
+                                 'capture_mode', capture_mode, 'purpose', $15::text)
          from inserted
      )
-     select * from inserted`,
+     select * from resolved`,
     [rid, ownerUserId, sourceId, input.kind, REPLICA_STORAGE_WRITE_BUCKET, path, input.mime,
       input.byteSize, input.sha256, input.containsThirdParties, provenance, input.captureMode,
-      input.purpose],
+      input.mirrorSessionId, input.mirrorSeq, input.purpose, input.uploadIntentId, input.languageHint],
   );
-  return rows[0] || null;
+  const row = rows[0] || null;
+  if (row?.intent_replayed) {
+    const exact = row.kind === input.kind && row.capture_mode === input.captureMode && row.mime === input.mime
+      && Number(row.byte_size) === input.byteSize && row.sha256 === input.sha256
+      && Boolean(row.contains_third_parties) === input.containsThirdParties
+      && (row.provenance?.purpose || "memory") === input.purpose
+      && (row.language_hint || null) === input.languageHint;
+    if (!exact) fail("upload_intent_conflict", 409);
+  }
+  return row;
 }
 
 export async function getPendingSource(db, ownerUserId, id, source) {
   const sid = replicaId(source);
   const rows = await db(
-    `select ${SOURCE_RETURNING} from vy_replica_source s
+    `select ${SOURCE_SELECT},
+            case when vr.source_id is not null then 'primary' else 'supporting' end voice_role
+       from vy_replica_source s
+       left join vy_replica_voice_reference vr on vr.source_id=s.source_id
       where s.replica_id = $1::uuid and s.owner_user_id = $2::uuid and s.source_id = $3::uuid
         and s.state = 'pending_upload'
         and exists (
@@ -216,22 +335,74 @@ export async function getPendingSource(db, ownerUserId, id, source) {
 
 export async function getOwnedSource(db, ownerUserId, id, source) {
   const rows = await db(
-    `select ${SOURCE_RETURNING} from vy_replica_source
-      where replica_id = $1::uuid and owner_user_id = $2::uuid and source_id = $3::uuid
+    `select ${SOURCE_SELECT},
+            case when vr.source_id is not null then 'primary' else 'supporting' end voice_role
+       from vy_replica_source s
+       left join vy_replica_voice_reference vr on vr.source_id=s.source_id
+      where s.replica_id = $1::uuid and s.owner_user_id = $2::uuid and s.source_id = $3::uuid
       limit 1`,
     [replicaId(id), ownerUserId, replicaId(source)],
   );
   return rows[0] || null;
 }
 
+export async function getOwnedSourceByUploadIntent(db, ownerUserId, id, uploadIntent) {
+  const rows = await db(
+    `select ${SOURCE_SELECT},
+            case when vr.source_id is not null then 'primary' else 'supporting' end voice_role
+       from vy_replica_source s
+       left join vy_replica_voice_reference vr on vr.source_id=s.source_id
+      where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.upload_intent_id=$3::uuid
+      limit 1`,
+    [replicaId(id), ownerUserId, clientIntentId(uploadIntent, "valid_upload_intent_id_required")],
+  );
+  return rows[0] || null;
+}
+
 export async function listOwnedSources(db, ownerUserId, id) {
   const rows = await db(
-    `select ${SOURCE_RETURNING} from vy_replica_source
-      where replica_id = $1::uuid and owner_user_id = $2::uuid
-      order by created_at desc limit 200`,
+    `select ${SOURCE_SELECT},
+            case when vr.source_id is not null then 'primary' else 'supporting' end voice_role
+       from vy_replica_source s
+       left join vy_replica_voice_reference vr on vr.source_id=s.source_id
+      where s.replica_id = $1::uuid and s.owner_user_id = $2::uuid
+        and not (s.capture_mode = 'derived' and s.provenance->>'purpose' = 'mirror_window')
+        and not (s.provenance->>'purpose' = 'context_item')
+      order by s.created_at desc limit 200`,
     [replicaId(id), ownerUserId],
   );
   return rows.map(clientSource);
+}
+
+export async function setOwnedPrimaryVoiceSource(db, ownerUserId, id, source) {
+  const rid = replicaId(id);
+  const sid = replicaId(source);
+  const rows = await db(
+    `with target as materialized (
+       select s.* from vy_replica_source s
+        where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.source_id=$3::uuid
+          and s.kind in ('audio','video') and s.capture_mode in ('upload','import','derived')
+          and s.state in ('quarantined','processing','ready') and s.contains_third_parties=false
+          and not (s.capture_mode='derived' and s.provenance->>'purpose'='mirror_window')
+        limit 1
+     ), selected as (
+       insert into vy_replica_voice_reference(replica_id,owner_user_id,source_id,selected_at)
+       select replica_id,owner_user_id,source_id,now() from target
+       on conflict (replica_id) do update
+         set owner_user_id=excluded.owner_user_id,source_id=excluded.source_id,selected_at=excluded.selected_at
+       returning source_id
+     ), audit as (
+       insert into vy_replica_audit
+         (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
+       select $1::uuid,$2::uuid,'source.primary_voice.select','source',t.source_id::text,
+              (select policy_version from vy_replica where replica_id=$1::uuid and owner_user_id=$2::uuid),
+              'allowed',jsonb_build_object('voice_role','primary')
+         from target t join selected x on x.source_id=t.source_id
+     )
+     select ${SOURCE_RETURNING},'primary'::text voice_role from target`,
+    [rid, ownerUserId, sid],
+  );
+  return rows[0] || null;
 }
 
 export function verifyStoredObject(source, objectInfo) {
@@ -282,18 +453,123 @@ export async function finalizeOwnedSource(db, ownerUserId, id, source, objectInf
   return rows[0] || null;
 }
 
+/** Finalize a server-written Context Locker source without putting a PDF or
+ * image into the audio/video processing DAG. `writeImmutableReplicaSource`
+ * already re-read and hashed the private object; this transaction rechecks the
+ * live source permissions and binds that measured digest before setting ready. */
+export async function finalizeOwnedContextSource(db, ownerUserId, id, source, objectInfo) {
+  const rid = replicaId(id);
+  const sid = replicaId(source);
+  const pending = await getPendingSource(db, ownerUserId, rid, sid);
+  // SOURCE_SELECT intentionally omits provenance. The SQL predicate below is
+  // the authority for purpose; this check only handles a missing owned row.
+  if (!pending) return null;
+  const digest = String(objectInfo?.sha256 || "").toLowerCase();
+  const verdict = verifyStoredObject(pending, objectInfo);
+  const ok = verdict.ok && SHA256.test(digest) && digest === pending.sha256;
+  const code = ok ? "" : (verdict.code || "sha256_mismatch");
+  const rows = await db(
+    `with owned as (
+       select r.replica_id,r.policy_version from vy_replica r
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
+          and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
+          and not exists (
+            select 1 from unnest(array['capture','storage']::text[]) required(scope)
+             where not exists (
+               select 1 from vy_replica_consent c
+                where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
+                  and c.scope=required.scope and c.policy_version=r.policy_version
+                  and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())
+             )
+          )
+     ), updated as (
+       update vy_replica_source s
+          set state=$4,rejection_code=$5,
+              provenance=provenance||jsonb_build_object(
+                'sha256_status',case when $4='ready' then 'server_verified' else 'verification_failed' end,
+                'storage_object_id',$6::text
+              ),updated_at=now()
+         from owned o
+        where s.source_id=$3::uuid and s.replica_id=o.replica_id and s.owner_user_id=$2::uuid
+          and s.state='pending_upload' and s.provenance->>'purpose'='context_item'
+          and s.sha256=$7
+       returning ${SOURCE_RETURNING}
+     ), audit as (
+       insert into vy_replica_audit
+         (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
+       select replica_id,owner_user_id,'context_source.finalize','source',source_id::text,
+              (select policy_version from owned),case when state='ready' then 'allowed' else 'denied' end,
+              jsonb_build_object('reason_code',$5,'sha256_verified',state='ready') from updated
+     ) select * from updated`,
+    [rid, ownerUserId, sid, ok ? "ready" : "rejected", code,
+      String(objectInfo?.objectId || "").slice(0, 256), digest],
+  );
+  return rows[0] || null;
+}
+
+/** Remove a context source only before any provider authority has existed.
+ * Once storage has been authorized, callers must mark deleting and let the
+ * standard authority-aware prefix eraser retain the manifest until absence is
+ * proven. */
+export async function discardUnboundContextSource(db, ownerUserId, id, source) {
+  const rows = await db(
+    `delete from vy_replica_source s
+      where s.source_id=$3::uuid and s.replica_id=$1::uuid and s.owner_user_id=$2::uuid
+        and s.provenance->>'purpose'='context_item'
+        and s.state='pending_upload' and s.upload_authorization_expires_at is null
+        and not exists (
+          select 1 from vy_replica_source_storage_writer sw
+           where sw.source_id=s.source_id and sw.replica_id=s.replica_id
+             and sw.owner_user_id=s.owner_user_id
+        )
+        and not exists (select 1 from vy_context_item i where i.source_id=s.source_id)
+        and not exists (select 1 from vy_replica_processing_evidence e where e.source_id=s.source_id)
+        and not exists (select 1 from vy_replica_claim c where s.source_id=any(c.source_ids))
+      returning s.source_id`,
+    [replicaId(id), ownerUserId, replicaId(source)],
+  );
+  return Boolean(rows[0]);
+}
+
 export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
   const rid = replicaId(id);
   const sid = replicaId(source);
   const rows = await db(
     `with target as (
-       update vy_replica_source set state = 'deleting', updated_at = now()
+       update vy_replica_source
+          set state = 'deleting',
+              provenance = provenance || jsonb_build_object(
+                'erasure_requested_at',coalesce(provenance->'erasure_requested_at',to_jsonb(now()))
+              ),
+              updated_at = now()
         where replica_id = $1::uuid and owner_user_id = $2::uuid and source_id = $3::uuid
         returning ${SOURCE_RETURNING}
+     ), processing_jobs as (
+       update vy_replica_processing_job j
+          set state='failed',failure_code='source_erased',lease_token_hash='',
+              leased_at=null,lease_expires_at=null,updated_at=now()
+        where j.replica_id=$1::uuid and j.owner_user_id=$2::uuid and j.source_id=$3::uuid
+          and j.state in ('queued','retry','blocked') and exists (select 1 from target)
+       returning j.job_id
+     ), affected_genomes as materialized (
+       select g.version
+         from vy_replica_voice_genome g join target t on t.replica_id=g.replica_id
+        where (g.definition#>'{references,source_ids}') ? t.source_id::text
+     ), affected_profiles as materialized (
+       select p.version
+         from vy_replica_profile p join target t on t.replica_id=p.replica_id
+        where jsonb_path_exists(
+          p.definition,'$.domains.*[*].source_ids[*] ? (@ == $source)',
+          jsonb_build_object('source',to_jsonb(t.source_id::text))
+        )
      ), invalidated as (
        update vy_replica_claim set status = 'superseded', updated_at = now()
         where replica_id = $1::uuid and $3 = any(source_ids)
           and status in ('proposed','approved') and exists (select 1 from target)
+     ), voice_reference as (
+       delete from vy_replica_voice_reference vr
+        where vr.replica_id=$1::uuid and vr.owner_user_id=$2::uuid and vr.source_id=$3::uuid
+          and exists (select 1 from target)
      ), liveness_challenges as (
        update vy_replica_liveness_challenge ch set state='failed',failure_code='liveness_evidence_deleted',
               face_session_state=case
@@ -391,26 +667,39 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
        update vy_person p set age_tier='unverified'
         where exists (select 1 from identity_replica r where r.subject_person_id=p.person_id)
      ), genomes as (
-       update vy_replica_voice_genome set status = 'retired'
-        where replica_id = $1::uuid and status <> 'retired' and exists (select 1 from target)
+       update vy_replica_voice_genome g set status = 'retired'
+         from affected_genomes affected
+        where g.replica_id = $1::uuid and g.version=affected.version and g.status <> 'retired'
      ), profiles as (
-       update vy_replica_profile set status = 'retired'
-        where replica_id = $1::uuid and status <> 'retired' and exists (select 1 from target)
+       update vy_replica_profile p set status = 'retired'
+         from affected_profiles affected
+        where p.replica_id = $1::uuid and p.version=affected.version and p.status <> 'retired'
      ), voices as (
-       update vy_replica_voice_profile set status = 'deleting', updated_at = now()
-        where replica_id = $1::uuid and status <> 'deleting' and exists (select 1 from target)
+       update vy_replica_voice_profile vp set status = 'deleting', updated_at = now()
+         from affected_genomes affected
+        where vp.replica_id = $1::uuid and vp.genome_version=affected.version and vp.status <> 'deleting'
+       returning vp.voice_profile_id
      ), runtime_capabilities as (
        update vy_replica_runtime_capability c set state='revoked',revoked_at=coalesce(revoked_at,now())
         where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.state in ('active','paused')
-          and exists (select 1 from target)
+          and (exists (select 1 from affected_genomes affected where affected.version=c.genome_version)
+            or exists (select 1 from affected_profiles affected where affected.version=c.profile_version)
+            or exists (select 1 from voices affected where affected.voice_profile_id=c.voice_profile_id))
+       returning c.capability_id
      ), runtime_sessions as (
        update vy_replica_runtime_session s set state='revoked',ended_at=coalesce(ended_at,now()),updated_at=now()
         where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.state='active'
-          and exists (select 1 from target)
+          and exists (select 1 from runtime_capabilities affected where affected.capability_id=s.capability_id)
      ), open_generations as (
        update vy_replica_generation g set state='aborted',failure_code='source_erased',updated_at=now()
         where g.replica_id=$1::uuid and g.owner_user_id=$2::uuid and g.state in ('authorized','streaming')
-          and exists (select 1 from target)
+          and (exists (select 1 from affected_genomes affected where affected.version=g.genome_version)
+            or exists (select 1 from affected_profiles affected where affected.version=g.profile_version)
+            or exists (
+              select 1 from vy_replica_processing_artifact a
+               where a.artifact_id=g.preview_artifact_id and a.source_id=$3::uuid
+                 and a.replica_id=g.replica_id and a.owner_user_id=g.owner_user_id
+            ))
      ), provider_consents as (
        update vy_replica_provider_consent set state = 'revoked',
               revoked_at = coalesce(revoked_at, now()), updated_at = now()

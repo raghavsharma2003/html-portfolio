@@ -223,7 +223,7 @@
   {
     "name": "AZURE_FOUNDRY_API_KEY",
     "section": "1",
-    "sectionTitle": "Foundry — claim extraction + dialogue generation (`vercel-app`)",
+    "sectionTitle": "LLM claim extraction + dialogue generation (`vercel-app`)",
     "target": [
       "vercel-app"
     ],
@@ -232,7 +232,7 @@
   {
     "name": "AZURE_FOUNDRY_CLAIM_MODEL",
     "section": "1",
-    "sectionTitle": "Foundry — claim extraction + dialogue generation (`vercel-app`)",
+    "sectionTitle": "LLM claim extraction + dialogue generation (`vercel-app`)",
     "target": [
       "vercel-app"
     ],
@@ -241,7 +241,7 @@
   {
     "name": "AZURE_FOUNDRY_DIALOGUE_MODEL",
     "section": "1",
-    "sectionTitle": "Foundry — claim extraction + dialogue generation (`vercel-app`)",
+    "sectionTitle": "LLM claim extraction + dialogue generation (`vercel-app`)",
     "target": [
       "vercel-app"
     ],
@@ -250,7 +250,7 @@
   {
     "name": "AZURE_FOUNDRY_ENDPOINT",
     "section": "1",
-    "sectionTitle": "Foundry — claim extraction + dialogue generation (`vercel-app`)",
+    "sectionTitle": "LLM claim extraction + dialogue generation (`vercel-app`)",
     "target": [
       "vercel-app"
     ],
@@ -259,7 +259,7 @@
   {
     "name": "AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS",
     "section": "2",
-    "sectionTitle": "Foundry spend fencing (`vercel-app`)",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
     "target": [
       "vercel-app"
     ],
@@ -268,11 +268,56 @@
   {
     "name": "AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS",
     "section": "2",
-    "sectionTitle": "Foundry spend fencing (`vercel-app`)",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
     "target": [
       "vercel-app"
     ],
     "required": true
+  },
+  {
+    "name": "AZURE_FOUNDRY_REPLY_API_KEY",
+    "section": "36",
+    "sectionTitle": "Optional shared Azure reply (`vercel-app`, 2026-09-06)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "AZURE_FOUNDRY_REPLY_ENDPOINT",
+    "section": "36",
+    "sectionTitle": "Optional shared Azure reply (`vercel-app`, 2026-09-06)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS",
+    "section": "36",
+    "sectionTitle": "Optional shared Azure reply (`vercel-app`, 2026-09-06)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "AZURE_FOUNDRY_REPLY_MODEL",
+    "section": "36",
+    "sectionTitle": "Optional shared Azure reply (`vercel-app`, 2026-09-06)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS",
+    "section": "36",
+    "sectionTitle": "Optional shared Azure reply (`vercel-app`, 2026-09-06)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
   },
   {
     "name": "AZURE_IDENTITY_REVIEW_PATH_APPROVED",
@@ -403,7 +448,7 @@
   {
     "name": "AZURE_REPLICA_APP_BUDGET_USD",
     "section": "2",
-    "sectionTitle": "Foundry spend fencing (`vercel-app`)",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
     "target": [
       "vercel-app",
       "processing-worker"
@@ -413,7 +458,7 @@
   {
     "name": "AZURE_REPLICA_BUDGET_ID",
     "section": "2",
-    "sectionTitle": "Foundry spend fencing (`vercel-app`)",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
     "target": [
       "vercel-app",
       "processing-worker"
@@ -622,6 +667,51 @@
     "required": false
   },
   {
+    "name": "OPENROUTER_API_KEY",
+    "section": "1",
+    "sectionTitle": "LLM claim extraction + dialogue generation (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "OPENROUTER_CLAIM_MODEL",
+    "section": "1",
+    "sectionTitle": "LLM claim extraction + dialogue generation (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "OPENROUTER_INPUT_USD_PER_MTOKENS",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "OPENROUTER_KEY",
+    "section": "1",
+    "sectionTitle": "LLM claim extraction + dialogue generation (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "OPENROUTER_OUTPUT_USD_PER_MTOKENS",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
     "name": "OPEN_VOICE_HMAC_SECRET",
     "section": "9",
     "sectionTitle": "Voice: Chatterbox preview — self-hosted, **no Microsoft approval gate** (`vercel-app`)",
@@ -812,6 +902,16 @@
     "required": true
   },
   {
+    "name": "REPLICA_SELF_TEST_ACCESS",
+    "section": "12b",
+    "sectionTitle": "Owner-only internal replica testing (`vercel-app` + `processing-worker`)",
+    "target": [
+      "vercel-app",
+      "processing-worker"
+    ],
+    "required": true
+  },
+  {
     "name": "REPLICA_SELF_TEST_ENVIRONMENT",
     "section": "12b",
     "sectionTitle": "Owner-only internal replica testing (`vercel-app` + `processing-worker`)",
@@ -839,7 +939,7 @@
       "vercel-app",
       "processing-worker"
     ],
-    "required": true
+    "required": false
   },
   {
     "name": "REPLICA_STORAGE_BUCKET",
@@ -1023,6 +1123,15 @@
     "target": [
       "vercel-app",
       "web build"
+    ],
+    "required": false
+  },
+  {
+    "name": "VYAKTI_REPLY_PROVIDER",
+    "section": "36",
+    "sectionTitle": "Optional shared Azure reply (`vercel-app`, 2026-09-06)",
+    "target": [
+      "vercel-app"
     ],
     "required": false
   },

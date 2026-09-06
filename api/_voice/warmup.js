@@ -20,17 +20,18 @@
 // skew window or makes a 401 retryable — both were rejected there, and for
 // reasons that have not changed.
 //
-// The second cannot be fixed from the app plane at all: the broker exposes no
-// route that wakes the GPU app without synthesising, so the only thing that
-// wakes the runtime is a real `POST /v1/synthesize`. What CAN be fixed is the
-// SHAPE OF THE WAIT — dispatch that request, stop waiting on it after a short
-// flush window, and tell the owner the truth ("warming up, about 2-5 minutes")
-// instead of holding a connection open until the platform kills it.
+// The private runtime stays private. After an owner passes the app's database
+// authorization, the server can send a separately HMAC-bound
+// `POST /v1/runtime-status` to the public broker. The broker admits that body
+// before it probes the internal runtime, so random internet traffic still
+// cannot wake GPU capacity. This remote readiness result also fixes a subtle
+// serverless lie: a per-process `waking` hint can remain stale after another
+// process has already observed the runtime become ready.
 //
 // The warmth record below is per-process, exactly like `api/_ratelimit.js`,
 // and it is deliberately allowed to be wrong. Both directions fail into an
-// honest state: a false "cold" costs one extra `flushMs` probe, and a false
-// "warm" costs one long request that ends in the same `warming` answer. It is
+// honest state: a false "cold" is corrected by the signed broker check, and a
+// false "warm" costs one request that ends in the same `warming` answer. It is
 // a latency hint, never an authorization input — nothing in this file decides
 // who may synthesise.
 
@@ -45,11 +46,11 @@ export const WARMUP = Object.freeze({
   // How long one successful synthesis lets us believe the GPU replica is still
   // up. Container Apps scales to zero on idle; this is a hint, not a contract.
   warmTtlMs: 240_000,
-  // The first wake crossed 200 s live and still needed a fresh warm-runtime
-  // synthesis. Report a 2-5 minute range rather than the disproved 3 minute
-  // ceiling or a false-precision countdown.
+  // A production cold start completed in 418 s and still needed a fresh
+  // warm-runtime synthesis. Report a 2-8 minute range rather than the
+  // disproved 5 minute ceiling or a false-precision countdown.
   coldStartEtaLowMs: 120_000,
-  coldStartEtaHighMs: 300_000,
+  coldStartEtaHighMs: 480_000,
   // How long a dispatched wake is believed to still be in flight.
   wakeInFlightMs: 200_000,
   // How long we stay on a cold synthesis before abandoning the WAIT (never the
@@ -162,7 +163,7 @@ export async function probeAdmissionHealth(options = {}) {
 export function classifyPreviewFailure(error) {
   const code = String(error?.code || error?.message || "voice_preview_failed");
   if (code === "voice_preview_wake_dispatched") return Object.freeze({ state: "warming", code, stage: "runtime_cold" });
-  if (/^(open_voice_unreachable|open_voice_http_5\d\d|open_voice_runtime_unreachable|voice_preview_timeout)$/.test(code)) {
+  if (/^(open_voice_unreachable|open_voice_http_5\d\d|open_voice_runtime_unreachable|open_voice_runtime_warming|voice_preview_timeout)$/.test(code)) {
     return Object.freeze({ state: "warming", code, stage: "runtime_cold" });
   }
   // `transport_binding_invalid` is a wrong key or a replayed nonce. WS-L's
@@ -178,7 +179,7 @@ export function warmingBody(stage, extra = {}) {
     stage,
     message: stage === "admission_cold"
       ? "The voice lab's front door is still waking up. This takes about a minute from cold."
-      : "Your voice runtime is starting on a GPU. From a cold start this takes about 2 to 5 minutes.",
+      : "Your voice runtime is starting on a GPU. From a cold start this takes about 2 to 8 minutes.",
     eta_seconds_low: Math.round(WARMUP.coldStartEtaLowMs / 1000),
     eta_seconds_high: Math.round(WARMUP.coldStartEtaHighMs / 1000),
     retry_after_ms: WARMUP.retryAfterMs,

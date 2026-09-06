@@ -50,6 +50,7 @@
 //    every other provider goes through, and the normalized shape (16 kHz
 //    mono) is asserted rather than assumed.
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { LECTURE_TURNS } from "./fixtures/lecture-hinglish.mjs";
 import { createFakeAsrProvider } from "../api/_asr/providers/fake.js";
 import { createFakeAudioStore } from "../api/_channel/providers/fake.js";
@@ -59,7 +60,9 @@ import { runChannelIngestSweep } from "../api/_channel-ingest.js";
 import { channelRef } from "../api/_channel/contracts.js";
 import {
   CHANNEL_ATTESTATIONS,
+  attestChannelOwnership,
   channelAttestations,
+  createChannelWatch,
   makeChannelAttestationReceipt,
 } from "../api/_channel-watch.js";
 
@@ -170,8 +173,12 @@ function fakeDb(state) {
     if (text.startsWith("select watch_id, replica_id, owner_user_id, channel_url")) {
       return state.watches.filter((w) => w.status === "active");
     }
-    if (text.startsWith("insert into vy_ingest_run")) {
+    if (text.includes("insert into vy_ingest_run")) {
       const [runId, replicaId, ownerId, watchId, videoRef, source] = params;
+      if (!state.replicas.some((replica) => replica.replica_id === replicaId &&
+          replica.owner_user_id === ownerId && !["revoked", "purging"].includes(replica.lifecycle))) {
+        return [];
+      }
       const existing = state.runs.find((r) => r.replica_id === replicaId && r.video_ref === videoRef);
       if (existing) {
         if (existing.status !== "failed") return [];
@@ -230,6 +237,7 @@ function harness(options = {}) {
       const list = (options.videos || VIDEOS).filter((v) => v.videoId !== since)
         .map((v) => ({ ...v, title: "" }));
       const { videoListing } = await import("../api/_channel/contracts.js");
+      await options.afterWatchLoaded?.();
       return videoListing(list, since);
     },
     // No owner caption tracks — the case the extraction lane exists for.
@@ -243,15 +251,24 @@ function harness(options = {}) {
       uploads.push(objectPath);
       // Standing in for the bytes the service will PUT at this exact path.
       audioStore.put(objectPath, LECTURE_TURNS);
+      const url = `https://vyaktitest.blob.core.windows.net/replica-private/${objectPath}?sig=opaque`;
       return {
-        url: "https://project.supabase.co/storage/v1/object/upload/sign/x?token=t",
-        headers: {},
-        storage_bucket: "vyakti-replica-private",
+        url,
+        headers: { "x-ms-version": "2026-04-06" },
+        storage_bucket: "azureblob:vyaktitest:replica-private",
+        resumable: {
+          protocol: "azure-block-v1",
+          endpoint: url,
+          headers: { "x-ms-version": "2026-04-06" },
+          metadata: { objectName: objectPath },
+          chunk_size: 8 * 1024 * 1024,
+        },
       };
     },
   });
   const state = {
     runs: [],
+    replicas: [{ replica_id: REPLICA, owner_user_id: OWNER, lifecycle: "active" }],
     watches: [{
       watch_id: WATCH, replica_id: REPLICA, owner_user_id: OWNER,
       channel_url: options.watchChannel || CHANNEL, provider: "youtube",
@@ -314,6 +331,29 @@ const sweep = (h, attestations) => runChannelIngestSweep({
   };
   ok("a pre-057 watch row reads as UNATTESTED rather than as grandfathered",
     channelWatch(row).attestationId === null);
+}
+
+// A sweep can preload an active watch and spend time listing videos while a
+// full-replica purge commits. The later non-FK run insert must rejoin and lock
+// the exact live replica, so stale work cannot write owner/video data after
+// the erasure receipt.
+{
+  let h;
+  h = harness({
+    afterWatchLoaded: async () => {
+      h.state.watches[0].status = "revoked";
+      h.state.replicas.length = 0;
+    },
+  });
+  const summary = await sweep(h, async () => liveAttestation());
+  const insertSql = h.db.calls.find(({ sql }) => sql.includes("insert into vy_ingest_run"))?.sql || "";
+  ok("a stale loaded channel watch cannot insert a run after the replica purge receipt",
+    summary.ingested === 0 && h.state.runs.length === 0 && h.service.calls.length === 0);
+  ok("channel run insertion serializes on the exact active owner replica row",
+    /with replica_gate as materialized/.test(insertSql) &&
+    /r\.replica_id=\$2::uuid and r\.owner_user_id=\$3::uuid/.test(insertSql) &&
+    /r\.lifecycle not in \('revoked','purging'\)/.test(insertSql) && /for update of r/.test(insertSql) &&
+    /insert into vy_ingest_run[\s\S]*select \$1::uuid,g\.replica_id,g\.owner_user_id/.test(insertSql));
 }
 
 // ── 3. the ceiling ────────────────────────────────────────────────────────
@@ -403,14 +443,144 @@ const sweep = (h, attestations) => runChannelIngestSweep({
   ok("...the upload target is owner- and replica-scoped",
     h.uploads.every((path) => path.startsWith(`${OWNER}/${REPLICA}/${WATCH}/`) && path.endsWith("/original")),
     h.uploads[0] || "(none)");
-  ok("...the request carries the receipt hash and the channel KEY, never a URL or an owner",
+  ok("...the request carries the receipt hash and channel key without separate owner identity fields",
     h.service.calls.every(({ payload }) =>
       /^[0-9a-f]{64}$/.test(payload.attestation.receipt_hash) &&
       payload.attestation.channel_key === "@arjun-sir-physics" &&
-      !JSON.stringify(payload).includes(OWNER) &&
-      !JSON.stringify(payload).includes(REPLICA)));
+      !Object.hasOwn(payload, "owner_user_id") &&
+      !Object.hasOwn(payload, "replica_id")));
+  ok("...and every signed control request carries the bounded Azure block contract intact",
+    h.service.calls.every(({ payload }) =>
+      payload.upload.resumable.protocol === "azure-block-v1" &&
+      payload.upload.resumable.chunk_size === 8 * 1024 * 1024 &&
+      payload.upload.resumable.endpoint === payload.upload.url));
   ok("...and the run rows reached 'proposed'",
     h.state.runs.length === VIDEOS.length && h.state.runs.every((r) => r.status === "proposed"));
+}
+
+// The old url+headers shape authorized one unbounded PUT. It must fail before
+// the trusted service sees a request; silently falling back would make the
+// 210-minute in-flight-write fence a claim about a protocol we do not ship.
+{
+  const service = fakeService();
+  const client = createMediaExtractClient({
+    env: {
+      AZURE_MEDIA_EXTRACT_ORIGIN: ORIGIN,
+      MEDIA_EXTRACT_HMAC_SECRET: SECRET,
+    },
+    fetchImpl: service.fetchImpl,
+  });
+  let code = "";
+  try {
+    await client.extractAudio({
+      videoId: VIDEOS[0].videoId,
+      attestation: { ...liveAttestation(), channelKey: "@arjun-sir-physics" },
+      upload: { url: "https://storage.example/single-put", headers: {} },
+    });
+  } catch (error) { code = error?.code || ""; }
+  ok("an unbounded single-PUT target is refused before the extractor network call",
+    code === "channel_extract_upload_protocol_unsupported" && service.calls.length === 0);
+}
+
+// Production service shape, not the fake transport: one shared deadline spans
+// probe, extraction, every <=8 MiB Put Block, and Put Block List. The 210-minute
+// fence covers those legitimate shipped writes. It is deliberately not a
+// revocation claim against an owner reusing a copied SAS before its expiry.
+{
+  const { readFileSync } = await import("node:fs");
+  const serviceSource = readFileSync(new URL("../services/media-extract/app.py", import.meta.url), "utf8");
+  const clientSource = readFileSync(new URL("../api/_channel/media-extract-client.js", import.meta.url), "utf8");
+  ok("the trusted control request is size bounded at both ends and client-abort bounded",
+    /MAX_REQUEST_BYTES = 64 \* 1024/.test(serviceSource) &&
+    /const MAX_REQUEST_BYTES = 64 \* 1024/.test(clientSource) &&
+    /body\.length > MAX_REQUEST_BYTES/.test(clientSource) &&
+    /AbortSignal\.timeout\(config\.timeoutMs\)/.test(clientSource));
+  ok("the production extractor refuses every upload protocol except bounded Azure blocks",
+    /resumable\.get\("protocol"\) != "azure-block-v1"/.test(serviceSource) &&
+    /chunk_size > MAX_UPLOAD_CHUNK_BYTES/.test(serviceSource));
+  ok("the production uploader sends bounded blocks then a create-only block list",
+    /handle\.read\(target\["chunk_size"\]\)/.test(serviceSource) &&
+    /comp="block"/.test(serviceSource) && /comp="blocklist"/.test(serviceSource) &&
+    /"If-None-Match": "\*"/.test(serviceSource));
+  ok("one monotonic deadline is consumed by probe, extraction, blocks, and commit",
+    /deadline = time\.monotonic\(\) \+ EXTRACT_TIMEOUT_SECONDS/.test(serviceSource) &&
+    /_probe\(video_id, route, deadline\)/.test(serviceSource) &&
+    /_extract_to_wav\(video_id, workdir, route, deadline\)/.test(serviceSource) &&
+    /_upload\(path, target, deadline\)/.test(serviceSource));
+
+  const pythonSmoke = String.raw`
+import os, sys, tempfile, time, types
+
+class FastAPI:
+    def __init__(self, *args, **kwargs):
+        self.state = types.SimpleNamespace()
+    def on_event(self, *args, **kwargs):
+        return lambda fn: fn
+    def get(self, *args, **kwargs):
+        return lambda fn: fn
+    def post(self, *args, **kwargs):
+        return lambda fn: fn
+
+fastapi = types.ModuleType("fastapi")
+fastapi.FastAPI = FastAPI
+fastapi.Request = object
+responses = types.ModuleType("fastapi.responses")
+responses.Response = object
+fastapi.responses = responses
+anyio = types.ModuleType("anyio")
+anyio.to_thread = types.SimpleNamespace(run_sync=None)
+requests = types.ModuleType("requests")
+class RequestException(Exception):
+    pass
+requests.RequestException = RequestException
+requests.Response = object
+sys.modules.update({"fastapi": fastapi, "fastapi.responses": responses, "anyio": anyio, "requests": requests})
+
+namespace = {"__name__": "media_extract_upload_test"}
+path = os.path.join("services", "media-extract", "app.py")
+with open(path, "r", encoding="utf-8") as handle:
+    exec(compile(handle.read(), path, "exec"), namespace)
+
+calls = []
+class Reply:
+    status_code = 201
+    ok = True
+def put(url, data, headers, timeout):
+    calls.append((url, len(data), dict(headers), timeout))
+    return Reply()
+requests.put = put
+
+handle = tempfile.NamedTemporaryFile(delete=False)
+try:
+    handle.write(b"a" * (8 * 1024 * 1024) + b"tail")
+    handle.close()
+    target = {
+        "url": "https://acct.blob.core.windows.net/private/object?sig=x",
+        "headers": {},
+        "resumable_headers": {"x-ms-version": "2026-04-06"},
+        "chunk_size": 8 * 1024 * 1024,
+    }
+    namespace["_upload"](handle.name, target, time.monotonic() + 5)
+    assert len(calls) == 3
+    assert "comp=block" in calls[0][0] and calls[0][1] == 8 * 1024 * 1024
+    assert "comp=block" in calls[1][0] and calls[1][1] == 4
+    assert "comp=blocklist" in calls[2][0] and calls[2][2]["If-None-Match"] == "*"
+    before = len(calls)
+    try:
+        namespace["_upload"](handle.name, target, time.monotonic() - 1)
+        raise AssertionError("expired deadline was accepted")
+    except namespace["ServiceError"] as error:
+        assert error.code == "extractor_timeout" and len(calls) == before
+finally:
+    try: os.unlink(handle.name)
+    except FileNotFoundError: pass
+`;
+  const productionSmoke = spawnSync("python", ["-c", pythonSmoke], {
+    cwd: new URL("..", import.meta.url), encoding: "utf8",
+  });
+  ok("the production Python uploader executes two bounded blocks, one commit, and a deadline refusal",
+    productionSmoke.status === 0,
+    productionSmoke.stderr.trim());
 }
 
 // A service that returned a differently-shaped file must be REFUSED, not
@@ -458,6 +628,50 @@ const sweep = (h, attestations) => runChannelIngestSweep({
 }
 
 // ── 8. the seam fails closed without env, and reaches no fixture ──────────
+// A full-replica receipt removes the parent row last. These tables were
+// historically non-FK, so requests that loaded permission just before the
+// purge must serialize on the parent instead of writing after the receipt.
+{
+  const calls = [];
+  const db = async (sql) => {
+    calls.push(sql);
+    return [];
+  };
+  const input = {
+    channel_url: CHANNEL,
+    attestations: Object.fromEntries(CHANNEL_ATTESTATIONS.map((key) => [key, true])),
+  };
+  let code = "";
+  try {
+    await attestChannelOwnership(db, OWNER, REPLICA, input, {
+      now: new Date("2026-08-26T00:00:00Z"), nonce: "1".repeat(48),
+    });
+  } catch (error) { code = error.code; }
+  const insertSql = calls.find((sql) => /insert into vy_channel_attestation/.test(sql)) || "";
+  ok("a stale attestation cannot insert after the replica purge receipt", code === "replica_not_found");
+  ok("attestation insertion locks the exact active owner replica row",
+    /with owned as materialized/.test(insertSql) && /for update of r/.test(insertSql)
+      && /lifecycle not in \('revoked','purging'\)/.test(insertSql));
+}
+
+{
+  const calls = [];
+  const db = async (sql) => {
+    calls.push(sql);
+    return [];
+  };
+  let code = "";
+  try {
+    await createChannelWatch(db, OWNER, REPLICA, { channel_url: CHANNEL });
+  } catch (error) { code = error.code; }
+  const insertSql = calls.find((sql) => /insert into vy_channel_watch/.test(sql)) || "";
+  ok("a stale attested watch cannot insert after the replica purge receipt",
+    code === "channel_attestation_required");
+  ok("watch insertion locks both the live attestation and exact active owner replica",
+    /with attested as materialized/.test(insertSql) && /for update of r,a/.test(insertSql)
+      && /lifecycle not in \('revoked','purging'\)/.test(insertSql));
+}
+
 {
   const { channelExtractionConfigured, createProductionChannelProvider } = await import("../api/_channel/registry.js");
   ok("extraction reports itself unavailable with no env", channelExtractionConfigured({}) === false);
@@ -465,6 +679,18 @@ const sweep = (h, attestations) => runChannelIngestSweep({
     channelExtractionConfigured({ AZURE_MEDIA_EXTRACT_ORIGIN: ORIGIN }) === false);
   ok("...and a configured origin over http is refused",
     channelExtractionConfigured({ AZURE_MEDIA_EXTRACT_ORIGIN: "http://x.example", MEDIA_EXTRACT_HMAC_SECRET: SECRET }) === false);
+  ok("...and a URL-only Supabase write provider cannot advertise bounded extraction",
+    channelExtractionConfigured({
+      AZURE_MEDIA_EXTRACT_ORIGIN: ORIGIN,
+      MEDIA_EXTRACT_HMAC_SECRET: SECRET,
+      REPLICA_STORAGE_WRITE_BUCKET: "vyakti-replica-private",
+    }) === false);
+  ok("a complete service plus Azure block provider advertises extraction honestly",
+    channelExtractionConfigured({
+      AZURE_MEDIA_EXTRACT_ORIGIN: ORIGIN,
+      MEDIA_EXTRACT_HMAC_SECRET: SECRET,
+      REPLICA_STORAGE_WRITE_BUCKET: "azureblob:vyaktitest:replica-private",
+    }) === true);
   // With OAuth env but no extraction env, the deploy gets the OAuth provider —
   // whose fetchAudio is the honest refusal. A missing extraction service must
   // degrade to "cannot", never to "silently allowed".

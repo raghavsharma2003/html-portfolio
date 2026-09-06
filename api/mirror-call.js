@@ -85,14 +85,15 @@
 // with pooled audio and a conditioning score that moves only when a better ten
 // seconds is SELECTED — and never a single figure that would climb beside a
 // clone which cannot have changed.
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
-import { configuredLiveAsrProvider } from "./_asr/registry.js";
+import { replyEngineCapability } from "./_reply-engine-capability.js";
+import { createLiveAsrProvider } from "./_asr/registry.js";
 import { probeEnrollmentWav } from "./_audio/wav.js";
 import { readPrivateReplicaObject } from "./_replica-storage.js";
-import { WARMUP, voiceWarmth } from "./_voice/warmup.js";
+import { voiceWarmth } from "./_voice/warmup.js";
 import {
   CONDITIONING_S3GEN_MS,
   MIRROR_CHIP_BUDGET_PER_MIN,
@@ -107,6 +108,7 @@ import {
   mirrorDecision,
   mirrorFeedbackInput,
   mirrorReferenceGrowth,
+  scrubPii,
   mirrorUuid,
   mirrorWindowInput,
 } from "./_mirrorcall.js";
@@ -154,6 +156,7 @@ import {
   mirrorCorpusTokens,
   mirrorDeltaTally,
   mirrorDraftGenomeVersion,
+  mirrorExpressionScope,
   mirrorReferenceBaseline,
   mirrorReplyAgent,
   mirrorSelectionCount,
@@ -175,11 +178,21 @@ import { createProductionProtectionAdapters } from "./_provenance/registry.js";
 import { protectReplicaStream } from "./_provenance/delivery.js";
 import { createOpenChatterboxPreviewProvider } from "./_voice/providers/open-chatterbox-preview.js";
 import { handleVoicePreviewPanel } from "./_voice/preview-panel.js";
+import { observeMirrorCallVoiceRuntime } from "./_mirrorcall-runtime.js";
+import { approvedMirrorRecall } from "./_experience-compiler/mirror-recall.js";
+import {
+  attestMirrorOwnerSpeaker,
+  mirrorOwnerSpeakerAttestationStatus,
+} from "./_mirrorcall-speaker-attestation.js";
+import { bootstrapSelfTestReplica } from "./_replica-processing/self-test.js";
 import {
   beginOwnedVoicePreview,
   createNeonVoicePreviewLedger,
+  markVoicePreviewAborted,
   markVoicePreviewFailed,
 } from "./_replica-voice-preview.js";
+import { createMirrorCanonicalEvidence } from "./_mirrorcall-evidence.js";
+import { createSettledMirrorExpressionRecords } from "./_experience-compiler/mirror-expression.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -211,21 +224,24 @@ const PRINTED_CEILING = 0.8869;
  * it is emitted only while a wake is believed in flight — a countdown shown
  * against a cold service nobody has poked is a number nobody measured.
  */
-function gpuState() {
+async function gpuState(signal) {
   const origin = String(process.env.AZURE_OPEN_VOICE_ORIGIN || "");
   if (!origin) {
     // No broker configured: not "cold", UNCONFIGURED. Reported as not-warm with
     // no estimate, because an estimate here would be an estimate of nothing.
     return { warm: false, estimated_ready_seconds: null, state: "unconfigured" };
   }
-  const warmth = voiceWarmth.read(origin);
-  return {
-    warm: warmth.state === "warm",
-    estimated_ready_seconds: warmth.state === "warming"
-      ? Math.round(WARMUP.coldStartEtaHighMs / 1000)
-      : null,
-    state: warmth.state,
-  };
+  let provider;
+  try { provider = createOpenChatterboxPreviewProvider(); }
+  catch (error) {
+    return {
+      warm: false,
+      estimated_ready_seconds: null,
+      state: "unconfigured",
+      probe_failure_code: String(error?.code || "voice_route_unconfigured").slice(0, 80),
+    };
+  }
+  return observeMirrorCallVoiceRuntime({ origin, warmth: voiceWarmth, provider, signal });
 }
 
 /** The fidelity block, assembled from every number that exists and none that
@@ -276,11 +292,11 @@ function referenceBlock(window, pool) {
  * own-voice predicate, both upstream of here — and it is NOT ECAPA, which is
  * why `score_source` travels with every score and every selection.
  */
-async function scoreAndSelect(db, ownerUserId, replicaId, sessionId, window, bytes) {
+async function scoreAndSelect(db, ownerUserId, replicaId, sessionId, window, bytes, measuredProbe = null) {
   if (!window?.reference_admitted || !bytes) return null;
   let score = null;
   try {
-    score = conditioningScore(probeEnrollmentWav(bytes), window.duration_ms);
+    score = conditioningScore(measuredProbe || probeEnrollmentWav(bytes), window.duration_ms);
   } catch {
     // Not canonical enrollment WAV: a refusal to RANK, not a rank of zero. The
     // window stays unscored, ineligible for selection, and counted as
@@ -396,14 +412,15 @@ function voiceRouteState() {
  */
 async function cloneTurnFor(db, ownerUserId, replicaId, sessionId, window, windows, askBlock = "") {
   const route = voiceRouteState();
-  const absent = (reason) => ({ turn: null, reason, canVoice: false, voiceAbsentReason: "", asked: false });
+  const absent = (reason) => ({ turn: null, reason, canVoice: false, voiceAbsentReason: "", asked: false, memoryRecalled: 0 });
   try {
     // Owner-scoped in SQL, both of them. A caller who does not own this replica
     // never reached here (`resolveMirrorSession` refused), and if the predicate
     // above were ever widened these two would still return nothing.
-    const [sheetRow, priorTurns] = await Promise.all([
+    const [sheetRow, priorTurns, memoryFacts] = await Promise.all([
       mirrorReplyAgent(db, ownerUserId, replicaId),
       listMirrorTurns(db, ownerUserId, replicaId, sessionId),
+      approvedMirrorRecall(db, ownerUserId, replicaId),
     ]);
 
     // The rolling call MINUS the window being answered — that one is
@@ -422,6 +439,7 @@ async function cloneTurnFor(db, ownerUserId, replicaId, sessionId, window, windo
       // move. On an interview it is the note about what to ask, spliced into
       // the one prompt position the compiler leaves open.
       askBlock,
+      memoryFacts,
     });
     if (!assembled.ok) return absent(assembled.reason);
 
@@ -450,6 +468,7 @@ async function cloneTurnFor(db, ownerUserId, replicaId, sessionId, window, windo
       // failed assembly never asked, and `questions_asked` is a number the
       // studio prints beside `answers_captured`.
       asked: Boolean(askBlock) && Boolean(assembled.asked),
+      memoryRecalled: Number(assembled.recalled || 0),
     };
   } catch {
     return absent("clone_reply_failed");
@@ -566,7 +585,31 @@ function wireInterview(interview, model = null) {
 // ops
 // ─────────────────────────────────────────────────────────────────────────
 
-async function opCreate(db, ownerUserId, body) {
+async function opCreate(db, ownerUserId, body, signal) {
+  // Creating a durable call session when no conversational engine can answer
+  // is not partial availability. Refuse before consent bootstrap, database
+  // writes, or a GPU wake so a direct API caller gets the same honest boundary
+  // as the Studio handshake.
+  const replyEngine = replyEngineCapability();
+  if (!replyEngine.available) {
+    return {
+      status: 503,
+      body: { error: "mirror_reply_engine_unavailable", reply_engine: replyEngine },
+    };
+  }
+  // The internal test Studio intentionally removes consent ceremony for an
+  // authenticated person's own self-replica. Source upload already performs
+  // this exact bootstrap; Mirror Call must do the same before reading its
+  // session scopes or a fresh workspace can upload successfully yet fail its
+  // first call with the misleading `mirror_session_unavailable` response.
+  // Production/public deployments remain fail-closed because the helper is a
+  // no-op unless all three exact self-test environment markers are present,
+  // and its SQL independently requires this owner plus a self-mode replica.
+  await bootstrapSelfTestReplica(db, {
+    ownerUserId,
+    replicaId: body.replica_id,
+    env: process.env,
+  });
   // Two modes, one call. Anything that is not the interview is a calibration
   // call, and an unknown value is NOT an error: a client from a future build
   // asking for a mode this deployment does not have should get the call it can
@@ -591,7 +634,10 @@ async function opCreate(db, ownerUserId, body) {
   }
 
   const { fidelity } = await fidelityFor(db, ownerUserId, session.replica_id, session.session_id);
-  const gpu = gpuState();
+  // This signed readiness observation is also the wake. Waiting until the
+  // first `turn_voice` request deadlocks because Studio enables capture only
+  // after status becomes live, so no turn can exist to make that request.
+  const gpu = await gpuState(signal);
   return {
     status: 201,
     body: {
@@ -620,6 +666,7 @@ async function opCreate(db, ownerUserId, body) {
           reference_scope: session.reference_scope,
         },
         transport: MIRROR_CALL_TRANSPORT,
+        reply_engine: replyEngine,
       },
     },
   };
@@ -652,26 +699,50 @@ async function opIngestWindow(db, ownerUserId, req) {
   let failureCode = "";
   let asr = null;
   let bytes = null;
+  let wavProbe = null;
   try {
     const ref = input.sourceId
-      ? await mirrorWindowAudioRef(db, ownerUserId, replicaId, input.sourceId)
+      ? await mirrorWindowAudioRef(db, ownerUserId, replicaId, input.sourceId, sessionId, input.seq)
       : null;
     if (!ref) {
       failureCode = input.sourceId ? "source_not_finalized" : "no_audio_reference";
+    } else if (!ref.liveConsentAuthorized) {
+      // The session stores the consent that was true when it opened, but a
+      // withdrawal must take effect on the next window. This check happens
+      // before the first private byte is read and before an ASR provider is
+      // constructed, so revoked capture/storage/transcription cannot produce
+      // a transcript, canonical evidence, or any downstream observation.
+      failureCode = "mirror_live_asr_consent_inactive";
     } else {
-      // Read only for a window that is a CANDIDATE and therefore has a score to
-      // earn. The transcriber does its own read; a second read for every window
-      // would buy latency inside a live call for nothing.
-      if (pending.reference_admitted) {
-        const object = await readPrivateReplicaObject({
-          storageBucket: ref.storageBucket,
-          objectPath: ref.storagePath,
-        }, { maxBytes: 33_554_432 });
-        bytes = object?.body ?? null;
+      // Mirror windows intentionally skip the ordinary eight-step source DAG,
+      // so integrity is performed inline before ASR. Finalize verified storage
+      // metadata only; this read binds the bytes to the client SHA-256 and to
+      // the stored size/MIME before any transcript can become cited evidence.
+      const object = await readPrivateReplicaObject({
+        storageBucket: ref.storageBucket,
+        objectPath: ref.storagePath,
+      }, { maxBytes: 33_554_432 });
+      bytes = object?.body ?? null;
+      const digest = bytes ? createHash("sha256").update(bytes).digest("hex") : "";
+      if (!bytes || digest !== ref.sha256 || object.byteSize !== ref.byteSize || object.mime !== ref.mime) {
+        failureCode = "source_integrity_mismatch";
       }
-      const provider = configuredLiveAsrProvider();
-      if (!provider) failureCode = "asr_provider_unavailable";
-      else {
+      if (!failureCode) {
+        try {
+          wavProbe = probeEnrollmentWav(bytes, { expectedDurationMs: input.durationMs });
+        } catch {
+          // Acoustic observations are optional. A valid private source can
+          // still be transcribed even when it is not the canonical PCM WAV
+          // required by the direct signal probe; no proxy value is invented.
+          wavProbe = null;
+        }
+      }
+      // Do not collapse a configuration failure into the generic
+      // `asr_provider_unavailable`. The specific fail-closed provider code is
+      // safe to expose and is the only way operations can distinguish a
+      // missing binding from an invalid endpoint without logging credentials.
+      const provider = failureCode ? null : createLiveAsrProvider();
+      if (provider) {
         const result = await provider.transcribe(
           { ...ref, durationMs: input.durationMs },
           body.lang_hint || "hi-IN",
@@ -681,7 +752,70 @@ async function opIngestWindow(db, ownerUserId, req) {
         // diarize contributes every word.
         const text = result.turns.map((t) => t.text).join(" ").trim();
         if (!text) failureCode = "asr_empty_transcript";
-        else asr = { transcript: text, provider: result.provider, model: result.model };
+        else {
+          const transcript = scrubPii(text);
+          const evidence = createMirrorCanonicalEvidence({
+            replicaId,
+            ownerUserId,
+            sourceId: ref.sourceId,
+            sessionId,
+            windowId: pending.window_id,
+            seq: input.seq,
+            durationMs: input.durationMs,
+            transcript,
+            inputSha256: ref.sha256,
+            provider: result.provider,
+            model: result.model,
+            languageCode: result.languageCode,
+            languageProbability: result.languageProbability,
+            languageSource: result.languageSource,
+            transcriptConfidence: result.transcriptConfidence,
+            speakerVerification: pending.own_voice_state,
+          });
+          let expressionObservations = [];
+          try {
+            const expressionScope = await mirrorExpressionScope(
+              db, ownerUserId, replicaId, sessionId, pending.window_id,
+            );
+            if (expressionScope) {
+              expressionObservations = createSettledMirrorExpressionRecords({
+                ownerUserId,
+                replicaId,
+                sourceId: expressionScope.source_id,
+                sourceSha256: expressionScope.sha256,
+                sourceByteSize: Number(expressionScope.byte_size),
+                sessionId,
+                windowId: pending.window_id,
+                agentId: expressionScope.agent_id,
+                personId: expressionScope.subject_person_id,
+                consentScopes: expressionScope.consent_scopes,
+                consentId: expressionScope.expression_consent_id,
+                consentScope: expressionScope.expression_consent_scope,
+                consentGrantedAt: expressionScope.expression_consent_granted_at,
+                capturedAt: expressionScope.created_at,
+                speakerVerification: expressionScope.own_voice_state,
+                transcript,
+                transcriptConfidence: result.transcriptConfidence,
+                durationMs: Number(expressionScope.duration_ms),
+                wavProbe,
+                asrProvider: result.provider,
+                asrModel: result.model,
+              });
+            }
+          } catch {
+            // Expression is a collect-only side lane. A measurement, lineage,
+            // or preparation failure must not relabel successful ASR as a
+            // dropped window or suppress the owner's reply.
+            expressionObservations = [];
+          }
+          asr = {
+            transcript,
+            provider: result.provider,
+            model: result.model,
+            evidence,
+            expressionObservations,
+          };
+        }
       }
     }
   } catch (error) {
@@ -694,13 +828,22 @@ async function opIngestWindow(db, ownerUserId, req) {
   const settled = await settleMirrorWindow(db, ownerUserId, replicaId, pending.window_id,
     asr ? asr : { failureCode: failureCode || "asr_failed" });
   const window = settled || pending;
+  // Consent is checked once before the private object read and once again in
+  // the atomic settlement statement. A grant can be withdrawn while the ASR
+  // request is in flight, so the database result, not the provider result, is
+  // authoritative. Do not let a transcript rejected at settlement reach any
+  // scoring, mining, persona, expression, or reply path in this invocation.
+  if (window.asr_state !== "transcribed") {
+    asr = null;
+    bytes = null;
+  }
 
   // THE VOICE LOOP. Nothing happens unless the window was ADMITTED, which needs
   // consent plus a measured owner-voice verdict — so today this is a no-op on
   // every replica, and the withheld reasons say why.
   let selection = null;
   try {
-    selection = await scoreAndSelect(db, ownerUserId, replicaId, sessionId, window, bytes);
+    selection = await scoreAndSelect(db, ownerUserId, replicaId, sessionId, window, bytes, wavProbe);
   } catch {
     // A scoring failure must never fail the ingest: the personality loop is
     // independent of the voice loop, and the window stays unscored and visible.
@@ -764,7 +907,7 @@ async function opIngestWindow(db, ownerUserId, req) {
   // nobody said.
   const reply = asr
     ? await cloneTurnFor(db, ownerUserId, replicaId, sessionId, window, windows, askBlock)
-    : { turn: null, reason: "owner_window_dropped", canVoice: false, voiceAbsentReason: "", asked: false };
+    : { turn: null, reason: "owner_window_dropped", canVoice: false, voiceAbsentReason: "", asked: false, memoryRecalled: 0 };
 
   // Counted only after the turn carrying it actually landed as a row. A
   // question counted at build time would be a question the studio prints as
@@ -788,6 +931,9 @@ async function opIngestWindow(db, ownerUserId, req) {
           : null,
         owner_transcript: window.asr_state === "transcribed" ? String(window.transcript || "") : "",
         turn: reply.turn,
+        // Content-free evidence that the approved relational lane was actually
+        // used for this turn. The recalled strings never leave the server.
+        approved_memory_recalled: Number(reply.memoryRecalled || 0),
         // Present EXACTLY when `turn` is null, and drawn from a frozen
         // vocabulary. WS-Y's normalizer refuses a payload carrying both a drop
         // and a turn; this is the other side of that rule — a null turn with no
@@ -862,18 +1008,22 @@ async function opTurnFeedback(db, ownerUserId, req) {
     return { status: 415, body: { error: "mirror_feedback_expects_json", details: MIRROR_CALL_TRANSPORT } };
   }
   const body = req.body || {};
+  if (["correction_source_id", "correction_audio", "correction_ms"].some((key) => body[key] != null)) {
+    return { status: 409, body: { error: "mirror_audio_correction_unavailable", details: { alternative: "text_note" } } };
+  }
   const session = await resolveMirrorSession(db, ownerUserId, body.session_id);
   if (!session) return { status: 404, body: { error: "mirror_session_unavailable" } };
   const replicaId = session.replica_id;
   const sessionId = session.session_id;
 
   // The client sends `rating` (up/down) plus an optional note and an optional
-  // re-recorded correction. A correction present makes the verdict a
+  // text correction. Audio corrections require a canonical source pipeline
+  // and are refused above until that path exists. A note makes the verdict a
   // 'rephrase', which is a stronger signal than a thumb and is stored as one.
-  const hasCorrection = Boolean(body.correction_source_id || body.note);
+  const hasCorrection = Boolean(body.note || body.rephrase_text);
   const input = mirrorFeedbackInput({
     turn_ref: body.turn_id ?? body.turn_ref,
-    verdict: hasCorrection && body.rating !== "up" ? "rephrase" : (body.rating ?? body.verdict),
+    verdict: hasCorrection ? "rephrase" : (body.rating ?? body.verdict),
     rephrase_text: body.note ?? body.rephrase_text,
   });
   const row = await recordMirrorFeedback(db, ownerUserId, replicaId, sessionId, input);
@@ -921,17 +1071,18 @@ async function opEnd(db, ownerUserId, body) {
   const ended = await endMirrorSession(db, ownerUserId, replicaId, sessionId);
   if (!ended) return { status: 409, body: { error: "mirror_session_not_open" } };
 
-  const [tally, deferred, { fidelity }] = await Promise.all([
+  const [tally, deferred, { fidelity }, speakerAttestation] = await Promise.all([
     mirrorDeltaTally(db, ownerUserId, replicaId, sessionId),
     listUnactionedMirrorDeltas(db, ownerUserId, replicaId, sessionId),
     fidelityFor(db, ownerUserId, replicaId, sessionId),
+    mirrorOwnerSpeakerAttestationStatus(db, ownerUserId, sessionId),
   ]);
   return {
     status: 200,
     body: {
       call: {
         session_id: sessionId,
-        ended_at: new Date().toISOString(),
+        ended_at: ended.ended_at || new Date().toISOString(),
         // Chips nobody actioned. They go to the ordinary review queue — never
         // onto the sheet. NOTHING in the end path writes a sheet byte, and
         // that absence is the point.
@@ -939,24 +1090,47 @@ async function opEnd(db, ownerUserId, body) {
         accepted_count: tally.accepted,
         rejected_count: tally.rejected,
         finetune: {
-          queued: Boolean(ended.finetune_job_id),
-          job_id: ended.finetune_job_id || null,
-          // A reason whenever it was NOT queued. "No consented candidate audio"
-          // is an honest answer; a fake progress bar is not.
-          reason: ended.finetune_job_id
-            ? null
-            : "no consented owner-verified candidate audio in this call",
-          lane: "per_expert_adapter",
-          note: "queued only; no runner exists in this repo yet",
+          queued: false,
+          job_id: null,
+          reason: "model_training_not_connected",
+          lane: null,
+          note: "No model training job was created",
           reference_windows: Number(ended.finetune_reference_windows ?? 0),
           reference_ms: Number(ended.finetune_reference_ms ?? 0),
         },
         fidelity,
+        speaker_attestation: speakerAttestation,
         // Beyond the contract:
         applied_count: tally.applied,
         reembedding: {
           jobs: Number(ended.reembedding_jobs ?? 0),
           queue: "vy_replica_processing_job step=voice_quality",
+        },
+        learning: {
+          transcript_proposals: speakerAttestation?.state === "needs_owner_choice"
+            ? "canonical_evidence_pending_owner_speaker"
+            : "canonical_evidence_pending_sweep",
+          persona_mutation: "owner_review_required",
+          searchable_relational_memory: "owner_review_required",
+          human_trait_inference: "not_connected",
+          emotion_inference: "not_measured",
+          expressive_voice_learning: "not_connected",
+          voice_adaptation: String(ended.voice_adaptation_state || "blocked_owner_voice_unverified"),
+          model_training: "not_connected",
+          claim_extraction: {
+            queued: ["queued", "running"].includes(String(ended.claim_extraction_job_state || "")),
+            state: String(ended.claim_extraction_job_state ||
+              (speakerAttestation?.state === "needs_owner_choice"
+                ? "waiting_for_owner_speaker_attestation"
+                : Number(ended.canonical_transcript_spans || 0) > 0
+                ? "pending_readiness_check"
+                : "no_canonical_transcript_evidence")),
+            pending_items: Number(ended.claim_extraction_pending_items || 0),
+            next_attempt_at: ended.claim_extraction_next_attempt_at || null,
+            automatic_sweep: ["queued", "running", "waiting"].includes(String(ended.claim_extraction_job_state || ""))
+              ? { route: "/api/replica-claim-sweep" }
+              : null,
+          },
         },
         // WS-R5. What the interview learned, and what the next one would ask.
         // Null on a calibration call.
@@ -1037,11 +1211,24 @@ async function opInterviewGaps(db, ownerUserId, replicaIdValue) {
   };
 }
 
-async function opStatus(db, ownerUserId, sessionIdValue) {
+async function opSpeakerAttestation(db, ownerUserId, body) {
+  const session = await resolveMirrorSession(db, ownerUserId, body.session_id);
+  if (!session || session.state !== "ended") {
+    return { status: 404, body: { error: "mirror_session_unavailable" } };
+  }
+  const result = await attestMirrorOwnerSpeaker(db, ownerUserId, {
+    session_id: session.session_id,
+    choice: body.choice,
+  });
+  if (!result) return { status: 404, body: { error: "mirror_session_unavailable" } };
+  return { status: 200, body: { speaker_attestation: result } };
+}
+
+async function opStatus(db, ownerUserId, sessionIdValue, signal) {
   const session = await resolveMirrorSession(db, ownerUserId, sessionIdValue);
   if (!session) return { status: 404, body: { error: "mirror_session_unavailable" } };
   const { fidelity } = await fidelityFor(db, ownerUserId, session.replica_id, session.session_id);
-  const gpu = gpuState();
+  const gpu = await gpuState(signal);
   return {
     status: 200,
     body: {
@@ -1049,6 +1236,7 @@ async function opStatus(db, ownerUserId, sessionIdValue) {
         state: session.state === "open" ? (gpu.warm ? "live" : "warming") : "ended",
         gpu,
         fidelity,
+        reply_engine: replyEngineCapability(),
       },
     },
   };
@@ -1192,6 +1380,7 @@ function voicePanelDeps(db, ownerUserId, signal) {
     signal,
     provider,
     authorize: (input) => beginOwnedVoicePreview(db, ownerUserId, input),
+    markAborted: (generationId, reason) => markVoicePreviewAborted(db, ownerUserId, generationId, reason),
     markFailed: (generationId, error) => markVoicePreviewFailed(db, ownerUserId, generationId, error),
     readObject: (locator) => readPrivateReplicaObject(locator, {
       maxBytes: 20 * 1024 * 1024,
@@ -1250,6 +1439,10 @@ export default async function handler(req, res) {
         // truth is an unset environment variable. WS-Y's client ignores this;
         // an operator reading a handshake should not have to.
         voice_route: voiceRouteState(),
+        // Route presence is not call readiness. This capability is computed by
+        // the same predicate the reply executor uses and exposes no provider,
+        // model, variable name, or credential detail.
+        reply_engine: replyEngineCapability(),
         // The complete vocabulary of `turn_absent_reason`, published so a
         // client can render an unknown value as unknown rather than as blank.
         turn_absent_reasons: [...MIRROR_TURN_ABSENT_REASONS],
@@ -1270,7 +1463,11 @@ export default async function handler(req, res) {
 
     let result;
     if (req.method === "GET") {
-      if (op === "status") result = await opStatus(q, user.id, req.query?.session_id);
+      if (op === "status") {
+        const aborter = new AbortController();
+        req.on?.("aborted", () => aborter.abort(new Error("client_aborted")));
+        result = await opStatus(q, user.id, req.query?.session_id, aborter.signal);
+      }
       else if (op === "deltas") result = await opDeltas(q, user.id, req.query?.session_id);
       else if (op === "interview_gaps") result = await opInterviewGaps(q, user.id, req.query?.replica_id);
       else if (op === "turn_voice") {
@@ -1298,11 +1495,16 @@ export default async function handler(req, res) {
         }
         return res.status(result.status).json(result.body);
       } else return res.status(400).json({ error: "unknown_op" });
-    } else if (op === "create") result = await opCreate(q, user.id, req.body || {});
+    } else if (op === "create") {
+      const aborter = new AbortController();
+      req.on?.("aborted", () => aborter.abort(new Error("client_aborted")));
+      result = await opCreate(q, user.id, req.body || {}, aborter.signal);
+    }
     else if (op === "ingest_window") result = await opIngestWindow(q, user.id, req);
     else if (op === "delta_action") result = await opDeltaAction(q, user.id, req.body || {});
     else if (op === "turn_feedback") result = await opTurnFeedback(q, user.id, req);
     else if (op === "end") result = await opEnd(q, user.id, req.body || {});
+    else if (op === "speaker_attestation") result = await opSpeakerAttestation(q, user.id, req.body || {});
     else return res.status(400).json({ error: "unknown_op" });
 
     return res.status(result.status).json(result.body);

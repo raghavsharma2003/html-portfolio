@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import { accessSync, constants } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createHash, randomBytes } from "node:crypto";
+import { accessSync, constants, createReadStream } from "node:fs";
+import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, isAbsolute, join } from "node:path";
 
@@ -59,6 +59,12 @@ export const NATIVE_TOOLS = Object.freeze({
 
 function toolError(code, retryable = false) {
   return Object.assign(new Error(code), { code, retryable });
+}
+
+async function sha256File(file, signal) {
+  const digest = createHash("sha256");
+  for await (const chunk of createReadStream(file, { signal, highWaterMark: 64 * 1024 })) digest.update(chunk);
+  return digest.digest("hex");
 }
 
 function executable(candidate) {
@@ -389,6 +395,53 @@ export function createNativeToolRunners(options = {}) {
         });
       } finally {
         await rm(dir, { recursive: true, force: true }).catch(() => {});
+      }
+    },
+    async withAzureAsrFile(request, fn) {
+      if (typeof fn !== "function") throw toolError("azure_asr_prepare_callback_required");
+      const command = resolveNativeTool("reference_window", env);
+      if (!command) throw toolError("azure_asr_prepare_tool_unavailable");
+      const durationMs = Number(request?.input?.duration_ms);
+      if (!Number.isInteger(durationMs) || durationMs < 1 || durationMs > 2 * 60 * 60 * 1_000) {
+        throw toolError("azure_asr_input_duration_invalid");
+      }
+      const sourceSha256 = String(request?.input?.sha256 || "");
+      const sourceByteSize = Number(request?.input?.byte_size);
+      const directory = await mkdtemp(join(options.tmpDir || tmpdir(), "azure-asr-"));
+      const output = join(directory, `${randomBytes(8).toString("hex")}.flac`);
+      try {
+        // 16 kHz mono PCM has a hard two-hour raw ceiling of 230.4 MB, below
+        // this API version's 250 MB wire limit; FLAC keeps that speech-focused
+        // representation provider-compatible without truncating the source.
+        // apad+atrim binds the output to the already-probed source duration so
+        // transcript offsets still address the full recording.
+        const duration = (durationMs / 1000).toFixed(3);
+        const result = await runTool(command, [
+          "-nostdin", "-y", "-v", "error", "-i", request.file.path,
+          "-map", "0:a:0", "-vn", "-ac", "1", "-ar", "16000", "-sample_fmt", "s16",
+          "-af", `aresample=16000:first_pts=0,apad,atrim=duration=${duration}`,
+          "-c:a", "flac", "-compression_level", "5", "-map_metadata", "-1",
+          "-fflags", "+bitexact", "-flags:a", "+bitexact", output,
+        ], "", {
+          signal: request.signal, timeoutMs: 900_000, code: "azure_asr_prepare", maxOutput: 8 * 1024,
+        });
+        if (result.exitCode !== 0) throw toolError("azure_asr_prepare_failed", true);
+        const details = await stat(output);
+        if (!details.isFile() || details.size < 1 || details.size > Number(request.maxBytes)) {
+          throw toolError("azure_asr_input_size_invalid");
+        }
+        return await fn(Object.freeze({
+          path: output,
+          byteSize: details.size,
+          sha256: await sha256File(output, request.signal),
+          mime: "audio/flac",
+          transform: "azure-asr-flac-16k-mono-v1",
+          sourceSha256,
+          sourceByteSize,
+          sourceDurationMs: durationMs,
+        }));
+      } finally {
+        await rm(directory, { recursive: true, force: true }).catch(() => {});
       }
     },
   });

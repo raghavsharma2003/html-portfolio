@@ -4,7 +4,7 @@
 //   node evals/studio-path/run.mjs
 //
 // Offline, deterministic, $0, no DB, no network, no model call, no GPU, no
-// browser. Bundles the REAL `src/studio/CreatorPath.tsx` on every run
+// browser. Bundles the REAL `src/creatorStudio/CreatorPath.tsx` on every run
 // (`evals/studio-shell/run.mjs`'s own pattern: a temp entry file
 // re-exporting the real source, then esbuild), so this suite gates the tree
 // being shipped rather than a frozen copy.
@@ -43,7 +43,7 @@ import { checkMirrors } from "../../scripts/check-mirrors.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
-const STUDIO_DIR = join(REPO, "src/studio");
+const STUDIO_DIR = join(REPO, "src/creatorStudio");
 
 let pass = 0;
 let fail = 0;
@@ -285,7 +285,7 @@ ok("the disappearance rule (law 1) holds across the whole fuzz: hidden once room
   // Sanity first: the REAL files, unmodified, agree — the control below is
   // only meaningful if the honest case passes.
   const { mismatches: cleanMismatches } = checkMirrors(
-    { "src/studio/CreatorPath.tsx": CREATOR_PATH_SRC },
+    { "src/creatorStudio/CreatorPath.tsx": CREATOR_PATH_SRC },
     { "api/_funnel.js": FUNNEL_SRC, "api/_readiness.js": READINESS_SRC },
   );
   ok("the REAL CreatorPath.tsx mirror markers agree with the REAL api sources (0 mismatches)",
@@ -306,7 +306,7 @@ ok("the disappearance rule (law 1) holds across the whole fuzz: hidden once room
   ok("the mutation actually changed the source text (the control is not vacuous)", reorderedSrc !== CREATOR_PATH_SRC);
 
   const { mismatches: reorderedMismatches } = checkMirrors(
-    { "src/studio/CreatorPath.tsx": reorderedSrc },
+    { "src/creatorStudio/CreatorPath.tsx": reorderedSrc },
     { "api/_funnel.js": FUNNEL_SRC, "api/_readiness.js": READINESS_SRC },
   );
   ok("NEGATIVE CONTROL: a REORDERED CREATOR_PATH_STEPS_ORDER mirror is caught by the real check-mirrors.mjs",
@@ -322,7 +322,7 @@ ok("the disappearance rule (law 1) holds across the whole fuzz: hidden once room
   );
   ok("the floor mutation actually changed the source text", badFloorSrc !== CREATOR_PATH_SRC);
   const { mismatches } = checkMirrors(
-    { "src/studio/CreatorPath.tsx": badFloorSrc },
+    { "src/creatorStudio/CreatorPath.tsx": badFloorSrc },
     { "api/_funnel.js": FUNNEL_SRC, "api/_readiness.js": READINESS_SRC },
   );
   ok("NEGATIVE CONTROL: a wrong READINESS_OVERALL_FLOOR mirror is caught by check-mirrors.mjs",

@@ -39,6 +39,7 @@
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..");
@@ -47,6 +48,9 @@ const load = (rel) => import(pathToFileURL(join(REPO, rel)).href);
 const pure = await load("api/_mirrorcall.js");
 const store = await load("api/_mirrorcall-store.js");
 const wire = await load("api/_mirrorcall-wire.js");
+const sourceStore = await load("api/_replica-source.js");
+const azureShort = await load("api/_asr/providers/azure-speech-short.js");
+const asrRegistry = await load("api/_asr/registry.js");
 
 let failed = 0;
 let checks = 0;
@@ -68,9 +72,87 @@ const SHEET = "22222222-2222-4222-8222-222222222222";
 
 const NOW = () => new Date().toISOString();
 
+function speechFixtureWav(durationMs = 1_200) {
+  const frames = Math.round(24_000 * durationMs / 1000);
+  const bytes = Buffer.alloc(44 + frames * 2);
+  bytes.write("RIFF", 0, "ascii");
+  bytes.writeUInt32LE(bytes.length - 8, 4);
+  bytes.write("WAVE", 8, "ascii");
+  bytes.write("fmt ", 12, "ascii");
+  bytes.writeUInt32LE(16, 16);
+  bytes.writeUInt16LE(1, 20);
+  bytes.writeUInt16LE(1, 22);
+  bytes.writeUInt32LE(24_000, 24);
+  bytes.writeUInt32LE(48_000, 28);
+  bytes.writeUInt16LE(2, 32);
+  bytes.writeUInt16LE(16, 34);
+  bytes.write("data", 36, "ascii");
+  bytes.writeUInt32LE(frames * 2, 40);
+  for (let index = 0; index < frames; index++) {
+    bytes.writeInt16LE(Math.round(Math.sin(index * 2 * Math.PI * 440 / 24_000) * 8_000), 44 + index * 2);
+  }
+  return bytes;
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // the fake database
 // ═════════════════════════════════════════════════════════════════════════
+
+// The paid live-call fallback must be executable, not only selectable. Its
+// fake network receives the actual resampled bytes and validates the official
+// Azure short-audio geometry before returning a provider-shaped result.
+{
+  const source = speechFixtureWav();
+  const sha256 = createHash("sha256").update(source).digest("hex");
+  let request = null;
+  const provider = azureShort.createAzureSpeechShortProvider({
+    endpoint: "https://fixture-speech.cognitiveservices.azure.com/",
+    apiKey: "fixture-key-never-sent",
+    readAudio: async () => ({ body: source }),
+    fetchImpl: async (url, init) => {
+      request = { url: new URL(url), init };
+      return new Response(JSON.stringify({
+        RecognitionStatus: "Success",
+        DisplayText: "Dekho beta, balance the equation.",
+        NBest: [{ Display: "Dekho beta, balance the equation." }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    },
+  });
+  const result = await provider.transcribe({
+    storageBucket: "fixture-bucket",
+    storagePath: "owner/replica/window.wav",
+    sha256,
+    mime: "audio/wav",
+    byteSize: source.length,
+    durationMs: 1_200,
+  }, "hi-IN");
+  const sent = Buffer.from(request.init.body);
+  eq(request.url.pathname, "/stt/speech/recognition/conversation/cognitiveservices/v1",
+    "Azure fallback calls the official short-audio path");
+  eq(request.url.searchParams.get("language"), "hi-IN",
+    "and binds the requested Indian language instead of silently using en-US");
+  eq(request.init.headers["Content-Type"], "audio/wav; codecs=audio/pcm; samplerate=16000",
+    "the transport declares Azure's exact 16 kHz mono PCM content type");
+  eq(sent.readUInt32LE(24), 16_000, "the transmitted WAV is actually 16 kHz");
+  eq(sent.readUInt16LE(22), 1, "and mono");
+  eq(sent.readUInt16LE(34), 16, "and PCM16");
+  eq(result.provider, "azure-speech-short", "the transcript names its real provider");
+  eq(result.turns.length, 1, "a single-speaker live window stays one turn");
+  eq(asrRegistry.createLiveAsrProvider({
+    AZURE_SPEECH_ENDPOINT: "https://fixture-speech.cognitiveservices.azure.com/",
+    AZURE_SPEECH_KEY: "fixture-key",
+    SARVAM_API_KEY: "fixture-sarvam-key",
+  }).name, "azure-speech-short", "configured Azure wins over a Sarvam lane that may be credit-blocked");
+
+  let bindingFailed = false;
+  try {
+    await provider.transcribe({
+      storageBucket: "fixture-bucket", storagePath: "owner/replica/window.wav",
+      sha256: "0".repeat(64), mime: "audio/wav", byteSize: source.length, durationMs: 1_200,
+    }, "hi-IN");
+  } catch (error) { bindingFailed = error?.code === "azure_asr_short_audio_binding_invalid"; }
+  ok(bindingFailed, "NEGATIVE CONTROL: Azure spend is refused when private bytes do not match the source SHA");
+}
 
 function fakeDb(seed = {}) {
   const state = {
@@ -89,6 +171,7 @@ function fakeDb(seed = {}) {
       source_id: SOURCE, replica_id: REPLICA, owner_user_id: OWNER, kind: "audio",
       state: "quarantined", object_path: `${OWNER}/${REPLICA}/${SOURCE}/original`,
       sha256: "a".repeat(64), mime: "audio/wav", byte_size: 48_044,
+      capture_mode: "derived", provenance: { purpose: "mirror_window" },
     }],
     sheets: seed.sheet === null ? [] : [{
       sheet_id: SHEET, agent_id: AGENT, version: "", status: "draft",
@@ -215,7 +298,10 @@ function fakeDb(seed = {}) {
         }
       }
       let ft = null;
-      if (admitted.length && !state.finetune.some((f) => f.session_id === sess.session_id)) {
+      // Follow the shipping statement. The old fake queued this row even when
+      // the real SQL did not, which made a dead consumer look tested.
+      if (has("insert into vy_mirror_finetune_job") && admitted.length &&
+          !state.finetune.some((f) => f.session_id === sess.session_id)) {
         ft = {
           job_id: jobId, session_id: sess.session_id, state: "queued", lane: "per_expert_adapter",
           reference_windows: admitted.length,
@@ -228,8 +314,9 @@ function fakeDb(seed = {}) {
         session_id: sess.session_id,
         reembedding_jobs: state.processing.filter((p) => p.step === "voice_quality").length,
         finetune_job_id: ft?.job_id ?? null,
-        finetune_reference_windows: ft?.reference_windows ?? null,
-        finetune_reference_ms: ft?.reference_ms ?? null,
+        finetune_reference_windows: admitted.length,
+        finetune_reference_ms: admitted.reduce((n, w) => n + w.duration_ms, 0),
+        voice_adaptation_state: admitted.length ? "evidence_reembedding_queued" : "blocked_owner_voice_unverified",
       }];
     }
 
@@ -1061,13 +1148,16 @@ ok(pure.conditioningScore({ activeRatio: 0.9, rms: 0.30, clippedRatio: 0 }, 10_0
     "re-embedding is triggered — one voice_quality job per distinct consented source");
   eq(db.state.processing[0].step, "voice_quality",
     "against the queue api/_replica-processing/worker.js already leases");
-  eq(ended.finetune_reference_windows, 3, "the fine-tune row records how much reference it was queued on");
-  eq(ended.finetune_reference_ms, 25_000, "in milliseconds");
-  eq(db.state.finetune[0].state, "queued",
-    "and its state is queued — nothing in this repo runs it, which is the honest answer");
-  eq(db.state.finetune[0].lane, "per_expert_adapter",
-    "on the per-expert-adapter lane — never a sequence of fine-tunes on a shared base");
-  eq(db.state.finetune.length, 1, "exactly one fine-tune row per session");
+  eq(ended.finetune_reference_windows, 3,
+    "the end receipt counts admitted reference evidence without calling it training");
+  eq(ended.finetune_reference_ms, 25_000, "and reports its milliseconds");
+  eq(ended.finetune_job_id, null, "no model-training job id is invented");
+  eq(db.state.finetune.length, 0, "a table with no runner receives no believable queued row");
+  const queuesDeadFinetune = (source) => String(source).includes("insert into vy_mirror_finetune_job");
+  ok(!queuesDeadFinetune(store.endMirrorSession),
+    "the production end statement has no dead fine-tune INSERT");
+  ok(queuesDeadFinetune("with finetune as (insert into vy_mirror_finetune_job ...)"),
+    "NEGATIVE CONTROL: the removed queue statement would be detected");
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -1187,6 +1277,37 @@ console.log("\n── 8. the wire ──");
     "the unserved list is EMPTY and still exported — an empty list is a positive statement, an absent field is not");
   eq(wire.MIRROR_CALL_TRANSPORT.ingest_window, "source_handle",
     "the transport deviation is DECLARED on the handshake, not discovered mid-call");
+
+  const mirrorUpload = sourceStore.sourceUploadInput({
+    kind: "audio", mime: "audio/wav", byte_size: 2048, sha256: "a".repeat(64),
+    contains_third_parties: false, purpose: "mirror_window",
+    mirror_session_id: "33333333-3333-4333-8333-333333333333", mirror_seq: 4,
+  });
+  const ordinaryUpload = sourceStore.sourceUploadInput({
+    kind: "audio", mime: "audio/wav", byte_size: 2048, sha256: "a".repeat(64),
+    contains_third_parties: false, purpose: "memory",
+  });
+  eq(mirrorUpload.captureMode, "derived",
+    "a Mirror window is finalized outside the ordinary enrollment DAG");
+  eq(ordinaryUpload.captureMode, "upload",
+    "NEGATIVE CONTROL: the old memory-purpose path WOULD enter that DAG");
+  ok(String(sourceStore.createPendingSource).includes("vy_mirror_session") &&
+      String(sourceStore.createPendingSource).includes("mirror_binding"),
+    "the source upload is SQL-bound to an open owner session");
+  ok(String(store.recordMirrorWindow).includes("mirror_session_id") &&
+      String(store.recordMirrorWindow).includes("mirror_seq"),
+    "the window store refuses a source handle bound to another session or sequence");
+  ok(String(store.recordMirrorWindow).includes("'mirror_window'") &&
+      String(store.mirrorWindowAudioRef).includes("'mirror_window'") &&
+      !String(store.recordMirrorWindow).includes("'mirror_call_window'") &&
+      !String(store.mirrorWindowAudioRef).includes("'mirror_call_window'"),
+    "the writer and inline ASR reader use the exact purpose accepted and stored by sourceUploadInput");
+  ok(String(sourceStore.finalizeOwnedSource).includes("capture_mode = 'upload'"),
+    "finalize queues integrity only for ordinary uploads, never derived Mirror windows");
+  ok(String(sourceStore.listOwnedSources).includes("mirror_window"),
+    "Mirror windows do not surface as normal enrollment sources");
+  ok(String(sourceStore.setOwnedPrimaryVoiceSource).includes("mirror_window"),
+    "a hidden Mirror window cannot be promoted to the primary enrollment voice");
 }
 
 // ═════════════════════════════════════════════════════════════════════════

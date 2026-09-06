@@ -363,12 +363,22 @@ export async function saveCloneChannel(db, ownerUserId, replicaId, { kind, exter
   if (updated[0]) return connected(updated[0], status);
 
   const rows = await db(
-    `insert into vy_clone_channel
-       (channel_id, agent_id, replica_id, owner_user_id, kind, external_ref, credentials_ref, status)
-     select ($3)::uuid, ($4)::uuid, ($2)::uuid, ($1)::uuid, $5, $6, ($9)::uuid,
-            case when $10 = 'connected' and ${readinessPasses("$1", "$2", "$7", "$8")}
-                 then 'connected' else 'draft' end
-     returning channel_id, kind, external_ref, credentials_ref, status, created_at, updated_at`,
+    `with replica_gate as materialized (
+       select r.agent_id,r.replica_id,r.owner_user_id
+         from vy_replica r
+        where r.agent_id=($4)::uuid and r.replica_id=($2)::uuid
+          and r.owner_user_id=($1)::uuid
+          and r.lifecycle not in ('revoked','purging')
+        for update of r
+     ), inserted as (
+       insert into vy_clone_channel
+         (channel_id, agent_id, replica_id, owner_user_id, kind, external_ref, credentials_ref, status)
+       select ($3)::uuid,g.agent_id,g.replica_id,g.owner_user_id,$5,$6,($9)::uuid,
+              case when $10 = 'connected' and ${readinessPasses("$1", "$2", "$7", "$8")}
+                   then 'connected' else 'draft' end
+         from replica_gate g
+       returning channel_id, kind, external_ref, credentials_ref, status, created_at, updated_at
+     ) select * from inserted`,
     [
       String(ownerUserId).toLowerCase(),
       String(replicaId).toLowerCase(),

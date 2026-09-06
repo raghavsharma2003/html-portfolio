@@ -29,6 +29,12 @@ export const MAX_ITEM_BYTES = 3 * 1024 * 1024;
  *  `text` column. Over it is `extracted_text_too_large`, not a slice. */
 export const MAX_EXTRACTED_CHARS = 400_000;
 
+/** Maximum bytes any archive or compressed document extractor may materialize
+ *  before the text ceiling is evaluated. The raw upload cap alone does not
+ *  constrain a highly-compressible DOCX/PDF stream, so every zlib call also
+ *  receives this bound and multi-stream formats share one cumulative budget. */
+export const MAX_DOCUMENT_EXPANDED_BYTES = 8 * 1024 * 1024;
+
 /** The virus-of-the-mind caps, per OWNER (not per replica): a locker is a
  *  place to put a life's context, and an unbounded one is a place to put a
  *  scraped corpus of somebody else's. Both are checked in SQL, as aggregates

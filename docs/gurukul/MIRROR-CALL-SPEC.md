@@ -12,14 +12,15 @@ not have to re-derive how "learns on the go" coexists with the platform's laws.
 An authenticated studio session where the OWNER talks to their own clone,
 voice-to-voice, and three loops run simultaneously:
 
-1. **Voice loop** — the owner's call audio (their own voice, on their own
-   authenticated session, previewing their own replica) accumulates into the
-   replica's reference set. `voice-evidence` re-embeds the grown set; a live
-   **fidelity meter** shows the ECAPA score moving against that speaker's
-   self-vs-self ceiling; the next clone turn synthesises off the enriched
-   reference. A fine-tune job (WS-U lane) is QUEUED at call end, never run
-   mid-call — a fine-tune takes GPU-minutes and pretending otherwise would be
-   a fake progress bar.
+1. **Voice-observation loop** — the owner's bounded call windows are stored as
+   session-bound private evidence. They do not enter voice conditioning unless
+   a server-side speaker-verification measurement proves the window is the
+   owner and the clone was not speaking over it. No deployed producer supplies
+   that owner-similarity measurement yet, so the current live path must label
+   every window `unverified` and leave the standing voice reference unchanged.
+   The call may record a voice-learning request at end, but no fine-tune runner
+   is deployed. A queue receipt is therefore not a training or completion
+   claim.
 2. **Personality loop** — the owner's turns stream through ASR into the
    existing ingestion statistical pass (the same one that mines a TeacherSheet
    draft from a transcript). What it mines surfaces DURING the call as
@@ -40,10 +41,12 @@ voice-to-voice, and three loops run simultaneously:
   and authenticated IS the approval channel, but presence alone is not
   approval — the tap is. Un-actioned chips at call end go to the ordinary
   review queue, not onto the sheet.
-- **Consent scopes.** Call audio joins the reference set only under the
-  replica's existing voice-consent scope, and only for the owner-subject
-  replica on an authenticated owner session. A Mirror Call cannot be run
-  against a replica the caller does not own.
+- **Consent scopes.** Call audio can become a reference candidate only under
+  the replica's existing voice-consent scope, on an authenticated owner session,
+  after a server-measured owner-voice verdict. A Mirror Call cannot be run
+  against a replica the caller does not own. Internal self-test mode can remove
+  the consent ceremony for an authenticated self replica; it does not remove
+  ownership, provenance, disclosure, or watermark checks.
 - **The audio floor.** `liveCall.ts` may import nothing beyond `./level` and
   `../engine/diag`, and echosim gates any change to it. The Mirror Call
   therefore builds AROUND the call engine, never into it: capture and
@@ -63,10 +66,12 @@ voice-to-voice, and three loops run simultaneously:
 ## Build shape (WS-X)
 
 - `api/mirror-call.js` — session orchestration: create/end a calibration
-  session bound to (owner, replica); ingest owner-turn audio chunks (≤30s
-  windows → Sarvam sync lane); return proposed deltas; record accept/reject;
-  accumulate consented reference windows; trigger re-embedding; queue the
-  fine-tune job at end.
+  session bound to (owner, replica); wake and probe the signed private voice
+  runtime; ingest owner-turn audio chunks through session-bound private source
+  handles (≤30s windows → configured live ASR); return cited phrase/slang
+  proposals; record accept/reject; and record the exact reason a window cannot
+  enter voice conditioning. The source handle lane is intentionally separate
+  from the eight-step enrollment DAG.
 - Delta mining reuses `api/_teachersheet.js`'s statistical pass on the rolling
   transcript — call-scoped, incremental, cited to the turns that produced it.
 - Studio UI: a Call tab — connect, talk, live captions, the fidelity meter,
@@ -89,10 +94,15 @@ voice-to-voice, and three loops run simultaneously:
   proposal/approval (with a negative control proving an unapproved delta
   never lands), consent refusal, and the reference-set growth arithmetic.
 
-## What "gets better on the go" honestly means in v1
+## What "gets better on the go" honestly means in the current deployment
 
-Within one call: richer zero-shot reference (voice) + accepted sheet deltas
-(personality) take effect on the next clone turn. Across calls: queued
-fine-tunes move the fidelity floor. What v1 does NOT do: claim mid-call model
-training, or apply any delta nobody approved. If either constraint is relaxed
-later, it is a new decision with its own entry, not drift.
+Within one call, the system can transcribe owner windows, preserve their source
+citations, suggest phrase/slang patterns, show advisory delivery observations,
+and apply only the proposals the owner explicitly accepts. It can use accepted
+feedback on subsequent reply assembly where the existing sheet path supports
+that field. It does not yet change the voice reference, run a fine-tune, write
+searchable relational memory, infer human traits, or store a durable emotion
+profile from the call. Those capabilities require their own measured producers,
+review surfaces, retention rules, and rollback gates. A future implementation
+must compile immutable call events into reviewable candidates; it must not train
+or rewrite the persona on the hot path.

@@ -50,6 +50,12 @@ import {
 } from "./_context/limits.js";
 import { citationViolations, mineContextItem } from "./_context-mining.js";
 import { persistInstructionShapedCard } from "./_review-queue.js";
+import {
+  clearContextCanonicalTextEvidence,
+  createContextImageEvidence,
+  createContextTextEvidence,
+  persistContextCanonicalEvidence,
+} from "./_experience-compiler/context-evidence.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -152,7 +158,7 @@ export async function listContextItems(db, ownerUserId, replicaIdValue, limit = 
     quota: await quotaOf(db, ownerUserId),
     limits: {
       max_item_bytes: MAX_ITEM_BYTES,
-      accepted_file_formats: ["txt", "md", "pdf", "docx", "whatsapp .txt export"],
+      accepted_file_formats: ["txt", "md", "pdf", "docx", "whatsapp .txt export", "png", "jpeg", "webp"],
       routed_elsewhere: { audio: "voice_evidence_lane", youtube: "channel_lane" },
     },
   };
@@ -176,9 +182,11 @@ export async function listContextItems(db, ownerUserId, replicaIdValue, limit = 
  *  disambiguates with one follow-up read rather than guessing. */
 async function insertItem(db, row, body) {
   const rows = await db(
-    `with owned as (
+    `with owned as materialized (
        select r.replica_id from vy_replica r
         where r.replica_id = $2::uuid and r.owner_user_id = $3::uuid
+          and r.lifecycle not in ('revoked','purging')
+        for update of r
      ), quota as (
        select count(*)::int as items, coalesce(sum(byte_size), 0)::bigint as bytes
          from vy_context_item where owner_user_id = $3::uuid
@@ -186,9 +194,9 @@ async function insertItem(db, row, body) {
        insert into vy_context_item
          (item_id, replica_id, owner_user_id, kind, format, source_name, source_url,
           content_sha256, byte_size, extracted_chars, extractor, status, refusal_reason,
-          routed_to, mine_skip_reason, authorship, owner_speaker, consent_scope)
+          routed_to, mine_skip_reason, authorship, owner_speaker, consent_scope, source_id)
        select $1::uuid, o.replica_id, $3::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-              $13, $14, $15, $16, $17, $18
+              $13, $14, $15, $16, $17, $18, $22::uuid
          from owned o, quota q
         where q.items < $19 and q.bytes + $9 <= $20
        on conflict (replica_id, content_sha256) do nothing
@@ -207,7 +215,7 @@ async function insertItem(db, row, body) {
       row.source_url, row.content_sha256, row.byte_size, row.extracted_chars, row.extractor,
       row.status, row.refusal_reason, row.routed_to, row.mine_skip_reason, row.authorship,
       row.owner_speaker, row.consent_scope, MAX_ITEMS_PER_OWNER, MAX_BYTES_PER_OWNER,
-      body || ""],
+      body || "", row.source_id || null],
   );
   return rows[0] || null;
 }
@@ -277,6 +285,7 @@ export async function addContextFile(db, ownerUserId, replicaIdValue, file, deps
     authorship,
     owner_speaker: String(file.owner_speaker || "").slice(0, 120),
     consent_scope: "own_context",
+    source_id: null,
   };
 
   let extraction = null;
@@ -313,8 +322,26 @@ export async function addContextFile(db, ownerUserId, replicaIdValue, file, deps
   const speakers = extraction.speakers ?? null;
   if (extraction.format === "whatsapp_export") extraction = storedExportBody(extraction);
 
+  let canonicalSource = null;
+  if (typeof deps.createCanonicalSource === "function") {
+    canonicalSource = await deps.createCanonicalSource({
+      bytes,
+      contentSha256: hash,
+      format: extraction.format,
+      mime: contextMime(extraction),
+      kind: contextSourceKind(extraction),
+      containsThirdParties: extraction.format === "whatsapp_export",
+    });
+    if (!canonicalSource?.source_id) fail("context_private_source_failed", 503);
+  } else if (extraction.image) {
+    // Unlike text, an image has no canonical body in Postgres. Accepting it
+    // without retained private bytes would create an unresolvable pixel cite.
+    fail("context_private_storage_required", 503);
+  }
+
   const stored = await insertItem(db, {
     ...base,
+    source_id: canonicalSource?.source_id || null,
     format: extraction.format,
     extracted_chars: extraction.body.length,
     extractor: extraction.extractor,
@@ -323,9 +350,55 @@ export async function addContextFile(db, ownerUserId, replicaIdValue, file, deps
   }, extraction.body);
 
   if (!stored) {
+    if (canonicalSource && typeof deps.discardCanonicalSource === "function") {
+      await deps.discardCanonicalSource(canonicalSource).catch(() => null);
+    }
     const duplicate = await existingByHash(db, ownerUserId, replicaId, hash);
     if (duplicate) return { item: clientItem(duplicate), duplicate: true, proposal: null };
     fail("context_item_write_failed", 409, { note: "quota predicate refused the insert" });
+  }
+
+  if (canonicalSource) {
+    const records = extraction.image
+      ? createContextImageEvidence({
+          replicaId, ownerUserId, sourceId: canonicalSource.source_id, itemId: stored.item_id,
+          inputSha256: hash, format: extraction.format,
+          width: extraction.image.width, height: extraction.image.height,
+        })
+      : createContextTextEvidence({
+          replicaId, ownerUserId, sourceId: canonicalSource.source_id, itemId: stored.item_id,
+          inputSha256: hash, format: extraction.format, extractor: extraction.extractor,
+          body: extraction.body, segments: extraction.segments, authorship,
+          ownerSpeaker: base.owner_speaker,
+        });
+    if (records.length) {
+      try {
+        await persistContextCanonicalEvidence(db, {
+          itemId: stored.item_id, replicaId, ownerUserId, records,
+        });
+      } catch (error) {
+        // Never return an accepted item whose canonical evidence write failed.
+        // The source moves to the normal durable erasure lane, which makes a
+        // user retry create a fresh complete item instead of hitting a broken
+        // duplicate forever.
+        await removeContextItem(db, ownerUserId, replicaId, stored.item_id).catch(() => null);
+        throw error;
+      }
+    }
+  }
+
+  if (extraction.image) {
+    const item = await markItem(db, stored, {
+      status: "extracted",
+      mine_skip_reason: "image_ocr_not_configured",
+      run_id: null,
+    });
+    return {
+      item,
+      duplicate: false,
+      proposal: { ok: true, proposed: 0, reason: "image_ocr_not_configured" },
+      image: { width: extraction.image.width, height: extraction.image.height },
+    };
   }
 
   const proposal = await mineStored(db, stored, extraction, {
@@ -333,6 +406,20 @@ export async function addContextFile(db, ownerUserId, replicaIdValue, file, deps
     ownerSpeaker: base.owner_speaker,
   }, deps);
   return { item: proposal.item, duplicate: false, proposal: proposal.proposal, speakers };
+}
+
+function contextSourceKind(extraction) {
+  if (extraction.image) return "image";
+  if (extraction.format === "whatsapp_export") return "chat_archive";
+  if (new Set(["pdf", "docx"]).has(extraction.format)) return "document";
+  return "text";
+}
+
+function contextMime(extraction) {
+  if (extraction.image) return extraction.image.mime;
+  if (extraction.format === "pdf") return "application/pdf";
+  if (extraction.format === "docx") return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  return "text/plain";
 }
 
 /**
@@ -502,13 +589,22 @@ async function mineStored(db, stored, extraction, options, deps = {}) {
   // already has a proposal must not reset a proposal the owner is mid-review
   // on. Same idempotence mechanism, same constraint, as the channel lane's.
   const runs = await db(
-    `insert into vy_ingest_run
-       (run_id, replica_id, owner_user_id, watch_id, video_ref, transcript_source,
-        stats, proposed_delta, proposed_delta_count, status)
-     values ($1::uuid, $2::uuid, $3::uuid, null, $4, 'context_item',
-             $5::jsonb, $6::jsonb, $7, 'proposed')
-     on conflict (replica_id, video_ref) do nothing
-     returning run_id, status, proposed_delta_count`,
+    `with replica_gate as materialized (
+       select r.replica_id,r.owner_user_id
+         from vy_replica r
+        where r.replica_id=$2::uuid and r.owner_user_id=$3::uuid
+          and r.lifecycle not in ('revoked','purging')
+        for update of r
+     ), inserted as (
+       insert into vy_ingest_run
+         (run_id, replica_id, owner_user_id, watch_id, video_ref, transcript_source,
+          stats, proposed_delta, proposed_delta_count, status)
+       select $1::uuid,g.replica_id,g.owner_user_id,null,$4,'context_item',
+              $5::jsonb,$6::jsonb,$7,'proposed'
+         from replica_gate g
+       on conflict (replica_id, video_ref) do nothing
+       returning run_id, status, proposed_delta_count
+     ) select * from inserted`,
     [runId, stored.replica_id, stored.owner_user_id, `context:${stored.item_id}`,
       bounded(result.stats), bounded(result.delta), result.deltaCount],
   );
@@ -546,8 +642,8 @@ export async function remineContextItem(db, ownerUserId, replicaIdValue, itemIdV
   const replicaId = idOf(replicaIdValue, "valid_replica_id_required");
   const itemId = idOf(itemIdValue, "valid_item_id_required");
   const rows = await db(
-    `select i.item_id, i.replica_id, i.owner_user_id, i.format, i.status, i.extractor,
-            i.authorship, i.owner_speaker, t.body
+    `select i.item_id, i.replica_id, i.owner_user_id, i.source_id, i.content_sha256,
+            i.format, i.status, i.extractor, i.authorship, i.owner_speaker, t.body
        from vy_context_item i
        left join vy_context_item_text t on t.item_id = i.item_id
       where i.item_id = $1::uuid and i.replica_id = $2::uuid and i.owner_user_id = $3::uuid
@@ -581,6 +677,17 @@ export async function remineContextItem(db, ownerUserId, replicaIdValue, itemIdV
   // spans were taken against. Re-parsing the original bytes would risk an
   // extractor change silently moving every offset in every stored citation.
   const extraction = resegment(row.format, row.body, row.extractor);
+  if (row.source_id) {
+    await clearContextCanonicalTextEvidence(db, { itemId, replicaId, ownerUserId });
+    const records = createContextTextEvidence({
+      replicaId, ownerUserId, sourceId: row.source_id, itemId,
+      inputSha256: row.content_sha256, format: row.format, extractor: row.extractor,
+      body: row.body, segments: extraction.segments, authorship, ownerSpeaker,
+    });
+    if (records.length) await persistContextCanonicalEvidence(db, {
+      itemId, replicaId, ownerUserId, records,
+    });
+  }
   const proposal = await mineStored(db, { ...row, item_id: itemId }, extraction, {
     authorship, ownerSpeaker,
   }, deps);
@@ -648,25 +755,81 @@ export function storedExportBody(extraction) {
 // Removal
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Both rows in one statement. A text row surviving its item is an orphan
- *  carrying the owner's words with nothing pointing at it — the exact shape
- *  scripts/relcheck.mjs exists to catch. The PROPOSAL is deliberately kept: it
- *  is a decision record on the review surface, it holds no body text, and
- *  deleting it would re-open a proposal the owner already declined. */
+/** Remove the source and its canonical text, and tombstone its proposal in the
+ *  same statement. `vy_ingest_run.proposed_delta` contains quoted fragments
+ *  from the source, so keeping that payload after the owner removes the item
+ *  is still keeping the owner's words. The run identity and completed decision
+ *  survive as a content-free audit receipt. Removing an undecided proposal is
+ *  itself an authenticated owner decision, so that proposal becomes rejected
+ *  instead of remaining as an empty, apparently reviewable draft. */
 export async function removeContextItem(db, ownerUserId, replicaIdValue, itemIdValue) {
   const replicaId = idOf(replicaIdValue, "valid_replica_id_required");
   const itemId = idOf(itemIdValue, "valid_item_id_required");
   const rows = await db(
-    `with removed as (
-       delete from vy_context_item
+    `with target as (
+       select item_id,source_id
+         from vy_context_item
         where item_id = $1::uuid and replica_id = $2::uuid and owner_user_id = $3::uuid
-        returning item_id
+        for update
+     ), scrubbed_run as (
+       update vy_ingest_run r
+          set stats = '{}'::jsonb,
+              proposed_delta = '{}'::jsonb,
+              proposed_delta_count = 0,
+              video_title = '',
+              failure_code = 'context_source_removed',
+              status = case when r.status in ('applied', 'rejected') then r.status else 'rejected' end,
+              approved_by_user_id = case
+                when r.status in ('applied', 'rejected') then r.approved_by_user_id
+                else $3::uuid
+              end,
+              decided_at = case
+                when r.status in ('applied', 'rejected') then r.decided_at
+                else now()
+              end,
+              updated_at = now()
+         from target t
+        where r.replica_id = $2::uuid
+          and r.owner_user_id = $3::uuid
+          and r.transcript_source = 'context_item'
+          and r.video_ref = 'context:' || t.item_id::text
+        returning r.run_id
+     ), invalidated_claims as (
+       update vy_replica_claim c set status='superseded',updated_at=now()
+         from target t
+        where t.source_id is not null and c.replica_id=$2::uuid and c.owner_user_id=$3::uuid
+          and t.source_id=any(c.source_ids) and c.status in ('proposed','approved')
+       returning c.claim_id
+     ), removed_evidence as (
+       delete from vy_replica_processing_evidence e using target t
+        where t.source_id is not null and e.source_id=t.source_id
+          and e.replica_id=$2::uuid and e.owner_user_id=$3::uuid
+       returning e.evidence_id
+     ), source_erasure as (
+       update vy_replica_source s set state='deleting',erasure_next_attempt_at=now(),updated_at=now()
+         from target t
+        where t.source_id is not null and s.source_id=t.source_id
+          and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid
+       returning s.source_id
      ), removed_text as (
-       delete from vy_context_item_text t using removed r where t.item_id = r.item_id
+       delete from vy_context_item_text t using target i
+        where t.item_id = i.item_id
+          and t.replica_id = $2::uuid
+          and t.owner_user_id = $3::uuid
        returning t.item_id
+     ), removed as (
+       delete from vy_context_item i using target t
+        where i.item_id = t.item_id
+          and i.replica_id = $2::uuid
+          and i.owner_user_id = $3::uuid
+       returning i.item_id
      )
-     select item_id from removed`,
+     select item_id,(select source_id from source_erasure limit 1) source_id from removed`,
     [itemId, replicaId, ownerUserId],
   );
-  return rows[0] ? { removed: true, item_id: rows[0].item_id } : null;
+  return rows[0] ? {
+    removed: true,
+    item_id: rows[0].item_id,
+    erasure: rows[0].source_id ? "pending" : "complete",
+  } : null;
 }

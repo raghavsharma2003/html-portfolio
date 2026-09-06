@@ -143,12 +143,12 @@ ok("runtime, eval and generation records bind calibration versions", /vy_replica
 const route = readFileSync(join(ROOT, "api/replica-calibration.js"), "utf8");
 ok("calibration route derives authority from bearer auth", /const user = await requireUser\(req\)/.test(route) && !/body\.(?:owner|owner_user_id|user_id|agent_id|person_id)/.test(route));
 const studio = readFileSync(join(ROOT, "src/studio/CalibrationStudio.tsx"), "utf8");
-// WS-R61: this file's own literal strings moved into src/studio/copy.ts
+// WS-R61: this file's own literal strings moved into src/creatorStudio/copy.ts
 // (the studio's locale table) -- `studio` alone no longer carries the
 // rendered English text, only `c.<key>` references. Read together, the same
 // pattern `evals/readiness/run.mjs` already established for this exact move
 // (context/decisions.md#ws-r52-existing-evals-updated-for-the-copy-ts-move).
-const copyTs = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
+const copyTs = readFileSync(join(ROOT, "src/creatorStudio/copy.ts"), "utf8");
 const studioWithCopy = `${studio}\n${copyTs}`;
 ok("Studio explains typed evidence and supports tie or neither", /versioned preference evidence/.test(studioWithCopy) && /Both feel like me/.test(studioWithCopy) && /Neither is me/.test(studioWithCopy));
 

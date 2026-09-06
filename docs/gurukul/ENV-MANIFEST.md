@@ -27,25 +27,30 @@ family) and is flagged per-row below.
 
 ---
 
-## 1. Foundry — claim extraction + dialogue generation (`vercel-app`)
+## 1. LLM claim extraction + dialogue generation (`vercel-app`)
 
 The two LLM lanes ingestion (WS-F) and the Studio review step (WS-E) will
 call: `api/_claim-extraction/registry.js` turns teacher uploads into cited
-claims, `api/_dialogue/registry.js` is the sheet-authoring assist. Both are
-Azure AI Foundry chat completions on the same resource, different
-deployments.
+claims, `api/_dialogue/registry.js` is the sheet-authoring assist. Dialogue
+generation uses Azure AI Foundry. Claim extraction prefers a complete Azure
+configuration and otherwise uses a complete OpenRouter configuration. Partial
+provider arms are never called.
 
 | name | consumed at | required | fallback | breaks without it |
 |---|---|---|---|---|
-| `AZURE_FOUNDRY_ENDPOINT` | `api/_claim-extraction/registry.js:4`, `api/_dialogue/registry.js:4` | required | none — throws `claim_extractor_unavailable` / `dialogue_generator_unavailable` (503) | both lanes 503 |
-| `AZURE_FOUNDRY_API_KEY` | `api/_claim-extraction/registry.js:6`, `api/_dialogue/registry.js:6` | required | same as above | same as above |
-| `AZURE_FOUNDRY_CLAIM_MODEL` | `api/_claim-extraction/registry.js:5` | required | throws if unset | claim extraction 503s (dialogue unaffected) |
+| `AZURE_FOUNDRY_ENDPOINT` | `api/_claim-extraction/registry.js`, `api/_dialogue/registry.js` | required for either Azure arm | claim extraction can use complete OpenRouter; dialogue has no fallback | incomplete claim provider or dialogue 503 |
+| `AZURE_FOUNDRY_API_KEY` | same registries | required for either Azure arm | same as above | same as above |
+| `AZURE_FOUNDRY_CLAIM_MODEL` | `api/_claim-extraction/registry.js` | required for Azure claim extraction | complete OpenRouter arm | claim extraction 503s only when no provider arm is complete |
 | `AZURE_FOUNDRY_DIALOGUE_MODEL` | `api/_dialogue/registry.js:5` | required | throws if unset | dialogue generation 503s (claim extraction unaffected) |
+| `OPENROUTER_API_KEY` | `api/_claim-extraction/registry.js` | one of two accepted OpenRouter credential names | `OPENROUTER_KEY` | OpenRouter arm unavailable when neither is set |
+| `OPENROUTER_KEY` | `api/_claim-extraction/registry.js` | compatibility credential name | `OPENROUTER_API_KEY` | same as above |
+| `OPENROUTER_CLAIM_MODEL` | `api/_claim-extraction/registry.js` | required for OpenRouter claim extraction | complete Azure claim arm | claim extraction 503s only when no provider arm is complete |
 
-All three of endpoint/key/model are checked together per registry (`if
-(!endpoint || !model || !apiKey) throw`) — a partial set is the same as none.
+The registry chooses complete Azure endpoint/key/model first. If that arm is
+incomplete, it chooses OpenRouter only when key and model are both present.
+Otherwise it throws `claim_extractor_unavailable` before provider I/O.
 
-## 2. Foundry spend fencing (`vercel-app`)
+## 2. LLM spend fencing (`vercel-app`)
 
 `api/_provider-budget.js`'s `reserveFoundrySpend`/`beginFoundrySpend`/
 `settleFoundrySpend`, called from `api/_replica-claims.js:212` and
@@ -55,12 +60,14 @@ before it can spend money.
 | name | consumed at | required | fallback | breaks without it |
 |---|---|---|---|---|
 | `AZURE_REPLICA_BUDGET_ID` | `api/_provider-budget.js:25` | optional | defaults to `"azure-replica-grant-v1"` | none — cosmetic budget-row id only |
-| `AZURE_REPLICA_APP_BUDGET_USD` | `api/_provider-budget.js:27` | required | throws `provider_budget_limit_required` | every fenced spend (Foundry, personal voice, fast transcription — §2/§8/§11) refuses to reserve |
+| `AZURE_REPLICA_APP_BUDGET_USD` | `api/_provider-budget.js` | required | throws `provider_budget_limit_required` | every fenced spend, including OpenRouter, Foundry, personal voice and fast transcription, refuses to reserve |
 | `AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS` | `api/_provider-budget.js:28` | required | throws `provider_input_rate_required` | Foundry reservation refuses |
 | `AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS` | `api/_provider-budget.js:29` | required | throws `provider_output_rate_required` | Foundry reservation refuses |
+| `OPENROUTER_INPUT_USD_PER_MTOKENS` | `api/_provider-budget.js` | required for OpenRouter claim extraction | none | OpenRouter reservation refuses |
+| `OPENROUTER_OUTPUT_USD_PER_MTOKENS` | `api/_provider-budget.js` | required for OpenRouter claim extraction | none | OpenRouter reservation refuses |
 
 `AZURE_REPLICA_APP_BUDGET_USD` is shared across all three budgeted
-subsystems (Foundry, Azure Personal Voice, fast transcription) — one shared
+subsystems (OpenRouter, Foundry, Azure Personal Voice, fast transcription) — one shared
 dollar ceiling, `AZURE_REPLICA_BUDGET_ID` scoped, per `vy_provider_budget`.
 
 ## 3. Identity verification (`vercel-app`)
@@ -278,14 +285,15 @@ one explicitly allowlisted owner while leaving authentication, ownership,
 private storage, quarantine, malware scanning, media evidence and model-build
 gates intact. The Vercel copy bootstraps the six scopes before source creation;
 the processing-worker copy auto-reviews real evidence and queues a draft after
-`voice_quality`. All three settings are mandatory together. The old single
+`voice_quality`. All three all-account settings are mandatory together. The old single
 `REPLICA_SELF_TEST_MODE=true` setting is inert.
 
 | name | consumed at | required | fallback | breaks without it |
 |---|---|---|---|---|
-| `REPLICA_SELF_TEST_MODE` | `api/replica-source.js`, `api/_replica-processing/runtime.js` | optional, owner testing only | anything except exact `true` is off | no bypass |
+| `REPLICA_SELF_TEST_MODE` | `api/replica-source.js`, `api/_replica-processing/runtime.js` | optional, internal testing only | anything except exact `true` is off | no bypass |
 | `REPLICA_SELF_TEST_ENVIRONMENT` | same | required only with self-test | must equal exact `internal-owner-testing` | no bypass |
-| `REPLICA_SELF_TEST_OWNER_USER_ID` | same | required only with self-test | no fallback; must match the authenticated/leased owner's UUID | no bypass, including for every other account |
+| `REPLICA_SELF_TEST_ACCESS` | same | required for all-account self-test | must equal exact `all-authenticated` | no all-account bypass |
+| `REPLICA_SELF_TEST_OWNER_USER_ID` | same | legacy single-owner alternative only | must match the authenticated/leased owner's UUID when access is omitted | no single-owner bypass |
 
 ## 13. Encryption-at-rest — three independent KEKs (`vercel-app`)
 
@@ -674,9 +682,10 @@ and §12 applies here too, read from this job's own env, not the Vercel app's.
 | `AZURE_VOICE_EVIDENCE_ORIGIN`, `AZURE_VOICE_EVIDENCE_HMAC_SECRET`, `VOICE_EVIDENCE_MAX_AUDIO_BYTES`, `VOICE_EVIDENCE_TIMEOUT_MS` | via `createAzureVoiceEvidenceAdapters({env,...})`, `run-once.js:23` → §10 | see §10 | see §10 | evidence steps (diarize/separate/enhance/voice_quality) fail without the required two |
 | `REPLICA_STORAGE_BUCKET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | via `createReplicaProcessingStorage`, `run-once.js:5` → §12 | see §12 | see §12 | the job cannot resolve or write any object |
 | `AZURE_REPLICA_BUDGET_ID`, `AZURE_REPLICA_APP_BUDGET_USD` | via `budgetEnv: process.env`, `run-once.js:61` → §11 | see §11 | see §11 | fences the OTHER Azure-billed steps (voice evidence); `transcribe` is unmetered now — see the Sarvam row above and its adapter's header for why |
-| `REPLICA_SELF_TEST_MODE` | `api/_replica-processing/self-test.js` | optional, internal owner testing only | anything except exact `true` disables the auto-grant | setting this alone does nothing; the two guards below are also mandatory |
+| `REPLICA_SELF_TEST_MODE` | `api/_replica-processing/self-test.js` | optional, internal testing only | anything except exact `true` disables the auto-grant | setting this alone does nothing; environment plus one access guard are also mandatory |
 | `REPLICA_SELF_TEST_ENVIRONMENT` | `api/_replica-processing/self-test.js` | required only with self-test mode | must equal exact `internal-owner-testing` | missing or different keeps every identity, consent and review gate fail-closed |
-| `REPLICA_SELF_TEST_OWNER_USER_ID` | `api/_replica-processing/self-test.js` | required only with self-test mode | no fallback; must be a UUID matching the leased job owner | malformed or mismatched keeps the bypass off, so another account cannot inherit the owner's test grant |
+| `REPLICA_SELF_TEST_ACCESS` | `api/_replica-processing/self-test.js` | required for the all-account test lane | must equal exact `all-authenticated` | missing or different does not enable all accounts |
+| `REPLICA_SELF_TEST_OWNER_USER_ID` | `api/_replica-processing/self-test.js` | legacy single-owner alternative | must be a UUID matching the leased job owner when access is omitted | malformed or mismatched keeps the single-owner bypass off |
 
 The Dockerfile's ClamAV signature refresh (`entrypoint.sh`) is a hard startup
 dependency with no env var — a failed `freshclam` update blocks the job
@@ -735,10 +744,22 @@ Microsoft. All three assume the pre-existing Meera required pair
 (`OPENROUTER_KEY`, `NEON_URL`) is already set, since nothing in Gurukul
 replaces the base engine.
 
-### (a) Foundry claim-extraction + dialogue only — no replica lab at all
+### (a) LLM claim extraction, with optional Foundry dialogue — no replica lab
 
-Lights up WS-F ingestion's LLM pass and WS-E's dialogue-authoring assist,
-with **no** identity/liveness/voice/storage machinery running.
+The smallest claim-extraction configuration uses the existing OpenRouter
+credential plus an explicit model, current rates and the durable application
+budget. It does not activate dialogue generation.
+
+```
+OPENROUTER_API_KEY or OPENROUTER_KEY
+OPENROUTER_CLAIM_MODEL
+AZURE_REPLICA_BUDGET_ID            (optional, has a default)
+AZURE_REPLICA_APP_BUDGET_USD
+OPENROUTER_INPUT_USD_PER_MTOKENS
+OPENROUTER_OUTPUT_USD_PER_MTOKENS
+```
+
+To use Azure for claims and also activate WS-E dialogue authoring, set:
 
 ```
 AZURE_FOUNDRY_ENDPOINT
@@ -751,8 +772,9 @@ AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS
 AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS
 ```
 
-8 vars (6 required + 2 optional-with-defaults), one deployment target
-(`vercel-app`), zero standalone services, zero Microsoft approvals.
+Both alternatives use one deployment target (`vercel-app`), zero standalone
+services and zero Microsoft approvals. Do not copy rates from this document:
+verify the selected model's current provider pricing before setting them.
 
 ### (b) + Chatterbox voice lane — still no Microsoft approvals
 
@@ -1409,3 +1431,22 @@ model call (`recall_set_too_small`, 409) — `RECALL_SET_MIN`
 
 No new secret-store entry: `RECALL_RUN` is a plain, non-secret switch, set
 the same way every other feature flag in this manifest is.
+
+## 36. Optional shared Azure reply (`vercel-app`, 2026-09-06)
+
+This changes only the shared reply transport. The compiler, memory boundaries,
+output guard and protected voice path remain shared. Selecting Azure requires
+an exact deployment and explicit prices; unknown or incomplete selections
+refuse without provider fallback. The existing application budget in section 2
+must also authorize every call. Rates are for the reply model, never borrowed
+from a different claim-extraction deployment.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `VYAKTI_REPLY_PROVIDER` | `api/_reply-engine-capability.js`, `api/_surface.js` | optional | `openrouter`; explicit `azure_foundry` selects Azure | unknown selection refuses replies |
+| `AZURE_FOUNDRY_REPLY_ENDPOINT` | `api/_azure-surface-reply.js` | optional | `AZURE_FOUNDRY_ENDPOINT` | selected Azure replies refuse if neither is valid |
+| `AZURE_FOUNDRY_REPLY_API_KEY` | `api/_azure-surface-reply.js` | optional | `AZURE_FOUNDRY_API_KEY` | selected Azure replies refuse if neither is configured |
+| `AZURE_FOUNDRY_REPLY_MODEL` | `api/_azure-surface-reply.js` | optional unless Azure replies are selected | none | selected Azure replies refuse |
+| `AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS` | `api/_azure-surface-reply.js` | optional unless Azure replies are selected | none | unpriced replies cannot reserve budget |
+| `AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS` | `api/_azure-surface-reply.js` | optional unless Azure replies are selected | none | unpriced replies cannot reserve budget |
+

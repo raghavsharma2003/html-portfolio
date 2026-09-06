@@ -24,7 +24,7 @@
 // which is why this filter exists rather than shipping every one of the
 // manifest's 155 names.
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { loadEnvManifest } from "./envManifest.mjs";
 
@@ -70,4 +70,4 @@ function main() {
   console.log(`wrote ${OUT_PATH}: ${data.length} vercel-app name(s) (of ${entries.length} manifest name(s) total)`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

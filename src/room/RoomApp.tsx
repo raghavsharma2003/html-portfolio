@@ -36,9 +36,9 @@
  * watching rather than having.
  */
 import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import type { StudioSession } from "../studio/types";
-import { readStoredSession, restoreSession, writeStoredSession } from "../studio/session";
-import { googleSignIn, sendPhoneOtp, verifyPhoneOtp } from "../studio/studioAuth";
+import type { StudioSession } from "../creatorStudio/types";
+import { readStoredSession, restoreSession, writeStoredSession } from "../creatorStudio/session";
+import { googleSignIn, sendPhoneOtp, verifyPhoneOtp } from "../creatorStudio/studioAuth";
 import {
   ROOM_COPY_TABLE,
   loadRoomCopy,

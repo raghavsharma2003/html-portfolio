@@ -156,6 +156,13 @@ ok("forged model-service responses are rejected", true);
 process.env.SUPABASE_URL = "https://storage.fixture.example";
 process.env.SUPABASE_SERVICE_ROLE_KEY = Buffer.alloc(32, 19).toString("base64url");
 const storedObjects = new Map();
+let writerChecks = 0;
+let checkedWrites = 0;
+const beforeWriteRequest = async ({ objectPath, phase }) => {
+  assert.ok(objectPath.startsWith("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/cccccccc-cccc-4ccc-8ccc-cccccccccccc/derived/"));
+  assert.equal(phase, "object");
+  writerChecks += 1;
+};
 const originalPath = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/cccccccc-cccc-4ccc-8ccc-cccccccccccc/original";
 storedObjects.set(originalPath, { bytes: RAW, mime: "audio/wav" });
 async function storageFetch(url, init = {}) {
@@ -172,6 +179,7 @@ async function storageFetch(url, init = {}) {
       : new Response("missing", { status: 404 });
   }
   if (parsed.pathname.startsWith(upload) && init.method === "POST") {
+    assert.equal(writerChecks, ++checkedWrites, "every immutable PUT needs a fresh writer authority check");
     const key = decodeURIComponent(parsed.pathname.slice(upload.length));
     if (storedObjects.has(key)) return new Response("exists", { status: 409 });
     storedObjects.set(key, { bytes: Buffer.from(init.body), mime: init.headers["Content-Type"] });
@@ -204,15 +212,18 @@ const derived = Buffer.from("derived immutable audio");
 const firstWrite = await processingStorage.artifactStore.writeImmutable({
   bucket: "vyakti-replica-private", objectPath: derivedPath, body: derived, mime: "audio/wav",
   expectedSha256: sha256Hex(derived), ifNoneMatch: "*",
+  beforeWriteRequest,
 });
 const retryWrite = await processingStorage.artifactStore.writeImmutable({
   bucket: "vyakti-replica-private", objectPath: derivedPath, body: derived, mime: "audio/wav",
   expectedSha256: sha256Hex(derived), ifNoneMatch: "*",
+  beforeWriteRequest,
 });
 ok("create-only private artifact retries succeed only when bytes are identical", firstWrite.sha256 === retryWrite.sha256 && retryWrite.byteSize === derived.length);
 await assert.rejects(processingStorage.artifactStore.writeImmutable({
   bucket: "vyakti-replica-private", objectPath: derivedPath, body: Buffer.from("different"), mime: "audio/wav",
   expectedSha256: sha256Hex(Buffer.from("different")), ifNoneMatch: "*",
+  beforeWriteRequest,
 }), /immutable_artifact_collision/);
 ok("an immutable path collision cannot replace derived evidence", true);
 await assert.rejects(processingStorage.resolveInput({

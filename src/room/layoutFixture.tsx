@@ -58,8 +58,8 @@
  */
 import ReactDOM from "react-dom/client";
 import RoomApp from "./RoomApp";
-import "../studio/design/tokens.css";
-import "../studio/studio.css";
+import "../creatorStudio/design/tokens.css";
+import "../creatorStudio/design/foundation.css";
 import "./room.css";
 import { ROOM_COPY_TABLE, loadRoomCopy } from "./copy";
 import type { RoomOpen, RoomSettings, RoomForgetReceipt, RoomOffer } from "./roomApi";

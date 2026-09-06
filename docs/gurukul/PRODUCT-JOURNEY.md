@@ -1,5 +1,29 @@
 # PRODUCT JOURNEY — the whole path, audited and then designed
 
+## START HERE: the current mobile journey (2026-08-30)
+
+This block supersedes the older page audit below wherever they disagree.
+
+The primary path is now **Create, Meet, Deploy**. Create defaults to a clean
+browser recording. The person taps **Start recording**, speaks naturally for at
+least 12 seconds, then taps **Finish and build**. A clean sample uploads,
+becomes the primary voice, and opens Meet automatically. A clipped, quiet, or
+too-short sample stops for one clear retake.
+
+One in-flow status beacon owns processing. It shows the real phase, elapsed
+time, observed range, next check, and useful return time. It does not show a
+fabricated percentage or repeat the same wait in several panels.
+
+Meet is no longer one stacked page. It has three task views: **Hear your
+voice**, **Voice chat**, and **Review**. Only the selected task is mounted. The
+URL preserves the exact clone, wizard step, and Meet view across reloads and
+history navigation. Blind experiments and technical receipts remain available
+inside Review without interrupting the first successful preview.
+
+The competitor review, evidence, and reversal conditions are recorded in
+`research/VOICE-CLONE-PRODUCT-UX-2026-08-30.md`. The historical audit below is
+kept because it explains why the former multi-panel journey was rejected.
+
 **WS-AA, 2026-08-26.** Owner directive this document exists to serve:
 `context/decisions.md#owner-intent-is-the-spec` — UI/UX/product flow must be
 "amazing and very well thought out", no compromises, and *"an unpolished-but-

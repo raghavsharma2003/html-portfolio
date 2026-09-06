@@ -2843,6 +2843,10 @@ export const PERSON_TABLES = [
   // device_id is the handset the turn came from, and they are the same human.
   // `keys` ORs them, so a row whose person mapping was rewritten between the
   // turn and the wipe is still reached.
+  // Expression observations contain no external object locator. They are
+  // short-lived, but expiry is not an erasure authority: a person export or
+  // whole wipe must still reach every unexpired or held row by person_id.
+  { table: "vy_replica_expression_observation", key: "person_id", lane: "relational", agent: true },
   { table: "vy_replica_dialogue_turn", key: "person_id", lane: "relational", agent: true,
     keys: ["person_id", "device_id"] },
   { table: "vy_replica_runtime_session", key: "person_id", lane: "relational", agent: true },
@@ -3263,7 +3267,7 @@ export async function activePersonTables() {
   const on = await multipartyApplied();
   const consent = await tableApplied("meera_consent");
   // WS-R: the same per-table guard meera_consent already gets, for the replica
-  // lane's four person-keyed tables. They arrive with migrations 015/023/027,
+  // lane's person-keyed tables. They arrive with migrations 015/023/027/068,
   // and the manifest loop's delete is not wrapped in a catch on purpose — the
   // receipt may only be sent once the delete actually happened. A manifest
   // naming a table this database does not have yet would turn every whole wipe
@@ -3327,6 +3331,7 @@ export async function tableApplied(name) {
  *  deploy-ordering reason. Provably lossless in both cases: a table that does
  *  not exist holds no rows. */
 export const REPLICA_PERSON_TABLES = [
+  "vy_replica_expression_observation",
   "vy_replica_dialogue_turn",
   "vy_replica_runtime_session",
   "vy_replica_runtime_capability",

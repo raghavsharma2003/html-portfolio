@@ -192,9 +192,11 @@ export async function saveOwnedTeacherSheetDraft(db, ownerUserId, replicaIdValue
   // the live clone cannot be edited out from under its students by the draft
   // screen; publishing is the only path that moves published bytes.
   const rows = await db(
-    `with owned as (
+    `with owned as materialized (
        select r.agent_id from vy_replica r
         where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid and r.agent_id is not null
+          and r.lifecycle not in ('revoked','purging')
+        for update of r
      ), existing as (
        select s.sheet_id from vy_teacher_sheet s join owned o on o.agent_id = s.agent_id
         where s.status <> 'published' order by s.created_at desc limit 1
@@ -276,9 +278,11 @@ export async function publishOwnedTeacherSheet(db, ownerUserId, replicaIdValue, 
   }
 
   const rows = await db(
-    `with owned as (
+    `with owned as materialized (
        select r.agent_id from vy_replica r
         where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid and r.agent_id is not null
+          and r.lifecycle not in ('revoked','purging')
+        for update of r
      ), demoted as (
        update vy_teacher_sheet s set status = 'validated'
          from owned o

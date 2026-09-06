@@ -7,13 +7,13 @@
 //
 // 1. KEY PARITY. `STUDIO_COPY_TABLE.en` and `.hi` carry the EXACT same keys
 //    at every level, asserted against the REAL export.
-// 2. THE STATIC SCAN. Every `src/studio/*.tsx` file this workstream converted
+// 2. THE STATIC SCAN. Every `src/creatorStudio/*.tsx` file this workstream converted
 //    (`TIER_1_FILES` below) carries ZERO literal JSX text nodes of three or
 //    more words that are not routed through `t.` — a heuristic scan (no full
 //    JSX/TS parser is a dependency of this repo), so a code-shaped false
 //    positive (a TS generic like `useState<Foo | null>`) is filtered by a
 //    second pass rather than hand-allowlisted string by string. Every OTHER
-//    `src/studio/*.tsx` file is in `TIER_2_ALLOWLIST`, one entry per file,
+//    `src/creatorStudio/*.tsx` file is in `TIER_2_ALLOWLIST`, one entry per file,
 //    each with the reason it was not converted this workstream — the
 //    brief's own "an allowlist you justify entry by entry" law, applied at
 //    file granularity because these files were not touched at all rather
@@ -58,7 +58,7 @@ const { setOwnedReplicaLocale, getOwnedReplica, STUDIO_LOCALES: SERVER_LOCALES }
 const checkCopy = await import(pathToFileURL(join(REPO, "scripts/check-copy.mjs")).href);
 const { scanSource } = checkCopy;
 
-// `src/studio/copy.ts` is plain TS with no JSX (`src/room/copy.ts`'s own
+// `src/creatorStudio/copy.ts` is plain TS with no JSX (`src/room/copy.ts`'s own
 // note: a component-free data file, bundled the same way `evals/room/
 // fixtures.mjs`'s `loadFixtureAgent` bundles a source module).
 async function loadStudioCopy() {
@@ -70,7 +70,7 @@ async function loadStudioCopy() {
     // the pre-split exports — section 1b's own fresh-module test needs
     // both to prove the auth chunk installs independently of the rest.
     `export { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale, loadStudioCopy, loadStudioCopyAuth, studioAuthCopyReady, studioCopyReady } from ${JSON.stringify(
-      join(REPO, "src/studio/copy"),
+      join(REPO, "src/creatorStudio/copy"),
     )};\n`,
   );
   const BUNDLE = join(OUT, "copy.bundle.mjs");
@@ -81,7 +81,7 @@ async function loadStudioCopy() {
   return import(pathToFileURL(BUNDLE).href);
 }
 const { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale, loadStudioCopy: installStudioCopy } = await loadStudioCopy();
-// The Hindi table is its own chunk since the WS-R71 merge (src/studio/hiCopy.ts,
+// The Hindi table is its own chunk since the WS-R71 merge (src/creatorStudio/hiCopy.ts,
 // context/decisions.md#studio-hindi-table-is-its-own-chunk): `STUDIO_COPY_TABLE.hi`
 // throws until the app's own loader has installed it, so this eval installs it
 // the same way the app does, never by importing the file around the loader.
@@ -167,8 +167,8 @@ await installStudioCopy("hi");
   const ENTRY = join(OUT, "entry.ts");
   writeFileSync(
     ENTRY,
-    `export { HI_AUTH } from ${JSON.stringify(join(REPO, "src/studio/hiAuthCopy"))};\n` +
-      `export { HI as HI_REST } from ${JSON.stringify(join(REPO, "src/studio/hiCopy"))};\n`,
+    `export { HI_AUTH } from ${JSON.stringify(join(REPO, "src/creatorStudio/hiAuthCopy"))};\n` +
+      `export { HI as HI_REST } from ${JSON.stringify(join(REPO, "src/creatorStudio/hiCopy"))};\n`,
   );
   const BUNDLE = join(OUT, "hifiles.bundle.mjs");
   execSync(
@@ -245,7 +245,7 @@ await installStudioCopy("hi");
 
 // ── 2. THE STATIC SCAN ──────────────────────────────────────────────────────
 {
-  const STUDIO_DIR = join(REPO, "src/studio");
+  const STUDIO_DIR = join(REPO, "src/creatorStudio");
   const allTsx = readdirSync(STUDIO_DIR).filter((f) => f.endsWith(".tsx"));
 
   // Every literal JSX text node of >= 3 words. Anchored on an actual opening
@@ -425,7 +425,7 @@ await installStudioCopy("hi");
   const missingAllowlistEntry = allTsx.filter(
     (f) => !TIER_1_FILES.includes(f) && !(f in TIER_2_ALLOWLIST),
   );
-  ok("every src/studio/*.tsx file is either Tier 1 (converted) or in the justified Tier 2 allowlist",
+  ok("every src/creatorStudio/*.tsx file is either Tier 1 (converted) or in the justified Tier 2 allowlist",
     missingAllowlistEntry.length === 0, missingAllowlistEntry.join(", "));
 
   const staleAllowlistEntries = Object.keys(TIER_2_ALLOWLIST).filter((f) => !allTsx.includes(f));
@@ -551,7 +551,7 @@ await installStudioCopy("hi");
   // Structural half: `setOwnedReplicaLocale`'s own source names no
   // request-supplied person/follower field, only the two explicit
   // parameters `requireUser()`'s caller already verified.
-  const src = readFileSync(join(REPO, "api/_replica.js"), "utf8");
+  const src = readFileSync(join(REPO, "api/_replica.js"), "utf8").replace(/\r\n/g, "\n");
   const fnStart = src.indexOf("export async function setOwnedReplicaLocale");
   const fnEnd = src.indexOf("\n}\n", fnStart) + 3;
   const fnBody = src.slice(fnStart, fnEnd);
@@ -600,7 +600,7 @@ await installStudioCopy("hi");
   const hiStrings = [];
   collectStrings(STUDIO_COPY_TABLE.hi, hiStrings);
   const asSource = hiStrings.map((s) => `const x = ${JSON.stringify(s)};`).join("\n");
-  const realHits = scanSource("src/studio/hiCopy.ts", asSource, { rules: "full", codename: true, roomsVocab: true });
+  const realHits = scanSource("src/creatorStudio/hiCopy.ts", asSource, { rules: "full", codename: true, roomsVocab: true });
   ok(`every one of the ${hiStrings.length} real Hindi strings this workstream shipped passes the real copy gate`,
     realHits.length === 0, JSON.stringify(realHits.slice(0, 5)));
 }
@@ -611,7 +611,7 @@ await installStudioCopy("hi");
   const ENTRY = join(OUT, "entry.ts");
   writeFileSync(
     ENTRY,
-    `export { resolveStudioLocale } from ${JSON.stringify(join(REPO, "src/studio/studioLocalePreference"))};\n`,
+    `export { resolveStudioLocale } from ${JSON.stringify(join(REPO, "src/creatorStudio/studioLocalePreference"))};\n`,
   );
   const BUNDLE = join(OUT, "pref.bundle.mjs");
   execSync(

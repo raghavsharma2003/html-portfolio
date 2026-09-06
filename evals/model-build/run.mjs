@@ -89,6 +89,10 @@ ok("the build input contains only owner-accepted ready-source evidence and its e
 ok("build input excludes evidence and enrollment audio that are not the latest owner-selected candidate",
   /artifact_latest as/.test(inputCalls[0].sql) && /selected\.decision='selected'/.test(inputCalls[0].sql) &&
   /vy_replica_processing_artifact_decision/.test(inputCalls[1].sql));
+ok("artifact-independent evidence from a second context source cannot enter the primary voice build",
+  /selected_enhance_sources as/.test(inputCalls[0].sql)
+  && /a\.stage='enhance'/.test(inputCalls[0].sql)
+  && /e\.artifact_id is null and exists \([\s\S]*selected_source\.source_id=e\.source_id/.test(inputCalls[0].sql));
 ok("two independent embeddings and immutable transform lineage produce one canonical source-set hash",
   /^[0-9a-f]{64}$/.test(input.sourceSetHash) && input.artifacts[0].adapter.name === "deepfilternet");
 
@@ -102,10 +106,14 @@ const lease = await leaseNextVoiceGenomeBuild(async (sql, params) => {
     attempt: 1, lease_expires_at: "2026-08-24T00:05:00.000Z",
   }];
 }, { leaseToken: TOKEN });
-ok("leasing is skip-locked crash-recoverable and rechecks verified identity plus biometric and training consent",
+ok("leasing is skip-locked crash-recoverable and rechecks adult identity plus biometric training and inference consent",
   lease.buildId === BUILD && /for update of b skip locked/.test(leaseSql) &&
   /b\.lease_expires_at<=now\(\)/.test(leaseSql) && /c\.scope='biometric'/.test(leaseSql) &&
-  /c\.scope='training'/.test(leaseSql) && /r\.identity_expires_at>now\(\)/.test(leaseSql));
+  /c\.scope='training'/.test(leaseSql) && /c\.scope='inference'/.test(leaseSql)
+  && /r\.age_verified_at is not null/.test(leaseSql)
+  && /r\.identity_verified_at is not null/.test(leaseSql)
+  && /r\.liveness_verified_at is not null/.test(leaseSql)
+  && /r\.identity_expires_at>now\(\)/.test(leaseSql));
 
 const buildCalls = [];
 const built = await buildLeasedVoiceGenome(async (sql, params) => {
@@ -128,6 +136,7 @@ ok("the real worker persists a draft VoiceGenome and moves the build only to own
 ok("settlement is atomically fenced by the exact lease versions source-set and current locked consents",
   /b\.source_set_hash=\$6/.test(settlement.sql) && /b\.lease_token_hash=\$7/.test(settlement.sql) &&
   /biometric_consent as materialized/.test(settlement.sql) && /training_consent as materialized/.test(settlement.sql) &&
+  /inference_consent as materialized/.test(settlement.sql) &&
   /limit 1 for update/.test(settlement.sql));
 ok("every accepted evidence and artifact id is rechecked at the mutation boundary and test provenance is denied",
   /unnest\(\$10::uuid\[\]\)/.test(settlement.sql) && /unnest\(\$11::uuid\[\]\)/.test(settlement.sql) &&
@@ -135,6 +144,11 @@ ok("every accepted evidence and artifact id is rechecked at the mutation boundar
 ok("VoiceGenome settlement rechecks the latest owner candidate selection after the worker lease",
   /artifact_latest as/.test(settlement.sql) && /selected\.artifact_id=e\.artifact_id and selected\.decision='selected'/.test(settlement.sql) &&
   /selected\.artifact_id=a\.artifact_id and selected\.decision='selected'/.test(settlement.sql));
+ok("settlement counts only accepted evidence from the selected build source ids",
+  /selected_enhance_sources as materialized/.test(settlement.sql)
+  && /e\.source_id=any\(\$12::uuid\[\]\)/.test(settlement.sql)
+  && /selected_source\.source_id=e\.source_id/.test(settlement.sql)
+  && settlement.params[11].length === 1 && settlement.params[11][0] === SOURCE);
 ok("owner decisions and source erasure serialize against settlement before the draft becomes visible",
   /pg_try_advisory_xact_lock/.test(settlement.sql) && /voice_genome_review/.test(settlement.sql) && /locked_sources as materialized/.test(settlement.sql) &&
   /for update of s/.test(settlement.sql) && /cardinality\(\$12::uuid\[\]\)/.test(settlement.sql));
@@ -172,5 +186,7 @@ ok("the lease migration is splitter-safe idempotent recovers old stuck rows and 
 ok("only a cron-authenticated bounded worker can execute queued builds",
   endpoint.includes("timingSafeEqual") && endpoint.includes("CRON_SECRET") &&
   vercel.crons.some((cron) => cron.path === "/api/replica-model-build-sweep"));
+ok("the scheduled build consumer repairs missing internal-test drafts before leasing",
+  endpoint.indexOf("reconcileSelfTestVoiceGenomes") < endpoint.indexOf("runVoiceGenomeBuildSweep({"));
 
 console.log(`\n${checks} model build checks passed`);

@@ -77,6 +77,15 @@ const jsonOut = args.includes("--json") ? args[args.indexOf("--json") + 1] : nul
  */
 const TARGETS = [
   {
+    name: "clone",
+    fixture: "studio-layout-fixture.html",
+    query: (screen) => screen === "capture"
+      ? "step=feed&scenario=public-capture"
+      : `step=meet&scenario=voice-ready&view=${screen}`,
+    screens: ["capture", "voice", "enrich"],
+    mounted: ".vx-shell",
+  },
+  {
     name: "room",
     fixture: "room-layout-fixture.html",
     query: (screen) => `screen=${screen}`,
@@ -92,7 +101,7 @@ const TARGETS = [
   },
   {
     name: "studio:shell",
-    fixture: "studio-layout-fixture.html",
+    fixture: "creator-layout-fixture.html",
     query: (step) => `mode=teacher&step=${step}`,
     screens: ["feed", "meet", "deploy"],
     mounted: ".studio-tabshell",
@@ -105,7 +114,7 @@ const TARGETS = [
   // (src/studio/copy.ts, migration 112).
   {
     name: "studio:shell-hi",
-    fixture: "studio-layout-fixture.html",
+    fixture: "creator-layout-fixture.html",
     query: (step) => `mode=teacher&step=${step}&lang=hi`,
     screens: ["feed", "meet", "deploy"],
     mounted: ".studio-tabshell",
@@ -119,7 +128,7 @@ const TARGETS = [
   // accessible name or lost focus ring on.
   {
     name: "studio-hi:signed-out",
-    fixture: "studio-layout-fixture.html",
+    fixture: "creator-layout-fixture.html",
     query: () => "lang=hi&signedOut=1",
     screens: ["signin"],
     mounted: ".auth-page",
@@ -131,14 +140,14 @@ const TARGETS = [
   // same control class `studio-hi:signed-out`'s own entry above names.
   {
     name: "studio:ops",
-    fixture: "studio-layout-fixture.html",
+    fixture: "creator-layout-fixture.html",
     query: () => "mode=ops",
     screens: ["ops"],
     mounted: ".ops-board",
   },
   {
     name: "studio-hi:ops",
-    fixture: "studio-layout-fixture.html",
+    fixture: "creator-layout-fixture.html",
     query: () => "mode=ops&lang=hi",
     screens: ["ops"],
     mounted: ".ops-board",
@@ -692,10 +701,10 @@ async function selfTestLangTag(chromium, executablePath) {
 
 async function main() {
   if (!existsSync(DIST)) {
-    console.log("  skip  accessibility: dist/ absent, run `npx vite build` first");
-    return 0;
+    console.log("FAIL  accessibility: dist/ absent, run `npx vite build` first");
+    return 1;
   }
-  const fixtureFiles = ["studio-layout-fixture.html", "room-layout-fixture.html"];
+  const fixtureFiles = [...new Set(TARGETS.map((target) => target.fixture).filter(Boolean))];
   const absent = fixtureFiles.filter((f) => !existsSync(join(DIST, f)));
   if (absent.length) {
     console.log(`FAIL  accessibility: ${absent.map((f) => `dist/${f}`).join(", ")} missing — vite inputs the gate needs to see the signed-in screens.`);

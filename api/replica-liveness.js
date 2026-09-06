@@ -9,7 +9,7 @@ import {
   finalizeChallengeSource,
   clientSource,
 } from "./_replica-liveness.js";
-import { getPendingSource } from "./_replica-source.js";
+import { assertUploadWithinSourceFence, getPendingSource, reserveOwnedSourceUploadAuthorization } from "./_replica-source.js";
 import { configuredFaceSessionBroker, configuredFaceSessionErasureBroker } from "./_face-session/registry.js";
 import { deleteOwnedFaceSessionNow, pollOwnedFaceSession, startOwnedFaceSession } from "./_replica-face-session.js";
 import {
@@ -110,10 +110,13 @@ export default async function handler(req, res) {
     }
     if (body.op === "create_upload") {
       await ensurePrivateReplicaBucket(REPLICA_STORAGE_WRITE_BUCKET);
-      const source = await createChallengeSource(q, user.id, body.replica_id, body.challenge_id, body);
+      let source = await createChallengeSource(q, user.id, body.replica_id, body.challenge_id, body);
       if (!source) return res.status(409).json({ error: "challenge_expired_or_unavailable" });
       const challenge = await latestOwnedChallenge(q, user.id, body.replica_id);
-      const upload = await createSignedReplicaUpload({ storageBucket: source.storage_bucket, objectPath: source.object_path });
+      source = await reserveOwnedSourceUploadAuthorization(q, user.id, body.replica_id, source.source_id);
+      if (!source) return res.status(409).json({ error: "pending_source_state_changed" });
+      const upload = assertUploadWithinSourceFence(source,
+        await createSignedReplicaUpload({ storageBucket: source.storage_bucket, objectPath: source.object_path }));
       return res.status(201).json(uploadResponse(source, challenge, upload));
     }
     if (body.op === "finalize") {

@@ -90,6 +90,12 @@ field to container resources because the Microsoft.App API rejects it. Probe
 initial delays are bounded to the API's 60-second maximum. Startup tolerance is
 expressed with repeated startup probes, not an out-of-range delay.
 
+The runtime remains `minReplicas=0` and scales on one concurrent request per
+replica. `runtimeMaxReplicas` defaults to two and is capped at two, so a burst of
+owners can use two isolated T4 workers without turning scale-out into an
+unbounded spend path. A larger cap requires a measured concurrency run, an
+approved Container Apps T4 quota increase, and a new cost ceiling.
+
 Language conditioning negotiates
 `vyakti-voice-language-conditioning/v1` inside the signed v1 transport. The
 current rollout order is strict: deploy and verify the GPU runtime first, then

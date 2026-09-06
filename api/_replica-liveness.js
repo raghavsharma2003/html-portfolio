@@ -309,9 +309,9 @@ export async function createChallengeSource(db, ownerUserId, id, challenge, valu
        insert into vy_replica_source
          (source_id, replica_id, owner_user_id, consent_id, kind, capture_mode,
           storage_bucket, object_path, mime, byte_size, sha256,
-          contains_third_parties, provenance)
+           contains_third_parties, provenance, upload_authorization_expires_at)
        select $4::uuid, challenge.replica_id, $2::uuid, capture.consent_id, $5, 'live_challenge',
-              $6, $7, $8, $9::int8, $10, false, $11::jsonb
+               $6, $7, $8, $9::int8, $10, false, $11::jsonb, null
          from challenge cross join capture cross join storage_ok cross join biometric_ok
        returning ${LIVE_SOURCE_RETURNING}
      ), attached as (

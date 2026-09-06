@@ -18,9 +18,14 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
 
-const ROOT = path.resolve(new URL("..", import.meta.url).pathname);
+// URL.pathname leaves a Windows drive URL as `/C:/...`; feeding that back to
+// path.resolve produces `C:\\C:\\...`. fileURLToPath is the cross-platform
+// conversion and keeps this exact build contract runnable both locally and on
+// Vercel's Linux builder.
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;

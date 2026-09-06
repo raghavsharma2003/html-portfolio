@@ -10,7 +10,7 @@ import {
   reconcileDiarizationChunks,
 } from "../../api/_replica-processing/chunked-diarization.js";
 import { processingUnexpectedErrorDiagnostic } from "../../api/_replica-processing/worker.js";
-import { createComposedDiarizationAdapter } from "../../api/_replica-processing/composition.js";
+import { createComposedDiarizationAdapter, selectTranscriptionLane } from "../../api/_replica-processing/composition.js";
 import { readClamAvVerdict } from "../../api/_replica-processing/native-tools.js";
 import { createFakeImmutableArtifactStore, createFakeProcessingAdapters } from "../../api/_replica-processing/providers/fake.js";
 import { runNextProcessingJob } from "../../api/_replica-processing/runtime.js";
@@ -182,6 +182,90 @@ ok("deployable consumer leases, loads, executes, settles and enqueues exactly on
 ok("consumer source load is composite owner-replica-source scoped", /s\.source_id=j\.source_id[\s\S]*s\.replica_id=j\.replica_id[\s\S]*s\.owner_user_id=j\.owner_user_id/i.test(dbCalls[1]));
 ok("evidence persistence, lease settlement, source state and next enqueue share one SQL transaction", dbCalls.some((sql) => /eligible_job as materialized[\s\S]*desired_artifacts as materialized[\s\S]*collision_guard as materialized[\s\S]*settled as[\s\S]*source_state as[\s\S]*enqueued as/i.test(sql)));
 ok("a lost lease cannot insert partial manifests before completion", dbCalls.some((sql) => /from desired_artifacts d cross join eligible_job j[\s\S]*created_by_job_id[\s\S]*from desired_evidence d cross join eligible_job j/i.test(sql)));
+ok("atomic processing settlement rechecks that the source is still writable",
+  dbCalls.some((sql) => /eligible_job as materialized[\s\S]*join vy_replica_source s[\s\S]*s\.state in \('quarantined','processing'\)/i.test(sql)));
+
+const enhanceJob = { ...leasedJob, job_id: stableUuid("erasure-race-enhance"), step: "enhance" };
+const separatedInput = {
+  artifact_id: stableUuid("erasure-race-separated"), replica_id: REPLICA, owner_user_id: OWNER,
+  source_id: SOURCE, stage: "separate", variant_key: "foreground",
+  storage_bucket: source.storage_bucket,
+  object_path: `${OWNER}/${REPLICA}/${SOURCE}/derived/separate/fixture.wav`,
+  mime: "audio/wav", byte_size: AUDIO.length, duration_ms: source.duration_ms,
+  sha256: source.sha256, input_sha256: source.sha256, manifest_hash: "a".repeat(64),
+};
+const raceDeletes = [];
+const raceDb = async (sql) => {
+  if (/with candidate as/i.test(sql)) return [enhanceJob];
+  if (/select s\.source_id/i.test(sql)) return [{ ...source, state: "processing" }];
+  if (/select step from vy_replica_processing_job/i.test(sql)) return [{ step: "separate" }];
+  if (/from vy_replica_processing_artifact/i.test(sql) && !/eligible_job as materialized/i.test(sql)) return [separatedInput];
+  if (/eligible_job as materialized/i.test(sql)) return [];
+  if (/select s\.state from vy_replica_source/i.test(sql)) return [{ state: "deleting" }];
+  throw new Error(`unexpected erasure-race SQL: ${sql.slice(0, 100)}`);
+};
+await assert.rejects(() => runNextProcessingJob({
+  db: raceDb,
+  adapters: createFakeProcessingAdapters(),
+  artifactStore: createFakeImmutableArtifactStore(),
+  leaseToken: "r".repeat(40),
+  deleteObjects: async (locators) => raceDeletes.push(...locators),
+}), (error) => error?.code === "lost_processing_lease");
+ok("a worker that writes before losing settlement to source erasure exact-deletes every possible output",
+  raceDeletes.length === 2 && raceDeletes.every((locator) =>
+    locator.storageBucket === source.storage_bucket &&
+    locator.objectPath.includes(`/${SOURCE}/derived/`) && locator.objectPath.includes("/enhance-")));
+
+let acquiredWriter = 0;
+let renewedWriter = 0;
+let releasedWriter = 0;
+let processingLateObjectVisible = false;
+let finishProcessingLateCommit = null;
+const timeoutDb = async (sql) => {
+  if (/with candidate as/i.test(sql)) return [enhanceJob];
+  if (/select s\.source_id/i.test(sql)) return [{ ...source, state: "processing" }];
+  if (/select step from vy_replica_processing_job/i.test(sql)) return [{ step: "separate" }];
+  if (/from vy_replica_processing_artifact/i.test(sql) && !/eligible_job as materialized/i.test(sql)) return [separatedInput];
+  if (/with settled as/i.test(sql) && /set state = 'retry'/i.test(sql)) return [enhanceJob];
+  if (/select s\.state from vy_replica_source/i.test(sql)) return [{ state: "processing" }];
+  throw new Error(`unexpected writer-timeout SQL: ${sql.slice(0, 100)}`);
+};
+const timeoutOutcome = await runNextProcessingJob({
+  db: timeoutDb,
+  adapters: createFakeProcessingAdapters(),
+  artifactStore: {
+    async writeImmutable(input) {
+      await input.beforeWriteRequest();
+      // Model a provider that loses the acknowledgement while retaining the
+      // request and makes the exact object visible only after this worker has
+      // already settled its SQL job to retry.
+      finishProcessingLateCommit = () => { processingLateObjectVisible = true; };
+      throw Object.assign(new Error("provider acknowledgement timeout"), {
+        code: "private_storage_write_failed",
+        retryable: true,
+      });
+    },
+  },
+  leaseToken: "t".repeat(40),
+  acquireStorageWriter: async () => {
+    acquiredWriter += 1;
+    return { writerId: stableUuid("timeout-writer"), sourceId: SOURCE, replicaId: REPLICA,
+      ownerUserId: OWNER, purpose: "processing_artifact", token: "w".repeat(40) };
+  },
+  renewStorageWriter: async (_db, writer) => { renewedWriter += 1; return writer; },
+  releaseStorageWriter: async () => { releasedWriter += 1; return true; },
+});
+finishProcessingLateCommit?.();
+ok("a provider timeout settles the job but leaves its durable writer authority active",
+  timeoutOutcome.outcome === "retry" && acquiredWriter === 1 && renewedWriter === 1 && releasedWriter === 0 &&
+  processingLateObjectVisible);
+const runtimeSource = readFileSync(join(ROOT, "api/_replica-processing/runtime.js"), "utf8");
+const processingStorageSource = readFileSync(join(ROOT, "api/_replica-processing/storage.js"), "utf8");
+ok("lease cancellation reaches every private artifact PUT and is checked around provider acknowledgement",
+  /trackedArtifactStore\(store, writtenObjects, signal, storageWriter\)/.test(runtimeSource) &&
+  /signal\?\.throwIfAborted\(\)[\s\S]*store\.writeImmutable\([\s\S]*beforeWriteRequest: storageWriter\.beforeWriteRequest[\s\S]*signal\?\.throwIfAborted\(\)/.test(runtimeSource) &&
+  /signal: input\.signal/.test(processingStorageSource) &&
+  /beforeWriteRequest: input\.beforeWriteRequest/.test(processingStorageSource));
 
 const runOnce = readFileSync(join(ROOT, "services/replica-processing-worker/run-once.js"), "utf8");
 // The shared subprocess contract. `services/replica-processing-worker/native.js`
@@ -195,6 +279,7 @@ const clamav = readFileSync(join(ROOT, "services/replica-processing-worker/clama
 const clamdConfig = readFileSync(join(ROOT, "services/replica-processing-worker/clamd.conf"), "utf8");
 const composition = readFileSync(join(ROOT, "api/_replica-processing/composition.js"), "utf8");
 const docker = readFileSync(join(ROOT, "services/replica-processing-worker/Dockerfile"), "utf8");
+const dockerIgnore = readFileSync(join(ROOT, ".dockerignore"), "utf8");
 const workerInfra = readFileSync(join(ROOT, "services/replica-processing-worker/infra/main.bicep"), "utf8");
 const evidenceInfra = readFileSync(join(ROOT, "services/voice-evidence/infra/main.bicep"), "utf8");
 // The job used to name the three adapter factories itself. It now composes
@@ -204,11 +289,32 @@ const evidenceInfra = readFileSync(join(ROOT, "services/voice-evidence/infra/mai
 // adapters before it leased anything and the two steps this container exists
 // to serve never ran. The property is unchanged - the production job gets
 // native, evidence and ASR families and no fixtures - so it is asserted where
-// the composition now happens. ASR is Sarvam, not Azure, as of WS-AN
-// (2026-08-26, owner directive): this subscription has zero Cognitive
-// Services accounts, so `transcribe` runs through the Sarvam adapters that
-// already exist and are proven on Hinglish instead.
-ok("production job composes native safety, real evidence and Sarvam ASR adapters", /composeProcessingAdapters/.test(runOnce) && /createNativeMediaAdapters/.test(composition) && /createAzureVoiceEvidenceAdapters/.test(composition) && /createSarvamTranscriptionAdapter/.test(composition));
+// Azure is selected only when its env is present. A half-configured Azure lane
+// remains selected so its drift cannot hide behind a silent vendor change.
+const azureLane = { value: { name: "azure" } };
+const sarvamLane = { value: { name: "sarvam" } };
+ok("production job composes native safety, evidence and both real ASR lanes",
+  /composeProcessingAdapters/.test(runOnce) && /createNativeMediaAdapters/.test(composition)
+  && /createAzureVoiceEvidenceAdapters/.test(composition)
+  && /createAzureFastTranscriptionAdapter/.test(composition)
+  && /createSarvamTranscriptionAdapter/.test(composition)
+  && /withInputFile: storage\.withResolvedInputFile/.test(composition)
+  && /prepareInputFile: runners\.withAzureAsrFile/.test(composition));
+ok("long Azure ASR work gets a bounded fifteen-minute deadline inside the renewable worker lease",
+  /timeoutMs: 15 \* 60_000/.test(composition)
+  && /maxRuntimeMs - 20_000/.test(runOnce)
+  && /leaseMs: 600_000/.test(runOnce) && /heartbeatMs: 60_000/.test(runOnce));
+ok("configured Azure Speech wins while absent Azure retains Sarvam",
+  selectTranscriptionLane({ AZURE_SPEECH_ENDPOINT: "https://speech.example" }, azureLane, sarvamLane) === azureLane
+  && selectTranscriptionLane({}, azureLane, sarvamLane) === sarvamLane);
+ok("partial Azure configuration stays failed in Azure instead of changing vendor",
+  selectTranscriptionLane({ AZURE_SPEECH_KEY: "present" }, azureLane, sarvamLane) === azureLane);
+ok("worker infra binds Azure Speech endpoint and key as one optional pair",
+  /param azureSpeechEndpoint string = ''/.test(workerInfra)
+  && /@secure\(\)\s*param azureSpeechKey string = ''/.test(workerInfra)
+  && /AZURE_SPEECH_KEY', secretRef: 'azure-speech-key'/.test(workerInfra)
+  && /AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR', value: azureSpeechFastTranscriptionUsdPerHour/.test(workerInfra)
+  && /azureSpeechEndpoint and azureSpeechKey must be configured together/.test(workerInfra));
 ok("production job has no fixture adapter path", !/fake|fixture/i.test(runOnce));
 ok("worker is a scale-to-zero run-once process, not a public HTTP server", !/createServer|listen\(|EXPOSE/i.test(runOnce + docker));
 // The shell entrypoint is gone, so `set -euo pipefail` is no longer where this
@@ -216,6 +322,12 @@ ok("worker is a scale-to-zero run-once process, not a public HTTP server", !/cre
 // awaited before the daemon starts, and a refresh that did not happen throws
 // rather than being rounded up to one.
 ok("current malware signatures are a fail-closed startup dependency", /freshclam/.test(clamav) && /throw toolError\("clamav_signature_refresh_failed"/.test(clamav) && /await refreshSignatures\(\)/.test(runOnce) && /clamdscan/.test(nativeSource));
+const normalizeClamConfigs = docker.indexOf("RUN sed -i 's/\\r$//'");
+const bakedSignatureRefresh = docker.indexOf("&& freshclam", normalizeClamConfigs);
+ok("Windows checkout line endings are removed from both ClamAV configs before either tool runs",
+  normalizeClamConfigs >= 0
+  && docker.indexOf("freshclam.conf", normalizeClamConfigs) < bakedSignatureRefresh
+  && docker.indexOf("clamd.conf", normalizeClamConfigs) < bakedSignatureRefresh);
 ok("an integrity root starts ClamAV before the same run can lease its scan child",
   /SCANNER_START_STEPS = Object\.freeze\(\["integrity", "malware_scan"\]\)/.test(runOnce)
   && /needsScanner: steps\.some\(\(step\) => SCANNER_START_STEPS\.includes\(step\)\)/.test(runOnce));
@@ -225,7 +337,15 @@ ok("run-once stops its Clam child after the bounded queue drains",
   && /finally \{[\s\S]*clamdChild\.kill\("SIGTERM"\)/.test(runOnce));
 ok("ClamAV and the worker lease are bounded for one GiB and long audio",
   /MaxFileSize 1024M/.test(clamdConfig) && /MaxScanSize 1024M/.test(clamdConfig)
-  && /leaseMs: 3_600_000/.test(runOnce) && /replicaTimeout: 3600/.test(workerInfra));
+  && /leaseMs: 600_000/.test(runOnce) && /heartbeatMs: 60_000/.test(runOnce)
+  && /replicaTimeout: 3600/.test(workerInfra));
+ok("one scheduled run can finish an eight-step source and immediately build its VoiceGenome",
+  /PROCESSING_JOBS_PER_RUN', value: '12'/.test(workerInfra)
+  && /preferredSourceId/.test(runOnce)
+  && /runVoiceGenomeBuildSweep\(\{ db, maxJobs: 4 \}\)/.test(runOnce));
+ok("new recordings are picked up within two minutes without concurrent replicas",
+  /cronExpression: '\*\/2 \* \* \* \*'/.test(workerInfra)
+  && /parallelism: 1/.test(workerInfra) && /replicaCompletionCount: 1/.test(workerInfra));
 // This used to read "streamed to tools and never written to a temporary file",
 // asserting `pipe:0` and banning `mkdtemp` outright. That is not achievable for
 // media_probe and the ban was hiding it: a pipe is not seekable, an MP3's
@@ -242,10 +362,21 @@ ok("malware scanning uses local fd passing rather than ClamAV INSTREAM",
   scanBody.length > 100 && /"--fdpass"/.test(scanBody) && !/"--stream"/.test(scanBody));
 ok("any materialised media bytes live in a private temp dir and are always removed", !/mkdtemp/.test(nativeSource) || (/mkdtemp\(join\(options\.tmpDir \|\| tmpdir\(\)/.test(nativeSource) && /finally \{[\s\S]{0,300}rm\(dir, \{ recursive: true, force: true \}\)/.test(nativeSource)));
 ok("worker container is non-root", /USER 10003:10003/.test(docker));
+ok("remote worker builds exclude local configuration and private key material",
+  /^api\/_config\.js$/m.test(dockerIgnore)
+  && /^api\/keyring\.json$/m.test(dockerIgnore)
+  && /^\.env\.\*$/m.test(dockerIgnore)
+  && /^\*\.local$/m.test(dockerIgnore)
+  && /^\*\*\/\.env\.\*$/m.test(dockerIgnore)
+  && /^\*\.pem$/m.test(dockerIgnore)
+  && /^\*\*\/\*\.pem$/m.test(dockerIgnore)
+  && /^\*\*\/\*\.key$/m.test(dockerIgnore));
 ok("worker log deliberately excludes tenant, path, transcript and vector fields", /Content-free operational signal only/.test(runOnce) && !/console\.log/.test(runOnce));
 ok("both Azure deployments require immutable image digests", [workerInfra, evidenceInfra].every((value) => /contains\(image, '@sha256:'\)/.test(value)));
 ok("evidence ingress is private, scale-to-zero and single-concurrency on T4", /external: false/.test(evidenceInfra) && /minReplicas: 0/.test(evidenceInfra) && /maxReplicas: 1/.test(evidenceInfra) && /gpu: 1/.test(evidenceInfra) && /concurrentRequests: '1'/.test(evidenceInfra));
-ok("scheduled consumer is one-way and cannot fan out concurrent database leases", /parallelism: 1/.test(workerInfra) && /replicaCompletionCount: 1/.test(workerInfra) && /replicaRetryLimit: 0/.test(workerInfra));
+ok("scheduled consumer retries one pre-lease startup failure without fanning out database leases",
+  /parallelism: 1/.test(workerInfra) && /replicaCompletionCount: 1/.test(workerInfra)
+  && /replicaRetryLimit: 1/.test(workerInfra));
 // This used to require `keyVaultUrl:` references. That was never deployable on
 // this subscription and had already been deviated from once: a Key Vault
 // reference needs a role assignment, and the deploying principal holds
