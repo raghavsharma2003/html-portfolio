@@ -303,12 +303,27 @@ export async function optIn(
   if (!nextDueAt) throw new CheckinsError("checkin_schedule_unresolvable", 400);
 
   const rows = await db(
+    // WS-R131 (migration 134): `coalesce(($10)::time, cf.quiet_from)` /
+    // `coalesce(($11)::time, cf.quiet_to)` - a schedule that leaves its OWN
+    // quiet window unset inherits whatever the follower already set once, in
+    // their account (`api/_room-surface.js`'s `roomSetQuietHours`); an
+    // explicit window on THIS schedule always wins, unchanged from before
+    // this workstream. `cf` (not `f` - evals/checkins/run.mjs's own §4(d)
+    // scans for "join vy_room_follower f on" specifically, over the SWEEP's
+    // due-selects; this is an INSERT, not a due-select, so a distinct alias
+    // keeps that scan scoped to what it actually names) is bound by
+    // room_id AND person_id AND follower_id together, the identical
+    // three-way binding discipline every due-select in this file already
+    // carries.
     `insert into vy_room_checkin
        (checkin_id, room_id, person_id, follower_id, design_id,
         days_of_week, local_time, timezone, quiet_from, quiet_to, next_due_at, state)
      select ($1)::uuid, ($2)::uuid, ($3)::uuid, ($4)::uuid, d.design_id,
-            ($6)::int[], ($7)::time, $8, ($10)::time, ($11)::time, ($9)::timestamptz, 'active'
+            ($6)::int[], ($7)::time, $8,
+            coalesce(($10)::time, cf.quiet_from), coalesce(($11)::time, cf.quiet_to),
+            ($9)::timestamptz, 'active'
        from vy_room_checkin_design d
+       join vy_room_follower cf on cf.room_id = ($2)::uuid and cf.person_id = ($3)::uuid and cf.follower_id = ($4)::uuid
       where d.design_id = ($5)::uuid and d.room_id = ($2)::uuid and d.state = 'active'
      on conflict (follower_id, design_id) where state = 'active' do update
         set days_of_week = excluded.days_of_week,

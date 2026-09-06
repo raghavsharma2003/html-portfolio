@@ -654,17 +654,27 @@ const EN = {
     granted: (dateLabel: string) => `You earned a free month on ${dateLabel} - thank you for bringing friends.`,
   },
 
-  /** WS-R129 ("quiet hours on every channel"). Read-only on the account
-   *  page — the window itself is still picked once, from Check-ins
-   *  (`checkins.quietFromLabel`/`quietToLabel` above, unchanged by this
-   *  workstream); this is only the summary and the one sentence the
-   *  workstream brief requires: that whatever window a follower already
-   *  picked holds for every channel, not only the one it was set on. */
+  /** WS-R129 ("quiet hours on every channel"), widened by WS-R131 (migration
+   *  134): `summary`/`everyChannelNote`/`none` are the EFFECTIVE read-back
+   *  (the follower's own account row when set, else whichever check-in
+   *  schedule set one — `checkins.quietFromLabel`/`quietToLabel` above,
+   *  unchanged by this workstream); `zoneLabel`/`fromLabel`/`toLabel`/`save`/
+   *  `clear`/`saveError`/`windowInvalid`/`timezoneInvalid` belong to the NEW
+   *  "set once" control this workstream adds, which writes ONLY to the
+   *  follower's own account row, never to a check-in. */
   quietHours: {
     label: "Quiet hours",
     summary: "{from} to {to}, {zone}",
     everyChannelNote: "This applies on every channel this AI can reach you on: push, WhatsApp and Telegram.",
-    none: "You have not set quiet hours yet. Pick one the next time you start a check-in.",
+    none: "You have not set quiet hours yet. Set them below, or the next time you start a check-in.",
+    zoneLabel: "Your timezone",
+    fromLabel: "From",
+    toLabel: "To",
+    save: "Save",
+    clear: "Clear",
+    saveError: "Could not save your quiet hours. Try again.",
+    windowInvalid: "Pick a from time and a to time that are not the same.",
+    timezoneInvalid: "That does not look like a real timezone.",
   },
 
   monthNote: {
@@ -1050,7 +1060,15 @@ const HI: typeof EN = {
     label: "शांत समय",
     summary: "{zone} में {from} से {to}",
     everyChannelNote: "यह हर उस चैनल पर लागू होता है जिससे यह AI आप तक पहुंच सकता है: पुश, व्हाट्सएप और टेलीग्राम।",
-    none: "आपने अभी तक शांत समय नहीं चुना। अगली बार चेक-इन शुरू करते समय इसे चुनें।",
+    none: "आपने अभी तक शांत समय नहीं चुना। इसे नीचे सेट करें, या अगली बार चेक-इन शुरू करते समय चुनें।",
+    zoneLabel: "आपका टाइमज़ोन",
+    fromLabel: "से",
+    toLabel: "तक",
+    save: "सेव करें",
+    clear: "हटाएं",
+    saveError: "आपका शांत समय सेव नहीं हो सका। फिर कोशिश करें।",
+    windowInvalid: "ऐसा 'से' और 'तक' समय चुनें जो एक जैसे न हों।",
+    timezoneInvalid: "यह असली टाइमज़ोन जैसा नहीं लगता।",
   },
 
   monthNote: {

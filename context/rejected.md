@@ -15238,3 +15238,83 @@ blast radius than migration 135's own brief asked for, and this
 workstream's own gate run proved the collision is real but harmless to
 every EXISTING assertion (nothing currently asserts two different refs
 across two separate calls with identical inputs).
+
+## `ws-r131-supportedvaluesof-timezone-rejects-asia-kolkata` (2026-09-05, WS-R131)
+
+**What was tried.** Migration 134's `set_quiet_hours` op (`api/_room-surface.js`)
+needed a real check that a follower-supplied timezone string is a genuine
+IANA zone before writing it to `vy_room_follower`. The obvious tool is
+`Intl.supportedValuesOf("timeZone")` — a real list of every zone name this
+runtime knows, called once and checked with `.includes(tz)`.
+
+**What specifically broke.** On this runtime's own ICU data,
+`Intl.supportedValuesOf("timeZone")` returns 418 names and does NOT include
+`"Asia/Kolkata"` — only its older canonical name, `"Asia/Calcutta"`. Verified
+directly: `Intl.supportedValuesOf("timeZone").includes("Asia/Kolkata")` is
+`false`, `.includes("Asia/Calcutta")` is `true`, on Node v22.22.2. Had this
+check shipped, it would have refused the single most common timezone this
+Hinglish product will ever see from a real follower, on every deployment
+carrying the same ICU build — the exact silent-refusal shape this repo's own
+laws exist to catch before it reaches a person.
+
+**What replaced it.** `new Intl.DateTimeFormat("en-US", { timeZone: tz })` —
+constructing a formatter with the caller's string and catching the throw.
+This resolves aliases the way a real browser and `Intl.DateTimeFormat`
+consumers already do (confirmed: constructing one with `"Asia/Kolkata"` does
+not throw on the same runtime) and throws only for a genuinely unrecognised
+name, so it is both necessary and sufficient — the identical probe
+`api/_checkins.js`'s own `validateSchedule` already uses in production for
+the check-in table's own timezone column, now shared by `isKnownTimeZone()`
+in `api/_room-surface.js`'s `roomSetQuietHours`.
+
+**What would reverse it.** A future Node/ICU upgrade that adds `Asia/Kolkata`
+to `supportedValuesOf`'s own list would remove the discrepancy, but would not
+by itself justify reverting to `supportedValuesOf` — the constructor probe is
+strictly more permissive (every name `supportedValuesOf` accepts,
+`Intl.DateTimeFormat` also accepts, since the latter is what actually resolves
+the zone) and carries no cost `supportedValuesOf` avoids. There is no
+evidence that would make `supportedValuesOf` the better check again.
+
+## `ws-r131-native-time-input-eats-tab-stops-in-headless-chromium` (2026-09-05, WS-R131)
+
+**What was tried.** The account page's new "set once" quiet-hours control
+(migration 134) first used `<input type="time">` for the from/to fields —
+the same element `CheckinsPanel.tsx`'s own pre-existing "Not between"
+control already uses, on the reasoning that a control already shipping
+elsewhere in this product could not be a new defect.
+
+**What specifically broke.** `scripts/check-accessibility.mjs`'s keyboard
+walk (`room:account`) failed `keyboard-unreachable`: 2 of 29 focusable
+controls — the LAST two in DOM order, `"Make it forget me"` and `"Close"` —
+never received Tab focus. Traced with a standalone debug harness that logs
+`document.activeElement` on every Tab press (not part of this repo, written
+and discarded): on the build container's own Chromium, tabbing INTO a
+`<input type="time">` element and pressing Tab again does NOT leave the
+field — `document.activeElement` stays the SAME `<input>` node for four
+consecutive Tab presses (its internal hour/minute/AM-PM/spinner segments
+each consuming one press) before finally advancing to the next real control.
+Two such fields on one page consumed 8 presses where the walk's own fixed
+slack budget (`focusable.length + 4`, `walkTabOrder`'s own comment: "a
+control that grows a sibling on focus... would otherwise strand the walk one
+press short") only had 4 to give, so the walk ran out of budget two controls
+short of the end. `CheckinsPanel.tsx`'s own two `type="time"` fields were
+never caught by this because the accessibility gate's own `screens` list
+(`room`/`room-hi` targets) never renders the check-ins screen at all — this
+defect class existed in shipped code before this workstream, silently
+unproven rather than disproven.
+
+**What replaced it.** Both fields became `<input type="text" inputMode=
+"numeric" pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$" placeholder="HH:MM">`,
+validated against the same shape `QUIET_HOURS_TIME_RE` already enforces
+server side. Re-run of the same standalone debug harness after the change:
+every one of 29 controls received focus in exactly 29 Tab presses, in DOM
+order, budget unused. `node scripts/check-accessibility.mjs --target room`
+afterward: 0 keyboard findings.
+
+**What would reverse it.** Proof that a real target browser (not just this
+build container's own Chromium) treats `type="time"`'s internal segments as
+a single Tab stop would remove the defect this entry describes, but would
+not by itself justify switching back — `CheckinsPanel.tsx`'s own two fields
+carry the identical unproven risk today and are open work for whoever next
+touches that screen or widens the accessibility gate's own `screens` list to
+include it.

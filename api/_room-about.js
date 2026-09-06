@@ -198,10 +198,12 @@ const PAGE_COPY = {
     capsFreeBody: (n) => `A free follower gets ${n} messages a month, no voice calls, and no scheduled check-ins.`,
     capsPaidBody: (messages, minutes) =>
       `A paid follower gets ${messages} messages a month plus up to ${minutes} minutes of voice a month, and can turn on check-ins.`,
-    // WS-R129 ("quiet hours on every channel"). A follower who sets a quiet
-    // window on any check-in does not need to set it again per channel.
+    // WS-R129 ("quiet hours on every channel"), widened by WS-R131
+    // (migration 134): a follower can now set quiet hours once, in their
+    // account, rather than only through a check-in - either way, they hold
+    // for every channel.
     capsQuietHoursBody:
-      "If you set quiet hours on a check-in, they hold for every channel this AI can reach you on, not only the one you set them from.",
+      "You can set quiet hours once, in your account, and they hold for every channel this AI can reach you on, not only a check-in.",
     controlsLabel: "Your controls",
     controlsBody:
       "Memory, language, check-in channels, your subscription, downloading your data, and asking to be forgotten all live in your account, inside the room.",
@@ -230,7 +232,7 @@ const PAGE_COPY = {
     capsPaidBody: (messages, minutes) =>
       `एक पेड फॉलोअर को महीने में ${messages} मैसेज के साथ महीने में ${minutes} मिनट तक वॉइस मिलता है, और चेक-इन चालू कर सकते हैं।`,
     capsQuietHoursBody:
-      "अगर आप किसी चेक-इन पर शांत समय सेट करते हैं, तो यह उस चैनल के साथ-साथ हर उस चैनल पर भी लागू होता है जिससे यह AI आप तक पहुंच सकता है।",
+      "आप एक बार अपने अकाउंट में शांत समय सेट कर सकते हैं, और यह हर उस चैनल पर भी लागू होता है जिससे यह AI आप तक पहुंच सकता है, न कि सिर्फ किसी चेक-इन पर।",
     controlsLabel: "आपके नियंत्रण",
     controlsBody:
       "मेमोरी, भाषा, चेक-इन चैनल, आपकी सदस्यता, अपना डेटा डाउनलोड करना, और भुलाए जाने के लिए कहना, यह सब रूम के अंदर आपके अकाउंट में मिलता है।",

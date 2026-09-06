@@ -468,13 +468,14 @@ export interface RoomSettingsPrice {
   price_inr: number;
   currency: string;
 }
-/** WS-R129. A read-only summary of whichever of this follower's own active
- *  check-in schedules most recently set a real quiet window — `null` when
- *  none has (most followers: check-ins are paid-only). `quiet_from`/
- *  `quiet_to` are `HH:MM` (the server's own `time` column, stringified);
- *  `timezone` is the IANA zone that window was set in. The account page
- *  never lets a follower SET this here — it is still picked once, from
- *  Check-ins — this is only the read-back. */
+/** WS-R129, widened by WS-R131 (migration 134). The EFFECTIVE summary the
+ *  account page's own sentence renders: the follower's OWN row when they
+ *  have set one (`RoomSettings.own_quiet_hours`, below), else whichever of
+ *  their own active check-in schedules most recently set a real window —
+ *  `null` when neither exists (most followers: check-ins are paid-only and
+ *  the account control is new). `quiet_from`/`quiet_to` are `HH:MM` (the
+ *  server's own `time` column, stringified); `timezone` is the IANA zone
+ *  that window was set in. */
 export interface RoomSettingsQuietHours {
   quiet_from: string;
   quiet_to: string;
@@ -503,15 +504,31 @@ export interface RoomSettings {
    *  `session_worked` offer never appears here; it already reached the
    *  client on the turn that earned it (`RoomTurn.offer`). */
   offer: RoomSettingsOffer | null;
-  /** WS-R129. `null` when this follower has never set quiet hours on any
-   *  active check-in — see `RoomSettingsQuietHours`'s own header. */
+  /** WS-R129/WS-R131. `null` when this follower has never set quiet hours,
+   *  on their own account or on any active check-in — see
+   *  `RoomSettingsQuietHours`'s own header. */
   quiet_hours: RoomSettingsQuietHours | null;
+  /** WS-R131 (migration 134). The follower's OWN row, unmixed with the
+   *  check-in fallback `quiet_hours` above may be carrying — `null` when
+   *  they have never used the account-level "set once" control, even if
+   *  `quiet_hours` above is non-null from a check-in. The account page's
+   *  set control reads and pre-fills THIS field, never `quiet_hours`. */
+  own_quiet_hours: RoomSettingsQuietHours | null;
 }
 
 export const roomSettings = (session: string) => post<RoomSettings>({ op: "settings", session });
 
 export const markSettingsReviewed = (session: string) =>
   post<{ settings_reviewed_at: string | null }>({ op: "settings_reviewed", session });
+
+/** WS-R131 (migration 134). "Set once, in your account." `timezone: null,
+ *  quietFrom: null, quietTo: null` clears everything — a follower who wants
+ *  to go back to having no account-level window at all. A quiet window with
+ *  no timezone, or a timezone with only half a window, is refused server
+ *  side (`roomSetQuietHours`'s own header, `api/_room-surface.js`) before
+ *  either ever reaches the database. */
+export const setQuietHours = (session: string, timezone: string | null, quietFrom: string | null, quietTo: string | null) =>
+  post<RoomSettingsQuietHours>({ op: "set_quiet_hours", session, timezone, quiet_from: quietFrom, quiet_to: quietTo });
 
 /** WS-R100 (migration 126). The follower's own receipts. `RoomReceiptRow`
  *  is the list shape (`listReceipts`, the account page's own read);

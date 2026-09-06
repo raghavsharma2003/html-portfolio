@@ -11002,6 +11002,42 @@
       "kind": "measurement",
       "title": "evals/payments 145/0, evals/org-billing 69/0, evals/payments-reconcile 51/0, evals/renewals 82/0, evals/room-doors 2146/0 - all offline, node <file>.mjs, 2026-09-05. Live-database EXPLAIN of migration 135's two index changes and the two widened selects and two close-then-insert statements still owed by the main loop.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r131-follower-own-quiet-hours-column",
+      "kind": "decision",
+      "title": "Migration 134: vy_room_follower gains its own timezone/quiet_from/quiet_to, set once on the account page, wins over WS-R129's check-in proxy in the shared coalesce; a new check-in schedule inherits it when its own window is unset.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r131-quiet-hours-follower-row-sql",
+      "kind": "component",
+      "title": "api/_quiet-hours.js: quietHoursOkForFollowerRowSql(alias, paramIndex) reads the follower's own row directly, NULL (never TRUE) when unset; quietHoursOkForFollowerSql is now coalesce(rowSql, WS-R129's own not-exists proxy) \u2014 one SQL expression, own row wins.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r131-set-quiet-hours-op",
+      "kind": "component",
+      "title": "api/room.js op set_quiet_hours -> api/_room-surface.js's roomSetQuietHours: session-scoped write to vy_room_follower's own timezone/quiet_from/quiet_to, validated with isKnownTimeZone (Intl.DateTimeFormat construction, not Intl.supportedValuesOf) and the both-or-neither/HH:MM shape checks before the write.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r131-supportedvaluesof-timezone-rejects-asia-kolkata",
+      "kind": "rejection",
+      "title": "Intl.supportedValuesOf('timeZone') on this runtime's ICU data excludes Asia/Kolkata (only Asia/Calcutta); replaced by constructing Intl.DateTimeFormat with the caller's zone and catching the throw, the same probe api/_checkins.js's validateSchedule already used.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r131-native-time-input-eats-tab-stops-in-headless-chromium",
+      "kind": "rejection",
+      "title": "input type=time on this build container's Chromium keeps document.activeElement on the same node for ~4 Tab presses (internal segments), exhausting scripts/check-accessibility.mjs's walkTabOrder slack budget and stranding the account page's last two controls unreached; replaced with a text input plus HH:MM pattern. CheckinsPanel.tsx's own two type=time fields carry the identical unproven risk, untested because the gate's own screens list never renders that screen.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r131-quiet-hours-gate-results",
+      "kind": "measurement",
+      "title": "evals/quiet-hours widened 28->41 (new SS5, own row beats proxy); evals/checkins 43->59 (new \u00a77, inheritance); evals/renewals 79->87 (new \u00a78b, four boundary instants); evals/room-dormancy 53->61 (new \u00a79b); evals/room-doors gained set_quiet_hours across every attack class (OP_COVERAGE+OP_INVOKE cased). node scripts/check-accessibility.mjs --target room: 0 keyboard findings after the type=time fix (was 2, keyboard-unreachable + keyboard-focus-invisible). Method: node evals/run.mjs full registry run and node scripts/check-accessibility.mjs --target room, both direct, 2026-09-05.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -21314,6 +21350,36 @@
       "src": "ws-r132-fake-provider-deterministic-ref-collides-on-a-genuine-restart",
       "rel": "caused_by",
       "dst": "ws-r132-live-subscription-index-widened-to-exclude-halted-and-cancelled-mandates"
+    },
+    {
+      "src": "ws-r131-follower-own-quiet-hours-column",
+      "rel": "supersedes",
+      "dst": "ws-r129-quiet-hours-follower-proxy-via-checkin-table"
+    },
+    {
+      "src": "ws-r131-quiet-hours-follower-row-sql",
+      "rel": "part_of",
+      "dst": "ws-r129-quiet-hours-shared-fragment"
+    },
+    {
+      "src": "ws-r131-set-quiet-hours-op",
+      "rel": "caused_by",
+      "dst": "ws-r131-follower-own-quiet-hours-column"
+    },
+    {
+      "src": "ws-r131-supportedvaluesof-timezone-rejects-asia-kolkata",
+      "rel": "constrains",
+      "dst": "ws-r131-set-quiet-hours-op"
+    },
+    {
+      "src": "ws-r131-native-time-input-eats-tab-stops-in-headless-chromium",
+      "rel": "constrains",
+      "dst": "ws-r131-set-quiet-hours-op"
+    },
+    {
+      "src": "ws-r131-quiet-hours-gate-results",
+      "rel": "measured_by",
+      "dst": "ws-r131-follower-own-quiet-hours-column"
     }
   ]
 }

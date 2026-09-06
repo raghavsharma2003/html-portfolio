@@ -1064,6 +1064,41 @@
     font: inherit;
   }
 
+  /* ── the follower's own quiet hours, set once in their account (WS-R131,
+   *  migration 134) — the account page's own control, `.room-checkins-wa-
+   *  form`'s own layout shape one control over. min-height: 44px on every
+   *  field meets the 44x44 CSS px tap-target floor (WCAG 2.5.8) on its own,
+   *  never relying on a wrapping row's padding to reach it. */
+  .room-checkins-quiet-set {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-tight);
+    margin-top: var(--space-tight);
+  }
+
+  .room-checkins-quiet-set label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+  }
+
+  .room-checkins-quiet-set input {
+    min-height: 44px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: 0 10px;
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+  }
+
+  .room-checkins-quiet-set input[type="text"] {
+    min-width: 180px;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .room-checkins-day { transition: none; }
   }

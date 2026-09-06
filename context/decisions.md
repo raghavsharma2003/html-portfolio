@@ -21537,3 +21537,36 @@ on the moment a row is closed independently of whether the insert
 succeeds (an audit log entry, a notification), the two would need to
 split into a `close` step with its own commit boundary. Nothing in this
 workstream's own build needs that today.
+
+## `ws-r131-follower-own-quiet-hours-column` (2026-09-05, WS-R131)
+
+**Decision.** Migration 134 gives `vy_room_follower` its own `timezone`/
+`quiet_from`/`quiet_to` columns, set once on the account page
+(`roomSetQuietHours`, `api/room.js`'s `set_quiet_hours`), taken exactly as
+`context/decisions.md#ws-r129-quiet-hours-follower-proxy-via-checkin-table`'s
+own reversal condition specified it: the follower's own row now wins in the
+shared fragment (`api/_quiet-hours.js`'s `quietHoursOkForFollowerSql`, a
+`coalesce()` of `quietHoursOkForFollowerRowSql` first, WS-R129's own
+check-in `not exists` proxy second), never a fifth code path choosing
+between two sources. A new check-in schedule that leaves its own window
+unset inherits the account row's window at INSERT time
+(`api/_checkins.js`'s `optIn`, `coalesce(($10)::time, cf.quiet_from)`); an
+explicit window on the schedule itself still wins, unchanged from before
+this workstream.
+
+**Rationale.** WS-R129 named this exact gap and named exactly this fix as
+its own reversal condition; nothing about the reasoning needed rediscovery,
+only the migration number its own brief was not given. Keeping the check-in
+proxy alive as the FALLBACK (never retiring it) is deliberate: a follower
+who set a window on a check-in before this column existed keeps that same
+protection with zero migration-day action of their own, and a follower who
+has used neither control is blocked by neither — identical, honest, to
+today's behaviour for them.
+
+**What would reverse it.** A backfill that copies every `vy_room_checkin`
+row's own most-recently-set window onto its follower's new
+`vy_room_follower` columns at migration time would let the check-in proxy
+retire outright (`quietHoursOkForFollowerSql` collapsing to
+`quietHoursOkForFollowerRowSql` alone) — not done here, since a backfill
+touching every existing check-in row was not this workstream's brief and
+the fallback costs nothing while it stays correct.

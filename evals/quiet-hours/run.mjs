@@ -38,7 +38,9 @@ const ok = (name, cond, extra = "") => {
 };
 
 const QH = await import(pathToFileURL(join(REPO, "api/_quiet-hours.js")).href);
-const { QUIET_HOURS_MARKER, quietHoursOkSql, quietHoursOkForFollowerSql, isQuietHoursOk } = QH;
+const {
+  QUIET_HOURS_MARKER, quietHoursOkSql, quietHoursOkForFollowerRowSql, quietHoursOkForFollowerSql, isQuietHoursOk,
+} = QH;
 
 // ═════════════════════════════════════════════════════════════════════════
 console.log("── §1: THE PURE MATH — the four boundary instants, plain and wraparound ──");
@@ -88,6 +90,24 @@ console.log("\n── §2: THE FRAGMENT'S OWN SHAPE ──");
   ok("quietHoursOkForFollowerSql is a NOT EXISTS over vy_room_checkin", /not exists\s*\(\s*select 1 from vy_room_checkin/.test(proxy));
   ok("quietHoursOkForFollowerSql joins on the given follower alias's own follower_id", proxy.includes("= f.follower_id"));
   ok("quietHoursOkForFollowerSql requires the check-in to be active", proxy.includes("state = 'active'"));
+
+  // WS-R131 (migration 134). `quietHoursOkForFollowerRowSql` reads the
+  // follower's own row directly; `quietHoursOkForFollowerSql` wraps it in a
+  // `coalesce()` against the check-in proxy above — ONE SQL expression,
+  // never two code paths choosing between them.
+  const row = quietHoursOkForFollowerRowSql("f", 1);
+  ok("quietHoursOkForFollowerRowSql embeds the marker", row.includes(QUIET_HOURS_MARKER));
+  ok("quietHoursOkForFollowerRowSql reads the given alias's own columns", row.includes("f.quiet_from") && row.includes("f.quiet_to") && row.includes("f.timezone"));
+  ok("quietHoursOkForFollowerRowSql binds the given param index", row.includes("($1)::timestamptz"));
+  ok("quietHoursOkForFollowerRowSql guards a null timezone before ever using it in `at time zone`", row.includes("f.timezone is not null"));
+  ok("quietHoursOkForFollowerSql is coalesce-shaped, own row first: it embeds the row fragment's own text",
+    proxy.includes("coalesce(") && proxy.includes(row.trim()));
+  // The row fragment sits BEFORE the check-in proxy inside the coalesce —
+  // "own row wins, else the proxy", never the reverse.
+  ok(
+    "the row fragment appears before the check-in NOT EXISTS inside the coalesced text",
+    proxy.indexOf("f.quiet_from") < proxy.indexOf("not exists"),
+  );
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -201,6 +221,83 @@ console.log("\n── §4: NEGATIVE CONTROLS ──");
     followerBlockedByAny("f1", Date.parse("2026-09-06T21:30:00.000Z")) === false,
   );
   ok("the fragment driving that same claim is the real exported one, not a re-typed copy", proxySql.includes("not exists"));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §5: WS-R131 (migration 134) — the follower's own row beats the proxy ──");
+// ═════════════════════════════════════════════════════════════════════════
+// A tiny in-memory interpreter of exactly what `quietHoursOkForFollowerSql`
+// now expresses: the follower's own row (timezone/quiet_from/quiet_to on
+// their own row) wins when set; only when it is NOT set does the check-in
+// proxy from §4(b) ever get consulted — the coalesce §2 already proved the
+// SQL text embeds.
+{
+  const effectiveOk = (follower, checkins, nowMs) => {
+    const ownSet = follower.quiet_from != null && follower.quiet_to != null && follower.timezone;
+    if (ownSet) return isQuietHoursOk(nowMs, follower.timezone, follower.quiet_from, follower.quiet_to);
+    return !checkins
+      .filter((c) => c.follower_id === follower.follower_id && c.state === "active")
+      .some((c) => !isQuietHoursOk(nowMs, c.timezone, c.quiet_from, c.quiet_to));
+  };
+
+  const t2201 = Date.parse("2026-09-05T16:31:00.000Z"); // 22:01 IST
+  const tNoon = Date.parse("2026-09-05T06:30:00.000Z"); // 12:00 IST — well outside 22:00-07:00
+
+  // (a) Own row set, no check-in at all — the own row governs.
+  const f1 = { follower_id: "f1", timezone: "Asia/Kolkata", quiet_from: "22:00", quiet_to: "07:00" };
+  ok("own row alone: 22:01 IST is blocked by the account window, no check-in involved", effectiveOk(f1, [], t2201) === false);
+  ok("own row alone: noon IST is not blocked", effectiveOk(f1, [], tNoon) === true);
+
+  // (b) Own row set AND a check-in exists with a DIFFERENT, non-blocking
+  //     window at this instant — the own row still governs (wins), the
+  //     check-in's own window is never consulted at all.
+  const f2 = { follower_id: "f2", timezone: "Asia/Kolkata", quiet_from: "22:00", quiet_to: "07:00" };
+  const checkinsF2 = [{ follower_id: "f2", state: "active", timezone: "Asia/Kolkata", quiet_from: "01:00", quiet_to: "02:00" }];
+  ok(
+    "own row wins over a check-in whose own window would NOT have blocked this instant either — same answer, own row still the reason",
+    effectiveOk(f2, checkinsF2, t2201) === false,
+  );
+
+  // (c) Own row set to a window that would NOT block, while an active
+  //     check-in's OWN window WOULD have blocked — the own row still wins,
+  //     proving this is a real override, not merely "whichever says block".
+  const f3 = { follower_id: "f3", timezone: "Asia/Kolkata", quiet_from: "01:00", quiet_to: "02:00" };
+  const checkinsF3 = [{ follower_id: "f3", state: "active", timezone: "Asia/Kolkata", quiet_from: "22:00", quiet_to: "07:00" }];
+  ok(
+    "own row (a non-blocking window) wins even though the check-in's own window WOULD have blocked — the row is the source of truth, not merely OR'd with the proxy",
+    effectiveOk(f3, checkinsF3, t2201) === true,
+  );
+
+  // (d) No own-row window at all — the proxy still governs, WS-R129's
+  //     original behaviour, byte-identical for a follower who has never used
+  //     the new account-level control.
+  const f4 = { follower_id: "f4", timezone: null, quiet_from: null, quiet_to: null };
+  const checkinsF4 = [{ follower_id: "f4", state: "active", timezone: "Asia/Kolkata", quiet_from: "22:00", quiet_to: "07:00" }];
+  ok("no own-row window: the check-in proxy still blocks exactly as WS-R129 always did", effectiveOk(f4, checkinsF4, t2201) === false);
+
+  // NEGATIVE CONTROL: a frozen copy of `quietHoursOkForFollowerSql`'s own
+  // PRE-WS-R131 text (the bare NOT EXISTS, no row-level check at all) has no
+  // way to express case (c) above — it can only ever agree with or be
+  // silent about the check-in, never override it. Proven structurally: the
+  // frozen text contains no reference to the follower alias's own
+  // quiet_from/quiet_to at the top level, only inside the nested check-in
+  // subquery — exactly the shape that made case (c) impossible before this
+  // workstream.
+  const FROZEN_PRE_WS_R131_PROXY = `/* ws-r129-quiet-hours */ not exists (
+    select 1 from vy_room_checkin qh_f
+     where qh_f.follower_id = f.follower_id
+       and qh_f.state = 'active'
+       and not (qh_f.quiet_from is null or qh_f.quiet_to is null or true)
+  )`;
+  const topLevelRowRef = /^[^(]*f\.quiet_from/.test(FROZEN_PRE_WS_R131_PROXY.replace(/qh_f\.\w+/g, ""));
+  ok(
+    "NEGATIVE CONTROL: the pre-WS-R131 proxy text has no TOP-LEVEL reference to the follower's own quiet_from (only inside the nested check-in alias) — it could not have expressed 'own row overrides the check-in'",
+    !topLevelRowRef,
+  );
+  ok(
+    "the REAL, current fragment DOES carry a top-level reference to the follower alias's own quiet_from (the row check, ahead of the coalesce)",
+    /coalesce\(\s*\/\* ws-r129-quiet-hours \*\/ \(\s*case when f\.quiet_from/.test(quietHoursOkForFollowerSql("f", 1)),
+  );
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
