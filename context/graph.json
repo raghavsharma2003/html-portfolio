@@ -12537,6 +12537,66 @@
       "kind": "rejection",
       "title": "Do not trim padded capture or relabel component tests as identity",
       "at": "2026-09-07"
+    },
+    {
+      "id": "release-nine-preserves-identity-boundary-20260907",
+      "kind": "decision",
+      "title": "Continue versioned identity work after frozen release",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "frozen-release-nine-and-source-cleanup-20260907",
+      "kind": "measurement",
+      "title": "All 24 software gates pass; one synthetic source erased",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "source-erasure-is-not-full-replica-erasure-20260907",
+      "kind": "rejection",
+      "title": "Do not report full erasure from source-worker completion",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "post-release-nine-local-server-restart-20260907",
+      "kind": "measurement",
+      "title": "Fresh local server starts after release9",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "full-erasure-needs-targeted-preflight-20260907",
+      "kind": "decision",
+      "title": "Require exact scope before development full erasure",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "full-erasure-source-audit-20260907",
+      "kind": "measurement",
+      "title": "Finalizer source audit identifies scope and configuration prerequisites",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "maxjobs-is-not-full-erasure-target-isolation-20260907",
+      "kind": "rejection",
+      "title": "A bounded count cannot authorize arbitrary cleanup targets",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "issued-contract-plan-precedes-azure-verifier-20260907",
+      "kind": "decision",
+      "title": "Bind immutable issuance before connecting Azure verifier",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "issued-contract-plan-source-findings-20260907",
+      "kind": "measurement",
+      "title": "Read-only contract and model-provenance audit completed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "speaker-family-name-is-not-model-compatibility-20260907",
+      "kind": "rejection",
+      "title": "Do not compare unproven reference and candidate revisions as accepted identity",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

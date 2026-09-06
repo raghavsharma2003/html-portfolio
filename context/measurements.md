@@ -16171,3 +16171,23 @@ Measured2026-09-07 India. Agent finalPythonCPU suite19/19 passed (8.876s); root 
 ## `identity-audio-python-js-byte-interop-20260907` (2026-09-07)
 
 Root generated one1second synthetic WebM tone/video through portableFFmpeg, ran actual Python measure_identity_audio with an explicit fake speaker function, passed resulting JSON through actual JSvalidateIdentityAudio and AzuretranscribeBytes with fakeASRtransport. Passed:24000canonicalframes,16000transportframes, speakerAndAsrInputShaMatch=true,1fake request,0real model calls. This verifies cross-language schema/parameter hashing and byte interoperability, not signedservice transport or acoustic identity. No ownerrecording. Evidence ROOT scratchpad/expert-tools/identity-cross-language-result.json and check-identity-audio-cross-language.{py,mjs}.
+
+
+## `frozen-release-nine-and-source-cleanup-20260907` (2026-09-07)
+
+Measured 2026-09-07 India. Frozen release9 on 1051ed68 started 2026-09-06T22:30:18.446Z and completed all24 checks; final aggregate inspected. No implementation edits overlapped. Relational gates skipped without NEON_URL; prior exact-dev SQL checks remain separate. Evidence scratchpad/expert-integrated-release-9.log and release-logs/2026-09-06T22-30-18-446Z-23824/. At 2026-09-06T23:15:13.355Z the guarded existing development source-erasure worker leased1, completed1, retried0; exact source cca2695c-1707-4f6e-a7c5-cb140f3eaf1d had0 remaining rows. Preflight verified exact isolated database, sole source, expired upload capability and no active writers. Evidence ROOT scratchpad/expert-tools/dev-source-erasure-result.json. Four full replica receipts remain a separate pending lifecycle. No deployment or owner likeness acceptance.
+
+
+## `post-release-nine-local-server-restart-20260907` (2026-09-07)
+
+Root inspected exact localhost5177 listener command and stopped only PID23360 for launch-expert-dev.mjs server. Restarted through the existing Azure API launcher; exec13762 reported isolated-database startup and one GET /studio returned HTTP200. Fresh API imports now load from checkpoint1051ed68 plus context-only edits. This is startup evidence, not a new authenticated journey, model recognition, identity or owner-listening test.
+
+
+## `full-erasure-source-audit-20260907` (2026-09-07)
+
+Astra read-only source audit on2026-09-07 inspected _replica-full-erasure.js, _channel/extraction-storage.js and _replica-storage.js. One audit, no execution: lease selects globally; maxJobs bounds quantity only. Completion includes owner-wide payout/invite/membership/push deletes. Cleanup enumerates owner/replica prefix across configured buckets even with zero ledger rows. Receipt configuration is validated only after storage cleanup. No new SQL query, cloud mutation, secret read or test ran in this audit. Four full-erasure receipts remain pending.
+
+
+## `issued-contract-plan-source-findings-20260907` (2026-09-07)
+
+One Astra source audit on2026-09-07 produced the issued-contract plan; root read its schema, caller changes, legacy behavior and acceptance gates. Top-level migration inventory ends136; no137 created. Current lease/sweep lack issued policy/profile routing, and older reference builder/adapter do not reliably retain speaker model revisions. No runtime/schema/cloud operations or model tests ran. Plan is explicitly not implemented.

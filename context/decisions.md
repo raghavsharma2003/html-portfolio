@@ -22598,3 +22598,18 @@ Issuance refuses a retired latest genome rather than falling back; lease selects
 ## `same-recording-foundation-keeps-identity-disabled-20260907` (2026-09-07)
 
 Implement bounded identity-only capture decoding and speaker evidence on existing signed service, and an internal canonical-byte Azure ASR method shared with ordinary storage-backed transcription. Exact mandatory hi-IN/en-IN locale and byte commitments belong to the internal method; preserve ordinary ASR semantics. Do not fabricate storage locators, promote identity audio to enrollment, or enable identity before issued-contract/lineage/lifecycle tests are complete. Reversal condition: a measured alternative supplies equivalent same-recording ancestry and strict Azure transport with fewer moving pieces; it must preserve existing protected enrollment boundaries.
+
+
+## `release-nine-preserves-identity-boundary-20260907` (2026-09-07)
+
+The frozen software gate permits continued integration, not identity enablement. Keep strict identity disabled until issued language, same-recording lineage and settlement lifecycle are connected and verified. Reversal condition: the complete contract passes real SQL, replay/revocation controls and Azure runtime acceptance.
+
+
+## `full-erasure-needs-targeted-preflight-20260907` (2026-09-07)
+
+Keep four synthetic replica receipts pending until preflight verifies exact database, replica/owner/job allowlist, all eligibility fences, owner-wide affected tables, exact storage accounts/buckets and valid receipt configuration. Reversal condition: an existing target-bound finalizer proves equivalent scope and prerequisites without a separate wrapper. Do not weaken cleanup or retention fences.
+
+
+## `issued-contract-plan-precedes-azure-verifier-20260907` (2026-09-07)
+
+Implement the reviewed plan in docs/gurukul/research/IDENTITY-ISSUED-CONTRACT-PLAN-20260907.md in phases: pure versioned contract, additive schema, caller/lease/settlement integration and runtime acceptance. Proposed137 must be rechecked before creation. Reversal condition: a simpler design proves equivalent issue-time locale/profile/reference authority, same-recording ancestry and lifecycle semantics. Keep strict verification disabled meanwhile.

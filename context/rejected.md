@@ -16352,3 +16352,18 @@ The new byte ASR method checks supplied bytes/hash/size and reports its actual16
 ## `aac-padding-and-adapter-tests-do-not-justify-identity-enablement-20260907` (2026-09-07)
 
 The AACpadding fixture exceeds the decoded30second bound despite nominal30second generation; reject it rather than crop an identity recording silently. Components now connect at signed service operation and APIadapter level, but versioned challenge issuance, mandatorylocale, verifier/sweep/settlement lineage, concurrentrevocation and review/reissue lifecycle remain unfinished. Existing strict verifier remains disabled. No actual deployedservice/model/identity/capture acceptance follows from19CPU,39adapter or cross-languagefake-model checks.
+
+
+## `source-erasure-is-not-full-replica-erasure-20260907` (2026-09-07)
+
+The source worker completed its bounded source cleanup only. It did not run the separate full-replica finalizer or confirm four deletion receipts. Do not translate remainingSourceRows=0 into complete account or replica erasure; inspect existing finalizer prerequisites and exact synthetic targets first.
+
+
+## `maxjobs-is-not-full-erasure-target-isolation-20260907` (2026-09-07)
+
+Do not call the full sweep or maxJobs4 finalizer merely because the isolated source worker completed. Global leasing, owner-wide SQL effects, configured storage fallback and late receipt validation need independent target/configuration proof. An isolated database alone does not isolate external storage.
+
+
+## `speaker-family-name-is-not-model-compatibility-20260907` (2026-09-07)
+
+Reference vectors retain family/evidence/vector/confidence but older builders and adapters omit explicit model revisions. A matching family name and candidate revision claim cannot establish reference/candidate model compatibility. Do not fabricate historical provenance or enable accepted identity from that comparison; obtain compatible reference evidence and verify the complete path.
