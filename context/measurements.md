@@ -16084,3 +16084,23 @@ Root then ran the corrected real-browser diagnostic on /studio: three cold conte
 ## `authored-listening-corpus-coverage-20260907` (2026-09-07)
 
 Measured2026-09-07 India. Agent validated JSON, unique IDs, nonempty texts and20 shared intents each represented once per language; root independently parsed and checked60 unique IDs with20hi,20hi-Latn,20en-IN. Files docs/gurukul/research/expert-fidelity-20260907/voice-listening-corpus.json and voice-listening-methodology.md. Status AUTHORED_NOT_RENDERED_NOT_RATED. No owner transcript, generated audio, model call, listening result or accepted holdout independence. Root traced existing benchmark grouping and report code; current descriptive report excludes repeat trials but does not compute proposed paired confidence intervals.
+
+
+## `azure-serving-audit-and-local-fetch-boundary-20260907` (2026-09-07)
+
+Measured2026-09-07 India. High-reasoning Astra agent audited13 caller-route rows with zero cloud/model calls or config-value reads; docs/gurukul/research/AZURE-ONLY-SERVING-AUDIT-20260907.md. Root added local development fetch boundary:8 allowed request tests,12 prohibited requests denied before mock transport, redirect override and invalid service config passed. It permits Azure host families plus exact dev Neon/sql and Supabase auth/rest/storage origins, forces redirect:error, and rejects other destinations. Restarted real dev launcher, which verified isolated database through guardedfetch; /studio returned200. No inference quality or model call followed. This guard is NOT a node:http, browser, remote-worker or production sandbox; leaf/caller enforcement remains necessary.
+
+
+## `azure-only-leaf-tests-and-real-shared-reply-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Astra agent:20 policy,17 Azure reply,41 claim,84 surface,137 Mirror reply fixture checks passed. Root independently ran20policy checks, Azure ASR/provider-origin selection controls,69identity checks,75openvoice and25voice-evidence checks; Mirror API runner passed. No audio or identity acceptance follows. Root then made ONE synthetic call through actual shared think, with provider override removed, azure_only mode and guarded development fetch. Real answer: The workshop starts Monday at10AM. Elapsed3310ms; ledger before4receipts/152microUSD, after5/186microUSD; incremental34microUSD (USD0.000034). Result saved before accounting read. Evidence ROOT scratchpad/expert-tools/azure-only-probe-{output,result}.json. This proves bounded Azure default routing/accounting, not clone quality.
+
+
+## `release-five-reported-pass-before-final-azure-freeze-20260907` (2026-09-07)
+
+Runner5 started at2026-09-07 01:15IST on integration checkpoint630e18dd with docs-only84c4d1d5 following. It reported all24 checks passed, including performance114394ms, evals416054ms, layout248141ms, accessibility68463ms. Relational gates skipped in this runner; earlier separate exact-dev SQL checks remain separate evidence. Azure runtime edits began while the runner was still executing, so this is not an atomic final-tree release certification. Run a fresh complete gate after freezing the Azure changes. Evidence integration scratchpad/expert-integrated-release-5.log and scratchpad/release-logs/2026-09-06T19-45-32-531Z-26576.
+
+
+## `expert-value-contract-caller-audit-20260907` (2026-09-07)
+
+High-reasoning Astra agent produced expert-value-contract.md in the fidelity research folder, validated29 local source links, and defined five proposed acceptance scenarios: grounded answers, correction transfer, private continuity, bounded practice skill and owner override/handoff. Existing check-ins and handoff have callers; general skill execution and transfer of approved owner corrections into published Room source-grounded answers remain unproven. No runtime, outbound action, user study or PMF measurement ran in this product audit.

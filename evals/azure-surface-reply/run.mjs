@@ -98,8 +98,8 @@ ok("provider selection preserves OpenRouter by default and refuses unknown switc
   replyEngineCapability(env).available);
 const source = readFileSync(new URL("../../api/_surface.js", import.meta.url), "utf8");
 ok("the Azure adapter plugs into the existing shared brain, leaving the gate in place",
-  source.includes('process.env.VYAKTI_REPLY_PROVIDER === "azure_foundry"') &&
-  source.includes("azureSurfaceReply({ compiled, turns, db: q })") && source.includes("export async function gatedReply"));
+  source.includes('resolveReplyServingProvider(env)') && source.includes('provider === "azure_foundry"') &&
+  source.includes("azureSurfaceReply({ compiled, turns, db: options.db || q, env,") && source.includes("export async function gatedReply"));
 ok("configured models never silently inherit a different lane's rates", (() => {
   assert.throws(() => azureSurfaceReplyConfig({ ...env, AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS: undefined,
     AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "0.01" })); return true;

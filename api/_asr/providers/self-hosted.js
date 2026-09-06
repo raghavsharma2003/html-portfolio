@@ -42,6 +42,7 @@ import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import { canonicalJson, sha256Hex } from "../../_provenance/contracts.js";
 import { createSignedReplicaRead } from "../../_replica-storage.js";
 import { asrInput, asrResult, langHint } from "../contracts.js";
+import { assertAzureServingOrigin } from "../../_model-serving-policy.js";
 
 const PROTOCOL = "vyakti-open-asr/v1";
 const NAME = "open-asr-runtime";
@@ -68,6 +69,7 @@ function secret(value) {
  *  in a log line, and a path-carrying one is how a signature over `path`
  *  stops meaning anything. */
 export function selfHostedAsrConfig(env = process.env) {
+  assertAzureServingOrigin(env.ASR_SELF_HOSTED_ORIGIN, env);
   let origin;
   try { origin = new URL(String(env.ASR_SELF_HOSTED_ORIGIN || "")); }
   catch { fail("asr_origin_required"); }
@@ -128,6 +130,7 @@ export function createSelfHostedAsrProvider(options = {}) {
       let response;
       try {
         response = await fetchImpl(`${config.origin}${PATH}`, {
+        redirect: "error",
           method: "POST",
           headers: {
             "Content-Type": "application/json",

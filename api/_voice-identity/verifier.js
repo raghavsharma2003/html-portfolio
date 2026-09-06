@@ -33,6 +33,7 @@ import { createAzureVoiceEvidenceAdapters } from "../_replica-processing/provide
 import { createReplicaProcessingStorage } from "../_replica-processing/storage.js";
 import { createSarvamSyncProvider } from "../_asr/providers/sarvam-sync.js";
 import { embeddingVectors, FIDELITY_EMBEDDING_FAMILY } from "../_fidelity.js";
+import { isAzureOnlyServing } from "../_model-serving-policy.js";
 
 export const VOICE_CHALLENGE_VERIFIER_NAME = "vyakti_voice_evidence_sarvam";
 export const VOICE_CHALLENGE_VERIFIER_VERSION = "voice-evidence-v1+saarika-v2.5";
@@ -65,6 +66,10 @@ function scopedSource(lease, side) {
  */
 export function createVoiceChallengeVerifier(options = {}) {
   const env = options.env || process.env;
+  // This verifier's measured contract is still Sarvam-specific. Do not lease
+  // GPU work and only then discover that its ASR vendor is forbidden. An Azure
+  // replacement needs locale/script, nonce and evidence-receipt validation.
+  if (isAzureOnlyServing(env)) fail("azure_voice_challenge_verifier_unavailable");
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   const storage = options.storage || createReplicaProcessingStorage({ fetchImpl });
   const evidence = options.evidence ||
@@ -130,6 +135,7 @@ export function createVoiceChallengeVerifier(options = {}) {
  *  cannot finish, so a challenge is never failed because a key was missing. */
 export function configuredVoiceChallengeVerifier(options = {}) {
   const env = options.env || process.env;
+  if (isAzureOnlyServing(env)) return null;
   if (!String(env.AZURE_VOICE_EVIDENCE_ORIGIN || "") || !String(env.AZURE_VOICE_EVIDENCE_HMAC_SECRET || "")) return null;
   if (!String(env.SARVAM_API_KEY || "")) return null;
   try {

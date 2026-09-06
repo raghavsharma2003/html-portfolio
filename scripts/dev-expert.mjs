@@ -6,6 +6,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { createServer as createViteServer } from 'vite';
+import { createAzureOnlyFetch } from './azure-only-fetch.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const database = process.env.VYAKTI_DEV_DATABASE;
@@ -16,6 +17,11 @@ const connection = new URL(process.env.NEON_URL || 'https://missing.invalid');
 if (decodeURIComponent(connection.pathname.slice(1)) !== database) {
   throw new Error('NEON_URL must target the named development database.');
 }
+// User-directed Azure-only model serving. The exact development DB/auth
+// origins remain usable. Unmigrated vendor routes fail before transmission.
+globalThis.fetch = createAzureOnlyFetch({ databaseHost: connection.hostname,
+  authOrigin: process.env.SUPABASE_URL });
+process.env.VYAKTI_MODEL_SERVING = 'azure_only';
 const check = await fetch(`https://${connection.hostname}/sql`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'Neon-Connection-String': connection.href },
@@ -89,10 +95,11 @@ const server = createServer(async (req, res) => {
     res.send = value => { res.end(value); return res; };
     res.redirect = (code, url) => { if (typeof code === 'string') { url = code; code = 302; } res.writeHead(code, { Location: url }).end(); return res; };
     await module.default(req, res);
-  } catch {
+  } catch (error) {
     // Handler errors may contain provider payloads or private source text.
-    if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'application/json' });
-    if (!res.writableEnded) res.end(JSON.stringify({ error: 'local_handler_failed' }));
+    const policyDenied = error?.code === 'azure_only_destination_denied';
+    if (!res.headersSent) res.writeHead(policyDenied ? 503 : 500, { 'Content-Type': 'application/json' });
+    if (!res.writableEnded) res.end(JSON.stringify({ error: policyDenied ? 'azure_only_destination_denied' : 'local_handler_failed' }));
   }
 });
 const port = Number(process.env.VYAKTI_DEV_PORT || 5177);

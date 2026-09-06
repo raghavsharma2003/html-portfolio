@@ -16302,3 +16302,13 @@ Inspection after the complete diagnostic found check-performance still returned0
 ## `old-listening-pack-loader-does-not-accept-new-corpus-20260907` (2026-09-07)
 
 The existing benchmark build hardloads August Chatterbox/Qwen/Vox packs and owner reference, with15base stimuli or21withIndic plus vendor counts. New60-item JSON is not wired. Do not spoof historical source IDs, fake receipts or weaken counts to make it load. A generic recorded-pack adapter must preserve exact language/text hashes, protection, output/source/reference/checkpoint receipts and matched-cell boundaries. Translated intent groups are not matched acoustic inputs; only identical language and synthesis text compare within an item.
+
+
+## `azure-default-is-not-an-azure-only-serving-boundary-20260907` (2026-09-07)
+
+Audit found shared reply OpenRouter default; OpenRouter fallbacks for claim/embedding/memory; Sarvam ASR and direct voice challenge; stored ElevenLabs serving; direct ordinary voice callers outside the registry. Azure-named selfhost constructors accept arbitrary HTTPS origins. A registry-only toggle misses these paths. The development fetch guard stops dispatch in that process but is not complete production enforcement. Preserve historical vendor erasure access when adding serving restrictions; deleting old biometric data is not new inference.
+
+
+## `switching-challenge-asr-is-not-a-verified-identity-migration-20260907` (2026-09-07)
+
+The legacy challenge chooses mixed English and Roman Hindi sentences; existing overlap normalization does not bridge Roman and Devanagari, and short Azure ASR defaults unknown language to hi-IN. Merely replacing Sarvam construction would change recognition and durable verifier semantics without acceptance evidence. Strict mode therefore disables the old verifier rather than calling a forbidden vendor or guessing success. Root initial new fixture passed env in the wrong factory shape and failed with voice_evidence_origin_required; corrected to {env}, then verified the policy rejection precedes construction.

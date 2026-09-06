@@ -2,6 +2,7 @@ import { createSarvamSaarasProvider } from "./providers/sarvam-saaras.js";
 import { createSarvamSyncProvider } from "./providers/sarvam-sync.js";
 import { createSelfHostedAsrProvider } from "./providers/self-hosted.js";
 import { createAzureSpeechShortProvider } from "./providers/azure-speech-short.js";
+import { isAzureOnlyServing, assertAzureServingOrigin } from "../_model-serving-policy.js";
 
 // api/_claim-extraction/registry.js's pattern: read the env, throw a coded
 // 503 when it is incomplete, construct otherwise. No fixture fallback — see
@@ -28,7 +29,11 @@ import { createAzureSpeechShortProvider } from "./providers/azure-speech-short.j
 
 export function createProductionAsrProvider(env = process.env) {
   if (env.ASR_SELF_HOSTED_ORIGIN && env.ASR_HMAC_SECRET) {
+    assertAzureServingOrigin(env.ASR_SELF_HOSTED_ORIGIN, env);
     return createSelfHostedAsrProvider({ env });
+  }
+  if (isAzureOnlyServing(env)) {
+    throw Object.assign(new Error("azure_ingestion_asr_unavailable"), { code: "azure_ingestion_asr_unavailable", status: 503 });
   }
   const apiKey = env.SARVAM_API_KEY;
   if (!apiKey) {
@@ -64,6 +69,7 @@ export function configuredAsrProvider(env = process.env) {
 // measurement it belongs in context/measurements.md with n, method and date.
 export function createLiveAsrProvider(env = process.env) {
   if (env.ASR_SELF_HOSTED_ORIGIN && env.ASR_HMAC_SECRET) {
+    assertAzureServingOrigin(env.ASR_SELF_HOSTED_ORIGIN, env);
     return createSelfHostedAsrProvider({ env });
   }
   // The existing Azure Speech resource is the paid operational fallback for
@@ -71,7 +77,11 @@ export function createLiveAsrProvider(env = process.env) {
   // not a quality win: Hindi/Hinglish model choice remains subject to the
   // matched human audit.
   if (env.AZURE_SPEECH_ENDPOINT && env.AZURE_SPEECH_KEY) {
+    assertAzureServingOrigin(env.AZURE_SPEECH_ENDPOINT, env);
     return createAzureSpeechShortProvider({ env });
+  }
+  if (isAzureOnlyServing(env)) {
+    throw Object.assign(new Error("azure_live_asr_unavailable"), { code: "azure_live_asr_unavailable", status: 503 });
   }
   const apiKey = env.SARVAM_API_KEY;
   if (!apiKey) {

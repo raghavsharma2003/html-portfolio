@@ -4,6 +4,7 @@ import { canonicalJson, sha256Hex } from "../../_provenance/contracts.js";
 import { SYNTHETIC_AUDIO_DISCLOSURE, SYNTHETIC_AUDIO_DISCLOSURES, VOICE_PCM_FORMAT } from "../contracts.js";
 import { buildVoiceTextPlan, voiceTextPlanAudit } from "../hindi-text-frontend.js";
 import { voiceLanguageConditioning, voiceScriptMode } from "../language-conditioning.js";
+import { assertAzureServingOrigin } from "../../_model-serving-policy.js";
 
 const PROTOCOL = "vyakti-open-voice/v1";
 const CONDITIONING_CONTRACT = "vyakti-voice-language-conditioning/v1";
@@ -49,6 +50,7 @@ function secret(value) {
 }
 
 export function openChatterboxConfig(env = process.env) {
+  assertAzureServingOrigin(env.AZURE_OPEN_VOICE_ORIGIN, env);
   let origin;
   try { origin = new URL(String(env.AZURE_OPEN_VOICE_ORIGIN || "")); }
   catch { fail("open_voice_origin_required"); }
@@ -211,6 +213,7 @@ async function remote(config, value, fetchImpl, signal) {
   let response;
   try {
     response = await fetchImpl(`${config.origin}${path}`, {
+        redirect: "error",
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -342,6 +345,7 @@ async function remoteRuntimeReady(config, fetchImpl, signal) {
   let response;
   try {
     response = await fetchImpl(`${config.origin}${path}`, {
+        redirect: "error",
       method: "POST",
       headers: {
         "Content-Type": "application/json",

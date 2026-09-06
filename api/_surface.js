@@ -46,6 +46,7 @@ import { q } from "./_db.js";
 import { OPENROUTER_KEY } from "./_config.js";
 import { replyEngineCapability } from "./_reply-engine-capability.js";
 import { azureSurfaceReply } from "./_azure-surface-reply.js";
+import { resolveReplyServingProvider } from "./_model-serving-policy.js";
 import { MEERA_AGENT_ID } from "./_agentscope.js";
 // WS-R4. The owner's "Never say this" rules, as a predicate on the assembled
 // reply. `api/_never-rules.js` imports NOTHING, on purpose: this file is on
@@ -286,7 +287,7 @@ export async function loadEngine() {
  *  byte-stable core rides as `system` (prompt-cached) and the volatile part as
  *  `system_tail`. One copy for every surface — a second copy is a second set
  *  of sampling parameters nobody remembers to keep in step. */
-export async function think(engine, compiled, turns) {
+export async function think(engine, compiled, turns, options = {}) {
   // The SAME read every other completion caller in api/ makes (`chat.js`,
   // `memory.js`, `speech.js`, `search.js`, `culture.js`, `_embed.js`): the
   // env alias first, then the key `scripts/write-config.mjs` bakes into
@@ -296,12 +297,15 @@ export async function think(engine, compiled, turns) {
   // set and the alias unset passed its own self-check while every Room,
   // Mirror Call and channel reply came back empty (WS-R96's finding,
   // `docs/gurukul/DAY-ONE.md`'s section 2).
-  const capability = replyEngineCapability();
+  const env = options.env || process.env;
+  const provider = resolveReplyServingProvider(env);
+  const capability = replyEngineCapability(env);
   if (!capability.available) return "";
-  if (process.env.VYAKTI_REPLY_PROVIDER === "azure_foundry") {
-    return azureSurfaceReply({ compiled, turns, db: q });
+  if (provider === "azure_foundry") {
+    return azureSurfaceReply({ compiled, turns, db: options.db || q, env,
+      fetchImpl: options.fetchImpl || globalThis.fetch });
   }
-  const key = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY || OPENROUTER_KEY || "";
+  const key = env.OPENROUTER_API_KEY || env.OPENROUTER_KEY || (env === process.env ? OPENROUTER_KEY : "") || "";
   const body = {
     model: "google/gemini-3.6-flash",
     messages: [
@@ -317,7 +321,7 @@ export async function think(engine, compiled, turns) {
     max_tokens: 400,
     reasoning: { effort: "low" },
   };
-  const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const r = await (options.fetchImpl || globalThis.fetch)("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "X-Title": "Meera" },
     body: JSON.stringify(body),

@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import { probeEnrollmentWav } from "../../_audio/wav.js";
 import { readPrivateReplicaObject } from "../../_replica-storage.js";
 import { asrInput, asrResult, langHint } from "../contracts.js";
+import { assertAzureServingOrigin } from "../../_model-serving-policy.js";
 
 const NAME = "azure-speech-short";
 const MODEL = "azure-speech-short-v1";
@@ -103,6 +104,7 @@ export function resample24kPcm16To16kWav(value, expectedDurationMs) {
 
 export function createAzureSpeechShortProvider(options = {}) {
   const origin = endpoint(options.endpoint || options.env?.AZURE_SPEECH_ENDPOINT || process.env.AZURE_SPEECH_ENDPOINT);
+  assertAzureServingOrigin(origin, options.env || process.env);
   const apiKey = String(options.apiKey || options.env?.AZURE_SPEECH_KEY || process.env.AZURE_SPEECH_KEY || "");
   if (!apiKey) fail("azure_asr_short_key_required", 503);
   const fetchImpl = options.fetchImpl || fetch;
@@ -137,6 +139,7 @@ export function createAzureSpeechShortProvider(options = {}) {
       let response;
       try {
         response = await fetchImpl(url, {
+        redirect: "error",
           method: "POST",
           headers: {
             "Ocp-Apim-Subscription-Key": apiKey,

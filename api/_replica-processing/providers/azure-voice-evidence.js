@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { ProcessingAdapterError, assertSha256, canonicalJson, sha256Hex } from "../contracts.js";
+import { assertAzureServingOrigin } from "../../_model-serving-policy.js";
 
 const PROTOCOL = "vyakti-voice-evidence/v1";
 const SAFE = /^[a-z0-9][a-z0-9._-]{0,79}$/;
@@ -21,6 +22,7 @@ function secret(value) {
 }
 
 export function azureVoiceEvidenceConfig(env = process.env) {
+  assertAzureServingOrigin(env.AZURE_VOICE_EVIDENCE_ORIGIN, env);
   let origin;
   try { origin = new URL(String(env.AZURE_VOICE_EVIDENCE_ORIGIN || "")); }
   catch { fail("voice_evidence_origin_required"); }
@@ -157,6 +159,7 @@ async function awaitReady(config, fetchImpl, signal) {
   while (Date.now() < deadline) {
     try {
       const probe = await fetchImpl(`${config.origin}/healthz`, {
+        redirect: "error",
         method: "GET",
         signal: deadlineSignal(signal, 30_000),
       });
@@ -192,6 +195,7 @@ async function remote(config, operation, inputs, fetchImpl, signal) {
   let response;
   try {
     response = await fetchImpl(`${config.origin}${path}`, {
+        redirect: "error",
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -349,4 +353,3 @@ export function createAzureVoiceEvidenceAdapters(options = {}) {
     }),
   });
 }
-

@@ -12327,6 +12327,54 @@
       "kind": "rejection",
       "title": "Existing benchmark is not yet a general corpus runner",
       "at": "2026-09-07"
+    },
+    {
+      "id": "expert-value-first-azure-serving-only-20260907",
+      "kind": "decision",
+      "title": "Expert usefulness first; all model serving through Azure",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "azure-serving-audit-and-local-fetch-boundary-20260907",
+      "kind": "measurement",
+      "title": "Source audit finds external fallbacks; local boundary blocks fetch dispatch",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "azure-default-is-not-an-azure-only-serving-boundary-20260907",
+      "kind": "rejection",
+      "title": "External fallback and arbitrary HTTPS origins violate the new serving constraint",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "azure-only-leaf-serving-and-challenge-boundary-20260907",
+      "kind": "decision",
+      "title": "Enforce Azure choice at serving leaves and withhold unmigrated identity verification",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "azure-only-leaf-tests-and-real-shared-reply-20260907",
+      "kind": "measurement",
+      "title": "Portable serving checks pass and one real Azure shared reply settles",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "switching-challenge-asr-is-not-a-verified-identity-migration-20260907",
+      "kind": "rejection",
+      "title": "Do not relabel a different ASR as the old verifier",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release-five-reported-pass-before-final-azure-freeze-20260907",
+      "kind": "measurement",
+      "title": "Runner5 reports24 passes but final Azure tree still needs its own gate",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-value-contract-caller-audit-20260907",
+      "kind": "measurement",
+      "title": "Five proposed expert outcomes tied to existing callers and gaps",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -24057,6 +24105,26 @@
       "src": "old-listening-pack-loader-does-not-accept-new-corpus-20260907",
       "rel": "constrains",
       "dst": "reserved-expert-listening-corpus-reuses-benchmark-20260907"
+    },
+    {
+      "src": "expert-value-first-azure-serving-only-20260907",
+      "rel": "measured_by",
+      "dst": "azure-serving-audit-and-local-fetch-boundary-20260907"
+    },
+    {
+      "src": "azure-default-is-not-an-azure-only-serving-boundary-20260907",
+      "rel": "constrains",
+      "dst": "expert-value-first-azure-serving-only-20260907"
+    },
+    {
+      "src": "azure-only-leaf-serving-and-challenge-boundary-20260907",
+      "rel": "measured_by",
+      "dst": "azure-only-leaf-tests-and-real-shared-reply-20260907"
+    },
+    {
+      "src": "switching-challenge-asr-is-not-a-verified-identity-migration-20260907",
+      "rel": "constrains",
+      "dst": "azure-only-leaf-serving-and-challenge-boundary-20260907"
     }
   ]
 }

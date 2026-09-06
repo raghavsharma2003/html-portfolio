@@ -22558,3 +22558,13 @@ Missing build, required fixture, site, Playwright or Chromium now produce a name
 ## `reserved-expert-listening-corpus-reuses-benchmark-20260907` (2026-09-07)
 
 Reserve60 authored utterances across Hindi, Roman Hinglish and English for a future matched-text comparison after independent overlap audit. Reuse current opaque IDs, keyed randomization and rating validation; keep existing four axes and explicitly version proposed prosody/meaning/pairwise annotations. Owner plus at least five bilingual listeners follows the research brief; utterances are content units, not each repeated render or rating click. Reversal condition: audited overlap requires new holdout items, or a preregistered comparison establishes that another protocol better distinguishes owner identity and client comprehension without hiding language failures.
+
+
+## `expert-value-first-azure-serving-only-20260907` (2026-09-07)
+
+Owner explicitly requires real useful expert cloning first, later general personal representation, social and agent interaction, with skills and controlled actions. All voice/text/model serving must use Azure/Foundry or Azure-hosted open weights. Keep existing isolated Neon/auth services; this is the interpretation of the parenthetical model-serving requirement, not an authorized wholesale data migration. No claim Azure hosting alone guarantees grant coverage. Future social or agent representation does not authorize posting or messaging on behalf of the owner now. Reversal condition: only a subsequent explicit owner instruction changes the Azure-only serving constraint or launch scope; measured quality cannot silently authorize an external vendor.
+
+
+## `azure-only-leaf-serving-and-challenge-boundary-20260907` (2026-09-07)
+
+Strict mode now defaults shared reply/capability to Azure, refuses conflicting overrides, removes OpenRouter claim/embedding fallback, validates ASR registry and direct selfhost/short-ASR/voice/evidence origins, and rejects redirect following for signed voice/ASR transports. Existing non-strict legacy behavior remains outside the new development deployment. The old Sarvam-specific voice challenge is unavailable before work under strict mode; a correct Azure replacement needs language/script, nonce and durable verifier provenance validation. Historical vendor erasure code is unchanged. Reversal condition: equivalent tested serving boundaries may consolidate these controls; enabling an Azure challenge requires actual language and anti-replay evidence, not provider-name substitution.

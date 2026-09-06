@@ -124,8 +124,11 @@ const SLUG = "arjun-sir-physics";
     "CONTRACT and STATUS both publish the same reply capability");
   ok(/reply_engine:\s*replyEngine/.test(routeSource),
     "a created session carries the checked capability receipt");
-  ok(/const capability = replyEngineCapability\(\);[\s\S]*?if \(!capability\.available\) return "";/.test(surfaceSource),
+  const sharedCapability = /const capability = replyEngineCapability\(env\);[\s\S]*?if \(!capability\.available\) return "";/;
+  ok(sharedCapability.test(surfaceSource),
     "the actual reply executor uses the same predicate and has no optimistic fallback");
+  ok(!sharedCapability.test(surfaceSource.replace("if (!capability.available) return \"\";", "")),
+    "negative control: removing the unavailable refusal breaks the executor contract");
 }
 
 const sheetFor = (name, slug) => ({ ...DEMO_TEACHER, name, slug });
