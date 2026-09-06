@@ -12483,6 +12483,60 @@
       "kind": "measurement",
       "title": "17source links establish missing same-recording service operation",
       "at": "2026-09-07"
+    },
+    {
+      "id": "frozen-release-eight-passes-20260907",
+      "kind": "measurement",
+      "title": "Frozen d13b4c35 passes24release checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "same-recording-foundation-keeps-identity-disabled-20260907",
+      "kind": "decision",
+      "title": "Build shared canonical-byte path before enabling Azure identity",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "video-mime-allowance-is-not-camera-decoding-evidence-20260907",
+      "kind": "rejection",
+      "title": "Require real decoding tests rather than MIME allowance",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "azure-asr-canonical-byte-seam-17-controls-20260907",
+      "kind": "measurement",
+      "title": "17internal byte ASR checks pass",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "portable-ffmpeg-prerequisite-and-erasure-preflight-20260907",
+      "kind": "measurement",
+      "title": "Portable media tools verified and exact dev deletion fence retained",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "canonical-byte-commitment-is-not-capture-ancestry-20260907",
+      "kind": "rejection",
+      "title": "Do not treat internal ASR hashes as an identity receipt",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "identity-audio-real-decoder-and-signed-adapter-controls-20260907",
+      "kind": "measurement",
+      "title": "Real camera-container decoding and39signed adapter controls pass",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "identity-audio-python-js-byte-interop-20260907",
+      "kind": "measurement",
+      "title": "One real decoded fixture crosses Python and JavaScript seams",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "aac-padding-and-adapter-tests-do-not-justify-identity-enablement-20260907",
+      "kind": "rejection",
+      "title": "Do not trim padded capture or relabel component tests as identity",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -24278,6 +24332,21 @@
       "src": "reference-status-snapshot-is-not-concurrent-retirement-serialization-20260907",
       "rel": "constrains",
       "dst": "issued-reference-version-remains-fixed-through-settlement-20260907"
+    },
+    {
+      "src": "video-mime-allowance-is-not-camera-decoding-evidence-20260907",
+      "rel": "constrains",
+      "dst": "same-recording-foundation-keeps-identity-disabled-20260907"
+    },
+    {
+      "src": "canonical-byte-commitment-is-not-capture-ancestry-20260907",
+      "rel": "constrains",
+      "dst": "same-recording-foundation-keeps-identity-disabled-20260907"
+    },
+    {
+      "src": "aac-padding-and-adapter-tests-do-not-justify-identity-enablement-20260907",
+      "rel": "constrains",
+      "dst": "same-recording-foundation-keeps-identity-disabled-20260907"
     }
   ]
 }

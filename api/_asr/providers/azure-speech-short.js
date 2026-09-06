@@ -110,6 +110,21 @@ export function resample24kPcm16To16kWav(value, expectedDurationMs) {
   });
 }
 
+function boundAudioBytes(bytes, sha256, byteSize) {
+  if (!(bytes instanceof Uint8Array) || !Number.isSafeInteger(byteSize) || byteSize < 1 ||
+      typeof sha256 !== "string" || !/^[0-9a-f]{64}$/.test(sha256) || bytes.byteLength !== byteSize) {
+    fail("azure_asr_short_audio_binding_invalid", 409);
+  }
+  if (byteSize > MAX_AUDIO_BYTES) fail("azure_asr_short_audio_too_large", 413);
+  // Own a snapshot before any asynchronous work. The caller's canonical bytes
+  // stay unchanged and cannot be substituted while the request is in flight.
+  const source = Buffer.from(bytes);
+  if (createHash("sha256").update(source).digest("hex") !== sha256) {
+    fail("azure_asr_short_audio_binding_invalid", 409);
+  }
+  return source;
+}
+
 export function createAzureSpeechShortProvider(options = {}) {
   const origin = endpoint(options.endpoint || options.env?.AZURE_SPEECH_ENDPOINT || process.env.AZURE_SPEECH_ENDPOINT);
   assertAzureServingOrigin(origin, options.env || process.env);
@@ -121,6 +136,64 @@ export function createAzureSpeechShortProvider(options = {}) {
     storageBucket: ref.storageBucket,
     objectPath: ref.storagePath,
   }, { fetchImpl, maxBytes: MAX_AUDIO_BYTES, timeoutMs }));
+
+  async function transcribeVerifiedAudio(source, language, expectedDurationMs) {
+    const transport = resample24kPcm16To16kWav(source, expectedDurationMs);
+    // Byte/transform commitments only. MODEL is the adapter label, not an
+    // immutable revision of Microsoft's hosted acoustic model.
+    const audioCommitment = Object.freeze({
+      inputSha256: createHash("sha256").update(source).digest("hex"),
+      inputByteSize: source.length,
+      inputSampleRate: transport.source.sampleRate,
+      inputFrames: transport.source.frames,
+      transportSha256: createHash("sha256").update(transport.bytes).digest("hex"),
+      transportByteSize: transport.bytes.length,
+      transportSampleRate: 16_000,
+      transportFrames: transport.bytes.readUInt32LE(40) / 2,
+      transform: transport.transform,
+    });
+    const url = new URL(`${origin}${PATH}`);
+    url.searchParams.set("language", language);
+    url.searchParams.set("format", "detailed");
+
+    let response;
+    try {
+      response = await fetchImpl(url, {
+        redirect: "error",
+        method: "POST",
+        headers: {
+          "Ocp-Apim-Subscription-Key": apiKey,
+          "Content-Type": "audio/wav; codecs=audio/pcm; samplerate=16000",
+          Accept: "application/json",
+        },
+        body: transport.bytes,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch { fail("azure_asr_short_unreachable", 503); }
+
+    const responseBytes = Buffer.from(await response.arrayBuffer());
+    if (!responseBytes.length || responseBytes.length > MAX_RESPONSE_BYTES) {
+      fail("azure_asr_short_response_invalid");
+    }
+    let payload;
+    try { payload = JSON.parse(responseBytes.toString("utf8")); }
+    catch { fail("azure_asr_short_response_invalid"); }
+    if (!response.ok) {
+      fail(`azure_asr_short_http_${response.status}`, response.status === 429 ? 429 : 502);
+    }
+    const status = String(payload?.RecognitionStatus || "");
+    const transcript = String(payload?.NBest?.[0]?.Display || payload?.DisplayText || "").trim();
+    if (status !== "Success" || !transcript) fail("azure_asr_short_transcript_empty", 422);
+    const result = asrResult({
+      turns: [{ speaker: "SPEAKER_00", text: transcript, t0: 0, t1: expectedDurationMs || transport.durationMs }],
+      provider: NAME,
+      model: MODEL,
+      languageCode: language,
+      languageSource: "requested_hint",
+      transcriptConfidence: payload?.NBest?.[0]?.Confidence ?? null,
+    }, { name: NAME, model: MODEL });
+    return { result, audioCommitment };
+  }
 
   return Object.freeze({
     name: NAME,
@@ -134,52 +207,17 @@ export function createAzureSpeechShortProvider(options = {}) {
         fail("azure_asr_short_window_too_long", 413, { max_ms: MAX_DURATION_MS, duration_ms: ref.durationMs });
       }
       const object = await readAudio(ref);
-      const source = Buffer.from(object?.body || []);
-      if (!source.length || source.length !== ref.byteSize ||
-          createHash("sha256").update(source).digest("hex") !== ref.sha256) {
-        fail("azure_asr_short_audio_binding_invalid", 409);
-      }
-      const transport = resample24kPcm16To16kWav(source, ref.durationMs || undefined);
-      const url = new URL(`${origin}${PATH}`);
-      url.searchParams.set("language", language);
-      url.searchParams.set("format", "detailed");
-
-      let response;
-      try {
-        response = await fetchImpl(url, {
-        redirect: "error",
-          method: "POST",
-          headers: {
-            "Ocp-Apim-Subscription-Key": apiKey,
-            "Content-Type": "audio/wav; codecs=audio/pcm; samplerate=16000",
-            Accept: "application/json",
-          },
-          body: transport.bytes,
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-      } catch { fail("azure_asr_short_unreachable", 503); }
-
-      const responseBytes = Buffer.from(await response.arrayBuffer());
-      if (!responseBytes.length || responseBytes.length > MAX_RESPONSE_BYTES) {
-        fail("azure_asr_short_response_invalid");
-      }
-      let payload;
-      try { payload = JSON.parse(responseBytes.toString("utf8")); }
-      catch { fail("azure_asr_short_response_invalid"); }
-      if (!response.ok) {
-        fail(`azure_asr_short_http_${response.status}`, response.status === 429 ? 429 : 502);
-      }
-      const status = String(payload?.RecognitionStatus || "");
-      const transcript = String(payload?.NBest?.[0]?.Display || payload?.DisplayText || "").trim();
-      if (status !== "Success" || !transcript) fail("azure_asr_short_transcript_empty", 422);
-      return asrResult({
-        turns: [{ speaker: "SPEAKER_00", text: transcript, t0: 0, t1: ref.durationMs || transport.durationMs }],
-        provider: NAME,
-        model: MODEL,
-        languageCode: language,
-        languageSource: "requested_hint",
-        transcriptConfidence: payload?.NBest?.[0]?.Confidence ?? null,
-      }, { name: NAME, model: MODEL });
+      const source = boundAudioBytes(Buffer.from(object?.body || []), ref.sha256, ref.byteSize);
+      const { result } = await transcribeVerifiedAudio(source, language, ref.durationMs || undefined);
+      return result;
+    },
+    // Internal byte seam: caller authorization and capture-to-audio provenance
+    // remain the caller's responsibility. No storage locator is fabricated.
+    async transcribeBytes(input) {
+      if (!new Set(["hi-IN", "en-IN"]).has(input?.locale)) fail("azure_asr_short_locale_required", 400);
+      const source = boundAudioBytes(input?.bytes, input?.sha256, input?.byteSize);
+      const { result, audioCommitment } = await transcribeVerifiedAudio(source, input.locale);
+      return Object.freeze({ ...result, audioCommitment });
     },
   });
 }

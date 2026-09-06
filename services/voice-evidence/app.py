@@ -31,6 +31,7 @@ from fastapi.responses import JSONResponse, Response
 from silero_vad import get_speech_timestamps, load_silero_vad
 from speechbrain.inference.classifiers import EncoderClassifier
 from speechbrain.inference.separation import SepformerSeparation
+from identity_audio import IdentityAudioError, measure_identity_audio
 
 
 PROTOCOL = "vyakti-voice-evidence/v1"
@@ -384,6 +385,10 @@ def _measure(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _identity_audio(payload: dict[str, Any]) -> dict[str, Any]:
+    return measure_identity_audio(payload, _measure, MAX_AUDIO_BYTES)
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     application.state.transport_secret = _secret("AZURE_VOICE_EVIDENCE_HMAC_SECRET")
@@ -433,11 +438,12 @@ async def analyze(request: Request) -> Response:
     try:
         payload = await _verified_json(request)
         operation = payload.get("operation")
-        if operation not in {"diarize", "separate", "enhance", "voice_quality"}:
+        if operation not in {"diarize", "separate", "enhance", "voice_quality", "identity_audio_v1"}:
             raise ServiceError("operation_denied", 403)
-        handler = {"diarize": _diarize, "separate": _separate, "enhance": _enhance, "voice_quality": _measure}[operation]
+        handler = {"diarize": _diarize, "separate": _separate, "enhance": _enhance, "voice_quality": _measure,
+                   "identity_audio_v1": _identity_audio}[operation]
         return _signed_response(request, 200, handler(payload))
-    except ServiceError as error:
+    except (ServiceError, IdentityAudioError) as error:
         return _signed_response(request, error.status, {"error": error.code})
     except Exception:
         return _signed_response(request, 503, {"error": "voice_evidence_failed"})

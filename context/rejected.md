@@ -16337,3 +16337,18 @@ The24passing gates do not establish real SQL in a runner without NEON_URL, real 
 ## `reference-status-snapshot-is-not-concurrent-retirement-serialization-20260907` (2026-09-07)
 
 Settlement locks only challenge ch, not genome g or the voice_genome_review advisory key. Artifact review and source erasure use that key, identity does not; consent revoke retires genomes without it too. New predicate checks the statement snapshot, not retirement that races afterward. Missing/retired captured references can remain queued; issue supersession can expire a prior issued row although retired latest reference prevents creating the replacement. No untested lock-order/cleanup redesign was added in this bounded patch. Corrected partial-read inference: ordinary _replica-model-build upsert requires identical source_set_hash AND definition; it does not mutate active draft content. Source erasure replaces definition while retiring it. No demonstrated mutable ordinary draft is claimed.
+
+
+## `video-mime-allowance-is-not-camera-decoding-evidence-20260907` (2026-09-07)
+
+The existing adapter accepts camera video MIME strings but evidence decoding uses soundfile and does not invoke installed ffmpeg. No real camera-container decode was established in the source audit. New decoder needs real bounded WebM/MP4 CPU fixtures and full-duration checks; no passing model-shaped mock can establish media decode.
+
+
+## `canonical-byte-commitment-is-not-capture-ancestry-20260907` (2026-09-07)
+
+The new byte ASR method checks supplied bytes/hash/size and reports its actual16kderivative. It has no authority to attest where those bytes came from, who owns them, or whether they match a video. Only the signed service result plus issued challenge/source/reference checks can supply that ancestry. The method remains internal and strict verification stays disabled until the complete caller and settlement contract exist.
+
+
+## `aac-padding-and-adapter-tests-do-not-justify-identity-enablement-20260907` (2026-09-07)
+
+The AACpadding fixture exceeds the decoded30second bound despite nominal30second generation; reject it rather than crop an identity recording silently. Components now connect at signed service operation and APIadapter level, but versioned challenge issuance, mandatorylocale, verifier/sweep/settlement lineage, concurrentrevocation and review/reissue lifecycle remain unfinished. Existing strict verifier remains disabled. No actual deployedservice/model/identity/capture acceptance follows from19CPU,39adapter or cross-languagefake-model checks.

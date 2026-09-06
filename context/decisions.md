@@ -22593,3 +22593,8 @@ After verified checkpoint a2507815, fix the existing challenge lease/settlement 
 ## `issued-reference-version-remains-fixed-through-settlement-20260907` (2026-09-07)
 
 Issuance refuses a retired latest genome rather than falling back; lease selects the stored issued version and allows draft/approved only. Settlement requires lease/verdict/stored versions to agree and the reference to remain eligible in its statement snapshot. No schema or thresholds changed; strict Azure identity stays disabled. Reversal condition: a new explicitly versioned reissue flow can choose another reference with fresh authority, never silent latest-version selection. This does not serialize concurrent retirement after the snapshot.
+
+
+## `same-recording-foundation-keeps-identity-disabled-20260907` (2026-09-07)
+
+Implement bounded identity-only capture decoding and speaker evidence on existing signed service, and an internal canonical-byte Azure ASR method shared with ordinary storage-backed transcription. Exact mandatory hi-IN/en-IN locale and byte commitments belong to the internal method; preserve ordinary ASR semantics. Do not fabricate storage locators, promote identity audio to enrollment, or enable identity before issued-contract/lineage/lifecycle tests are complete. Reversal condition: a measured alternative supplies equivalent same-recording ancestry and strict Azure transport with fewer moving pieces; it must preserve existing protected enrollment boundaries.

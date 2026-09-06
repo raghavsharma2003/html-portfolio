@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { ProcessingAdapterError, assertSha256, canonicalJson, sha256Hex } from "../contracts.js";
 import { assertAzureServingOrigin } from "../../_model-serving-policy.js";
+import { validateIdentityAudio } from "./identity-audio-contract.js";
 
 const PROTOCOL = "vyakti-voice-evidence/v1";
 const SAFE = /^[a-z0-9][a-z0-9._-]{0,79}$/;
@@ -175,11 +176,12 @@ async function awaitReady(config, fetchImpl, signal) {
   fail(last === "none" ? "voice_evidence_unreachable" : "voice_evidence_not_ready", true);
 }
 
-async function remote(config, operation, inputs, fetchImpl, signal) {
+async function remote(config, operation, inputs, fetchImpl, signal, extra = {}) {
   const path = "/v1/analyze";
   await awaitReady(config, fetchImpl, signal);
   const payload = {
     operation,
+    ...extra,
     inputs: inputs.map((entry) => ({
       input_key: entry.input_key,
       sha256: entry.sha256,
@@ -323,6 +325,20 @@ export function createAzureVoiceEvidenceAdapters(options = {}) {
   };
   const meta = (family, name) => Object.freeze({ family, name, version: "vyakti-voice-evidence-v1" });
   return Object.freeze({
+    identity_audio: Object.freeze({
+      ...meta("identity-audio", "capture-to-pcm24k"),
+      async derive(request) {
+        if (!Array.isArray(request?.inputs) || request.inputs.length !== 1 ||
+            !["video/webm", "video/mp4"].includes(request.inputs[0]?.mime)) fail("voice_evidence_identity_capture_invalid");
+        const contract = request.challengeContractSha256;
+        if (typeof contract !== "string" || !/^[0-9a-f]{64}$/.test(contract)) fail("voice_evidence_identity_contract_invalid");
+        const inputs = await privateInputs(options.resolveInput, request.source, request.inputs, config, request.signal);
+        if (inputs[0].bytes.length > 32 * 1024 * 1024) fail("voice_evidence_identity_capture_invalid");
+        const value = await remote(config, "identity_audio_v1", inputs, fetchImpl, request.signal,
+          { challenge_contract_sha256: contract });
+        return validateIdentityAudio(value, inputs[0], contract);
+      },
+    }),
     diarize: Object.freeze({
       ...meta("diarization", "silero-ecapa-cluster"),
       async diarize(request) {

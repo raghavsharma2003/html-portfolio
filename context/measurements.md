@@ -16146,3 +16146,28 @@ Measured2026-09-07 India. Agent and root independently ran identity-challenge/ru
 ## `same-recording-service-caller-audit-20260907` (2026-09-07)
 
 Read-only Astra audit produced docs/gurukul/research/IDENTITY-SAME-RECORDING-PATH-20260907.md; all17local links resolve. Existing voice-evidence allows four operations and decodes through soundfile; video MIME allowance does not prove camera-container decode. No existing operation returns a verified capture-derived canonical WAV plus speaker evidence for challenge ASR. Proposed identity_audio_v1 extension reuses signed evidence service, bounded server decoding, exact transform commitments and a factored verified-byte Azure ASR seam. The current processing worker has no challenge-sweep caller. No decoder, service, cloud or model was executed by this audit; operation and receipts are proposed, not implemented.
+
+
+## `frozen-release-eight-passes-20260907` (2026-09-07)
+
+Measured2026-09-07 India: run8 started02:51:08IST on frozen d13b4c35 and completed all24checks; root inspected final log at03:44IST with tracked tree clean. Typecheck24903ms, layout253540ms, performance112278ms, eval332960ms, accessibility67230ms. Evidence scratchpad/expert-integrated-release-8.log and release-logs/2026-09-06T21-21-08-519Z-8700. No NEON_URL in runner; separate exact-dev3identity EXPLAIN statements remain separate. No deployment or accepted human likeness.
+
+
+## `azure-asr-canonical-byte-seam-17-controls-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Agent and root each ran evals/azure-asr-bytes.mjs:17checks passed with synthetic PCM and injected transport, including exact hi-IN/en-IN, missing/unsupported locale before I/O, view-specific byte hashing, immutable snapshot, wrong hashes/sizes, malformed PCM, overlength and provider failure. Agent also passed17duration checks,475Mirror checks and Azure-only-ASR. transcribeBytes returns original/16ktransport SHA,size,frames,rate and transform; ordinary storage API keeps result shape/defaultlocale. These unsigned local commitments establish neither capture-parent ancestry nor hosted acoustic-model revision. No cloud request or identity-verifier caller.
+
+
+## `portable-ffmpeg-prerequisite-and-erasure-preflight-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Downloaded portable release essentials ZIP from https://www.gyan.dev/ffmpeg/builds/ (Windows provider linked by https://ffmpeg.org/download.html),111253802bytes; computedSHA256 matched published fec81ae03971d9dd4be3ebe02e263bd2ec1d789483f931bdba5f5715e65da2e9. Executed ffmpeg/ffprobe -version:9.0.1essentials_build. Tools remain under ROOT scratchpad/expert-tools/ffmpeg, no global installation or PATH mutation. This is local test runtime identity, not deployed image identity. Exact-dev source read at2026-09-06T22:18:10Z found sole source cca2695c-1707-4f6e-a7c5-cb140f3eaf1d deleting,0attempts,0activewriters/jobgrace, upload_expired=false until22:38:29Z; no lease/deletion. Evidence dev-erasure-inspection.json.
+
+
+## `identity-audio-real-decoder-and-signed-adapter-controls-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Agent finalPythonCPU suite19/19 passed (8.876s); root independently ran preceding18test revision (7.683s), then reviewed added protocol-argument/cleanup control. Real synthetic WebM/Opus and MP4/AAC decode at30s to720000frames; MP4AAC with editlist disabled yields720512frames/30021.333ms and rejects413 without trimming. Tests include corruption, missing/multipleaudio, actualparent/canonical commitments, bounds, cleanup, request auth/replay and oldoperation routing with isolated handlers. No speaker model loaded. Root independently passed39signed APIadapter controls; agent additionally passed existing25voice-evidence tests. New identity_audio.derive validates signed response, parent/contract, exactPCM30s geometry, transform, speaker-byte equality, finitevectors and returned revision metadata. These are authenticated service claims, not execution attestation. Logs scratchpad/identity-audio-cpu-final.log and voice-evidence-after-identity-final.log. Dockerfile now runs mandatoryCPUtests before pip/modeldownloads; no imagebuild or deployment occurred.
+
+
+## `identity-audio-python-js-byte-interop-20260907` (2026-09-07)
+
+Root generated one1second synthetic WebM tone/video through portableFFmpeg, ran actual Python measure_identity_audio with an explicit fake speaker function, passed resulting JSON through actual JSvalidateIdentityAudio and AzuretranscribeBytes with fakeASRtransport. Passed:24000canonicalframes,16000transportframes, speakerAndAsrInputShaMatch=true,1fake request,0real model calls. This verifies cross-language schema/parameter hashing and byte interoperability, not signedservice transport or acoustic identity. No ownerrecording. Evidence ROOT scratchpad/expert-tools/identity-cross-language-result.json and check-identity-audio-cross-language.{py,mjs}.
