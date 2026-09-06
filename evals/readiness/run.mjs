@@ -62,9 +62,17 @@ import {
 import { runtimeBlockers } from "../../api/_replica-runtime.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
 import { RECALL_RUN_METHOD_VERSION } from "../../api/_recall-run.js";
+import { stripComments } from "../lib/source-scan.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "../..");
+// WS-R134. `--legacy` reproduces this suite's PRE-WS-R134 raw-text scanning
+// (no comment-stripping at all) so `evals/source-scan/run.mjs` can diff its
+// findings against the fixed behaviour on the real tree — see that suite's
+// own header. Not a mode anyone should reach for outside that one parity
+// check; kept for one wave per this workstream's brief.
+const LEGACY = process.argv.includes("--legacy");
+const scanned = (src) => (LEGACY ? src : stripComments(src));
 const RID = "10000000-0000-4000-8000-000000000001";
 const OWNER = "20000000-0000-4000-8000-000000000002";
 const NOW = Date.parse("2026-09-03T00:00:00.000Z");
@@ -586,22 +594,31 @@ ok("no ad-hoc pixel or hex value in the stylesheet outside the media queries",
 // The word for an incomplete AI, and the words that are banned.
 ok("an incomplete AI is an apprentice, never broken", /Still an apprentice/.test(panelWithCopy));
 // Checked on the RENDERED text only. Import paths, prop names and comments are
-// not user-visible and are stripped first, which is the same distinction
+// not user-visible and are ACTUALLY stripped first (WS-R134,
+// `evals/lib/source-scan.mjs#stripComments`) — the identical distinction
 // scripts/check-copy.mjs draws for its own rules ("code comments are
-// unaffected; this is a user-visible-string rule"). The words themselves are
-// the common brief's: an AI version of a person is "your AI", never a clone,
-// a replica, a model or a fine-tune.
+// unaffected; this is a user-visible-string rule"), now made real here too
+// rather than merely claimed: a short backtick-quoted identifier in a
+// comment used to desynchronise the `` `[^`]{6,}` `` scan onto a later,
+// unrelated span and fail this check on prose nobody rendered
+// (`context/rejected.md#ws-r113-a-short-backtick-quoted-word-in-a-comment-
+// desynced-a-source-scanning-regex-onto-a-pre-existing-comment`,
+// `#ws-r122-readiness-comment-backtick-cascade-tripped-banned-word-scan`).
+// Comments never reach any of the three patterns below now, so a short
+// backtick pair in one can no longer open a bogus span at all. The words
+// themselves are the common brief's: an AI version of a person is "your
+// AI", never a clone, a replica, a model or a fine-tune.
+const panelWithCopyScanned = scanned(panelWithCopy);
 const renderedText = [
-  ...(panelWithCopy.match(/>[^<>{}]{3,}</g) || []),
-  ...(panelWithCopy.match(/: "[^"]{6,}"/g) || []),
-  ...(panelWithCopy.match(/`[^`]{6,}`/g) || []),
+  ...(panelWithCopyScanned.match(/>[^<>{}]{3,}</g) || []),
+  ...(panelWithCopyScanned.match(/: "[^"]{6,}"/g) || []),
+  ...(panelWithCopyScanned.match(/`[^`]{6,}`/g) || []),
 ].join(" ");
 ok("no banned product word enters the text this panel renders",
   !/\b(clone|replica|fine-?tune)s?\b/i.test(renderedText));
 ok("the readiness copy also carries no banned product word from the server",
   !/\b(clone|replica|fine-?tune)s?\b/i.test(
-    (readFileSync(join(ROOT, "api/_readiness.js"), "utf8")
-      .split("\n").filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join("\n")
+    (scanned(readFileSync(join(ROOT, "api/_readiness.js"), "utf8"))
       .match(/(?:detail|method|label): [`"][^`"]{6,}[`"]/g) || []).join(" "),
   ));
 

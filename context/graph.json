@@ -10780,6 +10780,24 @@
       "kind": "measurement",
       "title": "Migrations 130 (mandate state), 132 (the Suite admin's weekly note) and 133 (the referral reward) applied live at their merges with constraints read back first; 131 read back as already carried and not applied; every new statement planned, the referral grant's ledger scan accepted by name with a rewrite condition.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r134-shared-source-scan-tokenizer",
+      "kind": "component",
+      "title": "evals/lib/source-scan.mjs: one tokenizer (tokenize) walked once per call, classifying every span as comment/string/template/regex/code; stripComments blanks comments to same-length whitespace (offsets stay slice-compatible); sqlTextOf/opLiteralsOf/importsOf read that one pass. Pure, no dependencies, its own self-test (20 cases).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r134-shared-comment-stripping-tokenizer",
+      "kind": "decision",
+      "title": "evals/room-leak/run.mjs, evals/readiness/run.mjs (source half only), evals/incidents/run.mjs and evals/room-doors/run.mjs (+shapes.mjs bodyFieldsOf) all switched their raw-text scans to the shared tokenizer; each keeps a --legacy flag for one wave so evals/source-scan can prove parity on the real tree. api/invites.js mine_list made a real if instead of a bare comment.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r134-source-scan-suite-and-parity-2026-09-05",
+      "kind": "measurement",
+      "title": "New evals/source-scan suite: 44/44 (20 self-test cases + 16 trap-fixture assertions, one TRAP/FIX pair per historical incident, + 8 parity assertions). All four modified scanners identical findings normal vs --legacy on the real tree (room-leak 269/269, readiness 127/127, incidents 88/88, room-doors 2146/2146): 0 live comment-prose traps in the tree today.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20882,6 +20900,46 @@
       "src": "rooms-migrations-130-132-133-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r125-mandate-state-predicate-non-redundant-only-for-pending"
+    },
+    {
+      "src": "ws-r134-shared-comment-stripping-tokenizer",
+      "rel": "part_of",
+      "dst": "ws-r134-shared-source-scan-tokenizer"
+    },
+    {
+      "src": "ws-r134-shared-comment-stripping-tokenizer",
+      "rel": "caused_by",
+      "dst": "ws-r28-leak-battery-scanner-matches-prose-not-only-sql"
+    },
+    {
+      "src": "ws-r134-shared-comment-stripping-tokenizer",
+      "rel": "caused_by",
+      "dst": "ws-r113-a-short-backtick-quoted-word-in-a-comment-desynced-a-source-scanning-regex-onto-a-pre-existing-comment"
+    },
+    {
+      "src": "ws-r134-shared-comment-stripping-tokenizer",
+      "rel": "caused_by",
+      "dst": "ws-r122-readiness-comment-backtick-cascade-tripped-banned-word-scan"
+    },
+    {
+      "src": "ws-r134-shared-comment-stripping-tokenizer",
+      "rel": "caused_by",
+      "dst": "ws-r127-own-eval-static-scan-tripped-by-its-own-prose"
+    },
+    {
+      "src": "ws-r134-shared-comment-stripping-tokenizer",
+      "rel": "caused_by",
+      "dst": "ws-r129-no-follower-level-timezone-or-quiet-hours-column"
+    },
+    {
+      "src": "ws-r134-source-scan-suite-and-parity-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r134-shared-comment-stripping-tokenizer"
+    },
+    {
+      "src": "ws-r134-shared-source-scan-tokenizer",
+      "rel": "constrains",
+      "dst": "ws-r28-leak-battery-scanner-matches-prose-not-only-sql"
     }
   ]
 }

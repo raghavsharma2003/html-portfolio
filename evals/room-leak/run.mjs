@@ -96,9 +96,17 @@ import {
   DEFAULT_SEED, ROOM_DEFS, roomForgetReceiptHash, survivorsFor, TABLE_ROLES,
 } from "./world.mjs";
 import { freshFlagState, flagsDb } from "../room-flags/fixtures.mjs";
+import { stripComments, importsOf as sharedImportsOf } from "../lib/source-scan.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
+// WS-R134. `--legacy` reproduces this suite's PRE-WS-R134 raw-text scanning
+// (no comment-stripping, the hand-rolled importsOf) so `evals/source-scan/
+// run.mjs` can diff findings against the fixed behaviour on the real tree.
+// Not a mode to reach for otherwise; kept for one wave per this
+// workstream's brief.
+const LEGACY = process.argv.includes("--legacy");
+const scanned = (src) => (LEGACY ? src : stripComments(src));
 
 process.env.ROOM_SESSION_SECRET = "r".repeat(48);
 
@@ -208,18 +216,27 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // The follower lane's transitive import graph — every file reachable from
   // `_room-surface.js`, at any depth — and every NAMED import specifier it
   // pulls in from each. Intersected against the writer symbols above.
+  // WS-R134: this used to run its own regex straight over the raw file text,
+  // so a comment mentioning an import path or a writer symbol's name (a
+  // plausible thing to write while explaining WHY a file does NOT import
+  // one) could add a phantom edge or name; now reads through the shared,
+  // comment-stripping `evals/lib/source-scan.mjs#importsOf` (`--legacy`
+  // reverts to the original raw-text version, for the parity suite only).
   const importsOf = (relFile) => {
     const src = fs.readFileSync(join(REPO, "api", relFile), "utf8");
-    const files = [];
-    const names = [];
-    for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s+"\.\/(_?[\w.-]+\.js)"/g)) {
-      files.push(m[2]);
-      for (const n of m[1].split(",")) {
-        const clean = n.trim().split(/\s+as\s+/)[0].trim();
-        if (clean) names.push(clean);
+    if (LEGACY) {
+      const files = [];
+      const names = [];
+      for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s+"\.\/(_?[\w.-]+\.js)"/g)) {
+        files.push(m[2]);
+        for (const n of m[1].split(",")) {
+          const clean = n.trim().split(/\s+as\s+/)[0].trim();
+          if (clean) names.push(clean);
+        }
       }
+      return { files, names };
     }
-    return { files, names };
+    return sharedImportsOf(src);
   };
   const seen = new Set(["_room-surface.js"]);
   const queue = ["_room-surface.js"];
@@ -418,7 +435,13 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   const offenders = [];
   for (const f of fs.readdirSync(join(REPO, "api"))) {
     if (!f.endsWith(".js") || ALLOWED.has(f)) continue;
-    const src = fs.readFileSync(join(REPO, "api", f), "utf8");
+    // WS-R134: scanned through the shared comment-stripping tokenizer, not
+    // the raw file text — a comment explaining that a file does NOT touch
+    // either table (naming it to say so) used to trip this exact line
+    // (`context/rejected.md#ws-r28-leak-battery-scanner-matches-prose-not-
+    // only-sql`, `#ws-r129-...`); it no longer can, because the comment is
+    // gone by the time this substring check runs.
+    const src = scanned(fs.readFileSync(join(REPO, "api", f), "utf8"));
     if (!(src.includes("vy_room_thread") || src.includes("vy_room_follower"))) continue;
     if (TIER_WRITE_ONLY.has(f)) {
       // The update sits inside one large multi-CTE template literal alongside
@@ -471,7 +494,7 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   ok("no file outside the allowed set reads the Room's follower/thread tables",
     offenders.length === 0, offenders.join(","));
   const erasureSrc = fs.readFileSync(join(REPO, "api/_replica-full-erasure.js"), "utf8");
-  const erasureLines = erasureSrc
+  const erasureLines = scanned(erasureSrc)
     .split("\n")
     .filter((l) => l.includes("vy_room_thread") || l.includes("vy_room_follower"));
   ok("the erasure job's only touch of those tables is a delete",
@@ -491,7 +514,7 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   const arrivalOffenders = [];
   for (const f of fs.readdirSync(join(REPO, "api"))) {
     if (!f.endsWith(".js")) continue;
-    const src = fs.readFileSync(join(REPO, "api", f), "utf8");
+    const src = scanned(fs.readFileSync(join(REPO, "api", f), "utf8"));
     if (!src.includes("vy_room_arrival")) continue;
     if (ARRIVAL_WRITE_OR_DELETE.has(f)) continue; // proven a write/delete below, never a creator-facing read
     if (!ARRIVAL_AGGREGATE_ONLY.has(f)) { arrivalOffenders.push(f); continue; }
@@ -517,7 +540,7 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   ok("the arrival write is exactly one insert ... on conflict upsert",
     /insert into vy_room_arrival[\s\S]{0,200}on conflict \(room_id, day, via\) do update/.test(arrivalWriteSrc));
 
-  const arrivalErasureLines = erasureSrc
+  const arrivalErasureLines = scanned(erasureSrc)
     .split("\n")
     .filter((l) => l.includes("vy_room_arrival"));
   ok("the erasure job's only touch of vy_room_arrival is a delete",
@@ -938,7 +961,7 @@ console.log("\n── layer 6: handoff (consented-only creator read) ──");
   const offenders = [];
   for (const f of fs.readdirSync(join(REPO, "api"))) {
     if (!f.endsWith(".js") || ALLOWED.has(f)) continue;
-    const src = fs.readFileSync(join(REPO, "api", f), "utf8");
+    const src = scanned(fs.readFileSync(join(REPO, "api", f), "utf8"));
     if (!src.includes("vy_room_handoff")) continue;
     if (!DELETE_ONLY.has(f)) { offenders.push(f); continue; }
     const lines = src.split("\n").filter((l) => l.includes("vy_room_handoff"));
@@ -1166,7 +1189,7 @@ console.log("\n── layer 7: taste (guest lane, no follower writer reachable) 
   const offenders = [];
   for (const f of fs.readdirSync(join(REPO, "api"))) {
     if (!f.endsWith(".js")) continue;
-    const src = fs.readFileSync(join(REPO, "api", f), "utf8");
+    const src = scanned(fs.readFileSync(join(REPO, "api", f), "utf8"));
     if (!src.includes("vy_room_taste_turn")) continue;
     if (WRITE_OR_DELETE.has(f)) continue;
     if (!AGGREGATE_ONLY.has(f)) { offenders.push(f); continue; }
@@ -1193,7 +1216,7 @@ console.log("\n── layer 7: taste (guest lane, no follower writer reachable) 
   ok("the taste-turn counter write is exactly one insert ... on conflict upsert",
     /insert into vy_room_taste_turn[\s\S]{0,200}on conflict \(room_id, day\) do update/.test(writeSrc));
 
-  const erasureLines = fs.readFileSync(join(REPO, "api/_replica-full-erasure.js"), "utf8")
+  const erasureLines = scanned(fs.readFileSync(join(REPO, "api/_replica-full-erasure.js"), "utf8"))
     .split("\n")
     .filter((l) => l.includes("vy_room_taste_turn"));
   ok("the erasure job's only touch of vy_room_taste_turn is a delete",
@@ -1533,7 +1556,7 @@ console.log("\n── layer 9: flag this reply (WS-R67, migration 116) ──");
   const sources = {};
   for (const f of fs.readdirSync(join(REPO, "api"))) {
     if (!f.endsWith(".js")) continue;
-    const src = fs.readFileSync(join(REPO, "api", f), "utf8");
+    const src = scanned(fs.readFileSync(join(REPO, "api", f), "utf8"));
     if (src.includes("vy_room_reply_flag")) sources[f] = src;
   }
   ok("layer 9 static: the scan is not vacuous - at least one real file names vy_room_reply_flag",

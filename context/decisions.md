@@ -20908,3 +20908,78 @@ before the new column existed (a migration-day compatibility window,
 never a permanent second source of truth) — or be retired outright if a
 backfill copies every check-in's own window onto the new column at
 migration time.
+
+## `ws-r134-shared-comment-stripping-tokenizer` (2026-09-05, WS-R134)
+
+**Decision.** Every scanner that reads `api/`/`src/` source text to decide
+whether a table, an op literal, a banned word or an import is really
+*live* in the code (never a scanner that reads RENDERED text, which was
+never the bug) now reads it through one shared tokenizer,
+`evals/lib/source-scan.mjs`, rather than each re-deriving its own
+"am I inside a comment right now" heuristic with a bare regex over the raw
+file. `stripComments(src)` walks the file once (`tokenize`), classifying
+every span as comment/string/template/regex/code, and blanks comment spans
+to same-length whitespace (newlines kept) so every existing
+`.indexOf`/`.slice`/`.split("\n")` offset a caller already computed off
+the raw text keeps landing on the same real code. Three derived helpers
+(`sqlTextOf`, `opLiteralsOf`, `importsOf`) read that one pass rather than
+re-scanning. Five scanners were switched: `evals/room-leak/run.mjs`
+(the scope-gate's `src.includes(table)` calls and its own `importsOf`),
+`evals/readiness/run.mjs` (the rendered-text banned-word scan's *source*
+half only — `api/_readiness.js`'s own literals — never the DOM text,
+which is a different, already-correct surface), `evals/incidents/run.mjs`
+(the door-wrap check, the provider `fetch(` discovery, the
+`recordIncident(` call-site check), `evals/room-doors/run.mjs` (§18's
+`op ===`/`format ===` extraction and the account-block `indexOf`), and
+`evals/room-doors/shapes.mjs`'s `bodyFieldsOf` (reads `fn.toString()`,
+which is source text with comments intact). `api/invites.js`'s
+`mine_list` dispatch — previously a bare comment standing in for a real
+`if`, harmless only because `OWNER_OPS` already narrowed `op` to two
+values — was made a real `if` with an `unknown_op` fallback, both so the
+door battery's op-list scan can discover it as code rather than prose and
+so the dispatch is no longer *accidentally* correct.
+
+Each of the five historical traps this workstream's brief names
+(`ws-r28`/`ws-r129`'s scope-gate, `ws-r113`/`ws-r122`'s paired-backtick
+desync, `ws-r127`'s own-header-comment self-trip, the door-battery's
+account-block regex, room-doors §18's phantom op/format) is now a frozen
+fixture in the new suite `evals/source-scan` (`node evals/run.mjs
+source-scan`), built to FAIL under the OLD raw-text mechanism and PASS
+under the new one — `context/rejected.md#sound-gate-proved-by-silence`'s
+own law, a fixture that cannot fail under the old behaviour proves nothing.
+Each of the four modified full scanners keeps a `--legacy` flag reverting
+its own comment-stripping calls back to the pre-WS-R134 raw-text
+behaviour, for exactly one purpose: `evals/source-scan`'s §3 parity check
+runs each scanner both ways on the REAL committed tree and diffs the
+output, proving the fix changed nothing about what the tree actually
+contains (byte-identical modulo fresh UUIDs/timestamps) — 0 live traps in
+the tree today, only the ones this wave already logged as costing an hour
+each.
+
+**Rationale.** Every one of the five prior incidents was the same
+mechanism wearing a different scanner: a comment written to EXPLAIN a gap
+or a removed code path was read as if it were the code whose shape the
+scanner claims to check, either wrongly entering scope (room-leak) or
+inventing a phantom finding (readiness, incidents, room-doors) or, in the
+most dangerous direction, letting a comment merely QUOTING a passing
+shape mask a real gap (`isDoorWrapped`, `fileHasRecordIncident` — a
+comment that happens to contain the exact string a real pass condition
+checks for would make those two silently PASS on an actually-unwrapped
+door or an actually-missing incident call, which is worse than a false
+fail). A shared, once-written, tested tokenizer is the only fix that
+does not simply move the same regex-over-raw-text mistake to a sixth
+file next wave; five separate hand-rolled fixes already proved that path
+doesn't converge.
+
+**What would reverse it.** Drop `--legacy` and the parity check once one
+more wave has run it clean without ever finding a non-noise diff (the
+brief's own "kept for one wave" scope) — the fixtures in
+`evals/source-scan` stay regardless, since they need no real scanner to
+run. If a future scanner needs to tell a comment-quoted example FROM a
+real occurrence and currently cannot (this module has no such case yet),
+extend `tokenize`'s token kinds rather than adding a seventh hand-rolled
+regex; if `tokenize`'s regex-literal heuristic (`regexAllowedAfter`) is
+ever wrong on real code in this repo — a value position this repo doesn't
+currently write regexes in — `evals/lib/source-scan.mjs`'s own self-test
+is where the new case belongs before any scanner using it is trusted
+again.

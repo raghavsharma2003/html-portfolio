@@ -76,8 +76,18 @@ async function handler(req, res) {
         // plaintext code exists outside the creator's own clipboard.
         return res.status(201).json(result);
       }
-      // op === "mine_list"
-      return res.status(200).json(await myInvites(q, user.id));
+      // WS-R134: this used to be a bare comment ("op === \"mine_list\"")
+      // rather than a real check — `OWNER_OPS` guarantees `op` is one of
+      // exactly these two values here, so it was never a live bug, but it
+      // meant the door battery's computed-op-list scan
+      // (evals/room-doors/run.mjs §18) could only discover "mine_list" as
+      // an op this file dispatches by reading that COMMENT as if it were
+      // code. Now that scan reads through a comment-stripping tokenizer
+      // (evals/lib/source-scan.mjs), so the literal is written for real.
+      if (op === "mine_list") {
+        return res.status(200).json(await myInvites(q, user.id));
+      }
+      return res.status(400).json({ error: "unknown_op" });
     }
 
     requireOperator(user.id);
