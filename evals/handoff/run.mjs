@@ -8,6 +8,7 @@
 // Offline, deterministic, $0, no DB, no network, no model call.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import {
   SLUG, ROOM_ID, AGENT_ID, REPLICA_ID, OWNER, USER_A, USER_B, PERSON_A, PERSON_B,
   loadFixtureAgent, freshState, fakeDb, fakeMemory,
@@ -22,7 +23,7 @@ import {
 
 process.env.ROOM_SESSION_SECRET = "r".repeat(48);
 
-const REPO = new URL("../..", import.meta.url).pathname;
+const REPO = fileURLToPath(new URL("../..", import.meta.url));
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = "") => {
   if (cond) pass++; else fail++;

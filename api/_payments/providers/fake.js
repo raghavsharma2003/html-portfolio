@@ -35,7 +35,7 @@ export const name = "fake";
 const FAKE_SUBSCRIPTION_METHODS = new Map();
 
 export async function createSubscription(input) {
-  const seed = String(input.subscriptionId || randomUUID());
+  const seed = `${input.label || ""}:${input.ref || ""}:${input.priceInr || 0}:${input.subscriptionId || randomUUID()}`;
   const ref = `fake_sub_${createHash("sha256").update(seed).digest("hex").slice(0, 24)}`;
   return { provider_subscription_ref: ref, checkout_url: `https://fake-provider.invalid/pay/${ref}`, status: "created" };
 }

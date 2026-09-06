@@ -29,7 +29,7 @@
 // `docs/gurukul/DAY-ONE.md`'s own law.
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { loadRunbook } from "./dayOneRunbook.mjs";
 
@@ -246,7 +246,7 @@ async function main() {
 // unit test of the WS-R102 optional-absent branch above without also
 // running the whole CLI as a side effect of that import - `scripts/
 // check-mirrors.mjs`'s own guard, restated.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((e) => {
     console.error("day-one: fatal:", e && e.stack ? e.stack : e);
     process.exit(1);
