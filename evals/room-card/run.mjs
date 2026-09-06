@@ -203,6 +203,18 @@ const realOffences = [...rowFieldOffences(realCardSrc), ...rowFieldOffences(real
 ok("the REAL api/_room-card.js and api/room-card.js touch only display_name/one_line_bio/default_locale/slug on `row`",
   realOffences.length === 0, realOffences.join(", "));
 
+// WS-R136: `api/_room-card.js` stays pure (no change this workstream) — the
+// number resolution now lives one file over, in the real door. A static
+// check that the door actually AWAITS the resolved number (never a stale
+// synchronous read of a promise object) and threads the real `fetch`
+// through, exactly like `api/room-wa.js`'s own `fetch: globalThis.fetch`
+// precedent — the offline complement to the pure-function absence proofs
+// above, which cannot see the door's own async wiring at all.
+ok("the REAL api/room-card.js awaits whatsappJoinLink (never reads a pending Promise as if it were the string)",
+  /await\s+whatsappJoinLink\(/.test(realDoorSrc));
+ok("the REAL api/room-card.js threads the real fetch through, never a business-logic module assuming a global",
+  /whatsappJoinLink\([^)]*fetch:\s*globalThis\.fetch/.test(realDoorSrc));
+
 // (b) a bio carrying a banned Rooms-vocabulary word is caught by the real
 // scanner when it reaches this file's own rendered text — `api/_room-publish.js`'s
 // `assertBioClean` already refuses this bio at WRITE time (WS-R45); this

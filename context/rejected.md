@@ -14793,3 +14793,37 @@ here too because this is the first time the trap was hit inside a BRAND
 NEW file rather than an edit to an existing one, which is worth knowing:
 grep `context/rejected.md` for a table name before writing ANY sentence
 that discusses it, even in a file that has never existed before.
+
+## `ws-r136-whatsapp-phone-number-id-was-never-dialable` (2026-09-05, WS-R136)
+
+**Tried.** WS-R126 shipped `whatsappJoinNumber` reading
+`WHATSAPP_PHONE_NUMBER_ID` directly into the wa.me link's phone segment,
+named honestly at the time as NOT PROVEN (that workstream had no network
+access to check Meta's own documents).
+
+**What broke.** This workstream fetched Meta's Cloud API documents
+(`developers.facebook.com/documentation/business-messaging/whatsapp/
+reference/whatsapp-business-phone-number/whatsapp-business-account-phone-
+number-api`, fetched 2026-09-05) and confirmed the suspicion: `root.id`
+("The ID associated with the phone number", example
+`"1906385232743451"`) and `root.display_phone_number` ("The string
+representation of the phone number", example `"+1 631-555-5555"`) are two
+DIFFERENT fields on the phone-number object. `WHATSAPP_PHONE_NUMBER_ID` is
+the former — `api/whatsapp.js`'s own `PHONE_ID`, used everywhere else in
+this codebase exclusively as a Graph API URL path segment, never printed
+or dialled. A wa.me link built from it would have opened WhatsApp to
+whatever number, if any, an opaque Graph API id happens to look like when
+treated as digits — not a deliberate choice, an accident of ids and phone
+numbers both being numeric strings. Also rejected in the same pass: WS-R126's
+own `.replace(/[^0-9]/g, "")` sanitiser, which would have silently accepted
+a pasted `"+91 99999 00001"` by stripping exactly the punctuation that
+should have flagged a copy-paste mistake — replaced with `isBareE164Digits`,
+a gate that refuses a shape-invalid value rather than reformatting it (see
+`context/decisions.md#ws-r136-refuse-shape-invalid-number-never-reformat`).
+
+**Fix.** `whatsappJoinNumber` now reads `WHATSAPP_DISPLAY_PHONE_NUMBER`
+(new, optional) or a memoised live fetch of the phone-number endpoint's own
+`display_phone_number` field, gated by `isBareE164Digits` from either
+source; unknown or malformed resolves to structurally absent, never a
+guess. See `context/decisions.md#ws-r136-whatsapp-join-number-verified-
+against-the-phone-number-endpoint`.

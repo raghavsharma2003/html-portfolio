@@ -51,6 +51,7 @@ const {
   whatsappJoinNumber,
   whatsappJoinLink,
   WHATSAPP_JOIN_URL_LIMIT,
+  _resetWhatsappDisplayNumberCacheForTests,
 } = wa;
 const surface = await import(pathToFileURL(join(REPO, "api/_room-surface.js")).href);
 const { roomDisclosureCard } = surface;
@@ -59,8 +60,10 @@ const { adultGateCard, memoryGateCard, joinedCard, cappedCard, stoppedCard } = t
 // WS-R115: the shipping sender (its own outbound shapes are pinned below)
 // and the REAL 24h ledger `sendSessionMessage` reads (api/whatsapp.js's own
 // `noteInbound`/`windowOpen`/`resetWindow`, never a second implementation).
+// WS-R136: `fetchPhoneNumberDisplay`, the real phone-number-endpoint reader
+// whose request shape is pinned below against Meta's own document.
 const roomWaModule = await import(pathToFileURL(join(REPO, "api/_room-whatsapp.js")).href);
-const { sendSessionMessage } = roomWaModule;
+const { sendSessionMessage, fetchPhoneNumberDisplay } = roomWaModule;
 const waLedger = await import(pathToFileURL(join(REPO, "api/whatsapp.js")).href);
 const { noteInbound, windowOpen, resetWindow } = waLedger;
 
@@ -267,31 +270,150 @@ ok("button id round-trips", JSON.stringify(parseButtonId(`a1:${SLUG}`)) === JSON
 ok("a malformed button id is refused, not guessed at", parseButtonId("garbage") === null);
 
 // ═════════════════════════════════════════════════════════════════════════
-console.log("\n── WS-R126: the join link, structurally absent until every input is real ──");
+console.log("\n── WS-R136: the join number, verified against Meta's own phone-number endpoint ──");
 // ═════════════════════════════════════════════════════════════════════════
 
-ok("no WHATSAPP_PHONE_NUMBER_ID at all: the number is the empty string",
-  whatsappJoinNumber({}) === "");
-ok("a configured id is digits-only, non-numeric punctuation stripped (a '+', spaces or dashes a deployer might paste)",
-  whatsappJoinNumber({ WHATSAPP_PHONE_NUMBER_ID: "+91 99999 00001" }) === "919999900001");
+// ── order 1: WHATSAPP_DISPLAY_PHONE_NUMBER, no network at all ──────────
+{
+  const fetchPhoneNumberDisplay = async () => { throw new Error("must not be called: order 1 short-circuits"); };
+  ok("order 1: a configured display number is used AS-IS, no fetch attempted",
+    (await whatsappJoinNumber({ WHATSAPP_DISPLAY_PHONE_NUMBER: "919999900001" }, { fetchPhoneNumberDisplay })) ===
+      "919999900001");
+  _resetWhatsappDisplayNumberCacheForTests();
+}
+
+// ── order 2: no configured number, a live fetch answers, memoised ──────
+{
+  let calls = 0;
+  const fetchPhoneNumberDisplay = async () => {
+    calls++;
+    return { ok: true, status: 200, displayPhoneNumber: "919999900002", verifiedName: "Test Creator" };
+  };
+  const n1 = await whatsappJoinNumber({}, { fetchPhoneNumberDisplay });
+  const n2 = await whatsappJoinNumber({}, { fetchPhoneNumberDisplay });
+  ok("order 2: no WHATSAPP_DISPLAY_PHONE_NUMBER — the live fetch answers", n1 === "919999900002");
+  ok("order 2: the SAME result on a second call, and the fetch ran exactly ONCE per process (memoised)",
+    n2 === "919999900002" && calls === 1, `calls=${calls}`);
+  _resetWhatsappDisplayNumberCacheForTests();
+}
+
+// ── order 3: no configured number, the fetch fails — unknown, one incident ──
+{
+  const incidents = [];
+  const db = async (sql, params) => { if (sql.includes("insert into vy_incident")) incidents.push(params); return []; };
+  const fetchPhoneNumberDisplay = async () => ({ ok: false, status: 401, errorCode: "190" });
+  const number = await whatsappJoinNumber({}, { fetchPhoneNumberDisplay, db });
+  ok("order 3: a provider failure resolves to the empty string (unknown), never a guess", number === "");
+  ok("order 3: exactly one provider_whatsapp incident is recorded for the failed read",
+    incidents.length === 1 && incidents[0][1] === "provider_whatsapp" && incidents[0][2] === "room-wa" &&
+      Number(incidents[0][3]) === 401, JSON.stringify(incidents));
+  _resetWhatsappDisplayNumberCacheForTests();
+}
+
+// ── order 3b: credentials simply absent — unknown, NO incident (a deploy gap, not a Meta failure) ──
+{
+  const incidents = [];
+  const db = async (sql, params) => { if (sql.includes("insert into vy_incident")) incidents.push(params); return []; };
+  const number = await whatsappJoinNumber({}, { db }); // real fetchPhoneNumberDisplay, but no token/phoneId in env
+  ok("order 3b: no credentials at all — unknown, no network attempted, no incident",
+    number === "" && incidents.length === 0, JSON.stringify(incidents));
+  _resetWhatsappDisplayNumberCacheForTests();
+}
+
+// ── the builder refuses a malformed number from EITHER source, never sanitises ──
+ok("a configured display number with a leading '+' and spaces is REFUSED by the builder, never stripped to digits",
+  (await whatsappJoinLink(SLUG, {
+    ROOM_WHATSAPP_CHAT: "1", WHATSAPP_DISPLAY_PHONE_NUMBER: "+91 99999 00001",
+  })) === null);
+ok("NEGATIVE CONTROL: the SAME digits with no punctuation DOES build a link (proves the refusal above is about shape, not the value)",
+  (await whatsappJoinLink(SLUG, {
+    ROOM_WHATSAPP_CHAT: "1", WHATSAPP_DISPLAY_PHONE_NUMBER: "919999900001",
+  })) === `https://wa.me/919999900001?text=join%20${SLUG}`);
+{
+  const fetchPhoneNumberDisplay = async () => ({ ok: true, status: 200, displayPhoneNumber: "+1 631-555-5555" });
+  ok("a FETCHED display number formatted like Meta's own 'get all phone numbers' example ('+1 631-555-5555') is also refused, not reformatted",
+    (await whatsappJoinLink(SLUG, { ROOM_WHATSAPP_CHAT: "1" }, { fetchPhoneNumberDisplay })) === null);
+  _resetWhatsappDisplayNumberCacheForTests();
+}
 
 ok("ROOM_WHATSAPP_CHAT unset: the link is structurally absent even with a number configured",
-  whatsappJoinLink(SLUG, { WHATSAPP_PHONE_NUMBER_ID: "919999900001" }) === null);
-ok("ROOM_WHATSAPP_CHAT=1 but no number configured: still absent",
-  whatsappJoinLink(SLUG, { ROOM_WHATSAPP_CHAT: "1" }) === null);
-ok("no slug: absent", whatsappJoinLink("", { ROOM_WHATSAPP_CHAT: "1", WHATSAPP_PHONE_NUMBER_ID: "919999900001" }) === null);
+  (await whatsappJoinLink(SLUG, { WHATSAPP_DISPLAY_PHONE_NUMBER: "919999900001" })) === null);
+ok("ROOM_WHATSAPP_CHAT=1 but no number configured and no credentials to fetch with: still absent",
+  (await whatsappJoinLink(SLUG, { ROOM_WHATSAPP_CHAT: "1" })) === null);
+{
+  _resetWhatsappDisplayNumberCacheForTests();
+  ok("no slug: absent", (await whatsappJoinLink("", { ROOM_WHATSAPP_CHAT: "1", WHATSAPP_DISPLAY_PHONE_NUMBER: "919999900001" })) === null);
+}
 ok("every input present: the real wa.me shape, `join <slug>` url-encoded",
-  whatsappJoinLink(SLUG, { ROOM_WHATSAPP_CHAT: "1", WHATSAPP_PHONE_NUMBER_ID: "919999900001" }) ===
+  (await whatsappJoinLink(SLUG, { ROOM_WHATSAPP_CHAT: "1", WHATSAPP_DISPLAY_PHONE_NUMBER: "919999900001" })) ===
     `https://wa.me/919999900001?text=join%20${SLUG}`);
-ok("NEGATIVE CONTROL: a link over WHATSAPP_JOIN_URL_LIMIT is refused rather than truncated",
-  (() => {
+ok("NEGATIVE CONTROL: a link over WHATSAPP_JOIN_URL_LIMIT is refused rather than truncated (unreachable through a shape-valid number now — kept as a defensive control, this file's own header on why WHATSAPP_JOIN_URL_LIMIT should never fire in production)",
+  (await (async () => {
     const longSlug = "a".repeat(40); // assertSlugShape's own real ceiling
-    const link = whatsappJoinLink(longSlug, { ROOM_WHATSAPP_CHAT: "1", WHATSAPP_PHONE_NUMBER_ID: "9".repeat(2000) });
-    return link === null; // the huge fabricated "number" alone already blows the limit
-  })());
+    // isBareE164Digits already refuses anything over 15 digits, so this
+    // fabricated "number" is refused for SHAPE, never even reaching the
+    // length arithmetic — the assertion (null) is unchanged from WS-R126's
+    // own version of this control, only the reason moved earlier.
+    const link = await whatsappJoinLink(longSlug, { ROOM_WHATSAPP_CHAT: "1", WHATSAPP_DISPLAY_PHONE_NUMBER: "9".repeat(2000) });
+    return link === null;
+  })()));
 ok("a real 40-character slug with an ordinary number stays comfortably under the limit",
-  whatsappJoinLink("a".repeat(40), { ROOM_WHATSAPP_CHAT: "1", WHATSAPP_PHONE_NUMBER_ID: "919999900001" }).length <
+  (await whatsappJoinLink("a".repeat(40), { ROOM_WHATSAPP_CHAT: "1", WHATSAPP_DISPLAY_PHONE_NUMBER: "919999900001" })).length <
     WHATSAPP_JOIN_URL_LIMIT);
+_resetWhatsappDisplayNumberCacheForTests(); // leave the module-scope cache clean for anything that runs after this file
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── WS-R136: fetchPhoneNumberDisplay's own request shape, pinned against Meta's document ──");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  let seenUrl = "";
+  let seenInit = null;
+  const fakeFetch = async (url, init) => {
+    seenUrl = url;
+    seenInit = init;
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ display_phone_number: "15555555555", verified_name: "Support Number", id: "105954558954427" }),
+    };
+  };
+  const result = await fetchPhoneNumberDisplay({
+    env: { WHATSAPP_ACCESS_TOKEN: "tok", WHATSAPP_PHONE_NUMBER_ID: "105954558954427" },
+    fetch: fakeFetch,
+  });
+  ok("GET, not POST — this is a read, never a send",
+    seenInit?.method === "GET");
+  ok("the path segment is the SAME <PHONE_NUMBER_ID> every send in this file already POSTs to, per the document's own " +
+    "'GET https://graph.facebook.com/<API_VERSION>/<PHONE_NUMBER_ID>' request syntax",
+    seenUrl.endsWith("/105954558954427?fields=display_phone_number,verified_name"));
+  ok("Bearer auth header, the SAME shape every other call in this file uses, no request body",
+    seenInit?.headers?.Authorization === "Bearer tok" && !("body" in seenInit));
+  ok("the document's own example response fields round-trip: display_phone_number and verified_name",
+    result.ok === true && result.displayPhoneNumber === "15555555555" && result.verifiedName === "Support Number");
+}
+{
+  ok("no accessToken/phoneId: notConfigured, no fetch required at all",
+    (await fetchPhoneNumberDisplay({ env: {} })).notConfigured === true);
+}
+{
+  let threw = false;
+  try {
+    await fetchPhoneNumberDisplay({ env: { WHATSAPP_ACCESS_TOKEN: "tok", WHATSAPP_PHONE_NUMBER_ID: "105954558954427" } });
+  } catch (error) {
+    threw = /fetch_required/.test(error.message);
+  }
+  ok("NEGATIVE CONTROL: credentials present but no deps.fetch injected throws loudly rather than making a real request",
+    threw);
+}
+{
+  const fakeFetch = async () => ({ ok: false, status: 401, json: async () => ({ error: { code: 190, message: "Invalid OAuth" } }) });
+  const result = await fetchPhoneNumberDisplay({
+    env: { WHATSAPP_ACCESS_TOKEN: "bad", WHATSAPP_PHONE_NUMBER_ID: "105954558954427" },
+    fetch: fakeFetch,
+  });
+  ok("a real Cloud API error shape (error.code) surfaces as errorCode, never thrown",
+    result.ok === false && result.status === 401 && result.errorCode === "190");
+}
 
 {
   const h1 = phoneHash("+919000000001", {});

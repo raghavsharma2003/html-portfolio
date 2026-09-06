@@ -415,6 +415,74 @@ export async function sendSessionMessage(phoneE164, messageBody, deps = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// THE PHONE-NUMBER READ (WS-R136) — the ONE call that answers "what number
+// does wa.me need", as distinct from the opaque Graph API id this file's
+// `phoneId` already holds for every send above.
+//
+// developers.facebook.com/documentation/business-messaging/whatsapp/
+// business-phone-numbers/phone-numbers#get-a-single-phone-number (fetched
+// 2026-09-05): "Use the WhatsApp Business Phone Number API to get
+// information about a phone number:" — request syntax "GET https://graph.
+// facebook.com/<API_VERSION>/<PHONE_NUMBER_ID>" — "On success, a JSON
+// object is returned with the business name, phone number, phone number
+// ID, and quality rating for the phone number queried." The example
+// response on that same page: `{"code_verification_status":"VERIFIED",
+// "display_phone_number":"15555555555","id":"105954558954427",
+// "quality_rating":"GREEN","verified_name":"Support Number"}` — this
+// function's own GET hits the identical `${CLOUD_API}/${phoneId}` path
+// segment `sendTemplate`/`sendSessionMessage` above already POST to, with
+// `fields=display_phone_number,verified_name` added so the response never
+// carries more than this file reads.
+//
+// developers.facebook.com/documentation/business-messaging/whatsapp/
+// reference/whatsapp-business-phone-number/whatsapp-business-account-
+// phone-number-api (fetched 2026-09-05) — the response schema names
+// `root.id` "The ID associated with the phone number" (example
+// `"1906385232743451"`) and `root.display_phone_number` "The string
+// representation of the phone number" (example `"+1 631-555-5555"`) as two
+// DIFFERENT fields, confirming in the document's own words — not by
+// inference — that `phoneId` (the `id` this file already sends every
+// request to) is never the same value as the number this function exists
+// to read.
+//
+// Same seams as `sendTemplate`/`sendSessionMessage` above: `deps.fetch`
+// REQUIRED (no fallback to a global `fetch`, so a caller that forgets to
+// inject one gets a loud error rather than a silent real HTTP request),
+// `deps.accessToken`/`deps.phoneId` default to the SAME
+// `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` env names every other
+// function in this file reads. Never throws for an ordinary HTTP failure —
+// `api/_room-whatsapp-chat.js`'s own memoised caller records the incident
+// and treats the number as unknown, the same refusal-vs-error posture
+// `notedProviderFailure` already draws for a send.
+export async function fetchPhoneNumberDisplay(deps = {}) {
+  const env = deps.env || process.env;
+  const accessToken = deps.accessToken ?? env.WHATSAPP_ACCESS_TOKEN ?? "";
+  const phoneId = deps.phoneId ?? env.WHATSAPP_PHONE_NUMBER_ID ?? "";
+  if (!accessToken || !phoneId) return { ok: false, status: 0, notConfigured: true };
+  if (typeof deps.fetch !== "function") throw new Error("room_whatsapp_phone_number_fetch_required");
+
+  const res = await deps
+    .fetch(`${CLOUD_API}/${phoneId}?fields=display_phone_number,verified_name`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(15_000),
+    })
+    .catch(() => null);
+  if (!res) return { ok: false, status: 0, errorCode: "network" };
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const errorCode = String(data?.error?.code ?? data?.error?.error_subcode ?? res.status);
+    return { ok: false, status: Number(res.status) || 0, errorCode };
+  }
+  return {
+    ok: true,
+    status: Number(res.status) || 0,
+    displayPhoneNumber: String(data?.display_phone_number || ""),
+    verifiedName: String(data?.verified_name || ""),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // THE WEBHOOK — status callbacks and, for an inbound reply only, ONE
 // deterministic line. No conversation on this wire (workstream law #6).
 // ─────────────────────────────────────────────────────────────────────────

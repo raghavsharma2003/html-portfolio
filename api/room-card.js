@@ -75,8 +75,11 @@ async function handler(req, res) {
   // "no half-configured deploy" law folds in here too (an unset business
   // number or a disabled chat lane silently falls back to the ordinary
   // poster, never a broken link).
+  // WS-R136: the real `fetch`, threaded through only on the one branch that
+  // can ever need it — `api/room-wa.js`'s own `fetch: globalThis.fetch`
+  // precedent restated for a read instead of a send.
   const whatsappJoinUrl = kind === "poster" && channel === "whatsapp" && row
-    ? whatsappJoinLink(row.slug, process.env)
+    ? (await whatsappJoinLink(row.slug, process.env, { db: q, fetch: globalThis.fetch })) || ""
     : "";
   const etag = roomCardEtag(row, kind, origin, whatsappJoinUrl);
   res.setHeader("Content-Type", "image/png");

@@ -76,7 +76,7 @@ import { buildShareKit, ShareKitError } from "./_share-kit.js";
 // workstream's own brief before it shipped (no cycle: `_room-whatsapp-chat.js`
 // and everything it imports were grepped for a back-reference to this file
 // and none exists).
-import { whatsappJoinLink } from "./_room-whatsapp-chat.js";
+import { whatsappJoinLink, whatsappChatEnabled } from "./_room-whatsapp-chat.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -999,24 +999,51 @@ export async function ownerRoomStats(db, ownerUserId, replicaId, { now = Date.no
  * only instanceof-checks `RoomPublishError`, so a builder-native error class
  * would otherwise fall through to a generic 500 that named nothing.
  */
-export async function ownerRoomShareKit(db, ownerUserId, replicaId, { origin = "", now = Date.now() } = {}) {
+export async function ownerRoomShareKit(db, ownerUserId, replicaId, { origin = "", now = Date.now(), fetch: fetchImpl } = {}) {
   assertOwnerScope(ownerUserId, replicaId);
   const room = await ownedRoomRow(db, ownerUserId, replicaId);
   if (!room) return null;
   try {
+    // WS-R126, verified by WS-R136: structurally absent (`null`) unless the
+    // WhatsApp chat lane itself is on AND a real, dialable number is KNOWN
+    // (configured, or read live and confirmed digits-only) —
+    // `whatsappJoinLink`'s own header states why a half-configured or
+    // unverifiable deploy must never hand out a link that opens nothing
+    // useful, or the wrong thing. `fetchImpl` is only ever real
+    // (`globalThis.fetch`) in production; an eval that never passes one
+    // simply never reaches the network read (`whatsappChatEnabled`'s own
+    // gate inside `whatsappJoinLink` returns before that point whenever
+    // `ROOM_WHATSAPP_CHAT` is unset, which every offline suite's own
+    // process env already is).
+    // Skipped (never fetched) for a Room that has never published — nothing
+    // would ever use the result (`buildShareKit` returns `null` below the
+    // instant `publishedAt` is falsy), so there is no reason to spend a
+    // live Meta call, still less to memoise a real answer this process
+    // will never read again, before the creator has even published.
+    const whatsappJoinUrl = room.published_at
+      ? await whatsappJoinLink(room.slug, process.env, { db, fetch: fetchImpl })
+      : null;
     const kit = buildShareKit({
       name: room.display_name,
       slug: room.slug,
       locale: room.default_locale,
       origin,
       publishedAt: room.published_at,
-      // WS-R126: structurally absent (`null`) unless the WhatsApp chat lane
-      // itself is on AND a business number is configured — `whatsappJoinLink`'s
-      // own header states why a half-configured deploy must never hand out a
-      // link that opens nothing useful.
-      whatsappJoinUrl: whatsappJoinLink(room.slug, process.env),
+      whatsappJoinUrl,
     });
-    return { room_id: room.room_id, kit };
+    // WS-R136: this workstream's own law 2 — "unknown means the share-kit
+    // entry ... is absent by construction and the studio says why". A row
+    // being absent is not by itself distinguishable from the WhatsApp chat
+    // lane simply being off (the overwhelming majority of deploys), so this
+    // ONE extra boolean is the honest signal `ShareKitCard.tsx` needs to
+    // show that explanation ONLY when it is true: the Room HAS published
+    // (there is a real kit to show something alongside), the lane is ON,
+    // and still no dialable number could be resolved. An unpublished Room
+    // gets `false` regardless of the lane's own setting — `kit` is already
+    // `null` there and the studio's own "not published yet" message is the
+    // one honest thing to say, never a second, premature explanation.
+    const whatsappJoinUnavailable = Boolean(room.published_at) && whatsappChatEnabled(process.env) && !whatsappJoinUrl;
+    return { room_id: room.room_id, kit, whatsapp_join_unavailable: whatsappJoinUnavailable };
   } catch (error) {
     if (error instanceof ShareKitError) {
       throw new RoomPublishError(error.code, error.status, error.details);

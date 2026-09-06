@@ -10780,6 +10780,30 @@
       "kind": "measurement",
       "title": "Migrations 130 (mandate state), 132 (the Suite admin's weekly note) and 133 (the referral reward) applied live at their merges with constraints read back first; 131 read back as already carried and not applied; every new statement planned, the referral grant's ledger scan accepted by name with a rewrite condition.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r136-whatsapp-join-number-verified-against-the-phone-number-endpoint",
+      "kind": "decision",
+      "title": "whatsappJoinNumber reads WHATSAPP_DISPLAY_PHONE_NUMBER, else a memoised live GET of Meta's phone-number endpoint's display_phone_number field, else unknown -- WHATSAPP_PHONE_NUMBER_ID is never used, confirmed by Meta's own document to be a different, opaque Graph API id.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r136-refuse-shape-invalid-number-never-reformat",
+      "kind": "decision",
+      "title": "isBareE164Digits gates a number from either source before whatsappJoinLink builds anything; a value that fails is refused outright, never stripped of punctuation and reused, since Meta's own two worked examples for display_phone_number disagree on shape.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r136-whatsapp-phone-number-id-was-never-dialable",
+      "kind": "rejection",
+      "title": "WS-R126's WHATSAPP_PHONE_NUMBER_ID-as-join-number, named NOT PROVEN at the time, is confirmed wrong against Meta's own phone-number-object document (root.id vs root.display_phone_number are different fields); WS-R126's punctuation-stripping sanitiser is also rejected in the same pass in favour of an outright refusal.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r136-gate-results-2026-09-05",
+      "kind": "measurement",
+      "title": "Targeted suites green: room-whatsapp-chat 117/117, room-card 83/83, self-check 85/85, env-manifest 45 ok/0 failing, share-kit 85/85 unchanged. Full verify-release.mjs result and any flakiness logged in context/measurements.md#ws-r136-gate-results-2026-09-05.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20882,6 +20906,26 @@
       "src": "rooms-migrations-130-132-133-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r125-mandate-state-predicate-non-redundant-only-for-pending"
+    },
+    {
+      "src": "ws-r136-whatsapp-join-number-verified-against-the-phone-number-endpoint",
+      "rel": "supersedes",
+      "dst": "ws-r126-whatsapp-join-number-reuses-phone-number-id"
+    },
+    {
+      "src": "ws-r136-whatsapp-join-number-verified-against-the-phone-number-endpoint",
+      "rel": "caused_by",
+      "dst": "ws-r136-whatsapp-phone-number-id-was-never-dialable"
+    },
+    {
+      "src": "ws-r136-refuse-shape-invalid-number-never-reformat",
+      "rel": "part_of",
+      "dst": "ws-r136-whatsapp-join-number-verified-against-the-phone-number-endpoint"
+    },
+    {
+      "src": "ws-r136-whatsapp-join-number-verified-against-the-phone-number-endpoint",
+      "rel": "measured_by",
+      "dst": "ws-r136-gate-results-2026-09-05"
     }
   ]
 }

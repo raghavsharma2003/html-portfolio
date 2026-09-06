@@ -1105,11 +1105,16 @@ interface ShareKitCopy {
 //    business number's chat with `join <slug>` already typed, structurally
 //    absent from the row list at all when no business number is configured
 //    or the WhatsApp chat lane itself is off — `api/_share-kit.js`'s own
-//    `whatsappJoinUrl` header states why). ──────────────────────────────────
+//    `whatsappJoinUrl` header states why). `unavailableNote` (WS-R136) is
+//    shown instead of the row, and ONLY when `ShareKit.whatsapp_join_
+//    unavailable` says the lane is genuinely ON but no dialable number
+//    could be resolved yet — never shown for the far more common case
+//    where the lane is simply off, which stays silent exactly as before.
 interface ShareKitWhatsappJoinCopy {
   label: string;
   caption: string;
   button: string;
+  unavailableNote: string;
 }
 
 // ── activityPanel: ActivityPanel.tsx (WS-R71, tier 2 wave two). Server-sent
@@ -4036,6 +4041,7 @@ const EN: StudioCopy = {
     label: "Join on WhatsApp",
     caption: "Opens WhatsApp with \"join {slug}\" already typed, so a follower just has to hit send.",
     button: "Open WhatsApp",
+    unavailableNote: "WhatsApp join links are on, but we could not confirm your business number yet, so this link is not ready to share. Try again in a few minutes.",
   },
 };
 

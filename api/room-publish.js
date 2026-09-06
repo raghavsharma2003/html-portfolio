@@ -214,7 +214,10 @@ async function handler(req, res) {
     }
 
     if (op === "share_kit") {
-      const result = await ownerRoomShareKit(q, user.id, replicaId, { origin: originFromRequest(req) });
+      // WS-R136: the ONE real `fetch` this op ever threads through — never a
+      // business-logic module assuming a global, `api/room-wa.js`'s own
+      // `fetch: globalThis.fetch` precedent restated for a read.
+      const result = await ownerRoomShareKit(q, user.id, replicaId, { origin: originFromRequest(req), fetch: globalThis.fetch });
       if (!result) return notFound(res);
       obsBestEffort("room_publish.share_kit", { has_kit: result.kit != null });
       return res.status(200).json(result);

@@ -69,6 +69,10 @@ export default function ShareKitCard({
   const { t } = useStudioLocale();
   const c = t.shareKit;
   const [kit, setKit] = useState<ShareKitRow[] | null>(null);
+  // WS-R136: the lane-on-but-unverified-number signal — see `ShareKit`'s
+  // own header (roomPublishApi.ts) for why this is a separate field from
+  // `kit` itself rather than something inferred from the row list's shape.
+  const [whatsappJoinUnavailable, setWhatsappJoinUnavailable] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [copiedChannel, setCopiedChannel] = useState<string | null>(null);
@@ -97,6 +101,7 @@ export default function ShareKitCard({
     try {
       const result = await readOwnedRoomShareKit(token, replicaId);
       setKit(result.kit);
+      setWhatsappJoinUnavailable(result.whatsapp_join_unavailable);
       setError("");
     } catch (e) {
       fail(e);
@@ -212,6 +217,14 @@ export default function ShareKitCard({
             );
           })}
         </div>
+      )}
+      {/* WS-R136: shown ONLY when the WhatsApp join lane is genuinely ON but
+          no dialable number could be resolved yet — the far more common
+          case (the lane simply off) stays exactly as silent as before this
+          workstream, `ShareKit.whatsapp_join_unavailable`'s own header
+          states why this is a separate signal from the row's own absence. */}
+      {orderedKit && whatsappJoinUnavailable && (
+        <p className="field-note">{t.shareKitWhatsappJoin.unavailableNote}</p>
       )}
       {error && <p className="inline-error" role="alert">{error}</p>}
     </article>

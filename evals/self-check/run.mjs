@@ -356,6 +356,15 @@ const ALL_COLS = new Set(MIGRATION_FAMILY_COLUMNS.map((f) => `${f.table}:${f.col
   ok("WS-R116: an OPTIONAL_ENV name the manifest DOES also document (SUPABASE_URL) groups under its real section, not ungrouped",
     !result.optional_absent_by_section.ungrouped.includes("SUPABASE_URL") &&
     result.optional_absent_by_section.sections.some((s) => s.names.includes("SUPABASE_URL")));
+  // WS-R136: the new name reaches this board through the SAME manifest
+  // parser as every other §34 name, with no self-check code of its own —
+  // `MANIFEST_ONLY_ENV`'s own derivation from the committed
+  // `api/_env-manifest.gen.json` is what makes this automatic.
+  ok("WS-R136: WHATSAPP_DISPLAY_PHONE_NUMBER is one of the MANIFEST_ONLY_ENV names picked up from the manifest, sight unseen by this file",
+    MANIFEST_ONLY_ENV.includes("WHATSAPP_DISPLAY_PHONE_NUMBER"));
+  ok("WS-R136: absent, it groups under section 34 (The Room on WhatsApp) alongside ROOM_WHATSAPP_CHAT, never ungrouped",
+    !result.optional_absent_by_section.ungrouped.includes("WHATSAPP_DISPLAY_PHONE_NUMBER") &&
+    result.optional_absent_by_section.sections.some((s) => s.names.includes("WHATSAPP_DISPLAY_PHONE_NUMBER")));
 }
 {
   // A required env var missing, everything else fine.
