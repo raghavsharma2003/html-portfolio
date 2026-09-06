@@ -10780,6 +10780,48 @@
       "kind": "measurement",
       "title": "Migrations 130 (mandate state), 132 (the Suite admin's weekly note) and 133 (the referral reward) applied live at their merges with constraints read back first; 131 read back as already carried and not applied; every new statement planned, the referral grant's ledger scan accepted by name with a rewrite condition.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r138-payout-statement-gst-reuses-receipts-split-never-a-second-implementation",
+      "kind": "decision",
+      "title": "The printable payout statement splits the platform's take into taxable value + GST by calling api/_receipt.js's own gstSplit/GST_RATE_BP directly, never a second GST implementation",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r138-tds-sentence-rendered-verbatim-lang-en-never-re-translated",
+      "kind": "decision",
+      "title": "The Hindi payout statement renders TDS_DISCLOSURE_SENTENCE verbatim, lang=en, with only the surrounding heading translated, rather than hand-translating the tax disclosure into a second Hindi sentence that could drift from the constant",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r138-payout-statement-readable-served-through-existing-op-never-a-new-door",
+      "kind": "decision",
+      "title": "The printable statement is format:\"html\" on the EXISTING payout_statement op (api/payments.js), room.js's receipt/export precedent restated, never a new op or door",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r138-rooms-line-mirrors-runpayoutrollups-current-attachment-not-reconcileperiods-history",
+      "kind": "decision",
+      "title": "The statement's Room(s) line uses runPayoutRollup's own two contributing conditions (in-period event, or CURRENT org_id with an active subscription), never reconcilePeriod's historical attachment read, so the Room list always agrees with the Suite share it explains",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r138-periodlabel-toisostring-on-an-invalid-date-crashed-before-datelabels-own-catch",
+      "kind": "rejection",
+      "title": "periodLabel called .toISOString() on a computed end-of-period Date before handing it to dateLabel's own try/catch, so an invalid Date (found via the suite's own 50+ generated periods) threw before the guard ever ran; fixed by passing a Date object straight into dateLabel instead of pre-stringifying it",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r138-room-fixture-substring-collided-with-resolvecreatorpages-own-query",
+      "kind": "rejection",
+      "title": "payoutStatement's new Room(s) fake-db handler matched on 'select room_id, slug, display_name' alone, colliding with api/_creator-page.js#resolveCreatorPage's own query (same prefix), silently breaking evals/rehearsal/follower.mjs's taste-island step through the shared doorsDb fixture; fixed by requiring a second, distinguishing substring (where owner_user_id)",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r138-payout-statement-readable-gate-results",
+      "kind": "measurement",
+      "title": "New suite evals/payout-statement-readable 20/20 (60 generated periods x 2 locales, required negative controls); evals/payouts widened to 69/69; evals/room-doors 2147/0 unchanged with new formats entry; evals/room-leak 269/0; evals/room-export 47/0; tsc/copy/context clean. Two real defects found and fixed (see rejected.md), both reproduced as environmental-vs-real by a temporary git worktree of the untouched base.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20882,6 +20924,36 @@
       "src": "rooms-migrations-130-132-133-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r125-mandate-state-predicate-non-redundant-only-for-pending"
+    },
+    {
+      "src": "ws-r138-tds-sentence-rendered-verbatim-lang-en-never-re-translated",
+      "rel": "caused_by",
+      "dst": "ws-r36-tds-disclosure-sentence-duplicated-not-single-sourced-to-the-browser"
+    },
+    {
+      "src": "ws-r138-rooms-line-mirrors-runpayoutrollups-current-attachment-not-reconcileperiods-history",
+      "rel": "constrains",
+      "dst": "ws-r36-suite-share-flat-per-seat-not-ledger-derived"
+    },
+    {
+      "src": "ws-r138-payout-statement-readable-served-through-existing-op-never-a-new-door",
+      "rel": "caused_by",
+      "dst": "ws-r108-readable-export-room-doors-case-2026-09-05"
+    },
+    {
+      "src": "ws-r138-room-fixture-substring-collided-with-resolvecreatorpages-own-query",
+      "rel": "caused_by",
+      "dst": "ws-r138-rooms-line-mirrors-runpayoutrollups-current-attachment-not-reconcileperiods-history"
+    },
+    {
+      "src": "ws-r138-payout-statement-readable-gate-results",
+      "rel": "caused_by",
+      "dst": "ws-r138-periodlabel-toisostring-on-an-invalid-date-crashed-before-datelabels-own-catch"
+    },
+    {
+      "src": "ws-r138-payout-statement-readable-gate-results",
+      "rel": "caused_by",
+      "dst": "ws-r138-room-fixture-substring-collided-with-resolvecreatorpages-own-query"
     }
   ]
 }

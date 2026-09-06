@@ -2795,7 +2795,12 @@ const OP_COVERAGE = {
     set_price: { classes: ["e"] },
     start_creator_subscription: { classes: ["c"] },
     payout_statements: { classes: ["e"] },
-    payout_statement: { classes: ["c"] },
+    // WS-R138: `formats` - the printable statement, `room.js`'s own
+    // `receipt`/`export` `format: "html"` entries restated for this door.
+    // Same class c proof: `payoutStatement`'s own WHERE (§11 above) already
+    // refuses a body-supplied `payout_id` belonging to another owner before
+    // this format branch is ever reached.
+    payout_statement: { classes: ["c"], formats: { html: { classes: ["c"] } } },
     register_fund_account: { classes: ["e"] },
     retry_failed_payout: { classes: ["e"] },
     reconcile: { classes: ["e"] },

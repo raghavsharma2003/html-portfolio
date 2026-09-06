@@ -10,6 +10,7 @@
 // that hands one creator's own money numbers to whoever holds it.
 import { useCallback, useEffect, useState } from "react";
 import {
+  fetchPayoutStatementReadableHtml,
   listPayoutStatements,
   readPayoutStatement,
   registerPayoutFundAccount,
@@ -74,7 +75,7 @@ function downloadBlob(content: string, mime: string, filename: string) {
 }
 
 export default function PayoutsCard({ token }: { token: string }) {
-  const { t } = useStudioLocale();
+  const { t, locale } = useStudioLocale();
   const c = t.payouts;
   const [payouts, setPayouts] = useState<PayoutListEntry[] | null>(null);
   const [error, setError] = useState("");
@@ -112,6 +113,33 @@ export default function PayoutsCard({ token }: { token: string }) {
       }
     },
     [token, openPayout],
+  );
+
+  /** WS-R138. `downloadJson`/`downloadText` above turn this SAME statement
+   *  into a file this browser already holds; this fetches the server's own
+   *  `format:"html"` printable twin - `AccountPage.tsx`'s `openReadable`
+   *  shape (WS-R108), restated for the creator's own statement instead of a
+   *  follower's export. No inline script is written into the new window
+   *  (the builder's own "no script" law): there is nothing here for
+   *  `win.document.write` to attach an event handler to. */
+  const printStatement = useCallback(
+    async (payoutId: string) => {
+      setBusy(`print-${payoutId}`);
+      setError("");
+      try {
+        const html = await fetchPayoutStatementReadableHtml(token, payoutId, locale);
+        const win = window.open("", "_blank");
+        if (!win) throw new Error("popup_blocked");
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+      } catch (e) {
+        setError(readableError(e, c.printError));
+      } finally {
+        setBusy(null);
+      }
+    },
+    [token, locale, c.printError],
   );
 
   const saveFundAccount = useCallback(async () => {
@@ -241,6 +269,14 @@ export default function PayoutsCard({ token }: { token: string }) {
                           }
                         >
                           {c.downloadText}
+                        </button>
+                        <button
+                          className="button secondary-button"
+                          type="button"
+                          disabled={busy === `print-${statement.payout_id}`}
+                          onPointerDown={() => void printStatement(statement.payout_id)}
+                        >
+                          {busy === `print-${statement.payout_id}` ? c.openingStatement : c.printStatement}
                         </button>
                       </div>
                     </div>

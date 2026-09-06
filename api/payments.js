@@ -43,6 +43,7 @@ import {
   retryFailedPayout,
   reconcilePeriod,
 } from "./_payments.js";
+import { buildPayoutStatementReadableHtml } from "./_payout-statement-readable.js";
 import { readCreatorTier } from "./_creator-tier.js";
 import { OrgError } from "./_org.js";
 import { isOpsOwner } from "./_ops.js";
@@ -112,6 +113,19 @@ async function handler(req, res) {
     if (op === "payout_statement") {
       const statement = await payoutStatement(q, user.id, body.payout_id);
       if (!statement) return res.status(404).json({ error: "payout_not_found" });
+      // WS-R138. `format: "html"` returns the printable statement as the
+      // response body itself, Content-Type text/html - `api/room.js`'s own
+      // `receipt`/`export` precedent (WS-R100/WS-R108) restated for the
+      // creator's own payout statement: the SAME already-owner-scoped
+      // `statement` this op already built (the WHERE inside `payoutStatement`
+      // already ran - a body-supplied `payout_id` belonging to another owner
+      // never reaches this line, `evals/room-doors/run.mjs`'s own class c
+      // proof for this op), handed to a PURE builder that reads no table of
+      // its own.
+      if (body.format === "html") {
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        return res.status(200).send(buildPayoutStatementReadableHtml(statement, body.locale));
+      }
       return res.status(200).json({ statement });
     }
     if (op === "register_fund_account") {

@@ -2511,7 +2511,10 @@ export async function registerFundAccount(db, { ownerUserId, fundAccountRef }, d
  * `db` at all - `cohortRow`'s own pure/impure split in api/_room-cohorts.js,
  * restated here for a payout instead of a retention cohort.
  */
-export function payoutStatementFromRows(payoutRow, { followerSubscriptions = 0, suiteName = null } = {}) {
+export function payoutStatementFromRows(
+  payoutRow,
+  { followerSubscriptions = 0, suiteName = null, rooms = [], referralRewards = { count: 0, forgone_inr: 0 } } = {},
+) {
   if (!payoutRow) return null;
   const suiteShareInr = Number(payoutRow.suite_share_inr || 0);
   return {
@@ -2519,12 +2522,31 @@ export function payoutStatementFromRows(payoutRow, { followerSubscriptions = 0, 
     period_start: payoutRow.period_start,
     period_end: payoutRow.period_end,
     currency: "INR",
+    // WS-R138. Every Room of this owner's that actually contributed to this
+    // payout - a follower charge landed in-period, or the Room sits in a
+    // Suite with an active subscription right now (the same two conditions
+    // `runPayoutRollup`'s own `per_owner`/`suite_share` CTEs use to decide
+    // whether an owner gets a payout row at all, restated as a read rather
+    // than an aggregate) - never a follower or a person, only the Room(s)
+    // themselves, which an accountant needs to know what this figure is FOR.
+    rooms,
     gross_inr: Number(payoutRow.gross_inr),
     take_inr: Number(payoutRow.take_inr),
     tds_inr: Number(payoutRow.tds_inr),
     net_inr: Number(payoutRow.net_inr),
     suite_share_inr: suiteShareInr,
     suite_name: suiteShareInr > 0 ? suiteName : null,
+    // WS-R130's own reconcile line (`reconcilePeriod`'s `referral_rewards`),
+    // restated here scoped to ONE owner instead of the whole platform - the
+    // free months this owner's own referral program funded this period,
+    // count and forgone INR, reported never subtracted from any number
+    // above (this owner already kept 100% of what a referred-in paying
+    // follower actually paid before that follower's referrer ever earned a
+    // free month off them - the reward costs the PLATFORM a month of
+    // ownRevenue for the referrer, never this creator, `context/decisions.md
+    // #ws-r130-referral-reward-grant-is-a-second-statement-not-a-fifth-cte`'s
+    // own zero-amount ledger row restated one layer up).
+    referral_rewards: referralRewards,
     follower_subscriptions: Number(followerSubscriptions),
     state: payoutRow.state,
     provider_payout_ref: payoutRow.provider_payout_ref ?? null,
@@ -2585,9 +2607,63 @@ export async function payoutStatement(db, ownerUserId, payoutId) {
     suiteName = suiteRows[0]?.name ?? null;
   }
 
+  // WS-R138. The Room(s) this payout is FOR - the identical two conditions
+  // `runPayoutRollup`'s own `per_owner`/`suite_share` CTEs use to decide an
+  // owner has a payout row at all, restated as a read: a Room with a
+  // follower charge landed in this period, or a Room currently sitting in a
+  // Suite with an active subscription (current `org_id`, never attachment
+  // HISTORY - `reconcilePeriod`'s own suite lane reads history for a
+  // different reason, this mirrors the rollup it is explaining instead).
+  const roomRows = await db(
+    `select room_id, slug, display_name
+       from vy_room
+      where owner_user_id = ($1)::uuid
+        and (
+          exists (
+            select 1 from vy_payment_event e
+             where e.room_id = vy_room.room_id
+               and e.received_at >= ($2)::timestamptz and e.received_at < ($3)::timestamptz
+          )
+          or (
+            org_id is not null
+            and exists (
+              select 1 from vy_org_subscription os
+               where os.org_id = vy_room.org_id and os.state = 'active'
+            )
+          )
+        )
+      order by slug`,
+    [String(ownerUserId), payout.period_start, payout.period_end],
+  );
+  const rooms = roomRows.map((r) => ({ room_id: r.room_id, slug: r.slug, display_name: r.display_name }));
+
+  // WS-R138. This owner's own referral rewards funded THIS period -
+  // `reconcilePeriod`'s own `referral_rewards` line (WS-R130, migration
+  // 133), restated scoped to one owner instead of the whole platform. Same
+  // gate: a database not yet on migration 133 answers zero rather than
+  // erroring.
+  let referralRewards = { count: 0, forgone_inr: 0 };
+  if (await tableApplied("vy_room_referral_reward")) {
+    const rewardRows = await db(
+      `select coalesce(p.follower_price_inr, 0) as follower_price_inr
+         from vy_room_referral_reward rr
+         join vy_room r on r.room_id = rr.room_id
+         left join vy_room_price p on p.room_id = rr.room_id
+        where r.owner_user_id = ($1)::uuid
+          and rr.granted_at >= ($2)::timestamptz and rr.granted_at < ($3)::timestamptz`,
+      [String(ownerUserId), payout.period_start, payout.period_end],
+    );
+    referralRewards = {
+      count: rewardRows.length,
+      forgone_inr: rewardRows.reduce((sum, r) => sum + Number(r.follower_price_inr || 0), 0),
+    };
+  }
+
   return payoutStatementFromRows(payout, {
     followerSubscriptions: countRows[0]?.follower_subscriptions ?? 0,
     suiteName,
+    rooms,
+    referralRewards,
   });
 }
 

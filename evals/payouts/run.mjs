@@ -264,6 +264,37 @@ function makeDb(state) {
       const room = state.rooms.find((r) => r.owner_user_id === ownerUserId && r.org_id);
       return room ? [{ name: `Suite ${room.org_id}` }] : [];
     }
+    // ── payoutStatement's own Room(s) read (WS-R138) - the SAME two
+    //    conditions `rollupFixture` above uses to decide an owner has a
+    //    payout at all: a follower charge landed in-period, or the Room
+    //    currently sits in a Suite with an active subscription. The second
+    //    `has()` is load-bearing: `api/_creator-page.js#resolveCreatorPage`'s
+    //    own query starts with the IDENTICAL `select room_id, slug,
+    //    display_name` prefix - see the identical fixture in
+    //    `evals/room-doors/fixtures.mjs` for where that collision was
+    //    actually found (`evals/rehearsal/follower.mjs` shares THAT fixture,
+    //    never this one, but this file's own check is widened to match for
+    //    the same reason: a plain substring match must never be narrower
+    //    than the real risk two SQL statements sharing a select list prefix
+    //    creates). ──
+    if (has("select room_id, slug, display_name") && has("where owner_user_id")) {
+      const [ownerUserId, start, end] = params;
+      const rooms = state.rooms.filter((r) => r.owner_user_id === ownerUserId).filter((r) => {
+        const hasEvent = state.events.some((e) => e.room_id === r.room_id && e.received_at >= start && e.received_at < end);
+        const activeSuite = r.org_id && state.orgSubscriptions.some((s) => s.org_id === r.org_id && s.state === "active");
+        return hasEvent || activeSuite;
+      });
+      return rooms
+        .map((r) => ({ room_id: r.room_id, slug: r.room_id, display_name: `Room ${r.room_id}` }))
+        .sort((a, b) => a.slug.localeCompare(b.slug));
+    }
+    // ── payoutStatement's own referral-rewards read (WS-R138) - never
+    //    modelled non-empty here (`tableApplied` resolves false with no
+    //    live database, `reconcilePeriod`'s own identical gate one section
+    //    up), so this is reached only if it ever DOES run. ──
+    if (has("from vy_room_referral_reward rr") && has("join vy_room r on r.room_id = rr.room_id")) {
+      return [];
+    }
     // ── payoutStatements list ──
     if (has("gross_inr, net_inr, state, created_at") && has("order by period_start desc")) {
       const [ownerUserId] = params;
@@ -428,6 +459,12 @@ console.log("\n§4 THE STATEMENT — four numbers, the period, the follower coun
   ok("the TDS note is the same disclosure sentence the constant carries", statement.tds_note === TDS_DISCLOSURE_SENTENCE);
   ok("the amount is INR", statement.currency === "INR");
   ok("the statement carries the payout's own state and created_at", statement.state === "built" && Boolean(statement.created_at));
+  // WS-R138: the Room(s) this payout is for, and the referral rewards this
+  // owner funded this period - `runPayoutRollup`'s own contributing-Room
+  // predicate restated as a read, and `reconcilePeriod`'s own line scoped
+  // to one owner.
+  ok("the statement names the Room(s) it covers (this owner's one Room, present because it had events in-period)", Array.isArray(statement.rooms) && statement.rooms.length === 1 && statement.rooms[0].room_id === ROOM_BOTH);
+  ok("the statement carries a referral-rewards line, honestly zero with no live rewards table applied", statement.referral_rewards && statement.referral_rewards.count === 0 && statement.referral_rewards.forgone_inr === 0);
 
   const owner2 = await payoutStatement(db, OWNER_FOLLOWER_ONLY, row.payout_id);
   ok("a payout is never visible under the WRONG owner", owner2 === null);
@@ -454,6 +491,17 @@ console.log("\n§4 THE STATEMENT — four numbers, the period, the follower coun
     !/select[^;]*\b(person_id|follower_id)\b/i.test(stmtFnBody),
   );
 
+  // WS-R138: a Suite-only owner's Room shows up in `rooms` too, even with
+  // ZERO follower events this period - `runPayoutRollup`'s own suite_share
+  // CTE's own condition (current org_id, active subscription), never
+  // requiring an in-period charge the way a follower-only Room does.
+  // `on conflict do nothing` means re-running the SAME period only returns
+  // the newly-built row for the just-seeded owner, never touching OWNER_BOTH's.
+  seedRoom(state, ROOM_SUITE_ONLY, OWNER_SUITE_ONLY, ORG);
+  const [suiteOnlyRow] = await runPayoutRollup(db, { periodStart: "2026-08-01T00:00:00.000Z", periodEnd: "2026-09-01T00:00:00.000Z" });
+  const suiteOnlyStatement = await payoutStatement(db, OWNER_SUITE_ONLY, suiteOnlyRow.payout_id);
+  ok("a Suite-only owner's Room appears in `rooms` with zero follower events this period", suiteOnlyStatement.rooms.length === 1 && suiteOnlyStatement.rooms[0].room_id === ROOM_SUITE_ONLY);
+
   // Pure-function proof, no db at all: payoutStatementFromRows over a hand-built row.
   const pure = payoutStatementFromRows(
     { payout_id: "x", period_start: "s", period_end: "e", gross_inr: 500, take_inr: 100, tds_inr: 0, net_inr: 400, suite_share_inr: 0, state: "built", provider_payout_ref: null, created_at: "c" },
@@ -461,6 +509,13 @@ console.log("\n§4 THE STATEMENT — four numbers, the period, the follower coun
   );
   ok("a zero Suite share never shows a Suite name, even if one were passed in", pure.suite_share_inr === 0 && pure.suite_name === null);
   ok("payoutStatementFromRows returns null for a null row (an owner asking about a payout that is not theirs)", payoutStatementFromRows(null) === null);
+  ok("payoutStatementFromRows defaults `rooms` to an empty array and `referral_rewards` to an honest zero when no caller passes either", Array.isArray(pure.rooms) && pure.rooms.length === 0 && pure.referral_rewards.count === 0 && pure.referral_rewards.forgone_inr === 0);
+
+  const pureWithExtras = payoutStatementFromRows(
+    { payout_id: "y", period_start: "s", period_end: "e", gross_inr: 500, take_inr: 100, tds_inr: 0, net_inr: 400, suite_share_inr: 0, state: "built", provider_payout_ref: null, created_at: "c" },
+    { rooms: [{ room_id: "r1", slug: "room-one", display_name: "Room One" }], referralRewards: { count: 2, forgone_inr: 798 } },
+  );
+  ok("payoutStatementFromRows passes `rooms` and `referral_rewards` straight through, unchanged", pureWithExtras.rooms.length === 1 && pureWithExtras.rooms[0].slug === "room-one" && pureWithExtras.referral_rewards.count === 2 && pureWithExtras.referral_rewards.forgone_inr === 798);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

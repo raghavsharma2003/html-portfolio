@@ -45,12 +45,20 @@ export interface PayoutStatement {
   period_start: string;
   period_end: string;
   currency: "INR";
+  /** WS-R138. The Room(s) this payout is for - a follower charge landed
+   *  in-period, or the Room currently sits in a Suite with an active
+   *  subscription. Never a follower or a person. */
+  rooms: Array<{ room_id: string; slug: string; display_name: string }>;
   gross_inr: number;
   take_inr: number;
   tds_inr: number;
   net_inr: number;
   suite_share_inr: number;
   suite_name: string | null;
+  /** WS-R138. The free months this owner's own referral program funded
+   *  this period - `reconcilePeriod`'s own platform-wide line, scoped to
+   *  one owner. */
+  referral_rewards: { count: number; forgone_inr: number };
   follower_subscriptions: number;
   state: PayoutState;
   provider_payout_ref: string | null;
@@ -168,6 +176,34 @@ export async function listPayoutStatements(token: string): Promise<PayoutListEnt
 export async function readPayoutStatement(token: string, payoutId: string): Promise<PayoutStatement> {
   const data = await call<{ statement: PayoutStatement }>(token, { op: "payout_statement", payout_id: payoutId });
   return data.statement;
+}
+
+/** WS-R138. The printable statement - `roomApi.ts`'s own
+ *  `fetchRoomExportReadableHtml` shape (WS-R108), restated for this door:
+ *  the server's `format: "html"` response is the printable page itself,
+ *  `text/html`, never a JSON envelope `replicaRequest`/`call` above could
+ *  parse, so this is the one function in this file that calls `fetch`
+ *  directly and reads `response.text()`. `locale` is the studio's own
+ *  current UI language - the server falls back to English on anything else,
+ *  `buildPayoutStatementReadableHtml`'s own fallback. */
+export async function fetchPayoutStatementReadableHtml(
+  token: string,
+  payoutId: string,
+  locale: "en" | "hi",
+): Promise<string> {
+  const response = await fetch("/api/payments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ op: "payout_statement", payout_id: payoutId, format: "html", locale }),
+    signal: AbortSignal.timeout(45_000),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    let code = `payments_request_failed_${response.status}`;
+    try { code = String(JSON.parse(text)?.error || code); } catch { /* the error response is JSON; a non-JSON body here is unexpected but must not throw a parse error over a network error */ }
+    throw new PaymentsApiError(code, response.status);
+  }
+  return text;
 }
 
 /** WS-R36. Register (really: verify and store) a fund account reference the
