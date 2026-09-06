@@ -20908,3 +20908,78 @@ before the new column existed (a migration-day compatibility window,
 never a permanent second source of truth) — or be retired outright if a
 backfill copies every check-in's own window onto the new column at
 migration time.
+
+## `ws-r140-webhook-leaving-state-and-period-guard` (2026-09-05, WS-R140)
+
+**Decision.** `applyWebhook`'s three lanes (follower/`vy_room_subscription`,
+creator/`vy_creator_subscription`, org/`vy_org_subscription`, `api/_payments.js`)
+each guard their own `state`/`current_period_start`/`current_period_end`
+assignment against moving BACKWARDS when two real webhooks for the same
+subscription are applied out of the order they actually happened in. `state`
+is guarded by a small rank table (`created` < `authenticated` <
+{`active`,`paused`} < {`cancelled`,`expired`}) embedded as a SQL `case`
+expression, never a full total order — `active`/`paused` toggle both ways,
+legitimately, and a row that has reached a terminal rank never leaves it
+again on ANY later delivery. The billing period is guarded by comparing the
+incoming timestamp against the stored one directly (never earlier wins),
+replacing the old unconditional `coalesce($x, s.current_period_*)`. Both
+guards are marked with a literal SQL comment, `NO_REGRESSION_MARKER =
+"/* ws-r140-no-regression */"` (placed AFTER the `case` keyword, not before
+it — see the reversal condition), so an offline eval can tell from the
+ACTUAL text a caller sends whether this fix is present, rather than
+re-deriving the rule itself.
+
+**Rationale.** Found by `evals/room-doors/order.mjs`'s own §1: a provider
+retries its OWN delivery queue on its own schedule, never this platform's,
+so two real, distinctly-`provider_event_ref`'d webhooks for one subscription
+can be APPLIED in an order that does not match the order they happened in
+(a `subscription.authenticated` from before a later `subscription.activated`,
+delayed and delivered after it). Before this fix, whichever webhook's own
+write reached this table LAST won, unconditionally — proven, not assumed:
+reverting the guard and re-running the SAME 6-order enumeration for §1a and
+§1b made both fail (`context/measurements.md#ws-r140-order-battery-results`).
+A paying follower's own subscription could be silently reverted from
+`active` to `authenticated` by a stale retry, which is a real, if narrow,
+access-loss bug for a state this platform's own tier-flip predicate reads
+directly.
+
+**What would reverse it.** If Razorpay's own webhook envelope is ever
+confirmed to carry a genuine per-event sequence number or generation
+timestamp (this session found none — `parseWebhookPayload`'s own fields are
+the only ones this repo has ever parsed from it), that field should replace
+the rank table as the ordering signal, since a rank comparison cannot by
+itself distinguish two DIFFERENT deliveries that map to the SAME rank (two
+separate `active` charges in different billing cycles) — the period guard
+already carries that case; a rank-only regression there would be the sign
+this reversal is due.
+
+## `ws-r140-reminder-eligibility-rechecked-at-insert-time` (2026-09-05, WS-R140)
+
+**Decision.** `recordAndSend`'s own `insert into vy_renewal_reminder`
+(`api/_renewals.js`) re-checks the subject's live eligibility (state, mandate
+state, `cancel_at_period_end`, and the exact `period_end` it was found due
+for) at INSERT time, via an `exists` subquery against whichever of the three
+subscription tables `subject_kind` names — never trusting `dueReminders`'ll
+own SELECT, which can be arbitrarily stale by the time this statement runs
+(the sweep is a `for` loop over possibly hundreds of due subjects, each one
+a real amount of wall-clock time). Marked with `REMINDER_ELIGIBILITY_MARKER
+= "/* ws-r140-reminder-eligibility */"` for the same offline-detectability
+reason `NO_REGRESSION_MARKER` names above.
+
+**Rationale.** `evals/room-doors/order.mjs`'s own §2: a follower's own
+`cancelFollowerRenewal` (`cancelThroughSeam`) landing in the gap between
+`dueReminders`' SELECT and `recordAndSend`'s own INSERT left a reminder row
+— and, on the real sweep, a SENT message — for a subject who had, by the
+time it went out, already cancelled. Reverting the guard and re-running the
+SAME 6-order enumeration reproduced the finding (order
+`CANCEL,SWEEP,SWEEP,SWEEP,SWEEP,SWEEP`, a cancel that lands before the
+INSERT still produced a reminder row) — `context/measurements.md#ws-r140-
+order-battery-results`.
+
+**What would reverse it.** If `recordAndSend` is ever wrapped in the SAME
+database transaction as `dueReminders`' own SELECT (a real transaction
+boundary this repo's `db(sql, params)` seam does not currently expose to
+callers — see `evals/room-doors/order.mjs`'s own header on why it built a
+bespoke world rather than assuming one), the re-check becomes redundant
+with true snapshot isolation and could be dropped; short of that, dropping
+it would reopen exactly the race this decision closes.

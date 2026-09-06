@@ -92,6 +92,13 @@ import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync, existsSy
 import { tmpdir } from "node:os";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+// WS-R140 (the door battery's fifth pass, order). `order.mjs` is its own
+// module, not a §-section here, because it needs its own small in-memory
+// world (see that file's own header for why) — but its total folds into
+// THIS file's own printed total below, so the door battery stays ONE named
+// gate rather than growing a second one this workstream's brief did not ask
+// for.
+import { runOrderBattery } from "./order.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");
@@ -4773,6 +4780,17 @@ console.log("\n── case counts per attack class, per door ──");
 for (const [klass, { doors, pass: p, fail: f }] of Object.entries(byClass)) {
   console.log(`  ${klass.padEnd(20)} doors: ${[...doors].sort().join(", ")}  (${p} ok, ${f} failed)`);
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// §17. TIME AND ORDER (WS-R140, the door battery's fifth pass) — folded in
+// here so this file's own printed total, the one `scripts/verify-release.mjs`
+// gates on by name, covers it too. See `evals/room-doors/order.mjs`'s own
+// header for why it is a separate module rather than a §-section of this
+// file's own giant fixture.
+// ═════════════════════════════════════════════════════════════════════════
+const orderResult = await runOrderBattery();
+pass += orderResult.pass;
+fail += orderResult.fail;
 
 console.log(`\n${pass} ok, ${fail} failed`);
 process.exit(fail ? 1 : 0);

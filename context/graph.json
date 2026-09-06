@@ -10780,6 +10780,48 @@
       "kind": "measurement",
       "title": "Migrations 130 (mandate state), 132 (the Suite admin's weekly note) and 133 (the referral reward) applied live at their merges with constraints read back first; 131 read back as already carried and not applied; every new statement planned, the referral grant's ledger scan accepted by name with a rewrite condition.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r140-webhook-leaving-state-and-period-guard",
+      "kind": "decision",
+      "title": "applyWebhook's three lanes guard state (a rank table: created < authenticated < {active,paused} < {cancelled,expired}) and the billing period (timestamp comparison) against moving backwards when two real webhooks land out of the order they happened in, marked with a literal SQL comment (NO_REGRESSION_MARKER) so an eval can detect the fix from the real text rather than assume it.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r140-reminder-eligibility-rechecked-at-insert-time",
+      "kind": "decision",
+      "title": "recordAndSend's own INSERT re-checks the subject's live eligibility (state, mandate state, cancel_at_period_end, period_end) at insert time via an exists subquery, never trusting dueReminders' own SELECT which can be arbitrarily stale by the time a sweep's for-loop reaches this subject; marked with REMINDER_ELIGIBILITY_MARKER for the same reason.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r140-order-battery-results",
+      "kind": "measurement",
+      "title": "evals/room-doors/order.mjs: 354 orders enumerated across 4 scenarios (webhook ordering, reminder-vs-cancel, referral reward race, forget-vs-charge), 10/10 assertions pass on the fixed tree; the same suite reproduces 3 real failures on a temporarily-reverted pre-fix tree (state regression, period regression, reminder-after-cancel), while the other 2 invariants hold regardless (pre-existing guarantees this workstream did not need to fix).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r140-fake-db-reimplemented-the-fix-instead-of-detecting-it",
+      "kind": "rejection",
+      "title": "order.mjs's first draft reimplemented the leaving-state/eligibility guards directly in its fake db's own JS, so it passed 10/10 even against the pre-fix tree (a tautology, not a test); fixed by embedding literal SQL-comment markers in the real fix and gating the fake db's behaviour on detecting them, api/_quiet-hours.js's own QUIET_HOURS_MARKER idiom restated.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r140-sql-marker-placed-before-case-broke-org-billings-byte-exact-fixture-match",
+      "kind": "rejection",
+      "title": "NO_REGRESSION_MARKER placed before the `case` keyword broke evals/org-billing/run.mjs's own byte-exact match on the literal substring \"set state = case\", crashing the full eval registry with an unmodelled-statement error; fixed by moving the marker after `case`, found only by running the full registry, not this workstream's own suite alone.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r140-charge-actor-call-count-assumed-fixed-at-two",
+      "kind": "rejection",
+      "title": "order.mjs's forget-vs-charge scheduler assumed applyWebhook's follower-lane call always takes exactly 2 db calls, hanging when a forget's cascade removed the subscription before the context SELECT ran (falling through to the Suite and creator-tier lane lookups, 3 calls before throwing); fixed by padding the schedule to the true max and relying on the scheduler's own skip-when-done design.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r140-git-stash-used-by-mistake",
+      "kind": "rejection",
+      "title": "This session ran `git stash push` on api/_payments.js/api/_renewals.js to build a negative control, directly against ws-common.md's own binding law against git stash in a shared worktree clone; popped immediately and verified byte-identical with no visible harm, but replaced for every later negative control with cp + git show <rev>:<path>, which touches no shared state at all.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20882,6 +20924,36 @@
       "src": "rooms-migrations-130-132-133-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r125-mandate-state-predicate-non-redundant-only-for-pending"
+    },
+    {
+      "src": "ws-r140-webhook-leaving-state-and-period-guard",
+      "rel": "measured_by",
+      "dst": "ws-r140-order-battery-results"
+    },
+    {
+      "src": "ws-r140-reminder-eligibility-rechecked-at-insert-time",
+      "rel": "measured_by",
+      "dst": "ws-r140-order-battery-results"
+    },
+    {
+      "src": "ws-r140-order-battery-results",
+      "rel": "caused_by",
+      "dst": "ws-r140-fake-db-reimplemented-the-fix-instead-of-detecting-it"
+    },
+    {
+      "src": "ws-r140-webhook-leaving-state-and-period-guard",
+      "rel": "caused_by",
+      "dst": "ws-r140-sql-marker-placed-before-case-broke-org-billings-byte-exact-fixture-match"
+    },
+    {
+      "src": "ws-r140-order-battery-results",
+      "rel": "caused_by",
+      "dst": "ws-r140-charge-actor-call-count-assumed-fixed-at-two"
+    },
+    {
+      "src": "ws-r140-webhook-leaving-state-and-period-guard",
+      "rel": "constrains",
+      "dst": "ws-r27-subscription-cascade-still-reaches-a-live-row"
     }
   ]
 }

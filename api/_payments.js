@@ -944,6 +944,109 @@ export function parseWebhookPayload(json) {
 }
 
 /**
+ * WS-R140 (the door battery's fifth pass, order). A provider retries its OWN
+ * delivery queue on its own schedule, never this platform's — two REAL,
+ * distinctly-`provider_event_ref`'d webhooks for the same subscription can
+ * therefore be APPLIED in an order that does not match the order they
+ * actually happened in (a network-delayed `subscription.authenticated` from
+ * before a later `subscription.charged` landing after it, most concretely).
+ * Before this workstream, every one of the three lanes' `sub_update` CTEs
+ * below wrote `state`/the period bounds UNCONDITIONALLY the moment a new
+ * ledger row landed — "the leaving state" was never in the WHERE, so
+ * whichever webhook's own write happened to reach Postgres LAST won,
+ * REGARDLESS of which one actually happened last in the real world.
+ * `evals/room-doors/order.mjs`'s own §2 proved this by construction: a
+ * `subscription.activated` (state -> `active`) and a delayed
+ * `subscription.authenticated` (state -> `authenticated`, a genuinely
+ * EARLIER lifecycle step for the same mandate) interleaved in every order of
+ * a two-actor schedule left `state` reverted to `'authenticated'` in exactly
+ * the schedules where the stale event's own write ran second — a real,
+ * paying-follower-losing-access regression, not a corner nobody would hit
+ * (`context/rejected.md#ws-r140-webhook-state-regressed-on-a-late-delivery`).
+ *
+ * The fix is a RANK, not a full order (this state machine is not a total
+ * order: `active` and `paused` toggle both ways, legitimately, forever).
+ * `created` < `authenticated` < {`active`,`paused`} < {`cancelled`,`expired`}
+ * — the four positions this file's own `KIND_TO_STATE` ever actually
+ * produces. A stale delivery may only move the row SIDEWAYS or FORWARD
+ * through this rank, never back down it; once a row reaches a terminal rank
+ * (`cancelled`/`expired`) no later delivery — however it is dated — may ever
+ * move it off that rank again, matching the real-world fact that Razorpay
+ * never reactivates a cancelled mandate under the SAME `provider_subscription_ref`.
+ * Empty string (`''`, "this kind is not a state-changing kind at all")
+ * always keeps the CURRENT state, exactly as it did before this guard.
+ */
+function stateRankCaseSql(expr) {
+  return `(case ${expr}
+    when 'created' then 0
+    when 'authenticated' then 1
+    when 'active' then 2
+    when 'paused' then 2
+    when 'cancelled' then 3
+    when 'expired' then 3
+    else -1
+  end)`;
+}
+
+/** The `state` column's own CASE, guarded by `stateRankCaseSql` above — never
+ *  move backwards down the rank, whichever order two real webhooks arrive
+ *  in. `newStateParam` is the bound parameter carrying the incoming state
+ *  (`''` for a non-state-changing kind); `currentExpr` is always `s.state`,
+ *  the row this UPDATE is about to leave. */
+/** Embedded in both guard fragments below so an offline eval (never a live
+ *  Postgres, which has no notion of a SQL comment as a "feature flag") can
+ *  tell, by grepping the ACTUAL text a caller sends, whether THIS statement
+ *  carries the WS-R140 leaving-state/leaving-period guard rather than
+ *  hand-copying the guard's own JS logic into a fake `db` and testing that
+ *  copy's self-consistency instead of the real SQL — `api/_quiet-hours.js`'s
+ *  own `QUIET_HOURS_MARKER` restated for this fix, and found necessary for
+ *  the identical reason: `evals/room-doors/order.mjs`'s own §1/§4 batteries
+ *  initially reimplemented this guard's logic directly rather than gating on
+ *  this marker, which meant reverting this fix to prove a negative control
+ *  changed NOTHING about their result — the fake db was answering its OWN
+ *  question, not this file's (`context/rejected.md#ws-r140-fake-db-
+ *  reimplemented-the-fix-instead-of-detecting-it`). */
+export const NO_REGRESSION_MARKER = "/* ws-r140-no-regression */";
+
+function stateNoRegressionCaseSql(newStateParam, currentExpr) {
+  // The marker sits AFTER `case`, never before it: `evals/org-billing/run.mjs`
+  // matches the creator lane's own `sub_update` on the literal substring
+  // `"set state = case"` (line 273, "byte-exact", this file's own header
+  // restated) - a marker inserted BEFORE `case` breaks that substring and
+  // crashes the WHOLE suite with "unmodelled statement", found by running
+  // the full eval registry after this fix and not by this file's own tests
+  // alone (`context/rejected.md#ws-r140-sql-marker-placed-before-case-broke-
+  // org-billings-byte-exact-fixture-match`).
+  return `case ${NO_REGRESSION_MARKER}
+    when ${newStateParam} = '' then ${currentExpr}
+    when ${stateRankCaseSql(newStateParam)} < ${stateRankCaseSql(currentExpr)} then ${currentExpr}
+    else ${newStateParam}
+  end`;
+}
+
+/**
+ * The SAME "yesterday, delivered after today" hazard, one column over: a
+ * delayed retry of an OLDER billing cycle's own `subscription.charged` can
+ * carry a `current_period_start`/`current_period_end` EARLIER than what a
+ * later cycle's charge already stored, and `coalesce($x, s.current_period_*)`
+ * (this file's pre-WS-R140 shape) takes ANY non-null incoming value with no
+ * regard for which one is actually newer. Guarded the same way as `state`
+ * immediately above, but by comparing the two TIMESTAMPS directly rather
+ * than a rank table — an incoming bound only ever replaces the stored one
+ * when it is not earlier than what is already there, and a null incoming
+ * bound (most kinds carry no period at all) always keeps the stored value,
+ * exactly as `coalesce` already did. */
+function periodNoRegressionCaseSql(incomingParam, currentExpr) {
+  // Marker after `case`, `stateNoRegressionCaseSql`'s own header explains why.
+  return `case ${NO_REGRESSION_MARKER}
+    when ${incomingParam}::timestamptz is null then ${currentExpr}
+    when ${currentExpr} is null then ${incomingParam}::timestamptz
+    when ${incomingParam}::timestamptz >= ${currentExpr} then ${incomingParam}::timestamptz
+    else ${currentExpr}
+  end`;
+}
+
+/**
  * Verify a webhook's signature, then apply it. THE ORDER IS THE WHOLE
  * FUNCTION: `verifyWebhookSignature` runs before a single byte of the parsed
  * body is trusted, and a failed verification throws before any database
@@ -1100,9 +1203,9 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
     const rows = await db(
       `with sub_update as (
          update vy_creator_subscription s
-            set state = case when $2 = '' then s.state else $2 end,
-                current_period_start = coalesce($3::timestamptz, s.current_period_start),
-                current_period_end = coalesce($4::timestamptz, s.current_period_end),
+            set state = ${stateNoRegressionCaseSql("$2", "s.state")},
+                current_period_start = ${periodNoRegressionCaseSql("$3", "s.current_period_start")},
+                current_period_end = ${periodNoRegressionCaseSql("$4", "s.current_period_end")},
                 mandate_state = case
                   when $10 = '' then s.mandate_state
                   when s.mandate_state is distinct from $10 then $10
@@ -1166,9 +1269,9 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
          returning event_id
        ), sub_update as (
          update vy_org_subscription s
-            set state = case when $8 = '' then s.state else $8 end,
-                current_period_start = coalesce($9::timestamptz, s.current_period_start),
-                current_period_end = coalesce($10::timestamptz, s.current_period_end),
+            set state = ${stateNoRegressionCaseSql("$8", "s.state")},
+                current_period_start = ${periodNoRegressionCaseSql("$9", "s.current_period_start")},
+                current_period_end = ${periodNoRegressionCaseSql("$10", "s.current_period_end")},
                 updated_at = now()
            from candidate c
           where s.subscription_id = ($4)::uuid
@@ -1254,9 +1357,9 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
        returning event_id, subscription_id
      ), sub_update as (
        update vy_room_subscription s
-          set state = case when $10 = '' then s.state else $10 end,
-              current_period_start = coalesce($11::timestamptz, s.current_period_start),
-              current_period_end = coalesce($12::timestamptz, s.current_period_end),
+          set state = ${stateNoRegressionCaseSql("$10", "s.state")},
+              current_period_start = ${periodNoRegressionCaseSql("$11", "s.current_period_start")},
+              current_period_end = ${periodNoRegressionCaseSql("$12", "s.current_period_end")},
               mandate_state = case
                 when $13 = '' then s.mandate_state
                 when s.mandate_state is distinct from $13 then $13

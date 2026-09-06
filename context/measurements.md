@@ -14391,3 +14391,57 @@ violation) before the clean run above.
 - WS-R125: the renewal due-select keeps `vy_room_subscription_due_ix` with the new mandate predicate as a filter on the same rows; `roomOverview`'s split counts a bitmap scan on `vy_room_subscription_room_person_ix`; the two `sub_update` UPDATEs and the two status SELECTs add columns to statements whose access path was planned at their own migrations.
 - WS-R130: `maybeGrantReferralReward`'s chain on `vy_room_subscription_follower_ix`, `vy_payment_event_subscription_ix`, `vy_room_referral_credit_referred_ix`, `vy_room_referral_credit_referrer_ix`, the reward's conflict arbiter `vy_room_referral_reward_cap_ix`, and `vy_room_subscription_follower_live_ix` for the extend; the friend count's `exists` is planned as a hashed subplan over a seq scan of `vy_payment_event` filtered by kind and amount, accepted by name (one grant per first charge, a small ledger). Reversal: when the ledger passes roughly 100k rows, rewrite the count as a correlated exists per credit so it walks the subscription and event indexes.
 - WS-R126: the chat join's arrival is `recordRoomArrival`'s own statement (planned at 102, 113 and 123) with a new caller. WS-R121, R122, R123, R124, R128, R129: no new SQL.
+
+### `ws-r140-order-battery-results` (2026-09-05, WS-R140)
+
+**n = 354 orders enumerated, method = a cooperative turn-taking scheduler
+(`evals/room-doors/order.mjs`'s own `makeConductor`/`enumerateMerges`) that
+merges two (or three) real actors' own db-call sequences into every
+distinguishable interleaving of a bounded schedule, running each REAL
+exported decision function (`applyWebhook`, `roomForgetForFollower`,
+`dueReminders`, `recordAndSend`, `cancelThroughSeam`) against a fresh
+in-memory world per schedule, asserting the stated invariant after every
+run; date 2026-09-05.** Four scenarios: §1 webhook ordering (2+2 actors,
+C(4,2)=6 orders, run twice — state regression and period regression, 12
+orders total); §2 reminder-vs-cancel (5+1 actors, 6 orders, including a
+quiet-hours follower at a real UTC/IST day-boundary-crossing instant
+present in the SAME world on every schedule); §3 referral reward race (5+5
+padded actors, C(10,5)=252 orders); §4 forget-vs-charge (6+3 padded actors,
+C(9,3)=84 orders). Total: 12+6+252+84 = 354.
+
+**Result on the fixed tree: 10/10 assertions pass across all 354 orders.**
+**Result reproduced on the pre-fix tree (negative control, `git show
+048becd:api/_payments.js`/`api/_renewals.js` restored temporarily, NOT via
+`git stash` — see `context/rejected.md#ws-r140-git-stash-used-by-mistake`):**
+§1a (state) and §1b (period) both FAIL, first failing orders
+`YESTERDAY,TODAY,TODAY,YESTERDAY` and `OLD,NEW,NEW,OLD` respectively; §2a
+(reminder-vs-cancel) FAILS, first failing order
+`CANCEL,SWEEP,SWEEP,SWEEP,SWEEP,SWEEP`. §3 (referral reward) and §4
+(forget-vs-charge) hold REGARDLESS of the payments/renewals fix, correctly
+— §3's exactly-once guarantee comes from `vy_room_referral_reward`'s own
+unique index (`on conflict ... do nothing`), untouched by this workstream;
+§4's guarantee comes from `roomForgetCore`'s own unconditional follower-row
+delete (which cascades subscription/ledger/receipt rows regardless of
+state, `context/decisions.md#ws-r27-subscription-cascade-still-reaches-a-
+live-row`), also untouched. This split (2 scenarios that flip with the fix,
+2 that do not) is itself evidence the batteries are testing the real code
+rather than a hardcoded assumption — see the rejected.md entry on the
+methodology bug this session found and fixed before trusting these numbers
+at all.
+
+`node evals/room-doors/run.mjs` (the order battery folded into the SAME
+gate, its own §17): 2156 ok, 0 failed. `node evals/payments/run.mjs`: 134
+passed, 0 failed (unchanged pass count — this workstream's guard is not yet
+exercised by that suite's own out-of-order scenarios, a real, named gap:
+that suite's fixture reimplements `applyWebhook`'s follower-lane write in
+JS without the marker check `order.mjs` uses, so it cannot regress-test
+this fix; a future workstream extending `evals/payments` should port
+`order.mjs`'s `NO_REGRESSION_MARKER` check rather than leave the two
+batteries silently disagreeing about what "correct" means for this
+statement). `node evals/renewals/run.mjs`: 79 passed, 0 failed (same
+observation — its own fixture never re-derives eligibility from the marker
+either). `node evals/org-billing/run.mjs`: 59 passed, 0 failed — this one
+DOES match on exact SQL text (`"set state = case"`, line 273) and initially
+broke when this workstream's marker was placed before the `case` keyword;
+fixed by moving the marker after it (`context/rejected.md#ws-r140-sql-
+marker-placed-before-case-broke-org-billings-byte-exact-fixture-match`).
