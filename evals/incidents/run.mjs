@@ -573,6 +573,7 @@ const MIRRORED_EXPECTED_CRON_DOORS = [
   "checkins-sweep.js", "creator-push-sweep.js", "drift-watch-sweep.js", "operator-digest-sweep.js",
   "org-weekly-note-sweep.js",
   "pulse-sweep.js", "receipt-sweep.js", "renewals-sweep.js", "replica-erasure-sweep.js", "self-check.js",
+  "room-month-note-sweep.js",
 ];
 
 // Named rather than derived (law 2): a server-rendered page door. None

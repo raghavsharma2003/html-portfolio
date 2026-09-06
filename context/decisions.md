@@ -20908,3 +20908,27 @@ before the new column existed (a migration-day compatibility window,
 never a permanent second source of truth) — or be retired outright if a
 backfill copies every check-in's own window onto the new column at
 migration time.
+
+## `ws-r137-whatsapp-excluded-from-follower-month-note` (2026-09-06, WS-R137)
+
+**Decision.** The follower's monthly note (migration 136,
+`api/_room-month-note.js`) delivers over web push and Telegram, never
+WhatsApp, even though `vy_room_follower_whatsapp_chat` (128) already gives
+this follower's Room a channel there. `deliverFollowerMonthNote` only ever
+calls `webPushSend`/`sendRoomCheckinMessage`.
+
+**Rationale.** `api/_room-whatsapp.js`'s templates are Meta-approved for
+the check-in shape specifically (a title, a prompt) and a monthly summary
+carrying turn counts, a streak and a threads-revisited line is a different
+message shape than the one Meta signed off on. Sending it through an
+approved-for-something-else template would put text on the wire the
+template was never approved to carry, which is the exact defect class
+WhatsApp's own template system exists to prevent. Web push and Telegram
+are both free-form channels with no such approval gate, so the note's
+real prose can go out unmodified on either.
+
+**What would reverse it.** A monthly-note WhatsApp template gets submitted
+to and approved by Meta. At that point `deliverFollowerMonthNote` gains a
+third channel block, the same shape as its web-push and Telegram blocks,
+reading `activeWhatsappChannelFor`/whatever `api/_room-whatsapp.js` exposes
+for an outbound send on an existing chat.

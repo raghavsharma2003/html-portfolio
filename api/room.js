@@ -38,6 +38,9 @@
 //   POST /api/room {op:"receipt",  session, payment_event_id, format?}
 //                                          -> HTML (format:"html") or JSON
 //   POST /api/room {op:"receipts", session}                    -> the list
+//   POST /api/room {op:"month_note", session}   -> the follower's own last
+//                                          monthly note (WS-R137), recomputed
+//                                          fresh, never a stored snapshot
 //
 // `speak` exists only behind `ROOM_VOICE=1` (WS-R19). Unset, it 404s exactly
 // like `unknown_op` - a follower asking for voice on a deployment that has
@@ -141,6 +144,7 @@ import { readPrivateReplicaObject } from "./_replica-storage.js";
 import { withDoor } from "./_incidents.js";
 import { buildReceiptHtml } from "./_receipt.js";
 import { buildRoomExportReadableHtml } from "./_room-export-readable.js";
+import { lastFollowerMonthNote } from "./_room-month-note.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -538,6 +542,14 @@ async function handler(req, res) {
 
     if (op === "receipts") {
       return res.status(200).json(await roomReceipts(q, { session: body.session }));
+    }
+
+    if (op === "month_note") {
+      // WS-R137 (migration 136). The follower's own account-page read - no
+      // body-supplied person/follower id, `flags`/`citations`/`receipts`'
+      // own shape above. Recomputed fresh every call, never a stored count
+      // (api/_room-month-note.js's own header on why).
+      return res.status(200).json(await lastFollowerMonthNote(q, { session: body.session }));
     }
 
     if (op === "referral_link") {

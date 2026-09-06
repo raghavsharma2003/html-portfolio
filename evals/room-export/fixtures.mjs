@@ -61,6 +61,8 @@ export function freshExportState() {
     // roomExport/roomForget never touch it and this fixture has no reason
     // to model it either.
     followerReplyFlags: [],
+    // WS-R137 (migration 136). The follower's own monthly-note ledger.
+    followerMonthNotes: [],
   };
 }
 
@@ -257,6 +259,24 @@ export function exportDb(state) {
       if (has("delete from")) {
         const gone = state.followerReplyFlags.filter((r) => r.room_id === roomId && r.person_id === personId);
         state.followerReplyFlags = state.followerReplyFlags.filter((r) => !gone.includes(r));
+        return gone.map(() => ({ gone: 1 }));
+      }
+    }
+
+    // ── vy_room_follower_month_note (ROWS shape, WS-R137 migration 136) ─────
+    //    Same room_id+person_id statement shape as vy_room_follower_reply_flag
+    //    above - roomExport's `ROOM_EXPORT_EXTRA` read and roomForget's own
+    //    explicit delete, never api/_room-month-note.js's own
+    //    follower_id+room_id ledger read (not modelled here, same reason
+    //    every other transport-specific table above is not). ───────────────
+    if (has("vy_room_follower_month_note") && has("room_id = ($1)::uuid and person_id = ($2)::uuid")) {
+      const [roomId, personId] = p;
+      if (has("select *")) {
+        return state.followerMonthNotes.filter((r) => r.room_id === roomId && r.person_id === personId);
+      }
+      if (has("delete from")) {
+        const gone = state.followerMonthNotes.filter((r) => r.room_id === roomId && r.person_id === personId);
+        state.followerMonthNotes = state.followerMonthNotes.filter((r) => !gone.includes(r));
         return gone.map(() => ({ gone: 1 }));
       }
     }

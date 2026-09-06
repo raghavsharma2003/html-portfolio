@@ -2542,6 +2542,13 @@ const ROOM_EXPORT_EXTRA = Object.freeze([
   // `phone_hash` itself.
   { table: "vy_room_follower_whatsapp_chat", shape: "whatsapp_chat_pointer",
     reason: "the follower's own WhatsApp chat binding - joined/left and locale, never the phone hash itself" },
+  // WS-R137 (migration 136). The follower's own monthly-note ledger: which
+  // months got one, when, and which channels it reached - content-free
+  // (`api/_room-month-note.js`'s own header: the row itself carries no
+  // counts at all, they are recomputed fresh), but every row IS a record of
+  // when this platform reached out to this person, theirs to see in full.
+  { table: "vy_room_follower_month_note", shape: "rows",
+    reason: "the follower's own monthly-note history (which months, when, and which channels) - theirs to see in full" },
 ]);
 
 /** `api/_room-whatsapp.js`'s own function, re-derived here rather than
@@ -3051,6 +3058,22 @@ async function roomForgetCore(db, who, deps = {}) {
       [who.roomId, who.personId],
     );
     deleted.vy_room_follower_reply_flag = flagRows.length;
+  }
+
+  if (await isTableAppliedFor(deps)("vy_room_follower_month_note")) {
+    // WS-R137 (migration 136): the follower's own monthly-note ledger, this
+    // Room only. No `follower_id`/`thread_id` column carries a cascading FK
+    // (migration 136's own header: 009's WHERE-clause-binding law), so this
+    // explicit delete is the ONLY door that ever reaches this row, not
+    // "previously cascade-only, now named" the way several siblings above
+    // are - `vy_room_follower_whatsapp_chat`'s own precedent (128) restated.
+    const noteRows = await db(
+      `delete from vy_room_follower_month_note
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_follower_month_note = noteRows.length;
   }
 
   // The agent-scoped rows (`vy_fact` et al., via `roomScopedTables()`) carry

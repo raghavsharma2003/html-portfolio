@@ -657,6 +657,24 @@ const EN = {
     everyChannelNote: "This applies on every channel this AI can reach you on: push, WhatsApp and Telegram.",
     none: "You have not set quiet hours yet. Pick one the next time you start a check-in.",
   },
+
+  monthNote: {
+    /** WS-R137 (migration 136). The account page's own small "last note"
+     *  card: what this Room has been for THIS follower, once a month,
+     *  recomputed fresh from their own rows every time it renders - never a
+     *  stored count, `api/_room-month-note.js`'s own header. `title` takes
+     *  the note's own month label, already formatted by the caller
+     *  (`formatDate`'s own precedent one file over) rather than a raw
+     *  "YYYY-MM" key. */
+    heading: "Your monthly note",
+    title: (monthLabel: string) => `Your month, ${monthLabel}`,
+    turns: (n: number, days: number) => `${n} message${n === 1 ? "" : "s"} across ${days} day${days === 1 ? "" : "s"}.`,
+    streak: (n: number) => `A ${n}-day streak.`,
+    threads: (n: number) => `${n} conversation${n === 1 ? "" : "s"} you came back to.`,
+    checkins: (n: number) => `${n} check-in${n === 1 ? "" : "s"} kept.`,
+    remembered: (n: number) => `${n} thing${n === 1 ? "" : "s"} you asked to be remembered.`,
+    empty: "No monthly note yet - check back after your first full month here.",
+  },
 };
 
 /** The same shape as `EN`, in plain, functional Hindi (Devanagari). Written
@@ -1020,6 +1038,17 @@ const HI: typeof EN = {
     summary: "{zone} में {from} से {to}",
     everyChannelNote: "यह हर उस चैनल पर लागू होता है जिससे यह AI आप तक पहुंच सकता है: पुश, व्हाट्सएप और टेलीग्राम।",
     none: "आपने अभी तक शांत समय नहीं चुना। अगली बार चेक-इन शुरू करते समय इसे चुनें।",
+  },
+
+  monthNote: {
+    heading: "आपका मासिक नोट",
+    title: (monthLabel: string) => `आपका महीना, ${monthLabel}`,
+    turns: (n: number, days: number) => `${days} दिनों में ${n} संदेश।`,
+    streak: (n: number) => `${n} दिनों की लगातार श्रृंखला।`,
+    threads: (n: number) => `${n} बातचीत जिन पर आप फिर लौटे।`,
+    checkins: (n: number) => `${n} चेक-इन पूरे हुए।`,
+    remembered: (n: number) => `${n} बातें जो आपने याद रखने को कहा।`,
+    empty: "अभी तक कोई मासिक नोट नहीं - यहां अपने पहले पूरे महीने के बाद देखें।",
   },
 };
 

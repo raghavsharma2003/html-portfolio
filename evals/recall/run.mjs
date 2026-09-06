@@ -662,6 +662,14 @@ const FATE = {
   // owner-wide erasure cascade, never by either forget door this table
   // names.
   vy_room_follower_reply_flag: "forget-only",
+  // ── WS-R137: the follower's monthly note ledger (migration 136) ──
+  // "Forget-only" for the identical reason every Room table above is: no
+  // scoped "forget priya" op reaches any Room table, only the stronger door
+  // (the account-level whole wipe, lane "relational", proven below, or
+  // `roomForget`'s own explicit room_id+person_id delete, added in the same
+  // change as this migration). Content-free (a month label, a timestamp, a
+  // small array of channel names) - never a word the follower typed.
+  vy_room_follower_month_note: "forget-only",
 
   // ── the consent ledger (task #148, migration 016) ──
   // The whole wipe takes it: a device-keyed record of a person surviving the

@@ -354,6 +354,7 @@ const { listOrgMembers, attachRoom, OrgError } = ORG;
 // never `_org.js` (that file's own header on why the two stay a one-way
 // dependency).
 const ORG_WEEKLY_NOTE = await import(pathToFileURL(join(API, "_org-weekly-note.js")).href);
+const MONTH_NOTE = await import(pathToFileURL(join(API, "_room-month-note.js")).href);
 const { sendTestOrgWeeklyNote, OrgWeeklyNoteError } = ORG_WEEKLY_NOTE;
 const REPLICA = await import(pathToFileURL(join(API, "_replica.js")).href);
 const { getOwnedReplica, createSelfReplica } = REPLICA;
@@ -2785,6 +2786,10 @@ const OP_COVERAGE = {
     // this file before this workstream — §18b below is the new one.
     receipt: { classes: ["a", "b", "c"], formats: { html: { classes: ["a", "b", "c"] } } },
     receipts: { classes: ["a", "b"] },
+    // WS-R137 (migration 136). No body-supplied person/follower id at all -
+    // `lastFollowerMonthNote` (`api/_room-month-note.js`) reads only the
+    // session, `flags`'/`citations`'/`receipts`' own shape above.
+    month_note: { classes: ["a", "b"] },
   },
   "room-pay.js": {
     subscribe: { classes: ["a"] },
@@ -3951,6 +3956,13 @@ const CRON_ROOM_MODULES = [
   // module on this list, so its cron door belongs in the attacked set below,
   // never in the excluded (Meera/Replica-Lab) bucket.
   "./_payments.js",
+  // WS-R137 (migration 136): the follower's monthly note - ordinary
+  // curation, `DOOR_MODULES`'s own header names this as the same act
+  // WS-R62/WS-R74/WS-R100/WS-R103/WS-R104 each did for their own new module,
+  // restated here for the cron anchor list. room-month-note-sweep.js
+  // imports this module directly (a first-hop hit), the same shape
+  // checkins-sweep.js/creator-push-sweep.js already sit at.
+  "./_room-month-note.js",
 ];
 // The FROZEN pre-WS-R120 list — law 1's own closing sentence, checked
 // directly below rather than paraphrased.
@@ -3966,6 +3978,9 @@ const EXPECTED_CRON_DOORS = [
   // `creator-push-sweep.js` itself already sits at.
   "org-weekly-note-sweep.js",
   "pulse-sweep.js", "receipt-sweep.js", "renewals-sweep.js", "replica-erasure-sweep.js", "self-check.js",
+  // WS-R137 (migration 136): room-month-note-sweep.js imports
+  // ./_room-month-note.js directly - a first-hop CRON_ROOM_MODULES anchor.
+  "room-month-note-sweep.js",
 ].sort();
 
 function discoverCronDoors() {
@@ -4418,6 +4433,7 @@ const OP_INVOKE = {
     stats: (db, body) => RS.roomStats(db, { slug: body.room }, fuzzDeps),
     export: (db, body) => roomExport(db, { session: body.session }, fuzzDeps),
     forget: (db, body) => roomForget(db, { session: body.session }, fuzzDeps),
+    month_note: (db, body) => MONTH_NOTE.lastFollowerMonthNote(db, { session: body.session }, fuzzDeps),
   },
   "room-pay.js": {
     subscribe: (db, body) => startFollowerSubscription(db, { session: body.session }),

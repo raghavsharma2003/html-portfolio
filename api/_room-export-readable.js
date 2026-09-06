@@ -354,6 +354,13 @@ export const TABLE_COPY = Object.freeze([
     en: "A free month you earned because three friends you invited joined and paid.",
     hi: "एक मुफ़्त महीना जो आपने कमाया क्योंकि आपके बुलाए तीन दोस्त शामिल हुए और उन्होंने भुगतान किया।",
   },
+  // WS-R137 (migration 136). Which months this room sent you a note about
+  // yourself, when, and on which channel - never the note's own counts
+  // (recomputed fresh, never stored, api/_room-month-note.js's own header).
+  { table: "vy_room_follower_month_note",
+    en: "Which months this room sent you a note about your own activity, and on which channel.",
+    hi: "किन महीनों में इस रूम ने आपकी अपनी गतिविधि के बारे में आपको एक नोट भेजा, और किस माध्यम से।",
+  },
 ]);
 
 /** `TABLE_COPY`'s own name -> entry index, built once. Kept separate from

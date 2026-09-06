@@ -191,7 +191,8 @@
     { "path": "/api/self-check", "schedule": "30 2 * * *" },
     { "path": "/api/operator-digest-sweep", "schedule": "15 3 * * *" },
     { "path": "/api/receipt-sweep", "schedule": "0 2 * * *" },
-    { "path": "/api/org-weekly-note-sweep", "schedule": "0 5 * * 1" }
+    { "path": "/api/org-weekly-note-sweep", "schedule": "0 5 * * 1" },
+    { "path": "/api/room-month-note-sweep", "schedule": "0 6 * * *" }
   ],
   "functions": {
     "api/room-card.js": {

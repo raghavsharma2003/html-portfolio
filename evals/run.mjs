@@ -2761,6 +2761,29 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "quiet-hours": "quiet-hours/run.mjs",
+  // WS-R137 (migration 136). The follower's monthly note
+  // (api/_room-month-note.js, over api/room.js's new "month_note" op and the
+  // daily cron, api/room-month-note-sweep.js) — built from the follower's
+  // own lane alone, never a model call. BUILDER: `computeFollowerMonthNote`
+  // takes no import of its own (a static scan of its own extracted source
+  // proves it), floor-free (unlike api/_org-weekly-note.js's admin-facing
+  // count, there is no n>=5 floor here — this note is shown back to the
+  // SAME person the rows are about). STREAK: consecutive-day math checked
+  // against a real gap. MEMORY PREDICATE: a follower with memory off gets
+  // `remembered_things_count: null`, the same `memory_consent_at is not
+  // null` check the reply lane uses. IDEMPOTENCY: the unique (follower_id,
+  // room_id, month_key) index is the whole mechanism, proven with an
+  // in-memory ledger. QUIET HOURS: the due-select carries
+  // `QUIET_HOURS_MARKER`, with a required negative control (a struck copy
+  // with the splice removed does NOT carry it). REQUIRED NEGATIVE CONTROL:
+  // the builder handed a world with a SECOND follower's rows in the same
+  // table refuses them by its own WHERE clause; a struck copy with that
+  // clause removed DOES leak the other follower's count — proving the check
+  // is real. `evals/room-leak/run.mjs`'s own layer 17 restates the two-
+  // follower world check as a release-gate layer.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-month-note": "room-month-note/run.mjs",
 };
 
 const argv = process.argv.slice(2);

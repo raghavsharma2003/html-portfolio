@@ -425,6 +425,22 @@ function render() {
         threshold: 3,
         reward: { granted_at: "2026-08-01T00:00:00.000Z", period_extended_to: "2026-10-01T00:00:00.000Z", year_key: "2026-27" },
       }}
+      // WS-R137 (migration 136): the SAME "no network under this fixture"
+      // reasoning as `fixtureReferralProgress` above - a real, populated
+      // note so the account screen's own glyph pass renders every one of
+      // this card's optional lines (streak, threads, check-ins,
+      // remembered-things) rather than only the always-present turns line.
+      fixtureMonthNote={{
+        month_key: "2026-08",
+        turns_this_month: 42,
+        days_active_this_month: 9,
+        streak_days: 4,
+        threads_revisited: 2,
+        checkins_kept: 3,
+        remembered_things_count: 6,
+        built_at: "2026-09-01T06:00:00.000Z",
+        delivered_channels: ["web_push"],
+      }}
       // WS-R43: the three screens no fixture reached before.
       fixtureCapped={screen === "capped"}
       fixtureCapOffer={screen === "capped" ? FIXTURE_CAP_OFFER : null}

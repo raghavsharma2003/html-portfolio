@@ -1024,6 +1024,16 @@
     border-top: var(--hairline) solid var(--line);
   }
 
+  /* ── the follower's monthly note (WS-R137, migration 136): `.room-checkins-
+   *  push`'s own divider rule, restated under its own name so a real-browser
+   *  test's own `.room-checkins-push:not(...)` selector for the push toggle
+   *  never also matches this card. */
+  .room-month-note {
+    margin-top: var(--space-item);
+    padding-top: var(--space-item);
+    border-top: var(--hairline) solid var(--line);
+  }
+
   /* ── check-ins on WhatsApp (WS-R29): absent entirely on a deployment with
    *  ROOM_WHATSAPP_TEMPLATE_APPROVED unset, `.room-checkins-push`'s own rule
    *  one channel over. */

@@ -177,6 +177,11 @@ function seedEverySurface(state, { roomId, personId, threadId, agentId }) {
     flag_id: "70000000-0000-4000-a000-000000000008", room_id: roomId, person_id: personId,
     reply_sha256: "a".repeat(64), reason: "wrong",
   });
+  // WS-R137 (migration 136).
+  state.followerMonthNotes.push({
+    note_id: "70000000-0000-4000-a000-000000000009", room_id: roomId, person_id: personId,
+    month_key: "2026-08", delivered_channels: ["web_push"],
+  });
 }
 
 /** Every extra-table state array WS-R27 added, keyed by the manifest table
@@ -192,6 +197,7 @@ const EXTRA_STATE_KEYS = {
   vy_room_push_subscription: "pushSubscriptions",
   vy_room_handoff: "roomHandoffs",
   vy_room_follower_reply_flag: "followerReplyFlags",
+  vy_room_follower_month_note: "followerMonthNotes",
 };
 
 function survivorTables(state, roomId, personId) {
@@ -244,6 +250,8 @@ async function runRealWorld() {
     "vy_room_handoff", "vy_room_follower_day", "vy_room_checkin_delivery", "vy_room_voice_usage",
     // WS-R67 (migration 116).
     "vy_room_follower_reply_flag",
+    // WS-R137 (migration 136).
+    "vy_room_follower_month_note",
   ];
   const missingFromExport = EXPECT_IN_EXPORT.filter((t) => !dump.tables[t]);
   ok("roomExport contains a row/count from every one of the ten extra tables (plus the thread)",

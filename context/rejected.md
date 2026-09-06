@@ -14793,3 +14793,30 @@ here too because this is the first time the trap was hit inside a BRAND
 NEW file rather than an edit to an existing one, which is worth knowing:
 grep `context/rejected.md` for a table name before writing ANY sentence
 that discusses it, even in a file that has never existed before.
+
+## `ws-r137-no-floor-on-followers-own-month-note` (2026-09-06, WS-R137)
+
+**What was considered.** Before building the follower's monthly note
+(migration 136), applying `api/_org-weekly-note.js`'s own n>=5 admin
+floor to `computeFollowerMonthNote`'s counts, the same way that file
+floors a Room's weekly numbers before showing them to a Suite admin.
+
+**Why it was rejected.** The floor on the admin-facing note exists to
+protect a FOLLOWER's privacy from a Suite admin who is not that follower
+and could otherwise infer identity from a small number
+(`context/decisions.md`'s own entries for that workstream). The follower's
+monthly note is shown back to the exact same person the rows are about:
+there is no third party a small number could deanonymize, so a floor here
+would only hide a real follower's own activity from themselves for no
+protective purpose, directly working against the point of showing a
+follower "what their own Room has been for them" (this workstream's own
+product paragraph). `evals/room-month-note/run.mjs`'s own §2 checks this
+directly: a single turn on a single day is reported as exactly 1, never
+nulled or rounded away.
+
+**What would reverse it.** Nothing in this product's own scope: a floor
+belongs on a count shown to someone OTHER than the person the rows
+describe. If a future surface ever shows one follower's month-note counts
+to a second party (a creator, an admin, another follower), THAT surface
+needs its own floor at the point of disclosure, never inside
+`computeFollowerMonthNote` itself.
