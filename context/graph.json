@@ -10780,6 +10780,36 @@
       "kind": "measurement",
       "title": "Migrations 130 (mandate state), 132 (the Suite admin's weekly note) and 133 (the referral reward) applied live at their merges with constraints read back first; 131 read back as already carried and not applied; every new statement planned, the referral grant's ledger scan accepted by name with a rewrite condition.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r133-referral-friend-count-correlated-exists",
+      "kind": "decision",
+      "title": "Friend-count exists rewritten as two-level correlated exists (subscription then event), old join-exists frozen as a negative control",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r133-receipt-sweep-kind-aware-zero-amount",
+      "kind": "decision",
+      "title": "backfillReceipts admits referral_reward at exactly amount_inr=0 alongside a real charge's amount_inr>0, kind-aware not a blanket >=0",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r133-room-leak-layer-17-referral-isolation-and-race",
+      "kind": "decision",
+      "title": "room-leak layer 17 seeds referral credits/rewards and proves isolation; a transaction-shim fake db proves exactly one reward under racing webhooks",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r133-referral-reward-hardening-suite-counts-2026-09-06",
+      "kind": "measurement",
+      "title": "room-referrals 59->63 (+4 s10 parity, 220 histories 0 disagreements), receipt-sweep 23->32 (+9 s2b), room-leak 269->308 (+39 layer17); payments/room-receipt unchanged",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r133-manual-tree-revert-for-baseline-gate-left-a-confusing-half-state",
+      "kind": "rejection",
+      "title": "Retrofitting the untouched-tree baseline gate AFTER work was committed, by manually reverting tracked files and staging the revert while HEAD stayed on the WIP commit, produced a state a naive commit would have silently discarded as real work; recovered with git restore --staged --worktree, never git stash",
+      "at": "2026-09-06"
     }
   ],
   "edges": [
@@ -20882,6 +20912,41 @@
       "src": "rooms-migrations-130-132-133-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r125-mandate-state-predicate-non-redundant-only-for-pending"
+    },
+    {
+      "src": "ws-r133-referral-friend-count-correlated-exists",
+      "rel": "measured_by",
+      "dst": "ws-r133-referral-reward-hardening-suite-counts-2026-09-06"
+    },
+    {
+      "src": "ws-r133-referral-friend-count-correlated-exists",
+      "rel": "caused_by",
+      "dst": "rooms-migrations-130-132-133-live-verification-2026-09-05"
+    },
+    {
+      "src": "ws-r133-referral-friend-count-correlated-exists",
+      "rel": "part_of",
+      "dst": "ws-r130-referral-reward"
+    },
+    {
+      "src": "ws-r133-receipt-sweep-kind-aware-zero-amount",
+      "rel": "part_of",
+      "dst": "ws-r130-referral-reward"
+    },
+    {
+      "src": "ws-r133-receipt-sweep-kind-aware-zero-amount",
+      "rel": "measured_by",
+      "dst": "ws-r133-referral-reward-hardening-suite-counts-2026-09-06"
+    },
+    {
+      "src": "ws-r133-room-leak-layer-17-referral-isolation-and-race",
+      "rel": "part_of",
+      "dst": "ws-r130-referral-reward"
+    },
+    {
+      "src": "ws-r133-room-leak-layer-17-referral-isolation-and-race",
+      "rel": "measured_by",
+      "dst": "ws-r133-referral-reward-hardening-suite-counts-2026-09-06"
     }
   ]
 }

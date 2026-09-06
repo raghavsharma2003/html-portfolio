@@ -14793,3 +14793,39 @@ here too because this is the first time the trap was hit inside a BRAND
 NEW file rather than an edit to an existing one, which is worth knowing:
 grep `context/rejected.md` for a table name before writing ANY sentence
 that discusses it, even in a file that has never existed before.
+
+## `ws-r133-manual-tree-revert-for-baseline-gate-left-a-confusing-half-state`
+
+**What was tried.** To run "the untouched-tree baseline gate" (`ws-common.md`'s
+own instruction: run it BEFORE changing anything; if work must be set
+aside, commit a WIP commit and `git reset --soft HEAD~1`), the session that
+built this workstream's actual hardening FIRST, then tried to retrofit the
+baseline step afterward by manually editing all six touched files back to
+their pre-change (`048becd`) text and `git add`-ing that reversion, while
+leaving `HEAD` pointed at the WIP commit (`a66e3d0`) that already held the
+real work. The process was killed at exactly that point, leaving `git
+status` showing "Changes to be committed" that were a REVERSION of the
+real work, with the real work sitting, recoverable, only in the `a66e3d0`
+commit itself.
+
+**What broke.** Nothing was lost, but the state was easy to misread: a
+naive `git commit` at that point would have committed the REVERT, silently
+discarding six files' worth of finished hardening while `git log` still
+showed the WIP commit as if it were "kept." The fix for a session resuming
+this state is `git restore --staged --worktree .` (recovers `HEAD`'s real
+content, since the index and worktree were the only things that had
+drifted from `HEAD`) — never `git stash` (shared across worktrees, already
+burned a wave-eighteen sibling,
+`ws-r21-git-stash-is-shared-across-concurrent-worktree-sessions`) and never
+a blind `git commit` or `git reset --hard` without first diffing `HEAD`
+against what is staged.
+
+**The fix.** Follow `ws-common.md`'s own ordering literally: run the
+untouched-tree baseline gate BEFORE writing any code, not after, so there
+is never a committed-then-reverted intermediate state to get killed inside
+of. If a baseline comparison is genuinely needed after work already
+exists, get it by reading the base commit's file content into a temp path
+(`git show <base>:<path> > /tmp/x`, or swap the tracked file's content
+in place and `git checkout -- <path>` to restore, never overwrite-and-
+forget) or a disposable second worktree, never by rewriting the tracked
+files of the branch that already holds the real work.
