@@ -40,7 +40,45 @@
 
   .ops-board__meta {
     font-size: var(--text-small);
-    color: var(--ink-faint);
+    /* WS-R135. `--ink-faint` measures below AA (studio.css's own token
+     * comment: 3.47:1 to 4.1:1 against the backgrounds it paints on, "a
+     * SECOND, AA-safe token, reserved for the exact selectors this gate's
+     * axe scan actually caught failing"). This board was never rendered by
+     * the accessibility gate before this workstream added `studio:ops`/
+     * `studio-hi:ops` (`context/decisions.md#ws-r62-ops-board-push-copy-
+     * stays-english-inline`'s own restatement: "the accessibility gate
+     * never renders it"), so this selector is the FIRST time this rule
+     * measured it — the fix is the same reserved token, applied here for
+     * the same reason, never a wider `--ink-faint` recolour. */
+    color: var(--ink-faint-aa);
+  }
+
+  /* WS-R135. The board's own language switch - `studio-shell.css`'s
+   * `.studio-lang-switch`/`.studio-lang-btn` restated for this standalone
+   * mount rather than imported: this file's own header rule ("a layout
+   * that only exists as a diff inside a contended file loses a merge")
+   * applies just as much to importing another surface's contended
+   * stylesheet for two small rules. Both language names always shown, the
+   * current one `aria-pressed` (announced as state, never disabled). */
+  .ops-board__lang-switch {
+    display: flex;
+    gap: var(--space-hair);
+  }
+  .ops-board__lang-btn {
+    appearance: none;
+    border: var(--hairline) solid var(--ink-faint);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: var(--radius-control);
+    padding: var(--space-hair) var(--space-tight);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+  }
+  .ops-board__lang-btn[aria-pressed="true"] {
+    background: var(--forest);
+    color: var(--paper);
+    border-color: var(--forest);
   }
 
   .ops-board__refresh {
@@ -105,7 +143,16 @@
 
   .ops-board__slug {
     font-size: var(--text-small);
-    color: var(--ink-faint);
+    /* WS-R135. Same measured fix as `.ops-board__meta` above. */
+    color: var(--ink-faint-aa);
+    /* WS-R135. `--measure` (68ch, tokens.css) - this class also carries the
+     * board's longest sentences (the Sweeps/Self-check/Incidents/Digest
+     * card descriptions), which ran to 120cpl at the tablet width before
+     * this fix (`scripts/check-layout.mjs --only studio:ops`, MAX_CPL=115).
+     * A no-op on this class's other, short inline `<span>` uses (a slug, a
+     * badge annotation): max-width has no effect on a non-replaced inline
+     * element, only on the block-level `<p>` this class is ALSO applied to. */
+    max-width: var(--measure);
   }
 
   .ops-board__badge {
@@ -120,13 +167,34 @@
     font-weight: var(--weight-medium);
   }
   .ops-board__badge--done { background: var(--state-done-soft); color: var(--state-done); }
-  .ops-board__badge--waiting { background: var(--state-waiting-soft); color: var(--state-waiting); }
+  /* WS-R135. `--state-waiting` on `--state-waiting-soft` measures 4.20:1 at
+   * this badge's tiny `--text-micro` size (measured directly, the same way
+   * `--ink-faint-aa` above was), below the 4.5:1 floor normal-size text
+   * needs - the other three badge pairs (`--state-done`/`-soft` 8.57:1,
+   * `--state-running`/`-soft` 5.94:1, `--state-stopped`/`-soft` 6.16:1) all
+   * clear it. `--state-waiting` is used in 10+ places across `studio.css`
+   * (the wizard dots, the voice-unlock eyebrow); darkening the shared token
+   * would recolour every one of them sight-unseen, so this is a LOCAL
+   * override, scoped to the one selector this board's own axe scan actually
+   * caught failing - `--ink-faint-aa`'s own precedent, restated for a badge
+   * pair instead of a text token. #a64e1d measures 4.79:1 against
+   * `--state-waiting-soft`. */
+  .ops-board__badge--waiting { background: var(--state-waiting-soft); color: #a64e1d; }
   .ops-board__badge--running { background: var(--state-running-soft); color: var(--state-running); }
   .ops-board__badge--stopped { background: var(--state-stopped-soft); color: var(--state-stopped); }
 
   .ops-board__stats {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    /* WS-R135. `auto-fill` reserves as many tracks as the row COULD hold at
+     * its widest, then leaves the ones a shorter stat list does not fill
+     * empty rather than collapsing them - exactly the "a grid reserves a
+     * column for a child that is not in the DOM" shape this gate's own
+     * header names as its founding defect, caught here on the two-stat
+     * `ReceiptsCard` and the three-stat `PhaseGateCard` rows (170-647px
+     * wasted, measured by `scripts/check-layout.mjs --only studio:ops`).
+     * `auto-fit` collapses an empty track to 0 and lets the `1fr` on the
+     * real ones absorb the freed space instead. */
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: var(--space-row);
   }
 
@@ -142,7 +210,8 @@
   }
   .ops-board__stat-label {
     font-size: var(--text-micro);
-    color: var(--ink-faint);
+    /* WS-R135. Same measured fix as `.ops-board__meta` above. */
+    color: var(--ink-faint-aa);
     letter-spacing: var(--tracking-caps);
     text-transform: uppercase;
   }
@@ -161,7 +230,8 @@
     font-size: var(--text-micro);
     letter-spacing: var(--tracking-caps);
     text-transform: uppercase;
-    color: var(--ink-faint);
+    /* WS-R135. Same measured fix as `.ops-board__meta` above. */
+    color: var(--ink-faint-aa);
     font-weight: var(--weight-medium);
   }
   .ops-board__table td.ops-board__num { text-align: right; }

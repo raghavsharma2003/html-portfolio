@@ -268,6 +268,32 @@ const TARGETS = [
     minPanels: 2,
     onlyViewport: "phone",
   },
+  // WS-R135. The ops board is Hindi now (`context/decisions.md#ws-r135-ops-
+  // board-gains-its-own-locale-resolution`), so it needs its own measured
+  // target the same way every other Hindi-bearing screen in this file does
+  // -- a NEW screen state no earlier target reached (`layoutFixture.tsx`'s
+  // own `/api/ops` fixture route, counts only). `?mode=ops` mounts `OpsBoard`
+  // instead of `StudioApp` in the SAME fixture (`layoutFixture.tsx`'s own
+  // `OPS_MODE` branch) so this gate needs no second HTML entry to keep in
+  // sync with the studio's stub-fetch/auth-seed plumbing.
+  {
+    name: "studio:ops",
+    fixture: "studio-layout-fixture.html",
+    query: () => "mode=ops",
+    steps: ["ops"],
+    mounted: ".ops-board",
+    panels: ".ops-board__panel, .ops-board__room",
+    minPanels: 2,
+  },
+  {
+    name: "studio-hi:ops",
+    fixture: "studio-layout-fixture.html",
+    query: () => "mode=ops&lang=hi",
+    steps: ["ops"],
+    mounted: ".ops-board",
+    panels: ".ops-board__panel, .ops-board__room",
+    minPanels: 2,
+  },
   {
     name: "room",
     fixture: "room-layout-fixture.html",

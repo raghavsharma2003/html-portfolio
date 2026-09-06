@@ -10780,6 +10780,24 @@
       "kind": "measurement",
       "title": "Migrations 130 (mandate state), 132 (the Suite admin's weekly note) and 133 (the referral reward) applied live at their merges with constraints read back first; 131 read back as already carried and not applied; every new statement planned, the referral grant's ledger scan accepted by name with a rewrite condition.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r135-ops-board-gains-its-own-locale-resolution",
+      "kind": "decision",
+      "title": "OpsBoard.tsx converted whole to bilingual copy.ts/hiCopy.ts, resolving its own locale via studioLocalePreference.ts with replica: null, reversing WS-R62/WS-R88/WS-R123's English-only decisions now that their own reversal conditions are met.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r135-readiness-eval-banned-word-cascade-from-a-short-backtick-span",
+      "kind": "rejection",
+      "title": "A short backtick-quoted identifier (kind/door/note/pct1) in copy.ts's new OpsCopy header cascaded evals/readiness/run.mjs's banned-word scanner 104,403 characters into an unrelated pre-existing comment; fixed by lengthening/dropping the short spans, same class as WS-R122.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r135-ops-board-hindi-gate-results",
+      "kind": "measurement",
+      "title": "130 leaf strings converted per locale in copy.ts/hiCopy.ts's ops section; studio:ops/studio-hi:ops layout and accessibility targets both zero findings after fixing a real pre-existing scrollable-table defect; 21/21 gate checks each observed passing (two confirmed standalone after port-contention EADDRINUSE in a full run).",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20882,6 +20900,31 @@
       "src": "rooms-migrations-130-132-133-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r125-mandate-state-predicate-non-redundant-only-for-pending"
+    },
+    {
+      "src": "ws-r135-ops-board-gains-its-own-locale-resolution",
+      "rel": "supersedes",
+      "dst": "ws-r62-ops-board-push-copy-stays-english-inline"
+    },
+    {
+      "src": "ws-r135-ops-board-gains-its-own-locale-resolution",
+      "rel": "supersedes",
+      "dst": "ws-r88-ops-board-digest-copy-stays-english-inline"
+    },
+    {
+      "src": "ws-r135-ops-board-gains-its-own-locale-resolution",
+      "rel": "supersedes",
+      "dst": "ws-r123-ops-board-doors-observed-denominator-english-only"
+    },
+    {
+      "src": "ws-r135-readiness-eval-banned-word-cascade-from-a-short-backtick-span",
+      "rel": "caused_by",
+      "dst": "ws-r135-ops-board-gains-its-own-locale-resolution"
+    },
+    {
+      "src": "ws-r135-ops-board-gains-its-own-locale-resolution",
+      "rel": "measured_by",
+      "dst": "ws-r135-ops-board-hindi-gate-results"
     }
   ]
 }

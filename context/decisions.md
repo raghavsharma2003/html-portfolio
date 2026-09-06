@@ -20908,3 +20908,91 @@ before the new column existed (a migration-day compatibility window,
 never a permanent second source of truth) — or be retired outright if a
 backfill copies every check-in's own window onto the new column at
 migration time.
+
+## `ws-r135-ops-board-gains-its-own-locale-resolution` (2026-09-05, WS-R135)
+
+**Decision.** `OpsBoard.tsx` (`?mode=ops`) is converted whole to
+`STUDIO_COPY_TABLE`/`hiCopy.ts`'s new `ops` section (130 leaf strings, both
+locales), reversing the standing `ws-r62-ops-board-push-copy-stays-english-
+inline` / `ws-r88-ops-board-digest-copy-stays-english-inline` /
+`ws-r123-ops-board-doors-observed-denominator-english-only` decisions now
+that their own named reversal conditions are met. The page is still never
+mounted inside `StudioApp`/`StudioLocaleProvider` (it remains `main.tsx`'s
+own standalone `?mode=ops` mount, `ws-r21`'s own separation), so `OpsBoard`
+now resolves its OWN locale via `studioLocalePreference.ts`'s existing pure
+chain called with `replica: null` (an operator has no `vy_replica` row, so
+the chain collapses to "`?lang=` wins, else the remembered local choice
+[`vyakti.studio.locale.v1`, the same key], else `en`" — the exact pre-auth
+order the sign-in screen already uses for the identical reason) and wraps
+its own tree in `StudioLocaleProvider` directly rather than inheriting one.
+A new `OpsLanguageSwitch` (two always-visible buttons, `aria-pressed` for
+state, `studio-shell.css`'s `.studio-lang-switch` pair restated locally
+rather than imported into a contended file) lets an operator switch either
+on the sign-in screen or the loaded board. The Incidents card's "N of N
+doors observed" badge (`ws-r123`'s own open item) becomes
+`o.incidents.doorsObservedTemplate`, a copy function of two numbers, in
+both locales. Server-computed prose is deliberately left untranslated by
+the SAME rule the rest of `copy.ts`'s table already follows: a sweep's own
+name, an incident's `kind`/`door`, a delivery-state key, a Room's own
+`display_name`, an env-manifest section title or name, and every `note`
+field `api/_funnel.js`/`api/_phase-gate.js` compose are read straight off
+the wire in both locales, unchanged by this workstream — `copy.ts`'s new
+`OpsCopy` interface header names the same list.
+
+**Rationale.** All three entries this decision reverses named the exact
+same reversal condition in writing: no locale switcher and no
+`StudioLocaleProvider` mount existed for a page structurally unable to
+read Hindi, so building that infrastructure for one denominator string (or
+one card) would have been a disproportionate, out-of-scope change at the
+time. This workstream's own brief asked for exactly that infrastructure,
+so the condition is met in the same commit that needs it, not sidestepped.
+Reusing `studioLocalePreference.ts`'s existing chain (rather than a new
+one) means the two-line rule that already IS this codebase's pre-auth
+locale order gets a second reader instead of a second implementation, and
+the accessibility gate never renders this page before this workstream
+(confirmed by grep, `ws-r123`'s own finding) — `scripts/check-accessibility.mjs`
+gains `studio:ops`/`studio-hi:ops`, reusing `check-layout.mjs`'s own
+fixture and query shapes verbatim, which is what actually caught three
+pre-existing, never-before-measured defects on this page: `--ink-faint` on
+`.ops-board__meta`/`.ops-board__slug`/`.ops-board__stat-label`/table
+headers measures below AA (fixed with the already-reserved
+`--ink-faint-aa` token, no wider recolour); `.ops-board__badge--waiting`'s
+text color measures 4.20:1 at this badge's `--text-micro` size against
+`--state-waiting-soft` (fixed with a LOCAL override, `#a64e1d`, 4.79:1,
+scoped to this one selector — `--state-waiting` is shared by 10+ other
+selectors in `studio.css` a wider recolour would have touched sight-
+unseen); and four `overflowX: auto` table wrappers had no `tabIndex={0}`,
+so a scrollable region with no other focusable content was keyboard-dead
+(axe `scrollable-region-focusable`, WCAG 2.1.1) — fixing only the four
+wrapping `div`s left ONE further instance the first patched-tree
+`verify-release.mjs` run caught directly: `ops-board.css`'s own
+`@media (max-width: 640px) { .ops-board__table { overflow-x: auto } }`
+(restating `design/mobile.css`'s `.studio-main table` rule for this
+standalone mount's own scoped sheet, which is never inside `.studio-main`)
+makes the `<table>` element itself a SECOND, independent scroll box below
+640px — axe's own reported selector named the `table`, not the `div` —
+so `tabIndex={0}` was added to all four `<table>` elements too, alongside
+their wrapping `div`s; a second, always-present tab stop on whichever one
+is not the actual scroll boundary at a given width is a harmless no-op.
+See `context/rejected.md#ws-r135-readiness-eval-banned-word-cascade-from-
+a-short-backtick-span` for a second, unrelated defect this same first
+patched-tree gate run caught. `check-layout.mjs`'s new
+`studio:ops`/`studio-hi:ops` targets caught two more:
+`.ops-board__slug`'s longest sentences ran to ~120cpl before a `max-width:
+var(--measure)` cap, and `.ops-board__stats`' `grid-template-columns:
+repeat(auto-fill, ...)` reserved empty tracks (170-647px wasted) on the
+two- and three-stat cards, fixed by switching to `auto-fit`. `layoutFixture.tsx`
+gains a fake `/api/ops` read (counts only, `OpsOverview`-typed) rather than
+a second HTML entry, so the ops-board targets share the SAME fixture and
+stub-fetch/auth-seed plumbing every other studio target already does.
+`evals/studio-locale/run.mjs`'s `TIER_1_FILES`/scanner mechanism (already
+generic, no separate hand-written test) is the NEGATIVE CONTROL the brief
+asked for: `OpsBoard.tsx` dropped from `TIER_2_ALLOWLIST` means any literal
+JSX text left in the file now fails that suite by name, the same way every
+other Tier-1 studio file already does.
+
+**Reversal condition.** None named going forward — this is itself the
+reversal of three earlier decisions' own named conditions. A future
+reversal would need a product reason to take the board English-only again
+(e.g. the operator population becoming exclusively non-Hindi-reading),
+which nothing in this workstream's brief or this repo's history suggests.

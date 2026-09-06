@@ -21,6 +21,7 @@
  */
 import ReactDOM from "react-dom/client";
 import StudioApp from "./StudioApp";
+import OpsBoard from "./OpsBoard";
 import "./design/tokens.css";
 import "./studio.css";
 import "./design/honesty.css";
@@ -29,8 +30,13 @@ import "./design/mobile.css";
 // the stylesheet the real studio loads or it would measure an unstyled panel
 // and report OK about a layout nobody ships.
 import "./design/review-queue.css";
+// WS-R135. `OpsBoard.tsx` is a standalone mount with its own scoped sheet -
+// never loaded by `StudioApp`, so this fixture has to load it itself or the
+// `studio:ops`/`studio-hi:ops` targets would measure an unstyled page.
+import "./design/ops-board.css";
 import type { Replica } from "./types";
 import { loadStudioCopy, STUDIO_COPY_TABLE } from "./copy";
+import type { OpsOverview } from "./opsApi";
 
 /** WS-R52. `src/room/layoutFixture.tsx`'s own `flattenHiStrings` -- the
  *  measurement algorithm it feeds (`scripts/check-layout.mjs`'s `glyphAudit`)
@@ -241,6 +247,93 @@ const ROUTES: Record<string, unknown> = {
     limits: { perOwnerPerDay: 4, maxDurationMs: 7_200_000, maxAudioBytes: 536_870_912, globalPerDay: 20 },
   },
   "/api/mirror-call": { contract: null, call: null },
+  // WS-R135. A fake `ops` read, counts only, so the `studio:ops`/`studio-hi:ops`
+  // layout targets exercise a POPULATED board rather than the sign-in
+  // screen alone - `layoutFixture.tsx`'s own header rule (the empty and
+  // blocked states carry the longest prose) restated for a board most of
+  // whose panels only mount at all once `overview` resolves. Only StudioApp's
+  // OWN mode ever calls the OTHER routes above; only `OpsBoard` calls this
+  // one, so this entry is dead weight to the `studio`/`studio-hi` targets
+  // and load-bearing to `studio:ops`/`studio-hi:ops`.
+  "/api/ops": {
+    generated_at: "2026-09-05T09:00:00.000Z",
+    rooms: [
+      {
+        room_id: "fixture-room-ops-0001", slug: "anjali-physics", display_name: "Anjali Physics",
+        published: true, followers_total: 412, followers_paid: 96, joined_last_7d: 18,
+        messages_last_24h: 803, at_cap_this_month: 4, voice_seconds_this_month: 51_200,
+        active_check_ins: 3, deliveries_last_24h: { delivered: 11, skipped_cap: 1 },
+        pulse_opt_ins: 61, latest_pulse_week: "2026-W35",
+        subscriptions: { created: 100, authenticated: 98, active: 96, paused: 1, cancelled: 1, expired: 0 },
+        revenue_this_month_inr: 48_300, drift_state: "steady", drift_computed_at: "2026-09-04T00:00:00.000Z",
+      },
+      {
+        room_id: "fixture-room-ops-0002", slug: "quiet-room", display_name: "Quiet",
+        published: false, followers_total: 0, followers_paid: 0, joined_last_7d: 0,
+        messages_last_24h: 0, at_cap_this_month: 0, voice_seconds_this_month: 0,
+        active_check_ins: 0, deliveries_last_24h: {},
+        pulse_opt_ins: 0, latest_pulse_week: null,
+        subscriptions: { created: 0, authenticated: 0, active: 0, paused: 0, cancelled: 0, expired: 0 },
+        revenue_this_month_inr: 0, drift_state: "no_report", drift_computed_at: null,
+      },
+    ],
+    sweeps: [
+      { sweep: "drift-watch", path: "/api/cron/drift-watch", schedule: "0 3 * * *", last_started_at: "2026-09-05T03:00:00.000Z", last_finished_at: "2026-09-05T03:01:00.000Z", last_outcome: "ok", last_error_code: "", counts: {}, staleness: "fresh" },
+      { sweep: "checkins", path: "/api/cron/checkins", schedule: "*/10 * * * *", last_started_at: "2026-09-03T09:00:00.000Z", last_finished_at: "2026-09-03T09:00:05.000Z", last_outcome: "failed", last_error_code: "timeout", counts: {}, staleness: "stale" },
+      { sweep: "pulse", path: "/api/cron/pulse", schedule: null, last_started_at: null, last_finished_at: null, last_outcome: "never_ran", last_error_code: "", counts: {}, staleness: "never_ran" },
+    ],
+    self_check: {
+      last_started_at: "2026-09-05T02:00:00.000Z", last_outcome: "partial", staleness: "fresh",
+      checked: 24, passed: 22, failed: 2, failing_checks: ["RAZORPAY_KEY_SECRET", "vy_room_checkin"],
+      optional_absent: ["VITE_VOICE_IDENTITY_CHALLENGE", "TELEGRAM_BOT_TOKEN", "AZURE_VOICE_RG"],
+      optional_absent_by_section: {
+        sections: [
+          { section: "voice", sectionTitle: "Voice", names: ["AZURE_VOICE_RG"] },
+          { section: "channels", sectionTitle: "Channels", names: ["TELEGRAM_BOT_TOKEN"] },
+        ],
+        ungrouped: ["VITE_VOICE_IDENTITY_CHALLENGE"],
+      },
+    },
+    funnel: {
+      minutes_to_first_room: { median: 42, p90: 210, n: 6 },
+      stalled_at: [{ step: "readiness_passed_lock", count: 2 }, { step: "publish_clicked", count: 1 }],
+    },
+    phase_gate: {
+      generated_at: "2026-09-05T09:00:00.000Z",
+      conversion: { pct: 18.4, n: 214, eligible: 214, paying: 39, threshold_pct: 20, state: "below", funnel: { showcase: { shown: 120, started: 40, paid: 12 } } },
+      retention: { pct: 61.2, n: 40, joined: 40, returned: 24, threshold_pct: 55, state: "at_or_above" },
+      renewed_unasked: { count: 1, n: 6, creators_total: 6, threshold: 2, state: "not_enough_data", note: "Too few creators have reached a second billing period yet" },
+      phase2_may_start: false,
+      summary: "Phase 2 has not opened yet.",
+    },
+    share_arrivals_this_week: { n: null, below_floor: true, note: "Fewer than 5 arrivals this week from shared links" },
+    incidents: {
+      by_kind_door: [
+        { kind: "provider_telegram", door: "room-telegram-webhook", count: 3 },
+        { kind: "door_5xx", door: "room-say", count: 1 },
+      ],
+      new_kinds: ["door_5xx"],
+      doors_observed: 18, doors_total: 18,
+    },
+    taste_turns_this_week: { n: 14, note: "14 taste turns this week across every apprentice AI" },
+    push: { configured: false, vapid_public: null },
+    poster_arrivals_this_week: { n: null, below_floor: true, note: "Fewer than 5 arrivals this week from a printed poster" },
+    digest: {
+      sent_at: "2026-09-05T07:00:00.000Z",
+      telegram: { configured: false, last_run_at: null, last_sent_count: 0 },
+    },
+    share_kit_arrivals_this_week: {
+      channels: {
+        whatsapp: { n: null, below_floor: true, note: "Fewer than 5 arrivals this week from WhatsApp" },
+        instagram: { n: null, below_floor: true, note: "Fewer than 5 arrivals this week from Instagram" },
+        youtube: { n: null, below_floor: true, note: "Fewer than 5 arrivals this week from YouTube" },
+        telegram: { n: null, below_floor: true, note: "Fewer than 5 arrivals this week from Telegram" },
+      },
+    },
+    friend_arrivals_this_week: { n: null, below_floor: true, note: "Fewer than 5 arrivals this week from a follower's own link" },
+    reconciliation: { periods_checked: 12, periods_with_findings: 0, charges_without_receipt: 0, generated_at: "2026-09-05T09:00:00.000Z" },
+    receipts_issued_late_this_week: { issued: 0 },
+  } satisfies OpsOverview,
 };
 
 /* WS-AP's scenarios, layered onto `ROUTES` by `?scenario=`.
@@ -500,6 +593,13 @@ function seedAuth() {
 // now (`context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in`).
 const SIGNED_OUT = new URLSearchParams(window.location.search).get("signedOut") === "1";
 
+// WS-R135. `main.tsx`'s own `?mode=ops` branch, restated here: the layout
+// gate's `studio:ops`/`studio-hi:ops` targets need this SAME fixture to
+// mount `OpsBoard` instead of `StudioApp` (its own `/api/ops` fixture route
+// above), never a second HTML entry the gate would have to keep in sync
+// with this one's stub-fetch/auth-seed plumbing by hand.
+const OPS_MODE = new URLSearchParams(window.location.search).get("mode") === "ops";
+
 const root = document.getElementById("studio-root")!;
 if (!LOOPBACK.has(window.location.hostname)) {
   root.textContent = "This page runs only on a local test server.";
@@ -521,6 +621,6 @@ if (!LOOPBACK.has(window.location.hostname)) {
     })();
     // No StrictMode. Its double render is right for finding effect bugs and wrong
     // for a layout gate, which wants one settled paint to measure.
-    ReactDOM.createRoot(root).render(<StudioApp />);
+    ReactDOM.createRoot(root).render(OPS_MODE ? <OpsBoard /> : <StudioApp />);
   });
 }

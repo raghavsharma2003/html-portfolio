@@ -31,8 +31,6 @@ import {
   type OpsShareArrivals,
   type OpsTasteTurns,
   type OpsPhaseGate,
-  type OpsGateState,
-  type SweepStaleness,
   type OpsIncidents,
   type OpsPushConfig,
   type OpsSelfCheck,
@@ -44,16 +42,26 @@ import {
   type OpsReceiptsLate,
 } from "./opsApi";
 import type { StudioSession } from "./types";
+import { STUDIO_LANGUAGE_LABELS, STUDIO_LOCALES, type StudioCopy, type StudioLocale } from "./copy";
+import { StudioLocaleProvider, useStudioLocale } from "./localeContext";
+import { readRememberedStudioLocale, resolveStudioLocale, writeRememberedStudioLocale } from "./studioLocalePreference";
 import "./design/ops-board.css";
 
-// WS-R62 (migration 114). This board is deliberately English-only, per the
-// standing decision `evals/studio-locale/run.mjs`'s own TIER_2_ALLOWLIST
-// entry names in writing: "Internal operator dashboard (`?mode=ops`), never
-// a creator-facing screen at all" - so this card's copy stays inline here,
-// the same house style every other card on this page already uses, rather
-// than a `src/studio/copy.ts` entry a page with no locale switcher at all
-// could never read (`context/decisions.md#ws-r62-ops-board-push-copy-stays-
-// english-inline`).
+// WS-R135. Reverses the standing WS-R62/WS-R123 decision that this board
+// stays English-only forever (context/decisions.md#ws-r62-ops-board-push-
+// copy-stays-english-inline, #ws-r123-ops-board-doors-observed-denominator-
+// english-only) now that both entries' own named reversal condition is
+// met: every string on this page now reads from `copy.ts#ops`/`hiCopy.ts`'s
+// own section (both locales), and this page's OWN `<OpsBoard>` wraps its
+// content in `StudioLocaleProvider` directly rather than inheriting one
+// from a tree it is never mounted inside (this file's own header, above:
+// a standalone `?mode=ops` mount, never grafted onto `StudioApp`). Locale
+// resolution reuses `studioLocalePreference.ts`'s pure chain with
+// `replica: null` - an operator has no `vy_replica` row, so the chain
+// collapses to "`?lang=` wins, else the remembered local choice, else en",
+// the exact pre-auth order the sign-in screen elsewhere in the studio
+// already uses for the same reason (no row to read yet).
+type Ops = StudioCopy["ops"];
 
 /** RFC 4648 base64url, both directions - `src/room/AccountPage.tsx`'s own
  *  pair, restated here rather than imported: that file lives under
@@ -77,21 +85,25 @@ function bufToB64u(buf: ArrayBuffer | null): string {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+/** Splices named `{key}` placeholders in a copy template - a generalised
+ *  `withCount`/`withNameAndCount` (copy.ts) for the handful of templates on
+ *  this board that carry more than two values (`phaseGate.nConversionTemplate`
+ *  has three). Kept local rather than added to copy.ts's own helpers: those
+ *  are deliberately fixed-shape (`{n}`, `{name}`+`{n}`) and used across
+ *  every studio file; this one is this board's own, arbitrary-key need. */
+function fillTemplate(template: string, vars: Record<string, string | number>): string {
+  let out = template;
+  for (const [key, value] of Object.entries(vars)) out = out.split(`{${key}}`).join(String(value));
+  return out;
+}
+
 const RETURN_PATH = "/studio?mode=ops";
 
-function badgeClassForStaleness(staleness: SweepStaleness): string {
+function badgeClassForStaleness(staleness: OpsSweep["staleness"]): string {
   if (staleness === "fresh") return "ops-board__badge ops-board__badge--done";
   if (staleness === "stale") return "ops-board__badge ops-board__badge--waiting";
   if (staleness === "never_ran") return "ops-board__badge ops-board__badge--stopped";
   return "ops-board__badge ops-board__badge--running";
-}
-
-function badgeLabelForStaleness(staleness: SweepStaleness): string {
-  if (staleness === "fresh") return "fresh";
-  if (staleness === "stale") return "stale";
-  if (staleness === "never_ran") return "never ran";
-  if (staleness === "unscheduled") return "no schedule";
-  return "schedule unrecognised";
 }
 
 function badgeClassForOutcome(outcome: OpsSweep["last_outcome"]): string {
@@ -112,64 +124,131 @@ function badgeClassForDrift(state: OpsRoom["drift_state"]): string {
 // sweep outcome does - the sweeps strip is a health check, this card is a
 // gate, and "below" is a normal, expected state for a young platform, never
 // a failure.
-function badgeClassForGateState(state: OpsGateState): string {
+function badgeClassForGateState(state: OpsPhaseGate["conversion"]["state"]): string {
   if (state === "at_or_above") return "ops-board__badge ops-board__badge--done";
   if (state === "below") return "ops-board__badge ops-board__badge--waiting";
   return "ops-board__badge ops-board__badge--running"; // not_enough_data
 }
 
-function badgeLabelForGateState(state: OpsGateState): string {
-  if (state === "at_or_above") return "at or above";
-  if (state === "below") return "below";
-  return "not enough data yet";
+const pct1 = (v: number | null, notMeasured: string): string => (v == null ? notMeasured : `${v.toFixed(1)}%`);
+
+function formatAgo(iso: string | null, ago: Ops["ago"]): string {
+  if (!iso) return ago.never;
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return iso;
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 1) return ago.justNow;
+  if (minutes < 60) return fillTemplate(ago.minutes, { n: minutes });
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return fillTemplate(ago.hours, { n: hours });
+  const days = Math.round(hours / 24);
+  return fillTemplate(ago.days, { n: days });
 }
 
-const pct1 = (v: number | null): string => (v == null ? "not measured" : `${v.toFixed(1)}%`);
+const inr = (paise: number, prefix: string) => `${prefix} ${paise.toLocaleString("en-IN")}`;
+
+// WS-R25. Plain-words labels for `api/_funnel.js`'s FUNNEL_STEPS - a stall
+// count on screen naming "readiness_passed_lock" reads as a bug report, not
+// an answer. The known steps live in `copy.ts#ops.funnel.stepLabel`, both
+// locales; an unrecognised step (a future FUNNEL_STEPS addition this table
+// has not caught up with yet) falls back to the raw, de-underscored name in
+// EITHER locale, same as before this workstream.
+function funnelStepLabel(step: string, labels: Ops["funnel"]["stepLabel"]): string {
+  return (labels as Record<string, string>)[step] || step.replace(/_/g, " ");
+}
+
+function OpsLanguageSwitch({ onSwitch }: { onSwitch: (next: StudioLocale) => void }) {
+  const { t, locale } = useStudioLocale();
+  return (
+    <div className="ops-board__lang-switch" role="group" aria-label={t.ops.languageGroupLabel}>
+      {STUDIO_LOCALES.map((l) => (
+        <button
+          key={l}
+          type="button"
+          className="ops-board__lang-btn"
+          lang={l}
+          aria-pressed={locale === l}
+          onClick={() => onSwitch(l)}
+        >
+          {STUDIO_LANGUAGE_LABELS[l]}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function PhaseGateCard({ gate }: { gate: OpsPhaseGate }) {
+  const { t } = useStudioLocale();
+  const o = t.ops;
   const funnelReasons = Object.keys(gate.conversion.funnel).sort();
   return (
     <div className="ops-board__panel">
-      <h2>Phase 2 gate</h2>
+      <h2>{o.phaseGate.title}</h2>
       <p className="ops-board__slug">{gate.summary}</p>
       <div className="ops-board__stats">
         <div>
-          <span className={badgeClassForGateState(gate.conversion.state)}>
-            {badgeLabelForGateState(gate.conversion.state)}
-          </span>
-          <Stat label={`paid conversion (target ${gate.conversion.threshold_pct}%)`} value={pct1(gate.conversion.pct)} />
+          <span className={badgeClassForGateState(gate.conversion.state)}>{o.gateState[gate.conversion.state]}</span>
+          <Stat
+            label={fillTemplate(o.phaseGate.conversionLabelTemplate, { n: gate.conversion.threshold_pct })}
+            value={pct1(gate.conversion.pct, o.notMeasured)}
+          />
           <span className="ops-board__slug">
-            n = {gate.conversion.n} ({gate.conversion.paying} paying of {gate.conversion.eligible} eligible)
+            {fillTemplate(o.phaseGate.nConversionTemplate, {
+              n: gate.conversion.n, paying: gate.conversion.paying, eligible: gate.conversion.eligible,
+            })}
           </span>
         </div>
         <div>
-          <span className={badgeClassForGateState(gate.retention.state)}>
-            {badgeLabelForGateState(gate.retention.state)}
-          </span>
-          <Stat label={`week-six retention (target ${gate.retention.threshold_pct}%)`} value={pct1(gate.retention.pct)} />
+          <span className={badgeClassForGateState(gate.retention.state)}>{o.gateState[gate.retention.state]}</span>
+          <Stat
+            label={fillTemplate(o.phaseGate.retentionLabelTemplate, { n: gate.retention.threshold_pct })}
+            value={pct1(gate.retention.pct, o.notMeasured)}
+          />
           <span className="ops-board__slug">
-            n = {gate.retention.n} ({gate.retention.returned} returned of {gate.retention.joined} joined)
+            {fillTemplate(o.phaseGate.nRetentionTemplate, {
+              n: gate.retention.n, returned: gate.retention.returned, joined: gate.retention.joined,
+            })}
           </span>
         </div>
         <div>
-          <span className={badgeClassForGateState(gate.renewed_unasked.state)}>
-            {badgeLabelForGateState(gate.renewed_unasked.state)}
-          </span>
-          <Stat label={`creators renewing unasked (target ${gate.renewed_unasked.threshold})`} value={gate.renewed_unasked.count} />
+          <span className={badgeClassForGateState(gate.renewed_unasked.state)}>{o.gateState[gate.renewed_unasked.state]}</span>
+          <Stat
+            label={fillTemplate(o.phaseGate.renewedLabelTemplate, { n: gate.renewed_unasked.threshold })}
+            value={gate.renewed_unasked.count}
+          />
           <span className="ops-board__slug">
-            n = {gate.renewed_unasked.n} creators. {gate.renewed_unasked.note}.
+            {fillTemplate(o.phaseGate.nRenewedPrefixTemplate, { n: gate.renewed_unasked.n })}
+            {gate.renewed_unasked.note}.
           </span>
         </div>
       </div>
       {funnelReasons.length > 0 && (
-        <div style={{ overflowX: "auto", marginTop: "var(--space-row)" }}>
-          <table className="ops-board__table">
+        /* WS-R135: `tabIndex={0}` makes a horizontally scrollable region
+           keyboard-operable (axe `scrollable-region-focusable`, WCAG 2.1.1)
+           - a real, pre-existing gap in every `overflowX: "auto"` wrapper
+           on this board, never caught before because the accessibility
+           gate never rendered this page at all. TWO nested scroll boxes
+           exist here, not one: this wrapping div's own inline style is the
+           scroll boundary above 640px, but `ops-board.css`'s own
+           `@media (max-width: 640px) { .ops-board__table { overflow-x:
+           auto } }` (restating `design/mobile.css`'s `.studio-main table`
+           rule for this standalone mount's own scoped sheet, which is
+           never inside `.studio-main`) makes the TABLE ITSELF a second,
+           independent scroll box at the 390px width this gate actually
+           renders at - axe's own selector for the violation names the
+           `table`, not this `div`. Both elements get `tabIndex={0}` so
+           whichever one is the real scroll boundary at a given width is
+           always the one with a keyboard path; a second, always-present
+           tab stop on the other one is a harmless no-op when it is not
+           the scrolling element. */
+        <div style={{ overflowX: "auto", marginTop: "var(--space-row)" }} tabIndex={0}>
+          <table className="ops-board__table" tabIndex={0}>
             <thead>
               <tr>
-                <th>offer reason</th>
-                <th>shown</th>
-                <th>started</th>
-                <th>paid</th>
+                <th>{o.phaseGate.tableOfferReason}</th>
+                <th>{o.phaseGate.tableShown}</th>
+                <th>{o.phaseGate.tableStarted}</th>
+                <th>{o.phaseGate.tablePaid}</th>
               </tr>
             </thead>
             <tbody>
@@ -189,42 +268,6 @@ function PhaseGateCard({ gate }: { gate: OpsPhaseGate }) {
   );
 }
 
-function formatAgo(iso: string | null): string {
-  if (!iso) return "never";
-  const ms = Date.now() - new Date(iso).getTime();
-  if (!Number.isFinite(ms) || ms < 0) return iso;
-  const minutes = Math.round(ms / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours} h ago`;
-  const days = Math.round(hours / 24);
-  return `${days} d ago`;
-}
-
-const inr = (paise: number) => `Rs ${paise.toLocaleString("en-IN")}`;
-
-// WS-R25. Plain-words labels for `api/_funnel.js`'s FUNNEL_STEPS - a stall
-// count on screen naming "readiness_passed_lock" reads as a bug report, not
-// an answer.
-const FUNNEL_STEP_LABELS: Record<string, string> = {
-  account_created: "creating an account",
-  studio_opened: "opening the studio",
-  first_source_uploaded: "uploading a first source",
-  processing_finished: "processing finishing",
-  first_preview_heard: "hearing a first preview",
-  readiness_first_measured: "readiness being measured",
-  readiness_passed_lock: "readiness passing the lock",
-  disclosure_approved: "the disclosure being approved",
-  room_created: "creating a Room",
-  publish_clicked: "clicking Publish",
-  room_published: "the Room actually publishing",
-};
-
-function funnelStepLabel(step: string): string {
-  return FUNNEL_STEP_LABELS[step] || step.replace(/_/g, " ");
-}
-
 function FunnelCard({
   funnel,
   shareArrivals,
@@ -240,35 +283,40 @@ function FunnelCard({
   shareKitArrivals: OpsShareKitArrivals;
   friendArrivals: OpsFriendArrivals;
 }) {
+  const { t } = useStudioLocale();
+  const o = t.ops;
   const { median, p90, n } = funnel.minutes_to_first_room;
   return (
     <div className="ops-board__panel">
-      <h2>Minutes to first Room</h2>
+      <h2>{o.funnel.minutesTitle}</h2>
       {n === 0 ? (
-        <p className="ops-board__empty">No creator has published yet.</p>
+        <p className="ops-board__empty">{o.funnel.noPublished}</p>
       ) : (
         <div className="ops-board__stats">
-          <Stat label="median minutes" value={median ?? "not measured"} />
-          <Stat label="p90 minutes" value={p90 ?? "not measured"} />
-          <Stat label="published (n)" value={n} />
+          <Stat label={o.funnel.medianMinutes} value={median ?? o.notMeasured} />
+          <Stat label={o.funnel.p90Minutes} value={p90 ?? o.notMeasured} />
+          <Stat label={o.funnel.published} value={n} />
         </div>
       )}
-      <h2 style={{ marginTop: "var(--space-section)" }}>Where creators stop</h2>
+      <h2 style={{ marginTop: "var(--space-section)" }}>{o.funnel.stopTitle}</h2>
       {funnel.stalled_at.length === 0 ? (
-        <p className="ops-board__empty">No creator has stalled for 7 days or more.</p>
+        <p className="ops-board__empty">{o.funnel.noStalled}</p>
       ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table className="ops-board__table">
+        <div style={{ overflowX: "auto" }} tabIndex={0}>
+          {/* WS-R135: the SAME two-scroll-box fix as `PhaseGateCard`'s own
+              table above - `tabIndex={0}` on both this table and its
+              wrapping div, one keyboard path per width. */}
+          <table className="ops-board__table" tabIndex={0}>
             <thead>
               <tr>
-                <th>last reached</th>
-                <th>creators stalled here</th>
+                <th>{o.funnel.tableLastReached}</th>
+                <th>{o.funnel.tableCreatorsStalled}</th>
               </tr>
             </thead>
             <tbody>
               {funnel.stalled_at.map((s) => (
                 <tr key={s.step}>
-                  <td>{funnelStepLabel(s.step)}</td>
+                  <td>{funnelStepLabel(s.step, o.funnel.stepLabel)}</td>
                   <td>{s.count}</td>
                 </tr>
               ))}
@@ -279,8 +327,12 @@ function FunnelCard({
       {/* WS-R40 (migration 102). One line: the share loop's own growth
           count, floored at n>=5 the same way `creator_invite_arrivals`
           elsewhere on this board already is - `shareArrivals.note` renders
-          the honest floor sentence below that, never a small real number. */}
-      <h2 style={{ marginTop: "var(--space-section)" }}>Growth</h2>
+          the honest floor sentence below that, never a small real number.
+          Server-computed prose (`copy.ts#OpsCopy`'s own header): read
+          straight off the wire, in whichever locale `api/_funnel.js`
+          composed it in (English today, both locales unchanged by this
+          workstream). */}
+      <h2 style={{ marginTop: "var(--space-section)" }}>{o.funnel.growthTitle}</h2>
       <p className="ops-board__empty">{shareArrivals.note}</p>
       {/* WS-R78 (migration 121). The printed poster's own growth line -
           `shareArrivals`'s own shape, floored the identical way, right
@@ -317,6 +369,8 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 }
 
 function RoomCard({ room }: { room: OpsRoom }) {
+  const { t } = useStudioLocale();
+  const o = t.ops;
   const deliveries = Object.entries(room.deliveries_last_24h);
   const deliveredCount = room.deliveries_last_24h.delivered ?? 0;
   return (
@@ -325,29 +379,30 @@ function RoomCard({ room }: { room: OpsRoom }) {
         <h3>{room.display_name || room.slug}</h3>
         <span className="ops-board__slug">/r/{room.slug}</span>
         <span className={badgeClassForOutcome(room.published ? "ok" : "partial")}>
-          {room.published ? "published" : "not published"}
+          {room.published ? o.rooms.published : o.rooms.notPublished}
         </span>
         <span className={badgeClassForDrift(room.drift_state)}>
-          voice: {room.drift_state === "no_report" ? "not measured yet" : room.drift_state.replace("_", " ")}
+          {fillTemplate(o.rooms.voicePrefixTemplate, { label: o.rooms.driftState[room.drift_state] })}
         </span>
       </div>
       <div className="ops-board__stats">
-        <Stat label="followers" value={room.followers_total} />
-        <Stat label="paid followers" value={room.followers_paid} />
-        <Stat label="joined, last 7d" value={room.joined_last_7d} />
-        <Stat label="messages, last 24h" value={room.messages_last_24h} />
-        <Stat label="at message cap this month" value={room.at_cap_this_month} />
-        <Stat label="voice seconds this month" value={room.voice_seconds_this_month} />
-        <Stat label="active check-ins" value={room.active_check_ins} />
-        <Stat label="check-ins delivered, last 24h" value={deliveredCount} />
-        <Stat label="Pulse opt-ins" value={room.pulse_opt_ins} />
-        <Stat label="latest Pulse week" value={room.latest_pulse_week ?? "none yet"} />
-        <Stat label="active subscriptions" value={room.subscriptions.active} />
-        <Stat label="revenue this month" value={inr(room.revenue_this_month_inr)} />
+        <Stat label={o.rooms.stat.followers} value={room.followers_total} />
+        <Stat label={o.rooms.stat.paidFollowers} value={room.followers_paid} />
+        <Stat label={o.rooms.stat.joinedLast7d} value={room.joined_last_7d} />
+        <Stat label={o.rooms.stat.messagesLast24h} value={room.messages_last_24h} />
+        <Stat label={o.rooms.stat.atCapThisMonth} value={room.at_cap_this_month} />
+        <Stat label={o.rooms.stat.voiceSecondsThisMonth} value={room.voice_seconds_this_month} />
+        <Stat label={o.rooms.stat.activeCheckIns} value={room.active_check_ins} />
+        <Stat label={o.rooms.stat.checkInsDeliveredLast24h} value={deliveredCount} />
+        <Stat label={o.rooms.stat.pulseOptIns} value={room.pulse_opt_ins} />
+        <Stat label={o.rooms.stat.latestPulseWeek} value={room.latest_pulse_week ?? o.rooms.latestPulseWeekNone} />
+        <Stat label={o.rooms.stat.activeSubscriptions} value={room.subscriptions.active} />
+        <Stat label={o.rooms.stat.revenueThisMonth} value={inr(room.revenue_this_month_inr, o.currencyPrefix)} />
       </div>
       {deliveries.length > 1 && (
         <p className="ops-board__slug" style={{ marginTop: "var(--space-row)" }}>
-          deliveries by state, last 24h: {deliveries.map(([state, n]) => `${state.replace(/_/g, " ")} ${n}`).join(", ")}
+          {o.rooms.deliveriesPrefix}
+          {deliveries.map(([state, n]) => `${state.replace(/_/g, " ")} ${n}`).join(", ")}
         </p>
       )}
     </div>
@@ -355,33 +410,38 @@ function RoomCard({ room }: { room: OpsRoom }) {
 }
 
 function SweepsStrip({ sweeps }: { sweeps: OpsSweep[] }) {
+  const { t } = useStudioLocale();
+  const o = t.ops;
   return (
     <div className="ops-board__panel">
-      <h2>Sweeps</h2>
+      <h2>{o.sweeps.title}</h2>
       {/* WS-R25: closes WS-R21's own open item ("the heartbeat table needs a
           retention delete before Phase 1") by saying the window out loud
           rather than leaving the retention invisible on the one screen that
           reads this table. */}
-      <p className="ops-board__slug">Runs older than 30 days are deleted automatically, per sweep.</p>
-      <div style={{ overflowX: "auto" }}>
-        <table className="ops-board__table">
+      <p className="ops-board__slug">{o.sweeps.retentionNote}</p>
+      {/* WS-R135: the SAME two-scroll-box fix as `PhaseGateCard`'s own
+          table (above `formatAgo`) - `tabIndex={0}` on both this table
+          and its wrapping div, one keyboard path per width. */}
+      <div style={{ overflowX: "auto" }} tabIndex={0}>
+        <table className="ops-board__table" tabIndex={0}>
           <thead>
             <tr>
-              <th>sweep</th>
-              <th>schedule</th>
-              <th>last ran</th>
-              <th>outcome</th>
-              <th>freshness</th>
+              <th>{o.sweeps.tableSweep}</th>
+              <th>{o.sweeps.tableSchedule}</th>
+              <th>{o.sweeps.tableLastRan}</th>
+              <th>{o.sweeps.tableOutcome}</th>
+              <th>{o.sweeps.tableFreshness}</th>
             </tr>
           </thead>
           <tbody>
             {sweeps.map((s) => (
               <tr key={s.sweep}>
                 <td>{s.sweep}</td>
-                <td>{s.schedule ?? "not scheduled"}</td>
-                <td>{formatAgo(s.last_started_at)}</td>
-                <td><span className={badgeClassForOutcome(s.last_outcome)}>{s.last_outcome.replace("_", " ")}</span></td>
-                <td><span className={badgeClassForStaleness(s.staleness)}>{badgeLabelForStaleness(s.staleness)}</span></td>
+                <td>{s.schedule ?? o.sweeps.noSchedule}</td>
+                <td>{formatAgo(s.last_started_at, o.ago)}</td>
+                <td><span className={badgeClassForOutcome(s.last_outcome)}>{o.outcome[s.last_outcome]}</span></td>
+                <td><span className={badgeClassForStaleness(s.staleness)}>{o.staleness[s.staleness]}</span></td>
               </tr>
             ))}
           </tbody>
@@ -398,31 +458,36 @@ function SweepsStrip({ sweeps }: { sweeps: OpsSweep[] }) {
 // window - `badgeClassForOutcome`'s `--stopped` class one card over, the
 // same red every failed sweep already renders in, never a new color.
 function IncidentsCard({ incidents }: { incidents: OpsIncidents }) {
+  const { t } = useStudioLocale();
+  const o = t.ops;
   return (
     <div className="ops-board__panel">
-      <h2>Incidents</h2>
-      <p className="ops-board__slug">
-        Every 5xx and every provider failure, last 7 days. Rows older than 90 days are deleted automatically.
-      </p>
+      <h2>{o.incidents.title}</h2>
+      <p className="ops-board__slug">{o.incidents.subtitle}</p>
       {/* WS-R123, law 4: the derived door count as this card's own
           denominator - a completeness badge (`api/_incidents.js
           #OBSERVED_DOOR_COUNT` on both sides), never a live count, so it
-          reads "18 of 18" whether or not any door has ever failed. */}
+          reads "18 of 18" whether or not any door has ever failed.
+          WS-R135: a copy function of the two numbers, both locales, rather
+          than the English-only interpolation this badge shipped with. */}
       <p className="ops-board__slug">
         <span className="ops-board__badge ops-board__badge--running">
-          {incidents.doors_observed} of {incidents.doors_total} doors observed
+          {fillTemplate(o.incidents.doorsObservedTemplate, { a: incidents.doors_observed, b: incidents.doors_total })}
         </span>
       </p>
       {incidents.by_kind_door.length === 0 ? (
-        <p className="ops-board__empty">None.</p>
+        <p className="ops-board__empty">{o.incidents.none}</p>
       ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table className="ops-board__table">
+        <div style={{ overflowX: "auto" }} tabIndex={0}>
+          {/* WS-R135: the SAME two-scroll-box fix as `PhaseGateCard`'s own
+              table above - `tabIndex={0}` on both this table and its
+              wrapping div, one keyboard path per width. */}
+          <table className="ops-board__table" tabIndex={0}>
             <thead>
               <tr>
-                <th>kind</th>
-                <th>door</th>
-                <th>count</th>
+                <th>{o.incidents.tableKind}</th>
+                <th>{o.incidents.tableDoor}</th>
+                <th>{o.incidents.tableCount}</th>
               </tr>
             </thead>
             <tbody>
@@ -434,7 +499,7 @@ function IncidentsCard({ incidents }: { incidents: OpsIncidents }) {
                       <span className={isNew ? "ops-board__badge ops-board__badge--stopped" : "ops-board__badge ops-board__badge--running"}>
                         {row.kind.replace(/_/g, " ")}
                       </span>
-                      {isNew && <span className="ops-board__slug"> new since last week</span>}
+                      {isNew && <span className="ops-board__slug"> {o.incidents.newSinceLastWeek}</span>}
                     </td>
                     <td>{row.door}</td>
                     <td>{row.count}</td>
@@ -457,22 +522,22 @@ function IncidentsCard({ incidents }: { incidents: OpsIncidents }) {
 // `SweepOutcome`/`SweepStaleness` shapes, so this card's badges can never
 // render a color the Sweeps strip does not already use for the same word.
 function SelfCheckCard({ selfCheck }: { selfCheck: OpsSelfCheck }) {
+  const { t } = useStudioLocale();
+  const o = t.ops;
   return (
     <div className="ops-board__panel">
-      <h2>Self-check</h2>
-      <p className="ops-board__slug">
-        Env vars by name, the database, every migration this tree ships, every other cron - once a day.
-      </p>
+      <h2>{o.selfCheck.title}</h2>
+      <p className="ops-board__slug">{o.selfCheck.subtitle}</p>
       <p>
-        Last ran {formatAgo(selfCheck.last_started_at)},{" "}
-        <span className={badgeClassForOutcome(selfCheck.last_outcome)}>{selfCheck.last_outcome.replace("_", " ")}</span>{" "}
-        <span className={badgeClassForStaleness(selfCheck.staleness)}>{badgeLabelForStaleness(selfCheck.staleness)}</span>
+        {fillTemplate(o.selfCheck.lastRanPrefixTemplate, { label: formatAgo(selfCheck.last_started_at, o.ago) })}
+        <span className={badgeClassForOutcome(selfCheck.last_outcome)}>{o.outcome[selfCheck.last_outcome]}</span>{" "}
+        <span className={badgeClassForStaleness(selfCheck.staleness)}>{o.staleness[selfCheck.staleness]}</span>
       </p>
       <p className="ops-board__slug">
-        {selfCheck.checked} checked, {selfCheck.passed} passed, {selfCheck.failed} failed.
+        {fillTemplate(o.selfCheck.countsTemplate, { checked: selfCheck.checked, passed: selfCheck.passed, failed: selfCheck.failed })}
       </p>
       {selfCheck.failing_checks.length === 0 ? (
-        <p className="ops-board__empty">None.</p>
+        <p className="ops-board__empty">{o.selfCheck.none}</p>
       ) : (
         <ul>
           {selfCheck.failing_checks.map((door) => (
@@ -485,14 +550,20 @@ function SelfCheckCard({ selfCheck }: { selfCheck: OpsSelfCheck }) {
       {selfCheck.optional_absent.length > 0 && (
         <div className="ops-board__self-check-optional">
           <p className="ops-board__slug">
-            {selfCheck.optional_absent.length} optional name{selfCheck.optional_absent.length === 1 ? "" : "s"} not set, by area:
+            {fillTemplate(o.selfCheck.optionalAbsentTemplate, {
+              n: selfCheck.optional_absent.length,
+              s: selfCheck.optional_absent.length === 1 ? "" : "s",
+            })}
           </p>
           {/* WS-R116. `docs/gurukul/ENV-MANIFEST.md`'s own ~90 names grouped
               by section - counts closed, names on expand, a native
               <details>/<summary> pair so the toggle is keyboard-reachable
               with no extra JS (`docs/gurukul/DESIGN-LAW.md`'s own
               "interruptible, no bespoke widget where a native one already
-              does the job" restated). */}
+              does the job" restated). Section titles and names are the
+              manifest's own server-side strings (`copy.ts#OpsCopy`'s own
+              header): read straight through, never routed through this
+              table. */}
           {selfCheck.optional_absent_by_section.sections.map((section) => (
             <details key={section.section} className="ops-board__self-check-section">
               <summary>
@@ -503,7 +574,7 @@ function SelfCheckCard({ selfCheck }: { selfCheck: OpsSelfCheck }) {
           ))}
           {selfCheck.optional_absent_by_section.ungrouped.length > 0 && (
             <details className="ops-board__self-check-section">
-              <summary>Other ({selfCheck.optional_absent_by_section.ungrouped.length})</summary>
+              <summary>{fillTemplate(o.selfCheck.other, { n: selfCheck.optional_absent_by_section.ungrouped.length })}</summary>
               <p className="ops-board__slug">{selfCheck.optional_absent_by_section.ungrouped.join(", ")}</p>
             </details>
           )}
@@ -525,10 +596,12 @@ function SelfCheckCard({ selfCheck }: { selfCheck: OpsSelfCheck }) {
 // through to the payload itself when it carries no `data` wrapper) - see
 // that file's own header for the full argument.
 function PushAlertsCard({ token, push }: { token: string; push: OpsPushConfig }) {
+  const { t } = useStudioLocale();
+  const o = t.ops;
   const [subscribed, setSubscribed] = useState(false);
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     if (!push.configured) {
@@ -557,7 +630,7 @@ function PushAlertsCard({ token, push }: { token: string; push: OpsPushConfig })
 
   const toggle = useCallback(async () => {
     setBusy(true);
-    setError("");
+    setError(false);
     try {
       if (subscribed) {
         const registration = await navigator.serviceWorker.getRegistration("/push-sw.js");
@@ -588,7 +661,7 @@ function PushAlertsCard({ token, push }: { token: string; push: OpsPushConfig })
         setSubscribed(true);
       }
     } catch {
-      setError("Could not change alert settings on this device.");
+      setError(true);
     } finally {
       setBusy(false);
     }
@@ -596,18 +669,16 @@ function PushAlertsCard({ token, push }: { token: string; push: OpsPushConfig })
 
   return (
     <div className="ops-board__panel">
-      <h2>Alerts on this phone</h2>
+      <h2>{o.push.title}</h2>
       {!push.configured ? (
-        <p className="ops-board__empty">Push alerts are not set up on this deployment yet.</p>
+        <p className="ops-board__empty">{o.push.notConfigured}</p>
       ) : (
         <>
-          <p className="ops-board__slug">
-            A due-Room-alert-style push when a new incident kind shows up, at most once a day.
-          </p>
+          <p className="ops-board__slug">{o.push.description}</p>
           <button type="button" disabled={busy || !checked} onPointerDown={toggle}>
-            {subscribed ? "Turn off alerts on this device" : "Turn on alerts on this device"}
+            {subscribed ? o.push.turnOff : o.push.turnOn}
           </button>
-          {error && <p className="ops-board__error">{error}</p>}
+          {error && <p className="ops-board__error">{o.push.error}</p>}
         </>
       )}
     </div>
@@ -623,6 +694,8 @@ function PushAlertsCard({ token, push }: { token: string; push: OpsPushConfig })
 // updated by a successful test send - only a real overview refresh moves
 // it, which is the honest reflection of what the ledger actually recorded.
 function DigestCard({ token, digest }: { token: string; digest: OpsDigest }) {
+  const { t } = useStudioLocale();
+  const o = t.ops;
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<"sent" | "none" | "error" | null>(null);
 
@@ -641,29 +714,31 @@ function DigestCard({ token, digest }: { token: string; digest: OpsDigest }) {
 
   return (
     <div className="ops-board__panel">
-      <h2>Morning digest</h2>
-      <p className="ops-board__slug">
-        One push a day: Rooms live, followers joined, messages, money moved, the self-check's verdict, incidents.
-      </p>
-      <p>Last digest (push): {formatAgo(digest.sent_at)}</p>
+      <h2>{o.digest.title}</h2>
+      <p className="ops-board__slug">{o.digest.description}</p>
+      <p>{fillTemplate(o.digest.lastPushTemplate, { label: formatAgo(digest.sent_at, o.ago) })}</p>
       {/* WS-R98, workstream law #3: "the ops board's digest card shows both
           channels' last delivery." Telegram's own line reads honestly - see
           api/_ops.js's own digestTelegramOverview header on why "never" here
           can mean "not this run", not "never in this Room's history". */}
       <p>
-        Last digest (Telegram):{" "}
+        {o.digest.lastTelegramPrefix}
         {!digest.telegram.configured
-          ? "not set up"
+          ? o.digest.telegramNotSetUp
           : digest.telegram.last_sent_count > 0
-            ? `${formatAgo(digest.telegram.last_run_at)}, sent to ${digest.telegram.last_sent_count} chat${digest.telegram.last_sent_count === 1 ? "" : "s"}`
-            : "never"}
+            ? fillTemplate(o.digest.telegramSentTemplate, {
+                label: formatAgo(digest.telegram.last_run_at, o.ago),
+                n: digest.telegram.last_sent_count,
+                s: digest.telegram.last_sent_count === 1 ? "" : "s",
+              })
+            : o.digest.telegramNever}
       </p>
       <button type="button" disabled={busy} onPointerDown={sendTest}>
-        {busy ? "Sending." : "Send a test digest now"}
+        {busy ? o.digest.sending : o.digest.sendTest}
       </button>
-      {result === "sent" && <p className="ops-board__slug">Test digest sent to this device.</p>}
-      {result === "none" && <p className="ops-board__slug">No active subscription on this device to send to. Turn on alerts above first.</p>}
-      {result === "error" && <p className="ops-board__error">Could not send a test digest right now.</p>}
+      {result === "sent" && <p className="ops-board__slug">{o.digest.sent}</p>}
+      {result === "none" && <p className="ops-board__slug">{o.digest.none}</p>}
+      {result === "error" && <p className="ops-board__error">{o.digest.error}</p>}
     </div>
   );
 }
@@ -681,18 +756,22 @@ function ReceiptsCard({
   receiptsLate: OpsReceiptsLate;
   reconciliation: OpsReconciliation;
 }) {
+  const { t } = useStudioLocale();
+  const o = t.ops;
   return (
     <div className="ops-board__panel">
-      <h2>Receipts</h2>
+      <h2>{o.receipts.title}</h2>
       <div className="ops-board__stats">
-        <Stat label="issued late this week" value={receiptsLate.issued} />
-        <Stat label="charges without a receipt" value={reconciliation.charges_without_receipt} />
+        <Stat label={o.receipts.issuedLate} value={receiptsLate.issued} />
+        <Stat label={o.receipts.chargesWithoutReceipt} value={reconciliation.charges_without_receipt} />
       </div>
     </div>
   );
 }
 
-export default function OpsBoard() {
+function OpsBoardInner({ onSwitchLocale }: { onSwitchLocale: (next: StudioLocale) => void }) {
+  const { t } = useStudioLocale();
+  const o = t.ops;
   const [session, setSession] = useState<StudioSession | null>(null);
   const [checkedSession, setCheckedSession] = useState(false);
   const [overview, setOverview] = useState<OpsOverview | null>(null);
@@ -701,7 +780,10 @@ export default function OpsBoard() {
   // - the API answers 404 for both, on purpose, and this screen keeps that
   // same non-disclosure rather than telling the two apart client-side.
   const [notHere, setNotHere] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // WS-R135: which of the two error messages this screen can show, never
+  // the rendered string itself - a language switch mid-error must not leave
+  // a stale-locale sentence on screen.
+  const [errorKind, setErrorKind] = useState<"load" | "signin" | null>(null);
 
   useEffect(() => {
     restoreSession().then((restored) => {
@@ -712,7 +794,7 @@ export default function OpsBoard() {
 
   const load = useCallback(async (current: StudioSession) => {
     setLoading(true);
-    setError(null);
+    setErrorKind(null);
     setNotHere(false);
     try {
       const data = await readOpsOverview(current.accessToken);
@@ -724,7 +806,7 @@ export default function OpsBoard() {
         writeStoredSession(null);
         setSession(null);
       } else {
-        setError("Could not load the board. Try again.");
+        setErrorKind("load");
       }
     } finally {
       setLoading(false);
@@ -735,23 +817,24 @@ export default function OpsBoard() {
     if (session) load(session);
   }, [session, load]);
 
-  if (!checkedSession) return <div className="ops-board ops-board__loading">Loading.</div>;
+  if (!checkedSession) return <div className="ops-board ops-board__loading">{o.loading}</div>;
 
   if (!session) {
     return (
       <div className="ops-board">
         <div className="ops-board__signin">
-          <h1 className="ops-board__title">Ops board</h1>
-          <p>Sign in to continue.</p>
+          <OpsLanguageSwitch onSwitch={onSwitchLocale} />
+          <h1 className="ops-board__title">{o.title}</h1>
+          <p>{o.signIn.prompt}</p>
           <button
             type="button"
             onPointerDown={() => {
-              googleSignIn(RETURN_PATH).catch(() => setError("Sign-in is unavailable right now."));
+              googleSignIn(RETURN_PATH).catch(() => setErrorKind("signin"));
             }}
           >
-            Continue with Google
+            {o.signIn.button}
           </button>
-          {error && <p className="ops-board__error">{error}</p>}
+          {errorKind === "signin" && <p className="ops-board__error">{o.signIn.error}</p>}
         </div>
       </div>
     );
@@ -761,28 +844,29 @@ export default function OpsBoard() {
     <div className="ops-board">
       <div className="ops-board__head">
         <div>
-          <h1 className="ops-board__title">Ops board</h1>
-          {overview && <p className="ops-board__meta">Generated {formatAgo(overview.generated_at)}</p>}
+          <h1 className="ops-board__title">{o.title}</h1>
+          {overview && <p className="ops-board__meta">{fillTemplate(o.generatedTemplate, { label: formatAgo(overview.generated_at, o.ago) })}</p>}
         </div>
+        <OpsLanguageSwitch onSwitch={onSwitchLocale} />
         <button
           type="button"
           className="ops-board__refresh"
           disabled={loading}
           onPointerDown={() => load(session)}
         >
-          {loading ? "Refreshing." : "Refresh"}
+          {loading ? o.refreshing : o.refresh}
         </button>
       </div>
       <div className="ops-board__body">
-        {notHere && <p className="ops-board__empty">This page is not available.</p>}
-        {error && !notHere && <p className="ops-board__error">{error}</p>}
-        {loading && !overview && !notHere && !error && <p className="ops-board__loading">Loading.</p>}
+        {notHere && <p className="ops-board__empty">{o.notAvailable}</p>}
+        {errorKind === "load" && !notHere && <p className="ops-board__error">{o.loadError}</p>}
+        {loading && !overview && !notHere && errorKind !== "load" && <p className="ops-board__loading">{o.loading}</p>}
         {overview && (
           <>
             <div className="ops-board__panel">
-              <h2>Rooms</h2>
+              <h2>{o.rooms.title}</h2>
               {overview.rooms.length === 0 ? (
-                <p className="ops-board__empty">No Rooms exist yet.</p>
+                <p className="ops-board__empty">{o.rooms.empty}</p>
               ) : (
                 overview.rooms.map((room) => <RoomCard key={room.room_id} room={room} />)
               )}
@@ -806,5 +890,48 @@ export default function OpsBoard() {
         )}
       </div>
     </div>
+  );
+}
+
+/** `?lang=` wins, else the remembered local choice, else "en" -
+ *  `studioLocalePreference.ts`'s own chain with `replica: null` throughout:
+ *  an operator has no `vy_replica` row for any step of the chain to read. */
+function resolveOpsLocale(): StudioLocale {
+  try {
+    const raw = new URLSearchParams(window.location.search).get("lang");
+    const urlLocale: StudioLocale | null = raw === "hi" ? "hi" : raw === "en" ? "en" : null;
+    return resolveStudioLocale({ urlLocale, replica: null, rememberedLocale: readRememberedStudioLocale() });
+  } catch {
+    return "en";
+  }
+}
+
+export default function OpsBoard() {
+  const [locale, setLocale] = useState<StudioLocale>(() => resolveOpsLocale());
+
+  // `src/room/RoomApp.tsx`'s own line, same reason: this page's chrome
+  // locale is a client-side fact `studio.html`'s static `lang="en"` cannot
+  // know at build time.
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
+  const switchLocale = useCallback(
+    (next: StudioLocale) => {
+      if (next === locale) return;
+      // Remembered regardless of sign-in state, `StudioApp.tsx`'s own
+      // `switchLocale` precedent: an operator has no replica row for this
+      // page to write the choice to, so the local remembered choice is the
+      // only durable record there is.
+      writeRememberedStudioLocale(next);
+      setLocale(next);
+    },
+    [locale],
+  );
+
+  return (
+    <StudioLocaleProvider locale={locale}>
+      <OpsBoardInner onSwitchLocale={switchLocale} />
+    </StudioLocaleProvider>
   );
 }
