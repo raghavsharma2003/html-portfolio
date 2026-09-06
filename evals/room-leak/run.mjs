@@ -354,9 +354,19 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // pattern-matching fallback) — never a SELECT, never a db of any kind: it
   // is a pure function of `roomExport`'s ALREADY-scoped return value, with
   // no way to reach a row this file did not already hand it.
+  // WS-R137 (migration 136): api/_room-month-note.js's own daily due-select
+  // (`dueFollowerMonthNoteCandidates`) reads REAL follower rows -
+  // follower_id/person_id/agent_id/memory_consent_at, off `vy_room_follower`
+  // - to hand each candidate to the builder, exactly the shape
+  // `_checkins.js`'s/`_renewals.js`'s/`_dormancy.js`'s own due-selects
+  // already have (all three admitted here for the identical reason). Its
+  // own separate "threads revisited this month" read (a bare count(*) over
+  // vy_room_thread) is admitted by the same full-access entry rather than a
+  // second, narrower one, `_checkins.js`'s own precedent (also full-access
+  // here despite having an aggregate-only read of its own elsewhere).
   const ALLOWED = new Set([
     "_room-surface.js", "_room.js", "_replica-full-erasure.js", "memory.js", "_checkins.js", "_room-whatsapp.js",
-    "_renewals.js", "_dormancy.js", "_room-whatsapp-chat.js", "_room-export-readable.js",
+    "_renewals.js", "_dormancy.js", "_room-whatsapp-chat.js", "_room-export-readable.js", "_room-month-note.js",
   ]);
   // WS-R7's creator lane reads `vy_room_follower` for the owner's stats, and
   // WS-R12's reads it and `vy_room_follower_day` for the week-six retention
@@ -2668,6 +2678,138 @@ console.log("\n── layer 16: the Suite admin's weekly note (the per-Room floo
   boundaryChecks++;
   ok("NEGATIVE CONTROL: a hand-built note with a stray raw count in a floored slot DOES leak a real number - proving the scanner above is not vacuous",
     leakyPayload16.includes("1 follower"));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// LAYER 17 (WS-R137, migration 136) — THE FOLLOWER'S MONTHLY NOTE. Unlike
+// layer 16 (a per-Room aggregate shown to an ADMIN, floored at n>=5), this
+// note is built per-FOLLOWER and shown back to that SAME follower — there is
+// no floor because there is no one else for a small number to identify, so
+// the property this layer proves is a different one: two followers' own
+// notes, built in the SAME world, share NOTHING — follower A's note never
+// carries any trace of follower B's rows, and vice versa. `computeFollowerMonthNote`
+// (api/_room-month-note.js) is the whole guarantee: it takes no import of
+// its own (a static scan of ITS OWN extracted source, not the rest of the
+// file, proves this), so every value it can ever return traces to the three
+// ids the CALLER handed it — never a value read off some other row this
+// world happens to also contain.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 17: the follower's monthly note (two followers, zero shared rows) ──");
+{
+  const MONTHNOTE = await import(pathToFileURL(join(REPO, "api/_room-month-note.js")).href);
+  const monthNoteSrc = fs.readFileSync(join(REPO, "api/_room-month-note.js"), "utf8");
+
+  // (a) STATIC. `computeFollowerMonthNote`'s own extracted source contains no
+  // `import` keyword at all — it is provably a function of its own
+  // parameters alone, nothing pulled in from module scope that could ever
+  // name a different identity.
+  const fnMatch17 = monthNoteSrc.match(/export async function computeFollowerMonthNote\([\s\S]*?\n}\n/);
+  ok("computeFollowerMonthNote is found in api/_room-month-note.js (not moved/renamed)", Boolean(fnMatch17));
+  const fnBody17 = fnMatch17 ? fnMatch17[0] : "";
+  ok("computeFollowerMonthNote's own extracted source contains no `import` — it depends on nothing but its own parameters",
+    !/\bimport\b/.test(fnBody17));
+  ok("computeFollowerMonthNote's own source names no creator- or admin-facing table (vy_room, vy_org, vy_creator_*)",
+    !/\bvy_room\b|\bvy_org\b|\bvy_creator_/.test(fnBody17));
+
+  // (b) STATIC. The whole file's own import surface carries no creator- or
+  // admin-lane module — `evals/org-weekly-note/run.mjs`'s own §6 restated
+  // for the follower lane instead of the admin one.
+  const imports17 = [...monthNoteSrc.matchAll(/^import\s+.*?\s+from\s+["'](\.\/[^"']+)["'];?$/gm)].map((m) => m[1]);
+  const ADMIN_OR_CREATOR_LANE_MODULES_17 = [
+    "./_org.js", "./_org-weekly-note.js", "./_creator-push.js", "./_payments.js",
+    "./_ops.js", "./_operator-digest.js", "./_creator-export.js", "./_creator-page.js",
+  ];
+  const laneHits17 = imports17.filter((i) => ADMIN_OR_CREATOR_LANE_MODULES_17.includes(i));
+  ok("layer 17 static: api/_room-month-note.js imports NO creator- or admin-lane module",
+    laneHits17.length === 0, laneHits17.join(","));
+
+  // (c) WORLD CHECK. Two followers, same Room, one fake db over a shared
+  // table — driven by the REAL bound params, exactly as Postgres itself
+  // would apply the real WHERE clause. A leak here would be a byte-for-byte
+  // token match `leakedTokens` would actually catch.
+  const ROOM_17 = "f3000000-0000-4000-8000-000000000001";
+  const AGENT_17 = "f3000000-0000-4000-8000-000000000009";
+  const FOLLOWER_A_17 = "f3000000-0000-4000-8000-0000000000a1";
+  const PERSON_A_17 = "f3000000-0000-4000-8000-0000000000a2";
+  const FOLLOWER_B_17 = "f3000000-0000-4000-8000-0000000000b1";
+  const PERSON_B_17 = "f3000000-0000-4000-8000-0000000000b2";
+  const MONTH_KEY_17 = "2026-08";
+  const dayRows17 = [
+    { room_id: ROOM_17, person_id: PERSON_A_17, day: "2026-08-05", turns: 5 },
+    { room_id: ROOM_17, person_id: PERSON_A_17, day: "2026-08-06", turns: 3 },
+    { room_id: ROOM_17, person_id: PERSON_B_17, day: "2026-08-05", turns: 41 },
+    { room_id: ROOM_17, person_id: PERSON_B_17, day: "2026-08-06", turns: 37 },
+  ];
+  const factsRows17 = [
+    { person_id: PERSON_A_17, agent_id: AGENT_17, body: "TOKFOLLOWERA_monthnote_leak_probe" },
+    { person_id: PERSON_B_17, agent_id: AGENT_17, body: "TOKFOLLOWERB_monthnote_leak_probe" },
+    { person_id: PERSON_B_17, agent_id: AGENT_17, body: "TOKFOLLOWERB_monthnote_leak_probe_2" },
+  ];
+  const db17 = async (sql, params = []) => {
+    const has = (s) => sql.includes(s);
+    const p = (params || []).map((v) => (v == null ? null : String(v)));
+    if (has("from vy_room_follower_day") && has("coalesce(sum(turns)")) {
+      const [roomId, personId, start, end] = p;
+      const rows = dayRows17.filter((r) => r.room_id === roomId && r.person_id === personId && r.day >= start && r.day < end);
+      const turns = rows.reduce((sum, r) => sum + r.turns, 0);
+      const daysActive = rows.filter((r) => r.turns > 0).length;
+      return [{ turns, days_active: daysActive }];
+    }
+    if (has("from vy_room_follower_day") && has("order by day desc")) {
+      const [roomId, personId, end] = p;
+      return dayRows17
+        .filter((r) => r.room_id === roomId && r.person_id === personId && r.day < end)
+        .sort((a, b) => (a.day < b.day ? 1 : -1));
+    }
+    if (has("from vy_room_thread")) return [{ n: 0 }];
+    if (has("from vy_room_checkin_delivery")) return [{ n: 0 }];
+    if (has("from vy_fact")) {
+      const [personId, agentId] = p;
+      const n = factsRows17.filter((f) => f.person_id === personId && f.agent_id === agentId).length;
+      return [{ n }];
+    }
+    throw new Error(`layer 17 fake db: unmatched SQL: ${sql}`);
+  };
+  const noteA17 = await MONTHNOTE.computeFollowerMonthNote(db17, {
+    roomId: ROOM_17, followerId: FOLLOWER_A_17, personId: PERSON_A_17, agentId: AGENT_17, memoryConsentAt: "2026-08-01T00:00:00.000Z",
+  }, MONTH_KEY_17);
+  const noteB17 = await MONTHNOTE.computeFollowerMonthNote(db17, {
+    roomId: ROOM_17, followerId: FOLLOWER_B_17, personId: PERSON_B_17, agentId: AGENT_17, memoryConsentAt: "2026-08-01T00:00:00.000Z",
+  }, MONTH_KEY_17);
+
+  boundaryChecks++;
+  ok("layer 17: follower A's own turns count is exactly HER own rows (8), never B's (78) or the sum (86)",
+    noteA17.turns_this_month === 8, String(noteA17.turns_this_month));
+  boundaryChecks++;
+  ok("layer 17: follower B's own turns count is exactly HIS own rows (78), never A's (8) or the sum",
+    noteB17.turns_this_month === 78, String(noteB17.turns_this_month));
+  boundaryChecks++;
+  ok("layer 17: follower A's own remembered-things count is 1 (her own fact only), never B's 2",
+    noteA17.remembered_things_count === 1, String(noteA17.remembered_things_count));
+
+  const payloadA17 = JSON.stringify(noteA17);
+  const payloadB17 = JSON.stringify(noteB17);
+  boundaryChecks++;
+  ok("layer 17: follower A's own note carries NONE of follower B's identity or fact tokens, in any form",
+    leakedTokens(payloadA17, [FOLLOWER_B_17, PERSON_B_17, "TOKFOLLOWERB_monthnote_leak_probe"]).length === 0);
+  boundaryChecks++;
+  ok("layer 17: follower B's own note carries NONE of follower A's identity or fact tokens, in any form",
+    leakedTokens(payloadB17, [FOLLOWER_A_17, PERSON_A_17, "TOKFOLLOWERA_monthnote_leak_probe"]).length === 0);
+  boundaryChecks++;
+  ok("layer 17: the scan above is not vacuous - both followers' tokens really do coexist somewhere in this world",
+    leakedTokens(JSON.stringify(factsRows17), [PERSON_A_17, PERSON_B_17]).length > 0);
+
+  // A follower with memory off gets no remembered-things line at all - the
+  // same predicate the reply lane uses (api/_checkins.js's own
+  // `memory_consent_at is not null`), checked here rather than merely
+  // asserted: the fake db's own `vy_fact` branch is never even reached when
+  // `memoryConsentAt` is null (computeFollowerMonthNote's own short-circuit).
+  const noteNoMemory17 = await MONTHNOTE.computeFollowerMonthNote(db17, {
+    roomId: ROOM_17, followerId: FOLLOWER_A_17, personId: PERSON_A_17, agentId: AGENT_17, memoryConsentAt: null,
+  }, MONTH_KEY_17);
+  boundaryChecks++;
+  ok("layer 17: a follower who turned memory off gets remembered_things_count: null, never a fabricated zero",
+    noteNoMemory17.remembered_things_count === null);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

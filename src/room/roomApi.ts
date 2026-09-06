@@ -571,3 +571,24 @@ export async function fetchRoomExportReadableHtml(session: string, accessToken: 
   }
   return text;
 }
+
+// ── WS-R137 (migration 136): the follower's monthly note ───────────────────
+// `listReceipts`' own shape one section up: session-scoped, no cross-follower
+// input, recomputed fresh on the server every call rather than reading a
+// stored snapshot (`api/_room-month-note.js`'s own header).
+export interface RoomMonthNote {
+  month_key: string;
+  turns_this_month: number;
+  days_active_this_month: number;
+  streak_days: number;
+  threads_revisited: number;
+  checkins_kept: number;
+  /** `null` when this follower has memory turned off - the same predicate
+   *  the reply lane uses, never a fabricated zero. */
+  remembered_things_count: number | null;
+  built_at: string;
+  delivered_channels: string[];
+}
+
+export const lastMonthNote = (session: string) =>
+  post<{ note: RoomMonthNote | null }>({ op: "month_note", session });

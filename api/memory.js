@@ -3150,6 +3150,21 @@ export const PERSON_TABLES = [
   // room_id in api/_replica-full-erasure.js's owner-wide cascade, never
   // through a person's own wipe.
   { table: "vy_room_follower_reply_flag", key: "person_id", lane: "relational" },
+  // ── WS-R137: the follower's monthly note ledger (migration 136) ──────────
+  //
+  // Content-free (a month label, a timestamp, a small array of channel
+  // names - never a count, never a word this follower typed, `api/_room-
+  // month-note.js`'s own header on why the ledger carries no counts at
+  // all), but the row IS a record of when this platform built and sent this
+  // person a note about themselves - `vy_room_follower_reply_flag`'s own
+  // reasoning restated one table up. NO `agent: true`: this table carries
+  // no `agent_id` column (`vy_room_follower_day`'s own reason, restated -
+  // agent context is joined from `vy_room`), so it is invisible to
+  // `roomScopedTables()`'s generic per-agent loop and reached instead by
+  // the account-wide whole wipe below (lane "relational", no agent filter,
+  // keyed on person_id alone) and `roomForget`'s own explicit
+  // room_id+person_id delete, added there in the same change as this entry.
+  { table: "vy_room_follower_month_note", key: "person_id", lane: "relational" },
   // ── WS-R1: the Room's PERSON side (migration 071), moved LAST among the
   // Room's relational-lane entries by WS-R27 (see this block's own header) ──
   //
@@ -3344,6 +3359,8 @@ export const REPLICA_PERSON_TABLES = [
   // between the code push and the migration landing must not have the
   // account-wide whole wipe 500 on a table it does not have yet.
   "vy_room_follower_whatsapp_chat",
+  // Arrives with 136 (WS-R137), on the identical reasoning.
+  "vy_room_follower_month_note",
 ];
 
 // tables and columns that migration 008 introduces

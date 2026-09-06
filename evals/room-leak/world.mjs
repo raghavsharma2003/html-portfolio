@@ -626,7 +626,11 @@ const TABLE_ROLES = {
   // content, never creator-facing, never a cross-follower read (it decides
   // whether to send THAT SAME follower their own proactive message).
   vy_room_checkin: { owners: ["_checkins.js", "_room-surface.js", "_quiet-hours.js"], aggregateOnly: ["_ops.js"] },
-  vy_room_checkin_delivery: { owners: ["_checkins.js", "_room-surface.js"], aggregateOnly: ["_ops.js"] },
+  // WS-R137 (migration 136): api/_room-month-note.js's own "check-ins kept
+  // this month" read - a bare count(*) over vy_room_checkin_delivery,
+  // scoped by room_id+person_id+state, the same shape _ops.js already
+  // proves out.
+  vy_room_checkin_delivery: { owners: ["_checkins.js", "_room-surface.js"], aggregateOnly: ["_ops.js", "_room-month-note.js"] },
   vy_room_push_subscription: { owners: ["_room-push.js", "_room-surface.js"] },
   vy_room_pulse_optin: { owners: ["_pulse.js", "_room-surface.js"] },
   vy_room_handoff: { owners: ["_handoff.js", "_room-surface.js"] },
@@ -638,7 +642,12 @@ const TABLE_ROLES = {
   // "messages this week" read, restated for the Suite admin lane rather
   // than imported (that file's own header on why) - the same bare
   // `sum(turns)`, no content column, admitted on the same shape.
-  vy_room_follower_day: { owners: ["_room-surface.js"], aggregateOnly: ["_ops.js", "_phase-gate.js", "_room-cohorts.js", "_creator-push.js", "_org-weekly-note.js"] },
+  // WS-R137 (migration 136): api/_room-month-note.js's own "turns and days
+  // active this month" read (sum/count, scoped by room_id+person_id) and
+  // its own streak read (a plain day/turns listing, still no content
+  // column - `contentColumnLeaks`'s own scan admits it below), the
+  // identical aggregate-only shape every sibling here already proves out.
+  vy_room_follower_day: { owners: ["_room-surface.js"], aggregateOnly: ["_ops.js", "_phase-gate.js", "_room-cohorts.js", "_creator-push.js", "_org-weekly-note.js", "_room-month-note.js"] },
   vy_room_voice_usage: { owners: ["_room-surface.js"] },
   // `_renewals.js` reads a follower's OWN subscription row back to THAT
   // follower (a reminder, never creator-facing) — `context/rejected.md`'s
@@ -719,6 +728,16 @@ const TABLE_ROLES = {
   // own two-owner-plus-erasure shape restated one table over, with the
   // SAME reasoning: a real `referrer_person_id`, no creator-facing reader.
   vy_room_referral_reward: { owners: ["_room-surface.js", "_payments.js", "memory.js", "_replica-full-erasure.js"] },
+  // WS-R137 (migration 136). The follower's monthly-note ledger:
+  // `_room-month-note.js` builds, claims, delivers and reads it back to the
+  // SAME follower it is about (`lastFollowerMonthNote`); `_room-surface.js`
+  // exports/forgets it (`ROOM_EXPORT_EXTRA`, `roomForgetCore`). No FK on
+  // follower_id/person_id (migration 136's own header, 009's convention), so
+  // no aggregate-only reader anywhere and no `_replica-full-erasure.js`
+  // entry either — the table carries `room_id references vy_room(room_id)
+  // on delete cascade`, `vy_room_follower_whatsapp_chat`'s own precedent
+  // (128) restated: a full replica erasure reaches it through that FK alone.
+  vy_room_follower_month_note: { owners: ["_room-month-note.js", "_room-surface.js"] },
 };
 // Every line naming a guarded table in a file that is neither an owner nor an
 // aggregate-only reader must be ONE of: a comment (block or line), a DELETE,

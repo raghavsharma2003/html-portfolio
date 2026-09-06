@@ -4587,3 +4587,27 @@ create unique index if not exists vy_room_referral_reward_cap_ix
   on vy_room_referral_reward (referrer_follower_id, room_id, year_key);
 create index if not exists vy_room_referral_reward_room_granted_ix
   on vy_room_referral_reward (room_id, granted_at);
+-- Migration 136 - the follower's monthly note (WS-R137). See
+-- db/migrations/136_room_follower_month_note.sql for the full argument.
+-- Content-free ledger (no counts, no text - api/_room-month-note.js
+-- recomputes the note fresh every time); unique (follower_id, room_id,
+-- month_key) is the whole idempotency. FK on room_id only, cascade; no FK
+-- on follower_id/person_id (009's convention) - a follower's own forget
+-- deletes this row by an explicit statement in roomForgetCore.
+create table if not exists vy_room_follower_month_note (
+  note_id             uuid primary key,
+  room_id             uuid not null references vy_room(room_id) on delete cascade,
+  follower_id         uuid not null,
+  person_id           uuid not null,
+  month_key           text not null,
+  built_at            timestamptz not null default now(),
+  delivered_channels  text[] not null default '{}'::text[],
+  constraint vy_room_follower_month_note_month_key_check
+    check (month_key ~ '^[0-9]{4}-[0-9]{2}$')
+);
+create unique index if not exists vy_room_follower_month_note_follower_room_month_ix
+  on vy_room_follower_month_note (follower_id, room_id, month_key);
+create index if not exists vy_room_follower_month_note_follower_built_ix
+  on vy_room_follower_month_note (follower_id, built_at desc);
+create index if not exists vy_room_follower_month_note_room_person_ix
+  on vy_room_follower_month_note (room_id, person_id);

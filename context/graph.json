@@ -10906,6 +10906,30 @@
       "kind": "measurement",
       "title": "New suite evals/payout-statement-readable 20/20 (60 generated periods x 2 locales, required negative controls); evals/payouts widened to 69/69; evals/room-doors 2147/0 unchanged with new formats entry; evals/room-leak 269/0; evals/room-export 47/0; tsc/copy/context clean. Two real defects found and fixed (see rejected.md), both reproduced as environmental-vs-real by a temporary git worktree of the untouched base.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r137-month-note-builder",
+      "kind": "component",
+      "title": "api/_room-month-note.js: computeFollowerMonthNote (pure counts over the follower's own lane, no import of its own), dueFollowerMonthNoteCandidates/claimFollowerMonthNote (idempotency-by-absence plus the unique index), deliverFollowerMonthNote (web push + Telegram, never WhatsApp), lastFollowerMonthNote (the account page's own read). Cron door api/room-month-note-sweep.js runs daily. Migration 136: vy_room_follower_month_note, content-free, room_id FK cascade, no FK on follower_id/person_id.",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r137-whatsapp-excluded-from-follower-month-note",
+      "kind": "decision",
+      "title": "The follower's monthly note delivers over web push and Telegram only, never WhatsApp, because api/_room-whatsapp.js's templates are Meta-approved for the check-in shape specifically and a monthly summary is a different message shape. Reverses when a monthly-note WhatsApp template is submitted and approved.",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r137-no-floor-on-followers-own-month-note",
+      "kind": "rejection",
+      "title": "Applying api/_org-weekly-note.js's n>=5 admin floor to computeFollowerMonthNote was considered and rejected: the floor protects a follower's privacy from a THIRD PARTY, and this note is shown back to the same person the rows are about, so a floor here would only hide a follower's own activity from themselves.",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r137-gate-results",
+      "kind": "measurement",
+      "title": "verify-release.mjs: every failing check across two full attempts (layout readability, performance budgets, eval suite's day-one/registry-runner, security headers) was a fixed-port EADDRINUSE from concurrent wave-nineteen sibling gates and passed clean standalone once re-run. Full eval registry passed 0 failed suites standalone. New suite evals/room-month-note: 26/26. room-leak layer 17, room-doors, room-export all green with the new table wired in.",
+      "at": "2026-09-06"
     }
   ],
   "edges": [
@@ -21128,6 +21152,16 @@
       "src": "ws-r138-payout-statement-readable-gate-results",
       "rel": "caused_by",
       "dst": "ws-r138-room-fixture-substring-collided-with-resolvecreatorpages-own-query"
+    },
+    {
+      "src": "ws-r137-whatsapp-excluded-from-follower-month-note",
+      "rel": "part_of",
+      "dst": "ws-r137-month-note-builder"
+    },
+    {
+      "src": "ws-r137-no-floor-on-followers-own-month-note",
+      "rel": "constrains",
+      "dst": "ws-r137-month-note-builder"
     }
   ]
 }

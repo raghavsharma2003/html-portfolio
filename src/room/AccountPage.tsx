@@ -35,11 +35,13 @@ import {
   listReceipts,
   fetchReceiptHtml,
   fetchRoomExportReadableHtml,
+  lastMonthNote,
   type RoomFlag,
   type RoomForgetReceipt,
   type RoomSettings,
   type RoomReceiptRow,
   type RoomReferralProgress,
+  type RoomMonthNote,
 } from "./roomApi";
 import { listCheckinDesignsAndPushKey, setTelegramCheckins } from "./roomCheckinsApi";
 import { paymentStatus, type RoomPaymentStatus } from "./roomPayApi";
@@ -86,6 +88,24 @@ function formatDate(iso: string, locale: RoomLocale): string {
   }
 }
 
+/** WS-R137 (migration 136). `"2026-08"` -> a locale-formatted month label
+ *  (`formatDate`'s own precedent one function up) - never the raw key
+ *  itself, which is an internal storage shape, not something a follower
+ *  reads. */
+function formatMonthLabel(monthKey: string, locale: RoomLocale): string {
+  const [y, m] = monthKey.split("-").map(Number);
+  if (!y || !m) return monthKey;
+  try {
+    return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(locale === "hi" ? "hi-IN" : "en-IN", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  } catch {
+    return monthKey;
+  }
+}
+
 interface Props {
   session: string;
   copy: RoomCopy;
@@ -125,6 +145,11 @@ interface Props {
    *  over — no network reaches `roomReferralProgress` from the fixture
    *  either, so this supplies the progress line's own state directly. */
   fixtureReferralProgress?: RoomReferralProgress;
+  /** WS-R137 (migration 136). `fixtureReferralProgress`'s own seam, one
+   *  card over — no network reaches `lastMonthNote` from the fixture
+   *  either. `null` renders the empty state; omitted renders nothing until
+   *  the (never-firing, on a fixture) effect would have resolved. */
+  fixtureMonthNote?: RoomMonthNote | null;
 }
 
 export default function AccountPage({
@@ -149,6 +174,7 @@ export default function AccountPage({
   fixturePayment,
   fixtureReferralUrl,
   fixtureReferralProgress,
+  fixtureMonthNote,
 }: Props) {
   const [settings, setSettings] = useState<RoomSettings | null>(fixtureSettings ?? null);
   const [payment, setPayment] = useState<RoomPaymentStatus | null>(fixturePayment ?? null);
@@ -172,6 +198,10 @@ export default function AccountPage({
   // panel's own list, `flags`' own state shape one field up.
   const [receipts, setReceipts] = useState<RoomReceiptRow[]>([]);
   const [printingId, setPrintingId] = useState<string | null>(null);
+  // WS-R137 (migration 136). `undefined` before the read resolves (renders
+  // nothing, same as `flags`/`receipts` before their own effects fire);
+  // `null` is the honest empty state (no note built yet).
+  const [monthNote, setMonthNote] = useState<RoomMonthNote | null | undefined>(fixtureMonthNote);
   // WS-R86 (migration 123). "Bring a friend" - the server mints the hash,
   // this page only ever displays the RELATIVE path it returns, prefixed
   // with the browser's own origin (`RoomApp.tsx`'s own `shareUrl`
@@ -260,6 +290,18 @@ export default function AccountPage({
       .catch(() => {});
     return () => { live = false; };
   }, [session, fixtureSettings]);
+
+  // WS-R137 (migration 136). `listReceipts`' own rule restated one card
+  // over: never on a fixture, a failed load simply leaves the card absent
+  // rather than showing an error for a non-critical panel.
+  useEffect(() => {
+    if (fixtureMonthNote !== undefined) return;
+    let live = true;
+    lastMonthNote(session)
+      .then((result) => { if (live) setMonthNote(result.note); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [session, fixtureMonthNote]);
 
   const printReceipt = useCallback(async (paymentEventId: string) => {
     setPrintingId(paymentEventId);
@@ -717,6 +759,32 @@ export default function AccountPage({
             </li>
           ))}
         </ul>
+      )}
+
+      {/* WS-R137 (migration 136). The follower's own monthly note - built
+          from their own rows alone, recomputed fresh every time this page
+          opens, never a model call. Renders nothing before the read
+          resolves (`monthNote === undefined`); the honest empty state below
+          when it resolves to `null` (no note built yet). */}
+      {monthNote !== undefined && (
+        <div className="room-month-note">
+          <h3 className="room-checkins-subhead">
+            {monthNote ? copy.monthNote.title(formatMonthLabel(monthNote.month_key, locale)) : copy.monthNote.heading}
+          </h3>
+          {monthNote ? (
+            <>
+              <p className="room-fine room-num">{copy.monthNote.turns(monthNote.turns_this_month, monthNote.days_active_this_month)}</p>
+              {monthNote.streak_days >= 2 && <p className="room-fine room-num">{copy.monthNote.streak(monthNote.streak_days)}</p>}
+              {monthNote.threads_revisited > 0 && <p className="room-fine room-num">{copy.monthNote.threads(monthNote.threads_revisited)}</p>}
+              {monthNote.checkins_kept > 0 && <p className="room-fine room-num">{copy.monthNote.checkins(monthNote.checkins_kept)}</p>}
+              {monthNote.remembered_things_count != null && (
+                <p className="room-fine room-num">{copy.monthNote.remembered(monthNote.remembered_things_count)}</p>
+              )}
+            </>
+          ) : (
+            <p className="room-fine">{copy.monthNote.empty}</p>
+          )}
+        </div>
       )}
 
       <h3 className="room-checkins-subhead">{copy.flag.accountTitle}</h3>

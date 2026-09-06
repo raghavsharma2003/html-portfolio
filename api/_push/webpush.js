@@ -408,6 +408,31 @@ export function dormancyPushPayload(slug, displayName) {
 }
 
 /**
+ * WS-R137 (migration 136). The follower's monthly note - `checkinPushPayload`'s
+ * own shape, restated for a summary instead of a check-in: room slug, the
+ * room's own public display name, and ONLY the counts `api/_room-month-note.js#
+ * computeFollowerMonthNote` already floor-free returns to this SAME follower
+ * about themselves (never another follower's numbers - that function's own
+ * header states why there is nothing here TO leak). No remembered-things
+ * count on the lock screen even when the note itself carries one: a
+ * notification body is not the place for anything close to what a follower
+ * asked an AI to remember, `checkinPushPayload`'s own "the follower's own
+ * room panel is where the real sentence lives" restated.
+ */
+export function monthNotePushPayload(slug, displayName, note) {
+  const name = String(displayName || "").slice(0, 80) || "Your creator";
+  const turns = Math.max(0, Math.trunc(Number(note?.turns_this_month) || 0));
+  const streak = Math.max(0, Math.trunc(Number(note?.streak_days) || 0));
+  const streakPart = streak >= 2 ? `, a ${streak}-day streak` : "";
+  return JSON.stringify({
+    t: "month_note",
+    title: `Your month with ${name} AI`,
+    body: `${turns} message${turns === 1 ? "" : "s"} this month${streakPart}. Open the Room to see your note.`,
+    url: `/r/${String(slug || "")}?via=push`,
+  });
+}
+
+/**
  * Send one push to one subscription. Returns `{ ok, status, notConfigured }`
  * — never throws for an ordinary HTTP failure (a 404/410 is exactly as
  * expected a result as a 201; the caller decides what a status means). Only

@@ -12,10 +12,11 @@
 // Every push this platform ever sends to a follower's own device arrives as
 // the SAME shape: `{t, title, body, url}`.
 //
-//   t      a CLOSED list this file owns: "checkin", "renewal", "dormancy" -
-//          the only three kinds any Room builder in `api/_push/webpush.js`
-//          (`checkinPushPayload`/`renewalPushPayload`/`dormancyPushPayload`)
-//          has ever emitted or ever will without a matching edit HERE first.
+//   t      a CLOSED list this file owns: "checkin", "renewal", "dormancy",
+//          "month_note" - the only kinds any Room builder in
+//          `api/_push/webpush.js` (`checkinPushPayload`/`renewalPushPayload`/
+//          `dormancyPushPayload`/`monthNotePushPayload`, WS-R137) has ever
+//          emitted or ever will without a matching edit HERE first.
 //   title  the exact, fixed sentence a follower sees on their lock screen -
 //          assembled server-side by the SAME payload function, never
 //          composed in this file. Content-free BY CONSTRUCTION at the
@@ -207,7 +208,7 @@ self.addEventListener("fetch", (event) => {
 // The closed list this file owns — see the header above. Kept as a Set,
 // named once, rather than a chain of `||` comparisons a future kind could
 // be bolted onto without also touching the doc comment above it.
-const KNOWN_PUSH_KINDS = new Set(["checkin", "renewal", "dormancy"]);
+const KNOWN_PUSH_KINDS = new Set(["checkin", "renewal", "dormancy", "month_note"]);
 
 self.addEventListener("push", (event) => {
   let data = {};
