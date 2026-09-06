@@ -22568,3 +22568,18 @@ Owner explicitly requires real useful expert cloning first, later general person
 ## `azure-only-leaf-serving-and-challenge-boundary-20260907` (2026-09-07)
 
 Strict mode now defaults shared reply/capability to Azure, refuses conflicting overrides, removes OpenRouter claim/embedding fallback, validates ASR registry and direct selfhost/short-ASR/voice/evidence origins, and rejects redirect following for signed voice/ASR transports. Existing non-strict legacy behavior remains outside the new development deployment. The old Sarvam-specific voice challenge is unavailable before work under strict mode; a correct Azure replacement needs language/script, nonce and durable verifier provenance validation. Historical vendor erasure code is unchanged. Reversal condition: equivalent tested serving boundaries may consolidate these controls; enabling an Azure challenge requires actual language and anti-replay evidence, not provider-name substitution.
+
+
+## `azure-identity-needs-issued-contract-and-single-audio-authority-20260907` (2026-09-07)
+
+Keep strict-mode identity verification unavailable until a versioned issue/lease/settlement contract binds the selected hi-IN or en-IN challenge, bank item, verifier profile, issued reference genome and a server-verified same-recording audio transform. Independent video/WAV hashes do not prove those inputs came from the same recording. Preserve nonce and similarity requirements; inconclusive recognition must never open identity or promise an unimplemented human review queue. Reversal condition: an implemented alternative proves equivalent source, language, reference, anti-replay and revocation bindings with real SQL checks and bounded Azure acceptance evidence.
+
+
+## `short-asr-bounds-decoded-frames-before-resampling-20260907` (2026-09-07)
+
+The Azure-specific resampler compares exact decoded frames to60seconds after the canonical probe and before allocation/conversion. Keep the fast metadata refusal and existing duration-agreement check; do not globally cap enrollment audio or truncate/hash-relabel sources. Reversal condition: a changed provider contract or separately verified transform requires a different explicit bound with equivalent decoded-input tests.
+
+
+## `incident-inventory-parses-injected-transports-20260907` (2026-09-07)
+
+Use installed TypeScript AST locally in the incident gate to identify direct/injected/fallback transport calls and explicit named browser-script literals. Only literal loopback first arguments are exempt; computed destinations remain in scope. Preserve existing coverage entries, map Azure shared-reply to existing incident callers and name newly exposed non-Room lifecycle exclusions. This is bounded syntax inventory, not interprocedural proof or proof that all excluded failures reach the incident board. Reversal condition: a simpler or more complete detector preserves existing and generated-script coverage and passes the same alias/comment/string/loopback negative controls.

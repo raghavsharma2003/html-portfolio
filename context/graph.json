@@ -12375,6 +12375,72 @@
       "kind": "measurement",
       "title": "Five proposed expert outcomes tied to existing callers and gaps",
       "at": "2026-09-07"
+    },
+    {
+      "id": "frozen-release-six-finds-incident-inventory-regression-20260907",
+      "kind": "measurement",
+      "title": "Frozen checkpoint passes23of24 release checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "azure-identity-needs-issued-contract-and-single-audio-authority-20260907",
+      "kind": "decision",
+      "title": "Bind Azure identity to issued language, exact reference and one recording",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "azure-speech-public-sample-connectivity-20260907",
+      "kind": "measurement",
+      "title": "One real Azure Speech recognition succeeds on a public English sample",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "azure-challenge-unknown-hint-and-two-upload-assumptions-corrected-20260907",
+      "kind": "rejection",
+      "title": "Correct unknown-language and independent-upload assumptions",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "short-asr-bounds-decoded-frames-before-resampling-20260907",
+      "kind": "decision",
+      "title": "Enforce Azure short-audio duration from PCM frames",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "short-asr-duration-seventeen-controls-20260907",
+      "kind": "measurement",
+      "title": "17 decoded-duration controls pass with two actual-source mutants",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "duration-metadata-and-rounded-milliseconds-are-not-the-audio-ceiling-20260907",
+      "kind": "rejection",
+      "title": "Reject metadata-only and rounded-only audio bounds",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "dev-speech-config-and-review-copy-20260907",
+      "kind": "measurement",
+      "title": "Verified Speech configuration reaches the restarted local server",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "incident-inventory-parses-injected-transports-20260907",
+      "kind": "decision",
+      "title": "Discover injected transports without dropping coverage",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "incident-discovery-repair-113-checks-20260907",
+      "kind": "measurement",
+      "title": "Incident gate passes113checks and inventories50transport files",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "remove-inventory-entries-to-green-is-not-a-transport-fix-20260907",
+      "kind": "rejection",
+      "title": "Do not remove coverage to accommodate a blind scanner",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -24125,6 +24191,36 @@
       "src": "switching-challenge-asr-is-not-a-verified-identity-migration-20260907",
       "rel": "constrains",
       "dst": "azure-only-leaf-serving-and-challenge-boundary-20260907"
+    },
+    {
+      "src": "azure-identity-needs-issued-contract-and-single-audio-authority-20260907",
+      "rel": "measured_by",
+      "dst": "azure-speech-public-sample-connectivity-20260907"
+    },
+    {
+      "src": "azure-challenge-unknown-hint-and-two-upload-assumptions-corrected-20260907",
+      "rel": "constrains",
+      "dst": "azure-identity-needs-issued-contract-and-single-audio-authority-20260907"
+    },
+    {
+      "src": "short-asr-bounds-decoded-frames-before-resampling-20260907",
+      "rel": "measured_by",
+      "dst": "short-asr-duration-seventeen-controls-20260907"
+    },
+    {
+      "src": "duration-metadata-and-rounded-milliseconds-are-not-the-audio-ceiling-20260907",
+      "rel": "constrains",
+      "dst": "short-asr-bounds-decoded-frames-before-resampling-20260907"
+    },
+    {
+      "src": "incident-inventory-parses-injected-transports-20260907",
+      "rel": "measured_by",
+      "dst": "incident-discovery-repair-113-checks-20260907"
+    },
+    {
+      "src": "remove-inventory-entries-to-green-is-not-a-transport-fix-20260907",
+      "rel": "constrains",
+      "dst": "incident-inventory-parses-injected-transports-20260907"
     }
   ]
 }

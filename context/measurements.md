@@ -16104,3 +16104,30 @@ Runner5 started at2026-09-07 01:15IST on integration checkpoint630e18dd with doc
 ## `expert-value-contract-caller-audit-20260907` (2026-09-07)
 
 High-reasoning Astra agent produced expert-value-contract.md in the fidelity research folder, validated29 local source links, and defined five proposed acceptance scenarios: grounded answers, correction transfer, private continuity, bounded practice skill and owner override/handoff. Existing check-ins and handoff have callers; general skill execution and transfer of approved owner corrections into published Room source-grounded answers remain unproven. No runtime, outbound action, user study or PMF measurement ran in this product audit.
+
+
+## `frozen-release-six-finds-incident-inventory-regression-20260907` (2026-09-07)
+
+Run6 on frozen local checkpoint3bf53790, 2026-09-07 01:40 to01:57IST, exited1:23of24 checks passed. Only eval-suite failed, incidents88pass/1fail: static remote-fetch inventory no longer discovers _surface.js and _embed.js after injected fetchImpl refactor, while coverage entries still include them. Other release checks passed, including performance9targets x3cold contexts, Studio LCP2036ms/TBT51ms, Hindi Studio2072ms/57ms, accessibility70140ms. Relational gates skipped without NEON_URL; separate guarded real-dev evidence stays separate. Root briefly reported the suite passed before reading its final result, then corrected the user-facing update; a completed log file is not a passing suite. Evidence scratchpad/expert-integrated-release-6.log and scratchpad/release-logs/2026-09-06T20-10-44-531Z-18596/. No deployment or full product acceptance.
+
+
+## `azure-speech-public-sample-connectivity-20260907` (2026-09-07)
+
+Measured 2026-09-07 India. Read-only ARM inspection found two existing AIServices S0 accounts in eastus2. Authenticated catalogue on the existing compan resource returned HTTP 200 with 770 voices, including 18 hi-IN and 20 en-IN entries. One direct Speech REST request, no retry, transcribed Microsoft public sample as: What's the weather like? HTTP 200, RecognitionStatus Success, 2737 ms, en-US; source 65004 bytes, mono 16 kHz PCM16, 2.03 seconds, SHA256 ff97e7906d20c26620cf11b86a1c7f62200b4437786733a3e7513ec85608bde6. Source pinned to Azure-Samples speech SDK commit f9807b1079f3a85f07cbb6d762c6b5449d536027. Keys and sample remained in memory; no owner recording, synthesis, GPU warming, deployment or identity acceptance. Actual Speech charge was not returned and is outside the text ledger cap. This tests direct REST connectivity, not the product adapter or Hindi/Hinglish quality. Evidence: ROOT scratchpad/expert-tools/azure-speech-resource-inventory.json and inspect-speech-resources.py.
+
+
+## `short-asr-duration-seventeen-controls-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Agent and root each ran evals/azure-asr-duration.mjs:17checks passed using actual provider/probe/resampler and injected read/transport. Exact60seconds succeeds;61seconds with absent/zero/null/empty/nonnumeric/negative-infinite duration fails before dispatch; one-frame and2ms drift overruns fail. Existing mismatch/hash/container/pre-read refusals remain. Deliberately removing the new guard allows61seconds; rounded-duration-only mutant sends960001frames, proving both negative controls detect the defect. Agent also ran475Mirror checks and Azure-only ASR policy suite successfully. No cloud or recognition request ran in these tests.
+
+
+## `dev-speech-config-and-review-copy-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Ignored root launcher now injects the verified existing cognitive endpoint and account key only into child environment, with exact endpoint binding. Restarted the exact5177development listener; new exec81652 reported isolated-database startup and /studio returnedHTTP200. This is configuration/startup evidence, not a live product-adapter transcription. Speech charges are separate from the1USDtext ledger cap. Removed UI promise that a person will review inconclusive identity evidence; no review consumer was established. Copy gate passed. Identity verification stays disabled under Azure-only mode.
+
+
+## `incident-discovery-repair-113-checks-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Root independently ran evals/incidents/run.mjs after the Astra repair:113passed,0failed. Scanner inventories50transport files, retaining generated browser scripts and both _surface.js/_embed.js. Controls exercise actual detector for aliases/fallbacks/computed property calls, whitespace, misleading loopback words, comments/strings/regex/declarations, missing named script and unaccounted new caller; former regex misses both refactored shapes. Evidence scratchpad/incidents-azure-repair.log. No cloud call, real incident write or notification. Full run6 remains23of24; new runtime and gate edits require another frozen release run.
+
+Astra additionally ran evals/source-scan/run.mjs:44passed,0failed, including normal/legacy parity for room-leak,readiness,incidents,room-doors. Root read retained output scratchpad/source-scan-after-fetch-alias.log; this is not a second independent execution. No further implementation edit followed.

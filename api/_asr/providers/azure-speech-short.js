@@ -58,6 +58,14 @@ function sinc(value) {
 export function resample24kPcm16To16kWav(value, expectedDurationMs) {
   const bytes = Buffer.isBuffer(value) ? value : Buffer.from(value || []);
   const probe = probeEnrollmentWav(bytes, { expectedDurationMs });
+  // Metadata can be absent or within the probe's rounding tolerance. Bound
+  // actual PCM frames before allocating or resampling the transport audio.
+  if (probe.frames * 1000 > probe.sampleRate * MAX_DURATION_MS) {
+    fail("azure_asr_short_window_too_long", 413, {
+      max_ms: MAX_DURATION_MS,
+      duration_ms: probe.frames * 1000 / probe.sampleRate,
+    });
+  }
   const chunk = dataChunk(bytes);
   const inputFrames = chunk.size / 2;
   const outputFrames = Math.max(1, Math.round(inputFrames * 16_000 / 24_000));

@@ -16312,3 +16312,18 @@ Audit found shared reply OpenRouter default; OpenRouter fallbacks for claim/embe
 ## `switching-challenge-asr-is-not-a-verified-identity-migration-20260907` (2026-09-07)
 
 The legacy challenge chooses mixed English and Roman Hindi sentences; existing overlap normalization does not bridge Roman and Devanagari, and short Azure ASR defaults unknown language to hi-IN. Merely replacing Sarvam construction would change recognition and durable verifier semantics without acceptance evidence. Strict mode therefore disables the old verifier rather than calling a forbidden vendor or guessing success. Root initial new fixture passed env in the wrong factory shape and failed with voice_evidence_origin_required; corrected to {env}, then verified the policy rejection precedes construction.
+
+
+## `azure-challenge-unknown-hint-and-two-upload-assumptions-corrected-20260907` (2026-09-07)
+
+Correction to switching-challenge-asr-is-not-a-verified-identity-migration-20260907: langHint rejects literal unknown; only literal auto is mapped by the short Azure provider to hi-IN. The old verifier supplies unknown, so a provider-name swap would fail validation, not detect a language. Read-only Astra audit also found lease selects the latest reference despite saving an issue-time version; video evidence and transcript WAV have independent hash checks without a server same-recording binding; comments promise script mismatch review but decision code rejects low overlap; UI promises human review without an established consumer. These observations are source-level evidence, not successful attack executions. Draft specifies versioned fixes and negative controls; no identity guarantee follows from one correct public transcript.
+
+
+## `duration-metadata-and-rounded-milliseconds-are-not-the-audio-ceiling-20260907` (2026-09-07)
+
+Source audit found probeEnrollmentWav has no maximum duration; optional metadata can disappear through numeric coercion, and2ms drift tolerance allows small underreporting. Exact-frame regression mutants reproduced fake-provider dispatch when the new guard was absent or rounded only. Ordinary Mirror already supplies bounded30second windows, so this is an adapter-boundary defect, not a demonstrated normal-Mirror61second production request. Do not infer recognition accuracy from synthetic PCM tests.
+
+
+## `remove-inventory-entries-to-green-is-not-a-transport-fix-20260907` (2026-09-07)
+
+The failed run6 inventory was not evidence that _surface.js or _embed.js stopped making requests. Their injected call syntax became invisible to the regex. The initial AST pass also lost generated browser scripts stored in named String.raw templates; explicit script parsing restored them rather than dropping their entries. Corrected discovery exposes previously invisible adapters with honest caller mapping or scoped exclusion. No claim of complete incident observability follows from inventory equality.

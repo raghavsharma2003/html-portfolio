@@ -465,8 +465,7 @@ export default function VoiceIdentityChallengeBand({
                   <p>{failure.note}</p>
                   {challenge?.decision === "review" && (
                     <p>
-                      This one was close rather than clearly wrong, so a person will look at it. Recording again
-                      in a quieter room is usually faster.
+                      We could not verify this recording. Your voice is not verified yet. You can record again.
                     </p>
                   )}
                 </div>

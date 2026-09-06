@@ -18,6 +18,7 @@ import fs from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { stripComments } from "../lib/source-scan.mjs";
+import ts from "typescript";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -697,8 +698,8 @@ console.log(`  doors wrapped: ${MIRRORED_EXPECTED_DOORS.length} HTTP + ${MIRRORE
 // the list of call sites is derived from source (fetch( inside api/
 // reaching a non-127.0.0.1 host) and asserted covered."
 //
-// Discovery walks the REAL api/ tree for a `fetch(`/`.fetch(` call whose
-// nearby text is not a loopback address — the same shape as room-doors'
+// Discovery walks the REAL api/ tree for a fetch or injected fetchImpl call
+// whose first argument is not a literal loopback URL — like room-doors'
 // own body-reading rule (a): a structural fact about the source, not a
 // hand-typed list a new file could silently miss. Every discovered file is
 // then either COVERED (its own source, or the ONE named file that owns
@@ -720,30 +721,70 @@ function walkJsFiles(dir) {
   return out;
 }
 
-/** A file "has a remote fetch" iff some `fetch(`/`.fetch(` call site's own
- *  next 200 characters (its arguments — the URL, always the first one, in
- *  every call site in this codebase) do NOT mention a loopback host. The
- *  200-character window is generous enough to cover every real call site in
- *  this file (checked against the NEGATIVE CONTROL below, which is the
- *  inverse case), never so wide it would cross into an unrelated statement. */
+// Match the transport call, not a substring in comments/strings or the
+// surrounding 200 characters. The current adapters use fetchImpl as their
+// injectable transport, including (options.fetchImpl || globalThis.fetch)(...).
+// This is bounded syntax discovery, not interprocedural alias analysis.
+function isFetchTransport(node) {
+  if (ts.isParenthesizedExpression(node)) return isFetchTransport(node.expression);
+  if (ts.isIdentifier(node)) return node.text === "fetch" || node.text === "fetchImpl";
+  if (ts.isPropertyAccessExpression(node)) return node.name.text === "fetch" || node.name.text === "fetchImpl";
+  if (ts.isElementAccessExpression(node) && node.argumentExpression && ts.isStringLiteral(node.argumentExpression)) {
+    return ["fetch", "fetchImpl"].includes(node.argumentExpression.text);
+  }
+  if (ts.isBinaryExpression(node) && [ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(node.operatorToken.kind)) {
+    return isFetchTransport(node.left) || isFetchTransport(node.right);
+  }
+  return false;
+}
+
+function hasRemoteFetch(source, embeddedScriptNames = []) {
+  const tree = ts.createSourceFile("provider.js", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  let found = false;
+  const scripts = new Set();
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && embeddedScriptNames.includes(node.name.text)) {
+      const init = node.initializer;
+      if (!init || !ts.isTaggedTemplateExpression(init) || init.tag.getText(tree) !== "String.raw" ||
+          !ts.isNoSubstitutionTemplateLiteral(init.template)) {
+        throw new Error(`unsupported embedded provider script: ${node.name.text}`);
+      }
+      scripts.add(node.name.text);
+      // These named constants are executable browser scripts, not prose.
+      if (hasRemoteFetch(init.template.rawText ?? init.template.text)) found = true;
+    }
+    if (ts.isCallExpression(node) && isFetchTransport(node.expression)) {
+      const target = node.arguments[0];
+      let local = false;
+      if (target && (ts.isStringLiteral(target) || ts.isNoSubstitutionTemplateLiteral(target))) {
+        try { local = ["127.0.0.1", "localhost", "[::1]"].includes(new URL(target.text).hostname); } catch {}
+      }
+      // Unknown/computed targets remain in scope. A loopback mention in an
+      // option, comment, path or neighbouring statement cannot exempt a call.
+      if (!local) found = true;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  for (const name of embeddedScriptNames) {
+    if (!scripts.has(name)) throw new Error(`missing embedded provider script: ${name}`);
+  }
+  return found;
+}
+
+const EMBEDDED_PROVIDER_SCRIPTS = {
+  "_room-embed.js": ["ROOM_EMBED_JS"],
+  "embed.js": ["WIDGET_JS"],
+};
+
 function discoverRemoteFetchFiles() {
   const hits = [];
   for (const abs of walkJsFiles(API)) {
-    // WS-R134: comment-stripped first — a comment mentioning `fetch(` in
-    // prose (e.g. explaining that a file no longer calls it directly) used
-    // to be discovered as a real remote call site, which either fails this
-    // scan's own completeness check by name for no reason or, worse, forces
-    // a hand-typed admission into PROVIDER_EXCLUDED for a file that touches
-    // no network at all.
+    // Retain the shared comment-stripping/legacy parity seam. AST discovery
+    // independently distinguishes comments and examples from executable calls.
     const src = scanned(fs.readFileSync(abs, "utf8"));
-    const re = /\.?fetch\(/g;
-    let m;
-    let found = false;
-    while (!found && (m = re.exec(src))) {
-      const windowText = src.slice(m.index, m.index + 200);
-      if (!/127\.0\.0\.1|localhost/.test(windowText)) found = true;
-    }
-    if (found) hits.push(relative(API, abs).split("\\").join("/"));
+    const name = relative(API, abs).split("\\").join("/");
+    if (hasRemoteFetch(src, EMBEDDED_PROVIDER_SCRIPTS[name])) hits.push(name);
   }
   return hits.sort();
 }
@@ -789,6 +830,8 @@ const PROVIDER_CALLER_MAPPED = {
   // the two Room-scoped callers that turn "nothing came back" into an
   // incident.
   "_surface.js": ["_room-surface.js", "_checkins.js"],
+  // Azure is the alternate transport behind the same think() caller seam.
+  "_azure-surface-reply.js": ["_room-surface.js", "_checkins.js"],
 };
 
 // EXCLUDED: Meera-only surfaces with their own dedicated batteries, or
@@ -797,10 +840,41 @@ const PROVIDER_CALLER_MAPPED = {
 // carries its own surface" reasoning `context/rejected.md
 // #ws-38-door-list-completeness-rule`/`#ws-89-consolidate-sweep-finding...`
 // already use, restated for a fetch call site instead of a whole door.
+// Alias discovery also exposes these pre-existing non-Room transports.
+// Each exclusion states its actual lifecycle; exclusion is not a claim that
+// this incident board observes its provider failures. Keep dormant adapters
+// in the inventory as long as their executable transport remains in source.
+const INJECTED_PROVIDER_EXCLUSIONS = {
+  "_auth.js": "Supabase authentication; session errors use the auth API contract, outside Room provider delivery.",
+  "_asr/providers/azure-speech-short.js": "Replica ASR input/result lifecycle; not a Room text delivery transport.",
+  "_asr/providers/sarvam-saaras.js": "Legacy Replica batch ASR lifecycle; retained transport is inventoried even when policy disables it.",
+  "_asr/providers/sarvam-sync.js": "Legacy Replica synchronous ASR lifecycle; retained transport is inventoried even when policy disables it.",
+  "_asr/providers/self-hosted.js": "Replica self-hosted ASR input/result lifecycle, separate from Room delivery.",
+  "_channel/media-extract-client.js": "Enrollment media extraction jobs, separate from Room message sends.",
+  "_channel/providers/youtube-oauth.js": "Owner channel enrollment OAuth and media listing, not follower delivery.",
+  "_claim-extraction/providers/azure-foundry.js": "Owner claim extraction and review lifecycle, not published Room replies.",
+  "_claim-extraction/providers/openrouter.js": "Legacy owner claim extractor; retained transport, not published Room replies.",
+  "_dialogue/providers/azure-foundry.js": "Replica dialogue provider via replica-dialogue.js, separate from the Room think() seam.",
+  "_face-session/providers/azure-quicklink.js": "Owner face verification session lifecycle, not follower delivery.",
+  "_identity/providers/azure-composite.js": "Owner identity verification evidence lifecycle, not follower delivery.",
+  "_liveness/providers/azure-composite.js": "Owner liveness verification evidence lifecycle, not follower delivery.",
+  "_provenance/providers/azure-protection.js": "Protected artifact sealing/provenance lifecycle; not the Room incident provider taxonomy.",
+  "_replica-processing/providers/azure-fast-transcription.js": "Enrollment processing job transcription lifecycle.",
+  "_replica-processing/providers/azure-voice-evidence.js": "Enrollment processing voice-evidence job lifecycle.",
+  "_replica-storage.js": "Private storage upload/read/erasure lifecycle; not a Room provider delivery seam.",
+  "_review-queue/questions.js": "Owner review-question generation lifecycle, not follower replies.",
+  "_video-enroll/youtube-metadata.js": "Owner video enrollment metadata lookup, not follower delivery.",
+  "_voice/providers/azure-personal-voice.js": "Replica voice artifact lifecycle; not proof of Room incident coverage for voice operations.",
+  "_voice/providers/elevenlabs-pvc.js": "Legacy Replica voice artifact lifecycle; retained transport even when serving policy disables it.",
+  "_voice/providers/open-chatterbox-preview.js": "Replica preview/artifact lifecycle; not proof of Room incident coverage for voice operations.",
+  "_voice/providers/sarvam-bulbul.js": "Legacy Replica voice artifact lifecycle; retained transport even when serving policy disables it.",
+  "_voice/warmup.js": "Voice runtime readiness/warmup lifecycle, separate from follower text delivery.",
+};
 const PROVIDER_EXCLUDED = [
   "_azure.js", "_channel-secrets.js", "_db.js", "_embed.js", "_gcache.js", "_push.js", "_room-embed.js",
   "account.js", "chat.js", "consolidate.js", "culture.js", "discord.js", "embed.js", "gif.js",
   "live-token.js", "memory.js", "search.js", "speech.js", "tg.js", "whatsapp.js",
+  ...Object.keys(INJECTED_PROVIDER_EXCLUSIONS),
 ];
 
 const providerAccountedFor = new Set([...PROVIDER_DIRECT_COVERED, ...Object.keys(PROVIDER_CALLER_MAPPED), ...PROVIDER_EXCLUDED]);
@@ -836,13 +910,51 @@ for (const f of coveringFiles) {
   ok(`[provider-coverage/${f}] (a named caller) contains a real recordIncident( call`, fileHasRecordIncident(f));
 }
 
-// NEGATIVE CONTROL: the discovery function itself must actually flag a
-// remote host and correctly SKIP a loopback one, proving it discriminates
-// rather than matching every `fetch(` unconditionally.
-ok("NEGATIVE CONTROL: a fetch( call to 127.0.0.1 is correctly treated as local (never flagged remote)",
-  /127\.0\.0\.1|localhost/.test('fetch("http://127.0.0.1:8934/health")'));
-ok("NEGATIVE CONTROL, the inverse: a fetch( call to a real host has no loopback text nearby",
-  !/127\.0\.0\.1|localhost/.test('fetch("https://api.example.com/v1/send")'));
+// Exercise the SAME detector used for inventory, including the two call
+// shapes the former regex lost during Azure transport injection.
+const remoteFetchControls = [
+  ["direct remote call", 'fetch("https://api.example.com/send")', true],
+  ["injected alias", 'fetchImpl(endpoint, {})', true],
+  ["injected property", 'deps.fetchImpl(endpoint)', true],
+  ["computed fetch property", 'globalThis["fetch"](endpoint)', true],
+  ["inline fallback transport", '(options.fetchImpl || globalThis.fetch)(endpoint)', true],
+  ["nullish fallback transport", '(options.fetchImpl ?? globalThis.fetch)(endpoint)', true],
+  ["whitespace before arguments", 'fetchImpl \n (endpoint)', true],
+  ["literal loopback", 'fetch("http://127.0.0.1:8934/health")', false],
+  ["alias loopback", 'fetchImpl("http://localhost:8934/health")', false],
+  ["fallback loopback", '(options.fetchImpl || globalThis.fetch)("http://[::1]:8934/health")', false],
+  ["loopback word in remote path", 'fetch("https://api.example.com/localhost")', true],
+  ["loopback word in options", 'fetchImpl(endpoint, { label: "localhost" })', true],
+  ["adjacent loopback request cannot hide remote", 'fetchImpl(endpoint); fetch("http://localhost/health")', true],
+  ["dynamic loopback-looking target remains unknown", 'fetchImpl(`http://localhost/${path}`)', true],
+  ["comment-only invocation", '// fetchImpl(endpoint)\n/* fetch(endpoint) */', false],
+  ["string-only invocation", 'const example = "fetchImpl(endpoint)";', false],
+  ["regex-only invocation", 'const pattern = /fetchImpl\\(endpoint\\)/;', false],
+  ["declaration is not a call", 'function fetchImpl(url) { return url; }', false],
+  ["transport passed without invocation", 'const deps = { fetchImpl: globalThis.fetch };', false],
+  ["unrelated name suffix", 'prefetch(endpoint); fetchImplementation(endpoint);', false],
+];
+for (const [name, source, expected] of remoteFetchControls) {
+  ok(`[fetch-discovery/${name}] ${expected ? "remote transport detected" : "no remote transport"}`,
+    hasRemoteFetch(source) === expected);
+}
+const formerFetchPattern = /\.?fetch\(/;
+ok("NEGATIVE CONTROL: former discovery misses both actual injected transport shapes",
+  !formerFetchPattern.test('fetchImpl(endpoint)') &&
+  !formerFetchPattern.test('(options.fetchImpl || globalThis.fetch)(endpoint)'));
+ok("the real injected reply and embedding files remain discovered",
+  ["_surface.js", "_embed.js"].every((name) => DISCOVERED_REMOTE_FETCH_FILES.includes(name)));
+ok("generated browser script transports retain their original inventory coverage",
+  Object.keys(EMBEDDED_PROVIDER_SCRIPTS).every((name) => DISCOVERED_REMOTE_FETCH_FILES.includes(name)));
+ok("named executable script literals are scanned while ordinary string examples are not",
+  hasRemoteFetch('const SCRIPT = String.raw`fetchImpl(endpoint)`;', ["SCRIPT"]) &&
+  !hasRemoteFetch('const EXAMPLE = String.raw`fetchImpl(endpoint)`;'));
+let missingScriptRejected = false;
+try { hasRemoteFetch('const OTHER = "";', ["SCRIPT"]); } catch { missingScriptRejected = true; }
+ok("NEGATIVE CONTROL: missing expected browser script fails instead of dropping coverage", missingScriptRejected);
+ok("NEGATIVE CONTROL: an unaccounted new alias caller fails the inventory predicate",
+  ![...DISCOVERED_REMOTE_FETCH_FILES, "new-provider.js"].every((name) => providerAccountedFor.has(name)) &&
+  hasRemoteFetch('fetchImpl("https://new.example.com/send")'));
 
 console.log(`\nincidents: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
