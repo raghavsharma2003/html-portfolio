@@ -21058,3 +21058,79 @@ callers — see `evals/room-doors/order.mjs`'s own header on why it built a
 bespoke world rather than assuming one), the re-check becomes redundant
 with true snapshot isolation and could be dropped; short of that, dropping
 it would reopen exactly the race this decision closes.
+
+## `ws-r136-whatsapp-join-number-verified-against-the-phone-number-endpoint` (2026-09-05, WS-R136, supersedes `ws-r126-whatsapp-join-number-reuses-phone-number-id`)
+
+**Decision.** `whatsappJoinNumber` (`api/_room-whatsapp-chat.js`) no longer
+reads `WHATSAPP_PHONE_NUMBER_ID` for the wa.me link's phone segment. It now
+reads, in order: the new optional `WHATSAPP_DISPLAY_PHONE_NUMBER` env var
+(a deployer's own already-known dialable number), else a memoised
+(one-per-process) live read of Meta's phone-number endpoint
+(`api/_room-whatsapp.js:fetchPhoneNumberDisplay()`, `GET
+https://graph.facebook.com/<API_VERSION>/<PHONE_NUMBER_ID>?fields=
+display_phone_number,verified_name`), else unknown. Whichever source
+answers, the value must pass `isBareE164Digits` (7-15 digits, no leading
+`+`, no spaces, no dashes) or it is REFUSED, never sanitised down to its
+digits.
+
+**Rationale.** This workstream had the network access WS-R126 was denied
+and fetched Meta's own Cloud API documents (through the proxy, saved under
+the session scratchpad's `meta-docs/`, fetched 2026-09-05):
+`developers.facebook.com/documentation/business-messaging/whatsapp/
+reference/whatsapp-business-phone-number/whatsapp-business-account-phone-
+number-api` names `root.id` — "The ID associated with the phone number"
+(example `"1906385232743451"`) — and `root.display_phone_number` — "The
+string representation of the phone number" (example
+`"+1 631-555-5555"`) — as two DIFFERENT fields on the same object,
+confirming WS-R126's own named suspicion: `WHATSAPP_PHONE_NUMBER_ID`
+(`api/whatsapp.js`'s `PHONE_ID`, used everywhere else in this codebase
+exclusively as a Graph API path segment) is the FIRST of these, never the
+dialable number a wa.me link needs. `developers.facebook.com/documentation/
+business-messaging/whatsapp/business-phone-numbers/phone-numbers#get-a-
+single-phone-number` gives the exact `GET` request syntax and an example
+response (`"display_phone_number":"15555555555"`) that this workstream's
+`fetchPhoneNumberDisplay` now pins its request shape against. A second,
+unplanned finding while reading: the SAME field's two worked examples on
+Meta's own "business-phone-numbers/phone-numbers" page disagree on shape —
+"get a single phone number" returns bare digits (`"15555555555"`), "get
+all phone numbers" returns `"+1 631-555-5555"` (leading `+`, a space, a
+dash) — so neither a deployer's own env var nor a live fetch is trusted
+without the SAME digits-only shape gate, applied uniformly; a value that
+fails is refused rather than reformatted, since WS-R126's own
+`.replace(/[^0-9]/g, "")` would have silently accepted a pasted
+"+91 99999 00001" by stripping exactly the characters that should have
+flagged the mistake.
+
+**What would reverse this.** A Cloud API version bump that renames or
+restructures `display_phone_number` (this file's own fetch pins
+`fields=display_phone_number,verified_name` explicitly rather than
+requesting the default field set, so a rename would surface as a missing
+field, not silent drift), or a live number this deployment has actually
+dialled through and found wrong despite passing `isBareE164Digits`.
+
+## `ws-r136-refuse-shape-invalid-number-never-reformat` (2026-09-05, WS-R136)
+
+**Decision.** `isBareE164Digits` (`api/_room-whatsapp-chat.js`) is the ONE
+gate a number must pass, from either `WHATSAPP_DISPLAY_PHONE_NUMBER` or the
+live fetch, before `whatsappJoinLink` will build anything with it. A value
+that fails — a leading `+`, embedded spaces or dashes, too short, too
+long, non-numeric — is refused outright; the builder never strips
+punctuation and tries again with what remains.
+
+**Rationale.** Meta's own two worked examples for the identical field
+(cited in the decision above) disagree on shape, so "reformat, then use
+it" has no single, correct implementation to reformat TO — a deployer who
+pastes a number with country-code confusion or an extra digit would have
+that mistake silently laundered into something that looks valid and dials
+the wrong line, or no line. A refusal is loud (the share-kit row and
+poster variant are structurally absent, `whatsapp_join_unavailable`
+surfaces the explanation in the studio, both locales) where a silent
+reformat would ship a QR code that opens WhatsApp to a wrong or dead
+number — this workstream's own brief names that outcome as "worse than no
+poster".
+
+**What would reverse this.** Evidence that a real deployer's dialable
+number legitimately falls outside 7-15 bare digits (a numbering-plan case
+`isBareE164Digits`'s own ITU E.164 §6.2.1 reasoning did not anticipate),
+at which point the shape gate should widen by name, cited against the
+specific plan, rather than being loosened generically.

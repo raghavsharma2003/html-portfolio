@@ -139,7 +139,7 @@ import {
 import { personForSurfaceUser, linkSurfacePerson } from "./_room.js";
 import { activeProviderName } from "./_payments.js";
 import { consume } from "./_rate-limit.js";
-import { sendSessionMessage } from "./_room-whatsapp.js";
+import { sendSessionMessage, fetchPhoneNumberDisplay } from "./_room-whatsapp.js";
 import { noteInbound } from "./whatsapp.js";
 // WS-R123. `_incidents.js` also imports `_operator-telegram.js`, which
 // imports `_room-telegram.js`, which imports `_room-surface.js` — none of
@@ -170,37 +170,133 @@ export function whatsappChatEnabled(env = process.env) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// THE JOIN LINK (WS-R126) — a wa.me deep link that opens THIS business
-// number's chat with `join <slug>` already typed, for a poster QR or a
-// share-kit row. "No new env var" is this workstream's own brief law, so
-// `whatsappJoinNumber` reads the ONE env var this file's own module already
-// names (`WHATSAPP_PHONE_NUMBER_ID`) rather than inventing a second one —
-// NAMED HONESTLY: under Meta's Cloud API that value is the phone's opaque
-// GRAPH API IDENTIFIER, not necessarily the dialable E.164 number a wa.me
-// link needs (`api/whatsapp.js`'s own `PHONE_ID` is used exclusively as a
-// path segment in a Graph API call, never printed or dialled anywhere in
-// this codebase before this workstream). This workstream had no network
-// access to fetch Meta's own documentation to settle whether a given
-// deployment's configured value happens to be dialable (`ws-common.md`'s own
-// network law: a provider's public documentation page is reachable only
-// where a workstream's OWN section names it, and this one does not) —
-// NOT PROVEN, named rather than implied: whether `WHATSAPP_PHONE_NUMBER_ID`
-// as configured on this deploy is the dialable number wa.me expects. A
-// deployer must confirm their own value before treating this link as live;
-// `context/decisions.md#ws-r126-whatsapp-join-number-reuses-phone-number-id`
-// states what would reverse this (a real, separate dialable-number env var,
-// once one exists to reuse).
-export function whatsappJoinNumber(env = process.env) {
-  return String(env.WHATSAPP_PHONE_NUMBER_ID || "").replace(/[^0-9]/g, "");
+// THE JOIN LINK (WS-R126, fixed by WS-R136) — a wa.me deep link that opens
+// THIS business number's chat with `join <slug>` already typed, for a
+// poster QR or a share-kit row.
+//
+// WS-R126 shipped reading `WHATSAPP_PHONE_NUMBER_ID` directly into the
+// link, NAMED HONESTLY as unproven at the time (that workstream had no
+// network access to check): under Meta's Cloud API that value is the
+// phone's opaque GRAPH API IDENTIFIER, not necessarily the dialable E.164
+// number a wa.me link needs. WS-R136's own brief had network access and
+// settled it against Meta's own documents, cited next to the code that now
+// acts on them:
+//
+// developers.facebook.com/documentation/business-messaging/whatsapp/
+// reference/whatsapp-business-phone-number/whatsapp-business-account-
+// phone-number-api (fetched 2026-09-05) names TWO different fields on the
+// SAME phone-number object: `root.id` — "The ID associated with the phone
+// number" (example `"1906385232743451"`) — and `root.display_phone_number`
+// — "The string representation of the phone number" (example
+// `"+1 631-555-5555"`). `WHATSAPP_PHONE_NUMBER_ID` is the FIRST of these
+// (`api/whatsapp.js`'s own `PHONE_ID`, used everywhere in this codebase
+// exclusively as a Graph API path segment) — confirmed, not assumed, to be
+// the wrong field for a link a human is meant to dial into.
+//
+// developers.facebook.com/documentation/business-messaging/whatsapp/
+// qr-codes/ (fetched 2026-09-05), on why Meta's own short-link product
+// exists at all: the new short links "reduce the syntax of the URL to a
+// random code, which eliminates the need to embed messages in the URL and
+// MASKS THE PHONE NUMBER" — Meta's own words confirming an ordinary wa.me
+// link of the kind this file builds embeds a real, dialable phone number
+// directly in its path, exactly the value this file must resolve
+// correctly rather than an id that merely looks numeric.
+//
+// A SECOND, unplanned finding while reading these documents: Meta's own two
+// worked EXAMPLE responses for `display_phone_number`, on the SAME
+// "business-phone-numbers/phone-numbers" page, disagree on shape — "get a
+// single phone number" returns `"15555555555"` (bare digits) while "get
+// all phone numbers" returns `"+1 631-555-5555"` (a leading "+", a space, a
+// dash). So neither source here — a deployer's own env var, or a live
+// fetch — is trusted blindly: `isBareE164Digits` below is the ONE gate a
+// number must pass, from EITHER source, before `whatsappJoinLink` will
+// build anything with it. A value that fails is REFUSED, never
+// reformatted or stripped down to its digits — WS-R126's own
+// `.replace(/[^0-9]/g, "")` would have silently accepted a pasted
+// "+91 99999 00001" by stripping exactly the characters that should have
+// flagged the mistake; this workstream's own law 4 replaces that with a
+// loud, honest absence instead.
+//
+// `context/decisions.md#ws-r136-whatsapp-join-number-verified-against-the-
+// phone-number-endpoint` states what would reverse this (a Cloud API
+// version bump that renames or restructures `display_phone_number`, or a
+// live number this deploy has actually dialled through and found wrong).
+
+/** Bare E.164 digits — no leading "+", no spaces, no dashes. 7-15 digits
+ *  covers every real country-code-plus-subscriber-number length ITU E.164
+ *  §6.2.1 allows (max 15 total) while refusing an empty string and a lone
+ *  leading "0". Applied uniformly to a configured env var AND a fetched
+ *  `display_phone_number` — this section's own header states why neither
+ *  source gets to skip it. */
+function isBareE164Digits(value) {
+  return /^[1-9][0-9]{6,14}$/.test(value);
 }
 
-/** A conservative, generic URL-length bound (this workstream had no network
- *  access to fetch a WhatsApp-specific published limit — the comment above
- *  states why). `join <slug>` url-encoded is bounded by `assertSlugShape`'s
- *  own 3-40 characters (`api/_room-surface.js`) and can never come close to
- *  this — the same "a defensive assertion that never fires costs nothing"
- *  posture `api/_share-kit.js`'s own `SHARE_KIT_LIMITS` header states for
- *  its four templates. */
+// One memoised attempt per process — `defaultRoomWhatsappChatClient`'s own
+// "inject fetch once, never per-call" posture restated for a read instead
+// of a send. A cold start (a fresh process) re-attempts once; a warm
+// process never queries Meta twice for the same, essentially-never-changing
+// number. Module-scope by design, `evals/room-whatsapp-chat/run.mjs`'s own
+// `_resetWhatsappDisplayNumberCacheForTests` is the ONLY sanctioned way to
+// clear it, and only from a test.
+let cachedDisplayNumberPromise;
+
+/** The live-fetch fallback, memoised. `deps.fetchPhoneNumberDisplay` lets an
+ *  eval inject a fake client with no network at all; production leaves it
+ *  undefined and gets the real `api/_room-whatsapp.js` function. A failure
+ *  (network, a non-2xx, an unconfigured credential pair) is recorded as one
+ *  `provider_whatsapp` incident via the SAME `notedProviderFailure` a send
+ *  already uses below, and resolves to `null` either way — this file's own
+ *  law 2: a provider outage degrades the poster/share-kit row to absent,
+ *  never a crash, never a stale or guessed number. */
+function cachedWhatsappDisplayNumber(env, deps) {
+  if (cachedDisplayNumberPromise) return cachedDisplayNumberPromise;
+  cachedDisplayNumberPromise = (async () => {
+    const fetchDisplay = deps.fetchPhoneNumberDisplay ?? fetchPhoneNumberDisplay;
+    let result;
+    try {
+      result = await fetchDisplay({ env, fetch: deps.fetch, db: deps.db });
+    } catch (error) {
+      result = { ok: false, status: 0, errorCode: String(error?.message || "thrown") };
+    }
+    notedProviderFailure(deps.db, result);
+    return result?.ok ? String(result.displayPhoneNumber || "").trim() : null;
+  })();
+  return cachedDisplayNumberPromise;
+}
+
+/** Test-only escape hatch — `evals/room-whatsapp-chat/run.mjs` re-arms the
+ *  per-process cache between assertions that inject different fake clients.
+ *  Never called from production code (no production call site imports it). */
+export function _resetWhatsappDisplayNumberCacheForTests() {
+  cachedDisplayNumberPromise = undefined;
+}
+
+/**
+ * Resolves the number a wa.me link should dial, in order (this workstream's
+ * own law 2): `WHATSAPP_DISPLAY_PHONE_NUMBER` (new, optional — a deployer
+ * who already knows their own dialable number can name it directly and
+ * skip the network read entirely) — else the memoised live fetch above —
+ * else the empty string, meaning unknown. Returns the RAW value from
+ * whichever source answered; `isBareE164Digits` is deliberately NOT applied
+ * here — `whatsappJoinLink` below (the actual "builder" this workstream's
+ * own law 4 names) is the one place that gate is enforced, so both sources
+ * are refused by the identical rule rather than this function silently
+ * sanitising one of them differently from the other.
+ */
+export async function whatsappJoinNumber(env = process.env, deps = {}) {
+  const configured = String(env.WHATSAPP_DISPLAY_PHONE_NUMBER || "").trim();
+  if (configured) return configured;
+  const fetched = await cachedWhatsappDisplayNumber(env, deps);
+  return fetched || "";
+}
+
+/** A conservative, generic URL-length bound. `join <slug>` url-encoded is
+ *  bounded by `assertSlugShape`'s own 3-40 characters (`api/_room-surface.js`)
+ *  and a number that passes `isBareE164Digits` (at most 15 digits) can never
+ *  come close to this — the same "a defensive assertion that never fires
+ *  costs nothing" posture `api/_share-kit.js`'s own `SHARE_KIT_LIMITS`
+ *  header states for its four templates. */
 export const WHATSAPP_JOIN_URL_LIMIT = 2048;
 
 /** `https://wa.me/<number>?text=join%20<slug>` — WhatsApp's own click-to-chat
@@ -210,14 +306,16 @@ export const WHATSAPP_JOIN_URL_LIMIT = 2048;
  *  this one names a number on purpose, so tapping it opens a chat with THIS
  *  business number instead). Returns `null` — structurally absent, this
  *  workstream's own law 1 — whenever the WhatsApp chat lane itself is off
- *  (`whatsappChatEnabled`), no number is configured, or the slug is empty;
- *  never a placeholder link that would resolve to nothing or to the wrong
- *  flow. */
-export function whatsappJoinLink(slug, env = process.env) {
+ *  (`whatsappChatEnabled`), no number is known, a known number fails
+ *  `isBareE164Digits` (this section's own header states why that gate exists
+ *  and why it is never skipped for either source), or the slug is empty;
+ *  never a placeholder link, a malformed link, or one built from a value
+ *  that only looked like a phone number. */
+export async function whatsappJoinLink(slug, env = process.env, deps = {}) {
   if (!whatsappChatEnabled(env)) return null;
-  const number = whatsappJoinNumber(env);
+  const number = await whatsappJoinNumber(env, deps);
   const cleanSlug = String(slug || "").trim();
-  if (!number || !cleanSlug) return null;
+  if (!number || !cleanSlug || !isBareE164Digits(number)) return null;
   const link = `https://wa.me/${number}?text=${encodeURIComponent(`join ${cleanSlug}`)}`;
   return link.length <= WHATSAPP_JOIN_URL_LIMIT ? link : null;
 }

@@ -96,6 +96,15 @@ export interface ShareKit {
   // `null` for a Room that has never published — `api/_share-kit.js`'s own
   // "nothing honest to share yet" rule.
   kit: ShareKitRow[] | null;
+  // WS-R136: true only when the WhatsApp chat lane is ON, the Room HAS
+  // published, and no dialable number could be resolved (unset, a failed
+  // live read, or a value that failed the digits-only shape check) —
+  // `api/_room-publish.js`'s own `ownerRoomShareKit` header states why this
+  // is a separate signal from the `whatsapp_join` row's own absence, which
+  // by itself cannot distinguish "the lane is off" from "the lane is on but
+  // unverified". `ShareKitCard.tsx` shows an explanation only when this is
+  // true.
+  whatsapp_join_unavailable: boolean;
 }
 
 /** Thrown by every op below with the server's own code and, when the server

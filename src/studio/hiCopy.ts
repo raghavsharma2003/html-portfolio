@@ -1904,5 +1904,6 @@ export const HI: StudioRestCopy = {
     label: "WhatsApp पर जुड़ें",
     caption: "WhatsApp खुलेगा और \"join {slug}\" पहले से टाइप मिलेगा, बस भेजना है।",
     button: "WhatsApp खोलें",
+    unavailableNote: "WhatsApp जॉइन लिंक चालू है, लेकिन आपका बिज़नेस नंबर अभी कन्फर्म नहीं हो पाया, इसलिए यह लिंक शेयर करने के लिए तैयार नहीं है। कुछ मिनट बाद फिर कोशिश करें।",
   },
 };

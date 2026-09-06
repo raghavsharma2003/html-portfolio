@@ -60,6 +60,13 @@ console.log("── §1: parseEnvManifest against the real document ──");
   const roomWa = entries.find((e) => e.name === "ROOM_WHATSAPP_CHAT");
   check("ROOM_WHATSAPP_CHAT present, section 34 (Rooms-era)", roomWa && roomWa.section === "34", JSON.stringify(roomWa));
 
+  // WS-R136: the join number's own optional env, same section as ROOM_WHATSAPP_CHAT.
+  const waDisplayNumber = entries.find((e) => e.name === "WHATSAPP_DISPLAY_PHONE_NUMBER");
+  check("WHATSAPP_DISPLAY_PHONE_NUMBER present, section 34, target vercel-app, optional",
+    waDisplayNumber && waDisplayNumber.section === "34" && waDisplayNumber.target.includes("vercel-app") &&
+      waDisplayNumber.required === false,
+    JSON.stringify(waDisplayNumber));
+
   // A name documented in more than one section (the manifest's own "not one
   // setting" example, §4 and §5) collapses to ONE entry, target the UNION.
   const shared = entries.find((e) => e.name === "AZURE_FACE_LIVENESS_LIMITED_ACCESS_APPROVED");

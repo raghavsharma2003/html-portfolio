@@ -1027,6 +1027,15 @@
     "required": false
   },
   {
+    "name": "WHATSAPP_DISPLAY_PHONE_NUMBER",
+    "section": "34",
+    "sectionTitle": "The Room on WhatsApp (`vercel-app`, WS-R104, migration 128, 2026-09-05)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
     "name": "YOUTUBE_OAUTH_CLIENT_ID",
     "section": "15b",
     "sectionTitle": "Channel watch + ASR — the stays-current loop (`vercel-app`)",
