@@ -153,11 +153,15 @@ function makeDb(state) {
       return row ? [{ ...row }] : [];
     }
 
-    // ── vy_room_subscription: existing-live lookup (startFollowerSubscription) ──
+    // ── vy_room_subscription: existing-live lookup (startFollowerSubscription).
+    // WS-R132 (migration 135): the widened predicate excludes a halted or
+    // cancelled MANDATE too, mirroring the real widened index. ──
     if (has("from vy_room_subscription") && has("state in ('created','authenticated','active','paused')") && has("order by created_at desc")) {
       const followerId = String(params[0]);
       const row = state.subscriptions
-        .filter((s) => s.follower_id === followerId && ["created", "authenticated", "active", "paused"].includes(s.state))
+        .filter((s) => s.follower_id === followerId
+          && ["created", "authenticated", "active", "paused"].includes(s.state)
+          && !["halted", "cancelled"].includes(s.mandate_state))
         .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
       return row ? [{ ...row }] : [];
     }
@@ -179,6 +183,41 @@ function makeDb(state) {
         .sort((a, b) => b.received_at.localeCompare(a.received_at))[0];
       return row ? [{ kind: row.kind }] : [];
     }
+    // ── vy_room_subscription: WS-R132's own "close halted/cancelled row,
+    // then insert" statement family - checked BEFORE the plain insert
+    // branch below, since it also contains the substring "insert into
+    // vy_room_subscription", and its bound params are in a DIFFERENT order
+    // (`[followerId, roomId, personId, provider]`, `$1` reused for both the
+    // WHERE and the insert's own follower_id column - api/_payments.js's
+    // own comment on that statement). ──
+    if (has("with closed as (") && has("insert into vy_room_subscription")) {
+      const [followerId, roomId, personId, provider] = params;
+      for (const s of state.subscriptions) {
+        if (s.follower_id === String(followerId)
+          && ["created", "authenticated", "active", "paused"].includes(s.state)
+          && ["halted", "cancelled"].includes(s.mandate_state)) {
+          s.state = "cancelled";
+        }
+      }
+      const live = state.subscriptions.some((s) => s.follower_id === String(followerId)
+        && ["created", "authenticated", "active", "paused"].includes(s.state)
+        && !["halted", "cancelled"].includes(s.mandate_state));
+      if (live) throw Object.assign(new Error("duplicate key value violates unique constraint \"vy_room_subscription_follower_live_ix\""), { code: "23505" });
+      const row = {
+        subscription_id: `s${state.subscriptions.length + 1}`.padEnd(36, "0"),
+        room_id: String(roomId), person_id: String(personId), follower_id: String(followerId),
+        provider, provider_subscription_ref: null, state: "created",
+        current_period_start: null, current_period_end: null,
+        created_at: new Date(NOW + state.subscriptions.length).toISOString(),
+        mandate_state: "none", mandate_state_at: null,
+      };
+      state.subscriptions.push(row);
+      return [{ subscription_id: row.subscription_id, state: row.state }];
+    }
+    // ── vy_room_subscription: the plain insert. Dead for
+    // `startFollowerSubscription` since WS-R132 (that function now always
+    // issues the combined statement above), kept only in case a future
+    // caller inserts a row directly with no close-old-row step of its own. ──
     if (has("insert into vy_room_subscription")) {
       const [roomId, personId, followerId, provider] = params;
       const live = state.subscriptions.some((s) => s.follower_id === String(followerId) && ["created", "authenticated", "active", "paused"].includes(s.state));
@@ -1268,6 +1307,114 @@ console.log("\n§18 WS-R130 (migration 133) — the referral reward, granted fro
   ok("NEGATIVE CONTROL: migration 133 not applied - no referral_reward_id at all, never a crash",
     applied2.referral_reward_id === null);
   ok("NEGATIVE CONTROL: migration 133 not applied - no reward row was ever attempted", state2.referralRewards.length === 0);
+}
+
+console.log("\n§19 WS-R132 (migration 135): STARTING A NEW MANDATE AFTER A HALT");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // §13's own halted mandate, restated: this time asking whether the
+  // follower can ever get a WORKING second mandate rather than the SAME
+  // dead reference back forever -
+  // `context/rejected.md#ws-r125-halted-mandate-start-new-button-would-
+  // have-been-a-silent-no-op`'s own gap, closed by this migration.
+  const state = freshState();
+  state.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
+  const db = makeDb(state);
+  const deps = { env: ENV, loadAgent, now: NOW };
+  const followerId = state.followers[0].follower_id;
+
+  const started = await startFollowerSubscription(db, { session: session() }, deps);
+  const oldRef = started.provider_subscription_ref;
+  ok("§19 the first start mints a real provider ref", typeof oldRef === "string" && oldRef.length > 0);
+
+  const fire = (ref, kind, tag) => {
+    const body = kind === "subscription.charged"
+      ? RAZORPAY_CHARGED(ref, 39900, 1690000000, 1692600000)
+      : RAZORPAY_EVENT(kind, ref);
+    const sig = fake.signWebhookForTest(body, WEBHOOK_SECRET);
+    return applyWebhook(db, { rawBody: body, signatureHeader: sig, eventRef: `evt_r132_${tag}` }, { env: ENV });
+  };
+  await fire(oldRef, "subscription.charged", "activate");
+  await fire(oldRef, "subscription.halted", "halt");
+  ok("§19 the mandate is genuinely halted before the restart", state.subscriptions[0].mandate_state === "halted");
+  ok("§19 the halted row's own `state` column is STILL a non-terminal value (KIND_TO_STATE maps halted to 'paused' on purpose) - this is exactly what made the OLD, unwidened index call it 'live' forever",
+    ["created", "authenticated", "active", "paused"].includes(state.subscriptions[0].state));
+
+  // NEGATIVE CONTROL: the OLD, unwidened predicate - struck of its own
+  // `mandate_state` clause, this file's own §9/§13 "strike the clause"
+  // technique - reads the SAME row back as live and hands back its DEAD
+  // reference. This is exactly what shipped before migration 135
+  // (`startFollowerSubscription`'s own existing-live lookup, before this
+  // workstream); it is not what the function calls any more, and this
+  // assertion exists so a regression that reverts the widened predicate is
+  // caught here, not only in production.
+  const staleRows = state.subscriptions.filter((s) => s.follower_id === followerId
+    && ["created", "authenticated", "active", "paused"].includes(s.state));
+  ok("NEGATIVE CONTROL: the OLD predicate (no mandate_state clause) still calls the halted row 'live' and would hand back its dead reference",
+    staleRows.length === 1 && staleRows[0].provider_subscription_ref === oldRef);
+
+  // THE RESTART, through the REAL function - no button, no HTTP door, the
+  // exact same `startFollowerSubscription` the "subscribe" op already calls.
+  const restarted = await startFollowerSubscription(db, { session: session() }, deps);
+  ok("§19 restarting after a halt returns a NEW local subscription row, never the halted one",
+    restarted.subscription_id !== started.subscription_id);
+  ok("§19 the OLD row is closed (state 'cancelled'), never left dangling forever",
+    state.subscriptions.find((s) => s.subscription_id === started.subscription_id).state === "cancelled");
+  ok("§19 the NEW row starts with a clean mandate slate ('none', never inheriting the dead mandate's own state)",
+    state.subscriptions.find((s) => s.subscription_id === restarted.subscription_id).mandate_state === "none");
+  ok("§19 exactly two subscription rows exist for this follower - the close and the insert landed as ONE statement family, never a stray third row",
+    state.subscriptions.filter((s) => s.follower_id === followerId).length === 2);
+  ok("§19 the restart hands back a checkout link - a REAL second provider call happened, not a silent no-op",
+    typeof restarted.checkout_url === "string" && restarted.checkout_url.length > 0);
+  // KNOWN, NAMED LIMITATION OF THE FAKE PROVIDER ONLY (not of this
+  // migration, and not reachable with the real `razorpay` provider): §3's
+  // own header states `createSubscription`'s ref is DETERMINISTIC on
+  // `(label, ref, priceInr)` alone, by design, so a genuine retry of the
+  // SAME still-`created` row is idempotent at the provider layer too. That
+  // determinism was never designed for "start a SECOND, later subscription
+  // for the same follower/room/price" - a case that could not previously
+  // happen at all (the old index always found and reused the first row) -
+  // so this restart's `label`/`ref`/`priceInr` are byte-identical to the
+  // first start's, and the fake mints the SAME string back. The real
+  // Razorpay provider mints a fresh, server-side, non-deterministic
+  // subscription id on every `createSubscription` call regardless of input,
+  // so production never hits this - this assertion exists so the fake
+  // provider's own behavior here is a proven, understood fact rather than a
+  // surprise, and is named in this workstream's final report as a
+  // narrow follow-up worth a nonce in the fake's own seed if `PAYMENTS_
+  // PROVIDER=fake` is ever run against a real staging database through this
+  // exact sequence.
+  ok("NAMED FAKE-PROVIDER ARTIFACT: with identical (label, ref, priceInr) inputs, the fake mints the SAME ref the restart got before - the real provider never would",
+    restarted.provider_subscription_ref === oldRef);
+
+  // The widened index's OWN uniqueness guarantee, proven directly: a THIRD
+  // live row for the SAME follower is still refused once the restarted row
+  // is genuinely live (mandate_state 'none', not halted or cancelled) -
+  // migration 135 widens the EXCLUSION, it does not remove uniqueness
+  // itself.
+  let threw = null;
+  try {
+    await db(
+      `with closed as (
+         update vy_room_subscription
+            set state = 'cancelled', updated_at = now()
+          where follower_id = ($1)::uuid
+            and state in ('created','authenticated','active','paused')
+            and mandate_state in ('halted','cancelled')
+          returning subscription_id
+       ), inserted as (
+         insert into vy_room_subscription (room_id, person_id, follower_id, provider, state)
+         values (($2)::uuid, ($3)::uuid, ($1)::uuid, $4, 'created')
+         returning subscription_id, state
+       )
+       select subscription_id, state from inserted`,
+      [String(followerId), ROOM, PERSON, "fake"],
+    );
+  } catch (e) {
+    threw = e;
+  }
+  ok("the widened index still refuses a THIRD live row for the same follower - the restarted row from above is genuinely live and blocks a fourth",
+    Boolean(threw) && threw.code === "23505");
 }
 
 // ═════════════════════════════════════════════════════════════════════════

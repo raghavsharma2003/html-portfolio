@@ -21464,3 +21464,76 @@ statement (e.g. split into two round trips for a different reason), this
 shim's own split point would need to move to match, or the race property
 would need to be re-proven against whatever the new statement boundary
 actually is.
+
+## `ws-r132-live-subscription-index-widened-to-exclude-halted-and-cancelled-mandates` (2026-09-05, WS-R132, migration 135)
+
+**Decision.** The two "ONE LIVE SUBSCRIPTION" partial unique indexes
+(078's `vy_room_subscription_follower_live_ix`, 095's
+`vy_creator_subscription_replica_live_ix`) now carry a second predicate,
+`and mandate_state not in ('halted','cancelled')`, alongside their existing
+`state in (...)` clause. `startFollowerSubscription`/`startCreatorSubscription`'s
+own existing-live lookups carry the identical widened predicate. When
+neither lookup finds a live row, the insert is folded into ONE statement
+family with a `closed` CTE that flips any halted-or-cancelled-mandate row
+still sitting in a non-terminal `state` to `state = 'cancelled'`, so the
+dead row is never left open forever once a fresh one exists.
+
+**Rationale.** WS-R125 (migration 130, `context/decisions.md#ws-r69-
+halted-is-a-derived-read-never-a-stored-value`'s own reversal condition)
+gave `mandate_state` a real, stored value so a second reader could tell a
+customer-paused mandate from a bank-halted one - but `startFollowerSubscription`/
+`startCreatorSubscription`'s own "existing-live" lookups never became that
+second reader, so a halted mandate's row (`KIND_TO_STATE` maps
+`subscription.halted` to `state = 'paused'` ON PURPOSE, never a terminal
+value) stayed "live" forever at the INDEX itself, not only at the read
+that reuses it. WS-R125 correctly refused to ship a "Start a new mandate"
+BUTTON over that gap
+(`context/rejected.md#ws-r125-halted-mandate-start-new-button-would-have-
+been-a-silent-no-op`) rather than present a control that silently no-ops.
+This migration closes the gap at its root - the index and the lookup that
+reads it - so the button WS-R125 declined to ship is now a real action.
+`state`'s own closed list is untouched: `applyWebhook`'s tier-flip
+predicate, `ownerRevenue`'s counts and every fixture match in
+`evals/room-doors`/`evals/payments`/`evals/org-billing` that reads `state`
+keep meaning exactly what they always have.
+
+**What would reverse it.** If Razorpay's own webhook semantics ever change
+so a halted or cancelled mandate CAN still receive a legitimate charge
+(nothing in their documented Subscriptions lifecycle suggests this, and
+`applyWebhook`'s own `KIND_TO_STATE`/`MANDATE_KIND_TO_STATE` maps would
+need to change first), the widened predicate would need to be narrowed
+back, since it would then be possible for two live charge streams to exist
+for one follower/creator at once. Absent that, the reversal condition is
+symmetric with 130's own: if the closed-then-insert statement ever proves
+too fragile under real concurrency (two racing "subscribe" requests for
+the SAME halted follower), the fix is a `for update` lock inside `closed`
+before the widened index is asked to arbitrate, not a narrower predicate.
+
+## `ws-r132-close-then-insert-is-one-statement-family-never-two-round-trips` (2026-09-05, WS-R132, migration 135)
+
+**Decision.** Closing a halted/cancelled-mandate row and inserting the
+fresh replacement are ONE SQL statement (`with closed as (update ...
+returning subscription_id), inserted as (insert ... returning
+subscription_id, state) select ... from inserted`), never a `close` call
+followed by a separate `insert` call from JavaScript.
+
+**Rationale.** `api/_payments.js`'s own house style already refuses a
+second data-modifying CTE against the SAME table in one statement (this
+file's own `applyWebhook` header, `context/rejected.md#ws-r125-mandate-
+state-as-a-second-cte-on-the-same-table`'s own finding that Postgres
+documents this as unpredictable), so `closed` and `inserted` deliberately
+target DIFFERENT rows of the same table in two SEPARATE CTEs rather than
+two competing writes to the SAME row - this is the shape that hazard rules
+IN, not the shape it rules out. Doing it as one statement rather than two
+round trips means a process that crashes between them cannot leave a
+follower with the OLD row still open and a NEW row that never landed (or
+the reverse): the whole family commits or none of it does. It is also a
+no-op WHERE clause (matches zero rows) for the ordinary case of a
+follower/creator with no prior halted row at all, so it costs nothing
+extra on the far more common first-ever subscribe.
+
+**What would reverse it.** If a future workstream needs to observe or act
+on the moment a row is closed independently of whether the insert
+succeeds (an audit log entry, a notification), the two would need to
+split into a `close` step with its own commit boundary. Nothing in this
+workstream's own build needs that today.

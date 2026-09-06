@@ -619,10 +619,10 @@ const EN = {
    *  (resume it yourself, in your own UPI app - Razorpay's own FAQ, fetched
    *  2026-09-05: "For UPI Subscriptions, you cannot resume a Subscription
    *  paused by your customer. If your customer pauses a Subscription, only
-   *  they can resume it.") - `halted` names no button here either, for the
-   *  SAME reason the studio card's own `roomStudioMandate` block does not:
-   *  `startSubscription` reuses any non-terminal row it finds, and a halted
-   *  mandate's `state` never becomes terminal on its own
+   *  they can resume it."). `halted`/`cancelled` DO name a working action as
+   *  of WS-R132 (migration 135, see `cancelledLabel`/`startNewMandate`
+   *  below): `startSubscription` now closes the dead row and starts a
+   *  genuinely fresh one, closing the gap named in
    *  (`context/rejected.md#ws-r125-halted-mandate-start-new-button-would-
    *  have-been-a-silent-no-op`). */
   subscriptionMandate: {
@@ -630,6 +630,15 @@ const EN = {
     pausedBody: "Resume it in your UPI app to keep your subscription active.",
     haltedLabel: "Your payment mandate needs attention.",
     haltedBody: "It could not be renewed after several attempts. Set up a new mandate from your UPI app to continue.",
+    // WS-R132 (migration 135). `startFollowerSubscription` now closes a
+    // halted or cancelled mandate's own row and starts a fresh one, so
+    // `haltedBody`/`cancelledLabel` above are followed by a WORKING button
+    // rather than only naming the UPI app as the one place to act - see
+    // `context/rejected.md#ws-r125-halted-mandate-start-new-button-would-
+    // have-been-a-silent-no-op` for why that button did not exist before
+    // this migration.
+    cancelledLabel: "Your subscription was cancelled.",
+    startNewMandate: "Start a new mandate",
   },
 
   /** WS-R130 (migration 133). The referral reward's own progress line, on
@@ -1028,6 +1037,10 @@ const HI: typeof EN = {
     pausedBody: "अपनी सदस्यता सक्रिय रखने के लिए इसे अपने UPI ऐप में फिर से शुरू करें।",
     haltedLabel: "आपके भुगतान मैनडेट पर ध्यान देना ज़रूरी है।",
     haltedBody: "कई कोशिशों के बाद भी इसे नवीनीकृत नहीं किया जा सका। जारी रखने के लिए अपने UPI ऐप से एक नया मैनडेट शुरू करें।",
+    // WS-R132 (migration 135). EN's own comment names why this button now
+    // exists.
+    cancelledLabel: "आपकी सदस्यता रद्द कर दी गई थी।",
+    startNewMandate: "नया मैनडेट शुरू करें",
   },
   referralReward: {
     progress: (n: number, threshold: number) => `अब तक ${threshold} में से ${n} दोस्त जुड़े और उन्होंने भुगतान किया।`,

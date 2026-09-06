@@ -14579,3 +14579,23 @@ this workstream's own diff caused. See
 `context/rejected.md#ws-r133-manual-tree-revert-for-baseline-gate-left-a-confusing-half-state`
 for the recovery this workstream's own resumption needed before any of the
 above could be measured.
+
+### `ws-r132-payments-gate-counts-2026-09-05` (WS-R132, migration 135) - offline only, no live database reached this session.
+`node evals/payments/run.mjs`: 145 passed, 0 failed (was 121 before this
+workstream's own §19). `node evals/org-billing/run.mjs`: 69 passed, 0
+failed (was 62 before §7). `node evals/payments-reconcile/run.mjs`: 51
+passed, 0 failed (was 45 before §9). `node evals/renewals/run.mjs`: 82
+passed, 0 failed (was 79 before §1c). `node evals/room-doors/run.mjs`:
+2146 ok, 0 failed, unchanged in count (the existing `start_creator_subscription`
+ownership case at line ~1690 already passes through the widened fixture
+branches added this session). All five measured by running the file
+directly with `node`, method: `console.log` pass/fail tally printed by
+each suite's own harness, date 2026-09-05. **Statements planned with
+`EXPLAIN` (no ANALYZE) against the live database, still owed by the main
+loop, not yet run this session:** migration 135's two `drop index`/`create
+unique index` pairs; the widened `select ... where follower_id = ($1)::uuid
+and state in (...) and mandate_state not in ('halted','cancelled')` (and
+its replica-keyed twin); the new `with closed as (update ... returning
+subscription_id), inserted as (insert ... returning subscription_id,
+state) select ... from inserted` statement for both `vy_room_subscription`
+and `vy_creator_subscription`.

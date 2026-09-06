@@ -689,6 +689,17 @@ export default function RoomStudio({
     );
   }
 
+  // WS-R132 (migration 135). Captured as a plain local rather than read as
+  // `creatorTier.subscription` inline inside the button's own `onPointerDown`
+  // closure below - TypeScript's narrowing on a PROPERTY access (as opposed
+  // to a local variable) does not survive into a function that runs later,
+  // even when the very same condition just proved it non-null.
+  const haltedOrCancelledCreatorSubscription =
+    creatorTier && creatorTier.tier === "free" && creatorTier.subscription
+      && (creatorTier.subscription.mandate_state === "halted" || creatorTier.subscription.state === "cancelled")
+      ? creatorTier.subscription
+      : null;
+
   return (
     <section id="room-studio" className="stage-section vy-room" aria-labelledby="room-title">
       <div className="section-heading">
@@ -745,25 +756,43 @@ export default function RoomStudio({
             <p className="field-note vy-room__suite-note">
               {withLabel(c.suiteCoversRoom, suiteStatus?.name ?? c.yourSuite)}
             </p>
-          ) : creatorTier.tier === "free" && creatorTier.subscription?.state === "paused" ? (
-            // WS-R125 (migration 130): a mandate that is merely paused or
-            // halted, never cancelled - `creatorTierFromRows`'s own
-            // predicate (api/_creator-tier.js) already reports "free" here
-            // (state !== 'active'), but showing the SAME "upgrade" buttons
-            // a creator who never subscribed sees would be dishonest: their
-            // subscription row still exists. No button is rendered for
-            // either case - `roomStudioMandate`'s own header names why one
-            // would silently do nothing for a halted mandate.
+          ) : haltedOrCancelledCreatorSubscription ? (
+            // WS-R132 (migration 135): `startCreatorSubscription` now closes
+            // a halted or cancelled-mandate row and starts a fresh one -
+            // `roomStudioMandate`'s own header in copy.ts names the gap this
+            // closes. ONE button, the plan the creator was already on
+            // (`haltedOrCancelledCreatorSubscription.plan`), never the
+            // two-plan "upgrade" chooser a creator who never subscribed at
+            // all sees below.
             <div
               className="vy-room__cap-row"
               role="group"
-              aria-label={creatorTier.subscription.mandate_state === "halted" ? cm.haltedLabel : cm.pausedLabel}
+              aria-label={haltedOrCancelledCreatorSubscription.state === "cancelled" ? cm.cancelledLabel : cm.haltedLabel}
             >
               <span className="field-note">
-                {creatorTier.subscription.mandate_state === "halted"
-                  ? `${cm.haltedLabel} ${cm.haltedBody}`
-                  : `${cm.pausedLabel} ${cm.pausedBody}`}
+                {haltedOrCancelledCreatorSubscription.state === "cancelled"
+                  ? cm.cancelledLabel
+                  : `${cm.haltedLabel} ${cm.haltedBody}`}
               </span>
+              <button
+                className="button secondary-button"
+                type="button"
+                disabled={busy === "creator_tier"}
+                onPointerDown={() => void startTier(haltedOrCancelledCreatorSubscription.plan)}
+              >
+                {busy === "creator_tier" ? c.working : cm.startNewMandate}
+              </button>
+            </div>
+          ) : creatorTier.tier === "free" && creatorTier.subscription?.state === "paused" ? (
+            // WS-R125 (migration 130): a mandate the FOLLOWER'S OWN bank app
+            // paused - `creatorTierFromRows`'s own predicate
+            // (api/_creator-tier.js) already reports "free" here (state
+            // !== 'active'), but showing the SAME "upgrade" buttons a
+            // creator who never subscribed sees would be dishonest: their
+            // subscription row still exists. No button is rendered - only
+            // the creator, in their own UPI app, can resume it.
+            <div className="vy-room__cap-row" role="group" aria-label={cm.pausedLabel}>
+              <span className="field-note">{cm.pausedLabel} {cm.pausedBody}</span>
             </div>
           ) : creatorTier.tier === "free" ? (
             <div className="vy-room__cap-row" role="group" aria-label={c.tierGroupAriaLabel}>

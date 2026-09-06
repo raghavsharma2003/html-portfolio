@@ -654,27 +654,26 @@ interface RoomStudioCopy {
 // workstream's brief names for copy files), so this is its own closed
 // interface instead.
 //
-// NO BUTTON HERE NAMES "start a new mandate" - a real thing this card
-// cannot currently DO. `startTier` (this file's own existing call) reuses
-// ANY non-terminal row it finds (`existingRows`'s own `state in
-// ('created','authenticated','active','paused')`, api/_payments.js), and a
-// halted mandate's own `state` stays `'paused'` forever (never `'expired'`
-// or `'cancelled'` - `KIND_TO_STATE` maps no webhook kind to either without
-// an explicit cancel), so calling it again on a halted subscription silently
-// returns the SAME dead `provider_subscription_ref` with `checkout_url:
-// null` rather than starting anything new
+// WS-R132 (migration 135): `startCreatorSubscription` now closes a halted
+// or cancelled-mandate row and starts a genuinely fresh one (the widened
+// `vy_creator_subscription_replica_live_ix` and the new "close, then
+// insert" statement family, `api/_payments.js`'s own header), so a button
+// naming "start a new mandate" is real work this card can now DO -
+// `cancelledLabel`/`startNewMandate` below, closing the gap this file's own
+// comment used to name
 // (`context/rejected.md#ws-r125-halted-mandate-start-new-button-would-have-
-// been-a-silent-no-op`). A paused mandate has a real, working action
-// (resume it themselves, in their own UPI app - Razorpay's own FAQ, fetched
-// 2026-09-05: "For UPI Subscriptions, you cannot resume a Subscription
-// paused by your customer. If your customer pauses a Subscription, only
-// they can resume it.") stated as plain text, since no button on this page
-// can do it FOR them either.
+// been-a-silent-no-op`). A PAUSED mandate still has no button of its own:
+// that is the follower's own bank app to resume, never this page's
+// (Razorpay's own FAQ, fetched 2026-09-05: "For UPI Subscriptions, you
+// cannot resume a Subscription paused by your customer. If your customer
+// pauses a Subscription, only they can resume it.").
 interface RoomStudioMandateCopy {
   pausedLabel: string; // "Your payment is paused."
   pausedBody: string; // "Resume it in your UPI app to keep your tier active."
   haltedLabel: string; // "Your payment mandate needs attention."
   haltedBody: string; // "It could not be renewed after several attempts. Set up a new mandate from your UPI app to continue."
+  cancelledLabel: string; // "Your subscription was cancelled."
+  startNewMandate: string; // "Start a new mandate"
 }
 
 // ── videoLinkMount: VideoLinkMount.tsx (WS-R61) ────────────────────────────
@@ -4191,6 +4190,8 @@ const EN: StudioCopy = {
     pausedBody: "Resume it in your UPI app to keep your tier active.",
     haltedLabel: "Your payment mandate needs attention.",
     haltedBody: "It could not be renewed after several attempts. Set up a new mandate from your UPI app to continue.",
+    cancelledLabel: "Your subscription was cancelled.",
+    startNewMandate: "Start a new mandate",
   },
 
   // WS-R126 (join from WhatsApp, migration 131). Its own closed section --

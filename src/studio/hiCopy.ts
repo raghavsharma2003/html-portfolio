@@ -1893,11 +1893,15 @@ export const HI: StudioRestCopy = {
   },
 
   // WS-R125 (migration 130). See copy.ts's own `roomStudioMandate` block.
+  // WS-R132 (migration 135) adds `cancelledLabel`/`startNewMandate` - copy.ts's
+  // own header states why.
   roomStudioMandate: {
     pausedLabel: "आपका भुगतान रुका हुआ है।",
     pausedBody: "अपना टियर सक्रिय रखने के लिए इसे अपने UPI ऐप में फिर से शुरू करें।",
     haltedLabel: "आपके भुगतान मैनडेट पर ध्यान देना ज़रूरी है।",
     haltedBody: "कई कोशिशों के बाद भी इसे नवीनीकृत नहीं किया जा सका। जारी रखने के लिए अपने UPI ऐप से एक नया मैनडेट शुरू करें।",
+    cancelledLabel: "आपकी सदस्यता रद्द कर दी गई थी।",
+    startNewMandate: "नया मैनडेट शुरू करें",
   },
 
   // WS-R126 (join from WhatsApp, migration 131). Its own closed section --

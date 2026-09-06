@@ -10978,6 +10978,30 @@
       "kind": "rejection",
       "title": "Retrofitting the untouched-tree baseline gate AFTER work was committed, by manually reverting tracked files and staging the revert while HEAD stayed on the WIP commit, produced a state a naive commit would have silently discarded as real work; recovered with git restore --staged --worktree, never git stash",
       "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r132-live-subscription-index-widened-to-exclude-halted-and-cancelled-mandates",
+      "kind": "decision",
+      "title": "Migration 135 widens vy_room_subscription_follower_live_ix and vy_creator_subscription_replica_live_ix to also exclude mandate_state in ('halted','cancelled'); startFollowerSubscription/startCreatorSubscription carry the same predicate and close-then-insert a fresh row in one statement family when no live row is found.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r132-close-then-insert-is-one-statement-family-never-two-round-trips",
+      "kind": "decision",
+      "title": "Closing a halted/cancelled subscription row and inserting its replacement is one SQL statement (two CTEs on different rows of the same table), never two separate JS calls, so a crash between them cannot leave a follower with neither an open old row nor a landed new one.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r132-fake-provider-deterministic-ref-collides-on-a-genuine-restart",
+      "kind": "rejection",
+      "title": "The fake payments provider's createSubscription is deterministic on (label, ref, priceInr) alone, so a genuine restart after a halt (same follower/replica/price) mints the SAME provider_subscription_ref as the closed row - impossible with the real razorpay provider (server-minted ids), but a real 23505 risk if PAYMENTS_PROVIDER=fake is ever run through this sequence against a real staging Postgres. Named and proven in evals/payments section 19 and evals/org-billing section 7, not fixed (would require widening fake.js's own seed formula, out of migration 135's scope).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r132-payments-gate-counts-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/payments 145/0, evals/org-billing 69/0, evals/payments-reconcile 51/0, evals/renewals 82/0, evals/room-doors 2146/0 - all offline, node <file>.mjs, 2026-09-05. Live-database EXPLAIN of migration 135's two index changes and the two widened selects and two close-then-insert statements still owed by the main loop.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -21270,6 +21294,26 @@
       "src": "ws-r133-room-leak-layer-17-referral-isolation-and-race",
       "rel": "measured_by",
       "dst": "ws-r133-referral-reward-hardening-suite-counts-2026-09-06"
+    },
+    {
+      "src": "ws-r132-live-subscription-index-widened-to-exclude-halted-and-cancelled-mandates",
+      "rel": "caused_by",
+      "dst": "ws-r125-halted-mandate-start-new-button-would-have-been-a-silent-no-op"
+    },
+    {
+      "src": "ws-r132-live-subscription-index-widened-to-exclude-halted-and-cancelled-mandates",
+      "rel": "constrains",
+      "dst": "ws-r132-close-then-insert-is-one-statement-family-never-two-round-trips"
+    },
+    {
+      "src": "ws-r132-live-subscription-index-widened-to-exclude-halted-and-cancelled-mandates",
+      "rel": "measured_by",
+      "dst": "ws-r132-payments-gate-counts-2026-09-05"
+    },
+    {
+      "src": "ws-r132-fake-provider-deterministic-ref-collides-on-a-genuine-restart",
+      "rel": "caused_by",
+      "dst": "ws-r132-live-subscription-index-widened-to-exclude-halted-and-cancelled-mandates"
     }
   ]
 }

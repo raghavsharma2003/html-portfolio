@@ -336,6 +336,53 @@ console.log("\n── §1b WS-R125 (migration 130): a paused mandate is neither 
     struckDue.follower.length === 3);
 }
 
+console.log("\n── §1c WS-R132 (migration 135): a RESTARTED subscription is due again, the CLOSED one never is ──");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // `api/_payments.js`'s own "close the halted row, insert a fresh one, one
+  // statement family" (`startFollowerSubscription`/`startCreatorSubscription`)
+  // seeded directly here rather than replayed through the fake provider -
+  // this file's own subject is the due-select, not the start flow
+  // (`evals/payments/run.mjs`'s own §19 and `evals/org-billing/run.mjs`'s
+  // own §7 prove THAT end to end). Two rows per subject, same follower/
+  // replica, standing in for "the halted mandate that got closed" and "the
+  // fresh mandate the follower/creator actually started after it, now
+  // active": the CLOSED row must never be due again (it is `state =
+  // 'cancelled'`, `dueReminders`' own `state = 'active'` clause excludes it
+  // exactly as any other cancellation would, with or without migration
+  // 135), and the NEW row - a follower's restart is only worth reminding
+  // about once it has actually renewed once, so `current_period_end` is
+  // real - must be due exactly as any other healthy subscription would be.
+  const state = freshRenewalsState();
+  state.roomSubs.push(
+    { follower_id: uuid(31), room_id: ROOM_ID, person_id: uuid(311), state: "cancelled", cancel_at_period_end: false, current_period_end: T3, mandate_state: "halted" },
+    { follower_id: uuid(31), room_id: ROOM_ID, person_id: uuid(311), state: "active", cancel_at_period_end: false, current_period_end: T3, mandate_state: "none" },
+  );
+  state.creatorSubs.push(
+    { replica_id: uuid(41), owner_user_id: uuid(411), state: "cancelled", cancel_at_period_end: false, current_period_end: T3, plan: "room", price_inr: 4999, currency: "INR", mandate_state: "halted" },
+    { replica_id: uuid(41), owner_user_id: uuid(411), state: "active", cancel_at_period_end: false, current_period_end: T3, plan: "room", price_inr: 4999, currency: "INR", mandate_state: "none" },
+  );
+
+  const due = await dueReminders(renewalsDb(state), T0);
+  ok("follower: exactly ONE reminder candidate for this follower - the restarted row, never the closed one twice-counted",
+    due.follower.filter((r) => r.subject_id === uuid(31)).length === 1);
+  ok("creator: exactly ONE reminder candidate for this replica - the restarted row, never the closed one",
+    due.creator.filter((r) => r.subject_id === uuid(41)).length === 1);
+
+  // The SAME fixture, minus the restart row - proving the closed row alone
+  // is genuinely excluded, not merely outnumbered by the restarted one
+  // above (a suite that only ever tested "one of two is due" could pass
+  // even if `state = 'cancelled'` were silently treated as due, so long as
+  // some OTHER row happened to be excluded too).
+  const closedOnly = freshRenewalsState();
+  closedOnly.roomSubs.push(
+    { follower_id: uuid(32), room_id: ROOM_ID, person_id: uuid(321), state: "cancelled", cancel_at_period_end: false, current_period_end: T3, mandate_state: "halted" },
+  );
+  const dueClosedOnly = await dueReminders(renewalsDb(closedOnly), T0);
+  ok("a subscription closed by the restart flow, with no restart row seeded at all, is due to NOBODY",
+    !dueClosedOnly.follower.some((r) => r.subject_id === uuid(32)));
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 console.log("\n── §2: recordAndSend — INSERT is the idempotency, send second ──");
 // ═════════════════════════════════════════════════════════════════════════

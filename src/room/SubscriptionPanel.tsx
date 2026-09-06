@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { RoomCopy } from "./copy";
 import { withDate, withPrice } from "./copy";
-import { paymentStatus, cancelSubscription, RoomPayApiError, type RoomPaymentStatus } from "./roomPayApi";
+import { paymentStatus, cancelSubscription, startSubscription, RoomPayApiError, type RoomPaymentStatus } from "./roomPayApi";
 import { useDialogInView } from "./useDialogInView";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -63,6 +63,34 @@ export default function SubscriptionPanel({
     }
   }, [session, copy]);
 
+  // WS-R132 (migration 135). The SAME "subscribe" op the free-tier upgrade
+  // moment already calls (`RoomApp.tsx`'s own `subscribe`) - `api/_payments.js`'s
+  // `startFollowerSubscription` now closes a halted or cancelled mandate's
+  // own row and starts a genuinely fresh one, so this button is a REAL
+  // action rather than the silent no-op a "start a new mandate" button
+  // would have been before this migration
+  // (`context/rejected.md#ws-r125-halted-mandate-start-new-button-would-
+  // have-been-a-silent-no-op`). A fresh checkout link sends the follower to
+  // the provider's own page, exactly like the very first subscribe; no
+  // link back means the fresh row still needs a moment before this panel's
+  // own reload picks it up.
+  const startNewMandate = useCallback(async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await startSubscription(session);
+      if (result.checkout_url) {
+        window.location.href = result.checkout_url;
+        return;
+      }
+      await load();
+    } catch (e) {
+      setError(e instanceof RoomPayApiError ? copy.pay.failed : copy.errors.generic);
+    } finally {
+      setBusy(false);
+    }
+  }, [session, copy, load]);
+
   const sub = status?.subscription;
   const periodEnd = dateLabel(sub?.current_period_end);
   const priceLabel =
@@ -85,22 +113,34 @@ export default function SubscriptionPanel({
         <>
           <p className="room-fine">{status.tier === "paid" ? copy.subscription.tierPaid : copy.subscription.tierFree}</p>
           {/* WS-R125 (migration 130): access keeps working (tier stays
-              'paid') while a mandate is merely paused or halted, never
+              'paid') while a mandate is merely paused, never halted or
               cancelled - `applyWebhook`'s own tier-flip predicate,
               unchanged - but the follower needs to know why a renewal is
-              in doubt. Only `paused` names a working action: the follower
-              themselves, in their own UPI app - no button here can do it
-              FOR them (Razorpay's own FAQ, fetched 2026-09-05: "only they
-              can resume it"). `halted` names no button either, for the
-              same reason the studio card's own does not -
-              `context/rejected.md#ws-r125-halted-mandate-start-new-button-
-              would-have-been-a-silent-no-op`. */}
-          {sub && (sub.state === "paused" || sub.state === "halted") && (
+              in doubt. `paused` names no button here: the follower
+              themselves, in their own UPI app, is the only one who can
+              resume it (Razorpay's own FAQ, fetched 2026-09-05: "only they
+              can resume it"). */}
+          {sub && sub.state === "paused" && (
             <p className="room-fine">
-              {sub.state === "halted"
-                ? `${copy.subscriptionMandate.haltedLabel} ${copy.subscriptionMandate.haltedBody}`
-                : `${copy.subscriptionMandate.pausedLabel} ${copy.subscriptionMandate.pausedBody}`}
+              {copy.subscriptionMandate.pausedLabel} {copy.subscriptionMandate.pausedBody}
             </p>
+          )}
+          {/* WS-R132 (migration 135): `halted` and `cancelled` DO name a
+              working action now - `startFollowerSubscription` closes the
+              dead row and starts a fresh one, so this is the one place a
+              button can do something for the follower rather than only
+              pointing them at their UPI app. */}
+          {sub && (sub.state === "halted" || sub.state === "cancelled") && (
+            <>
+              <p className="room-fine">
+                {sub.state === "halted"
+                  ? `${copy.subscriptionMandate.haltedLabel} ${copy.subscriptionMandate.haltedBody}`
+                  : copy.subscriptionMandate.cancelledLabel}
+              </p>
+              <button type="button" className="room-btn" disabled={busy} onClick={() => void startNewMandate()}>
+                {busy ? copy.subscription.cancelWorking : copy.subscriptionMandate.startNewMandate}
+              </button>
+            </>
           )}
           {status.tier === "paid" && sub && periodEnd && (
             <p className="room-fine">
