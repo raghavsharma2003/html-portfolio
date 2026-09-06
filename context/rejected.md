@@ -16327,3 +16327,13 @@ Source audit found probeEnrollmentWav has no maximum duration; optional metadata
 ## `remove-inventory-entries-to-green-is-not-a-transport-fix-20260907` (2026-09-07)
 
 The failed run6 inventory was not evidence that _surface.js or _embed.js stopped making requests. Their injected call syntax became invisible to the regex. The initial AST pass also lost generated browser scripts stored in named String.raw templates; explicit script parsing restored them rather than dropping their entries. Corrected discovery exposes previously invisible adapters with honest caller mapping or scoped exclusion. No claim of complete incident observability follows from inventory equality.
+
+
+## `release-pass-does-not-certify-provider-or-listening-20260907` (2026-09-07)
+
+The24passing gates do not establish real SQL in a runner without NEON_URL, real Azure product-adapter transcription, same-source identity binding, owner voice likeness or paid usefulness. Do not use the software release pass to bypass the pending enrollment contract or promote lexical retrieval.
+
+
+## `reference-status-snapshot-is-not-concurrent-retirement-serialization-20260907` (2026-09-07)
+
+Settlement locks only challenge ch, not genome g or the voice_genome_review advisory key. Artifact review and source erasure use that key, identity does not; consent revoke retires genomes without it too. New predicate checks the statement snapshot, not retirement that races afterward. Missing/retired captured references can remain queued; issue supersession can expire a prior issued row although retired latest reference prevents creating the replacement. No untested lock-order/cleanup redesign was added in this bounded patch. Corrected partial-read inference: ordinary _replica-model-build upsert requires identical source_set_hash AND definition; it does not mutate active draft content. Source erasure replaces definition while retiring it. No demonstrated mutable ordinary draft is claimed.

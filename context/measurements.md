@@ -16131,3 +16131,18 @@ Measured2026-09-07 India. Ignored root launcher now injects the verified existin
 Measured2026-09-07 India. Root independently ran evals/incidents/run.mjs after the Astra repair:113passed,0failed. Scanner inventories50transport files, retaining generated browser scripts and both _surface.js/_embed.js. Controls exercise actual detector for aliases/fallbacks/computed property calls, whitespace, misleading loopback words, comments/strings/regex/declarations, missing named script and unaccounted new caller; former regex misses both refactored shapes. Evidence scratchpad/incidents-azure-repair.log. No cloud call, real incident write or notification. Full run6 remains23of24; new runtime and gate edits require another frozen release run.
 
 Astra additionally ran evals/source-scan/run.mjs:44passed,0failed, including normal/legacy parity for room-leak,readiness,incidents,room-doors. Root read retained output scratchpad/source-scan-after-fetch-alias.log; this is not a second independent execution. No further implementation edit followed.
+
+
+## `frozen-release-seven-passes-20260907` (2026-09-07)
+
+Measured2026-09-07 India: run7 started02:04:39IST on frozen a2507815 and completed with all24checks passed. Retained log scratchpad/expert-integrated-release-7.log and per-gate directory2026-09-06T20-34-39-292Z-6948. Typecheck14766ms, layout247671ms, performance109605ms, eval348304ms, accessibility67590ms; no implementation edit overlapped. Main runner had no NEON_URL and skipped relational gates; earlier guarded exact-dev SQL checks are separate. Root inspected completed aggregate output at02:43IST and tracked tree was clean. No deployment, paid pilot, owner likeness or complete enrollment-to-voice acceptance.
+
+
+## `issued-reference-89-controls-and-three-real-explains-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Agent and root independently ran identity-challenge/run.mjs:89checks passed,20new, covering eligible issued reference with newer genome, missing/retired references, changed lease/verdict binding and negative controls. Root also ran Azure-only ASR policy suite; verifier remains disabled. Root ran actual issue, lease and complete statements through exact-dev read-only wrapper against vyakti_expert_integration_20260906:3EXPLAIN(format json), no ANALYZE or mutation, all parsed. Synthetic returned rows only drive function control flow, not identity acceptance. Agent SQL-cast scan:1028statements,553strict,0conflicts/uncast/shape failures. Initial root test during edit hit duplicate fixture identifier verifier; agent renamed it and the completed rerun passed. Evidence scratchpad/identity-reference-root-final.log and evals/identity-challenge/live-explain.mjs. Full release7 predates this edit.
+
+
+## `same-recording-service-caller-audit-20260907` (2026-09-07)
+
+Read-only Astra audit produced docs/gurukul/research/IDENTITY-SAME-RECORDING-PATH-20260907.md; all17local links resolve. Existing voice-evidence allows four operations and decodes through soundfile; video MIME allowance does not prove camera-container decode. No existing operation returns a verified capture-derived canonical WAV plus speaker evidence for challenge ASR. Proposed identity_audio_v1 extension reuses signed evidence service, bounded server decoding, exact transform commitments and a factored verified-byte Azure ASR seam. The current processing worker has no challenge-sweep caller. No decoder, service, cloud or model was executed by this audit; operation and receipts are proposed, not implemented.

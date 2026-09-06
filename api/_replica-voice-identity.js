@@ -453,7 +453,7 @@ export async function issueOwnedVoiceChallenge(db, ownerUserId, id, options = {}
              )
           )
      ), genome as (
-       select g.version from vy_replica_voice_genome g join owned o on o.replica_id=g.replica_id
+       select g.version,g.status from vy_replica_voice_genome g join owned o on o.replica_id=g.replica_id
         order by g.version desc limit 1
      ), attempts as (
        select count(*)::integer as n from vy_replica_voice_challenge
@@ -485,7 +485,7 @@ export async function issueOwnedVoiceChallenge(db, ownerUserId, id, options = {}
          from owned cross join attempts cross join genome
          cross join (select count(*) from expired) cleared
          cross join (select count(*) from expired_sources) sources_cleared
-        where attempts.n < $10::integer
+        where attempts.n < $10::integer and genome.status in ('draft','approved')
        on conflict do nothing
        returning ${CHALLENGE_RETURNING}
      ), audit as (
@@ -737,15 +737,16 @@ export async function finalizeVoiceChallengeSource(db, ownerUserId, id, challeng
 /**
  * Lease exactly one captured challenge, atomically, and hand back everything
  * the verifier needs: both private object locators and the owner's OWN
- * reference vectors, read straight out of the newest VoiceGenome definition.
+ * reference vectors, read from the exact VoiceGenome version saved at issue.
  *
  * The reference comes from the genome rather than from a fresh scan of
  * evidence rows on purpose: the genome IS the owner's selected reference (its
  * `speaker_identity.embedding_families` is built only from ACCEPTED evidence,
  * see api/_replica-processing/builders.js), and scoring a challenge against
  * the exact reference the voice was built from is the binding that makes the
- * answer mean something. Any status is eligible, including `draft`, because
- * this gate runs BEFORE genome approval in the wizard.
+ * answer mean something. Draft and approved references are eligible because
+ * this gate runs BEFORE genome approval in the wizard. A retired or missing
+ * issued reference never falls through to a newer or older version.
  */
 export async function leaseNextVoiceChallenge(db, verifier, options = {}) {
   if (typeof db !== "function") fail("voice_challenge_database_required", 500);
@@ -773,6 +774,7 @@ export async function leaseNextVoiceChallenge(db, verifier, options = {}) {
           and tr.kind='audio' and tr.contains_third_parties=false
           and exists (
             select 1 from vy_replica_voice_genome g where g.replica_id=ch.replica_id
+              and g.version=ch.reference_genome_version and g.status in ('draft','approved')
           )
         order by ch.verification_next_attempt_at,ch.issued_at limit 1 for update of ch skip locked
      ), expired as (
@@ -789,7 +791,7 @@ export async function leaseNextVoiceChallenge(db, verifier, options = {}) {
         from candidate c where ch.challenge_id=c.challenge_id
        returning ch.challenge_id,ch.replica_id,ch.owner_user_id,ch.sentence,ch.sentence_hash,
                  ch.nonce,ch.captured_source_id,ch.transcript_source_id,ch.verification_attempt,
-                 ch.verification_lease_expires_at
+                 ch.verification_lease_expires_at,ch.reference_genome_version
      ), attempted as (
        insert into vy_replica_voice_challenge_attempt
          (challenge_id,replica_id,owner_user_id,attempt,verifier,verifier_version,outcome)
@@ -808,10 +810,8 @@ export async function leaseNextVoiceChallenge(db, verifier, options = {}) {
         and cap.replica_id=l.replica_id and cap.owner_user_id=l.owner_user_id
        join vy_replica_source tr on tr.source_id=l.transcript_source_id
         and tr.replica_id=l.replica_id and tr.owner_user_id=l.owner_user_id
-       join lateral (
-         select x.version,x.definition from vy_replica_voice_genome x
-          where x.replica_id=l.replica_id order by x.version desc limit 1
-       ) g on true`,
+       join vy_replica_voice_genome g on g.replica_id=l.replica_id
+        and g.version=l.reference_genome_version and g.status in ('draft','approved')`,
     [voiceChallengeLeaseHash(leaseToken), provider, version, leaseMs],
   );
   const row = rows[0];
@@ -882,6 +882,10 @@ function requireSettlement(rows, code) {
 export async function completeVoiceChallenge(db, lease, verdict, options = {}) {
   if (!verdict || !basisIsContentFree(verdict.basis)) fail("voice_challenge_verdict_invalid", 500);
   if (verdict.basis.decision !== verdict.decision) fail("voice_challenge_verdict_invalid", 500);
+  if (!Number.isInteger(lease.referenceGenomeVersion) || lease.referenceGenomeVersion < 1 ||
+      verdict.basis.reference_genome_version !== lease.referenceGenomeVersion) {
+    fail("voice_challenge_reference_binding_invalid", 409);
+  }
   const state = verdict.verified ? "verified" : "failed";
   const evidenceDays = Number(options.evidenceDays || VOICE_CHALLENGE_POLICY.evidenceDays);
   const rows = await db(
@@ -895,6 +899,8 @@ export async function completeVoiceChallenge(db, lease, verdict, options = {}) {
           and tr.replica_id=ch.replica_id and tr.owner_user_id=ch.owner_user_id
          join vy_replica_voice_challenge_attempt a on a.challenge_id=ch.challenge_id
           and a.attempt=ch.verification_attempt and a.outcome='running'
+         join vy_replica_voice_genome g on g.replica_id=ch.replica_id
+          and g.version=ch.reference_genome_version and g.status in ('draft','approved')
         where ch.challenge_id=$1::uuid and ch.replica_id=$2::uuid and ch.owner_user_id=$3::uuid
           and ch.state='verifying' and ch.verification_attempt=$4::int4
           and ch.verification_lease_token_hash=$5 and ch.verification_lease_expires_at>now()
@@ -902,6 +908,7 @@ export async function completeVoiceChallenge(db, lease, verdict, options = {}) {
           and cap.state='quarantined' and cap.capture_mode='identity_challenge' and cap.sha256=$11
           and tr.state='quarantined' and tr.capture_mode='identity_challenge' and tr.sha256=$12
           and a.verifier=$13 and a.verifier_version=$14
+          and ch.reference_genome_version=$18::int4
         for update of ch
      ), challenge as (
        update vy_replica_voice_challenge ch set state=$6,decision=$7,failure_code=$8,
@@ -943,7 +950,8 @@ export async function completeVoiceChallenge(db, lease, verdict, options = {}) {
       voiceChallengeLeaseHash(lease.leaseToken), state, verdict.decision, verdict.failureCode,
       verdict.similarity, JSON.stringify(verdict.basis), lease.capture.sha256,
       lease.transcript.sha256, lease.verifierName, lease.verifierVersion,
-      verdict.transcriptOverlap, evidenceDays, VOICE_CHALLENGE_POLICY_VERSION],
+      verdict.transcriptOverlap, evidenceDays, VOICE_CHALLENGE_POLICY_VERSION,
+      lease.referenceGenomeVersion],
   );
   return requireSettlement(rows, "voice_challenge_settlement_failed");
 }

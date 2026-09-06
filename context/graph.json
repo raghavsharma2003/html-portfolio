@@ -12441,6 +12441,48 @@
       "kind": "rejection",
       "title": "Do not remove coverage to accommodate a blind scanner",
       "at": "2026-09-07"
+    },
+    {
+      "id": "frozen-release-seven-passes-20260907",
+      "kind": "measurement",
+      "title": "Frozen a2507815 passes all24release checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "after-release-seven-bind-issued-voice-reference-20260907",
+      "kind": "decision",
+      "title": "Next close issued-reference binding without enabling unmigrated identity",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release-pass-does-not-certify-provider-or-listening-20260907",
+      "kind": "rejection",
+      "title": "Keep release gates separate from model acceptance",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "issued-reference-version-remains-fixed-through-settlement-20260907",
+      "kind": "decision",
+      "title": "Bind challenge to issued eligible genome version",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "issued-reference-89-controls-and-three-real-explains-20260907",
+      "kind": "measurement",
+      "title": "89identity checks and3actual dev SQL parses pass",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "reference-status-snapshot-is-not-concurrent-retirement-serialization-20260907",
+      "kind": "rejection",
+      "title": "Record remaining retirement and issuance lifecycle gaps",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "same-recording-service-caller-audit-20260907",
+      "kind": "measurement",
+      "title": "17source links establish missing same-recording service operation",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -24221,6 +24263,21 @@
       "src": "remove-inventory-entries-to-green-is-not-a-transport-fix-20260907",
       "rel": "constrains",
       "dst": "incident-inventory-parses-injected-transports-20260907"
+    },
+    {
+      "src": "release-pass-does-not-certify-provider-or-listening-20260907",
+      "rel": "constrains",
+      "dst": "after-release-seven-bind-issued-voice-reference-20260907"
+    },
+    {
+      "src": "issued-reference-version-remains-fixed-through-settlement-20260907",
+      "rel": "measured_by",
+      "dst": "issued-reference-89-controls-and-three-real-explains-20260907"
+    },
+    {
+      "src": "reference-status-snapshot-is-not-concurrent-retirement-serialization-20260907",
+      "rel": "constrains",
+      "dst": "issued-reference-version-remains-fixed-through-settlement-20260907"
     }
   ]
 }

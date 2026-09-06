@@ -324,10 +324,11 @@ ok("lease capabilities are one-way domain-separated hashes",
   /^[0-9a-f]{64}$/.test(voiceChallengeLeaseHash(TOKEN)) && !voiceChallengeLeaseHash(TOKEN).includes(TOKEN));
 
 let leaseSql = "";
+let leaseResultRow;
 const lease = await leaseNextVoiceChallenge(async (sql, params) => {
   leaseSql = sql;
   assert.equal(params[0], voiceChallengeLeaseHash(TOKEN));
-  return [{
+  return [leaseResultRow = {
     challenge_id: CHALLENGE, replica_id: RID, owner_user_id: OWNER, sentence: SENTENCE,
     sentence_hash: SENTENCE_HASH, nonce: ISSUED.nonce, captured_source_id: CAP_SOURCE,
     transcript_source_id: TR_SOURCE, verification_attempt: 1,
@@ -406,6 +407,115 @@ ok("the self-test path's owner-bound guard is untouched by this workstream",
     .includes("REPLICA_SELF_TEST_MODE"));
 ok("the persisted basis and the persisted decision cannot disagree",
   JSON.parse(completeParams[9]).decision === completeParams[6]);
+
+// Source-driven relational fixtures exercise selection and settlement through
+// the actual functions. They prove these guards affect control flow, not SQL
+// parsing or transactional concurrency; live-explain.mjs covers parsing.
+const eligibleStatuses = new Set(["draft", "approved"]);
+function referenceStore(initial, issuedVersion = 2, mutate = (sql) => sql) {
+  const state = { genomes: initial, issuedVersion, leased: 0, settled: 0 };
+  const own = () => state.genomes.filter((g) => g.replica_id === RID);
+  const db = async (original, params) => {
+    const sql = mutate(original);
+    if (/^\s*with candidate as/.test(sql)) {
+      const exactCandidate = sql.includes("g.version=ch.reference_genome_version");
+      const activeCandidate = sql.includes("g.status in ('draft','approved')");
+      const candidates = own().filter(g => (!exactCandidate || g.version === state.issuedVersion) &&
+        (!activeCandidate || eligibleStatuses.has(g.status)));
+      if (!candidates.length) return [];
+      state.leased++;
+      const exactRead = sql.includes("g.version=l.reference_genome_version");
+      const selected = own().filter(g => !exactRead || g.version === state.issuedVersion)
+        .sort((a, b) => b.version - a.version)[0];
+      if (!selected) return [];
+      return [{ ...leaseResultRow, reference_genome_version: state.issuedVersion,
+        genome_version: selected.version,
+        embedding_families: { "speechbrain-ecapa-voxceleb": selected.vectors.map(vector => ({ vector })) } }];
+    }
+    if (/^\s*with target as/.test(sql)) {
+      const exact = sql.includes("g.version=ch.reference_genome_version");
+      const active = sql.includes("g.status in ('draft','approved')");
+      const versionBound = sql.includes("ch.reference_genome_version=$18::int4");
+      const eligible = own().some(g => (!exact || g.version === state.issuedVersion) &&
+        (!active || eligibleStatuses.has(g.status)));
+      if (!eligible || (versionBound && params[17] !== state.issuedVersion)) return [];
+      state.settled++;
+      return [{ challenge_id: CHALLENGE, state: params[5], decision: params[6] }];
+    }
+    assert.fail("unexpected reference fixture query");
+  };
+  return { state, db };
+}
+const genome = (version, status = "draft", vectors = REFERENCE) => ({ replica_id: RID, version, status, vectors });
+const referenceVerifier = { name: "fixture", version: "1", verify() {} };
+const newer = referenceStore([genome(2), genome(3, "approved", [OFF, OFF])]);
+const issuedLease = await leaseNextVoiceChallenge(newer.db, referenceVerifier, { leaseToken: TOKEN });
+ok("a newer genome cannot replace the issued draft reference or its vectors",
+  issuedLease.referenceGenomeVersion === 2 && JSON.stringify(issuedLease.referenceEmbeddings) === JSON.stringify(REFERENCE));
+await completeVoiceChallenge(newer.db, issuedLease, accepted);
+ok("settlement accepts the same issued eligible reference even when a newer version exists", newer.state.settled === 1);
+const approvedReference = referenceStore([genome(2, "approved")]);
+ok("approval of the issued draft does not invalidate its version binding",
+  (await leaseNextVoiceChallenge(approvedReference.db, referenceVerifier)).referenceGenomeVersion === 2);
+
+for (const [name, genomes] of [
+  ["missing issued reference", [genome(3)]],
+  ["retired issued reference", [genome(1, "approved"), genome(2, "retired"), genome(3)]],
+  ["reference belonging to another replica", [{ ...genome(2), replica_id: CAP_SOURCE }]],
+]) {
+  const store = referenceStore(genomes);
+  const absent = await leaseNextVoiceChallenge(store.db, referenceVerifier);
+  ok(`${name} cannot lease or substitute another version`, absent === null && store.state.leased === 0);
+  await assert.rejects(completeVoiceChallenge(store.db, issuedLease, accepted), { code: "voice_challenge_settlement_failed" });
+  ok(`${name} cannot settle a previously leased result`, store.state.settled === 0);
+}
+const retiredDuringWork = referenceStore([genome(2)]);
+const beforeRetirement = await leaseNextVoiceChallenge(retiredDuringWork.db, referenceVerifier);
+retiredDuringWork.state.genomes[0].status = "retired";
+await assert.rejects(completeVoiceChallenge(retiredDuringWork.db, beforeRetirement, accepted), { code: "voice_challenge_settlement_failed" });
+ok("retirement visible before the settlement query prevents identity settlement", retiredDuringWork.state.settled === 0);
+
+let reachedSettlement = false;
+await assert.rejects(completeVoiceChallenge(async () => { reachedSettlement = true; return []; },
+  issuedLease, { ...accepted, basis: { ...accepted.basis, reference_genome_version: 3 } }),
+{ code: "voice_challenge_reference_binding_invalid" });
+ok("a verdict scored against another reference fails before SQL", reachedSettlement === false);
+const changedLease = { ...issuedLease, referenceGenomeVersion: 3 };
+const changedVerdict = { ...accepted, basis: { ...accepted.basis, reference_genome_version: 3 } };
+const storedBinding = referenceStore([genome(2), genome(3)]);
+await assert.rejects(completeVoiceChallenge(storedBinding.db, changedLease, changedVerdict), { code: "voice_challenge_settlement_failed" });
+ok("changing both the in-memory lease and verdict cannot replace the stored issued version", storedBinding.state.settled === 0);
+
+const removeExact = sql => sql.replaceAll("g.version=ch.reference_genome_version", "true")
+  .replaceAll("g.version=l.reference_genome_version", "true");
+const wrongVersion = referenceStore([genome(2), genome(3, "approved", [OFF, OFF])], 2, removeExact);
+ok("NEGATIVE CONTROL: removing version predicates selects the newer wrong reference",
+  (await leaseNextVoiceChallenge(wrongVersion.db, referenceVerifier)).referenceGenomeVersion === 3);
+const removeStatus = sql => sql.replaceAll("g.status in ('draft','approved')", "true");
+const retiredAllowed = referenceStore([genome(2, "retired")], 2, removeStatus);
+await completeVoiceChallenge(retiredAllowed.db, await leaseNextVoiceChallenge(retiredAllowed.db, referenceVerifier), accepted);
+ok("NEGATIVE CONTROL: removing reference status predicates permits a retired reference", retiredAllowed.state.settled === 1);
+const missingStoredBinding = referenceStore([genome(2), genome(3)], 2,
+  sql => sql.replace("ch.reference_genome_version=$18::int4", "true"));
+await completeVoiceChallenge(missingStoredBinding.db, changedLease, changedVerdict);
+ok("NEGATIVE CONTROL: removing the stored-version comparison accepts a changed lease", missingStoredBinding.state.settled === 1);
+
+const issueGenomeClause = issueSql.slice(issueSql.indexOf("), genome as ("), issueSql.indexOf("), attempts as ("));
+ok("issuance selects latest first, then refuses retired latest instead of reverting to older identity",
+  /order by g.version desc limit 1/.test(issueGenomeClause) && !/g.status\s+in/.test(issueGenomeClause) &&
+  issueSql.includes("attempts.n < $10::integer and genome.status in ('draft','approved')"));
+for (const [name, genomes, expected] of [
+  ["latest draft", [genome(2)], true], ["latest approved", [genome(2, "approved")], true],
+  ["retired latest with older approved", [genome(1, "approved"), genome(2, "retired")], false],
+  ["no reference", [], false],
+]) {
+  const result = await issueOwnedVoiceChallenge(async (sql) => {
+    const latest = genomes.slice().sort((a, b) => b.version - a.version)[0];
+    const eligible = latest && (!sql.includes("genome.status in ('draft','approved')") || eligibleStatuses.has(latest.status));
+    return eligible ? [issuedRow] : [];
+  }, OWNER, RID, { sentence: SENTENCE, nonce: ISSUED.nonce });
+  ok(`issuance fixture: ${name}`, Boolean(result) === expected);
+}
 
 // The gate itself, unchanged, reading the row.
 function gateRow(extra = {}) {

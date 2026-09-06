@@ -22583,3 +22583,13 @@ The Azure-specific resampler compares exact decoded frames to60seconds after the
 ## `incident-inventory-parses-injected-transports-20260907` (2026-09-07)
 
 Use installed TypeScript AST locally in the incident gate to identify direct/injected/fallback transport calls and explicit named browser-script literals. Only literal loopback first arguments are exempt; computed destinations remain in scope. Preserve existing coverage entries, map Azure shared-reply to existing incident callers and name newly exposed non-Room lifecycle exclusions. This is bounded syntax inventory, not interprocedural proof or proof that all excluded failures reach the incident board. Reversal condition: a simpler or more complete detector preserves existing and generated-script coverage and passes the same alias/comment/string/loopback negative controls.
+
+
+## `after-release-seven-bind-issued-voice-reference-20260907` (2026-09-07)
+
+After verified checkpoint a2507815, fix the existing challenge lease/settlement to preserve its issued reference genome rather than silently selecting a newer one. Keep strict Azure identity verification disabled while language and same-recording contracts are incomplete. Reversal condition: a deliberately versioned re-enrollment/reissue flow may choose a different reference with fresh challenge authority; a later genome alone cannot reinterpret an issued challenge.
+
+
+## `issued-reference-version-remains-fixed-through-settlement-20260907` (2026-09-07)
+
+Issuance refuses a retired latest genome rather than falling back; lease selects the stored issued version and allows draft/approved only. Settlement requires lease/verdict/stored versions to agree and the reference to remain eligible in its statement snapshot. No schema or thresholds changed; strict Azure identity stays disabled. Reversal condition: a new explicitly versioned reissue flow can choose another reference with fresh authority, never silent latest-version selection. This does not serialize concurrent retirement after the snapshot.
