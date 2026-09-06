@@ -15318,3 +15318,150 @@ not by itself justify switching back — `CheckinsPanel.tsx`'s own two fields
 carry the identical unproven risk today and are open work for whoever next
 touches that screen or widens the accessibility gate's own `screens` list to
 include it.
+
+## `ws-r139-restready-gated-at-the-parent-resets-accountpages-own-fetched-state` (2026-09-06, WS-R139)
+
+**Tried.** Gating `AccountPage`/`SubscriptionPanel`'s PRESENCE in
+`RoomApp.tsx`'s own JSX on `restReady` (`{accountOpen && session &&
+restReady && (<Suspense>...<AccountPage/></Suspense>)}`) so neither
+component would ever read a REST-only copy key (`copy.dormancy`,
+`copy.referral`, etc — the Proxy that throws until installed) before its
+own chunk had loaded.
+
+**What broke.** `evals/rehearsal/follower.mjs`'s own "switching to hi
+re-renders the disclosure in hi (server-authored, not stale)" assertion
+failed with `disclosureOther: ""` — the disclosure card went BLANK, not
+merely stale, on the FIRST switch to a locale whose REST chunk had never
+loaded in this browser session. Root cause, found by adding a temporary
+mount/render `console.log` inside `AccountPage.tsx` and piping the page's
+own console into the rehearsal's Node process: `restReady` toggling
+false-then-true UNMOUNTS AND REMOUNTS `AccountPage` (React treats `null`
+and `<AccountPage/>` at the same JSX position as different element types),
+which resets ALL of its internal state — including `settings`, fetched
+ONCE on mount from `fetchRoomSettings(session)` and never re-fetched on
+`locale` alone. On remount, `settings` starts at `null` again, so
+`settings?.disclosure || ""` reads as an empty string for exactly the one
+or two renders the new chunk takes to arrive, and `evals/rehearsal/
+follower.mjs`'s own `waitForFunction` (watching for the text to CHANGE
+from its prior value) catches that empty flash rather than the real,
+eventually-correct Hindi text a follower would actually see a moment
+later.
+
+**The fix.** `restReady` moved from a PARENT-level gate to a PROP read
+INSIDE `AccountPage`/`SubscriptionPanel` themselves (`if (!restReady)
+return null`, placed after every hook, `RoomApp.tsx`'s own top-level
+`if (!talkReady) return null` pattern restated one layer down): the
+component stays the SAME mounted instance across the toggle, so `settings`
+survives, and the disclosure text now only ever moves from its last real
+value (English) straight to the next real value (Hindi, once the
+`session`-keyed refetch that `switchLocale` triggers completes) — the
+"" state cannot occur because nothing resets `settings` to `null`.
+
+**Reversal condition.** A future secondary screen that reads a REST-only
+copy key needs this SAME prop-plus-internal-guard shape, never a parent-
+level presence gate, or it inherits this exact bug the moment it holds
+any of its own fetched state across a locale switch.
+
+## `ws-r139-locale-switch-raced-the-hindi-chunk-and-unmounted-open-panels` (2026-09-06, WS-R139)
+
+**Tried.** Splitting `ROOM_COPY_TABLE.hi` into lazy chunks and gating
+`RoomApp.tsx`'s ENTIRE render on `if (!talkReady) return null` (placed
+after every hook, so the hook count never changes) — correct and
+necessary for the very FIRST paint of a locale this browser has never
+rendered before.
+
+**What broke.** The identical guard also fired on a LIVE, in-session
+locale switch (`switchLocale`, triggered by tapping the language button
+with a panel already open): `locale` updated to the new value the instant
+`setRoom`/`setSession` ran, one tick before `loadRoomTalkCopy`'s own
+`useEffect` had even STARTED fetching the new locale's chunk, so
+`talkReady` read false for at least one render. `RoomApp`'s ENTIRE output
+collapsed to `null` for that render — not merely the copy-dependent bits —
+which unmounts EVERY currently-open panel (`AccountPage` included), the
+exact mechanism behind `#ws-r139-restready-gated-at-the-parent-resets-
+accountpages-own-fetched-state` above. The `restReady`-as-prop fix in that
+entry stops the STATE LOSS but does nothing about the top-level collapse
+itself still momentarily blanking the whole screen on every live switch to
+a first-time locale.
+
+**The fix.** `switchLocale` now awaits `loadRoomCopy(next)` (both the talk
+and rest chunks — trivial extra cost, `hiCopy.ts` alone is 2.75KB source)
+IN PARALLEL with its own server call (`Promise.all`), and only THEN calls
+`setRoom`/`setSession`. `roomTalkCopyReady(next)` / `roomCopyReady(next)`
+are therefore already true by the time `locale` ever becomes `next`, so a
+LIVE switch never trips the top-level null-render at all — that guard now
+only ever fires on the genuinely first paint of a locale, exactly the case
+it was built for. The two loaders share one cached in-flight promise each
+(`hiTalkLoading`/`hiRestLoading`, `copy.ts`), so awaiting `loadRoomCopy`
+here is never a duplicate fetch alongside `main.tsx`'s own early
+`?lang=hi`/localStorage-hint call or this component's own earlier effect.
+
+**Reversal condition.** If a future caller needs `locale` to update
+BEFORE its copy chunk is ready (an interim state this product has never
+asked for), the top-level guard would need to become per-section rather
+than whole-page, and every screen that reads a not-yet-loaded section
+would need the `AccountPage.tsx`-style internal null-guard rather than
+relying on the page-level one.
+
+## `ws-r139-precache-regex-quoted-strings-only-missed-rolldown-template-literal-imports` (2026-09-06, WS-R139)
+
+**Tried.** `public/room-sw.js#derivePrecacheList`'s `DYNAMIC_IMPORT_RE`
+(and its two restatements, `scripts/check-install.mjs`,
+`evals/room-push/run.mjs`'s §9) matched a dynamic `import()` call's path
+only inside `"` or `'` quotes: `/\bimport\(\s*["'](\.[^"']+\.[cm]?js)["']\s*\)/g`.
+
+**What broke.** `evals/room-push/run.mjs`'s own §9 — added in this same
+workstream, against the REAL built `dist/room.html` and its real compiled
+JS, never a hand-typed list — found ZERO of the seven new secondary-screen
+chunks (`AccountPage-*.js` etc). This repo's `vite` (8.2.1) builds on
+Rolldown, which emits a dynamic import's path as a TEMPLATE LITERAL
+(`` import(`./AccountPage-<hash>.js`) ``), never the quoted string a
+classic Rollup build leaves — the regex matched nothing at all against
+the actual shipped bytes. Undetected, this would have shipped a
+precache that silently missed every lazy chunk in production: a follower
+who installs the Room, goes offline, then opens a secondary screen for
+the first time would hit a network error instead of the cached chunk.
+
+**The fix.** The quote character became its own capture group closed by a
+backreference (`` (["'`])...\1 ``) so all three literal forms — `"`, `'`,
+`` ` `` — resolve the same way; the path moved from capture group 1 to
+group 2 in all three files. A REGRESSION control (a literal Rolldown-
+shaped snippet, asserted to match nothing under the OLD regex and the
+right path under the NEW one) was added to `evals/room-push/run.mjs`'s §9
+so a future revert of either half fails by name rather than silently.
+
+**Reversal condition.** If a future bundler emits dynamic imports in some
+FOURTH shape (a computed expression, a runtime lookup table rather than a
+literal per-chunk string), this static-source-scan approach stops working
+entirely and `derivePrecacheList` needs a build-time manifest instead —
+watch for `evals/room-push/run.mjs`'s §9 finding zero matches again as the
+signal.
+
+## `ws-r139-lazy-dialog-open-fixed-sleep-flaked-under-load` (2026-09-06, WS-R139)
+
+**Tried.** `scripts/check-layout.mjs`'s DIALOG-IN-VIEW check and
+`scripts/check-accessibility.mjs`'s keyboard-activation check both opened
+a dialog (a real click or a real `Enter` keypress) and then waited a FIXED
+sleep (700ms and 150ms respectively) before reading the resulting DOM —
+correct when `CheckinsPanel`/`DataMenu` were synchronous renders.
+
+**What broke.** Now that both are `React.lazy` chunks, opening either for
+the first time in a browser context is a real network fetch + parse
+BEFORE the dialog (and its `useDialogInView` scroll-into-view effect) even
+exist, which can consume some or all of a single fixed sleep under load —
+`layout readability` failed with "opened but its bounding box does not
+intersect the viewport" (the scroll had not finished; `focusInside`,
+synchronous with mount, still passed) and `accessibility` failed with
+"Enter on the data-menu opener did not open the dialog" (the chunk had not
+even finished loading by 150ms).
+
+**The fix.** Both fixed sleeps became polls (`page.waitForSelector`/
+`page.waitForFunction` with a several-second timeout, `.catch(() => {})`
+so a genuine failure still falls through to the existing honest check
+below it) — the same "poll a real condition, never assume a duration"
+convention this file's own `HINDI_CHUNK_WAIT_BUDGET_MS` neighbors already
+use elsewhere in this repo.
+
+**Reversal condition.** Any FUTURE lazy screen added to the Room needs its
+own open-and-check gate assertion written as a poll from the start, never
+a fixed sleep sized against today's (synchronous) load time.

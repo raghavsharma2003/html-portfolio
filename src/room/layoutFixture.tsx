@@ -61,7 +61,7 @@ import RoomApp from "./RoomApp";
 import "../studio/design/tokens.css";
 import "../studio/studio.css";
 import "./room.css";
-import { ROOM_COPY_TABLE } from "./copy";
+import { ROOM_COPY_TABLE, loadRoomCopy } from "./copy";
 import type { RoomOpen, RoomSettings, RoomForgetReceipt, RoomOffer } from "./roomApi";
 import type { RoomPaymentStatus } from "./roomPayApi";
 
@@ -366,7 +366,7 @@ declare global {
   }
 }
 
-function render() {
+async function render() {
   const params = new URLSearchParams(window.location.search);
   const screen = params.get("screen") || "talk";
   // WS-R24: ?lang=hi swaps the chrome locale AND the disclosure card's own
@@ -405,6 +405,18 @@ function render() {
   // itself — `layoutFixture.tsx`'s own header explains why a fixture that
   // pre-opens the dialog could never have caught the bug this closes.
   const longConvo = screen === "checkins" || screen === "handoff";
+  // WS-R139: the Hindi table is now two lazy chunks (`copy.ts`'s own
+  // header — `hiTalkCopy.ts` + `hiCopy.ts`). Installed through the app's
+  // own loader BEFORE the glyph list is built or the app mounts, so this
+  // fixture's `__ROOM_HI_STRINGS__` is the real, WHOLE table and a
+  // `?lang=hi` render never flashes `RoomApp.tsx`'s own "not ready yet"
+  // `null` — `src/studio/layoutFixture.tsx`'s identical `loadStudioCopy`
+  // precedent. Skipped entirely for an English request: this fixture is
+  // ALSO `scripts/check-performance.mjs`'s own `/r/<slug>` target, which
+  // must never fetch a byte of the Hindi chunk it does not measure.
+  if (hindi) {
+    await loadRoomCopy("hi");
+  }
   ReactDOM.createRoot(document.getElementById("room-root")!).render(
     <RoomApp
       fixtureOpen={open}
@@ -466,16 +478,18 @@ function render() {
       fixtureLiveLocaleSwitch={liveLocaleSwitch}
     />,
   );
-  window.__ROOM_HI_STRINGS__ = (() => {
-    const out: [string, string][] = [];
-    flattenHiStrings(ROOM_COPY_TABLE.hi, "", out);
-    return out;
-  })();
+  if (hindi) {
+    window.__ROOM_HI_STRINGS__ = (() => {
+      const out: [string, string][] = [];
+      flattenHiStrings(ROOM_COPY_TABLE.hi, "", out);
+      return out;
+    })();
+  }
 }
 
 if (LOOPBACK.has(window.location.hostname)) {
   installFetchStub();
-  render();
+  void render();
 } else {
   // Not an error page and not a redirect: a blank, honest refusal. This file is
   // in the build output and must do nothing at all anywhere it is not the gate.

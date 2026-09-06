@@ -195,12 +195,12 @@ console.log("── §5: RoomApp.tsx's cap-reached card is gated on BOTH conditi
 console.log("── §6: both locales carry every new key ──");
 // ═════════════════════════════════════════════════════════════════════════
 {
-  async function loadRoomCopy() {
+  async function bundleRoomCopy() {
     const OUT = mkdtempSync(join(tmpdir(), "room-account-eval-"));
     const ENTRY = join(OUT, "entry.ts");
     writeFileSync(
       ENTRY,
-      `export { ROOM_COPY_TABLE } from ${JSON.stringify(join(REPO, "src/room/copy"))};\n`,
+      `export { ROOM_COPY_TABLE, loadRoomCopy } from ${JSON.stringify(join(REPO, "src/room/copy"))};\n`,
     );
     const BUNDLE = join(OUT, "copy.bundle.mjs");
     execSync(
@@ -209,7 +209,10 @@ console.log("── §6: both locales carry every new key ──");
     );
     return import(pathToFileURL(BUNDLE).href);
   }
-  const { ROOM_COPY_TABLE } = await loadRoomCopy();
+  const { ROOM_COPY_TABLE, loadRoomCopy } = await bundleRoomCopy();
+  // WS-R139: `ROOM_COPY_TABLE.hi` is a throwing Proxy (two lazy chunks,
+  // `src/room/copy.ts`'s own header) until installed.
+  await loadRoomCopy("hi");
 
   function paths(obj, prefix = "") {
     const out = [];

@@ -14607,3 +14607,48 @@ and `vy_creator_subscription`.
 **A real defect found and fixed during this workstream, not present before it.** The account page's first draft of the "set once" quiet-hours control used `<input type="time">` for the from/to fields (the same element `CheckinsPanel.tsx`'s own pre-existing control already uses). `node scripts/check-accessibility.mjs --target room` failed `keyboard-unreachable`: 2 of 29 focusable controls on `room:account` (`"Make it forget me"`, `"Close"`) never received Tab focus. Traced with a standalone Playwright debug harness (written and discarded, not part of this repo) that logs `document.activeElement` on every Tab press: this build container's own Chromium keeps focus on the SAME `<input type="time">` node for four consecutive Tab presses before advancing, so two such fields exhausted `scripts/check-accessibility.mjs`'s own fixed slack budget (`focusable.length + 4`) two controls short of the page's end. Fixed by switching both fields to `<input type="text" inputMode="numeric" pattern="...">`; re-run of the debug harness afterward showed all 29 controls reached in exactly 29 presses, budget unused, and `node scripts/check-accessibility.mjs --target room` reported 0 keyboard findings. See `context/rejected.md#ws-r131-native-time-input-eats-tab-stops-in-headless-chromium`.
 
 **Eval suite counts, full registry (`node evals/run.mjs`, direct, 0 failed suites including `day-one` — one earlier run inside a contended `verify-release.mjs` process had flagged `day-one` alone, re-run standalone immediately after and clean, scored as the same load-contention class as the port collisions above, not a content defect).** `evals/quiet-hours`: 41 passed, 0 failed (new §5, the follower's own row beats the check-in proxy, plus a negative control proving the pre-WS-R131 fragment text could not have expressed the override). `evals/checkins`: 52 ok, 0 failed (new §7, a new schedule inherits the account window when its own is unset, an explicit window still wins, no account window fabricates nothing). `evals/renewals`: 87 passed, 0 failed (new §8b, the four boundary instants with a disagreeing check-in window, proving the account row is a real override not merely OR'd in). `evals/room-dormancy`: 61 passed, 0 failed (new §9b, the same four instants against the notice-due sweep). `evals/room-doors`: 2167 ok, 0 failed (new `set_quiet_hours` §9a2, every attack class: forged/stale/cross-room sessions, all shape-fuzz classes, OP_COVERAGE and OP_INVOKE both cased).
+
+### `ws-r139-room-secondary-screens-js-bytes-2026-09-05` (WS-R139)
+
+**n = 3 batches of 3 runs each, method: `node scripts/check-performance.mjs
+--target "/r/<slug>"` / `--target "room-hi"`, real Chromium over CDP, 4x CPU
+throttle, 1.6Mbps/750Kbps/150ms network throttle (this file's own long-
+standing Fast-3G shape), median of 3 per batch, 3 batches per figure, on
+this worktree's own container, 2026-09-05 into 2026-09-06.** The room
+join screen (`?screen=join`, `room-layout-fixture.html`), which is what
+`/r/<slug>` measures per this file's own header (`RoomApp.tsx` needs a
+live session `check-performance.mjs` has no secret for).
+
+BEFORE (base commit `048becd`, secondary screens statically imported):
+`/r/<slug>` jsBytes 90,762 bytes, identical across all 3 batches (this
+render has no data variance — deterministic by construction). LCP medians
+1484/1380/1356ms, TBT medians 94/102/134ms (noisy — this session's own
+machine carried a load average of 12-26 throughout this measurement, many
+concurrent sibling workstream gates; see the load note below).
+
+AFTER (this workstream's `React.lazy` split, plus the `switchLocale`
+prefetch fix, final tree before commit): `/r/<slug>` (English) jsBytes
+80,230 bytes, identical across all 3 batches — an 11.9% reduction.
+`room-hi` (Hindi, `?screen=join&lang=hi`, the NEW target this workstream
+added) jsBytes 86,916 bytes, identical across all 3 batches. LCP medians:
+English 1192/1208/1208ms; Hindi 1384/1508/1444ms. TBT medians: English
+72/121/113ms; Hindi 112/143/150ms. Measured at load average 8.3-9.6
+(five-minute mean 7.2-7.8) — well down from the 12-26 range earlier in
+this session, though not the under-2 an idle machine would give; the main
+loop's own note (seven of ten wave-nineteen siblings merged by then)
+independently confirms the machine was genuinely quieter for this final
+reading, and the byte counts themselves (the only figure this decision's
+budget actually gates) are identical whether measured under load 26 or
+load 8, since they come from the CDP `Network` domain's own transfer
+accounting, not from timing.
+
+CSS, font and image bytes are unchanged before/after in every reading
+(30,986 / 0 / 1,155 respectively) — this workstream's diff touches no CSS
+or image asset, exactly as expected.
+
+`scripts/check-performance.mjs --target "/r/<slug>"` and `--target
+"room-hi"` both pass with the new PER-TARGET `jsBudget` overrides (100KB,
+105KB — `context/decisions.md#ws-r139-room-secondary-screens-are-lazy-
+chunks` has the margin's reasoning) after the split; both would also still
+pass the shared 180KB ceiling alone, so the override is a genuine
+tightening, not a workaround for a number that would otherwise fail.

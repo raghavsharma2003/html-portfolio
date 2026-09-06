@@ -428,7 +428,16 @@ async function walkTalkActivation(page) {
   }
   await page.focus('[data-a11y-target="data-menu-open"]');
   await page.keyboard.press("Enter");
-  await page.waitForTimeout(150);
+  // WS-R139: `DataMenu` is a `React.lazy` chunk now (RoomApp.tsx's own
+  // header) — opening it for the first time in this browser context is a
+  // real network fetch + parse, not a synchronous render, so a FIXED
+  // 150ms sleep before checking is exactly the kind of gate a lazy split
+  // can spuriously fail by name. Polled instead, generous timeout, same
+  // as every real rehearsal wait for a dialog (`evals/rehearsal/follower.mjs`'s
+  // own `waitForSelector(..., { timeout: 10_000 })`) rather than assumed
+  // instant. `catch(() => {})` so a genuine failure still falls through to
+  // the honest `openedDialog` check below, never an uncaught rejection.
+  await page.waitForFunction(() => document.querySelector('.room-menu[role="dialog"]'), null, { timeout: 5000 }).catch(() => {});
   const openedDialog = await page.evaluate(() => Boolean(document.querySelector('.room-menu[role="dialog"]')));
   if (!openedDialog) {
     findings.push({ where: "room:talk", kind: "keyboard-activation", detail: "Enter on the data-menu opener did not open the dialog" });

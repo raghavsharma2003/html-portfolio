@@ -593,14 +593,17 @@ function makeDb(state) {
   const ENTRY = join(OUT, "entry.ts");
   writeFileSync(
     ENTRY,
-    `export { ROOM_COPY_TABLE } from ${JSON.stringify(join(REPO, "src/room/copy"))};\n`,
+    `export { ROOM_COPY_TABLE, loadRoomCopy } from ${JSON.stringify(join(REPO, "src/room/copy"))};\n`,
   );
   const BUNDLE = join(OUT, "copy.bundle.mjs");
   execSync(
     `npx esbuild ${ENTRY} --bundle --format=esm --platform=node --outfile=${BUNDLE} --log-level=error`,
     { cwd: REPO, stdio: "inherit" },
   );
-  const { ROOM_COPY_TABLE } = await import(pathToFileURL(BUNDLE).href);
+  const { ROOM_COPY_TABLE, loadRoomCopy } = await import(pathToFileURL(BUNDLE).href);
+  // WS-R139: `ROOM_COPY_TABLE.hi` is a throwing Proxy (two lazy chunks,
+  // `src/room/copy.ts`'s own header) until installed.
+  await loadRoomCopy("hi");
 
   for (const locale of ["en", "hi"]) {
     const real = ROOM_COPY_TABLE[locale].taste;

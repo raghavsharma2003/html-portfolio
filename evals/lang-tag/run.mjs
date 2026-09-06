@@ -54,9 +54,9 @@ async function loadTsExports(modulePath, names) {
   return import(pathToFileURL(BUNDLE).href);
 }
 
-const { ROOM_COPY_TABLE, detectRoomTextLang } = await loadTsExports(
+const { ROOM_COPY_TABLE, detectRoomTextLang, loadRoomCopy } = await loadTsExports(
   join(REPO, "src/room/copy"),
-  ["ROOM_COPY_TABLE", "detectRoomTextLang"],
+  ["ROOM_COPY_TABLE", "detectRoomTextLang", "loadRoomCopy"],
 );
 const { STUDIO_COPY_TABLE, detectStudioTextLang, loadStudioCopy } = await loadTsExports(
   join(REPO, "src/studio/copy"),
@@ -65,6 +65,10 @@ const { STUDIO_COPY_TABLE, detectStudioTextLang, loadStudioCopy } = await loadTs
 // The studio's Hindi table is its own chunk (src/studio/hiCopy.ts); install it
 // through the app's own loader before reading `.hi`, which throws until then.
 await loadStudioCopy("hi");
+// WS-R139: the Room's Hindi table is now TWO lazy chunks (`hiTalkCopy.ts` +
+// `hiCopy.ts`, `src/room/copy.ts`'s own header) — the identical reason one
+// surface over.
+await loadRoomCopy("hi");
 const { buildCreatorPageHtml } = await import(pathToFileURL(join(REPO, "api/_creator-page.js")).href);
 
 // ── 1. the detection primitive, against every REAL translated leaf ────────

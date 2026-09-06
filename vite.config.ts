@@ -179,9 +179,98 @@ function studioHindiPreloadPlugin() {
   }
 }
 
+// WS-R139. `studioHindiPreloadPlugin`'s own reasoning, restated for the
+// Room's TALK chunk (`src/room/hiTalkCopy.ts`, `copy.ts`'s own header):
+// `loadRoomTalkCopy`'s dynamic `import()` cannot start its network request
+// until the browser has fetched, parsed and started executing the Room's
+// main chunk — a `<link rel="modulepreload">` for the talk chunk starts
+// that fetch the instant the HTML parser reaches it, in parallel with the
+// main chunk.
+//
+// "A Hindi Room request" means one of two things, checked in this order —
+// `?lang=hi` in the URL, else `vyakti.room.locale.v1` in `localStorage`
+// (`RoomApp.tsx`'s own `switchLocale`, the ONE place that key is ever
+// written, best-effort, never read back as authoritative) — the identical
+// two-step order `studioHindiPreloadPlugin`'s own script already uses for
+// `vyakti.studio.locale.v1`. A real follower's Room never carries `?lang=`
+// today (unlike the studio, `RoomApp.tsx` decides its locale from the
+// SERVER's `room.locale`, never a URL param), so in production this fires
+// only from the localStorage hint, on a RETURNING Hindi follower's own
+// device — still a real win, never a regression for anyone else, since an
+// English visit (no `?lang=hi`, nothing remembered) never creates the link.
+// `room-layout-fixture.html` DOES pass `?lang=hi` for real
+// (`layoutFixture.tsx`'s own query parsing, `scripts/check-performance.mjs`'s
+// `room-hi` target), which is what makes this measurable at all before any
+// follower has ever switched a real Room to Hindi.
+//
+// Applied to BOTH `room.html` and `room-layout-fixture.html` — one script,
+// one meta-tag-injection routine, looped over both dist files, since both
+// entries bundle the identical `RoomApp.tsx` module graph and therefore
+// emit the identical `hiTalkCopy-<hash>.js` chunk name.
+const ROOM_HI_PRELOAD_SCRIPT = `(function () {
+  try {
+    var meta = document.querySelector('meta[name="room-hi-chunk-preload"]');
+    var href = meta && meta.getAttribute("content");
+    if (!href) return;
+    var lang = new URLSearchParams(location.search).get("lang");
+    var hi = lang === "hi";
+    if (!hi && lang === null) {
+      try {
+        hi = localStorage.getItem("vyakti.room.locale.v1") === "hi";
+      } catch (e) {}
+    }
+    if (!hi) return;
+    var link = document.createElement("link");
+    link.rel = "modulepreload";
+    link.crossOrigin = "anonymous";
+    link.fetchPriority = "high";
+    link.href = href;
+    document.head.appendChild(link);
+  } catch (e) {}
+})();`
+
+function roomHindiPreloadPlugin() {
+  return {
+    name: 'vyakti-room-hindi-preload',
+    apply: 'build' as const,
+    async closeBundle() {
+      const distDir = join(process.cwd(), 'dist')
+      const assetNames = readdirSync(join(distDir, 'assets'))
+      const hiTalkChunk = assetNames.find((n) => n.startsWith('hiTalkCopy-') && n.endsWith('.js'))
+      const hiRestChunk = assetNames.find((n) => n.startsWith('hiCopy-') && n.endsWith('.js'))
+      if (!hiTalkChunk || !hiRestChunk) {
+        // Loud, not silent — the identical posture `studioHindiPreloadPlugin`
+        // already takes for its own two chunks.
+        throw new Error(
+          'roomHindiPreloadPlugin: expected both dist/assets/hiTalkCopy-*.js and dist/assets/hiCopy-*.js -- ' +
+            `found hiTalkCopy: ${hiTalkChunk ? 'yes' : 'NO'}, hiCopy: ${hiRestChunk ? 'yes' : 'NO'}. ` +
+            'context/decisions.md#ws-r139-room-secondary-screens-are-lazy-chunks is missing or an output name changed.',
+        )
+      }
+      const marker = '<meta charset="UTF-8" />'
+      for (const htmlName of ['room.html', 'room-layout-fixture.html']) {
+        const htmlPath = join(distDir, htmlName)
+        const html = readFileSync(htmlPath, 'utf8')
+        if (!html.includes(marker)) {
+          throw new Error(`roomHindiPreloadPlugin: expected marker ${JSON.stringify(marker)} not found in dist/${htmlName}`)
+        }
+        const injected =
+          `${marker}\n    <meta name="room-hi-chunk-preload" content="/assets/${hiTalkChunk}" />\n    <script>${ROOM_HI_PRELOAD_SCRIPT}</script>`
+        writeFileSync(htmlPath, html.replace(marker, injected), 'utf8')
+      }
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), creatorPageFixturePlugin(), roomAboutFixturePlugin(), studioHindiPreloadPlugin()],
+  plugins: [
+    react(),
+    creatorPageFixturePlugin(),
+    roomAboutFixturePlugin(),
+    studioHindiPreloadPlugin(),
+    roomHindiPreloadPlugin(),
+  ],
   build: {
     rollupOptions: {
       input: {

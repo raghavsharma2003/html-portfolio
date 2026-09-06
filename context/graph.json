@@ -11038,6 +11038,42 @@
       "kind": "measurement",
       "title": "evals/quiet-hours widened 28->41 (new SS5, own row beats proxy); evals/checkins 43->59 (new \u00a77, inheritance); evals/renewals 79->87 (new \u00a78b, four boundary instants); evals/room-dormancy 53->61 (new \u00a79b); evals/room-doors gained set_quiet_hours across every attack class (OP_COVERAGE+OP_INVOKE cased). node scripts/check-accessibility.mjs --target room: 0 keyboard findings after the type=time fix (was 2, keyboard-unreachable + keyboard-focus-invisible). Method: node evals/run.mjs full registry run and node scripts/check-accessibility.mjs --target room, both direct, 2026-09-05.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r139-room-secondary-screens-are-lazy-chunks",
+      "kind": "decision",
+      "title": "The Room account/receipt/taste/checkins/subscription/handoff screens and the Hindi copy table (hiTalkCopy + hiCopy) load as their own React.lazy chunks; switchLocale awaits the target chunk before committing the locale change.",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r139-room-secondary-screens-js-bytes-2026-09-05",
+      "kind": "measurement",
+      "title": "Room join screen JS: 90,762 bytes before the lazy split, 80,230 after (English), 86,916 (Hindi, new room-hi target) after -- 3 batches of 3 runs each, check-performance.mjs, identical across batches.",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r139-restready-gated-at-the-parent-resets-accountpages-own-fetched-state",
+      "kind": "rejection",
+      "title": "Gating AccountPage/SubscriptionPanel presence on restReady at the RoomApp level remounted them on every first-time locale switch, wiping already-fetched settings/payment state and producing a blank disclosure card; fixed by moving restReady to an internal prop-read guard.",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r139-locale-switch-raced-the-hindi-chunk-and-unmounted-open-panels",
+      "kind": "rejection",
+      "title": "RoomApp's top-level if(!talkReady) return null also fired on a live locale switch, collapsing the whole page for a render and unmounting every open panel; fixed by awaiting loadRoomCopy(next) inside switchLocale before ever committing the new locale to state.",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r139-precache-regex-quoted-strings-only-missed-rolldown-template-literal-imports",
+      "kind": "rejection",
+      "title": "The precache dynamic-import regex matched only quoted-string import() paths; this repo's Rolldown-powered Vite 8 build emits template-literal paths, so it matched zero real lazy chunks until the regex gained a quote-character capture group with a backreference.",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r139-lazy-dialog-open-fixed-sleep-flaked-under-load",
+      "kind": "rejection",
+      "title": "check-layout.mjs and check-accessibility.mjs opened a now-lazy dialog and waited a fixed sleep before checking it; the chunk fetch could eat into or exceed that sleep, so both became polls with generous timeouts.",
+      "at": "2026-09-06"
     }
   ],
   "edges": [
@@ -21380,6 +21416,31 @@
       "src": "ws-r131-quiet-hours-gate-results",
       "rel": "measured_by",
       "dst": "ws-r131-follower-own-quiet-hours-column"
+    },
+    {
+      "src": "ws-r139-room-secondary-screens-are-lazy-chunks",
+      "rel": "measured_by",
+      "dst": "ws-r139-room-secondary-screens-js-bytes-2026-09-05"
+    },
+    {
+      "src": "ws-r139-room-secondary-screens-are-lazy-chunks",
+      "rel": "caused_by",
+      "dst": "ws-r139-restready-gated-at-the-parent-resets-accountpages-own-fetched-state"
+    },
+    {
+      "src": "ws-r139-room-secondary-screens-are-lazy-chunks",
+      "rel": "caused_by",
+      "dst": "ws-r139-locale-switch-raced-the-hindi-chunk-and-unmounted-open-panels"
+    },
+    {
+      "src": "ws-r139-room-secondary-screens-are-lazy-chunks",
+      "rel": "caused_by",
+      "dst": "ws-r139-precache-regex-quoted-strings-only-missed-rolldown-template-literal-imports"
+    },
+    {
+      "src": "ws-r139-room-secondary-screens-are-lazy-chunks",
+      "rel": "caused_by",
+      "dst": "ws-r139-lazy-dialog-open-fixed-sleep-flaked-under-load"
     }
   ]
 }
