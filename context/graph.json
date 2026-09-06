@@ -11080,6 +11080,14 @@
       "kind": "measurement",
       "title": "Migrations 134 (the follower's own time zone and quiet hours), 135 (the live-subscription indexes exclude a halted mandate) and 136 (the follower's monthly note) applied live at their merges, fifteen statements one per request; every new statement planned, on indexes except the once-a-month note due-select accepted by name.",
       "at": "2026-09-06"
+    },
+    {
+      "id": "wave-twenty-planned-not-built-handover-2026-09-06",
+      "title": "Wave twenty planned and handed over unbuilt (2026-09-06)",
+      "type": "decision",
+      "summary": "Ten briefs (WS-R141 to WS-R150) committed under docs/gurukul/waves/wave-20 with the merge tools under scripts/merge-tools; agents launched over 77e0151 wrote nothing before the session ended; 137 is the next free migration number.",
+      "file": "context/STATE.md",
+      "anchor": "session-end-2026-09-06-handover-to-a-local-tool"
     }
   ],
   "edges": [
@@ -21462,6 +21470,14 @@
       "src": "rooms-migrations-134-135-136-live-verification-2026-09-06",
       "rel": "measured_by",
       "dst": "ws-r137-month-note-builder"
+    },
+    {
+      "src": "rooms-migrations-134-135-136-live-verification-2026-09-06",
+      "rel": "measured_by",
+      "dst": "ws-r137-month-note-builder",
+      "source": "wave-twenty-planned-not-built-handover-2026-09-06",
+      "target": "rooms-migrations-134-135-136-live-verification-2026-09-06",
+      "type": "follows"
     }
   ]
 }
