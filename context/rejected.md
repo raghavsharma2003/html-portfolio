@@ -15079,3 +15079,61 @@ describe. If a future surface ever shows one follower's month-note counts
 to a second party (a creator, an admin, another follower), THAT surface
 needs its own floor at the point of disclosure, never inside
 `computeFollowerMonthNote` itself.
+
+## `ws-r135-readiness-eval-banned-word-cascade-from-a-short-backtick-span` (2026-09-05, WS-R135)
+
+**Tried.** `src/studio/copy.ts`'s new `OpsCopy` interface header (a prose
+comment explaining what this workstream converted and why) used several
+short backtick-quoted identifiers under 6 characters: `` `kind` ``,
+`` `door` ``, `` `note` `` and, in a doc comment a few lines further down,
+`` `pct1` ``. A separate comment referenced `` `replica: null` `` and
+`` `vy_replica` `` directly.
+
+**What broke.** The first full `verify-release.mjs` run on the patched
+tree failed `eval suite` with `failed suites: readiness`, the SAME
+assertion `context/rejected.md#ws-r122-readiness-comment-backtick-cascade-
+tripped-banned-word-scan` already named: "no banned product word enters
+the text this panel renders." That entry's own root cause (a paired-
+backtick regex, `` /`[^`]{6,}`/g ``, applied to the WHOLE concatenated
+`ReadinessPanel.tsx` + `copy.ts` source with no real comment-stripping) is
+identical here, but the trigger and the reach are both new: this is the
+FIRST time the cascade originated in `copy.ts` itself rather than in
+`ReadinessPanel.tsx`, and it ran much further — one instrumented run found
+the runaway match starting at a short, valid-looking pair
+(`` `hiCopy.ts` ``, correctly paired on its own) immediately followed by a
+too-short one, and continuing for **104,403 characters** before the next
+real backtick pair happened to land 6+ characters apart again, by which
+point the "content" it swallowed included a PRE-EXISTING, unrelated
+comment two thousand lines away — a WS-R106 provenance note reading
+`// WS-R106: renamed from the pre-existing "REPLICA STUDIO" it replaces.`
+— reading the word "REPLICA" out of a comment describing a variable
+rename from over a year of workstreams ago, even though no user-visible
+string in this section changed. The `` `replica: null` `` mention tripped
+the SAME assertion directly and independently, as a literal 13-character
+backtick span containing the banned word itself, with no cascade needed
+at all.
+
+**What worked.** Instrumenting the exact extraction (`panel + copy.ts`,
+the three regexes, by hand, in a throwaway script) against the untouched
+base tree first confirmed the assertion passes clean there — this was
+this workstream's own defect, not a pre-existing landmine merely
+uncovered. Rewriting every short backtick-quoted identifier in the new
+`OpsCopy` header to either drop the backticks (`kind`, `door`, `note`,
+`pct1` as plain prose words) or fold them into a phrase 6+ characters long
+(`display_name` unchanged, already long enough), and rewriting the
+`replica: null` sentence to describe the same fact in prose with no
+backtick around the banned word, closed both trigger points; re-running
+the same instrumented extraction against the fixed file returned no match
+before re-running the real suite (127/127 readiness checks pass).
+
+**The rule.** `ws-r122`'s own rule restated with one addition: the
+cascade this scanner is vulnerable to can originate in EITHER of the two
+files it concatenates, `copy.ts` included, not only in the panel file its
+name suggests it is about — any workstream adding a comment to
+`src/studio/copy.ts` that will be read by `evals/readiness/run.mjs` (which
+is any comment in the file, since the check concatenates the whole file)
+must grep its own new backtick-quoted spans for length before trusting a
+gate that has not yet run. A short pair does not fail loudly at its own
+location; it fails hundreds or thousands of characters later, on someone
+else's unrelated words, which is what makes it worth checking for by hand
+rather than trusting a green run to have exercised it.

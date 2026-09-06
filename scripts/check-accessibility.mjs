@@ -124,6 +124,25 @@ const TARGETS = [
     screens: ["signin"],
     mounted: ".auth-page",
   },
+  // WS-R135. The ops board (`?mode=ops`), now bilingual -- `check-layout.mjs`'s
+  // own `studio:ops`/`studio-hi:ops` targets, the same fixture and query
+  // shapes, reused verbatim rather than re-derived (this file's own header
+  // rule). Its language switch (`OpsLanguageSwitch`, `OpsBoard.tsx`) is the
+  // same control class `studio-hi:signed-out`'s own entry above names.
+  {
+    name: "studio:ops",
+    fixture: "studio-layout-fixture.html",
+    query: () => "mode=ops",
+    screens: ["ops"],
+    mounted: ".ops-board",
+  },
+  {
+    name: "studio-hi:ops",
+    fixture: "studio-layout-fixture.html",
+    query: () => "mode=ops&lang=hi",
+    screens: ["ops"],
+    mounted: ".ops-board",
+  },
   {
     name: "site",
     // Served straight off the dist root by `serveDist` below — no query,

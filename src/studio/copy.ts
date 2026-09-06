@@ -2039,6 +2039,156 @@ interface StudioAppCopy {
   invite: StudioAppInviteCopy;
 }
 
+// ── ops: OpsBoard.tsx, the platform-operator dashboard (`?mode=ops`) ────────
+// WS-R135. Reverses the standing WS-R62/WS-R123 decision that this page
+// stays English-only forever (context/decisions.md#ws-r62-ops-board-push-
+// copy-stays-english-inline, #ws-r123-ops-board-doors-observed-denominator-
+// english-only) now that both entries' own named reversal condition is met.
+// `OpsBoard.tsx` is still never mounted inside `StudioApp`/`StudioLocaleProvider`
+// (its own header: a standalone `?mode=ops` mount) so it resolves its OWN
+// locale from `studioLocalePreference.ts`'s pure chain, called with a null
+// value in place of the owner row that chain otherwise reads (an operator
+// has no such database row at all) and wraps itself in `StudioLocaleProvider`
+// directly, rather than inheriting a provider from a tree it does not mount
+// under. SERVER-COMPUTED PROSE stays English by the SAME rule this file's
+// own header states for the rest of the table: a sweep's own name, an
+// incident's own kind value and door name, a delivery-state key, a
+// Room's own `display_name` field, an env-manifest section title or
+// name, and every free-text note field `api/_funnel.js`/`api/_phase-
+// gate.js` compose are read straight off the wire and never routed
+// through this section.
+interface OpsCopy {
+  title: string;
+  languageGroupLabel: string;
+  loading: string;
+  signIn: { prompt: string; button: string; error: string };
+  notAvailable: string;
+  loadError: string;
+  generatedTemplate: string; // "Generated {label}"
+  refresh: string;
+  refreshing: string;
+  /** The percent-formatting helper and the funnel's median/p90 stats
+   *  share this ONE generic value rather than each carrying its own
+   *  copy of the same word. */
+  notMeasured: string;
+  ago: { never: string; justNow: string; minutes: string; hours: string; days: string };
+  staleness: Record<"fresh" | "stale" | "never_ran" | "unscheduled" | "unknown_schedule", string>;
+  gateState: Record<"at_or_above" | "below" | "not_enough_data", string>;
+  outcome: Record<"running" | "ok" | "partial" | "failed" | "never_ran", string>;
+  currencyPrefix: string;
+  rooms: {
+    title: string;
+    empty: string;
+    published: string;
+    notPublished: string;
+    voicePrefixTemplate: string; // "voice: {label}"
+    driftState: Record<"steady" | "moved" | "not_measured" | "no_report", string>;
+    stat: {
+      followers: string;
+      paidFollowers: string;
+      joinedLast7d: string;
+      messagesLast24h: string;
+      atCapThisMonth: string;
+      voiceSecondsThisMonth: string;
+      activeCheckIns: string;
+      checkInsDeliveredLast24h: string;
+      pulseOptIns: string;
+      latestPulseWeek: string;
+      activeSubscriptions: string;
+      revenueThisMonth: string;
+    };
+    latestPulseWeekNone: string;
+    deliveriesPrefix: string;
+  };
+  funnel: {
+    minutesTitle: string;
+    noPublished: string;
+    medianMinutes: string;
+    p90Minutes: string;
+    published: string;
+    stopTitle: string;
+    noStalled: string;
+    tableLastReached: string;
+    tableCreatorsStalled: string;
+    growthTitle: string;
+    stepLabel: Record<
+      | "account_created" | "studio_opened" | "first_source_uploaded" | "processing_finished"
+      | "first_preview_heard" | "readiness_first_measured" | "readiness_passed_lock"
+      | "disclosure_approved" | "room_created" | "publish_clicked" | "room_published",
+      string
+    >;
+  };
+  phaseGate: {
+    title: string;
+    conversionLabelTemplate: string;
+    retentionLabelTemplate: string;
+    renewedLabelTemplate: string;
+    nConversionTemplate: string;
+    nRetentionTemplate: string;
+    nRenewedPrefixTemplate: string;
+    tableOfferReason: string;
+    tableShown: string;
+    tableStarted: string;
+    tablePaid: string;
+  };
+  sweeps: {
+    title: string;
+    retentionNote: string;
+    tableSweep: string;
+    tableSchedule: string;
+    tableLastRan: string;
+    tableOutcome: string;
+    tableFreshness: string;
+    noSchedule: string;
+  };
+  selfCheck: {
+    title: string;
+    subtitle: string;
+    lastRanPrefixTemplate: string;
+    countsTemplate: string;
+    none: string;
+    optionalAbsentTemplate: string;
+    other: string;
+  };
+  incidents: {
+    title: string;
+    subtitle: string;
+    doorsObservedTemplate: string;
+    tableKind: string;
+    tableDoor: string;
+    tableCount: string;
+    none: string;
+    newSinceLastWeek: string;
+  };
+  push: {
+    title: string;
+    notConfigured: string;
+    description: string;
+    turnOn: string;
+    turnOff: string;
+    error: string;
+  };
+  digest: {
+    title: string;
+    description: string;
+    lastPushTemplate: string;
+    lastTelegramPrefix: string;
+    telegramNotSetUp: string;
+    telegramSentTemplate: string;
+    telegramNever: string;
+    sendTest: string;
+    sending: string;
+    sent: string;
+    none: string;
+    error: string;
+  };
+  receipts: {
+    title: string;
+    issuedLate: string;
+    chargesWithoutReceipt: string;
+  };
+}
+
 interface StudioCopy {
   classLabels: ClassLabels;
   shell: ShellCopy;
@@ -2085,6 +2235,7 @@ interface StudioCopy {
   suiteWeeklyNote: SuiteWeeklyNoteCopy;
   roomStudioMandate: RoomStudioMandateCopy;
   shareKitWhatsappJoin: ShareKitWhatsappJoinCopy;
+  ops: OpsCopy;
 }
 
 // WS-R113. `authGate` and the shell section are the two the SIGNED-OUT
@@ -4050,6 +4201,176 @@ const EN: StudioCopy = {
     caption: "Opens WhatsApp with \"join {slug}\" already typed, so a follower just has to hit send.",
     button: "Open WhatsApp",
     unavailableNote: "WhatsApp join links are on, but we could not confirm your business number yet, so this link is not ready to share. Try again in a few minutes.",
+  },
+
+  ops: {
+    // WS-R135. See this workstream's OpsCopy interface header (above,
+    // before StudioCopy) for the server-computed fields deliberately left
+    // out of this section.
+    title: "Ops board",
+    languageGroupLabel: "हिन्दी / English",
+    loading: "Loading.",
+    signIn: {
+      prompt: "Sign in to continue.",
+      button: "Continue with Google",
+      error: "Sign-in is unavailable right now.",
+    },
+    notAvailable: "This page is not available.",
+    loadError: "Could not load the board. Try again.",
+    generatedTemplate: "Generated {label}",
+    refresh: "Refresh",
+    refreshing: "Refreshing.",
+    notMeasured: "not measured",
+    ago: {
+      never: "never",
+      justNow: "just now",
+      minutes: "{n} min ago",
+      hours: "{n} h ago",
+      days: "{n} d ago",
+    },
+    staleness: {
+      fresh: "fresh",
+      stale: "stale",
+      never_ran: "never ran",
+      unscheduled: "no schedule",
+      unknown_schedule: "schedule unrecognised",
+    },
+    gateState: {
+      at_or_above: "at or above",
+      below: "below",
+      not_enough_data: "not enough data yet",
+    },
+    outcome: {
+      running: "running",
+      ok: "ok",
+      partial: "partial",
+      failed: "failed",
+      never_ran: "never ran",
+    },
+    currencyPrefix: "Rs",
+    rooms: {
+      title: "Rooms",
+      empty: "No Rooms exist yet.",
+      published: "published",
+      notPublished: "not published",
+      voicePrefixTemplate: "voice: {label}",
+      driftState: {
+        steady: "steady",
+        moved: "moved",
+        not_measured: "not measured",
+        no_report: "not measured yet",
+      },
+      stat: {
+        followers: "followers",
+        paidFollowers: "paid followers",
+        joinedLast7d: "joined, last 7d",
+        messagesLast24h: "messages, last 24h",
+        atCapThisMonth: "at message cap this month",
+        voiceSecondsThisMonth: "voice seconds this month",
+        activeCheckIns: "active check-ins",
+        checkInsDeliveredLast24h: "check-ins delivered, last 24h",
+        pulseOptIns: "Pulse opt-ins",
+        latestPulseWeek: "latest Pulse week",
+        activeSubscriptions: "active subscriptions",
+        revenueThisMonth: "revenue this month",
+      },
+      latestPulseWeekNone: "none yet",
+      deliveriesPrefix: "deliveries by state, last 24h: ",
+    },
+    funnel: {
+      minutesTitle: "Minutes to first Room",
+      noPublished: "No creator has published yet.",
+      medianMinutes: "median minutes",
+      p90Minutes: "p90 minutes",
+      published: "published (n)",
+      stopTitle: "Where creators stop",
+      noStalled: "No creator has stalled for 7 days or more.",
+      tableLastReached: "last reached",
+      tableCreatorsStalled: "creators stalled here",
+      growthTitle: "Growth",
+      stepLabel: {
+        account_created: "creating an account",
+        studio_opened: "opening the studio",
+        first_source_uploaded: "uploading a first source",
+        processing_finished: "processing finishing",
+        first_preview_heard: "hearing a first preview",
+        readiness_first_measured: "readiness being measured",
+        readiness_passed_lock: "readiness passing the lock",
+        disclosure_approved: "the disclosure being approved",
+        room_created: "creating a Room",
+        publish_clicked: "clicking Publish",
+        room_published: "the Room actually publishing",
+      },
+    },
+    phaseGate: {
+      title: "Phase 2 gate",
+      conversionLabelTemplate: "paid conversion (target {n}%)",
+      retentionLabelTemplate: "week-six retention (target {n}%)",
+      renewedLabelTemplate: "creators renewing unasked (target {n})",
+      nConversionTemplate: "n = {n} ({paying} paying of {eligible} eligible)",
+      nRetentionTemplate: "n = {n} ({returned} returned of {joined} joined)",
+      nRenewedPrefixTemplate: "n = {n} creators. ",
+      tableOfferReason: "offer reason",
+      tableShown: "shown",
+      tableStarted: "started",
+      tablePaid: "paid",
+    },
+    sweeps: {
+      title: "Sweeps",
+      retentionNote: "Runs older than 30 days are deleted automatically, per sweep.",
+      tableSweep: "sweep",
+      tableSchedule: "schedule",
+      tableLastRan: "last ran",
+      tableOutcome: "outcome",
+      tableFreshness: "freshness",
+      noSchedule: "not scheduled",
+    },
+    selfCheck: {
+      title: "Self-check",
+      subtitle: "Env vars by name, the database, every migration this tree ships, every other cron - once a day.",
+      lastRanPrefixTemplate: "Last ran {label}, ",
+      countsTemplate: "{checked} checked, {passed} passed, {failed} failed.",
+      none: "None.",
+      optionalAbsentTemplate: "{n} optional name{s} not set, by area:",
+      other: "Other ({n})",
+    },
+    incidents: {
+      title: "Incidents",
+      subtitle: "Every 5xx and every provider failure, last 7 days. Rows older than 90 days are deleted automatically.",
+      doorsObservedTemplate: "{a} of {b} doors observed",
+      tableKind: "kind",
+      tableDoor: "door",
+      tableCount: "count",
+      none: "None.",
+      newSinceLastWeek: "new since last week",
+    },
+    push: {
+      title: "Alerts on this phone",
+      notConfigured: "Push alerts are not set up on this deployment yet.",
+      description: "A due-Room-alert-style push when a new incident kind shows up, at most once a day.",
+      turnOn: "Turn on alerts on this device",
+      turnOff: "Turn off alerts on this device",
+      error: "Could not change alert settings on this device.",
+    },
+    digest: {
+      title: "Morning digest",
+      description: "One push a day: Rooms live, followers joined, messages, money moved, the self-check's verdict, incidents.",
+      lastPushTemplate: "Last digest (push): {label}",
+      lastTelegramPrefix: "Last digest (Telegram): ",
+      telegramNotSetUp: "not set up",
+      telegramSentTemplate: "{label}, sent to {n} chat{s}",
+      telegramNever: "never",
+      sendTest: "Send a test digest now",
+      sending: "Sending.",
+      sent: "Test digest sent to this device.",
+      none: "No active subscription on this device to send to. Turn on alerts above first.",
+      error: "Could not send a test digest right now.",
+    },
+    receipts: {
+      title: "Receipts",
+      issuedLate: "issued late this week",
+      chargesWithoutReceipt: "charges without a receipt",
+    },
   },
 };
 

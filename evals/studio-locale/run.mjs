@@ -351,6 +351,28 @@ await installStudioCopy("hi");
     // no literal English text of its own (`label` is always a caller's own
     // prop, an `aria-label` attribute value rather than a JSX text node).
     "StudioChrome.tsx",
+    // WS-R135: the ops board (`?mode=ops`), converted whole -- the standing
+    // WS-R62/WS-R123 decision that it stays English-only forever is
+    // reversed now that its own named reversal condition is met (both
+    // entries' own text, `context/decisions.md#ws-r62-ops-board-push-copy-
+    // stays-english-inline` / `#ws-r123-ops-board-doors-observed-
+    // denominator-english-only`): the page now resolves its OWN locale
+    // (`?lang=`, else a remembered local choice, else "en" --
+    // `studioLocalePreference.ts`'s pure chain with `replica: null`) and
+    // wraps itself in `StudioLocaleProvider` directly, so it no longer
+    // needs a signed-in tree or a language switcher it does not carry to
+    // read Hindi. Every card on the board (`RoomCard`, `SweepsStrip`,
+    // `IncidentsCard`'s "N of N doors observed" badge included,
+    // `SelfCheckCard`, `PushAlertsCard`, `DigestCard`, `ReceiptsCard`,
+    // `PhaseGateCard`, `FunnelCard`) now reads `copy.ts#ops`. Server-
+    // computed prose (a sweep's own name, an incident's kind/door, a
+    // delivery-state key, a Room's own display_name, an env-manifest
+    // section title/name, every `note` field the funnel/phase-gate APIs
+    // compose) is deliberately left untranslated by the SAME rule this
+    // file's own header states for the rest of the table -- see
+    // `copy.ts`'s own `OpsCopy` interface header for the full list. See
+    // context/decisions.md#ws-r135-ops-board-gains-its-own-locale-resolution.
+    "OpsBoard.tsx",
     // WS-R106: the studio's last remaining Tier-2 file, converted whole.
     // `CreateReplicaCard`/`ReplicaList`/`TestSourceGuide`/`VoiceUnlockNotice`
     // and every string `ReplicaWorkspace` renders (Feed/Meet/Share bands,
@@ -395,7 +417,6 @@ await installStudioCopy("hi");
     "IngestChannelStudio.tsx": "WS-R71 read this file in full: `STATEMENT_COPY` is a FIVE-statement YouTube channel-ownership/audio-extraction consent ceremony, a teacher affirmatively checks each one before any video is read -- the same shape and the same risk `ModelConsentGate.tsx`/`IdentityProofing.tsx` are already carved out for, extended here to a THIRD screen this wave found. See context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted.",
     "LivenessCapture.tsx": "WS-R71 read this file in full: its `consentActive`-gated fieldset (`biometric-consent-list`) is a biometric-data consent ceremony, the single most legally sensitive class of consent text in this product (per `docs/gurukul` and India's DPDP Act's own biometric-data provisions) -- left with the SAME reasoning as `ModelConsentGate.tsx`/`IdentityProofing.tsx`. See context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted.",
     "ModelConsentGate.tsx": "Its six `STATEMENTS` are pre-existing consent-ceremony legal text: four of them are named BY STRING, in this exact English wording, in scripts/roomsVocabAllowlist.mjs's own escape hatch (a teacher already affirmatively checked these exact words before any replica was built). WS-R61 read that file before touching this one and stopped: translating the ceremony would move the words a person already consented to, the precise failure roomsVocabAllowlist.mjs's own header names (`safety-floor-teacher.md` §2.1). See context/decisions.md#ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text.",
-    "OpsBoard.tsx": "Internal operator dashboard (`?mode=ops`), never a creator-facing screen at all -- WS-R106 re-read this file against its own brief's \"everything outside the six ceremonies converts\" instruction and reaffirms the standing decision (`context/decisions.md#ws-r62-ops-board-push-copy-stays-english-inline`, restated a second time in `#ws-r88-ops-board-digest-copy-stays-english-inline`): this page is never mounted under `StudioLocaleProvider` at all (it is `main.tsx`'s own standalone `?mode=ops` mount, a deliberately separate product this file's own header says never grafts onto the studio), carries no locale state and no language switcher, and its own operators are the platform team, not a follower or creator this repo's Hindi work is for. Converting it would need building locale infrastructure for a screen the product has no reason to localize, not translating strings that already exist -- a different, larger, out-of-scope change this workstream's brief did not ask for either.",
     "QuickStartPath.tsx": "Owns BLOCKER_META, honesty-gated prose checked by evals/studiowizard.mjs's English-only BLAME_PATTERNS regex (copy.ts's own header); localizing it without a parallel Hindi honesty check would ship an ungated safety-adjacent surface. WS-R106 re-read this file against its own brief's \"everything outside the six ceremonies converts\" instruction and reaffirms the standing decision (`context/decisions.md#ws-r52-class-labels-split-from-blockerclass-ts-own-copy` states the same honesty-gate constraint for the sibling file `blockerClass.ts`, and names the exact reversal condition: a future workstream that builds a Hindi-language `BLAME_PATTERNS` equivalent and extends `evals/studiowizard.mjs` to run it against this file's own `BLOCKER_META.note` strings can convert both in the same change).",
     "VideoEnrollPanel.tsx": "WS-R71 read this file in full: `ATTESTATION_COPY` is a FIVE-statement YouTube channel-ownership/rights/audio-extraction consent ceremony a teacher affirmatively checks (`owns_or_controls_channel`, `is_rights_holder_of_uploads`, `authorizes_audio_extraction_for_own_replica`, `understands_tos_exposure_is_not_copyright_permission`, `understands_revocation_stops_extraction`) -- essentially the same statement set as `IngestChannelStudio.tsx`'s own consent ceremony below, and the same risk `ModelConsentGate.tsx`/`IdentityProofing.tsx` are carved out for. `context/rejected.md#ws-r61-partial-modelconsentgate-translation-considered-and-rejected` argues against splitting a consent screen's chrome from its statements, so this file is left whole. See context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted.",
     "VoiceIdentityChallenge.tsx": "WS-R71 read this file in full: it shares `LivenessCapture.tsx`'s own `consentActive`-gated biometric consent shape (voice identity is biometric data), so it carries the SAME reasoning -- see that entry and context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted.",
