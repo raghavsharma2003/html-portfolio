@@ -2761,6 +2761,21 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "quiet-hours": "quiet-hours/run.mjs",
+  // WS-R134. `evals/lib/source-scan.mjs`'s own suite: a self-test of the
+  // shared comment-stripping tokenizer (`stripComments`/`sqlTextOf`/
+  // `opLiteralsOf`/`importsOf`), one frozen fixture per historical trap
+  // this workstream's brief names (room-leak's scope-gate, readiness's
+  // paired-backtick desync, a scanner's own header comment tripping its
+  // own banned-substring check, the door-battery's account-block regex,
+  // room-doors' op/format extraction, shapes.mjs's bodyFieldsOf), each
+  // built to fail under the OLD raw-text behaviour and pass under the new
+  // one, and a PARITY check running evals/room-leak/run.mjs, evals/
+  // readiness/run.mjs, evals/incidents/run.mjs and evals/room-doors/run.mjs
+  // both normally and with their own `--legacy` flag, diffing the two
+  // (byte-identical on the real tree today, modulo fresh UUIDs/timestamps).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "source-scan": "source-scan/run.mjs",
 };
 
 const argv = process.argv.slice(2);

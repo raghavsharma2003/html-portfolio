@@ -21,8 +21,20 @@
 // can silently drift from the code it describes). A field renamed in the
 // OP_INVOKE entry is a field renamed in what this generator fuzzes, with
 // nothing else to keep in sync.
-export function bodyFieldsOf(fn) {
-  const src = fn.toString();
+import { stripComments } from "../lib/source-scan.mjs";
+
+// WS-R134: `fn.toString()` returns the function's SOURCE, comments and all —
+// a comment inside an OP_INVOKE entry mentioning a `body.<field>` that the
+// function does not actually read (explaining a field it deliberately does
+// NOT fuzz, say) used to be indistinguishable from a real read, inflating
+// the derived field list with a name nothing in the function touches. Now
+// comment-stripped first (`evals/lib/source-scan.mjs#stripComments`) before
+// the same extraction runs; `legacy: true` (passed by `run.mjs`'s own
+// `--legacy`, see that file's header) reverts to the raw-text scan for the
+// parity suite only.
+export function bodyFieldsOf(fn, { legacy = false } = {}) {
+  const raw = fn.toString();
+  const src = legacy ? raw : stripComments(raw);
   const names = new Set();
   for (const m of src.matchAll(/\bbody\.([A-Za-z_][A-Za-z0-9_]*)/g)) names.add(m[1]);
   return [...names].sort();

@@ -14391,3 +14391,40 @@ violation) before the clean run above.
 - WS-R125: the renewal due-select keeps `vy_room_subscription_due_ix` with the new mandate predicate as a filter on the same rows; `roomOverview`'s split counts a bitmap scan on `vy_room_subscription_room_person_ix`; the two `sub_update` UPDATEs and the two status SELECTs add columns to statements whose access path was planned at their own migrations.
 - WS-R130: `maybeGrantReferralReward`'s chain on `vy_room_subscription_follower_ix`, `vy_payment_event_subscription_ix`, `vy_room_referral_credit_referred_ix`, `vy_room_referral_credit_referrer_ix`, the reward's conflict arbiter `vy_room_referral_reward_cap_ix`, and `vy_room_subscription_follower_live_ix` for the extend; the friend count's `exists` is planned as a hashed subplan over a seq scan of `vy_payment_event` filtered by kind and amount, accepted by name (one grant per first charge, a small ledger). Reversal: when the ledger passes roughly 100k rows, rewrite the count as a correlated exists per credit so it walks the subscription and event indexes.
 - WS-R126: the chat join's arrival is `recordRoomArrival`'s own statement (planned at 102, 113 and 123) with a new caller. WS-R121, R122, R123, R124, R128, R129: no new SQL.
+
+### `ws-r134-source-scan-suite-and-parity-2026-09-05` (2026-09-05, WS-R134)
+
+**n = 1 workstream, method = each modified suite run standalone with
+`node <file>.mjs`, plus the new `evals/source-scan/run.mjs` (self-test,
+five frozen trap fixtures, and a parity diff of each modified scanner
+normal vs `--legacy`), on worktree branch
+`ws-r134-source-scanners-ignore-comments` over `048becd`.**
+
+- `evals/lib/source-scan.mjs`'s own self-test (`node evals/lib/source-scan.mjs`):
+  20/20.
+- New suite `evals/source-scan/run.mjs`: **44 passed, 0 failed** — 20
+  self-test cases run again under this suite's own bookkeeping, 16 trap-
+  fixture assertions (one TRAP + one FIX per historical incident: ws-r28/
+  ws-r129's scope-gate, ws-r113/ws-r122's paired-backtick desync, ws-r127's
+  own-header self-trip, the account-block regex, room-doors §18's phantom
+  op/format), 4 assertions on `sqlTextOf`/`importsOf` directly, and 8
+  parity assertions (4 scanners x {exit-code parity, output parity}).
+- Findings count on the real tree, BEFORE (this workstream's own
+  `--legacy` mode) vs AFTER (default, comment-stripped) — identical on
+  every one of the four modified scanners, confirming 0 live (as opposed
+  to fixture-only) traps exist in the committed tree today:
+  - `evals/room-leak/run.mjs`: 269 passed / 0 failed, both modes.
+  - `evals/readiness/run.mjs`: 127 passed, both modes.
+  - `evals/incidents/run.mjs`: 88 passed / 0 failed, both modes.
+  - `evals/room-doors/run.mjs`: 2146 ok / 0 failed, both modes (the
+    `invites.js` `mine_list` op, now a real `if` rather than a bare
+    comment, was already fuzzed under its own `OP_INVOKE`/`OP_COVERAGE`
+    entries from WS-R44/WS-R47 — this workstream added no new door
+    coverage, only made the existing dispatch match what the coverage
+    already assumed).
+- Full release gate (`node scripts/verify-release.mjs`) on this patched
+  tree: run by the (orphaned, pre-restart) gate process already in flight
+  on this worktree at session start rather than a second concurrent run
+  (`ws-common.md`'s "one release gate per machine at a time" + this
+  workstream's own instruction to wait on, never kill, an orphaned gate).
+  Result recorded in the commit this entry ships with.

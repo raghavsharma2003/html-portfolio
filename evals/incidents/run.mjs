@@ -17,9 +17,16 @@
 import fs from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { stripComments } from "../lib/source-scan.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
+// WS-R134. `--legacy` reproduces this suite's PRE-WS-R134 raw-text scanning
+// (no comment-stripping) so `evals/source-scan/run.mjs` can diff findings
+// against the fixed behaviour on the real tree. Kept for one wave per this
+// workstream's brief.
+const LEGACY = process.argv.includes("--legacy");
+const scanned = (src) => (LEGACY ? src : stripComments(src));
 
 let pass = 0;
 let fail = 0;
@@ -368,7 +375,14 @@ function fakeRes() {
 // restated for the operator's own payload builder.
 // ═════════════════════════════════════════════════════════════════════════
 {
-  const src = fs.readFileSync(join(REPO, "api/_incidents.js"), "utf8");
+  // WS-R134: scanned through the shared comment-stripping tokenizer before
+  // this door/person-id ban runs — a header comment explaining what a
+  // function does NOT do (this file's own header, four lines up, says
+  // "no door and no person/owner/replica id" in exactly those words) is
+  // one honest sentence away from tripping the identical substring check a
+  // real violation would (`context/rejected.md#ws-r127-own-eval-static-
+  // scan-tripped-by-its-own-prose`).
+  const src = scanned(fs.readFileSync(join(REPO, "api/_incidents.js"), "utf8"));
   const start = src.indexOf("function incidentPushPayload");
   ok("incidentPushPayload is present in the source", start >= 0);
   const closingBrace = src.indexOf("\n}\n", start);
@@ -625,7 +639,12 @@ ok("MIRRORED_EXPECTED_CRON_DOORS matches the REAL evals/room-doors/run.mjs#EXPEC
 function isDoorWrapped(apiFile) {
   const p = join(API, apiFile);
   if (!fs.existsSync(p)) return false;
-  return /export default withDoor\(/.test(fs.readFileSync(p, "utf8"));
+  // WS-R134: comment-stripped first — the wrong direction of this bug class
+  // is more dangerous than most (a comment merely QUOTING the exact phrase
+  // `export default withDoor(`, e.g. while explaining a door that is NOT
+  // yet wrapped, would otherwise make this check silently PASS on a real
+  // unwrapped door instead of failing loudly on one).
+  return /export default withDoor\(/.test(scanned(fs.readFileSync(p, "utf8")));
 }
 
 for (const door of MIRRORED_EXPECTED_DOORS) {
@@ -709,7 +728,13 @@ function walkJsFiles(dir) {
 function discoverRemoteFetchFiles() {
   const hits = [];
   for (const abs of walkJsFiles(API)) {
-    const src = fs.readFileSync(abs, "utf8");
+    // WS-R134: comment-stripped first — a comment mentioning `fetch(` in
+    // prose (e.g. explaining that a file no longer calls it directly) used
+    // to be discovered as a real remote call site, which either fails this
+    // scan's own completeness check by name for no reason or, worse, forces
+    // a hand-typed admission into PROVIDER_EXCLUDED for a file that touches
+    // no network at all.
+    const src = scanned(fs.readFileSync(abs, "utf8"));
     const re = /\.?fetch\(/g;
     let m;
     let found = false;
@@ -795,7 +820,11 @@ function fileHasRecordIncident(relFile) {
   // INJECTABLE `recordIncident` (`ctx.roomDeps.recordIncident ?? recordIncident`,
   // `api/_room-telegram.js`'s own `attemptRoomVoiceDelivery` precedent,
   // WS-R58) — a call through the alias is exactly as real as a direct call.
-  return /recordIncident(Fn)?\(/.test(fs.readFileSync(p, "utf8"));
+  // WS-R134: comment-stripped first, the same "false pass hides a real gap"
+  // direction `isDoorWrapped` above guards against — a comment merely
+  // NAMING `recordIncident(` (this function's own header comment does, two
+  // lines up) must never be mistaken for a real call site.
+  return /recordIncident(Fn)?\(/.test(scanned(fs.readFileSync(p, "utf8")));
 }
 
 for (const f of PROVIDER_DIRECT_COVERED) {

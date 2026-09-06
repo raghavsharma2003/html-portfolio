@@ -92,10 +92,17 @@ import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync, existsSy
 import { tmpdir } from "node:os";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { stripComments, opLiteralsOf } from "../lib/source-scan.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");
 const API = join(ROOT, "api");
+// WS-R134. `--legacy` reproduces this suite's PRE-WS-R134 raw-text `op ===`/
+// `format ===` extraction and account-block slicing (no comment-stripping)
+// so `evals/source-scan/run.mjs` can diff findings against the fixed
+// behaviour on the real tree. Kept for one wave per this workstream's brief.
+const LEGACY = process.argv.includes("--legacy");
+const scanned = (src) => (LEGACY ? src : stripComments(src));
 
 let pass = 0;
 let fail = 0;
@@ -2694,11 +2701,22 @@ console.log("\n── §17e: room.js receipt / receipts (WS-R100) ──");
 
 console.log("\n── §18: the computed op list — every op is cased or named ──");
 
+// WS-R134: both extractions below used to run their own `op === "..."`/
+// `format === "..."` regex straight over the raw file text, so a comment
+// mentioning either shape — an old op explained away, a format literal
+// quoted while documenting the nearest-preceding-op rule two lines up —
+// could inject a phantom op/format or shift the nearest-preceding-op
+// attribution `computedFormats` relies on. Both now read through the
+// shared, comment-stripping `opLiteralsOf` (`--legacy` reverts to the
+// original raw-text regex, for the parity suite only).
 function computedOps(file) {
   const src = readFileSync(join(API, file), "utf8");
-  const names = new Set();
-  for (const m of src.matchAll(/(?:body\.)?op === "([a-z_]+)"/g)) names.add(m[1]);
-  return [...names].sort();
+  if (LEGACY) {
+    const names = new Set();
+    for (const m of src.matchAll(/(?:body\.)?op === "([a-z_]+)"/g)) names.add(m[1]);
+    return [...names].sort();
+  }
+  return [...new Set(opLiteralsOf(src, "op").map((h) => h.name))].sort();
 }
 
 // WS-R120: law 1's second half — a door can dispatch a SECOND time, inside
@@ -2714,15 +2732,20 @@ function computedOps(file) {
 // merely assumed, by the negative control this section's own law 4 adds.
 function computedFormats(file) {
   const src = readFileSync(join(API, file), "utf8");
-  const opHits = [...src.matchAll(/(?:body\.)?op === "([a-z_]+)"/g)].map((m) => ({ name: m[1], index: m.index }));
+  const opHits = LEGACY
+    ? [...src.matchAll(/(?:body\.)?op === "([a-z_]+)"/g)].map((m) => ({ name: m[1], index: m.index }))
+    : opLiteralsOf(src, "op");
+  const formatHits = LEGACY
+    ? [...src.matchAll(/(?:body\.)?format === "([a-z_]+)"/g)].map((m) => ({ name: m[1], index: m.index }))
+    : opLiteralsOf(src, "format");
   const pairs = [];
-  for (const m of src.matchAll(/(?:body\.)?format === "([a-z_]+)"/g)) {
+  for (const m of formatHits) {
     let nearestOp = null;
     for (const o of opHits) {
       if (o.index <= m.index) nearestOp = o.name;
       else break;
     }
-    pairs.push({ op: nearestOp, format: m[1] });
+    pairs.push({ op: nearestOp, format: m.name });
   }
   return pairs;
 }
@@ -4608,7 +4631,7 @@ for (const file of Object.keys(OP_INVOKE)) {
   const ops = Object.keys(OP_INVOKE[file]);
   for (const op of ops) {
     const fn = OP_INVOKE[file][op];
-    const fields = FIELD_OVERRIDE[file]?.[op] || bodyFieldsOf(fn);
+    const fields = FIELD_OVERRIDE[file]?.[op] || bodyFieldsOf(fn, { legacy: LEGACY });
     for (const cls of HOSTILE_CLASSES) {
       fuzzOpClassCount++;
       const state = freshDoorsState();
@@ -4702,7 +4725,16 @@ ok(
 // correctly against a live hostile value (this file has no injectable `db`
 // or network seam a fake could stand behind at all).
 {
-  const ACCOUNT_SRC = readFileSync(join(API, "account.js"), "utf8");
+  // WS-R134: comment-stripped first (length- and newline-preserving, so
+  // every `.indexOf`/`.slice` offset below still lands on the same real
+  // code it always did) — this is "the door-battery's account block regex"
+  // this workstream's brief names by shape: a comment ANYWHERE between one
+  // op's `if (op === "...")` and the real start of the next op — including
+  // one that itself quotes `if (op === "..."`, a plausible way to explain
+  // a dispatch shape in prose — used to be found by this exact `indexOf`
+  // as if it were the next op's real boundary, truncating the current op's
+  // own block before a later field guard the check still needed to see.
+  const ACCOUNT_SRC = scanned(readFileSync(join(API, "account.js"), "utf8"));
   function accountOpBlock(op) {
     const start = ACCOUNT_SRC.indexOf(`if (op === "${op}")`);
     if (start === -1) return null;
