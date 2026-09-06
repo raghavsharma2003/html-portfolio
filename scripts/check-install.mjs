@@ -131,19 +131,50 @@ function serveApp() {
   return new Promise((resolveReady) => server.listen(PORT, "127.0.0.1", () => resolveReady(server)));
 }
 
-/** Every shell asset `dist/room.html` itself references — the SAME
- *  same-origin `src=`/`href=` scan `public/room-sw.js`'s own
- *  `derivePrecacheList` runs against the real page at install time, restated
+// WS-R139: matches BOTH a quoted string and a template-literal path — this
+// repo's Vite 8 build is Rolldown-powered and emits a dynamic import's path
+// as a template literal (`` import(`./AccountPage-<hash>.js`) ``), never the
+// quoted string a classic Rollup build would leave; the quote character is
+// its own capture group, closed by a backreference, so the path is always
+// group 2. `public/room-sw.js`'s own identical fix has the full story
+// (found by `evals/room-push/run.mjs`'s §9 against the real build, not
+// assumed) and must be kept byte-identical to this one.
+const DYNAMIC_IMPORT_RE = /\bimport\(\s*(?:\/\*[^*]*\*\/\s*)?(["'`])(\.[^"'`]+\.[cm]?js)\1\s*\)/g;
+
+/** Every shell asset `dist/room.html` itself references, PLUS every chunk
+ *  reachable from a dynamic `import()` in those scripts — the SAME two-step
+ *  scan `public/room-sw.js`'s own `derivePrecacheList` runs against the real
+ *  page at install time (WS-R139 widened both from a tag-only scan), restated
  *  here so this check can assert the precache actually HOLDS every one of
- *  them, rather than trusting that the two independent scans agree by
- *  construction. */
-function shellAssetsFromHtml(html) {
+ *  them, including the Room's lazy-loaded secondary screens, rather than
+ *  trusting that the two independent scans agree by construction. Reads the
+ *  JS files straight off disk (this runs in Node against `dist/`, not a
+ *  browser) rather than fetching them a second time through the server this
+ *  file already spun up for Playwright. */
+async function shellAssetsFromHtml(html) {
   const urls = new Set(["/room.html", "/favicon.svg"]);
+  const jsUrls = [];
   const re = /\b(?:src|href)="(\/[^"]+)"/g;
   let m;
   while ((m = re.exec(html))) {
     if (m[1].startsWith("/api/")) continue;
     urls.add(m[1]);
+    if (m[1].endsWith(".js") || m[1].endsWith(".mjs")) jsUrls.push(m[1]);
+  }
+  for (const jsUrl of jsUrls) {
+    let jsText;
+    try {
+      jsText = await readFile(join(DIST, jsUrl.replace(/^\//, "")), "utf8");
+    } catch {
+      continue;
+    }
+    DYNAMIC_IMPORT_RE.lastIndex = 0;
+    let dm;
+    while ((dm = DYNAMIC_IMPORT_RE.exec(jsText))) {
+      const resolved = new URL(dm[2], `http://x${jsUrl}`).pathname;
+      if (resolved.startsWith("/api/")) continue;
+      urls.add(resolved);
+    }
   }
   return [...urls];
 }
@@ -205,7 +236,7 @@ export async function runInstallCheck() {
 
     // 2. THE PRECACHE LISTS EVERY SHELL ASSET.
     const html = await readFile(join(DIST, "room.html"), "utf8");
-    const expected = shellAssetsFromHtml(html);
+    const expected = await shellAssetsFromHtml(html);
     const cached = await page.evaluate(async () => {
       const names = await caches.keys();
       const urls = new Set();

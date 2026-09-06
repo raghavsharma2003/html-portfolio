@@ -35,34 +35,45 @@
  * moves, because a conversation that animates is a conversation you are
  * watching rather than having.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { StudioSession } from "../studio/types";
 import { readStoredSession, restoreSession, writeStoredSession } from "../studio/session";
 import { googleSignIn, sendPhoneOtp, verifyPhoneOtp } from "../studio/studioAuth";
 import {
   ROOM_COPY_TABLE,
-  ROOM_LANGUAGE_LABELS,
-  ROOM_LOCALES,
+  loadRoomCopy,
+  loadRoomTalkCopy,
   normalizeLocale,
+  roomCopyReady,
+  roomTalkCopyReady,
   withName,
   withPrice,
   withRetry,
   type RoomCopy,
   type RoomLocale,
 } from "./copy";
-import CheckinsPanel from "./CheckinsPanel";
-import SubscriptionPanel from "./SubscriptionPanel";
-import HandoffPanel from "./HandoffPanel";
-import AccountPage from "./AccountPage";
-import { useDialogInView } from "./useDialogInView";
+import { withCount, withIncluded } from "./textHelpers";
+import { LanguageSwitch } from "./LanguageSwitch";
+// WS-R139: five secondary screens the talk screen never needs on first
+// paint — the account page, the data/receipt menu, the check-ins panel, the
+// subscription panel and the handoff panel — are now `React.lazy`-loaded
+// rather than statically imported, so Vite emits each as its own chunk and
+// a follower who never opens one never downloads its code.
+// `context/decisions.md#ws-r139-room-secondary-screens-are-lazy-chunks` has
+// the measurement this split is built against.
+const CheckinsPanel = lazy(() => import("./CheckinsPanel"));
+const SubscriptionPanel = lazy(() => import("./SubscriptionPanel"));
+const HandoffPanel = lazy(() => import("./HandoffPanel"));
+const AccountPage = lazy(() => import("./AccountPage"));
+const DataMenu = lazy(() => import("./DataMenu"));
+const TasteScreen = lazy(() => import("./TasteScreen"));
+const ForgetReceipt = lazy(() => import("./ForgetReceipt"));
 import { Localized, LocalizedName, LocalizedDisclosure } from "./Localized";
 import {
   RoomApiError,
   dismissOffer,
-  exportRoomData,
   flagReply,
   followerFlags,
-  forgetRoomData,
   joinRoom,
   newRoomThread,
   openRoom,
@@ -77,20 +88,17 @@ import {
   setRoomLocale,
   speakInRoom,
   slugFromPath,
-  tasteInRoom,
   unflagReply,
   viaFromLocation,
   refFromLocation,
   type RoomCitations,
   type RoomFlagReason,
-  type RoomFollower,
   type RoomForgetReceipt,
   type RoomOffer,
   type RoomOpen,
   type RoomQuota,
   type RoomReferralProgress,
   type RoomSettings,
-  type RoomTasteTurn,
   type RoomThread,
 } from "./roomApi";
 import { RoomPayApiError, startSubscription, type RoomPaymentStatus } from "./roomPayApi";
@@ -313,6 +321,45 @@ export default function RoomApp({
   // through from here down; nothing below picks a locale for itself.
   const locale: RoomLocale = room?.locale ?? "en";
   const copy: RoomCopy = ROOM_COPY_TABLE[locale];
+  // WS-R139: the Hindi half of `ROOM_COPY_TABLE` is now two lazy chunks
+  // (`copy.ts`'s own header — `hiTalkCopy.ts`, everything this component
+  // reads on the way into a talk, and `hiCopy.ts`, the secondary screens'
+  // own remainder) rather than one eager table. `talkReady` is true
+  // instantly for English (nothing to load) and for a Hindi Room once
+  // `hiTalkCopy.ts` has landed; reading `copy.<anything>` before then would
+  // throw (`ROOM_COPY_TABLE.hi`'s own Proxy) — the early return below,
+  // placed AFTER every hook in this component so it never changes the hook
+  // count between renders, is what keeps that throw from ever happening on
+  // a real screen.
+  const talkReady = roomTalkCopyReady(locale);
+  const [, rerenderForRoomCopy] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    if (talkReady) return;
+    let alive = true;
+    loadRoomTalkCopy(locale).then(() => {
+      if (alive) rerenderForRoomCopy();
+    });
+    return () => {
+      alive = false;
+    };
+  }, [locale, talkReady]);
+  // AccountPage.tsx and SubscriptionPanel.tsx both read REST-only sections
+  // (`dormancy`, `referral`, `payReceipt`, `exportReadable`,
+  // `subscriptionMandate`, `referralReward`, `quietHours` — `copy.ts`'s own
+  // header) that `talkReady` above does not cover. Loaded only once one of
+  // them is actually asked to open, never eagerly — the whole point of the
+  // split is that most sessions never pay for this chunk at all.
+  const restReady = roomCopyReady(locale);
+  useEffect(() => {
+    if (!(accountOpen || subscriptionOpen) || restReady) return;
+    let alive = true;
+    loadRoomCopy(locale).then(() => {
+      if (alive) rerenderForRoomCopy();
+    });
+    return () => {
+      alive = false;
+    };
+  }, [accountOpen, subscriptionOpen, locale, restReady]);
   const [localeBusy, setLocaleBusy] = useState(false);
 
   const name = room?.room.name || room?.room.display_name || "";
@@ -542,10 +589,44 @@ export default function RoomApp({
       // exception - every other fixture screen still blocks this function
       // entirely, exactly as before. See the prop's own comment.
       if ((fixtureOpen && !fixtureLiveLocaleSwitch) || localeBusy || next === locale) return;
+      // WS-R139: a best-effort hint for THIS DEVICE's next visit, read by
+      // `main.tsx` before `room.locale` is known (the server has not
+      // answered yet) so it can start fetching `hiTalkCopy.ts` a whole
+      // round trip earlier — `vite.config.ts`'s `roomHindiPreloadPlugin`'s
+      // own header has the full reasoning, `studioHindiPreloadPlugin`'s
+      // `vyakti.studio.locale.v1` one surface over. Never read back as
+      // authoritative anywhere in this file; `room.locale` (the server's
+      // own answer) is and remains the only source of truth for `locale`
+      // above.
+      try {
+        window.localStorage?.setItem("vyakti.room.locale.v1", next);
+      } catch {
+        // Private browsing / storage blocked: the hint simply never helps,
+        // exactly as before this workstream.
+      }
       setLocaleBusy(true);
       try {
+        // WS-R139: awaited ALONGSIDE the server call, never after it — this
+        // guarantees `roomCopyReady(next)` (both the talk chunk and the
+        // rest chunk, `loadRoomCopy`'s own doc comment) is true BEFORE
+        // `locale` below ever becomes `next`, so a LIVE switch (this
+        // function) never trips RoomApp's own top-level
+        // `if (!talkReady) return null` at all — that guard exists for the
+        // very FIRST paint of a locale this browser has never rendered,
+        // never for a follower already mid-session with a panel open.
+        // Without this, `locale` could update one tick before the chunk
+        // did, collapsing this component's ENTIRE render to `null` and
+        // back — which does not merely blank the screen for a frame, it
+        // UNMOUNTS every currently-open panel (AccountPage included),
+        // discarding whatever that panel had already fetched
+        // (`context/rejected.md#ws-r139-locale-switch-raced-the-hindi-
+        // chunk-and-unmounted-open-panels`). The two loaders share one
+        // cached promise each (`copy.ts`'s own `hiTalkLoading`/
+        // `hiRestLoading`), so awaiting this here is never a duplicate
+        // fetch on top of `main.tsx`'s or this component's own earlier
+        // calls — whichever started first is the one every caller awaits.
         if (session && phase === "talking") {
-          const result = await setRoomLocale(session, next);
+          const [result] = await Promise.all([setRoomLocale(session, next), loadRoomCopy(next)]);
           setSession(result.session);
           // WS-R84: the fresh CARD rides along with the fresh session now,
           // not just its digest - without this line `room.disclosure` kept
@@ -556,7 +637,10 @@ export default function RoomApp({
           // together so there is never a render with one but not the other.
           setRoom((prev) => (prev ? { ...prev, locale: result.locale, disclosure: result.disclosure } : prev));
         } else {
-          const opened = await openRoom(slug, auth?.accessToken ?? null, next, viaFromLocation());
+          const [opened] = await Promise.all([
+            openRoom(slug, auth?.accessToken ?? null, next, viaFromLocation()),
+            loadRoomCopy(next),
+          ]);
           setRoom(opened);
           setSession(opened.session);
           setThreads(opened.threads ?? []);
@@ -936,6 +1020,13 @@ export default function RoomApp({
     }
   }, [session, thread, pulseOn, pulseBusy]);
 
+  // WS-R139: placed after every hook above (never conditionally before one)
+  // so this never changes the hook count between renders — the actual gate
+  // on `copy` being safe to read. Renders nothing, never English in its
+  // place, until `hiTalkCopy.ts` lands for a Hindi Room; an English Room
+  // never sees this branch at all (`talkReady` is true at module load).
+  if (!talkReady) return null;
+
   if (phase === "loading") {
     return (
       <main className="room-shell" lang={locale}>
@@ -987,27 +1078,12 @@ export default function RoomApp({
           {/* WS-R27: the receipt, shown here and ONLY here (law 3 - there is
               nothing to look it up by later). `null` only on a database that
               has not applied migration 090 yet; the screen above still holds
-              without it. */}
+              without it. WS-R139: its own lazy chunk (`ForgetReceipt.tsx`) —
+              almost no visit ever reaches the "gone" phase at all. */}
           {forgetReceipt && (
-            <div className="room-receipt">
-              <h3>{copy.menu.receiptTitle}</h3>
-              <p className="room-fine">{copy.menu.receiptBody}</p>
-              <button
-                type="button"
-                className="room-btn"
-                onClick={() => {
-                  const blob = new Blob([JSON.stringify(forgetReceipt, null, 2)], { type: "application/json" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = "forget-receipt.json";
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-              >
-                {copy.menu.receiptSave}
-              </button>
-            </div>
+            <Suspense fallback={null}>
+              <ForgetReceipt copy={copy} receipt={forgetReceipt} />
+            </Suspense>
           )}
         </section>
       </main>
@@ -1022,15 +1098,20 @@ export default function RoomApp({
     // its "no more questions today" state both set).
     if (room.room.taste_enabled !== false && !tasteDismissed) {
       return (
-        <TasteScreen
-          room={room}
-          name={name}
-          copy={copy}
-          locale={locale}
-          localeBusy={localeBusy}
-          onSwitchLocale={switchLocale}
-          onJoin={() => setTasteDismissed(true)}
-        />
+        // WS-R139: its own lazy chunk — a returning follower who already
+        // dismissed taste (or already joined, so `phase` never reaches
+        // "join" again) never downloads its code at all.
+        <Suspense fallback={null}>
+          <TasteScreen
+            room={room}
+            name={name}
+            copy={copy}
+            locale={locale}
+            localeBusy={localeBusy}
+            onSwitchLocale={switchLocale}
+            onJoin={() => setTasteDismissed(true)}
+          />
+        </Suspense>
       );
     }
     return (
@@ -1526,73 +1607,102 @@ export default function RoomApp({
         </button>
       </div>
 
+      {/* WS-R139: every dialog below is its own lazy chunk now (imported
+          with `lazy()` at the top of this file) — most sessions never open
+          any of them, and each `<Suspense fallback={null}>` renders
+          nothing (never a spinner, never English-under-Hindi) for the one
+          frame its own chunk takes to arrive, the same "nothing while not
+          ready" posture `StudioLocaleProvider` already uses for a locale
+          chunk one surface over. */}
       {menu && session && (
-        <DataMenu
-          name={name}
-          copy={copy}
-          session={session}
-          auth={auth}
-          follower={room?.follower ?? null}
-          onClose={() => setMenu(false)}
-          onForgotten={(receipt) => {
-            setForgetReceipt(receipt);
-            setMenu(false);
-            setPhase("gone");
-          }}
-        />
+        <Suspense fallback={null}>
+          <DataMenu
+            name={name}
+            copy={copy}
+            session={session}
+            auth={auth}
+            follower={room?.follower ?? null}
+            onClose={() => setMenu(false)}
+            onForgotten={(receipt) => {
+              setForgetReceipt(receipt);
+              setMenu(false);
+              setPhase("gone");
+            }}
+          />
+        </Suspense>
       )}
       {checkinsOpen && session && (
-        <CheckinsPanel session={session} copy={copy} onClose={() => setCheckinsOpen(false)} />
+        <Suspense fallback={null}>
+          <CheckinsPanel session={session} copy={copy} onClose={() => setCheckinsOpen(false)} />
+        </Suspense>
       )}
+      {/* WS-R139: `restReady` is a PROP here, read inside SubscriptionPanel
+          itself (after its own hooks), never a gate on whether this
+          component mounts at all — gating it here would remount the panel
+          (and lose whatever it has already fetched) every time a follower
+          switches to a locale whose REST chunk has never loaded before,
+          `AccountPage.tsx`'s own identical fix and header one component
+          over (`context/rejected.md#ws-r139-restready-gated-at-the-parent-
+          resets-accountpages-own-fetched-state`). */}
       {subscriptionOpen && session && (
-        <SubscriptionPanel session={session} copy={copy} onClose={() => setSubscriptionOpen(false)} />
+        <Suspense fallback={null}>
+          <SubscriptionPanel session={session} copy={copy} restReady={restReady} onClose={() => setSubscriptionOpen(false)} />
+        </Suspense>
       )}
       {handoffOpen && session && (
-        <HandoffPanel
-          session={session}
-          turns={turns}
-          threadId={thread}
-          creatorName={name || room?.room.display_name || ""}
-          copy={copy}
-          onClose={() => setHandoffOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <HandoffPanel
+            session={session}
+            turns={turns}
+            threadId={thread}
+            creatorName={name || room?.room.display_name || ""}
+            copy={copy}
+            onClose={() => setHandoffOpen(false)}
+          />
+        </Suspense>
       )}
+      {/* WS-R139: `restReady` is a PROP here, read inside AccountPage
+          itself (after its own hooks) — see `SubscriptionPanel`'s own
+          comment just above, the identical reason. */}
       {accountOpen && session && (
-        <AccountPage
-          session={session}
-          copy={copy}
-          locale={locale}
-          slug={slug}
-          name={name || room?.room.display_name || ""}
-          auth={auth}
-          remembers={remembers}
-          memoryBusy={memoryBusy}
-          onMemoryChange={(next) => void updateMemoryConsent(next)}
-          localeBusy={localeBusy}
-          onSwitchLocale={(next) => void switchLocale(next)}
-          payBusy={payBusy}
-          payError={payError}
-          onSubscribe={() => void subscribe()}
-          onReviewed={(at) => setRoom((prev) => (prev?.follower ? { ...prev, follower: { ...prev.follower, settings_reviewed_at: at } } : prev))}
-          onClose={() => setAccountOpen(false)}
-          onForgotten={(receipt) => {
-            setForgetReceipt(receipt);
-            setAccountOpen(false);
-            setPhase("gone");
-          }}
-          fixtureSettings={fixtureSettings}
-          fixturePayment={fixturePayment}
-          fixtureReferralUrl={fixtureReferralUrl}
-          fixtureReferralProgress={fixtureReferralProgress}
-        />
+        <Suspense fallback={null}>
+          <AccountPage
+            session={session}
+            copy={copy}
+            locale={locale}
+            slug={slug}
+            restReady={restReady}
+            name={name || room?.room.display_name || ""}
+            auth={auth}
+            remembers={remembers}
+            memoryBusy={memoryBusy}
+            onMemoryChange={(next) => void updateMemoryConsent(next)}
+            localeBusy={localeBusy}
+            onSwitchLocale={(next) => void switchLocale(next)}
+            payBusy={payBusy}
+            payError={payError}
+            onSubscribe={() => void subscribe()}
+            onReviewed={(at) => setRoom((prev) => (prev?.follower ? { ...prev, follower: { ...prev.follower, settings_reviewed_at: at } } : prev))}
+            onClose={() => setAccountOpen(false)}
+            onForgotten={(receipt) => {
+              setForgetReceipt(receipt);
+              setAccountOpen(false);
+              setPhase("gone");
+            }}
+            fixtureSettings={fixtureSettings}
+            fixturePayment={fixturePayment}
+            fixtureReferralUrl={fixtureReferralUrl}
+            fixtureReferralProgress={fixtureReferralProgress}
+          />
+        </Suspense>
       )}
     </main>
   );
 }
 
-const withCount = (template: string, n: number) => template.split("{n}").join(String(n));
-const withIncluded = (template: string, n: number, included: number) =>
-  withCount(template, n).split("{included}").join(String(included));
+// WS-R139: `withCount`/`withIncluded` moved to `./textHelpers.ts` (imported
+// at the top of this file) so `TasteScreen.tsx`, a lazy chunk now, can use
+// `withCount` without importing it back FROM this file.
 
 /* ── the share control (WS-R40) ─────────────────────────────────────────────
  *
@@ -1672,45 +1782,10 @@ function ShareButton({
   );
 }
 
-/* ── the language switch (WS-R24) ───────────────────────────────────────────
- *
- * Two words, both shown, in both locales, always: `ROOM_LANGUAGE_LABELS`'s own
- * header explains why - a follower who can only read one script still has to
- * be able to find the OTHER one's name to reach it. The current locale reads
- * as pressed (`aria-pressed`) rather than disabled, so it stays announced by a
- * screen reader as the state it is. */
-export function LanguageSwitch({
-  locale,
-  busy,
-  onSwitch,
-}: {
-  locale: RoomLocale;
-  busy: boolean;
-  onSwitch: (next: RoomLocale) => void;
-}) {
-  return (
-    <div className="room-lang-switch" role="group" aria-label="हिन्दी / English">
-      {ROOM_LOCALES.map((l) => (
-        <button
-          key={l}
-          type="button"
-          className="room-lang-btn"
-          // WS-R79: this button's own label is in `l`'s script, not
-          // necessarily the DOCUMENT's — both are always shown, side by
-          // side, in every locale (`ROOM_LANGUAGE_LABELS`'s own comment),
-          // so on an English page the "हिन्दी" button needs its own `lang`
-          // or a screen reader reads it in an English voice.
-          lang={l}
-          aria-pressed={locale === l}
-          disabled={busy}
-          onClick={() => onSwitch(l)}
-        >
-          {ROOM_LANGUAGE_LABELS[l]}
-        </button>
-      ))}
-    </div>
-  );
-}
+// WS-R139: `LanguageSwitch` moved to `./LanguageSwitch.tsx` (imported at the
+// top of this file) so `TasteScreen.tsx` and `DataMenu.tsx`, both lazy
+// chunks now, never have to import it back FROM this file — see that file's
+// own header for the cycle this avoids.
 
 /* ── the thread rail ────────────────────────────────────────────────────── */
 
@@ -1771,201 +1846,6 @@ function ThreadRail({
         </button>
       )}
     </nav>
-  );
-}
-
-/* ── the taste ───────────────────────────────────────────────────────────── */
-
-/* Three questions, answered by the creator's AI, from their own material
- * alone, before the sign-in wall (WS-R53). No session, no thread — nothing
- * sent to or received from the server survives past this one component:
- * `tasteInRoom` (roomApi.ts) mints no session, and `exchanges` below lives
- * only in this screen's own state, gone the moment the tab is (the SAME
- * "stateless by construction" property api/_room-taste.js's own header
- * states for the server side of this exact boundary). The join control is
- * always present and always works — a stranger who wants to skip straight
- * to signing in never has to spend a question first. */
-function TasteScreen({
-  room,
-  name,
-  copy,
-  locale,
-  localeBusy,
-  onSwitchLocale,
-  onJoin,
-}: {
-  room: RoomOpen;
-  name: string;
-  copy: RoomCopy;
-  locale: RoomLocale;
-  localeBusy: boolean;
-  onSwitchLocale: (next: RoomLocale) => void;
-  onJoin: () => void;
-}) {
-  const [exchanges, setExchanges] = useState<{ q: string; a: string }[]>([]);
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  // WS-R53: true from turn 1 onward (`api/_room-taste.js`'s own law - the
-  // card is carried on the first answer and stays shown after). WS-R84: this
-  // used to be the disclosure TEXT itself, captured once from that first
-  // `tasteInRoom` response and held in local state - which meant a follower
-  // who switched languages AFTER asking one question kept reading the OLD
-  // language's card forever, since nothing here ever updated it again. Now
-  // it is only a flag, and the text always renders straight off `room.
-  // disclosure` below - the SAME `open` response `switchLocale`'s own
-  // pre-join branch already re-fetches on every switch (`RoomApp.tsx`'s own
-  // header: "refetched through the same path that fetched it on open"), so
-  // the card can never be one switch behind. `room.disclosure` and a taste
-  // turn's own `disclosure` field are byte-identical by construction (both
-  // `roomDisclosureCard(name, locale)` off the same name and the same
-  // locale this screen passes to `tasteInRoom` below), so nothing is lost by
-  // reading the PROP instead of the per-turn response.
-  const [hasAsked, setHasAsked] = useState(false);
-  const [turnsLeft, setTurnsLeft] = useState(3);
-  // True once the daily allowance is spent, whichever way that happened
-  // (the server said `turns_left: 0`, or the rate gate refused outright) —
-  // the one flag that decides whether the input still renders.
-  const [spent, setSpent] = useState(false);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [exchanges.length]);
-
-  async function ask() {
-    const text = draft.trim();
-    if (!text || busy || spent) return;
-    setBusy(true);
-    setError("");
-    try {
-      // `room.locale` — the exact language the lede/disclosure above is
-      // already rendered in, passed through rather than re-picked, `join`'s
-      // own reason one screen over.
-      const turn: RoomTasteTurn = await tasteInRoom(room.room.slug, text, room.locale);
-      setDraft("");
-      setExchanges((prev) => [...prev, { q: text, a: turn.reply }]);
-      if (turn.disclosure) setHasAsked(true);
-      setTurnsLeft(turn.turns_left);
-      if (turn.turns_left <= 0) setSpent(true);
-    } catch (e) {
-      if (e instanceof RoomApiError && e.code === "rate_limited") {
-        setError(copy.taste.rateLimited);
-        setSpent(true);
-      } else {
-        setError(copy.errors.generic);
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <main className="room-shell" lang={locale}>
-      <section className="room-taste">
-        <div className="room-head-row">
-          {/* WS-R79: see the talk screen's own comment on the identical h1
-              two screens over — same reason, same fix. */}
-          <h1>
-            {name ? (
-              <>
-                <Localized as="span" text={name} /> AI
-              </>
-            ) : (
-              <Localized as="span" text={room.room.display_name || ""} />
-            )}
-          </h1>
-          <LanguageSwitch locale={locale} busy={localeBusy} onSwitch={onSwitchLocale} />
-        </div>
-        {/* WS-R45. Plain text the creator wrote about themselves — never
-            rendered as anything but a paragraph, exactly like the directory
-            card that already shows it. WS-R79: tagged on its own, since it is
-            written in the Room's own default locale, not necessarily the
-            one this screen's chrome is in. */}
-        {room.room.bio && <Localized as="p" className="room-lede" text={room.room.bio} />}
-        {/* The card, the moment it exists (turn 1's own reply) — and once
-            shown it STAYS shown, `api/_room-taste.js`'s own "carried on the
-            first answer" law rendered rather than re-requested. Before that
-            first reply, the lede alone says what this screen is. */}
-        {hasAsked ? (
-          <div className="room-card" role="note">
-            {/* WS-R84: `room.disclosure`, never a locally-held copy - see
-                `hasAsked`'s own comment above on why this can never go
-                stale across a language switch. */}
-            <LocalizedDisclosure text={room.disclosure} />
-          </div>
-        ) : (
-          <p className="room-lede">
-            <LocalizedName template={copy.taste.lede} name={name} />
-          </p>
-        )}
-
-        {exchanges.length > 0 && (
-          <div className="room-taste-turns">
-            {exchanges.map((ex, i) => (
-              <div className="room-taste-turn" key={i}>
-                <p className="room-taste-q">{ex.q}</p>
-                <p className="room-taste-a">{ex.a}</p>
-              </div>
-            ))}
-          </div>
-        )}
-        {busy && <p className="room-lede">{copy.taste.thinking}</p>}
-        <div ref={bottomRef} />
-
-        {error && <p className="room-error">{error}</p>}
-
-        {/* Three dots, empty as they are spent — the workstream's own
-            product number (WS-R53 law 4), never re-derived from the
-            server's own configurable limit: a display convention, not the
-            enforcement (the enforcement is `api/_rate-limit.js`'s own
-            `room_taste` scope, entirely server-side). */}
-        <div className="room-taste-dots" aria-hidden="true">
-          {[0, 1, 2].map((i) => (
-            <span key={i} className={`room-taste-dot${i < exchanges.length ? " room-taste-dot-spent" : ""}`} />
-          ))}
-        </div>
-
-        {!spent && (
-          <div className="room-actions">
-            <input
-              className="room-taste-input"
-              aria-label={copy.taste.placeholder}
-              placeholder={copy.taste.placeholder}
-              value={draft}
-              disabled={busy}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void ask();
-              }}
-            />
-            <button
-              type="button"
-              className="room-btn primary"
-              disabled={busy || !draft.trim()}
-              onClick={() => void ask()}
-            >
-              {copy.taste.send}
-            </button>
-          </div>
-        )}
-
-        {!spent && turnsLeft > 0 && turnsLeft < 3 && (
-          <p className="room-fine">
-            {turnsLeft === 1 ? copy.taste.turnsLeftOne : withCount(copy.taste.turnsLeft, turnsLeft)}
-          </p>
-        )}
-        {spent && !error && <p className="room-fine">{copy.taste.spent}</p>}
-
-        {/* Always present, always works — a stranger who wants to sign in
-            right away never has to spend a question first. */}
-        <div className="room-actions">
-          <button type="button" className="room-btn" onClick={onJoin}>
-            {copy.taste.join}
-          </button>
-        </div>
-      </section>
-    </main>
   );
 }
 
@@ -2168,122 +2048,6 @@ function JoinSheet({
         )}
       </section>
     </main>
-  );
-}
-
-/* ── the data menu ──────────────────────────────────────────────────────── */
-
-/* Download and delete, both scoped to this room and both saying so. The
- * download is built in the browser from the server's own JSON rather than
- * offered as a link, so there is no URL anywhere that returns one follower's
- * data to whoever holds it. */
-function DataMenu({
-  name,
-  copy,
-  session,
-  auth,
-  follower,
-  onClose,
-  onForgotten,
-}: {
-  name: string;
-  copy: RoomCopy;
-  session: string;
-  auth: StudioSession | null;
-  follower: RoomFollower | null;
-  onClose: () => void;
-  onForgotten: (receipt: RoomForgetReceipt | null) => void;
-}) {
-  const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  // WS-R63: scrolls into view, moves focus in, closes on Escape (WS-R50's
-  // own law, now this one hook's job rather than five ad hoc copies of it),
-  // returns focus to the opener on close - `useDialogInView`'s own header.
-  const dialogRef = useDialogInView(onClose);
-
-  return (
-    <section className="room-menu" role="dialog" aria-modal="true" aria-label={copy.menu.title} ref={dialogRef}>
-
-      <h2>{copy.menu.title}</h2>
-      {/* WS-R19: real numbers from the follower's own row, never estimated -
-          law 5. Renders only for a paid follower with the flag on; a free
-          follower's own copy of these fields is always 0 by construction
-          (`clientFollower`), so there is nothing honest to show them here. */}
-      {ROOM_VOICE_UI && follower?.tier === "paid" && (
-        <p className="room-fine room-num">
-          {copy.voice.minutesLeft
-            .replace("{used}", String(Math.round(follower.voice_seconds_used / 60)))
-            .replace("{included}", String(Math.round(follower.voice_seconds_included / 60)))}
-        </p>
-      )}
-      {error && <p className="room-error">{error}</p>}
-      <div className="room-actions">
-        <button
-          type="button"
-          className="room-btn"
-          disabled={busy || !auth}
-          onClick={async () => {
-            if (!auth) return;
-            setBusy(true);
-            try {
-              const dump = await exportRoomData(session, auth.accessToken);
-              const blob = new Blob([JSON.stringify(dump, null, 2)], { type: "application/json" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = "your-data.json";
-              a.click();
-              URL.revokeObjectURL(url);
-            } catch {
-              setError(copy.errors.generic);
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          {copy.menu.download}
-        </button>
-        <p className="room-fine">{copy.menu.downloadNote}</p>
-
-        {!confirming ? (
-          <button type="button" className="room-btn danger" onClick={() => setConfirming(true)}>
-            {copy.menu.forget}
-          </button>
-        ) : (
-          <>
-            <p className="room-fine">{withName(copy.menu.forgetNote, name)}</p>
-            <button
-              type="button"
-              className="room-btn danger"
-              disabled={busy || !auth}
-              onClick={async () => {
-                if (!auth) return;
-                setBusy(true);
-                try {
-                  const result = await forgetRoomData(session, auth.accessToken);
-                  onForgotten(result.receipt ?? null);
-                } catch {
-                  setError(copy.errors.generic);
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              {copy.menu.forgetConfirm}
-            </button>
-            <button type="button" className="room-btn" onClick={() => setConfirming(false)}>
-              {copy.menu.forgetCancel}
-            </button>
-          </>
-        )}
-
-        <button type="button" className="room-btn" onClick={onClose}>
-          {copy.menu.close}
-        </button>
-      </div>
-    </section>
   );
 }
 

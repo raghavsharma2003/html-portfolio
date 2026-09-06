@@ -563,7 +563,12 @@ console.log("\n── §7: STATIC WIRING ──");
   ok("CheckinsPanel.tsx reads telegramCheckinsStatus and calls setTelegramCheckins",
     /telegramCheckinsStatus/.test(panelSrc) && /setTelegramCheckins/.test(panelSrc));
 
-  const copySrc = fs.readFileSync(join(REPO, "src/room/copy.ts"), "utf8");
+  // WS-R139: `checkins` is a TALK section (`copy.ts`'s own `TALK_KEYS`), so
+  // its Hindi text now lives in `hiTalkCopy.ts`, not in `copy.ts` alongside
+  // the English — both are read and concatenated so this scan keeps finding
+  // one EN definition and one HI definition, same as before the split.
+  const copySrc = fs.readFileSync(join(REPO, "src/room/copy.ts"), "utf8") +
+    fs.readFileSync(join(REPO, "src/room/hiTalkCopy.ts"), "utf8");
   ok("copy.ts carries tgTitle in both locales (en then hi)",
     (copySrc.match(/tgTitle:/g) || []).length === 2);
   ok("copy.ts carries tgEnable/tgDisable/tgError in both locales",

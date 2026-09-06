@@ -66,12 +66,18 @@ const { scanSource } = checkCopy;
 // `evals/room/fixtures.mjs`'s `loadFixtureAgent` bundles a source module —
 // `evals/room/run.mjs` itself never needed this because `copy.ts` was a
 // component-free data file even before this workstream; it still is.
-async function loadRoomCopy() {
+// WS-R139: `copy.ts` now dynamically `import()`s `./hiTalkCopy` and
+// `./hiCopy` (the split's own two chunks) — esbuild's `--bundle` with no
+// `--splitting` flag inlines a dynamic import into the SAME output file
+// rather than leaving a real network-shaped `import()` behind, so the
+// bundled `loadRoomCopy` below resolves synchronously against this one
+// file, no filesystem or network touched by this suite.
+async function bundleRoomCopy() {
   const OUT = mkdtempSync(join(tmpdir(), "room-locale-eval-"));
   const ENTRY = join(OUT, "entry.ts");
   writeFileSync(
     ENTRY,
-    `export { ROOM_COPY_TABLE, ROOM_LOCALES, normalizeLocale } from ${JSON.stringify(
+    `export { ROOM_COPY_TABLE, ROOM_LOCALES, normalizeLocale, loadRoomCopy } from ${JSON.stringify(
       join(REPO, "src/room/copy"),
     )};\n`,
   );
@@ -82,7 +88,13 @@ async function loadRoomCopy() {
   );
   return import(pathToFileURL(BUNDLE).href);
 }
-const { ROOM_COPY_TABLE, ROOM_LOCALES, normalizeLocale } = await loadRoomCopy();
+const { ROOM_COPY_TABLE, ROOM_LOCALES, normalizeLocale, loadRoomCopy } = await bundleRoomCopy();
+// WS-R139: `ROOM_COPY_TABLE.hi` is a throwing Proxy (`copy.ts`'s own header)
+// until both of its lazy chunks install — every section this suite's own
+// key-parity walk (§1 below) and every other section-reading assertion
+// needs. Installed ONCE, up front, for exactly the reason `layoutFixture.tsx`
+// now awaits the identical loader before building its own glyph list.
+await loadRoomCopy("hi");
 
 const { engine, loadAgent } = await loadFixtureAgent(REPO);
 const personTables = async () => [];

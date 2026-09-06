@@ -43,7 +43,15 @@ import {
 } from "./roomApi";
 import { listCheckinDesignsAndPushKey, setTelegramCheckins } from "./roomCheckinsApi";
 import { paymentStatus, type RoomPaymentStatus } from "./roomPayApi";
-import { activateOnKey, LanguageSwitch } from "./RoomApp";
+import { activateOnKey } from "./RoomApp";
+// WS-R139: `LanguageSwitch` moved to its own file so a lazily-loaded screen
+// (this one, now `React.lazy`-loaded from RoomApp.tsx) never has to import
+// it back FROM RoomApp.tsx — `LanguageSwitch.tsx`'s own header has the
+// reason. `activateOnKey` above is unchanged: it is a tiny function, always
+// defined at RoomApp.tsx's module scope, read only inside event handlers
+// (never at module-evaluation time), the same shape this file already
+// relied on before this workstream.
+import { LanguageSwitch } from "./LanguageSwitch";
 import { useDialogInView } from "./useDialogInView";
 
 /** RFC 4648 base64url, both directions — `CheckinsPanel.tsx`'s own pair,
@@ -125,6 +133,19 @@ interface Props {
    *  over — no network reaches `roomReferralProgress` from the fixture
    *  either, so this supplies the progress line's own state directly. */
   fixtureReferralProgress?: RoomReferralProgress;
+  /** WS-R139. True once `copy`'s REST section (`dormancy`/`referral`/
+   *  `payReceipt`/`exportReadable`/`subscriptionMandate`/`referralReward`/
+   *  `quietHours` — `copy.ts`'s own header) is installed for `locale` —
+   *  `RoomApp.tsx`'s own `roomCopyReady(locale)`. Read INSIDE this
+   *  component (the early return below, placed after every hook) rather
+   *  than by RoomApp deciding whether to mount `<AccountPage/>` at all: a
+   *  follower who already has this panel open when they switch to a
+   *  locale whose REST chunk has never loaded before must not lose this
+   *  component's own already-fetched `settings`/`payment`/etc. state to a
+   *  remount — `context/rejected.md#ws-r139-restready-gated-at-the-parent-
+   *  resets-accountpages-own-fetched-state` has the regression this
+   *  avoids. */
+  restReady: boolean;
 }
 
 export default function AccountPage({
@@ -149,6 +170,7 @@ export default function AccountPage({
   fixturePayment,
   fixtureReferralUrl,
   fixtureReferralProgress,
+  restReady,
 }: Props) {
   const [settings, setSettings] = useState<RoomSettings | null>(fixtureSettings ?? null);
   const [payment, setPayment] = useState<RoomPaymentStatus | null>(fixturePayment ?? null);
@@ -481,6 +503,19 @@ export default function AccountPage({
     ? copy.account.subscriptionStates[subscriptionState as keyof typeof copy.account.subscriptionStates] ??
       copy.account.subscriptionStates.active
     : copy.account.subscriptionFree;
+
+  // WS-R139: placed after every hook above (never conditionally before
+  // one) so this never changes the hook count between renders — this
+  // component's own `settings`/`payment`/etc. state (fetched by the
+  // effects above, keyed on `session` alone) survives the wait untouched,
+  // since it is the SAME component instance throughout: only the OUTPUT
+  // is null for the one render or two this takes, never a fresh mount with
+  // fresh (empty) state. `RoomApp.tsx`'s own `if (!talkReady) return null`
+  // is the identical pattern one layer up, restated here rather than
+  // gating `<AccountPage/>`'s presence from the PARENT, which would
+  // remount this component and lose everything above on every locale
+  // switch to a locale whose REST chunk had never loaded before.
+  if (!restReady) return null;
 
   return (
     <section

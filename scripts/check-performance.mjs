@@ -209,7 +209,39 @@ function findHiAuthCopyChunkPath() {
 const TARGETS = [
   { name: "/", path: "/", label: "site landing (site/index.html)" },
   { name: "/vyakti", path: "/vyakti", label: "Vyakti landing (site/vyakti.html)" },
-  { name: "/r/<slug>", path: "/r/anjali?screen=join", label: "Room join screen (room-layout-fixture.html data)" },
+  // WS-R139: the shared 180KB `BUDGETS.jsBytes` ceiling below is set for the
+  // WORST target (`index-*.js`'s own review-queue-adjacent weight), and
+  // leaving the Room at that same ceiling would hide a real regression on
+  // the one screen every follower's phone renders cold, every time. `jsBudget`
+  // below is a PER-TARGET override (`evaluateBudgets` reads
+  // `result.jsBudget ?? BUDGETS.jsBytes`) — never a global change, so no
+  // other target's pass/fail moves. Measured 3 batches of 3 runs, before this
+  // workstream's `React.lazy` split and after, same machine, same method
+  // (`context/measurements.md#ws-r139-room-secondary-screens-js-bytes-2026-09-05`):
+  // BEFORE 90,762 bytes (identical across all 3 batches — this render is
+  // deterministic, no data variance); AFTER (English) 80,230 bytes, all 3
+  // batches identical; AFTER (Hindi, `room-hi` below) 86,916 bytes, all 3
+  // batches identical (the final 13-byte difference from an earlier
+  // in-session reading is `switchLocale`'s own WS-R139 fix, below, awaiting
+  // the copy chunk before committing a live locale switch). 100KB and 105KB
+  // are round numbers roughly 20-25%
+  // above each measured figure — enough that ordinary future growth (a new
+  // field on an existing screen) does not need a budget PR, while a
+  // regression the size of the whole split being reverted (adding back
+  // ~10.5KB) still trips the gate by name rather than hiding inside 180KB of
+  // headroom no one would notice for months.
+  { name: "/r/<slug>", path: "/r/anjali?screen=join", label: "Room join screen (room-layout-fixture.html data)", jsBudget: 100 * 1024 },
+  // `studio-hi`'s own reason, restated for the Room. Splitting the Room's
+  // Hindi table into its own chunks (`src/room/copy.ts`'s own header —
+  // `hiTalkCopy.ts`/`hiCopy.ts`) must cost an ENGLISH follower nothing —
+  // `/r/<slug>` above is what proves that — and must not make a HINDI
+  // follower's own first paint materially worse than English's, which only
+  // a target that actually renders `?lang=hi` can measure.
+  // `room-layout-fixture.html`'s own `render()` awaits `loadRoomCopy("hi")`
+  // before mounting for a `?lang=hi` request (`layoutFixture.tsx`'s own
+  // header), which is the REAL cost this target measures — the same
+  // fixture, the same `?screen=join` state, only the locale moves.
+  { name: "room-hi", path: "/r/anjali?screen=join&lang=hi", label: "Room join screen, Hindi (room-layout-fixture.html data)", jsBudget: 105 * 1024 },
   { name: "/studio", path: "/studio", label: "Studio, signed out" },
   // WS-R82 built this target when the shell (chrome, AuthGate) rendered
   // identically to `/studio` regardless of `?lang=hi` — `StudioApp.tsx`'s
@@ -542,6 +574,9 @@ async function measureTarget(browser, target) {
   return {
     target: target.name,
     label: target.label,
+    // WS-R139: per-target override of `BUDGETS.jsBytes`, undefined for
+    // every target but the two Room ones — see `TARGETS`'s own comment.
+    jsBudget: target.jsBudget,
     runs,
     median: {
       lcpMs: median(runs.map((r) => r.lcpMs)),
@@ -580,10 +615,14 @@ function evaluateBudgets(result) {
   if (m.tbtMs > BUDGETS.tbtMs) {
     findings.push({ metric: "TBT", detail: `${Math.round(m.tbtMs)}ms > ${BUDGETS.tbtMs}ms budget` });
   }
-  if (m.jsBytes > BUDGETS.jsBytes) {
+  // WS-R139: a target-specific ceiling (the two Room targets) wins over the
+  // shared one when set — `result.jsBudget` is `undefined` everywhere else,
+  // so `?? BUDGETS.jsBytes` is a no-op for every other target.
+  const jsBudget = result.jsBudget ?? BUDGETS.jsBytes;
+  if (m.jsBytes > jsBudget) {
     findings.push({
       metric: "JS transfer",
-      detail: `${(m.jsBytes / 1024).toFixed(1)}KB > ${(BUDGETS.jsBytes / 1024).toFixed(0)}KB budget`,
+      detail: `${(m.jsBytes / 1024).toFixed(1)}KB > ${(jsBudget / 1024).toFixed(0)}KB budget`,
     });
   }
   if (m.fontBytes > BUDGETS.fontBytes) {

@@ -1,0 +1,58 @@
+// The Hindi REST chunk (WS-R139): the sections read only INSIDE the Room's
+// five secondary screens once actually opened — the account page's own
+// dormancy note, "bring a friend" card, receipts list, readable-export
+// button, mandate state and referral-reward line, plus the account page's
+// read-only quiet-hours summary. None of these five sections carries a
+// string the always-visible top bar or the talk screen itself ever reads —
+// `hiTalkCopy.ts`'s own header names every section that DOES and stayed
+// there instead.
+//
+// Split out of `copy.ts`'s own single Hindi table, `hiTalkCopy.ts`'s own
+// sibling — see that file's header for the full split reasoning and
+// `context/decisions.md#ws-r139-room-secondary-screens-are-lazy-chunks`.
+//
+// Same shape as `EN`'s own rest sections, in plain, functional Hindi.
+import type { RoomRestCopy } from "./copy";
+
+export const HI: RoomRestCopy = {
+  dormancy: {
+    note: "आपकी आख़िरी विज़िट के {duration} बाद तक रखा जाएगा।",
+  },
+
+  referral: {
+    title: "किसी दोस्त को लाएं",
+    note: "यह लिंक शेयर करें। अगर कोई दोस्त इससे जुड़ता है, तो क्रिएटर को सिर्फ इतना पता चलता है कि एक दोस्त आया - कभी यह नहीं कि कौन।",
+    copy: "लिंक कॉपी करें",
+    copied: "कॉपी हो गया",
+  },
+
+  payReceipt: {
+    title: "रसीदें",
+    empty: "अभी तक कोई भुगतान नहीं।",
+    print: "प्रिंट करें",
+    loadError: "आपकी रसीदें लोड नहीं हो सकीं। फिर से कोशिश करें।",
+  },
+
+  exportReadable: {
+    open: "पढ़ने लायक कॉपी खोलें",
+    openNote: "डाउनलोड जैसी ही जानकारी, पढ़ने और प्रिंट करने के लिए तैयार।",
+  },
+
+  // WS-R125 (migration 130). See EN's own `subscriptionMandate` block.
+  subscriptionMandate: {
+    pausedLabel: "आपका भुगतान रुका हुआ है।",
+    pausedBody: "अपनी सदस्यता सक्रिय रखने के लिए इसे अपने UPI ऐप में फिर से शुरू करें।",
+    haltedLabel: "आपके भुगतान मैनडेट पर ध्यान देना ज़रूरी है।",
+    haltedBody: "कई कोशिशों के बाद भी इसे नवीनीकृत नहीं किया जा सका। जारी रखने के लिए अपने UPI ऐप से एक नया मैनडेट शुरू करें।",
+  },
+  referralReward: {
+    progress: (n: number, threshold: number) => `अब तक ${threshold} में से ${n} दोस्त जुड़े और उन्होंने भुगतान किया।`,
+    granted: (dateLabel: string) => `आपने ${dateLabel} को एक मुफ़्त महीना कमाया - दोस्तों को लाने के लिए धन्यवाद।`,
+  },
+  quietHours: {
+    label: "शांत समय",
+    summary: "{zone} में {from} से {to}",
+    everyChannelNote: "यह हर उस चैनल पर लागू होता है जिससे यह AI आप तक पहुंच सकता है: पुश, व्हाट्सएप और टेलीग्राम।",
+    none: "आपने अभी तक शांत समय नहीं चुना। अगली बार चेक-इन शुरू करते समय इसे चुनें।",
+  },
+};

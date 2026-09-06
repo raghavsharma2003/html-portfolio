@@ -20,10 +20,18 @@ function dateLabel(iso: string | null | undefined): string {
 export default function SubscriptionPanel({
   session,
   copy,
+  restReady,
   onClose,
 }: {
   session: string;
   copy: RoomCopy;
+  /** WS-R139. `AccountPage.tsx`'s own `restReady` prop, byte-identical
+   *  reason: read here (after every hook, before the JSX below) rather
+   *  than gated by `RoomApp.tsx` deciding whether to mount this component
+   *  at all, so this panel's own `status`/`error`/etc. state survives a
+   *  live locale switch to a locale whose REST chunk (`copy.subscriptionMandate`,
+   *  read below) has never loaded before. */
+  restReady: boolean;
   onClose: () => void;
 }) {
   const [status, setStatus] = useState<RoomPaymentStatus | null>(null);
@@ -69,6 +77,11 @@ export default function SubscriptionPanel({
     status?.price_inr != null
       ? `Rs ${status.price_inr}${status.currency && status.currency !== "INR" ? ` ${status.currency}` : ""}`
       : "";
+
+  // WS-R139: placed after every hook above so this never changes the hook
+  // count between renders — `AccountPage.tsx`'s own identical guard, same
+  // reason.
+  if (!restReady) return null;
 
   return (
     <section

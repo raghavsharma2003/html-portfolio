@@ -14391,3 +14391,48 @@ violation) before the clean run above.
 - WS-R125: the renewal due-select keeps `vy_room_subscription_due_ix` with the new mandate predicate as a filter on the same rows; `roomOverview`'s split counts a bitmap scan on `vy_room_subscription_room_person_ix`; the two `sub_update` UPDATEs and the two status SELECTs add columns to statements whose access path was planned at their own migrations.
 - WS-R130: `maybeGrantReferralReward`'s chain on `vy_room_subscription_follower_ix`, `vy_payment_event_subscription_ix`, `vy_room_referral_credit_referred_ix`, `vy_room_referral_credit_referrer_ix`, the reward's conflict arbiter `vy_room_referral_reward_cap_ix`, and `vy_room_subscription_follower_live_ix` for the extend; the friend count's `exists` is planned as a hashed subplan over a seq scan of `vy_payment_event` filtered by kind and amount, accepted by name (one grant per first charge, a small ledger). Reversal: when the ledger passes roughly 100k rows, rewrite the count as a correlated exists per credit so it walks the subscription and event indexes.
 - WS-R126: the chat join's arrival is `recordRoomArrival`'s own statement (planned at 102, 113 and 123) with a new caller. WS-R121, R122, R123, R124, R128, R129: no new SQL.
+
+### `ws-r139-room-secondary-screens-js-bytes-2026-09-05` (WS-R139)
+
+**n = 3 batches of 3 runs each, method: `node scripts/check-performance.mjs
+--target "/r/<slug>"` / `--target "room-hi"`, real Chromium over CDP, 4x CPU
+throttle, 1.6Mbps/750Kbps/150ms network throttle (this file's own long-
+standing Fast-3G shape), median of 3 per batch, 3 batches per figure, on
+this worktree's own container, 2026-09-05 into 2026-09-06.** The room
+join screen (`?screen=join`, `room-layout-fixture.html`), which is what
+`/r/<slug>` measures per this file's own header (`RoomApp.tsx` needs a
+live session `check-performance.mjs` has no secret for).
+
+BEFORE (base commit `048becd`, secondary screens statically imported):
+`/r/<slug>` jsBytes 90,762 bytes, identical across all 3 batches (this
+render has no data variance — deterministic by construction). LCP medians
+1484/1380/1356ms, TBT medians 94/102/134ms (noisy — this session's own
+machine carried a load average of 12-26 throughout this measurement, many
+concurrent sibling workstream gates; see the load note below).
+
+AFTER (this workstream's `React.lazy` split, plus the `switchLocale`
+prefetch fix, final tree before commit): `/r/<slug>` (English) jsBytes
+80,230 bytes, identical across all 3 batches — an 11.9% reduction.
+`room-hi` (Hindi, `?screen=join&lang=hi`, the NEW target this workstream
+added) jsBytes 86,916 bytes, identical across all 3 batches. LCP medians:
+English 1192/1208/1208ms; Hindi 1384/1508/1444ms. TBT medians: English
+72/121/113ms; Hindi 112/143/150ms. Measured at load average 8.3-9.6
+(five-minute mean 7.2-7.8) — well down from the 12-26 range earlier in
+this session, though not the under-2 an idle machine would give; the main
+loop's own note (seven of ten wave-nineteen siblings merged by then)
+independently confirms the machine was genuinely quieter for this final
+reading, and the byte counts themselves (the only figure this decision's
+budget actually gates) are identical whether measured under load 26 or
+load 8, since they come from the CDP `Network` domain's own transfer
+accounting, not from timing.
+
+CSS, font and image bytes are unchanged before/after in every reading
+(30,986 / 0 / 1,155 respectively) — this workstream's diff touches no CSS
+or image asset, exactly as expected.
+
+`scripts/check-performance.mjs --target "/r/<slug>"` and `--target
+"room-hi"` both pass with the new PER-TARGET `jsBudget` overrides (100KB,
+105KB — `context/decisions.md#ws-r139-room-secondary-screens-are-lazy-
+chunks` has the margin's reasoning) after the split; both would also still
+pass the shared 180KB ceiling alone, so the override is a genuine
+tightening, not a workaround for a number that would otherwise fail.

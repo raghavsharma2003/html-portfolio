@@ -455,7 +455,8 @@ async function runJourney({ harness, browser, locale, gate }) {
   const disclosureOther = (await page.locator(".room-account .room-card").innerText()).trim();
   ok(`${gate}: switching to ${other} re-renders the disclosure in ${other} (server-authored, not stale)`,
     disclosureOther !== disclosureBefore &&
-      (other === "hi" ? /[ऀ-ॿ]/.test(disclosureOther) : !/[ऀ-ॿ]/.test(disclosureOther)));
+      (other === "hi" ? /[ऀ-ॿ]/.test(disclosureOther) : !/[ऀ-ॿ]/.test(disclosureOther)),
+    JSON.stringify({ disclosureBefore, disclosureOther }));
 
   await page.locator(`.room-account .room-lang-switch button[lang="${locale}"]`).click();
   await page.waitForFunction(

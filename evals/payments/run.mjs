@@ -942,7 +942,15 @@ console.log("\n§15 WS-R69: THE CHECKOUT COPY NAMES THE MANDATE — NEGATIVE CON
   // REAL committed files, not a hand-maintained fixture, so a future edit
   // that quietly drops the mandate sentence — from the copy, or from where
   // it is actually RENDERED — fails this exact assertion.
-  const copySrc = readFileSync(join(REPO, "src/room/copy.ts"), "utf8");
+  //
+  // WS-R139: `pay` is a TALK section (`copy.ts`'s own `TALK_KEYS`), so its
+  // Hindi text now lives in `hiTalkCopy.ts`, not in `copy.ts` alongside the
+  // English — `copy.ts` carries only the EN table plus the split's own
+  // machinery today. Both files are read and concatenated so this scan
+  // keeps finding exactly one EN window and one HI window, same as before
+  // the split.
+  const copySrc = readFileSync(join(REPO, "src/room/copy.ts"), "utf8") +
+    readFileSync(join(REPO, "src/room/hiTalkCopy.ts"), "utf8");
   const roomAppSrc = readFileSync(join(REPO, "src/room/RoomApp.tsx"), "utf8");
 
   // `mandateNote`'s own value is built from concatenated string literals

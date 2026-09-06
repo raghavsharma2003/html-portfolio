@@ -659,377 +659,168 @@ const EN = {
   },
 };
 
-/** The same shape as `EN`, in plain, functional Hindi (Devanagari). Written
- *  as shapes and notes were, not lines a brochure would say: short sentences,
- *  digits for numbers, no Sanskritised register and no Latin-script Hinglish
- *  in the chrome (`CLAUDE.md`'s own rule for the OTHER product's persona
- *  applies to app copy for a different reason here — a follower who reads
- *  Hindi is reading a menu, not a companion, and a menu that performs warmth
- *  in a register nobody speaks reads as a translation rather than a product). */
-const HI: typeof EN = {
-  loading: "रूम खुल रहा है",
+export type RoomCopy = typeof EN;
 
-  unavailable: {
-    title: "यह रूम अभी उपलब्ध नहीं है",
-    body: "लिंक पुराना हो सकता है, या क्रिएटर ने इसे रोक दिया हो। और कुछ गलत नहीं हुआ।",
-  },
+// ── the copy table: English now, Hindi as TWO independently-lazy chunks
+//    (WS-R139) ─────────────────────────────────────────────────────────────
+// The Hindi entry is one Proxy over TWO sections that install
+// independently: `hiTalkCopy.ts` — every section the Room's own component
+// tree reads on the way INTO a talk (the join/taste screens, the
+// conversation itself, the always-visible top bar, including the button
+// LABELS that open the five secondary screens below) — and `hiCopy.ts`, the
+// remainder: sections read only inside those secondary screens once
+// actually opened (`dormancy`, `referral`, `payReceipt`, `exportReadable`,
+// `subscriptionMandate`, `referralReward`, `quietHours` — all five of
+// AccountPage.tsx's/SubscriptionPanel.tsx's own detail, never surfaced
+// anywhere in the always-visible chrome). `RoomApp.tsx`'s own header on why
+// `account`/`checkins`/`handoff`/`subscription`/`menu`/`settingsReminder`
+// stayed in the TALK half despite belonging to a "secondary screen": each
+// carries at least one string the always-visible top bar (or, for
+// `settingsReminder`, a banner on the talk screen itself) reads before any
+// dialog ever opens, so splitting them at the FIELD level would need a
+// second prop-threading pass this workstream's measured savings did not
+// justify — the split is by SECTION, `hiAuthCopy.ts`/`hiCopy.ts`'s own
+// precedent in `src/studio/copy.ts`, restated here.
+//
+// Reading a key from a section not yet installed THROWS, never falls back
+// to English silently: `room_copy_hi_talk_not_loaded` for a TALK-section
+// key, `room_copy_hi_not_loaded` for a REST one, so a stack trace says
+// which chunk is missing and which loader installs it. `RoomApp.tsx`
+// renders nothing (`if (!talkReady) return null`, placed after every hook
+// so the hook count never changes between renders) until
+// `roomTalkCopyReady(locale)` is true — only the TALK section needs to be
+// ready for the screen every follower reaches first. `loadRoomCopy`
+// installs BOTH sections, used by `evals/room-locale`'s key-parity check,
+// `layoutFixture.tsx`'s glyph pass, and anywhere else the WHOLE table is
+// read at once.
+const TALK_KEYS = [
+  "loading", "unavailable", "offline", "install", "join", "taste", "memory",
+  "conversation", "flag", "threads", "quota", "voice", "pay", "subscription",
+  "offer", "capOffer", "pulse", "stats", "share", "menu", "errors", "account",
+  "settingsReminder", "checkins", "handoff", "about",
+] as const;
 
-  offline: {
-    title: "आप ऑफ़लाइन हैं",
-    body: "बात करने के लिए इस रूम को इंटरनेट चाहिए। दोबारा जुड़ते ही यह वहीं से शुरू होगा जहां आपने छोड़ा था।",
-    retry: "फिर कोशिश करें",
-  },
+export type RoomTalkCopy = Pick<RoomCopy, (typeof TALK_KEYS)[number]>;
+export type RoomRestCopy = Omit<RoomCopy, (typeof TALK_KEYS)[number]>;
 
-  install: {
-    title: "{name} AI को अपनी होम स्क्रीन पर जोड़ें",
-    body: "इसे सीधे ऐप की तरह खोलें, अपने फ़ोन से। दोबारा टैब ढूंढने की ज़रूरत नहीं।",
-    cta: "होम स्क्रीन पर जोड़ें",
-    dismiss: "अभी नहीं",
-    iosTitle: "{name} AI को अपनी होम स्क्रीन पर जोड़ें",
-    iosBody: "शेयर आइकन दबाएं, फिर \"होम स्क्रीन पर जोड़ें\" चुनें।",
-    iosDismiss: "ठीक है",
-  },
+const TALK_SECTIONS = new Set<string>(TALK_KEYS);
 
-  join: {
-    title: "{name} AI से जुड़ें",
-    lede: "पहले दो सवाल। हर एक में बस एक टैप लगेगा, और दोबारा नहीं पूछा जाएगा।",
-    signIn: "साइन इन करें ताकि अगली बार भी यह आप ही हों।",
-    phoneLabel: "फ़ोन नंबर",
-    phonePlaceholder: "+91",
-    codeLabel: "6 अंकों का कोड",
-    sendCode: "मुझे कोड भेजें",
-    verify: "जारी रखें",
-    google: "Google से जारी रखें",
-    resend: "फिर से भेजें",
-    age: "मेरी उम्र 18 साल या उससे ज़्यादा है।",
-    ageWhy: "यह रूम वयस्कों के लिए है। सही सुरक्षा वाला छात्र ऐप एक अलग उत्पाद है।",
-    submit: "बात शुरू करें",
-    working: "एक पल",
-  },
+const hiInstalled: Partial<RoomCopy> = {};
 
-  taste: {
-    lede: "साइन इन करने से पहले {name} AI से एक सवाल पूछें। यहां कही बात रखी नहीं जाती।",
-    placeholder: "कुछ पूछें",
-    send: "भेजें",
-    thinking: "लिख रहे हैं",
-    join: "बात जारी रखने के लिए जुड़ें",
-    turnsLeftOne: "जुड़ने से पहले एक और सवाल बचा है।",
-    turnsLeft: "जुड़ने से पहले {n} और सवाल बचे हैं।",
-    spent: "आज के लिए तीन सवाल हो गए। बात जारी रखने के लिए जुड़ें।",
-    rateLimited: "इस कनेक्शन से आज के लिए इतने सवाल काफ़ी हैं। बात जारी रखने के लिए जुड़ें।",
+/** Every leaf `RoomApp.tsx`/`AccountPage.tsx`/etc. read off `ROOM_COPY_TABLE.hi`
+ *  before this split read off ONE eager object; this Proxy is that same
+ *  object's drop-in replacement, filled in by whichever loader below has run.
+ *  The `ownKeys`/`getOwnPropertyDescriptor`/`has` traps mirror `hiInstalled`'s
+ *  REAL keys (never the empty target's), so `Object.keys`/`for...in` —
+ *  `evals/room-locale`'s own key-parity walk, `layoutFixture.tsx`'s
+ *  `flattenHiStrings` — see the real, currently-installed keys rather than
+ *  zero forever. Every reported key is `configurable: true`, which is what
+ *  keeps this a spec-legal Proxy despite `ownKeys` naming properties the
+ *  target itself never has. */
+const HI_NOT_LOADED: RoomCopy = new Proxy({} as RoomCopy, {
+  get(_target, key) {
+    if (key === "then" || typeof key === "symbol") return undefined;
+    if (Object.prototype.hasOwnProperty.call(hiInstalled, key)) {
+      return (hiInstalled as Record<string, unknown>)[key as string];
+    }
+    const isTalk = TALK_SECTIONS.has(String(key));
+    throw new Error(
+      `room_copy_hi_${isTalk ? "talk_" : ""}not_loaded: read of ${String(key)} before ` +
+        (isTalk ? `loadRoomTalkCopy("hi")` : `loadRoomCopy("hi")`),
+    );
   },
-
-  memory: {
-    title: "क्या यह आपको याद रखे?",
-    lede: "इसका मतलब है कि यह वहीं से बात शुरू करे जहां आपने छोड़ी थी। इसके लिए इसे कुछ बातें याद रखनी होंगी।",
-    keeps: [
-      "आप दोनों ने क्या बात की, ताकि आपको दोबारा शुरुआत न करनी पड़े।",
-      "आप अपने बारे में क्या बताते हैं: आपके लक्ष्य, आपकी सीमाएं, छोटी बातें भी।",
-      "आपने कौन से विषय खोल रखे हैं, ताकि तीन हफ्ते बाद का सवाल भी सही जगह पहुंचे।",
-    ],
-    only: "यह सिर्फ इसलिए रखा जाता है ताकि यह आपको याद रख सके, और किसी और काम के लिए नहीं। यह कभी बेचा नहीं जाता और विज्ञापन के लिए इस्तेमाल नहीं होता।",
-    private: "{name} इसे नहीं पढ़ते। {name} AI से बात करने वाला कोई और इसमें से कुछ भी नहीं देख सकता।",
-    undo: "आप इसे बाद में, इसी रूम से, कभी भी वापस ले सकते हैं।",
-    yes: "हां, मुझे याद रखें",
-    no: "अभी नहीं",
-    noMeans:
-      "यह फिर भी आपसे बात करेगा। कुछ भी सेव नहीं होगा, इसलिए हर बार आने पर यह नई शुरुआत होगी, और टैब बंद करते ही यह बातचीत खत्म हो जाएगी।",
+  has(_target, key) {
+    return Object.prototype.hasOwnProperty.call(hiInstalled, key);
   },
-
-  conversation: {
-    placeholder: "कुछ भी पूछें",
-    send: "भेजें",
-    thinking: "लिख रहे हैं",
-    whereFrom: "यह जानकारी कहां से आई?",
-    citedFrom: "यह {name} की अपनी सामग्री से है।",
-    citedNone: "यह {name} की अपनी सामग्री से है।",
-    notRemembering: "यह रूम आपको याद नहीं रख रहा। इसे मेन्यू से कभी भी चालू करें।",
+  ownKeys(_target) {
+    return Reflect.ownKeys(hiInstalled);
   },
-
-  flag: {
-    buttonLabel: "फ़्लैग करें",
-    sheetTitle: "इस जवाब में क्या गलत है?",
-    reasons: {
-      wrong: "यह गलत है",
-      harmful: "यह हानिकारक है",
-      not_them: "यह उनकी तरह नहीं लगता",
-      other: "कुछ और",
-    },
-    cancel: "रद्द करें",
-    submitting: "फ़्लैग किया जा रहा है...",
-    done: "फ़्लैग हो गया। क्रिएटर की समीक्षा में भेज दिया गया है।",
-    alreadyFlagged: "आपने यह जवाब पहले ही फ़्लैग कर दिया है।",
-    error: "फ़्लैग भेजा नहीं जा सका। दोबारा कोशिश करें।",
-    withdraw: "यह फ़्लैग वापस लें",
-    withdrawing: "वापस लिया जा रहा है...",
-    withdrawn: "फ़्लैग वापस ले लिया गया।",
-    accountTitle: "आपने क्या फ़्लैग किया है",
-    accountEmpty: "आपने इस रूम में कुछ भी फ़्लैग नहीं किया है।",
+  getOwnPropertyDescriptor(_target, key) {
+    if (!Object.prototype.hasOwnProperty.call(hiInstalled, key)) return undefined;
+    return { enumerable: true, configurable: true, value: (hiInstalled as Record<string | symbol, unknown>)[key] };
   },
-
-  threads: {
-    title: "विषय",
-    all: "सभी",
-    create: "नया विषय",
-    namePlaceholder: "नाम दें",
-    nameHelp: "फिटनेस, पोषण, जो भी आप कहना चाहें। यह सिर्फ आपको दिखता है।",
-    save: "जोड़ें",
-  },
-
-  quota: {
-    left: "इस महीने आपके {included} में से {n} मुफ़्त संदेश बचे हैं।",
-    lastOne: "यह इस महीने का आपका आख़िरी मुफ़्त संदेश था।",
-    capped: {
-      title: "आपके इस महीने के मुफ़्त संदेश खत्म हो गए",
-      body: "यह अगले महीने की शुरुआत में फिर मिलेंगे। आपने जो भी कहा है वह अभी भी यहां है।",
-    },
-  },
-
-  voice: {
-    play: "चलाएं",
-    playing: "चल रहा है",
-    minutesLeft: "इस महीने {included} में से {used} वॉइस मिनट इस्तेमाल हुए।",
-    freeOnly: "वॉइस जवाब एक पेड सुविधा है।",
-    unavailable: "इस रूम की वॉइस अभी तैयार नहीं है।",
-  },
-
-  pay: {
-    cta: "अपग्रेड करें",
-    working: "एक पल",
-    notConfigured: "इस रूम के लिए पेड सपोर्ट अभी चालू नहीं है।",
-    priceNotSet: "क्रिएटर ने इस रूम के लिए अभी कीमत तय नहीं की है।",
-    noLink: "एक शुरुआत पहले से दर्ज है, पर अभी खोलने के लिए कोई पेमेंट लिंक नहीं है।",
-    failed: "अभी शुरू नहीं हो सका। एक पल बाद फिर कोशिश करें।",
-    mandateNote:
-      "इससे {price} महीने का UPI Autopay मैनडेट शुरू होता है। पहला भुगतान आज होता है, उसके बाद हर महीने वही राशि " +
-      "अपने आप कट जाती है। आप इसे कभी भी अपने UPI ऐप से रोक सकते हैं, और अपने UPI ऐप से या यहां से रद्द कर सकते हैं।",
-    mandateNoteNoPrice:
-      "इससे एक UPI Autopay मैनडेट शुरू होता है। पहला भुगतान आज होता है, उसके बाद हर महीने वही राशि अपने आप कट जाती है। " +
-      "आप इसे कभी भी अपने UPI ऐप से रोक सकते हैं, और अपने UPI ऐप से या यहां से रद्द कर सकते हैं।",
-  },
-
-  subscription: {
-    title: "आपकी सदस्यता",
-    open: "मैनेज करें",
-    tierFree: "आप मुफ़्त प्लान पर हैं।",
-    tierPaid: "आप एक पेड फॉलोअर हैं।",
-    renewsOn: "{date} को {price} में नवीनीकृत होगी।",
-    renewsOnNoPrice: "{date} को नवीनीकृत होगी।",
-    willNotRenew: "{date} के बाद नवीनीकृत नहीं होगी। तब तक बात जारी रख सकते हैं।",
-    cancel: "रद्द करें",
-    cancelConfirm: "नवीनीकरण रोकें? ऊपर दी गई तारीख तक बात जारी रख सकते हैं।",
-    cancelYes: "हां, रोक दें",
-    cancelNo: "रहने दें",
-    cancelWorking: "एक पल",
-    cancelDone: "हो गया। यह नवीनीकृत नहीं होगी।",
-    cancelFailed: "अभी नहीं हो सका। एक पल बाद फिर कोशिश करें।",
-    close: "बंद करें",
-  },
-
-  offer: {
-    title: "यह एक असली बातचीत जैसा लगा",
-    body: "{name} AI से पेड फॉलोअर के तौर पर बात जारी रखें, {price} प्रति महीना।",
-    bodyNoPrice: "{name} AI से पेड फॉलोअर के तौर पर बात जारी रखें।",
-    continueFree: "मुफ़्त जारी रखें",
-    subscribe: "सब्सक्राइब करें",
-  },
-
-  capOffer: {
-    title: "इंतज़ार छोड़ें",
-    body: "सब्सक्राइब करें और अभी {name} AI से बात जारी रखें, {price} प्रति महीना।",
-    bodyNoPrice: "सब्सक्राइब करें और अभी {name} AI से बात जारी रखें।",
-    continue: "अगले महीने जारी रखें",
-    subscribe: "सब्सक्राइब करें",
-  },
-
-  pulse: {
-    on: "इसे गिनने दें",
-    off: "गिना गया",
-    working: "एक पल",
-    explain:
-      "अगर आप इसे चालू करते हैं, तो यह विषय गिना जा सकता है कि लोग {name} से क्या पूछ रहे हैं, पर सिर्फ तब जब कम से कम पांच और फॉलोअर भी ऐसा करें, और कभी भी आपके अपने शब्द नहीं। आप इसे कभी भी वापस बंद कर सकते हैं।",
-  },
-
-  stats: {
-    talkedToday: "आज यहां {n} लोगों ने बात की",
-    talkedTodayOne: "आज यहां 1 व्यक्ति ने बात की",
-  },
-
-  share: {
-    button: "शेयर करें",
-    copied: "लिंक कॉपी हो गया।",
-  },
-
-  menu: {
-    title: "आपका डेटा",
-    download: "इसके पास आपके बारे में जो कुछ है वह डाउनलोड करें",
-    downloadNote: "एक फ़ाइल जिसमें इस रूम में आपका हिस्सा है, किसी और का कुछ नहीं।",
-    forget: "इसे मुझे भुला दें",
-    forgetNote: "{name} AI के साथ आपकी बातचीत मिटा देता है। आपका अकाउंट और आप जिस किसी और रूम में हैं वह अछूता रहता है।",
-    // WS-R27 (migration 090), Hindi: the same three sentences, same facts.
-    receiptTitle: "आपकी रसीद",
-    receiptBody:
-      "यह इस बात का प्रमाण है कि भूलना पूरा हुआ, और जो कुछ मिटाया गया उसकी गिनती इसमें है। इसमें आपका नाम नहीं है, और इसे बाद में कोई भी नहीं खोज सकता, हम भी नहीं।",
-    receiptSave: "रसीद सहेजें",
-    forgetConfirm: "हां, मुझे भुला दें",
-    forgetCancel: "रहने दें",
-    forgetDone: "हो गया। अब यह आपको नहीं जानता।",
-    close: "बंद करें",
-  },
-
-  errors: {
-    generic: "वह नहीं भेजा जा सका। फिर कोशिश करें।",
-    signIn: "पहले साइन इन करें।",
-    stale: "यह रूम अपडेट हो गया है। बदलाव देखने के लिए फिर लोड करें।",
-    tooLong: "यह एक संदेश में जितना हो सकता है उससे ज़्यादा लंबा है।",
-    // WS-R26, Hindi: same fact, minutes as a digit; Hindi needs no plural marker, so {s} is absent.
-    rateLimited: "इस कनेक्शन से बहुत ज़्यादा कोशिशें हुईं। {minutes} मिनट बाद फिर कोशिश करें।",
-  },
-
-  account: {
-    open: "आपकी सेटिंग्स",
-    title: "आपकी सेटिंग्स",
-    disclosureTitle: "यह रूम क्या है",
-    memoryTitle: "याददाश्त",
-    memoryOn: "यह आपको याद रखता है।",
-    memoryOff: "यह आपको याद नहीं रखता।",
-    memoryEnable: "मुझे याद रखें",
-    memoryDisable: "मुझे याद रखना बंद करें",
-    localeTitle: "भाषा",
-    channelsTitle: "चेक-इन",
-    channelsNote: "बकाया चेक-इन आप तक कहां पहुंच सकता है।",
-    subscriptionTitle: "सब्सक्रिप्शन",
-    subscriptionFree: "आप मुफ़्त प्लान पर हैं।",
-    subscriptionPrice: "{price} प्रति महीना।",
-    subscriptionRenews: "{date} को नवीनीकरण होगा।",
-    subscriptionNoCancel: "यहां से रद्द करना अभी उपलब्ध नहीं है। रद्द करने के लिए क्रिएटर से संपर्क करें।",
-    subscriptionStates: {
-      created: "आपका सब्सक्रिप्शन अभी पुष्ट नहीं हुआ है।",
-      authenticated: "आपका सब्सक्रिप्शन सेट हो रहा है।",
-      active: "आप एक पेड फॉलोअर हैं।",
-      paused: "आपका सब्सक्रिप्शन रोका गया है। अगर आपने इसे अपने UPI ऐप से रोका है, तो पेड फॉलोअर बने रहने के लिए वहीं से इसे फिर शुरू करें।",
-      halted: "आपका पिछला भुगतान नहीं हो पाया। अपना UPI ऐप जांचें, या अगर यह बार-बार हो रहा है तो क्रिएटर से संपर्क करें।",
-      cancelled: "आपका सब्सक्रिप्शन खत्म हो गया है।",
-      expired: "आपका सब्सक्रिप्शन खत्म हो गया है।",
-    },
-    dataTitle: "आपका डेटा",
-    close: "बंद करें",
-  },
-
-  settingsReminder: {
-    note: "आपने {date} से अपनी सेटिंग्स नहीं देखीं।",
-    review: "अपनी सेटिंग्स देखें",
-  },
-
-  checkins: {
-    title: "चेक-इन",
-    intro: "एक चेक-इन और एक समय चुनें। यह इसी रूम में, आपके चुने समय पर फॉलो-अप करेगा।",
-    empty: "इस क्रिएटर ने अभी कोई चेक-इन सेट नहीं किया है।",
-    daysLabel: "कौन से दिन",
-    timeLabel: "कौन सा समय",
-    zoneLabel: "आपका टाइमज़ोन",
-    quietLabel: "इसके बीच नहीं",
-    quietFromLabel: "से",
-    quietToLabel: "तक",
-    add: "यह चेक-इन शुरू करें",
-    mineTitle: "आपके चेक-इन",
-    mineEmpty: "अभी कोई नहीं।",
-    stop: "रोकें",
-    stopped: "रुक गया",
-    close: "बंद करें",
-    pushEnable: "इस फ़ोन पर चेक-इन की अनुमति दें",
-    pushDisable: "बंद करें",
-    pushOnCopy: "रूम बंद होने पर भी एक बकाया चेक-इन इस फ़ोन तक पहुंचेगा।",
-    pushOffCopy: "नोटिफ़िकेशन चालू करें ताकि रूम बंद होने पर भी बकाया चेक-इन इस फ़ोन तक पहुंचे।",
-    pushError: "वह चालू नहीं हो सका। अपने ब्राउज़र की नोटिफ़िकेशन अनुमति जांचें और फिर कोशिश करें।",
-    waTitle: "व्हाट्सएप पर चेक-इन",
-    waPhoneLabel: "व्हाट्सएप नंबर",
-    waPhonePlaceholder: "+91XXXXXXXXXX",
-    waSave: "सहेजें",
-    waDisable: "बंद करें",
-    waOnCopy: "चेक-इन व्हाट्सएप पर {phone} को जाते हैं।",
-    waOffCopy: "एक नंबर जोड़ें, बकाया चेक-इन व्हाट्सएप पर भी पहुंचेगा।",
-    waError: "वह नहीं भेजा जा सका। नंबर जांचें और फिर कोशिश करें।",
-    waPhoneInvalid: "देश कोड सहित नंबर डालें, जैसे +91XXXXXXXXXX।",
-    tgTitle: "टेलीग्राम पर चेक-इन",
-    tgOnCopy: "चेक-इन टेलीग्राम पर वहीं पहुंचते हैं जहां आप पहले से बात करते हैं।",
-    tgOffCopy: "इसे चालू करें, बकाया चेक-इन टेलीग्राम पर भी पहुंचेगा।",
-    tgStoppedCopy: "टेलीग्राम ने इस बॉट से संदेश लेना बंद कर दिया। ठीक होने पर इसे फिर चालू करें।",
-    tgEnable: "चालू करें",
-    tgDisable: "बंद करें",
-    tgError: "वह नहीं भेजा जा सका। फिर कोशिश करें।",
-  },
-
-  handoff: {
-    title: "{name} से सीधे पूछें",
-    intro: "आप तय करते हैं कि क्या भेजा जाए, भेजने से पहले आप उसे देखते हैं, और सिर्फ {name} आपका जवाब देखते हैं।",
-    pickIntro: "अपने कुछ संदेश चुनें, या नीचे कुछ नया लिखें।",
-    noteLabel: "या कुछ नया लिखें",
-    next: "क्या भेजा जाएगा देखें",
-    confirmIntro: "यह बिल्कुल वही है जो भेजा जाएगा, शब्द दर शब्द।",
-    confirmExplain: "{name} इसे पढ़ेंगे और यहीं, इसी थ्रेड में, {name} के नाम से जवाब देंगे।",
-    send: "यह भेजें",
-    back: "वापस",
-    sentConfirm: "भेज दिया। जवाब आने पर आप उसे यहीं देखेंगे।",
-    withdraw: "वापस ले लें",
-    sentStatus: "भेजा गया, जवाब का इंतज़ार है।",
-    withdrawnStatus: "आपने इसे वापस ले लिया।",
-    answeredFrom: "{name} की ओर से:",
-  },
-
-  dormancy: {
-    note: "आपकी आख़िरी विज़िट के {duration} बाद तक रखा जाएगा।",
-  },
-
-  referral: {
-    title: "किसी दोस्त को लाएं",
-    note: "यह लिंक शेयर करें। अगर कोई दोस्त इससे जुड़ता है, तो क्रिएटर को सिर्फ इतना पता चलता है कि एक दोस्त आया - कभी यह नहीं कि कौन।",
-    copy: "लिंक कॉपी करें",
-    copied: "कॉपी हो गया",
-  },
-
-  payReceipt: {
-    title: "रसीदें",
-    empty: "अभी तक कोई भुगतान नहीं।",
-    print: "प्रिंट करें",
-    loadError: "आपकी रसीदें लोड नहीं हो सकीं। फिर से कोशिश करें।",
-  },
-
-  about: {
-    linkLabel: "यह AI आपके बारे में क्या जानता है",
-  },
-
-  exportReadable: {
-    open: "पढ़ने लायक कॉपी खोलें",
-    openNote: "डाउनलोड जैसी ही जानकारी, पढ़ने और प्रिंट करने के लिए तैयार।",
-  },
-
-  // WS-R125 (migration 130). See EN's own `subscriptionMandate` block.
-  subscriptionMandate: {
-    pausedLabel: "आपका भुगतान रुका हुआ है।",
-    pausedBody: "अपनी सदस्यता सक्रिय रखने के लिए इसे अपने UPI ऐप में फिर से शुरू करें।",
-    haltedLabel: "आपके भुगतान मैनडेट पर ध्यान देना ज़रूरी है।",
-    haltedBody: "कई कोशिशों के बाद भी इसे नवीनीकृत नहीं किया जा सका। जारी रखने के लिए अपने UPI ऐप से एक नया मैनडेट शुरू करें।",
-  },
-  referralReward: {
-    progress: (n: number, threshold: number) => `अब तक ${threshold} में से ${n} दोस्त जुड़े और उन्होंने भुगतान किया।`,
-    granted: (dateLabel: string) => `आपने ${dateLabel} को एक मुफ़्त महीना कमाया - दोस्तों को लाने के लिए धन्यवाद।`,
-  },
-  quietHours: {
-    label: "शांत समय",
-    summary: "{zone} में {from} से {to}",
-    everyChannelNote: "यह हर उस चैनल पर लागू होता है जिससे यह AI आप तक पहुंच सकता है: पुश, व्हाट्सएप और टेलीग्राम।",
-    none: "आपने अभी तक शांत समय नहीं चुना। अगली बार चेक-इन शुरू करते समय इसे चुनें।",
-  },
-};
+});
 
 /** The one export components read from. `evals/room-locale/run.mjs` asserts
  *  `Object.keys(ROOM_COPY_TABLE.en)` deep-equals `Object.keys(ROOM_COPY_TABLE.hi)`
  *  at every level, against this REAL export — not a hand-maintained list that
  *  could drift the moment a key is added to one locale and not the other. */
-export const ROOM_COPY_TABLE: Record<RoomLocale, typeof EN> = { en: EN, hi: HI };
+export const ROOM_COPY_TABLE: Record<RoomLocale, RoomCopy> = { en: EN, hi: HI_NOT_LOADED };
 
-export type RoomCopy = typeof EN;
+const TALK_LOADED: Record<RoomLocale, boolean> = { en: true, hi: false };
+const REST_LOADED: Record<RoomLocale, boolean> = { en: true, hi: false };
+let hiTalkLoading: Promise<RoomTalkCopy> | null = null;
+let hiRestLoading: Promise<RoomRestCopy> | null = null;
+
+function pickTalk(table: RoomCopy): RoomTalkCopy {
+  const {
+    loading, unavailable, offline, install, join, taste, memory, conversation,
+    flag, threads, quota, voice, pay, subscription, offer, capOffer, pulse,
+    stats, share, menu, errors, account, settingsReminder, checkins, handoff, about,
+  } = table;
+  return {
+    loading, unavailable, offline, install, join, taste, memory, conversation,
+    flag, threads, quota, voice, pay, subscription, offer, capOffer, pulse,
+    stats, share, menu, errors, account, settingsReminder, checkins, handoff, about,
+  };
+}
+
+/** True once the TALK section is installed for `locale` — the gate
+ *  `RoomApp.tsx` waits on before rendering anything. Ready immediately for
+ *  English; for Hindi, ready once `hiTalkCopy.ts` has landed, well before
+ *  the (smaller, but not needed on the way in) rest of the table. */
+export function roomTalkCopyReady(locale: RoomLocale): boolean {
+  return TALK_LOADED[normalizeLocale(locale)];
+}
+
+/** True once `ROOM_COPY_TABLE[locale]` is the WHOLE real table — both
+ *  sections installed. */
+export function roomCopyReady(locale: RoomLocale): boolean {
+  const safe = normalizeLocale(locale);
+  return TALK_LOADED[safe] && REST_LOADED[safe];
+}
+
+/** Installs ONLY the TALK section, from its own chunk (`hiTalkCopy.ts` for
+ *  Hindi; already real for English). Idempotent; concurrent callers share
+ *  one in-flight import. This is the loader `RoomApp.tsx` awaits before
+ *  rendering anything, and `main.tsx`'s own early call for a Hindi Room
+ *  request (`vite.config.ts`'s `roomHindiPreloadPlugin` preloads this exact
+ *  chunk). */
+export function loadRoomTalkCopy(locale: RoomLocale): Promise<RoomTalkCopy> {
+  const safe = normalizeLocale(locale);
+  if (TALK_LOADED[safe]) {
+    return Promise.resolve(pickTalk(ROOM_COPY_TABLE[safe]));
+  }
+  if (!hiTalkLoading) {
+    hiTalkLoading = import("./hiTalkCopy").then((mod) => {
+      Object.assign(hiInstalled, mod.HI_TALK);
+      TALK_LOADED.hi = true;
+      return mod.HI_TALK;
+    });
+  }
+  return hiTalkLoading;
+}
+
+/** Installs the WHOLE table for `locale`: the TALK section (if not already
+ *  installed) and the rest, from its own chunk (`hiCopy.ts`). Every caller
+ *  from before this split (`evals/room-locale`, `layoutFixture.tsx`) keeps
+ *  working unchanged — this function now installs two chunks instead of
+ *  one, never fewer keys than it used to. */
+export function loadRoomCopy(locale: RoomLocale): Promise<RoomCopy> {
+  const safe = normalizeLocale(locale);
+  const talkPromise = loadRoomTalkCopy(safe);
+  if (REST_LOADED[safe]) {
+    return talkPromise.then(() => ROOM_COPY_TABLE[safe]);
+  }
+  if (!hiRestLoading) {
+    hiRestLoading = import("./hiCopy").then((mod) => {
+      Object.assign(hiInstalled, mod.HI);
+      REST_LOADED.hi = true;
+      return mod.HI;
+    });
+  }
+  return Promise.all([talkPromise, hiRestLoading]).then(() => ROOM_COPY_TABLE[safe]);
+}
 
 /** Anything that is not exactly `"hi"` reads as `"en"` — a Telegram
  *  `language_code` of `"en-US"`, `"mr"`, `"fr"`, an absent value, or garbage

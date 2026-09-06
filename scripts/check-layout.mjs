@@ -1003,12 +1003,26 @@ async function main() {
           const opener = page.locator(`[data-dialog-open="${step}"]`);
           if (await opener.count().catch(() => 0)) {
             await opener.click();
-            // A generous margin over a smooth scroll's own duration (the
-            // hook's default, `prefers-reduced-motion` unset at this point
-            // in the run) - the bounding-box check below depends on the
-            // scroll having actually finished, unlike the focus check,
-            // which is synchronous with the effect that starts it.
-            await page.waitForTimeout(700);
+            // WS-R139: `checkins`/`handoff` are `React.lazy` chunks now
+            // (RoomApp.tsx's own header) — a fixed 700ms budget used to be
+            // a generous margin over a smooth scroll's own duration alone,
+            // but now some of it is spent on the chunk's own first fetch +
+            // parse before the dialog (and its `useDialogInView` scroll
+            // effect) exist at all, which can eat into or exceed a single
+            // fixed sleep under load. Polled instead: wait for the dialog
+            // to MOUNT, then for its bounding box to actually intersect
+            // the viewport, each with its own generous timeout, so a slow
+            // chunk load and a slow scroll are each given real room rather
+            // than sharing one guessed budget. The focus check right after
+            // stays synchronous with the mount (`useDialogInView`'s own
+            // property, unchanged) — only the SCROLL needed polling.
+            await page.waitForSelector(`.room-${step}[role="dialog"]`, { timeout: 5000 }).catch(() => {});
+            await page.waitForFunction((cls) => {
+              const el = document.querySelector(`.room-${cls}[role="dialog"]`);
+              if (!el) return false;
+              const r = el.getBoundingClientRect();
+              return r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
+            }, step, { timeout: 3000 }).catch(() => {});
             const seen = await page.evaluate((cls) => {
               const el = document.querySelector(`.room-${cls}[role="dialog"]`);
               if (!el) return { opened: false, inView: false, focusInside: false };

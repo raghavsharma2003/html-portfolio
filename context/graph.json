@@ -153,12 +153,12 @@
     {
       "id": "persona",
       "kind": "component",
-      "title": "persona.ts \u2014 where her personality lives"
+      "title": "persona.ts — where her personality lives"
     },
     {
       "id": "inner",
       "kind": "component",
-      "title": "inner.ts \u2014 carried feeling, wants, taste, mood arc"
+      "title": "inner.ts — carried feeling, wants, taste, mood arc"
     },
     {
       "id": "memory-graph",
@@ -511,19 +511,19 @@
     {
       "id": "free-pool-capacity",
       "kind": "measurement",
-      "title": "Free pool ceiling ~75 calls/day; fresh incumbent trips its own Devanagari hard-fail (1/74) \u2014 axis recalibration flagged",
+      "title": "Free pool ceiling ~75 calls/day; fresh incumbent trips its own Devanagari hard-fail (1/74) — axis recalibration flagged",
       "at": "2026-08-15"
     },
     {
       "id": "deepseek-pro-judge",
       "kind": "measurement",
-      "title": "DeepSeek-V4-Pro FAILS judging: 30.9% pooled CI[22.4,40.8], same slot-A pathology as Flash \u2014 family out at any size",
+      "title": "DeepSeek-V4-Pro FAILS judging: 30.9% pooled CI[22.4,40.8], same slot-A pathology as Flash — family out at any size",
       "at": "2026-08-15"
     },
     {
       "id": "mistral-judge",
       "kind": "measurement",
-      "title": "Mistral-Large-3 FAILS judging: 29.2% pooled, 90% slot-A \u2014 most extreme position bias measured",
+      "title": "Mistral-Large-3 FAILS judging: 29.2% pooled, 90% slot-A — most extreme position bias measured",
       "at": "2026-08-15"
     },
     {
@@ -559,13 +559,13 @@
     {
       "id": "relstate-zero-rows",
       "kind": "measurement",
-      "title": "vy_rel_state: 0 rows for 40 persons \u2014 UPDATE-writers with no INSERT owner; whole relational surface silently invisible",
+      "title": "vy_rel_state: 0 rows for 40 persons — UPDATE-writers with no INSERT owner; whole relational surface silently invisible",
       "at": "2026-08-15"
     },
     {
       "id": "felt-wiring-landed",
       "kind": "measurement",
-      "title": "Write half shipped: upserts, WE classification+backfill, day-1 seed, currency op, closeness card \u2014 deployed 4/4",
+      "title": "Write half shipped: upserts, WE classification+backfill, day-1 seed, currency op, closeness card — deployed 4/4",
       "at": "2026-08-15"
     },
     {
@@ -577,7 +577,7 @@
     {
       "id": "r4-english-control",
       "kind": "measurement",
-      "title": "English translation does not rescue judges (recovery within noise floor) \u2014 failure is deeper than code-switching",
+      "title": "English translation does not rescue judges (recovery within noise floor) — failure is deeper than code-switching",
       "at": "2026-08-18"
     },
     {
@@ -595,7 +595,7 @@
     {
       "id": "ground-truth-ceiling",
       "kind": "measurement",
-      "title": "opus-4.8 self-agreement 77.1% [67.7,84.4] \u2014 the 80% bar exceeds its own ground truth's ceiling; opus-5 100% on 17 parsed but INVALID (reasoning trap)",
+      "title": "opus-4.8 self-agreement 77.1% [67.7,84.4] — the 80% bar exceeds its own ground truth's ceiling; opus-5 100% on 17 parsed but INVALID (reasoning trap)",
       "at": "2026-08-18"
     },
     {
@@ -613,7 +613,7 @@
     {
       "id": "r2-axis-decomposition",
       "kind": "measurement",
-      "title": "Per-axis judge failure partially concentrates: brevity a clustered-CI outlier (55.2%), humour indistinguishable from specificity/personhood \u2014 three tiers, not the predicted binary; every axis still fails 80% bar",
+      "title": "Per-axis judge failure partially concentrates: brevity a clustered-CI outlier (55.2%), humour indistinguishable from specificity/personhood — three tiers, not the predicted binary; every axis still fails 80% bar",
       "at": "2026-08-18"
     },
     {
@@ -643,7 +643,7 @@
     {
       "id": "age-tier-never-realtime",
       "kind": "rejection",
-      "title": "The second assembler dropped FORGET_DECISION and AGE_TIER_SAFETY_OVERRIDE \u2014 a safety rule never reached the realtime lane",
+      "title": "The second assembler dropped FORGET_DECISION and AGE_TIER_SAFETY_OVERRIDE — a safety rule never reached the realtime lane",
       "at": "2026-08-20"
     },
     {
@@ -655,7 +655,7 @@
     {
       "id": "startup-failure-is-invisible",
       "kind": "rejection",
-      "title": "secrets in a job-level if: makes the whole workflow invalid \u2014 15 red runs, 0 jobs, 9 days with no auto-deploy",
+      "title": "secrets in a job-level if: makes the whole workflow invalid — 15 red runs, 0 jobs, 9 days with no auto-deploy",
       "at": "2026-08-20"
     },
     {
@@ -757,7 +757,7 @@
     {
       "id": "logged-but-unindexed",
       "kind": "rejection",
-      "title": "16 entries written up with no graph row \u2014 --check validated one direction only",
+      "title": "16 entries written up with no graph row — --check validated one direction only",
       "at": "2026-08-20"
     },
     {
@@ -793,7 +793,7 @@
     {
       "id": "manifest-sourcestatus",
       "kind": "rejection",
-      "title": "sourceStatus reports wired against a compile that rendered 0 of 3 blocks \u2014 an anti-signal, not a weak one",
+      "title": "sourceStatus reports wired against a compile that rendered 0 of 3 blocks — an anti-signal, not a weak one",
       "at": "2026-08-20"
     },
     {
@@ -907,7 +907,7 @@
     {
       "id": "nine-dark-tail-slots",
       "kind": "measurement",
-      "title": "Production: 9 declared tail slots render 0 bytes; only T5/T7/T10/T11 render \u2014 three investigations in one queryable row",
+      "title": "Production: 9 declared tail slots render 0 bytes; only T5/T7/T10/T11 render — three investigations in one queryable row",
       "at": "2026-08-20"
     },
     {
@@ -919,19 +919,19 @@
     {
       "id": "engine-bundle-check-uncalled",
       "kind": "rejection",
-      "title": "build-engine-bundle --check works, caught real drift, and is invoked by nothing \u2014 dead-writers in the guard",
+      "title": "build-engine-bundle --check works, caught real drift, and is invoked by nothing — dead-writers in the guard",
       "at": "2026-08-20"
     },
     {
       "id": "busy-held-across-recursion",
       "kind": "rejection",
-      "title": "the burst branch recursed while still holding `busy`, so the one path written for bursts was the only one that could not reply \u2014 and the chat stayed dead",
+      "title": "the burst branch recursed while still holding `busy`, so the one path written for bursts was the only one that could not reply — and the chat stayed dead",
       "at": "2026-08-21"
     },
     {
       "id": "surface-bypasses-parse",
       "kind": "rejection",
-      "title": "api/_surface.js returns the model's raw string and never calls parseBubbles, so no engine guarantee \u2014 honesty, dash, protocol extraction \u2014 reaches Telegram",
+      "title": "api/_surface.js returns the model's raw string and never calls parseBubbles, so no engine guarantee — honesty, dash, protocol extraction — reaches Telegram",
       "at": "2026-08-21"
     },
     {
@@ -961,7 +961,7 @@
     {
       "id": "proactive-reason-contingent",
       "kind": "decision",
-      "title": "she may text first because something HAPPENED, never because he went quiet \u2014 the test is on the trigger, not the frequency",
+      "title": "she may text first because something HAPPENED, never because he went quiet — the test is on the trigger, not the frequency",
       "at": "2026-08-21"
     },
     {
@@ -1009,7 +1009,7 @@
     {
       "id": "theme-choosable",
       "kind": "decision",
-      "title": "light, dark or follow the phone \u2014 and 'system' stamps no attribute so the media query keeps deciding",
+      "title": "light, dark or follow the phone — and 'system' stamps no attribute so the media query keeps deciding",
       "at": "2026-08-21"
     },
     {
@@ -1021,7 +1021,7 @@
     {
       "id": "gates-that-live-nowhere-2",
       "kind": "rejection",
-      "title": "the eval suite had never run in CI, and could not have \u2014 a gitignored import killed it first",
+      "title": "the eval suite had never run in CI, and could not have — a gitignored import killed it first",
       "at": "2026-08-21"
     },
     {
@@ -1189,7 +1189,7 @@
     {
       "id": "prosody-reads-hearing-not-feeling",
       "kind": "decision",
-      "title": "Usage signals may inform hearing, never feeling; content-vs-usage test in the charter with the \u00a7H reversal",
+      "title": "Usage signals may inform hearing, never feeling; content-vs-usage test in the charter with the §H reversal",
       "at": "2026-08-22"
     },
     {
@@ -1219,7 +1219,7 @@
     {
       "id": "minifier-eats-runtime-tokens",
       "kind": "rejection",
-      "title": "Runtime token reads get the minifier value; entrance never ran; settle truncated \u2014 frame-sampling found all three",
+      "title": "Runtime token reads get the minifier value; entrance never ran; settle truncated — frame-sampling found all three",
       "at": "2026-08-22"
     },
     {
@@ -1376,7 +1376,7 @@
       "id": "sound-layer",
       "kind": "component",
       "at": "2026-08-23",
-      "title": "src/sound/ \u2014 vocabulary, synth, and the one gated path to the speaker"
+      "title": "src/sound/ — vocabulary, synth, and the one gated path to the speaker"
     },
     {
       "id": "sound-browser-2026-08-23",
@@ -1574,7 +1574,7 @@
       "id": "watch-exit-returns-to-live",
       "kind": "decision",
       "at": "2026-08-24",
-      "title": "All three native-watch exits reconnect to live; #96 landed the reconnect but missed watch_consent_denied because a denial is not a stop \u2014 the likeliest path, downgrading the call in exchange for a share that never happened"
+      "title": "All three native-watch exits reconnect to live; #96 landed the reconnect but missed watch_consent_denied because a denial is not a stop — the likeliest path, downgrading the call in exchange for a share that never happened"
     },
     {
       "id": "model-twins-pinned",
@@ -1634,7 +1634,7 @@
       "id": "personality-is-a-sheet",
       "kind": "decision",
       "at": "2026-08-24",
-      "title": "RelationalOS proven: Kabir authored as a 29-field sheet on Maya's core \u2014 412/412 invariants across 2 agents, Maya byte-identical throughout"
+      "title": "RelationalOS proven: Kabir authored as a 29-field sheet on Maya's core — 412/412 invariants across 2 agents, Maya byte-identical throughout"
     },
     {
       "id": "fixed-fuse-on-a-variable-upstream",
@@ -1670,19 +1670,19 @@
       "id": "accent-joins-the-sky",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "sky states carry a sky-solved accent (>=4.75:1 over veiled stops, gated); the theme rose measured 2.26:1 on morning blue \u2014 owner-felt, now structural"
+      "title": "sky states carry a sky-solved accent (>=4.75:1 over veiled stops, gated); the theme rose measured 2.26:1 on morning blue — owner-felt, now structural"
     },
     {
       "id": "residues-zero",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "leak-guard residues 95->0 in three byte-identical batches; ratchet pinned at 0 \u2014 character prose in core is now a build failure"
+      "title": "leak-guard residues 95->0 in three byte-identical batches; ratchet pinned at 0 — character prose in core is now a build failure"
     },
     {
       "id": "never-internals-floor",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "sixth floor category: architecture silence with playful deflection, per-module gated on 4 lanes \u2014 from the live gpt-4o disclosure incident"
+      "title": "sixth floor category: architecture silence with playful deflection, per-module gated on 4 lanes — from the live gpt-4o disclosure incident"
     },
     {
       "id": "session-2026-08-25-close",
@@ -1694,13 +1694,13 @@
       "id": "ws-gamefeel",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "tester defect wave: her-side loop fence, game-idea substrate, board-derived terminal claims, opening variety, adaptive strength \u2014 layer-tagged OS vs engine"
+      "title": "tester defect wave: her-side loop fence, game-idea substrate, board-derived terminal claims, opening variety, adaptive strength — layer-tagged OS vs engine"
     },
     {
       "id": "ws-gamefeel-shipped",
       "kind": "decision",
       "at": "2026-08-25",
-      "title": "defect wave shipped same-day: state-law fence, idea line, weighted variety, adaptive strength, loop fence \u2014 uniform-draw and streamed-line learnings logged"
+      "title": "defect wave shipped same-day: state-law fence, idea line, weighted variety, adaptive strength, loop fence — uniform-draw and streamed-line learnings logged"
     },
     {
       "id": "cache-plateau",
@@ -1785,7 +1785,7 @@
       "id": "watchcost-measured",
       "kind": "measurement",
       "at": "2026-08-25",
-      "title": "watch mode measured \u20b91.1-1.6/min (est. was 2-3x high; video is the smallest component); burst frames collapse; voiceConfig bills +201 audio tokens/turn on every live call"
+      "title": "watch mode measured ₹1.1-1.6/min (est. was 2-3x high; video is the smallest component); burst frames collapse; voiceConfig bills +201 audio tokens/turn on every live call"
     },
     {
       "id": "internals-harden-after",
@@ -1914,7 +1914,7 @@
     {
       "id": "recall-bench-v1",
       "kind": "measurement",
-      "title": "memory recall benchmark harness \u2014 3 dyads, 50 questions, deliberately unmeasured until a keyed run",
+      "title": "memory recall benchmark harness — 3 dyads, 50 questions, deliberately unmeasured until a keyed run",
       "at": "2026-08-26"
     },
     {
@@ -1980,7 +1980,7 @@
     {
       "id": "fake-the-instagram-adapter",
       "kind": "rejection",
-      "title": "an Instagram adapter against credentials that cannot exist \u2014 the gap is App Review, not code",
+      "title": "an Instagram adapter against credentials that cannot exist — the gap is App Review, not code",
       "at": "2026-08-26"
     },
     {
@@ -2095,7 +2095,7 @@
       "id": "statement-shapes-postgres-will-not-parse",
       "kind": "rejection",
       "at": "2026-08-26",
-      "title": "bare FOR UPDATE over a LEFT JOIN, and a referenced data-modifying CTE with no RETURNING \u2014 three shipped statements that could never execute"
+      "title": "bare FOR UPDATE over a LEFT JOIN, and a referenced data-modifying CTE with no RETURNING — three shipped statements that could never execute"
     },
     {
       "id": "coverage-lists-that-enumerate-a-subset",
@@ -2286,7 +2286,7 @@
     {
       "id": "owner-intent-is-the-spec",
       "kind": "decision",
-      "title": "owner states intent; platform fills every gap \u2014 product/UX quality is a hard bar, not polish",
+      "title": "owner states intent; platform fills every gap — product/UX quality is a hard bar, not polish",
       "at": "2026-08-26"
     },
     {
@@ -2616,7 +2616,7 @@
     {
       "id": "copy-law-is-a-gate-not-a-guideline",
       "kind": "decision",
-      "title": "check-copy.mjs enforces DESIGN-LAW \u00a71 mechanically: dash broadly on comment-stripped lines, word bans only on proven-visible strings",
+      "title": "check-copy.mjs enforces DESIGN-LAW §1 mechanically: dash broadly on comment-stripped lines, word bans only on proven-visible strings",
       "at": "2026-08-26"
     },
     {
@@ -4778,7 +4778,7 @@
     {
       "id": "ws-r1-the-room",
       "kind": "component",
-      "title": "The Room \u2014 api/room.js + api/_room-surface.js + src/room/ + migration 071: a follower's private, continuing relationship with a creator's published AI at /r/<slug>",
+      "title": "The Room — api/room.js + api/_room-surface.js + src/room/ + migration 071: a follower's private, continuing relationship with a creator's published AI at /r/<slug>",
       "at": "2026-09-03"
     },
     {
@@ -4862,7 +4862,7 @@
     {
       "id": "ws-r8-leak-battery",
       "kind": "component",
-      "title": "evals/room-leak/run.mjs \u2014 Vyakti Rooms' Phase 1 leak battery, gate0-structural-shaped, gating every push",
+      "title": "evals/room-leak/run.mjs — Vyakti Rooms' Phase 1 leak battery, gate0-structural-shaped, gating every push",
       "at": "2026-09-03"
     },
     {
@@ -4898,7 +4898,7 @@
     {
       "id": "ws-r7-room-publish",
       "kind": "component",
-      "title": "The Room, the creator's side \u2014 api/_room-publish.js + api/room-publish.js + src/studio/RoomStudio.tsx: create/rename/publish/pause/resume/set_free_cap/stats for the owner's vy_room row WS-R1 built a reader for but nothing ever wrote",
+      "title": "The Room, the creator's side — api/_room-publish.js + api/room-publish.js + src/studio/RoomStudio.tsx: create/rename/publish/pause/resume/set_free_cap/stats for the owner's vy_room row WS-R1 built a reader for but nothing ever wrote",
       "at": "2026-09-03"
     },
     {
@@ -5060,7 +5060,7 @@
     {
       "id": "ws-r15-first-room-script",
       "kind": "component",
-      "title": "scripts/first-room.mjs \u2014 one command from consent through the processing DAG, Readiness, the review queue, Room publish, and a second follower session, against the live deployment",
+      "title": "scripts/first-room.mjs — one command from consent through the processing DAG, Readiness, the review queue, Room publish, and a second follower session, against the live deployment",
       "at": "2026-09-03"
     },
     {
@@ -6524,7 +6524,7 @@
     {
       "id": "ws-r46-room-embed",
       "kind": "component",
-      "title": "The Room on a creator's own site \u2014 api/room-embed.js + api/_room-embed.js + vercel.json's /room-embed.js rewrite + src/studio/RoomStudio.tsx's \"On your own site\" card: a dependency-free script (data-room=\"<slug>\") rendering one button, the server's own disclosure text, and a link to /r/<slug>?via=embed in a new tab. No iframe, no migration.",
+      "title": "The Room on a creator's own site — api/room-embed.js + api/_room-embed.js + vercel.json's /room-embed.js rewrite + src/studio/RoomStudio.tsx's \"On your own site\" card: a dependency-free script (data-room=\"<slug>\") rendering one button, the server's own disclosure text, and a link to /r/<slug>?via=embed in a new tab. No iframe, no migration.",
       "at": "2026-09-04"
     },
     {
@@ -6758,7 +6758,7 @@
     {
       "id": "ws-r45-backtick-command-substitution-corrupts-commit-dash-m-messages",
       "kind": "rejection",
-      "title": "A git commit -m message inside a double-quoted shell string, containing backticks around code identifiers, silently lost the backtick-quoted span to bash command substitution (vite build ran and failed, its empty stdout replaced the text) with git commit itself exiting 0 \u2014 fixed by composing the message in a file and using git commit -F.",
+      "title": "A git commit -m message inside a double-quoted shell string, containing backticks around code identifiers, silently lost the backtick-quoted span to bash command substitution (vite build ran and failed, its empty stdout replaced the text) with git commit itself exiting 0 — fixed by composing the message in a file and using git commit -F.",
       "at": "2026-09-04"
     },
     {
@@ -6926,7 +6926,7 @@
     {
       "id": "ws-r41-rfc8291-appendix-a-reproduced-rs-is-a-ceiling-not-exact-length",
       "kind": "decision",
-      "title": "RFC 8291 Appendix A's own vector reproduced byte-for-byte; webpush decoder's rs check widened from exact-match to ceiling per RFC 8291 \u00a74's MUST",
+      "title": "RFC 8291 Appendix A's own vector reproduced byte-for-byte; webpush decoder's rs check widened from exact-match to ceiling per RFC 8291 §4's MUST",
       "at": "2026-09-04"
     },
     {
@@ -6980,13 +6980,13 @@
     {
       "id": "ws-r44-door-battery-case-counts-2026-09-04",
       "kind": "measurement",
-      "title": "evals/room-doors/run.mjs: 297 assertions (was 109), 15 doors (unchanged), 8 named attack classes plus door-list completeness (\u00a70), 6 new dynamic sections (\u00a79-\u00a714) and a computed op-list section (\u00a716), 0 failures, offline, ~1.32s standalone / 1441ms inside verify-release.mjs (was ~1.26s / 1208ms). 0 findings required a fix in a door or decision module; 2 test-harness bugs found and fixed in this workstream's own new code. Gate: 19/19 before and after.",
+      "title": "evals/room-doors/run.mjs: 297 assertions (was 109), 15 doors (unchanged), 8 named attack classes plus door-list completeness (§0), 6 new dynamic sections (§9-§14) and a computed op-list section (§16), 0 failures, offline, ~1.32s standalone / 1441ms inside verify-release.mjs (was ~1.26s / 1208ms). 0 findings required a fix in a door or decision module; 2 test-harness bugs found and fixed in this workstream's own new code. Gate: 19/19 before and after.",
       "at": "2026-09-04"
     },
     {
       "id": "ws-r40-share-and-arrival",
       "kind": "component",
-      "title": "Share and arrival \u2014 api/room-page.js + api/_room-page.js over api/_room-publish.js's publicRoomBySlug (crawler-only unfurl at /r/<slug>, vercel.json bot rewrite), the Room header's Share control (src/room/RoomApp.tsx), api/_room-surface.js's recordRoomArrival/resolveArrivalVia (the arrival upsert), and api/_funnel.js's shareArrivalsThisWeek (the creator's n>=5 floored growth line). Migration 102, vy_room_arrival.",
+      "title": "Share and arrival — api/room-page.js + api/_room-page.js over api/_room-publish.js's publicRoomBySlug (crawler-only unfurl at /r/<slug>, vercel.json bot rewrite), the Room header's Share control (src/room/RoomApp.tsx), api/_room-surface.js's recordRoomArrival/resolveArrivalVia (the arrival upsert), and api/_funnel.js's shareArrivalsThisWeek (the creator's n>=5 floored growth line). Migration 102, vy_room_arrival.",
       "at": "2026-09-04"
     },
     {
@@ -7184,7 +7184,7 @@
     {
       "id": "ws-r55-resvg-devanagari-shaping",
       "kind": "rejection",
-      "title": "@resvg/resvg-js (2.6.2 stable and 2.7.0-alpha.2 prerelease alike) corrupts the ordinary Devanagari consonant+matra+consonant cluster (\"\u092c\u093e\u0924\") and drops spaces adjacent to certain vowel-sign clusters, with the identical current-release font bytes that render correctly through @napi-rs/canvas",
+      "title": "@resvg/resvg-js (2.6.2 stable and 2.7.0-alpha.2 prerelease alike) corrupts the ordinary Devanagari consonant+matra+consonant cluster (\"बात\") and drops spaces adjacent to certain vowel-sign clusters, with the identical current-release font bytes that render correctly through @napi-rs/canvas",
       "at": "2026-09-04"
     },
     {
@@ -7268,7 +7268,7 @@
     {
       "id": "ws-r57-header-route-scope-is-the-six-named-targets-not-every-vercel-json-path",
       "kind": "decision",
-      "title": "vercel.json headers[], check-headers.mjs and evals/ops/run.mjs \u00a76 cover exactly the Room, the studio, /, /vyakti, /suites, /creators and /api/(.*) - the briefs own closed list - not every path vercel.json rewrites (/privacy, /embed.js, /sitemap.xml left uncovered, named as a gap).",
+      "title": "vercel.json headers[], check-headers.mjs and evals/ops/run.mjs §6 cover exactly the Room, the studio, /, /vyakti, /suites, /creators and /api/(.*) - the briefs own closed list - not every path vercel.json rewrites (/privacy, /embed.js, /sitemap.xml left uncovered, named as a gap).",
       "at": "2026-09-04"
     },
     {
@@ -7832,7 +7832,7 @@
     {
       "id": "ws-r69-npci-org-in-unreachable-by-this-sessions-fetch-tool",
       "kind": "rejection",
-      "title": "Six attempts (two HTML pages, two PDFs, cross-checked by WebSearch first) to reach npci.org.in for the UPI Autopay pre-debit notification sender all returned only the bare site-shell title, no body content \u2014 no CDN mirror found the way WS-R60 found one for razorpay.com.",
+      "title": "Six attempts (two HTML pages, two PDFs, cross-checked by WebSearch first) to reach npci.org.in for the UPI Autopay pre-debit notification sender all returned only the bare site-shell title, no body content — no CDN mirror found the way WS-R60 found one for razorpay.com.",
       "at": "2026-09-05"
     },
     {
@@ -8072,7 +8072,7 @@
     {
       "id": "glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words",
       "kind": "rejection",
-      "title": "The layout gate's glyph probe flagged two correct three-consonant Hindi words (\u0917\u0932\u0924, \u0935\u091c\u0939) as tofu because their letters' advances summed to a box-width run; the probe now also requires the base letters to be uniform in width, as only a .notdef run is, and runs a noncharacter control every time.",
+      "title": "The layout gate's glyph probe flagged two correct three-consonant Hindi words (गलत, वजह) as tofu because their letters' advances summed to a box-width run; the probe now also requires the base letters to be uniform in width, as only a .notdef run is, and runs a noncharacter control every time.",
       "at": "2026-09-05"
     },
     {
@@ -8090,7 +8090,7 @@
     {
       "id": "ws-r73-no-distinct-upi-to-card-upgrade-endpoint",
       "kind": "rejection",
-      "title": "Searched for a Razorpay in-place UPI-to-card mandate upgrade endpoint; none exists \u2014 cancel and recreate is the only documented path.",
+      "title": "Searched for a Razorpay in-place UPI-to-card mandate upgrade endpoint; none exists — cancel and recreate is the only documented path.",
       "at": "2026-09-05"
     },
     {
@@ -8120,7 +8120,7 @@
     {
       "id": "ws-r77-glyph-detector-null-uniform-treated-as-flaggable-2026-09-06",
       "kind": "measurement",
-      "title": "\u0938\u092d\u0940 (threads.all) measured 9.6% width-diff with uniform=null against the real Noto Sans Devanagari font, the first time this repo rendered its Hindi corpus through the CSS actual first-choice font.",
+      "title": "सभी (threads.all) measured 9.6% width-diff with uniform=null against the real Noto Sans Devanagari font, the first time this repo rendered its Hindi corpus through the CSS actual first-choice font.",
       "at": "2026-09-06"
     },
     {
@@ -8174,7 +8174,7 @@
     {
       "id": "ws-r80-room-taste-eval-2026-09-05",
       "kind": "measurement",
-      "title": "evals/room-taste/run.mjs: 32 assertions including a new \u00a76 (9 assertions) statically scanning the taste island for its one fetch target, one op literal, and textContent-only rendering, all pass.",
+      "title": "evals/room-taste/run.mjs: 32 assertions including a new §6 (9 assertions) statically scanning the taste island for its one fetch target, one op literal, and textContent-only rendering, all pass.",
       "at": "2026-09-05"
     },
     {
@@ -8222,13 +8222,13 @@
     {
       "id": "ws-r76-self-check-cron-built",
       "kind": "component",
-      "title": "api/self-check.js (migration 120): a daily cron that checks env var presence by name, whether the database answers select 1, whether every migration family the tree ships is present in the live catalog, and whether every other cron has run recently enough \u2014 reporting each failure as a content-free vy_incident row (kind self_check) through the existing incident ledger, with a new Self-check line on the ops board.",
+      "title": "api/self-check.js (migration 120): a daily cron that checks env var presence by name, whether the database answers select 1, whether every migration family the tree ships is present in the live catalog, and whether every other cron has run recently enough — reporting each failure as a content-free vy_incident row (kind self_check) through the existing incident ledger, with a new Self-check line on the ops board.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r76-self-check-reports-through-the-existing-incident-ledger-not-a-second-pipeline",
       "kind": "decision",
-      "title": "Self-check findings are recordIncident rows (kind: self_check) through api/_incidents.js, never a dedicated table or a second board/push path \u2014 migration 120 is one CHECK widening, not a new subsystem.",
+      "title": "Self-check findings are recordIncident rows (kind: self_check) through api/_incidents.js, never a dedicated table or a second board/push path — migration 120 is one CHECK widening, not a new subsystem.",
       "at": "2026-09-05"
     },
     {
@@ -8606,13 +8606,13 @@
     {
       "id": "ws-r81-room-sw-push-kind-coverage-before-after-2026-09-05",
       "kind": "measurement",
-      "title": "evals/room-push/run.mjs \u00a78, real Chromium via CDP ServiceWorker.deliverPushMessage against the real built dist/room-sw.js: after the fix all 3 listed kinds each show one correct notification and an unlisted kind shows none; the exact pre-fix guard reproduced in a second worker at a distinct scope shows NOTHING for the same renewal payload the real worker shows correctly. 69 assertions, 0 failed.",
+      "title": "evals/room-push/run.mjs §8, real Chromium via CDP ServiceWorker.deliverPushMessage against the real built dist/room-sw.js: after the fix all 3 listed kinds each show one correct notification and an unlisted kind shows none; the exact pre-fix guard reproduced in a second worker at a distinct scope shows NOTHING for the same renewal payload the real worker shows correctly. 69 assertions, 0 failed.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r81-dormancy-web-push-now-real-2026-09-05",
       "kind": "measurement",
-      "title": "Before WS-R81, api/_dormancy.js's dormancySweep discarded its own active-subscription read (void pushSubs), 0 sends ever attempted. After: evals/room-dormancy/run.mjs \u00a78 shows exactly 1 send for 1 due follower with 1 active subscription and VAPID configured, carrying t=dormancy and never the room's own dormancy_days value; 0 sends in two negative controls (VAPID unconfigured; no active subscription).",
+      "title": "Before WS-R81, api/_dormancy.js's dormancySweep discarded its own active-subscription read (void pushSubs), 0 sends ever attempted. After: evals/room-dormancy/run.mjs §8 shows exactly 1 send for 1 due follower with 1 active subscription and VAPID configured, carrying t=dormancy and never the room's own dormancy_days value; 0 sends in two negative controls (VAPID unconfigured; no active subscription).",
       "at": "2026-09-05"
     },
     {
@@ -8996,7 +8996,7 @@
     {
       "id": "room-push-chromium-headless-shell-shows-no-notification",
       "kind": "rejection",
-      "title": "The CI release gate on 04395e2 failed room-push \u00a78 alone: with no known binary path on a GitHub runner Playwright launched its chromium-headless-shell, which grants no notification permission, so every showNotification produced nothing; fixed by launching the full build by channel plus a named notification-service control.",
+      "title": "The CI release gate on 04395e2 failed room-push §8 alone: with no known binary path on a GitHub runner Playwright launched its chromium-headless-shell, which grants no notification permission, so every showNotification produced nothing; fixed by launching the full build by channel plus a named notification-service control.",
       "at": "2026-09-05"
     },
     {
@@ -9092,7 +9092,7 @@
     {
       "id": "ws-r99-room-never-rules-not-wired",
       "kind": "open",
-      "title": "Neither roomSay (api/_room-surface.js) nor roomTaste (api/_room-taste.js) passes neverRules into gatedReply \u2014 a creator's \"Never say this\" rule (WS-R4 migration 074, WS-R67 migration 116) has zero effect on /r/<slug> today, only on the widget (_clonechat.js) and Mirror Call (_mirrorcall-reply.js). Found by WS-R99; out of that workstream's file scope to fix.",
+      "title": "Neither roomSay (api/_room-surface.js) nor roomTaste (api/_room-taste.js) passes neverRules into gatedReply — a creator's \"Never say this\" rule (WS-R4 migration 074, WS-R67 migration 116) has zero effect on /r/<slug> today, only on the widget (_clonechat.js) and Mirror Call (_mirrorcall-reply.js). Found by WS-R99; out of that workstream's file scope to fix.",
       "at": "2026-09-05"
     },
     {
@@ -9224,7 +9224,7 @@
     {
       "id": "ws-r100-no-dedicated-room-leak-layer-14",
       "kind": "decision",
-      "title": "vy_receipt gets a TABLE_ROLES entry (covered by the existing generic static layer 8) but no dedicated dynamic layer 14 - the cross-follower isolation it would prove is already proven twice, by room-doors \u00a717e and room-receipt \u00a75.",
+      "title": "vy_receipt gets a TABLE_ROLES entry (covered by the existing generic static layer 8) but no dedicated dynamic layer 14 - the cross-follower isolation it would prove is already proven twice, by room-doors §17e and room-receipt §5.",
       "at": "2026-09-05"
     },
     {
@@ -9260,7 +9260,7 @@
     {
       "id": "ws-r95-readiness-floor-crossing-is-seeded-never-computed",
       "kind": "decision",
-      "title": "Crossing the Readiness publish floor in the creator rehearsal is a direct fixture seed, never a computed screen \u2014 confirmed to be the ONLY reachable path today, not a convenience.",
+      "title": "Crossing the Readiness publish floor in the creator rehearsal is a direct fixture seed, never a computed screen — confirmed to be the ONLY reachable path today, not a convenience.",
       "at": "2026-09-05"
     },
     {
@@ -9272,13 +9272,13 @@
     {
       "id": "ws-r95-rehearsal-fixture-generic-matcher-shadowed-by-a-more-specific-later-statement",
       "kind": "rejection",
-      "title": "Four cases of a standalone-read fixture matcher shadowing a later, larger CTE statement that embeds the same SQL substring \u2014 the WS-R72 ordering lesson relearned a third time.",
+      "title": "Four cases of a standalone-read fixture matcher shadowing a later, larger CTE statement that embeds the same SQL substring — the WS-R72 ordering lesson relearned a third time.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r95-roomsay-does-not-wire-never-rules-into-gatedreply",
       "kind": "open",
-      "title": "api/_room-surface.js roomSay never passes neverRules into gatedReply, unlike the widget (_clonechat.js) and Mirror Call lanes \u2014 a creator's Never-say-this rules do not protect the Room a follower actually talks to.",
+      "title": "api/_room-surface.js roomSay never passes neverRules into gatedReply, unlike the widget (_clonechat.js) and Mirror Call lanes — a creator's Never-say-this rules do not protect the Room a follower actually talks to.",
       "at": "2026-09-05"
     },
     {
@@ -9554,19 +9554,19 @@
     {
       "id": "ws-r110-room-telegram-voice-defaults-on-no-persisted-per-follower-toggle",
       "kind": "decision",
-      "title": "Telegram voice replies deliver automatically (tier+ROOM_VOICE+ceiling only); no persisted per-follower /voice on|off toggle exists \u2014 no available column, no migration in this workstream.",
+      "title": "Telegram voice replies deliver automatically (tier+ROOM_VOICE+ceiling only); no persisted per-follower /voice on|off toggle exists — no available column, no migration in this workstream.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r110-telegram-sendvoice-codec-requirement-not-live-verified",
       "kind": "decision",
-      "title": "Telegram sendVoice is sent as a real WAV container over the voice multipart field; whether Telegram renders WAV (vs requiring OGG/Opus) as a playable voice message is unverified \u2014 the fetch tool truncates core.telegram.org/bots/api before sendVoice's own table.",
+      "title": "Telegram sendVoice is sent as a real WAV container over the voice multipart field; whether Telegram renders WAV (vs requiring OGG/Opus) as a playable voice message is unverified — the fetch tool truncates core.telegram.org/bots/api before sendVoice's own table.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r110-room-telegram-voice-preference-no-available-column",
       "kind": "rejection",
-      "title": "Searched vy_room_follower_channel (checkins_enabled, stopped_code) and vy_room_follower (settings_reviewed_at) for a reusable JSON/flag column for a voice preference; both are committed to a different meaning. No column, no migration in this workstream \u2014 logged rather than repurposed.",
+      "title": "Searched vy_room_follower_channel (checkins_enabled, stopped_code) and vy_room_follower (settings_reviewed_at) for a reusable JSON/flag column for a voice preference; both are committed to a different meaning. No column, no migration in this workstream — logged rather than repurposed.",
       "at": "2026-09-05"
     },
     {
@@ -9584,7 +9584,7 @@
     {
       "id": "ws-r110-voice-command-coverage-lives-in-room-telegram-not-room-doors",
       "kind": "decision",
-      "title": "/voice on|off's no-quota-spend property is proven in evals/room-telegram(-voice)/run.mjs against the real Telegram fixture world, not added to evals/room-doors/run.mjs \u2014 room-tg.js reads no op literal (OP_COVERAGE has no seam) and /voice takes no cross-identity input.",
+      "title": "/voice on|off's no-quota-spend property is proven in evals/room-telegram(-voice)/run.mjs against the real Telegram fixture world, not added to evals/room-doors/run.mjs — room-tg.js reads no op literal (OP_COVERAGE has no seam) and /voice takes no cross-identity input.",
       "at": "2026-09-05"
     },
     {
@@ -9770,7 +9770,7 @@
     {
       "id": "ws-r108-readable-export-room-doors-case-2026-09-05",
       "kind": "measurement",
-      "title": "evals/room-doors/run.mjs's new \u00a717f case: 8 new assertions, 729/729 total, 0 failures.",
+      "title": "evals/room-doors/run.mjs's new §17f case: 8 new assertions, 729/729 total, 0 failures.",
       "at": "2026-09-05"
     },
     {
@@ -9824,7 +9824,7 @@
     {
       "id": "ws-r101-recall-run-neverrules-uncompiled-silently-does-nothing",
       "kind": "rejection",
-      "title": "A raw {rule_id,pattern,revoked_at} row handed straight to gatedReply matches nothing and throws nothing \u2014 the answer comes back unsuppressed, gated:true, ordinary text. Fixed by compiling before the call.",
+      "title": "A raw {rule_id,pattern,revoked_at} row handed straight to gatedReply matches nothing and throws nothing — the answer comes back unsuppressed, gated:true, ordinary text. Fixed by compiling before the call.",
       "at": "2026-09-05"
     },
     {
@@ -9950,13 +9950,13 @@
     {
       "id": "ws-r116-env-manifest-names-before-and-after",
       "kind": "measurement",
-      "title": "api/_self-check.js#envPresence reported on 17 names before this workstream (REQUIRED_ENV 2 + OPTIONAL_ENV 15) and 127 after (+MANIFEST_ONLY_ENV 110) \u2014 a 7.5x widening, n = the real docs/gurukul/ENV-MANIFEST.md document parsed by scripts/envManifest.mjs, method in context/measurements.md#ws-r116-env-manifest-names-before-and-after.",
+      "title": "api/_self-check.js#envPresence reported on 17 names before this workstream (REQUIRED_ENV 2 + OPTIONAL_ENV 15) and 127 after (+MANIFEST_ONLY_ENV 110) — a 7.5x widening, n = the real docs/gurukul/ENV-MANIFEST.md document parsed by scripts/envManifest.mjs, method in context/measurements.md#ws-r116-env-manifest-names-before-and-after.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r116-env-manifest-md-carries-two-header-shapes",
       "kind": "measurement",
-      "title": "36 env-var tables in docs/gurukul/ENV-MANIFEST.md use two different literal five-column headers (30 name|consumed at|required|fallback|breaks without it, 6 later Var|Read by|Required?|Exact value|What changes with it) \u2014 a grep for the first shape alone undercounts by 6 tables, 7 names.",
+      "title": "36 env-var tables in docs/gurukul/ENV-MANIFEST.md use two different literal five-column headers (30 name|consumed at|required|fallback|breaks without it, 6 later Var|Read by|Required?|Exact value|What changes with it) — a grep for the first shape alone undercounts by 6 tables, 7 names.",
       "at": "2026-09-05"
     },
     {
@@ -10250,13 +10250,13 @@
     {
       "id": "ws-r111-boundary-containment-25-of-41",
       "kind": "measurement",
-      "title": "evals/room-adversarial-creator/run.mjs \u00a71, real MATERIAL_BLOCK_OPEN/CLOSE markers (not a heuristic): boundary status contained 0/41 -> 25/41, fused 41/41 -> 16/41, n=41, 2026-09-05, offline deterministic. The 25 are exactly the five-covered-field entries; the 16 are the four excluded fields, unchanged from WS-105's own measurement.",
+      "title": "evals/room-adversarial-creator/run.mjs §1, real MATERIAL_BLOCK_OPEN/CLOSE markers (not a heuristic): boundary status contained 0/41 -> 25/41, fused 41/41 -> 16/41, n=41, 2026-09-05, offline deterministic. The 25 are exactly the five-covered-field entries; the 16 are the four excluded fields, unchanged from WS-105's own measurement.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r111-secret-shaped-leak-rate-0-of-5",
       "kind": "measurement",
-      "title": "evals/room-adversarial-creator/run.mjs \u00a73, same method as ws-r105-secret-shaped-material-leak-rate, re-run 2026-09-05: delivered-reply leak rate for secret-shaped material dropped 2/5 -> 0/5 (identityWho and identityLife no longer leak). All five entries land on covered fields; unmeasured directly for the four excluded fields by this run.",
+      "title": "evals/room-adversarial-creator/run.mjs §3, same method as ws-r105-secret-shaped-material-leak-rate, re-run 2026-09-05: delivered-reply leak rate for secret-shaped material dropped 2/5 -> 0/5 (identityWho and identityLife no longer leak). All five entries land on covered fields; unmeasured directly for the four excluded fields by this run.",
       "at": "2026-09-05"
     },
     {
@@ -10580,43 +10580,43 @@
     {
       "id": "ws-r130-referral-reward-needs-a-second-identity-table-vy-room-referral-credit",
       "kind": "decision",
-      "title": "The reward is computed from a NEW table, vy_room_referral_credit, resolved by recomputing referralHashFor at join time \u2014 never from vy_room_referral, whose whole design is that it names no one.",
+      "title": "The reward is computed from a NEW table, vy_room_referral_credit, resolved by recomputing referralHashFor at join time — never from vy_room_referral, whose whole design is that it names no one.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r130-referral-credit-and-reward-tables-carry-no-fk-on-identity-columns",
       "kind": "decision",
-      "title": "vy_room_referral_credit/vy_room_referral_reward carry no FK on their identity columns (only room_id cascades) \u2014 a granted reward is a financial-ledger fact that must survive either party's later forget, vy_receipt's own precedent restated.",
+      "title": "vy_room_referral_credit/vy_room_referral_reward carry no FK on their identity columns (only room_id cascades) — a granted reward is a financial-ledger fact that must survive either party's later forget, vy_receipt's own precedent restated.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r130-referral-reward-grant-is-a-second-statement-not-a-fifth-cte",
       "kind": "decision",
-      "title": "maybeGrantReferralReward runs as its own statement after issueFollowerReceipt, never folded into applyWebhook's own ledger-write CTE chain \u2014 WS-R100's own receipt-placement argument restated.",
+      "title": "maybeGrantReferralReward runs as its own statement after issueFollowerReceipt, never folded into applyWebhook's own ledger-write CTE chain — WS-R100's own receipt-placement argument restated.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r130-referral-progress-rides-the-referral-link-response-not-a-new-op",
       "kind": "decision",
-      "title": "roomReferralProgress is not its own op \u2014 api/room.js's referral_link handler merges roomReferralLink and roomReferralProgress into one response.",
+      "title": "roomReferralProgress is not its own op — api/room.js's referral_link handler merges roomReferralLink and roomReferralProgress into one response.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r130-sql-comment-backticks-terminated-the-template-literal-yet-again",
       "kind": "rejection",
-      "title": "A new comment inside api/_replica-full-erasure.js's giant SQL template literal used backtick-quoted identifiers and terminated the literal early \u2014 the sixth-plus instance of this exact repo-wide trap, caught only by node --check.",
+      "title": "A new comment inside api/_replica-full-erasure.js's giant SQL template literal used backtick-quoted identifiers and terminated the literal early — the sixth-plus instance of this exact repo-wide trap, caught only by node --check.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r130-erasure-comment-naming-vy-room-follower-whatsapp-chat-tripped-the-static-scanner",
       "kind": "rejection",
-      "title": "Naming vy_room_follower_whatsapp_chat by name in a new api/_replica-full-erasure.js comment tripped that file's own 'every vy_room_follower-substring line must be a delete' static check \u2014 a third instance of the table-name-in-a-comment defect class.",
+      "title": "Naming vy_room_follower_whatsapp_chat by name in a new api/_replica-full-erasure.js comment tripped that file's own 'every vy_room_follower-substring line must be a delete' static check — a third instance of the table-name-in-a-comment defect class.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r130-shared-room-fixture-would-have-silently-misrouted-the-new-credit-insert",
       "kind": "rejection",
-      "title": "evals/room/fixtures.mjs's plain substring match for 'insert into vy_room_referral' would have silently swallowed the new, superstring 'insert into vy_room_referral_credit' statement and mis-destructured its params \u2014 fixed by checking the more specific pattern first, caught before any test ran red.",
+      "title": "evals/room/fixtures.mjs's plain substring match for 'insert into vy_room_referral' would have silently swallowed the new, superstring 'insert into vy_room_referral_credit' statement and mis-destructured its params — fixed by checking the more specific pattern first, caught before any test ran red.",
       "at": "2026-09-05"
     },
     {
@@ -10628,13 +10628,13 @@
     {
       "id": "ws-r130-referral-reward-new-sql-2026-09-05",
       "kind": "measurement",
-      "title": "1 new migration (133), 5 DDL statements; new API statements in joinRoom, maybeGrantReferralReward, roomReferralProgress, roomExport, reconcilePeriod, api/memory.js and api/_replica-full-erasure.js \u2014 none run against a live Postgres, no NEON_URL in this environment.",
+      "title": "1 new migration (133), 5 DDL statements; new API statements in joinRoom, maybeGrantReferralReward, roomReferralProgress, roomExport, reconcilePeriod, api/memory.js and api/_replica-full-erasure.js — none run against a live Postgres, no NEON_URL in this environment.",
       "at": "2026-09-05"
     },
     {
       "id": "ws-r130-static-import-of-room-surface-in-the-shared-fixture-broke-whatsapps-frozen-module-secret",
       "kind": "rejection",
-      "title": "A new static import of referralHashFor in evals/room/fixtures.mjs transitively pulled in api/whatsapp.js before evals/room-whatsapp/run.mjs set its own frozen module secrets, breaking that suite's webhook signature checks \u2014 fixed with a lazy dynamic import, caught only by running the whole eval registry.",
+      "title": "A new static import of referralHashFor in evals/room/fixtures.mjs transitively pulled in api/whatsapp.js before evals/room-whatsapp/run.mjs set its own frozen module secrets, breaking that suite's webhook signature checks — fixed with a lazy dynamic import, caught only by running the whole eval registry.",
       "at": "2026-09-05"
     },
     {
@@ -10652,7 +10652,7 @@
     {
       "id": "ws-r121-boundary-containment-41-of-41",
       "kind": "measurement",
-      "title": "evals/room-adversarial-creator/run.mjs \u00a71: boundary status \"contained\" 25/41 -> 41/41, \"fused\" 16/41 -> 0/41, n=41 corpus entries, all nine injectable fields now covered.",
+      "title": "evals/room-adversarial-creator/run.mjs §1: boundary status \"contained\" 25/41 -> 41/41, \"fused\" 16/41 -> 0/41, n=41 corpus entries, all nine injectable fields now covered.",
       "at": "2026-09-05"
     },
     {
@@ -10780,6 +10780,42 @@
       "kind": "measurement",
       "title": "Migrations 130 (mandate state), 132 (the Suite admin's weekly note) and 133 (the referral reward) applied live at their merges with constraints read back first; 131 read back as already carried and not applied; every new statement planned, the referral grant's ledger scan accepted by name with a rewrite condition.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r139-room-secondary-screens-are-lazy-chunks",
+      "kind": "decision",
+      "title": "The Room account/receipt/taste/checkins/subscription/handoff screens and the Hindi copy table (hiTalkCopy + hiCopy) load as their own React.lazy chunks; switchLocale awaits the target chunk before committing the locale change.",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r139-room-secondary-screens-js-bytes-2026-09-05",
+      "kind": "measurement",
+      "title": "Room join screen JS: 90,762 bytes before the lazy split, 80,230 after (English), 86,916 (Hindi, new room-hi target) after -- 3 batches of 3 runs each, check-performance.mjs, identical across batches.",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r139-restready-gated-at-the-parent-resets-accountpages-own-fetched-state",
+      "kind": "rejection",
+      "title": "Gating AccountPage/SubscriptionPanel presence on restReady at the RoomApp level remounted them on every first-time locale switch, wiping already-fetched settings/payment state and producing a blank disclosure card; fixed by moving restReady to an internal prop-read guard.",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r139-locale-switch-raced-the-hindi-chunk-and-unmounted-open-panels",
+      "kind": "rejection",
+      "title": "RoomApp's top-level if(!talkReady) return null also fired on a live locale switch, collapsing the whole page for a render and unmounting every open panel; fixed by awaiting loadRoomCopy(next) inside switchLocale before ever committing the new locale to state.",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r139-precache-regex-quoted-strings-only-missed-rolldown-template-literal-imports",
+      "kind": "rejection",
+      "title": "The precache dynamic-import regex matched only quoted-string import() paths; this repo's Rolldown-powered Vite 8 build emits template-literal paths, so it matched zero real lazy chunks until the regex gained a quote-character capture group with a backreference.",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r139-lazy-dialog-open-fixed-sleep-flaked-under-load",
+      "kind": "rejection",
+      "title": "check-layout.mjs and check-accessibility.mjs opened a now-lazy dialog and waited a fixed sleep before checking it; the chunk fetch could eat into or exceed that sleep, so both became polls with generous timeouts.",
+      "at": "2026-09-06"
     }
   ],
   "edges": [
@@ -20882,6 +20918,31 @@
       "src": "rooms-migrations-130-132-133-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r125-mandate-state-predicate-non-redundant-only-for-pending"
+    },
+    {
+      "src": "ws-r139-room-secondary-screens-are-lazy-chunks",
+      "rel": "measured_by",
+      "dst": "ws-r139-room-secondary-screens-js-bytes-2026-09-05"
+    },
+    {
+      "src": "ws-r139-room-secondary-screens-are-lazy-chunks",
+      "rel": "caused_by",
+      "dst": "ws-r139-restready-gated-at-the-parent-resets-accountpages-own-fetched-state"
+    },
+    {
+      "src": "ws-r139-room-secondary-screens-are-lazy-chunks",
+      "rel": "caused_by",
+      "dst": "ws-r139-locale-switch-raced-the-hindi-chunk-and-unmounted-open-panels"
+    },
+    {
+      "src": "ws-r139-room-secondary-screens-are-lazy-chunks",
+      "rel": "caused_by",
+      "dst": "ws-r139-precache-regex-quoted-strings-only-missed-rolldown-template-literal-imports"
+    },
+    {
+      "src": "ws-r139-room-secondary-screens-are-lazy-chunks",
+      "rel": "caused_by",
+      "dst": "ws-r139-lazy-dialog-open-fixed-sleep-flaked-under-load"
     }
   ]
 }

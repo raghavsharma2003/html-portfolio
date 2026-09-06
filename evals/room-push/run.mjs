@@ -775,6 +775,105 @@ self.addEventListener("push", (event) => {
   }
 })();
 
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §9: THE PRECACHE LEARNS THE ROOM'S LAZY CHUNKS FROM THE BUILT PAGE ──");
+// ═════════════════════════════════════════════════════════════════════════
+// WS-R139. The Room's secondary screens (`AccountPage`/`CheckinsPanel`/
+// `SubscriptionPanel`/`HandoffPanel`/`DataMenu`/`TasteScreen`/`ForgetReceipt`)
+// and the Hindi copy split (`hiTalkCopy`/`hiCopy`) now load as their own
+// chunks, reached only through a runtime `import()` — invisible to a plain
+// `<script src>`/`<link href>` scan of `dist/room.html`. This section proves
+// `public/room-sw.js`'s own `derivePrecacheList` — restated here as a
+// same-shape static walk over the REAL built `dist/room.html` and its real
+// compiled JS, never a hand-typed list of chunk names — actually finds every
+// one of them, offline, against whatever content hash this build happened to
+// produce. Skips cleanly if `dist/` is unbuilt (this suite's own §8 precedent
+// one section up).
+await (async () => {
+  const { existsSync } = fs;
+  const { readFile } = await import("node:fs/promises");
+  const DIST = join(REPO, "dist");
+  if (!existsSync(join(DIST, "room.html"))) {
+    console.log("  skip  §9: dist/room.html absent, run `npx vite build` first");
+    return;
+  }
+  const html = await readFile(join(DIST, "room.html"), "utf8");
+  const jsUrls = [];
+  const tagRe = /\b(?:src|href)="(\/[^"]+)"/g;
+  let tm;
+  while ((tm = tagRe.exec(html))) {
+    if (tm[1].endsWith(".js") || tm[1].endsWith(".mjs")) jsUrls.push(tm[1]);
+  }
+  ok("§9 setup: dist/room.html names at least one JS entry", jsUrls.length > 0, JSON.stringify(jsUrls));
+
+  // `public/room-sw.js`'s own `DYNAMIC_IMPORT_RE`, restated here rather than
+  // imported — that file is a plain (non-module) service worker script with
+  // no export to read, `src/room/copy.ts`'s own restated-not-imported
+  // `DEVANAGARI_RANGE` precedent one surface over. Confirmed present in the
+  // real file (by name) so this section's own regex cannot silently drift
+  // out of sync with the SHIPPED one without a failure naming the gap.
+  const swSrc = await readFile(join(REPO, "public/room-sw.js"), "utf8");
+  ok("§9 setup: public/room-sw.js still defines DYNAMIC_IMPORT_RE", swSrc.includes("const DYNAMIC_IMPORT_RE ="));
+  // WS-R139 fix, found by THIS suite against the REAL build (not assumed):
+  // this repo's Vite 8 build is Rolldown-powered and emits a dynamic
+  // import's path as a TEMPLATE LITERAL (`` import(`./chunk-<hash>.js`) ``),
+  // never the quoted string a classic Rollup build would leave — the
+  // original quote-only regex here matched ZERO real chunks the moment this
+  // workstream's lazy screens shipped (every assertion below would have
+  // read `discovered` as empty). The quote character is its own capture
+  // group, closed by a backreference, so the path is always group 2, never
+  // group 1 — `public/room-sw.js`'s own identical fix has the full story
+  // and must be kept byte-identical to this one.
+  const dynamicImportRe = /\bimport\(\s*(?:\/\*[^*]*\*\/\s*)?(["'`])(\.[^"'`]+\.[cm]?js)\1\s*\)/g;
+
+  const discovered = new Set();
+  for (const jsUrl of jsUrls) {
+    const jsPath = join(DIST, jsUrl.replace(/^\//, ""));
+    if (!existsSync(jsPath)) continue;
+    const jsText = await readFile(jsPath, "utf8");
+    dynamicImportRe.lastIndex = 0;
+    let dm;
+    while ((dm = dynamicImportRe.exec(jsText))) {
+      discovered.add(new URL(dm[2], `http://x${jsUrl}`).pathname);
+    }
+  }
+
+  // REGRESSION: the exact shape that broke silently. BEFORE the fix (the
+  // quote-only regex), a Rolldown-style template-literal import() matched
+  // nothing at all; AFTER (the current regex), the identical source line
+  // resolves correctly. Proven against a literal snippet rather than only
+  // the built output, so this fails by name even if a future `dist/`
+  // happens to switch bundlers back to quoted strings and hides the gap.
+  const rolldownStyleSnippet = 'const p = () => import(`./AccountPage-abc123.js`);';
+  const oldQuoteOnlyRe = /\bimport\(\s*(?:\/\*[^*]*\*\/\s*)?["'](\.[^"']+\.[cm]?js)["']\s*\)/g;
+  ok("§9 REGRESSION: BEFORE the fix (the exact old quote-only regex), a Rolldown-style template-literal import() matches NOTHING",
+    oldQuoteOnlyRe.exec(rolldownStyleSnippet) === null);
+  dynamicImportRe.lastIndex = 0;
+  const fixedMatch = dynamicImportRe.exec(rolldownStyleSnippet);
+  ok("§9 REGRESSION: AFTER the fix (the real, current regex), the SAME template-literal import() resolves to the right path",
+    fixedMatch !== null && fixedMatch[2] === "./AccountPage-abc123.js", fixedMatch ? fixedMatch[2] : "no match");
+
+  const expectedPrefixes = [
+    "AccountPage-", "CheckinsPanel-", "SubscriptionPanel-", "HandoffPanel-",
+    "DataMenu-", "TasteScreen-", "ForgetReceipt-",
+  ];
+  for (const prefix of expectedPrefixes) {
+    const hit = [...discovered].some((u) => u.includes(`/${prefix}`));
+    ok(`§9: the built page's own dynamic import() graph names a ${prefix}*.js chunk`, hit, [...discovered].join(", "));
+  }
+  ok("§9: none of the discovered chunk URLs are under /api/",
+    [...discovered].every((u) => !u.startsWith("/api/")));
+
+  // NEGATIVE CONTROL: an ordinary STATIC import of a `.js` file — real ESM
+  // syntax with no parentheses after `import` — must trip nothing. Only a
+  // genuine CALL, `import(...)`, is a dynamic import.
+  const staticImportOnly = 'import { x } from "./not-a-dynamic-chunk.js";\nexport const y = x;';
+  dynamicImportRe.lastIndex = 0;
+  const falseHit = dynamicImportRe.exec(staticImportOnly);
+  ok("§9 NEGATIVE CONTROL: a plain static `import ... from \"./file.js\"` trips nothing",
+    falseHit === null, falseHit ? falseHit[0] : "");
+})();
+
 console.log(`\nroom-push: ${pass} ok, ${fail} failed`);
 process.exit(fail ? 1 : 0);
 

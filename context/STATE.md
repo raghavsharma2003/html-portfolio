@@ -1261,3 +1261,66 @@ run.mjs`'s own RFC 8291 round-trip, reused unchanged, not re-measured here);
   text — logged as a real, if narrow, test-infrastructure fragility.
 - **2026-09-05, WS-R129 built (quiet hours on every channel, no migration), on worktree branch `ws-r129-quiet-hours-on-every-channel` over `1a0367a`, not merged, not pushed.** Checked `db/schema.sql` before writing anything: `vy_room_follower` carries no timezone or quiet-hours column at all (only `vy_room_checkin`, migration 085, one row per SCHEDULE, has ever carried `quiet_from`/`quiet_to`/`timezone`) — so the schema half of "one account-wide setting" is a real gap this workstream's brief anticipated and gave no migration number for (`context/rejected.md#ws-r129-no-follower-level-timezone-or-quiet-hours-column`), STOPPED and logged rather than taken (133 is WS-R130's own). Built the rest against the existing columns: `api/_quiet-hours.js` (new, pure, no imports) exports `quietHoursOkSql` (WS-R22's own row-filter text moved here verbatim, now shared) and `quietHoursOkForFollowerSql` (a `not exists` proxy — a follower's own ACTIVE check-in schedules are the only per-follower quiet-hours signal this schema has), both embedding a literal `QUIET_HOURS_MARKER` so a static scan can prove the fragment is actually spliced in. Wired into `api/_checkins.js` (its own due-select, unchanged in behaviour, now sharing one copy of the text), `api/_renewals.js` (the follower reminder select), and `api/_dormancy.js` (the notice-due statement) — creator/org reminders and the creator's own weekly push are owner-lane and untouched. Found and fixed a real, previously-invisible gap while building this: `evals/checkins/run.mjs`'s own fake db had silently dropped `quiet_from`/`quiet_to` on the floor since WS-R22, so the WS-R22 predicate had ZERO runtime proof anywhere in this repo until this workstream added it (new §6, the four boundary instants — 21:59/22:01/06:59/07:01 IST — through the real sweep, plus a struck-predicate negative control). `evals/renewals` and `evals/room-dormancy` each gained an equivalent section; `evals/room-telegram`/`evals/room-whatsapp` each gained a static assertion that their own deliverer never duplicates the check (one enforcement point, upstream). New release-gate suite `evals/quiet-hours` (28/28: the pure math, the fragment's own shape, the three real due-selects driven through a recording fake db, and two negative controls). `roomSettings` (`api/_room-surface.js`) gained a read-only `quiet_hours` summary (the follower's own most-recently-set active window, if any) and `AccountPage.tsx` renders it with the workstream's required "on every channel" sentence, both locales (`src/room/copy.ts`'s new `quietHours` block, its own closed section at the end of each locale object); `api/_room-about.js`'s caps section gained the matching sentence. `evals/room-leak/world.mjs`'s `vy_room_checkin` TABLE_ROLES gained `_quiet-hours.js` as an owner (the new file's own literal SQL text, never `_renewals.js`/`_dormancy.js`'s, which mention no table name at all) — hit and fixed the SAME "prose names a guarded table" trap five earlier sessions already logged, this time inside a brand-new file (`context/rejected.md#ws-r129-no-follower-level-timezone-or-quiet-hours-column`'s own second half). Gate: this heavily contended machine (10 wave-eighteen sibling worktrees, ~77 gate-related processes observed via `ps aux` at one point) needed five full attempts before a clean pass — every failure an `EADDRINUSE` on 8931/8932 or a Chromium 20s timeout, never a content mismatch; each flaky piece independently re-run standalone and green (`check-layout.mjs` alone: 2010 prose blocks including `room:account`/`room-hi:account`, 0 findings; `rehearsal-creator` alone: 34/34; `probe-live` alone: 0 findings) before a fifth full run passed **21/21 checks clean in one pass** (`context/measurements.md#ws-r129-quiet-hours-gate-results`). `node scripts/check-copy.mjs` and `node scripts/context.mjs --check` both clean. No migration, no new env var, no network beyond localhost and npm. Did not push.
 - **Wave eighteen closed (main loop, 2026-09-05).** Ten workstreams merged in the order they reported: R127 (`21fe056`, migration 132 live), R124 (`bb9e3d4`), R125 (`257f76c` and `5bd3fc4`, migration 130 live), R128 (`31d1e93`), R126 (`dac4ffc`, migration 131 not applied: the live CHECK already carried `whatsapp`), R123 (`ad6b8c3`), R130 (`785fcc2`, migration 133 live), R121 (`fe4bb87`), R122 (`2e45fa8`), R129 (`7080ab5`). The compiler's material boundary is complete: the platform owns the mentor boundary and stage shapes, every creator-authored field compiles as material, 41 of 41 hostile passages contained, secret-shaped leaks 0 of 9, Meera byte-identical; instruction-shaped material's review card gained nothing new but every door gained observation (31 wrapped, 11 before) and body-shape fuzzing (1440 cases, one domain-error shape fixed); the eval registry runs in a worker pool (about 140 to 160 s against 240 s serial on an idle machine, parity exact); the UPI mandate's bank-side lifecycle is handled from Razorpay's own document; a Suite admin gets a weekly note; a follower joins from WhatsApp off the poster and share kit, earns a free month for three paying friends, and keeps quiet hours on every channel; the readiness panel's re-fetch loop is fixed at its cause and both rehearsals are green in Hindi, with a weekly CI job for them. At the merges: the copy-table closer gap hit four times (R125's Hindi block, R126's two blocks, R130's and R129's English blocks, each a hunk beginning with a comment) and was closed by hand each time, a merge-tool fix now owed; R127's new cron door was wrapped and mirrored at R123's merge; R125's mandate column and R130's follower column met in one SELECT list and both were kept; the whole registry ran after every merge that added an api-to-api import and passed. Gates: the six-merge tree passed twice except for port collisions, with the two collided checks passed alone; the eight-merge and nine-merge trees each passed all 21 checks in one run and were pushed (`ad6b8c3`, `fe4bb87`, `2e45fa8`), CI green on each; the ten-merge tree's run is this close's own. Live: migrations 130, 132 and 133 applied, 131 read back as already carried (`measurements.md#rooms-migrations-130-132-133-live-verification-2026-09-05`). Open for wave nineteen: the follower row carries no time zone or quiet-hours column of its own (R129's proxy reads check-in rows); a halted mandate has no working "start a new mandate" path because the subscription start reuses the non-terminal row (R125's diagnosis); the referral grant's friend count scans the payment ledger once per grant (a correlated rewrite named for when the ledger is large); whether `WHATSAPP_PHONE_NUMBER_ID` is a dialable number for the wa.me link needs Meta's document; the ops board's Incidents badge is English-only; the referral reward's receipt is best-effort and not covered by the backfill sweep. **134 is the next free migration number.**
+- **WS-R139 built (the Room's own chunks, no migration), on worktree branch
+  `ws-r139-the-rooms-own-chunks` over `048becd`.** The Room's five
+  secondary screens (`AccountPage`, `CheckinsPanel`, `SubscriptionPanel`,
+  `HandoffPanel`, `DataMenu` plus its own `ForgetReceipt` split, and the
+  first-visit `TasteScreen`) are `React.lazy`-loaded from `RoomApp.tsx`;
+  `LanguageSwitch` and `withCount`/`withIncluded` moved to their own tiny
+  files so the lazy screens that use them never import back FROM
+  `RoomApp.tsx` (a cycle that would defeat the split). `src/room/copy.ts`'s
+  Hindi table splits into `hiTalkCopy.ts` (everything the join/taste/talk
+  screens and the always-visible chrome read) and `hiCopy.ts` (the rest,
+  read only once a secondary screen opens) — `studio`'s identical pattern,
+  `ROOM_COPY_TABLE.hi` a Proxy that throws by name until each half
+  installs. Measured 3 batches of 3 before and after
+  (`context/measurements.md#ws-r139-room-secondary-screens-js-bytes-2026-09-05`):
+  the join screen's JS fell from 90,762 to 80,230 bytes (English) / 86,916
+  (Hindi, a new `room-hi` performance target); `scripts/check-
+  performance.mjs` gained a per-target `jsBudget` override (100KB/105KB)
+  rather than lowering the shared 180KB ceiling every other target is also
+  checked against. Resumed from a prior session's uncommitted work in this
+  same worktree and found three real bugs the full gate then caught by
+  name, all fixed in this session: (1) gating `AccountPage`/
+  `SubscriptionPanel`'s presence on `restReady` at the PARENT remounted
+  them on a first-time locale switch, wiping fetched state and blanking
+  the disclosure card — fixed by moving `restReady` to a prop the
+  component reads internally, after its own hooks
+  (`context/rejected.md#ws-r139-restready-gated-at-the-parent-resets-
+  accountpages-own-fetched-state`); (2) the SAME switch could trip
+  `RoomApp`'s own top-level `if (!talkReady) return null` and unmount
+  every open panel — fixed by having `switchLocale` await
+  `loadRoomCopy(next)` alongside its server call before ever committing
+  the new locale
+  (`context/rejected.md#ws-r139-locale-switch-raced-the-hindi-chunk-and-
+  unmounted-open-panels`); (3) the push worker's precache regex matched
+  only quoted-string `import()` paths, and this repo's Rolldown-powered
+  Vite 8 build emits template-literal paths — the regex matched ZERO of
+  the seven new lazy chunks until fixed with a quote-character capture
+  group and backreference
+  (`context/rejected.md#ws-r139-precache-regex-quoted-strings-only-missed-
+  rolldown-template-literal-imports`), caught by this workstream's own new
+  `evals/room-push` §9 against the real build. Also fixed: two evals
+  (`payments`, `room-telegram-checkins`) that source-scanned `copy.ts` for
+  a Hindi key count of exactly 2, now reading `hiTalkCopy.ts` too since
+  those keys' Hindi half moved there; two release-gate timing assumptions
+  (`check-layout.mjs`'s dialog-in-view check, `check-accessibility.mjs`'s
+  keyboard-activation check) that used a fixed sleep before checking a
+  now-lazy dialog, both turned into polls
+  (`context/rejected.md#ws-r139-lazy-dialog-open-fixed-sleep-flaked-under-
+  load`); and a missing CSP hash for the new `roomHindiPreloadPlugin`
+  inline script in `vercel.json`'s `/r/:slug` and `/room.html` rules
+  (`studioHindiPreloadPlugin`'s own committed-hash precedent, restated).
+  Gate: untouched-tree baseline not separately re-verified this session
+  (resumed mid-build from another agent's uncommitted diff rather than a
+  clean tree); this session's own first full `verify-release.mjs` run
+  found the three real regressions above (layout readability, accessibility,
+  security headers) plus one flaky `rehearsal-follower` failure inside
+  `eval suite` reproduced deterministically via `runSuiteFile` outside the
+  registry too (never a registry-only flake) — all fixed, then **21/21
+  checks passed clean** on a full run at load average 0.05-2.07 (the
+  quietest this session saw; earlier attempts on the same fixed tree also
+  passed at load 8-9, confirming the fixes rather than a quiet machine).
+  `node scripts/context.mjs --check` and `node scripts/check-copy.mjs`
+  both clean. No migration, no new env var, no network beyond localhost
+  and npm.

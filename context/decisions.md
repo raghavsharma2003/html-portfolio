@@ -20908,3 +20908,68 @@ before the new column existed (a migration-day compatibility window,
 never a permanent second source of truth) — or be retired outright if a
 backfill copies every check-in's own window onto the new column at
 migration time.
+
+## `ws-r139-room-secondary-screens-are-lazy-chunks` (2026-09-05/06, WS-R139)
+
+**Decision.** The Room's five secondary screens — `AccountPage`,
+`CheckinsPanel`, `SubscriptionPanel`, `HandoffPanel`, `DataMenu` (its own
+"gone"-phase receipt split further, into `ForgetReceipt`) and the
+first-visit `TasteScreen` — are `React.lazy`-loaded from `RoomApp.tsx`,
+each its own Vite chunk, reached only when a follower actually opens that
+screen. `src/room/copy.ts`'s Hindi table splits the identical way
+`src/studio/copy.ts` already does (`#studio-hindi-table-is-its-own-chunk`):
+`hiTalkCopy.ts` carries every section the join/taste/talk screens and the
+always-visible chrome read (including the secondary screens' own OPENER
+labels), `hiCopy.ts` carries the remainder, read only once a secondary
+screen actually opens. `ROOM_COPY_TABLE.hi` is a Proxy that throws by name
+(`room_copy_hi_talk_not_loaded` / `room_copy_hi_not_loaded`) on any read
+before its own loader installs it, mirroring `STUDIO_COPY_TABLE.hi`'s
+identical contract. `RoomApp.tsx` renders nothing (`if (!talkReady) return
+null`, placed after every hook) until the talk chunk lands; `AccountPage`/
+`SubscriptionPanel` take `restReady` as a PROP and self-guard the same way
+INSIDE the component, never as a condition on whether the parent mounts
+them at all (see the reversal condition and `context/rejected.md#ws-r139-
+restready-gated-at-the-parent-resets-accountpages-own-fetched-state` for
+why). `switchLocale` awaits `loadRoomCopy(next)` ALONGSIDE its server call
+before ever setting `locale` to `next`, so a LIVE in-session switch never
+trips the top-level null-render at all (`context/rejected.md#ws-r139-
+locale-switch-raced-the-hindi-chunk-and-unmounted-open-panels`). The push
+worker's precache (`public/room-sw.js#derivePrecacheList`) and
+`scripts/check-install.mjs` both learn every lazy chunk (screens AND the
+two Hindi halves) by following every `import(...)` literal the built
+`room.html`'s own scripts actually contain, never a hand list — widened in
+the same commit to match a template-literal import (see the precache
+rejection entry below), and `vite.config.ts`'s `roomHindiPreloadPlugin`
+injects a `<link rel="modulepreload">` for `hiTalkCopy`'s own chunk on a
+`?lang=hi` request or a remembered `vyakti.room.locale.v1` device hint,
+`studioHindiPreloadPlugin`'s identical shape one surface over — including
+its own committed CSP hash in `vercel.json`'s `/r/:slug` and `/room.html`
+rules, since the inline script's text never changes build to build.
+
+**Rationale.** Measured before this split: the Room join screen
+(`/r/<slug>`, `?screen=join`, `scripts/check-performance.mjs`) transferred
+90,762 bytes of JS to every follower on first paint, English or Hindi,
+whether or not they ever opened a settings panel or asked a taste
+question — most never do. After: 80,230 bytes English (a follower who
+never opens a secondary screen never downloads its code), 86,916 bytes
+Hindi (the `hiTalkCopy` chunk alone, `hiCopy` deferred further still). See
+`context/measurements.md#ws-r139-room-secondary-screens-js-bytes-2026-09-05`
+for the full before/after table, n and method. `scripts/check-
+performance.mjs` gained a per-target `jsBudget` override (100KB English,
+105KB Hindi — roughly 20-25% over each measured figure) rather than
+lowering the SHARED 180KB ceiling every other target is also checked
+against, which would have tightened targets this workstream never
+measured.
+
+**What would reverse it.** If a follower's phone is measured spending more
+than one throttled round trip WAITING on a secondary screen's chunk after
+tapping to open it (the `HINDI_CHUNK_WAIT_BUDGET_MS`-style proof this file
+already has a precedent for), preload that ONE chunk from the always-
+visible opener's own `onPointerEnter`/`onFocus`, never fold the screen
+back into the main bundle wholesale — that would undo the measured saving
+for the far more common case (played by every follower every time) of
+never opening it at all. If the `AccountPage`/`SubscriptionPanel`
+`restReady`-as-prop pattern is ever found NOT to prevent a state loss in
+some other secondary screen this workstream did not touch, that screen
+needs the identical prop-and-internal-guard treatment, never a parent-
+level mount condition.

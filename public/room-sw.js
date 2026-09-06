@@ -99,19 +99,78 @@ const SHELL_PATH = "/room.html";
 const SHELL_ICON = "/favicon.svg";
 const CACHE_PREFIX = "room-shell-";
 
-/** PURE given its one side effect (the network fetch of `room.html` itself).
+// WS-R139: the Room's secondary screens (the account page, the data/receipt
+// menu, the check-ins/subscription/handoff panels, the taste screen) and the
+// Hindi copy table now load as their OWN chunks, reached only through a
+// runtime `import()` RoomApp.tsx issues at click time
+// (`context/decisions.md#ws-r139-room-secondary-screens-are-lazy-chunks`) —
+// never through a `<script src>`/`<link href>` tag `room.html` itself
+// carries. The tag scan above therefore cannot see them, and a follower who
+// installs the Room, goes offline, then taps "Your settings" for the first
+// time would find the precache silently missing the one chunk that screen
+// needs. `derivePrecacheList` closes that gap by reading the SAME real,
+// currently-deployed JS `room.html` already pointed it at (never a hand list
+// of chunk names, which would drift the moment a chunk is added, renamed or
+// removed) and following every dynamic `import("./chunk-hash.js")` call the
+// compiled output leaves as a literal path — the exact URLs a real browser
+// would fetch the first time a follower opens each screen, not a guess at
+// what they might be. One hop deep, matching this product's real shape:
+// every lazy component here is imported directly from RoomApp.tsx's own
+// module (bundled into the SAME entry chunk `room.html` already names),
+// never from another lazy chunk, so nothing this file could ever reach sits
+// two `import()`s away from the page.
+//
+// WS-R139 fix (found by `evals/room-push/run.mjs`'s own §9 against the REAL
+// build, not assumed): this repo's Vite 8 build is Rolldown-powered, and
+// Rolldown emits a dynamic import's path as a TEMPLATE LITERAL —
+// `` import(`./AccountPage-<hash>.js`) `` — never the quoted string a
+// classic Rollup build would leave. The original regex here only matched
+// `"`/`'`, so it matched zero real chunks the moment this workstream's
+// lazy screens shipped — a follower who installed the Room, went offline,
+// then opened "Your settings" for the first time would have hit a network
+// error, not a slow chunk. A capturing GROUP on the quote character
+// (`(["'\`])`), closed by its own backreference (`\1`), matches all three
+// literal forms without assuming which one a given toolchain emits — the
+// path is always capture group 2 now, not group 1.
+const DYNAMIC_IMPORT_RE = /\bimport\(\s*(?:\/\*[^*]*\*\/\s*)?(["'`])(\.[^"'`]+\.[cm]?js)\1\s*\)/g;
+
+/** PURE given its two side effects (the network fetch of `room.html` and,
+ *  for each JS file it names, one more fetch of that file's own text).
  *  Exported shape asserted by `evals/room-install/run.mjs`'s static scan:
  *  every discovered URL is same-origin, absolute, and NEVER under `/api/`. */
 async function derivePrecacheList() {
   const res = await fetch(SHELL_PATH, { cache: "no-store" });
   const html = await res.text();
   const urls = new Set([SHELL_PATH, SHELL_ICON]);
+  const jsUrls = [];
   const attrRe = /\b(?:src|href)="(\/[^"]+)"/g;
   let m;
   while ((m = attrRe.exec(html))) {
     const url = m[1];
     if (url.startsWith("/api/")) continue; // never — see this file's own header
     urls.add(url);
+    if (url.endsWith(".js") || url.endsWith(".mjs")) jsUrls.push(url);
+  }
+  // Follow every dynamic import() the page's OWN script(s) actually contain,
+  // resolved against the file that names it (same directory in practice —
+  // Vite emits every chunk for one page into the same `/assets/` folder —
+  // but resolved with a real URL rather than assumed, so a future output
+  // layout change fails to resolve rather than silently precaching nothing).
+  for (const jsUrl of jsUrls) {
+    let jsText;
+    try {
+      const jsRes = await fetch(jsUrl, { cache: "no-store" });
+      jsText = await jsRes.text();
+    } catch {
+      continue; // best-effort, this function's own overall posture
+    }
+    DYNAMIC_IMPORT_RE.lastIndex = 0;
+    let dm;
+    while ((dm = DYNAMIC_IMPORT_RE.exec(jsText))) {
+      const resolved = new URL(dm[2], new URL(jsUrl, self.location.origin)).pathname;
+      if (resolved.startsWith("/api/")) continue; // never — see this file's own header
+      urls.add(resolved);
+    }
   }
   const sorted = [...urls].sort();
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(sorted.join("|")));
