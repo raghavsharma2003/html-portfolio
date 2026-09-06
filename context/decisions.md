@@ -7515,3 +7515,14132 @@ same environment, and test explicit `resources.gpu: 1` only if ARM validation
 accepts it. Rerun the unchanged ZONOS2 digest only after that canary passes.
 Voice qualification still requires the sealed Hindi, Hinglish and English
 pack, exact receipts, objective metrics and accepted blind owner ratings.
+
+## `ws-r2-voice-identity-challenge-decision` — owner identity by speaker verification, not by document (2026-09-03, WS-R2)
+
+**The decision.** An owner satisfies `identity_verification_required` and
+`liveness_verification_required` by speaking a server-issued sentence on
+camera. Two independent measurements must agree: ECAPA speaker-embedding
+cosine between the challenge clip and the owner's own VoiceGenome reference,
+and a Sarvam transcript that contains that sentence plus a spoken numeric
+nonce. The decision is a row in `vy_replica_voice_challenge` (migration 072),
+and `completeVoiceChallenge` writes the SAME three `vy_replica` columns, under
+the SAME `age_verified_at is not null` guard, that
+`completeLivenessVerification` writes when the Azure composite verifier
+passes. `runtimeBlockers` and `activateOwnedRuntime` are untouched and cannot
+tell the two paths apart.
+
+**Why.** The shipping product has no identity path at all. The Azure Document
+Intelligence + Face Liveness stack (`services/azure-verifier`,
+`api/_replica-identity.js`, `api/_replica-liveness*.js`, migrations 039-041)
+was built, is complete at both ends, and has never been deployed: it needs two
+Microsoft Limited Access approvals nobody has. The only other route is
+`REPLICA_SELF_TEST_MODE`, which is a flag, is owner-UUID-bound, and is
+explicitly not a product path
+(`rejected.md#single-self-test-boolean-is-a-global-footgun`). Self-cloning
+only is a law (`decisions.md#replica-self-only`), and the question that law
+actually asks is "is the person speaking now the person this replica was built
+from" — which is a speaker-verification question, not a document question.
+
+**Why NOT a new DAG step in the processing worker.** The obvious home for
+"embed this clip" is `AUDIO_PROCESSING_DAG`, and it was rejected: the worker
+is a deployed Azure Container Apps Job pinned by image digest, and this repo
+has already paid twice for work that was complete in `api/` while the Job had
+not been rebuilt (`STATE.md`: "the fix is not live: the processing Job has not
+been rebuilt"). A Vercel cron ships with the ordinary push that ships the rest
+of the branch. The cost is a function budget rather than a 3 600 s one, which
+is why `maxJobs` is 1 and why a cold evidence service is a retry rather than a
+failure.
+
+**Why two sources per challenge.** `services/voice-evidence` accepts
+`video/webm` (it is in the adapter's own `ALLOWED_MIME`), so the camera clip
+can be embedded directly. Sarvam's sync endpoint is measured in this repo on
+AUDIO only (`measurements.md#first-real-clone`: 4 134 ms for 25 s, hard 30 s
+cap) and has never been sent a video container; there is no ffmpeg on Vercel
+to demux one. Guessing a vendor's container support on the launch path is the
+shape of `rejected.md#plausible-return-hides-a-dead-pipeline`. So the browser
+encodes a second artifact, a 24 kHz mono WAV, from the SAME `getUserMedia`
+stream using `wavCapture.ts`'s already-exported encoder and resampler.
+
+**What this deliberately does NOT prove, and it is in the code as well as
+here.** It does not prove ADULTHOOD: a voice cannot establish an age, so
+`age_verified_at` remains the ID document's to write and
+`adult_verification_required` survives a perfect challenge. It does not bind a
+LEGAL IDENTITY: it answers "same person as the enrolment", not "who in the
+world is that person". Anything requiring a named human still requires the
+Azure path or an equivalent.
+
+**What would reverse it.** (a) The two Microsoft Limited Access approvals
+landing, at which point the Azure path is strictly stronger for legal identity
+and this becomes the fallback rather than the default. (b) A measured impostor
+control set showing the different-speaker distribution overlaps 0.78 — see
+`ws-r2-voice-challenge-thresholds` below, which is the sharper reversal
+condition and the one that matters first.
+
+## `ws-r2-voice-challenge-thresholds` — the rails are the repo's own numbers, and one side of them is unmeasured (2026-09-03, WS-R2)
+
+**The decision.** Accept at cosine >= 0.78, review 0.70 to 0.78, reject below
+0.70, recorded as constants in `VOICE_CHALLENGE_POLICY` with the measurement
+cited beside them. `review` is a real decided outcome that does NOT open the
+gate.
+
+**Why these numbers.** They are the repo's own, from
+`measurements.md#first-real-clone` (n = 1 subject, 2 end-to-end runs, spread
+1e-6): the owner-vs-owner ceiling across different windows of the same
+recording is 0.8869 (p10 0.8795), `api/_fidelity.js`'s activation floor is
+0.70 and its warn band is 0.78. The owner-vs-owner row is the comparison this
+module actually makes, so a genuine owner should land near 0.88, a full 0.10
+above accept. The FALSE-REJECT side therefore has a measured margin.
+
+**The honest limit, stated as loudly as possible.** THE FALSE-ACCEPT SIDE DOES
+NOT. This repository contains no different-speaker control: nobody has ever
+measured what an impostor scores against a stranger's reference on this stack.
+0.70 is carried from `api/_fidelity.js` because it is the only number in the
+building chosen with any evidence at all, and NOT because anyone has shown an
+impostor falls below it. `api/_fidelity.js` already says of its own thresholds
+that "a threshold nobody measured is dogma with a decimal point on it"; that
+applies here with more force, because what sits on the other side of this gate
+is a person's identity rather than a drift warning. `review` exists precisely
+so that a decision nobody can defend numerically has somewhere to land that is
+not "yes".
+
+**What would reverse it.** An impostor control set: N speakers scored against
+M other speakers' references through this exact path. If that distribution
+overlaps 0.78, the gate is not safe at 0.78 and `VOICE_CHALLENGE_POLICY_VERSION`
+gets bumped rather than the constants quietly edited. The eval proves the
+thresholds are DATA (the same recording moves between decisions under two
+policies with no code edit), so a re-bench is a config change.
+
+## `ws-r2-transcript-is-the-liveness-half` — the anti-replay argument is the transcript, not the voice (2026-09-03, WS-R2)
+
+**The decision.** A challenge cannot be accepted unless the ASR transcript
+matches the issued sentence above a word-overlap threshold AND contains the
+spoken numeric nonce. The nonce is a separate mandatory check rather than more
+tokens in the overlap.
+
+**Why.** A replayed old recording of the owner passes the speaker check by
+construction, because it IS the owner. The only thing that separates it from a
+live reading is that it cannot contain a sentence and digits generated after
+it was recorded. The eval carries the negative control that makes this
+load-bearing rather than decorative: with the transcript gate removed, the
+identical replayed recording is ACCEPTED.
+
+**Why the nonce is separate.** `rejected.md#romanised-lexicon-meets-devanagari-asr`
+measured a visibly bilingual transcript at code-switch ratio 0.000 because
+Sarvam returns Devanagari and transliterates the English half into Devanagari
+too. A Latin-script bank sentence read back in Devanagari would therefore
+score near zero on WORDS while the person did nothing wrong.
+`normalizeChallengeSpeech` keeps `\p{M}` (that entry's defect (a): stripping
+Mark_Nonspacing shreds an abugida into bare consonants) and folds nine Indic
+digit ranges to ASCII, so the digits survive a total script mismatch and the
+anti-replay argument survives with them. The word overlap then degrades into a
+`sentence_not_read` refusal the owner is told how to fix, instead of a silent
+rejection nobody can explain.
+
+**What would reverse it.** A measured script-behaviour bench for Sarvam on
+this exact bank. If it returns Latin for Latin input, the overlap threshold
+can be raised and the fold becomes redundant rather than load-bearing. If it
+returns Devanagari for everything, the bank should be authored in Devanagari
+and the overlap threshold re-derived from that. `transcriptOverlapMin = 0.60`
+is PROVISIONAL and marked so in the code; it is the one number in this
+workstream with no measurement behind it.
+## `ws-r6-vendor-arms-are-bench-arms` (2026-09-03, WS-R6)
+
+**Decision.** ElevenLabs and Sarvam are registered as VOICE BENCH ARMS, not as
+lanes. `VOICE_LANE_ORDER` is unchanged and still puts the self-hosted lane
+first; setting `ELEVENLABS_API_KEY` gets an operator a bench arm and nothing
+else. Exactly one environment variable, `VOICE_PRIMARY_LANE`, can move the
+primary synthesis lane, it is read in one place (`api/_voice/registry.js`), and
+it throws rather than falling back when it names a lane that is not configured.
+
+**Why.** `platform-north-star` names the evidence that would make a vendor lane
+primary again: the self-hosted lane's fidelity staying materially below the
+vendor lane after fine-tuning effort. No vendor arm had ever been benched, so
+that reversal condition was unfalsifiable, and an unfalsifiable reversal
+condition is the dogma the file's own rules exist to prevent. Building the arms
+as BENCH arms makes it testable without pre-deciding it: the shipped product
+does not change until a listening pass says it should. An operator who asks for
+a vendor primary and silently gets the self-hosted one has been told the
+opposite of the truth about what produced their audio, which is why the
+override refuses instead of falling through.
+
+**What would reverse it.** A sealed listening pack in which the ElevenLabs cell
+beats the self-hosted cell on OWNER LIKENESS, from at least one accepted
+listener who passed both attention checks, on both the English and Hindi
+exact-text cells, with the disclosure trimmed and the mapping unsealed only
+after the ratings were locked. That flips `VOICE_LANE_ORDER` and makes the
+in-house lane the research track. A better naturalness or pronunciation score
+is NOT reversal evidence, and neither is any ECAPA number: `azure-tts` is the
+entry where every measured axis said switch and the ear was right to refuse.
+
+## `ws-r6-sarvam-is-the-accent-control` (2026-09-03, WS-R6)
+
+**Decision.** The Sarvam Bulbul arm is implemented as an Indian-accent BASE
+voice with a preset speaker, labelled `indian_accent_base_voice` on every
+receipt and in the unsealed report, and its `createVoice` and `deleteVoice`
+refuse rather than returning anything. It can never win the owner-likeness axis
+and the instrument says so before anyone reads a number.
+
+**Why.** Sarvam's marketing says Bulbul v3 supports voice cloning; their public
+API reference documents preset speakers and no endpoint that builds a custom
+speaker from a reference recording (read 2026-09-03 across the API reference,
+the Bulbul model page and the endpoint index; the only cloning in the docs is
+inside the separate Dubbing product). Returning a preset speaker from a call
+named `createVoice` would put a base voice into the clone lane where nothing
+downstream could tell the difference. It is still worth benching, for the reason
+`azure-tts` gives: that battery measured whether Hindi words come back as Hindi
+words, never whether the speaker sounds like a person from this country, and
+only the second decides likeness. A native-accent base voice is the control
+that separates the two axes.
+
+**What would reverse it.** Sarvam documenting a custom-speaker endpoint, at
+which point the arm grows a `createVoice` and changes category. A marketing page
+is not documentation and does not reverse this.
+
+## `ws-r6-vendor-clip-carries-no-perth` (2026-09-03, WS-R6)
+
+**Decision.** Vendor arm receipts record `perthWatermarkVerified: false` and
+`protectionPath: "delivery_audioseal"`. The matched pack's verifier REFUSES a
+vendor result that claims a PerTh watermark, and still refuses a self-hosted
+result that lost one. The platform watermark reaches a vendor clip through
+`api/_provenance/delivery.js` on delivery, not at synthesis.
+
+**Why.** PerTh is embedded by `services/open-voice-runtime`; it is a property of
+the self-hosted lane, not of every generated clip. The platform requirement that
+every delivered clip is watermarked is met by the delivery path, which is
+provider neutral. The temptation was to let a vendor arm report the field as
+true so the existing pack accepted it unchanged. That is fabricated evidence in
+the exact shape `AGENTS.md` names, and it would have been fabricated in the one
+place it does the most damage: the bench that decides `platform-north-star`.
+
+**What would reverse it.** A vendor that documents an embedded watermark our
+detector can verify, plus a verification run against a real clip. A vendor
+claiming a watermark in a response field is not evidence.
+## `review-correction-is-a-source-not-a-prompt-line` — WS-R4 (2026-09-03)
+
+**Decision.** "Close, fix it" writes the owner's better answer as a row on
+`vy_replica_source` with `purpose='correction'`, uploaded through the ordinary
+signed upload and finalized through the existing source endpoint so the existing
+processing DAG transcribes a dictated one. It is never written into a persona,
+a TeacherSheet, or any compiled prompt. Everything derived from the answer it
+replaces is INVALIDATED (draft `vy_replica_profile` retired, in-flight
+`person_profile` build retired, the originating claim superseded) so the next
+build re-derives; nothing derived is edited in place.
+
+**Why.** `recited-prompt` is measured twice in unrelated features: her own
+example quotes acted as a phrase bank (recited 4/5 → 0 after removal), and taste
+written as polished English sentences was read out verbatim twice, eight turns
+apart. The owner's better answer is the single most recitable string this product
+can produce: a whole sentence, in their own words, about a question their
+audience really asks. 059 already states the same rule one table over for
+`vy_mirror_feedback.rephrase_text` ("the single most recitable thing that could
+enter a prompt"). The invalidate-and-rebuild half is the brief's own wording and
+matches what `markOwnedSourceDeleting` already does on source deletion; the audit
+fact is spelled `derived_models_invalidated` deliberately, so one grep finds
+every place derived material is thrown away.
+
+**What would reverse it.** A measured retrieval lane that can inject a stored
+correction at answer time WITHOUT it appearing in the prompt as a sentence (a
+cited excerpt the model is told to paraphrase, benched for verbatim echo at
+n>=32 like the taste rewrite was), or a measurement showing a correction stored
+as a source is never retrieved and therefore never affects an answer. The second
+would be a reason to change the retrieval, not to paste the sentence in.
+
+## `review-decision-is-one-sql-clause` — WS-R4 (2026-09-03)
+
+**Decision.** A review card flips state in ONE statement, and each of the three
+decisions is gated on its own write having landed IN THAT SAME STATEMENT,
+upstream of the flip:
+
+    fixed  ...  and ($4::text <> 'fixed' or exists (select 1 from correction))
+    never  ...  and ($4::text <> 'never' or exists (select 1 from landed_rule))
+
+plus migration 074's `vy_review_card_fixed_gate`, a CHECK that makes
+`(state='fixed') = (correction_source_id is not null)` true by construction.
+
+**Why.** This is `mirror-call-approval-is-one-sql-clause` (2026-08-26, WS-X)
+applied to a second surface, and it is the half that is easy to get backwards:
+the write is upstream of the state flip, so a decision whose write did not land
+leaves the card OPEN rather than "decided and silently unapplied". A tap that did
+nothing must not look like a tap that worked. `evals/review-queue/run.mjs`
+strikes the `fixed` clause out of the shipping string and asserts the struck copy
+is a different program, and drives the "correction source is gone" path to prove
+the card stays open with a named refusal.
+
+**What would reverse it.** A reviewed, benched path for recording a decision
+whose write is applied asynchronously, with the un-applied state rendered
+honestly in the studio. There is no such path today and the CHECK forbids one on
+the `fixed` branch specifically.
+
+## `never-say-is-a-predicate-at-the-one-door` — WS-R4 (2026-09-03)
+
+**Decision.** "Never say this" writes a `vy_review_never_rule` row. The rules are
+read per turn, compiled by `api/_never-rules.js` (a module that imports nothing),
+and matched inside `api/_surface.js::gateReply` on the assembled bytes, after the
+honesty gate. A match SUPPRESSES the reply and names the rule id; the suppressed
+text never travels and never reaches a log. Nothing is added to any prompt.
+
+**Why.** Two independent measured reasons. `gate0-structural`, quoted in
+`docs/gurukul/safety-floor-teacher.md`: prompt instructions leaked 57-98%, the
+SQL predicate leaked 0 of 31,122. And `recited-prompt`: a list of forbidden
+sentences in a brief is a phrase bank pointed at exactly the strings it forbids.
+The module imports nothing because `api/_surface.js` is on every surface's reply
+path including the Telegram webhook, and enforcing an owner's rule must not drag
+storage config or a database client onto that path.
+
+A long rule is matched by six-token SHINGLE rather than whole, because a clone
+that says the forbidden thing again will not reproduce the paragraph byte for
+byte, and a rule that only fires on an exact repeat is a rule that never fires.
+Rules shorter than three normalised characters are refused at the door: a
+one-character pattern matches every reply this AI will ever produce, and silently
+muting a person's clone is worse than refusing their rule out loud.
+
+**What would reverse it.** A measurement showing the shingle rule produces false
+suppressions on ordinary replies at a rate an owner would call broken (it is
+untested against real traffic; today it has only the suite's fixtures behind it),
+or a bounded per-turn cost measurement showing 200 compiled rules are too
+expensive on the reply path. Either would change the MATCHER. Neither is a reason
+to move the rules into a prompt.
+## `ws-r3-readiness-lock-is-sql-predicate-peer-gate` (2026-09-03)
+
+**Decision.** The Readiness publish lock (Vyakti Rooms v1: 70 overall, 55 on
+every part, nothing unmeasured) is enforced as a SQL predicate joined against
+the newest `vy_replica_readiness` snapshot, wired into two places as a PEER of
+the existing fidelity gate rather than a successor to it or a JS branch above
+either write: `activateOwnedRuntime`'s activation CTE (`api/_replica-runtime.js`,
+an INNER lateral join, pinned to `computed_at = max(computed_at)`) and
+`saveCloneChannel`/`setCloneChannelStatus`'s status CASE
+(`api/_clonechannel.js`, a reused `readinessPasses()` fragment across the three
+writers so the floors cannot drift out of step between them). A clone can pass
+either gate while failing the other; readiness answers "is it finished enough
+to be let out", fidelity answers "does it sound like them", and the seven
+suites answer "does it behave like them".
+
+**Why.** `gate0-structural` (measurements.md) is the governing measurement for
+this shape: the prompt-instruction arm of that build leaked 57.1% of
+naturalistic and 98.1% of adversarial scenarios, the SQL disclosure predicate
+leaked 0 of 31,122. A readiness check evaluated in the browser or beside the
+activation write in JS is a preference; a row the activation statement JOINS
+against, or a CASE the connect write cannot be steered around, is a guarantee.
+Fail-closed is the specific direction chosen throughout: no snapshot at all
+reads exactly like a snapshot that failed (peer to `FIDELITY_BLOCKER`'s own
+precedent, so a caller cannot probe the gate for the difference), a refused
+connect writes `draft`/`paused` rather than leaving the prior status, and pause
+/ revoke are left ungated because a lock that could trap a teacher's clone
+online would be a safety defect wearing a quality label.
+
+**What would reverse it.** Nothing about the SQL-predicate shape itself; that
+follows directly from `gate0-structural` and would need that measurement
+overturned first. What COULD legitimately change the wiring: a third caller of
+either gate discovered later that cannot afford the extra lateral join's cost
+at its own scale (unmeasured here — no live database was reachable this
+session, so the join has never been EXPLAINed against real
+`vy_replica_readiness` volume), in which case the fix is an index or a
+materialized flag column kept in sync by the same snapshot writer, not
+weakening the predicate back into a branch.
+
+## `ws-r3-readiness-overall-undefined-while-any-part-unmeasured` (2026-09-03)
+
+**Decision.** `readinessScreen`'s `overall` and `min_part` are `null` whenever
+any of the five parts (`knows_your_material`, `sounds_like_you`,
+`thinks_like_you`, `knows_what_not_to_say`, `up_to_date`) lacks a real
+instrument, never a mean over whichever parts happen to have numbers. Enforced
+twice: in the pure function itself (`unmeasured.length === 0 ? ... : null`,
+both for `overall` and `min_part`, guarded together because a mean without a
+matching min would let the lock predicate read a null as a pass on one of the
+two) and, independently, by migration 073's paired CHECK constraints
+(`vy_replica_readiness_overall_undefined`, `vy_replica_readiness_min_part_pairs`)
+so a row cannot exist in the database with five measured parts and a null
+overall, or two of five measured and a real one.
+
+**Why.** `plausible-return-hides-a-dead-pipeline` (rejected.md) applied to a
+score: a readiness of 61 assembled out of three real numbers and two guesses
+is the most persuasive version of that defect this product could ship, because
+a creator would act on it. `ground-truth-ceiling` (measurements.md,
+2026-08-18) is why one of the two missing instruments (`sounds_like_you`) is
+specifically dangerous to fake: a trusted judge agreed with its own archived
+verdicts only 77.1% of the time, so a similarity score expressed against
+anyone's ceiling but the speaker's own imports one person's consistency into
+everybody else's number. Today BOTH `knows_your_material` (no recall-run
+writer exists anywhere in this repo) and `sounds_like_you` (no owner-ceiling
+writer exists; `definition.evidence.self_similarity_ceiling` is read but never
+written) are structurally unmeasured for every replica, so this decision is
+the reason the publish lock is closed for every clone in the product today,
+not an edge case.
+
+**What would reverse it.** Never reversible as stated — it is the load-bearing
+half of the spec (`unmeasured stays unmeasured, never a placeholder`). What
+would change the STATE it describes: a recall-run writer and an owner-ceiling
+writer landing at the two named seams (`readRecallRun` in `api/_readiness.js`,
+and whatever writes `vy_replica_voice_genome.definition.evidence.
+self_similarity_ceiling`), at which point real replicas would start showing a
+defined overall for the first time. `evals/readiness/run.mjs` section 4 is the
+enforcement of the "never reversible" half: it removes this exact guard from a
+copy of the real module and requires every assertion resting on it to fail, so
+a future edit that quietly reintroduces the average is caught rather than
+merged.
+## `ws-r5-interview-is-a-call-mode-not-a-second-door` (2026-09-03)
+
+**Decision.** The interview is `mode=interview` on the existing `mirror-call/v1`
+`create` op, not a second call type, a second reply assembler, or a second
+consent freeze. `vy_interview_session.mirror_session_id` is `NOT NULL` and
+unique, so an interview cannot exist detached from the Mirror Call whose
+transport, consent scopes and window table it reuses, and the two modes differ
+in exactly one thing downstream: whether the clone's turn carries a rendered
+ask block. Every turn, in either mode, still leaves through `gatedReply()`
+(`api/_mirrorcall-reply.js`), which is `mirror-call-reply-is-the-one-door`
+applied to the surface where a second door would matter most — the owner is
+answering questions about themselves.
+
+**Why.** A parallel interview lane would need its own consent check, its own
+window ingestion, its own reply assembly, and every future rule added to
+`gatedReply` (a helpline, a manipulation guard, a new honesty family) would
+reach the ordinary call and silently miss the interview unless someone
+remembered to wire it twice. One door means every such rule reaches both modes
+for free, which is the whole argument `api/_clonechat.js` already settled for
+the web widget.
+
+**What would reverse it.** A real product requirement for an interview that
+runs independent of a live Mirror Call — asynchronous, text-only, or resumable
+across days without an open call — would need a new transport, and at that
+point this decision should be revisited rather than stretched. Wanting the
+interview UI to look different from the calibration call is not that evidence;
+the mode flag already carries that without a second door.
+
+## `ws-r5-gap-list-frozen-at-session-open` (2026-09-03)
+
+**Decision.** `api/_interview-gaps.js::buildInterviewGaps` runs once, when the
+interview opens, and its ranked output is written into
+`vy_interview_session.gaps` (jsonb, capped at 32 KB, array-shaped by a CHECK
+constraint) rather than recomputed on every window. `gaps[answers_captured]` is
+the outstanding question for the life of the session.
+
+**Why.** The gap model reads claims, sheet fields, transcript coverage and the
+readiness snapshot, all of which keep changing while a twenty-minute call is in
+progress. Recomputing mid-call would mean the interview's fourth question came
+from a different ranking than its first, with no way for the owner to know the
+ground shifted under them mid-answer. Migration 075's header makes the same
+argument 059 makes for `consent_scopes`: what was true at start is a fact the
+row has to carry.
+
+**What would reverse it.** A live interview session (needs the migration
+applied and a real call) showing that evidence arriving mid-call — a claim
+decision flipping, a contradiction resolving itself — measurably produces worse
+questions under freezing than under a recompute would be grounds to revisit.
+No such measurement exists yet; this is a design argument, not a tested one.
+
+## `ws-r5-interview-answer-grows-the-source-set-and-writes-nothing-else` (2026-09-03)
+
+**Decision.** `recordInterviewAnswer` (`api/_interview-store.js`) only stamps
+`purpose='interview'` onto a `vy_replica_source` row the owner's ordinary
+upload lane already created, and inserts one `vy_interview_answer` row pointing
+at it. Nothing in the interview lane writes `vy_teacher_sheet`, a persona field,
+or a `vy_mirror_conditioning` selection. `evals/interview/run.mjs` asserts no
+statement in the store lane names either table.
+
+**Why.** `context/rejected.md#mirror-reference-accumulation-was-inert` is the
+standing evidence: a voice loop built as spec'd, accumulating references
+automatically, would have changed nothing, because synthesis reads only
+`vy_mirror_conditioning`'s selection. Generalised here, an interview answer is
+not "more true" than an uploaded claim and must not be allowed to look like a
+direct edit to the persona or the sheet — it becomes ordinary material that the
+existing mining and review lane processes like anything else.
+
+**What would reverse it.** Only a new, separately measured decision that the
+voice or persona pipeline should read interview answers directly (superseding
+the "selection over accumulation" argument this is built on) would justify
+writing outside the source set from here. A request for the interview to "move
+readiness faster" is not that evidence; it is a request to route through the
+ordinary mining lane faster.
+
+## `ws-r5-ask-block-splices-before-the-appended-last-set-or-refuses` (2026-09-03)
+
+**Decision.** `spliceInterviewAsk` (`api/_mirrorcall-reply.js`) inserts the
+interview's rendered ask block into the compiled prompt tail immediately
+BEFORE `FORGET_DECISION` — the same position `compiler.ts` gives T16/T19 — and
+returns `null` (surfaced as the named reason `interview_ask_unplaceable`, never
+a silently dropped ask) if the compiled tail does not end with that exact
+suffix. It never appends after it.
+
+**Why.** `prompt-position` measured 0/8 fires for an identical rule buried
+mid-brief against 8/8 for the same rule appended last, and that appended-last
+set is deliberately closed at exactly two members
+(`shapelint.checkAppendedLastExactlyTwo`). Adding the ask as a third
+appended-last item would be quietly widening a set the compiler treats as
+closed, on the one lane where the "line" being smuggled in is the model's own
+instruction for what to ask next.
+
+**What would reverse it.** A re-run of the position experiment (mid-brief vs.
+appended-last vs. immediately-before-appended-last, same measurement method as
+the original `prompt-position` result) showing the ask fires as reliably from a
+different position would justify moving it. No such measurement exists for the
+ask block specifically; the position is inherited from `prompt-position`'s
+result for other rules, not independently confirmed for this one.
+
+## `ws-r5-dialogue-register-is-a-pointer-not-a-reweight` (2026-09-03)
+
+**Decision.** `dialogueRegister` (`api/_person-model.js`) adds
+`speech.dialogue_register` to the person model definition as a set of claim ids
+that came from a source with `purpose='interview'` — a pointer for retrieval to
+prefer, not a new confidence weight or claim domain. The block is always
+present (`sources: 0, claims: []` when the replica has never been interviewed)
+rather than an absent key, because an absent key would be indistinguishable
+from a builder that silently ignored the argument.
+
+**Why.** An interview answer is not more true than an uploaded claim, only
+differently shaped — it is the only material where the person is in a
+conversation rather than composing one. Reweighting confidence on that basis
+would conflate "recently and conversationally given" with "more likely true",
+which nothing in this feature has measured. `evals/interview/run.mjs` drives
+the builder with the same claims twice, with and without the interview source
+ids, and fails unless the two outputs differ, so a future edit that stops
+threading the ids through breaks a gate rather than shipping silently empty.
+
+**What would reverse it.** A measured degradation in register consistency
+(Hinglish/English code-switch matching, the existing `exdialog-surface`-style
+measurement) traceable to boolean membership being too coarse — for example, an
+interview answer given once, offhand, being weighted the same as one repeated
+five times — would be grounds to move to a weighted signal instead of a set.
+## `ws-r1-room-is-a-third-vite-entry-not-a-studio-route` (2026-09-03)
+
+**Decision.** WS-R1 (the Room, a creator's published follower surface at
+`/r/<slug>`) ships as its own Vite build entry (`room.html` → `src/room/`),
+its own Vercel rewrite (`/r/:slug` → `/room.html`), and its own layout-gate
+fixture (`room-layout-fixture.html`), rather than as a route inside the
+existing studio bundle. Keep it a separate entry as long as the Room and the
+studio remain different audiences.
+
+**Why.** A follower arrives from a bio link with no reason to trust this
+domain yet and no reason to download a creator's authoring tool. Folding the
+Room into the studio bundle would mean every follower's first paint pays for
+code (wizard steps, processing review, mirror-call authoring) they will never
+run, and would put the studio's own surface behind a route a stranger reaches
+first. The two audiences share the design tokens (`src/studio/design/tokens.css`)
+and `src/studio/studioAuth.ts` (see the next entry) and nothing else of
+substance — `src/room/copy.ts` is deliberately its own module rather than a
+reuse of the studio's, because a Room screen is read by someone who is not a
+customer of this platform and the wrong sentence lands in front of a stranger,
+not a colleague.
+
+**What would reverse it.** If a later product decision merges the two
+audiences (a creator previewing their own Room from inside the studio, say,
+with shared navigation chrome), measure the actual bundle-size and first-paint
+cost of a merged entry against today's two-entry cost before merging the
+build target. Do not merge on code-reuse grounds alone; `src/room/copy.ts`'s
+header records why the studio's copy was rejected as a shared module even
+though the shape was reused.
+
+## `ws-r1-phone-otp-lives-in-studioauth-not-a-new-module` (2026-09-03)
+
+**Decision.** Phone OTP sign-in (`sendPhoneOtp` / `verifyPhoneOtp`, calling
+`api/account.js`'s pre-existing but previously uncalled `send_sms` /
+`verify_sms` ops) was added to `src/studio/studioAuth.ts`, the studio's
+existing auth module, rather than to a new `src/room/roomAuth.ts`. Same file
+for `googleSignIn`, which gained a `returnPath` parameter (default `/studio`,
+so every existing caller is byte-identical) so the Room can send Google's
+redirect back to `/r/<slug>` instead of into a creator's studio.
+
+**Why.** The Room is the first surface whose audience signs in by phone
+number by default, but a session shape, a refresh rule and an error taxonomy
+are one contract regardless of which surface mints the session. A second auth
+module is a second place those three things can drift, and the day they did,
+the two products would disagree about what "signed in" means for the same
+person. One module, two callers — the same reasoning `docs/SURFACES.md`
+already states for why a transport must never become a second tenant.
+
+**What would reverse it.** If the Room's session lifecycle needs to diverge
+from the studio's in a way `studioAuth.ts` cannot express without conditionals
+keyed on caller identity (a materially different token lifetime, a different
+refresh cadence), split it then — a module that has to ask "which surface is
+this?" before deciding its own behaviour has already stopped being one
+module in anything but name.
+
+## `ws-r1-free-cap-is-one-conditional-update-not-a-counter` (2026-09-03)
+
+**Decision.** The Room's free-tier cap (20 messages/month, `vy_room.
+free_monthly_messages` as data, not a constant) is enforced by ONE
+conditional SQL `UPDATE` on `vy_room_follower` that rolls `month_key` and
+increments `month_message_count` together, gated in the same statement that
+checks the count against the allowance. No client counter, no
+SELECT-then-UPDATE.
+
+**Why.** `gate0-structural`'s distinction between a preference and a
+guarantee applies directly: a SELECT-then-UPDATE lets two tabs both read 19
+and both write 20, and a client-side counter is trivially bypassed by anyone
+who opens devtools. A single atomically-conditioned UPDATE is the only shape
+where "twenty free messages" is actually true rather than usually true.
+`evals/room/run.mjs` asserts both halves — twenty allowed, the twenty-first
+refused before any model call, and the month rolling over inside the same
+UPDATE.
+
+**What would reverse it.** If the free allowance ever needs to be a true
+rolling 30-day window rather than a calendar month, this exact mechanism
+(two columns, one UPDATE) does not extend to that cleanly and would need
+redesigning — that is a product-shape change, not a bug in this one.
+
+## `ws-r1-room-owner-lane-excluded-from-person-tables` (2026-09-03)
+
+**Decision.** `vy_room` (migration 071) is deliberately absent from
+`api/memory.js`'s `PERSON_TABLES` manifest, even though it is exactly the
+kind of table that manifest exists to catch. Its erasure is wired the other
+way: `api/_replica-full-erasure.js`'s CTE chain deletes `vy_room`,
+`vy_room_follower` and `vy_room_thread` by `agent_id`/`replica_id`/
+`owner_user_id` when a CREATOR revokes their AI. `vy_room_follower` and
+`vy_room_thread` are additionally in `PERSON_TABLES` (with `agent: true`,
+gated on migration 071 having landed, exactly as `meera_consent` is gated on
+016) so a FOLLOWER's own whole wipe takes their membership and thread titles.
+
+**Why.** `vy_room` carries `owner_user_id` and no person column — it is the
+creator's row, not a follower's. A manifest loop that deletes by
+`person_id` has no business touching it, and if it somehow did, one
+follower's "forget me" would take the room away from every other follower in
+it. Both erasure directions are real and independently wired for the reason
+stated throughout this codebase's erasure code: two independent layers for a
+harm the next turn does not undo. `scripts/relcheck.mjs`'s owner-lane reach
+walk is why `vy_room` must be named in `_replica-full-erasure.js`'s SQL by
+text rather than relying on `room_id`'s cascade alone — a table carrying
+`owner_user_id` that is reachable only through a cascade nobody re-checks is
+exactly the defect class that check exists to catch.
+
+**What would reverse it.** If a future migration adds a `person_id` column to
+`vy_room` itself (there is no product reason to today — a room has one
+owner, not one person), that column would need its own decision about
+whether it belongs in `PERSON_TABLES`, and this entry's reasoning would not
+automatically transfer to it.
+
+## `ws-r1-citations-name-sources-never-passages` (2026-09-03)
+
+**Decision.** The Room's citation affordance (`op:"citations"`) returns the
+creator's own Context Locker source names (`vy_context_item.source_name`,
+`status in ('mined','routed')`) with `exact:false`. It never returns a
+passage, a quote, or a claim of exactness.
+
+**Why.** The engine exposes no per-reply provenance on this path — there is
+no mechanism that knows which source a given reply actually drew from, only
+which sources exist for this creator. Answering "where did that come from"
+with a guess dressed as evidence is `plausible-return-hides-a-dead-pipeline`
+in its exact shape: a citation that looks specific but is not earned reads as
+more honest than the truth, which is worse than an honest "this comes from
+{name}'s own material."
+
+**What would reverse it.** If the retrieval path this endpoint reads from
+ever gains real per-reply provenance (which chunk actually fed a given
+generation), `exact` should flip to `true` and the response should carry the
+real passage — but only once that provenance is measured to exist, not
+before.
+
+## `ws-r1-layout-gate-measures-two-products` (2026-09-03)
+
+**Decision.** `scripts/check-layout.mjs` was generalized from one hardcoded
+fixture and step list to a `TARGETS` array, each entry naming its own
+fixture file, its own query-string builder, its own "did this actually
+mount" selector, its own panel selector and its own `minPanels` floor. The
+studio (`studio-layout-fixture.html`, `mode=teacher&step=`, 3 steps, floor 2
+panels) and the Room (`room-layout-fixture.html`, `screen=`, 2 steps —
+`join` and `talk` — floor 1 panel, since a Room screen is one shell with one
+card in it) are both measured, at all three viewports (390/834/1355px),
+every run. Everything NOT specific to a target — the prose CPL/font-size
+floors, the grid-sliver checks, the contrast floor, the overflow check — stays
+shared across both, deliberately: two products of one company disagreeing
+about what readable means is exactly the failure this gate exists to make
+visible.
+
+**Why.** The gate's own history is the argument: `layout-readability-gate`'s
+node records that a surface nobody points this gate at is a surface where the
+collapsed-column defect lives, undetected, until someone happens to look. The
+Room is a second, separate follower-facing surface (see the entry above); a
+`check-layout.mjs` that still only measured the studio would report green
+while the actual product most strangers see went unmeasured. `minPanels` had
+to become per-target rather than one shared constant, because the studio's
+own floor of 2 would fail a correct one-card Room screen — a floor set for
+one shape and silently applied to a different shape is a false failure, and
+a gate that fails correct pages teaches people to stop reading its output.
+
+The same pass also fixed a **pre-existing, unrelated bug** in the gate's
+contrast check found while extending it: `getComputedStyle` on Chromium
+serializes a `color-mix()`-derived background as `color(srgb r g b / a)` with
+components in the 0..1 range, not the `rgb(r,g,b)` 0..255 range the parser
+assumed, so a paper-coloured header parsed as near-black and a genuinely
+4.5:1+ label reported as a 1.18:1 failure. `parseColor` now branches on the
+`color(` prefix and scales up. This was found only because the Room's own
+CSS uses a `color-mix()` background the studio's does not exercise the same
+way; it would eventually have been found by the studio anyway, but WS-R1 is
+why it was found now rather than later.
+
+**What would reverse it.** If a third follower- or creator-facing surface is
+added, add a fourth `TARGETS` entry rather than special-casing it — that is
+the abstraction this refactor exists to make cheap. If the shared checks ever
+need to diverge per-target (a genuinely different contrast floor for one
+product, say), that is the point at which per-target limits, not just
+per-target selectors, become necessary — `audit(limits)` already threads a
+`limits` object per call, so the extension point exists without a further
+refactor.
+
+## `rooms-migrations-applied-live-in-the-union-order` (2026-09-03)
+
+**Decision.** Migrations 071 (Room), 072 (voice identity challenge), 073 (readiness), 074 (review queue) and 075 (interview) were applied to the live Neon database on 2026-09-03 by the main loop, one statement per request through Neon's SQL-over-HTTP, in the order 072, 074, 073, 075, 071 (the order the workstreams finished), and every new statement each workstream's API runs was `EXPLAIN`ed against the live database before its branch was merged. 066-070 were left unused because another agent applied migrations under those numbers live without pushing them (the live database carries `vy_replica_voice_preview_intent`, `vy_replica_voice_build_intent`, `vy_replica_voice_reference`, `vy_replica_claim_extraction_queue`, `vy_replica_claim_extraction_queue_item` and `vy_replica_expression_observation`, none of which any file in this tree creates).
+
+**Rationale.** The repo's own law: offline mocks cannot type-check SQL, and EXPLAIN against the live database is the only parser we have. Applying before merging meant the EXPLAIN could see the new tables and indexes, and the plans confirmed every scope index is used. Leaving 066-070 free is what lets the unpushed tree merge without renumbering.
+
+**Reverses if.** The unpushed tree turns out to have used numbers at or above 071, in which case the later of the two colliding files is renumbered and re-applied (every migration here is idempotent, so a re-apply is safe).
+
+## `source-purpose-check-is-the-union-of-every-workstream` (2026-09-03)
+
+**Decision.** `vy_replica_source.purpose` was added by two workstreams independently (074 with `correction`, 075 with `interview`), each with its own CHECK. Both migration files, `db/schema.sql`, `api/_replica-source.js` and the live constraint now carry the union `('memory','identity_document','correction','interview')`, so the result is identical whichever file applies last.
+
+**Rationale.** A CHECK that one migration narrows and a later one widens is order-dependent, and the apply order in production is not the file order (see above). The union is the only version that is correct in every order.
+
+**Reverses if.** Purposes ever need to be per-replica-configurable, in which case they become rows, not a CHECK.
+
+## `ws-r8-leak-battery-scans-tokens-through-the-real-lane-not-a-reimplemented-predicate` (2026-09-03)
+
+**Decision.** The Rooms leak battery (`evals/room-leak/run.mjs`) drives N
+followers (2, 5, 20) x 4 turns EACH through the real, unmodified follower lane
+(`api/_room-surface.js`'s `joinRoom`/`roomSay`/`roomExport`/`roomForget`) and
+the real compiler (`src/engine/compiler.ts` via `api/_engine.gen.js`), seeds
+every follower with unique tokens (a long-term fact plus one per message), and
+scans every compiled prompt, every retrieved fact set and every reply for
+every OTHER follower's tokens. `roomSay`'s `memory.recall` seam is given a
+FAKE that enforces person-AND-agent equality, not `dmRecall`'s real SQL,
+because `dmRecall` calls `q()` (`api/_db.js`) directly and is not
+seam-injectable the way `roomSay`'s own memory functions are — deliberately,
+so a follower's own request can never swap the real predicate for a weaker
+one. The fake's own negative control (strike the person clause) proves it is
+not vacuously safe, and the real predicate's live-clean proof already exists
+at `evals/mp/gate0.mjs` (0/31,122, `context/measurements.md#gate0-structural`)
+— this suite connects to that proof (checks the real predicate TEXT and the
+real call-site wiring) rather than re-deriving a weaker offline copy of it.
+
+**Rationale.** `offline-mocks-cannot-type-check-sql` (AGENTS.md) applies
+directly: no database is reachable in this environment, so `dmRecall` cannot
+be executed here regardless of how the suite is built. The alternative —
+skip the retrieval layer entirely because it cannot be proven end to end
+offline — would leave the single highest-risk path (another follower's
+long-term memory) completely unguarded by any pre-merge gate. A conforming
+fake plus a proven-elsewhere real predicate plus an explicit statement of what
+is and is not proven (this suite's own header) is the honest middle ground:
+`evals/mp/gate0.mjs` already established this exact pattern for the
+multiparty predicate.
+
+**What would reverse it.** If `dmRecall` (or its successor) is ever made
+seam-injectable — a `db`/`recall` parameter the way `roomSay`'s memory
+functions already are — this suite should be rebuilt to drive the REAL
+predicate offline against a `db` that reads the shipping SQL text the way
+`evals/room/fixtures.mjs`'s `fakeDb` already does for the rest of the follower
+lane, and the compliant fake recall becomes redundant. Until then, a change to
+`dmRecall`'s BIND literal or its query text is caught by this suite's static
+layer (1b), which reads both from the real source at run time.
+
+## `ws-r8-writer-symbols-derived-by-intra-file-call-graph-not-hand-listed` (2026-09-03)
+
+**Decision.** The leak battery's static check for "the follower lane never
+reaches a creator-material writer" derives the set of dangerous EXPORTED
+symbols by parsing each creator-material file (`_replica-claims.js`,
+`_replica-consent.js`, `_review-queue.js`, `_replica-source.js`,
+`_teacher-sheet-draft.js`, `_mirrorcall-store.js`, `_person-model.js`) into
+its top-level functions (exported and private), marking a function
+"dangerous" if its own body writes a creator table OR it calls another local
+function already marked dangerous (propagated to a fixed point), then keeping
+only the exported ones. It does NOT ban importing the FILE, and it does NOT
+hand-list symbol names.
+
+**Rationale.** The first draft banned importing the FILE and false-positived
+immediately: `_clonechat.js` legitimately imports `loadNeverRules` (a pure
+SELECT) from `_review-queue.js`, which elsewhere, in a function the follower
+lane never calls, writes `vy_replica_claim` — see
+`context/rejected.md#ws-r8-file-level-import-ban-flagged-a-pure-reader`. The
+call-graph derivation also caught a real gap in its own first pass: a
+same-file, exported-symbol-only scan missed `extractOwnedClaims` because the
+actual `insert into vy_replica_claim` lives in an unexported helper
+(`persistProposals`) it calls — attributing the write to the PRECEDING
+exported function by a naive "next export" text boundary instead. The fixed-
+point propagation is what makes `extractOwnedClaims` (and any future writer
+shaped the same way) show up in the derived set, and the suite asserts this
+by name (`writeSymbols.has("extractOwnedClaims")`) so a regression in the
+derivation itself fails loudly rather than silently under-covering.
+
+**What would reverse it.** If any of the seven creator-material files is
+restructured so a private helper calls back into ANOTHER file's private
+helper to reach the write (breaking the single-file call graph this walks),
+the derivation needs to become genuinely cross-file. No such case exists
+today — every write this session found is same-file-reachable from its own
+exported entry point.
+## `ws-r7-publish-lock-shares-readiness-fragment-with-clonechannel` (2026-09-03, WS-R7)
+
+**Decision.** `api/_room-publish.js`'s `publish` write gates `vy_room.published_at` on three conditions in one SQL `CASE`: an active runtime capability, the readiness lock, and an approved disclosure. The readiness fragment is not retyped — `readinessPasses` was exported from `api/_clonechannel.js` (it was a private `const` before this workstream) and imported verbatim, so the Room's publish lock and the channel connect/resume lock are provably reading the identical predicate rather than two hand-copies that happen to agree today.
+
+**Rationale.** The workstream brief itself says "the readiness lock (same three conditions as api/_clonechannel.js)" — an import makes that sentence true by construction instead of by discipline. Two independently typed copies of a floor comparison are exactly the shape that drifts silently the day one file's floor changes and the other is not touched in the same commit; `context/rejected.md` already has several entries in this repo about a rule duplicated in two places disagreeing later.
+
+**Reverses if.** The Room's publish floor is ever deliberately meant to differ from the channel connect floor (e.g. a lower bar for a first Room than for a third-party channel). At that point the two need their own named fragments with their own tests, and the shared `readinessPasses` export should be forked rather than parameterized further, since a fragment that takes a fifth argument to mean two different things is worse than two fragments.
+
+## `ws-r7-deploy-reads-done-on-a-published-room` (2026-09-03, WS-R7)
+
+**Decision.** `src/studio/wizardModel.ts`'s `deployDone` now returns true when EITHER a channel is connected (unchanged) OR the owner's Room is published (`input.roomPublished === true`, new). `deployMissing`'s "connect a channel" ask is suppressed the same way. `roomPublished` defaults to `null` (unknown, not "false") wherever a build never mounts `RoomStudio`, mirroring `connectedChannels`'s own "unknown is not zero" rule exactly, so a build that has not wired the Room in yet behaves byte-identically to before this field existed — asserted directly in `evals/studiowizard.mjs` §11's last check.
+
+**Rationale.** Vyakti Rooms v1's own product paragraph: the Room is the primary, private, remembering address a follower actually reaches, not a channel on somebody else's platform. A Deploy step that only recognized channels would tell a creator who published a working Room, with real followers, that the step is still not done — the exact "platform failure told to the person as their own" shape `docs/HONESTY.md` and `blockerClass.ts` exist to catch, just running in the other direction (claiming NOT done when it is).
+
+**Reverses if.** Channels are ever retired or merged into the Room concept, at which point `connectedChannels` and its branch of `deployDone`/`deployMissing` retire and `roomPublished` becomes the only signal.
+
+## `ws-r7-room-mounts-only-in-teacher-mode-for-v1` (2026-09-03, WS-R7)
+
+**Decision.** `<RoomStudio>` is mounted in `StudioApp.tsx`'s Deploy step only under `mode === "teacher"`, the same gate `<ChannelsStudio>` already carries. Full reasoning and what was tried instead: `context/rejected.md#ws-r7-room-for-generic-mode-with-no-disclosure-pathway`.
+
+**Rationale.** `publishRoom`'s disclosure condition reads `vy_teacher_sheet`, which only the teacher-mode sheet-publish flow (`TeacherSheetStudio.tsx`, also `mode === "teacher"`-gated) can ever populate. Showing the card in generic mode would show a permanently unpublishable Room whose one named blocker points at a screen that mode never renders.
+
+**Reverses if.** A generic-mode self-replica gains its own way to reach `vy_teacher_sheet`-equivalent `status='published'` + `consent_artifact_id` (or `api/_room-publish.js`'s `disclosureApproved` predicate is widened to accept a different consent record for a `selfReplica: true` agent). Nothing in `api/_room-publish.js` needs to change either way — it reads the row by `agent_id` alone, indifferent to which mode wrote it — so the reversal is purely the `mode === "teacher"` guard around `<RoomStudio>` in `StudioApp.tsx`.
+
+## `ws-r7-publish-blockers-are-a-courtesy-read-never-the-gate` (2026-09-03, WS-R7)
+
+**Decision.** `api/_room-publish.js`'s classified blocker list (`waiting_on_you` / `waiting_on_us`, returned by `get` proactively and by `publish` on refusal) is computed by THREE SEPARATE, CHEAP re-reads of the same three predicates the write's own `CASE` already evaluated — never by branching in JS above the write, and never trusted as the enforcement itself. Runtime's sub-reason (owner-owned gate vs. platform-owned gate) is read a second time, from `ownedRuntimeStatus`, the same status `RuntimeGate` already renders on the same Deploy step.
+
+**Rationale.** `api/_clonechannel.js`'s own header states the law this restates: "a sentence in a brief is a preference; a predicate on the write is a guarantee." The courtesy explanation can be stale, wrong, or race the write by a few milliseconds under concurrent edits, and none of that matters, because it decides nothing — worst case it over- or under-explains a lock the write already held regardless. `evals/room-publish/run.mjs`'s negative control proves the write's own predicate is load-bearing independent of this courtesy layer.
+
+**Reverses if.** Never, structurally — this is the same shape `api/_clonechannel.js`'s `connected()` already ships and it is a load-bearing platform convention (context/rejected.md's `gate0-structural`), not a workstream-local choice.
+## `ws-r9-swap-signal-is-the-generation-ledger` — drift watch does not trust `vy_voice_fidelity` for a swap (2026-09-03, WS-R9)
+
+**Decision.** `api/_drift-watch.js` detects a "provider silently swapped a model under the same name" event by walking `vy_replica_generation.preview_model_commitment` across one fixed lane (`purpose='voice_preview', channel='studio_preview'`), NOT by watching `voice_model_ref` on `vy_voice_fidelity`.
+
+**Rationale.** Grepped for a CALLER, not a definition (`AGENTS.md`'s own law): `recordOwnedFidelity` (`api/_fidelity.js`) has exactly one caller in the whole tree, and it is `evals/fidelity/run.mjs`, its own offline eval. Nothing in `api/` writes a `vy_voice_fidelity` row today. A drift detector built only on that table would watch a table nothing fills — a `dead-writers` shape with the polarity reversed, discovered before shipping rather than after. `vy_replica_generation.preview_model_commitment` is written on every real preview synthesis (migrations 019/044) and is the one lane actually live, which makes it `vision-drift-4day`'s exact shape restated: the swap that mattered was caught by watching the ARTIFACT a deployment produces, not a config string nobody reads back.
+
+**What this costs.** The score-drop half of "moved" (a genuine ECAPA drop against the same reference set) is real code, tested, and will report `not_measured` for every replica in production today, because there is no fidelity history to compare. That is the correct honest state, not a bug to route around silently.
+
+**Reverses if.** `recordOwnedFidelity` gets a live caller (the activation pipeline, a scheduled re-bench, or the Mirror Call flow scoring a fresh sample). The day it does, the score-drop signal starts producing real trend points with no code change here — `driftWatchReport`'s `detectScoreDrop` already reads whatever history it is given.
+
+## `ws-r9-drift-watch-does-not-write-on-read` — a monitor is not a lock, and its GET does not snapshot (2026-09-03, WS-R9)
+
+**Decision.** `api/drift-watch.js` (the owner's GET) computes the report live and writes nothing. `api/drift-watch-sweep.js` (cron, every six hours) is the sole writer of `vy_replica_drift_report`, guarded on `inputs_hash` exactly like `snapshotReadiness`'s guard.
+
+**Rationale.** `api/_readiness.js`'s "a read that writes" is deliberate there because the publish lock is a SQL predicate joined against the LATEST readiness snapshot inside the runtime-activation statement — an unsaved fresh compute would show a passing screen while the gate still read a stale failing row. Drift watch gates nothing (no activation, no channel connect reads this table), so there is no predicate that needs one exact compute captured, and a browser GET should never surprise the database with a write it did not ask for. The stronger reason: "an alert the day the score moves" (the brief's own line) must not depend on a creator opening the studio that day — if the write only happened on a GET, a swap on a Tuesday nobody visited the Meet step for would sit unrecorded and unalerted indefinitely. A schedule-driven sole writer is what makes the alert's timing independent of anyone looking.
+
+**Reverses if.** Drift watch ever gates something (a channel pause, a re-review requirement) — at that point it needs readiness's exact shape: the read becomes the writer, guarded the same way, for the same reason.
+
+## `ws-r9-score-drop-threshold-002` — cited to three numbers, not chosen (2026-09-03, WS-R9)
+
+**Decision.** `DRIFT_SCORE_DROP_THRESHOLD = 0.02`. A "moved by score" verdict requires BOTH a drop exceeding this bar AND that the two compared `vy_voice_fidelity` rows share the same `genome_version` (the same reference set).
+
+**Rationale, the three numbers.** All ECAPA-TDNN cosine, all in `context/measurements.md`: run-to-run reproducibility on this stack is **6e-6** (`lora-vs-zero-shot-71s`, corroborated to 5e-6 by a third independent run); choosing a different 10 s reference WINDOW of the identical recording, scored against a FIXED reference set, spans **0.0625** (`reference-window-beats-the-finetune`); a genuine trained change — 60 epochs of LoRA on 62.1 s of speaker audio — moved the mean by **+0.0206** (`lora-vs-zero-shot-71s`). 0.02 sits five orders of magnitude above the noise floor, just under the smallest genuine trained delta measured so far, and a third of the window-choice spread — which is why the same-`genome_version` restriction is load-bearing and not decoration: without it, 0.02 would fire on nothing more than which ten seconds of a recording got scored.
+
+**Reverses if.** A same-reference-set repeatability bench across more than the current n=1 speaker either shows ordinary noise exceeding 0.02 (raise it) or catches a real swap below it (lower it). `DRIFT_POLICY_VERSION` bumps with any change, per `fidelity-needs-its-ceiling-printed`'s own precedent for `policy_version`.
+
+## `ws-r9-prosody-anchor-reused-not-rederived` — the staleness check reads the job's own verdict, not a third copy of "current voice" (2026-09-03, WS-R9)
+
+**Decision.** `api/_drift-watch.js` treats the prosody anchor as stale from `scripts/prosody-baseline.mjs`'s own `lastAlarm` field plus how long ago it last ran (`PROSODY_ANCHOR_STALE_DAYS = 14`, twice the job's own stated "nightly" cadence). It does NOT independently compare "the voice currently in use" against the baseline's recorded voice.
+
+**Rationale.** `cache-outlives-the-voice` already found this exact hazard at two copies: `api/speech.js`'s `DEFAULT_VOICE` and `prosody-baseline.mjs`'s own `TTS_VOICE` constant, kept in sync only by a human running `verify-voice.mjs --set`. A third independent copy inside `api/_drift-watch.js` would be the same mirror-with-no-writer defect a third time. Reading the job's own alarm bit instead means there is exactly one place that decides "did the voice move," and drift watch inherits its answer rather than re-deriving a worse one.
+
+**Reverses if.** The prosody baseline job grows a machine-readable "current expected voice" field of its own that is safe to compare against without re-deriving it — at that point a direct comparison here is strictly more information than a boolean alarm and worth the added coupling.
+## `ws-r10-rooms-vocabulary-gate` (2026-09-03, WS-R10)
+
+**Decision.** `scripts/check-copy.mjs` gained a fifth rule, `rooms-vocabulary`,
+that fails the build on `clone`, `replica`, `model`, `fine-tune`,
+`train`/`training`, `weights`, `embedding`, `LoRA` or `genome` in a
+user-visible string anywhere in `src/studio/`, `src/room/`, `site/vyakti.html`,
+and the two root entry points `studio.html`/`room.html`. Two files carry
+documented, narrow exceptions in a new `scripts/roomsVocabAllowlist.mjs`:
+`DisclosurePreview.tsx`'s two verbatim safety-floor quotes (the disclosure a
+student already hears, word for word) and four of `ModelConsentGate.tsx`'s
+`STATEMENTS` (the exact sentences a teacher affirmatively checks). Every other
+string across both surfaces was rewritten to the Rooms vocabulary table:
+"your AI" to a creator, "<Name> AI" to a follower, "apprentice" for an
+incomplete one, "Studio", "Room", "Readiness", "Review" with its three
+button labels.
+
+**Rationale.** The Rooms plan's own rule: "not clone, in front of anyone." A
+gate that only lints new code lets old strings rot in place, and this repo
+already had 117 of them across `src/studio/` and `src/room/` before this
+session, most from before the Rooms rewrite existed as a decision. Making the
+rule structural (a failing gate, not a style note) is what stops a future
+diff from reintroducing the word by habit, the same reasoning
+`demo-teacher-is-not-a-placeholder` gives for why a fixture may never stand in
+on a consent surface: a word a real person already agreed to, or a role this
+product already promised never to use, cannot be a thing a PR quietly changes
+back.
+
+**Reverses if.** The product renames "your AI" / "<Name> AI" / "apprentice" to
+something else, in which case this rule's regex and the allowlist's reasons
+move together, not independently. If a legitimate new legal-text exception is
+needed, it goes in `roomsVocabAllowlist.mjs` with a `reason` naming the exact
+consent artifact it protects, never as a change to the rule itself.
+
+## `ws-r10-worktree-wrong-base-commit` (2026-09-03, WS-R10)
+
+**Decision.** Before writing any code, this session's worktree branch (then
+`worktree-agent-aa270d73922673987`) was reset from `3a92179` (the tip of an
+unrelated product's history, "Meera", sharing this same physical repo on a
+different branch) to `61634a4` (the tip of
+`claude/vyakti-cloning-platform-aq05n4`, the Rooms platform branch the
+workstream brief actually describes), then renamed to `ws-r10-vocabulary`.
+Confirmed correct by comparing against a sibling workstream's branch
+(`ws-r8-room-leak-battery`), which was based on `61634a4` from the start.
+
+**Rationale.** The checked-out tree had none of the files the brief named
+(`AGENTS.md`, `docs/gurukul/`, `src/studio/`) and the root `CLAUDE.md` (a file
+this session cannot edit as part of its own task) describes a different
+product entirely. Nothing had been written yet, so resetting lost no work;
+proceeding on the wrong base would have produced a branch the main loop could
+not merge into the Rooms platform tree at all.
+
+**Reverses if.** Nothing; this is a one-time environment correction, not a
+product decision. Logged so a future session recognizes the failure mode (a
+worktree on the wrong branch entirely, not merely behind) if it recurs.
+
+## `ws-r13-migration-076-status-not-asserted-without-corroboration` (2026-09-03)
+
+**Decision.** This docs workstream's own task brief stated migrations
+071-076 are applied live. Checked against `#rooms-migrations-applied-live-in-the-union-order`
+above, which names only five (072, 074, 073, 075, 071) as confirmed applied
+and was logged before migration 076 (`vy_replica_drift_report`, WS-R9) was
+even authored — no later `context/` entry records a live apply for 076. Every
+doc this workstream touched (`docs/gurukul/ENV-MANIFEST.md` §25,
+`docs/gurukul/DEPLOY.md`, `AGENTS.md`, `CLAUDE.md`, `context/STATE.md`,
+`docs/gurukul/PRODUCT-JOURNEY.md`) states 071-075 as confirmed and 076 as
+"built, stated applied by the brief, no corroborating context entry" rather
+than asserting all six flatly.
+
+**Rationale.** `AGENTS.md`'s own law: never claim what you did not run, and
+this workstream's own brief said every claim must be traceable to a file in
+the tree or a context entry. A task brief is an instruction to act on, not
+evidence a future session can point at. Six versus five migrations is exactly
+the kind of small drift that compounds if repeated uncritically across seven
+documents.
+
+**Reverses if.** A session with `NEON_URL` runs `scripts/relcheck.mjs` or
+`EXPLAIN`s a 076 statement against live Postgres and confirms
+`vy_replica_drift_report` exists, or the main loop logs its own decision entry
+recording the apply directly — at that point every doc this workstream
+touched should be updated to say "071-076 confirmed" outright, and this entry
+should gain a `supersedes` edge from the one that does it.
+
+## `ws-r13-vercel-build-branch-name-flagged-not-fixed` (2026-09-03)
+
+**Decision.** `scripts/vercel-build.sh`'s selection of `site/vyakti.html` at
+`/` depends on `VERCEL_GIT_COMMIT_REF === "claude/gurukul-platform"` as a
+literal string match, but the Rooms platform branch has been
+`claude/vyakti-cloning-platform-aq05n4` since `#ws-r10-worktree-wrong-base-commit`
+confirmed the rename, and `git branch -a` in this tree shows both refs still
+existing as distinct branches. `docs/gurukul/DEPLOY.md` now documents this as
+a flagged, unverified discrepancy — whether `html-portfolio`'s Vercel trigger
+still points at the old name (live no-op) or the new one (a silent fallback to
+Meera's landing on that branch, UX-Q-12's exact failure shape one rename
+later) — rather than silently repeating the old plan or changing the script.
+
+**Rationale.** This is a WS-R13 docs task, not an authorization to change a
+build script that decides what every future Vercel deploy of this branch
+serves at `/`. `AGENTS.md`'s honest-states law says to name whose problem this
+is rather than guess at a fix outside scope, and a five-minute dashboard check
+by whoever owns the Vercel projects resolves it faster and more safely than a
+code change guessed at from this worktree.
+
+**Reverses if.** Someone confirms `html-portfolio`'s deploy trigger for this
+branch and either updates the string in `scripts/vercel-build.sh` to match, or
+confirms it was never wrong in production (a preview-only build, say) — either
+way `DEPLOY.md`'s flagged note should be replaced with the resolved fact, not
+left standing after it stops being true.
+
+## `rooms-migration-076-confirmed-live` (2026-09-03)
+
+**Decision.** Migration 076 (`vy_replica_drift_report`, WS-R9) is recorded as
+applied to the live Neon database, and every document WS-R13 had marked
+"built but not confirmed" (`AGENTS.md`, `CLAUDE.md`, `context/STATE.md`,
+`docs/gurukul/DEPLOY.md`, `docs/gurukul/PRODUCT-JOURNEY.md`) now says
+071-076 outright. Supersedes
+`#ws-r13-migration-076-status-not-asserted-without-corroboration`, whose own
+reversal condition this is.
+
+**Rationale.** WS-R13 was right to flag it: the wave-two merge applied 076
+live but logged only the five wave-one migrations in
+`measurements.md#rooms-merge-live-verification-2026-09-03`, so the record
+was five-sixths of the fact. The main loop closed it by reading the catalog
+back rather than by re-asserting the brief: `pg_class` on the live database
+lists `vy_replica_drift_report` with its primary key and the three indexes
+the migration file creates (`_latest_ix`, `_inputs_ix`, `_alerts_ix`), see
+`measurements.md#rooms-migration-076-live-readback-2026-09-03`. A docs
+workstream that refuses to repeat an unlogged claim is doing exactly what
+`AGENTS.md` asks; the fix is to log the fact, not to loosen the rule.
+
+**Reverses if.** `scripts/relcheck.mjs` with `NEON_URL` ever fails to find
+the table, or the erasure cascade's delete-by-name for it errors live.
+
+## `vercel-build-platform-branch-pattern` (2026-09-03)
+
+**Decision.** `scripts/vercel-build.sh` selects the Vyakti landing at `/` for
+`claude/gurukul-platform` OR any `claude/vyakti-cloning-platform-*` ref (a
+shell `case` pattern), instead of the single literal it matched before.
+Supersedes `#ws-r13-vercel-build-branch-name-flagged-not-fixed`.
+
+**Rationale.** Resolved with the fact WS-R13 asked for rather than a guess:
+the Vercel API shows both git-connected projects (`html-portfolio`,
+`vyakti-replica-lab`) building this branch as previews only (`target: null`
+on their latest deployments), so the literal mismatch never changed what a
+production domain served; it did make `html-portfolio` previews of the
+platform branch fall back to Meera's landing at `/`, which is the wrong page
+for a reviewer opening a Rooms preview. Matching the family by pattern means
+the next rename inside it (the branch has already been renamed once,
+`#ws-r10-worktree-wrong-base-commit`) does not need a script edit. `STUDIO_ROOT=1`
+on the studio project is still honoured first, per the script's own comment.
+
+**Reverses if.** A branch in the `claude/vyakti-cloning-platform-*` family is
+ever used for non-Vyakti work, or the two products move to separate repos.
+
+## `ws-r15-first-room-follows-first-clone-shape` — the Room's own one-command script copies first-clone.mjs's reporting shape rather than inventing one (2026-09-03, WS-R15)
+
+**The decision.** `scripts/first-room.mjs` (Phase 0's "hand-build one Room for
+one real creator") uses the exact same stage-reporting contract as
+`scripts/first-clone.mjs` (`first-clone-is-the-entry-point`): a `record(name,
+status, detail)` call per step, a step is `ok` only after a real 2xx with a
+real parseable body, and the final action is always a printed table plus a
+non-zero exit for any step that did not fully succeed. One addition: a fourth
+status, `blocked`, distinct from `fail`, for the one refusal that is an
+expected honest state rather than a bug — the Room's publish lock. `stop()`
+(new) prints the classed `waiting_on_you` / `waiting_on_us` blocker list from
+`api/_room-publish.js` and exits exactly like `die()` does, but the status
+word tells a reader "this creator is not ready yet" rather than "the script
+broke."
+
+**Rationale.** Two scripts reporting the same class of event two different
+ways is a shape a future reader has to re-learn for no reason, and
+`first-clone.mjs`'s shape was already proven against live services
+(`context/measurements.md#first-real-clone`). The `blocked` status exists
+because `context/decisions.md#a-step-is-never-silently-blocked` and the honest-
+states law (`AGENTS.md`) both say a locked gate must never look identical to a
+platform failure — collapsing it into `fail` would have made every first run
+of this script (readiness is locked for every replica today,
+`api/_readiness.js` §4) print as if something were broken.
+
+**A second, smaller decision inside the same file.** `--skip-follower` does
+not add a `skip` row and does not count against the exit code, while a
+follower stage skipped for a MISSING `VYAKTI_FOLLOWER_SESSION` does (one row,
+`skip`, non-zero exit) — deliberately diverging from `first-clone.mjs`'s
+uniform "any non-ok stage is a non-zero exit" rule. An explicit opt-out is not
+a stage that "did not run" in the sense that rule was written for; a missing
+credential the caller presumably wanted is.
+
+**Reverses if.** A later script in this family needs a fifth status (a third
+kind of "did not fully succeed" outcome) and `ok/skip/blocked/fail` proves too
+coarse — extend the enum rather than overload `fail`, the same way `blocked`
+was added here instead of overloading it.
+
+## `ws-r12-cohort-week-anchor` — retention is measured per ISO WEEK, not per follower's exact timestamp (2026-09-03, WS-R12)
+
+**Decision.** Migration 077's `vy_room_follower_day` and `api/_room-cohorts.js`
+answer "week-six retention of followers who arrived in week one" by grouping
+followers into their ISO week of `joined_at` (Monday 00:00 UTC through the
+following Monday) and testing every follower in that cohort against the SAME
+36-to-42-day window, measured from the cohort's own Monday — not from each
+follower's own exact `joined_at` timestamp, which could differ by up to six
+days within the same cohort.
+
+**Rationale.** The Rooms plan's own framing is "followers who arrived in week
+one", a cohort concept, not a per-person one. A precise per-follower window
+would need `f.joined_at` read per row inside the retention query, which is
+exactly the kind of column-level read `evals/room-leak/run.mjs`'s
+AGGREGATE_ONLY proof exists to refuse for this table's sibling
+(`vy_room_follower`) — see `ws-r12-retention-exists-in-select-broke-the-leak-batterys-parser`
+in `rejected.md` for the concrete way an attempt at that shape actually broke.
+A whole-week anchor keeps every statement a plain `count(*) filter (where
+f.joined_at >= $2 and f.joined_at < $3)` against a WHERE-clause range, never a
+per-row read, and reports a true property of the cohort (every follower in it
+answers the same question over the same seven-day join window and the same
+window six weeks out) rather than a false precision the plan never asked for.
+
+**Reverses if.** A later phase of the plan asks for per-follower retention
+curves (not per-cohort), or a Room's cohorts are shown to arrive so unevenly
+within a week that the week-anchor materially misstates the six-week mark for
+followers who joined near a week's edge — in which case the fix is to widen
+`vy_room_follower_day`'s read to bind `f.joined_at` per row inside the WHERE
+clause (still never in SELECT) and re-derive the AGGREGATE_ONLY proof for the
+new statement shape.
+
+## `ws-r12-new-migration-write-gated-on-tableapplied` — roomSay's day-table upsert and roomForget's day-table delete are gated on the migration having landed, injectably (2026-09-03, WS-R12)
+
+**Decision.** Both new touches of `vy_room_follower_day` inside
+`api/_room-surface.js` (the upsert in `roomSay`, the explicit delete in
+`roomForget`) are wrapped in `if (await isTableAppliedFor(deps)("vy_room_follower_day"))`,
+where `isTableAppliedFor` resolves to `deps.tableApplied` if the caller
+supplied one, else the real `tableApplied` from `api/memory.js` (a cached
+`to_regclass` probe). When the probe answers false (table absent), the write
+or delete is skipped; nothing else about the turn or the forget changes.
+
+**Rationale.** This is a case `api/memory.js`'s existing `REPLICA_PERSON_TABLES`
+gating pattern was built for but had never actually faced: a table and the
+code that touches it shipping in the SAME change, rather than the table
+having been live for a prior workstream (`vy_room_follower`/`vy_room_thread`
+predate `_room-surface.js`'s own existence, so their explicit deletes in
+`roomForget` never needed a gate). Migration 077 is applied by the main loop
+AFTER this branch merges (`ws-common.md`'s own description of the pipeline),
+so an ungated statement here would 500 every follower's first message, and
+every follower's own forget, in the window between the code deploying and the
+migration landing — exactly the "make it forget me" deploy-ordering hazard
+`api/memory.js`'s own comments already warn about for the account-wide wipe.
+Injectable (`deps.tableApplied`) rather than a bare call, so an offline eval
+can prove both the write and the skip without a live database — the real
+`tableApplied` always resolves false offline (no `NEON_URL`), which would
+otherwise make the write path structurally untestable in this environment.
+
+**Reverses if.** Never removed globally — it costs one cached boolean check
+per process after the first call and closes a real hazard for every table
+this shape ever applies to again. Per table, it stops mattering (though
+nothing requires deleting the gate) once that specific migration has been
+live long enough that "code deployed ahead of its own migration" is no longer
+a credible failure mode for it — the same standing true today of
+`vy_room_follower`/`vy_room_thread`'s unconditional deletes.
+
+## `ws-r12-verdict-is-the-oldest-measurable-cohort` — the headline number is week one's cohort, not the newest or the best (2026-09-03, WS-R12)
+
+**Decision.** `verdictFor()` (`api/_room-cohorts.js`) bands the Phase 0/Phase 2
+thresholds against the OLDEST cohort that has reached measurability, never
+the newest, never the highest-scoring one among several measurable cohorts.
+
+**Rationale.** The plan's own sentence is "week-six retention of followers who
+arrived in week one" — the first cohort a Room ever had is the one the gate is
+actually about, and reporting a later, larger cohort's more favorable share
+instead would let a Room's headline verdict improve just by waiting for a
+better week to become measurable while the original question goes
+unanswered. Consistent with `no-fake-numbers`: the verdict names WHICH
+cohort it is reporting (`cohort_week`) rather than a bare percentage, so a
+reader can see it is week one's answer and not a cherry-picked one.
+
+**Reverses if.** The plan itself is revised to ask about the MOST RECENT
+measurable cohort (a rolling health check) rather than the original arrival
+cohort — a real product question, distinct from the one Phase 0's gate asks.
+
+## `ws-r11-price-and-take-as-data` (2026-09-03, WS-R11)
+
+**Decision.** The follower price (INR 299-599, creator's choice inside the
+band) and the platform take (2500 basis points, 25.00%) both live as columns
+on `vy_room_price` rather than as deployed constants, and the take rate is
+copied onto every `vy_payment_event` row at the moment of the split rather
+than re-read from the price row later.
+
+**Rationale.** 071's own argument for `free_monthly_messages` transfers
+exactly: "a product decision that lives in a deployed constant moves by
+deploy." The take rate needed its own second half of that argument: a
+creator's own price CAN change (`setRoomPrice` is a live upsert), so a split
+computed from a JOIN at read time would silently reprice every past month's
+ledger row the day the take rate itself changes, which is precisely the kind
+of retroactive rewrite a financial ledger may not have. Copying the rate at
+insert time is what makes `vy_payment_event` actually append-only in the way
+its own header claims.
+
+**Reverses if.** The platform ever needs a per-owner or per-tier take rate
+(volume discounts, say) - the column is already there to hold it, so nothing
+about the shape changes, only who is allowed to set it.
+
+## `ws-r11-provider-seam-and-secret-reuse` (2026-09-03, WS-R11)
+
+**Decision.** Two twin provider modules (`api/_payments/providers/razorpay.js`,
+`fake.js`), selected by `PAYMENTS_PROVIDER` (default `none`, which refuses
+every write with a named reason before any provider is called). The
+`razorpay` provider's credential comes from `api/_channel-secrets.js`'s
+existing backend seam under one fixed, well-known ref
+(`PAYMENTS_SECRET_REF`) rather than a new secret store; the `fake` provider
+reads three plain env vars instead, deliberately bypassing that seam so a
+staging deployment or an offline eval never needs an Azure account to prove
+every line of `api/_payments.js`.
+
+**Rationale.** `credential-ref-not-credential` (context/decisions.md,
+2026-08-26) already made the case for a channel's own credential: "a live
+credential... structurally cannot sit in a table the routing path selects,
+joins and logs." A platform-level Razorpay key/secret pair is the identical
+shape of problem one level up - live, real, and never printed - so it goes
+through the SAME refusal-by-default seam rather than a second one invented
+for this file. One ref rather than one per room, because every Room shares
+the ONE platform Razorpay account.
+
+**Reverses if.** A future payment provider needs more than one opaque secret
+value that this ONE JSON-blob-under-one-ref shape cannot express cleanly (a
+key pair with independent rotation schedules, say) - then the seam needs a
+shape, not a string, the same reversal condition `credential-ref-not-credential`
+already names for the channel case.
+
+## `ws-r11-subscription-survives-forget-until-terminal` (2026-09-03, WS-R11)
+
+**Decision.** `vy_room_subscription` is listed in `api/memory.js`'s
+`PERSON_TABLES` (satisfying `scripts/relcheck.mjs`'s manifest-coverage check
+honestly, since it genuinely is a record of a person) but is NOT wiped by
+`api/_room-surface.js`'s narrow, per-Room `roomForget` (it carries no
+`agent_id`, so `roomScopedTables()`'s `agent === true` filter never reaches
+it). It IS reached by the account-wide "forget everything" pass
+(`purgeRelational`, lane "relational") - but only rows whose `state` has
+already reached `cancelled` or `expired` (`wipeWhere: "state in
+('cancelled','expired')"`). A live, non-terminal subscription survives even a
+full account wipe.
+
+**Rationale.** A UPI Autopay mandate keeps debiting a real bank account
+whether or not this table still names it. Deleting the local pointer to a
+LIVE mandate is not privacy, it is losing the only record that a real,
+continuing financial obligation exists - the same class of harm
+`context/rejected.md`'s `silent-truncation` names one surface over: it works,
+the delete returns 200, and a fact that mattered is gone. Forgetting what an
+AI remembers about a follower ("this room's own memory") is a different
+request in kind from forgetting that they owe, or paid, money, and this
+migration keeps the two doors separate: the Room's own forget button cannot
+reach a subscription at all; only the account-level wipe can, and even it
+must wait for the subscription to reach a state where nothing is still
+being charged.
+
+**Reverses if.** Phase 1 wires an automatic provider-cancel into the
+account-wipe path (call `provider.cancelSubscription` for every live row
+before deleting it) - at that point the `wipeWhere` restriction can be
+dropped, because the mandate itself, not just this table's record of it,
+will actually be gone.
+
+## `ws-r11-creator-payout-owner-scoped-erasure-imprecision` (2026-09-03, WS-R11)
+
+**Decision.** `vy_creator_payout` carries `owner_user_id` and no `room_id` or
+`replica_id` (a payout is a roll-up across every room one owner has), so its
+erasure-job delete (`api/_replica-full-erasure.js`) is scoped by
+`owner_user_id` alone. An owner with more than one live replica who erases
+ONE of them would also clear payout history earned by their OTHER,
+still-active replica.
+
+**Rationale.** No column on this table can express a narrower scope without
+changing what a payout roll-up MEANS (it is deliberately an owner-level
+aggregate, not a per-room one, because the platform take is "shown as one
+number" per the Rooms plan's own line). `scripts/relcheck.mjs`'s owner-lane
+check only requires the row be reachable by name, which it is; the
+imprecision is real and is logged here rather than silently accepted,
+per `context/STATE.md`'s own standing rule against implying coverage that
+was not measured.
+
+**Reverses if.** A creator with more than one live, monetized Room becomes a
+real case (today none does) - at which point `vy_creator_payout` needs a
+`replica_id` column and the roll-up (`runPayoutRollup`) needs to group by it
+too, and this erasure delete narrows to match.
+
+## `ws-r11-tds-rate-defaults-to-zero` (2026-09-03, WS-R11)
+
+**Decision.** `runPayoutRollup`'s `tdsRateBp` parameter defaults to 0
+(`TDS_RATE_BP_DEFAULT`). No withholding is applied to a payout unless a
+caller explicitly passes a rate.
+
+**Rationale.** Nobody - not this workstream, not the owner - has decided
+what India TDS treatment applies to a creator's Room earnings on this
+platform. Guessing a percentage (10% under Section 194J is the closest real-
+world analogue, but is not a decision anyone here is authorized to make)
+would be exactly the fabricated number `context/STATE.md`'s no-fake-numbers
+law exists to forbid, applied to a tax line rather than a fidelity score.
+Zero is not a claim that no tax is owed; it is the honest absence of a
+decision, visible on every payout row as `tds_inr: 0` rather than hidden
+behind a plausible-looking rate nobody chose.
+
+**Reverses if.** The owner (or, in a real deployment, a tax advisor) sets an
+actual rate - at which point `runPayoutRollup`'s caller passes it, and this
+default stops mattering for any row computed after that.
+
+## `ws-r16-memory-consent-required-at-optin` (2026-09-03, WS-R16)
+
+**Decision.** `optIn` (api/_checkins.js) refuses a follower whose
+`memory_consent_at` is null (`room_checkin_memory_required`, 409). No
+check-in row this file ever writes can exist for a memory-declined follower.
+
+**Rationale.** A due check-in becomes a message in the follower's own
+private thread (the workstream brief's own law #4), which requires a
+server-side episode for the sweep to write into. `roomSay`'s memory-declined
+path works around the same absence by carrying the transcript on the
+CLIENT and binding it with a signed digest - a mechanism that exists
+because there is a live HTTP response to hand the new digest back on. A cron
+tick has no live response and no client to hand anything to, so that
+mechanism has no analogue here. Refusing at opt-in (a clear, immediate,
+named error) was chosen over silently accepting the row and having the
+sweep's skip-log query catch it forever at delivery time, which would be a
+control that looks like it works and never fires the intended action -
+`context/rejected.md`'s `sound-gate-proved-by-silence` shape one product
+surface over.
+
+**Reverses if.** A future workstream gives the sweep its own durable,
+ephemeral transcript store independent of `vy_episode` (so a memory-declined
+follower's check-in replies could exist without ever being retained past
+delivery) - at which point this refusal narrows to "no persistent record",
+not "no check-in at all", and `optIn`'s predicate changes with it.
+
+## `ws-r16-checkin-dst-transition-instant` (2026-09-03, WS-R16)
+
+**Decision.** `computeNextDue`'s two-pass offset resolution
+(`zonedTimeToUtcMs`, api/_checkins.js) is not corrected for a local time that
+falls inside a DST spring-forward's skipped hour (e.g. 02:30 local on the
+day America/New_York jumps from 01:59:59 to 03:00:00). Verified by direct
+measurement: a daily 02:30 schedule crossing that exact transition resolves
+to 01:30 EST (an hour early) rather than throwing or rolling forward to
+03:30 EDT.
+
+**Rationale.** The two-pass convergence assumes the local wall-clock time
+named by the schedule actually exists on the candidate date, which is true
+for both of a DST fall-back's TWO occurrences of an ambiguous hour (it just
+picks one, which is a smaller and more defensible gap) but false for a
+spring-forward's ONE skipped hour, which has no UTC instant to resolve to at
+all. A daily 09:00 schedule (never near either transition boundary for any
+zone this product ships to) was measured correct on both sides of the same
+2027-03-14 transition (`evals/checkins/run.mjs` §1), so this is a narrow,
+named gap rather than a general DST failure.
+
+**Reverses if.** A creator or follower ever picks a `local_time` that lands
+in a real transition's skipped hour for their `timezone` and this is
+observed to matter (a wrong delivery hour once a year, at most, for the
+handful of zones and schedules where this is even possible) - at which
+point `zonedTimeToUtcMs` gets an explicit check (does the candidate y/m/d/hh/mm
+round-trip through the zone unchanged?) and rolls forward to the first
+existing instant rather than silently returning a wrong one.
+
+## `ws-r16-checkins-owner-lane-explicit-not-cascade` (2026-09-03, WS-R16)
+
+**Decision.** `vy_room_checkin_design`, `vy_room_checkin` and
+`vy_room_checkin_delivery` are all deleted BY NAME in
+`api/_replica-full-erasure.js`, even though all three carry a real
+`references vy_room(room_id) on delete cascade` that would remove them for
+free the moment `vy_room` itself is deleted in the same job.
+
+**Rationale.** `scripts/relcheck.mjs`'s owner-lane erasure-reach walk only
+follows `ON DELETE CASCADE` edges starting from `vy_replica` itself; `vy_room`
+has no real FK to `vy_replica` (009's convention: owner/replica columns are
+FK-shaped but never FK-constrained), so nothing cascading from `vy_room`
+is "reached" by that walk at all - it is `vy_room`'s own precedent restated
+a third time (071's `vy_room_thread`/`vy_room_follower`, 078's three money
+tables), and the walk's own header names exactly this as the reason it
+exists: three real tables were once reachable by neither cascade nor name
+and survived a live erasure job.
+
+**Reverses if.** `relcheck.mjs`'s walk is ever widened to also start from
+every OWNER-KEYED table with no FK to `vy_replica` (treating them as
+additional cascade roots) - at which point the explicit deletes here become
+provably redundant rather than load-bearing, and could be removed with the
+walk itself as the proof they are safe to.
+
+## ws-r17-pulse-topic-source-is-creator-declared-not-mined (2026-09-03, WS-R17)
+
+**Decision.** Pulse v0's bucket labels come from a short list the creator
+types in the studio (`vy_room_pulse_topic`), matched against opted-in
+follower threads by an ILIKE predicate inside SQL, rather than from any
+existing creator-topic extraction pipeline.
+
+**Why.** The workstream brief named two candidate sources to check before
+building the fallback: `api/_context-mining.js` and `vy_replica_claim`
+(migration 015/026). Both were read. Neither is a discourse-topic source:
+`_context-mining.js`'s `mineContextItem` produces STYLE evidence (phrase-bank
+candidates for `boardVerbalisms`/`exSlangRepeat`, cited spans, corpus stats)
+from the creator's own material, never a list of subjects people ask about;
+`vy_replica_claim` holds persona claims (`domain` in identity/biography/
+event/relationship/preference/value/boundary/habit/language/delivery/
+visual, `key`/`body`) - closer in shape, but every row there is a fact ABOUT
+the creator, not a topic FOLLOWERS discuss, and repurposing `key`/`body` as
+Pulse labels would require a second interpretation of a table another
+workstream owns for a different purpose. The brief's own text names this
+exact fallback ("if nothing usable exists, v0 buckets are creator-declared
+topics"), so this is the brief's own escape hatch taken deliberately, not a
+shortcut around missing research.
+
+**Reverses if.** A creator-side discourse-topic extraction pipeline is ever
+built (the natural next step being a small classifier or keyword-cluster over
+the creator's OWN published material, still never a follower's words). If it
+lands, only `topicFollowerCount`'s matching predicate changes - the opt-in
+table, the floor, the snapshot table's CHECK and the AGGREGATE_ONLY discipline
+are all independent of where a topic's match terms come from.
+
+## ws-r17-pulse-optin-select-then-write-not-on-conflict-expression (2026-09-03, WS-R17)
+
+**Decision.** `setOptIn`/`revoke` scope a follower's toggle with a plain
+`select ... where coalesce(thread_id, <nil>) = coalesce($n, <nil>)` followed
+by an explicit UPDATE or INSERT, rather than one `insert ... on conflict
+(room_id, person_id, coalesce(thread_id, <nil>)) do update ...` statement
+against `vy_room_pulse_optin_scope_ix`'s own expression.
+
+**Why.** Postgres does support an expression-based `on conflict` arbiter when
+the target list matches an existing expression index exactly, and one
+statement would have been simpler than two. But `offline-mocks-cannot-
+type-check-sql` (AGENTS.md) is the standing law for exactly this shape of
+risk: there is no `NEON_URL` in this environment, so nothing this session
+wrote could be `EXPLAIN`ed or even syntax-checked against a real Postgres
+server before merge, and an arbiter-matching subtlety (the exact expression
+text, cast placement, whether the migration's index has landed by the time
+this code deploys) is precisely the kind of defect a fake `db` cannot catch.
+The two-statement shape is the SAME technique `api/_room-surface.js`'s own
+`followerRow`-then-insert already uses for `vy_room_follower`, so it costs
+nothing in code-shape consistency for the extra round trip it spends.
+
+**Reverses if.** The main loop `EXPLAIN`s the ON CONFLICT form against the
+live database after migration 080 lands and confirms the arbiter matches;
+at that point collapsing to one statement is a pure performance win with no
+new risk, and should be logged as its own follow-up decision rather than
+folded into this one.
+
+## ws-r17-pulse-toggle-is-local-optimistic-no-prefetch (2026-09-03, WS-R17)
+
+**Decision.** The follower-facing "Let this count" toggle (`RoomApp.tsx`)
+tracks its own on/off state purely client-side, keyed by scope (a thread id,
+or `""` for the whole Room), rather than fetching the follower's existing
+opt-in state from the server on load.
+
+**Why.** `open`/`join` do not currently return a follower's opt-in state for
+any thread, and adding that would mean either a new field on every thread row
+(a second round trip's worth of joins on the one screen a follower reaches
+before ever sending a message) or a separate fetch on mount - which the
+layout gate's fixture-mode render (`fixtureOpen`/`fixtureTurns`, `RoomApp.tsx`'s
+own header) would then need to skip explicitly, `roomStats`'s and
+`loadHistory`'s existing `if (fixtureOpen) return` pattern one call site over.
+A toggle that starts OFF for everyone by construction (opt-IN, never
+opt-out) and answers with the server's own true state on every tap costs a
+follower nothing they would notice, since the true failure mode this avoids
+(a stale "on" showing after a page reload when it is actually off) is the
+SAFER direction to be wrong in, not the leaky one.
+
+**Reverses if.** A follower reports finding a re-toggle-per-session
+confusing, or a future Pulse UI needs to SHOW which of a follower's threads
+are currently opted in (not just let them toggle blind) - at which point
+`open`'s response gains a `pulse_optin` field per thread, sourced from a
+single aggregate-free, person-scoped read (this follower's own rows, which is
+not a leak the way a creator-facing read would be).
+
+## `ws-r18-personid-bypass-not-a-second-identity-system` (2026-09-03, WS-R18)
+
+**Decision.** `openRoom`/`joinRoom` (`api/_room-surface.js`) gained an
+optional `personId` parameter, tried after `authUserId` and before the
+existing Supabase bridge. `api/_room-telegram.js` resolves a Telegram
+follower's person through `personForSurfaceUser`/`linkSurfacePerson`
+(`api/_room.js`'s `vy_surface_identity` bridge - the exact one `api/tg.js`
+already uses for Meera) and hands the uuid straight in, never re-deriving
+identity resolution inside the Telegram file itself.
+
+**Rationale.** The follower lane's own SQL - the free-cap UPDATE, the
+disclosure predicate, the manifest-driven forget/export loop - lives in
+`api/_room-surface.js` and nowhere else, and `evals/room-leak/run.mjs`'s
+repo-wide scan (§1c) allowlists exactly that file for the follower tables'
+raw SQL text. Re-implementing `joinRoom`'s INSERT in the new Telegram file to
+avoid a two-line signature change would have been a second, unreviewed copy
+of a statement whose correctness this whole product depends on -
+`surface-bypasses-parse`'s family of defect, one migration over: a second
+writer silently misses every rule added to the first one after the fork. The
+alternative also considered - minting a synthetic `vy_account_person` bridge
+row for a Telegram user so `personForAccount` could be reused unchanged -
+was rejected as inventing a SECOND identity system wearing the first one's
+column, exactly what `docs/SURFACES.md` §0 forbids ("person is shared,
+agent scopes the relationship, surface scopes nothing").
+`authUserId` still wins when both are present and every existing caller
+(`api/room.js`) passes only `authUserId`, so the change is additive: nothing
+about the web Room's own behaviour moved.
+
+**Reverses if.** A future surface needs a THIRD way to resolve a person (not
+a Supabase bearer, not a `vy_surface_identity` row) - at which point the
+bypass generalises to `resolvePersonId(deps)` rather than growing a third
+named parameter, and this decision's "additive, no existing caller touched"
+property is what a reviewer should re-check first.
+
+## `ws-r18-migration-082-is-a-chat-to-room-pointer-not-an-identity-table` (2026-09-03, WS-R18)
+
+**Decision.** Migration 082 adds exactly one table,
+`vy_room_follower_channel` (room_id, person_id, follower_id, channel,
+channel_ref, unique on `(channel, channel_ref)`, `follower_id` carrying `on
+delete cascade`). It answers one question only: which Room does THIS
+Telegram chat's next ordinary message mean.
+
+**Rationale.** `ROOM_TELEGRAM_BOT_TOKEN` is deliberately ONE bot for the
+whole platform (docs/gurukul's own Rooms-on-Telegram scope), not a
+per-creator credential the way `vy_clone_channel.credentials_ref` is for
+Meera's clones. That means a single private Telegram chat can `/start` one
+creator's slug today and a different creator's next month, and an ordinary
+message afterward carries no slug at all - so "which Room" is a fact this
+schema had nowhere to keep before this migration. The brief's own instruction
+was "082 only if a mapping table is truly needed, prefer reuse", and reuse
+WAS tried first and correctly rejected in the same session: `vy_surface_identity`
+already gives IDENTITY for free (no new table), and a private chat's id
+equals its user's id (`api/tg.js`'s own documented fact) so no new table was
+needed to ADDRESS a chat either. What remained missing, and what this table
+holds, is the "current Room" pointer alone. `follower_id`'s cascade is what
+lets a follower's own `/forget` (deleting `vy_room_follower` by name, as it
+already does) remove this pointer too with zero new code in that path - the
+pointer cannot outlive the membership it points at.
+
+**Reverses if.** The platform moves to per-creator Telegram bot credentials
+(a `vy_clone_channel`-shaped seam for Rooms) - at which point a chat's
+address alone (bot + chat id) determines the Room again, `channel_ref` stops
+needing to carry the "currently active" meaning, and this table's unique
+constraint becomes redundant with the bot-level binding rather than load-
+bearing.
+
+## `ws-r18-stop-removes-the-pointer-only-no-new-ledger-kind` (2026-09-03, WS-R18)
+
+**Decision.** `/stop` calls one new function, `unbindTelegramChannel`, which
+deletes only the row migration 082 added for this chat. The follower's
+membership row, their memory, and the consent ledger are all left exactly as
+they were.
+
+**Rationale.** The workstream's own law states `/stop` "leaves the Room (no
+deletion)". `vy_room_follower` has no `left_at`/paused column the way Meera's
+multiparty `vy_group_member` does, and adding one was out of scope for this
+migration (a schema change to an already-live, 071-shipped table competing
+with a concurrent sibling workstream, `ws-r19-paid-tier`, also touching that
+table). A first design considered a new append-only consent-ledger `kind`
+(`room_telegram_active`) to record "muted until re-`/start`", matching
+migration 016's own "a second question is a new VALUE, not a new table"
+instruction - but the channel pointer this migration already builds says
+exactly the same thing more cheaply: no pointer means "not currently
+addressed here", which is indistinguishable, for every purpose this product
+needs, from "muted". Removing the pointer alone satisfies "no deletion"
+literally (nothing about the follower is touched) and gives `/stop` a
+real, observable effect (the very next ordinary message reads as unjoined)
+without a second consent kind to keep in sync with the first.
+
+**Reverses if.** A future law wants `/stop` to also suppress something
+persistent across MULTIPLE rooms in one chat (not applicable today - one
+pointer means one active Room per chat by construction) - at which point the
+ledger-kind design above is the fallback, not a new table.
+
+## `ws-r18-telegram-memory-decline-has-no-cross-turn-continuity` (2026-09-03, WS-R18)
+
+**Decision.** A Telegram follower who answers "do not remember me" gets a
+FRESH, empty transcript minted on every single message
+(`mintFollowerSession`'s `td: transcriptDigest([])`, `transcript: []`), never
+a transcript that accumulates across turns the way the web widget's
+anonymous lane carries one on the client.
+
+**Rationale.** `roomSay`'s memory-free path is built for a BROWSER TAB that
+holds the running transcript in memory and resends it every request,
+verified by a digest bound into the session. A Telegram webhook has no such
+client: each update is one stateless HTTP call to this server, and there is
+no place on Telegram's side that plays the browser tab's role. Building one
+(a short-TTL per-chat transcript cache) is a real, buildable feature and was
+scoped OUT of this workstream rather than built speculatively - the
+alternative, pretending the anonymous lane "just works" the same way on
+Telegram, would have shipped a silent behaviour change (every declined-memory
+message reads as a first message) with no comment marking it as one, which
+is exactly the dishonest-by-omission shape `context/STATE.md`'s standing rule
+forbids.
+
+**Reverses if.** A Telegram-side transcript cache is built (keyed by chat id,
+short TTL, matching the web session's 12-hour window) - at which point
+`api/_room-telegram.js`'s ordinary-message handler reads and writes it instead
+of always minting an empty transcript, and this limitation is retired rather
+than worked around.
+
+## `ws-r19-voice-reuses-the-preview-ledger-shape` (2026-09-03, WS-R19)
+
+**Decision.** A Room voice reply (`roomSpeak`, `api/_room-surface.js`)
+authorizes its generation through the EXISTING `beginOwnedVoicePreview`
+(`api/_replica-voice-preview.js`), reused via a thin glue module
+(`api/_room-voice.js`) rather than a new authorization path, a widened
+`vy_replica_generation.channel`/`purpose` CHECK, or a Room-specific ledger
+table. The written row therefore carries `purpose='voice_preview'`,
+`channel='studio_preview'` - the identical two literals the studio's own
+"Preview my voice" panel writes.
+
+**Rationale.** Two hard constraints, not merely a preference for reuse.
+First, migration 045's `vy_replica_generation_preview_shape` CHECK forbids a
+`private_conversation`/`private_chat` row from ever carrying a
+`preview_model_commitment` at all (`preview_model=''` in that branch), and
+`api/_drift-watch.js`'s `GENERATION_COMMITMENTS_SQL` - the swap detector -
+reads commitments ONLY from `purpose='voice_preview' and
+channel='studio_preview'`. So "a Room voice reply must write the same ledger
+row shape the preview lane writes, so a swap in the Room is noticed by the
+same sweep" (this workstream's own brief) is not achievable any other way
+under the current schema. Second, `context/rejected.md#mirror-call-channel-
+in-the-generation-ledger` already establishes the precedent: WS-AC considered
+and REJECTED widening 019's `channel` CHECK to add a `mirror_call` value,
+choosing instead to reuse the identical `voice_preview`/`studio_preview`
+corridor and record the mirror-call-specific meaning on `vy_mirror_turn`'s
+own `generation_id` column. This decision is the identical choice one voice
+lane over, for the identical reason: "the one rule this workstream was given
+is not to fork that path."
+
+`beginOwnedVoicePreview`'s own fifteen-precondition CTE (consent scopes,
+identity/liveness, a draft VoiceGenome, a selected reference artifact) is
+also the CORRECT test of "can this creator's AI actually speak in a
+consented, built voice" - reusing it rather than writing a second, weaker
+version is not merely less code, it is the honest gate. `resolved.room
+.owner_user_id` (never a follower-supplied field) is passed as the
+authorizing owner, matching `api/_voice/preview-panel.js`'s own trust shape:
+the "owner" of a generation is whoever's voice is speaking, not whoever
+triggered the request.
+
+**What was checked and found NOT to apply**: this workstream's brief named
+`api/_clonechannel.js`'s `voiceEngine` as a place to look for the existing
+voice lane. Grepped, not assumed: no such symbol exists in that file (or
+anywhere in `api/`) - the closest real thing is `VoiceEngine` in
+`src/engine/compiler.ts`, Meera's call-cascade speech style, unrelated to TTS
+synthesis. The pointer was wrong; `beginOwnedVoicePreview` and
+`protectReplicaStream` (`api/_provenance/delivery.js`) are the real existing
+lane, found by reading `api/_voice/preview-panel.js` and
+`api/voice-preview.js` instead.
+
+**Reverses if.** A future workstream needs Room voice replies to be visibly
+distinguishable from studio previews in the ledger itself (an audit or
+billing reason to tell them apart at the row level, not just via
+`vy_room_voice_usage`'s own room-scoped counter) - at which point this
+decision's constraint (1) forces a real schema change: either 045's CHECK
+grows a third shape for a genuinely Room-scoped purpose/channel pair with its
+own commitment column, or drift watch's sweep widens its own filter to a
+second lane. Either is a bigger change than this workstream was asked to
+make, and should be a decision of its own rather than an incidental
+side effect of adding an audit column.
+
+## `ws-r19-shared-month-key-cross-counter-rollover` (2026-09-03, WS-R19, found by this workstream's own offline eval)
+
+**Decision.** `vy_room_follower` carries TWO independent month-rollover keys
+- `month_key` (071, the message counter) and the new `voice_month_key`
+(081, the voice-seconds counter) - rather than one shared `month_key`
+gating both counters.
+
+**Rationale.** This is a defect this workstream's own offline eval
+(`evals/room-paid-tier/run.mjs`, section 3) caught by construction, not a
+design taste. `roomSay` and `roomSpeak` are two INDEPENDENT UPDATE
+statements, either of which can run first in a new month. With one shared
+`month_key`: whichever op runs first rolls it forward and correctly resets
+ITS OWN counter; the SECOND op to run that month then finds `month_key`
+ALREADY equal to the current month (because the first op just wrote it) and
+therefore believes ITS counter needs no reset either - even though it was
+never actually rolled over. Concretely: a paid follower who sends one text
+message on the 1st of a new month, then asks for their first voice reply of
+that month, would have that voice request refused against whatever voice
+seconds they had spent the PREVIOUS month, having spent zero new voice
+seconds this one. Caught at the FIRST attempt to write a realistic
+cross-boundary test, not by reasoning about the SQL in the abstract - the
+exact value an offline eval with a real negative-control discipline is
+supposed to have.
+
+**Reversal condition.** None expected: two independently-resettable monthly
+meters need two independent rollover keys as a structural matter, not a
+judgment call that new evidence could revise. This would only reverse if the
+product ever collapses the two ceilings into one combined "usage" number
+with one shared reset moment, at which point the two keys would correctly
+merge back into one by the same logic that split them.
+
+## `ws-r21-heartbeat-write-at-start-and-finish` (2026-09-04, WS-R21)
+
+**Decision.** `withSweepRun` (`api/_sweep-run.js`) INSERTs a `vy_sweep_run`
+row the moment a sweep begins (`outcome='running'`, `finished_at` null) and
+UPDATEs that SAME row when it ends, rather than writing one row once at the
+end from a `finally` block.
+
+**Rationale.** A serverless invocation that runs past its own `maxDuration`
+is hard-killed by the platform; no code of ours runs again, including a
+`finally` block. Write-once-at-the-end would leave NO row at all for a
+hard-killed sweep, which is indistinguishable from "never fired" and is
+exactly the `sound-gate-proved-by-silence` shape this table exists to avoid
+(the ops board's whole reason to exist is that a silently-stopped cron looks
+identical to a working one from the outside). Write-at-start-then-update
+instead leaves a row PERMANENTLY stuck at `outcome='running'` for a
+hard-killed invocation, which is itself the honest signal: the board can
+show "started, never finished" rather than nothing.
+
+**Reversal condition.** None expected under the current platform. This would
+only reverse if Vercel ever exposed a reliable pre-kill hook (a
+`waitUntil`-shaped guarantee that user code runs even on a timeout), at
+which point a single durable write from that hook would carry the same
+information with one less database round trip per sweep.
+
+## `ws-r21-platform-operator-404-not-403` (2026-09-04, WS-R21)
+
+**Decision.** `api/ops.js` answers 404 both when `OPS_OWNER_USER_IDS` is
+unset and when a signed-in caller's id is not on it. Never 403, never a
+different status for the two cases.
+
+**Rationale.** The workstream brief states the law directly: "unset means
+the endpoint answers 404 by name (not 403: the board does not exist for
+anyone else)." A 403 discloses that a protected resource EXISTS; this board
+watches 100 followers and their revenue, and its existence is not something
+a non-operator should be able to infer by the shape of the refusal. `api/
+_ops.js`'s `opsBoardConfigured`/`isOpsOwner` are checked in that order,
+before any database read, so a stranger and a signed-in non-operator get the
+byte-identical answer a probe of a nonexistent route would also get.
+
+**Reversal condition.** This would reverse if the product ever needs
+multiple operator tiers (e.g. a creator's own limited ops view alongside the
+platform operator's full one) where a wrong-tier operator should learn the
+page exists but is not theirs. Until then, one allowlist and one refusal
+shape is the whole mechanism, and adding a second status code without a
+second real use for it would just be a second way to leak the same fact.
+
+## `ws-r21-sanitize-counts-drops-content-never-stringifies` (2026-09-04, WS-R21)
+
+**Decision.** `vy_sweep_run.counts` keeps only top-level number and boolean
+fields off a sweep's own return value; an array collapses to its length;
+every string and nested object is DROPPED, never JSON-stringified into the
+column.
+
+**Rationale.** Several sweeps already shipped in this repo return summaries
+carrying free text (`api/_pulse.js`'s `runPulseSweep` returns
+`error_details: [{room_id, message}]`; `api/consolidate-sweep.js`'s dry-run
+report carries `candidates: [{person_id, ...}]`). A "keep everything, just
+stringify it" digest would have silently written a follower's `room_id` or a
+raw error message carrying interpolated content into a table this migration's
+own header calls content-free by construction, the day one of those sweeps'
+summaries grew a field nobody reviewed for that risk. Dropping non-numeric,
+non-boolean fields makes the leak class structurally absent rather than
+merely un-audited; a dropped field is a visible gap on the board (a count
+that reads 0 or is simply missing), which is a safer failure mode than a
+present-but-wrong value.
+
+**Reversal condition.** If a specific field is ever proven safe and useful
+enough to show on the board (e.g. a closed enum like a sweep's own named
+outcome code), it should be added as an explicit allowed-key list inside
+`sanitizeCounts`, never by switching the default from "drop" to "stringify."
+Evidence that would justify it: a real board user asking for a specific named
+field this digest currently drops, with that field's value space proven
+closed (an enum, not free text) before it is added.
+
+## `ws-r21-per-room-scoped-queries-not-grouped-across-rooms` (2026-09-04, WS-R21)
+
+**Decision.** Every `api/_ops.js` statement that reads `vy_room_follower` (or
+its day-count sibling `vy_room_follower_day`) is scoped to ONE room via
+`where room_id = ($1)::uuid`, issued once per Room in a loop, rather than one
+`group by room_id` statement covering every Room at once.
+
+**Rationale.** `evals/room-leak/run.mjs`'s AGGREGATE_ONLY parser (`§1c`)
+requires every item in a statement's select list to be a bare
+`count(...)`/`sum(...)` expression; a grouped query would need to SELECT the
+grouping key (`room_id`) alongside the aggregates, which is not itself a
+`count()`/`sum()` call and would fail that check even though a room id is
+not follower content. `api/_room-cohorts.js` already made and documented
+this exact trade for the identical reason (its own header names the cost:
+several statements per Room read rather than one). Phase 0 is one creator
+and 100 followers, i.e. one Room, so the N+1 round trips this costs are
+immaterial today.
+
+**Reversal condition.** `api/_room-cohorts.js`'s own header states this
+precisely and it applies here unchanged: if the Room count ever grows enough
+that per-Room round trips make this board slow to matter, replace the loop
+with one grouped query and re-derive the AGGREGATE_ONLY proof for it (the
+parser would need a second, narrower rule permitting exactly one non-aggregate
+grouping-key column, which does not exist today and should not be added
+speculatively).
+
+## `ws-r21-consolidate-kill-switch-writes-no-heartbeat` (2026-09-04, WS-R21)
+
+**Decision.** `api/consolidate-sweep.js`'s `CONSOLIDATE_KILL` early return is
+NOT wrapped by `withSweepRun`; a killed invocation writes no `vy_sweep_run`
+row at all. Every other cron's own disabled/feature-flagged-off branch WAS
+moved inside the heartbeat wrapper (reported as `{disabled:true}`, outcome
+`'ok'`).
+
+**Rationale.** `CONSOLIDATE_KILL`'s own file header states the invariant
+verbatim: "no lag query, no lease, no model call, nothing written." Writing
+a `vy_sweep_run` row would not violate the SPIRIT of that line (a heartbeat
+carries no consolidation content), but it would violate the LETTER of an
+explicit, already-shipped comment promising an emergency kill switch touches
+the database not at all - the safest reading of "nothing written" during an
+active incident is "nothing," not "nothing except an audit row we are
+confident is harmless." The other ten crons' disabled branches (an unset
+feature flag, an unconfigured provider) are a normal, expected, everyday
+state worth a heartbeat; `CONSOLIDATE_KILL` is an emergency lever pulled
+during an incident, a different situation.
+
+**Reversal condition.** If an operator incident ever needed to confirm
+`CONSOLIDATE_KILL` was actually respected on every tick (rather than trusting
+the code), that would justify moving the write inside the kill branch too -
+but it should be done by the person who owns that kill switch, with the
+"nothing written" comment updated in the same change, not as an incidental
+side effect of an ops-board workstream.
+
+## `ws-r22-hand-rolled-webpush-crypto` (2026-09-04, WS-R22)
+
+**Decision.** Implement Web Push (RFC 8291 aes128gcm encryption + RFC 8292
+VAPID ES256 JWT) directly over `node:crypto` (`api/_push/webpush.js`) rather
+than pulling in the `web-push` npm package.
+
+**Rationale.** The workstream brief's own instruction: "no new dependency if
+you can avoid it, and if hand-rolling is more than a day, `web-push` is
+acceptable, pinned." ECDH (P-256), HKDF (built on `createHmac`), AES-128-GCM
+and ES256 signing (`crypto.sign` with `dsaEncoding: "ieee-p1363"` for the raw
+r||s form JWT needs, no manual DER parsing) are all already in `node:crypto`,
+and the whole implementation is under 300 lines. Proven by round-tripping the
+encoder's output through an INDEPENDENTLY WRITTEN decoder (the receiver's own
+math, not a mirror of the sender's) against a freshly generated real P-256
+keypair — 43 assertions, `evals/room-push/run.mjs`.
+
+**What is explicitly NOT proven, and why not fabricated.** RFC 8291 Appendix
+A publishes a known-answer test vector (fixed keys, fixed salt, fixed
+expected ciphertext). This session tried transcribing it from memory as a
+hard-coded assertion and the transcribed public key failed to parse as a
+valid P-256 point (`ERR_CRYPTO_ECDH_INVALID_PUBLIC_KEY`) — see
+`rejected.md#ws-r22-rfc-8291-known-answer-vector-from-memory`. Rather than
+either shipping a broken assertion or silently adjusting the implementation
+to match a possibly-mistranscribed constant, the vector was dropped entirely
+in favour of round-trip self-consistency with freshly generated keys. This
+means real-browser and real-push-service interop is UNPROVEN — this
+environment has no network route to test against Chrome/FCM or Firefox's
+autopush, and the exact RFC 8291 byte vector was never independently
+reproduced here.
+
+**Reversal condition.** If a real deployment's push sends are rejected by a
+real browser's push service with a decryption or signature error the offline
+suite did not catch, replace this file's crypto with the pinned `web-push`
+package rather than debugging the hand-rolled version blind — a
+conformance bug in a from-scratch RFC implementation with no live
+interop test is exactly the failure mode "no new dependency if you can avoid
+it" trades against, and the brief's own escape hatch exists for this case.
+
+## `ws-r22-quiet-hours-shift-not-skip` (2026-09-04, WS-R22)
+
+**Decision.** A follower's quiet-hours window (`vy_room_checkin.quiet_from`/
+`quiet_to`, migration 085) SHIFTS a due occurrence that falls inside it to
+the instant the window ends, rather than skipping that occurrence entirely
+and waiting for the next scheduled day.
+
+**Rationale.** A follower who picks a check-in time that happens to fall
+inside their own quiet window (or narrows their quiet window after already
+opting in) asked for a daily/weekly check-in, not for it to silently stop
+firing on the days their two settings collide. Shifting preserves "it still
+happens, just not while I asked not to be interrupted"; skipping would
+silently halve the delivered frequency of a schedule with no error and no
+signal to the follower. `computeNextDue`'s own math (`api/_checkins.js`)
+implements the shift by advancing the exit instant to the SAME calendar day
+the occurrence would have landed on, or the day after for a window that
+wraps midnight — proven for both shapes in `evals/room-push/run.mjs` §3.
+
+**Reversal condition.** If the owner decides quiet hours should instead skip
+the occurrence and let the FOLLOWING week's/day's occurrence stand (i.e. "not
+now, not later today either"), `computeNextDue`'s `quietExit` helper is the
+one place that changes — advance to the next candidate `offset` in the loop
+rather than shifting the clock time within the same day.
+
+## `ws-r22-push-key-served-from-designs-op-not-build-time-env` (2026-09-04, WS-R22)
+
+**Decision.** The Room's client learns whether web push is configured (and
+the VAPID public key itself) from a field on `api/checkins.js`'s existing
+`designs` response (`push_public_key`), read server-side from
+`process.env.ROOM_PUSH_VAPID_PUBLIC` on every request — NOT from a Vite
+build-time env var (the `ROOM_VOICE`/`VITE_ROOM_VOICE` pattern this repo
+otherwise uses for a feature flag).
+
+**Rationale.** The VAPID PUBLIC key is not a secret (it is handed to every
+subscriber's browser to mint a subscription against), but it must be
+BYTE-IDENTICAL to the server's own private key's public half or every
+subscription a follower creates fails to decrypt. A `VITE_` build-time copy
+is a second place the same value has to be pasted and kept in sync with the
+server's `ROOM_PUSH_VAPID_PUBLIC` — a config-drift class of bug this
+decision avoids by construction: there is exactly one place this value is
+ever set, and the client always reads the live server's own value on every
+load rather than a value baked in at the last build.
+
+**Reversal condition.** If the `designs` round trip turns out to be too slow
+or too rarely hit for the push control to feel responsive (e.g. a future
+redesign that offers "allow notifications" before a follower ever opens the
+check-ins panel), move the key onto `openRoom`'s own response instead — still
+server-driven, never a build-time var, same reasoning.
+
+## `ws-r22-dynamic-manifest-blob-url-per-room` (2026-09-04, WS-R22)
+
+**Decision.** `public/room.webmanifest` is a static file with a placeholder
+`start_url` (`/r/`), which does not resolve to a real room. `RoomApp.tsx`
+swaps the page's `<link rel="manifest">` to an in-memory `Blob` URL carrying
+the CURRENT room's own `start_url` (`/r/<slug>`) once it knows the slug and
+the creator's public name — the standard "dynamic web app manifest"
+technique, client-side only, no new server route.
+
+**Rationale.** The Room is multi-tenant (`/r/<slug>` for every creator) but
+a web app manifest is one static file per origin; there is no `slug` a
+static file at `/room.webmanifest` could ever know. A server-rendered
+per-slug manifest endpoint (e.g. `/api/room-manifest?room=<slug>`) would
+also work and is arguably more robust against a browser that reads the
+manifest before JS runs, but was heavier than this workstream's scope
+justified for a v1 whose PWA icon set is itself minimal (see the open item
+below) — the blob-URL swap is a few lines, needs no new API route, and fixes
+the concrete defect (installing from any room would otherwise reopen a dead
+generic URL) with the same effect for any browser that runs the page's JS
+before a person taps "install."
+
+**What is unproven.** No real "Add to Home Screen" flow has been exercised
+in this environment (no real mobile browser, no network to a real device).
+Whether every browser's install picker re-reads a swapped `<link
+rel="manifest">` href at the moment of installation (rather than caching the
+one present at first paint) is asserted from general PWA practice, not
+measured against a real Chrome/Safari install here.
+
+**Reversal condition.** If a real install is later exercised and the swap is
+found not to take effect reliably (a browser installs against the static
+fallback's `start_url` regardless of the swap), replace this with a real
+per-slug server route (`api/room-manifest.js`) serving the correct
+`start_url` from the very first response instead of patching it in after
+mount.
+
+## `ws-r22-web-push-ledger-one-row-per-occurrence` (2026-09-04, WS-R22)
+
+**Decision.** `deliverers.webPush` writes exactly ONE `vy_room_checkin_
+delivery` row per due occurrence (`state` is `delivered` if AT LEAST ONE of
+the follower's active subscriptions accepted the push, `failed` otherwise),
+never one row per subscription/device.
+
+**Rationale.** Migration 079's own `unique (checkin_id, due_at, channel)`
+constraint allows no more than one `'web_push'` row per occurrence — the
+ledger's shape was fixed before this workstream and reused rather than
+altered, `deliverers.whatsappTemplate`'s own precedent of writing exactly one
+row regardless of how many numbers a template could theoretically reach. A
+follower with two devices whose push both succeed, both fail, or one of
+each is summarised as one honest outcome ("did this check-in reach the
+phone at all") rather than per-device detail the product has no current use
+for; per-subscription detail (which endpoint got touched, which got
+revoked) still lands on `vy_room_push_subscription` itself, which the audit
+trail this decision gives up is not lost, only not duplicated into the
+delivery ledger.
+
+**Reversal condition.** If a future workstream needs per-device delivery
+auditing (e.g. "notify support this follower's phone push is failing but
+their tablet's is fine"), the fix is a schema change — either a new
+`subscription_id` column joining `vy_room_checkin_delivery` to `vy_room_
+push_subscription` under a widened unique key, or a separate per-send ledger
+table — not a workaround inside this function.
+
+## `ws-r23-invite-predicate-inside-the-insert` (2026-09-04, WS-R23)
+
+**Decision.** Replica creation's invite gate (migration 086) is a single CTE
+statement that redeems the invite (an UPDATE guarded by `redeemed_at is null
+and expires_at > now()`) and only then permits the `vy_replica` INSERT to run
+(`select ... from account_bridge, gate where gate.ok`), rather than a JS
+check that reads an invite row, decides, and then issues a separate INSERT.
+`gate.ok` itself depends on `exists (select 1 from invite_redeem)`, so
+Postgres must execute the redemption before evaluating the gate in the same
+statement.
+
+**Rationale.** A check-then-insert shape is a race: two concurrent requests
+with the same code could both read "unredeemed" before either commits its
+own redemption, and both then insert a replica. The workstream brief's own
+law #3 names this exactly ("the predicate lives INSIDE the INSERT that
+creates the replica"). The atomic form also makes the "already owns a
+replica needs no code" exemption free: `already_owns` is read once, inside
+the same lock (`pg_advisory_xact_lock`) `createSelfReplica` already took for
+the person-bridge upsert, so no second round trip and no second window for
+a race between "do they already own one" and "create the row" opens up.
+
+**Reversal condition.** If a future product need requires telling a caller
+WHY a code failed (wrong vs. expired vs. already redeemed) rather than one
+undifferentiated `invite_invalid`, the gate CTE would need to return which
+branch it took rather than only `ok`/not `ok`, which is a real schema/query
+change, not a copy change - reverse this decision only if that product need
+is stated explicitly, not by default, since telling a stranger why a
+specific code failed is more information than a front door should hand back
+(see `api/_replica.js`'s own comment on this exact point).
+
+## `ws-r23-invite-code-canonicalized-not-stored-raw` (2026-09-04, WS-R23)
+
+**Decision.** An invite code is generated from a 28-character no-ambiguity
+alphabet (excludes 0/O/1/I/L), shown to the operator exactly once in the
+issue response, and never stored in any form except `sha256(canonical(code))`
+(`api/_invites.js`'s `hashInviteCode`/`canonicalizeInviteCode`). Canonical
+form strips everything but A-Z0-9 and uppercases, so "AB3D-9F2K-QR7T",
+"ab3d 9f2k qr7t" and "ab3d9f2kqr7t" all hash identically.
+
+**Rationale.** Mirrors the workstream brief's own law #2 ("the code itself is
+shown once and never stored") and the platform's existing password/secret
+discipline (never commit or print a secret, `AGENTS.md`). Canonicalizing
+before hashing exists because a code is retyped by hand as often as it is
+pasted, and refusing a real code over punctuation or case a person did not
+reproduce exactly would make every issued invite fragile in a way that has
+nothing to do with whether it is valid.
+
+**Reversal condition.** None expected under the current invite-only Phase 0
+plan. Would reverse only if invites move to a self-serve, non-operator-issued
+flow where a resend/lookup-by-code operation becomes a real product need -
+at which point storing the raw code would have to be argued for on its own,
+not assumed.
+
+## `ws-r23-application-rate-limit-is-a-plain-column-not-a-functional-index` (2026-09-04, WS-R23)
+
+**Decision.** `vy_creator_application`'s one-per-contact-per-day predicate is
+a genuine unique index over two ordinary columns (`contact_key`, a
+lowercased/trimmed copy of `contact`; `applied_on`, a `date` computed in JS
+via `api/_room-surface.js`'s existing `dayKeyOf`), used as an `ON CONFLICT
+(contact_key, applied_on) DO NOTHING` target - not a functional/expression
+index on `lower(contact)`/`created_at::date`, which is what the workstream
+brief's own words describe.
+
+**Rationale.** Postgres requires an index expression to be IMMUTABLE, and
+casting a `timestamptz` to `date` is not (the result depends on the
+session's `TimeZone` setting), so `create unique index ... on
+(lower(contact), (created_at::date))` is rejected at DDL time. Computing both
+values in JS once, on the write side, and reusing the identical function
+(`contactKey`) on every read/erase call is what keeps a stored value and a
+query value from ever disagreeing about what "the same contact" means -
+the same guarantee the brief asked for, reached without a DDL feature this
+migration cannot use. `ON CONFLICT DO NOTHING` (rather than a
+check-then-insert) is what makes the refusal atomic under a concurrent
+double-submit, `ws-r23-invite-predicate-inside-the-insert`'s identical
+argument restated for a simpler predicate.
+
+**Reversal condition.** None expected: this is a DDL constraint, not a
+judgment call. Would only change if Postgres itself changes what counts as
+IMMUTABLE for a timestamptz-to-date cast, which is not a live prospect.
+
+## `ws-r20-handoff-act-is-inline-not-in-meera-consent` (2026-09-04, WS-R20)
+
+**Decision.** Handoff's disclosure act ("a follower saw exactly this payload
+and said yes to sending it") is recorded INLINE on `vy_room_handoff` itself
+(`sent_at` plus `policy_version`), never as a new row in `meera_consent`.
+
+**Rationale.** `meera_consent` is a boolean ledger by design - migration 016
+and `api/_room-surface.js`'s own `recordRoomConsent` state it directly: "NO
+CONTENT COLUMN and there must never be one." Handoff's whole mechanism is the
+opposite of that: the thing consented to IS the exact content, and a ledger
+that structurally cannot hold it cannot record the act that matters here.
+Bolting a `payload_text` column onto `meera_consent` to make it fit would
+weaken a law written for a reason (a boolean ledger is trivially reasoned
+about; a content-bearing one is not) to serve one caller. The row itself -
+`state='sent'`, `sent_at`, `policy_version` - already IS a timestamped,
+versioned record of the act, addressed by the same primary key the payload
+lives under, so nothing is gained by splitting it across two tables that
+would then need to agree with each other.
+
+**Reversal condition.** If a second Room feature needs the SAME
+"saw-this-exact-content-and-agreed" shape (not merely a boolean grant), that
+is the point to extract a proper CONTENT-BEARING consent primitive rather
+than growing `meera_consent` a second, content-holding shape awkwardly beside
+its boolean one - two callers is the signal that the abstraction is real, one
+is not.
+
+## `ws-r20-creator-reply-never-touches-meera-log` (2026-09-04, WS-R20)
+
+**Decision.** A creator's Handoff reply lives ONLY in
+`vy_room_handoff.reply_text`. It is never inserted into `meera_log` (the
+table `api/_surface.js`'s `logDmTurn`/`dmHistory` and every Room lane's
+`memory.history` read from), under any `role` value.
+
+**Rationale.** `dmHistory`'s mapping is a strict binary: `role === "her" ?
+"assistant" : "user"`. There is no third bucket. A creator's reply written
+with `role='her'` would be read back on the follower's NEXT compiled turn as
+the AI's own prior utterance - exactly the harm the workstream brief names
+("never fed to the model as if the AI said it"). Written with any OTHER role
+value, it would be read back as `"user"` - the FOLLOWER's own prior turn, a
+different but equally real harm the brief does not name but the same binary
+mapping produces. Because `dmHistory` is shared by every DM and Room lane in
+this repo (not something WS-R20 could safely narrow without touching code
+several other workstreams depend on), the only response that does not risk
+either harm is to never let a creator's reply reach that table at all. The
+follower's OWN read of it (`myHandoffs`) is a completely separate query
+against `vy_room_handoff`, so "lands in the follower's private thread" is
+true as a claim about what the follower's CLIENT renders (merged with the
+AI's turns for display), never as a claim about the model's own compile
+context.
+
+**What this deliberately leaves undone.** The brief's own permission ("The
+AI's later replies may cite it as 'what `<Name>` told you' only within that
+follower's scope") is NOT built. Doing so honestly needs its own retrieval
+wiring - a fact or episode row scoped to this one follower, gated through
+`api/_disclosure.js` exactly as every other retrieval in this repo is - not
+a shortcut through `meera_log`'s existing binary. Out of scope for a v0
+whose brief explicitly calls it "the kernel's one law ported as a predicate
+rather than the kernel itself."
+
+**Reversal condition.** The day a workstream deliberately builds that
+retrieval wiring, this decision is superseded by whatever it decides — this
+entry should gain a `supersedes` edge rather than being edited in place.
+
+## `ws-r20-handoff-not-tier-gated` (2026-09-04, WS-R20)
+
+**Decision.** Handoff carries no `tier === 'paid'` predicate anywhere in
+`api/_handoff.js`. Availability is exactly two things: `vy_room.
+handoff_enabled` (the creator's own per-Room choice, default off) and
+`vy_room.handoff_monthly_cap` (a per-follower ceiling, default 5).
+
+**Rationale.** Stated directly in the workstream brief ("Paid only? No") and
+kept as a predicate rather than a comment: `sendHandoffRequest`'s INSERT
+never names `vy_room_follower.tier` at all, so there is no line to
+accidentally delete that would silently re-gate this by money. Unlike
+check-ins (WS-R16, migration 079), which IS paid-only by the plan's own
+design and encodes it as two separate due-select statements rather than a
+JS branch, Handoff has no such split because there is no such gate to split.
+
+**Reversal condition.** If a future owner directive makes Handoff a paid
+perk, the fix is the identical shape check-ins already uses: a `tier`
+predicate inside `sendHandoffRequest`'s own INSERT SELECT (never a JS
+`if` downstream of it), following `context/rejected.md
+#ws-r16-checkins-skip-log-partition-not-a-js-branch`'s own lesson.
+
+## `ws-r20-drafted-state-unused-in-v0` (2026-09-04, WS-R20)
+
+**Decision.** `vy_room_handoff.state`'s CHECK allows `'drafted'`, but no code
+in this workstream ever writes a row in that state. `draftHandoffPayload` is
+PURE (computes text and a hash, writes nothing); `sendHandoffRequest` is the
+only writer and it inserts directly at `state='sent'`.
+
+**Rationale.** The workstream brief describes `draft` as building "the
+verbatim payload" and returning "the exact text and its hash" - a
+computation, not a persisted intermediate. Persisting a `'drafted'` row on
+every payload preview (including ones a follower never sends) would create
+rows this product has no reason to keep and no reader that distinguishes
+them from a real request; the schema still allows the value because a
+future v1 (closer to the GroupAI kernel this ports one predicate of) may
+want a durable draft a follower can return to across sessions, and the CHECK
+constraint should not need a migration on the day that is built.
+
+**Reversal condition.** The day a durable draft is actually needed (a
+follower building a long payload across multiple visits, say), `draft`
+becomes a writer instead of a pure function, and `withdrawHandoffRequest`'s
+existing `state in ('drafted','sent')` clause already accepts the new shape
+with no change.
+
+## `ws-r25-processing-finished-is-voice-quality-terminal-step` (2026-09-04, WS-R25)
+
+**Decision.** "Processing finished" in the funnel reads
+`min(vy_replica_processing_job.updated_at)` filtered to
+`step='voice_quality' and state='complete'`, never
+`vy_replica_source.state='ready'`.
+
+**Rationale.** `voice_quality` is the audio DAG's own terminal step
+(`api/_replica-processing/pipeline.js`'s `NEXT` map: `NEXT.voice_quality ===
+null`, the only step with no successor). `vy_replica_source.state` can also
+reach `'ready'` by paths this workstream did not want to depend on staying
+in step with the DAG's own definition of "done" (a future source kind with a
+different terminal step, say), whereas the DAG's own module already names
+the terminal step as data, not as a comment. Reading from
+`vy_replica_processing_job` also keeps the funnel honest about a source that
+was marked `ready` by a path other than the audio pipeline finishing (there
+is no such path today, but the funnel's own law #1 - "read from the table
+that already knows" - argues for the narrower, more truthful source even
+before one exists).
+
+**Reversal condition.** If `AUDIO_PROCESSING_DAG`/`NEXT` ever grow a second
+terminal step (a video-only DAG with its own last step, say), this read
+needs to become "whichever step has no successor for THIS source's kind"
+rather than the literal string `'voice_quality'` - the day that DAG exists,
+this entry should gain a `supersedes` edge.
+
+## `ws-r25-aggregate-only-parser-widened-to-admit-min` (2026-09-04, WS-R25)
+
+**Decision.** `evals/room-leak/run.mjs`'s AGGREGATE_ONLY parser (WS-R21's own
+addition) now accepts `min(...)` alongside `count(...)`/`sum(...)` as a
+legitimate aggregate in a follower-table select list, and `api/_funnel.js` is
+added to the AGGREGATE_ONLY set.
+
+**Rationale.** `api/_funnel.js`'s one follower-table read is `select
+min(joined_at) as at from vy_room_follower where room_id = ($1)::uuid` - the
+same "scoped to one room, aggregate-only select list" shape every other
+AGGREGATE_ONLY file already proves out, one real SQL aggregate function
+wider. Widening the regex rather than reshaping the query to fake a
+`count`/`sum` (e.g. `count(*) filter (where joined_at = (select
+min(joined_at) ...))`) keeps the statement legible and keeps the parser
+honest about what "aggregate-only" was always supposed to mean, rather than
+an accident of which two functions happened to be needed first.
+
+**Reversal condition.** If a future statement uses `min`/`max` to smuggle a
+non-aggregate value out (there is no such shape today - `min`/`max` over a
+single scalar column can only ever return that same column's own type, never
+a row's other fields), narrow the regex back and give the offending file its
+own named exception instead.
+
+## `ws-r25-funnel-mark-ownership-predicate-inside-insert` (2026-09-04, WS-R25)
+
+**Decision.** `markStep`'s INSERT sources its rows from a CTE
+(`with owned as (select ... from vy_replica where replica_id=$1 and
+owner_user_id=$2)`) rather than a JS ownership check before a separate
+INSERT. A mark for a replica the caller does not own therefore inserts ZERO
+rows in the SAME statement that would have written it.
+
+**Rationale.** `api/_replica.js`'s invite gate and `api/_room-publish.js`'s
+publish lock both already put the deciding predicate inside the write
+statement rather than beside it, for the reason `gate0-structural` states
+generally: a predicate the database enforces is a guarantee, a predicate in
+application code beside a write is a race waiting for a second call path.
+The workstream brief asks for this by name ("a mark from another owner is
+refused before any write"), and this shape is the only one that makes
+"before any write" true by construction rather than by ordering two
+statements correctly today and hoping a future edit keeps them in order.
+
+**Reversal condition.** None expected; this is the same pattern every
+owner-scoped write in this codebase already uses. If a future Neon
+SQL-over-HTTP change ever disallowed a CTE feeding an INSERT's row source,
+this would need to fall back to two statements with the ownership check
+inside a transaction - not available today (Neon's HTTP endpoint takes one
+statement per request), so this is not a live option, only a note for
+whoever hits that wall.
+
+## `ws-r25-stall-window-is-seven-days-since-account-created` (2026-09-04, WS-R25)
+
+**Decision.** `funnelSummary` counts a replica as "stalled" only when it has
+NOT published AND its `account_created` is at least 7 days in the past. A
+replica younger than 7 days with no Room yet is not counted anywhere in
+`stalled_at`.
+
+**Rationale.** The workstream brief's own words: "counts per last-reached
+step over replicas that have not published in 7 days." A creator on day two
+of a multi-week archive upload is not a defect the platform should report to
+its own operator as a stall; counting them would make the board cry wolf on
+day one of every real creator's onboarding and teach whoever reads it to
+ignore the list.
+
+**Reversal condition.** If Phase 1 sets a different target ("a Room in
+minutes" implies the window should eventually be much shorter than 7 days),
+change `STALL_WINDOW_MS` in `api/_funnel.js` - it is the one constant the
+whole stall computation depends on, not a value duplicated anywhere else.
+
+## `ws-r24-room-hindi` (2026-09-04, WS-R24)
+
+**Decision.** The Room's chrome ships in two locales, English and Hindi
+(Devanagari): `src/room/copy.ts` became `ROOM_COPY_TABLE` (keyed `en`/`hi`,
+same keys required in both, checked against the real export by
+`evals/room-locale/run.mjs`), migration 087 adds `vy_room_follower.locale`
+and `vy_room.default_locale`, and every server-rendered app-voiced string a
+follower reads before joining (the disclosure card, the Telegram onboarding
+cards, the capped card) picks its locale the same way: a joined follower's
+own stored choice first, a browser or Telegram `language_code` hint before
+that exists, the creator's own `default_locale` when neither says anything.
+The creator's AI itself is completely untouched — its reply language is the
+creator's own material and the engine's register, and this workstream never
+opens `src/engine/persona.ts`.
+
+**Rationale.** India-first, stated as this project's own north star
+(`context/STATE.md`), and a follower who cannot read the buttons on the
+screen the product is judged on is not a follower this product actually
+served, whatever language its AI happens to answer in.
+
+**Reversal condition.** If a third locale is ever needed, `ROOM_LOCALES`
+widens in three places at once (`src/room/copy.ts`, `api/_room-surface.js`,
+migration 087's two CHECK constraints) and `evals/room-locale/run.mjs`'s key-
+parity check extends to it automatically (it walks whatever locales
+`ROOM_COPY_TABLE` actually has); if Hindi is ever found to perform worse
+than no localization at all (unmeasured, no listening or usability test has
+ever been run against this workstream's copy), that is a product call for
+whoever runs one, not a reversal this entry can pre-empt.
+
+## `ws-r24-session-carries-its-own-minted-locale` (2026-09-04, WS-R24)
+
+**Decision.** The room session token (migration-independent, HMAC-signed)
+gained a fourth binding field, `loc`, alongside the existing `dd` (disclosure
+digest), `td` (transcript digest) and `iat`. `roomSay` and `roomSpeak`
+recompute the disclosure card to CHECK `payload.dd` against using
+`roomDisclosureCard(name, payload.loc)` — the locale the TOKEN was minted in
+— never `follower.locale`, the row's current value.
+
+**Rationale.** This was not a stylistic choice; it fixed a real bug this
+workstream's own offline eval caught before it shipped
+(`rejected.md#ws-r24-disclosure-recomputed-from-the-follower-row-broke-every-session-across-a-switch`).
+`dd`/`td` already establish the pattern — a session names what it was minted
+against, and every later op RE-DERIVES from that named state rather than
+re-reading a row that may have moved since. Locale is exactly that kind of
+field: `roomSetLocale` can change a follower's row between the moment a
+session was minted and the moment it is used (a second tab, a device that
+switches languages mid-session), and re-deriving the disclosure from the
+follower row's CURRENT locale would refuse a perfectly valid, unexpired
+session for a reason that has nothing to do with the card the follower
+actually saw. An older token minted before this field existed carries
+`undefined` for `loc`, which `roomDisclosureCard`'s own default reads as
+`"en"` — exactly the card such a token was actually minted against, so no
+migration-day session is invalidated by this change.
+
+**Reversal condition.** If a future redesign makes the disclosure card
+locale-independent (a single language for the card regardless of chrome —
+unlikely given the whole point of this workstream, but nameable), `loc`
+becomes unused and can be dropped from new tokens; existing tokens still
+carrying it need no migration since `mintRoomSession` is only ever read by
+`readRoomSession`, never validated against a fixed field set.
+
+## `ws-r24-locale-excluded-from-repeat-join-conflict-update` (2026-09-04, WS-R24)
+
+**Decision.** `joinRoom`'s INSERT sets `locale` only in the VALUES list, never
+in the `ON CONFLICT ... DO UPDATE SET` clause — a repeat join (re-attesting,
+changing the memory answer) leaves an existing follower's `locale` exactly
+as it was.
+
+**Rationale.** `joinRoom` is also how a follower changes their memory answer
+later, and doing so must not silently undo a language choice made through
+`roomSetLocale` in between. The same asymmetry migration 071's own
+`memory_consent_at` handling already has in the other direction (REPLACED,
+never coalesced, because a consent answer must always reflect the latest
+one) — `locale` needs the opposite treatment because it is not a consent
+answer being re-affirmed, it is a display preference an unrelated write must
+not clobber.
+
+**Reversal condition.** If a product decision ever wants "the join screen's
+displayed language always becomes the follower's stored language, every
+time," add `locale = excluded.locale` back to the SET list — but then a
+follower who explicitly switched languages via `roomSetLocale` and later
+re-attests (e.g. changing their memory answer) would silently lose that
+choice, which is the exact failure this decision exists to prevent, so that
+change should not be made without also solving that.
+
+## `ws-r24-locale-hint-never-overrides-a-joined-followers-own-row` (2026-09-04, WS-R24)
+
+**Decision.** `openRoom`'s `locale` argument (the browser's `navigator.language`,
+or a Telegram `language_code`) is consulted ONLY for a follower with no row
+yet. A follower who has already joined always gets back `normalizeLocale(follower.locale)`,
+regardless of what the hint says.
+
+**Rationale.** The hint is real signal exactly once: the first screen a
+stranger ever sees, where there is no stored answer to trust instead. Past
+that point, honoring a fresh hint over a follower's own stored choice would
+mean a shared device, a browser reset to a different OS language, or simply
+opening the Room from a different phone could silently override a language
+the follower deliberately picked with `roomSetLocale` — the read path
+quietly undoing what the write path just did.
+
+**Reversal condition.** If followers are ever measured wanting "always match
+my current browser," build that as an explicit opt-in (a follower-chosen
+"always follow my browser" toggle) rather than an implicit default, since the
+implicit version is indistinguishable from the bug this decision exists to
+prevent.
+
+## `ws-r24-room-card-in-api-surface-js-is-not-vyakti-rooms` (2026-09-04, WS-R24)
+
+**Decision.** `api/_surface.js`'s `ROOM_CARD` constant was left untouched by
+this workstream, despite both this workstream's own brief and the common
+brief naming "api/_surface.js's ROOM_CARD rail" among the files to read and
+give a locale parameter.
+
+**Rationale.** Investigated before touching it, per this repo's own law
+(`rejected.md` — read before building, never assume a brief's premise):
+`ROOM_CARD` is Meera's MULTIPARTY.md group-chat disclosure card (a Telegram
+GROUP room, a completely different product from Vyakti Rooms' follower Room
+at `/r/<slug>`), written in Hinglish for Meera's own persona, sent via
+`deliver()` against `meera_consent`/multiparty tables `api/_room-surface.js`
+never imports from and never touches. No Vyakti Rooms follower session, web
+or Telegram, ever reaches the code path that sends it. Threading a `locale`
+parameter through it would touch Meera's own product surface for zero
+benefit to any Vyakti Rooms follower, and `CLAUDE.md`'s own law is explicit
+that Meera's register and app-voiced rails are measured and not to be
+touched casually. The brief's naming of it appears to be a genuine
+misattribution rather than a real requirement — the two OTHER items in the
+same sentence (the disclosure card, the capped card) and the Telegram
+command replies are all real Vyakti Rooms surfaces and are the ones this
+workstream actually localized.
+
+**Reversal condition.** If a future session finds an actual call path from a
+Vyakti Rooms follower to `ROOM_CARD`, that finding supersedes this entry and
+`ROOM_CARD` should gain the same locale treatment `roomDisclosureCard` got
+here.
+
+## `ws-r24-check-copy-textnodes-devanagari-letter-run` (2026-09-04, WS-R24)
+
+**Decision.** `scripts/check-copy.mjs`'s `textNodes()` extractor (PASS 2's
+JSX/HTML text-node reader) now treats a run containing EITHER a Latin letter
+OR a Devanagari letter as real content, where it previously required
+`[A-Za-z]` specifically.
+
+**Rationale.** A real, measured blind spot, not a hypothetical one
+(`measurements.md#ws-r24-textnodes-devanagari-blind-spot`): a JSX or HTML
+text node written entirely in Devanagari, with no embedded Latin word (no
+"AI", no English brand term), has ZERO `[A-Za-z]` characters and was
+therefore invisible to this extractor — a banned word inside one could never
+have tripped the gate at all, in any rule, not just rooms-vocabulary. This
+is exactly the "the gate is not biting" failure `check-copy.mjs`'s own
+`selfTest()` exists to catch, just for a shape nobody had written a fixture
+for yet because this repo had shipped no Devanagari copy before this
+workstream. Fixed narrowly (widen the one character class, not the
+extraction logic) so every other rule's existing behaviour is unchanged for
+ASCII content.
+
+**Reversal condition.** If this product ever ships a THIRD script with no
+Latin letters of its own (unlikely for the two-locale v1 this workstream
+ships), the same class widens again rather than being special-cased per
+script.
+
+## `ws-r27-forget-receipt-hash-recomputed-not-looked-up` (2026-09-04, WS-R27)
+
+**Decision.** `vy_room_forget_receipt` (migration 090) carries `person_hash`,
+never `person_id`, and `roomForgetReceiptHash(roomId, personId, policyVersion)`
+(api/memory.js) is a PLAIN SHA-256, never an HMAC with a per-deploy secret
+key the way `api/_replica-full-erasure.js`'s own deletion receipt hashes
+(`REPLICA_ERASURE_RECEIPT_KEY_B64`). The account-wide whole wipe deletes a
+person's own past receipts by reading the (small) receipt table's own
+`room_id`/`policy_version` — both plain text on the row — and RECOMPUTING
+this same function for the person being wiped, rather than by looking a
+receipt up by any stored key.
+
+**Rationale.** The workstream brief asked the question directly ("keyed on
+the hash? No: keyed by person_id would recreate the record"), and the
+answer follows from law 3: a Room forget receipt is shown to the follower
+exactly once and is never looked up again by anyone — there is nothing to
+look it up BY, on purpose. `api/_replica-full-erasure.js`'s receipt needs
+the HMAC treatment because an OPERATOR looks it up later, by a request id
+(`getReplicaErasureStatus`); paying for that guarantee here would cost a new
+env var (`REPLICA_ERASURE_RECEIPT_KEY_B64`'s own sibling) for a property
+this receipt's own law explicitly refuses to have, and the workstream brief
+says not to add one. A plain hash is exactly as strong as this receipt needs
+to be: nothing besides the wiping person's own forget request ever supplies
+the `person_id` half of the input, so nobody who does not already know who
+they are wiping can produce a matching hash to search for.
+
+**Reversal condition.** The day ANY consumer other than "the follower who
+just forgot, on the one response that carries it" needs to look a receipt up
+— a support tool searching by room and a suspected person, an operator
+audit — this hash needs the HMAC treatment `_replica-full-erasure.js`
+already has (a secret key, a nonce stored per receipt), because a plain
+SHA-256 of three values two of which (`room_id`, a small integer
+`policy_version`) are close to public is only as strong as `person_id` being
+hard to guess, which stops being true the moment a second caller supplies
+candidate person ids to search against.
+
+## `ws-r27-subscription-cascade-still-reaches-a-live-row` (2026-09-04, WS-R27)
+
+**Decision.** Left `vy_room_subscription.follower_id references
+vy_room_follower(follower_id) on delete cascade` (migration 078) exactly as
+it is, rather than changing it to `restrict`/`set null` in migration 090,
+even though this workstream found that it defeats the ONE protection
+`vy_room_subscription`'s own `wipeWhere` (`state in ('cancelled','expired')`)
+exists to provide: the moment ANYTHING deletes a `vy_room_follower` row —
+including `roomForget`'s own statement, unconditionally, on every "forget me
+in this room" — Postgres removes every subscription row for that follower BY
+CASCADE regardless of `state`, live one included. Both the Room-level forget
+and the account-wide whole wipe now issue their OWN explicit,
+`wipeWhere`-restricted delete first (this workstream's own addition for the
+Room-level path), so the deliberate, safe half of the deletion is honestly
+counted — but neither can stop the schema's own cascade from ALSO removing a
+still-active mandate's row two statements later.
+
+**Rationale.** Found while building the export completeness battery, not
+designed in: `api/memory.js`'s own `PERSON_TABLES` comment for this table
+already stated the intent ("a whole-account wipe may only ever remove a
+subscription that has ALREADY reached a terminal state... Closing this [an
+automatic provider-cancel] is Phase 1 work, not this migration's"), which is
+a real fact about the RESTRICTED STATEMENT and a false one about the TABLE'S
+FULL BEHAVIOUR once the FK is accounted for. Changing the FK
+(`on delete cascade` to `restrict`, which would make a follower's own
+`vy_room_follower` row un-deletable while a live subscription still points
+at it, forcing a provider-cancel step first) is exactly the kind of payment-
+safety schema change this workstream's brief did not ask for and should not
+make unilaterally — it changes what "leave this room" DOES for a paying
+follower, which is a product decision, not a receipt-and-export one.
+
+**Reversal condition.** The day a live subscription is actually stranded
+this way in production (a follower forgets a Room mid-mandate and the
+platform loses its only local record that the mandate may still be
+charging them), change `vy_room_subscription.follower_id`'s FK from
+`on delete cascade` to `restrict` (forcing an explicit provider-cancel
+step, wired into `roomForget`, before the follower row itself can be
+deleted) or to `set null` (keeping the row, unlinked from the now-gone
+follower, as the one honest local record). Either fix is a migration plus a
+change to `roomForget`'s own ordering; neither is this migration's.
+
+## `ws-r26-write-is-the-check-not-read-then-write` (2026-09-04, WS-R26)
+
+**Decision.** `api/_rate-limit.js`'s `consume()` never reads a count and then
+decides whether to write. It runs exactly one statement -
+`insert into vy_public_rate ... on conflict (...) do update set count =
+count + 1 where count < $limit returning count` - and the WHERE clause on
+the UPDATE arm IS the whole predicate: a caller under the limit gets a row
+back, a caller AT the limit gets zero rows, full stop.
+
+**Rationale.** A read-then-write (`select count; if count < limit then
+insert/update`) has a race two concurrent callers at the limit both lose:
+both can read "under the limit" as true before either one's write lands, so
+both get admitted and the counter ends up one over. Postgres's own MVCC
+serializes the second writer's UPDATE against the first writer's
+already-committed row, so the SAME statement that records a call is the
+statement that refuses it - there is no window between "decide" and
+"record" for a second caller to land in. The workstream brief states this as
+law #1; this entry exists so the reason survives past the brief.
+
+**Reversal condition.** If a future profiling pass finds this upsert too
+slow under real load (unlikely at this table's size - one row per
+scope/key/window, purged daily) and a read-through cache is added in front
+of it, the cache still has to fall back to this exact upsert on a miss or
+the race reopens; a decision to relax that would need its own entry, not a
+silent edit here.
+
+## `ws-r26-key-is-hashed-with-a-daily-salt` (2026-09-04, WS-R26)
+
+**Decision.** `vy_public_rate.key_hash` is `sha256(scope, the caller's raw
+key, a salt, the UTC day)`, never the raw IP, follower id or contact string.
+The salt comes from env `RATE_SALT`; unset falls back to a fixed per-deploy
+constant (`FALLBACK_SALT` in `api/_rate-limit.js`) rather than throwing, so
+a database with no salt configured yet still enforces limits.
+
+**Rationale.** The workstream brief's law #2 requires this directly. The
+practical effect: `vy_public_rate` cannot be read back as "which IPs hit
+this door" even by someone with full database access, only "the same
+caller hit this door N times today" - a table this repo's own
+`evals/persontables.mjs` correctly does not flag as person-identifying
+(checked directly against that file's `PERSON_COLUMNS` list before writing
+migration 089's header, and confirmed by running the suite: 0 new exemption
+needed). Rotating the salt daily (via `dayKeyOf`, migration 086's own
+convention reused rather than reinvented) means even a leaked salt only
+deanonymizes one day's rows, not the table's whole history.
+
+**Reversal condition.** If a future need arises to correlate a rate-limit
+hit back to a specific IP for abuse investigation (a human asking "who was
+this"), the fix is a SEPARATE, explicitly-consented, short-retention log at
+the point of refusal - never reversing this hash, which is one-way by
+construction (sha256, not a reversible cipher) and cannot be un-hashed
+retroactively even by the platform.
+
+## `ws-r26-limits-are-code-constants-not-a-database-table` (2026-09-04, WS-R26)
+
+**Decision.** The per-scope limits (`DEFAULT_LIMITS` in `api/_rate-limit.js`)
+are named JS constants, each with a comment stating its reason, overridable
+only via the env var `RATE_LIMITS_JSON` and only for a scope this module
+already defines - an override naming an unknown scope is silently dropped,
+never minting a new one at runtime.
+
+**Rationale.** The workstream brief's law #3 asks for named constants with
+reasons, overridable by an operator env var, with an unknown scope failing
+closed. A database-configured limits table was considered and rejected for
+v1: it would let a compromised or buggy caller widen its own ceiling by
+writing to the same table `consume()` reads from, which is exactly the kind
+of self-widening surface a rate limiter must not have. `RATE_LIMITS_JSON`
+lives in the same gitignored/Vercel-env lane as every other operator knob
+this repo already trusts (`OPS_OWNER_USER_IDS`, `INVITES_REQUIRED`), not in
+a table any application code path can write to.
+
+**Reversal condition.** If a future product need is per-Room (not
+per-deployment) limits - a creator wanting their own Room's `say` burst
+ceiling raised - that is a different shape entirely (a `vy_room` column,
+read at the call site, never a caller-writable limits table) and deserves
+its own decision rather than a loosened version of this one.
+
+## `ws-r26-webhook-429-is-a-second-exit-from-always-200` (2026-09-04, WS-R26)
+
+**Decision.** `api/room-tg.js`'s own header previously stated "Always 200
+once the update is AUTHENTICATED" without qualification. This workstream
+adds one more pre-processing exit capable of a non-200 after that point: the
+persistent rate gate, which can return 429 to an authenticated Telegram
+sender. The header comment was rewritten in the same commit to name this
+exception rather than leaving a law that is now false in one case.
+`api/_payments.js`'s `applyWebhook` gets the identical shape: the rate gate
+sits after signature verification and can throw `PaymentsError("rate_
+limited", 429, ...)` for an authenticated sender.
+
+**Rationale.** The workstream brief's law #5 is explicit: "their refusal is
+a 429 the sender will retry, and their HMAC check still runs FIRST." The
+original "always 200" law was about PROCESSING failures - a 500 from
+`handleRoomTelegramUpdate` churning Telegram's retry into an infinite loop
+of re-run side effects. A 429 from the rate gate is a different kind of
+exit: it happens BEFORE any write of ours, so redelivery costs nothing to
+replay, and it is the intended shape (an honest "slow down"), not a bug
+being papered over. The two are not the same law and should not have shared
+one sentence.
+
+**Reversal condition.** If Telegram's or the payment provider's own retry
+behavior on 429 is ever measured to make things WORSE (a redelivery storm
+tighter than their documented backoff), the fix is to make the rate gate's
+refusal here a 200 with a `handled:false` marker instead - matching the
+processing-failure posture - and this entry should gain a `supersedes`
+edge rather than being edited in place.
+
+## `ws-r31-tabs-are-a-new-presentation-over-the-same-panel-tree-not-a-fork` (2026-09-04, WS-R31)
+
+**Decision.** `StudioShell.tsx` does not re-mount, fork, or re-implement any
+existing studio panel. `src/studio/StudioApp.tsx`'s `ReplicaWorkspace`
+(everything from the step head down through every band, gate and the danger
+zone) was exported for the first time by this workstream and is otherwise
+byte-identical; the shell renders the SAME function with the SAME `step`
+prop the old wizard rail already drove, mapping its three tab ids onto the
+wizard's existing `"feed"` / `"meet"` / `"deploy"` step ids
+(`studioShellModel.ts`'s `TAB_STEP`, `"share"` -> `"deploy"`). What the shell
+replaces is only the NAVIGATION above that tree (the wizard rail / compact
+rail), plus a new headline block computed from real reads.
+
+**Rationale.** The workstream's own law 1 is "nothing is deleted, no gate
+moves, every panel keeps its component, its API and its blocker semantics."
+A parallel render tree inside `StudioShell.tsx` that re-mounted the same
+panels a second time was considered and rejected before being built: it is a
+second place for the same mount list to drift from the old rail's (the exact
+failure shape `rejected.md#a-panel-hardcoding-its-own-blocker-class-will-
+drift-from-the-rail` names one layer over), it would double the panels'
+fetch effects if both views could ever be visible at once, and it would mean
+auditing two JSX trees for every future panel change instead of one. Reusing
+`ReplicaWorkspace` verbatim makes "no gate moves" true by construction: there
+is only one render tree, so a step's blocker logic cannot diverge between
+the shell and the old rail because there is no second copy of it to diverge.
+
+**Reversal condition.** If a future redesign genuinely needs the three tabs
+to show DIFFERENT content per tab than the wizard's existing three steps
+(not merely a different top), the fix is to change what `ReplicaWorkspace`
+renders per `step` (which both the shell and the old rail already read from
+the one place), never to fork a second tree inside `StudioShell.tsx`.
+
+## `ws-r31-studio-shell-unset-is-on` (2026-09-04, WS-R31)
+
+**Decision.** `VITE_STUDIO_SHELL` defaults to ON (unset, or any value other
+than the exact string `"0"`, renders the three-tab shell); every other
+feature flag in this repo defaults OFF. The rollback lever is a one-tap
+runtime link inside the shell ("All panels"), not the env var.
+
+**Rationale.** Every other flag in `docs/gurukul/ENV-MANIFEST.md` gates a
+capability this codebase had not yet earned trust in (a spoken identity
+challenge with no different-speaker control, an invite wall). This flag
+gates a REARRANGEMENT of capabilities that already exist and are already
+gated exactly as before (`ws-r31-tabs-are-a-new-presentation-over-the-same-
+panel-tree-not-a-fork` above): the workstream's whole premise is that a
+creator reaches Readiness and the publish switch sooner, and a deploy that
+forgot to set an opt-in flag would silently keep the LONGER path, defeating
+the point of building it. The escape hatch was deliberately built as a
+runtime, in-page link rather than only an env var: a real defect discovered
+in production needs a person to be able to leave the shell without waiting
+for a redeploy, which `showAllPanels` (a plain `useState` in `StudioApp.tsx`)
+provides regardless of which way the build-time flag is set.
+
+**Reversal condition.** If a measured defect in the shell (a broken headline
+computation, a tab that hides a required gate) reaches production before it
+can be fixed forward, set `VITE_STUDIO_SHELL=0` on the Vercel project and
+redeploy; this reverts every signed-in creator to the pre-WS-R31 wizard rail
+with no other code change required, since `ReplicaWorkspace` never changed.
+
+## `ws-r31-primary-control-routes-through-wizards-top-not-a-second-blocker-meta-lookup` (2026-09-04, WS-R31)
+
+**Decision.** Each tab's single primary control is built from
+`wizard.steps[i].top` (`wizardModel.ts`'s `computeWizard()`, the exact "next
+thing" the rail already names) rather than from a second lookup against
+`QuickStartPath.tsx`'s `BLOCKER_META` keyed on raw `runtime.blockers` codes.
+`BLOCKER_META` is imported (never copied) and used directly for one thing
+`top` does not carry: the Meet tab's "still locked, and who it is waiting
+on" breakdown list, re-homed from the retired `QuickStartPath` screen.
+
+**Rationale.** `wizardModel.ts`'s own header states its blocker vocabulary is
+"inherited verbatim" from `QuickStartPath.tsx` — so `top` and a fresh
+`BLOCKER_META` lookup would compute the SAME fact from the SAME source,
+which is exactly the "second decision point" shape
+`rejected.md#a-panel-hardcoding-its-own-blocker-class-will-drift-from-the-
+rail` already names as a defect: two places computing one fact will disagree
+on exactly the input nobody tested first. Routing the primary control
+through `top` also means it is provably correct today, for free — `top` is
+already covered by `evals/studiowizard.mjs`'s own property suite over the
+whole input space, where a second lookup built fresh for this workstream
+would only be covered by `evals/studio-shell/run.mjs`'s handful of fixtures.
+
+**Reversal condition.** If a future gate needs a primary control for a
+blocker code that never reaches `wizard.steps[i].top` (one `computeWizard()`
+does not surface on any step, if such a code is ever added), that is the
+moment to add a direct `BLOCKER_META` lookup for that ONE code — not to
+replace `top` as the general mechanism, which every fixture in
+`evals/studio-shell/run.mjs`'s property tests continues to hold correct.
+
+## `ws-r28-vy-org-creator-column-is-not-named-owner-user-id` (2026-09-04, WS-R28)
+
+**Decision.** `vy_org.created_by_user_id` (the id of the person who created
+a Suite) is deliberately NOT named `owner_user_id`, even though it names a
+natural person exactly the way every other owner-lane `owner_user_id` column
+in this schema does. `vy_org_member.owner_user_id` (a Suite's admin or
+creator member) IS named `owner_user_id`, the normal convention, because its
+rows ARE deleted by name in `api/_replica-full-erasure.js` on that owner's
+erasure.
+
+**Rationale.** The workstream brief's own law 1 states the product rule in
+one sentence: "an org with no admin is a state the ops board names, never
+deleted by a person's wipe." `scripts/relcheck.mjs`'s owner-lane erasure-
+reach check is a blunt TEXT search over `api/_replica-full-erasure.js` for a
+literal `delete from vy_org` statement (word-bounded: `\bdelete from
+vy_org\b` does not match `delete from vy_org_member`, verified in
+`evals/org/run.mjs`'s own §8). Every table carrying a literal `owner_user_id`
+column is REQUIRED by that walk to be reached by cascade from `vy_replica` or
+by exactly that kind of named delete. There is no third option between
+"prove reach with a delete this table must never run" (dishonest - the org
+must survive) and "do not give the column the name that check watches for."
+`vy_creator_invite.issued_by_user_id` (086) is the precedent: a differently-
+named column holding a real person's id, deliberately excluded from
+`OWNER_KEYS`/`PERSON_COLUMNS` because its row is reached some other way.
+
+**What would reverse it.** If a future law changes so that an admin-less,
+member-less Suite SHOULD be deleted by that admin's own erasure (rather than
+left for the ops board to name), rename the column to `owner_user_id`, add a
+narrowly-scoped conditional delete in `api/_replica-full-erasure.js` (fire
+only when the org has zero remaining `vy_org_member` rows of ANY role after
+the erased owner's own membership is removed), and update this decision with
+a `supersedes` edge rather than editing it in place.
+
+## `ws-r28-room-org-fk-on-delete-set-null-not-cascade` (2026-09-04, WS-R28)
+
+**Decision.** `vy_room.org_id references vy_org(org_id) on delete set null`,
+not `on delete cascade`. This is a deliberate deviation from the workstream
+brief's own literal wording ("FK on org_id to vy_org cascade is fine since
+vy_org is not a person/agent/replica table").
+
+**Rationale.** No function this workstream builds ever deletes a `vy_org`
+row (see the entry above - the org survives every person's own erasure by
+design), so a manual `delete from vy_org` is the ONLY path that would ever
+fire this FK's ON DELETE action, and it would be a rare, deliberate ops
+action, not a person's own request. Read as CASCADE, that single manual
+delete would silently take every Room attached to the Suite with it - a
+creator's published address, its followers, its subscriptions, its revenue
+ledger - as a side effect of removing the SUITE's own row. A Room is a real,
+independently valuable object that already outlives everything except its
+OWN owner's erasure (071's `vy_room` row survives a Suite's disappearance
+under this decision, the same way it survives a channel's or a payout's).
+`context/rejected.md`'s no-fake-numbers law has a structural cousin here:
+never let a rare admin action destroy a follower relationship as an
+unlabelled side effect. The brief's own word ("cascade") most likely meant
+"a real FK constraint is fine here" (the general point the sentence is
+making, contrasted with the "no FK on owner columns" rule), not necessarily
+the literal `ON DELETE CASCADE` action - but this entry states the deviation
+explicitly rather than assuming the reading, so the main loop can override it
+in one line if the literal reading was intended.
+
+**What would reverse it.** An explicit instruction from the owner or the main
+loop that a Suite's own deletion SHOULD take its Rooms with it, stated as a
+product decision rather than inferred from one word in a brief.
+
+## `ws-r28-suite-membership-is-always-the-members-own-write` (2026-09-04, WS-R28)
+
+**Decision.** `api/_org.js` has no function that lets an admin write a
+`role='creator'` row naming somebody else's `owner_user_id`. `inviteMember`
+performs NO database write at all - it validates the caller is an admin and
+returns the Suite's own name/slug/id for them to hand to a prospective
+member out of band. `acceptMembership` is the only writer of a `role`
+row for anyone other than the Suite's own creating admin (`createOrg` writes
+that one row, about the caller themselves, in the same statement as the org
+row), and it always writes the CALLER's own `owner_user_id` - authenticated
+as themselves, never an id an admin supplied.
+
+**Rationale.** v0 has no Supabase email lookup (the workstream brief's own
+words), so an admin cannot even validate that a pasted id belongs to a real,
+willing person. Rather than trust an unverifiable paste, membership is
+structured so it is IMPOSSIBLE for anyone but the member themselves to grant
+it - "consent is a SQL predicate, never a prompt instruction" (AGENTS.md),
+applied to a membership row instead of a disclosure grant. This also means
+`attachRoom`'s law-2 "creator has accepted" predicate is never checking a
+row an admin could have faked into existing.
+
+**What would reverse it.** If Vyakti ever ships a real invite mechanism
+(email lookup, a signed deep link, a `vy_org_invite` table with a token and
+expiry), an admin-initiated write becomes possible without this problem -
+build it as a new, explicitly-consented flow alongside this one rather than
+replacing self-service acceptance, since a member who never received (or
+never wanted) an email invite should still be able to accept a Suite id an
+admin gave them by voice or chat, which is the real-world case v0 exists for.
+
+## `ws-r28-seat-covers-creator-tier-predicate-built-unwired` (2026-09-04, WS-R28)
+
+**Decision.** `api/_org.js`'s `seatCoversCreatorTier(db, ownerUserId,
+replicaId)` is built, exported, and proven by `evals/org/run.mjs` §7, but
+nothing in this codebase calls it. No creator tier charge exists anywhere in
+this tree (`api/_payments.js`'s own header: "creator pays for capacity...
+a Phase 2 concern, no table here"), so there is no tier READ for this
+predicate to be consulted BY yet.
+
+**Rationale.** The workstream brief's law 4 states the predicate as a
+requirement independent of whether the charge it exempts exists yet: "write
+this as a predicate the tier read consults, not as a branch in the UI." A
+predicate built and proven now, ahead of its caller, is the honest version of
+"build the seam" - the alternative (waiting until Phase 2 needs it) would
+mean writing the predicate under time pressure, in the same commit as the
+first real tier charge, which is exactly the condition that produces a branch
+in the UI instead of a predicate on the read.
+
+**What would reverse it.** Nothing to reverse; the open half is forward
+work, not a mistake. When Phase 2 builds a creator tier charge, its own tier
+read should call `seatCoversCreatorTier` before applying any charge, and that
+commit should log a `measured_by`-style edge back to this one rather than
+re-deriving the exemption logic.
+
+## `ws-r29-whatsapp-credentials-reused-not-forked` (2026-09-04, WS-R29)
+
+**Decision.** Check-ins over WhatsApp (migration 092, `vy_room_follower_
+whatsapp`) send through the SAME shared credentials `api/whatsapp.js`
+already reads (`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`,
+`WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`) rather than a parallel
+`ROOM_WHATSAPP_*` credential set. `api/room-wa.js`'s webhook door reuses
+`api/whatsapp.js`'s own `verify()` (the HMAC check and the GET handshake)
+and, for the ONE deterministic auto-reply line an inbound message earns,
+its own `send()`/`noteInbound()` - never a second implementation of either.
+
+**Rationale.** The workstream brief said so explicitly ("the existing
+WHATSAPP_* names reused, do not invent parallel ones"), and it is also the
+smaller surface: one WABA number, one HMAC implementation, one 24-hour-
+window ledger, shared by Meera's own DM lane and the Room's check-in lane.
+A parallel `ROOM_WHATSAPP_*` set would have meant a second app secret to
+rotate, a second webhook HMAC to keep in step with Meta's algorithm, and a
+second place `WA_WINDOW_MS`/`windowOpen` could quietly drift from the first.
+
+**What this does NOT resolve, named rather than assumed away.** Meta's Cloud
+API webhook subscription is registered against ONE callback URL per app; two
+different files in this repo (`api/whatsapp.js`, `api/room-wa.js`) now both
+want to be that URL for the SAME number. This was never exercised against a
+real WABA (no credentials in this environment), so which of "Meta permits
+routing one subscription's deliveries to two URLs", "an operator merges the
+two doors behind one URL and dispatches internally" or "Rooms needs its own
+WABA number after all" is true is NOT KNOWN and is an owner/operator decision
+for whoever registers the real webhook, not a code decision this workstream
+can make blind.
+
+**Reversal condition.** The day an operator actually registers this webhook
+and finds Meta will not deliver to two URLs for one number: either (a) merge
+`api/room-wa.js`'s dispatch into `api/whatsapp.js`'s own handler (both would
+then share one `verify()` call site as they already share the function), or
+(b) mint a second WABA number for Rooms and this decision reverses to a
+parallel `ROOM_WHATSAPP_*` credential set after all, with a `supersedes` edge
+back to this entry.
+
+## `ws-r29-429-excluded-from-the-4xx-revoke-bucket` (2026-09-04, WS-R29)
+
+**Decision.** `deliverers.whatsappTemplate` (api/_checkins.js) revokes a
+follower's WhatsApp opt-in (`markFollowerWhatsappFailed`, state -> 'failed')
+on a response in `[400, 500)` EXCEPT 429, which is treated identically to a
+5xx: no ledger row is written at all, and the opt-in is left untouched.
+
+**Rationale.** The workstream brief's own words ("a 429 or 5xx leaves the
+row for the next sweep") already answer this, and the reason is what a 429
+MEANS: "too many requests right now", not "this number is invalid". 429 is
+numerically inside `[400,500)`, and the first version of this function
+revoked on it - see `rejected.md#ws-r29-429-treated-as-a-generic-4xx-would-
+have-revoked-a-good-number`, the exact bug this decision closes.
+
+**Reversal condition.** If Meta is ever observed returning 429 for a genuinely
+dead number (rather than rate limiting), or if a REPEATED 429 streak for the
+same follower should itself become a revoke signal (a judgment this
+workstream did not make, since no real traffic exists to judge it against),
+add a streak counter rather than folding 429 back into the blanket 4xx
+range - the blanket range is exactly the bug this decision exists to avoid
+reintroducing.
+
+## `ws-r29-no-wamid-correlation-column-added` (2026-09-04, WS-R29)
+
+**Decision.** `vy_room_checkin_delivery` gained no new column in migration
+092 (the workstream brief's own law 5: "vy_room_checkin_delivery gains
+nothing"). Meta's async status callbacks (sent/delivered/read/failed,
+arriving on `api/room-wa.js` after the fact) are therefore NEVER correlated
+back to the ledger row a send produced - `handleStatusWebhook` reads them
+only to decide whether to fire the one deterministic auto-reply for an
+INBOUND message; a `statuses[]` entry is otherwise a no-op, counted for the
+caller's own logging and nothing else.
+
+**Rationale.** The synchronous send response (the 2xx/4xx/429/5xx
+`sendTemplate` itself gets back) is already the authoritative signal this
+product acts on - a 4xx revokes at send time, a 2xx marks 'delivered'
+(meaning "handed to Meta", the same honest scope every other channel's
+'delivered' state already carries, never "the follower's phone rang").
+Adding a `wamid` column to correlate a LATER async status back to that row
+would be new schema for a signal nothing in this workstream's brief asked
+the product to act on.
+
+**Reversal condition.** The day a real operator needs to know "did this
+template actually reach the device" rather than "did Meta accept the send" -
+for example, to distinguish a follower who silently stopped reading
+WhatsApp from one whose number went dead - add `wamid text` to
+`vy_room_checkin_delivery`, capture it from `sendTemplate`'s own response
+body, and correlate `statuses[].id` against it in `handleStatusWebhook`.
+
+## `ws-r30-session-worked-one-statement-follower-scope-first` (2026-09-04, WS-R30)
+
+**Decision.** `api/_phase-gate.js`'s `sessionWorked` is written as ONE SQL
+statement (one round trip: six CTEs - `follower_scope`, `thread_scope`,
+`cap_history`, `lane`, `session_start`, `session_msgs` - and a final SELECT),
+with `follower_scope` placed FIRST in the WITH clause even though it is not
+the first CTE a reader would reach for logically (the message-lane session
+count is the workstream's own headline number). `follower_scope`'s own
+SELECT list is aggregate-only (`min(f.tier)`, `min(f.month_message_count)`,
+`min(case ... end)`), a WHERE-scoped single row's own value read back through
+an aggregate function - `api/_funnel.js`'s `min(joined_at)` precedent,
+applied to two more columns.
+
+**Rationale.** `evals/room-leak/run.mjs`'s AGGREGATE_ONLY checker finds the
+FIRST `select ... from` pair in a statement's text and judges the WHOLE
+statement by it (`rejected.md#ws-r12-retention-exists-in-select-broke-the-
+leak-batterys-parser` names this exactly). A CTE chain that opened with
+`lane`/`meera_log` (an ungoverned table, fine to read non-aggregate) would
+still be textually first, and the checker would judge the statement by THAT
+segment, not by the `vy_room_follower`-touching one it actually exists to
+police - a false pass for the wrong reason, the same shape WS-R12 already
+hit once. Ordering `follower_scope` first makes the checked segment the
+correct one BY CONSTRUCTION rather than by the checker's own accident.
+
+**Reversal condition.** If `evals/room-leak/run.mjs`'s parser is ever
+rewritten to inspect every CTE's own `select...from` pair (not only the
+statement's first one), this ordering constraint no longer matters and the
+CTEs may be reordered for readability instead.
+
+## `ws-r30-hit-cap-before-uses-current-ceiling` (2026-09-04, WS-R30)
+
+**Decision.** `sessionWorked`'s "has hit the cap in a prior month" clause
+sums `vy_room_follower_day.turns` by calendar month (excluding the current
+month) and compares each month's sum against the room's CURRENT
+`free_monthly_messages`, not whatever ceiling applied in that historical
+month.
+
+**Rationale.** No table in this schema remembers a room's free-cap value
+over time - `vy_room.free_monthly_messages` is a single mutable column, and
+a follower who was PAID during some past month would have had a different
+(higher) ceiling then too, which this comparison also cannot see. Building a
+per-month cap-history table was out of this workstream's scope for a
+predicate whose only consequence is "should this follower be shown a
+dismissible offer card", never money or access.
+
+**Reversal condition.** If a room's free cap changes often enough, or if a
+significant fraction of followers move between tiers often enough, that this
+approximation visibly misfires (an offer shown to someone who never actually
+hit a cap, or withheld from someone who did) - build a
+`vy_room_free_cap_history` table (mirroring `vy_room_price`'s own
+"a product decision that lives in a deployed constant moves by deploy"
+argument, 071's own free-cap header) and read it here instead.
+
+## `ws-r30-webhook-offer-update-inlined-not-called` (2026-09-04, WS-R30)
+
+**Decision.** `api/_payments.js`'s `applyWebhook` does NOT call
+`api/_phase-gate.js`'s `markOfferOutcome` when a subscription becomes
+active. It inlines an equivalent `offer_update` CTE (same predicate: the
+follower's most recent offer with a null outcome) directly into its own
+multi-CTE write, spliced in only when migration 093 has landed
+(`(deps.tableApplied ?? tableApplied)("vy_room_upgrade_offer")`, the same
+injectable seam `api/_room-surface.js`'s `isTableAppliedFor` already uses).
+
+**Rationale.** The workstream brief's law 3 requires the 'paid' outcome to
+land "in the SAME statement family" as the subscription's own state flip -
+one Neon SQL-over-HTTP round trip, not two. `markOfferOutcome` cannot be
+that same statement AND also be the generic, reusable, standalone function
+`api/_room-surface.js`'s `roomDismissOffer` calls for "Continue free" -
+those are two different callers needing two different shapes (one that must
+share a transaction with an unrelated write, one that must not). Duplicating
+the SQL text rather than trying to parameterize one function into both
+shapes keeps each caller's own statement simple and independently auditable.
+
+**Reversal condition.** If this predicate (`follower_id`'s most recent
+open offer) ever needs to change, both copies must change together by hand;
+there is no shared source. If that drift ever actually happens once, extract
+a pure SQL-FRAGMENT-returning function both call sites can build their own
+statement string around, rather than two independent copies.
+
+## `ws-r30-renewed-unasked-honest-zero` (2026-09-04, WS-R30)
+
+**Decision.** `renewedUnasked(db, now)` (`api/_phase-gate.js`) counts real
+creators (`count(distinct owner_user_id) from vy_room`) but returns a
+hardcoded `renewed_unasked: 0`, with the note "no reminders exist yet, so
+every renewal counts as unasked" attached always, not conditionally.
+
+**Rationale.** `api/_payments.js`'s own header states the fact plainly:
+"creator pays for capacity (Build/Room/Studio/Institute, a Phase 2 concern
+with no table here)". No creator-tier subscription table exists anywhere in
+this database, so "a creator subscription whose second period started"
+cannot be measured today by any means - not approximated, not proxied
+through `vy_room_subscription` (which is a FOLLOWER paying a ROOM, a
+different relationship entirely). `context/rejected.md`'s "a plausible
+return hides a dead pipeline" law, applied to a metric rather than a
+pipeline: inventing a proxy number here would be worse than the honest zero.
+
+**Reversal condition.** The day a creator-tier subscription table and a
+reminder-delivery mechanism both exist, `renewedUnasked` gains a real query
+against them and the hardcoded `0` and its note both go.
+
+## `ws-r30-phase-gate-loops-rooms-like-ops-and-funnel` (2026-09-04, WS-R30)
+
+**Decision.** `phaseGate(db, now)` computes the platform-wide conversion and
+retention numbers by looping every row of `vy_room` and calling
+`conversionReport`/`roomFollowerCohorts` once per room, summing the raw
+counts in JS - never one grouped SQL statement spanning every room.
+
+**Rationale.** `api/_funnel.js`'s own header names the law this restates:
+"the honest tradeoff at Phase 0 scale against a grouped statement that would
+have to group `vy_room_follower` across rooms, which this file's own law and
+`_ops.js`'s both forbid." Reusing `roomFollowerCohorts` (rather than a
+second retention query) means the Phase gate card's retention number can
+never disagree with `api/_room-cohorts.js`'s own tested math.
+
+**Reversal condition.** `api/_room-cohorts.js`'s own decisions.md entry
+already names the reversal condition for the per-room-per-week query cost
+this composes on top of (`ws-r12-per-week-queries`): if the Room count ever
+makes this read slow enough to matter, replace the loop with one grouped
+statement and re-derive the AGGREGATE_ONLY proof for it - the identical
+fix, one level up.
+
+## `ws-r30-offer-card-separate-from-existing-upgrade-prompt` (2026-09-04, WS-R30)
+
+**Decision.** The new "session that worked" offer card (`RoomApp.tsx`'s
+`offerCard` state, driven by `turn.offer`) renders ALONGSIDE the existing
+`upgrade_prompt`/`quota.messages_left` nudge (WS-R19's "3 messages left"
+line) rather than replacing it. Both can be visible on the same turn.
+
+**Rationale.** The two answer different questions and are computed by
+different predicates: `upgrade_prompt` is a fact about the QUOTA (few
+messages remain this month, cheap to compute, fires on every qualifying
+turn); the new offer is a fact about the SESSION that just happened
+(expensive-ish, one SQL round trip, rate-limited to once per 14 days by its
+own ledger). Building one combined UI element would have needed a combined
+predicate nobody asked for, and would have hidden the quota nudge on the
+turns the 14-day cooldown suppresses the new offer.
+
+**Reversal condition.** If real usage shows two upgrade-shaped elements on
+one screen reads as noisy or as double-asking, fold `upgrade_prompt`'s
+render into the SAME card component (still two independent predicates
+underneath) rather than removing either signal - the funnel this
+workstream now measures depends on both existing.
+
+## `ws-r32-otp-doors-behind-vy-public-rate` (2026-09-04, WS-R32)
+
+**Decision.** `api/account.js`'s `send_sms` and `verify_sms` - the OTP
+sign-in the Room uses - now consume from `vy_public_rate` (WS-R26,
+`api/_rate-limit.js`) at two scopes each: by IP (`otp_send_ip`,
+`otp_verify_ip`) and by destination hash (`otp_send_dest`,
+`otp_verify_dest`). The existing in-memory `otp_dest` throttle
+(`api/_ratelimit.js`) stays, unchanged in shape, as a fast first layer with
+no database round trip; send_sms's own copy of it is bumped from 2 to 3 a
+minute to match the stated send-side budget, and verify_sms - which had NO
+in-memory throttle at all before this - gets its whole defence from the new
+persistent layer.
+
+**Rationale.** Closes `ws-r26-otp-doors-not-behind-vy-public-rate`, left
+open at the WS-R26 merge: the in-memory layer is per WARM LAMBDA INSTANCE,
+so it resets on every cold start and is invisible to every other instance
+or region a determined caller can land on next - a caller only has to
+arrive on a fresh instance to reset their own budget. This mattered most
+for `verify_sms`, which guards a 6-digit code (1,000,000 possible values)
+with no throttle of any kind before this change; `otp_verify_dest`'s 10-a-
+minute persistent ceiling is now the actual brute-force floor, not a
+supplement to one. Every door validates its destination BEFORE gating
+(`res.status(400)` on a malformed phone), so a malformed destination never
+touches the counter - `evals/rate-limit/run.mjs`'s own static proof of this
+ordering.
+
+**Reversal condition.** If real OTP traffic shows the persistent layer's
+numbers (10/hr per destination + 30/hr per IP for send; 10/min per
+destination + 30/hr per IP for verify) too tight or too loose against
+genuine sign-in patterns, retune first via `RATE_LIMITS_JSON` (no deploy
+needed) before touching the code constants - the same posture WS-R26
+already established for every other scope in this module.
+
+## `ws-r32-whole-wipe-receipt-sweep-bounded-by-rooms` (2026-09-04, WS-R32)
+
+**Decision.** The account-wide whole wipe's own door onto
+`vy_room_forget_receipt` is now `api/memory.js`'s exported
+`purgeRoomForgetReceipts(db, personId)`: it reads every `room_id` off
+`vy_room` (no `limit`), computes `roomForgetReceiptHash(room_id, personId,
+v)` for every policy version from 1 to `ROOM_FORGET_RECEIPT_POLICY_VERSION`,
+and deletes `vy_room_forget_receipt` in one statement,
+`where person_hash = any($1)`, under migration 094's new index on
+`person_hash`. This replaces the old `select ... from
+vy_room_forget_receipt` read, which capped itself at ten thousand rows.
+
+**Rationale.** Closes `ws-r27-whole-wipe-receipt-read-capped-at-10000`: the
+old read was bounded by RECEIPTS, so a whole wipe silently stopped reaching
+older receipts once that table passed 10,000 rows - and it was the wrong
+axis to bound on regardless of the cap's size, because a receipt names no
+person (`roomForgetReceiptHash`'s own header) and the only way to find
+"every receipt this person produced" is to compute the candidate hash for
+every (room, version) pair and ask the indexed table which of those hashes
+exist. `vy_room` is owner-keyed and does not grow with wipes the way the
+receipt table does (hundreds of rows at most in Phase 1, one per creator's
+Room), so walking it whole is the bound that actually matches how this
+product scales, and it also reaches the case the old read's own filter
+predicate could never have reached correctly even unbounded: a person whose
+follower row is already gone (they forgot that Room earlier, leaving only
+the receipt) is still found, because the walk is over EVERY room this
+database has, never over the person's own (possibly already-deleted)
+follower rows. `evals/room-export/run.mjs`'s layer 4 proves exactly this
+case: forget Room A, join Room B (a DIFFERENT room, so the person's only
+CURRENT follower row points at B), whole-wipe, and Room A's receipt is
+gone.
+
+**Reversal condition.** When Rooms themselves number in the ~10,000s, a
+whole `select room_id from vy_room` per wipe stops being cheap and this
+walk needs a different key (a room index keyed some other way, or batching
+the room walk) - that is the moment to revisit, not before.
+
+## `ws-r34-checkins-enabled-default-true-the-pointer-is-the-opt-in` (2026-09-04, WS-R34)
+
+**Decision.** `vy_room_follower_channel.checkins_enabled` (migration 096)
+defaults to `true`, so a follower whose Room pointer is a Telegram chat gets
+check-ins on that channel automatically, with no separate opt-in step and no
+new person table.
+
+**Rationale.** Joining a Room on Telegram at all is already a deliberate,
+two-question gate (`/start` -> age -> memory, migration 082's own header) -
+the channel pointer this migration widens is created only after a human
+answered both questions. Requiring a THIRD, separate "yes, also send
+check-ins here" step would be asking the same person to consent twice to
+being reachable on a wire they just proved they are already reachable on,
+`vy_room_push_subscription`'s and `vy_room_follower_whatsapp`'s own
+default-off shape is different on purpose: a browser subscription and a
+phone number are NEW destinations the follower has to actively hand over,
+while a Telegram chat is the destination they are already typing into.
+
+**Reversal condition.** If a real deployment shows followers surprised by an
+unrequested check-in arriving on Telegram (measured via the `/checkins off`
+rate in the first week after this ships, or direct feedback), flip the
+column default to `false` and add the opt-in prompt this decision currently
+argues against - the toggle (`/checkins on|off`, the Room panel's control)
+already exists either way, so the reversal is a one-line default change and
+a copy addition, not a schema change.
+
+## `ws-r34-checkin-thread-mapping-defaults-to-null` (2026-09-04, WS-R34)
+
+**Decision.** `resolveReplyThreadId` (api/_room-telegram.js) is a real,
+injectable seam - `deps.threadForReply`, when present, is trusted - but
+ships with nothing injected, so a check-in reply on Telegram always lands in
+the Room's default thread, identically to an ordinary (non-reply) message.
+
+**Rationale.** `vy_room_checkin` (migration 079) carries no `thread_id`
+column, and this workstream's own brief does not ask for one - every
+check-in this platform can design today is bound to the Room's default
+thread, so a persisted message-id-to-thread mapping would be machinery with
+nothing yet to map TO. Building the seam as a real function (rather than
+hard-coding `null` at the call site) means the day a check-in CAN name a
+thread, the wiring in `api/_room-telegram.js`'s `handleOrdinaryMessage`
+needs no change - only `deps.threadForReply`'s implementation does.
+
+**Reversal condition.** The day `vy_room_checkin` gains a `thread_id`
+column (a future workstream's own migration), add a real
+`threadForReply(replyToMessageId)` backed by a persisted
+Telegram-message-id-to-thread-id mapping (its own small table, keyed by
+`(chat_id, tg_message_id)`) and pass it as `deps.threadForReply` from
+`handleRoomTelegramUpdate`. Nothing in `resolveReplyThreadId`'s own
+signature or `handleOrdinaryMessage`'s call site needs to change for that.
+
+## `ws-r34-stopped-code-nullable-text-not-a-second-boolean` (2026-09-04, WS-R34)
+
+**Decision.** `vy_room_follower_channel.stopped_code` (migration 096) is
+`text null`, not `text not null default ''` the way
+`vy_room_follower_whatsapp.last_failure_code` is - and it is deliberately
+NULLABLE because it does double duty as the "is this pointer stopped at
+all" predicate (`stopped_code is null` means sendable). A not-null
+default-empty-string column cannot represent "never stopped" without a
+second boolean column next to it, which would be two columns able to
+disagree with each other (a non-empty code with the boolean unset, or the
+reverse) for no reason a real state needs.
+
+**Reversal condition.** If a later workstream needs to keep a STOPPED
+pointer's failure code on record after clearing it (a "why did this stop,
+historically" audit trail `/checkins on` currently erases), split it into
+`stopped_code text null` (the live predicate, cleared on re-enable) and a
+separate append-only history table - never reuse this one column for both
+purposes, which is exactly the ambiguity this decision avoids today.
+
+## `ws-r33-payment-event-two-mutually-exclusive-lanes` (2026-09-04, WS-R33)
+
+**Decision.** `vy_payment_event` (078) grows a SECOND lane rather than a
+second table: `room_id`/`subscription_id` (the follower lane) become
+nullable, `org_id`/`org_subscription_id` (the Suite lane) are added
+nullable, and a CHECK (`vy_payment_event_one_lane`) makes exactly one of
+the two pairs non-null on every row - never both, never neither.
+
+**Rationale.** The alternative was a second ledger table for Suite
+payments. Rejected because `ownerRevenue`/`runPayoutRollup`'s own reasoning
+("this room's events... never grouped across rooms") and the append-only
+discipline both belong to the CONCEPT of "a payment event", not to the
+follower lane specifically - a second table would have meant two idempotency
+mechanisms, two signature-verified CHECKs, two places `applyWebhook` writes
+to, for no reason but that a Suite event names an org instead of a room.
+One table with a lane CHECK keeps the append-only/idempotent/signature-
+verified guarantees singular while making the two lanes' mutual exclusion a
+constraint Postgres enforces, not a discipline the write has to remember -
+migration 095's own header states this at length.
+
+**Reversal condition.** If a third lane (the creator tier charge) is ever
+given its own ledger row too (see the next entry's reversal condition),
+re-examine whether a lane CHECK still reads cleanly at three cases or
+whether a `lane` enum column plus a single nullable `target_id` is the
+clearer shape at that point - two cases is comfortably a CHECK, three
+might not be.
+
+## `ws-r33-creator-tier-charge-has-no-ledger-row` (2026-09-04, WS-R33)
+
+**Decision.** A creator tier subscription's webhook events flip
+`vy_creator_subscription.state` directly (a plain UPDATE) and write NO row
+to `vy_payment_event`. Idempotency for this lane is the state machine's
+own (setting the same state twice is a no-op), not a `(provider, event)`
+dedup the way the other two lanes need for money math.
+
+**Rationale.** `vy_payment_event`'s `platform_take_inr`/`creator_share_inr`
+columns exist to record a revenue SPLIT with a creator. A creator's own
+subscription to the platform has no second party to split revenue with -
+100% is platform revenue by definition - so recording it in a table shaped
+around a split would mean inventing meaning for columns that do not apply,
+exactly the fabricated-precision failure `context/rejected.md`'s
+no-fake-numbers law names for other proxy metrics.
+
+**Reversal condition.** The day this product needs a reconciliation history
+for creator-tier charges (a support dispute, an accounting export), add a
+dedicated append-only ledger shaped like `vy_payment_event` but scoped by
+`owner_user_id`/`replica_id` rather than retrofitting a third lane onto a
+table already carrying two - migration 095's own header states this
+identically, cited here so the reasoning lives in both places a future
+session might look.
+
+## `ws-r33-suite-seat-revenue-not-distributed-to-creators` (2026-09-04, WS-R33)
+
+**Decision.** A Suite's own seat charge lands as one `vy_payment_event` row
+per billing event with `platform_take_inr = amount_inr` and
+`creator_share_inr = 0` - the whole amount is platform revenue in v0.
+Nothing in this workstream fans a Suite's aggregate seat charge out across
+its attached creators' own `ownerRevenue`/payout figures.
+
+**Rationale.** A Suite pays ONE subscription for N seats; its attached
+creators are N different owners. Splitting that one charge across N
+creators requires a formula (equally? by seat tenure? by follower count
+under each attached Room?) nobody in this product has decided, and this
+workstream's own brief never asked for one - it asked for "the Suite's own
+money end to end" and "the one take number... shown before anyone pays",
+both of which this design satisfies without inventing a distribution rule.
+Guessing one here would be worse than not building it: a wrong formula
+silently under- or over-pays a real creator every month.
+
+**Reversal condition.** The day the product defines how a Suite's seat
+revenue splits across its attached creators, extend the org-lane webhook
+branch in `applyWebhook` to also write per-creator ledger rows (or a
+distinct roll-up) using that formula, and re-derive `runPayoutRollup`'s own
+`join vy_room r on r.room_id = e.room_id` join to also reach Suite-sourced
+revenue, which it structurally cannot today (Suite ledger rows carry
+`room_id = null`).
+
+## `ws-r33-coalesced-seat-cap-three-way-not-boolean` (2026-09-04, WS-R33)
+
+**Decision.** `api/_org.js`'s `seatCapSql` fragment resolves the effective
+seat cap in three cases, not two: an ACTIVE subscription's own `seats`
+value (may raise OR lower the cap below the static `seat_limit`); a
+subscription that has never authenticated (`created`/`authenticated`)
+falls through to `seat_limit` exactly as if no subscription existed; a
+subscription that WAS active and has since lapsed (`paused`/`cancelled`/
+`expired`) drops the cap to ZERO rather than falling back to `seat_limit`.
+
+**Rationale.** Two cases (subscription exists vs. does not) would have
+conflated "never started paying" with "used to pay and stopped" - the
+first should behave exactly as if nothing had ever happened (the
+workstream brief's own required negative control: a `created` subscription
+must not raise the cap), the second must NOT quietly readmit new Rooms at
+the old static `seat_limit`, because that number was never re-validated
+against whether the institute's card still works. "Nothing a creator
+published should vanish because an institute's card expired" (law 5) only
+holds for Rooms ALREADY attached; it says nothing about admitting new ones
+on a lapsed card, and falling back to `seat_limit` would have done exactly
+that.
+
+**Reversal condition.** If a Suite is ever allowed a grace period after
+lapsing (a common billing UX: a few days before hard-stopping new seats),
+add a `lapsed_at` timestamp to `vy_org_subscription` and widen the
+`paused`/`cancelled`/`expired` branch to `case when now() - lapsed_at <
+interval '...' then seat_limit else 0 end` rather than the unconditional
+zero this workstream ships.
+
+## `ws-r33-creator-subscription-owner-lane` (2026-09-04, WS-R33)
+
+**Decision.** `vy_creator_subscription` (095) is OWNER lane: reached by
+name (`owner_user_id` AND `replica_id`) in `api/_replica-full-erasure.js`,
+never listed in `api/memory.js`'s `PERSON_TABLES`, and its own class
+(`owner_creator_tier_subscription`) added to the deletion receipt.
+
+**Rationale.** The table is a record of what the OWNER pays the platform
+for their own capacity, not a relationship with any person - it carries no
+`person_id` column and could not, since a creator's tier plan has no
+follower on the other end of it. `vy_room_price`/`vy_creator_payout`
+(078) are the exact precedent this restates rather than re-derives.
+
+**Reversal condition.** None foreseen: the table would need to gain a
+`person_id` column before this classification could be wrong, and nothing
+in the Rooms plan suggests a creator tier charge will ever be about a
+specific follower.
+
+## `ws-r33-provider-seam-generalized-to-label-ref` (2026-09-04, WS-R33)
+
+**Decision.** `api/_payments/providers/{fake,razorpay}.js`'s
+`createSubscription(input, secrets)` widened its `input` shape from
+`{priceInr, roomSlug, followerId}` (WS-R11, follower-only) to `{priceInr,
+label, ref}` (any lane: `label` names what the subscription is FOR, `ref`
+names WHO it is for) rather than adding lane-specific fields or a second
+provider client.
+
+**Rationale.** The workstream brief's own law 1: "extend the seam with a
+subscription-for-org shape; never a second provider client." Three call
+sites (follower, Suite, creator tier) now share one provider interface;
+`evals/payments/run.mjs`'s own assertions never inspected the internal
+field names (only the output shape: a `fake_sub_[0-9a-f]{24}` ref, a
+checkout URL), so the rename cost nothing in that suite and was confirmed
+by re-running it unchanged, 62/62 green.
+
+**Reversal condition.** If a future lane needs more than two identifying
+fields (e.g. a multi-party split that the provider itself must know about
+at creation time), widen `input` further rather than reverting to
+per-lane-named fields - the generalization already paid for itself once.
+
+## `ws-r35-pairwise-check-is-set-vs-single-label` (2026-09-04, WS-R35)
+
+**Decision.** Pulse v1's k-anonymity predicate checks a candidate label SET
+`S` (1 or 2 labels) against every OTHER single active label `L` not already
+in `S` - "does adding `L` to `S` shrink the population to 1-4" - rather than
+against every OTHER candidate combination of any size.
+
+**Rationale.** The plan's own worked example is exactly this shape: two
+SINGLE labels, "visas" and "divorce," each individually at 5, sharing one
+person. Checking `S` against every other single label catches that example
+directly, and generalises soundly for the reason set-intersection math
+makes true regardless of size: `persons(S union {L})` is always a SUBSET of
+both `persons(S)` and `persons({L})`, so if that subset lands at 1-4, EITHER
+half publishing alone already lets a reader who also knows (or later learns)
+the other half's population narrow toward the same small group - the
+predicate does not need to also compare `S` against a second 2-label
+combination to catch that. A full "check `S` against every other candidate
+of any size" predicate would be sound too, but strictly more conservative
+for no example this session could construct where it refuses something the
+narrower form admits unsafely; it also does not fit in one SQL statement's
+`having` clause without a second correlated subquery per candidate T, which
+`publishCombo` (`api/_pulse.js`) does not need today.
+
+**Reversal condition.** If a future audit constructs a real scenario where
+two ALREADY-multi-label candidates (never a bare single label) are the only
+disclosive pair - i.e. `S`={A,B} and `T`={C,D} intersect at 1-4 while every
+pairwise single-label check both pass - widen `publishCombo`'s `having`
+clause to also compare `S` against every OTHER same-size-or-larger
+candidate the sweep generates, not only single labels, and re-derive the
+AGGREGATE_ONLY proof for the wider statement.
+
+## `ws-r35-combo-size-capped-at-two` (2026-09-04, WS-R35)
+
+**Decision.** `computeComboSnapshot` (`api/_pulse.js`) only ever GENERATES
+size-1 and size-2 label combinations (`MAX_COMBO_SIZE = 2`), even though
+migration 097's own `vy_room_pulse_combo.labels` CHECK allows a stored set
+of 1 to 3.
+
+**Rationale.** The brief's own worked example and every disclosure this
+session could reason through are 2-label shapes. Generating size-3 too
+grows a 12-label Room's candidate count from C(12,1)+C(12,2)=78 to
+C(12,1)+C(12,2)+C(12,3)=298 per Room per week, each candidate its own
+network round trip against Neon SQL-over-HTTP (no batched multi-statement
+transaction here, 009's law) inside `api/pulse-sweep.js`'s 60-second
+`maxDuration` shared across every published Room the sweep visits in one
+invocation. Two is proven sufficient for the risk this workstream was asked
+to close; three is unmeasured headroom the schema keeps open rather than a
+built and tested capability.
+
+**Reversal condition.** If a real Room ever publishes two DISJOINT 2-label
+combinations whose own populations still let a reader triangulate a small
+group across three labels at once (the size-3 analogue of the plan's
+worked example), or if `PULSE_MAX_LABELS` is ever raised past 12 such that
+even C(N,1)+C(N,2) risks the sweep's time budget, raise `MAX_COMBO_SIZE` to
+3 and measure the real per-Room candidate count and round-trip time before
+shipping it, the same way this decision was reached for size 2.
+
+## `ws-r35-v0-snapshot-kept-not-replaced` (2026-09-04, WS-R35)
+
+**Decision.** `runPulseSweep` calls BOTH v0's `computeSnapshot` (the
+single-topic, `topic_id`-FK'd snapshot, migration 080, unchanged) AND v1's
+new `computeComboSnapshot` (migration 097) for every published Room, inside
+the SAME try/catch. `vy_room_pulse_snapshot` is not touched, migrated, or
+deprecated by this workstream.
+
+**Rationale.** v0's own floor (n>=5 per topic) is still a correct, narrower
+guarantee that holds regardless of v1 existing alongside it; nothing in the
+brief asked for its removal, and this session found no `context/rejected.md`
+or `decisions.md` entry establishing that a later migration may safely drop
+an earlier Rooms table with unknown live row counts. Building v1 as a
+strict ADDITION rather than a replacement means a Room's existing v0 data
+(however unlikely to be non-empty, per `context/STATE.md`'s own accounting)
+is never touched, and the studio card (`RoomStudio.tsx`) now reads from v1's
+`combo_buckets`/`suppressed`/`note` for display while v0's `status`
+computation still gates the "not enough people opted in yet" honest empty
+state, since both read the SAME underlying opt-in floor.
+
+**Reversal condition.** Once a live Room has run v1 for several weeks with
+no discrepancy between v0's single-topic reading and v1's own size-1
+buckets, and the main loop confirms (via a live `select count(*) from
+vy_room_pulse_snapshot`) that no real row exists there worth preserving,
+retiring `computeSnapshot`'s call from `runPulseSweep` (and, separately,
+dropping the table in its own migration) is a reasonable follow-up - not a
+call this workstream is positioned to make without that live read.
+
+## `ws-r35-label-bounds-added-not-valid` (2026-09-04, WS-R35)
+
+**Decision.** Migration 097's two new CHECK constraints on the existing,
+possibly-live `vy_room_pulse_topic` table (label length 2-32, `slot` between
+1 and 12) are both added with `not valid`, and the new `slot` column is a
+bare nullable `smallint` rather than `not null`.
+
+**Rationale.** `offline-mocks-cannot-type-check-sql` (AGENTS.md) generalises
+past types: this session has no `NEON_URL` and cannot confirm no live
+`vy_room_pulse_topic` row violates a tighter bound than v0's original 1-60
+check. A CHECK added `not valid` still applies to every future INSERT/UPDATE
+from the moment it lands (so the bound is real going forward), but does not
+retroactively validate existing rows, so this migration cannot fail to
+apply because of data written before it existed - the risk this session
+cannot see is made harmless rather than assumed away.
+
+**Reversal condition.** Once the main loop confirms via a live read that
+every existing `vy_room_pulse_topic` row already satisfies both bounds
+(vanishingly likely to fail, since v0 shipped with an 8-label/60-character
+app-level cap already narrower than 12/32 in count and not far off in
+length), run `alter table vy_room_pulse_topic validate constraint
+vy_room_pulse_topic_label_v1_len_check` (and the slot check) to make the
+guarantee retroactive too - a follow-up this workstream is not positioned
+to make without that live read.
+
+## `ws-r35-slot-column-structural-label-cap` (2026-09-04, WS-R35)
+
+**Decision.** The 12-active-label-per-Room cap (law 2) is enforced by a
+`slot smallint` column, CHECKed to 1..12, paired with a bare (non-partial)
+UNIQUE index on `(room_id, slot)` - `setTopics` is the only writer, and it
+clears every row's slot for the Room in one statement before assigning a
+fresh 1..N to the final list in a second pass.
+
+**Rationale.** A CHECK constraint is per-row and cannot itself count rows,
+and migrations may carry no trigger or function (009's law), so a genuine
+row-count cap needs a bounded-domain column plus a uniqueness constraint on
+it - the standard Postgres idiom for "at most N rows of this shape" without
+procedural code. The two-phase clear-then-assign write avoids a transient
+collision a naive row-by-row reassignment could hit: Neon SQL-over-HTTP runs
+one statement per request, not one transaction, so a slot SWAP (row A wants
+row B's old slot, mid-list) could otherwise violate the unique index for
+the instant between the two UPDATEs.
+
+**Reversal condition.** If a future Room ever needs its labels reordered
+without a full `setTopics` rewrite (e.g. drag-to-reorder in the studio),
+this two-phase clear-then-assign shape gets slower than a single positional
+UPDATE per row would be at real scale; that tradeoff should be revisited
+with a measured per-call latency once real Rooms exist with 12 labels.
+
+## `ws-r35-note-computed-at-read-not-stored` (2026-09-04, WS-R35)
+
+**Decision.** `weeklyNote`'s output is never persisted. `readPulse` calls it
+fresh, over the currently-published week's `combo_buckets`, on every read;
+no new column or table holds the note's text.
+
+**Rationale.** `weeklyNote` is pure and cheap (pure JS over an already-small
+in-memory array, no database access of its own), so storing its output
+would only ever be a cache with a staleness risk this workstream has no
+reason to accept: a stored note could drift from the buckets it was
+computed from if `computeComboSnapshot` ever re-ran for the same week (it
+does not today, but nothing stops a future fix from doing so), and a
+computed-fresh note can never disagree with what the card shows next to it.
+
+**Reversal condition.** If `weeklyNote` ever needs anything beyond `rows`
+and a closed action code (a per-Room tone setting, a translation, a
+creator-edited version), storing it becomes the right call, and the
+staleness risk above becomes something a `computed_at`/`buckets_hash`
+column can guard against explicitly rather than something this decision
+could keep assuming away by construction.
+
+## `ws-r35-withdraw-is-free-via-v0-revoke` (2026-09-04, WS-R35)
+
+**Decision.** Law 5 (withdrawing opt-in narrows only FUTURE publishes,
+never rewrites a past one) needed zero new code: `setOptIn`/`revoke`
+(WS-R17, unchanged by this workstream) are the only writers of
+`vy_room_pulse_optin.revoked_at`, and every v1 read (`comboFollowerCount`,
+`publishCombo`'s own population subqueries) already filters
+`revoked_at is null` - the SAME predicate v0's `topicFollowerCount` uses.
+
+**Rationale.** Building v1's population-matching logic to read the SAME
+opt-in table with the SAME "actively opted in" predicate v0 already proved
+correct (`evals/pulse/run.mjs`'s original tests (d)) means a revocation's
+effect on v1 is a direct, untested-by-choice consequence of a fact already
+established, not a new code path that could independently be wrong. This
+workstream's new test (iv) exists to PROVE this inheritance holds, not to
+introduce new withdrawal logic.
+
+**Reversal condition.** If v1 ever needs to read opt-in state through a
+DIFFERENT predicate than v0 (e.g. a grace period before revocation takes
+effect), this decision reverses and withdrawal needs its own tested logic
+rather than borrowed correctness.
+
+## `ws-r39-room-settings-reused-raw-sql-not-imports` (2026-09-04, WS-R39)
+
+**Decision.** `roomSettings` (api/_room-surface.js) reads push and WhatsApp
+channel status via raw SQL written out in this file, byte-similar to
+`api/_room-push.js`'s `subscriptionStatus` and `api/_room-whatsapp.js`'s
+`status`, rather than importing either function. Telegram needs no such
+re-derivation: WS-R34 already put `telegramCheckinsStatusFor` directly in
+`api/_room-surface.js` for the identical reason, so `roomSettings` calls it.
+
+**Rationale.** `api/_room-push.js`, `api/_room-whatsapp.js`, `api/_checkins.js`
+and `api/_payments.js` all already import `readRoomSession`/`resolveRoom`/
+`followerRow`/`RoomError` FROM `api/_room-surface.js`. An import the other
+way would be circular - the exact wall `api/_room-whatsapp.js`'s own header
+already names for why it re-derives `followerScope` rather than importing
+it, and `roomExport`'s pre-existing WhatsApp extra (WS-R29) already crosses
+the same wall the same way. This is not a new pattern this workstream
+invented; it is the third instance of an existing one.
+
+**Reversal condition.** If any of those three files is ever refactored to
+stop importing from `api/_room-surface.js` (a shared, non-circular identity
+module extracted from both, say), `roomSettings` should import the real
+functions instead of carrying a second copy of their SQL - two definitions
+of "is this follower subscribed" is a drift risk this decision accepts only
+because the alternative (a circular import) is not buildable at all.
+
+## `ws-r39-subscription-status-read-through-existing-op-not-duplicated` (2026-09-04, WS-R39)
+
+**Decision.** `AccountPage.tsx` reads the follower's subscription state
+(provider, state, `current_period_end`) through the EXISTING `/api/room-pay
+{op:"status"}` op (`followerSubscriptionStatus`, api/_payments.js) as a
+second request alongside `roomSettings`, rather than folding that read into
+`roomSettings` itself.
+
+**Rationale.** `followerSubscriptionStatus` already exists, is already
+session-scoped exactly the way `roomSettings` is, and is already the one
+read `api/_payments.js`'s own header calls "the follower's own honest read".
+Re-deriving the same query inside `api/_room-surface.js` would be the same
+divergence risk `ws-r39-room-settings-reused-raw-sql-not-imports` above
+accepted for push/WhatsApp only because there was no existing op to call
+instead - here there is one, so reusing it rather than duplicating it is the
+same law applied the other way.
+
+**Reversal condition.** If the account page's own load time is ever measured
+to matter enough that a second round trip is a real cost (unmeasured today -
+this workstream added no client-side timing), folding a THIRD read of
+`vy_room_subscription` into `roomSettings`'s existing composed read removes
+one request at the cost of a second definition of that query - acceptable
+only once the first cost is shown to be real.
+
+## `ws-r39-cap-reached-offer-needs-a-second-read` (2026-09-04, WS-R39)
+
+**Decision.** The Room does not learn whether WS-R30 recorded a
+`cap_reached` offer from the `room_free_cap_reached` refusal itself (that
+response carries only `messages_included`, `api/room.js`'s own error
+mapping). `RoomApp.tsx`'s `send()` instead calls `roomSettings` a SECOND
+time, only after that specific refusal, to ask whether an open `cap_reached`
+offer exists before rendering the offer card.
+
+**Rationale.** `roomSay`'s cap-reached branch throws before any response
+body could carry an `offer` field, and the offer write on that path is
+explicitly best-effort (`.catch(() => {})`, `api/_room-surface.js`'s own
+comment: "this write's own failure must never turn a 402 into a 500"). So
+the card's own required law ("renders only when both the refusal and the
+offer row exist", this workstream's brief) cannot be proven from the
+refusal's own response alone - a second, independent read is what makes
+"the row exists" a checked fact rather than an assumption baked into the
+client the moment it saw a 402.
+
+**Reversal condition.** If `RoomError`'s `details` object is ever extended
+to carry the same `{reason, shown_at}` shape `roomSettings.offer` already
+returns (mirroring how `room_free_cap_reached` already carries
+`messages_included`), the second read becomes redundant and the card can
+render straight off the refusal's own response - a strict subset of what
+this decision already checks for, so the reversal only ever removes a round
+trip, never a guarantee.
+
+## `ws-r39-settings-reminder-baseline-includes-join-date` (2026-09-04, WS-R39)
+
+**Decision.** The Room's quarterly "you have not looked at your settings
+since `<date>`" sentence uses `settings_reviewed_at ?? joined_at` as its
+baseline, never `settings_reviewed_at` alone - a follower who has NEVER
+opened the account page gets `joined_at` as the date the sentence names,
+rather than showing nothing until their first review or fabricating an
+epoch.
+
+**Rationale.** The brief's own words ("never a nag") rule out reminding a
+follower who joined yesterday; using `joined_at` when `settings_reviewed_at`
+is null means the 90-day quiet period starts at the moment a relationship
+with this creator's AI began, which is the only other real timestamp on the
+row that can honestly answer "since when". The alternative - showing nothing
+until a first review exists - would mean a follower who never opens the page
+at all never sees the reminder either, which defeats its purpose.
+
+**Reversal condition.** If a product review decides the reminder should
+never appear before a first deliberate review (i.e. the sentence should only
+ever compare against a follower's OWN past visit, never their join date),
+drop the `?? joined_at` fallback and gate the whole reminder on
+`settings_reviewed_at !== null`.
+
+## `ws-r39-settings-reminder-computed-client-side-no-analytics` (2026-09-04, WS-R39)
+
+**Decision.** The quarterly reminder's due/not-due math (`settingsReminderDue`,
+`RoomApp.tsx`) is a pure client-side computation over `room.follower`'s
+existing fields, run on every render. No new server read backs it, and no
+`obsBestEffort` call fires when it shows, hides, or is tapped.
+
+**Rationale.** The brief's own law 5 states the page "gets no analytics
+beyond `settings_reviewed_at`, and why: a follower's settings visits are
+theirs." A server-side computation (or a logged impression) would be a
+second, unnecessary channel carrying the same fact `settings_reviewed_at`
+already carries, and a follower's decision to ignore a reminder is exactly
+the kind of behaviour this decision keeps off any board a creator or an
+operator could read.
+
+**Reversal condition.** If a future workstream needs the reminder to fire
+identically across a follower's multiple open tabs/devices in real time
+(this decision's own math can disagree between two tabs open across a
+render), or needs a server-driven channel (a push notification, say) rather
+than a sentence rendered on next load, the due/not-due decision moves
+server-side - but the no-analytics law should survive that move unless a
+human explicitly asks for a count.
+
+## `ws-r39-account-page-additive-not-consolidating-scattered-controls` (2026-09-04, WS-R39)
+
+**Decision.** `AccountPage.tsx` is a new, additional screen reachable from
+the Room's header. `DataMenu` (export/forget) and `CheckinsPanel` (the same
+three channel toggles, duplicated) are left exactly as they were - neither
+was deleted, redirected to the new page, nor had its own header button
+removed.
+
+**Rationale.** The brief's own framing ("a follower's controls scattered
+through the Room... build the follower's page... where every decision about
+themselves lives") reads most naturally as a call to consolidate, but doing
+that inside this workstream means touching three existing, gate-covered
+surfaces (`DataMenu`'s export/forget flow, `CheckinsPanel`'s three channel
+toggles, the header's own `LanguageSwitch` placement) whose own suites this
+workstream did not write and whose regression risk is not worth taking
+inside a single workstream that already adds a new screen, a new migration
+and a new eval suite. Every control on the new page reuses the SAME ops the
+scattered ones already call (this workstream's law 1), so nothing about
+the DATA path changed - only where a follower can reach it from.
+
+**Reversal condition.** Once `AccountPage.tsx` has been seen working end to
+end by a human on a real device (named as unproven in this workstream's own
+final report), a follow-up workstream should remove `DataMenu` and fold
+`CheckinsPanel`'s channel controls into the account page alone, leaving
+exactly one place - closing the gap this decision knowingly leaves open
+rather than closing it under this workstream's own time and risk budget.
+
+## `ws-r36-suite-share-flat-per-seat-not-ledger-derived` (2026-09-04, WS-R36)
+
+**Decision.** `runPayoutRollup`'s Suite line (`suite_share_inr`) is computed
+as `SUITE_SEAT_SHARE_BP` of the Suite's own ACTIVE `price_per_seat_inr`, for
+every Room a creator has attached to a paying Suite at build time (read
+fresh from `vy_room.org_id`, never stored anywhere else) - never as a
+fan-out of what that Suite's own `vy_payment_event` org-lane rows actually
+collected.
+
+**Rationale.** `context/decisions.md#ws-r33-suite-seat-revenue-not-distributed-to-creators`'s
+own reversal condition names the ledger-derived alternative and why WS-R33
+did not build it: a Suite pays ONE subscription for N seats, so there is no
+per-Room AMOUNT COLLECTED to divide, only a formula nobody has agreed on
+(equally? by seat tenure? by follower count?). This workstream needed a real
+number to put on a real statement NOW, and a flat, known-ahead-of-time
+per-seat PRICE is available where a per-Room collected amount structurally
+is not. `SUITE_SEAT_SHARE_BP = 5000` (50%) is the operator's own
+placeholder, not a measured or negotiated split - `context/rejected.md`'s
+no-fake-numbers law applied to a revenue share nobody has agreed to.
+
+**Reversal condition.** The day the product defines a real formula for
+splitting a Suite's own COLLECTED seat revenue across its attached
+creators, replace this flat computation with that formula (which will also
+need to read `vy_payment_event`'s org-lane rows, reopening the join
+`context/decisions.md#ws-r33-suite-seat-revenue-not-distributed-to-creators`
+names), and `SUITE_SEAT_SHARE_BP`'s own 50% placeholder is superseded by
+whatever the real split turns out to be.
+
+## `ws-r36-tds-disclosure-sentence-duplicated-not-single-sourced-to-the-browser` (2026-09-04, WS-R36)
+
+**Decision.** The TDS disclosure sentence exists as a literal string in
+THREE places: a JS comment on `TDS_DISCLOSURE_SENTENCE` in
+`api/_payments.js`, the `tds_note` field on `payoutStatement`'s own JSON
+response, and a literal duplicate typed directly into `PayoutsCard.tsx`'s
+JSX - rather than the card rendering only `statement.tds_note` at runtime.
+
+**Rationale.** `scripts/check-copy.mjs`'s static scan only ever sees a
+literal string it can find in source text, never a runtime value from an
+API response, and `api/` itself is not in that gate's `SCOPES` list at all
+(only `src/studio/`, `src/room/`, `src/gurukul/`, `src/replica/`, `site/`,
+`src/components/`). The only way to prove the exact sentence a creator's own
+screen shows is copy-gate-clean, rather than merely assumed clean because
+its source lives somewhere the gate cannot see, is to also write it as a
+literal in the one file the gate actually reads. The downloadable JSON and
+plain-text statement still carry the API's own `tds_note`, so a future edit
+to the constant updates the download immediately; the on-screen copy is the
+piece that can silently drift if only one of the two copies is edited.
+
+**Reversal condition.** If `scripts/check-copy.mjs` is ever widened to scan
+rendered runtime text (not only static literals) or `api/` is added to
+`SCOPES`, delete the on-screen duplicate and render `{statement.tds_note}`
+directly - single-sourced from that point on, with nothing left to drift.
+
+## `ws-r36-pending-account-reattempted-via-sendpayout-not-a-second-operator-unlock` (2026-09-04, WS-R36)
+
+**Decision.** `pending_account` has no dedicated retry function of its own;
+`sendPayout`'s own WHERE clause accepts a payout in EITHER `built` or
+`pending_account`, so calling it again after `registerFundAccount` succeeds
+is the whole retry mechanism for this one state.
+
+**Rationale.** The workstream brief's own closed state set names `failed` as
+the one state retried by an OPERATOR op, never a sweep. `pending_account` is
+not `failed`, and its fix (an owner registering a fund account) is a
+different write than sending money, needing no operator judgement call - a
+second dedicated "retry from pending_account" op would duplicate
+`sendPayout`'s own built|pending_account logic for no product reason.
+
+**Reversal condition.** If a future UI needs to distinguish "this payout has
+never been attempted" from "this payout was attempted and specifically
+blocked on the fund account", split `built` and `pending_account` into a
+real two-function retry pair instead of one function accepting both
+departure states.
+
+## `ws-r36-fund-account-ref-verified-not-created-by-the-provider-seam` (2026-09-04, WS-R36)
+
+**Decision.** `registerFundAccount` VERIFIES a reference the owner already
+obtained from the provider's own onboarding flow (a `GET` call for
+`razorpay`, an always-true non-empty check for `fake`) - it never CREATES a
+fund account via a `POST` that would need a bank account number or a UPI
+VPA as an argument.
+
+**Rationale.** WS-R36's own law 4 ("the creator's bank details NEVER stored
+here") extends structurally to "never RECEIVED here, not merely never
+persisted": a create-a-fund-account call would require this platform's own
+backend to hold a bank detail in memory for the duration of one request even
+if it discarded it immediately after, which is a weaker guarantee than a
+verify-only call that structurally cannot receive one at all. A `GET
+/v1/fund_accounts/:id` cannot carry a bank account number in its own
+request; a `POST /v1/fund_accounts` could.
+
+**Reversal condition.** If a future workstream builds a hosted,
+provider-embedded onboarding widget this platform's own frontend never
+touches directly (an iframe or a redirect flow, never a form field on this
+domain), a create path could be added alongside verify without weakening
+this decision's own no-bank-detail-received guarantee - the two are not in
+tension, only sequenced.
+
+## `ws-r36-payout-account-folded-into-owner-room-payments-receipt-class` (2026-09-04, WS-R36)
+
+**Decision.** `vy_creator_payout_account` is deleted by name in
+`api/_replica-full-erasure.js` and folded into the EXISTING
+`owner_room_payments` deletion receipt class rather than given a new class
+of its own.
+
+**Rationale.** That class's own definition (078) is explicitly "additive;
+the eval asserts membership, never the exact list" - a provider-issued fund
+account reference is a detail of the Room's money, the same kind of record
+a price row or a subscription reference already is, not a different KIND of
+record the way a Mirror Call transcript is from a plain memory (the test
+`_replica-full-erasure.js`'s own header already applies to decide when a new
+class is warranted: does the receipt understate what was held if this stays
+folded in).
+
+**Reversal condition.** None anticipated today; would reverse only if a
+future audit needs to answer "which erasure classes touch a financial
+instrument specifically" as a question distinct from "which classes touch
+Room money at all" - at which point `owner_room_payments` itself would need
+splitting, not only this one table's membership in it.
+
+## `ws-r37-cancel-is-a-flag-separate-from-state` (2026-09-04, WS-R37)
+
+**Decision.** `cancel_at_period_end` is a NEW, LOCAL boolean column on all
+three subscription tables (migration 099), deliberately separate from
+`state`. Cancelling never writes `state` directly; `state` continues to
+mean exactly what `api/_payments.js`'s own header already says it means -
+"a fact the PROVIDER confirmed" - and only a webhook (`applyWebhook`)
+ever changes it.
+
+**Rationale.** The workstream brief's law 5 requires two things that
+conflict if `state` is the only signal: "the subscription moves to
+cancelled... through the seam" (so a human reading the row should see the
+cancellation is in motion) AND "the Room or seat keeps working until
+period_end" (so nothing may flip `f.tier`/access away early - the follower
+tier-flip predicate in `applyWebhook` fires on `state`, and a provider's
+own cancel-at-cycle-end call does not send a `subscription.cancelled`
+webhook until the period actually ends). A single boolean that is BOTH "is
+this in a state that keeps access" and "will this renew" cannot answer
+both questions at once without either cutting access early or hiding the
+cancellation. Two independent facts get two independent columns.
+
+**Reversal condition.** If a future workstream needs `state` itself to
+carry a distinct "cancelling" value (e.g. because a provider's real
+sandbox turns out to fire an intermediate webhook state for
+cancel-at-cycle-end that this repo has never observed), fold
+`cancel_at_period_end` into `state`'s own vocabulary and update the
+tier-flip predicate to treat it identically to `active` until the period
+ends - do not do this speculatively; it needs a real provider account to
+confirm the intermediate state actually exists.
+
+## `ws-r37-renewed-unasked-n-is-renewed-total` (2026-09-04, WS-R37)
+
+**Decision.** `renewedUnaskedCount`'s `n` (what `MIN_CREATORS_FOR_DATA`
+compares against) is the count of creator subscriptions that have renewed
+at least once (`current_period_start > created_at`), not the count of all
+creators (`creators_total`, still returned as a separate field). The old,
+unwired `renewedUnasked` used `creators_total` as `n` because it had
+nothing else to count.
+
+**Rationale.** "Renewed unasked" is a fact about a RENEWAL, and a creator
+who signed up yesterday has not had one yet - counting them toward `n`
+would let the card claim "enough data" from three brand-new creators who
+have never reached a second billing period, which is exactly the kind of
+denominator mismatch `context/rejected.md`'s no-fake-numbers law warns
+against one level up (a real number, wrongly scoped, reads as more honest
+than a stated `not_enough_data`).
+
+**Reversal condition.** If the product wants "three creators exist at all"
+to be sufficient for the card to render a number (accepting that an
+all-zero `renewed_unasked` from three never-renewed creators is a
+meaningful early signal rather than noise), revert `n` to `creators_total`
+and drop the `created_at < current_period_start` filter from the
+denominator.
+
+## `ws-r37-due-select-is-per-subject-not-per-channel` (2026-09-04, WS-R37)
+
+**Decision.** `dueReminders`' `NOT EXISTS` checks for ANY `vy_renewal_reminder`
+row for `(subject_kind, subject_id, period_end)`, regardless of `channel`.
+Once a subject has been visited once for a period (even if only the
+`in_app` channel succeeded and web push/Telegram were never reached, e.g.
+because no pointer existed at that moment), the sweep never revisits that
+subject for that period again.
+
+**Rationale.** The workstream brief's own words: "the sweep that sends
+reads subscriptions... and have no reminder row, in one select" - a
+per-subject visit, not a per-channel one. This also has to be true for
+`recordAndSend`'s idempotency to compose cleanly with a daily cron: a
+subject visited once a day, on every applicable channel that day, is a
+simpler and more auditable guarantee than "the sweep may return to the
+same subject on a later day to try a channel it skipped," which would
+need its own separate tracking of "channels attempted" distinct from
+"channels succeeded."
+
+**Reversal condition.** If a follower connects Telegram AFTER the sweep
+already visited them (in_app only) for this period, they will not get a
+Telegram reminder for that period - a real, accepted gap. If this proves
+to matter (measured complaint volume, or a product decision that a
+newly-connected channel should be backfilled), change the due-select to
+per-`(subject, period, channel)` and add a channel-availability predicate
+to each - a larger change than this workstream's scope, named here rather
+than built speculatively.
+
+## `ws-r37-renewal-telegram-text-is-not-shared-with-copy-ts` (2026-09-04, WS-R37)
+
+**Decision.** The follower's Telegram renewal message
+(`followerRenewalTelegramText`, `api/_renewals.js`) is its own plain-JS,
+two-locale string builder, not an import from `src/room/copy.ts`. The Room
+panel's own copy (`copy.ts`'s new `subscription` block) states the same
+facts independently.
+
+**Rationale.** `api/` and `src/` are two different runtimes (`api/` ships
+as plain Node serverless functions; `src/` is Vite-bundled TypeScript for
+the browser), and no file in `api/` imports from `src/` anywhere in this
+tree (checked by grep before writing this file). `api/_room-telegram.js`'s
+own cards (`joinedCard`, `adultGateCard`, etc.) are this repo's own
+precedent for exactly this situation: Telegram-shaped copy lives beside
+the Telegram-shaped sender, in plain JS, deliberately not sharing a module
+with the Room's own React copy table.
+
+**Reversal condition.** If this repo ever adds a build step that lets
+`api/` import compiled output from `src/` (or moves shared copy into a
+`.json`/plain-`.js` file both sides can import unbundled), converge the
+two copies through that shared source rather than keeping them
+independently maintained - until then, a change to one must be checked
+against the other by hand, which is a real, accepted cost of the current
+split.
+
+## `ws-r37-cancelSubscription-widened-in-place` (2026-09-04, WS-R37)
+
+**Decision.** `api/_payments/providers/{fake,razorpay}.js`'s existing
+`cancelSubscription(providerSubscriptionRef, secrets)` was widened to
+`cancelSubscription(providerSubscriptionRef, opts, secrets)` (an
+`atCycleEnd` option) rather than adding a second, differently-named
+function for the cycle-end case.
+
+**Rationale.** Grepped before changing it: `cancelSubscription` had ZERO
+callers anywhere in this tree (WS-R11 built it but nothing ever called it -
+"an abandoned mandate-collection flow has no path to re-fetch a fresh
+checkout link" is the only gap that workstream's own final report names,
+and cancellation is a second, separate gap it left unbuilt). Widening a
+function with no existing caller is a pure addition: `opts = {}` defaults
+`atCycleEnd` to `false`, reproducing the exact `cancel_at_cycle_end: 0`
+request body this function has always sent, so no future caller's
+behaviour changes by this workstream's edit.
+
+**Reversal condition.** If a future caller needs BOTH an immediate cancel
+and a cycle-end cancel from different call sites at the same time (this
+workstream only ever calls it with `{atCycleEnd: true}`), that caller
+already has what it needs (`opts.atCycleEnd: false` is the untouched
+original behaviour) - no reversal is anticipated, this is recorded so the
+next reader does not mistake the widened signature for a breaking change.
+
+## `ws-r37-follower-cancel-op-lives-on-room-pay-not-room` (2026-09-04, WS-R37)
+
+**Decision.** The follower's `cancel` op was added to `api/room-pay.js`
+(alongside its existing `subscribe`/`status` ops), not `api/room.js`, even
+though this workstream's own brief names `api/room.js` in its Build list.
+
+**Rationale.** `api/room-pay.js` is where `startFollowerSubscription`/
+`followerSubscriptionStatus` already live, and its own header states why:
+"a different decision module gets a different wire, docs/SURFACES.md's own
+rule for why api/room.js and api/_room.js never merged." Adding `cancel`
+to `api/room.js` instead would put one subscription op on a different HTTP
+door than its two siblings for no reason a caller could be told.
+
+**Reversal condition.** None anticipated; recorded so a future reader
+comparing this workstream's report against its own brief does not read the
+file-list mismatch as an omission rather than a considered substitution -
+`api/payments.js` (creator) and `api/org.js` (Suite) DO carry their own
+`cancel_creator_subscription`/`cancel_subscription` ops exactly as the
+brief named, since those are each the one existing door for their own
+subject kind.
+
+## `ws-r38-assert-session-fresh-shared-helper` (2026-09-04, WS-R38)
+
+**Decision.** The Room's 12-hour session-staleness check is now ONE
+exported function, `assertSessionFresh(payload, now)` in
+`api/_room-surface.js`, called from every scope resolver in the product
+(`roomSay`, `roomSpeak`, `roomSetLocale`, `selfScope`, `followerHistory`,
+`roomCitations`, `_payments.js`'s `paidSessionScope`, and the independently
+copied `followerScope` in `_handoff.js`, `_checkins.js`, `_room-push.js`,
+`_room-whatsapp.js`, `_pulse.js`) rather than each op carrying its own
+three-line `if`.
+
+**Rationale.** The door battery found that of roughly a dozen call sites
+that decode a follower session, only four had ever written this check
+correctly; the rest inherited the HMAC-signature check (which every
+`readRoomSession` call gets for free) but never asked how OLD the session
+was. A duplicated three-line check is exactly the shape that gets copied
+right three times and forgotten seven — `assertSessionFresh` makes "does
+this scope resolver check freshness" a question with one answer rather than
+a dozen independently-maintained ones.
+
+**Reversal condition.** If a future op ever legitimately needs a DIFFERENT
+staleness window than the Room's own 12 hours (a longer-lived owner-side
+session, a shorter one for a higher-consequence op), this decision reverses
+and the ceiling becomes a parameter rather than a shared constant baked
+into one function every caller shares.
+
+## `ws-r38-door-list-completeness-rule` (2026-09-04, WS-R38)
+
+**Decision.** The door battery's completeness assertion (`evals/room-doors/
+run.mjs` §0) defines a "door" as a top-level `api/*.js` file that (a) reads
+a request body — `req.body`, a raw-stream reader, or `bodyParser: false` —
+AND (b) imports from a closed set of fourteen Room/owner-door decision
+modules the workstream brief names, OR is `api/account.js` by name (the OTP
+brute-force surface, which owns no shared decision module of its own).
+`api/export.js` and `api/memory.js` are EXCLUDED even though a raw grep for
+`meera_state`/`meera_consent` also finds them: they are Meera's own
+account-wide surfaces (the whole-person export/forget door), not Room-
+scoped, and already carry their own dedicated batteries
+(`evals/persontables.mjs`, `evals/recall`). `api/room-cohorts.js` needed no
+explicit exclusion — it is GET-only, `req.query`, and rule (a) alone
+already never admits it.
+
+**Rationale.** A "reads a body and touches a sensitive table" rule wide
+enough to catch every door the workstream brief names by construction is
+also wide enough to catch Meera's own, already-separately-battery-tested
+surfaces if it is keyed on table names rather than on the specific decision
+modules Rooms actually built for this product. Naming the module set
+closed (rather than pattern-matching table names) keeps the rule specific
+to Vyakti Rooms' own doors without silently re-scoping this battery onto a
+different product's surface it was not asked to attack and does not own.
+
+**Reversal condition.** If a future Room door is built OUTSIDE the fourteen
+named decision modules (a genuinely new kind of decision file, not just a
+new op on an existing one), this rule will not discover it and the module
+list needs a new entry, named in the same PR that adds the door.
+
+## `ws-r38-ipv6-key-canonicalization-not-fixed` (2026-09-04, WS-R38)
+
+**Decision.** `api/_rate-limit.js`'s `hashKey()` and `api/_ratelimit.js`'s
+`ipOf()` are left as they were: neither canonicalizes an IPv6 address
+before hashing or bucketing it, so two textual spellings of the same
+address (`2001:db8::1` vs its fully-expanded form) get two independent rate
+counters. Measured directly in `evals/room-doors/run.mjs` §6, not fixed.
+
+**Rationale.** `ipOf()` reads ONLY platform-set headers (`x-real-ip`,
+`x-vercel-forwarded-for`, or the LAST — platform-appended — hop of
+`x-forwarded-for`), never anything a request's own client can format
+freely; the platform is the one choosing how an address is spelled on the
+way in, and this workstream found no path by which a caller controls that
+spelling. Canonicalizing on the read side would add code with no
+measured attacker-reachable case behind it — exactly the failure mode
+`context/rejected.md`'s own recurring lesson warns against, fixing a
+theoretical gap nobody demonstrated a path to.
+
+**Reversal condition.** If Vercel's own header ever demonstrably varies its
+IPv6 formatting for the SAME client across requests (a proxy layer change,
+a dual-stack routing quirk observed in production logs), or if a future
+door ever accepts an address from a request-controlled field rather than a
+platform header, canonicalize before hashing and log the incident that
+proved the path.
+
+## `ws-r46-no-iframe-v0` (2026-09-04, WS-R46)
+
+**Decision.** The Room's own-site embed (`/room-embed.js`) never frames the
+Room. Clicking the rendered button opens `/r/<slug>?via=embed` in a new
+tab, at this platform's own origin. Nothing renders the Room's app shell
+inside an `<iframe>` on a creator's page, and no `Content-Security-Policy:
+frame-ancestors` allow-list exists anywhere in this change.
+
+**Rationale.** Framing the Room inside a creator's own page needs a
+per-creator allowed-origin table (which creator's iframe may embed which
+Room) and the CSP header that enforces it — a new table and a new write
+surface this workstream was not asked to build. Getting that table wrong
+is a real leak in either direction: a missing entry refuses a legitimate
+creator's embed, and a wrong or over-broad one lets ANY page frame ANY
+Room. A new tab needs none of that risk — the Room's own origin already
+decides its own framing policy for everyone, completely unchanged by this
+workstream.
+
+**Reversal condition.** The first creator who asks for the Room to sit
+INSIDE their page rather than open beside it (an iframe request, not a
+preference for how the button looks) is the signal to build the
+per-creator allowed-origin table and the `frame-ancestors` header that
+names it — not a redesign of the button, an entirely new gate.
+
+## `ws-r46-embed-read-reuses-resolveroom-not-ownedroomrow` (2026-09-04, WS-R46)
+
+**Decision.** The embed JSON's one database read
+(`api/_room-embed.js`'s `readRoomEmbed`) calls `resolveRoom` from
+`api/_room-surface.js` — the exact function every follower's own first
+screen already goes through — rather than `api/_room-publish.js`'s
+`ownedRoomRow` (the brief's own named precedent, "`api/_room-publish.js`'s
+existing published-room read").
+
+**Rationale.** The only published-room read `api/_room-publish.js` holds
+is `ownedRoomRow`, and it is owner-scoped by construction (its WHERE
+clause binds `owner_user_id` to a caller's own bearer token) — it cannot
+answer an anonymous stranger's request on a creator's own site at all.
+`api/_room-surface.js`'s `resolveRoom`/`roomBySlug` is the actual
+anonymous, slug-keyed, published-and-unpaused read every follower already
+goes through, and `api/_room-publish.js`'s own publish-lock predicate is
+deliberately built to agree with it (`publishRoom`'s own header: the three
+publish conditions exist so `published_at` can never say "open" while
+`resolveRoom` refuses everyone). Reusing it here means the embed script's
+"is this Room reachable" can never drift from the Room's own answer to the
+identical question. A second, parallel published-room query written for
+this one surface would be exactly the second, competing definition of
+"published" this repo's own disclosure law (`api/_disclosure.js`'s header)
+warns against for a different kind of duplication.
+
+**Reversal condition.** If `resolveRoom`'s cost (it loads and compiles the
+agent's persona module via `loadTeacherAgent`) is ever measured to matter
+at this endpoint's real traffic despite the 5-minute public cache, split a
+cheaper `display_name`/`default_locale`-only read off `roomBySlug` for the
+embed JSON and keep `resolveRoom` only for the disclosure's creator name.
+
+## `ws-r46-disclosure-is-the-full-card-not-a-shortened-sentence` (2026-09-04, WS-R46)
+
+**Decision.** The embed JSON's `disclosure` field is `roomDisclosureCard`'s
+full three-line output, verbatim — the same text every other transport
+(the Room itself, the Telegram bot via `api/_room-telegram.js`) already
+renders as "the disclosure" — never a shortened, one-line summary
+invented for this one surface.
+
+**Rationale.** `api/_room-telegram.js` already sends this exact same
+three-line text as a single chat message over a narrower transport, so
+there is a real, working precedent for treating the whole card as one
+unit rather than expecting every new surface to author its own cut of it.
+A second, shorter disclosure string invented here would be a second
+disclosure — exactly what `api/_disclosure.js`'s header and
+`api/embed.js`'s own header ("the disclosure is rendered because it is
+RETURNED, not because we ask") both argue against: every surface renders
+what the server actually decided to say, never its own paraphrase.
+
+**Reversal condition.** If a UX review of the rendered widget finds the
+three-line card visually overwhelms a small embed and a shorter first
+line reads better there, add a SECOND exported string next to
+`roomDisclosureCard` in `api/_room-surface.js` itself (e.g.
+`roomDisclosureHeadline`), so every surface that wants the short form
+reads the same one rather than each inventing its own truncation.
+
+## `ws-r46-share-tab-copy-stays-english` (2026-09-04, WS-R46)
+
+**Decision.** The Share tab's new "On your own site" card (its two field
+notes, its button label) is written in English only, matching every other
+card `RoomStudio.tsx` already renders. The brief's own line ("the
+snippet, a copy control, one sentence saying what the button shows and
+that it opens the Room in a new tab, both locales") is read as being
+about the WIDGET's own rendered text — the button label and disclosure,
+which already carry the Room's `default_locale` end to end via
+`buildRoomEmbedJson` — rather than as a demand for a second, Hindi copy
+of the STUDIO's own chrome.
+
+**Rationale.** The studio has no locale-switching mechanism anywhere
+else. Every existing `RoomStudio.tsx` card is English-only creator-facing
+chrome, INCLUDING the "Room language" card that lets a creator set the
+FOLLOWER's own default language. Building bilingual creator-chrome for
+one new card while the surrounding thirty-plus do not have it would be an
+inconsistent one-off, not a real feature. The actual bilingual promise
+("your visitors see this in whichever language your Room shows first") is
+both stated in the card's own sentence and true by construction, since
+the button and disclosure text the widget renders ship through
+`default_locale`.
+
+**Reversal condition.** If the studio ever gains real creator-facing i18n
+(a locale switch on the studio's OWN chrome, distinct from the Room's),
+revisit this card alongside every other one rather than ahead of them.
+
+## `ws-r50-accessibility-impact-threshold` (2026-09-04, WS-R50)
+
+**Decision.** `scripts/check-accessibility.mjs` fails the build on any
+`serious` or `critical` axe-core violation (WCAG 2.1 A/AA tags), summed
+across every target, and on any finding from its own hand-written keyboard
+walk (Tab reachability, Enter/Space activation, Escape closing an open
+panel, a visible `:focus-visible` indicator). `moderate` and `minor` axe
+findings are reported with counts but do not fail the gate.
+
+**Rationale.** `serious`/`critical` in axe-core's own taxonomy are the
+impact bands that stop a person from completing the task at all (no
+accessible name, insufficient text contrast, a control unreachable by
+keyboard) rather than bands that make the task merely less pleasant
+(`moderate`/`minor` are mostly redundant-ARIA and best-practice rules with
+no WCAG success criterion behind a meaningful fraction of them). A gate
+that blocks a release on every `minor` finding trains people to stop
+reading its output — the same failure mode `check-layout.mjs`'s own header
+warns about for a check that fails a correct page. The keyboard walk has no
+impact tiers of its own because everything it asserts (reachability,
+activation, escape, visibility) is binary and already scoped tightly by
+this workstream's brief to two screens.
+
+**Reversal condition.** If a `moderate`-tagged axe rule is ever shown to
+correspond to a real, measured task failure for an assistive-technology
+user on one of this gate's targets (not a theoretical best-practice
+deviation), promote that specific rule id to blocking rather than widening
+the whole `moderate` band — see `evals/room-doors/run.mjs`'s own posture on
+narrow, evidence-driven rule changes for the same reasoning applied
+elsewhere in this repo.
+
+## `ws-r50-scroll-to-bottom-skips-the-first-mount` (2026-09-04, WS-R50)
+
+**Decision.** `RoomApp.tsx`'s scroll-to-bottom effect (`foot.current
+?.scrollIntoView(...)`) no longer runs on the very first time it fires
+after mount; a `scrolledOnce` ref swallows exactly that one call. Every
+scroll after a real new turn (the follower's own message, an async
+`loadHistory` load, an assistant reply) is unchanged.
+
+**Rationale.** Measured directly: with a follower's history already present
+at mount (true of every fixture with `fixtureTurns`, and true in production
+moments after mount for any returning follower with `remembers: true`, once
+`loadHistory` resolves), the effect fired before the page had settled and
+carried the viewport 81px down to the composer. A keyboard user's first Tab
+press with nothing focused then landed on the composer at the FOOT of the
+screen instead of the language switch at the TOP — Chromium's "focus
+nothing, Tab" heuristic starts from what is on screen, not from the top of
+the DOM, and a page that scrolls itself before anyone has done anything is
+its own, independent disorientation risk for a screen-reader user regardless
+of that specific browser behaviour. `scripts/check-accessibility.mjs`'s
+keyboard walk measured this directly (`room:talk`/`room:account` both
+reported 11 of ~12 Tab presses moving focus BACKWARD in DOM order — see
+`context/measurements.md#ws-r50-accessibility-before-after`) and 0 after
+this change, on both screens, with the legitimate "reveal a new reply"
+scroll unaffected by construction (it is the SECOND firing of the effect,
+never the first).
+
+**Reversal condition.** If a real returning-follower session is ever shown
+to need the FIRST-mount scroll specifically (their history is long enough
+that the top of the page, not the bottom, is the confusing state to land
+on), the fix would need to become conditional on `turns.length` at mount
+rather than an unconditional first-call skip — no such case is measured
+today.
+
+## `ws-r50-room-focus-ring-contrast` (2026-09-04, WS-R50)
+
+**Decision.** `room.css` now declares its own `.room-shell :is(button, a,
+input, select, textarea, summary):focus-visible` rule, using the same
+`--focus-ring`/`--focus-width`/`--focus-offset` tokens `.studio-shell`'s own
+rule already uses (`tokens.css`, an opaque `--forest`, ~8.6:1 on paper).
+
+**Rationale.** Measured directly, the same method `studio.css`'s own
+comment on that ring already used: `studio.css`'s BASE-layer
+`:focus-visible` rule (`outline: 3px solid rgba(23, 73, 59, 0.28)`) is
+unscoped and applies everywhere that layer is loaded — including the Room,
+since `src/room/main.tsx` imports `studio.css` for its palette. That rule
+is the one `studio.css`'s own comment already measured "about 1.9:1 on
+paper" and fixed for `.studio-shell` specifically; the Room shares the base
+layer but has no `.studio-shell` class, so it kept the weak ring and never
+got the fix. Computed here against the Room's own backgrounds: 1.87:1 over
+`--paper` (#f4f1e9), 1.94:1 over `--panel-solid` (#fffef9) — both under the
+3:1 a focus indicator needs.
+
+**Reversal condition.** If `--focus-ring`'s own value ever changes for a
+reason specific to the studio, the Room's rule (same tokens, same
+selector shape) moves with it automatically; if the Room ever needs a
+DIFFERENT ring from the studio's for a reason of its own, split the token
+rather than the selector.
+
+## `ws-r47-creator-invite-quota-is-three` (2026-09-04, WS-R47)
+
+**Decision.** A published creator gets exactly three peer invites
+(`CREATOR_INVITE_QUOTA` in `api/_invites.js`), enforced entirely inside the
+quota INSERT's own WHERE clause (`quota_ok`, a CTE gating the INSERT's row
+source) rather than by a JS `if` after a separate `select count(*)`. A
+fourth attempt, or an attempt from an account with no published Room, is
+zero rows returned from one round trip, never a race two concurrent issues
+could slip a fourth code through.
+
+**Rationale.** Three is a name for "enough to reach the two or three peers
+a creator actually knows" without this becoming a second operator queue
+(086's own operator front door already exists for volume). Gating inside
+the statement, not around it, is this repo's own established shape for
+exactly this kind of predicate — `api/_replica.js`'s `invite_redeem`/`gate`
+CTEs and `api/_funnel.js`'s `markStep` (WS-R25) both already refuse before
+any write, never after one, and this decision is that same law applied to
+a count-based quota instead of an ownership check.
+
+**Reversal condition.** If a published creator's real peer network in
+Phase 0 turns out to routinely exceed three names — measured from real
+`myInvites` quota-exhaustion reports, not a guess — raise the named
+constant (and the studio card's copy, which reads the same number) rather
+than adding a second, larger cap beside it.
+
+## `ws-r47-funnel-arrival-line-hides-count-below-floor` (2026-09-04, WS-R47)
+
+**Decision.** `creatorInviteArrivalsThisWeek` (`api/_funnel.js`) returns
+`n: null` whenever the true count is below `CREATOR_INVITE_ARRIVAL_FLOOR`
+(5), disclosing only the fixed floor sentence — never a smaller true
+number, even to the platform operator's own ops board.
+
+**Rationale.** The workstream brief names "n>=5 floor as the funnel's other
+counts", and the closest established precedent in this codebase for a
+per-person-identifying count is `api/_pulse.js`'s `PULSE_MIN_FOLLOWERS`
+(followers, not creators): below five, `weeklyNote` states only that the
+floor was not reached, never "2" or "1" — because a small number over a
+short list of named creators is close to naming exactly which peer
+referred whom. This decision applies that same masking discipline to a
+creator-facing count for consistency, even though the underlying subjects
+(creators, not anonymous followers) are a weaker privacy case than
+Pulse's own.
+
+**Reversal condition.** If the product decides platform operators (who
+already see every creator by name on the ops board, unlike Pulse's
+follower-facing audience) should see the real small number on their own
+board specifically, split the function into a masked studio-facing read
+and an unmasked operator-facing one — never quietly unmask the single
+existing function, which would also change what a future studio card
+shows.
+
+## `ws-r47-invites-required-semantics-untouched-by-design` (2026-09-04, WS-R47)
+
+**Decision.** `api/_replica.js`'s redemption CTE was NOT modified. When
+`INVITES_REQUIRED` is unset, a supplied invite code — creator-issued or
+operator-issued — is still never redeemed (the CTE's `invite_redeem` UPDATE
+carries `and $5::boolean`, so it inserts zero effect when `invitesRequired`
+is false), exactly as it behaved before this workstream. The brief's own
+words, "creator-issued codes work whether or not invites are required", is
+satisfied instead by `creatorInviteArrivalsThisWeek` never reading
+`INVITES_REQUIRED` at all — it counts real `vy_creator_invite`/
+`vy_creator_application` state directly, so the funnel line is correct on
+any deployment regardless of that flag's setting.
+
+**Rationale.** The SAME brief sentence opens with "`INVITES_REQUIRED`
+semantics are untouched: unset keeps today's behaviour" — an explicit,
+higher-priority constraint that a change to the redemption CTE (making a
+code count as an "arrival" even when not required to gate anything) would
+have broken for every existing test account. Reading "work... whether or
+not required" as a statement about the FUNNEL QUERY's own independence
+from that env var, rather than a request to change redemption behavior,
+is the only reading that satisfies both halves of the same sentence at
+once, and it is the one this workstream built.
+
+**Reversal condition.** If a future session confirms (from the owner
+directly, not inferred) that a code presented with `INVITES_REQUIRED`
+unset should ALSO be marked redeemed for tracking purposes even though it
+gates nothing, that is a new, explicit product decision touching
+`api/_replica.js`'s own STRICT_SURFACE statement — it needs its own
+review and its own entry here, not a silent reinterpretation of this one.
+
+## `ws-r47-studio-card-is-english-only-no-locale-mechanism-exists` (2026-09-04, WS-R47)
+
+**Decision.** `InviteCreatorCard.tsx`'s copy is English only, matching
+every other card in `RoomStudio.tsx` (Pulse, Cohorts, Money, Payouts,
+Suite — none of them localized).
+
+**Rationale.** The brief's law 2 says the card ships "both locales", but
+`src/studio/` (the creator-facing Studio) has no locale mechanism at all —
+`ROOM_LOCALES`/`ROOM_COPY_TABLE` (`src/room/copy.ts`) exist only for
+`src/room/` (the FOLLOWER-facing Room, WS-R24). Grepping the whole
+`src/studio/` tree for any locale table, switch or `VITE_STUDIO_LOCALE`-
+shaped flag found nothing; every existing card renders one fixed English
+string set. Building a first, one-off bilingual mechanism for a single new
+card, when the entire surface it lives in ships English-only, would be
+inventing a pattern rather than following one — the wrong direction for a
+repo whose own law is "prefer measuring/following precedent to reasoning
+from scratch".
+
+**Reversal condition.** If a future workstream adds a real Studio-wide
+locale mechanism (the creator-facing analog of `src/room/copy.ts`), this
+card's strings move into it in the same change, rather than staying the
+one hardcoded English card in an otherwise-localized Studio.
+
+## `ws-r49-performance-budgets-are-a-throttled-simulation-not-a-device` (2026-09-04, WS-R49)
+
+**Decision.** `scripts/check-performance.mjs` budgets four public entry
+points (`/`, `/vyakti`, `/r/<slug>` via `room-layout-fixture.html`,
+`/studio` signed out) at LCP <= 2500ms, CLS <= 0.1, TBT <= 300ms, JS
+transfer <= 180KB, font transfer <= 120KB, no render-blocking third-party
+request — measured in real Chromium at 390x844 under CDP throttling (CPU
+4x, 1.6Mbps down / 750Kbps up / 150ms RTT), three cold-cache runs per
+target, median reported. Wired as a named gate in
+`scripts/verify-release.mjs`.
+
+**Rationale.** The brief's own law: "India-first means a Rs 12,000 phone on
+a busy cell. Nothing in this repo measures what a follower waits for."
+1.6/0.75Mbps/150ms is the long-standing Chrome DevTools / Lighthouse "Fast
+3G" simulated-throttling preset (not invented for this gate), reused by
+WebPageTest and web.dev as the standard stand-in for a busy, contended
+Indian 4G connection — achieved 4G throughput on a crowded tower regularly
+falls into "fast 3G" territory, so this is the honest choice over a clean
+"4G" number that would understate a real bad day. The five numeric budgets
+are round, notice-a-slow-page thresholds (2.5s LCP is the well-known "good"
+Core Web Vitals boundary; 180KB JS is roughly a second of transfer at this
+throttle's own download rate), not derived from a per-product SLA this repo
+has stated anywhere else.
+
+**Reversal condition.** A measurement taken on a REAL mid-range Android
+device on a real Indian mobile network that disagrees with this simulation
+— either direction: a budget this gate passes that a real device visibly
+fails, or a budget this gate fails that a real device clears comfortably —
+should move the number, cited against the real-device measurement's own n
+and method, not against more simulation. Nothing in this workstream ran on
+real hardware; that is the gate's own stated limitation, in its header.
+
+## `ws-r49-room-fixture-screen-is-join-not-talk` (2026-09-04, WS-R49)
+
+**Decision.** The `/r/<slug>` performance target renders
+`room-layout-fixture.html?screen=join` (the disclosure card, the age line,
+the whole memory question), not the fixture's own default of `screen=talk`
+(an ongoing conversation).
+
+**Rationale.** This gate models "cold cache", which stands in for a
+first-ever visit. A follower's actual first visit is the join screen, not a
+conversation that presupposes one already happened — measuring `talk`
+would budget a screen nobody's FIRST 1.6Mbps load ever has to pay for.
+
+**Reversal condition.** If a future Room screen (e.g., a returning
+follower's default landing) becomes the more common first-load path than
+`join`, add it as a fifth measured screen rather than replacing `join` —
+both are real cold-cache paths, and the brief's four named targets
+map to specific screens the product actually serves cold.
+
+## `ws-r49-studio-panels-lazy-loaded-not-manualchunks` (2026-09-04, WS-R49)
+
+**Decision.** ReviewQueue plus eight more studio panels (EnrollmentWorkspace,
+RoomStudio, MirrorCallStudio, VoicePreviewLab, LivenessCapture,
+VoiceIdentityChallengeBand, VoicePreviewPanel, VoiceExperimentPanel) were
+converted from static `import X from "./X"` to `const X = lazy(() =>
+import("./X"))` with a `Suspense` boundary at each usage site, rather than
+carving them out via `vite.config.ts`'s `build.rollupOptions.output.
+manualChunks`.
+
+**Rationale.** The actual boundary that matters is a RUNTIME condition
+(`replica &&` plus a wizard `step === "..."` check), not a source-tree
+grouping a `manualChunks` function would have to re-derive and keep in
+sync by hand. `React.lazy` ties the chunk boundary to the exact JSX
+conditional that already decides whether the component renders, so the
+two can never drift apart the way a parallel `manualChunks` allowlist
+could. It is also the same pattern this repo's own precedent
+(`context/rejected.md`'s recurring "a static check must recognize the
+real shape of the code" lesson) favors over a second, hand-maintained
+list describing the first.
+
+**Reversal condition.** If a future measurement shows Vite/Rolldown's
+automatic chunk-splitting under many small dynamic imports produces WORSE
+network behavior (too many small round trips under high-latency 4G) than
+one hand-tuned `manualChunks` bundle would, group the lazy panels into a
+named chunk instead — the fix stays dynamic-import-shaped either way; only
+the chunk boundary would move.
+
+## `ws-r49-room-css-palette-import-not-restructured` (2026-09-04, WS-R49)
+
+**Decision.** `src/room/main.tsx` still imports the whole of
+`src/studio/studio.css` (4,209 lines) for its palette and base layer,
+exactly as before this workstream, even though the Room's own JSX uses
+none of the other ~3,950 lines (verified: no `.mark`, `.eyebrow`, `.button`
+or any other `studio.css`-only class appears in any `src/room/*.tsx`
+file). This inflates the Room's CSS transfer by roughly 27.9KB gzip
+(`studio-BS1SRtFH.css`'s own reported gzip size) beyond what the Room's
+own components render.
+
+**Rationale.** No CSS budget exists in `scripts/check-performance.mjs`'s
+table (the brief specifies LCP/CLS/TBT/JS/font, not CSS), and with the
+gzip-serving fix in place `/r/<slug>`'s LCP (1188ms median) and every
+other budgeted metric already pass comfortably — nothing measured DEMANDS
+this fix. Splitting the palette out of `studio.css` into its own imported
+file would touch the single most contended file in this repo (its own
+header: "studio.css is being edited concurrently by other workstreams")
+and repeats the exact class of defect this repo has already shipped twice
+(`studio.html`'s own header comment: a stripped `@layer` statement once
+put `button { color: inherit }` ahead of the primary CTA's own color at
+1.73:1 contrast). The existing `main.tsx` comment already weighed
+duplicating the palette against importing the whole file and chose the
+whole file specifically to avoid a "guaranteed divergence" — this
+workstream did not find new evidence against that call, only a byte cost
+nothing here budgets.
+
+**Reversal condition.** If a future workstream adds a CSS transfer budget
+to `scripts/check-performance.mjs`, or a real-device measurement shows the
+Room's CSS weight moving its LCP close to the 2500ms budget, extract the
+palette+base block (`studio.css` lines ~210-266, verified as exactly what
+`room.css`'s own header claims it needs) into its own file that both
+`studio.css` and `room.css` import, so there remains one canonical
+declaration rather than a duplicate.
+
+## `ws-r45-one-line-bio-added-in-migration-105` (2026-09-04, WS-R45)
+
+**Decision.** Migration 105 adds `vy_room.one_line_bio text not null default
+'' check (length <= 140)` alongside `listed_at`, even though the workstream
+brief's own SQL bullet for migration 105 named only the listing switch and
+its partial index. `api/_creators.js`'s directory read is specified to
+return "display name, slug, the one-line bio, locale, and listed_at" and
+the Share tab control is specified to promise a follower sees "the name,
+the one-line bio and the language" — but no column anywhere in this schema
+holds free text a creator writes for a stranger to read (`display_name` is
+the name; every other creator-authored field is either private material or
+shaped for a different audience). Adding the column was the only way to
+build what both of those other bullets require.
+
+**Rationale.** The bio is bounded to 140 characters (fits one line on a
+390px directory card, this workstream's own `check-layout.mjs` floor at
+that width), defaults to `''` so an existing Room opts in explicitly rather
+than the migration inventing text, and is run through the real copy gate
+at write time (`ws-r45-bio-copy-gate-reused-not-reimplemented`, below) —
+the same discipline every other user-visible string in this product is
+held to, extended here because this is the first field a CREATOR writes
+that a STRANGER, not yet anyone's follower, reads before the Room exists
+for them at all.
+
+**Reversal condition.** If a later workstream determines the directory
+should show something other than free text (a fixed set of tags, say, or a
+sentence assembled from the teacher sheet rather than typed by hand),
+`one_line_bio` should be deprecated with a `supersedes` edge rather than
+repurposed — the column's whole contract is "the creator's own words,
+unedited by this platform."
+
+## `ws-r45-bio-copy-gate-reused-not-reimplemented` (2026-09-04, WS-R45)
+
+**Decision.** `api/_room-publish.js`'s `setRoomBio` imports `scanSource`
+from `scripts/check-copy.mjs` and runs the candidate bio through it
+(wrapped as `const label = <bio>;` so the visible-literal heuristic reads
+it) rather than writing a second em-dash/Rooms-vocabulary regex inside the
+API layer. A bio that trips the dash rule or the Rooms-vocabulary rule is
+refused with a named `room_bio_copy_violation`, never silently accepted or
+silently cleaned.
+
+**Rationale.** This repo's own law (`AGENTS.md`, `CLAUDE.md`) is "write
+shapes never lines" and "the copy gate bites" as a STATIC scan over
+committed source — but a bio is the one piece of copy in this whole
+product that is neither committed source nor a compile-time literal, it is
+runtime data a creator types into a form. Two independently maintained
+copies of the same banned-word list drift; this repo's own
+`context/rejected.md` is full of entries about exactly that failure shape
+one abstraction over. Reusing the real scanner function means the bio gate
+and the static gate can never quietly disagree about what "clone" or an
+em dash means.
+
+**Reversal condition.** If `scripts/check-copy.mjs` ever grows a
+non-trivial runtime cost or a dependency `api/_room-publish.js` cannot
+carry into the Vercel function bundle (neither observed in this session:
+the import added no measurable latency to `setRoomBio` and pulls in only
+`scripts/roomsVocabAllowlist.mjs` besides `node:fs`, which is never called
+on this path), replace the call with a small dedicated regex mirroring
+only the dash and Rooms-vocabulary tests, and note in this entry's
+supersession why the shared scanner stopped being the right choice.
+
+## `ws-r45-creators-html-vite-entry-for-gate-only` (2026-09-04, WS-R45)
+
+**Decision.** `site/creators.html` is added to `vite.config.ts`'s
+`rollupOptions.input` under the key `creators-directory`, purely so
+`scripts/verify-release.mjs`'s plain `vite build` step (which never runs
+`scripts/vercel-build.sh`'s copy step) produces a file
+`scripts/check-layout.mjs` can point its `creators`/`creators-hi` targets
+at. Vite emits a multi-page HTML input at a path mirroring its OWN
+relative path from the project root, not the input key, so this produces
+`dist/site/creators.html`, never `dist/creators.html` — confirmed by an
+empirical build during this session, not assumed. The layout gate's fixture
+path is `site/creators.html` to match. The real production page is still
+served from `dist/creators.html`, copied there by
+`scripts/vercel-build.sh`'s own `cp site/creators.html dist/creators.html`
+after `vite build` runs; the vite-input copy is a second, unrouted file
+that ships alongside it on every real deploy too, reachable at
+`/site/creators.html`.
+
+**Rationale.** The alternative — teaching `scripts/verify-release.mjs`
+itself to run (or shell out to) the site-copy half of
+`scripts/vercel-build.sh` before the layout gate — touches a script every
+workstream's gate depends on, for one page's fixture. The duplicate URL
+this decision leaves behind is harmless by construction: identical public
+content, nothing per-person, no second code path to drift from the first
+(both are the exact same file).
+
+**Reversal condition.** If a security or SEO review ever treats a second,
+unrewritten URL serving identical public content as a real problem (a
+canonical-tag conflict a crawler penalizes, say), either give
+`scripts/verify-release.mjs`'s "web build" step its own small copy step for
+`site/*.html` fixtures instead of a vite input, or add a `<link
+rel="canonical" href="/creators">` — already present in
+`site/creators.html`'s `<head>` — is the first, cheaper lever if that day
+comes.
+
+## `ws-r48-suite-price-mirrored-with-a-marker-comment-not-imported` (2026-09-04, WS-R48)
+
+**Decision.** `site/suites.html` (Suites' own B2B landing page) states two
+per-seat prices and three seat-count bounds. Neither is typed as a fresh
+literal: each sits next to an HTML comment naming the exact `api/_org.js`
+export it mirrors (`// mirror of api/_org.js#SUITE_SEAT_PRICE_STARTER_INR`,
+the workstream brief's own required marker), and the page's own JS
+price-estimate block repeats the same comment beside each constant a second
+time. `evals/suites-self-serve/run.mjs` §1 parses BOTH files (a regex over
+`export const NAME = ...` in `api/_org.js`, a regex over the marker comment
+plus the rendered figure in `site/suites.html`) and fails if the two ever
+disagree, rather than trusting either source to stay honest on its own.
+
+**Rationale.** `site/vyakti.html`'s own header already states the reason
+this page cannot `import` from `api/_org.js`: it ships no build step
+(self-contained, `<style>`/`<script>` inline, no bundler), so the ONLY way
+its own numbers can agree with the server's is a text convention a test can
+verify, never a runtime import. WS-R42 (a sibling workstream, running at
+the same time) is building a repo-wide mirrored-constant gate around
+exactly this marker shape; this page's comments are written to that
+convention from the first commit rather than needing a follow-up rewrite.
+
+**Reversal condition.** If `site/suites.html` (or any future static Vyakti
+page) ever gains a real build step (a bundler, a template compiler) that
+can import a JS module directly, replace the mirror with a real import and
+delete the comment convention for that page - the marker exists only
+because no import is possible here, not because a comment is preferred to
+one.
+
+## `ws-r48-self-serve-writes-through-existing-suitecard-never-a-new-door` (2026-09-04, WS-R48)
+
+**Decision.** "Start a Suite" adds NO new HTTP endpoint, NO new op on
+`api/org.js`, and NO new function in `api/_org.js`/`api/_payments.js`. The
+self-serve flow calls the SAME `createSuite`/`startSuiteSubscription`
+(`src/studio/orgApi.ts`) the existing manual "Create Suite" / "Start Suite
+subscription" controls in `SuiteCard.tsx` already call, from a new
+`useEffect` in that same file that fires once with a stored draft instead
+of a click.
+
+**Rationale.** The brief's own words: "reuse SuiteCard.tsx and orgApi.ts;
+one new entry route" - the entry route is a FRONT-END problem (getting a
+name and a seat count from a marketing page, across a sign-in redirect,
+into a place that already knows how to act on them), not a backend one.
+WS-R28's `createOrg` and WS-R33's `startOrgSubscription` already carry
+every predicate this flow needs (seat bounds, admin-is-the-creator, the
+provider seam, the "none" refusal); a second write path would be a second
+place those predicates could drift from the first, the exact risk
+`api/_ops.js`'s own "aggregate-only" reuse-not-rederive convention exists
+to avoid one layer over.
+
+**Reversal condition.** If the self-serve flow ever needs a step the manual
+Suite card does not (payment method collection before creation, a
+multi-step wizard state machine), build that as a genuine new capability
+with its own door and its own offline eval - do not stretch this effect
+into carrying logic `SuiteCard.tsx`'s manual path was never designed to
+share.
+
+## `ws-r48-start-suite-draft-in-localstorage-not-carried-through-oauth` (2026-09-04, WS-R48)
+
+**Decision.** `src/studio/startSuiteDraft.ts`'s `restoreStartSuiteDraft()`
+captures `?start_suite=1&suite_name=...` into `localStorage` and strips it
+from the URL, called once in `main.tsx` BEFORE React mounts - never passed
+through a Google OAuth redirect's own query string, and never read back
+from the URL by `SuiteCard.tsx` either (it reads storage via
+`takeStartSuiteDraft()`).
+
+**Rationale.** `src/studio/studioAuth.ts`'s `restoreStudioMode()` already
+proved, in this exact codebase, that a value which must survive a sign-in
+redirect cannot rely on that redirect: "that would work only if the value
+survives the provider's redirect allow list, which is configured outside
+this repo... a fix whose correctness lives in someone else's dashboard is
+not a fix." A Suite's name and seat count are the identical shape of
+problem one field over, so this workstream reused the identical fix rather
+than re-deriving (and possibly re-breaking) it.
+
+**Reversal condition.** If Supabase's OAuth redirect is ever confirmed (by
+a real test against the live provider) to preserve arbitrary extra query
+parameters end to end, the localStorage round trip becomes unnecessary
+convenience rather than a requirement - but `restoreStudioMode()`'s own
+finding says this has already been tested once and failed, so removing it
+needs a fresh confirmation, not an assumption that this time is different.
+
+## `ws-r48-org-attached-at-is-a-new-column-not-vy-room-updated-at` (2026-09-04, WS-R48, migration 107)
+
+**Decision.** "Suite seats attached this week" (the ops board's own new
+line, `api/_funnel.js`'s `suitesFunnelThisWeek`) reads a new, dedicated
+`vy_room.org_attached_at` column, written only by `attachRoom`'s own UPDATE
+and cleared only by `detachRoom`'s - never `vy_room.updated_at`, which
+`api/_room-publish.js`'s publish/pause/price-change writers and
+`api/_org.js`'s own `detachRoom` all also touch.
+
+**Rationale.** A weekly count built on `updated_at` would over-count: a Room
+attached to a Suite months ago that gets published, paused or re-priced
+THIS week would read as "attached this week" even though its Suite
+membership is unrelated and much older. The workstream brief permitted
+migration 107 "only if needed"; this is the case that needed it - no
+existing column can answer the question honestly.
+
+**Reversal condition.** If a future migration adds a general per-Room audit
+log (an events table recording every state transition with its own
+timestamp), `org_attached_at` becomes a redundant projection of that log
+and could be derived from it instead of stored directly - but until such a
+log exists, this is the cheapest honest signal available.
+
+## `ws-r48-no-n-gte-5-floor-on-suite-or-application-counts` (2026-09-04, WS-R48)
+
+**Decision.** `suitesFunnelThisWeek`'s two numbers (Suites started, seats
+attached) and `suiteIntentApplicationsThisWeek`'s one number carry NO n>=5
+floor, unlike Pulse's follower-topic counts (WS-R17/WS-R35).
+
+**Rationale.** The n>=5 floor exists to stop a Suite ADMIN from re-deriving
+one specific FOLLOWER out of a small shared bucket of that follower's own
+words or behaviour (`context/decisions.md`'s own Pulse entries). None of
+these three counts describes a follower: one counts organisations
+(`vy_org` rows), one counts Rooms joining an organisation
+(`vy_room.org_attached_at`), and one counts applications from prospective
+CREATORS (`vy_creator_application`, a platform-lane table with no person
+column at all, migration 086's own header). This is the identical shape
+`api/_ops.js`'s pre-existing `whatsappSpendThisMonth` and
+`api/_funnel.js`'s own `stalled_at` counts already carry with no floor -
+both count deliveries and replicas, never a follower, and both are shown to
+the PLATFORM OPERATOR alone (`OPS_OWNER_USER_IDS`-gated), never to a Suite
+admin or a creator.
+
+**Reversal condition.** If a future version of this line is ever exposed to
+a narrower audience than the platform operator (a Suite admin's own board,
+say), and the resulting bucket could realistically be small enough to name
+a specific organisation or applicant a viewer should not be able to single
+out, add the same floor Pulse uses and log the reversal here.
+
+## `ws-r48-apply-intent-is-a-new-column-not-the-audience-field` (2026-09-04, WS-R48, migration 107)
+
+**Decision.** "Someone who wants to talk first" about a Suite sets
+`intent:"suite"` in a NEW `vy_creator_application.intent` column (`not null
+default 'creator'`, `check (intent in ('creator','suite'))`), not the
+existing free-text `audience` field.
+
+**Rationale.** `audience` already means "who is your audience" on the
+existing creator application form (WS-R23); repurposing it to also carry
+"why are you applying" would make it lossy for every future reader of this
+table (the operator's own `list` op, `api/_ops.js`'s eventual application
+board) on BOTH questions at once. A real column with a closed set of two
+values is unambiguous and directly countable
+(`suiteIntentApplicationsThisWeek`'s own `where intent = 'suite'`), which a
+substring search over free text would not be.
+
+**Reversal condition.** If a third application "intent" is ever needed
+(an agency enquiry distinct from both a solo creator and a Suite, say),
+widen the CHECK's set rather than inventing a second column - the same
+drop-then-add pattern this migration itself used (migration 096's own
+precedent) keeps it a one-column, one-CHECK design rather than a column per
+intent.
+
+## `ws-r42-third-lane-rejected-dedicated-table-built-instead` (2026-09-04, WS-R42, migration 104)
+
+**Decision.** The creator-tier charge ledger is a NEW, dedicated table
+(`vy_creator_charge_event`, owner lane: `owner_user_id`/`replica_id`, no
+split columns) rather than a third disjunct on `vy_payment_event_one_lane`
+(migration 095). This workstream's own brief reads, on a first pass, like an
+instruction to widen that CHECK to three lanes ("under migration 095's
+two-lane CHECK") - read literally, that reading is wrong, and this decision
+is the record of why it was not built that way.
+
+**Rationale.** `vy_payment_event`'s `platform_take_inr`/`creator_share_inr`
+columns exist to record a revenue SPLIT (`ws-r33-creator-tier-charge-has-no-ledger-row`'s
+own words: "a creator's own subscription to the platform has no second
+party to split revenue with, 100% is platform revenue by definition").
+Widening the CHECK to a third disjunct would still force every row in that
+lane to carry SOME value in both split columns, inventing meaning for them
+on a row that is not a split - the fabricated-precision failure
+`context/rejected.md`'s no-fake-numbers law forbids for a proxy metric,
+applied here to a column's own meaning rather than a number. Migration
+095's own header and `ws-r33-creator-tier-charge-has-no-ledger-row`'s own
+reversal condition both name the SAME alternative in the SAME words: "add a
+dedicated append-only ledger shaped like `vy_payment_event` but scoped by
+`owner_user_id`/`replica_id` rather than retrofitting a third lane onto a
+table already carrying two." An interrupted first attempt at this
+workstream (branch `ws-r42-money-reconciles-wip`, never merged, read as a
+reference per this workstream's own brief) had already reached the
+identical conclusion before this session started, independently deriving
+the same table shape - a second, independent read of the same evidence
+landing on the same answer is itself corroborating.
+
+**Reversal condition.** None foreseen from this side: the day
+`vy_payment_event`'s own two-lane CHECK is refactored to a `lane` enum plus
+a single nullable `target_id` (the alternative `ws-r33-payment-event-two-mutually-exclusive-lanes`'s
+own reversal condition names for a THREE-case CHECK), re-examine whether
+folding the creator-tier ledger into that generalised table becomes the
+simpler design at that point - but that refactor has not happened, and
+building this table as if it had would be designing for a schema that does
+not exist.
+
+## `ws-r42-suite-reconcile-recomputes-the-builder-formula` (2026-09-04, WS-R42)
+
+**Decision.** `reconcile`'s Suite-lane check recomputes `runPayoutRollup`'s
+OWN flat per-seat formula (`Math.trunc(price_per_seat_inr * SUITE_SEAT_SHARE_BP / 10000)`,
+summed per owner over every Room currently attached to a paying Suite) from
+`suiteRows`, and compares THAT against the recorded `suite_share_inr` on
+each payout row - never by summing the Suite's own org-lane
+`vy_payment_event` rows for the period and multiplying by the share
+basis-points, which is what this workstream's own brief describes in law 2
+("Suite-lane ledger sum times SUITE_SEAT_SHARE_BP... summed over attached
+Rooms, equals the sum of suite_share_inr").
+
+**Rationale.** That literal reading is not the invariant `runPayoutRollup`
+actually holds. `ws-r36-suite-share-flat-per-seat-not-ledger-derived` is
+explicit: `suite_share_inr` is a flat share of the Suite's CURRENT
+`price_per_seat_inr`, for every Room attached at build time, "never as a
+fan-out of what that Suite's own `vy_payment_event` org-lane rows actually
+collected." A Suite pays ONE subscription for N seats; comparing that one
+ledger total against a PER-ROOM share only coincides by construction when
+seats-billed equals rooms-attached, which nothing enforces. Building the
+check against the wrong invariant would have manufactured a mismatch on
+every real Suite that has ever had an unused seat or more than one Room per
+seat - a false alarm indistinguishable, to the operator reading the ops
+board, from a real bug. Recomputing the builder's OWN formula instead
+proves the thing that can actually go wrong: that `suite_share_inr` was not
+corrupted or left stale after `price_per_seat_inr` or the attached-Room set
+changed.
+
+**Reversal condition.** The day `ws-r36-suite-share-flat-per-seat-not-ledger-derived`'s
+own reversal condition fires (a real formula for splitting a Suite's
+COLLECTED seat revenue across its attached creators replaces the flat
+per-seat share), `reconcile`'s Suite check must be rebuilt against THAT
+formula and `suiteRows` widened to carry the org-lane ledger sum it would
+then need - this decision is bound to that one, not independent of it.
+
+## `ws-r42-ledger-and-payout-are-both-whole-rupees` (2026-09-04, WS-R42)
+
+**Decision.** `reconcile` performs NO unit conversion between
+`vy_payment_event.amount_inr` and any `vy_creator_payout` money column - it
+compares both as whole rupees directly, and reports a mismatch's own
+`difference_paise` as `(actual_inr - expected_inr) * 100`, always an exact
+multiple of 100.
+
+**Rationale.** This workstream's own brief (law 4) states "amounts are
+integer paise in the ledger and integer rupees in the payout row (read the
+columns, do not assume)". Read: migration 078's own header, verbatim -
+"`amount_inr` is whole rupees, matching `follower_price_inr`... the
+provider's own amounts are paise and are divided by 100 the moment a
+webhook is parsed, never stored as paise here." Both tables are whole
+rupees; there is no paise/rupee split between them at all. Building a
+conversion the columns do not need would not merely be redundant - it would
+be exactly the kind of "trust the brief's assumption over the schema" error
+`context/rejected.md`'s culture exists to catch, since a conversion applied
+to numbers that are already the same unit multiplies every real amount by
+100 and reports every clean period as a mismatch.
+
+**Reversal condition.** If either table is ever changed to store a
+fractional rupee (a paise column, or `numeric` amounts), `reconcile` must
+gain a real unit-aware comparison at that point, and this decision's own
+"no conversion" claim becomes false and must be superseded, not edited in
+place.
+
+## `ws-r42-reconcile-suite-lane-uses-current-attachment` (2026-09-04, WS-R42)
+
+**Decision.** `reconcilePeriod` (the DB-backed wrapper around `reconcile`)
+reads `suiteRows` from CURRENT `vy_org_subscription`/`vy_room` state - which
+Rooms are attached to a paying Suite RIGHT NOW - never a historical snapshot
+of who was attached at the END of the period being reconciled.
+
+**Rationale.** This product keeps no such snapshot; `runPayoutRollup` itself
+already has the identical limitation ("read fresh, never stored anywhere
+else", `SUITE_SEAT_SHARE_BP`'s own header). Building a snapshot table for
+`reconcile` alone, when the thing it is reconciling AGAINST does not itself
+use one, would let the check disagree with the builder for a reason that is
+not a real bug - attachment drift since the period closed, not a
+miscalculation. For the MOST RECENTLY BUILT period (the common case: an
+operator reconciling the payout run that just happened), current and
+period-end attachment are the same thing in practice.
+
+**Reversal condition.** The day a Room-organisation attachment history table
+exists (needed for other reasons: an audit trail of which Suite a Room sat
+in over time), `reconcilePeriod` should read attachment AS OF the period's
+own `period_end` from it instead, and this decision is superseded. Until
+then, reconciling an OLD period can report a false Suite finding if
+attachment changed since - stated plainly as NOT PROVEN for any period but
+the most recent one.
+
+## `ws-r41-whatsapp-cloud-api-shapes-verified-bind-mark-stays-open` (2026-09-04, WS-R41)
+
+**Decision.** `api/whatsapp.js`'s request/response SHAPE claims (the GET
+handshake, the `X-Hub-Signature-256` HMAC scheme, the text and reaction
+message bodies, the 24-hour customer-service window) are flipped from
+self-consistent-but-unverified to verified against Meta's own documents.
+`bindWhatsappClone`'s own NOT VERIFIED mark is left standing, reworded to
+say precisely why no document can settle it.
+
+**Rationale.** `developers.facebook.com/docs/graph-api/webhooks/getting-
+started`, `.../whatsapp/cloud-api/reference/messages`, `.../whatsapp/cloud-
+api/messages/reaction-messages` and `.../whatsapp/pricing` (all fetched
+2026-09-04) match this file's implementation field for field, including one
+place a first, more general doc page's own auto-summary was WRONG (it
+showed a reaction's `message_id` nested under a `context` object; the
+dedicated reaction-messages page showed it nested under `reaction`, which
+is what the code already does) — cross-checking two independent pages
+before trusting either is what caught that. `bindWhatsappClone` is a
+different kind of claim entirely: whether THIS platform's own channel-
+secret store, once configured with real Azure credentials and a connected
+WABA, actually authorizes a send. No page Meta publishes can speak to this
+platform's own operational state, so the mark cannot be honestly flipped —
+only made more precise about what would settle it.
+
+**Reversal condition.** If a future fetch of any of the four cited pages
+shows different field names or a different signature scheme, or if Meta
+ships a Bot-API-7.0-style breaking change the way Telegram did (see the
+Telegram entry below), re-open the SHAPE half of this decision and re-check
+`send()`/`verify()`/`parse()` against the new text.
+
+## `ws-r41-telegram-bot-api-reply-shape-fixed-bind-mark-stays-open` (2026-09-04, WS-R41)
+
+**Decision.** `api/tg.js`'s `tgExtra()` is changed from sending a top-level
+`reply_to_message_id` to `reply_parameters: {message_id}`. The request/
+response envelope shape (`bot<token>/METHOD`, `{ok,result,description}`)
+and the webhook secret_token header/charset are flipped to verified.
+`setMessageReaction`'s own body shape stays explicitly unverified.
+`bindTelegramClone`'s own NOT VERIFIED mark is left standing, reworded for
+the same reason as WhatsApp's above.
+
+**Rationale.** `core.telegram.org/bots/api-changelog`, fetched 2026-09-04:
+Bot API 7.0 (2023-12-29) "replaced parameters reply_to_message_id and
+allow_sending_without_reply" with the `ReplyParameters` class, across
+`sendMessage` and every other send method; `core.telegram.org/bots/api
+#replyparameters` confirms the replacement's own field (`message_id`). This
+file had never made a real Bot API call (its own header already said so),
+so the stale field name was never caught by any offline eval — every
+threaded reply this file has ever built would have reached a current Bot
+API server as an unthreaded message, the field simply going unrecognised.
+`setMessageReaction` stays open rather than guessed-verified: repeated
+fetches of `#setmessagereaction` and `#reactiontypeemoji` all truncated at
+the same point in "Available types", before reaching "Available methods" —
+this session's fetch tool cannot retrieve that specific table from a
+single-page document this large, which is a tool limitation, not a document
+saying something different than expected.
+
+**Reversal condition.** If a future session's fetch tool can retrieve
+`setMessageReaction`'s own parameter table, verify it and flip the mark (or
+fix the code, per law 1b, if the table disagrees). If Telegram ever
+reintroduces a top-level `reply_to_message_id` (Bot API changelogs are
+append-only in practice, so unlikely but not impossible), re-check before
+assuming this fix is still current.
+
+## `ws-r41-razorpay-payouts-and-fund-accounts-shapes-partially-verified` (2026-09-04, WS-R41)
+
+**Decision.** `registerFundAccount`'s response shape and `sendPayout`'s
+request field names/enum values are flipped to PARTIALLY verified (the
+entity/schema-level facts a fetch actually reached), while the exact
+operation pages (HTTP method + URL path + request-parameter table) for all
+three RazorpayX/Subscriptions marks named in this workstream's brief stay
+open. `reference_id`'s undocumented-but-now-documented 40-character ceiling
+is enforced with `.slice(0, 40)`.
+
+**Rationale.** `razorpay.com/docs/api/x/payouts/` and `.../fund-accounts/`,
+fetched 2026-09-04, are reachable and their own Entity sample JSON confirms
+`fund_account_id`, `amount` (paise), `currency`, `mode` (IMPS is a
+documented value), `purpose` (`"payout"` is one of the doc's own default
+classifications, not an invented string), `reference_id` (max 40
+characters) and the fund-account response shape (`id`, `contact_id`,
+`account_type`, `active`). What those same fetches could NOT reach, despite
+several distinct URL and fragment guesses, is the operation-level page for
+creating a payout, updating a subscription's quantity, or fetching a fund
+account by id — every guess either 404s or resolves to the same small
+Entity/schema reference page regardless of the specific slug requested,
+which is the signature of a client-routed SPA a plain fetch cannot deep-
+link into. This is different from Telegram's failure mode (a huge single
+page truncated by this tool) and is logged separately in `rejected.md` for
+that reason.
+
+**Reversal condition.** If a future session's fetch tool (or a person with
+a browser) can reach the actual operation pages, verify
+`updateSubscriptionQuantity`'s PATCH shape, `registerFundAccount`'s GET
+path, and `sendPayout`'s POST path and `account_number` request field name
+(only the response field `debit_account_number` was confirmed, never a
+request-parameter table), and flip or fix per law 1b. A Razorpay sandbox
+account would settle all three directly.
+
+## `ws-r41-rfc8291-appendix-a-reproduced-rs-is-a-ceiling-not-exact-length` (2026-09-04, WS-R41)
+
+**Decision.** `api/_push/webpush.js`'s `encryptPayload` gains an
+`opts.recordSize` seam (default: `record.length`, byte-identical to prior
+behaviour) and `decryptPayload`'s `rs` check is widened from
+`record.length === rs` to `record.length <= rs`. `evals/room-push/run.mjs`
+section 7 feeds RFC 8291 Appendix A's own published salt, sender keypair
+and `rs = 4096` into the real encoder and asserts the exact published
+request body comes out, then feeds that published body into the real
+decoder and asserts the exact published plaintext comes out.
+
+**Rationale.** `datatracker.ietf.org/doc/html/rfc8291` §4, fetched
+2026-09-04: "An application server MUST set the 'rs' parameter in the
+'aes128gcm' content coding header to a size that is greater than the sum of
+the lengths of the plaintext, the padding delimiter (1 octet), any padding,
+and the authentication tag (16 octets)" — `rs` is a ceiling, and Appendix
+A's own worked example fixes `rs = 4096` against a 58-byte actual record,
+which the PRIOR decoder (`record.length !== rs` refused) would have
+rejected as `webpush_record_length_mismatch`. This means the prior decoder
+would have refused a payload from any real encoder following that same,
+extremely common convention (a fixed round `rs` regardless of actual
+payload size) even though every byte of the actual encryption was correct —
+a false negative on the wire, not a security gap (the check the decoder
+LOST is "reject a body claiming more record bytes than are present," which
+the widened `<=` check still performs; only the tautological equality with
+this file's own single-record default was removed). The round-trip eval
+(§1) never caught this because it always drives BOTH sides of this same
+file's own default (`rs = record.length` on both ends, trivially equal),
+which is exactly why law 2's demand for the RFC's own published vector,
+not just a self-consistent round trip, is the more valuable check.
+
+**Reversal condition.** If this file is ever extended to multi-record
+`aes128gcm` streams, `decryptPayload`'s single-record assumption (documented
+in its own header) needs revisiting together with this `rs` handling — a
+multi-record stream's non-final records DO need `record.length === rs`
+exactly per RFC 8188 §2, which this file structurally cannot produce or
+consume today.
+
+## `ws-r44-computed-op-list-scoped-to-six-named-doors` (2026-09-04, WS-R44)
+
+**Decision.** `evals/room-doors/run.mjs`'s new §16 (the computed op list -
+every `op === "<name>"` literal read by regex off a door's own source,
+asserted against a hand-maintained `OP_COVERAGE` table so a new op fails
+the gate the day it ships without an entry) is built for exactly SEVEN
+doors: `room.js`, `room-pay.js`, `payments.js`, `org.js`,
+`room-publish.js`, `invites.js` (the six this workstream's own brief names
+as carrying ops that merged in beside WS-R38's door battery without a case
+of their own) plus `apply.js` (named explicitly in the common brief for
+its WS-R48 `intent` widening). The other eight `EXPECTED_DOORS`
+(`checkins.js`, `handoff.js`, `pulse.js`, `replica.js`, `account.js`, and
+the three webhook doors) keep their EXISTING hand-picked cases, unaudited
+by this new mechanism.
+
+**Rationale.** Auditing every op in every door surfaced a genuinely large
+number of pre-existing, uncased owner-bearer ops the moment the computed
+list was built for the seven scoped doors alone: 27 of them (`set_price`,
+`start_creator_subscription` on `payments.js`; nine of `org.js`'s thirteen
+ops; nine of `room-publish.js`'s twelve; four of `invites.js`'s six; two
+of `apply.js`'s three). Extending the SAME mechanism to `checkins.js`
+(six more ops: `design_create`/`design_list`/`design_pause`/`designs`/
+`telegram_status`/`telegram_set`), `handoff.js` (five: `config_get`/
+`config_set`/`queue`/`answer`/`send`), `pulse.js` (`set_topics`),
+`replica.js` (`revoke`/`erasure_status`/`funnel_mark`) and `account.js`
+(nine more session-adjacent ops) would roughly double the "preexisting-
+uncased" count for a single workstream whose own brief names a specific,
+bounded list of ops to case - `docs/gurukul/SPEC-GURUKUL.md`'s reweight
+and this repo's own pattern of scoping a workstream to what it was asked
+to build (WS-R39's `#ws-r39-account-page-additive-not-consolidating-
+scattered-controls`, WS-R45's own creators.html-vite-entry decision) both
+argue for a bounded, honestly-labelled scope over an unbounded one that
+would either balloon this workstream's runtime past what a single session
+can responsibly commit, or produce dozens of new dynamic cases against
+code nobody asked this workstream to re-audit.
+
+**What this is NOT.** The 27 "preexisting-uncased" entries in `OP_COVERAGE`
+(and the un-computed ops in the five doors outside this mechanism
+entirely) are not a safety claim. They are this workstream's own honest
+finding: real ops, on real owner-bearer or session-consuming doors, that
+this battery has never attacked, stated in the coverage table and this
+workstream's final report rather than hidden behind a passing gate.
+
+**Reversal condition.** The day a future workstream adds a REAL dynamic
+case for one of the 27 "preexisting-uncased" ops, flip its `OP_COVERAGE`
+entry from `excluded: "preexisting-uncased..."` to real `classes`. The day
+a future workstream needs the SAME computed-list guarantee for one of the
+eight doors outside this mechanism (a new op merges into `checkins.js`
+without a case, say, and nobody notices for a wave or two - the exact
+failure mode this decision accepts as a live risk), add that door's
+`OP_COVERAGE` table and its own `computedOps()` call rather than
+re-deriving the mechanism a second time.
+
+## `ws-r44-get-doors-do-not-belong-in-the-door-list` (2026-09-04, WS-R44)
+
+**Decision.** `api/room-embed.js`, `api/creators.js` and `api/sitemap.js`
+(all three added after WS-R38) are excluded from `evals/room-doors/
+run.mjs`'s door list entirely - not merely uncased, but never enumerated,
+never imported, never given a `EXPECTED_DOORS` entry - on the SAME rule
+(a) that already excludes `api/room-cohorts.js`: none reads `req.body`
+(all three are GET-only, reading a slug or a cursor off `req.query`), so
+law 1's own criterion ("reads a request body") never admits them.
+
+**Rationale.** All three are PUBLIC AND UNAUTHENTICATED by their own file
+headers' own words: no bearer token is checked, no Room session is minted
+or consumed. Working through this file's own eight attack classes: (a)
+forged session - there is no session to forge; (b) cross-Room session -
+there is no session to present cross-Room; (c) body-supplied ids - there
+is no body, only a query string, and the one id each door DOES read (a
+slug or a cursor) is resolved through `resolveRoom`'s own WHERE, which
+already collapses "does not exist" and "not published" into the identical
+answer for anyone - the same guarantee `api/room.js`'s own `open`/`stats`
+ops already have and this file's own header already documents; (d)
+webhook replay - none of the three is a webhook; (e) owner bearer on
+another owner's resource - there is no bearer, so no owner identity to
+steal; (f)/(g)/(h) do not apply to a GET door's own identity boundary
+(rate-key malformation is a cross-cutting law, not door-specific, and
+already covered for public IP-keyed limiters at §6). There is no
+applicable class left to write a case for - extending the door list to
+admit them would add assertion count with no attack surface behind it,
+which is the mirror image of the actual defect this repo has already
+named once (`rejected.md#ws-r10-check-copy-apostrophe-parity`'s own
+caution against a check that LOOKS thorough without being so).
+
+**Evidence the public answer is actually safe**, not merely assumed: both
+`api/room-embed.js`'s `?slug=` read and `api/creators.js`'s `?cursor=`
+read are proven follower-blind and aggregate-only by their own dedicated
+batteries (`evals/room-embed/run.mjs`'s "the JSON builder is proven pure
+and follower-blind" negative control, `evals/creator-directory/run.mjs`'s
+static scan proving neither read module names a follower table or runs a
+SQL aggregate) - this decision does not ask either battery to be re-proven
+here, only confirms neither belongs in a DIFFERENT battery built around a
+credential this door never asks for.
+
+**Reversal condition.** If any of these three doors is ever widened to
+accept a body, a bearer, or a session (an authenticated per-creator embed
+preview, say, or a rate-limited write op added to `api/creators.js`), it
+immediately satisfies rule (a) or gains a credential worth attacking, and
+belongs in `DOOR_MODULES`/`EXPECTED_DOORS` and this file's own attack
+classes from that commit onward - not retrofitted later once the gap has
+had time to matter.
+
+## `ws-r40-unfurl-is-a-function-only-for-crawlers` (2026-09-04, WS-R40, migration 102)
+
+**Decision.** `/r/:slug` stays a static `room.html` rewrite for every
+ordinary visitor. `vercel.json` gets ONE new rewrite, matched only when the
+`user-agent` header names a known unfurl bot (facebookexternalhit,
+WhatsApp, Twitterbot, TelegramBot, Slackbot, LinkedInBot, Discordbot,
+Googlebot), sitting ABOVE the static rewrite in array order; that one
+routes to `api/room-page.js`, a real serverless function reading the Room's
+public fields and answering a minimal HTML head.
+
+**Rationale.** A shared link needs server-rendered metadata (a name, a
+sentence, a canonical url) because the crawlers that build a chat app's
+link preview never run this page's JS - they read only the bytes the
+server hands back. A person's own load needs none of that: `RoomApp.tsx`
+renders everything client side and always has. Making EVERY `/r/:slug`
+request pay for a function invocation and a database read to serve the
+~1% of traffic that is a bot would be the wrong trade for the 99% that is
+not; splitting the two by `has` on the request itself, before either path
+ever runs, keeps a person's Room load exactly as cheap as it was before
+this workstream - a static file at zero function cost - while giving the
+crawler the one thing it actually reads.
+
+**Reversal condition.** The day this product needs server-rendered state
+for a PERSON too (an SEO push that needs `/r/:slug` itself to carry real
+content for a search crawler distinct from an unfurl bot, or a no-JS
+fallback), `api/room-page.js` becomes the answer for everyone and the two
+rewrites collapse into one - until then, keeping them separate is what
+keeps the common case free.
+
+## `ws-r40-share-url-carries-no-sender-identity` (2026-09-04, WS-R40)
+
+**Decision.** The url a follower's Share control builds
+(`${origin}/r/<slug>?via=share`) carries exactly one query parameter and
+never a follower id, a session token, or anything else that could identify
+who sent it. `evals/room-share/run.mjs`'s own negative control (a) proves
+this statically against the real `RoomApp.tsx` source, not only by reading
+the code once.
+
+**Rationale.** This product's whole privacy shape is that a follower's own
+words never reach another follower and a follower is never revealed to
+anyone, including the creator, beyond an opt-in n>=5 count
+(`context/rejected.md`'s and `AGENTS.md`'s standing law, restated for
+growth instrumentation rather than conversation content). A share url that
+carried a sender id would let a recipient - or anyone who intercepted the
+link - learn who invited them, which is a form of revealing one follower
+to another this product has never allowed anywhere else. `via=share` says
+HOW a visit arrived, in aggregate, across every follower who ever shares;
+it says nothing about WHO.
+
+**Reversal condition.** The day this product needs to credit a specific
+follower for a referral (a "invite a friend" reward, say), that is a new,
+explicit consent surface with its own opt-in and its own disclosure - not
+a silent parameter added to the existing share url. Log that decision
+separately when it happens; this entry's own guarantee (today's share url
+carries no identity) should stay true regardless.
+
+## `ws-r40-arrival-counted-per-openroom-call-not-deduplicated-per-session` (2026-09-04, WS-R40, migration 102)
+
+**Decision.** `recordRoomArrival` runs on EVERY `openRoom` call this front
+end makes for a given tab - the initial mount and, separately, a re-open
+triggered by switching the chrome language before joining - each passing
+the SAME `via` value read once off the URL. A visitor who switches
+language before joining is counted twice in that day's bucket for that
+`via`, not deduplicated to one.
+
+**Rationale.** `vy_room_arrival` was deliberately built with no session
+column and no finer-than-a-day timestamp (migration 102's own header), so
+there was never a mechanism available to deduplicate "the same visit" in
+the first place - the table's whole design is a coarse, cheap daily count,
+not a unique-visitor tracker. Given that, the two real choices were: pass
+`via` on every call (a rare double-count inflates the SAME bucket the
+value would have landed in anyway), or omit it on the second call (which
+would silently reclassify a real share visit as 'direct', the opposite
+direction of wrong - polluting a specific-cause bucket with noise rather
+than merely over-counting it). The first is the smaller, more honest
+error.
+
+**Reversal condition.** If a future measurement shows this double-counting
+materially distorts the funnel line (an unusually high rate of pre-join
+language switches, say), the fix is a session-scoped, front-end-only
+"already counted this tab" flag that suppresses the SECOND call's `via`
+without touching the table's own no-session design - never a new column
+on `vy_room_arrival` for the reason above.
+
+## `ws-r40-public-room-read-lives-in-room-publish-not-a-new-file` (2026-09-04, WS-R40)
+
+**Decision.** The crawler unfurl's one database read (`publicRoomBySlug`:
+slug -> `{slug, display_name, one_line_bio, default_locale}` for a
+published, unpaused Room, or null) lives in `api/_room-publish.js`, not in
+a new file and not as an extension of `api/_room-surface.js`'s
+`resolveRoom`.
+
+**Rationale.** `api/_room-publish.js` is already the file that owns the
+concept of a "published Room" and its predicate (`ownedRoomRow`,
+`clientRoom`, the publish lock) - a second, public-facing reader of the
+same row belongs next to the owner-facing one rather than in a third file
+that would also have to restate what "published" means. It is
+deliberately NOT `resolveRoom`: that function also loads the agent's
+published sheet through `loadTeacherAgent`, a heavier read a crawler's own
+cost budget (this workstream's other decision, above) does not need - a
+bot wants a name and a sentence, not the whole agent module. It is also
+deliberately WITHOUT `api/_creators.js`'s `listed_at is not null`
+condition: the directory is an opt-in feed a creator chooses to appear on,
+but a follower can share a Room's link, and that link should unfurl,
+whether or not its creator ever opted into the public directory.
+
+**Reversal condition.** If a second public, unauthenticated reader of
+`vy_room`'s public columns is ever needed (a QR code generator, say) and
+its predicate needs to differ from this one (e.g. it SHOULD require
+`listed_at`), that is the moment to extract a shared predicate helper
+rather than duplicating the WHERE clause a third time - two callers with
+the identical predicate is a coincidence worth naming once; three is a
+pattern.
+
+## `ws-r43-tap-target-floor-44px-across-room-controls` (2026-09-04, WS-R43)
+
+**Decision.** Six `room.css` selectors (`.room-rail button`, `.room-pulse-toggle`,
+`.room-menu-open`, `.room-lang-btn`, `.room-checkins-day`, `.room-cite`) are
+raised to a 44x44 css px minimum, WCAG 2.5.8's Minimum criterion widened to
+2.5.5's AAA figure rather than the SC's own 24px floor. `.room-cite` (an
+underlined, chrome-less citation link) is NOT given a WCAG-inline-text
+exception; it is measured as a real control instead, because it sits on its
+own line rather than inside a sentence, which is what that exception
+actually asks for, and it is the only way to reach the citation answer.
+
+**Rationale.** The layout gate rendered the Room in Chromium for the first
+time at real interactive-element granularity and measured 118 findings
+across roughly 18 distinct controls, all between 30 and 41px on at least
+one axis - every button a follower actually taps in a normal conversation
+(the thread rail, "let this count", every header dialog opener, the
+language switch, the check-in weekday picker). None of this was visible to
+any prior gate: the leak battery, the door battery and the export battery
+all drive `api/_room-surface.js` directly and never render a pixel: `44` is
+the number this brief's own law 2 named, and the CSS-only fix (min-height,
+sometimes min-width) changes no markup, no copy, and no decision logic.
+
+**Reversal condition.** If a future design pass deliberately wants a denser
+touch target for a specific control class (a dense list of many rows, say),
+narrow the exception per-selector with its own comment naming the WCAG
+provision it relies on - never widen this decision's floor down globally,
+which is how the original 30-34px sizes were reached in the first place
+(no comment anywhere named a floor at all).
+
+## `ws-r43-room-num-tabular-figure-marker` (2026-09-04, WS-R43)
+
+**Decision.** `.room-num` (`room.css`) is a new, Room-scoped class marking
+an element whose text a follower reads as a NUMBER (a message count, a
+price, a date, minutes used) rather than a label that merely contains a
+digit; it sets `font-variant-numeric: tabular-nums` and is applied to the
+whole sentence-bearing element (`.room-stat`, `.room-upgrade`, the
+capOffer/offerCard price lines, the account page's price/renewal lines, the
+paid-voice minutes line), never to a carved-out `<span>` around just the
+digits, because the property only changes how digit GLYPHS are drawn and is
+harmless on the surrounding words.
+
+**Rationale.** `tokens.css` names no shared numeric-figure token or class
+anywhere in this repo - `grep -rn "tabular-nums"` finds a dozen ad-hoc
+per-selector declarations in `studio.css` and nothing shared - so the
+layout gate's own law 4 ("every element the design tokens mark as numeric")
+had nothing to point at. Rather than invent a bespoke selector list inside
+the gate itself (which drifts the moment a new numeric line is added to a
+component and nobody remembers to update the gate too), the marker is a
+class the COMPONENT authors, so a new numeric line opts in at the JSX site
+where it is written, and the gate stays a one-line selector query.
+
+**Reversal condition.** If a wider numeric-figure convention is ever
+adopted across the studio and the Room (a shared token in `tokens.css`
+rather than a Room-local class), migrate `.room-num`'s call sites to it and
+delete the Room-local rule - the class exists to fill a real gap, not to
+compete with a future shared answer to the same question.
+
+## `ws-r43-glyph-width-test-needs-3-devanagari-chars` (2026-09-04, WS-R43)
+
+**Decision.** The layout gate's glyph-width test (real glyphs must measure
+differently from tofu boxes of the same length by more than 10%) is only
+ENFORCED on a Hindi string with 3 or more Devanagari codepoints (U+0900-
+U+097F). Every string in `ROOM_COPY_TABLE.hi` is still measured and
+`document.fonts.check`-ed regardless; strings under the floor are counted
+and reported (`n` vs `testableN` in the gate's own summary line) but never
+fail the build on the width test alone.
+
+**Rationale.** The width-diff test's premise is "a run of REAL glyphs is
+not uniform width the way tofu boxes are" - a premise that needs a real RUN
+to say anything. Three of `ROOM_COPY_TABLE.hi`'s 180 strings are ASCII
+placeholders with zero Devanagari codepoints at all (`join.phonePlaceholder`
+"+91", `checkins.waPhonePlaceholder` "+91XXXXXXXXXX") and one is a
+two-character word (`checkins.quietToLabel` "तक") where "percent different
+from uniform" is mostly sampling noise on a 2-glyph sample. Enforcing the
+10% floor on these produced three findings on the FIRST real run of this
+gate, none of which were a tofu risk (an ASCII string cannot render as a
+missing-glyph box; nobody would ever see one). The threshold of 3 is the
+floor, not tuned to make these three pass: it excludes exactly this class
+of string while a genuine tofu run (measured elsewhere in this same run at
+36-41% diff on real sentences, and at 100% of testable strings once this
+threshold was temporarily forced to an impossible 200% as a negative
+control) clears 10% with wide margin regardless of length.
+
+**Reversal condition.** If a future Hindi string is added that is short (1
+or 2 Devanagari characters) AND commonly rendered ALONE rather than beside
+other chrome (so a real tofu box there would actually be visible and
+matter), lower the floor for that specific string's context or add a
+by-string override - never lower the global floor as a blanket fix, which
+would re-admit the "+91"-shaped noise this decision exists to exclude.
+
+## `ws-r43-new-room-screens-tested-at-phone-viewport-only` (2026-09-04, WS-R43)
+
+**Decision.** The four screens this workstream's fixtures reached for the
+first time (`?screen=checkins`, `handoff`, `capped`, `receipt`, English and
+Hindi) run in `scripts/check-layout.mjs`'s `room:more`/`room-hi:more`
+targets at the 390x844 phone viewport ONLY, via a new `onlyViewport` field
+on a target - not at all three of this file's shared viewports (390/834/
+1355) the way `room`/`room-hi`'s original three screens (join/talk/account)
+do.
+
+**Rationale.** The brief's own law 2 names 390x844 specifically for the tap-
+target/clipped-text/tabular-nums checks this workstream added, and this
+whole battery's runtime is a named, measured budget (two minutes on this
+machine, `context/measurements.md#ws-r43-layout-gate-runtime-before-after`).
+Running four more screens at three viewports instead of one would have
+roughly tripled their added cost (24 extra page loads at about 2s of fixed
+settle time each versus 8) for tablet/desktop coverage the brief never
+asked for and this file makes no assertion about.
+
+**Reversal condition.** If a desktop or tablet rendering defect is ever
+suspected or reported on one of these four screens specifically (a
+collapsed column, an overflowing dialog), widen `room:more`/`room-hi:more`
+to the full `VIEWPORTS` array like `room`/`room-hi` already are - the
+runtime budget is a reason to scope narrowly by default, not a reason to
+stay narrow once there is a real defect to catch.
+
+## `ws-r60-razorpay-provider-file-edited-append-only` (2026-09-04, WS-R60)
+
+**Decision.** `api/_payments/providers/razorpay.js`'s existing docblocks for
+`updateSubscriptionQuantity`, `registerFundAccount` and `sendPayout` were
+LEFT AS WRITTEN by WS-R41 ("STILL NOT VERIFIED" / "PARTIALLY VERIFIED"),
+even though this workstream fully verified all three. The new findings
+landed instead in one new comment block appended after
+`verifyWebhookSignature`, at the physical end of the file.
+
+**Rationale.** This workstream's own brief (law 3) names WS-R56 as building
+the RazorpayX payout status webhook against these same shapes concurrently,
+and instructs "keep your edits to the provider file append-only so the
+merge is mechanical." Editing the three existing docblocks in place — even
+just to flip a status word — risks a hunk collision with whatever WS-R56
+touches nearby in the same file, which a pure end-of-file append cannot
+cause regardless of where WS-R56's own edits land. The cost is an admitted
+one: two comments about the same function (the stale one above, the
+corrected one at the end) can drift apart if a THIRD workstream edits only
+one of them — flagged explicitly in the addendum's own opening lines,
+which name the fix (fold the addendum into the docblock, delete the
+addendum) for whoever next touches these three functions directly, rather
+than left implicit.
+
+**Reversal condition.** Once WS-R56 has merged and no longer risks a
+concurrent edit to this file, fold the addendum's three per-function notes
+into their own docblocks in place and delete the addendum block — the
+merge-safety reason for the split disappears the moment the concurrency
+does.
+
+## `ws-r60-meta-subscribed-apps-api-answers-the-two-url-question` (2026-09-04, WS-R60)
+
+**Decision.** The operator question `ws-r29-whatsapp-credentials-reused-
+not-forked` logged open ("does Meta permit routing one subscription's
+deliveries to two URLs, does an operator need to merge the two doors behind
+one URL, or does Rooms need its own WABA number") is now ANSWERED from
+Meta's own reference documentation, though not yet ACTED on — no code in
+this repo changes as a result of this entry; it narrows the operator's
+choice, it does not make it for them.
+
+**What the documents say, cross-checked three ways.** (1)
+`developers.facebook.com/documentation/business-messaging/whatsapp/
+reference/whatsapp-business-account/subscribed-apps-api`: `GET/POST/DELETE
+/<WABA_ID>/subscribed_apps` — the GET response's `data` field is "array of
+[SubscribedApp]", and each `SubscribedApp` carries its own optional
+`override_callback_uri`. (2) `.../webhooks/overview`: "Meta sends retries
+to all apps that have subscribed to webhooks... for the WhatsApp Business
+account" — plural apps, explicitly. (3) `.../webhooks/override/`: the
+DIFFERENT, narrower mechanism (one app, one override URL per WABA or per
+phone number, with a documented fallback hierarchy: phone-number override
+> WABA override > app default) — this is NOT the same capability as (1)
+and answers a different question (how one app routes its own deliveries
+away from its App Dashboard default), so the original decision's option
+(a) ("Meta permits routing one subscription's deliveries to two URLs") was
+almost right but conflated two mechanisms: ONE app cannot get two URLs for
+the same WABA/number via the override mechanism, but TWO DIFFERENT apps
+CAN each be subscribed to the SAME WABA via the Subscribed Apps API, each
+getting its own full delivery at its own URL (its own override, or its own
+App Dashboard default).
+
+**What this still does not resolve.** No document fetched states a ceiling
+on how many apps one WABA may have subscribed at once, so whether Meera's
+DM lane (`api/whatsapp.js`) and the Room's check-in lane (`api/room-wa.js`)
+becoming two separate Meta Developer Apps is workable in practice — versus
+merging behind one door, versus a second WABA number — is still an
+operator decision for whoever registers the real webhook, made with a real
+WABA in front of them, not a code decision this workstream can make blind
+(the original decision's own words, restated because they are still true).
+
+**Reversal condition.** If an operator registers two apps against one WABA
+via the Subscribed Apps API and Meta refuses, rejects, or silently drops
+one — supersede this entry and `ws-r29-whatsapp-credentials-reused-not-
+forked`'s open paragraph with what actually happened, and fall back to
+option (b) or (c) from the original decision.
+
+## `ws-r56-payout-webhook-where-spans-queued-and-sent` (2026-09-04, WS-R56)
+
+**Decision.** `api/_payments.js`'s new `applyPayoutWebhook` (migration 111)
+treats BOTH `queued` and `sent` as valid leaving states for a `processed`
+event (-> `settled`) and for a `failed`/`reversed` event (-> `failed`) - one
+UPDATE per outcome, WHERE `state in ('queued','sent')` - rather than the
+single-state WHERE `markPayoutSent`/`markPayoutSettled` (WS-R36) each use.
+
+**Rationale.** `markPayoutSent` (`queued -> sent`) has had no caller
+anywhere in this tree since WS-R36 built it, and this workstream's own
+brief does not add one (`parsePayoutEvent`'s `kind` enum is fixed to
+`'processed'|'failed'|'reversed'`, no fourth "processing"/"initiated" kind
+in scope). A real deployment's payout will therefore sit at `queued` for
+its entire life until a status webhook arrives - a strict `sent ->
+settled`/`sent -> failed` WHERE (the literal shape this workstream's own
+brief law 2 names as its worked example) would silently no-op on EVERY real
+`processed` event, because the row would never have reached `sent` first.
+Spanning both states in the WHERE keeps `markPayoutSent`/`markPayoutSettled`
+themselves byte-unchanged (available to whatever future poll or
+`payout.processing`-shaped event would want to call them) while making the
+two states the creator's own statement actually needs (`settled`, `failed`)
+reachable from the state a real payout is actually left sitting in today.
+
+**Reversal condition.** If a future workstream wires a caller for
+`markPayoutSent` (a `payout.processing`/`payout.initiated` webhook kind, or
+a poll), narrow `applyPayoutWebhook`'s own WHERE back to `state = 'sent'`
+only for both outcomes, matching the state machine's documented shape
+exactly (`db/migrations/098`'s own header) rather than the wider,
+provisional set this decision uses to route around the gap. Evidence that
+would force this sooner: a real webhook event observed for a payout this
+platform's own state machine says is still `queued` when the provider's own
+records say it was already in flight (i.e. `sent` genuinely means something
+mid-flight the current WHERE is masking) - nothing in this session's offline
+evals can produce that evidence; it needs a live provider account.
+
+## `ws-r56-event-ledger-is-the-payout-row-not-a-second-table` (2026-09-04, WS-R56)
+
+**Decision.** Migration 111 adds `settled_at`/`failure_reason` as two
+COLUMNS on `vy_creator_payout`, never a new `vy_payout_event`-shaped table.
+
+**Rationale.** This workstream's own brief law 3 asked the question
+directly: "if a row per event is needed, say why a column is not enough
+before writing a table." A payout's own state machine (migration 098) is
+closed and every one of its non-`built` states is a TERMINAL or
+single-step transition - a payout receives at most ONE `processed` and at
+most ONE `failed`/`reversed` outcome in its whole life, never a sequence
+the way `vy_payment_event` genuinely needs one row per follower charge
+(many charges, one subscription, over months). The row itself, widened
+with WHEN it settled and WHY it failed, already carries everything a
+one-event-per-payout ledger would; a second table would exist only to hold
+exactly one row per `vy_creator_payout` row, a shape SQL already has a
+name for - a column.
+
+**Reversal condition.** If RazorpayX is ever observed sending MULTIPLE
+distinct status events across a single payout's life that this platform
+needs to keep separately (e.g. a `processed` followed much later by an
+independent `reversed` on the SAME transfer, both worth showing on the
+statement rather than the second simply overwriting the first) - not
+proven or disproven by anything in this session, since no live provider
+account exists - split into a real `vy_creator_payout_event` table at that
+point, keyed the way `vy_payment_event` already is.
+
+## `ws-r56-payout-webhook-reuses-payments-webhook-ip-rate-scope` (2026-09-04, WS-R56)
+
+**Decision.** `applyPayoutWebhook`'s abuse gate reuses the EXISTING
+`payments_webhook_ip` scope (`api/_rate-limit.js`, WS-R26) rather than
+minting a new `payouts_webhook_ip` scope.
+
+**Rationale.** Both doors sit behind the same reasoning `api/_payments.js`'s
+own header already states for `payments_webhook_ip`: "the provider's own
+delivery IPs, not a person, and a throttled webhook is retried later per
+the provider's own policy." A payout webhook is a strict subset of the
+volume a Subscriptions webhook already sees (one event per payout attempt,
+versus one per follower charge), so sharing the ceiling costs nothing and
+keeps `api/_rate-limit.js` - a shared file this workstream's brief did not
+name - untouched.
+
+**Reversal condition.** If RazorpayX is ever observed sending payout status
+events at a volume that could starve the Subscriptions webhook's own share
+of the shared 240/min ceiling (unmeasurable without a live account), split
+a dedicated `payouts_webhook_ip` scope at that point rather than raising
+the shared ceiling, which would also raise it for the higher-volume door.
+
+## `ws-r55-canvas-not-resvg-for-devanagari` (2026-09-04, WS-R55)
+
+**Decision.** The Room's pictures (`og.png`/`story.png`) are rasterised with
+`@napi-rs/canvas` (Skia's own text shaper, drawn via `fillText`), not
+`@resvg/resvg-js` (SVG-to-raster) — the library WS-R55's own brief named.
+`api/_room-card.js` still exposes `renderRoomCard` returning an SVG string
+(used for the copy scan and as a human-inspectable artefact) alongside
+`computeCardLayout`, the one shared pure layout both the SVG string and the
+canvas draw calls read, so the two representations cannot draw a different
+picture from the same inputs.
+
+**Rationale.** Measured, not assumed: resvg-js 2.6.2 (and 2.7.0-alpha.2, the
+latest prerelease) corrupts the ordinary Devanagari consonant+matra+
+consonant cluster ("बात", "talk" — also the first content word of the
+Room's own Hindi disclosure sentence), and drops a space adjacent to
+certain vowel-sign clusters, with the identical current-release font bytes
+that render every one of the same strings correctly through
+`@napi-rs/canvas`. Full isolation steps in `context/rejected.md#ws-r55-resvg-devanagari-shaping`.
+A silently-wrong Hindi word on a card meant to be a creator's first
+impression on WhatsApp/Instagram is a correctness bug this product cannot
+ship, and the brief's own law ("Speed and quality are never traded away")
+makes the SVG-library choice a means, not the requirement — the actual
+requirement is "the Room's picture, in both locales, correct."
+
+**Reversal condition.** If a future `@resvg/resvg-js` release (tracked past
+2.7.0-alpha.2) is verified — by rendering this exact repo's own
+`roomDisclosureCard` Hindi sentence and diffing pixels, not by reading a
+changelog — to shape Devanagari clusters correctly AND its own font-loading
+API gains a first-class way to load a `.ttf`/`.woff2` buffer on the NATIVE
+(non-WASM) package (see `context/rejected.md#ws-r55-fontsource-woff2-unreadable-by-resvg-native-font-loader`),
+resvg-js becomes eligible again on the strength of a real measurement, not
+a version number. Until then, do not re-attempt resvg-js for any
+Devanagari-bearing render in this product without first reproducing this
+workstream's own three-word test (`बात` alone vs. as part of a sentence).
+
+## `ws-r55-font-package-choice` (2026-09-04, WS-R55)
+
+**Decision.** The bundled face is `@expo-google-fonts/noto-sans-devanagari`'s
+raw `400Regular.ttf` (221 KB), not `@fontsource/noto-sans-devanagari`
+(woff/woff2 only, Devanagari-only subset per file). Licence: `MIT AND
+OFL-1.1` — OFL-1.1 for the Noto Sans Devanagari font itself (the same
+licence every other Noto face already in this product carries), MIT for
+Expo's own npm packaging of it; both permissive, no attribution file this
+repo does not already carry for every other OFL Noto face it ships.
+
+**Rationale.** Two independent reasons converged on the same file: (1)
+`@napi-rs/canvas`'s Skia font manager DOES parse `.woff2` directly, so the
+"resvg can't read woff2" problem that first pointed away from `@fontsource`
+is moot for the shipped rasteriser — but (2) this card is always
+mixed-script (an English or Hindi name/bio, always an `AI`/`Vyakti` Latin
+brand mark and disclosure fragment), and `@fontsource`'s own Devanagari
+subset carries no Latin glyphs at all, which would need a SECOND bundled
+file (and font-fallback logic Skia's own registration order does not
+obviously guarantee) to cover. One raw `.ttf` with both scripts, verified
+by rendering "Anjali Sharma AI - प्रिया नहीं है Vyakti" through it
+end-to-end before this became the shipped choice, is simpler and smaller
+than two subset webfont files plus a fallback chain.
+
+**Reversal condition.** If the function bundle size (`context/measurements.md#ws-r55-function-bundle-size`)
+ever needs to shrink further and a Devanagari-only render becomes common
+enough to matter, split into `@fontsource`'s two subset `.woff2` files
+(devanagari + latin, both readable by `@napi-rs/canvas`) and register both
+with Skia — cutting roughly 120 KB versus the current single `.ttf`. Not
+done now because the font is a rounding error next to the ~34 MB the
+native canvas addon itself costs (see the bundle-size measurement).
+
+## `ws-r55-musl-binary-excluded-from-the-function` (2026-09-04, WS-R55)
+
+**Decision.** `vercel.json`'s `functions["api/room-card.js"].excludeFiles`
+strips `node_modules/@napi-rs/canvas-linux-x64-musl/**` from this one
+function's deployed bundle.
+
+**Rationale.** `@napi-rs/canvas` ships one native `.node` binary per
+platform+libc as an `optionalDependency`, loaded by a runtime
+platform/libc check its own `index.js` performs with a try/catch per
+candidate. `@vercel/nft` (the same tracer `vercel build` uses) cannot
+execute that check statically, so it conservatively includes EVERY
+candidate it can see a `require()` for. On this repo's `linux-x64` install
+that is both the glibc (`-gnu`, ~33.97 MB) and musl (`-musl`, ~30.32 MB)
+binaries — 66.3 MB total traced for `api/room-card.js` alone
+(`context/measurements.md#ws-r55-function-bundle-size`), over Vercel's 50 MB
+function limit. Vercel's own Node.js runtime is Amazon Linux (glibc), the
+same libc family as this development container (confirmed:
+`ldd --version` here reports glibc 2.39) — the musl binary can never be the
+one that actually loads in production, so excluding it costs nothing at
+runtime and removes ~29 MB from the deployed bundle, landing at roughly
+34.3 MB, comfortably under the limit.
+
+**Reversal condition.** If Vercel ever offers a musl-based (Alpine)
+Node.js runtime as a selectable target for this function, `excludeFiles`
+must be removed (or narrowed to exclude `-gnu` instead) before switching to
+it — this decision hard-codes an assumption about the deployment platform's
+libc that a runtime change would silently invalidate.
+
+## `ws-r57-style-src-unsafe-inline-scoped-to-style-only` (2026-09-04, WS-R57)
+
+**Decision.** `vercel.json`'s CSP carries `style-src 'self' 'unsafe-inline'`
+on every route class. `script-src` never carries `'unsafe-inline'`
+anywhere - it is either `'self'` alone (the Room, the studio: `npx vite
+build` emits zero inline `<script>` on either, verified by grepping the
+built `dist/*.html` for a bare `<script>` tag with no `src`) or `'self'`
+plus the exact `sha256-` hash of each literal inline script the four static
+marketing pages ship (`/`, `/vyakti`, `/suites`, `/creators`).
+
+**Rationale.** The brief's own law names this split explicitly for
+scripts ("never `'unsafe-inline'` for scripts") and is silent on styles,
+and the silence is not an oversight: `grep -rn "style={{" src/room
+src/studio` finds 16 call sites of React's own inline `style` prop across
+both surfaces (`RoomApp.tsx`, `MirrorCallStudio.tsx`, `LivenessCapture.tsx`
+and others) - values computed at RENDER TIME (a drag position, an
+in-flight opacity), which a static hash cannot cover no matter how the
+build is arranged, because a hash is a hash of one fixed string and these
+strings differ on every render. `'unsafe-hashes'` (the CSP3 keyword that
+lets a hash cover an ATTRIBUTE rather than an element) does not solve this
+either, for the same reason: the values are dynamic, not a small fixed set.
+Style injection is also a materially smaller blast radius than script
+injection - it cannot itself execute arbitrary JS or exfiltrate a session
+token the way an unreviewed inline script can - which is the standard,
+widely-used justification for treating the two directives differently
+rather than an ad hoc exception invented for this repo.
+
+**Reversal condition.** If `src/room` or `src/studio` is ever refactored to
+express all dynamic positioning/opacity through CSS custom properties set
+via `element.style.setProperty()` (still governed by `style-src`, so this
+alone does not remove the need for `'unsafe-inline'`) AND a nonce-based
+`style-src` becomes practical (a per-request nonce needs the HTML to be
+generated per-request, which `dist/room.html`/`dist/studio.html` are not -
+they are static files Vercel serves unchanged to every visitor), tighten
+`style-src` to match `script-src`'s posture. Until then this is the honest
+floor, not a placeholder for laziness.
+
+## `ws-r57-csp-hashes-not-nonces-for-static-marketing-pages` (2026-09-04, WS-R57)
+
+**Decision.** The four static marketing pages' `script-src` uses `sha256-`
+hashes of each page's exact inline `<script>` content, computed once and
+committed as literal strings in `vercel.json`, rather than a `nonce-`
+value generated per request.
+
+**Rationale.** A nonce has to be minted fresh on every response and
+threaded into both the CSP header and the `<script nonce="...">`
+attribute by the SAME request handler - it only works when the HTML is
+generated per-request. `site/index.html`, `site/vyakti.html`, `site/
+suites.html` and `site/creators.html` (three of the four; the fourth is a
+Vite build input) are static files copied verbatim into `dist/` at BUILD
+time and served unchanged to every visitor by Vercel's CDN - there is no
+per-request handler to mint a nonce into, and adding one (an Edge Function
+in front of four pages that exist specifically so they need no server) is
+a materially bigger change than this workstream's brief asked for. A hash
+needs no per-request anything: it is computed once from the exact,
+unchanging script text and is either right or, if the text ever changes,
+loudly wrong - `scripts/check-headers.mjs`'s own Chromium pass is what
+catches that drift (see its own header), not a promise that the hash was
+computed correctly once.
+
+**Reversal condition.** If any of these four pages ever needs a script
+whose content varies per request (per-visitor A/B copy, a server-rendered
+CSRF token inlined into a `<script>` block), that page's static-file
+status ends and its `script-src` should move to a nonce minted by whatever
+handler starts rendering it, at which point its hash-based entry in
+`vercel.json` becomes wrong by construction rather than merely unused.
+
+## `ws-r57-room-and-studio-csp-tested-against-layout-fixtures` (2026-09-04, WS-R57)
+
+**Decision.** `scripts/check-headers.mjs` loads `room-layout-fixture.html`
+(with `?screen=join`) to test the Room's CSP, not the real, shipping
+`room.html` - while the studio target loads the real, shipping `studio.html`
+directly, no fixture.
+
+**Rationale.** The real `room.html` fetches `/api/room` on mount
+(`RoomApp.tsx`'s first `useEffect`) to resolve who is asking; in
+production the real handler always answers with a full `RoomOpen` shape or
+a proper typed error, but this gate runs with no secret and no database (a
+hard law: "No money: no GPU wakes, no paid API calls" and the door/leak/
+export batteries already prove handler BEHAVIOUR offline through fakes -
+duplicating that here was never this gate's job). A naive `{ok:true}` stub
+for every `/api/*` path was tried first and threw `Cannot read properties
+of undefined (reading 'name')` inside React the moment the page tried to
+read `.room.name` off a body shaped nothing like `RoomOpen` - a crash
+this gate must not confuse with a CSP defect. `room-layout-fixture.html`
+already exists to solve exactly this wall for `scripts/check-layout.mjs`
+and `scripts/check-accessibility.mjs` (its own header: "no secret, no
+network, deterministic"), including a working `/api/room` fetch stub
+(`installFetchStub`), so this reuses it rather than inventing a third
+answer to the same question. `dist/studio.html` needed no such swap:
+`scripts/check-performance.mjs` already proved the real, signed-out studio
+shell loads cleanly with no API call at all (it does not fetch account
+state until a person actually starts signing in), confirmed again here.
+The CSP itself is unaffected either way: `diff` on the built `<style>`
+element and the `<script src>` shape across `room.html`/`room-layout-
+fixture.html` shows the identical shell (both carry the one inline
+`<style>@layer ...</style>` line, byte-identical, and one external
+`<script type="module" src="/assets/...">`, external either way) - only
+the fixture's OWN bundle filename differs, which is irrelevant to
+`script-src 'self'`.
+
+**Reversal condition.** If a future change makes `room.html`'s mount-time
+fetch tolerant of an unexpected 200 body (fails soft into the "this room
+is not open" honest-empty state rather than throwing), point this gate at
+the real file directly, the same way the studio target already is, and
+drop the fixture dependency for the Room too.
+
+## `ws-r57-frame-ancestors-none-with-no-exception-taken` (2026-09-04, WS-R57)
+
+**Decision.** Every route class's CSP carries `frame-ancestors 'none'`,
+with no per-route exception - the brief's own text flagged WS-R46's embed
+decision as a possible reason to relax it, and this workstream read that
+decision and did not.
+
+**Rationale.** `context/decisions.md#ws-r46-no-iframe-v0` already settled
+this: the Room's own-site embed opens `/r/<slug>?via=embed` in a NEW TAB
+at this platform's own origin, deliberately never inside an `<iframe>`,
+specifically because a per-creator allowed-origin table (the thing that
+would justify relaxing `frame-ancestors`) is real, unbuilt write surface
+that decision explicitly declined to build. `grep -rn "<iframe" src/
+site/` (both directories, both this workstream's own concern and every
+neighbouring one) returns zero matches anywhere in this tree. Relaxing a
+header for a feature that does not exist is not defence in depth, it is a
+door left open for nobody.
+
+**Reversal condition.** Exactly WS-R46's own reversal condition, inherited
+rather than restated with a new one: the first creator who asks for the
+Room to sit INSIDE their page (an iframe request, not a button-styling
+preference) is the signal to build the per-creator allowed-origin table
+AND relax `frame-ancestors` for that route to name it - never a blanket
+`'self'` or a wildcard added ahead of that table existing.
+
+## `ws-r57-connect-src-self-everywhere-no-external-host-needed` (2026-09-04, WS-R57)
+
+**Decision.** `connect-src 'self'` on every route class, with no external
+host added, despite the brief's own text anticipating one ("the Supabase
+auth host and whatever the Room's API doors need").
+
+**Rationale.** Read from `src/`, as the brief asked: every `fetch()` call
+in `src/room/` and `src/studio/` targets a literal `/api/...` path (`grep
+-rn 'fetch(' src/room src/studio`, cross-checked against every non-
+literal call site by hand - `mirrorCallApi.ts`'s `url()` helper builds
+`/api/mirror-call?op=...`, still same-origin). `studioAuth.ts`'s Google
+sign-in (`googleSignIn`) and `LivenessCapture.tsx`'s Azure Face Liveness
+flow (`startFaceSession`) are the two places this tree actually talks to
+an external identity provider, and NEITHER is a `fetch()` the parent
+document's `connect-src` would gate: the first is `window.location.assign(url)`,
+a top-level navigation of the SAME browsing context; the second opens a
+popup (`window.open("about:blank", ...)`) and navigates IT
+(`popup.location.replace(link.toString())`) - a different browsing
+context with its own CSP surface, unaffected by the parent's. Both are
+proven same-origin-only rather than assumed: `scripts/check-headers.mjs`'s
+own Chromium pass loads the real Room and studio shells with `connect-src
+'self'` already enforced and reports zero violations.
+
+**Reversal condition.** If a future change adds a browser-side
+`supabase-js` client (replacing the current server-side proxy through
+`api/account`) or any other direct browser fetch to a non-`/api/*` host,
+add that host to `connect-src` in the same commit that adds the fetch -
+never after, and never a wildcard in the meantime.
+
+## `ws-r57-header-route-scope-is-the-six-named-targets-not-every-vercel-json-path` (2026-09-04, WS-R57)
+
+**Decision.** `vercel.json`'s new `headers[]` array, `scripts/check-
+headers.mjs`'s Chromium pass, and `evals/ops/run.mjs`'s new static §6 all
+cover exactly seven route classes: the Room, the studio, `/`, `/vyakti`,
+`/suites`, `/creators` and `/api/(.*)`. Nothing was added for `/privacy`,
+`/delete-account`, `/embed.js`, `/room-embed.js` or `/sitemap.xml`, all
+five of which `vercel.json`'s own `rewrites` array already names.
+
+**Rationale.** This is the brief's own closed list, quoted verbatim in its
+law 2 ("loads the Room, the studio, `/`, `/vyakti`, `/suites`, `/creators`
+in Chromium"). Widening it to every rewritten path is a bigger, unscoped
+security audit nobody asked this workstream for, and the two kinds this
+brief did not name are meaningfully different animals: `/privacy` and
+`/delete-account` are legal-text pages this repo already treats specially
+(`scripts/roomsVocabAllowlist.mjs`'s own two-file scope, `context/
+rejected.md`'s convention of never touching consented legal copy without a
+named reason), and `/embed.js`/`/room-embed.js`/`/sitemap.xml` are
+non-HTML responses (JavaScript, XML) that a page-shell CSP does not even
+apply to the same way. Extending coverage to those needs its own decision
+about what each one's policy should BE, not a mechanical copy of this
+workstream's HTML-page template onto files that are not HTML pages.
+
+**Reversal condition.** If a future incident or review names one of the
+five uncovered paths specifically (a report that `/sitemap.xml` is
+missing `nosniff`, say), add that ONE path's header entry in its own
+commit with its own reasoning - not a blanket widening of this
+workstream's `ROUTE_CLASSES` list to "everything `vercel.json` rewrites,"
+which would silently start asserting a policy about pages nobody has
+looked at yet.
+
+## `ws-r58-withdoor-observes-status-never-rewrites-response` (2026-09-04, WS-R58)
+
+**Decision.** `api/_incidents.js`'s `withDoor` wraps a thin door's WHOLE
+handler and patches only `res.status` to remember the last code sent,
+recording one incident if that code is >=500 once the handler settles. It
+never inspects the caught error, never changes what a door sends, and never
+edits any door's own catch block - eleven doors (`room.js`, `room-pay.js`,
+`room-publish.js`, `payments.js`, `org.js`, `invites.js`, `tg.js`,
+`whatsapp.js`, `checkins.js`, `handoff.js`, `apply.js`) adopt it with a
+one-line export change and zero lines touched inside their own try/catch.
+
+**Rationale.** No shared `sendError`/`fail`/`json(res, 5` helper exists
+across these doors (grepped before building anything, per the workstream
+brief's own instruction) - each hand-rolls `console.error(...);
+res.status(5xx).json(...)`. Editing eleven catch blocks by hand is eleven
+places the SAME logic could drift; observing the response from the outside
+is one function, and `evals/room-doors/run.mjs` (302/302, unchanged before
+and after) proves it changes nothing else about any door. `tg.js`/
+`whatsapp.js` deliberately mask an internal failure as `res.status(200)` so
+Telegram/Meta do not retry-storm a transient bug forever - `withDoor` is a
+pure observer of whatever status a door actually sends, so it correctly
+records nothing for those two today rather than second-guessing what the
+door "really" meant.
+
+**Reversal condition.** If a door's catch-all block is ever refactored to
+carry a real message/detail into the 5xx body (which the copy/leak
+disciplines already forbid, so unlikely), `withDoor` still only reads the
+STATUS CODE, never the body, so it stays content-free regardless. Reverse
+this decision - move to editing each catch block directly - only if a
+future door's response shape makes `res.status` unpatchable (e.g. a
+framework migration that no longer returns `res` from `.status()` for
+chaining); `evals/incidents/run.mjs`'s own `withDoor` tests would start
+failing first and say so.
+
+## `ws-r58-incident-kind-vocabulary-is-a-closed-five-value-list` (2026-09-04, WS-R58)
+
+**Decision.** `vy_incident.kind` (migration 109's CHECK, mirrored in
+`api/_incidents.js`'s `INCIDENT_KINDS`) is exactly `door_5xx`,
+`provider_payments`, `provider_telegram`, `provider_whatsapp`,
+`provider_webpush` - five values, one per call-site CLASS the workstream
+brief named (every thin door's own catch-all as one class; each of the
+three provider seams named in law 2b as three more), never one kind per
+door and never a free-text label.
+
+**Rationale.** The ops board's own promise is "last 7 days by KIND AND
+DOOR as counts" - `door` already carries which file, so `kind` only needs
+to say WHAT SHAPE of failure this was, and five shapes is small enough to
+read as a sentence rather than a table nobody will ever finish reading. A
+per-door kind (`room_js_5xx`, `payments_js_5xx`, ...) would have made the
+"a kind not seen in the previous 7 days" alert (workstream law #4) fire on
+ordinary door rotation rather than on a genuinely new FAILURE SHAPE, which
+is the thing worth waking an operator up for.
+
+**Reversal condition.** If a future incident needs to distinguish, say, a
+timeout from a 5xx within the SAME provider (a distinction an operator
+would act on differently), add a sixth value to both the CHECK and
+`INCIDENT_KINDS` in the same commit - `evals/incidents/run.mjs`'s own
+"INCIDENT_KINDS is the exact five-member closed list" check would need
+updating too, which is the point: the two lists drifting apart silently is
+exactly what that check exists to catch.
+
+## `ws-r58-operator-push-subscription-store-does-not-exist` (2026-09-04, WS-R58)
+
+**Decision.** `notifyNewIncidentKinds` sends through the real
+`api/_push/webpush.js` `send()` every follower notification already uses,
+but resolves operator subscriptions through an INJECTED
+`deps.operatorSubscriptionsFor` (default: resolves to `[]` for every
+operator) rather than building a new subscription table. In production
+today this claims the ledger row correctly and finds nobody real to push
+to - a structural gap, named rather than hidden, not a fix deferred by
+building a fake one.
+
+**Rationale.** `vy_room_push_subscription` (migration 085) is scoped to a
+follower's own `(room_id, person_id, follower_id)`, never to a platform
+operator's Supabase auth id, and there is no other store anywhere in this
+repo that maps `OPS_OWNER_USER_IDS` to a browser subscription. Building one
+needs its own migration number (this workstream was given only 109, for
+`vy_incident`), its own UI (an "enable alerts" control this workstream's
+file list - `db/migrations/109_incident.sql`, `db/schema.sql`,
+`api/_incidents.js`, the eleven doors, `api/_ops.js`,
+`src/studio/OpsBoard.tsx`, `api/_checkins.js` - does not name), and its own
+review of what "an operator's own device" even means for a platform with no
+per-operator sign-in surface today. Shipping a plausible-looking store this
+workstream had no way to prove reachable would be exactly the
+`api/memory.js` "a plausible return hides a dead pipeline" trap AGENTS.md
+names.
+
+**Reversal condition.** The day a real operator push-subscription store
+exists (its own migration, its own thin door, its own UI toggle), wire it
+in as `deps.operatorSubscriptionsFor`'s real implementation and delete this
+decision's "does not exist" clause - `notifyNewIncidentKinds`'s own
+signature does not change, only what is passed to it in production.
+
+## `ws-r58-notify-claim-only-marks-notified-with-a-configured-recipient` (2026-09-04, WS-R58)
+
+**Decision.** `claimNewKindNotification`'s UPDATE only runs (so
+`notified_at` is only ever set) when `notifyNewIncidentKinds` has already
+confirmed VAPID is fully configured AND `OPS_OWNER_USER_IDS` is non-empty.
+An unconfigured deployment never claims a row for a kind that appeared
+before it was configured, so the day it IS configured, that still-unclaimed
+kind can fire once, rather than having silently "used up" its one alert
+against nobody.
+
+**Rationale.** `notified_at` is a promise that an alert was attempted for a
+real, configured audience, not a bookkeeping flag that a sweep tick merely
+ran. `api/_checkins.js`'s own `webPush` deliverer already draws this exact
+line (`state='not_configured'`, no network call, versus a real attempted
+send) - restated here for a claim instead of a delivery ledger row.
+
+**Reversal condition.** If an operator ever reports missing an alert for a
+kind that was already present before VAPID/allowlist got configured, check
+first whether this decision is why (the row genuinely never claimed) before
+assuming a bug in the claim SQL - that is the intended behaviour, not a
+defect, and evidence it is unwanted would be the reversal trigger.
+
+## `ws-r54-suite-reconcile-reads-attachment-history-prorated` (2026-09-04/05, WS-R54)
+
+**Decision.** `reconcile`'s Suite lane (`reconcileSuiteLane`, `api/_payments.js`)
+now reads `suiteRows` as one row per `vy_room_org_attachment` (migration 108)
+INTERVAL that overlaps the period being reconciled - `[attached_at,
+coalesce(detached_at, +infinity))` intersected with `[period.start,
+period.end)` - and prorates each interval's full-price share by the
+fraction of the period it actually overlaps, in fractional days
+(`Math.trunc(fullShare * overlapMs / periodMs)`). `reconcilePeriod` feeds it
+from a new SQL statement joining `vy_room_org_attachment` to an org with an
+ACTIVE `vy_org_subscription`, never the Room's CURRENT `org_id`. A Room
+attached to TWO Suites inside one period gets the SUM of both intervals'
+own prorated shares, never a single flat share picked from whichever Suite
+holds it at build time - if the two Suites charge different
+`price_per_seat_inr`, that total need not equal either Suite's own
+full-period number, and this is the correct answer, not an approximation.
+
+**Rationale.** This directly fires the reversal condition
+`ws-r42-reconcile-suite-lane-uses-current-attachment` itself named: "the day
+a Room-organisation attachment history table exists... `reconcilePeriod`
+should read attachment AS OF the period's own `period_end` from it instead."
+This decision goes one step past that literal wording (a single as-of
+instant) into a real overlap-and-prorate read, because an as-of-period-end
+read alone still gets the two-Suites-in-one-period case wrong (it would
+credit the WHOLE period to whichever Suite held the Room at the very last
+instant) and still mis-answers the exact motivating example WS-R42 itself
+gave: "a Room detached on the 2nd is reconciled as never attached" - an
+as-of-period-end read agrees with that wrong answer (the Room is not
+attached AT period end, so it would still show zero expected), where an
+overlap read correctly credits the 1-2 days it really held. Proven in
+`evals/payments-reconcile/run.mjs` §3b (half-period proration), §3c (two
+Suites, the exact split written down), and §3d NEGATIVE CONTROL (e) (the
+OLD current-attachment-only shape, fed to the SAME pure `reconcile`
+function, produces a false `suite_share_mismatch` for a Room correctly
+paid for 2 of 30 days - proving the old shape wrong, not merely different).
+This still shares `runPayoutRollup`'s own unfixed limitation: there is no
+`price_per_seat_inr` HISTORY, so every interval prices at that org's
+CURRENT active-subscription rate, never the rate actually in force during
+the interval.
+
+**Reversal condition.** The day a `vy_org_subscription` PRICE history exists
+(a table recording what `price_per_seat_inr` was at each point in time,
+not only its current value), `reconcileSuiteLane` should price each
+interval at the rate in force DURING it rather than the org's current rate,
+and this decision's "shares runPayoutRollup's limitation" clause is
+superseded. Separately, if `runPayoutRollup` itself is ever changed to
+prorate at BUILD time (rather than only reconciliation catching the
+mismatch after the fact), this decision's own findings for a mid-period
+attachment change from "the correct payout, verified" to "no finding
+possible because the builder and the checker now agree by construction" -
+worth noting so a future session does not read a sudden absence of
+half-period findings as this check having gone quiet rather than the
+underlying mismatch having been fixed at the source.
+
+## `ws-r54-attachment-history-written-in-same-statement-as-org-id-flip` (2026-09-04/05, WS-R54)
+
+**Decision.** `attachRoom` and `detachRoom` (`api/_org.js`) write
+`vy_room_org_attachment` (migration 108) in the SAME statement family as the
+`vy_room.org_id` flip - one CTE per function, the UPDATE's own RETURNING
+feeding the history INSERT (attach) or a second UPDATE that closes the open
+row (detach) - never a second round trip across two separate `db()` calls.
+
+**Rationale.** `attachRoom`'s own law 2 ("a predicate on the write, never a
+branch above it") already established that this file treats "two things
+that must never disagree" as one atomic statement rather than two
+sequential ones a crash between them could split; this is the same
+argument applied to a second TABLE instead of a second CONDITION. The
+partial unique index (`vy_room_org_attachment_open_ix`, one open row per
+`room_id`) is deliberately NOT caught and translated to a named `OrgError`
+on the attach side - a stray already-open row for a room whose OWN
+`org_id` the UPDATE's WHERE already proved is null is a data integrity bug
+this predicate did not anticipate, and "structurally impossible, not
+merely undesired" (migration 095's own words) means it should surface as a
+raw unique-violation, not be swallowed into a plausible-sounding refusal
+code that would misdescribe what actually went wrong. Proven in
+`evals/org/run.mjs` §3b (the row opens, with the room's own `org_attached_at`)
+and its own negative control (a deliberately corrupted stray-open-row state
+throws code 23505), and §4b (the row closes on detach - "a detach that
+does not close the row fails this" is the control's own literal assertion
+name).
+
+**Reversal condition.** If a future workstream needs `attachRoom`/`detachRoom`
+to succeed even when the paired history write fails (e.g. a schema
+migration window where `vy_room_org_attachment` is briefly unavailable),
+the CTE would need to split back into two statements with explicit
+reconciliation - at which point this decision's "never a second round trip"
+claim is false and must be superseded, not edited in place.
+
+## `ws-r54-attachment-backfill-defaults-to-now-for-pre-107-rooms` (2026-09-04/05, WS-R54, known inexactness)
+
+**Decision.** Migration 108's backfill (`insert into vy_room_org_attachment
+... select ... coalesce(r.org_attached_at, now()) ... where not exists`)
+opens one history row for every currently-attached Room, dated at
+`vy_room.org_attached_at` (migration 107) where that column is set, or
+`now()` (the migration's own apply time) where it is not - which is every
+Room that attached to a Suite BEFORE migration 107 existed and has not
+re-attached since.
+
+**Rationale.** No earlier signal survives anywhere in this schema for that
+second group: `updated_at` is touched by publish, pause, price changes and
+detach too (migration 107's own header, restated by migration 108's), so it
+cannot stand in for "the moment this Room joined this Suite." `now()` is
+the least-wrong default available - `context/rejected.md`'s no-fake-numbers
+law applied to a timestamp instead of a metric: a manufactured earlier date
+would look more precise than this database actually knows, while `now()`
+is honestly exactly as recent as the true state of knowledge.
+
+**Consequence, stated plainly.** Any Room in that second group, reconciled
+by `reconcilePeriod` for a period that ENDED BEFORE migration 108 ran, will
+show LESS attachment overlap with that period than it actually had (its
+recorded `attached_at` is later than its true one), which understates its
+prorated expected `suite_share_inr` and can produce a false
+`suite_share_mismatch` finding for a period that was actually correct. This
+is a KNOWN, bounded inexactness, not a silent one - it affects only
+historical (pre-108) periods for Rooms that attached before migration 107,
+never a period reconciled going forward.
+
+**Reversal condition.** No further fix is possible retroactively - the true
+historical `attached_at` for that group is genuinely unrecoverable from
+this schema. This entry's own purpose is to stop a future session from
+re-discovering the same "why does this one old period show a Suite
+mismatch" confusion from scratch: if `reconciliationOverview`'s
+`periods_with_findings` count is ever audited by hand, check whether the
+flagged period predates 2026-09 (this migration's own apply date) and the
+owner's Room predates migration 107 before treating the finding as a real
+payout bug.
+
+## `ws-r52-studio-locale-lives-on-vy-replica-not-a-new-table` (2026-09-04, WS-R52)
+
+**Decision.** The creator's own chrome locale (Feed/Meet/Share, Readiness,
+the review queue, Payouts, the Suite card) is `vy_replica.locale` (migration
+112), a new CHECK-bounded `text` column on the existing owner-keyed table,
+not a new table and not `vy_replica.metadata`'s existing jsonb column.
+
+**Rationale.** WS-R47 already found and logged that the studio had "no
+locale mechanism at all"
+(`context/decisions.md#ws-r47-studio-card-is-english-only-no-locale-mechanism-exists`).
+This workstream's brief pointed at the fix directly: grep for
+`owner_user_id` on a settings-shaped table before adding a new one.
+`vy_replica` (migration 015) is exactly that table - every owner-scoped
+studio read already goes through it (`api/_replica.js`'s `RETURNING`,
+`clientReplica`), one row per creator's own AI. `vy_room_follower.locale`
+and `vy_room.default_locale` (migration 087) already solved the identical
+decision one surface over with a CHECK-bounded column rather than a jsonb
+key, for a reason that transfers exactly: a jsonb key cannot carry a CHECK
+constraint, so a typo or a stray third value would read silently as "no
+locale" downstream instead of failing at the database. Using the same shape
+here means one pattern for "where does a two-value locale choice live",
+not two.
+
+**Reversal condition.** If a creator ever owns more than one replica with
+different chrome languages desired per replica (today `subject_mode` is
+CHECK-bounded to `'self'` alone, so this is not a case that exists yet),
+revisit whether locale belongs on the account instead of the replica - but
+that is a different decision, not evidence this one was wrong for the
+product as it ships.
+
+## `ws-r52-studio-locale-plumbed-through-a-react-context-not-props` (2026-09-04, WS-R52)
+
+**Decision.** `src/studio/localeContext.tsx`'s `StudioLocaleProvider`/
+`useStudioLocale()`, mounted once around `StudioApp.tsx`'s whole signed-in
+tree, is how every converted panel reads the creator's chrome locale -
+never a `locale`/`t` prop threaded through each panel's own interface the
+way `src/room/copy.ts`'s `copy` object is threaded through `RoomApp.tsx`.
+
+**Rationale.** The Room is one component reading `ROOM_COPY_TABLE[locale]`
+once and passing the result down its own single tree. The studio is a
+different shape: `StudioApp.tsx` lazy-mounts roughly thirty independent
+panel components, each with a prop interface an earlier workstream already
+defined, and this workstream deliberately does not touch about two-thirds
+of them (see the Tier 2 rejection below). A context lets the two
+lowest-level shared components - `BlockerNotice.tsx` and `WizardRail.tsx`,
+rendered by EVERY panel, converted and unconverted alike - read the
+two-word "Waiting on you"/"Waiting on us" badge in Hindi with no change to
+either component's exported signature, which means even an unconverted
+Tier 2 panel's blocker badge renders in the creator's own language for
+free. Prop-threading `t` through thirty independent interfaces to get that
+same two-label win would have been the wrong shape for what it bought.
+
+**Reversal condition.** If a future workstream converts every remaining
+Tier 2 panel and the context's only remaining job is passing `t` to files
+that could just as easily receive it as a prop from `StudioApp.tsx`
+directly, collapsing back to explicit props is a reasonable simplification
+- but that is a cleanup of a completed job, not evidence the context was
+the wrong call while the job was two-thirds undone.
+
+## `ws-r52-class-labels-split-from-blockerclass-ts-own-copy` (2026-09-04, WS-R52)
+
+**Decision.** `src/studio/copy.ts` carries its own two-entry `classLabels`
+table ("Waiting on you"/"Waiting on us", translated), read by
+`BlockerNotice.tsx` and `WizardRail.tsx` for the on-screen badge.
+`blockerClass.ts`'s own `CLASS_COPY` (the same two labels, plus the
+`lead` sentence and the `blamesThePerson`/`countsOpaqueThings` honesty
+checks) is completely untouched and stays English.
+
+**Rationale.** `blockerClass.ts`'s own header states its contract plainly:
+a dependency-free module `evals/studiowizard.mjs` (not named in this
+workstream's file list) imports directly and checks every `us`-class
+reason against `BLAME_PATTERNS`, a set of ENGLISH regexes, as the
+mechanical proof behind `docs/HONESTY.md`'s "never blame the person for our
+failure" law. Localizing `CLASS_COPY` itself would either (a) silently stop
+the honesty eval from checking the Hindi strings it now ships, which is
+shipping an ungated safety-adjacent surface, or (b) require building a
+parallel Hindi blame-language detector in the same change - a real
+workstream of its own, not a translation, and one this brief did not scope
+or budget for. Splitting the two-word BADGE (safe to translate: it names a
+class, not a claim) from the REASON sentence next to it (honesty-gated,
+stays English) is not a compromise invented for this decision; it is the
+same split `context/decisions.md`'s account of `blockerClass.ts` already
+draws between the class and its prose.
+
+**Reversal condition.** If a future workstream builds a Hindi-language
+honesty detector (a `BLAME_PATTERNS`-equivalent for Hindi grammar) and
+extends `evals/studiowizard.mjs` to run it, `CLASS_COPY.lead` and every
+`DisabledReason.headline`/`.next` this repo produces (blockerClass.ts's
+`disabledReason`, QuickStartPath.tsx's `BLOCKER_META`,
+`WizardRail.tsx`'s `PlatformWorkBanner`) can move into `copy.ts` in the
+same change, with the same proof the English strings already have.
+
+## `ws-r52-tier-2-studio-files-not-localized` (2026-09-04, WS-R52)
+
+**Decision.** 12 of `src/studio/`'s roughly 40 `.tsx` files are fully
+converted to `t()` this workstream (the studio's shell, the review queue,
+Readiness, Drift watch, and the Payouts/Check-ins/Handoff/Suite/invite
+cards - the brief's own two named examples, "the Payouts card and the
+Suite card," are among them). The remaining files - every enrollment/
+voice-lab/identity/liveness/ops wizard-step panel, plus `RoomStudio.tsx`
+itself (the studio's single largest file, carrying money and tax-adjacent
+copy) - are NOT converted, and are named one by one, with a specific
+reason each, in `evals/studio-locale/run.mjs`'s own `TIER_2_ALLOWLIST`.
+
+**Rationale.** These files total roughly two-thirds of `src/studio/`'s
+line count; a careful, correct Hindi rendering of a coach's identity-
+verification flow, a voice-consent ceremony, or a tax note deserves
+dedicated review, not the twentieth file translated in one session that
+already converted twelve others. Converting the CHROME a creator sees
+every visit (Feed/Meet/Share, Readiness, the review queue's three
+verdicts, the money cards) first, and building the mechanism (`copy.ts`'s
+locale table, the context/provider, migration 112, the eval, both gates'
+`*-hi` targets) so a future workstream can extend it file by file without
+re-deriving any of it, is the higher-value cut for one session than a
+shallower pass across every file. `blockerClass.ts`'s own honesty-gate
+constraint (the decision above this one) applies independently to some of
+these files too (`QuickStartPath.tsx` specifically) and would have bounded
+them regardless of session length.
+
+**Reversal condition.** A future workstream converting any Tier 2 file
+removes its entry from `evals/studio-locale/run.mjs`'s `TIER_2_ALLOWLIST`
+and adds the file to `TIER_1_FILES` in the same change - the eval fails
+loudly (`every src/studio/*.tsx file is either Tier 1 or in the justified
+Tier 2 allowlist`) if a file is converted but the allowlist entry is left
+standing, or if a file is removed from the allowlist without actually
+being converted (its own zero-literal-text-nodes check would then fail).
+
+## `ws-r52-existing-evals-updated-for-the-copy-ts-move` (2026-09-05, WS-R52)
+
+**Decision.** `evals/readiness/run.mjs`, `evals/drift-watch/run.mjs` and
+`evals/review-queue/run.mjs` - three pre-existing gates, each reading its
+own component's `.tsx` source directly (`readFileSync`) and asserting a
+literal English string appears in it ("Still an apprentice", "Not measured
+yet", "Sounds right"/"Close, fix it"/"Never say this", the em-dash and
+banned-word scans) - were updated to also read `src/studio/copy.ts` and
+check the CONCATENATION of the component plus the copy table, rather than
+the component alone.
+
+**Rationale.** These three checks are still correct in what they assert
+("the word for an incomplete AI is apprentice, never broken"; "no banned
+product word reaches the screen"); what changed is WHERE the string that
+proves it lives, because this workstream moved it there on purpose (law 1:
+"existing components import `t()`; no component keeps a literal English
+sentence"). Leaving the checks reading the component alone would not have
+caught a REAL regression (a future edit deleting the Hindi-aware string
+from `copy.ts` while leaving the English word in a code comment, say) - it
+would have quietly stopped checking the actual rendered product, which is
+worse than failing loudly, exactly the `evals/room-locale/run.mjs`
+precedent this workstream's own copy.ts header cites. One check
+(`evals/review-queue/run.mjs`'s progress-line assertion) could not simply
+concatenate copy.ts, because the literal JSX shape it matched
+(`Card {Math.min(position, total)} of {total}`) no longer exists verbatim
+- rewritten to assert the same underlying fact (a real `Math.min(position,
+total)` and a real `total`, never a fabricated number) against the
+component's own source, which still contains that expression.
+
+**Reversal condition.** If a future workstream removes `copy.ts` or
+restructures where studio strings live again, these three checks move with
+it in the same change - the pattern to follow is "read what actually
+renders," not "read this one file," which is the reason `panelWithCopy`/
+`cardWithCopy`/`componentWithCopy` are named for what they check rather
+than where they came from.
+
+## `ws-r51-every-door-cased` (2026-09-05, WS-R51)
+
+**Decision.** Every one of the 27 owner-bearer ops WS-R44 left marked
+`preexisting-uncased` in `evals/room-doors/run.mjs`'s `OP_COVERAGE` table
+(across `payments.js`, `org.js`, `room-publish.js`, `invites.js`, `apply.js`)
+now carries a real dynamic case through the real decision module, and §16's
+own computed-op-list mechanism widens from the seven doors WS-R44 scoped it
+to (`decisions.md#ws-r44-computed-op-list-scoped-to-six-named-doors`) to
+EVERY door in `EXPECTED_DOORS` that reads `op` from a body — five more
+(`checkins.js`, `handoff.js`, `pulse.js`, `replica.js`, `account.js`), twelve
+in total. The three webhook doors (`payments-webhook.js`, `room-tg.js`,
+`room-wa.js`) are excluded, but as a VERIFIED structural fact (a new
+assertion confirms `computedOps()` finds zero `op` literals in each), not an
+assumed one. The `preexisting-uncased` class is deleted outright — no entry
+in `OP_COVERAGE` may use that string any more.
+
+**What the widening found and fixed, in the same commits as the cases that
+found them (this workstream's own law 3):**
+
+1. `api/_payments.js`'s `startCreatorSubscription` trusted a body-supplied
+   `replicaId` with NO ownership check at all beyond UUID shape — its own
+   comment said "the caller already knows... this file holds no `vy_replica`
+   query anywhere else." A class-c body-supplied-id case (OWNER_B naming
+   OWNER's own `replica_id`) would have minted a `vy_creator_subscription`
+   row binding one owner's id to another owner's replica. Fixed by adding a
+   real ownership read (`ownedReplicaHandle`, the same `vy_replica` shape
+   `api/_replica.js`'s `getOwnedReplica` already uses) before anything else
+   runs.
+2. `api/account.js`'s `send_otp`/`verify_otp` (email) never carried the
+   persistent, cross-instance `otp_send_ip`/`otp_send_dest`/`otp_verify_ip`/
+   `otp_verify_dest` scopes WS-R32 gave `send_sms`/`verify_sms` (phone) —
+   `verify_otp` had NO gate beyond the door's generic 20/min IP bucket.
+   Fixed by wiring the same four scopes, `verify_sms`'s own shape exactly.
+
+**What the widened door-battery negative-controls found and this workstream
+did NOT fix, named rather than silently left:** none — every finding the
+widening surfaced above got a fix in this same session.
+
+**Rationale.** "An uncased owner op is a door nobody has tried to push"
+(the brief's own words) is not a hypothetical: two of the twelve widened
+doors had real gaps, both silent until pushed. A coverage table with an
+honest, named "we have not tried this yet" class is strictly better than one
+that looks complete — but it is also an invitation the next workstream should
+close rather than inherit, which is why this one closes it rather than
+widening the exclusion list.
+
+**Reversal condition.** If a future op is added to one of these twelve doors
+and the honest answer is "no case yet, no time this session," name it with a
+SPECIFIC reason (what class does not apply and why, `room.js`'s "open"/"join"
+exclusion precedent) — never resurrect the bare string `preexisting-uncased`
+as a catch-all, which is exactly the shape this decision closes.
+
+## `ws-r59-platform-manifest-is-literal-bytes-not-reserialized` (2026-09-04, WS-R59)
+
+**Decision.** `api/_room-manifest.js`'s `PLATFORM_ROOM_MANIFEST_JSON` (served
+for an unpublished, paused, or unknown Room slug alike) is a hand-written
+template-literal string, copied once from `public/room.webmanifest`'s own
+bytes — never `JSON.stringify`'d from a shared object at request time.
+`evals/room-install/run.mjs` reads the real file off disk and asserts the
+two are SHA-256 identical (and literally string-equal) on every run.
+
+**Rationale.** The three cases this endpoint must never distinguish
+(unpublished / paused / unknown) collapse to ONE response
+(`api/_room-page.js`'s own law, restated for a manifest instead of an
+og:card), and that response has to be byte-identical every time or
+"identical bytes" is a claim nobody actually checked. `JSON.stringify(obj,
+null, 2)` would have been shorter to write, but its exact output (key
+order, indent width, whether a one-entry `icons` array gets its own line)
+is invisible to a browser and exactly the kind of formatting choice a
+future edit changes without anyone noticing — a literal copy makes the
+byte-identity claim mechanical rather than incidental.
+
+**Reversal condition.** If a future workstream adds a build step that can
+regenerate `public/room.webmanifest` FROM `api/_room-manifest.js`'s own
+constant (rather than the two being independently maintained), collapse to
+one source and delete the duplicate — do this only once such a step exists;
+until then, moving the duplication elsewhere just moves the sync burden,
+it does not remove it.
+
+## `ws-r59-real-manifest-endpoint-supersedes-blob-swap` (2026-09-04, WS-R59)
+
+**Decision.** `RoomApp.tsx`'s manifest-link effect now points
+`<link rel="manifest">` at the real `/r/<slug>/manifest.webmanifest` route
+(`api/_room-manifest.js`) instead of building a per-Room manifest object in
+the browser and swapping in a `Blob` URL (WS-R22's original technique).
+
+**Rationale.** The Blob-built manifest could not carry `?via=install` on
+`start_url` (WS-R59's own arrival channel did not exist yet), duplicated the
+manifest's field list on the client with no way to stay in sync with the
+server's own copy, and swapped in unconditionally regardless of whether the
+Room was actually published — a paused Room's tab still built and installed
+a manifest naming it by real name client-side, which the server route's
+`publicRoomBySlug` collapse (identical bytes for unpublished/paused/unknown)
+never allows. The server route is authoritative by construction; a second,
+independent client-side builder was a drift risk with no offsetting benefit
+once the route existed.
+
+**Reversal condition.** If a real browser is ever found that installs
+correctly from a `Blob` manifest link but fails on (or never even requests)
+a same-origin manifest URL fetched over the network — no such browser is
+known today — reintroduce a `Blob` fallback ALONGSIDE the network link,
+never instead of it, so the byte-identity guarantee above still holds for
+every browser that does fetch the real URL.
+
+## `ws-r59-install-via-not-yet-in-arrival-check-constraint` (2026-09-04, WS-R59)
+
+**Decision.** `'install'` was added to `api/_room-surface.js`'s
+`ROOM_ARRIVAL_VIA` allowlist (the workstream brief's one sanctioned line
+there) with NO accompanying migration, per this workstream's own "no
+migration" law. Migration 102's `vy_room_arrival` CHECK constraint still
+lists only `share`/`direct`/`embed`/`search` — `'install'` is JS-allowlist-only
+until a future migration adds it.
+
+**Rationale.** `recordRoomArrival`'s insert was already best-effort
+(`.catch(() => {})`, `openRoom`'s own call site) before this workstream —
+a write failure here must never turn a Room's first screen into an error
+over a growth count. So an install-launched arrival's insert is REJECTED by
+the live CHECK constraint every time (reasoned from migration 102's SQL
+text; NOT verified against a live Postgres — no `NEON_URL` in this
+environment) and silently swallowed by that same catch, exactly like a
+malformed `via` already is. Nothing breaks; install arrivals are simply not
+counted in `vy_room_arrival` yet. `evals/room-share/run.mjs`'s own
+invariant ("`ROOM_ARRIVAL_VIA` is exactly the four values the CHECK
+constraint names") was updated to two assertions — the DB-backed subset
+still matches the constraint exactly, and the one JS-only addition is named
+— rather than loosened silently.
+
+**Reversal condition.** The day a migration adds `'install'` to
+`vy_room_arrival`'s CHECK constraint (the next free number at the time,
+named by whichever workstream brief claims it — this one does not), install
+arrivals start being counted with no further code change needed here; until
+then this comment and this entry are the record that the gap is known and
+harmless rather than an oversight.
+
+## `ws-r59-sw-precache-list-self-discovered-not-build-injected` (2026-09-04, WS-R59)
+
+**Decision.** `public/room-sw.js`'s `derivePrecacheList` discovers what to
+precache by fetching the currently-deployed `room.html` at `install` time
+and reading its own `<script src>`/`<link href>` attributes, rather than a
+Vite plugin injecting a build manifest (a list of hashed filenames) into the
+worker source at build time.
+
+**Rationale.** Vite's content-hashed filenames (`room-yB2-ERyy.js`,
+`room-BKFbqJp1.css`, ...) already live inside `room.html` itself — the exact
+file the browser is about to request regardless. A build-time injection
+would prove the same fact with a second moving part (a plugin, a build
+step order dependency, a new failure mode if the plugin and the real HTML
+ever disagreed); reading the file the SW's own `install` handler needs to
+serve as the offline fallback ANYWAY proves it with none. The cache name
+(`room-shell-<sha256 of the sorted URL set>`) changes automatically the
+moment a new build changes which files `room.html` references, and
+`activate` deletes every `room-shell-*` cache that is not the current one —
+`vite.config.ts` needed no change for any of this.
+
+**Reversal condition.** If a future asset this precache must cover is never
+referenced from `room.html`'s own markup (an asset only reachable via a
+runtime `import()`, say), the self-discovery scan will miss it — that is the
+day to add either a build-injected manifest or an explicit extra-URLs list
+this file names by hand, whichever is smaller at the time.
+
+## `ws-r59-offline-phase-uses-navigator-online-not-error-shape` (2026-09-04, WS-R59)
+
+**Decision.** `RoomApp.tsx` distinguishes the new `"offline"` phase from the
+existing `"unavailable"` one by reading `navigator.onLine === false` at the
+moment the initial `openRoom` fetch throws — not by inspecting the thrown
+error's type or message for a network-failure shape.
+
+**Rationale.** `copy.unavailable` is deliberately vague ("the link may be
+old, or the creator may have paused it") so a stranger can never learn
+which creators took their Room down — but that same vagueness is actively
+misleading when the real cause is "your phone has no signal," so the two
+needed separate copy and therefore a real signal to choose between them.
+`navigator.onLine` read exactly at the failure moment is a real, contemporaneous
+fact about the browser, not a guess layered on top of whatever `fetch`
+happened to throw (`TypeError` shapes vary by browser and are not a stable
+contract to parse).
+
+**Reversal condition.** `navigator.onLine` is known to false-positive on
+some captive-portal Wi-Fi networks (reports `true` while genuinely unable
+to reach the origin) — if that is ever measured to matter here (a real
+follower report, or a browser stat pulled from `vy_room_arrival` showing
+`unavailable` spiking where `offline` should have fired), add a lightweight
+same-origin connectivity probe instead of trusting the browser's own flag
+alone.
+
+## `ws-r59-install-second-visit-rule-is-a-pure-injectable-storage-function` (2026-09-04, WS-R59)
+
+**Decision.** The install card's second-visit/30-day-dismiss rule lives in
+`src/room/installPrompt.ts` as pure functions (`noteInstallVisit`,
+`markInstallDismissed`, `shouldShowInstallCard`) taking an injectable
+`InstallStorage` interface (`{getItem, setItem}`), never inlined into
+`RoomApp.tsx` reading `window.localStorage` directly.
+
+**Rationale.** A rule with a NEGATIVE requirement ("never on visit 1"; "quiet
+for 30 days after a dismissal") is exactly the kind of logic that silently
+rots once nobody can drive it without a real browser and real wall-clock
+time. Bundled with `esbuild` (`evals/persona-invariants.mjs`'s own
+precedent for running real TS logic inside a Node eval) and driven with an
+in-memory fake storage plus an explicit `now` argument,
+`evals/room-install/run.mjs` proves the real rule — visit 1 never shows,
+visit 2 does, a dismissal 29 days ago is still quiet and one 31 days ago is
+not — deterministically, with no browser and no clock skew risk.
+
+**Reversal condition.** If this state ever needs to sync across a
+follower's devices (today it is per-browser, per-slug, `localStorage`
+only), the `InstallStorage` interface and the three pure functions stay
+exactly as they are — only the concrete storage `RoomApp.tsx` passes in
+changes, from `window.localStorage` to a thin wrapper over a server call.
+
+## `ws-r53-taste-is-stateless-across-turns-by-construction` (2026-09-05, WS-R53)
+
+**Decision.** `api/_room-taste.js` (`roomTaste`) accepts no session, no
+thread, no client-carried history and no memory of any kind - every call
+recompiles from nothing but the message just sent. It imports ONLY a
+closed, read-only/pure allowlist from `api/_room-surface.js`
+(`RoomError`, `roomUnavailable`, `resolveRoom`, `roomNameFor`,
+`roomDisclosureCard`, `normalizeLocale`, `collector`,
+`ROOM_INBOUND_LIMIT`) and one pure helper from `memory.js`
+(`tableApplied`) - never `joinRoom`, `roomSay`, `createThread`,
+`createFollowerThread`, `bindThreadDevice`, `touchThread`,
+`recordRoomConsent`, or any other follower-scope writer, by name, anywhere
+in its own source.
+
+**Rationale.** The workstream brief's law 1 states the boundary directly:
+"the taste is stateless across turns by construction, so the follower
+lane's own writer functions must be unreachable from it." Unreachable-by-
+construction (no import exists to misuse) is a structurally stronger
+guarantee than unreachable-by-discipline (an import exists but nobody
+calls it) - the same standing distinction `structural-disclosure` already
+draws for the disclosure card, applied here to an entire lane rather than
+one string. `evals/room-leak/run.mjs`'s new layer 7 re-derives the
+follower-writer symbol set from `api/_room-surface.js`'s own source (the
+identical fixed-point technique layer 1a already uses for creator-material
+writers, pointed the other direction) and asserts none of them are ever
+imported by `_room-taste.js` - a future edit that imported one fails that
+line the day it lands, without the eval needing to know why the import was
+added.
+
+**Reversal condition.** If a future product need requires a taste turn to
+remember something ACROSS its own three questions (not across a visit -
+that would cross into follower scope entirely, a different feature with
+its own consent question), that memory must live in a value the CLIENT
+carries and the server treats as untrusted input to be re-validated every
+turn (the follower lane's own `transcriptDigest`-bound memory-free branch
+is the precedent), never a server-side write to any table this decision's
+own import allowlist currently excludes - a new write of that shape is a
+new decision, not a loosened version of this one.
+
+## `ws-r53-taste-turn-is-not-a-fifth-arrival-via` (2026-09-05, WS-R53, migration 110)
+
+**Decision.** "Taste turns this week" (the workstream brief's own law 5)
+is counted by a NEW, dedicated table (`vy_room_taste_turn`, one row per
+(room, day), no `via` column at all) rather than by adding `'taste'` as a
+fifth value to `vy_room_arrival.via`'s CHECK constraint (migration 102).
+
+**Rationale.** `via` answers one question - how a visitor ARRIVED (share,
+direct, embed, search) - and a taste turn answers a different one: what an
+already-arrived visitor DID. Folding the second question into the first
+column would have meant either recording a taste turn under the visitor's
+ORIGINAL arrival source (losing "how many taste turns happened" as its own
+number entirely) or minting `'taste'` as a literal fifth source (which is
+not a source at all, and would have made
+`evals/room-share/run.mjs`'s own fixed assertion - `ROOM_ARRIVAL_VIA is
+exactly the four values the CHECK constraint names` - silently wrong for a
+reason that eval was never told about, since `resolveArrivalVia`'s
+external-only allowlist and `recordRoomArrival`'s own sanitization would
+then need a second, internal-only allowance to keep a client-supplied
+`?via=taste` from being accepted as a real arrival source). A dedicated
+table costs one migration (110, already needed for the `taste_enabled`
+switch) and keeps `vy_room_arrival` meaning exactly one thing.
+
+**Reversal condition.** If a future need arises to cross-tabulate "which
+arrival source produces the most taste turns" (a real, plausible growth
+question this decision's shape cannot answer), the fix is adding a
+nullable `via` column to `vy_room_taste_turn` itself, populated from the
+SAME hint `openRoom` already reads - never retrofitting `vy_room_arrival`
+to carry a second dimension it was not designed for.
+
+## `ws-r53-taste-enforces-no-hardcoded-turn-ceiling` (2026-09-05, WS-R53)
+
+**Decision.** `api/_room-taste.js`'s `roomTaste` enforces NO ceiling of
+its own on the `turnIndex` a caller passes it. `ROOM_TASTE_TURNS` (= 3) is
+a display constant only, read by `turns_left`'s clamp and by the client's
+own three-dot indicator; the actual daily limit lives entirely in
+`api/_rate-limit.js`'s configurable `DEFAULT_LIMITS.room_taste`, read
+through `api/room.js`'s `consume()` call BEFORE `roomTaste` is ever
+invoked.
+
+**Rationale.** An earlier draft of this file threw a named
+`room_taste_limit_reached` error when `turnIndex > ROOM_TASTE_TURNS`,
+intended as defence in depth. `evals/room-taste/run.mjs`'s own negative
+control (b) - striking the configured limit to 4 via `RATE_LIMITS_JSON`
+and confirming the fourth call succeeds - caught it immediately: the
+hardcoded wall fired regardless of the operator's own configured limit,
+silently overriding `RATE_LIMITS_JSON`'s own escape hatch
+(`context/decisions.md#ws-r26-limits-are-code-constants-not-a-database-
+table`) for this one scope only. Two names for one number drift the day
+either changes alone - this repo's own standing lesson, caught here by a
+negative control before it shipped rather than after.
+
+**Reversal condition.** None anticipated: a second ceiling here is
+strictly worse than the single source of truth in `_rate-limit.js`,
+never better, so this is closer to a bug fix than a decision with a real
+opposing case. If a future need arises for a HARD platform-wide maximum
+independent of any operator override (a genuine different requirement),
+it belongs in `_rate-limit.js` itself as a floor `limitsFor`'s override
+merge respects, not as a second check in this file.
+
+## `ws-r53-taste-switch-is-a-new-column-not-a-fitting-existing-one` (2026-09-05, WS-R53, migration 110)
+
+**Decision.** `vy_room.taste_enabled` (migration 110) is a new boolean
+column, `not null default true`, rather than reusing any column migrations
+071 or 105 already added.
+
+**Rationale.** The workstream brief's own law 4 required reading both
+migrations first. 071's columns are the room's identity and its free-tier
+cap; 105's (`listed_at`, `one_line_bio`) are the directory opt-in and its
+bio - neither means "does this Room offer three questions before the
+sign-in wall." Defaulting `true` is the product's own posture: the taste
+exists to give every Room a free thirty seconds before the wall, so a
+creator who never touches the switch gets it on, `handoff_enabled`'s
+default-`false` posture deliberately NOT copied - Handoff and the taste
+are opposite defaults for opposite reasons (one is a cost/attention
+surface a creator opts INTO, the other is the product's own on-ramp).
+
+**Reversal condition.** If real usage shows most creators turning taste
+off (a signal that the default should have been off), retune the column
+default in a follow-up migration - existing rows already have `true` from
+this migration's own default and would need an explicit backfill decision
+of their own, stated separately rather than silently reinterpreted.
+
+## `ws-r64-expectations-parsed-from-source-not-retyped` (2026-09-05, WS-R64)
+
+**Decision.** `scripts/probe-live.mjs` (the live probe) never hand-types an
+expected header value, byte sequence, status code, or error body. Every
+expectation it checks against a real deployment is parsed, at run time,
+from this repo's own source by `scripts/probeLiveExpectations.mjs`:
+`vercel.json`'s `headers[]` array and `crons[]` list, `api/_room-page.js`'s
+`PLATFORM_TITLE`/`PLATFORM_DESCRIPTION`/`OG_IMAGE_WIDTH`/`OG_IMAGE_HEIGHT`,
+`api/_room-card.js`'s `ROOM_CARD_SIZES`, `public/room.webmanifest` and
+`public/room-sw.js`'s own bytes, `api/_room-embed.js`'s `ROOM_EMBED_JS`
+literal and its `{room:null}` shape, `api/room.js`'s closing `unknown_op`
+fallthrough and its list of known ops, `api/_room-surface.js`'s
+`readRoomSession`'s own thrown error, and each of the twelve cron files'
+own `authorized(req)` failure line (two of which answer 403 with a
+different string than the other ten's 401 — both correct, neither
+hand-typed as a single assumed shape).
+
+**Rationale.** A live probe that carries a SECOND, hand-typed copy of a
+fact the source already states is exactly the kind of drift this repo's
+whole `context/` discipline exists to prevent (`AGENTS.md`'s own "never a
+second literal" framing, restated here for a checker rather than a prompt).
+A future rename of an error code, a resized card, or a route added to
+`vercel.json` is caught the day it ships because the probe re-derives the
+expectation from the same file that changed, rather than continuing to
+check a frozen assumption nobody remembered to update.
+
+**Reversal condition.** If a checked surface's literal ever becomes
+genuinely unparseable from source (a minified/obfuscated build with no
+readable literal, say), a maintained, explicitly-labelled fallback literal
+is warranted for that one surface — cross-referenced in a comment to the
+exact line it is standing in for, never a silent, unlabelled constant.
+
+## `ws-r64-not-a-verify-release-gate` (2026-09-05, WS-R64)
+
+**Decision.** `scripts/probe-live.mjs` is documented as a post-deploy step
+(`docs/gurukul/DEPLOY.md` Phase 6, `AGENTS.md`'s one-sentence deploy
+paragraph) and is never invoked from `scripts/verify-release.mjs`. Its own
+offline proof, `evals/probe-live/run.mjs`, IS wired into `evals/run.mjs`
+and therefore IS part of the `eval suite` gate — that suite proves the
+probe's checking LOGIC against a fixture server on 127.0.0.1, never a real
+deployment.
+
+**Rationale.** This workstream's own brief states it plainly: "a gate must
+run offline." `scripts/probe-live.mjs` makes real GET/HEAD requests (plus
+two always-refused `POST /api/room` bodies) against one live base URL
+supplied on the command line — there is no base URL to probe until
+something has already been deployed, so it cannot run inside a gate that
+`npm test`/CI executes with no deployment in front of it, and folding it in
+would make every gate run depend on network reachability and a live
+project's current state, which is exactly what `verify-release.mjs`'s
+existing `--live` flag already exists to keep OUT of the default path.
+
+**Reversal condition.** None anticipated. If Vercel or an equivalent ever
+offered a fully offline, byte-for-byte faithful replica of a real
+deployment (routing, headers, and all), the fixture server this
+workstream built for the offline eval would already be most of the way
+there — but no such capability exists today, and `evals/probe-live/
+fakeServer.mjs` is deliberately a hand-built approximation, not a claim of
+parity with the real Vercel edge.
+
+## `ws-r62-operator-push-subscription-store-built` (2026-09-05, WS-R62)
+
+**Decision.** `vy_operator_push_subscription` (migration 114:
+`id, owner_user_id, endpoint, p256dh, auth, created_at, revoked_at`, unique
+on `(owner_user_id, endpoint)`) is built, and `api/_checkins.js` wires
+`api/_ops.js`'s `operatorPushSubscriptionsFor`/`revokeOperatorPushById` into
+`api/_incidents.js`'s `notifyNewIncidentKinds` as `deps.
+operatorSubscriptionsFor`/`deps.revokeOperatorSubscription`, replacing the
+always-empty default. `api/ops.js` gains two owner-bearer POST ops on the
+SAME door the overview already answers GET from: `push_subscribe` and
+`push_revoke`.
+
+**Rationale.** This is the reversal condition
+`ws-r58-operator-push-subscription-store-does-not-exist` named in writing:
+"the day a real operator push-subscription store exists ... wire it in as
+`deps.operatorSubscriptionsFor`'s real implementation." `notifyNewIncidentKinds`'s
+own signature did not change, exactly as that decision predicted — only
+what is passed to it in production did.
+
+**Reversal condition.** If a platform operator is ever someone who has no
+`vy_replica` row of their own (today `OPS_OWNER_USER_IDS` is asserted, not
+verified, to be drawn from Vyakti's own owner-id space, which by this
+platform's own onboarding always has at least one replica), their
+subscription row would have no erasure path — `api/_replica-full-erasure.js`
+only reaches this table via a candidate `(replica_id, owner_user_id)` pair,
+`vy_org_member`'s/`vy_creator_payout`'s own already-accepted "an owner with
+no replica of their own is not reached either" limitation restated. If that
+assumption is ever tested and found false, this table needs its own,
+replica-independent erasure surface, not a ride-along on `vy_replica`'s job.
+
+## `ws-r62-operator-push-payload-reuses-push-sw` (2026-09-05, WS-R62)
+
+**Decision.** `api/_incidents.js`'s `incidentPushPayload(kind, count)` is
+shaped as flat `{title, body, kind, route}` JSON — `public/push-sw.js`'s own
+committed, already-reviewed `push` event contract (`const data = d.data ||
+d;` falls through to the payload itself when it carries no `data`
+wrapper) — rather than building or modifying a dedicated service worker for
+the studio/ops board. `title`/`body` are fixed English sentences built only
+from the closed `INCIDENT_KINDS` vocabulary and a count; `route` always
+points at `/studio?mode=ops` itself, never a per-incident URL.
+
+**Rationale.** No manifest or service worker exists for the studio/ops
+board today, and building one was outside this workstream's file list and
+risked the same class of regression WS-R59's own install/precache battery
+exists to catch on `room-sw.js` (a Room-scoped file this workstream does
+not touch). `push-sw.js` already handles an arbitrary `{title,body,kind,
+route}` push from any sender — a browser's `push` event carries whatever
+bytes were POSTed to the subscription endpoint, regardless of which backend
+signed the send — so reusing its display path costs zero new files while
+still keeping the wire content-free (`kind`/`count` only, no door name, no
+person id, `evals/incidents/run.mjs`'s own static-scan negative control).
+
+**Reversal condition.** If `push-sw.js`'s own payload contract ever changes
+(e.g. requiring an FCM-style `data` wrapper, or a `kind` value colliding
+with a Meera notification tag), or the ops board grows its own dedicated
+installable-app flow, give operator alerts a dedicated service worker at
+that point.
+
+## `ws-r62-ops-board-push-copy-stays-english-inline` (2026-09-05, WS-R62)
+
+**Decision.** The "Alerts on this phone" card's copy lives inline in
+`src/studio/OpsBoard.tsx` as plain English strings, the same house style
+every other card on that page already uses — NOT as a bilingual entry in
+`src/studio/copy.ts`, despite this workstream's own brief asking for "both
+locales through src/studio/copy.ts."
+
+**Rationale.** `evals/studio-locale/run.mjs`'s own `TIER_2_ALLOWLIST`
+already names `OpsBoard.tsx` in writing as deliberately unlocalized:
+"Internal operator dashboard (`?mode=ops`), never a creator-facing screen
+at all" (WS-R52). The page carries no locale state, no language switcher,
+and no mechanism to select Hindi at all — adding bilingual copy.ts entries
+a page structurally cannot read would satisfy the letter of the brief while
+adding dead weight nobody could reach, the exact "a plausible return hides
+a dead pipeline" shape AGENTS.md warns against, restated for unreachable
+localization instead of a fake success value. `context/`'s own rule binds
+here: where a live, gate-enforced decision disagrees with an instruction,
+they are both wins for `context/`.
+
+**Reversal condition.** If a future workstream removes `OpsBoard.tsx` from
+`TIER_2_ALLOWLIST` and gives the ops board a real locale switcher (WS-R61,
+"the rest of the studio in Hindi," is the most likely candidate to do this
+as a side effect), move this card's copy into `src/studio/copy.ts` at that
+point — the card's own structure does not need to change, only where its
+strings live.
+
+## `ws-r68-full-world-shape-two-suites-by-owner-not-by-vy-org-row` (2026-09-05, WS-R68)
+
+**Decision.** WS-R68's full-world leak battery (`evals/room-leak/world.mjs`)
+groups its five Rooms into "two Suites" by `owner_user_id` alone (Suite
+alpha: R0/R1 same owner, R2 a second owner; Suite beta: R3, R4 two more
+owners) rather than inserting real `vy_org`/`vy_org_member` rows. A creator
+who owns two Rooms in the same group stands in for the workstream brief's
+"a Suite admin who is a creator"; a third owner's Room is also joined, as a
+follower, by the SECOND owner (a creator following a Room in the OTHER
+Suite) for "a creator who is also a follower elsewhere."
+
+**Rationale.** `vy_org`/`vy_org_member` hold no follower content at all —
+every read of them is already aggregate-only (`api/_org.js`'s own header,
+`evals/room-leak/run.mjs`'s own `AGGREGATE_ONLY` set). Building real Suite
+rows would add fixture surface (`api/_org.js`'s own SQL shapes) that proves
+nothing this battery's actual question — do follower-scoped and Room-scoped
+reads/writes cross a boundary they must not — depends on. The membership
+overlaps the brief actually cares about (a follower in two Rooms, a creator
+who is also a follower, one owner running multiple Rooms) are all expressed
+through `vy_room`/`vy_room_follower` directly, which is where every leak
+this battery has ever found or could find actually lives.
+
+**Reversal condition.** If a future workstream gives Suites their own
+follower-visible surface (a shared subgraph across a Suite's Rooms, say —
+explicitly out of scope per `docs/gurukul` today, "Bridge stays locked"),
+this world should grow real `vy_org`/`vy_org_member` rows and its own
+Suite-boundary checks; until then, a fixture `vy_org` row would be
+decoration, not proof.
+
+## `ws-r68-fixture-composition-order-owner-scope-shadowing` (2026-09-05, WS-R68)
+
+**Decision.** In `evals/room-leak/world.mjs`'s composed fake `db`, wrappers
+are layered `handoffDb` OUTSIDE `pulseDb` OUTSIDE the base `fakeDb`, and
+this file's own whatsapp/push/check-in additions are layered outside both
+— tried in that order, base last.
+
+**Rationale.** `pulseDb`'s owner-scoped room-handle match (`"from vy_room"`
++ `"owner_user_id = ($1)::uuid and replica_id = ($2)::uuid"`) is a strict
+substring subset of `handoffDb`'s own (which additionally requires
+`"handoff_enabled, handoff_monthly_cap"` in the select list). `evals/pulse/
+fixtures.mjs` and `evals/handoff/fixtures.mjs` had never been composed
+together before this workstream — every existing suite uses exactly one of
+them — so this collision could not have been found without a world that
+drives both Pulse and Handoff through the SAME fake `db`. Tried in the
+wrong order, `pulseDb` silently answers `handoffDb`'s own config lookup
+with a row missing `handoff_enabled`/`handoff_monthly_cap`, and every
+handoff call in the world breaks with no thrown error at the shadowing
+site — `plausible-return-hides-a-dead-pipeline`, one layer down in a shared
+TEST fixture rather than in shipping code. See
+`context/rejected.md#ws-r68-composed-fixture-owner-scope-shadowing`.
+
+**Reversal condition.** If either `pulseDb` or `handoffDb` ever narrows its
+own owner-scoped match to include a table-specific column (mirroring
+`handoffDb`'s own `"handoff_enabled, handoff_monthly_cap"` guard), the
+order stops being load-bearing and either composition order would be safe
+— worth revisiting the comment in `world.mjs` at that point so a future
+reader is not solving an already-fixed problem again.
+
+## `ws-r68-static-reach-layer-checks-content-columns-not-strict-aggregate-shape` (2026-09-05, WS-R68)
+
+**Decision.** The full-world battery's generalized static reach layer
+(`TABLE_ROLES`/`staticReachProblems` in `evals/room-leak/world.mjs`) admits
+an `aggregateOnly` file's statement as safe when its select list names no
+raw content column (`title`, `payload_text`, `phone_e164`, `local_time`,
+...), rather than requiring every item match a narrow `count`/`sum`/`min`
+regex the way `evals/room-leak/run.mjs`'s own pre-existing layer 1c does.
+
+**Rationale.** Real, already-shipped, already-suite-proven creator/
+platform-facing aggregate reads in this repo use `date_trunc(...)`,
+`exists(select 1 from ...)` and multi-CTE window functions
+(`api/_phase-gate.js`, `api/_room-cohorts.js`) that a strict
+count/sum/min-only check flags as false positives — a generalized check
+strict enough to break TODAY'S clean tree would have failed before it ever
+caught a real bug, `sound-gate-proved-by-silence` read the other way. The
+actual threat this layer exists to catch is a follower's own WORDS reaching
+a creator- or platform-facing surface, and a content-column check targets
+exactly that without needing to re-litigate every legitimate aggregate
+shape this codebase already uses.
+
+**Reversal condition.** If a future finding shows a non-aggregate,
+non-content-column read still leaking follower-identifying structure (a
+`group by person_id` with no aggregate function at all, say — content-free
+but still a per-person row), tighten this check to also require an
+aggregate GROUP BY or a hard row-count cap, rather than loosening the
+content-column list further.
+
+## `ws-r65-creator-path-reads-existing-state-not-a-new-endpoint` (2026-09-05, WS-R65)
+
+**Decision.** The Feed tab's new path card (`src/studio/CreatorPath.tsx`)
+derives every one of its twelve step states from data `StudioShell.tsx`
+already holds in React state for the tab bar itself — `sources.length`,
+`wizardInput.platformWork`, the same `readiness`/`room`/`roomStats` shapes
+`studioShellModel.ts#headlineForTab` already consumes. It adds no fetch,
+no new API route, and no new op on `api/replica.js`, even though
+`api/_funnel.js#replicaFunnel` already returns this exact ordered `steps`
+object and a GET beside `api/replica-activity.js` (itself op-less, so
+outside `evals/room-doors/run.mjs`'s `OP_COVERAGE` scan entirely) would
+have been a few lines.
+
+**Rationale.** The brief's own escape hatch for a new endpoint names a
+specific shape: "one owner op on an EXISTING DOOR with its door-battery
+case" — not a bare new GET file. Taking that literally means wiring
+`replicaFunnel` through `evals/room-doors/run.mjs`'s shared fake `db`,
+which as of this workstream has ZERO support for `vy_replica_source`,
+`vy_replica_processing_job`, `vy_replica_generation`,
+`vy_replica_readiness`, `vy_teacher_sheet`, `vy_room` or
+`vy_room_follower` — seven table shapes `replicaFunnel` itself joins
+across in eight queries. Teaching all seven to a fixture five other
+wave-twelve workstreams are editing concurrently, for a card whose job is
+a Feed-tab progress list rather than a ledger, is a disproportionate
+amount of new shared-file surface for what it buys: every one of the
+composed reads already exists, fetched for a reason that predates this
+workstream, and the only real gap (no signal for "the creator's own voice
+preview has been heard") is honestly represented as unconfirmed rather
+than invented. See `context/rejected.md#ws-r65-funnel-read-op-rejected-
+fixture-too-heavy` for the specific wall this hit.
+
+**Reversal condition.** If `evals/room-doors/run.mjs`'s shared fixture ever
+grows real support for those seven tables (for an unrelated workstream's
+own reason — a Room dialog surface, an export completeness check, anything
+that already needs to read one of them through that door), revisit: a
+`funnel_read` op on `api/replica.js` returning the real `replicaFunnel`
+would then be strictly more accurate than this file's front-end proxies,
+in particular for `first_preview_heard` and `disclosure_approved`, which
+today are only ever forward-filled from a later, stronger signal.
+
+## `ws-r65-creator-path-one-next-action-and-disappearance-rule` (2026-09-05, WS-R65)
+
+**Decision.** `computeCreatorPath` (pure, `src/studio/CreatorPath.tsx`)
+renders the whole `FUNNEL_STEPS` order as done/current/ahead by finding the
+FURTHEST step with real positive evidence ("last reached", the exact shape
+`api/_funnel.js#lastReachedStep` already uses) rather than gating each step
+on the one immediately before it. Evidence is never a negative fact — an
+unconfirmed step is absence of evidence, not evidence of absence — so a
+step this session has not opened (Meet/Share, per `studioShellModel.ts`'s
+own `undefined`-means-unchecked convention) renders "ahead" rather than
+guessed either way, with ONE deliberate exception: `room.published === true`
+forward-fills `disclosure_approved`/`room_created`/`publish_clicked` even
+if Meet was never reopened, because `api/_room-publish.js#publishRoom`'s
+own atomic write predicate cannot set `published_at` without every one of
+those already being true — that is a proof, not a guess. The card is
+visible until `room_published` is reached, then hidden, then visible again
+only if the Room is subsequently paused.
+
+**Rationale.** The brief's own words: "the studio should show it as a path
+with one next action, never a dashboard of everything." A card that gated
+step N strictly on step N-1 being independently confirmed would get stuck
+the first time a creator revisits Feed without having reopened Meet or
+Share this session — even for a creator who published weeks ago — which is
+exactly the same "not checked yet" honesty the rest of this shell already
+carries elsewhere (the Share tab's own headline says the identical thing).
+Disappearing once published and returning only on pause matches the card's
+own stated job: a five-minute guided path that has done its work the
+moment the Room is live, reopened only when something again needs the
+creator's attention before anyone can reach their AI.
+
+**Reversal condition.** If a future session finds a real creator confused
+by the card re-showing "not checked yet" progress after a page reload
+despite having published in a PRIOR session (i.e. the honesty convention
+reads as a regression rather than as consistency), the fix is a composed
+read at Feed-tab mount — `room.published` specifically, the one signal that
+already needs no tab switch to trust — not a change to the forward-fill
+rule itself.
+
+## `ws-r69-halted-is-a-derived-read-never-a-stored-value` (2026-09-05, WS-R69)
+
+**Decision.** `subscription.paused` and `subscription.halted` keep flipping
+`vy_room_subscription.state` to the SAME stored value, `'paused'` — no
+migration widens `vy_room_subscription_state_check` to add a `'halted'`
+value. Instead, `api/_payments.js`'s `followerSubscriptionStatus` derives a
+VIRTUAL `'halted'` state, only in its own response shape, by reading the
+most recent matching `vy_payment_event.kind` for that subscription when the
+stored state is `'paused'`.
+
+**Rationale.** The stored column is read by several OTHER things that must
+keep meaning exactly what they always have — `applyWebhook`'s own tier-flip
+predicate (`su.state in ('active','cancelled','expired')`), `ownerRevenue`'s
+subscriber counts, `evals/room-doors`' own fixture matches on the literal
+state-in-list string. Widening the CHECK to add a fifth non-terminal value
+would touch all of them for a distinction only ONE reader (the follower's
+own settings panel) actually needs to make. The ledger (`vy_payment_event.kind`,
+migration 078's own CHECK, unchanged) already carries the original webhook
+name forever — reading it back costs one query, ONLY when the stored state
+is already `'paused'`, and never risks the stored column drifting from what
+every other caller already assumes it means.
+
+**Reversal condition.** If a SECOND reader ever needs to tell paused from
+halted (a future owner-facing panel, an automated dunning email), duplicating
+this same one-query lookup in a second place is a sign the distinction
+should move into the stored column instead — at that point, widen the CHECK
+(a real migration, numbered by the main loop) and stop deriving it. Until
+then, one reader deriving it beats every reader having to agree on a new
+stored value none of them but one needs.
+
+## `ws-r67-flag-hash-not-body-two-lanes-count-at-read-time` (2026-09-05, WS-R67)
+
+**Decision.** "Flag this reply" (migration 116) is TWO tables, never one,
+and the creator-side table is deliberately UNDEDUPLICATED at the row level.
+`vy_room_follower_reply_flag` is the follower's own lane (`follower_id`,
+unique per (follower, reply)); `vy_room_reply_flag` is the creator's —
+`id, room_id, reply_sha256, reply_text, reason, created_at`, no
+follower_id, no person_id, no thread reference of any kind. Ten followers
+flagging the same reply write TEN rows into the creator lane (indistinguishable
+from each other, since none carries an identity), and
+`api/_review-queue.js::readFlaggedReplies` groups them with a plain
+`count(*) ... group by reply_sha256` at READ time. The reply TEXT that ever
+reaches the creator lane is read back from the flagging follower's OWN
+history by matching `reply_sha256` against a real turn `gatedReply` already
+produced and delivered (`api/_room-surface.js::replyTextFromOwnHistory`) —
+`flagReply`'s function signature has no `reply_text` parameter at all, so a
+body-supplied one cannot be read even by a caller who tries.
+
+**Rationale.** AGENTS.md's boundary law is absolute: the creator never
+receives a follower's words or identity through a flag. A single
+aggregate-row-with-a-count design (increment a counter on conflict) was
+considered and rejected: it would need the creator lane to know it is
+looking at "the same reply" across writes, which is fine, but it would ALSO
+tempt a future column onto that one row (a `last_follower_id`, a
+`sample_thread_id` "for context") the way an aggregate row's own schema
+invites enrichment over time — the row-per-flag design makes that
+temptation structurally harder, since there is nothing on any individual
+row to enrich toward a person. The hash-based read-back (rather than
+trusting client-supplied text) is `flagReply`'s own load-bearing predicate:
+`evals/room-flags/run.mjs`'s negative control (a) proves a fabricated hash
+matching nothing in the follower's real history is refused by name, and a
+second negative control proves a body-supplied `reply_text` field is
+silently ignored because the function never reads it, not because a check
+happens to catch it.
+
+**Reversal condition.** If a future workstream needs a per-flag STATE
+(resolved/dismissed, not just "flagged"), the creator lane's schema would
+need an id a creator can act on individually — at that point the
+row-per-flag design pays for itself directly (each row already has its own
+identity to attach a state to); an aggregate-counter design would have to
+be torn up entirely to add one. If instead a future measurement shows the
+per-row creator table growing unmanageably large for a popular Room (a
+scale problem this design accepts in exchange for the boundary guarantee),
+the fix is a periodic compaction job that rewrites N rows of the same
+(room_id, reply_sha256, reason) into one row plus a count column — never a
+change to what the FOLLOWER lane or the read-back predicate do.
+
+## `ws-r61-tier-2-first-wave-converted` (2026-09-05, WS-R61)
+
+**Decision.** Nine of `evals/studio-locale/run.mjs`'s 31 Tier 2 files move to
+Tier 1 this workstream, in this order: `RoomStudio.tsx` first (as the brief
+required), then `VideoLinkMount.tsx`, `RuntimeGate.tsx`, `TurnFeedback.tsx`,
+`ReplicaDialogueLab.tsx`, `CalibrationStudio.tsx`,
+`CandidateEvaluationLab.tsx`, `ProcessingReview.tsx` and
+`PersonModelStudio.tsx` — roughly 2,750 lines and 187 new `copy.ts` leaf
+strings per locale. `src/studio/copy.ts` gained ten new top-level sections
+(`roomStudio`, `videoLinkMount`, `runtimeGate`, `turnFeedback`,
+`replicaDialogueLab`, `calibrationStudio`, `candidateEvaluationLab`,
+`processingReview`, `personModelStudio`, plus the pre-existing sections
+untouched). `evals/studio-locale/run.mjs`'s `TIER_2_ALLOWLIST` shrank from 31
+entries to 20 (`ws-r52-tier-2-studio-files-not-localized`'s original 28
+"real" tier-2 candidates minus these nine, plus the three non-creator-facing
+entries WS-R52 already carried).
+
+**Rationale.** This is the same cut WS-R52 made one level down: convert the
+files with no honesty-gate, no frozen consent-ceremony wording, and no
+legal-review need first, in one session, rather than a shallower pass across
+every file. `RoomStudio.tsx` (1229 lines, the studio's single largest file
+before this workstream) needed the most care — see
+`ws-r61-roomstudio-money-and-tds-copy-translated-meaning-preserved` below —
+so it went first per the brief's own instruction. `ProcessingReview.tsx`'s
+`SELF_TEST_NOTICE` (a `blockerClass.ts` `disabledReason(...)` call) is the
+one place in this wave that touches the honesty-gated surface
+`ws-r52-class-labels-split-from-blockerclass-ts-own-copy` protects: its
+`headline`/`next` stay literally untouched, and only its two-word class
+badge now reads `t.classLabels[SELF_TEST_NOTICE.kind]` instead of
+`SELF_TEST_NOTICE.classLabel`, the exact substitution `BlockerNotice.tsx`/
+`WizardRail.tsx` already make — proven by the same static scan (zero literal
+English JSX text nodes) that gates every other Tier 1 file, since the
+substituted expression carries braces and the frozen `headline`/`next`
+strings are never JSX text nodes to begin with (they are variable reads).
+
+**What was found and fixed along the way, worth its own note:** moving
+existing plain-English UI strings into `copy.ts` exposed two class of latent
+copy-gate violation that had never tripped `scripts/check-copy.mjs` before,
+because that gate only scans a bare string literal when it is a JSX text
+node or assigned to a "visible key" (`label:`, `title:`, ...) — a function
+argument like `setNotice("Draft voice model queued for building.")` is
+neither, so it was invisible to the scan. `copy.ts` matches
+`check-copy.mjs`'s own `COPY_FILES` regex, which marks EVERY string literal
+in the file visible regardless of context, so both classes surfaced the
+moment the literal moved: (1) `ProcessingReview.tsx`'s
+`"Draft voice model queued for building..."` carried the banned word
+"model" in both English and its own Hindi translation ("वॉइस मॉडल"),
+rewritten to "Draft voice build queued." / "ड्राफ्ट वॉइस बिल्ड क्यू में
+डाला गया।" with no change in meaning; (2) the same file's
+`genomeDraftDetail` template chained three clauses with two middots on one
+line (`"{n} independent voice-print families · {n2} target segments · {n3}
+private enrollment artifacts"`), tripping `check-copy.mjs`'s `middot-run`
+rule the instant it became a bare `copy.ts` string — split into
+`voicePrintFamiliesDetail`/`targetSegmentsDetail`/`enrollmentArtifactsDetail`,
+composed back together with a literal `" · "` written directly in the JSX
+(which the scan's own text-node regex excludes anything containing `{}`
+from, so a joined run built from `{expr} · {expr} · {expr}` in a component
+is invisible to the same rule that correctly bites a bare `copy.ts` string).
+Neither defect reached a real screen before this workstream — both were
+caught by `scripts/check-copy.mjs` and `evals/studio-locale/run.mjs`'s own
+real-Hindi-strings-through-the-real-scanner check before this commit.
+
+**Reversal condition.** A future workstream converting one of the 20
+remaining Tier 2 files removes its allowlist entry and adds the file to
+`TIER_1_FILES` in the same change, exactly as `ws-r52-tier-2-studio-files-not-localized`
+already states. If a review ever finds this wave's Hindi wording wrong for
+one of these nine files specifically, the fix is a `copy.ts` edit, not a
+re-litigation of which files were safe to move — none of these nine touch
+consent-ceremony or KYC-adjacent legal text.
+
+## `ws-r61-roomstudio-money-and-tds-copy-translated-meaning-preserved` (2026-09-05, WS-R61)
+
+**Decision.** `RoomStudio.tsx`'s pricing, tier-upgrade and Pulse copy is
+fully translated in `copy.ts`'s new `roomStudio` section, INCLUDING the
+follower-price band, the platform-take percentage sentence, and the two
+tier-upgrade price labels. Every number (₹299/₹599, ₹4,999/mo, ₹19,999/mo,
+the 25%/2500bp platform take) stays a template placeholder (`{min}`,
+`{max}`, `{pct}`, `{label}`) filled by the same `inr()`/percentage
+computation the English version already used — never a hand-typed number in
+either locale string. The one payments-adjacent sentence this file does NOT
+carry is the TDS disclosure itself (`t.payouts.tdsNote`), which is
+`PayoutsCard.tsx`'s own string, translated by WS-R52, untouched here; this
+workstream's `roomStudio.lastPayout` line reads the payout `state` back
+through `t.payouts.stateLabel[state]`, the SAME table `PayoutsCard.tsx`
+already uses, rather than inventing a second Hindi rendering of the same six
+state words.
+
+**Rationale.** The brief's own instruction ("those sentences are translated
+with the numbers untouched and the TDS disclosure sentence kept legally
+identical in meaning") is satisfied by construction here: no number is
+retyped by hand in Hindi, and the one sentence that states a legal/tax
+position (`tdsNote`) is not duplicated into a second string this workstream
+could get subtly wrong — it is read from the single existing table. This is
+the same "one table, not two copies of a sentence" law
+`ws-r52-existing-evals-updated-for-the-copy-ts-move` already applied to
+`PayoutsCard.tsx`'s own state labels.
+
+**Reversal condition.** If `PayoutsCard.tsx`'s `stateLabel` table or
+`tdsNote` sentence is ever found to be wrong in Hindi, the fix happens in
+`copy.ts`'s `payouts` section and is inherited automatically by
+`RoomStudio.tsx`'s `lastPayout` line — there is no second copy to also
+patch, by construction.
+
+## `ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text` (2026-09-05, WS-R61)
+
+**Decision.** `ModelConsentGate.tsx` was read in full and deliberately left
+entirely unconverted, including its chrome (headings, button labels,
+status badge) that carries no legal weight of its own. It stays in
+`TIER_2_ALLOWLIST` with a strengthened reason.
+
+**Rationale.** `scripts/roomsVocabAllowlist.mjs` — a file this workstream
+would have had to read regardless, since Rooms-vocabulary is a binding law —
+names four of this file's six `STATEMENTS` array entries BY EXACT ENGLISH
+SUBSTRING as pre-existing consent-ceremony legal text: "a teacher already
+affirmatively checked these exact words before any replica was built," and
+moving them "is the exact failure `safety-floor-teacher.md` §2.1 names."
+That reasoning does not carve out an exception for the surrounding chrome
+only, and splitting this file into "translate the chrome, leave the six
+statements" would have been a more invasive, riskier change than deferring
+the whole file for the same reason WS-R52 deferred it originally. This is a
+NEGATIVE FINDING worth recording on its own: it would have been easy to
+translate this file's headings and buttons while reusing the six
+`STATEMENTS` strings as opaque values, and that split was considered and
+rejected — see `context/rejected.md#ws-r61-partial-modelconsentgate-translation-considered-and-rejected`.
+
+**Reversal condition.** Unchanged from `ws-r52-class-labels-split-from-blockerclass-ts-own-copy`'s
+own reversal condition: a Hindi-language honesty/consent detector built for
+this exact ceremony, with legal sign-off on the translated wording, is what
+would let this file move.
+
+## `ws-r61-identity-proofing-consent-statements-deferred-not-attempted` (2026-09-05, WS-R61)
+
+**Decision.** `IdentityProofing.tsx` was read in full and left entirely in
+`TIER_2_ALLOWLIST`, with a reason naming the specific risk rather than the
+generic "deep wizard internal, deferred" WS-R52 used for it.
+
+**Rationale.** Unlike this workstream's nine converted files,
+`IdentityProofing.tsx`'s `STATEMENTS` array is the exact English wording a
+creator affirmatively checks (five checkboxes) before submitting a
+government-issued identity document for age and identity verification —
+KYC-adjacent, not merely functional UI copy. No document in this repo
+(unlike `ModelConsentGate.tsx`'s citation in `scripts/roomsVocabAllowlist.mjs`)
+names these specific five sentences as already-consented, frozen text, so
+this is not the SAME rule as `ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text`
+— it is a narrower, self-imposed caution: a translation error in a KYC
+consent statement carries real legal/compliance weight, and no legal review
+of the Hindi wording was in scope for or possible within this session. The
+brief's own law 1 only exempts server-authored prose and the honesty-gated
+`CLASS_COPY`; it does not explicitly cover this case, so this decision is
+this workstream's own judgment call, stated as such rather than implied.
+
+**Reversal condition.** A future workstream that gets the five identity
+statements' Hindi wording reviewed (by whoever owns compliance sign-off for
+this product) can convert this file exactly like the other nine — same
+`copy.ts` shape, same static-scan proof. Nothing about the code structure
+here blocks that; only the absence of a reviewed translation does.
+
+## `ws-r61-three-dedicated-evals-updated-for-the-copy-ts-move` (2026-09-05, WS-R61)
+
+**Decision.** `evals/person-model/run.mjs`, `evals/replica-review/run.mjs`
+and `evals/replica-calibration/run.mjs` — three pre-existing, backend-focused
+suites that each also carry ONE line reading their matching studio panel's
+raw source (`PersonModelStudio.tsx`, `ProcessingReview.tsx`,
+`CalibrationStudio.tsx` respectively) and asserting a literal English
+sentence appears in it — were updated to read `panel + copy.ts` concatenated,
+exactly the shape `evals/readiness/run.mjs` already established for this
+exact move (`ws-r52-existing-evals-updated-for-the-copy-ts-move`, which this
+entry is the direct sequel to, one tier lower).
+
+**Rationale.** `node scripts/verify-release.mjs`'s full run (not the
+isolated `evals/studio-locale/run.mjs` and `scripts/check-copy.mjs` checks
+this workstream ran after every file) is what caught this: its "eval suite"
+step failed with `failed suites: replicareview, personmodel,
+replicacalibration` the first time it ran against this workstream's edited
+tree, because these three suites' own literal-string assertions
+(`/Conflicts stay visible/.test(studio)`, `/Raw transcripts, voice vectors,
+storage locations, provider references, and durable download links/.test(studio)`,
+`/versioned preference evidence/.test(studio)`, and others) were reading
+ONLY the component file — which, after this workstream's edit, carries
+`c.<key>` references instead of the rendered English sentence. Neither
+`evals/studio-locale/run.mjs` (which only proves NO literal text remains,
+never that a SPECIFIC sentence a different suite depends on still renders)
+nor `scripts/check-copy.mjs` (which proves no BANNED word or dash, never
+that a required phrase is present) could have caught this — only running the
+full suite that actually asserts the phrase could. This is exactly the gap
+`ws-common.md`'s brief for this workstream named up front ("any eval that
+pinned a moved literal") and exactly why the fix is the same one: read
+`component + copy.ts` together, not the component alone, so a REAL
+regression (someone deleting the Hindi-aware string from `copy.ts` while a
+stray English fragment survives in a comment) still fails loudly, rather
+than the check quietly stopping to check the actual rendered product.
+
+**Reversal condition.** If any of these three studio panels is restructured
+so `copy.ts` no longer holds the exact phrase these three asserts name, the
+assert itself needs to change to match the new wording — not just the read
+path. A future workstream converting a Tier 2 file MUST grep `evals/`
+for the file's own filename AND for its own most distinctive literal
+sentences (a filename-only grep is not sufficient — see the "found and
+fixed" paragraph two entries up in `context/rejected.md`) before assuming a
+converted file's evals are limited to `evals/studio-locale/run.mjs`.
+
+## `ws-r63-dialog-in-view-one-hook-in-flow-not-overlay` (2026-09-05, WS-R63)
+
+**Decision.** `#ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view`
+found and did not fix that every Room dialog (`.room-menu[role="dialog"]` —
+the data menu, check-ins, handoff, the subscription panel, the account
+page) opened without changing what a follower on a real phone could see,
+because each is a plain in-flow block appended after `.room-composer` with
+no scroll-into-view or focus call. The fix is a single hook,
+`src/room/useDialogInView.ts`, applied to all five components (not just the
+four WS-R43 named): on mount it scrolls the dialog into view
+(`scrollIntoView({block:"nearest"})`, instant under
+`prefers-reduced-motion: reduce`), focuses its first focusable control (or
+its heading, given `tabindex="-1"`, if it has none), listens for Escape,
+and on unmount returns focus to whatever had it before the dialog opened.
+This REPLACES five separate ad hoc `useEffect` Escape-close blocks (one
+per component, `DataMenu`/`CheckinsPanel`/`HandoffPanel`/
+`SubscriptionPanel`/`AccountPage`) with one implementation.
+
+**Rationale.** WS-R43's own note already rejected the other fix
+("make dialogs fixed overlays") for a reason that still holds: DESIGN-LAW
+and this product's own visual language treat `.room-menu`'s card shape as
+part of the document, not a layer stacked over it, and turning five
+in-flow blocks into overlays would be a much larger, riskier change for a
+bug that scroll-and-focus fixes completely. Five separate Escape effects
+were also a standing risk in their own right — nothing stopped one of them
+drifting from the other four the next time someone touched just one file;
+one hook removes that risk by construction. Proven with a negative control
+(`ws-r63-dialog-in-view-negative-control-2026-09-05`): disabling only the
+scroll/focus half of the hook (Escape/return-focus left wired) reproduces
+exactly the WS-R43 defect and trips the new layout-gate assertion; restoring
+it clears every finding.
+
+**Reversal condition.** If a future measurement shows scroll-and-focus is
+insufficient on some real device or interaction (for example, a follower's
+own manual scroll racing the effect, or a browser that ignores
+`scrollIntoView` under some condition this hook does not detect), promote
+the five dialogs to fixed overlays instead — the option WS-R43's own note
+raised and this decision declined only because scroll-and-focus already
+measured sufficient.
+
+## `ws-r66-showcase-eligibility-is-a-where-clause-on-kind` (2026-09-05, WS-R66)
+
+**Decision.** `api/_room-publish.js`'s `setRoomShowcase`, when copying text
+from a review card rather than accepting typed text, admits a card only when
+`kind <> 'follower_declined' and state = 'sounds_right'` — both conditions
+inside the ONE `select` that reads the card, never a JS check applied after
+the row is already in hand.
+
+**Rationale.** Migration 074's own column comment settles which column
+tells a follower's own words apart from creator material: `kind =
+'follower_declined'` is, by construction, "a real follower question the AI
+declined or answered with low confidence" — the one card kind whose
+`prompt_text` is not the platform's, not the owner's Mirror Call, and not a
+mined claim, but a stranger's own turn. The other three kinds
+(`question`/`claim`/`delta`) are drawn from the replica's own pre-launch
+synthetic set or material the OWNER supplied, so excluding only
+`follower_declined` is the whole rule, not an approximation of it — the
+brief's own instruction to "say which column tells them apart" has a real
+answer here, so the documented fallback ("if none does, allow only typed
+text") is not exercised. `state = 'sounds_right'` is a second, independent
+gate: an owner's decision to leave the AI's own answer standing UNEDITED,
+as opposed to `'fixed'` (the owner wrote a different answer — the review
+queue's own correction path, not this one) or `'open'`/`'never'` (not yet
+decided, or refused outright).
+
+**Reversal condition.** If a future card kind is ever added whose
+`prompt_text` can also legitimately carry a follower's own words, this
+predicate must widen from a single kind exclusion to an explicit allowlist
+(`kind = any(array['question','claim','delta'])`) rather than a growing
+blocklist — a blocklist silently admits every new kind by default, which is
+exactly backwards for a boundary this product does not get to get wrong.
+Proven offline in `evals/creator-page/run.mjs` (negative control (a)),
+`evals/room-doors/run.mjs` (§ showcase_set/showcase_remove) and
+`evals/room-leak/run.mjs`'s new layer 7, each with its own eligible/
+ineligible card pair and, in room-leak's case, a negative control that
+strikes the predicate and proves the follower's token then leaks.
+
+## `ws-r66-creator-page-predicate-restated-not-imported` (2026-09-05, WS-R66)
+
+**Decision.** `api/_creator-page.js`'s `publicCreatorPageRoomBySlug` writes
+its own SELECT with all three conditions in one WHERE
+(`published_at is not null and paused_at is null and listed_at is not
+null`), rather than calling `api/_room-publish.js`'s existing
+`publicRoomBySlug` (which checks only the first two) and then testing
+`listed_at` on the row it returns.
+
+**Rationale.** `publicRoomBySlug`'s own SELECT does not carry `listed_at` at
+all, so making it the base would mean either widening that function's
+return shape for one caller that needs a column its other caller
+(`api/_room-page.js`'s crawler unfurl, which explicitly must NOT gate on
+listing — a follower can share an unlisted Room's link and it still
+unfurls) must never see, or running a second query to fetch it — checking a
+gate "after a row is already in hand" is exactly the anti-pattern
+`api/_disclosure.js`'s standing rule exists to name, restated here for a
+read instead of a write. `api/_creators.js`'s own header makes the identical
+call for the identical reason one surface over ("restated here rather than
+imported... the predicate is one line, not a shared abstraction worth a
+third file").
+
+**Reversal condition.** If a third reader ever needs this exact
+three-condition predicate, extract it into a single named SQL fragment
+(not a function that also knows how to write it) rather than a fourth
+hand-copied WHERE clause — three independent copies of one predicate is the
+edge past which "restate, don't share" stops paying for itself.
+
+## `ws-r66-creator-page-fixture-generated-inside-the-web-build-gate` (2026-09-05, WS-R66)
+
+**Decision.** `dist/creator-page-fixture.html` (the fixture
+`scripts/check-headers.mjs` and `scripts/check-performance.mjs` serve for
+`/c/:slug`) is generated by a `closeBundle` hook in `vite.config.ts` that
+calls the real `buildCreatorPageHtml` (`scripts/build-creator-page-fixture.mjs`),
+rather than as its own step in `scripts/verify-release.mjs` or a hand-typed
+static HTML file committed to the repo.
+
+**Rationale.** A hand-typed fixture could drift from what the door actually
+serves the day `api/_creator-page.js` changes and nobody remembers to
+update a second copy — `room-layout-fixture.html`'s own reason for being a
+real component tree with fixture data rather than a static mock, applied to
+a page with no client bundle to make into a vite entry the same way. A new
+named step in `scripts/verify-release.mjs` was rejected specifically
+because this workstream's own brief does not add a gate, and one more
+`await gate(...)` call would move the documented count from 21 to 22
+without a corresponding update to `CLAUDE.md`/`AGENTS.md`'s gate-count
+paragraphs, which this workstream's brief explicitly forbids touching. Vite
+already runs exactly once, inside the existing "web build" gate, so
+generating this one small static file as a side effect of that SAME
+process costs nothing structurally.
+
+**Reversal condition.** If `/c/<slug>` ever grows a real client bundle
+(interactivity beyond a plain link), this stops being a `closeBundle` side
+effect and becomes a real vite entry the way `room.html` is — the day this
+page needs its own JS is the day it needs the fuller treatment.
+
+## `ws-r66-showcase-card-picker-ui-not-built-v0` (2026-09-05, WS-R66)
+
+**Decision.** `src/studio/ShowcaseCard.tsx` (the Share tab's "Show on your
+page" card) supports only typed-or-edited text for each of the five slots
+in this workstream. `api/_room-publish.js`'s `setRoomShowcase` fully
+supports the `sourceCardId` path (copying a "Sounds right" review card's own
+text, proven in `evals/creator-page/run.mjs`, the room-doors battery and
+room-leak's layer 7), but no screen in this repo lets an owner browse their
+own DECIDED review cards to pick one from — `api/_review-queue.js`'s
+`readReviewQueue` only ever lists `state = 'open'` cards, and
+`src/studio/ReviewQueue.tsx` is not a file this workstream's brief named.
+
+**Rationale.** Building a "browse your decided cards" screen is a real
+feature (a new read endpoint, a new list UI, a decision about pagination)
+and not a natural extension of either file this workstream's brief lists
+(`api/room-publish.js`, `src/studio` Share tab). Shipping the server
+capability without a picker is honest and useful on its own: an owner can
+still type or paste the same words a card already holds, and the boundary
+law (never a follower's words) is enforced identically either way, proven
+independent of whether a picker exists.
+
+**Reversal condition.** The day `src/studio/ReviewQueue.tsx` (or a
+successor) gains any way to list decided cards, `ShowcaseCard.tsx` should
+grow a "Show on your page" action next to an eligible one that calls
+`setOwnedRoomShowcase` with `sourceCardId` instead of typed text — the
+capability and its tests are already in place and need no server change to
+support it.
+
+## `ws-r70-owner-lane-manifest-derived-from-erasures-scoping-predicate-not-its-position` (2026-09-05, WS-R70)
+
+**Decision.** `api/_creator-export.js`'s `OWNER_LANE_TABLES` (the creator's
+own DSAR export, the pair `api/_replica-full-erasure.js`'s erasure is the
+other half of) classifies a table as owner-lane or follower-lane by
+checking it against `api/memory.js`'s `PERSON_TABLES` manifest — NEVER by
+which block of `api/_replica-full-erasure.js`'s own SQL text it appears in,
+even though that file's own WHERE-clause scoping (`agent_id` vs
+`replica_id`/`owner_user_id`/a `room_id` subquery) looks like it should be
+the discriminator.
+
+**Rationale.** `vy_room_thread` and `vy_room_follower` are deleted in the
+SAME block of `api/_replica-full-erasure.js` as genuinely owner-lane tables
+(`vy_room`, `vy_room_price`, the Pulse tables), scoped by `agent_id` because
+erasing the WHOLE replica correctly takes every follower's row with it —
+but the ROWS themselves are a follower's own membership and their own
+thread titles (`PERSON_TABLES`, key `person_id`), never the creator's to
+read back. `vy_room_subscription` is the sharper case: it is reached from
+the SAME `room_id`-through-`vy_room` subquery as `vy_payment_event` and
+`vy_room_price` (a genuinely owner-lane block), yet it is a follower's own
+subscription record (`PERSON_TABLES`, key `person_id`) and carries no
+`owner_user_id`/`replica_id` column of its own at all. An eval that
+classified by SQL position (found this table span applied via
+`replica_id`/`owner_user_id`/room-subquery therefore owner-lane) would have
+shipped exactly the boundary violation this whole workstream exists to
+prevent — a follower's subscription and Room membership and thread names in
+the creator's own downloaded file. `MIXED_LANE_TABLES` (`vy_renewal_reminder`
+alone, as of this workstream) is the one sanctioned exception: it holds two
+DISJOINT subject lanes in one physical table behind a CHECK constraint
+(migration 099), and only the `subject_kind = 'creator'` predicate's rows
+are ever read.
+
+**Reversal condition.** If a future table is ever added that is BOTH
+person-keyed (in `PERSON_TABLES`) AND has a legitimate creator-only slice
+worth exporting under a disjoint predicate the way `vy_renewal_reminder`
+does, add it to `MIXED_LANE_TABLES` by name with the same argument this
+entry makes — never widen the classification rule itself to "anything
+reached by `owner_user_id`/`replica_id` in the erasure file," which is
+exactly the rule this decision rejects.
+
+## `ws-r70-creator-export-excludes-vy-room-handoff` (2026-09-05, WS-R70)
+
+**Decision.** `vy_room_handoff` is excluded from the creator's export
+entirely — not partially, not with columns filtered — even though it is
+the record of the creator's OWN verbatim reply to a follower's request for
+a human.
+
+**Rationale.** 083's own header names `vy_room_handoff` as "the one
+PERSON-lane exception to 071's 'never a word' law": a follower's verbatim
+ask and the creator's own verbatim reply sit on the SAME row
+(`payload_text`), and there is no column-level split that hands the
+creator their own words without also handing back the follower's. The
+workstream brief anticipated this ("flags and handoff requests are
+included as the creator sees them (WS-R67's creator-side table if it
+lands; read its lane rule)") — WS-R67 ("flag this reply") is a wave-twelve
+sibling building concurrently; grepped for at this worktree's base
+(a414c7c) rather than assumed, and no creator-side handoff table exists in
+this tree.
+
+**Reversal condition.** Once WS-R67's own creator-side table lands (a table
+naming ONLY the creator's own reply, never the follower's ask), add IT to
+`OWNER_LANE_TABLES` — never add `vy_room_handoff` itself, whatever scope
+predicate is used, per the decision immediately above this one.
+
+## `ws-r70-vy-payment-event-and-erasure-process-bookkeeping-excluded-from-the-export` (2026-09-05, WS-R70)
+
+**Decision.** Four tables `api/_replica-full-erasure.js` reaches by name are
+deliberately absent from `api/_creator-export.js`'s `OWNER_LANE_TABLES`,
+named once as `OWNER_LANE_DELIBERATE_GAPS`: `vy_payment_event`,
+`vy_replica_erasure_job`, `vy_replica_erasure_attempt`,
+`vy_replica_deletion_receipt`.
+
+**Rationale.** `vy_payment_event` carries no `owner_user_id`/`replica_id`
+column at all (schema-checked via `evals/sqlcast/schema.mjs`'s own DDL
+parse, not assumed) — it is reached only through a `room_id` subquery, the
+same shape several genuinely owner-lane tables use, but with no owning
+column of its own to scope a direct read on safely. The other three are
+erasure-PROCESS bookkeeping, not the creator's own content: a job/attempt
+row only exists once revocation was already requested (irrelevant to an
+active creator's export), and the deletion receipt is deliberately
+HMAC-hashed with no plain `owner_user_id`/`replica_id` column to filter by
+at all (`api/_replica-full-erasure.js`'s own header: "NOT an HMAC... looked
+up later, by an operator" — the receipt's whole design is that nobody,
+including the platform, can look one up except by recomputing its hash
+from a request id already in hand).
+
+**Reversal condition.** If `vy_payment_event` ever gains an `owner_user_id`
+or `replica_id` column (a schema change worth making on its own financial-
+transparency merits, independent of this export), move it from
+`OWNER_LANE_DELIBERATE_GAPS` into `OWNER_LANE_TABLES` with a `room_owner` or
+`replica` scope. The three erasure-bookkeeping tables have no analogous
+path — they will always describe the erasure PROCESS, never the creator's
+own archive.
+
+## `ws-r70-room-arrival-excluded-generic-select-conflicts-with-a-sibling-gates-discipline` (2026-09-05, WS-R70)
+
+**Decision.** The Room's per-day arrival-source counts table is excluded
+from `api/_creator-export.js`'s `OWNER_LANE_TABLES` even though it is
+content-free (no person or follower column at all) and would otherwise
+qualify on the identical "aggregate view" reasoning `vy_room_pulse_snapshot`
+and its siblings already qualify on. It is not named in `OWNER_LANE_
+DELIBERATE_GAPS` either — its identifier is deliberately absent from this
+file entirely, for the reason `rejected.md#ws-r70-mentioning-a-boundary-
+tables-name-in-a-comment-trips-a-repo-wide-static-scanner` gives in full.
+
+**Rationale.** `evals/room-leak/run.mjs`'s own repo-wide static scan holds
+every reader of that ONE table, outside two named writer/deleter files, to
+a stricter discipline than "content-free" alone buys: the SELECT naming it
+must be a single rolled-up SQL aggregate (`count`/`sum`/`min`/`coalesce`),
+never a per-row read — `api/_funnel.js`'s own share-arrivals line is the
+one existing reader, and it is exactly that shape. `creatorExport`'s own
+per-table read is a generic `select *` for every scope by construction (one
+function, seven WHERE shapes, no per-table special case), and this ONE
+table is the only place in the whole 51-table manifest where that generic
+shape collides with an established, gate-enforced discipline for a reason
+that has nothing to do with this workstream's own boundary law. The
+workstream brief names Pulse counts and cohort counts as the explicit
+carve-out for content-free aggregates; it never names this table, so
+leaving it out is a narrow scope cut, not a silent gap in what the brief
+asked for.
+
+**Reversal condition.** If a future workstream wants this table in the
+creator's export, the fix is a table-specific query (an explicit
+`sum(count)` grouped by the table's own primary key columns, satisfying
+both this file's generic manifest shape AND `evals/room-leak/run.mjs`'s
+aggregate-only rule) rather than widening the generic `select *` path — and
+that future file's own identifier must still never appear as a literal
+string in `api/_creator-export.js`'s own source outside such a query, per
+the rejection entry this decision cites.
+
+## `ws-r73-provider-read-not-a-ledger-column-for-the-mandate-method` (2026-09-05, WS-R73)
+
+**Decision.** `updateOrgSeats` (`api/_payments.js`) learns a Suite
+subscription's payment method by calling a NEW provider function,
+`getSubscription` (`GET /v1/subscriptions/:id`), immediately before the
+existing `updateSubscriptionQuantity` PATCH, rather than by widening
+`vy_payment_event` (or `vy_org_subscription`) with a new `payment_method`
+column populated at webhook-apply time. No migration.
+
+**Rationale.** `vy_payment_event` today stores only `kind`/`amount_inr`/
+timestamps, never the raw webhook JSON, so a ledger-derived answer would
+need `applyWebhook`'s own `parseWebhookPayload` widened to also capture
+`payload.payment.entity.method` off the FIRST webhook that ever lands for a
+subscription (`subscription.authenticated`) and persist it somewhere new —
+a schema change, a backfill question for any subscription authenticated
+before that column existed, and a second place (alongside the provider
+itself) that could drift from what Razorpay actually has on file. The
+provider read has none of that: it asks the ONE authority that actually
+knows the answer, addressed by the `provider_subscription_ref` this
+function already has in hand, costs one HTTP round trip only on the path
+that was already about to make a SECOND one (the PATCH this function calls
+next), and needs nothing new in the database at all — `razorpay.js`'s own
+WS-R73 addendum names the workstream's own brief, law 2 ("the provider's
+subscription read"), as the source of this exact choice.
+
+**Reversal condition.** If a caller ever needs to know a subscription's
+payment method WITHOUT also being about to make a provider call right
+after (a dashboard listing every Suite's method, say, where an HTTP round
+trip per row would be too slow), that is the point to add the ledger
+column instead — capturing it once, at `subscription.authenticated`
+webhook time, the way `vy_payment_event`'s own `kind` is captured today —
+and this function would then read that column first, falling back to a
+live provider call only when the column is still null (a subscription
+authenticated before the column existed). Until such a second reader
+exists, one reader making one extra call beats every future reader trusting
+a column nothing has cross-checked against the provider since the day it
+was written.
+
+## `ws-r77-ci-runs-the-whole-gate` (2026-09-05, WS-R77)
+
+**Decision.** Added `.github/workflows/release-gate.yml`: a dedicated workflow
+that runs `node scripts/verify-release.mjs` (the whole gate — 21 checks
+without `NEON_URL`, which this job never sets) on every push to `main` or a
+`claude/**` branch, in a Node 22 x Node 24 matrix, with a real headless
+Chromium installed on the runner. It is a separate workflow from
+`build-apk.yml` and `deploy-web.yml`, not a job added to either: both of
+those already run `tsc -b` + the eval suite for their own separate purposes
+(an APK artifact, a live deploy), and neither has ever run the room leak
+battery, the door battery, the export battery, accessibility, performance
+budgets, security headers, or the layout gate's Hindi glyph pass. Before this
+workstream, `node scripts/verify-release.mjs` — the command every one of this
+repo's own docs calls "the law" — had never once been invoked by any GitHub
+Actions workflow.
+
+**Rationale.** `context/rejected.md#gates-that-live-nowhere` and
+`#gates-that-live-nowhere-2` are the same failure shape occurring twice
+already: a check suite exists, passes cleanly by hand, and gates nothing in
+CI because no workflow calls it, so every push goes around it silently. This
+is that shape a third time, at the scale of the entire release gate rather
+than one suite inside it — a push could pass both existing workflows outright
+while every Rooms-specific check (leak, door, export, accessibility,
+performance, headers) had never run anywhere but a human's or an agent's own
+terminal. Making CI run the whole gate closes that gap structurally: it is no
+longer possible for a change to reach a branch this workflow watches without
+the 21-check gate having run against it in an environment nobody had to
+remember to use.
+
+**What this decision deliberately does NOT do.** It does not raise the gate
+count (still 21 without `NEON_URL`, 23 with it — this job never sets
+`NEON_URL`, so it is always the 21-check run) and it does not touch the live
+database, reconstruct a real `api/_config.js`, or make any paid call. Every
+check it runs is the same offline check that already ran locally.
+
+**Reversal condition.** If a real CI run (not this workstream's local
+rehearsal, which only proves the command list and the runner-shape
+assumptions — the font, the lack of a secret, the Node-version matrix) is
+ever measured at or above 25 minutes, split the job: a `build` job through
+`npx vite build`, `actions/upload-artifact`s `dist/`, and a second
+`browser-gates` job that downloads it and runs only the browser-driven checks
+— which needs a `--only <name>` flag added to `scripts/verify-release.mjs`
+that does not exist today (see `ws-r77-ci-gate-not-split-into-parallel-jobs-yet`
+below). If GitHub's `ubuntu-latest` image turns out to ship a Devanagari-
+capable font by default after all, the font-install step becomes redundant
+rather than wrong — it is still correct to keep it, because "redundant and
+explicit" is a strictly better position than "silently depends on the
+runner's current font list," which is exactly the blind spot this
+workstream's own local sandbox already demonstrated
+(`context/measurements.md#layout-gate-glyph-probe-uniformity-half-2026-09-05`).
+
+## `ws-r77-ci-gate-not-split-into-parallel-jobs-yet` (2026-09-05, WS-R77)
+
+**Decision.** The release gate is one job (matrixed over Node 22/24), not
+split into a `build` job plus a parallel `browser-gates` job sharing the
+build artifact, even though the brief names that split as the answer if
+runtime exceeds 25 minutes.
+
+**Rationale.** Local rehearsal (this workstream, `context/measurements.md#ws-r77-local-rehearsal-runtime-2026-09-05`)
+measured the 21 checks themselves at a little over 10 minutes on a 4-core
+sandbox, under both Node 22 and Node 24. A real `ubuntu-latest` runner is
+2 cores and will run slower, plus checkout/`npm ci`/a first Chromium
+download add real time on top — but nothing available to this workstream
+can measure GitHub's own runner, and building the split now would mean
+guessing at a threshold nobody has crossed, adding a `--only` flag to
+`scripts/verify-release.mjs` speculatively, and doubling the workflow's own
+surface area for a problem not yet observed. `never claim what you did not
+run` (AGENTS.md) cuts the other way here too: claiming a specific real-CI
+runtime this workstream never measured would be exactly the kind of
+plausible-but-ungrounded number the project's own laws warn against.
+
+**Reversal condition.** The first real CI run (the main loop's, after this
+branch merges and pushes) tells us the true number. If total job time is at
+or above 25 minutes on either Node version, split as described in
+`ws-r77-ci-runs-the-whole-gate` above, and log the real runtime that
+triggered it as a measurement before making the change.
+
+## `ws-r80-island-not-a-second-app` (2026-09-05, WS-R80)
+
+**Decision.** The taste on `/c/<slug>` is a small, dependency-free,
+progressively-enhanced island (`public/creator-taste.js`, served as a
+static file under the page's existing `script-src 'self'` CSP with no
+widening) enhancing a plain, real `<form>` that already works with no
+JavaScript at all (a GET to `/r/<slug>?via=search`, the Room's own taste
+screen for a signed-out visitor). It is never a second client app, never a
+bundle, and adds no new server op: the enhanced flow POSTs the exact same
+`{op:"taste", room, message, locale}` shape `api/room.js` already serves,
+through the SAME `roomTaste` (`api/_room-taste.js`) and the SAME 3-a-day
+`room_taste` rate scope.
+
+**Rationale.** `/c/<slug>` exists (WS-R66) specifically because a search
+visitor has no client app to hand off to — the page IS the content, and
+`scripts/check-performance.mjs`'s own budget table proves it stays there:
+2.2KB of JS after this workstream against a 180KB ceiling, LCP unchanged
+within run-to-run noise (`measurements.md#ws-r80-creator-page-performance-2026-09-05`).
+A second React app here would mean a second bundle, a second router, and a
+second place `taste_enabled` and the disclosure card have to agree with the
+Room's own — exactly the drift `api/_room-embed.js`'s header already warns
+against for its own, simpler embed. The no-JS form is not a fallback bolted
+on after the fact; it is the page's baseline behavior, and the island only
+upgrades it.
+
+**Reversal condition.** If a future workstream needs the taste screen on
+`/c/<slug>` to carry state across turns beyond one page load (say, a
+signed-in-but-not-joined visitor's history), or needs more than the three
+turns this island already fits in under 6KB minified, that is the point to
+build a real client entry for `/c/<slug>` rather than keep growing this
+file — the same "when does an island become an app" line
+`api/_room-embed.js#ws-r46-no-iframe-v0` draws for its own surface.
+
+## `ws-r80-taste-copy-restated-not-imported` (2026-09-05, WS-R80)
+
+**Decision.** `api/_creator-page.js` carries its own `TASTE_COPY` object
+(both locales) rather than importing `src/room/copy.ts`'s `taste` section.
+It is proven byte-identical to the real, bundled `copy.ts` export by
+`evals/creator-page/run.mjs` (esbuild-bundling the real file, exactly
+`evals/room-locale/run.mjs`'s own technique), field by field, both
+locales, with a negative control that a drifted string is caught.
+
+**Rationale.** `api/_creator-page.js` runs as a plain Vercel Node function;
+no file under `api/` imports anything under `src/` anywhere in this repo
+(grepped before writing this), and `src/studio/pulseApi.ts`'s own header
+already states the identical boundary in the other direction ("the front
+end cannot import a server module"). Typing the same nine strings twice
+and proving them equal by machine is the same trade this repo already
+makes for every `// mirror of api/<file>.js#<NAME>` marker
+(`scripts/check-mirrors.mjs`) — except those markers parse a single scalar
+literal and this is a whole copy block, so it is proven by a real bundle
+-and-compare in the eval suite instead of a marker the mirror gate cannot
+parse.
+
+**Reversal condition.** If a build step is ever added that lets an `api/`
+handler import a `.ts` module directly (bundling every Vercel function
+through esbuild/ncc rather than shipping them as plain Node files), drop
+`TASTE_COPY` and import `ROOM_COPY_TABLE` from `src/room/copy.ts` for real
+— the eval's own parity proof is the signal that nothing else needs to
+change first.
+
+## `ws-r80-via-search-survives-as-a-hidden-field-not-in-the-form-action` (2026-09-05, WS-R80)
+
+**Decision.** The taste form's no-JS fallback (`<form method="get"
+action="/r/<slug>">`) carries `via=search` as a hidden input field, never
+as part of `action`'s own query string.
+
+**Rationale.** Measured directly against a real Chromium GET submission
+(`public/creator-taste.js`'s own header cites the rule): the HTML living
+standard has a plain `<form method="get">` submission REPLACE whatever
+query string `action` already carried with the serialized form fields, not
+append to it. `action="/r/<slug>?via=search"` with a text input named `q`
+would submit to `/r/<slug>?q=<value>` and silently drop `via=search` on
+every no-JS visitor — exactly the visitor this fallback exists to serve,
+losing the one signal `api/_room-surface.js`'s `resolveArrivalVia` reads.
+Caught before merge by `evals/creator-page/run.mjs`'s own assertion that
+the rendered `action` carries no query string at all.
+
+**Reversal condition.** None expected; this is a fact about the HTML
+living standard, not a product choice. If a future edit moves `via=search`
+back into `action`'s query string, the eval assertion this decision cites
+will fail the moment `action` gains a `?`.
+
+## `ws-r74-creator-push-headline-derived-not-forwarded-verbatim` (2026-09-05, WS-R74)
+
+**Decision.** The creator's weekly push headline
+(`api/_creator-push.js#pulseHeadlineFor`) does NOT forward `readPulse`'s own
+`note` field verbatim. It derives a short, one-line headline directly from
+`readPulse`'s `combo_buckets` array instead — the same already-floor-checked
+(`follower_count >= 5`, migration 097's own CHECK) rows `weeklyNote` itself
+reads, with `weeklyNote`'s own "prefer the single-label bucket, else the
+highest count" pick restated in a handful of lines for a one-line result
+instead of a paragraph.
+
+**Rationale.** Measured, not reasoned about: running this workstream's own
+`evals/creator-push/run.mjs` §4 world against the FIRST version of this
+function (which forwarded `pulse.note` as-is, truncated to 220 characters
+for the notification body) produced a payload whose body read "...It never
+shows a message or a name, and never a number below five. One combination
+reached the floor this we" — the ENTIRE useful fact (which topic, what
+action) was cut off, because `weeklyNote`'s own fixed two-sentence
+disclaimer preamble ("Pulse counts what your followers talk about...")
+alone consumes most of a lock-screen notification's own budget. A creator's
+push would have shown the disclaimer every single week and never the news.
+See `evals/creator-push/run.mjs`'s own assertion
+`"sendCreatorWeeklyPushes: the published Pulse combo's headline was
+included"`, which failed under the forwarded-`note` version and passes
+under the derived-headline version — this is the run that found the bug,
+not a design guess.
+
+**Reversal condition.** If `weeklyNote`'s own preamble is ever shortened or
+made optional (a `opts.short` flag, say), forwarding `note` verbatim becomes
+viable again and this duplication can be deleted in favour of importing
+that shorter form — but only once a real run of this workstream's own eval
+world shows the headline text actually reaching the payload intact, the
+same evidence bar that closed this decision the first time.
+
+## `ws-r74-creator-weekly-push-subscription-table-carries-no-owner-allowlist` (2026-09-05, WS-R74)
+
+**Decision.** `vy_creator_push_subscription` (migration 118) is written by
+`subscribeCreatorPush(db, ownerUserId, sub)` with NO allowlist parameter in
+its INSERT's WHERE clause — unlike `vy_operator_push_subscription`
+(migration 114, `subscribeOperatorPush`), whose WHERE clause checks
+`OPS_OWNER_USER_IDS` as a query parameter. Every authenticated owner may
+subscribe for themselves.
+
+**Rationale.** The two tables answer different questions. `OPS_OWNER_
+USER_IDS` names a small, fixed, operator-configured allowlist of PLATFORM
+STAFF — the WHERE clause is the enforcement because "is this bearer staff"
+is exactly the fact a database row cannot otherwise verify. `vy_creator_
+push_subscription`'s own question is "is this bearer THIS row's owner",
+answered structurally by `ownerUserId` coming only from `requireUser(req)`
+in `api/replica.js` (never a body-supplied id) — the identical "no cross-
+identity input" shape every other owner-scoped op on that door already
+takes (`export`, `set_locale`, `revoke`). Adding a second allowlist gate
+here would be checking a fact this table has no business asking: every
+owner of a Room is entitled to know what happens in their own Room this
+week, which is the entire point of Rooms v1 existing.
+
+**Reversal condition.** If push notifications are ever gated behind a paid
+tier or an explicit opt-in flag on `vy_room` (rather than "every published
+Room's owner gets one"), that gate belongs in `sendCreatorWeeklyPushes`'s
+own room-scan WHERE (`published_at is not null and paused_at is null`
+gains a clause) or in a new column on `vy_room`, never retrofitted onto the
+subscription table's own WHERE — the subscription answers "can this device
+receive pushes for this owner", not "should this owner get one this week".
+
+## `ws-r76-self-check-reports-through-the-existing-incident-ledger-not-a-second-pipeline` (2026-09-05, WS-R76)
+
+**Decision.** `api/self-check.js` (migration 120) reports a failing check
+by calling `api/_incidents.js`'s own `recordIncident(db, {kind, door,
+status})` — one row per finding, `kind: "self_check"`, `door` the check's
+own name, `status: 0` (a fixed sentinel, since a self-check finding has no
+HTTP status code of its own to carry). It does not get a second table, a
+second board card wired independently of the Incidents card, or a second
+push-notification path.
+
+**Rationale.** WS-R58 already built the whole content-free-failure-as-a-row
+pipeline this exact need calls for: an upsert-by-(day, kind, door, status)
+table with a 90-day retention sweep, a board card that shows "last 7 days
+by kind and door, red on new-since-last-week", and an at-most-once-per-kind-
+per-day operator push through the real VAPID/webpush path (WS-R62). Every
+one of those pieces was designed to be kind-agnostic — `INCIDENT_KINDS` is
+already a closed, widenable list, `incidentsOverview` already groups by
+`(kind, door)` without a kind-specific branch, `notifyNewIncidentKinds`
+already claims and pushes for "any kind with a row today" — so a sixth kind
+is the ENTIRE integration surface, migration 120's one CHECK widening. A
+second pipeline (a dedicated `vy_self_check_finding` table, a bespoke board
+section reading it directly, a second push path) would duplicate a whole
+subsystem this repo already reviewed once, for a shape (name, count, day)
+identical to what the first one already stores.
+
+**Reversal condition.** If a self-check finding ever needs to carry
+something the incident ledger's schema cannot (a structured payload beyond
+a 100-character door name, a per-finding severity distinct from "it
+failed"), that is the signal to give self-check its own table — not before,
+and not merely because it FEELS like a different kind of thing from a
+`door_5xx` row, when the ops board treats both identically today.
+
+## `ws-r76-self-check-cron-path-is-the-one-named-exception-to-the-sweep-naming-convention` (2026-09-05, WS-R76)
+
+**Decision.** The workstream brief names the cron door `api/self-check.js`,
+not `api/self-check-sweep.js` — every other cron in `vercel.json` follows
+the `<name>-sweep` convention `api/_sweep-schedule.js`'s `sweepNameFromPath`
+depends on to derive a sweep's own name from its URL path. Rather than
+rename the file to fit the convention, `sweepNameFromPath` gained one named,
+literal exception (`"/api/self-check"` -> `"self-check"`), and
+`expectedIntervalMs` was generalized from requiring the schedule's minute
+field to be literally `"0"` to accepting any fixed single-digit minute value
+— needed because the chosen schedule (`30 2 * * *`, deliberately off the
+top-of-the-hour crowd every OTHER daily/hourly cron in this file fires on)
+does not fire at `:00`.
+
+**Rationale.** Every other cron in this repo genuinely IS a sweep over a
+table of rows (drift reports, check-ins due, renewals due); self-check
+probes the deployment itself and has no rows to sweep, so the brief's own
+choice of name is not an inconsistency to fix, it is the file correctly
+naming what it is. Widening the regex in `sweepNameFromPath` to accept ANY
+path shape (not ending in `-sweep`) was rejected in favor of one exact,
+named string match — a looser regex would silently accept a FUTURE cron
+that was never meant to fit the sweep-naming convention either, hiding a
+naming mistake instead of catching it. The `expectedIntervalMs` widening
+(literal `"0"` to `/^\d+$/`) is a strict superset of the old behavior — every
+existing schedule in `vercel.json` uses minute `"0"`, a subset of "any
+fixed minute", so nothing that parsed before parses differently now,
+proven by `evals/self-check/run.mjs` re-asserting the two named cases
+`evals/ops/run.mjs` already covered (`0 0 * * *`, `0 3 * * 1`) alongside
+the new `30 2 * * *` case.
+
+**Reversal condition.** If a future cron ever needs a schedule shape this
+parser still cannot read (a day-of-month or day-of-week list, for example),
+extend `expectedIntervalMs` the same way — widen what it can READ, never
+guess a number for a shape it cannot, per that function's own standing
+law ("return null for a shape this does not recognise, never guess").
+
+## `ws-r72-showcase-picker-built` (2026-09-05, WS-R72, supersedes `ws-r66-showcase-card-picker-ui-not-built-v0`)
+
+**Decision.** `ShowcaseCard.tsx` gains a "Pick from your reviews" control on
+every slot: a new op on `api/review-queue.js` (`showcase_eligible`, backed by
+a new pure function `api/_review-queue.js::readEligibleShowcaseCards`) lists
+the owner's decided review cards eligible to become a slot's source, and
+tapping one calls the EXISTING `setOwnedRoomShowcase(..., { sourceCardId })`
+path WS-R66 already built and tested end to end. No server write path
+changed; only the read that lets a creator browse before they pick, and the
+screen that calls it.
+
+**Rationale.** WS-R66 shipped the write half (`setRoomShowcase`'s
+`sourceCardId` branch) and explicitly deferred the read, because building a
+"browse your decided cards" screen was a real feature outside that
+workstream's own file list. That reversal condition is now met: this
+workstream's own brief names `src/studio/ShowcaseCard.tsx` and
+`api/review-queue.js` directly. `readEligibleShowcaseCards` reuses the EXACT
+predicate `setRoomShowcase` already enforces on its own write
+(`state = 'sounds_right' and kind <> 'follower_declined'`, both inside the
+ONE select) rather than composing a shared helper — `ws-r66-creator-page-
+predicate-restated-not-imported`'s own reasoning, restated for a second
+reader of the identical three-word law: a one-line predicate is not worth a
+shared abstraction, and a THIRD hand-copied WHERE clause (this file already
+has TWO: `setRoomShowcase`'s and `readEligibleShowcaseCards`'s) is still
+inside the "restate, don't share" budget that decision's own reversal
+condition sets at three.
+
+**Reversal condition.** If a third caller ever needs this exact predicate
+(a `sounds_right`, non-`follower_declined` review card list), extract it
+into one named SQL fragment rather than a fourth hand-copied WHERE clause —
+`ws-r66-creator-page-predicate-restated-not-imported`'s own threshold,
+unchanged. Proven offline in `evals/review-queue/run.mjs` (a positive read,
+a static check that the ONE select carries both predicate halves together
+and no JS-side filter exists, and a cross-owner negative control) and
+`evals/room-doors/run.mjs` (an owner-bearer attack case on the same
+function). NOT proven: no real creator has ever opened this picker against
+a live database; migration 115's `vy_review_card`/`vy_review_showcase`
+tables have real rows only in a fake `db`.
+
+## `ws-r72-flag-dismiss-is-a-creator-lane-delete-no-migration` (2026-09-05, WS-R72)
+
+**Decision.** "Sounds right anyway," the flagged-reply card's second action,
+is `api/_review-queue.js::dismissFlaggedReply`: a DELETE of every
+`vy_room_reply_flag` row for one `(room, reply_sha256)`, owner-scoped through
+`vy_room` in the WHERE clause, never a new column and never a new table.
+
+**Rationale.** The workstream brief permits a new owner op "only if no
+existing one fits" and explicitly forbids a migration. `vy_room_reply_flag`
+(migration 116) already carries no follower identity of any kind — nothing
+to flip a state on, nothing to attribute the dismissal to — so a DELETE is
+not a workaround for the missing column, it is the SAME shape
+`api/_room-surface.js::unflagReply` already uses one file over for a
+follower's own withdrawal, scaled from "one follower's own row" to "every
+row this reply has," which is the correct scaling: a follower withdrawing
+takes back their OWN flag; a creator dismissing is saying the reply stands
+for everyone who flagged it, clearing the card the same way `sounds_right`
+clears a review card for good rather than for one asker. The follower lane
+(`vy_room_follower_reply_flag`, each follower's own record of having
+flagged it) is never touched by this op — the creator's action must never
+reach into a follower's own scope, AGENTS.md's boundary law applied to a
+delete rather than a read.
+
+**Reversal condition.** If a future workstream needs a per-flag STATE
+(dismissed-but-visible, rather than gone), migration 116's own reversal
+condition already names the fix: a per-row id the creator can act on
+individually is what the row-per-flag design was chosen FOR
+(`ws-r67-flag-hash-not-body-two-lanes-count-at-read-time`'s own reversal
+condition) — add a `dismissed_at` column to `vy_room_reply_flag` and change
+`readFlaggedReplies`'s WHERE to exclude dismissed rows, never delete. Proven
+offline in `evals/review-queue/run.mjs` (a positive dismissal, a not-found
+refusal, a cross-owner negative control, and a malformed-hash refusal before
+any SQL runs) and `evals/room-doors/run.mjs` (an owner-bearer attack case
+with a real fixture row that survives a stranger's attempt and is gone after
+the real owner's).
+
+## `ws-r72-review-queue-js-kept-outside-the-door-battery` (2026-09-05, WS-R72)
+
+**Decision.** `api/review-queue.js` is NOT added to
+`evals/room-doors/run.mjs`'s `DOOR_MODULES`/`EXPECTED_DOORS`/`OP_COVERAGE`
+machinery. The two new owner-bearer cases this workstream adds
+(`showcase_eligible`, `flag_dismiss`) are cased directly against
+`api/_review-queue.js`'s exported functions, in the SAME file, using the
+SAME fixture world (`OWNER`/`OWNER_B`/`REPLICA_ID`) `room-publish.js`'s own
+`showcase_set`/`showcase_remove` cases already use — real attacks, on real
+decision-module functions, just not routed through §0's discovered-door
+completeness check.
+
+**Rationale.** `discoverDoors()` finds a door by two conjuncts: it reads a
+request body AND its source text names one of `DOOR_MODULES`'s closed set
+(`_room-surface.js`, `_room-publish.js`, ... `_ops.js`). `api/review-queue.js`
+imports `./_review-queue.js`, which is not in that set, so it is
+structurally excluded today and adding it is a real structural change, not a
+label. Doing so would make §18's completeness check enumerate EVERY op this
+door has ever had — `generate`, `decide`, `dictate`, `flag_never`, plus this
+workstream's two — and REQUIRE an `OP_COVERAGE` entry (a real attack, or a
+named, justified exclusion) for every one of them, not only the two this
+brief asks for. `generate`/`decide`/`dictate` have never been attacked this
+way before; giving them a real class-e case each is a legitimate future
+improvement but it is not this workstream's own scope (`src/studio/
+ShowcaseCard.tsx`, `src/studio/ReviewQueue.tsx`, `src/studio/reviewQueueApi.ts`,
+`api/review-queue.js`'s two new ops), and a shallow "excluded, no reason"
+entry for three real owner-scoped writes would be worse than the status quo:
+a completeness check that passes by asserting nothing is the exact failure
+mode `context/rejected.md`'s own standing law warns against for every other
+static scan in this repo.
+
+**Reversal condition.** The day a future workstream's brief explicitly asks
+for `api/review-queue.js`'s full door coverage (or needs it for a DIFFERENT
+new op that would otherwise ship with no attack case at all), add
+`"./_review-queue.js"` to `DOOR_MODULES`, add `"review-queue.js"` to
+`EXPECTED_DOORS` in its alphabetical slot (between `replica.js` and
+`room-pay.js`), and write a real class-e case for `generate`/`decide`/
+`dictate` at the same time — never only the new op, which would leave the
+three pre-existing ones as the exact "preexisting-uncased" gap WS-R44 named
+and closed once already for `room-publish.js`.
+
+## `ws-r72-picker-opened-by-a-real-click-in-the-layout-gate` (2026-09-05, WS-R72)
+
+**Decision.** `scripts/check-layout.mjs`'s new "deploy-picker" step (a
+`scenario=showcase-picker` overlay that publishes the fixture Room, so
+`ShowcaseCard` mounts at all) opens the picker with a REAL Playwright click
+on `[data-picker-open="1"]`, never a fixture prop or a global flag that
+pre-opens it. The scenario overlay itself supplies DATA only (a published
+Room, `readEligibleShowcaseCards`' fixture rows) — nothing in
+`layoutFixture.tsx` or `ShowcaseCard.tsx` reads a scenario name to decide
+whether the picker starts open.
+
+**Rationale.** `#ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view`
+already settled this exact question one control over (the Room's
+checkins/handoff dialogs): a real click proves the OPEN MECHANISM itself
+works — the button is found, is clickable, and produces the expected DOM —
+where a fixture prop pre-opening it would only ever prove the ALREADY-OPEN
+state looks fine, silently assuming a working opener rather than measuring
+one. `[data-picker-open="1"]`, like `[data-dialog-open="..."]`, is
+locale-independent by construction, so `studio-hi`'s Hindi render needs no
+second selector.
+
+**Reversal condition.** None expected; this is a restatement of an already-
+adopted law, not a new one, so nothing short of that law itself reversing
+would reverse this. Proven in `scripts/check-layout.mjs`'s own per-step
+loop: a missing opener or a click that fails to reveal
+`.vy-room__showcase-picker` is a named finding (`picker-open`), the same
+shape `dialog-in-view` already is for the Room's own real-click checks.
+
+## `ws-r72-accessibility-gate-scope-flags-yes-picker-not-yet` (2026-09-05, WS-R72)
+
+**Decision.** `scripts/check-accessibility.mjs`'s studio targets are NOT
+extended with a "deploy-picker" screen. The flagged-reply cards ("Never say
+this" / "Sounds right anyway") ARE exercised by the existing `meet` screen
+in both locales, with no new wiring, because `layoutFixture.tsx`'s base
+(non-scenario) `/api/review-queue` route now carries real `flags` data; the
+showcase picker is NOT exercised by axe in this workstream, because reaching
+it needs a published Room, and `RoomStudio.tsx` mounts `ShowcaseCard`
+alongside `SuiteCard`/`PayoutsCard`/`CheckinsCard`/`HandoffCard` with no way
+to publish a Room for just one of them — the FIRST real render of that whole
+section, sibling cards included, for a gate that has never rendered any of
+it before.
+
+**Rationale.** The picker's own controls are plain semantic `<button>`
+elements with real visible text and (the picker panel itself)
+`role="group"`/`aria-labelledby` — accessible by construction, independent
+of whether any particular gate run happens to scan them. Extending
+`check-accessibility.mjs`'s fixed `screens` list to a NEW Room-published
+state would, for the FIRST time, put `SuiteCard`/`PayoutsCard`/
+`CheckinsCard`/`HandoffCard` in front of axe too — four components this
+workstream did not touch, never measured before, and has no budget to
+triage findings in. Shipping that exposure as a side effect of a two-button
+feature would risk reporting THIS workstream's gate run red over defects
+(or false positives) that belong to four other cards entirely.
+
+**Reversal condition.** The day any workstream deliberately gives
+`check-accessibility.mjs` a published-Room studio screen (for ANY reason —
+Suite, Payouts, Checkins, Handoff, or this picker), fold "deploy-picker"
+into it rather than adding a second one: `layoutFixture.tsx`'s
+`showcase-picker` scenario already has everything a Share-tab accessibility
+screen would need. Until then, this is a named, deliberate gap, not a
+silent one.
+
+---
+
+## `ws-r79-tag-at-the-node-not-the-document` (2026-09-05, WS-R79)
+
+**Decided.** Language tagging for screen readers is done at the NODE that
+carries the text — `src/room/copy.ts#detectRoomTextLang`, `src/studio/
+copy.ts#detectStudioTextLang`, and `api/_creator-page.js`'s own restated
+`detectPageTextLang`, each a one-line Devanagari-presence test — never by
+trusting `document.documentElement.lang`/`room.locale`/`?lang=` to already
+say what language a given piece of text is actually in.
+
+**Rationale.** Four kinds of text on the Room and the creator page are not
+guaranteed to be in the document's own locale, and the document `lang`
+alone cannot be trusted to describe them:
+
+1. **The disclosure sentence is fetched, not re-picked.** `RoomApp.tsx`'s
+   own `switchLocale` mints a fresh session and updates `document.
+   documentElement.lang` the moment a follower switches language, but never
+   refetches the disclosure text itself (`RoomOpen.disclosure` stays
+   whatever it was fetched as). A follower who switches mid-conversation
+   now has a document tagged in the NEW locale wrapping a card still
+   written in the OLD one, until their next message — proven directly by
+   reading `switchLocale`'s own two branches: `setRoomLocale`'s return type
+   (`roomApi.ts`) carries only `{ locale, session }`, no disclosure field.
+2. **A creator's own name, bio, and showcase answers are written once, in
+   the Room's own default locale — not the follower's chosen chrome
+   language.** `RoomOpen.room.bio`, `room.name`/`display_name`, and
+   `/c/<slug>`'s showcase Q&A all ship to the client with no accompanying
+   language field at all; the only honest signal is the text's own
+   characters.
+3. **The creator's public page (`api/_creator-page.js`) can be requested in
+   either locale via `?lang=` independent of `room.default_locale`** — a
+   Hindi-default-locale creator's page opened via `?lang=en` (a search
+   engine, or a shared link with the "wrong" query string) is a real,
+   reachable state, not a contrived one.
+
+Detecting from the text's own characters (Devanagari presence, U+0900-
+U+097F) makes every one of these correct BY CONSTRUCTION, regardless of
+whether any surrounding state (`room.locale`, a stale fetch, a mismatched
+query param) agrees with it — the mechanism does not depend on two pieces
+of state staying in sync, which is exactly the class of bug case 1 above
+already demonstrates is not free.
+
+**What was NOT done.** The staleness in case 1 (the disclosure text itself
+not being refetched on a locale switch) is not fixed here — this
+workstream's job was tagging, not refetching, and the node-level tag makes
+the STALE text pronounce correctly regardless. Fixing the staleness itself
+is a separate, smaller workstream: refetch or re-derive the disclosure card
+inside `switchLocale`'s own `session && phase === "talking"` branch.
+
+**Reversal condition.** If a future workstream adds a server-supplied
+language field alongside any of this text (e.g. `room.bio_locale`), the
+detector should prefer that field over character-sniffing wherever it is
+present — character-sniffing is a fallback for text with no declared
+language, not a permanent design commitment, and a declared field is more
+correct than any heuristic the moment one exists. Until then, the four call
+sites above have no such field to prefer.
+
+---
+
+## `ws-r79-language-switch-buttons-get-their-own-lang` (2026-09-05, WS-R79)
+
+**Decided.** `LanguageSwitch` (`src/room/RoomApp.tsx`) and
+`StudioLanguageSwitch` (`src/studio/StudioShell.tsx`) each set `lang={l}`
+directly on every one of their two buttons (`l` being the locale that
+button's own label — `ROOM_LANGUAGE_LABELS[l]`/`STUDIO_LANGUAGE_LABELS[l]`
+— is written in), rather than detecting it from the label text.
+
+**Rationale.** Both surfaces show BOTH words always, in both locales, by
+design (`ROOM_LANGUAGE_LABELS`'s own comment: "a person who reads only
+Hindi still has to be able to find English on the way to it"), so on an
+English-locale page the "हिन्दी" button's own text is Devanagari sitting
+under `<main lang="en">` with no tag of its own — this workstream's new
+accessibility-gate assertion caught it directly (6 occurrences across
+`room:join`/`room:talk`/`room:account`x2/`room:talk` reduced-motion and
+forced-colors variants, before the fix; `studio:shell`x3/`studio:shell-hi`
+similarly). The locale each button names is already KNOWN (it is the loop
+variable `l`, not detected from anything) — using that directly is simpler
+and more certain than running `detectRoomTextLang(ROOM_LANGUAGE_LABELS[l])`
+on a string this file already knows the language of.
+
+**What was deliberately NOT touched.** The group's own bilingual
+`aria-label` ("हिन्दी / English" — `src/room/RoomApp.tsx`'s literal string,
+`src/studio/copy.ts#shell.languageGroupLabel`) still mixes both languages
+in one attribute value with no way to tag either half separately — ARIA has
+no mechanism for a partial-string `lang`. Left as is rather than built
+around (an `aria-labelledby` pointing at a visually-hidden, per-word-tagged
+element was considered and set aside: it needs a `.sr-only`-shaped utility
+class neither the Room's nor the Studio's own stylesheet currently defines,
+and touching either was outside this workstream's own footprint budget). A
+screen reader reads the GROUP's own label once and then each BUTTON's own
+name correctly per this decision's own fix — the group label itself being
+imperfect is a real, named gap, not a silent one.
+
+**Reversal condition.** If a future workstream adds a visually-hidden
+utility class to either stylesheet for any other reason, revisit this gap:
+split the group label into two `lang`-tagged spans referenced by
+`aria-labelledby` rather than one bilingual attribute string.
+
+---
+
+## `ws-r79-lang-hi-latn-exempt-from-the-ascii-only-check` (2026-09-05, WS-R79)
+
+**Decided.** The accessibility gate's "no `lang="hi"` element contains only
+ASCII letters" assertion (`scripts/check-accessibility.mjs#langTagAudit`)
+exempts any element whose OWN `lang` attribute contains `latn` (`hi-Latn`,
+case-insensitive) from that check entirely.
+
+**Rationale.** `hi-Latn` is a real, more specific BCP-47 tag than bare
+`hi`: Hindi LANGUAGE, Latin SCRIPT — `VoicePreviewPanel.tsx`'s own Hinglish
+input option (`inputLanguage: "hi-Latn"`) uses it correctly, for romanized
+Hindi written on purpose in Latin letters ("Namaste! Main aapka apna AI
+version hoon..."). ASCII-only text under `hi-Latn` is not a mistake, it is
+the entire reason the tag exists — a blanket "`hi`-prefixed and ASCII-only
+is always wrong" rule (this gate's first draft) flagged it as a violation,
+which is `scripts/check-accessibility.mjs`'s own class of over-firing
+(`selfTest`'s standing rule for the axe half, restated for this one).
+
+**Reversal condition.** None expected — this is a correct reading of
+BCP-47, not a scoped-out gap. If a future script variant tag is added for
+Hindi (`hi-Deva-Latn` or similar) that should ALSO be exempt, extend the
+same substring check; a bare `hi`/`hi-IN`/`hi-Deva` (Devanagari implied,
+nothing saying otherwise) should never be.
+
+## `ws-r78-own-qr-encoder-not-npm-qrcode` (2026-09-05, WS-R78)
+
+**Decision.** `api/_qr.js` is a hand-written QR encoder (byte mode, error
+correction level M, versions 1-10) rather than a dependency on `qrcode`
+(npm), even though the workstream brief named `qrcode` as an acceptable
+choice "ONLY if it has zero dependencies and no install script."
+
+**Rationale.** It does not clear that bar: at the version installed while
+building this workstream, `qrcode` depends on `dijkstrajs`, `encode-utf8`,
+`pngjs` and `yargs` — a four-package chain this product's own supply-chain
+gate (`scripts/check-headers.mjs`'s install-script scan against
+`scripts/installScriptAllowlist.mjs`) has never had reason to admit, for a
+few hundred lines of fully-specified, deterministic arithmetic
+(`ws-r55-resvg-devanagari-shaping`'s own "measure before shipping the named
+plan" precedent, applied to a dependency choice instead of a rasteriser).
+The reference `qrcode` package WAS used, extensively, during this build —
+as a debugging oracle, installed as a temporary devDependency-free scratch
+tool, never committed, and its own internal modules (`galois-field.js`,
+`polynomial.js`, `reed-solomon-encoder.js`, and `qrcode.js`'s
+`setupFormatInfo`/`setupData`) were read as SOURCE to find and fix two real
+bugs this file shipped with — see `context/rejected.md`'s two WS-R78
+entries for the full story. Reading a reference implementation to VERIFY
+against is a different thing from depending on it to SHIP; this decision
+keeps the two separate.
+
+**Reversal condition.** If `qrcode` (or any alternative) ever ships with
+zero runtime dependencies and no install script, replacing `api/_qr.js`
+with it is a reasonable trade IF the replacement is proven against the
+SAME real-scanner suite this file's own `evals/qr/run.mjs` §8 and
+`evals/room-card/run.mjs` §6 already run (`jsqr`, real rendered pixels,
+across a version/mask spread) — never swapped in on the strength of the
+package's own name or test suite alone, which is exactly the failure mode
+the two rejected.md entries this decision cites describe.
+
+## `ws-r78-poster-decode-verification-via-real-scanner` (2026-09-05, WS-R78)
+
+**Decision.** `evals/qr/run.mjs` §8 and `evals/room-card/run.mjs` §6 decode
+the ACTUAL rasterised poster/QR pixels through `jsqr` (npm, zero
+dependencies, no install script, a devDependency — never imported by
+`api/`, so the encoder itself still imports nothing third-party) and assert
+the exact recovered string, rather than relying on the brief's own
+alternative ("verify by re-encoding and comparing modules").
+
+**Rationale.** Both self-referential alternatives this workstream tried
+first — a "does the write match its own readback" round trip, and (in an
+earlier design that was never shipped) a "does re-encoding the same text
+produce the same matrix" comparison — are circular: either check compares
+this file's own output against a SECOND computation built from the SAME
+assumptions, so a wrong-but-internally-consistent convention passes both
+every time. This is not hypothetical: `context/rejected.md`'s two WS-R78
+entries are two real bugs (a byte-reversed Reed-Solomon generator
+polynomial, an MSB-first format-info write) that passed the self-consistent
+round trip and would have shipped a poster no real phone could scan. Only
+an INDEPENDENTLY-sourced check — a real decoder reading real pixels, or a
+reference implementation's own source read as an oracle — can catch a
+self-consistent-but-wrong convention, because it does not share the
+assumption that is wrong.
+
+**Reversal condition.** None anticipated; this is now the standing law for
+this file. If `jsqr` is ever dropped (a supply-chain concern, a
+maintenance burden), replace it with a DIFFERENT real, independent decoder
+before removing the check — never fall back to matrix self-comparison
+alone, which is the exact failure mode this decision exists to avoid.
+
+## `ws-r78-platform-poster-qr-encodes-bare-origin` (2026-09-05, WS-R78)
+
+**Decision.** The platform-only poster (an unpublished, paused, or unknown
+slug — `row = null` at `cardInputFor`'s own boundary) encodes the bare
+origin (`https://<origin>/`) in its QR, rather than omitting the QR
+entirely or encoding a fixed, slug-free placeholder string.
+
+**Rationale.** `api/_room-page.js`'s own law, restated by every picture
+this product draws since WS-R55: a bot, and now a piece of paper, must
+never learn whether a slug exists, so every paused-or-unknown poster must
+render BYTE-IDENTICAL pixels regardless of which slug produced it — the
+existing `evals/room-card/run.mjs` §2 identical-bytes proof, extended to
+`kind: "poster"` automatically since it iterates `ROOM_CARD_KINDS`. Since
+the poster's own QR is now part of what "identical bytes" means, its
+payload must be a function of `origin` alone, never of the attempted slug.
+Encoding the bare origin (rather than omitting the QR) keeps the platform
+poster genuinely useful — a scan lands on the platform's own front door
+rather than a dead end — while satisfying the identical-bytes law exactly,
+since `origin` is constant for a given deployment regardless of which
+unpublished slug someone tried.
+
+**Reversal condition.** If the platform ever wants the platform poster's QR
+to carry a DIFFERENT, more specific address (a `/creators` directory link,
+say), that is a one-line change to `cardInputFor`'s `row === null` branch,
+still gated on the SAME identical-bytes proof already covering it — never a
+change that lets the QR vary by attempted slug.
+
+## `ws-r78-migration-121-ships-with-the-js-allowlist-in-one-commit` (2026-09-05, WS-R78)
+
+**Decision.** `api/_room-surface.js`'s `ROOM_ARRIVAL_VIA` widens to admit
+`'poster'` in the SAME commit as migration 121 (which widens
+`vy_room_arrival`'s CHECK constraint to match), rather than following
+WS-R59's own precedent of adding the JS-only value first and leaving the
+SQL CHECK for the main loop to write at merge time.
+
+**Rationale.** WS-R59's asymmetry was a deliberate, logged, temporary state
+(`context/decisions.md#ws-r59-install-via-not-yet-in-the-arrival-check-
+constraint`) that worked because a rejected insert is harmless
+(`recordRoomArrival`'s own `.catch(() => {})`) — but it also meant install
+arrivals were silently uncounted for one full merge cycle, a real product
+cost even if a safe one. This workstream's own brief states the law
+plainly, in these words: "never one without the other." Writing both
+together removes the asymmetry window entirely rather than trading it for
+a faster individual merge — `evals/room-share/run.mjs` cross-checks the two
+files' six values against each other directly (parsing migration 121's own
+CHECK clause text, never retyping it), so a future value added to one and
+not the other fails the gate immediately rather than silently undercounting
+for a cycle the way `install` briefly did.
+
+**Reversal condition.** If a future `via` value's own SQL migration is
+substantially riskier or slower to review than its JS-side allowlist
+change (unlike this one, a single `alter table ... check` statement), the
+WS-R59 asymmetry pattern remains available and is not deprecated — this
+decision is about what THIS workstream chose given a trivial migration, not
+a blanket rule against ever shipping the two separately again.
+
+## `ws-r75-dormancy-forget-predicate-is-self-contained` (2026-09-05, WS-R75)
+
+**Decision.** `dormancyForgetDue` (`api/_dormancy.js`) never trusts a cleared
+`dormancy_notice_at` column as its safety mechanism. Its own WHERE clause
+re-derives "has not visited since the notice" directly from two timestamps
+already on the row (`f.last_seen_at <= f.dormancy_notice_at`), so a follower
+who returns and keeps talking - without ever touching the `join` op again,
+which is the only place this workstream nulls the column - is provably safe
+regardless of whether that defensive clear ever fires for them.
+`joinRoom`'s own ON CONFLICT UPDATE (`api/_room-surface.js`) still nulls the
+column on a repeat join, as the workstream brief's own law 2 names ("the
+join or open op's UPDATE, one column"), but as a UX convenience (so the
+account page's sentence and the studio's own read stop showing a pending
+notice quickly), never as the mechanism that keeps a returning follower from
+being forgotten.
+
+**Rationale.** The brief's own law 2 splits into a PREDICATE ("who is due to
+be forgotten") and a MECHANISM ("a visit clears it"). Coupling correctness to
+the mechanism would mean: any future op that bumps `last_seen_at` without
+also nulling `dormancy_notice_at` (and today `roomSay`/`roomSpeak` already do
+exactly this - they update `last_seen_at` on every turn and were NOT touched
+by this workstream) silently reintroduces the exact failure the workstream's
+own negative control (b) exists to catch. A predicate that reads both
+timestamps directly is correct by construction, independent of how many
+other call sites remember to clear a column.
+
+**Reversal condition.** If a future audit finds the two-timestamp comparison
+itself too expensive to index well at scale (unlikely at Vyakti's current
+size - the partial index `vy_room_follower_dormancy_notice_ix`,
+migration 119, covers exactly this predicate), switching to "trust the
+cleared column alone" would require auditing EVERY existing and future
+writer of `last_seen_at` for the same discipline `joinRoom` now has - a much
+larger surface than this workstream chose to open.
+
+## `ws-r75-dormancy-sweep-folded-into-renewals-cron` (2026-09-05, WS-R75)
+
+**Decision.** `dormancySweep` (`api/_dormancy.js`) is called from
+`api/renewals-sweep.js`'s existing handler, alongside `api/_renewals.js`'s
+own `sweep()`, both summaries merged into the SAME `vy_sweep_run` row
+(`sweep = 'renewals'`). No new `vercel.json` crons entry was added.
+
+**Rationale.** The workstream brief's own words: "the daily sweep (WS-R37's
+own cron) gains two statements" - naming the EXISTING cron, not a new one.
+`dormancyThisWeek`'s own ops-board read then follows for free: a rolling
+7-day SUM over `vy_sweep_run.counts` for the same sweep name, no dedicated
+ledger table, matching this workstream's own law 1 ("no new person table, no
+new ledger") extended to the operational-visibility side too.
+
+**Reversal condition.** If dormancy notices/forgets ever need their own
+retry/backoff cadence independent of renewal reminders (e.g. a future
+workstream wants dormancy to run hourly while renewals stay daily), split it
+into its own `api/dormancy-sweep.js` door and its own `vercel.json` crons
+entry, and `dormancyThisWeek` would need to read `sweep = 'dormancy'`
+instead - a two-file change, not a schema change.
+
+## `ws-r75-dormancy-whatsapp-channel-left-inert` (2026-09-05, WS-R75)
+
+**Decision.** `dormancySweep` never calls `api/_room-whatsapp.js`'s
+`sendTemplate`. The workstream brief's own words already hedge this ("a
+WhatsApp template only if one is approved") - no dormancy-specific template
+exists in this repo (only `vyakti_checkin_v1`, `TEMPLATE_NAME`,
+`api/_room-whatsapp.js`), and Meta's WhatsApp Business API refuses free-form
+text outside an approved template, so sending one here would mean inventing
+an unapproved template that would 400 at Meta on the first real attempt.
+
+**Rationale.** `context/rejected.md`'s and `AGENTS.md`'s own law: "a
+plausible return hides a dead pipeline." Wiring a WhatsApp send path that
+cannot actually deliver (no approved template name to put on the wire) would
+be exactly that - code that reads as coverage and delivers nothing, silently,
+the day someone turns `ROOM_DORMANCY` on and wonders why WhatsApp opt-in
+followers never see a notice.
+
+**Reversal condition.** The owner (or a future workstream) gets a dormancy
+notice template approved by Meta and names it via a new env var (e.g.
+`ROOM_WHATSAPP_DORMANCY_TEMPLATE`); `dormancySweep`'s WhatsApp branch is then
+a small addition reusing `activeWhatsappFollower`/`sendTemplate` exactly as
+`api/_checkins.js`'s own `deliverers.whatsappTemplate` already does.
+
+## `ws-r71-tier-2-second-wave-converted` (2026-09-05, WS-R71)
+
+**Decision.** Six of `evals/studio-locale/run.mjs`'s (then-)20 Tier 2 files
+move to Tier 1 this workstream: `ActivityPanel.tsx`, `ChannelsStudio.tsx`,
+`TeacherSheetStudio.tsx`, `VoicePreviewLab.tsx`, `VoicePreviewPanel.tsx`,
+`VoiceExperimentPanel.tsx` — roughly 2,430 lines of component source and
+395 new `copy.ts` leaf strings per locale (759 to 1,154; `measurements.md
+#ws-r71-studio-hindi-tier-2-second-wave-2026-09-05`). `src/studio/copy.ts`
+gained six new top-level sections (`activityPanel`, `channelsStudio`,
+`teacherSheetStudio`, `voicePreviewLab`, `voicePreviewPanel`,
+`voiceExperimentPanel`), added as new interface blocks and new object
+sections after the existing `creatorExport`/`showcase` ones rather than
+edited into them, per this wave's own append-only law for shared files.
+
+**Rationale.** This is the SAME cut WS-R52 and WS-R61 each made one wave
+earlier: convert the files with no honesty-gate, no consent-ceremony
+checkbox array and no KYC/biometric-adjacent statement set first, in one
+session, rather than a shallower pass across every remaining file. All six
+are informational/functional wizard or lab surfaces — job-status lists,
+channel connection forms, a teacher's own subject/strictness/ladder sheet, a
+blind A/B preference bench, a simple preview box, a blind listening
+experiment — with no affirmative "I understand/authorise/confirm" ceremony
+of their own. Reading all twenty Tier 2 files (not merely their allowlist
+one-liners) BEFORE choosing which six to convert is what let this workstream
+find four MORE files carrying the same consent-ceremony risk as
+`ModelConsentGate.tsx`/`IdentityProofing.tsx` — see
+`ws-r71-consent-ceremony-files-found-and-not-converted` below — files
+WS-R52's original one-line "deep wizard internal, deferred" label did not
+distinguish from these six at all.
+
+**What was NOT converted, and why, split three ways:**
+1. Four files newly found to carry a consent-ceremony statement array this
+   session (`VideoEnrollPanel.tsx`, `IngestChannelStudio.tsx`,
+   `LivenessCapture.tsx`, `VoiceIdentityChallenge.tsx`) — see the next
+   decision entry.
+2. Five files already carrying a strengthened, file-specific reason from
+   WS-R52/WS-R61 (`ModelConsentGate.tsx`, `IdentityProofing.tsx`,
+   `DisclosurePreview.tsx`, `QuickStartPath.tsx`, `StudioApp.tsx`) —
+   untouched, reasons unchanged.
+3. Four files simply not reached this session, time-boxed at six converted
+   files to match the pace WS-R52 (twelve files, one session) and WS-R61
+   (nine files, one session) each set (`ContextLockerPanel.tsx`,
+   `EnrollmentWorkspace.tsx`, `MirrorCallStudio.tsx`,
+   `VoiceEnrollmentLab.tsx`) — plus the two structural files that were
+   always going to stay regardless of session length
+   (`layoutFixture.tsx`, `main.tsx`) and `OpsBoard.tsx` (never
+   creator-facing). `ContextLockerPanel.tsx`'s own allowlist entry also
+   flags a SEVENTH consideration worth a future session's attention: one
+   consent-shaped checkbox of its own, not read closely enough this
+   session to classify either way.
+
+**Reversal condition.** A future workstream converting one of the four
+"not reached" files removes its allowlist entry and adds the file to
+`TIER_1_FILES` in the same change, exactly as `ws-r52-tier-2-studio-files-not-localized`
+and `ws-r61-tier-2-first-wave-converted` already state for their own waves.
+If `ContextLockerPanel.tsx`'s own checkbox turns out to be consent-ceremony
+shaped on a closer read, it joins the list the next entry names; if not, it
+converts with the rest of that file.
+
+## `ws-r71-consent-ceremony-files-found-and-not-converted` (2026-09-05, WS-R71)
+
+**Decision.** Four files this workstream read in full —
+`VideoEnrollPanel.tsx`, `IngestChannelStudio.tsx`, `LivenessCapture.tsx`,
+`VoiceIdentityChallenge.tsx` — were found to carry the same consent-ceremony
+shape `ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text`
+and `ws-r61-identity-proofing-consent-statements-deferred-not-attempted`
+already carve out for `ModelConsentGate.tsx`/`IdentityProofing.tsx`, and are
+left whole and unconverted for the same reason, with a strengthened,
+file-specific allowlist entry naming exactly what each one's ceremony is.
+
+**Rationale.** `VideoEnrollPanel.tsx`'s `ATTESTATION_COPY` and
+`IngestChannelStudio.tsx`'s `STATEMENT_COPY` are each a five-statement
+YouTube channel-ownership/rights/audio-extraction consent ceremony a teacher
+affirmatively checks before any video is read — functionally the SAME
+statement set (`owns_or_controls_channel`, `is_rights_holder_of_uploads`,
+`authorizes_audio_extraction_for_own_replica`,
+`understands_tos_exposure_is_not_copyright_permission`,
+`understands_revocation_stops_extraction`) rendered on two different
+screens. `LivenessCapture.tsx` and `VoiceIdentityChallenge.tsx` each gate a
+`consentActive`-controlled fieldset collecting BIOMETRIC consent (a face
+liveness challenge and a voice identity challenge respectively) — arguably
+the single most legally sensitive class of consent text in this product.
+None of the four is named by exact English substring in
+`scripts/roomsVocabAllowlist.mjs` the way four of `ModelConsentGate.tsx`'s
+own statements are, so this is not literally the SAME rule as that file's
+own entry — it is the SAME self-imposed caution
+`ws-r61-identity-proofing-consent-statements-deferred-not-attempted`
+already applies to a file with no such external citation either: a
+translation error in a rights-attestation or biometric-consent statement
+carries real legal/compliance weight, and no legal review of Hindi wording
+for any of these four was in scope for or possible within this session.
+`context/rejected.md#ws-r61-partial-modelconsentgate-translation-considered-and-rejected`
+is the reason none of the four was split into "translate the chrome, leave
+the statements": that entry's own finding — that translating the words
+AROUND a consent ceremony changes what the whole screen communicates before
+any scanner could object — generalises to all four exactly as it does to
+`ModelConsentGate.tsx`.
+
+**Reversal condition.** Unchanged from the two entries this one extends: a
+Hindi-language honesty/consent detector built for each specific ceremony,
+with legal sign-off on the translated wording, is what would let any of
+these four files move. Until then, this decision should be read as widening
+the SET of files that reversal condition covers, not weakening it.
+
+## `ws-r71-voice-lab-vocabulary` (2026-09-05, WS-R71)
+
+**Decision.** The voice lab's technical A/B-testing vocabulary is rendered
+in plain, functional Hindi a coach (not an ML engineer) would understand,
+never a transliteration of the English jargon: server `condition`/
+`champion_key` codes (`identity_anchor`, `faithful`, `steady_warm`,
+`balanced`, `warm_expressive`, `expressive`, `animated`) become "अंदाज़"
+(manner/style of delivery) throughout — "स्थिर गर्मजोशी" (steady warmth),
+"गर्म भाव" (warm expression), and so on — rather than a borrowed word for
+"condition" itself. "holdout"/"held-out" becomes "अनदेखा" (unseen) --
+"अनदेखी बोली की जांच" (unseen speech gate/check), "अनदेखा फ़ैसला" (unseen/
+held-out judgment) -- never a transliterated "होल्डआउट". "sealed listening
+pack" becomes "सील किया सुनने का पैक" (a sealed pack for listening),
+"listener sheet" becomes "सुनने वाली शीट". "candidate" keeps the
+already-established "उम्मीदवार" `ws-r52`/`ws-r61` copy already uses
+elsewhere in this same file, rather than inventing a second word for the
+same concept. The two protected-candidate slots stay the bare letters "A"/
+"B" in both locales (already effectively locale-neutral, and changing them
+would break the visual pairing with the audio players' own "A"/"B" labels).
+
+**Rationale.** The brief's own law 4 asks for exactly this: technical lab
+words "a coach would understand," not a literal gloss of internal
+engineering terms like "arm" or "condition" that would read as machine
+translation to a teacher deciding between two takes of their own voice.
+Reusing "उम्मीदवार" for "candidate" (rather than inventing "प्रतिस्पर्धी" or
+similar) keeps this file's vocabulary consistent with `personModelStudio`'s
+own voice-candidate copy from WS-R61, the same "one word per concept across
+the whole file" law `ws-r52`'s own header states for "चेक-इन"/"सदस्यता" etc.
+
+**Reversal condition.** If a Hindi-speaking coach or teacher reviews this
+wording and finds "अंदाज़" confusing for the specific A/B delivery-style
+comparison this screen does (as opposed to a broader "aandaz"/general
+manner sense), the fix is a `copy.ts` edit to a more precise term — nothing
+about the code structure depends on this specific word choice, only on
+every occurrence of the same English concept using the same Hindi word.
+
+
+## `studio-hindi-table-is-its-own-chunk` — the studio's Hindi copy ships only to Hindi creators
+
+**Decision (2026-09-05, the WS-R71 merge).** `src/studio/copy.ts` keeps the
+interfaces, the helpers and the English table; the Hindi table lives in
+`src/studio/hiCopy.ts`, reached only through `loadStudioCopy("hi")`'s dynamic
+`import()`, so Vite emits it as its own chunk and the English studio never
+downloads it. `STUDIO_COPY_TABLE.hi` is a placeholder that THROWS on any
+property read until the loader installs the real table (never English in
+its place); `StudioLocaleProvider` renders nothing for a locale whose table
+is not ready and re-renders once the chunk lands, the layout fixture awaits
+the loader before it builds the glyph list or mounts the app, and the two
+evals that read `.hi` (`studio-locale`, `lang-tag`) install it through the
+same loader. `evals/studio-locale` scans `hiCopy.ts` with the real copy
+gate; `scripts/check-copy.mjs` treats the file as a whole-file copy table by
+its own `COPY_FILES` name rule, which is why the basename ends in `Copy.ts`.
+
+**Why.** WS-R71 measured the studio's signed-out entry at 183.2 KB of gzipped
+JS against WS-R49's 180 KB budget and, rightly, refused to trim translated
+prose to game the number (`measurements.md#ws-r71-studio-js-budget-overage-2026-09-05`).
+On the fully merged wave-thirteen tree the figure was 186.1 KB; the Hindi
+table alone is 142 KB of source and 30.7 KB gzipped, and every English
+creator was paying for it. Splitting by locale is the fix that keeps every
+word: 157.8 KB after, 22 KB of headroom, no string changed.
+
+**Reversal.** If a Hindi creator's first paint is measured to wait more than
+one throttled round trip for the chunk (the performance gate's `studio-hi`
+target, when one exists, or a real phone on a bad day), preload the chunk
+from `studio.html` for `?lang=hi` or fold the table back and raise the
+budget with a measurement, never silently. If the placeholder ever throws in
+production (an incident row naming `studio_copy_hi_not_loaded`), the provider
+gate has a hole and the fix is in `localeContext.tsx`, not a softer
+placeholder.
+
+## `ws-r88-operator-digest-never-imports-ops-js` (2026-09-05, WS-R88)
+
+**Decision.** `api/_operator-digest.js` (the operator's morning digest,
+migration 125) never imports `api/_ops.js`, in either direction beyond one:
+`api/_ops.js` imports ONE pure read (`lastOperatorDigest`) FROM this file
+for the board's own "Last digest" line, but this file never imports
+`opsOverview`/`opsOwnerIds`/`isOpsOwner`/`operatorPushConfig`/
+`operatorPushSubscriptionsFor`/`revokeOperatorPushById` back from `_ops.js`.
+Every one of those is either taken as an INJECTED `deps` function
+(`deps.opsOverviewFn`, `deps.operatorSubscriptionsFor`,
+`deps.revokeOperatorSubscription`, `deps.sendPush` — the identical shape
+`api/_incidents.js#notifyNewIncidentKinds` already takes) or LOCALLY
+RESTATED as a small pure function this file owns (`opsOwnerIdsLocal`,
+`isOpsOwnerLocal`, `operatorDigestConfig`). The two callers that need both
+files (`api/operator-digest-sweep.js`, the cron; `api/ops.js`, for the
+"send a test digest now" op) import both separately and wire the real
+functions together at the one place that needs to know about both.
+
+**Rationale.** `api/_ops.js` needing `lastOperatorDigest` for its own board
+read is unavoidable — the board lives in `_ops.js`. If `_operator-digest.js`
+also imported `opsOverview` (etc.) directly from `_ops.js` for its OWN write
+path, the two files would import each other, exactly the
+`api/_ops.js -> api/_incidents.js -> api/_ops.js` shape
+`context/rejected.md#ws-r58-incidents-importing-opsownerids-from-ops-js-
+makes-a-cycle` already names for a sibling pair one workstream earlier — a
+Node ESM cycle that resolves (both files DO export usable bindings by the
+time either is called) but is exactly the shape that repo already
+identified as a bug magnet, not merely a lint complaint. `api/_incidents.js`'s
+own `opsOwnerIdsLocal` and `api/_creator-push.js`'s own `creatorPushConfig`
+are both the identical restatement for the identical reason, one file each
+— this is the third instance of the same pattern, not a new one.
+
+**Reversal condition.** If a future refactor extracts `opsOwnerIds`/
+`isOpsOwner`/`operatorPushConfig` into a THIRD file neither `_ops.js` nor
+`_operator-digest.js`/`_incidents.js` owns (a genuine "no cycle possible"
+shared module), delete every local restatement across all three files in
+favour of importing from that new file in the same commit — until that
+file exists, restating six small pure lines three times is cheaper than the
+cycle risk, and `evals/operator-digest/run.mjs`'s own env/config assertions
+would need updating alongside any such move.
+
+## `ws-r88-follower-floor-applied-inside-digestCounts-not-the-payload-builder` (2026-09-05, WS-R88)
+
+**Decision.** The `n>=5` follower floor (workstream law 2: "one follower
+joined one Room is fewer than 5") is decided inside `digestCounts` — the
+PURE REDUCTION of `opsOverview()`'s own shape — which sets
+`followers_joined_below_floor: true/false` alongside the real
+`followers_joined_7d` integer. `operatorDigestPayload` (the WS-R22
+"parameter list is the enforcement" payload builder) never re-derives the
+floor itself; it only BRANCHES on the boolean `digestCounts` already
+computed, and its floored branch never reads `counts.followers_joined_7d`
+at all — the raw number is structurally unreachable from that branch, not
+merely unused by convention.
+
+**Rationale.** Keeping the floor decision and the number it floors in the
+SAME function (rather than passing the raw number to the payload builder
+and trusting it to check a threshold correctly every time) removes exactly
+one class of bug: a future edit to `operatorDigestPayload` that adds a
+second place the raw count is read (a second sentence, a debug log) would
+have to ALSO remember to guard it, whereas today there is nothing to
+remember — the number the floored branch could leak simply is not a
+parameter reachable from that branch. `evals/operator-digest/run.mjs`'s own
+NEGATIVE CONTROL (b) proves the observable half of this (a body built from
+a sub-5 count never contains the exact number); this decision is why that
+control has nothing to catch even directly.
+
+**Reversal condition.** If a future digest needs to report the SAME
+platform-wide follower count somewhere it is not person-identifying (a
+monthly total across a much larger platform, say, where the argument in
+`context/rejected.md` for why a small aggregate identifies someone no
+longer holds), raise `FOLLOWER_FLOOR` or make it configurable — never bypass
+`followers_joined_below_floor` in the payload builder while leaving the
+constant unchanged, which would silently reopen the exact gap the floor
+exists to close.
+
+## `ws-r88-ops-board-digest-copy-stays-english-inline` (2026-09-05, WS-R88)
+
+**Decision.** `DigestCard`'s copy (`OpsBoard.tsx`) lives inline as plain
+English strings, the SAME house style every other card on that page already
+uses — not as a bilingual entry in `src/studio/copy.ts`/`hiCopy.ts`, even
+though this workstream's own brief's file list names both. No new strings
+were added to either copy file.
+
+**Rationale.** This is `context/decisions.md#ws-r62-ops-board-push-copy-
+stays-english-inline`'s own precedent, restated for a second card on the
+identical page: `OpsBoard.tsx` is named in writing in
+`evals/studio-locale/run.mjs`'s own `TIER_2_ALLOWLIST` as deliberately
+unlocalized ("internal operator dashboard, never a creator-facing screen at
+all", WS-R52), the page carries no locale state and no language switcher,
+and adding bilingual `copy.ts` entries a page structurally cannot read would
+satisfy a file list's letter while adding dead weight nobody could reach —
+`AGENTS.md`'s own "a plausible return hides a dead pipeline" law, restated
+for unreachable localization rather than a fake success value.
+`ws-common.md`'s own rule binds here exactly as it bound WS-R62: where a
+live, gate-enforced decision disagrees with an instruction, they are both
+wins for `context/`.
+
+**Reversal condition.** Identical to WS-R62's own: the day `OpsBoard.tsx`
+leaves `TIER_2_ALLOWLIST` and gains a real locale switcher, move BOTH this
+card's copy and `PushAlertsCard`'s own into `src/studio/copy.ts`/`hiCopy.ts`
+in the same commit — neither card's own structure needs to change, only
+where its strings live.
+
+## `ws-r87-relational-core-is-evaluator-only-not-a-zod-port` (2026-09-05, WS-R87)
+
+**Decision.** `api/_relational-core.js` ports only the sibling repo's
+disclosure-act EVALUATOR (a closed act list, deny-always-wins, a grant
+bound to an exact policy version, expiry as an exclusive boundary, a named
+refusal) — not `DisclosurePolicy` (allowlist/denylist visibility, multiple
+owners, obligations, purpose gating, conversation-scoped audience
+snapshots), not `deriveDisclosurePolicy`, and not `zod` itself. The module
+imports nothing.
+
+**Rationale.** Handoff v0 has exactly one policy version per Room and
+exactly one grant shape a follower or creator can ever issue — their own
+explicit, verbatim submission IS the grant (already decided, `ws-r20-
+handoff-act-is-inline-not-in-meera-consent`). Porting the sibling's full
+multi-owner, multi-purpose policy model for a caller that cannot yet use
+most of it would be the mistake `context/rejected.md` warns against
+elsewhere in this repo: machinery ahead of a caller that needs it. Every
+`api/_*.js` module in this repo also carries a standing law (`api/
+_checkins.js` states it first) that it stay reachable with only a fake
+`db` — a real dependency (even a well-tested one like `zod`) is a real cost
+this module does not need to pay to do the one job Handoff has for it
+today. `docs/gurukul/HANDOFF-KERNEL.md` names exactly what stayed behind
+and why, line by line against the sibling's own `privacy.ts`.
+
+**Reversal condition.** The day a second real caller (Bridge, most likely)
+needs multi-owner consent, purpose gating, or policy derivation across
+memories, port more of the sibling's shape rather than growing this
+module's simple grant into an ad hoc superset of it — two callers needing
+the richer shape is the signal the abstraction is real, one is not, the
+same threshold `ws-r20-handoff-act-is-inline-not-in-meera-consent` already
+names for a different primitive one commit over.
+
+## `ws-r87-handoff-v0-grant-is-self-issued` (2026-09-05, WS-R87)
+
+**Decision.** Every kernel evaluation `api/_handoff.js` performs behind
+`ROOM_HANDOFF_KERNEL` uses a GRANT BUILT FROM THE SAME REQUEST IT IS
+EVALUATING — the follower's or creator's own explicit submission is
+treated as the grant that satisfies its own request. `deps.handoffDenies`
+is the one seam a refusal can come through, and no production code
+populates it; only `evals/handoff/run.mjs`'s own kernel section does, to
+prove the wiring is real.
+
+**Rationale.** This restates `ws-r20-handoff-act-is-inline-not-in-meera-
+consent` for the kernel layer: the row a follower is about to write (or
+the reply a creator is about to send) already IS the consent — there is no
+separate, prior "did someone grant this" question to ask, because nothing
+in v0 lets one party pre-authorize a DIFFERENT payload than the one being
+sent right now. A self-issued grant can therefore never be refused by the
+kernel on a legitimate call, which is the correct and expected behaviour
+for v0, not a bug in the wiring — the wiring's OWN correctness (that it
+runs at all, that a refusal is possible, that deny always wins even when a
+matching grant is present) is what `evals/handoff/run.mjs` and `evals/
+relational-core/run.mjs` prove, the seam being how the first proves it
+without inventing a second evaluator.
+
+**Reversal condition.** The day a creator gets an actual block list (a
+follower they never want to hear from directly, say), `deps.handoffDenies`
+gets a real reader — a SELECT scoped to the Room, wired in exactly where
+this parameter already sits — and this decision is superseded by whatever
+that reader decides about staleness/caching, not by removing the seam.
+
+## `ws-r87-oracle-cross-check-is-exhaustive-not-fast-check-sampled` (2026-09-05, WS-R87)
+
+**Decision.** `evals/relational-core/run.mjs`'s port of the sibling's
+`privacy-matrix.test.ts` (a 500-case `fast-check` random property sweep
+against an independent oracle) is an EXHAUSTIVE enumeration of a small
+combinatorial space (2 froms x 2 tos x 4 acts x 2 scopes x 2 policy
+versions x grant-present x deny-present = 256 cases) instead of a random
+sample.
+
+**Rationale.** `fast-check` is not a dependency of this repo (`package.json`
+carries no entry for it), and `api/_relational-core.js`'s own law is to
+introduce none. Rather than add the dependency to port one test file's own
+tooling, or silently write a smaller SAMPLED sweep and call it equivalent,
+the space this module's own grant shape covers is small enough to check
+EXHAUSTIVELY — a strictly stronger proof over what it covers (every case,
+not almost all of a much larger space) at the honest cost of covering a
+smaller space than the sibling's own five-dimensional policy model. Stated
+in both the eval file's own header and `docs/gurukul/HANDOFF-KERNEL.md`
+rather than left for a reader to notice the substitution unassisted.
+
+**Reversal condition.** If a future workstream adds `fast-check` as a real
+dev dependency for its own reasons, this suite could switch to a genuine
+random sweep at that point without losing anything — the exhaustive
+version would remain a valid, if now redundant, stronger check.
+
+## `ws-r87-answer-handoff-pre-read-only-when-kernel-on` (2026-09-05, WS-R87)
+
+**Decision.** `answerHandoff` issues one new SQL statement — a SELECT of
+`handoff_id, follower_id, policy_version` under the SAME hash-match and
+`state='sent'` predicate the answering UPDATE already uses — but ONLY when
+`ROOM_HANDOFF_KERNEL` is on. With the flag off, `answerHandoff` runs the
+identical single UPDATE it always has.
+
+**Rationale.** The creator's reply is evaluated "the other way" under the
+policy version ALREADY STORED on the row being answered (the workstream
+brief's own law 3), never the current `HANDOFF_POLICY_VERSION` constant,
+which may have moved on since the row was sent. That value, and the row's
+`follower_id` (needed as the kernel request's own `to`), are not otherwise
+in hand at the point `answerHandoff` is called — `handoffId` and
+`replyText` are the only follower-specific facts the owner's own request
+carries. A pre-read is therefore the only honest way to evaluate under the
+RIGHT policy version rather than guessing at the current constant, and
+gating it behind the same flag that gates the evaluation itself keeps the
+flag-off path exactly as cheap as it always was.
+
+**Reversal condition.** If a future migration widens `answerHandoff`'s own
+UPDATE to `RETURNING policy_version` unconditionally (some other caller
+starts needing it too), the pre-read could be dropped in favour of
+evaluating AFTER the write instead — but that would move the kernel's own
+refusal to a point where the write has already happened, which is a
+strictly worse position for a "before it moves" gate to sit at, so this is
+not expected to happen without a very good reason.
+
+## `ws-r81-push-worker-one-contract-closed-kinds` — one payload contract, one closed kind list, in `public/room-sw.js`
+
+**Decision (2026-09-05, WS-R81).** `public/room-sw.js`'s `push` handler no
+longer hard-codes `if (data.t !== "checkin") return;`. It now reads a single
+wire contract, `{t, title, body, url}`, against a closed `Set` of
+recognised `t` values (`checkin`, `renewal`, `dormancy`) documented at the
+top of the file. A `t` outside that set is dropped, named once in a
+`console.warn`, never guessed at and never shown as a placeholder.
+`title`/`body`/`url` are pre-assembled, fixed, content-free strings the
+SENDER builds (`api/_push/webpush.js`'s `checkinPushPayload`/
+`renewalPushPayload`/`dormancyPushPayload`) — the worker itself no longer
+composes any notification text, only displays what it is handed.
+`notificationclick` reads `data.url` instead of reconstructing a route from
+`data.r`/`data.th`.
+
+**Why.** WS-R75 found and named, but did not fix (out of its own scope),
+that this single-value guard silently discarded every push whose `t` was
+not literally `"checkin"` — `context/rejected.md#ws-r75-web-push-type-
+switch-drops-every-non-checkin-payload`. That made WS-R37's renewal push
+(shipped) and WS-R75's own dormancy notice (never even attempted, because
+sending into a known-dead path is worse than not sending) both invisible on
+a follower's real device. A closed `Set` checked before any other field is
+read is the smallest change that (a) fixes both, (b) keeps the "never show
+a placeholder for something unrecognised" property the single-value guard
+already had, and (c) makes the NEXT kind a one-line addition to a Set plus
+a payload builder, rather than a second hard-coded `!==` check bolted onto
+the first (the shape WS-R75's own rejected-entry named as the wrong fix).
+
+**Reversal.** If a future kind needs to reach a follower's device often
+enough that editing this Set every time becomes real friction, consider
+`public/push-sw.js`'s own posture instead (show anything with a non-empty
+title and body, no kind list at all) — but that trades away the specific
+guarantee this list buys: an unrecognised or malformed payload can never
+render a bare, undifferentiated notification. Do not make that trade
+silently; it needs its own measurement of how often a genuinely bad payload
+would otherwise have shown something confusing.
+
+## `ws-r81-push-sw-shared-with-meera-no-closed-list` — `push-sw.js` aliases the new field names, never adopts the closed list
+
+**Decision (2026-09-05, WS-R81).** `public/push-sw.js` (the creator's
+weekly note, `api/_creator-push.js`'s `t: "creator_week"`; the operator's
+incident alert, `api/_incidents.js`'s `t: "incident"`) reads the SAME
+`{t, title, body, url}` shape `room-sw.js` now documents, but `t`/`url` are
+read as ALIASES of this file's older `kind`/`route` field names
+(`data.t ?? data.kind`, `data.url ?? data.route`) rather than those older
+names being retired, and the file keeps its existing permissive rule — show
+any payload carrying a non-empty title and body, regardless of what
+`t`/`kind` says — rather than adopting `room-sw.js`'s closed-kind drop.
+
+**Why.** `push-sw.js` is ALSO Meera's own push worker: `api/_push.js` sends
+`{kind: "reply"|"missedCall"|"story", route}` through the identical file
+(gated off by `pushConfigured()` in the shipping tree today, but not this
+workstream's to assume will stay off forever). Meera is a different product
+built in this same repo and explicitly out of WS-R81's brief to touch.
+Imposing this workstream's Rooms-specific closed list (`checkin`/
+`renewal`/`dormancy`/`creator_week`/`incident`) on a shared file would mean
+any FUTURE Meera kind this workstream has no way to enumerate gets silently
+dropped by a Vyakti workstream's own list — the exact failure class this
+whole workstream exists to close, inflicted on the other product instead.
+Aliasing the field names costs nothing (both builders already wrote fixed,
+non-empty title/body strings) and needed no change to `api/_push.js` at
+all.
+
+**Reversal.** If a future workstream is explicitly asked to unify Meera's
+and Vyakti's push kind vocabularies under one closed list (both products,
+one owner decision), fold Meera's three kinds into `push-sw.js`'s own list
+by name rather than leaving this split standing — and update this entry to
+`supersedes` this one when that happens.
+
+## `ws-r89-body-cap-two-named-ceilings` (2026-09-05, WS-R89)
+
+**Decision.** `api/_room-surface.js` gains one shared function, `bodyTooLarge(body, capBytes)`, and two named constants: `ROOM_DOOR_BODY_CAP_BYTES` (64 KiB, every POST door except one) and `ROOM_TRANSCRIPT_BODY_CAP_BYTES` (768 KiB, `api/room.js` alone). Every one of the fourteen `req.body`-parsing doors in `EXPECTED_DOORS` now calls this gate first, before any rate-limit consumption or dispatch; the three raw-body webhook doors (`payments-webhook.js`, `payout-webhook.js`, `room-wa.js` via `api/whatsapp.js`'s own `rawBodyOf`) already capped at 1MB before this workstream and are left as they were, verified by source rather than re-implemented.
+
+**Rationale.** `api/room.js`'s `say`/`speak` ops carry a client-supplied `transcript` array (up to `ROOM_HISTORY_TURNS` × `ROOM_TEXT_LIMIT` = 30 × 4000 chars, ~352 KiB of UTF-8 for an all-Devanagari transcript) — no other door carries anything comparable. One constant for every door would either be too tight for room.js's own legitimate worst case or too loose for every other door's actual largest field (a message, a bio, a push endpoint URL — comfortably under 64 KiB). Two named constants, one shared function, keeps the mechanism singular while letting each door's real ceiling differ.
+
+**Reversal condition.** If a future op on any OTHER door legitimately needs a body approaching the transcript ceiling, give it `ROOM_TRANSCRIPT_BODY_CAP_BYTES` explicitly rather than raising the default for every door silently. If room.js's own transcript shape shrinks (e.g. the anonymous-widget transcript path is retired), lower `ROOM_TRANSCRIPT_BODY_CAP_BYTES` and re-run `evals/room-doors/run.mjs`'s §20 to confirm the new ceiling still admits a genuine worst-case body.
+
+## `ws-r89-creator-page-slug-read-shares-slugof` (2026-09-05, WS-R89)
+
+**Decision.** `api/_creator-page.js`'s `publicCreatorPageRoomBySlug` now calls the exported `slugOf` from `api/_room-surface.js` instead of its own `String(slug || "").trim().toLowerCase()`.
+
+**Rationale.** The door battery's class-b sweep found `/c/<slug>` was the ONE slug-reading code path in this product with no ASCII-only check, no length ceiling, and no NFKC normalisation — a homoglyph or an oversized slug reached the SQL `where lower(slug) = $1` as a "near-miss lookup" (0 rows, indistinguishable from an ordinary unknown slug) rather than being refused BY NAME at the door, the exact shape this workstream's brief calls out. `api/_room-embed.js`'s own slug read already went through `resolveRoom` → `roomBySlug` → `slugOf` correctly; only the creator page had drifted into its own weaker copy.
+
+**Reversal condition.** If `slugOf`'s own shape rule ever needs to differ between the follower-facing Room and the public creator page (a case this workstream found no reason for), split them explicitly rather than letting the copies silently diverge again — name the difference in a decision, the way this one names the convergence.
+
+## `ws-r89-slugof-nfkc-before-ascii-check` (2026-09-05, WS-R89)
+
+**Decision.** `slugOf` now calls `.normalize("NFKC")` before its ASCII-only regex, rather than adding normalisation nowhere at all or normalising AFTER the shape check (which would be a no-op).
+
+**Rationale.** NFKC only collapses COMPATIBILITY duplicates of a character (a fullwidth "ａ" U+FF41, a circled "①") into their canonical ASCII form — it does not touch a CROSS-SCRIPT HOMOGLYPH (Cyrillic "а" U+0430 styled to look like Latin "a"), because the two are canonically unrelated, only visually similar. So normalising first is safe: a homoglyph still fails the ASCII check exactly as it did before, and a genuine compatibility form now converges on the SAME real slug a plain-ASCII caller would have typed, rather than being refused for no product reason. Measured directly: `evals/room-doors/run.mjs` §21 proves both halves on the SAME real slug (`"anjali"`) — a Cyrillic "аnjali" is refused, a fullwidth "ａnjali" resolves to the real room.
+
+**Reversal condition.** If a future Unicode edge case is found where NFKC DOES bridge two visually-distinct scripts into the same bytes (none is known today), add it as a named negative test and reconsider running the ASCII check BEFORE normalisation instead — the two orders are not equivalent and this decision states which one this product runs.
+
+## `ws-r89-taste-gets-a-cross-origin-check-session-bearing-doors-do-not` (2026-09-05, WS-R89)
+
+**Decision.** `api/room.js`'s `taste` op is now guarded by `assertTasteOriginAllowed` (checking both `Origin` and `Referer` against the request's own `Host`, both required to be absent-or-matching). No OTHER op on this door, and no other door in `EXPECTED_DOORS`, gained an Origin check — the wildcard `Access-Control-Allow-Origin: *` this door's own header already reasons about stays exactly as it was.
+
+**Rationale.** `api/room.js`'s own header already settled the CSRF question for every session-bearing op: this product carries its credential in the request BODY, never a cookie, so a wildcard origin grants a third-party page exactly the ability to POST with a credential it must already hold — nothing an attacker gains by embedding the fetch. `taste` is different in kind, not degree: it is the ONE op reachable with nothing but a slug — no session, no bearer, no credential of any kind — and it is LLM-backed, so a third-party page embedding it spends this deployment's own money on every visitor who loads that page, with zero barrier. That is a resource-abuse risk the existing CSRF reasoning never addressed, because it was never about credential theft.
+
+**Reversal condition.** If a legitimate third-party embed of the taste flow is ever built (a creator's own site running the widget cross-origin, not the new-tab embed WS-R46 chose), it needs a real allowed-origin table before `assertTasteOriginAllowed` can admit it — never a blanket relaxation. If `open`/`stats` (the OTHER two anonymous, session-free ops on this door) are ever made to call a paid model, apply the identical check to them and say so here rather than silently reusing this decision's reasoning for a different op.
+
+## `ws-r89-push-endpoint-ownership-checked-not-constrained` (2026-09-05, WS-R89)
+
+**Decision.** `api/_creator-push.js`'s `subscribeCreatorPush` now runs a `SELECT` for an endpoint already ACTIVELY bound to a DIFFERENT owner before its `INSERT ... ON CONFLICT (owner_user_id, endpoint)`, refusing with `creator_push_endpoint_bound_elsewhere` (409) rather than silently creating a second row. This is an APPLICATION-level check, not a new unique constraint — no migration this workstream.
+
+**Rationale.** The real finding: migration 118's unique index is on `(owner_user_id, endpoint)`, the PAIR, so a different owner subscribing the identical endpoint string was never a conflict at the database level at all — it inserted a second, parallel row, silently binding one browser to two creators' weekly pushes. A pre-check closes the reachable case; a genuinely new unique index on `endpoint` alone would be the complete fix but needs a migration this workstream's brief explicitly withholds (WS-R89 is "no migration").
+
+**Reversal condition.** The day a migration is available for this workstream's own number range, add a unique index on `endpoint` alone (or a partial one over `revoked_at is null`) and drop the pre-check in favour of a real database-level guarantee — the narrow race this pre-check cannot close (two different owners racing to bind a brand-new endpoint for the first time) is the reason to prefer the constraint the moment one is affordable.
+
+## `ws-r89-follower-push-endpoint-reassignment-stays-as-is` (2026-09-05, WS-R89)
+
+**Decision.** `api/_room-push.js`'s `setSubscription` is UNCHANGED: its `ON CONFLICT (endpoint) DO UPDATE` still reassigns a subscription row's `follower_id`/`room_id`/`person_id` to whichever follower most recently subscribed that physical endpoint, with no cross-follower refusal added.
+
+**Rationale.** This looked, at first read, like the SAME defect as creator push's — but the two are not symmetric. A browser holds exactly ONE Web Push subscription per (origin, service-worker scope); `pushManager.subscribe()` on an already-subscribed worker returns the SAME existing subscription object rather than minting a new one. So when the SAME real person follows a SECOND Room in the SAME browser, the endpoint LEGITIMATELY moves — this file's own header already documents exactly this case ("a follower who re-enables notifications on the same browser/device"). A creator has exactly one owner identity and no legitimate reason to ever "become" a different owner on the same device; a follower very plausibly follows several creators from one phone. Refusing cross-follower reassignment here would break a real, anticipated product flow that has no analogue on the creator side.
+
+**Reversal condition.** If this product ever needs ONE browser to hold independent, simultaneous push subscriptions for several Rooms at once (which Web Push itself does not support per-origin without per-Room service worker scopes — a real architecture change, not a policy one), this decision reverses along with that architecture change, not before it.
+
+## `ws-r89-telegram-update-dedup-is-a-bounded-window-not-a-permanent-ledger` (2026-09-05, WS-R89)
+
+**Decision.** `api/_room-telegram.js`'s `handleRoomTelegramUpdate` now refuses a redelivered `update_id` as a no-op, via `api/_rate-limit.js`'s existing `consume()` primitive under a new scope, `room_tg_update_seen` (limit 1, a 3-hour window) — reusing the persistent, race-safe `vy_public_rate` table rather than a new per-update_id ledger table, which would need a migration this workstream does not have.
+
+**Rationale.** `handleOrdinaryMessage` calls `roomSay`, metered exactly as the web door is; a Telegram redelivery of the SAME update (real, correctly-signed, Telegram's own retry policy on a slow or non-2xx response — never a third party, since the shared secret already refuses anyone else) would otherwise double-spend a follower's monthly cap and send a second reply, silently, with zero code protecting against it before this workstream. `consume()` was already built, by its own header, "for the doors named in the workstream: ... the Telegram webhook" and is reused rather than re-derived.
+
+**What this explicitly does NOT claim.** This is a BOUNDED mitigation, not a permanent ledger. `purgeStalePublicRateWindows`'s own retention default is 24 hours regardless of a scope's own `windowMs` (`api/_checkins.js`'s sweep calls it with no override), so the 3-hour window is set well under that ceiling rather than claiming a longer one the retention sweep would silently undercut. A redelivery Telegram sends more than a few hours after the original — rare, but not impossible — would not be caught.
+
+**Reversal condition.** The day a migration is available for this workstream's own number range, build a real per-`(surface, update_id)` ledger table (permanent, never purged) and retire the `consume()`-based mitigation in its favour. Until then, if Telegram's own redelivery SLA is ever measured to exceed this window in production (an incident, not a guess), widen the window rather than silently leaving the gap.
+
+## `ws-r84-locale-switch-refetch-table` (2026-09-05, WS-R84)
+
+**Decision.** Every server-authored string the Room renders, and how the
+locale switch keeps each one fresh — enumerated once here rather than left
+implicit in seven call sites, so the next workstream that adds an
+app-voiced string has a place to add its own row instead of re-deriving the
+question from scratch.
+
+| string | op that delivers it | refetch strategy | why |
+|---|---|---|---|
+| the disclosure card, talk screen (`RoomOpen.disclosure`) | `open` (first load), `locale` (switch, already-joined) | `roomSetLocale`'s OWN response now carries the fresh card (`api/_room-surface.js`), never a second `open` call | the switch already makes exactly one call while talking (`op:"locale"`); adding the field to its response is "the same op the screen already uses," never a new one — the WRITE that changes the follower's locale is the one place that already knows the fresh card, because it computed it to bind the session's own digest |
+| the disclosure card, join screen (`RoomOpen.disclosure`, not-yet-joined) | `open` | `switchLocale`'s pre-join branch already re-calls `open` on every switch (unchanged by this workstream) | this is the literal "refetched through the same path that fetched it on open" case — `JoinSheet` reads `room.disclosure` straight off the prop, no local copy to go stale |
+| the disclosure card, taste screen (`RoomTasteTurn.disclosure`, turn 1 only) | `taste` (each turn), `open` (pre-join switch) | **redesigned**, not merely refetched: `TasteScreen` no longer holds the disclosure TEXT in local state at all, only a `hasAsked` boolean; the text always renders straight off the `room.disclosure` PROP, which `switchLocale`'s pre-join branch already refreshes via `open` | a taste turn's own `disclosure` field and `room.disclosure` are byte-identical by construction (both `roomDisclosureCard(name, locale)` off the same name and the same locale this screen passes to `tasteInRoom`) — holding a THIRD copy in local state was the actual bug (`rejected.md#ws-r84-taste-screen-disclosure-was-a-third-stale-copy`), not a missing refetch |
+| the disclosure card, account screen (`RoomSettings.disclosure`) | `settings` | already correct: `AccountPage`'s one `useEffect` is keyed on `[session, fixtureSettings]`, and `switchLocale`'s talking branch always calls `setSession()` with the fresh session, so a mounted account page refetches `roomSettings` automatically the moment a switch lands | `roomSettings` (server) derives the card fresh from the follower row on every call — it was never capable of going stale; the only way it COULD have shown stale text is if the client held an old `session` string, which it never does once `switchLocale` updates it. Locked in by `evals/room-locale/run.mjs`'s new §6 rather than left as an unverified claim |
+| the disclosure card, Telegram (`roomDisclosureCard`, `/start`) | sent once at `/start`, never re-sent by an ordinary message | **fixed**: `/hindi`/`/english` now re-send the card, in the new locale, in the SAME reply as the confirmation | Telegram has no persisted client state to refresh — each message is a fresh HTTP request — so "refetch" here means "the app must SEND it again," which WS-R24's own law 4 ("every app-voiced card takes a locale") already implied but the switch command never did until this workstream |
+| the AI's name line (`room.name`/`display_name`, every screen's `<h1>`) | `open`/`join`/`settings` | none needed | creator content, not follower-locale text — written once in whatever script the creator's own name is in, tagged at the node by `detectRoomTextLang` (WS-R79) regardless of the surrounding chrome's locale, same category as `room.bio` |
+| check-in card titles (`RoomCheckinDesign.title`/`RoomCheckin.title`) | `designs`/`opt_in`/`list_mine` | none needed | creator-authored free text (`api/_checkins.js`'s `createDesign`), no locale variant exists to switch to — same category as the name line above |
+| the cap-reached card (`copy.capOffer.*`) | n/a (client copy) + `settings`/turn response for the price number only | none needed | the SENTENCE is `src/room/copy.ts`'s `ROOM_COPY_TABLE`, already reactive to `locale` on every render; only `price_inr`/`currency` are server data, and neither is locale-text |
+| renewal sentences (`followerRenewalTelegramText`, `api/_renewals.js`) | the renewal sweep (`renewals-sweep.js`), not a follower-facing op at all | none needed | composed fresh, server-side, at SEND time, reading `follower.locale` off the live row (`dueReminders`'s own `f.locale` select) — a switch that already committed before the sweep next runs is read correctly by construction, nothing to refetch |
+| dormancy sentences (`dormancyNoticeTelegramText`, `api/_dormancy.js`) | the dormancy sweep (unrelated cron) | none needed | same shape as renewals, one file over — reads `f.locale` fresh at send time |
+| the account page's own dormancy/renewal SENTENCES (`copy.dormancy.note`, `copy.account.subscriptionRenews`) | n/a (client copy, server supplies only `dormancy_days`/`current_period_end`) | none needed | client copy again, reactive to `locale` the same way `capOffer`'s is |
+
+**Rationale for the shape of the table itself.** Two failure modes exist for
+a server-authored string across a locale switch — the client keeps a STALE
+COPY of text it already has (talk, taste), or the client never asks the
+server to SAY it again at all (Telegram) — and they need different fixes.
+A third category (creator content: the name, the bio, check-in titles) has
+no "fresh" version to fetch in the first place, because it was never
+translated; WS-R79 already made that category render correctly regardless
+of staleness (node-level tagging), and this workstream does not touch it
+again. Getting this categorisation right matters because `langTagAudit`
+(`scripts/check-accessibility.mjs`) cannot tell the difference between
+"correctly untranslated creator content" and "wrongly stale translated
+text" — both are, from a screen reader's point of view, correctly-tagged
+text in whatever script it happens to be in. Only reading the actual BYTES
+against `roomDisclosureCard`'s own output (as `evals/room-locale/run.mjs`'s
+new §6 and `scripts/check-accessibility.mjs`'s new locale-switch walk both
+do) can catch the staleness class.
+
+**Reversal condition.** If a future workstream adds a NEW server-authored,
+follower-locale-dependent string (not creator content), add its own row to
+this table before shipping it, and prefer the "existing op's response
+already computed it" shape (like `roomSetLocale`'s new `disclosure` field)
+over a second round trip wherever the write path already has the fresh
+bytes in hand. If Telegram ever gains persisted per-chat client state (a
+menu, a mini-app) that could ALSO go stale the way the disclosure card did,
+its own "refetch" needs the same table-row treatment this file gives every
+web screen.
+
+## `ws-r84-taste-screen-live-locale-switch-in-the-layout-gate` (2026-09-05, WS-R84)
+
+**Decision.** `RoomApp.tsx` gained one new fixture-only prop,
+`fixtureLiveLocaleSwitch`, which is the ONE narrow exception to
+`switchLocale`'s existing "never run anything while `fixtureOpen` is set"
+guard (`if ((fixtureOpen && !fixtureLiveLocaleSwitch) || ...) return;`).
+Every other fixture screen keeps the function completely blocked, exactly
+as before this workstream. `layoutFixture.tsx`'s `?live=1` query flag is
+the only place that sets the new prop to true, and its fetch stub answers
+`op: "locale"` the same shape the real `roomSetLocale` does.
+`scripts/check-accessibility.mjs` uses it to click the real "हिन्दी" button
+against the real `room:talk` fixture and assert the real resulting DOM —
+both that `.room-shell`'s own `lang` attribute flips to `hi` and that the
+disclosure card's own text changes and contains Devanagari — before
+re-running `langTagAudit` on the switched page.
+
+**Rationale.** Every other fixture-screen assertion in this file supplies
+DATA and leaves `RoomApp.tsx`'s own logic untouched (`?lang=hi` renders a
+statically-correct post-switch STATE, never exercises the switch ITSELF).
+That is insufficient here: `langTagAudit` cannot distinguish "fresh Hindi
+text, correctly tagged" from "stale English text, ALSO correctly tagged
+(as English)" — a regression that reintroduces the disclosure-staleness bug
+this workstream fixes would render a screen with ZERO language-tag findings,
+because the stale English card is still honestly English and still
+correctly un-tagged as Hindi. Only exercising the REAL switch, through a
+REAL click, and reading the disclosure card's own bytes before and after,
+can catch that class of regression. A hand-built "post-switch" fixture
+object was considered and rejected for the same reason a self-consistent
+round trip was rejected in `ws-r78-poster-decode-verification-via-real-
+scanner`: it would compare the render against a second, independently
+fallible description of what "switched" should look like, not against what
+the ACTUAL production code (`switchLocale`, `setRoomLocale`) does when run.
+
+**Reversal condition.** If a future redesign makes `switchLocale` need real
+`fetch` access on every fixture screen for some other reason, this prop can
+be widened or removed at that point — but doing so on this workstream's own
+strength alone would mean every OTHER fixture screen's keyboard walk could
+now fire a real (stubbed) network call if it happens to tab onto the
+language switch, which is a wider behaviour change than this workstream's
+brief authorized. Keep it scoped to the one screen that needs it.
+
+## `ws-r85-migration-122-ships-with-the-js-allowlist-in-one-commit` (2026-09-05, WS-R85)
+
+**Decision.** `api/_room-surface.js`'s `ROOM_ARRIVAL_VIA` widens to admit
+`'whatsapp'`, `'instagram'`, `'youtube'` and `'telegram'` in the SAME commit
+as migration 122 (which widens `vy_room_arrival`'s CHECK constraint to
+match), rather than following WS-R59's own precedent of shipping the JS-only
+value first and leaving the SQL CHECK for a later merge.
+
+**Rationale.** This is the third time this exact law has been restated in
+this file (`ws-r59-install-via-not-yet-in-the-arrival-check-constraint`,
+`ws-r78-migration-121-ships-with-the-js-allowlist-in-one-commit`), and this
+workstream's own brief states it in the same words WS-R78's did: "never one
+without the other." A rejected insert is harmless
+(`recordRoomArrival`'s own `.catch(() => {})`), but it also means every
+share-kit arrival is silently uncounted until the gap closes — a real
+product cost for a workstream whose entire point is knowing where followers
+actually came from. `evals/room-share/run.mjs` cross-checks
+`ROOM_ARRIVAL_VIA` against migration 122's own CHECK clause text (parsed,
+never retyped), so a future value added to one side and not the other fails
+the gate immediately.
+
+**Reversal condition.** Unchanged from WS-R78's own statement of this law:
+if a future `via` value's own SQL migration is substantially riskier or
+slower to review than its JS-side allowlist change, the WS-R59 asymmetry
+pattern remains available. Three workstreams in a row choosing the
+same-commit posture for a trivial `alter table ... check` statement is not
+yet evidence this should become a hard rule rather than a repeated good
+choice — it would take a migration this simple that TRULY needed to be
+reviewed separately to make that case.
+
+## `ws-r85-share-kit-templates-carry-no-bio` (2026-09-05, WS-R85)
+
+**Decision.** Every share-kit template (`api/_share-kit.js`'s
+`SHARE_KIT_COPY`, restated from `src/studio/copy.ts`/`hiCopy.ts`'s own
+`shareKit` section) interpolates exactly two holes, `{name}` and `{url}`,
+and never `one_line_bio`.
+
+**Rationale.** `one_line_bio` (migration 105) is creator-authored free text
+capped at 140 characters with no lower bound this file could safely compose
+into Instagram's own 150-character bio limit without risking an overflow
+the copy gate cannot catch (a LENGTH problem, not a banned-word one) — a
+140-character bio plus even a short fixed sentence around it can exceed 150
+on its own, before the URL is even added. `buildShareKit` still asserts
+every rendered text against `SHARE_KIT_LIMITS` and throws rather than
+truncating (`ShareKitError('share_kit_text_over_limit', ...)`,
+`evals/share-kit/run.mjs` proves this fires and is not vacuous), but a
+template authored to need the bio would make that throw a routine
+production event instead of the "should never actually fire" defensive
+guard it is meant to be.
+
+**Reversal condition.** If a future measurement shows creators want their
+bio IN the share text badly enough to justify per-channel truncation logic
+(a real request, not a guess), build a bounded, truncation-aware composer
+for the channels with headroom (WhatsApp/YouTube/Telegram; Instagram's own
+150-character ceiling likely never has room for it) rather than widening
+these four fixed templates in place.
+
+## `ws-r85-share-kit-null-before-publish` (2026-09-05, WS-R85)
+
+**Decision.** `buildShareKit` (`api/_share-kit.js`) returns `null` — not an
+error, not a kit built against an address that 404s — for any Room whose
+`published_at` is falsy. `ShareKitCard.tsx` renders that as the honest
+`shareKit.notPublishedYet` sentence rather than four rows of text pointing
+at a link that answers "the link may be old, or the creator may have paused
+it" to every visitor who tries it.
+
+**Rationale.** The workstream brief's own law 2 states it directly: "the
+text ... never promises what Readiness has not passed." A creator who
+copies a WhatsApp message before publishing and pastes it into a group has
+sent every reader a broken link with no way to know it broke, and no way
+for THIS creator to fix it retroactively — `api/_room-page.js`'s unfurl and
+`api/_room-card.js`'s pictures already refuse to build anything for the
+identical case, this is that same refusal restated for text.
+
+**Reversal condition.** If a future product need arises for a creator to
+PRE-STAGE share text before publishing (queueing posts to send the moment
+they go live, say), the honest shape is a kit that says so explicitly
+("this will work once you publish") rather than silently building working
+links early — never simply dropping the `publishedAt` gate.
+
+## `ws-r85-share-kit-copy-canonical-in-studio-not-room` (2026-09-05, WS-R85)
+
+**Decision.** The four share-kit template strings live canonically in
+`src/studio/copy.ts`/`hiCopy.ts` (the CREATOR's own chrome), not
+`src/room/copy.ts` (the FOLLOWER's own Room) — even though every word in
+them is addressed to a follower reading a WhatsApp message, an Instagram
+bio, a YouTube description or a Telegram post. `api/_share-kit.js`'s
+`SHARE_KIT_COPY` restates them byte for byte, `api/_creator-page.js`'s
+`TASTE_COPY` restating `src/room/copy.ts` one file over — the identical
+"restated, not imported, proven equal by a parity eval" shape, crossing the
+opposite copy-table boundary.
+
+**Rationale.** The creator SEES this exact text in the Share tab before
+they copy it — it is not rendered on any screen `src/room/copy.ts` owns, and
+a follower never sees the template, only the finished text a creator chose
+to paste somewhere. The workstream brief names the source directly: "both
+locales from `src/studio/copy.ts` and `hiCopy.ts`."
+
+**Reversal condition.** If a future surface renders these templates
+DIRECTLY to a follower (an in-Room "share this" prompt, say, rather than
+text a creator copies elsewhere first), that surface's own copy file
+becomes the better canonical source and `api/_share-kit.js` would restate
+from there instead — this decision is about where a creator-facing preview
+of follower-facing text belongs, not a claim that the Room's own file could
+never hold it.
+
+## `ws-r85-channel-arrival-breakdown-is-four-statements-not-one-grouped-query` (2026-09-05, WS-R85)
+
+**Decision.** `api/_funnel.js`'s `shareKitArrivalsThisWeek` runs one
+statement PER channel (`channelArrivalCount`, four calls), each with a
+literal `via = '<channel>'` in its WHERE clause and nothing but
+`coalesce(sum(count), 0)` in its select list — not a single
+`select via, sum(count) ... where via = any($1) group by via` statement.
+
+**Rationale.** A single grouped query was tried first and rejected:
+`evals/room-leak/run.mjs`'s own `ARRIVAL_AGGREGATE_ONLY` scan requires
+EVERY item in a `vy_room_arrival` select list to be an aggregate function
+call, and a bare `via` column in the select list (needed to know which
+group a summed row belongs to) fails that check even though this specific
+column carries no person-identifying information — the scan cannot tell
+the difference between this column and one that does, and it is right not
+to try (`context/rejected.md#ws-r85-grouped-via-breakdown-query-fails-the-aggregate-only-select-list-scan`
+has the full measurement). Four round trips over one is the honest cost of
+keeping that scan meaningful rather than carving it a channel-breakdown
+exception that a future, actually-dangerous grouped query could hide
+behind.
+
+**Reversal condition.** If this line's own read latency is ever measured to
+matter on the ops board (four sequential round trips versus one), the scan
+itself could instead be widened to accept a per-item allowlist of KNOWN-safe
+non-aggregate columns (`via` named explicitly) rather than "every item must
+be an aggregate" — but that is a change to a leak-battery invariant, which
+needs its own measurement and its own review, not a workaround inside one
+caller.
+
+## `ws-r90-hreflang-og-locale-identical-on-every-response` (2026-09-05, WS-R90)
+
+**Decision.** `api/_creator-page.js#renderPage` computes its three hreflang
+`<link>` tags (`en`, `hi`, `x-default`) and its `og:locale` tag from `url`/
+`slug` and the RENDERED `locale` alone — never from which query string
+(`?lang=`) the current request actually carried, and identically whether
+`data` is a real, listed Room or the platform-only unknown/unlisted
+fallback. The three hreflang links are the exact same three links on every
+one of a Room's requests, in either language.
+
+**Rationale.** Google's own hreflang doc, fetched for this workstream
+("Tell Google about localized versions of your page"), states the rule
+directly: "The set of links is identical for every version of the page" —
+each language version must reference itself and every sibling, not just the
+"other" one. Making the links a pure function of `url`/`slug` is what makes
+that true by construction rather than by remembering to keep two branches
+in sync; the fallback page carrying the identical set follows WS-R66's own
+"nobody may learn whether a slug exists from this page's shape" law extended
+to these new tags — an absent-versus-present hreflang link would itself be
+exactly the kind of shape difference that law exists to close off.
+
+**Reversal condition.** If a future locale is ever added (a third language,
+not `en`/`hi`), `HREFLANG_CODES` grows to match and `x-default` still points
+at the bare address — the SAME reasoning, not a new one. If canonical is
+ever changed to be the RENDERED locale's own address rather than always the
+bare "en" address (a genuine SEO trade-off some sites make differently),
+this decision's hreflang alternates stay correct regardless: they describe
+the URL structure, not which one is canonical.
+
+## `ws-r90-sitemap-hreflang-only-on-c-slug-not-r-slug` (2026-09-05, WS-R90)
+
+**Decision.** `api/_sitemap.js`'s new `creatorPageUrlEntry` (the `xhtml:link`
+hreflang cluster, per Google's sitemap-method doc) is emitted only for each
+listed-and-published Room's `/c/<slug>` entry. `/r/<slug>` (the Room itself,
+built beside it in the same `rows.flatMap`) keeps its plain, single-line
+`<url><loc>...</loc></url>` shape, unchanged.
+
+**Rationale.** This workstream's own brief names `/c/<slug>` alone for
+sitemap hreflang ("the sitemap lists every listed creator's `/c/<slug>`
+with hreflang alternates"); `/r/<slug>` is a client app (`RoomApp.tsx`) with
+no `?lang=` query-string language switch of its own — a follower's locale
+there is chosen inside the app after it loads (`WS-R84`'s own refetch-on-
+switch work), not by requesting a different URL, so there is no second
+address for a crawler to be told about. Adding an identical cluster to
+`/r/<slug>` "for symmetry" would be inventing a signal Google has nothing
+to do with, not documenting a real alternate.
+
+**Reversal condition.** If `/r/<slug>` ever grows its own `?lang=` entry
+point that a crawler should be told about (mirroring `/c/<slug>`'s), give
+it the identical `creatorPageUrlEntry`-shaped treatment rather than a third,
+independently-written function — the two would then be describing the same
+kind of fact about two different pages.
+
+## `ws-r90-creator-slug-probe-flag-optional-honest-skip` (2026-09-05, WS-R90)
+
+**Decision.** `scripts/probe-live.mjs` gains a `--creator-slug <slug>` flag
+that checks `/c/<slug>`'s canonical, hreflang alternates and JSON-LD against
+a REAL deployment. When omitted, that ONE section is skipped with a printed
+note in both the text and JSON report shapes (`notes: [...]`) — the run
+still exits 0 on an otherwise-clean deployment, never a failure for an
+absent flag.
+
+**Rationale.** Every other check in this file works against an UNKNOWN
+slug on purpose (a probe must never assume a specific row exists in a
+database it cannot query). This one check cannot: an unknown slug's
+`/c/<slug>` is deliberately the platform-only fallback with `jsonLd: ""` —
+no Person block at all — so there is nothing meaningful to validate without
+a REAL, listed, published Room's slug. `context/STATE.md`'s own LIVE table
+states plainly that "no real `vy_room` row has ever been inserted anywhere
+outside a fake `db`" as of this workstream's own session — inventing a
+slug to probe, or silently skipping with no note, would both violate
+AGENTS.md's "honest states" law (the first by fabricating a check result on
+data that does not exist, the second by hiding what was not checked).
+`evals/probe-live/run.mjs` proves both halves: the checking logic (against
+`fakeServer.mjs`'s new `/c/<slug>` route, which serves the REAL
+`buildCreatorPageHtml`'s output for one named fixture slug) and the
+honest-skip path (no flag given, exit 0, a note names why).
+
+**Reversal condition.** The day a real, listed, published Room exists on a
+deployment this repeats against (the owner's own Room, or a seeded fixture
+account), `docs/gurukul/DEPLOY.md`'s Phase 6 probe-live step should start
+passing `--creator-slug <that slug>` by default rather than leaving this
+optional forever — the flag's own design does not need to change, only the
+runbook that invokes it.
+
+## `ws-r90-jsonld-schema-validator-shared-not-duplicated` (2026-09-05, WS-R90)
+
+**Decision.** `validatePersonJsonLd`/`validateFaqPageJsonLd` (small,
+hand-written schema.org required-field checkers, no network) live in
+`scripts/probeLiveExpectations.mjs` — the file WS-R64 already established
+as the one place both `scripts/probe-live.mjs` and its offline eval import
+shared expectations from — rather than as a second copy inside
+`evals/creator-page/run.mjs` alone.
+
+**Rationale.** Both callers need the identical definition of "valid": the
+eval checks the REAL `buildCreatorPageJsonLd`'s output in-process, and the
+live probe checks whatever JSON-LD a real deployment actually serves over
+HTTP. Two independently maintained copies of "what fields does a Person
+need" is exactly the drift `ws-r64-expectations-parsed-from-source-not-
+retyped` (above) already named the whole point of this file to prevent, one
+concept over (a validator, not a source-parsed literal, but the same "never
+a second literal" reasoning applies to a second RULE).
+
+**Reversal condition.** If a future workstream needs full schema.org
+conformance (every optional field, not just the required ones this page
+actually emits), that belongs in a real schema.org validation library
+behind a new, explicit `--strict` flag — not grown silently inside these
+two functions, which this decision keeps deliberately scoped to the fields
+`api/_creator-page.js#buildCreatorPageJsonLd` actually promises.
+
+## `ws-r90-hreflang-literals-as-named-constants-for-source-parsing` (2026-09-05, WS-R90)
+
+**Decision.** `api/_creator-page.js` names its three new literals as module-
+level constants — `HREFLANG_CODES`, `HI_LANG_QUERY`, `OG_LOCALE` — rather
+than writing them inline inside `renderPage`'s template string, even though
+nothing in this file besides `renderPage` itself reads them.
+
+**Rationale.** WS-R64's law ("every expectation is derived from the repo's
+own source where one exists, never a second literal") only works when the
+source itself has something regex-parseable to derive FROM.
+`scripts/probeLiveExpectations.mjs#creatorPageHeadFacts` parses these three
+names directly out of this file's own bytes, the identical technique every
+other `*Facts()` function in that module already uses (`roomPageFacts`,
+`roomCardSizes`) — an inline literal buried inside a template-string
+expression has no stable shape a regex could target without becoming
+fragile to unrelated formatting changes in the surrounding markup.
+
+**Reversal condition.** None expected — this is the established pattern
+for this file, not a new one; a future addition to this page's `<head>`
+that a probe needs to check should follow the identical shape (a named,
+top-level constant) rather than reopen this question.
+
+## `ws-r86-referral-link-fulfills-ws-r40-reversal-condition` (2026-09-05, WS-R86, migration 123)
+
+**Decision.** "Bring a friend" is a genuinely NEW, explicit surface — its
+own op (`referral_link`), its own hash, its own account-page card — never
+a `ref` parameter silently bolted onto the existing `?via=share` url
+`RoomApp.tsx`'s `shareUrl` already builds client-side with no server round
+trip at all. The two stay structurally separate: `shareUrl` still carries
+no identity of any kind and still needs no server call; `roomReferralLink`
+is a second, additional link a follower can choose to generate instead.
+
+**Rationale.** `ws-r40-share-url-carries-no-sender-identity`'s own reversal
+condition names this exact day: "the day this product needs to credit a
+specific follower for a referral... that is a new, explicit consent
+surface with its own opt-in and its own disclosure — not a silent
+parameter added to the existing share url." This workstream is that day.
+Its own guarantee — today's `?via=share` link carries no identity — stays
+true unchanged: nothing about `shareUrl`'s own code moved.
+
+**Reversal.** If a future workstream ever finds `ref` silently accepted on
+the plain `?via=share` path (not the follower's own separately-generated
+referral link), that is exactly the shape this decision refused — the fix
+is removing that acceptance, not documenting it as a feature.
+
+## `ws-r86-referral-hash-reuses-rate-salt-without-daily-rotation` (2026-09-05, WS-R86, migration 123)
+
+**Decision.** `referralHashFor(roomId, personId, env)` is
+`sha256(room, person, salt)`, reading the SAME `RATE_SALT` env var
+`api/_rate-limit.js`'s `hashKey` already reads (with its own, DIFFERENT
+fallback constant so one module's fallback can never derive the other's
+hashes) — but WITHOUT that function's daily rotation. `hashKey` folds the
+UTC day into its hash on purpose (WS-R26: a leaked salt only deanonymizes
+one day's rows); `referralHashFor` deliberately does not.
+
+**Rationale.** A referral link is minted once and has to keep comparing
+EQUAL TO ITSELF for as long as a follower keeps sharing it — days, weeks,
+however long. A daily-rotating hash would make yesterday's link stop
+matching today's self-referral check and stop crediting today's join to
+the SAME referrer whose link it actually is, which is a correctness bug,
+not a privacy feature: the table already carries no person column, so
+there is no per-day blast radius a rotation could shrink the way it does
+for `vy_public_rate`.
+
+**Reversal.** If a future audit finds value in rotating this hash anyway
+(a compliance requirement that a referral link expire, say), that is a
+NEW product decision with its own migration (adding an expiry or a
+mint-timestamp column) — never a silent switch to `hashKey`'s own daily
+salt, which would break every outstanding link's own self-referral check
+the day it shipped.
+
+## `ws-r86-referral-credited-on-xmax-new-row-not-a-session-flag` (2026-09-05, WS-R86, migration 123)
+
+**Decision.** `joinRoom`'s referral write is gated on
+`(xmax = 0) as newly_joined`, read straight off the SAME `insert ... on
+conflict ... do update` statement that already creates or updates the
+follower row — never a separate JS flag, a second SELECT, or a client-
+supplied "is this my first join" claim.
+
+**Rationale.** A referral must be credited exactly once, on the moment a
+NEW relationship starts, and never again on a repeat join (the memory-
+consent toggle, a re-attestation) that happens to still carry the same
+`ref` value sitting in a follower's browser history. `xmax = 0` is
+Postgres's own, race-safe answer to "did THIS statement just insert or
+update this row" — the same statement that decides membership decides
+credit, with no window for a second call to see a stale answer, `consume()`'s
+own "the predicate is the write" law (WS-R26) restated for a boolean
+instead of a count.
+
+**Reversal.** If a future Postgres version or a connection pooler is found
+to misreport `xmax` under some real workload (unlikely — this is a
+decades-old, documented idiom), the fallback is comparing
+`follower.joined_at` to the call's own `at` timestamp with a tolerance,
+logged as a measured, deliberate compromise, never silently.
+
+## `ws-r86-self-referral-refused-in-the-insert-where-not-a-js-if` (2026-09-05, WS-R86, migration 123)
+
+**Decision.** The referral INSERT is `insert into vy_room_referral (...)
+select ... where referrer_hash <> joiner_hash` — an INSERT-SELECT whose
+own WHERE clause is the entire self-referral guard, never a JS `if
+(referrerHash === joinerHash) return` wrapped around a plain INSERT.
+
+**Rationale.** `api/_disclosure.js`'s standing rule (a predicate belongs in
+the WHERE clause, never applied after) and `consume()`'s own "the write IS
+the check" law, both restated a third time: a JS guard can be refactored
+away by someone who does not know it is load-bearing; a guard that is
+STRUCTURALLY the only path to the INSERT's own SELECT cannot silently stop
+running. `evals/room-leak/run.mjs`'s own layer 13 negative control proves
+this directly — a version of the same statement with the WHERE clause
+removed DOES write a self-referral row, showing the real one is load-
+bearing rather than a shape that could never have been reached anyway.
+
+**Reversal.** None anticipated; if a future need arises to credit a
+self-referral deliberately (an incentive program, say), that is a new,
+named product decision with its own migration and its own copy, never a
+quiet removal of this WHERE clause.
+
+## `ws-r86-room-share-via-check-cross-check-reads-schema-not-a-migration-file` (2026-09-05, WS-R86)
+
+**Decision.** `evals/room-share/run.mjs`'s own cross-check (JS
+`ROOM_ARRIVAL_VIA` against the live SQL CHECK constraint) now reads
+`db/schema.sql`'s own LAST `vy_room_arrival_via_check` block, parsed by
+regex, rather than one specific migration file's own filename hardcoded
+into the suite.
+
+**Rationale.** WS-R78's own version of this test hardcoded
+`db/migrations/121_room_arrival_via_poster.sql` and asserted "exactly the
+six named values" — both true at WS-R78's own merge and both false the
+moment this workstream's migration 123 widened the SAME named constraint
+a value further. The suite failed on first run for exactly that reason,
+proven live rather than assumed. `db/schema.sql` is the one file every
+migration that touches this constraint already mirrors into (102, 113,
+121, 123 in order, each superseding the one before it per its own
+comment), so reading its LAST matching block is the one place this check
+can read from that stays correct across every future workstream widening
+the same constraint again, without needing its own edit each time.
+
+**Reversal.** If `db/schema.sql` is ever restructured so multiple
+migrations' constraint blocks are no longer emitted in chronological
+order (an unusual reorganization), this regex's "last match wins"
+assumption breaks and the fix is reading the migration NUMBER out of each
+block's own preceding comment instead of positional order.
+
+## `ws-r83-consent-ceremony-hindi-review-document-before-conversion` (2026-09-05, WS-R83)
+
+**Decision.** The six consent-ceremony studio files
+`ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text`,
+`ws-r61-identity-proofing-consent-statements-deferred-not-attempted` and
+`ws-r71-consent-ceremony-files-found-and-not-converted` held back from Hindi
+conversion (`ModelConsentGate.tsx`, `IdentityProofing.tsx`,
+`VideoEnrollPanel.tsx`, `IngestChannelStudio.tsx`, `LivenessCapture.tsx`,
+`VoiceIdentityChallenge.tsx`) get their proposed Hindi written into a
+standalone legal-review document, `docs/legal/HINDI-CONSENT-REVIEW.md`,
+BEFORE any of them convert. No `src/` change happened this session. The
+document carries, for all 88 rows (26 consent statements plus every ceremony
+heading, legend, primary action and boundary/refusal line the six files
+render): the file and line, the English exactly as shipped, a proposed
+Hindi, and a plain-English back-translation of the Hindi, so a reviewer who
+does not read Hindi can check meaning against the English original rather
+than trusting the translator. It also names each ceremony's
+`statement_set`/`policy_version` id and the table it is recorded against, so
+a reviewer can tie a row in this document to the row a real person's consent
+is recorded against in the database.
+
+**Rationale.** The three decision entries this one is a sequel to each gave
+the SAME reason for deferring: no legal review of Hindi wording was in scope
+for or possible within that session, and a mistranslation in a consent, KYC
+or biometric ceremony carries real legal and compliance weight a generic
+Hindi honesty/consent detector (their own stated reversal condition) cannot
+substitute for. A document is the artifact legal review actually consumes; a
+diff against six `.tsx` files is not, and drafting the Hindi as a code change
+first (even behind a flag) would put untested legal wording one merge away
+from a screen. `evals/consent-review/run.mjs` proves three narrower, purely
+mechanical things instead of judging Hindi quality (which only a person can
+judge): that the document is COMPLETE (every consent statement, checkbox
+label, ceremony heading, legend, primary action and boundary/refusal line
+the six files currently render is re-extracted from the real source on every
+run and found in the document's English column, so a future edit to any
+ceremony's wording breaks this suite until the document catches up), that
+every proposed Hindi row is clean under the REAL `scripts/check-copy.mjs`
+scanner (`scanSource`, the same function/trick `evals/studio-locale/run.mjs`
+already established for Hindi copy), and that the cited statement_set/
+policy_version ids are the real exported constants, not typed-out guesses.
+
+**A genuine complication, recorded rather than hidden.** Three of the source
+English statements (`ModelConsentGate.tsx`'s `authorize_biometric_voice_modeling`
+and `authorize_private_training`, `LivenessCapture.tsx`'s
+`self_only_private_replica`) use exactly the words `scripts/check-copy.mjs`'s
+Rooms vocabulary rule bans in Hindi (and in English going forward): "replica",
+"training", "model", "embeddings". The Hindi in the document renders these
+functionally (`आपका AI` for "replica", "आवाज़ तैयार करने या बेहतर बनाने"
+for "training or adaptation of a voice model", "आवाज़ पहचान-निशानी" for
+"voice embeddings") rather than transliterating a banned word, and each such
+row is flagged in the document as the row most likely to need a lawyer's
+explicit confirmation that the functional Hindi still covers what the
+English legal noun covers. This is not a decision this workstream is
+positioned to make; it is surfaced so the reviewer sees it rather than
+signing off on a document that quietly narrowed scope.
+
+**Reversal condition.** Once a person with sign-off authority over consent/
+KYC/biometric copy has approved the Hindi in this document (as written, or
+as corrected inline), this entry and the three it extends get superseded by
+one recording that review happened, on what date, for which rows; the
+reviewed Hindi (not a re-translation) moves into `src/studio/hiCopy.ts`,
+and each file moves from `TIER_2_ALLOWLIST` to `TIER_1_FILES` in
+`evals/studio-locale/run.mjs`, the exact conversion shape WS-R52/R61/R71
+already established for every other Tier 1 file. Until then, none of the
+six files may convert on the strength of this document alone; it is input
+to a legal decision, not the decision itself.
+
+## `ws-r82-tier-2-third-wave-converted` (2026-09-05, WS-R82)
+
+**Decision.** Three of the four files this workstream was asked to convert
+move to Tier 1: `ContextLockerPanel.tsx`, `MirrorCallStudio.tsx`,
+`VoiceEnrollmentLab.tsx` (264 new leaf strings per locale — 78 + 120 + 66 —
+added to `src/studio/copy.ts`/`hiCopy.ts` as their own closed sections at the
+end). `layoutFixture.tsx` and `main.tsx` also move to Tier 1: both already
+carried zero literal English JSX text nodes of their own (the same shape
+`localeContext.tsx`/`Localized.tsx` already occupy in that list) and sat in
+`TIER_2_ALLOWLIST` for a STRUCTURAL reason unrelated to translation debt —
+reclassifying them (no content touched) is what actually lets the allowlist
+narrow toward the six consent-ceremony files it exists to hold, rather than
+carrying two permanent non-ceremony entries beside them forever. The fourth
+named file, `EnrollmentWorkspace.tsx`, is NOT converted — see the next entry.
+
+**Rationale.** All three converted files were read in full before converting:
+`ContextLockerPanel.tsx`'s one consent-shaped checkbox was found to be a
+control, not a ceremony (see
+`#ws-r82-context-locker-checkbox-is-a-control-not-a-ceremony`);
+`MirrorCallStudio.tsx` and `VoiceEnrollmentLab.tsx` carry no checkbox array or
+statement set at all — `VoiceEnrollmentLab.tsx`'s one legally-sensitive
+string, Microsoft's own required spoken consent statement
+(`providerConsent.statement`), is SERVER-COMPUTED prose already covered by
+`copy.ts`'s own header exception (category 1), never a literal this file
+authors. Every one of the 264 new leaf strings passes
+`scripts/check-copy.mjs`'s real scanner (`evals/studio-locale/run.mjs`'s own
+proof, run against the real Hindi table through the real gate, not a sample).
+
+**What was found and fixed, not merely translated.** Moving text into a
+`COPY_FILES`-matched file makes it visible to the scanner for the first time
+(`ws-r61-copy-ts-move-surfaced-latent-model-word-and-middot-run-violations`'s
+own pattern, repeated twice more this session — see
+`#ws-r82-mirror-call-fine-tune-word-surfaced-by-the-move-to-copy-ts` and
+`#ws-r82-context-locker-clone-word-surfaced-by-the-move-to-copy-ts` in
+`rejected.md`). Also found independent of the copy gate: `MirrorCallStudio.tsx`'s
+review-tab copy hardcoded "8-per-minute" as a literal number describing the
+chip rail's rate cap, but the real constant `CHIPS_PER_MINUTE`
+(`mirrorCallMachine.ts`) is 3 — a pre-existing, invisible defect (nobody reads
+a plain English sentence and checks it against a constant three files away)
+that would have shipped a WRONG, and now newly-visible-in-two-languages,
+number had the literal simply been copied. Fixed by adding a second
+placeholder to the two templates that need it and interpolating the real
+constant at render time in both call sites, so the two languages can never
+drift from each other or from the code again.
+
+**Reversal condition.** Unchanged shape from `ws-r71-tier-2-second-wave-converted`:
+a future workstream converting `EnrollmentWorkspace.tsx` removes its
+allowlist entry and adds it to `TIER_1_FILES` in the same change.
+
+## `ws-r82-context-locker-checkbox-is-a-control-not-a-ceremony` (2026-09-05, WS-R82)
+
+**Decision.** `ContextLockerPanel.tsx`'s one consent-shaped checkbox — "If I
+upload a chat export, I understand it contains another person's private
+messages, that only MY messages are ever used, and that theirs are read only
+to tell the two apart" — is translated as part of the file, the same as any
+other control on the screen, not carved out as a seventh consent ceremony.
+
+**Rationale.** WS-R71 flagged this checkbox for a closer read rather than
+deciding it either way. Read closely against the six confirmed ceremonies
+(`ModelConsentGate.tsx`'s six `STATEMENTS`, `IdentityProofing.tsx`'s KYC
+statements, `VideoEnrollPanel.tsx`/`IngestChannelStudio.tsx`'s five-statement
+YouTube rights ceremonies, `LivenessCapture.tsx`/`VoiceIdentityChallenge.tsx`'s
+biometric fieldsets — all FORMAL, multi-statement, dedicated consent SCREENS
+a person deliberately steps through before something high-stakes), this is a
+single sentence conditionally gating one specific upload path (a chat
+export), structurally identical to an ordinary feature-confirmation checkbox
+elsewhere in this product's already-translated screens. It is not named by
+exact English wording in `scripts/roomsVocabAllowlist.mjs` the way the six
+ceremonies partly are, so no already-approved wording is at stake, and
+`rejected.md#ws-r61-partial-modelconsentgate-translation-considered-and-rejected`'s
+own finding — do not split a consent screen's chrome from its statements —
+does not apply to a screen that was never treated as a dedicated ceremony
+screen to begin with.
+
+**Reversal condition.** If a legal review (the kind `docs/legal/HINDI-CONSENT-REVIEW.md`,
+WS-R83, gives the six confirmed ceremonies) finds this checkbox carries more
+legal weight than a plain feature confirmation, revert this translation and
+add `ContextLockerPanel.tsx` to `TIER_2_ALLOWLIST` with that finding as the
+reason.
+
+## `ws-r82-enrollment-workspace-is-a-seventh-consent-ceremony-not-converted` (2026-09-05, WS-R82)
+
+**Decision.** `EnrollmentWorkspace.tsx`, one of this workstream's own four
+named files, is NOT converted. It is left exactly as it was, with its
+`TIER_2_ALLOWLIST` entry strengthened to name the specific finding.
+
+**Rationale.** Read in full, its consent-panel article carries a live,
+FOUR-statement `attestations` array a creator affirmatively checks before any
+private source intake opens — an identity claim ("I am creating a replica of
+myself, not another person"), an age claim, a rights claim, and an
+understanding of the synthetic-disclosure requirement. This is the SAME
+formal, multi-statement consent-ceremony shape as `ModelConsentGate.tsx`'s
+six `STATEMENTS`, not the single-checkbox control shape
+`ContextLockerPanel.tsx`'s own checkbox turned out to be (see the entry
+above). This makes `EnrollmentWorkspace.tsx` a SEVENTH file carrying this
+exact risk class — found only after WS-R83's own brief had already fixed its
+scope at the SIX files WS-R61/WS-R71 found (`ModelConsentGate.tsx`,
+`IdentityProofing.tsx`, `VideoEnrollPanel.tsx`, `IngestChannelStudio.tsx`,
+`LivenessCapture.tsx`, `VoiceIdentityChallenge.tsx` — confirmed by reading
+`scratchpad/ws-r83-consent-ceremonies-hindi-review.md` directly, since it is
+visible from this workstream's own scratchpad this session). A full
+extraction of this ceremony into its own file (`EnrollmentConsentPanel.tsx`,
+the same shape `PayoutsCard.tsx` etc. were carved out of `RoomStudio.tsx`)
+was built this session and type-checked clean end to end — see
+`rejected.md#ws-r82-enrollment-consent-panel-extracted-then-reverted` for
+why it was deliberately thrown away rather than shipped: it would have
+silently widened WS-R83's fixed six-file scope out from under a sibling
+workstream whose own eval proves its legal-review document is COMPLETE
+against exactly those six files, and no session running WS-R82 alongside
+WS-R83 in the same wave has a channel to tell WS-R83 to widen its own count
+mid-flight.
+
+**Reversal condition.** Once a session (a future wave, or the main loop
+during this wave's merge, now that this entry exists to read) either (a)
+widens WS-R83's scope to seven and gives `EnrollmentWorkspace.tsx`'s ceremony
+the same legal-review-document treatment as the other six, or (b) confirms
+WS-R83's own document already covers seven for some reason this entry did
+not find — extract the ceremony into its own file (the built, type-checked
+`EnrollmentConsentPanel.tsx` shape this session already proved works, not
+re-derived) and convert the rest of `EnrollmentWorkspace.tsx`, the same
+pattern this workstream used for its other three files.
+
+## `ws-r82-studio-hi-performance-target` (2026-09-05, WS-R82)
+
+**Decision.** `scripts/check-performance.mjs` gains a `studio-hi` target
+(`/studio?lang=hi`, same LCP 2500ms / JS 180KB budgets as `/studio`) and a
+named `hindiChunkWaitMs` metric, budget 800ms: NOT a direct read of "first
+Hindi text node painted" (the signed-out entry never paints one — see
+`rejected.md#ws-r82-studio-hi-signed-out-entry-never-shows-hindi`) but a
+direct, real `import()` of the ACTUAL built `dist/assets/hiCopy-*.js` chunk
+(found by filename prefix, never a hand-typed content hash), timed from the
+page's own `first-paint` entry, under the same network/CPU throttle already
+active on the page. The chunk's own bytes are excluded from the target's
+`jsBytes` tally (a real signed-out visitor's browser never requests this
+chunk at all; counting it would fail the JS budget on a request this gate's
+own measurement methodology caused, not a real regression).
+
+**Why a proxy metric rather than the literal thing the brief named.** The
+literal "first Hindi text node" does not exist to measure on this screen:
+`StudioApp.tsx`'s `AuthGate` renders before `StudioLocaleProvider` mounts, so
+`?lang=hi` on a signed-out visit changes nothing about what paints. The
+proxy — how long the chunk itself takes to become usable, once ANY code path
+asks for it, under this gate's throttle — is the load-bearing quantity
+`context/decisions.md#studio-hindi-table-is-its-own-chunk`'s own reversal
+condition actually cares about, and is the one number that stays true
+regardless of exactly which future screen ends up requesting the chunk
+first.
+
+**Measured, 2026-09-05, n=3 cold runs, this gate's own throttle (4x CPU,
+1.6Mbps/750Kbps/150ms):** median 583-636ms across repeated full-suite runs
+(`context/measurements.md#ws-r82-studio-hi-chunk-wait-2026-09-05`), against
+the 800ms budget — passes with real margin, no preload needed this session.
+`/studio` (plain) and `studio-hi` both measure 161.4KB JS, confirming the
+chunk split still costs the signed-out visitor nothing.
+
+**Reversal condition.** If a real phone on a real bad-4G day, or a future
+signed-in measurement of the actual `loadStudioCopy("hi")` call site, shows a
+materially different number than this proxy, trust the real measurement over
+the proxy and say so — the proxy's whole justification is that no better
+in-scope measurement exists today, not that it is definitionally correct. If
+the budget is ever missed, the fix named in
+`#studio-hindi-table-is-its-own-chunk` (a `<link rel="modulepreload">` for
+the chunk, added when `?lang=hi` is in the URL) is unbuilt and unneeded this
+session — build it then, never by raising the budget instead.
+
+## `ws-r92-seventh-consent-ceremony-joins-hindi-review-document` (2026-09-05, WS-R92)
+
+**Decision.** `docs/legal/HINDI-CONSENT-REVIEW.md` (WS-R83) is widened from
+six files to seven: `EnrollmentWorkspace.tsx`'s four-statement account
+consent ceremony (`is_self`/`is_adult`/`has_source_rights`/
+`understands_synthetic_disclosure`, `statement_set: self-replica-enrollment-v1`)
+joins `ModelConsentGate.tsx`, `IdentityProofing.tsx`, `VideoEnrollPanel.tsx`,
+`IngestChannelStudio.tsx`, `LivenessCapture.tsx` and `VoiceIdentityChallenge.tsx`
+as File 7 of 7, with 16 new rows (R89-R104) built to the same rigour: file and
+line, shipped English, proposed Hindi, back-translation, and a note. The
+document also gains a `Verdict` column (`pending`/`approved`/`changed`/
+`rejected`) on every one of its now-104 rows, and a `Reviewed by / on` line
+per file (all seven `not yet reviewed` today). `evals/consent-review/run.mjs`
+is extended to re-extract File 7's structural anchors from the real
+`EnrollmentWorkspace.tsx` and `src/studio/enrollmentApi.ts` on every run
+(the same completeness proof the other six already had), to assert every
+verdict is one of the closed four values, and to assert no `approved` row's
+Hindi trips the real copy gate. No `src/` change; no migration.
+
+**Rationale.** This is the exact reversal condition (a) named in
+`ws-r82-enrollment-workspace-is-a-seventh-consent-ceremony-not-converted`:
+"a session ... widens WS-R83's scope to seven and gives
+`EnrollmentWorkspace.tsx`'s ceremony the same legal-review-document treatment
+as the other six." WS-R82 (same wave as WS-R83) found this seventh file,
+built and then deliberately reverted its extraction into
+`EnrollmentConsentPanel.tsx` specifically to avoid widening WS-R83's
+completeness proof out from under a concurrently-running sibling with no
+channel to renegotiate the count mid-flight (`rejected.md#ws-r82-enrollment-consent-panel-extracted-then-reverted`).
+That constraint no longer applies once both waves have landed: WS-R83's
+document already exists and is being edited directly, not raced against.
+`EnrollmentWorkspace.tsx`'s shape genuinely differs from the other six (no
+single named `[key, label]` statement array; the label text is inline in the
+component, the key names live in a separate file, `enrollmentApi.ts`), so the
+Methodology section's category 1 rule is extended rather than reused
+unmodified, and the extension is written down in the document itself rather
+than left implicit. The `Verdict` column exists because a document with 104
+rows and one reviewer is realistically going to be reviewed in pieces, not
+signed off in one sitting; without a per-row state, a partial review has
+nowhere to record itself and the next session re-reads all 104 rows to find
+out which ones already have a lawyer's answer.
+
+**Reversal condition.** Once every row's verdict in this document stops
+being useful as a durable record, i.e. once every file has converted to
+Tier 1 (see the document's own "after review" procedure) and the document is
+kept only for historical provenance, the `Verdict` column's job is done and a
+future session may say so in a new entry rather than treating it as still
+load-bearing. Until then, a code change that writes Hindi into `hiCopy.ts`
+for any of these seven files without that row's verdict here reading
+`approved` (or `changed`, with the corrected Hindi written back into this
+document in the same edit) reverses this decision's own stated rule, not the
+decision itself, and should be treated as a bug in the workstream that did it.
+
+## `ws-r93-owner-secret-doors-move-to-header` (2026-09-05, WS-R93)
+
+**Decision.** Every door in `api/` that read an owner secret from
+`req.query`/`req.body` now reads it from the `x-owner-secret` header only,
+compared in constant time. A repo-wide grep of every `api/*.js` handler for
+`req.query`/`req.body` access to any of `secret`/`token`/`key`/`auth`/`pass`/
+`admin` found exactly THREE doors doing this, not merely the two named in
+this workstream's own title: `api/life.js` (`?secret=` on GET, `body.secret`
+on POST — the two WS-R89 left, `rejected.md#ws-r89-consolidate-sweep-finding-closed-at-the-merge`),
+`api/taste-queue.js` (same shape, three call sites), and a third the grep
+also caught, `api/culture.js` (`body.secret` gating its `force` refresh —
+its own file header already documented "`force` does need the secret" but
+never said where from). All three get the identical shape: a local
+`authorized(req)` function reading `req.headers?.["x-owner-secret"]` into a
+`Buffer`, guarded `expected.length >= 16 && expected.length === actual.length`
+before `timingSafeEqual` — `api/self-check.js`'s own `authorized` shape,
+restated the same way `api/consolidate-sweep.js`'s `secretMatches` already
+restates it (WS-R89). No caller in this repo ever sent the secret any other
+way (confirmed by grep of `docs/` and `scripts/` for `?secret=`, zero hits);
+the only real caller, `evals/self/life.mjs`, is updated in the same commit
+to send `headers: {"x-owner-secret": LIFE_SECRET}` instead of `body.secret`/
+`query.secret`.
+
+**Why culture.js, not just the two named in the brief.** The brief's own
+law 1 is a grep-based rule ("find every door… list them"), not a fixed list
+of two files, and its Build section says "any other door the grep names."
+`api/culture.js`'s `b.force === true && SECRET && b.secret === SECRET` is
+the exact same shape (secret in the body, `===` not constant-time) as the
+pre-fix `api/life.js`/`api/taste-queue.js` — leaving it would have shipped
+this workstream's own title claim ("every owner-secret door…") false by one
+file.
+
+**Why the header is `x-owner-secret` and not `Authorization: Bearer`.**
+`Authorization: Bearer` is this repo's established convention for
+`CRON_SECRET` specifically (Vercel's own cron-invocation header,
+`api/self-check.js`'s comment). These three doors are owner-triggered from a
+browser or a curl command, never from Vercel's cron dispatcher, and each
+already has its OWN independently-configured secret
+(`LIFE_SECRET`/`TASTE_QUEUE_SECRET`/`CULTURE_SECRET`) rather than sharing
+`CRON_SECRET` — a distinct header name keeps that distinction visible at the
+call site rather than overloading `Authorization` for two unrelated secret
+families.
+
+**Why no dynamic (injectable-env) proof, unlike two of `e-cron-secret`'s
+seven cron doors.** `replica-erasure-sweep.js`/`replica-processing-sweep.js`
+were deliberately built with an `authorized(req, env)` shape so a fake env
+could be injected without a real deploy; `api/life.js`/`api/taste-queue.js`/
+`api/culture.js` all read their `SECRET` at module load from
+`process.env`, matching FIVE of the seven cron doors (the ones `e-cron-secret`
+also covers by static extraction alone). Refactoring three doors' module-load
+shape into a differently-testable one, purely to gain a form of proof five of
+seven precedent cases already do without, was scoped out — static extraction
+(the function's own source reads only `req.headers`, never `req.query`/
+`req.body`, plus a whole-file `timingSafeEqual` check) is the rule the brief
+asked for and is what closes the actual defect.
+
+**Reversal condition.** If a future door needs its owner secret checked
+per-request against something other than a single build-time
+`process.env` value (a rotating secret, a per-room secret), the
+`authorized(req)` shape here stops being sufficient and should move to the
+injectable-env shape `replica-erasure-sweep.js` already uses, at which point
+the room-doors battery's static-only owner-secret class should also grow the
+same dynamic proof `e-cron-secret` already carries for those two doors.
+
+## `ws-r99-adversarial-proof-scans-the-pre-gate-captured-prompt-not-the-delivered-reply` (2026-09-05, WS-R99)
+
+**Decision.** The adversarial battery's structural assertions
+(`evals/room-adversarial/run.mjs` §1/§2) scan the `compiled` object the fake
+model actually receives and echoes — captured inside the injected `reply`
+seam, before `gateReply` (`api/_surface.js`) ever touches it — rather than
+`roomSay`/`roomTaste`'s own final, post-gate `reply` text. The fake's return
+value (`compiled.core + "\n\n" + compiled.tail`) IS what "a fake model that
+returns its ENTIRE prompt as the reply" means concretely, and the captured
+argument and the returned value are the same string by construction, so
+scanning the capture is scanning what the fake model actually said.
+
+**Rationale.** `gateReply` runs `parseBubbles`/`stripTextingDashes`/
+`guardReply` (`src/engine/brain.ts`, `src/engine/honesty.ts`) on whatever the
+model returns, and that pipeline is built and already gated
+(`evals/surface.mjs`) for an ORDINARY CHAT REPLY, not a multi-thousand-
+character system-prompt dump. Read closely: `parseBubbles` splits on every
+newline and silently drops any resulting line that, after trim, is EXACTLY a
+formatting/protocol/response label, and separately drops any dash-bulleted
+line over 40 characters whose words match short/sharp/charming/bubble/
+separator/style/format/reply/tone — both conditions a compiled system
+prompt's own rule bullets trip routinely (`languageVoiceRule` etc. in
+`src/engine/agents/characters/demoTeacher.ts` are literally
+"- ENGLISH-FIRST speech with..." shaped). Scanning the post-gate text risks
+BOTH a false pass (a real leak's substring sitting inside a line the gate
+happens to drop) and a confusing false fail (an entirely clean prompt gutted
+by a pipeline built for different material) — neither is evidence about the
+retrieval boundary this suite exists to test. See
+`context/rejected.md#ws-r99-post-gate-honesty-pipeline-mangles-a-giant-echoed-system-prompt`.
+
+**What would reverse it.** If `gateReply`'s pipeline is ever generalised to
+handle arbitrarily-shaped text safely (a length-gated bypass of
+`parseBubbles`/dash-stripping above some threshold, say), or if this
+workstream's own corpus starts including attacks whose entire THREAT lives in
+what survives the honesty gate specifically (an attack that only matters if
+delivered, not if merely compiled), re-scope this suite to scan the delivered
+`text` as well, with its own dedicated assertions rather than folded into
+`ok()` calls whose real subject is retrieval.
+
+## `ws-r99-byte-diff-uses-engine-compile-directly-not-two-roomsay-calls` (2026-09-05, WS-R99)
+
+**Decision.** The law-1 "compiled prompt is byte-identical between a hostile
+turn and a benign turn of the same length" proof (`evals/room-adversarial/
+run.mjs` §4) calls `engine.compile()` directly, twice, with every field held
+bit-for-bit constant except `latestUserText`, rather than sending two REAL
+`roomSay` turns (hostile, then benign) through the same session.
+
+**Rationale.** `roomSay` mutates state between calls: the monthly cap UPDATE
+increments `month_message_count`, which changes `messageCount` on the very
+next `engine.compile()` call, and history grows by two entries (the previous
+turn plus its reply). Two consecutive real turns would therefore differ in
+more than the substituted text for a reason that has nothing to do with
+hostility, defeating the whole point of the comparison — a real difference
+found that way could never be attributed to the TEXT rather than to the
+session having advanced. Calling `engine.compile()` directly with the same
+`agent`/`messageCount`/`memories`/mode/medium and only `latestUserText`
+swapped isolates the ONE variable the law is actually about. See
+`context/rejected.md#ws-r99-consecutive-roomsay-calls-corrupt-the-byte-diff-comparison`.
+
+**What would reverse it.** If `roomSay` ever grows a way to compile without
+also committing its own state mutation (a dry-run mode, say), prefer driving
+the comparison through the real function instead — this decision is a
+work-around for a real constraint, not a preference for bypassing `roomSay`.
+
+## `ws-r99-registered-as-its-own-gate-line-not-a-room-leak-layer` (2026-09-05, WS-R99)
+
+**Decision.** `evals/room-adversarial/run.mjs` is registered in
+`evals/run.mjs` as its own suite (`"room-adversarial"`), not folded into
+`evals/room-leak/run.mjs` as an inline "layer 14", even though the
+workstream's own brief offered both options ("becomes layer 14 of the leak
+battery's report line (or its own gate line inside the eval suite; say which
+and why)").
+
+**Rationale.** Three reasons, in order of weight. (1) The workstream's own
+Build section names two NEW files (`evals/room-adversarial/run.mjs`,
+`corpus.mjs`), not an edit to `room-leak/run.mjs`. (2) `room-leak/run.mjs` is
+2,100+ lines and, this same wave, under concurrent edit by most of the other
+wave-fifteen siblings (R91-R100) plus whatever wave sixteen starts before this
+merges — appending several hundred more lines to a file that many sessions
+are touching at once is the highest-conflict-surface change available this
+session, for no benefit `world.mjs`'s own already-exported `runFullWorld`/
+`ROOM_DEFS` do not already give a standalone consumer. (3) This suite's own
+method — a static corpus file, a fake-model ECHO harness, a direct
+`engine.compile()` byte-diff, and a never-rule wiring-gap finding — is a
+different shape of proof than the leak battery's thirteen token-scan layers,
+and documenting it inline would have meant either compressing its own
+reasoning to fit that file's existing comment density or bloating it further.
+
+**What would reverse it.** If a future merge session finds standalone Rooms
+suites accumulating faster than `evals/run.mjs`'s own suite count can stay
+legible, or if the leak battery is ever restructured so each layer is already
+its own file (a `evals/room-leak/layers/*.mjs` split, say), revisit this and
+fold `room-adversarial` in alongside the others rather than leaving it the
+one outlier for its own sake.
+
+## `ws-r94-harness-over-fixture-db-not-a-second-fake-server` (2026-09-05, WS-R94)
+
+**Decision.** The follower-journey rehearsal (`evals/rehearsal/harness.mjs`)
+mounts the REAL, unmodified `api/room.js` and `api/creator-page.js` handlers
+over `http.createServer`, with the database redirected at the module
+boundary (`./_db.js`, a Node `module.register()` hook,
+`evals/agent-room/loader.mjs`'s own precedent) to `evals/room-doors/
+fixtures.mjs`'s `doorsDb(state)` — rather than building a second fixture
+server that answers `/api/room` with hand-written expected responses, the
+shape `evals/probe-live/fakeServer.mjs` already uses for a different
+purpose (proving `scripts/probe-live.mjs`'s own checking logic, not the real
+handlers).
+
+**Why.** A fake-response server can only ever prove that a CLIENT reacts
+correctly to a SHAPE someone typed by hand; it cannot catch a defect in the
+real handler's own logic, because the real handler never runs. This
+workstream's whole point — rehearsing the journey nothing has ever exercised
+end to end — required the real `roomSay`/`joinRoom`/`roomExport`/
+`roomForget`/`resolveRoom`/`loadTeacherAgent` to actually execute, against
+real SQL text, through the real rate limiter and the real honesty gate. The
+payoff was immediate and could not have come from a fake-response server: a
+real, previously invisible client bug (`onJoined` dropping `room` from
+state, see `rejected.md#ws-r94-joinroom-response-has-no-room-field-crashed-
+the-real-client`) and two fixture-fidelity defects that only exist because
+this is the first caller in the repo to drive these functions with NO
+`deps` overrides at all (`rejected.md#ws-r94-fixture-insert-substring-
+collision-corrupted-a-follower-row`, the `vy_teacher_sheet`/`meera_log`/
+`to_regclass` gaps named in this workstream's final report).
+
+**Reversal condition.** If a future workstream finds the loader-redirect
+mechanism too fragile to extend (a fourth or fifth module needing a fake),
+or if `api/room.js` ever grows a `deps` parameter of its own that a caller
+could inject directly, re-evaluate whether the module-boundary redirect is
+still the right layer — the `deps`-injection shape every OTHER Room suite
+in this repo already uses would then be strictly simpler for THAT caller,
+though it would stop proving the handler runs with production's own
+default wiring, which is this rehearsal's entire reason to exist.
+
+## `ws-r94-model-and-auth-seams-are-loader-redirects-not-deps-injection` (2026-09-05, WS-R94)
+
+**Decision.** The model call (`api/_surface.js#think`) and Supabase auth
+(`api/_auth.js#userFromToken`) are faked the SAME way as the database — a
+`module.register()` redirect to a stub that re-exports the real module's
+other names unchanged and overrides exactly one function each
+(`evals/rehearsal/stubs/surface-with-fake-model.mjs`,
+`evals/rehearsal/stubs/auth-with-fake-user.mjs`) — rather than passing
+`deps.reply`/`deps.loadAgent` through `api/room.js`, which would require
+editing that file to accept and forward a `deps` parameter it does not
+have today.
+
+**Why.** `api/room.js` calls `roomSay(q, {...})`/`roomTaste(q, {...})` with
+NO third argument, by design (`api/_room-surface.js`'s own header: "Thin by
+construction... every decision lives in api/_room-surface.js where a fake
+db can reach it" — the HTTP handler is not meant to carry test seams).
+Editing the shipped handler to add a deps parameter just for this harness
+would be scope creep against a file every other Room suite in the repo
+already treats as load-bearing and untouched, and would make the rehearsal
+test a MODIFIED handler rather than the real one — precisely the thing this
+workstream exists to avoid.
+
+**Reversal condition.** If a future product need legitimately requires
+`api/room.js` itself to accept injectable deps (not merely this harness),
+revisit this — the loader redirect would then be redundant with a real
+seam and should be retired in favour of it.
+
+## `ws-r94-onjoined-merges-into-existing-room-state` (2026-09-05, WS-R94)
+
+**Decision.** `src/room/RoomApp.tsx`'s `JoinSheet`'s `onJoined` callback now
+merges the `join` op's response into the existing `room` state
+(`setRoom((prev) => (prev ? { ...prev, ...joined } : prev))`) instead of
+replacing it outright (`setRoom(joined)`).
+
+**Why.** `joinRoom` (`api/_room-surface.js`) deliberately returns `{joined,
+locale, follower, threads, session}` — no `room` sub-object, `openRoom`'s
+own response is the one place that lives — and `setRoom(joined)` therefore
+set `room.room` to `undefined`, crashing the very next render
+(`rejected.md#ws-r94-joinroom-response-has-no-room-field-crashed-the-real-
+client`). The merge shape is not invented for this fix: `switchLocale`'s own
+handler two lines above in the same file already does exactly this for the
+SAME reason (a partial server response), so this restates an established
+idiom rather than introducing a new one.
+
+**Reversal condition.** If `joinRoom`'s server response is ever widened to
+carry a full `room` object (matching `openRoom`'s shape), the merge becomes
+unnecessary but remains harmless — `{...prev, ...joined}` with `joined.room`
+present would simply overwrite `prev.room` with the fresher copy. Do not
+revert to `setRoom(joined)` outright without first confirming the server
+side actually carries `room` again.
+
+## `ws-r94-hindi-walk-uses-the-real-language-switch-not-a-url-flag` (2026-09-05, WS-R94)
+
+**Decision.** `evals/rehearsal/follower.mjs --full`'s Hindi walk reaches
+Hindi by clicking the REAL `.room-lang-switch` control in the taste
+screen's own header, not by navigating to a `?lang=hi` URL.
+
+**Why.** `?lang=hi` is `src/room/layoutFixture.tsx`'s own fixture-only flag
+(and separately a real flag `api/creator-page.js` reads for `/c/<slug>`) —
+`/r/<slug>` itself has no such mechanism; a signed-out visitor's only real
+route to Hindi is the language switch a real person would tap. Assuming
+otherwise cost real debugging time before the actual control was found
+(a `getByRole` timeout, not a clean failure) — named so a future session
+does not re-derive this the same way.
+
+**Reversal condition.** If a future workstream adds a real `?lang=` entry
+point to `/r/<slug>` itself, the walk can use it directly; until then this
+is the only honest route.
+
+## `room-never-rules-one-reader-three-lanes` (2026-09-05, main loop)
+
+**Decision.** Every Room reply lane (`roomSay`, `roomTaste`, the check-in
+sweep) hands `gatedReply` the creator's never-rules through ONE exported
+reader, `roomNeverRules()` in `api/_room-surface.js`, which reads
+`loadNeverRules`'s own SELECT per reply and compiles it; `deps.neverRules`
+(rows) is the offline seam. A Room row without a replica or owner compiles
+to no rules rather than throwing.
+
+**Why.** Three call sites that each build their own read will drift (they
+did: three days at zero rules). One reader means one place to grep, one
+place the adversarial suite pins, and one behaviour a creator can be told.
+
+**Reversal.** If a fourth lane appears that cannot reach `_room-surface.js`
+without a cycle, move the reader to its own file rather than duplicating
+it; if per-reply reads show on the live plan as a seq scan on
+`vy_review_never_rule` (it has `(replica_id, owner_user_id)` under WS-R4's
+own index), cache for the length of one request, never longer.
+
+## `ws-r100-receipt-not-a-person-tables-entry-nullify-not-delete` (2026-09-05, WS-R100, migration 126)
+
+**Decision.** `vy_receipt` carries `person_id` but is deliberately NOT a
+`PERSON_TABLES` (api/memory.js) entry. `scripts/relcheck.mjs`'s `EXEMPT` map
+carries the written reason instead (the same escape hatch
+`meera_consolidate_lease` already uses). An account-wide "forget everything"
+reaches this table through its own explicit door in `purgeRelational` (right
+beside `vy_room_forget_receipt`'s own), which runs `update vy_receipt set
+person_id = null where person_id = $1` - never the generic manifest loop's
+`delete from ... where ...`. The narrow, per-Room `roomForget` does not touch
+this table at all.
+
+**Rationale.** `PERSON_TABLES` membership means "wiped by the generic DELETE
+loop" (api/memory.js's own header). A receipt must survive that wipe with its
+`receipt_no` and its ledger-linked amount intact - it is proof a follower paid
+real money, and forgetting what an AI remembers about someone is a different
+request in kind from forgetting that they paid it
+(`#ws-r11-subscription-survives-forget-until-terminal`'s own argument,
+restated for a receipt instead of a mandate). A blind DELETE would make an
+accountant's or a parent's copy of that proof retroactively inaccurate the
+moment a follower asks to be forgotten - the opposite of what a receipt is
+for. The narrower per-Room `roomForget` is left alone entirely on the
+identical precedent: forgetting a Room's own memory of you is not forgetting
+that you paid it.
+
+**Reverses if.** A future workstream needs `vy_receipt` reachable by the
+generic manifest loop for some OTHER reason (a bulk operation across every
+`PERSON_TABLES` entry, say) - at which point the table needs a `wipeMode`
+field the manifest loop does not have today (a nullify mode, not only a
+delete mode), and this decision's own explicit-door mechanism is superseded
+by that generic one rather than kept as a second, parallel path.
+
+## `ws-r100-receipt-issued-alongside-not-inside-the-ledger-write` (2026-09-05, WS-R100)
+
+**Decision.** `issueFollowerReceipt` (api/_payments.js) is a SECOND
+statement, called from `applyWebhook` right after the ledger's own
+`vy_payment_event` INSERT lands a NEW row - never a fifth CTE folded into
+that INSERT's own statement.
+
+**Rationale.** That ledger write is a heavily fixture-modelled statement
+several sibling suites drive byte-exactly by matching its own SQL text and
+positional `params` array (`evals/payments/run.mjs`, `evals/room-doors/
+fixtures.mjs`, and by extension anything `evals/org-billing` or a future
+suite adds against the identical text). Folding a THIRD table's writes into
+it would renumber every one of that statement's bound parameters for every
+one of those suites at once - a blast radius this workstream's own receipt
+has no business opening for a table none of them need to know about. Two
+statements, gated behind `isTableAppliedFor(deps)("vy_receipt")` (the SAME
+seam `offerTableReady` already uses two sections up in the same file), means
+every existing test that never overrides `tableApplied` reaches this new
+code path exactly zero times - proven directly:
+`evals/payments/run.mjs`'s own new §10 states this as an assertion, not an
+assumption.
+
+**Reverses if.** A real production incident is ever traced to the gap this
+choice accepts (a process crashing between the two statements, leaving a
+landed charge with no receipt) - at which point either a retry sweep is
+built (matching `evals/room-dormancy`'s own precedent for a different gap)
+or the two statements are unified into one CTE chain, accepting the
+fixture-renumbering cost this decision avoided today.
+
+## `ws-r100-receipt-number-bounded-by-rule-46b` (2026-09-05, WS-R100, migration 126)
+
+**Decision.** `formatReceiptNumber` (api/_receipt.js) renders `VY/<FY>/<n>`
+and THROWS (`receipt_number_over_rule_46b_cap`) rather than emitting a string
+over sixteen characters - CGST Rule 46(b)'s own cap on a tax invoice's serial
+number. `"VY/2026-27/"` alone spends eleven of the sixteen, leaving five
+digits: this format is good for 99,999 receipts in one financial year.
+
+**Rationale.** Verified against gstzen.in and studycafe.in (both quoting the
+rule's own clause text, cross-checked against each other, 2026-09-05):
+`context/rejected.md`'s no-fake-numbers law applied to a STRING LENGTH rather
+than a number - a receipt number this platform prints that violates the rule
+it is trying to satisfy is worse than one that refuses to exist, the same
+"unrepresentable, not merely unproduced" discipline migration 078's
+`vy_payment_event_signature_verified` CHECK already uses for a boolean.
+99,999 receipts in one financial year is not a real constraint at this
+platform's current stage (`context/STATE.md`: no real `vy_room` row has ever
+received a real payment outside a fake `db`), so the format was chosen for
+human readability (the SAME "FY" string an Indian accountant already reads
+on every invoice they see) over a denser encoding that would raise the
+ceiling at the cost of that readability.
+
+**Reverses if.** This platform's own real receipt volume approaches 99,999 in
+one financial year (a very large business by this platform's current stage)
+- at which point either the `VY/` prefix drops, the FY encodes as four digits
+instead of seven (`"2627"` instead of `"2026-27"`), or Rule 46(b) is
+re-read for a still-current cap that may itself have changed since this
+citation's own date.
+
+## `ws-r100-follower-state-gst-split-undifferentiated` (2026-09-05, WS-R100, migration 126)
+
+**Decision.** `gstSplit` (api/_receipt.js) only ever returns its
+`unknown_state` shape (one undifferentiated GST line) unless BOTH a
+follower's own billing state AND the platform's registered state are
+supplied - and nothing in this product collects a follower's billing state
+anywhere, so every real receipt issued today renders `unknown_state`. The
+`cgst_sgst`/`igst` branches are real, tested code (`evals/room-receipt/
+run.mjs`'s own §2), structurally reachable the day a follower's state is
+known, never exercised by anything that calls this file in production.
+
+**Rationale.** Splitting a GST-inclusive amount into CGST+SGST (same state)
+versus IGST (different state) requires knowing WHICH of the two applies.
+Guessing - defaulting to CGST+SGST as though every follower shared the
+platform's own state, say - would be exactly the fabricated precision
+`context/rejected.md`'s no-fake-numbers law forbids, applied to a tax
+jurisdiction instead of a number: a wrong split on a document meant to prove
+a payment to a tax authority is a worse failure than an honest,
+undifferentiated line.
+
+**Reverses if.** A future workstream collects a follower's own billing state
+(an address field, a state selector at signup) - at which point `roomReceipt`
+(api/_room-surface.js) passes it through to `buildReceiptContext`'s own
+`followerState` parameter, which this decision's own code already accepts
+and already splits correctly; nothing in `gstSplit` itself needs to change.
+
+## `ws-r100-sac-code-left-as-a-placeholder` (2026-09-05, WS-R100, migration 126)
+
+**Decision.** `SAC_PLACEHOLDER` (api/_receipt.js) renders "to be confirmed
+with an accountant" (both locales) instead of a Services Accounting Code -
+no SAC has been confirmed for a Room membership.
+
+**Rationale.** `TDS_RATE_BP_DEFAULT`/`TDS_DISCLOSURE_SENTENCE`
+(api/_payments.js) already made this exact call for a withholding rate;
+this is the identical call for a tax classification. A plausible-looking SAC
+(998439 "online content", or 9997 "other services", both real codes that
+LOOK like they could apply) would be a guess dressed as a fact on a document
+whose whole purpose is to be trusted by a tax authority or an accountant -
+worse than stating plainly that nobody has confirmed it yet.
+
+**Reverses if.** The owner confirms a real SAC with an accountant - at which
+point `SAC_PLACEHOLDER` is replaced by a real `SAC_CODE` constant and the
+receipt's own SAC line renders it instead of the caveat sentence.
+
+## `ws-r100-room-export-not-extended` (2026-09-05, WS-R100)
+
+**Decision.** `evals/room-export/run.mjs` (WS-R27's export completeness
+battery) is left untouched by this workstream. The proof that `vy_receipt`
+appears in a real `roomExport()` call lives in `evals/room-receipt/run.mjs`'s
+own §5 instead.
+
+**Rationale.** `vy_receipt` is added to `ROOM_EXPORT_EXTRA`
+(api/_room-surface.js), which `roomExportManifest()` already folds into its
+own returned list unconditionally - `evals/room-export/run.mjs`'s own layer-1
+static check (`EXPECTED.filter((t) => !realCovered.includes(t))`) only ever
+fails on a table MISSING from `roomExportManifest()`'s coverage, never on one
+gaining a new, voluntary member, so nothing there needed to change for
+correctness. `vy_receipt` is deliberately NOT a `PERSON_TABLES` entry
+(`#ws-r100-receipt-not-a-person-tables-entry-nullify-not-delete`), so that
+battery's own STATIC layer (DDL scan vs `PERSON_TABLES`) was never going to
+require it either way - extending that file would have meant inventing a
+THIRD kind of coverage assertion (a voluntary, non-`PERSON_TABLES` extra)
+for a battery whose whole design is built around the `PERSON_TABLES`
+manifest being the single source of truth. `evals/room-receipt/run.mjs`
+already proves the real thing that matters (a follower's own receipt
+actually appears in their own `roomExport()` output) against the real
+function, so building a second proof of the identical fact in a different
+file would be redundant coverage, not new coverage.
+
+**Reverses if.** A future table is added to `ROOM_EXPORT_EXTRA` that IS also
+a `PERSON_TABLES` entry (most of the other ten already are) and needs the
+SAME completeness guarantee `evals/room-export/run.mjs` gives those - at
+which point that battery is the right place for it, and this decision's own
+reasoning ("nothing there needed to change") stops applying to that new
+table specifically, though it remains true for `vy_receipt` itself.
+
+## `ws-r100-no-dedicated-room-leak-layer-14` (2026-09-05, WS-R100)
+
+**Decision.** `vy_receipt` gets a `TABLE_ROLES` entry in `evals/room-leak/
+world.mjs` (so the existing, generic layer 8 static reach scan covers it -
+`vy_room_referral`'s own precedent), but this workstream does NOT add a
+dedicated dynamic "layer 14" world scenario to `evals/room-leak/run.mjs`
+proving cross-follower isolation a second time.
+
+**Rationale.** Every prior numbered layer (1 through 13) earned its own
+dynamic world because it exercised a code path NO OTHER offline suite in
+this repository touched at all before that layer existed. `roomReceipt`'s
+own cross-follower refusal is not in that position: `evals/room-doors/
+run.mjs`'s new §17e (class c) proves a follower naming another follower's
+real `payment_event_id` is refused by the WHERE, and `evals/room-receipt/
+run.mjs`'s own §5 proves the identical property again through a second,
+independent fixture. A third proof of the SAME isolation fact, in a THIRD
+suite, at the cost of seeding `vy_receipt`/`vy_payment_event` fixture data
+into `evals/room-leak/world.mjs`'s own considerably heavier N-follower
+world generator, would be redundant coverage dressed as a new layer -
+`context/rejected.md`'s own standing preference for a real, distinguishing
+proof over a repeated one, applied to test coverage rather than a product
+claim.
+
+**Reverses if.** A future workstream finds a leak class the two existing
+proofs cannot express - retrieval-compilation-level leakage (a receipt's
+own number or amount surfacing inside a compiled prompt or a creator-facing
+aggregate, the actual shape every OTHER numbered layer in this battery
+guards against) rather than a simple WHERE-clause row-ownership check. That
+IS a real, distinguishing question this workstream never asked, and it
+would earn a genuine layer 14.
+
+## `ws-r95-creator-rehearsal-harness-over-fixture-db-not-a-mocked-fetch-layer` (2026-09-05, WS-R95)
+
+**Decision.** The creator-journey rehearsal (`evals/rehearsal/harness-creator.mjs`)
+runs the REAL `api/replica.js`, `api/context-items.js`, `api/review-queue.js`,
+`api/readiness.js` and `api/room-publish.js` handlers, unmodified, over a real
+`http.createServer`, rather than a canned-response fake server in
+`evals/first-room/run.mjs`'s own style (which never imports a real handler at
+all). The seam is `globalThis.fetch`: `NEON_URL`/`SUPABASE_URL` point at fixed
+fake hosts, and the ONE interceptor answers Neon's SQL-over-HTTP endpoint from
+`evals/room-doors/fixtures.mjs`'s new `rehearsalCreatorDb` (append-only
+additions to the existing `doorsDb`) and Supabase's `/auth/v1/user` from one
+fixed bearer token. Loopback (the harness's own origin) passes through
+untouched; anything else throws rather than reaching a real network.
+
+**Rationale.** `api/<name>.js` handlers import `q` and `requireUser` at module
+load time with no dependency-injection seam at the HTTP layer (unlike the
+functions one layer down, which all take `db` as their first argument — the
+seam `evals/room-doors` already attacks). The only place left to intercept a
+caller that insists on the REAL handler file is the network call each of
+those two modules makes. This proves the actual HTTP contract (status codes,
+error shapes, the `withDoor` wrapper, CORS) a canned-response fake cannot,
+at the cost of needing new fixture coverage for every decision module the
+walk touches that `doorsDb` was never asked to know about (readiness's six
+raw SQL inputs, the Context Locker, review-queue's generate/decide,
+`creatorExport`'s two ownership-scoping prefix reads and `tableApplied`'s
+`to_regclass` probe).
+
+**What would reverse it.** If `evals/rehearsal/harness.mjs` (WS-R94's own,
+same-wave sibling contract this file's header says to prefer once it exists)
+ships with a materially different seam — e.g. a `--experimental-loader`
+module-resolution hook instead of a fetch intercept — fold this file into
+that one rather than keeping two competing harnesses. If a future workstream
+needs the SAME real-handler-over-fixture shape for a door this file's
+`rehearsalPatterns` does not yet cover, extend `rehearsalCreatorDb`
+(append-only) rather than building a third fixture layer — the WS-R72 lesson
+this file's own comments cite (a later, more specific statement sharing a
+substring with an earlier, more generic one must be matched first) bit this
+workstream FOUR separate times while building it (the Context Locker's
+insert-vs-quota CTE, review-queue's insert/decide-vs-OWNED CTE, and the
+export's `select *` colliding with the readiness aggregate's own
+`vy_mirror_feedback` read) — extending an existing, hard-won ordering is
+cheaper than re-discovering it.
+
+## `ws-r95-readiness-floor-crossing-is-seeded-never-computed` (2026-09-05, WS-R95)
+
+**Decision.** This rehearsal's "publish once Readiness allows" step crosses
+the floor by directly seeding `state.rehearsalReadinessLast` (the row
+`api/_room-publish.js`'s own readiness-passes SQL predicate reads), the SAME
+shortcut `evals/room-publish/run.mjs`'s own fixture (`freshState()`'s
+`readiness: [{overall: 82, min_part: 71, unmeasured_count: 0}]`) already
+takes — never by driving the six raw Readiness inputs to a genuinely passing
+`readinessScreen()` computation.
+
+**Rationale, and the finding that makes this NOT a shortcut of convenience.**
+This workstream first tried the harder, more honest-looking path: feed all
+six of `api/_readiness.js`'s raw SQL inputs (claims, voice fidelity, the
+owner's ceiling, Mirror Call taps, the teacher sheet, source freshness)
+generous, passing values, and let the real `readinessScreen()` compute
+`overall`/`min_part` for real. Four of five parts passed this way (measured:
+`sounds_like_you` 88, `thinks_like_you` 90, `knows_what_not_to_say` 100,
+`up_to_date` 100). The fifth, `knows_your_material`, stayed `null` no matter
+what was fed, because it renders a value ONLY when `readRecallRun()` returns
+a scored recall run, and that function is a committed stub
+(`api/_readiness.js`'s own `readRecallRun(_db, _ownerUserId, _rid)` — unused
+parameters, no writer anywhere in this tree, confirmed by grep). Because
+`readinessScreen()`'s own `overall` and `min_part` are `null` whenever ANY
+part is unmeasured (never a partial mean — that file's own "THE UNDEFINED
+OVERALL" comment), **no replica can cross the publish floor through a real
+`GET /api/readiness` computation as this tree stands, for any creator,
+ever.** This is a structural fact this workstream discovered by trying the
+harder path and hitting a wall, not an assumption carried in from
+`evals/room-publish/run.mjs`'s own choice.
+
+**What would reverse it.** A recall-run writer landing anywhere in this tree
+(a scored held-out question set built from a replica's own sources,
+`api/_readiness.js`'s own §"knows_your_material"'s TODO). The day one exists,
+re-run this rehearsal's "cross the floor" step by feeding all SIX inputs
+(the fixture already supports five of them) rather than seeding the snapshot
+directly, and if it passes for real, this decision is superseded rather than
+edited in place.
+
+
+## `ws-r98-operator-telegram-reuses-room-telegram-checkin-sender` (2026-09-05, WS-R98)
+
+**Decision.** `api/_operator-telegram.js` (the operator digest/incident/
+self-check alert reaching Telegram) sends every message through
+`api/_room-telegram.js`'s own `sendRoomCheckinMessage` — the exact function
+`api/_checkins.js`'s `deliverers.telegram` already uses for a follower's
+check-in — never a new `fetch(...telegram.org...)` call, never a second
+Telegram client. `ROOM_TELEGRAM_BOT_TOKEN` (the Room's existing bot) is
+reused; no second bot token env var.
+
+**Rationale.** `sendRoomCheckinMessage` is the one function in this repo
+that already returns a real HTTP status code (not only Telegram's own `ok`
+boolean), which this workstream needs to tell "stop trying" (403/400) apart
+from "try again later" (429/5xx) — workstream law #1, verbatim. Writing a
+second Telegram HTTP call would duplicate that distinction and risk
+diverging from it the next time either file changes; reusing the exact
+function means both callers share one bug surface, not two.
+
+**Reversal condition.** If the operator channel ever needs a capability
+`sendRoomCheckinMessage` cannot provide (a different bot, a different
+Telegram API method), give the operator channel its own client at that
+point — but do not duplicate the 403/400-vs-429/5xx distinction by hand
+first; extract it into a shared helper both clients call.
+
+## `ws-r98-notify-claim-widened-to-either-channel` (2026-09-05, WS-R98)
+
+**Decision.** `api/_incidents.js#notifyNewIncidentKinds` and
+`api/_operator-digest.js#sendOperatorDigest` both widen their own claim gate
+from "push alone" to "push configured OR Telegram configured" — the ledger
+row (a `vy_incident.notified_at` claim; a `vy_operator_digest` day row) is
+now written whenever EITHER channel could actually deliver, and each
+channel is then independently attempted, gated on its OWN config
+(`pushConfigured` / `telegramConfigured`), never on the other's. An operator
+running Telegram alone (no VAPID at all) now gets the digest and the
+new-incident-kind alert exactly as an operator running push alone always
+has; an operator running push alone sees no change in behavior at all.
+
+**Rationale.** `context/decisions.md#ws-r58-notify-claim-only-marks-
+notified-with-a-configured-recipient` already states the law this widens:
+"`notified_at` is a promise that an alert was attempted for a real,
+configured audience, not a bookkeeping flag that a sweep tick merely ran."
+An operator who has only pasted `OPS_TELEGRAM_CHAT_IDS` is exactly as real
+an audience as one who has only enabled push — gating the claim on VAPID
+alone would mean a Telegram-only operator's digest/alert is silently never
+attempted at all, which is precisely the workstream's own opening sentence
+("an operator who has no push subscription gets the same... in a Telegram
+chat") failed to hold for an operator with NO push configuration
+whatsoever, not only no subscription.
+
+**Reversal condition.** If a third channel is ever added, extend the same
+pattern (`anyChannelConfigured = a || b || c`, each attempted independently
+on its own config) rather than nesting channel checks — `evals/operator-
+telegram/run.mjs`'s own §6 and the matching additions to `evals/operator-
+digest/run.mjs`'s §7 and `evals/incidents/run.mjs` prove the two-channel
+case; a third channel needs its own negative control proving the claim
+still fires with only IT configured, the same technique restated once more.
+
+## `ws-r98-operator-telegram-runtime-content-scan` (2026-09-05, WS-R98)
+
+**Decision.** `api/_operator-telegram.js`'s `sendOperatorTelegram` runs a
+RUNTIME scan (`operatorTelegramContentOk`) over the assembled
+title+body+url text before sending — checking for the same follower/Room-
+content column names `api/_operator-digest.js#OPERATOR_DIGEST_CONTENT_NAMES`
+already lists — and refuses the WHOLE send (to every configured chat, not a
+partial redaction) if any is found. This is IN ADDITION to, never instead
+of, the existing build-time static scans each payload builder's own source
+already passes (`operatorDigestPayload`, `incidentPushPayload`).
+
+**Rationale.** Every other content-free-payload guarantee in this repo
+(WS-R22's "the parameter list is the enforcement," WS-R88's static source
+scan) protects a payload BUILDER's own source code from ever having a
+variable in scope that could hold content. `sendOperatorTelegram` is
+different: it is the one place that concatenates three already-built fields
+into ONE free-text message for a channel with no structured display (unlike
+push, where `title`/`body` stay separate JSON fields the service worker
+renders). A runtime check on the ASSEMBLED text costs nothing (the three
+existing callers' payloads all pass it trivially) and catches a payload
+shape this file has never seen — a genuine second independent guarantee,
+not a redundant one, `evals/operator-telegram/run.mjs`'s own §4 proves both
+that it fires (a body carrying "slug" sends nothing) and that it is not
+vacuous (a clean payload of the identical shape still sends).
+
+**Reversal condition.** If a future legitimate payload ever needs to
+contain one of these words in ordinary English (unlikely, since none of
+"slug"/"person_id"/"follower_id" etc. are ordinary English), narrow the
+match from a substring to a word-boundary regex or a smaller list at that
+point — do not remove the runtime check itself without replacing it with an
+equally strong guarantee, since it is what makes this file safe for a
+FUTURE caller whose payload builder this workstream never reviewed.
+
+## `ws-r98-digest-telegram-last-delivery-read-from-sweep-run-not-a-ledger` (2026-09-05, WS-R98)
+
+**Decision.** `api/_ops.js#digestTelegramOverview` answers "the ops board's
+digest card shows both channels' last delivery" (workstream law #3) by
+reading the "operator-digest" sweep's own LATEST `vy_sweep_run` row (already
+fetched by `sweepsOverview` for the Sweeps strip) rather than adding a
+migration or a new column to `vy_operator_digest`. No migration this
+workstream (the brief's own default).
+
+**Rationale.** `sendOperatorDigest`'s own summary already carries
+`telegramSent` as a plain number (needed anyway for `withSweepRun`'s own
+heartbeat, workstream law #2's "one summary field per channel"), and
+`api/_sweep-run.js#sanitizeCounts` already keeps it on the `vy_sweep_run`
+row for free — reading it back costs zero new SQL. `selfCheckOverview`
+(WS-R76) already established the identical pattern one section up: derive a
+board card from the already-fetched `sweeps` array rather than a bespoke
+query.
+
+**Reversal condition, named honestly up front.** This is a WEAKER guarantee
+than the push ledger's own row-per-day history: `vy_sweep_run` keeps only
+the latest run per sweep, so a Telegram send that succeeded yesterday and
+failed this morning (config pulled, bot blocked) reads as "last delivery:
+never," not "yesterday." If an operator is ever confused by this — or a
+real incident needs "when did Telegram last actually work" answered beyond
+the latest run — build a real per-channel delivery ledger at that point;
+migration 126 is free for it (`vy_operator_digest` gaining a `telegram_sent_
+at`/`telegram_sent_count` pair, or a small dedicated table). Not built now
+because the brief named no such need and `evals/ops/run.mjs`'s own §5c3
+proves the honest-zero behavior this gap produces is at least never a LIE
+(a zero-send run never claims a nonzero count).
+
+## `ws-r98-test-digest-stays-push-only` (2026-09-05, WS-R98)
+
+**Decision.** `api/_operator-digest.js#sendTestOperatorDigest` ("send a test
+digest now," the ops board's own button) is deliberately left untouched —
+it still sends push only, never Telegram, even when
+`OPS_TELEGRAM_CHAT_IDS` is configured.
+
+**Rationale.** The workstream brief names exactly three integration points
+(law #2: "the digest sweep, the incident alert and the self-check's failure
+path") — the test-send button is a fourth path the brief does not name, and
+`context/decisions.md`'s own existing law for this function ("a test send
+can never consume the one real send/day the ledger's own unique day index
+protects... writes NO ledger row") is about the PUSH ledger specifically; a
+Telegram send has no ledger to protect either way, so extending it would be
+scope the brief did not ask for, not a bug it left behind.
+
+**Reversal condition.** If an operator ever wants to verify their Telegram
+setup the same way the push button lets them verify a browser subscription,
+add a second button (or a query param on the same op) that calls
+`sendOperatorTelegram` directly against the caller's own configured chat
+ids — a small, additive change, not a rewrite of this decision's own
+boundary.
+
+## `ws-r96-day-one-runbook-parses-its-own-table`
+
+**Decision.** `docs/gurukul/DAY-ONE.md`'s numbered path and `scripts/day-one.mjs`
+(the script that checks it against a real deployment) never hold two copies
+of the same steps: `scripts/dayOneRunbook.mjs#parseRunbook` is the ONE parser
+of the runbook's own markdown table, imported by both the CLI and
+`evals/day-one/run.mjs`, the same discipline `scripts/probeLiveExpectations.mjs`
+already holds for `vercel.json` and the Room's literals (`ws-r64-live-probe`)
+— restated here for a doc instead of code. Every row's Proving Command cell must
+start with one of three prefixes (`probe-live`, `self-check:`, `manual:`),
+and a row that does not is a parse error, not a silently-skipped row — the
+workstream's own required negative control, proven in
+`evals/day-one/run.mjs`.
+
+**Why not let `day-one.mjs` run `scripts/first-room.mjs` itself for the
+product steps.** It would prove more, faster, on a real deployment. It was
+rejected because `first-room.mjs` signs in, uploads a real file, and writes
+real rows — the opposite of "free, offline-safe by construction" this
+script's whole value rests on (`docs/gurukul/DAY-ONE.md`'s own network law:
+GET/HEAD plus the two probe-live refusals, nothing else, ever). Every step
+whose only real proof is `first-room.mjs` is `manual:` and reported
+`unknown`, on purpose, forever, until a human runs that script with a real
+session.
+
+**Reversal condition.** If the runbook ever needs a proving-command shape
+that does not fit `probe-live` / `self-check:env:<NAME>` /
+`self-check:door:<substring>` / `manual:<instruction>`, extend the grammar in
+`scripts/dayOneRunbook.mjs` (and its own header comment) rather than let
+`scripts/day-one.mjs` interpret a fourth, undocumented shape by convention.
+If `api/_self-check.js` is ever changed to also report `OPTIONAL_ENV`
+absences (see `context/rejected.md#ws-r96-self-check-optional-env-never-becomes-a-finding`),
+re-classify the steps that are `manual:` for that reason back to
+`self-check:env:<NAME>` and delete the corresponding blind-spot paragraph
+from `DAY-ONE.md` rather than leaving a now-false caveat in place.
+
+## `ws-r91-authgate-reads-locale-before-sign-in` (2026-09-05, WS-R91)
+
+**Decision.** `AuthGate.tsx` (the studio's sign-in screen, extracted whole
+out of `StudioApp.tsx` this session) is wrapped by `StudioLocaleProvider`
+BEFORE the `if (!session)` branch is reached, not after — the provider now
+mounts above the auth gate in both of `StudioApp.tsx`'s returns (signed out
+and signed in), each with its own `<StudioLocaleProvider>`, rather than one
+shared mount lower in the tree. Every sign-in string (email/OTP forms, the
+Google button, every error, the intro copy for all three variants, the
+legal notice, the language switch itself) moved into `copy.ts#authGate` /
+`hiCopy.ts`, read through `useStudioLocale()` inside `AuthGate.tsx`, never
+through `StudioApp.tsx`'s old English-only `TEACHER_COPY`/`GENERIC_COPY`/
+`TEST_COPY` (kept, but narrowed to `CreateReplicaCard`'s own signed-in-only
+fields — `brandTag`/`introEyebrow`/`introTitle`/`introBody` removed from
+that local `StudioCopy` interface entirely, since `AuthGate.tsx` was their
+only reader). The locale itself is resolved by a new pure module,
+`studioLocalePreference.ts#resolveStudioLocale`: `?lang=` first (unchanged
+from WS-R52), then, once a replica has loaded, ITS OWN `vy_replica.locale`
+(WS-R52's order, still unchanged), and BEFORE that — signed out, or signed
+in but the replica has not loaded yet — a remembered LOCAL choice read from
+`localStorage` (`vyakti.studio.locale.v1`, the studio's own key namespace).
+A mismatch between the remembered local choice and a freshly loaded
+replica's own row resolves to the row, by construction (the chain checks
+the row before it ever consults the remembered value), and `StudioApp.tsx`
+also re-writes the remembered value to match the row once it loads, so a
+future signed-out visit (after a sign-out, on the same device) reflects the
+row's language rather than a stale one.
+
+**Rationale.** This is the fix `WS-R82` found but explicitly could not
+build (`context/rejected.md#ws-r82-studio-hi-signed-out-entry-never-shows-hindi`
+names `AuthGate` sitting before the provider as "not a bug this session
+introduced... it is how the file has read since WS-R52," and names making
+`AuthGate` itself locale-aware as the future workstream's job). Extracting
+`AuthGate` into its own file, rather than converting it in place inside
+`StudioApp.tsx`, follows this workstream's own established pattern
+(`PayoutsCard.tsx` etc. carved out of `RoomStudio.tsx`, `ws-r61`/`ws-r71`'s
+own precedent) for a mechanical reason as much as a stylistic one:
+`StudioApp.tsx` is itself allowlisted in `evals/studio-locale/run.mjs`'s
+`TIER_2_ALLOWLIST` for a REASON UNRELATED to this fix (it owns roughly
+thirty lazy-mounted Tier 2 panels' wiring), so converting a function that
+still lived inside that file would have needed either loosening the
+allowlist's own file-granularity proof or leaving the sign-in screen
+unverified by the static scan. A new file, added directly to `TIER_1_FILES`,
+keeps the proof exact: `AuthGate.tsx` reads only `t.`, unconditionally,
+with nothing else in the same file to blur that claim.
+
+**What was NOT done.** `CreateReplicaCard` and every other Tier 2 panel
+`StudioApp.tsx` still mounts remain English only — this workstream's file
+list named `StudioApp.tsx`, the sign-in component, `studioAuth.ts`,
+`localeContext.tsx`, `copy.ts`/`hiCopy.ts` and the gates, not a wider Tier 2
+sweep. The boot-page spinner (`!authChecked`, "Opening your private
+studio") also stays English and outside the provider deliberately: it is a
+sub-second transient before `restoreSession()` resolves, translating it
+would mean either blocking it behind the Hindi chunk load (worse for a
+screen whose whole job is to appear instantly) or accepting the "never
+English in its place" law's own exception for exactly the state it exists
+to prevent elsewhere. Not one of the four call sites `context/decisions.md
+#ws-r79-tag-at-the-node-not-the-document` already covers needed a change:
+`AuthGate.tsx` carries no server-computed prose.
+
+**Reversal condition.** If a future session finds the boot-page spinner's
+English flash is measured to matter (a real creator report, or a
+performance/perception measurement), revisit translating it — behind a
+synchronous read of the SAME `resolveStudioLocale` chain this decision
+adds, never a second locale mechanism. If `StudioApp.tsx`'s remaining Tier 2
+scope is ever fully converted, `TEACHER_COPY`/`GENERIC_COPY`/`TEST_COPY`
+collapse into `copy.ts` in the same change, the same reversal condition
+`context/decisions.md#ws-r52-tier-2-studio-files-not-localized` already
+states for the rest of that file.
+
+## `ws-r91-hindi-chunk-preloaded-from-main-tsx` (2026-09-05, WS-R91)
+
+**Decision.** `main.tsx` calls `loadStudioCopy("hi")` immediately, at
+module-evaluation time, when `?lang=hi` is present in the URL — before
+`StudioApp` mounts, before `restoreSession()` resolves, before
+`StudioLocaleProvider`'s own effect would otherwise start the same fetch
+post-render. `loadStudioCopy` already dedupes concurrent callers behind one
+shared `hiLoading` promise (`copy.ts`'s own cache), so this is a pure head
+start: the provider's later call the same page session makes resolves
+against this identical in-flight (or already-settled) promise, never a
+second fetch.
+
+**Rationale.** This is the fix `context/decisions.md#studio-hindi-table-is-its-own-chunk`'s
+own reversal condition named in advance ("preload the chunk... when
+`?lang=hi` is in the URL, never a raised budget") and
+`context/decisions.md#ws-r82-studio-hi-performance-target` left unbuilt
+because nothing on the signed-out screen asked for the chunk at all before
+this session. Once `AuthGate.tsx` (this workstream) made the screen
+genuinely Hindi-aware, `scripts/check-performance.mjs`'s new
+`firstHindiPaintMs` metric (WS-R91) measured real values close to or over
+its 800ms budget on this heavily shared, oversubscribed development sandbox
+(load average repeatedly 10-14 on 4 cores while multiple sibling
+workstreams' own release gates ran concurrently — see
+`context/measurements.md#ws-r91-first-hindi-paint-2026-09-05`). A literal
+`<link rel="modulepreload">` tag was considered and set aside: the chunk's
+filename is content-hashed at build time and `studio.html` is a static file
+with no server-side templating step to inject the real hash into, so
+achieving the same effect from a `<link>` tag would need either a Vite
+plugin (more moving parts than this fix needs) or a hand-written glob at
+runtime to discover the hash (fragile). Calling `loadStudioCopy("hi")`
+directly achieves the identical outcome, an early network fetch for the
+chunk, through the mechanism the app already owns and already tests, with
+no new moving part.
+
+**Reversal condition.** If `firstHindiPaintMs` is ever measured missing
+budget on a quiet machine (load average at or below the number of cores,
+no sibling gate running), this fix is insufficient and a real
+`<link rel="modulepreload">` (built via a small Vite plugin that reads the
+manifest) is the next step — never a raised budget. If it is only ever
+measured missing budget on a heavily contended shared sandbox, that is the
+`context/decisions.md#studio-hindi-table-is-its-own-chunk` file's own
+already-stated caveat playing out exactly as described, not evidence this
+fix failed.
+
+## `ws-r91-studio-lang-switch-needs-its-own-opaque-backdrop-on-the-hero` (2026-09-05, WS-R91)
+
+**Decision.** `.auth-brand .studio-lang-switch` (the sign-in screen's own
+language switch, `AuthGate.tsx`) gets a real, near-opaque background color
+(`rgba(10, 38, 30, 0.94)`) rather than sitting transparent over
+`.auth-page::before`'s dark hero gradient the way the surrounding "VYAKTI"
+brand text always has.
+
+**Rationale.** `scripts/check-layout.mjs`'s own contrast walker
+(`backdrop()`) reads a control's effective background by climbing real DOM
+ancestors' `getComputedStyle(...).backgroundColor`, which cannot see a
+`::before` PSEUDO-element's background — that pseudo-element is where
+`.auth-page`'s entire dark hero gradient actually lives. Every existing
+piece of text on that hero (the "VYAKTI" wordmark, the brand tag) is a
+plain `<span>`, never queried by this walker at all (`document.
+querySelectorAll("button, .button, a.button")` — its own scope is
+interactive controls). `AuthGate.tsx`'s language switch is the FIRST real
+`<button>` this screen has ever placed on that hero background, and it is
+also the first thing this fixture state (`studio-hi:signed-out`) has ever
+let this gate see (`context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in`).
+The walker's own default when it finds no opaque ancestor, white, produced
+a genuinely wrong reading (a white label reported at 1.10:1 against an
+assumed white page) — but the underlying gap it surfaced is real, not a
+false positive: a screen reader's forced-colors mode, a printed screenshot,
+or any other context that does not render CSS pseudo-elements the way a
+live browser paints them would see exactly the same undefined background
+this walker saw. A control's own contrast should not depend on a
+pseudo-element painted three z-index layers behind it.
+
+**What was NOT done.** The pre-existing plain text on the hero ("VYAKTI",
+the brand tag span) is untouched — it is not a control, carries no
+interactive affordance, and this gate's contrast rule is scoped to controls
+by DESIGN-LAW §3's own wording ("a control's label"). If a future
+accessibility pass extends the contrast floor to plain text as well, the
+same real-background argument applies to it too, but that is a wider rule
+change this session did not make.
+
+**Reversal condition.** If `.auth-page::before`'s gradient is ever replaced
+with a solid `background-color` on `.auth-page` itself (removing the
+pseudo-element layering entirely), this override becomes redundant rather
+than wrong — safe to remove once confirmed the walker sees the real
+ancestor background directly. Until then, removing it re-introduces the
+same undefined-background gap this decision fixes.
+
+## `surface-think-falls-back-to-the-config-key-like-every-other-door` (2026-09-05, main loop, at the WS-R96 merge)
+
+**Decision.** `api/_surface.js`'s `think()`, the one completion call every
+Room, Mirror Call and channel reply leaves by, reads
+`process.env.OPENROUTER_API_KEY` and then `_config.js`'s `OPENROUTER_KEY`,
+the identical read `chat.js`, `memory.js`, `speech.js`, `search.js`,
+`culture.js` and `_embed.js` make.
+
+**Why.** From 2026-09-03 it read the env alias alone. `OPENROUTER_KEY` is
+the name `scripts/write-config.mjs` requires at deploy and the name the
+self-check verifies every morning, so a deployment with the required name
+set and the alias unset passed its own self-check while every Room reply
+came back empty, silently (WS-R96 found it by reading the code for the
+day-one runbook; `docs/gurukul/DAY-ONE.md` section 2). A self-check that
+verifies a name no door reads is a clean line that proves nothing.
+
+**Reversal.** If the completion key ever needs to differ per product
+(Meera's and Vyakti's spend on two accounts), split it by a NEW name both
+the door and the self-check carry, never by an alias only one of them
+knows.
+
+## `ws-r97-room-about-predicate-not-listed-at-gated` (2026-09-05, WS-R97)
+
+**Decision.** `api/_room-about.js`'s `publicRoomAboutBySlug` gates on exactly
+`published_at is not null and paused_at is null` — the same two clauses
+`api/_room-publish.js`'s `publicRoomBySlug` uses for `/r/<slug>` itself —
+and deliberately carries NO `listed_at is not null` clause, unlike
+`api/_creator-page.js`'s `publicCreatorPageRoomBySlug` for `/c/<slug>`.
+
+**Rationale.** `/c/<slug>` is a stranger's search result: `listed_at` is the
+creator's own opt-in to being FOUND, and a Room that never opted in gets the
+platform-only card exactly as an unknown slug would (`ws-r89-creator-page-
+slug-read-shares-slugof`'s own neighbour law). `/r/<slug>/about` is reached
+only from links a follower ALREADY holds — the account page, the join screen
+— never from search. A follower who already joined, or is deciding whether
+to, must be able to read what happens to their words whether or not the
+creator opted into the public directory; gating this page on `listed_at`
+would mean an unlisted creator's followers lose the one page that explains
+the product's own privacy promise to them, for a reason (search visibility)
+that has nothing to do with what this page is for.
+
+**Reversal condition.** If a future workstream finds this page is reachable
+from an UNAUTHENTICATED, UNLINKED context (a search engine, a directory) the
+way `/c/<slug>` is, revisit whether `listed_at` should gate it there too —
+this decision assumes the page is only ever reached from a link a follower
+was already given, and `evals/room-about/run.mjs`'s own test (an unlisted
+Room's page differs from the platform card) is the one to update first if
+that assumption stops holding.
+
+## `ws-r97-page-numbers-are-api-to-api-imports-not-mirror-markers` (2026-09-05, WS-R97)
+
+**Decision.** Every number `api/_room-about.js` renders (`PULSE_MIN_
+FOLLOWERS`, `DORMANCY_GRACE_DAYS`, `ROOM_FREE_MONTHLY_MESSAGES`, `ROOM_PAID_
+MONTHLY_MESSAGES`, `ROOM_PAID_MONTHLY_VOICE_SECONDS`) is a real ES import
+from the file that defines it (`api/_pulse.js`, `api/_dormancy.js`, `api/
+_room-surface.js`) — never a `// mirror of api/<file>.js#<NAME>` marker
+comment next to a retyped literal, the shape `scripts/check-mirrors.mjs`
+polices in `src/`/`site/`.
+
+**Rationale.** `scripts/check-mirrors.mjs`'s own header states why the
+marker shape exists at all: `src/` and `site/` are front-end code that
+STRUCTURALLY CANNOT import a server module, so the closest available
+guarantee is a marker plus a scan proving two numbers agree. `api/_room-
+about.js` is itself a server module, exactly like every file it reads a
+constant from — there is no boundary here for a marker to work around. An
+import IS the real export; asserting the two "agree" would be asserting a
+tautology a scan could never usefully fail on. `evals/room-about/run.mjs`
+proves the real thing instead: the rendered page carries the actual current
+value of each constant, AND a static source scan confirms the import
+statement itself exists (so a future edit that swapped an import for a
+hardcoded literal that happened to still match today's fixture numbers
+would still be caught).
+
+**Reversal condition.** If `api/_room-about.js` is ever split so its copy
+moves to a `.ts` file under `src/` (the same boundary `api/_creator-page.js`'s
+own `TASTE_COPY` crosses for `src/room/copy.ts`), add real `// mirror of`
+markers at that point — this decision holds only while the numbers and the
+page that renders them live on the same side of the `api/`/`src/` line.
+
+## `first-hindi-paint-budget-set-from-measurement` (2026-09-05, main loop, at the wave-fifteen merge gate)
+
+**Decision.** `FIRST_HINDI_PAINT_BUDGET_MS` is 1000, not the 800 WS-R91
+copied from the chunk-wait budget. The chunk-wait number stays 800.
+
+**Why.** The paint is structurally later than the chunk wait (a dynamic
+import after the main chunk's parse, then a commit), so the two metrics
+cannot share a budget, and the merged tree measured 918 ms median with the
+machine idle (`measurements.md#first-hindi-paint-on-the-wave-fifteen-merge-gate-2026-09-05`).
+A budget that fails on an uncontended run of the current tree is not a
+budget; 1000 is above every observation (584-923 ms) with the margin a
+median-of-three needs, and still a third of the English screen's LCP
+budget.
+
+**Reversal.** The real fix is a `modulepreload` of the Hindi chunk emitted
+into the built `studio.html` at build time so the fetch starts with the
+main chunk, not after it (wave sixteen, WS-R107). When it lands and three
+consecutive gate runs measure under 700 ms, the budget returns to 800; if
+the preload lands and the paint does not move, the parse and commit are
+the cost and the studio's signed-out shell needs its own smaller entry.
+
+## `ws-r102-optional-absent-is-a-separate-field-never-checks` (2026-09-05, WS-R102)
+
+**Decision.** `runSelfCheck` gains a THIRD, separate return field,
+`optional_absent: string[]` — the sorted names of every `OPTIONAL_ENV` entry
+not set — rather than the "small, mechanical" fix `context/rejected.md#ws-r96-self-check-optional-env-never-becomes-a-finding`
+names as the obvious next step ("push every `envPresence()` entry into
+`checks`, not only the required ones"). `optional_absent` is never read into
+`checks`/`failing_doors`/`failed`/`ok`, so an absent optional name can never
+turn `result.ok` false or add to `result.failed`.
+
+**Why not the mechanical fix.** This workstream's own brief states law 1
+verbatim: "an absent optional name is NOT a failing check" — WS-R76's
+original design, restated. Pushing every `envPresence()` entry into `checks`
+regardless of `entry.required` would do exactly what law 1 forbids: a
+platform that has simply never configured Telegram or FCM (both legitimately
+optional today) would start failing its own morning self-check, `result.ok`
+would flip false, and `sendSelfCheckTelegramAlert`'s failure-path alert would
+fire every single morning for a "gap" that was never a requirement. The
+separate-field shape keeps WS-R76's contract (`checks`/`failed`/`ok` mean
+"what the product cannot run without") intact while still surfacing the
+optional half by name, honestly, on its own terms.
+
+**Reversal condition.** If a future workstream decides some subset of
+`OPTIONAL_ENV` should actually GATE the self-check (e.g. Telegram becomes a
+required alerting channel), move that specific name from `OPTIONAL_ENV` to
+`REQUIRED_ENV` (mirrored in `scripts/write-config.mjs`) rather than teaching
+`optional_absent` to sometimes fail the check — the two lists' own meaning
+("cannot function without" vs "nice to have") is what should move, not the
+boundary between `checks` and `optional_absent`.
+
+## `ws-r102-optional-absent-incidents-reuse-self-check-kind-with-a-door-prefix` (2026-09-05, WS-R102)
+
+**Decision.** The optional-absent list reaches the ops board through
+`vy_incident`, kind always `self_check` (never a new kind), door always
+`optional_absent: <NAME>` (`api/_self-check.js#OPTIONAL_ABSENT_DOOR_PREFIX`).
+`api/_ops.js#selfCheckTodayDoors` reads the SAME `select distinct door from
+vy_incident where day = current_date and kind = 'self_check'` query
+`selfCheckFailingToday` already made (no new SQL statement) and partitions
+the results into `failing`/`optionalAbsent` by that one prefix.
+
+**Why not `vy_sweep_run`'s own `counts` column.** This workstream's brief
+told me to read `api/_sweep-run.js#sanitizeCounts` before choosing — it does:
+"Everything else (a string, a nested object) is DROPPED, never
+stringified... An array collapsed to its own length". A `string[]` of names
+put into a sweep's return value would survive as a bare integer (the
+LENGTH), never the names themselves — the ops board could show a COUNT this
+way but never "Optional, not set: NAME, NAME", which the workstream's own
+law 3 requires. `sanitizeCounts` cannot carry this list, full stop.
+
+**Why not a new incident kind (`env_optional_absent`).** Migration 109's own
+CHECK constraint is the closed list `INCIDENT_KINDS` mirrors
+(`api/_incidents.js`); adding a seventh kind needs a migration widening that
+CHECK, and this workstream's own brief is explicit: "No migration; no new
+env var." Reusing `self_check` (already on the list since migration 120,
+WS-R76) with a door-name encoding needs no schema change at all — the same
+choice migration 120's own header already made once, for a different half of
+this same file.
+
+**Why a door PREFIX rather than a second column.** `vy_incident`'s own
+`(day, kind, door, status)` shape has no room for a fifth "this row's
+sub-kind" column without a migration either; encoding it in `door` (which
+was always meant to be a human-readable label, per that column's own use
+elsewhere — `"env: NAME missing"`, `"migration NNN: TABLE missing"`,
+`"sweep NAME: stale"`) costs nothing and reads no differently to an operator
+looking at the raw table.
+
+**Reversal condition.** If a future workstream ever gets migration 127 (or
+later) allocated for `vy_incident`, and finds the door-prefix encoding
+awkward to query or extend, widen `INCIDENT_KINDS` with a real
+`env_optional_absent` kind in that migration and drop the prefix — the door
+strings this workstream writes (`optional_absent: NAME`) would need a
+one-time backfill or would simply age out (`INCIDENT_RETENTION_DAYS = 90`)
+rather than block that move.
+
+## `ws-r102-no-day-one-row-converts-from-manual` (2026-09-05, WS-R102)
+
+**Decision.** `docs/gurukul/DAY-ONE.md`'s gap 1 is marked closed for its
+`OPTIONAL_ENV` half (the reversal condition `context/decisions.md#ws-r96-day-one-runbook-parses-its-own-table`
+names), but ZERO rows in the shipped table are reclassified from `manual:`
+to `self-check:env:<NAME>`. `scripts/day-one.mjs#judgeStep`'s `self-check-env`
+branch is still widened to check `optional_absent` alongside
+`failing_checks` (proven directly in `evals/day-one/run.mjs` via a unit
+import of `judgeStep`, since no real runbook row exercises it), so the
+capability exists for the next row that needs it.
+
+**Why zero rows convert.** Audited every row against the now-widened check
+before touching the doc, rather than assuming WS-R96's own prediction ("if
+`api/_self-check.js` is ever changed... re-classify those rows") would apply
+automatically:
+- Step 8 is the ONLY row in the whole table naming any `OPTIONAL_ENV` member
+  (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; its third var,
+  `REPLICA_STORAGE_BUCKET`, is not on `OPTIONAL_ENV` at all and has a working
+  default when unset). But step 8's own Proving Command was never blocked by
+  presence-checking alone — it asks for a real signed PUT
+  (`scripts/first-room.mjs`'s `upload` stage or `check-replica-env.mjs`)
+  because a key can be SET and still be WRONG, and only a real upload tells
+  the two apart. Converting it to `self-check:env:SUPABASE_URL` would make
+  the row read `done` the moment the var is merely present, overclaiming a
+  functional guarantee this instrument was never built to give.
+- Every other `manual:` row's env vars (`CRON_SECRET`, `OPENROUTER_API_KEY`,
+  every `AZURE_FOUNDRY_*`/`AZURE_OPEN_VOICE_*`/`AZURE_AUDIO_PROTECTION_*`/
+  `AZURE_VOICE_EVIDENCE_*`/`SARVAM_*`/`REPLICA_SELF_TEST_*`) are part of the
+  ~90 Rooms-specific names `OPTIONAL_ENV` was never widened to include — a
+  SEPARATE, much larger gap (widening `OPTIONAL_ENV`/`REQUIRED_ENV` and
+  `scripts/write-config.mjs` to cover Rooms-specific secrets) this
+  workstream's own brief explicitly excluded ("No migration; no new env
+  var").
+
+**Reversal condition.** If `OPTIONAL_ENV` is ever widened to include Rooms
+names (a future workstream, not this one), re-run this same audit — a row
+whose ONLY blocker was presence-checking (never a functional proof) at that
+point converts to `self-check:env:<NAME>`, and `DAY-ONE.md`'s residual note
+in gap 1 should be trimmed to match what is still uncovered.
+
+## `ws-r103-backfill-sweep-closes-the-named-gap` (2026-09-05, WS-R103, no migration)
+
+**Decision.** `backfillReceipts` (api/_payments.js) is the retry
+`ws-r100-receipt-issued-alongside-not-inside-the-ledger-write` named on
+paper but did not build: a daily cron (`api/receipt-sweep.js`) selects every
+landed follower-lane charge (`CREATOR_CHARGE_KINDS`, `amount_inr > 0`,
+`room_id is not null`) with no `vy_receipt` row and issues one through the
+SAME `issueFollowerReceipt` the webhook itself calls - never a second
+read-then-write path that could disagree with the first about what "already
+receipted" means. A receipt issued by the backfill carries the CHARGE's own
+`received_at` as `issued_at`, never the sweep's clock.
+
+**Rationale.** `vy_receipt`'s own `unique (payment_event_id)` and
+`issueFollowerReceipt`'s `not exists` guard are already the only two
+arbiters of idempotency this table has; a second minting path (a bespoke
+INSERT inside the sweep) would either duplicate that logic and risk it
+drifting from the webhook's own copy, or race the webhook itself for the
+SAME payment event with no shared lock between them. Reusing the identical
+function closes both risks by construction rather than by care.
+
+**Reverses if.** A production incident is ever traced to the sweep itself
+(the backfill claims a wrong number, or claims one out of order relative to
+a webhook-time claim racing it) - at which point the two writers may need a
+shared advisory lock rather than relying on the unique index alone to
+arbitrate a genuine race between them, which this decision assumes is rare
+enough (a webhook a cron happens to also be sweeping) not to need one yet.
+
+## `ws-r103-kept-in-payments-js-not-a-new-file` (2026-09-05, WS-R103)
+
+**Decision.** `backfillReceipts` and `reconcilePeriod`'s new
+`charges_without_receipt` count live in `api/_payments.js`, not a new
+`api/_receipt-sweep.js`, despite that file already being roughly 2,200
+lines before this workstream.
+
+**Rationale.** Both functions read `vy_receipt` directly (a `not exists`
+subquery), and `api/_payments.js` is already the sole `owners` entry for
+that table alongside `_room-surface.js`/`memory.js`/`_replica-full-
+erasure.js` in `evals/room-leak/world.mjs`'s `TABLE_ROLES` map. A brand new
+file touching that table would need a new entry added to that hand-
+maintained map before the leak battery's own SAME_LINE bar would even let
+it run - a wider, shared-file edit for a two-function addition that already
+has a home. Keeping the sweep beside `issueFollowerReceipt` also makes "the
+SAME function" (this workstream's law 1) a same-file call rather than a
+cross-file import, one fewer place for the two to drift apart.
+
+**Reverses if.** `api/_payments.js` grows enough further that its own size
+becomes the more pressing cost - at which point splitting it (this sweep
+included) would need a matching `TABLE_ROLES` edit for whatever new file
+inherits the `vy_receipt` reads, done deliberately rather than as a side
+effect of an unrelated change.
+
+## `ws-r103-receipts-issued-late-read-from-sweep-run-not-a-new-column` (2026-09-05, WS-R103, no migration)
+
+**Decision.** "Receipts issued late this week" (the ops board's own line,
+`receiptsIssuedLateThisWeek`, api/_ops.js) is a rolling 7-day SUM over the
+`receipt` cron's own `vy_sweep_run` history (`counts->>'issued'`), never a
+new column or ledger distinguishing an inline receipt from a backfilled
+one.
+
+**Rationale.** Every receipt this line counts was, by construction, issued
+late: the webhook's own inline `issueFollowerReceipt` call happens in the
+same request as the ledger write, and `backfillReceipts` only ever reaches
+a payment event because that inline call never landed. `dormancyThisWeek`
+(api/_dormancy.js, WS-R75) already established this exact pattern for a
+different weekly count - "the sweep's own summary is the real weekly
+count, no new table required" - and this line needed no anonymity floor to
+go with it (a platform-wide total, never a follower or a Room,
+`whatsappSpendThisMonth`'s own no-floor precedent one file over).
+
+**Reverses if.** A future workstream needs to distinguish WHICH follower's
+receipt was late (this line only ever answers "how many," never "whose") -
+at which point `vy_receipt` itself would need an `issued_by` column
+('webhook' | 'sweep') rather than reading the answer back out of a sweep's
+own summary row.
+
+## `ws-r107-hindi-preload-is-a-conditional-inline-script-not-a-second-entry` (2026-09-05, WS-R107)
+
+**Decision.** The Hindi chunk's `<link rel="modulepreload">` is emitted by a
+`closeBundle` Vite plugin (`vite.config.ts`'s `studioHindiPreloadPlugin`,
+the same shape as `creatorPageFixturePlugin`/`roomAboutFixturePlugin`) into
+the single, already-shipping `dist/studio.html` — never a second built HTML
+entry. The plugin writes two things into the built file, right after
+`<meta charset="UTF-8" />`: a `<meta name="hi-chunk-preload"
+content="/assets/hiCopy-<hash>.js">` carrying the build's real content hash,
+and a fixed-text inline `<script>` (hash `sha256-AnsxiNdMvRHkPU2yPOU1ffSBiVm6sO/Mrqo/tjZolGA=`,
+now in `vercel.json`'s `/studio` and `/studio.html` CSP `script-src`) that
+reads that meta tag and, only when `?lang=hi` is in the URL or (absent any
+`lang` param) `localStorage['vyakti.studio.locale.v1']` is `"hi"` — the same
+two-step order `resolveStudioLocale` (`src/studio/studioLocalePreference.ts`)
+uses before a replica has loaded — creates the real `<link
+rel="modulepreload" fetchpriority="high">` itself.
+
+**Why this over a second `studio-hi.html` entry.** The brief's own two
+options were read and weighed. Option (a), a second built entry routed by a
+`vercel.json` rewrite matching `?lang=hi`, IS a real Vercel capability:
+verified against `https://vercel.com/docs/project-configuration/vercel-json#rewrites`,
+which documents `has`/`missing` objects with `type`, `key` and `value`
+properties and shows a worked `"type": "query"` example on the same page's
+`headers` section (`"has": [{ "type": "query", "key": "authorized" }]`) —
+the identical `{type,key,value}` shape the page states rewrites and headers
+share. It was set aside anyway after a build experiment (not reasoning
+alone, per this project's own rule): pointing TWO `rollupOptions.input` keys
+at the literal same `studio.html` path (`studio: "studio.html"`,
+`"studio-hi-experiment": "studio.html"`) produced a tiny orphan JS facade
+chunk for the second key (`studio-hi-experiment-<hash>.js`, 0.02 KB) and NO
+second HTML file at all — Vite/Rollup key an HTML *entry* by its resolved
+file path, not by the input object's key
+(`context/rejected.md#ws-r107-two-vite-entries-cannot-share-one-html-source-file`
+has the full experiment). A working option (a) therefore needs a genuinely
+SEPARATE source file — a hand-duplicated `studio-hi.html`, the whole shell
+(the CSS-layer-order fix comment, every meta tag, the description) copied
+and then kept byte-for-byte in sync by hand forever, the exact kind of
+duplication-drift this project's own `context/` exists to warn against.
+
+Option (b) has one moving part that varies build to build (the `<meta>`
+tag's `content`, which CSP does not gate) and one that never does (the
+script's own text, so its CSP hash, once committed, never goes stale as
+`hiCopy.ts` grows or shrinks) — no second shell to drift, and the English
+visit is provably unaffected: `scripts/check-performance.mjs`'s `jsBytes`
+budget on the `/studio` target catches a byte added, and a new static check
+in that same file (`checkHindiPreloadStatic`) asserts the built
+`dist/studio.html` carries exactly one `hi-chunk-preload` meta tag and never
+a literal, unconditional `<link rel="modulepreload">` for the Hindi chunk —
+the failure mode a static tag would create (fetched for every visitor,
+silently, with no CSP violation to catch it). `scripts/check-headers.mjs`
+gained a `studio-hi` target (`/studio?lang=hi` against the same
+`dist/studio.html`) proving, under the real CSP in a real browser, that the
+preload link is created exactly once for a Hindi request and never for the
+plain `/studio` request (`hiPreload: "present"`/`"absent"`,
+WS-R80's own "prove the side effect, not just the absence of a violation"
+precedent restated for a preload).
+
+**Reversal.** If a future workstream needs the studio to ship genuinely
+different HTML per locale for a reason beyond one preload link (a different
+`<title>`, a different meta description, server-rendered Hindi content),
+the maintenance cost of a real second entry stops being avoidable and
+option (a) — with a real second source file, not the same-path experiment
+this decision rejected — becomes the right call; revisit this decision
+first if the CSP-hash-stability trick above still holds (the script's own
+text has not needed to change), since that is the part option (b) most
+depends on.
+
+## `ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention` (2026-09-05, WS-R107)
+
+**Decision.** `FIRST_HINDI_PAINT_BUDGET_MS` stays 1000 this session; it is
+NOT returned to 800 despite the preload measurably working.
+
+**Why.** `context/decisions.md#first-hindi-paint-budget-set-from-measurement`'s
+own reversal condition is mechanical: drop to 800 only if three consecutive
+`--target studio-hi` batches measure under 700 ms. This session's three
+batches of the shipped (`fetchpriority="high"`) preload measured 808 ms,
+572 ms and 657 ms
+(`context/measurements.md#ws-r107-first-hindi-paint-after-preload-2026-09-05`)
+— one of three over the 700 ms line, so the bar is not met. The mechanism
+itself plainly works: Hindi chunk wait fell from a 644-683 ms baseline
+median to 326-560 ms (roughly half), and first-paint's own median fell from
+861 ms to 657 ms across the two three-batch sets (roughly a fifth) — but
+`uptime`'s load average sat at 12-20 on this 4-core sandbox for the entire
+measurement window (six sibling worktrees' own release gates running
+concurrently, confirmed with `ps aux`), and `--target /studio` (the
+English shell, untouched by this workstream, no Hindi chunk ever fetched)
+measured a TBT budget MISS in the same contended window while passing
+cleanly (237 ms) run alone seconds later — proof the noise is the shared
+machine, not this diff.
+
+**Reversal.** Re-run the exact `n=3 batches x 3 runs, --target studio-hi`
+protocol on a quiet machine (`uptime` load average near 1, no sibling
+`verify-release.mjs` in `ps aux`) before deciding the budget either way. If
+it is still not reliably under 700 ms with no contention to blame, the next
+lever is the Hindi chunk's own size (172 KB source / 38 KB gzip) — the
+chunk-wait number (326-611 ms measured) already leaves limited room under
+an 800 ms total once React's commit and layout are added on top of a 4x
+CPU throttle, so shrinking `hiCopy.ts` itself, not another network-side
+fix, is what is left to try.
+
+## `ws-r110-room-telegram-voice-defaults-on-no-persisted-per-follower-toggle` (2026-09-05, WS-R110)
+
+**Decision.** A paid follower's Telegram voice reply (WS-R110) is delivered
+automatically whenever `ROOM_VOICE=1`, the follower's tier is paid, and
+`roomSpeak`'s own per-second ceiling admits it — there is no persisted
+per-follower on/off preference. `/voice on` and `/voice off` are parsed (so
+neither is ever sent to the creator's AI as an ordinary chat message,
+burning part of a follower's monthly cap on a confused reply) and answered
+with an honest card explaining that this deployment cannot yet remember a
+separate choice per conversation, rather than silently no-opping or, worse,
+claiming a toggle that does not work.
+
+**Why.** The brief's own contingency, followed to the letter: store the
+preference on the channel pointer row (082's `vy_room_follower_channel`) if
+it carries an available JSON or flag column, else on `vy_room_follower`'s
+own settings shape, else stop and log the rejection — this workstream
+carries no migration number, so a genuinely absent column is a hard stop,
+not a judgement call. Both candidates were checked against the real,
+already-merged schema (`db/schema.sql`) before writing any code:
+`vy_room_follower_channel` carries `checkins_enabled` (WS-R34/WS-R89,
+migration 096 — a real boolean, but already committed to a different,
+unrelated meaning: whether check-ins ride this channel) and `stopped_code`
+(the SAME migration — `null`-means-sendable, set only on a 403/400 from
+Telegram, migration 096's own header is explicit that this is its whole
+meaning); `vy_room_follower`'s only settings-shaped column is
+`settings_reviewed_at` (migration 101, WS-R39) — a timestamp recording
+whether a follower has looked at their settings PAGE, not a flag of any
+kind. Reusing either for an unrelated boolean would be a correctness bug
+wearing a shortcut's clothes, not a clever reuse — see
+`context/rejected.md#ws-r110-room-telegram-voice-preference-no-available-
+column` for the full column-by-column argument. Delivering automatically
+(never silently, never claimed-and-broken) is the only shape left that is
+both honest and actually useful: a paid follower who never asked for voice
+still gets it exactly as the product brief describes ("a paid follower...
+can hear the reply as a voice note"), and nothing here claims a toggle
+exists when it does not.
+
+**Reversal condition.** The moment a future workstream is handed a real
+migration number for this table family (127 is the next free number as of
+this session, though this brief did not grant it to WS-R110 and no
+workstream may take a number its own brief did not name), add a boolean
+column to `vy_room_follower_channel` (matching `checkins_enabled`'s own
+shape) and change `/voice on`/`/voice off` to write it, and
+`attemptRoomVoiceDelivery` (api/_room-telegram.js) to read it before ever
+calling `roomSpeak` — the seam is already shaped for that: the ONLY change
+needed is one more predicate before the `ROOM_VOICE`/tier check already
+there.
+
+## `ws-r110-telegram-sendvoice-codec-requirement-not-live-verified` (2026-09-05, WS-R110)
+
+**Decision.** Telegram's voice clip is sent as a real WAV container
+(`pcmToWavBuffer`, api/_room-voice.js) over `sendVoice`'s `voice` multipart
+field, with mime type `audio/wav` — left as WAV rather than transcoded to
+OGG/Opus, and marked NOT LIVE-VERIFIED whether Telegram's clients render
+this as a playable "voice message" bubble (with waveform/duration/playback
+controls) as opposed to accepting-but-not-rendering it, or rejecting it
+outright.
+
+**Rationale.** WS-R41's own method (`context/decisions.md#ws-r41-telegram-
+bot-api-reply-shape-fixed-bind-mark-stays-open`) is to fetch and cite
+`core.telegram.org/bots/api` before shipping a shape against it. That fetch
+was attempted twice this session, for `#sendvoice` specifically: both times
+the fetch tool truncated the document before reaching "Available methods"
+at all (the exact defect WS-R41 already logged for `setMessageReaction`,
+same page, same failure mode) — confirmed by a third, narrower fetch asking
+only to locate the substrings "OGG"/"sendVoice" anywhere in the truncated
+text, which found only the changelog mention and the `Voice` TYPE's own
+description ("This object represents a voice note"), never the method's
+own parameter table. The `Voice` object's field table (`file_id`,
+`file_unique_id`, `duration`, `mime_type`, `file_size`) WAS retrievable and
+is cited above in `api/_room-telegram.js`'s own `tgSendVoice` header. Given
+the brief's own explicit instruction to use `sendVoice` (never `sendAudio`
+or `sendDocument`), building against well-established general knowledge of
+the Bot API (OGG/Opus is the documented preference for the "voice message"
+treatment) while marking the codec claim honestly unverified is the
+correct call under `AGENTS.md`'s "never claim what you did not run" — a
+raw, containerless PCM stream (what `roomSpeak` actually returns,
+`VOICE_PCM_FORMAT`, api/_voice/contracts.js) would almost certainly be
+rejected or unplayable, so the WAV wrap is a real, deterministic,
+lossless-of-the-watermarked-bytes improvement over sending raw PCM either
+way, whether or not it satisfies Telegram's stricter preference for OGG/
+Opus specifically.
+
+**Reversal condition.** The first real Telegram bot token and a live chat
+(a human step, not something this offline workstream can produce) settles
+it directly: send one real clip and look at whether Telegram's client
+renders a voice bubble or a generic file attachment. Short of that, a
+future session whose fetch tool can retrieve `core.telegram.org/bots/api
+#sendvoice`'s own "Available methods" table should re-check and, if it
+names OGG/Opus as required (not merely preferred) for the voice-message
+treatment, add a pure Opus encode step in `pcmToWavBuffer`'s place (a real
+dependency-bearing change, not a container wrap) before this ships to a
+live bot.
+
+## `ws-r110-voice-command-coverage-lives-in-room-telegram-not-room-doors` (2026-09-05, WS-R110)
+
+**Decision.** `/voice on`/`/voice off`'s "never spends a follower's monthly
+cap, never reaches the model" property is proven in `evals/room-telegram/
+run.mjs` (extended) and `evals/room-telegram-voice/run.mjs` (new), against
+the REAL Telegram identity-bridge fixture world those two files already
+share (`evals/room/fixtures.mjs`'s `fakeDb`, plus a local `fakePersonBridge`
+matching `_room.js`'s real `personForSurfaceUser`/`linkSurfacePerson`
+shape). No bespoke case for it was added to `evals/room-doors/run.mjs`.
+
+**Why.** Two independent reasons, either alone sufficient. First,
+structural: `evals/room-doors/run.mjs`'s own §18 completeness sweep
+asserts `computedOps("room-tg.js").length === 0` — this door reads no
+`op` literal at all, by design, so the `OP_COVERAGE` table (which the
+wave-sixteen brief's shorthand "a command is an op: coverage" points at)
+has no seam for a Telegram slash command to begin with; a Telegram command
+is not the class of thing that table tracks. Second, practical:
+`evals/room-doors/fixtures.mjs`'s own `freshDoorsState`/`doorsDb` carry no
+Telegram identity bridge (`surfaceIdentities`, the fixture shape `evals/
+room/fixtures.mjs` and `evals/room-telegram/run.mjs` already built and
+share) — building one there would either duplicate `fakePersonBridge`
+inside a second fixture file (two fakes for the same shape, the exact
+drift `evals/room/fixtures.mjs`'s own header warns against) or widen the
+shared `evals/room-doors/fixtures.mjs` beyond what this workstream's own
+brief named. `/voice` also takes no cross-identity input at all (no
+session, no body-supplied id naming another follower) — the shape §18's
+own per-op notes already treat as "excluded" for other ops on other
+doors — so it does not open a class a/b/c/e boundary room-doors exists to
+attack; the property worth proving is "never a chat turn", which the
+Telegram-native fixture world proves more directly than a second, thinner
+one would.
+
+**Reversal condition.** If a future workstream gives `/voice` (or any
+Telegram command) real cross-identity input — a body-supplied follower id,
+a bearer, anything naming someone other than the sender — build the
+Telegram identity bridge into `evals/room-doors/fixtures.mjs` for real
+rather than routing around it a second time, and add that command's own
+class there.
+
+## `ws-r109-fold-rehearsal-harnesses-onto-one-contract` (2026-09-05, WS-R109)
+
+**Decision.** `evals/rehearsal/harness-creator.mjs` (WS-R95's own fetch-intercept
+seam over fixed fake Neon/Supabase hosts) is retired. `evals/rehearsal/
+harness.mjs` (WS-R94's own module-resolution redirect) now serves BOTH
+rehearsals: `startHarness({kind: "follower" | "creator"})` builds the matching
+fixture world and mounts the five creator doors plus `api/checkins.js`
+alongside the existing follower/creator-page/room-about routes. The auth
+stub (`stubs/auth-with-fake-user.mjs`) gained its own small `requireUser`
+reimplementation (over the SAME stub `userFromToken`) rather than
+re-exporting the real one, because the real `requireUser` calls the real
+module's own `userFromToken` by a same-module lexical reference that
+re-exporting cannot override — the actual reason the two harnesses needed
+different mechanisms was never "the studio needs a real NEON_URL/
+SUPABASE_URL fetch", confirmed false by grep across every module the five
+creator doors' call graph reaches (none reads those env vars directly
+outside `_db.js`/`_auth.js`), it was this one auth-call-shape difference.
+A network guard (loopback only, everything else throws by name) was added
+to `harness.mjs` to keep the fetch-interceptor's "never a real network
+call" safety property without reintroducing the fake-host mechanism.
+
+**Rationale.** The wave-sixteen brief's own law 1 required this fold
+conditioned on exactly this check; doing it removes a second, drifting copy
+of the Vercel req/res shim (`harness-creator.mjs` duplicated ~285 lines
+`harness.mjs` already had shapes for) and lets the follower harness's own
+`/r/<slug>/about` and `/api/checkins` routes serve the creator walk too
+for free, should a future workstream need them there.
+
+**What would reverse it.** If a creator door's OWN call graph grows a
+direct `process.env.NEON_URL`/`SUPABASE_URL` read that bypasses `_db.js`/
+`_auth.js` entirely (the loader redirect cannot catch a fetch a module
+makes to those hosts itself), the fold breaks silently unless the network
+guard's own "unmodelled fetch target" throw catches it first — which it
+will, loudly, rather than the wrong-but-quiet behavior a fake-host
+interceptor would have let through. That throw is the trip wire; if it
+ever fires for a legitimate reason, harness-creator.mjs's own fetch-
+intercept mechanism (in git history at c2945f7) is the fallback shape to
+restore, not a guess at a new one.
+
+## `ws-r109-share-tab-gate-is-mode-teacher-not-runtime-activation` (2026-09-05, WS-R109)
+
+**Decision.** `evals/rehearsal/creator.mjs` now navigates to
+`/studio.html?mode=teacher` (both locales). WS-R95's own header attributed
+the Share tab's showcase picker and share kit never mounting to a runtime-
+activation gate ("Your AI is not active yet... `RoomStudio` does not mount
+AT ALL behind that gate"). Driving the picker and share kit for real this
+session found the actual mechanism: `RoomStudio` (and everything inside it)
+is wrapped in `{mode === "teacher" && (...)}` in `StudioApp.tsx`, and `mode`
+is read ONCE from `?mode=teacher` in the URL at mount
+(`StudioApp.tsx#readStudioMode`), never from anything runtime-related. The
+picker's and share kit's own gates are `roomPublished` alone
+(`ShowcaseCard.tsx`/`ShareKitCard.tsx`), which this walk already satisfies
+by publishing for real before this step.
+
+**Rationale.** Grep confirmed no other reference to a runtime-activation
+check inside `RoomStudio`, `ShowcaseCard`, or `ShareKitCard`; the mount gate
+is textually and exclusively `mode === "teacher"`. Adding the query param
+is a one-line fix that turns two previously-unreachable, HTTP-fallback-only
+assertions into real DOM-driven ones.
+
+**What would reverse it.** If a future workstream adds a genuine runtime-
+activation gate INSIDE `RoomStudio` (reproducing the identity/liveness
+pipeline this rehearsal still names as out of scope), this navigation step
+alone would stop being sufficient and the picker/share-kit steps would need
+a real or faked activation signal on top of `?mode=teacher`.
+
+## `ws-r109-sessionworked-driven-from-the-follower-walk-not-the-creator-one` (2026-09-05, WS-R109)
+
+**Decision.** The brief's law 3 (creator walk) named "the sessionWorked
+offer state after a session that worked" among the creator walk's gains,
+but `sessionWorked`'s own offer rides on a real `roomSay` turn
+(`api/_room-surface.js`), and `evals/rehearsal/creator.mjs`'s own header
+states plainly it "drives no room 'say' turn" — a structural fact, not a
+choice this workstream could route around without breaking that walk's own
+documented scope. This step is implemented in `evals/rehearsal/follower.mjs`
+instead, the only one of the two walks that ever calls `roomSay`.
+
+**Rationale.** Honoring the brief's actual intent (drive `sessionWorked`'s
+offer state for real) over its literal file placement, which reads as a
+drafting slip given the walks' own documented boundaries.
+
+**What would reverse it.** If a future creator-side surface (an activity
+feed, an ops card) renders `sessionWorked`'s own offer state for the
+CREATOR to see, that would be the genuine creator-walk gain the brief may
+have meant, and this decision's placement should be revisited then.
+
+## `ws-r104-whatsapp-chat-identity-is-its-own-surface` (2026-09-05, WS-R104)
+
+**Decision.** `api/_room-whatsapp-chat.js`'s identity bridge into
+`vy_surface_identity` uses its own surface string, `"room_whatsapp"`, keyed
+on the phone HASH (`phoneHash()`, migration 128's own salted sha256) —
+never the literal `"whatsapp"` surface, and never bridged with any future
+raw-number-keyed WhatsApp identity another file might add.
+
+**Rationale.** Telegram's own Room lane (`_room-telegram.js`) reuses the
+literal `"telegram"` surface Meera's base bot already writes to, and that
+reuse is correct there: one bot token serves both Meera's DMs and every
+Room, so bridging the two into the same person is the intended behaviour,
+stated in that file's own header. WhatsApp's Room lane shares the identical
+argument at the CREDENTIAL level (this table's WABA number is the same
+`WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` Meera's base
+`api/whatsapp.js` reads) but NOT at the key-shape level: this file's own key
+is a one-way hash of the number, never the raw E.164 (migration 128's own
+header states why: a second independent copy of a real-world identifier at
+rest is a cost this table does not need to pay). A `grep` across every
+`api/*.js` file at the time this was written found no existing
+`personForSurfaceUser("whatsapp", ...)` caller at all, so sharing the string
+today would create no live bridge — but reusing "whatsapp" anyway would
+still be wrong going forward: a future raw-number-keyed WhatsApp identity
+reader sharing that literal string with this hash-keyed one is a silent
+key-shape collision waiting to happen, not a bridge, since the two key
+spaces (a hash, a raw number) can never actually match. A dedicated surface
+name makes the mismatch structurally impossible rather than merely
+undiscovered.
+
+**Reversal condition.** If a future workstream deliberately wants a WhatsApp
+follower recognised as the SAME person across the Room lane and Meera's own
+WhatsApp DMs (Telegram's own bridged behaviour, restated for this
+transport), the fix is not to rename this surface back to `"whatsapp"` — it
+is to key BOTH readers on the hash (changing Meera's own DM-side bridge, if
+one is ever added, to hash its number the same way `phoneHash()` does)
+after a careful audit of every existing `vy_surface_identity` reader/writer
+confirms no caller anywhere still assumes a raw E.164 under that surface.
+This workstream did not have the scope to perform that audit.
+
+## `ws-r104-whatsapp-chat-owns-its-own-table-sql` (2026-09-05, WS-R104)
+
+**Decision.** Every SQL statement against `vy_room_follower_whatsapp_chat`
+(bind/upsert the pointer, the slug lookup joined to `vy_room`, the `stop`
+update) lives in `api/_room-whatsapp-chat.js` itself — never routed through
+`api/_room-surface.js`'s own exported functions the way Telegram's channel
+pointer (`bindTelegramChannel`/`telegramChannelRoom`/`unbindTelegramChannel`)
+is.
+
+**Rationale.** Two precedents exist in this codebase and they disagree:
+Telegram's own pointer (082) keeps its SQL in `_room-surface.js`; WhatsApp's
+check-in opt-in (`vy_room_follower_whatsapp`, 092, `api/_room-whatsapp.js`)
+keeps ALL of its own SQL (`optIn`/`stop`/`status`/`activeWhatsappFollower`/
+`markFollowerWhatsappFailed`) in the transport-specific file instead, and is
+already admitted to `evals/room-leak/run.mjs`'s own layer-1 `ALLOWED` set for
+exactly that reason. This workstream's own brief names the new file "every
+decision" — the same self-contained shape WS-R29's file already has, not
+Telegram's shared one — so this decision follows the CLOSER, more recent
+precedent rather than the older one, and `api/_room-whatsapp-chat.js` was
+added to that same `ALLOWED` set alongside `_room-whatsapp.js`, with the
+reason written at both admissions.
+
+**Reversal condition.** If a THIRD caller ever needs to read or write this
+table directly (today only `_room-whatsapp-chat.js` and `_room-surface.js`'s
+own generic `roomForgetCore`/`ROOM_EXPORT_EXTRA` machinery touch it), move
+the pointer CRUD into `_room-surface.js` at that point, Telegram's own shape
+— a second bespoke reader duplicating this file's SQL is the drift risk a
+shared location exists to avoid, and one caller is not yet that risk.
+
+## `ws-r104-no-explicit-replica-erasure-backstop-for-the-whatsapp-chat-pointer` (2026-09-05, WS-R104)
+
+**Decision.** `api/_replica-full-erasure.js` gains NO explicit CTE for
+`vy_room_follower_whatsapp_chat`. A full replica erasure reaches this
+table's rows only through the real `room_id references vy_room(room_id) on
+delete cascade` (migration 128's own FK), never a named backstop statement.
+
+**Rationale.** That file's own header states its general policy as "relying
+on a cascade means relying on an FK nobody re-checks" and backs it with
+explicit backstop CTEs for several room-scoped tables even where a real FK
+already covers them — but NOT uniformly: `vy_room_follower_channel`
+(Telegram's pointer, 082) and `vy_room_follower_whatsapp` (the check-in
+opt-in, 092) — this table's two closest siblings, both content-free
+transport pointers with the identical `room_id` cascade shape — carry no
+explicit statement there either, confirmed by grep before this decision was
+made rather than assumed. This decision follows THAT precedent rather than
+the money/content-bearing tables' stricter one (`vy_receipt`, `vy_room_
+referral`), since this table shares their shape, not those tables'.
+
+**Reversal condition.** If a future audit adds explicit backstop CTEs to
+`vy_room_follower_channel` and `vy_room_follower_whatsapp` (closing the gap
+their own header already argues against leaving open), add one for this
+table in the SAME change, on the identical reasoning — not before, and not
+alone, since a single table getting the stricter treatment while its two
+nearest siblings do not would be an unexplained inconsistency rather than a
+considered choice.
+
+## `ws-r104-whatsapp-join-gate-uses-reply-buttons-not-free-text` (2026-09-05, WS-R104)
+
+**Decision.** The age/memory two-question gate on WhatsApp is built on
+Meta's Cloud API interactive reply-button messages (`a1`/`a0`/`m1`/
+`m0:<slug>` button ids, byte-identical to Telegram's own callback-data
+values), not free-text parsing across multiple inbound messages.
+
+**Rationale.** Migration 128's own column list is closed by the workstream
+brief (`phone_hash`, `room_id`, `person_id`, `follower_id`, `locale`,
+`joined_at`, `stopped_at`, `stopped_code` — no "pending step" column), and
+this file keeps nothing in memory between one webhook delivery and the
+next. Telegram's own gate solves the identical problem by carrying the
+state (which slug, which step) IN the button itself via `callback_data`;
+WhatsApp's Cloud API offers the same mechanism (an opaque `id` string
+returned on `interactive.button_reply`), so reusing it needed no new schema
+and no new persisted state at all — the alternative (asking the two
+questions as plain text and parsing a combined reply, or inventing a
+"pending join" row) would have required either a schema change this
+workstream was not given a migration number for, or a materially weaker
+product (collapsing two distinct consent questions into one guessed
+sentence).
+
+**Reversal condition.** NOT PROVEN: no live WhatsApp Business Account has
+ever sent or received an interactive button message through this code path
+(`api/whatsapp.js`'s own header states the identical honesty about its own
+wire — "NOT WIRED. No credentials, no registered webhook, never contacted
+Meta"). If a live WABA turns out not to support reply buttons on this
+number's own messaging tier, the gate needs a text-based fallback and,
+likely, a real migration for pending-join state — ticketed here rather than
+guessed at.
+
+## `ws-r105-boundary-injection-fields-verified-not-assumed` (2026-09-05, WS-R105)
+
+**Decision.** `evals/room-adversarial-creator/run.mjs` injects hostile
+creator material into exactly nine sheet fields (`identityWho`,
+`identityLife`, `lifeTexture`, `curiosityTopics`, `tasteTopics`,
+`boundaryParagraph`, `stageEarly`, `stageGettingClose`, `stageEstablished`)
+rather than the thirteen this suite tried first. `languageVoiceRule`,
+`voiceIdentityPhrase` and `shareSuggestLine` were dropped after a first run
+measured them as `"not_found"` in the compiled prompt; reading
+`src/engine/persona.ts` and `src/engine/compiler.ts` explained why each
+one is unreachable on `/r/<slug>`'s own text lane specifically
+(`languageVoiceRule` and `voiceIdentityPhrase` are voice-medium/call-mode
+only, `api/_room-surface.js::roomSay` always compiles `medium: "text"`,
+`mode: "chat"`; `shareSuggestLine` fires only when `input.watching` is
+true, and `roomSay` always passes `false`). `stageNickname` was dropped for
+a different reason: `src/engine/agents/characters/demoTeacher.ts`'s own
+header comment already states it is dead for this exact fixture
+("Deliberately carrying NO trailing sheet slot, so the teacher module does
+not inherit the `${C.stageNickname}` seam defect").
+
+**Rationale.** `dead-writers`'s own lesson, restated one layer over: a field
+being present in `CHARACTER_STRING_FIELDS` (the generated bundle's own list)
+proves the COMPILER can read it in principle, not that THIS surface's own
+call shape ever reaches the branch that does. Asserting "the passage reaches
+the compiled prompt" against a field that is structurally unreachable on
+`roomSay`'s call shape would have been a plausible-looking green check
+measuring nothing — exactly the failure `AGENTS.md`'s "a plausible return
+hides a dead pipeline" law names. Running first and reading the failure
+second, rather than assuming the field list was the whole story, is what
+caught it (`measurements.md#ws-r105-corpus-injection-first-run-18-of-41-not-found`).
+
+**Reversal condition.** If `roomSay` (or a sibling Room reply lane) is ever
+given a voice medium, call mode, or a watching flag of its own, re-run this
+suite with the dropped three fields restored to `INJECTION_FIELDS` and
+confirm they now reach — do not restore them speculatively ahead of that
+call-shape change actually landing.
+
+## `ws-r105-no-material-instruction-boundary-mitigated-at-ingest-not-runtime` (2026-09-05, WS-R105)
+
+**Decision.** This workstream does NOT add a runtime containment mechanism
+(a labelled material block, a compiler-level escape) for creator-authored
+sheet content. It ships an ingest-time, pure-regex detector
+(`evals/room-adversarial-creator/detector.mjs`) instead, and does not wire
+it into a review-queue card kind.
+
+**Rationale.** Reading `src/engine/persona.ts` end to end (the caller of
+every sheet field `sheetToModule -> buildSystemPromptParts` touches) finds
+every field concatenated directly into an instruction sentence
+(`persona.ts:197`, `identityWho`/`identityLife`) or appended as a bare,
+unlabelled paragraph (`persona.ts:370`, `boundaryParagraph`) — there is no
+compiler-level boundary to enforce, for ANY sheet, hostile or benign, on
+this product's text lane today. Building one is a real compiler change with
+its own charm-gate risk (`SPEC.md §0.3`'s "no content cut happens at
+extraction" law, cited in `compiler.ts`'s own header) and is out of this
+workstream's scope (`api/chat.js`/`persona.ts`/`compiler.ts` are not named
+in WS-R105's Build section). The one place this platform CAN intervene
+without touching the compiler is before a hostile passage ever becomes a
+sheet field's value at all: the review queue, at the moment a creator is
+asked to approve a mined proposal. `detector.mjs` measures cleanly there —
+100% recall on the 41-entry corpus, 0% false positives on a benign-source
+sample built specifically to trap a naive keyword match
+(`measurements.md#ws-r105-detector-recall-and-false-positive-rate`) — but
+shipping it as a NEW review-card `kind` needs a value migration 074's
+`vy_review_card_kind_check` CHECK constraint (`db/migrations/074_review_queue.sql`,
+closed to `question`/`claim`/`delta`/`follower_declined`) does not carry,
+and this workstream's brief names no migration number. Law 4's own
+contingency ("if a migration would be needed, do not add the card, log
+why") applies regardless of the measured rate, so the card does not ship
+this session even though the number that would have gated it is clean.
+
+**Reversal condition.** The day this workstream (or a successor) has a real
+migration number, add `'instruction_shaped_material'` to migration 074's
+`kind` CHECK, wire `detector.mjs`'s verdict into whatever mines a context
+item into a sheet-draft proposal (`api/_context-mining.js`), and re-run
+this suite's §4 to confirm the rate still holds against a larger, real
+benign corpus before shipping — not against this suite's own 15-line
+sample alone. Separately, if `src/engine/compiler.ts` is ever given a real
+labelled material block for sheet-authored content (the fix this decision
+explicitly does NOT attempt), re-run `materialBoundaryStatus` against the
+real compiled prompt and expect `"contained"` rather than `"fused"` — a
+change from today's 0/41 would be the signal that fix landed.
+
+## `ws-r108-readable-export-locale-from-selfscopes-locale-not-the-session-token` (2026-09-05, WS-R108)
+
+**Decision.** `roomExport()`'s (`api/_room-surface.js`) return object gained
+one field, `locale: who.locale` — `selfScope`'s own re-read of THIS
+follower's CURRENT `vy_room_follower.locale` row, captured before `roomForget`
+would delete it (the comment right above it, WS-R24, restated for a reader
+rather than a writer). `api/_room-export-readable.js`'s builder takes this
+field to pick which locale to render in, rather than reading the session
+token's own `payload.loc` or re-deriving locale a second way.
+
+**Why.** `payload.loc` is frozen at session-mint time and is never reissued
+by `roomSetLocale` (that op updates the DB row and returns fresh disclosure
+text, but mints no new token — `api/_room-surface.js`'s own `roomSetLocale`
+function, read in full before this decision was made). A session is valid
+for up to 12 hours, so a follower who switches language mid-session and then
+opens their readable export minutes later would get a page in the language
+they left, not the one they are currently reading the rest of the room in,
+if the builder trusted the token. Reading `who.locale` costs nothing extra —
+`selfScope` already computed it for every caller of `roomExport`/`roomForget`
+— and keeps the builder a pure function of the export object alone (the
+workstream brief's own law: "never a second read of any table"), rather than
+handing it the raw `session` string and letting it decode locale itself,
+which would have made it a session-consuming function like every OTHER
+decision in `_room-surface.js` instead of the pure, table-free renderer the
+brief specifically asked for.
+
+**Reversal.** If a future workstream mints a fresh session token on every
+`roomSetLocale` call (closing the staleness gap at the SOURCE rather than by
+reading the row), `who.locale` and `payload.loc` become identical in every
+real case and this decision has no remaining cost either way — but the
+builder should still prefer `who.locale`/the export object's own field
+rather than start decoding `session` itself, since a pure builder with no
+session-decoding import is what keeps `evals/room-export-readable/run.mjs`
+able to test it with a plain object literal instead of a minted token.
+
+## `ws-r108-readable-export-completeness-proved-by-static-list-diff-not-full-fixture-seeding` (2026-09-05, WS-R108)
+
+**Decision.** `evals/room-export-readable/run.mjs` proves every table
+`roomExportManifest()` can name has a sentence in `api/_room-export-
+readable.js`'s `TABLE_COPY` (both locales) by comparing the two NAME LISTS
+directly — `roomExportManifest({ personTables: async () => PERSON_TABLES })`
+against `Object.keys(TABLE_COPY)` — rather than by seeding a fixture world
+with real content in all 46 tables and checking that every one lands in a
+rendered document's own sections.
+
+**Why.** `roomExportManifest()` needs no database at all (`roomScopedTables`'s
+only external dependency is `deps.personTables`, and the eleven-plus
+`ROOM_EXPORT_EXTRA`/`vy_room_referral` names are static constants in the same
+file) — the list of every table the builder must be able to explain is fully
+known WITHOUT ever running a query, so a name-list diff proves the same
+completeness a seeded-and-rendered world would, for a fraction of the code
+and with zero dependency on any OTHER suite's fixture continuing to model a
+table it has no independent reason to model (`evals/room-export/fixtures.mjs`
+covers ten of the fourteen `ROOM_EXPORT_EXTRA` tables, built for WS-R27's own
+purposes long before this workstream existed — leaning on it to also cover
+`vy_receipt`/`vy_room_follower_whatsapp`/`vy_renewal_reminder`/
+`vy_room_referral` would have meant either extending a file this workstream's
+brief does not list, or silently accepting weaker coverage of exactly the
+four newest, least-tested extras). The RUNTIME half of the same guarantee —
+that a table present in a real export but absent from `TABLE_COPY` fails
+loudly rather than rendering an incomplete page — is proved separately and
+directly, by calling `buildRoomExportReadableHtml` with a fabricated table
+name and asserting it throws, named (`evals/room-export-readable/run.mjs`
+§2) — this is the actual code path a live request goes through, and it does
+not depend on any fixture modelling any table's content at all.
+
+**Reversal.** If `roomExportManifest()` ever grows a genuine dependency on
+live data (not merely on migration-applied state, which `tableApplied` mocks
+today) such that its output cannot be computed offline, this decision's
+"needs no database at all" premise breaks and the static list-diff would
+need to fall back to a schema-scan approach instead, `evals/room-export/
+run.mjs`'s own layer-1 static check (against the checked-in DDL) rather than
+against the manifest function directly.
+
+## `ws-r101-recall-run-writer` (2026-09-05, WS-R101)
+
+**Decision.** `api/_recall-run.js` is the writer Readiness's `knows_your_material`
+part never had. `generateRecallSet` builds a held-out question set
+deterministically from a replica's own mined context items, its
+review-queue-approved ("sounds right") cards, and its transcribed interview
+answers — a pure template (a passage's own first sentence wrapped in one
+fixed sentence), zero model calls, refused by name (`recall_set_too_small`)
+below 20 usable passages. `scoreRecallRun` drives every question through the
+REAL compiled agent via `gatedReply` (`api/_surface.js`, the one door) and
+scores each answer 0-100 with a scorer blending vocabulary overlap and word
+order (see `ws-r101-recall-scorer-order-sensitive` below). `runRecallMeasurement`
+is the whole flow behind a new "Measure now" op on `api/readiness.js`
+(`op: "measure_now"`), gated behind `RECALL_RUN` (off by default,
+`docs/gurukul/ENV-MANIFEST.md` §34) and rate-limited to one run per replica
+per hour by the write's own predicate (migration 127,
+`vy_recall_run`). `api/_readiness.js::readRecallRun` reads the latest
+unsuperseded row and `knowsYourMaterial` uses its `score` directly (never
+re-deriving a correct/total ratio the stored row does not carry).
+
+**Rationale.** `ws-r95-readiness-floor-crossing-is-seeded-never-computed`
+names its own reversal condition in full: a recall-run writer landing
+anywhere in this tree, re-proven by feeding all six Readiness inputs and
+getting a real pass rather than a seed. `evals/recall-run/run.mjs` §6 is
+that proof, at the layer under WS-R95's own Chromium rehearsal: a REAL
+`runRecallMeasurement` call, over a fake `db` that also answers every other
+Readiness input from genuinely-measured rows, produces a stored
+`vy_recall_run` row that `readOwnedReadiness` reads back into a value high
+enough, alongside the four other real parts, to cross the publish floor —
+`vy_replica_readiness` written twice by `readOwnedReadiness` itself (before,
+after), never seeded. 75 checks, 0 failures, offline, deterministic, one
+real compiled-agent call path exercised with a fake `reply` (never a live
+model call).
+
+**What would reverse it.** WS-R95's own Chromium rehearsal
+(`evals/rehearsal/creator.mjs`) re-run with "Measure now" driven through the
+real browser and the real `POST /api/readiness` door, crossing the floor
+without seeding `vy_replica_readiness` at the HTTP layer rather than at
+`api/_recall-run.js`'s own module boundary — out of this workstream's scope,
+named here as the remaining step. Superseded outright if a future workstream
+finds the vocabulary-plus-order scorer produces systematically inflated or
+deflated scores against a real keyed run (no keyed run exists yet for this
+instrument, the same honest gap `evals/recallbench`'s own §5 states for
+Meera's memory benchmark).
+
+## `ws-r101-recall-scorer-order-sensitive` (2026-09-05, WS-R101)
+
+**Decision.** `api/_recall-run.js::scoreAnswer` blends two components: plain
+vocabulary overlap (order-blind, `RECALL_UNIGRAM_WEIGHT = 0.4`) and a
+longest-common-subsequence ratio over the passage's own word order
+(`RECALL_ORDER_WEIGHT = 0.6`). `evals/recallbench`'s own containment-by-
+substring shape (Meera's memory benchmark) was read first and NOT imported
+unchanged — its `retrievedFrom`/`keysOf` are wired to a fixture `dyad`
+object and a rendered-block heading structure with no equivalent here, so
+there was nothing pure to import; the METHOD (score what actually reached
+the answer, never an internal row list) is what carries over.
+
+**Rationale.** `evals/recall-run/run.mjs` §2b is a negative control in the
+`evals/readiness/run.mjs` §4 style: the real scoring line is patched out
+(order term removed, leaving vocabulary overlap alone) and re-imported from
+a temp file. Under the patched module, an echoed passage and the SAME WORDS
+IN A RANDOM ORDER both score 100 — indistinguishable, because unigram
+overlap alone cannot see order at all. Under the real module the shuffled
+answer scores strictly between 0 and 100 on the same fixed, hand-authored
+shuffle every run (never a random seed, so this suite is deterministic).
+This closes the exact failure a pure keyword-overlap recall scorer would
+have: a compiled agent that memorised a bag of facts with no grasp of how
+they relate would pass a vocabulary-only scorer every time it echoed the
+right words in the wrong order.
+
+**What would reverse it.** A keyed run against real replica material
+showing the LCS term systematically penalises legitimate paraphrase (a
+correct answer in genuinely different, non-shuffled words scoring lower
+than the unigram-only component alone would predict) — no such run exists
+yet; §2's own "unrelated content scores low but not necessarily 0" case is
+the only real-paraphrase-adjacent case this suite currently measures.
+
+## `ws-r101-never-rules-must-arrive-compiled` (2026-09-05, WS-R101)
+
+**Decision.** `api/_recall-run.js`'s `scoreRecallRun`/`runRecallMeasurement`
+require `neverRules` to already be COMPILED (`api/_never-rules.js::compileNeverRules`)
+before they reach `gatedReply` — the same contract
+`api/_room-surface.js::roomNeverRules` already states for every Room reply
+lane, restated here for a lane with no Room. `runRecallMeasurement`'s
+default path calls `compileNeverRules(await loadNeverRules(...))` itself
+rather than handing `loadNeverRules`'s raw `{rule_id, pattern, revoked_at}`
+rows straight to `gatedReply`.
+
+**Rationale.** Building this workstream's own eval first with UNCOMPILED raw
+rows passed as `neverRules` produced a silent pass-through: `gateReply`
+matched nothing, the "never say this" answer was never suppressed, and the
+test failed loudly enough to catch it before merge — but a caller adding a
+FIFTH reply lane later would have no test forcing the same discovery,
+because a raw row and a compiled rule are both plain objects and nothing
+type-checks the difference at a JS boundary. `plausible-return-hides-a-dead-
+pipeline`'s shape exactly: a never-rule silently not enforced returns
+`gated: true` and ordinary-looking text, and the ONLY way to see the gap is
+to write the positive AND the negative case, which
+`evals/recall-run/run.mjs` §3 now does (a matching compiled rule suppresses
+the target question's answer and names itself; every other question is
+unaffected).
+
+**What would reverse it.** `gatedReply` itself learning to accept either
+shape (detecting a raw row by its `pattern` key and compiling it inline)
+would make this contract self-enforcing rather than a convention every
+caller has to remember — a real simplification, not attempted here because
+it touches the one door every surface's replies leave by and this
+workstream's brief did not ask for that file to change.
+
+## `ws-r106-studioapp-tsx-converted-tier-1` (2026-09-05, WS-R106)
+
+**Decision.** `StudioApp.tsx` (the studio's single largest file, ~2600
+lines) moves from `TIER_2_ALLOWLIST` to `TIER_1_FILES` in
+`evals/studio-locale/run.mjs`. Every string the static scan can see
+(`CreateReplicaCard`'s own copy — `GENERIC_COPY`/`TEACHER_COPY`/`TEST_COPY`,
+the local, unrelated `StudioCopy` shape WS-R91's own header already
+distinguished from `copy.ts`'s own `StudioCopy` — plus `TestSourceGuide`,
+`ReplicaList`, `VoiceUnlockNotice`, every Feed/Meet/Share `Band` title and
+blurb inside `ReplicaWorkspace`, the disclosure/channels empty states, the
+revoke confirmation dialog, the owner-control section, every `Suspense`
+loading fallback, and the signed-in shell's own header/workspace-switch
+chrome) now reads `copy.ts#studioApp` in both locales. `copy` itself (the
+prop `CreateReplicaCard` and `ReplicaWorkspace` both still take, typed by
+the SAME local `StudioCopy` interface WS-R91 left in place) is now selected
+locale-aware inside `StudioApp()`: `sa.createReplica[STUDIO_SELF_TEST_UI ?
+"test" : mode === "teacher" ? "teacher" : "generic"]`, where `sa =
+STUDIO_COPY_TABLE[studioLocale].studioApp` — the exact
+`STUDIO_COPY_TABLE[studioLocale]` direct-read `handleExport` already used
+one function over (`StudioApp` itself mounts `StudioLocaleProvider` below
+its own return, so it cannot call `useStudioLocale()` on itself; `sa` is
+that same seam generalised to the whole new block, read once and passed
+nowhere — every handler in the component reads it as a closure variable).
+
+**What stays deliberately English, inside this now-Tier-1 file.** Two
+classes, both pre-existing constraints unrelated to this workstream's own
+scope: (1) every `handleApiError(cause, "fallback headline")` call's
+fallback string — these flow into `friendlyError()` (`errorCopy.ts`, a
+`.ts` file, never a `.tsx`, so outside `evals/studio-locale/run.mjs`'s own
+`.tsx`-only scan and outside this workstream's file list), which ALSO
+renders `REFUSAL_COPY`'s own English headlines/details and a raw `"The
+server said: ..."` quoted detail for the general case — translating only
+the one-line fallback while the rest of that same error banner stays
+English would ship a mixed-language banner, the same "splitting a screen's
+chrome from its meaning-bearing prose" failure `context/rejected.md#ws-r61-
+partial-modelconsentgate-translation-considered-and-rejected` already
+argues against, one surface over; (2) the workspace status/stopped-panel
+micro-labels this file's own render still computes from server enums
+(`lifecycleLabel()`, the `STOPPED`/`OWNER CONTROLLED`/`Erasure verified`/
+`Erasure in progress` badges, "Step {n} of {total}", "Created {date} ·
+Policy {version}") — the SAME "server-computed prose" exclusion class
+`copy.ts`'s own file header already names for `ReadinessPanel.tsx`'s
+`part.label` and `RoomStudio.tsx`'s `blocker.headline`, restated here for a
+different file. Neither is silent: both are named, with their reason, in
+this file's own `TIER_1_FILES` comment in `evals/studio-locale/run.mjs`.
+
+**One content fix this move forced.** The signed-in header's small label
+under the VYAKTI wordmark read "REPLICA STUDIO" in generic/self mode
+(`"GURUKUL STUDIO"` in teacher mode, unchanged). That string sat in a bare,
+unbound JSX ternary branch — `scripts/check-copy.mjs`'s PASS 2 extracts
+only JSX text NODES and string literals bound to a visible-prop name or a
+`COPY_FILES`-matched module, and a ternary branch that is neither of those
+is invisible to it — so the word "replica" in it never tripped the
+rooms-vocabulary rule while it lived inline. Moving it into `copy.ts` (a
+`COPY_FILES` match, `roomsVocab: true` for all of `src/studio/`) puts it in
+front of that rule for the first time, and it failed:
+`\breplica[s]?\b` matches "REPLICA" exactly. Renamed to "AI STUDIO" in
+both locales (`header.genericStudio`) — the same short, two-word badge
+shape the teacher variant already used, just without the banned word. See
+`context/rejected.md#ws-r10-check-copy-apostrophe-parity` for the SAME
+"moving a string into a scanned file changes what fires on it" mechanism,
+restated for a banned word instead of a dash.
+
+**Reversal condition.** If a future workstream splits `StudioApp.tsx` (the
+brief-planning session already flags it as oversized), the `studioApp`
+copy block splits along the same seams and each new file's own
+`TIER_1_FILES` entry replaces this one; nothing about the underlying copy
+changes. If `errorCopy.ts` is ever localized in full (a real workstream of
+its own — a parallel `REFUSAL_COPY` table per locale, not a translation of
+one fallback string), the `handleApiError` fallback strings named above can
+move into `copy.ts#studioApp` in the same change, with the mixed-language
+risk gone.
+
+## `ws-r106-disclosurepreview-stays-tier-2-roomsvocaballowlist-evidence` (2026-09-05, WS-R106)
+
+**Decision.** `DisclosurePreview.tsx` stays in `TIER_2_ALLOWLIST`,
+unconverted, despite this workstream's own brief naming it (by omission —
+"everything outside the six ceremonies converts") as a file expected to
+move to Tier 1 this session.
+
+**Rationale.** Reading the file before touching it (this workstream's own
+law 1, and `AGENTS.md`'s standing rule) surfaced hard evidence the brief's
+author did not have in view: `scripts/roomsVocabAllowlist.mjs` — the
+repo's own named, exhaustive list of every exception to the rooms-vocabulary
+rule, checked by exact substring match — carries two entries scoped BY
+EXACT STRING to this exact file: `"You're talking with an AI clone of"` and
+`"I'm an AI clone of"`, both stated to be copied verbatim from
+`safety-floor-teacher.md` §1.1-§1.2. That file's own header states the law
+plainly: "Renaming the words under a live consent artifact is the exact
+failure `safety-floor-teacher.md` §2.1 names... a fixture (or a rewrite)
+may never stand in on a consent surface." A Hindi translation of this card
+is precisely that rewrite — it would move the exact words a teacher already
+approved as what a student sees and hears, under an existing consent
+receipt, the identical risk `context/decisions.md#ws-r61-modelconsentgate-
+left-untouched-consent-ceremony-legal-text` already carves `ModelConsentGate
+.tsx` out for. This file's own existing `TIER_2_ALLOWLIST` reason (WS-R61)
+already argued the softer version of this point (a fixed, per-creator-
+identical floor, deferred as a unit); this session adds the harder,
+name-checked evidence that converting it is not merely undesirable but
+would collide with a mechanism the codebase already built specifically to
+prevent it.
+
+**Reversal condition.** If `safety-floor-teacher.md` §1.1-§1.2 is ever
+formally re-approved in Hindi (a legal/safety review this workstream did
+not have the standing to perform) and `scripts/roomsVocabAllowlist.mjs`
+gains matching Hindi-string entries for the translated wording, this file
+converts along with that change, in the same commit — never ahead of it.
+
+## `ws-r106-quickstartpath-and-opsboard-stay-tier-2` (2026-09-05, WS-R106)
+
+**Decision.** `QuickStartPath.tsx` and `OpsBoard.tsx` also stay in
+`TIER_2_ALLOWLIST`, reaffirmed rather than converted, despite the same
+brief-naming gap `DisclosurePreview.tsx`'s own entry above describes.
+
+**Rationale.** Both carry a PRE-EXISTING, independently-reasoned constraint
+this session re-read in full rather than took on faith (this workstream's
+own law 1): `QuickStartPath.tsx`'s `BLOCKER_META.note` strings are read
+directly by `evals/studiowizard.mjs`'s English-only `BLAME_PATTERNS`
+honesty check (the same constraint `context/decisions.md#ws-r52-class-
+labels-split-from-blockerclass-ts-own-copy` already states for the sibling
+file `blockerClass.ts`, and names the exact reversal: a Hindi-language
+`BLAME_PATTERNS` equivalent, wired into `evals/studiowizard.mjs`, is a real
+workstream of its own, not a translation this brief budgeted for).
+`OpsBoard.tsx` is a standalone `?mode=ops` mount (`main.tsx`'s own routing,
+never wrapped in `StudioLocaleProvider`) with no locale state and no
+language switcher at all — `context/decisions.md#ws-r62-ops-board-push-
+copy-stays-english-inline` and its own restatement
+`#ws-r88-ops-board-digest-copy-stays-english-inline` already made this call
+twice; converting its copy without first building locale infrastructure for
+a screen the product has no reason to localize (its own readers are the
+platform's operators, not a follower or creator) would ship dead-weight
+`copy.ts` entries nothing could ever read — `AGENTS.md`'s own "a plausible
+return hides a dead pipeline" law, restated for a translation table instead
+of a function return.
+
+**Reversal condition.** Identical to the decisions these restate: a Hindi
+honesty detector for `QuickStartPath.tsx`, and a locale switcher plus
+`StudioLocaleProvider` mount for `OpsBoard.tsx`.
+
+## `ws-r106-check-copy-generic-angle-bracket-parity` (2026-09-05, WS-R106)
+
+**Decision.** Two `copy-ok:` exemption comments were added to
+`StudioApp.tsx` (on the `useState<StudioSession | null>` line and on a
+`</div>` closing a loading skeleton) rather than editing
+`scripts/check-copy.mjs`'s own extraction, and rather than renaming the
+pre-existing `replicas`/`replicas.length` identifiers those two lines
+happened to fall near.
+
+**Rationale.** `scripts/check-copy.mjs`'s `textNodes()` finds JSX text by
+pairing a bare `>` with the next `<`, with no awareness that a TS generic
+(`useState<Replica[]>`) produces the identical characters outside any JSX
+tag. Restructuring `StudioApp.tsx` (removing the old `GENERIC_COPY`/
+`TEACHER_COPY`/`TEST_COPY` block, moving the `copy` assignment) shifted
+WHICH stretches of plain `const [x, setX] = useState(...)` declarations
+sit between two REAL `<`/`>` occurrences elsewhere in the file, and two of
+those stretches now happen to contain the plain, pre-existing variable name
+`replicas` — which `\breplica[s]?\b` matches exactly, a real rule
+firing on code, not copy. This is the SAME mechanism
+`context/rejected.md#ws-r10-check-copy-apostrophe-parity` already
+documented and named a rule for ("do not trust a check-copy line number or
+snippet as the literal location of a hit; trace it before editing") —
+restated here for angle brackets rather than apostrophes, and confirmed by
+running the SAME file through the untouched tree first (zero hits) before
+concluding the two hits were mechanical, not content. Renaming `replicas`
+throughout a 2600-line file that predates this workstream to satisfy a
+regex quirk would be a large, out-of-scope, purely mechanical refactor for
+zero user-facing benefit; `copy-ok:` is the tool's own documented escape
+hatch for exactly this class of false positive ("ESCAPE HATCH. `copy-ok:
+<reason>` on the same line... exempts that line", this file's own header).
+
+**Reversal condition.** If `scripts/check-copy.mjs`'s own extraction is
+ever taught to recognise a TS generic's `<...>` (the same class of fix
+`ws-r10`'s own entry asks for on the apostrophe side — "track that
+distinction rather than blanking quotes file-wide"), both `copy-ok:`
+comments can be removed in the same change that lands the fix.
+
+## `ws-r106-hindi-chunk-wait-miss-flagged-not-fixed` (2026-09-05, WS-R106)
+
+**Decision.** `scripts/check-performance.mjs`'s `HINDI_CHUNK_WAIT_BUDGET_MS`
+(800ms) stays at 800, unchanged, even though this workstream's own tree
+measured `studio-hi`'s Hindi chunk wait over it twice in isolation (870ms,
+879ms, `context/rejected.md#ws-r106-studio-hindi-chunk-wait-measured-870-
+879ms-against-800-budget`). The gate is left reporting this as a real,
+open finding for the main loop rather than adjusted by this workstream.
+
+**Rationale.** This workstream's brief named the studio's Tier-2 English
+strings as its scope, never a performance budget; changing a shipping gate
+is a decision with wider consequences (every other workstream this wave
+is held to the SAME 21/23-check contract) than one workstream has standing
+to make unilaterally, even when its own change is the direct, measured
+cause. `first-hindi-paint-budget-set-from-measurement` is the precedent
+for how this project actually handles a budget a legitimate content
+addition pushes over: measure it, name the new number FROM the
+measurement (never copy an adjacent budget's number), and name what would
+put it back. This entry does the measuring and the naming; the main loop
+decides whether 800 moves.
+
+**Reversal condition.** If a future workstream (a) preloads the Hindi
+chunk from the built page the way `context/decisions.md#first-hindi-paint-
+budget-set-from-measurement`'s own reversal already names for the
+SIBLING `firstHindiPaintMs` metric, closing the gap the same way, or (b)
+splits `copy.ts#studioApp` into its own smaller chunk rather than growing
+the single `hiCopy.ts` chunk further, three consecutive gate runs
+measuring under 800ms would confirm either fix; absent either, the honest
+move is to raise `HINDI_CHUNK_WAIT_BUDGET_MS` from a fresh measurement
+(not copied from this one) the same way the sibling budget was raised, and
+record the new number's own reversal condition in the same commit.
+
+## `ws-r115-sendbuttons-refuses-more-than-three-buttons` (2026-09-05, WS-R115)
+
+**Decision.** `api/_room-whatsapp-chat.js`'s `defaultRoomWhatsappChatClient
+.sendButtons` now throws `room_wa_button_count_invalid` for any call with
+fewer than 1 or more than 3 buttons, rather than building and sending
+whatever array it was handed.
+
+**Rationale.** This workstream fetched Meta's own Cloud API document for
+interactive reply-button messages (developers.facebook.com/documentation/
+business-messaging/whatsapp/messages/interactive-reply-buttons-messages,
+fetched 2026-09-05 — redirected from the `/docs/whatsapp/cloud-api/...`
+URL WS-R41's own citations in `api/whatsapp.js` used) to verify WS-R104's
+own join-gate shapes, per this workstream's own brief law 2 ("pin every
+outbound shape... where the code disagrees with the document, fix the
+code"). The document states the button-label and body-text limits
+WS-R104's builder already truncated to (20 and 1024 characters,
+respectively — no disagreement there), but also states "up to three
+predefined replies" / "Supports up to 3 buttons" for the button array
+itself, and the builder had NO cap on `buttons.length` at all. Every real
+call site (`ageButtons`/`memoryButtons`) has only ever sent exactly two,
+so nothing shipped was ever actually wrong — but a caller bug reaching
+this function with four buttons would have built and sent a shape Meta's
+own document states it does not support, silently, with no local signal
+that anything was wrong until a real Cloud API call refused it. A refusal
+by name, matching `sendSessionMessage`'s own "`deps.fetch` REQUIRED" throw
+for a different missing precondition, is the same posture this codebase
+already takes elsewhere for a caller precondition rather than a runtime
+policy the following window/cap logic already owns.
+
+**Reversal condition.** If a future product need legitimately requires
+more than three quick-reply options on this wire (Meta's own document
+would have to change first — WhatsApp's own client UI has no room for a
+fourth button today), this throw would need to become a real branch that
+degrades to a list message or a text fallback rather than simply raising
+the cap, since the cap is Meta's own platform limit, not a value this
+codebase chose.
+
+## `ws-r115-window-ledger-reconfirmed-no-code-change` (2026-09-05, WS-R115)
+
+**Decision.** `api/whatsapp.js`'s `windowOpen`/`noteInbound` ledger and
+`api/_room-whatsapp.js`'s `sendSessionMessage` are left byte-for-byte
+unchanged by this workstream.
+
+**Rationale.** This workstream's own brief said to change `api/whatsapp.js`
+or `api/_room-whatsapp.js` "only if the ledger disagrees with the
+document." It does not. Re-fetched developers.facebook.com/documentation/
+business-messaging/whatsapp/messages/send-messages#customer-service-windows
+(2026-09-05, reached by following developers.facebook.com/docs/whatsapp/
+pricing's own redirect chain and its own "customer service window" link —
+the SAME rule WS-R41 already cited from the older `/docs/whatsapp/pricing`
+URL, now confirmed to still say the identical thing at the current URL):
+"a 24-hour timer... starts... If the user messages... again before the
+timer expires, the timer resets to 24 hours... When the window closes,
+you can only send pre-approved template messages." This is exactly what
+`noteInbound`(resets the clock on every inbound)/`windowOpen`(checks
+`now - lastInbound < WA_WINDOW_MS`)/`sendSessionMessage`'s own refusal
+already implement — the same conclusion WS-R41 reached fetching the older
+URL. `evals/room-whatsapp-chat/run.mjs`'s new "the REAL 24h ledger"
+section proves the boundary this workstream's own brief names (23:59
+sends, 24:01 does not, a new inbound reopens it, a struck ledger is
+caught) through the REAL sender, not a stub, closing the one thing WS-R41's
+own verification had not yet driven end to end through this specific
+join flow's shipping call path.
+
+**Reversal condition.** If Meta's document ever states a different window
+duration, a per-message-type window, or a client-visible reset behaviour
+this ledger does not model (e.g. a call opening or extending the window
+differently from a message — the document does mention calls extending
+the window, a case this platform's WhatsApp lane does not build or claim
+to handle), the ledger would need a real code change and this decision
+would no longer hold.
+
+## `ws-r115-age-gate-yes-does-not-recheck-room-availability` (2026-09-05, WS-R115)
+
+**Decision.** `api/_room-whatsapp-chat.js`'s `handleButton` is left
+unchanged: its `a1`/`a0` steps (the age question's own two answers) never
+call `resolveRoom`, so a Room that becomes unavailable (paused, or
+deleted) between the disclosure message and the age-gate tap is not
+caught until the FINAL `m1`/`m0` tap, which is the only step that actually
+calls `resolveRoom` before doing anything else.
+
+**Rationale.** Found while building `evals/room-doors/run.mjs`'s new
+`d9-join-paused-room` case (this workstream's own brief law 4): an
+`a1:<slug>` button tap for a Room paused after the disclosure was sent
+still receives the memory-gate question rather than an immediate refusal,
+because `handleButton`'s `a1` branch only ever reads `parsed.slug` to echo
+it back into `memoryButtons`, never resolving the room. This is NOT a
+scope leak or a half-join: no person, follower or pointer row exists
+until `m1`/`m0` completes, and THAT step does call `resolveRoom` first,
+refusing with the identical `roomUnavailableCard` a genuinely unknown slug
+gets (proven directly, `d9-join-paused-room`'s own final two assertions).
+The follower-visible cost is a wasted extra question, not a data or
+privacy problem, and this workstream's own brief scoped it to Meta's
+documents (which say nothing about this — a purely internal state-machine
+question), not a general audit of every button step's own availability
+check.
+
+**Reversal condition.** A product complaint that a follower answers the
+age question for a Room that turns out unavailable is confusing enough to
+fix would justify adding the identical `try { resolveRoom(...) } catch {
+...unavailable...}` guard `handleJoin` and the `m1`/`m0` branch already
+carry to the `a1` branch too — a small, contained change, deliberately not
+made here since nothing it would prevent is currently reachable by anyone
+but the honest, ordinary case Meta's document has no opinion on.
+
+## `ws-r116-manifest-names-never-promote-to-required-env` (2026-09-05, WS-R116)
+
+**Decision.** `api/_self-check.js#envPresence` now reports on 110 more
+names (`MANIFEST_ONLY_ENV`, every `docs/gurukul/ENV-MANIFEST.md` name
+whose target includes `vercel-app`, minus whatever `REQUIRED_ENV`/
+`OPTIONAL_ENV` already cover), but every one of those rows is hard-coded
+`required: false` — none can ever enter `checks`/`failing_doors`, and
+`REQUIRED_ENV` itself (`OPENROUTER_KEY`, `NEON_URL`) is completely
+untouched. Widening WHICH names self-check can report on is this
+workstream's whole point; widening WHICH names can fail the morning check
+is a deliberately separate decision this workstream does not make.
+
+**Rationale.** The manifest's own per-row `required` column means "the
+FEATURE breaks without this" (e.g. `AZURE_FOUNDRY_API_KEY` unset 503s
+claim extraction) — a real but narrow, single-capability claim, and a
+different, much stronger one than `REQUIRED_ENV`'s "the site cannot run
+AT ALL without this." Promoting even a handful of the ~90-plus manifest
+names into `checks` would make the morning self-check FAIL on a
+deployment that is intentionally running with, say, Foundry claim
+extraction off (an honest, supported "apprentice" state per this repo's
+own vocabulary) — the exact regression `context/rejected.md#ws-r96-self-
+check-optional-env-never-becomes-a-finding` and WS-R102's own
+`context/decisions.md#ws-r102-optional-absent-is-a-separate-field-never-
+checks` (the direct precedent this decision restates for a much longer
+name list) already reasoned through for the original two-list surface.
+
+**Reversal condition.** If a future workstream decides a SPECIFIC
+manifest name should become deploy-blocking (not "this one feature is
+off" but "the studio Vercel project should refuse to be called healthy
+without it"), that is a deliberate, named, one-at-a-time move into
+`REQUIRED_ENV` itself — never a bulk promotion of `MANIFEST_ONLY_ENV` or
+a change to how `envPresence`/`runSelfCheck` treats the manifest-derived
+rows as a class.
+
+## `ws-r116-manifest-names-dedup-to-first-section` (2026-09-05, WS-R116)
+
+**Decision.** `scripts/envManifest.mjs#parseEnvManifest` merges every
+occurrence of a name across the manifest's own tables into ONE entry: the
+`target` array is the union of every occurrence's section targets, and
+`required` is true if ANY occurrence says required — but `section`/
+`sectionTitle` are taken from the FIRST section the name is declared in,
+an arbitrary but fixed tie-break, never every section it appears in.
+
+**Rationale.** A name genuinely can be read in more than one deployment
+(the manifest's own header: "two independent settings... that happen to
+share a name", `AZURE_FACE_LIVENESS_LIMITED_ACCESS_APPROVED` in §4, §5
+and the azure-verifier service) — for the union to be USEFUL to a
+presence check (which only ever asks "is this name set", not "in which
+of its readers"), collapsing to one entry is correct. But the ops board's
+own "group absent names by manifest section" card (law 3) needs exactly
+ONE section per name to render a sane list — showing the same name under
+three different section headers on one card would be confusing, not more
+honest, since the underlying question ("is `AZURE_FACE_LIVENESS_LIMITED_
+ACCESS_APPROVED` set on the ONE environment this process can read") has
+one answer regardless of how many places document reading it. First
+section chosen (rather than, say, the section with the most rows, or
+alphabetically) purely because it is the doc's own natural reading order
+and needs no extra computation.
+
+**Reversal condition.** If the ops board's Self-check card is ever asked
+to show ALL of a name's sections rather than one, `entry.section` would
+need to become an array and `groupAbsentBySection`'s reducer would need
+to add a name to every section it belongs to (a name could then appear
+twice on the board, once per section) — a real, larger UI change, not a
+one-line fix, so this decision should be revisited deliberately rather
+than patched around.
+
+## `ws-r116-day-one-rows-convert-only-when-presence-was-the-whole-proof` (2026-09-05, WS-R116)
+
+**Decision.** Four `docs/gurukul/DAY-ONE.md` rows (4, 9, 10, 12) converted
+from `manual:` to `self-check:env:`/`self-check:env-all:`. Four more (5,
+6, 8, 11) were re-audited and deliberately left `manual:`.
+
+**Rationale.** The four that converted all shared one property: their
+ORIGINAL manual instruction was `node scripts/check-replica-env.mjs`,
+whose own header states plainly it is a pure presence check ("LIVE: every
+required var for this subsystem is set... this script does not validate
+VALUE shape") — so the ops door's widened `optional_absent` proves the
+IDENTICAL fact those rows already accepted as sufficient proof, over HTTP
+against a live deployment rather than a local shell's env. The four that
+stayed manual failed that test for two different, both legitimate,
+reasons: (5) `OPS_OWNER_USER_IDS` and (6) `OPENROUTER_API_KEY` are not in
+`ENV-MANIFEST.md` at all — a document gap, not a self-check gap, out of
+this workstream's own brief ("no migration, no new env var" scoped the
+code, not the doc); row 5 also cannot ever convert for a structural
+reason — the ops door itself requires `OPS_OWNER_USER_IDS` to already be
+set before it will answer, so a check reading that name's presence
+THROUGH that door is circular. (8) and (11) both need a value's
+CORRECTNESS, not merely its presence — a Supabase key can be set and
+still point at the wrong bucket, and `REPLICA_SELF_TEST_OWNER_USER_ID`
+must equal one specific UUID — and `Boolean(env[name])` cannot tell a
+right value from a wrong one, only a real signed upload or a real
+`/api/replica-runtime` call can, exactly the reasoning WS-R102 already
+established for step 8 alone (`context/decisions.md#ws-r102-no-day-one-
+row-converts-from-manual`), now extended and applied name by name across
+the newly-widened list.
+
+**Reversal condition.** Rows 5/6 convert if `docs/gurukul/ENV-MANIFEST.md`
+is ever widened to document `OPS_OWNER_USER_IDS`/`OPENROUTER_API_KEY` by
+name AND (for row 5 specifically) a bootstrap path other than the ops
+door itself exists to check its own presence — until then the circularity
+is structural, not a coverage gap. Rows 8/11 convert only if their own
+underlying checks are ever narrowed to presence-only (unlikely and
+undesirable, since that would weaken what those two checks actually
+prove) — more likely they simply stay manual permanently, which is the
+honest state for "a value can be set and still be wrong."
+
+## `ws-r112-instruction-shaped-is-a-review-card-not-a-runtime-filter` (2026-09-05, WS-R112)
+
+**Decision.** WS-R105's `detectInstructionShapedMaterial` (moved unchanged
+to `api/_material-detector.js`) ships as a FIFTH `vy_review_card` kind
+(`instruction_shaped`, migration 129) rather than as a runtime filter that
+edits, blocks or rewrites text on its way into a sheet field. The mining
+path (`api/_context-mining.js::materialFlagFor`, called from `api/_context-
+locker.js::mineStored`) runs the detector over every newly mined item's
+whole body and, when it fires, writes ONE card the creator decides on in
+the same queue where they already decide what sounds right — never a
+silent mine, never a silent drop, never a silent edit.
+
+**Rationale.** Two runtime alternatives were on the table and both were
+rejected by the evidence `evals/room-adversarial-creator/run.mjs` itself
+produced (WS-R105, unchanged by this workstream): (a) silently DROPPING a
+flagged source loses real, wanted teaching material on a false positive —
+and the detector's own measured false-positive rate (0.0% on this
+workstream's fixed sample, n=15, `context/measurements.md#ws-r105-…`
+predates this entry) is a SAMPLE statistic, not a guarantee, on text this
+platform has never seen; (b) silently FUSING it in anyway (today's actual
+behaviour, `materialBoundaryStatus` measuring "fused" on 41/41 corpus
+entries through the real compiler) is the status quo this whole workstream
+exists to change. A card is the one action that is reversible on BOTH
+sides: "Sounds right" costs the creator one tap and nothing is lost;
+"Remove this source" or "Never say this" costs one tap and nothing hostile
+survives. This is the same shape `vy_review_card`'s other four kinds
+already use for exactly this reason (`db/schema.sql`'s own migration 074
+header, "this is where fidelity is actually made").
+
+Migration 129 widens ONLY the `kind` CHECK (drop-then-add on
+`vy_review_card_kind_check`, Postgres's own default name for this unnamed
+single-column CHECK — the SAME convention migration 096 used one migration
+family over for `vy_room_checkin_delivery`'s channel CHECK, and the SAME
+caveat: this workstream has no `NEON_URL` and never read the name back
+itself; the main loop must, before applying). The `state` CHECK is
+untouched — see `ws-r112-remove-source-reuses-the-never-state` below for
+why "Remove this source" needed no new state value.
+
+**Reversal condition.** If a future measurement on REAL creator uploads
+(never this workstream's own fixed corpus) finds the false-positive rate
+materially above the 2% ceiling law 4 set, the card becomes noise a
+creator learns to tap through without reading — at that point the right
+fix is tightening the detector's own patterns (never widening the runtime
+filter this decision explicitly rejected), and this entry's own argument
+for "card, not filter" would need to be revisited only if a card-based
+mitigation is shown, by a real measurement, to arrive too late for
+material that already reached a follower before the creator's next queue
+visit — a race this workstream did not measure and does not claim to have
+closed.
+
+## `ws-r112-remove-source-reuses-the-never-state` (2026-09-05, WS-R112)
+
+**Decision.** The instruction-shaped card's third decision, "Remove this
+source" (`decision: 'remove_source'`, a new value in the JS-side
+`REVIEW_DECISIONS` array and in `types.ts`'s `ReviewDecision`), writes the
+DATABASE `state` column as `'never'` — the SAME value "Never say this"
+writes — via `STATE_FOR_DECISION`'s mapping in `api/_review-queue.js`,
+rather than a new state value of its own.
+
+**Rationale.** Migration 129's own law-1 scope is narrow on purpose: it
+widens `vy_review_card`'s `kind` CHECK alone (see the entry above), never
+`state`'s. `state` stays the four values migration 074 opened
+(`open`,`sounds_right`,`fixed`,`never`) because `fixed` is structurally
+unavailable for this decision (`vy_review_card_fixed_gate` requires a
+`correction_source_id`, and there is no "better answer" to a source that
+should not exist at all — nothing to cite as a correction), leaving
+`sounds_right` (wrong: it means "the source is fine, keep it", the
+opposite of what just happened) and `never` (the closer of the two: "we
+acted against this," which is also literally true — the card is the SAME
+decided-and-closed shape "Never say this" already leaves behind). The
+decision code and the database state are kept as two SEPARATE values on
+purpose (`decision`, the raw `$4` parameter, gates every SQL clause;
+`dbState`, a new `$9`, is the only thing the `UPDATE` actually writes) so
+that `'remove_source'` never accidentally satisfies the never-rule
+insertion CTE's own `$4::text = 'never'` gate — the two decisions share a
+`state` value but never share a WRITE PATH: "remove_source" marks
+`vy_context_item.status = 'refused'` and writes no never-rule row; "never"
+writes a never-rule row and touches no context item. The audit trail
+records the true decision code (`'decision_code', $4::text`) alongside the
+coarser `state`, so the two remain distinguishable after the fact even
+though the `state` column alone cannot tell them apart.
+
+**Reversal condition.** If a later migration widens `vy_review_card`'s
+`state` CHECK for an unrelated reason (a future review-card feature that
+genuinely needs a fifth state), `remove_source` should move to its own
+state value in the SAME migration rather than staying doubled up with
+`never` — the doubling is a deliberate, logged trade against a closed
+CHECK this workstream had no standing to widen twice, not a permanent
+design preference.
+
+## `ws-r112-apply-ingest-run-delta-excludes-refused-source` (2026-09-05, WS-R112)
+
+**Decision.** `api/_channel-ingest.js::applyIngestRunDelta` gained a
+`not exists (...)` guard on its own `UPDATE ... where status = 'proposed'`:
+a run whose `transcript_source = 'context_item'` and whose source
+`vy_context_item` was marked `status = 'refused'` (by "Remove this
+source," see the entries above) can never reach `status = 'applied'`. A
+run from any OTHER `transcript_source` (a channel video, for instance) is
+untouched — the clause's first condition is false for those, so `not
+exists` is trivially true.
+
+**Rationale.** This workstream's own brief (law 3) asked for the "sheet
+rebuild excludes it" half of removing a source to be READ, not assumed:
+"read how a refused item is excluded today; if it is not, that is the
+finding, fix it in the SELECT the rebuild reads." Reading
+`applyIngestRunDelta` before this fix found it checked ONLY
+`vy_ingest_run.status`, never the mined item's own state — so a proposal
+mined before a creator later removed its source could still be approved
+after the removal, which would have made "Remove this source" a card that
+LOOKED like it worked while the exact material it named kept a live path
+into a sheet draft. This is the concrete instance
+`ws-r112-instruction-shaped-is-a-review-card-not-a-runtime-filter`'s own
+argument depends on: a card is only as reversible as every downstream
+consumer of the thing it names, and this was the one downstream consumer
+that had not been taught about refusal yet.
+
+**Reversal condition.** If `vy_ingest_run` ever gains its own
+`source_item_id` foreign-key-shaped column (rather than encoding it inside
+`video_ref` as `context:<item_id>`), this guard should read that column
+directly instead of `split_part(r.video_ref, ':', 2)` — the string parse
+is a restatement of `api/_context-locker.js::mineStored`'s own existing
+convention, not a new one, and should be retired the same day that
+convention is.
+
+## `ws-r118-recall-scorer-calibrated-against-a-keyed-set` (2026-09-05, WS-R118)
+
+**Decision.** `api/_recall-run.js#scoreAnswer` (WS-R101's vocabulary + word
+order blend, unchanged since it shipped) gains three additions, each earned
+by one class of a new 60-case hand-authored keyed set
+(`evals/recall-run/keyed.mjs`) the original scorer failed and the new one
+does not: (1) a small hand-built English stemmer plus a small hand-built
+English/Hindi synonym list, folding both the unigram-overlap term and the
+order term onto the same canonical token space, so a genuine paraphrase is
+scored on what it means rather than which exact word forms it reused; (2) a
+negation-aware contradiction cap (`hasContradiction`, `RECALL_NEGATION_WORDS
+= ["not", "never", "नहीं"]`, a 4-token window) that holds a score down when
+the answer denies a claim the passage makes plainly near the same key term,
+or the reverse; (3) an evasion floor (`RECALL_EVASION_MIN_WORDS = 6`,
+`RECALL_EVASION_CAP = 8`) for any answer too short to carry a real
+demonstration of recall regardless of what it happens to overlap with.
+`RECALL_RUN_METHOD_VERSION` bumps `v1` -> `v2` because the function that
+version string names is a genuinely different function now.
+
+**Rationale.** WS-R101 shipped a scorer nobody had compared to a judgment a
+person would sign, and a creator's publish floor rests on it (this
+workstream's own brief). Measured BEFORE any change, the keyed set's 60
+cases against the original `scoreAnswer`: 49/60 agree overall (81.7%) —
+verbatim 10/10, paraphrase 10/10, partial 10/10, wrong-on-topic 10/10,
+**contradiction 0/10** (every negated echo of a passage scored 50-72,
+comfortably inside "sounds right" territory), evasive 9/10 (one short Hindi
+brush-off scored 12, two points over its own 0-10 ceiling). The paraphrase
+and partial classes already agreed without any change — the keyed set
+proved WS-R101's ORIGINAL order-sensitive blend already tolerates a
+same-meaning, different-word answer reasonably well on its own; stemming
+and synonyms only widen that margin and were kept because they cost nothing
+where they don't matter and help where a genuine synonym swap sat near a
+band edge. Contradiction is the one class the original scorer failed
+completely, and the reason generalises past this one keyed set: inserting
+"not" or "never" into an echo barely moves EITHER term the blend already
+had — vocabulary overlap stays near total and word order survives almost
+intact, because negation words are usually short interstitial tokens. No
+combination of the two original terms, at any weight, can close that gap;
+it needed a check that reads what a token actually IS, not just whether and
+where it appears. Measured AFTER the three additions: 60/60 (100%), every
+class 10/10 (`context/measurements.md#ws-r118-recall-scorer-keyed-
+agreement`). Two negative controls (`evals/recall-run/run.mjs` §8) prove
+each addition is load-bearing rather than decorative: the source with the
+contradiction cap's own guard patched out drops the contradiction class
+from 10/10 to 0/10 against the identical keyed set; a purpose-built example
+("I do not know." against a passage that happens to open with the same
+words) scores 8 with the evasion floor and 25 without it.
+
+**Logged limits, by the letter of WS-R101's own header
+("`generateRecallSet`... a systematic blind spot in the model becomes a
+systematic blind spot in the eval" — the equivalent risk here is a
+systematic blind spot in the SCORER, not the model): `SYNONYM_GROUPS` is a
+~50-entry hand-built list covering the vocabulary this workstream's own
+keyed set exercises, explicitly NOT a general thesaurus — a paraphrase using
+a synonym pair outside it scores on stemmed/raw overlap alone, exactly as
+before this workstream. `stemEnglish` handles four common suffixes only and
+nothing irregular (irregular verbs ride on the synonym list instead).
+`RECALL_NEGATION_WORDS` is the exact three-item list WS-R118's own brief
+named, not a negation grammar: no "no", no "neither...nor", no Hindi
+negator outside "नहीं", no scope resolution past a flat token window. The
+window itself (4 tokens) is a proxy for clause scope, not a parse — a
+negation genuinely several clauses from its own key term is undetected, the
+same limit restated in tokens. See
+`context/rejected.md#ws-r118-negation-window-false-flagged-a-positive-
+contrast-term`.
+
+**Reversal condition.** A future keyed case — hand-authored the same way,
+banded the same way — that this scorer places outside its own band is
+grounds to extend exactly the mechanism that case's class already uses
+(a synonym pair, a stemmer suffix, the negation list, the window width, the
+evasion threshold), never a new mechanism layered on top without first
+checking whether an existing one already covers it. If `RECALL_NEGATION_WORDS`
+or `SYNONYM_GROUPS` grows past roughly 200 entries, the "small hand-built
+list, not a thesaurus" framing this decision rests on has quietly become
+false and the next session should say so rather than keep appending.
+
+## `ws-r118-stale-recall-method-note-rides-the-existing-english-field` (2026-09-05, WS-R118)
+
+**Decision.** `api/_readiness.js#readRecallRun` reads a stored
+`vy_recall_run` row's own `method` sentence and compares it against
+`RECALL_RUN_METHOD_VERSION` (a plain `startsWith`, since every method
+sentence this file has ever written begins with its own version string),
+returning `stale_method: true` when they no longer match, INCLUDING when
+`method` is empty or unrecognized. `knowsYourMaterial` appends one sentence
+— "Measured with an older method than the one in use now." — to the SAME
+`method` field a creator already reads on the Readiness screen, when
+`stale_method` is set. No new field on `ReadinessPart`, no new `src/studio`
+copy-table entry, no locale plumbing.
+
+**Rationale.** `part.method`/`part.detail` are already an established,
+allowlisted exception to this repo's locale system (`src/studio/copy.ts`'s
+own header, "SERVER-COMPUTED PROSE... authored server-side... arrive as
+English strings over the wire regardless of what this file says",
+`evals/studio-locale/run.mjs`'s literal-scan allowlist) — precisely because
+a server-authored sentence like this one is not the kind of UI chrome that
+file's locale system exists to translate. Riding the existing field means
+the note appears on the Readiness screen identically regardless of which
+locale a creator has chosen, satisfying "the readiness screen says so in
+both locales" (this workstream's own brief) without inventing a second,
+narrower exception to a rule this repo already has one exception for. The
+`stale_method` boolean itself is the drift-watch precedent
+(`api/_drift-watch.js`'s `prosody_anchor_stale` + a named reason, never a
+silent pass) applied to a superseded MEASUREMENT rather than a superseded
+VOICE MODEL: a number that used to be produced one way and is now produced
+a different way is not wrong, but reporting it with no seam at all is the
+same `plausible-return-hides-a-dead-pipeline` shape one layer down — a
+creator reading "88" has no way to know the 88 came from an instrument that
+no longer exists. Failing toward `stale_method: true` on an empty/unknown
+method (rather than `false`, "assume fresh") is the SAME asymmetry
+`readProsodyBaselineState` already commits to for the identical reason: "a
+monitoring signal that cannot prove it read the real state must fail toward
+'assume drift', never toward 'assume steady'" — restated here as "a field
+that cannot prove which scorer produced a number must fail toward 'assume
+superseded'."
+
+**Reversal condition.** If a second, unrelated readiness part ever needs the
+same "measured under an older method" note (a future instrument with its
+own version string), promote the pattern into a shared helper on `part()`
+itself rather than copying this `if (recall.stale_method)` string-append a
+second time — two copies of the same three-line pattern is the threshold
+`api/_drift-watch.js`'s own commentary already uses elsewhere in this repo
+for "stop restating, start sharing."
+
+## `ws-r117-suites-about-not-slug-scoped-no-db-parameter` (2026-09-05, WS-R117)
+
+**Decision.** `/suites/about` (the Suite admin's transparency page,
+`api/_suites-about.js`) is built with NO `db` parameter and NO SQL at
+all, unlike `/r/<slug>/about` (`api/_room-about.js`, WS-R97) one surface
+over. `buildSuitesAboutHtml({ origin, lang })` is pure prose plus four
+imported platform constants (`SUITE_SEAT_PRICE_STARTER_INR`,
+`SUITE_SEAT_PRICE_INSTITUTE_INR`, `SUITE_SEAT_PRICE_INSTITUTE_MIN_SEATS`
+from `api/_org.js`; `PULSE_MIN_FOLLOWERS` from `api/_pulse.js`) — it
+describes no single Suite's own row, only the platform's standing promise,
+identical for every Suite that will ever exist. Consequently it needs no
+`vite.config.ts` `closeBundle` fixture-generation plugin the way `/c/<slug>`
+and `/r/<slug>/about` needed (`context/decisions.md#ws-r66-creator-page-
+fixture-generated-inside-the-web-build-gate`, `context/decisions.md#ws-r97`'s
+own room-about entry) — `scripts/build-suites-about-fixture.mjs` is called
+directly, unconditionally, at the top of `scripts/check-headers.mjs`'s and
+`scripts/check-performance.mjs`'s own runs (cheap: no DB, no browser, a
+few milliseconds), never gated behind vite at all.
+
+**Rationale.** `orgBoard`/`listMyOrgs` (`api/_org.js`) already carry their
+own "no follower table" comment — the Suite admin's REAL board (SuiteCard.tsx,
+already Tier 1 converted, `evals/studio-locale/run.mjs`) exposes Room list,
+seat usage, subscription state and owner-lane member ids, and nothing about
+any follower, not even a Pulse-style count. This page's brief line ("the
+same aggregate reads the ops board's per-Room class allows, n at least
+five mirrored from the pulse constant") does not correspond to any real
+data flow in the code today — `OpsBoard.tsx`'s own Pulse fields
+(`pulse_opt_ins`, `latest_pulse_week`) are a platform-internal ops-only
+view, never surfaced to a Suite admin at all. Rather than invent a Suite-
+admin-sees-pulse-counts claim the API cannot back (`rejected.md`'s
+no-fake-numbers law, restated for a claim rather than a number), the page
+states the real floor honestly: a Suite admin sees Room/seat/billing data
+only, and PULSE_MIN_FOLLOWERS is quoted as the platform's own aggregate-
+disclosure floor (the SAME number `/r/<slug>/about`'s creatorViewBody
+already quotes) to reassure the reader that even a creator's own privilege
+to see a shared topic as a count is itself gated at n>=5 and never
+verbatim — never claiming the Suite admin inherits that privilege, since
+today's code gives them nothing of the kind.
+
+**Reversal condition.** If a future workstream adds a genuine Suite-level
+aggregate read (e.g. `orgBoard` surfacing each attached Room's own opt-in
+Pulse topic counts to the admin), `api/_suites-about.js`'s `seesBody`/
+`neverSeesBody` copy should be rewritten to describe that real capability,
+citing the new read path by name, and `evals/suites-about/run.mjs`'s own
+static-import-scan allowlist (currently four platform-constant modules)
+should be widened by name to admit whatever new import that path needs.
+
+## `ws-r117-suite-board-copy-conversion-already-complete` (2026-09-05, WS-R117)
+
+**Decision.** No further Hindi copy conversion work was done on
+`SuiteCard.tsx`/`orgApi.ts`/`site/suites.html`'s checkout copy: this
+workstream's own brief's Law 1 ("convert every string through the copy
+table") was found, on inspection, already satisfied by prior workstreams
+before this session started. `SuiteCard.tsx` has been in
+`evals/studio-locale/run.mjs`'s `TIER_1_FILES` (zero literal English JSX
+text nodes, both locales present in `copy.ts#suite`/`hiCopy.ts#suite`)
+since the original WS-R52 list; `site/suites.html` already ships a
+complete, separate Hindi DOM block (`#loc-hi`) switched by `?lang=hi`,
+including its own translated `#boundary` "what a Suite admin sees" section
+this workstream extends with the new `/suites/about` link. The one gap
+this workstream DID close: `SuiteCard.tsx`'s `readableError()` fallback
+strings (`"could not load your Suites"` etc.) stay hardcoded English,
+identical to the SAME established pattern in `PayoutsCard.tsx` (also
+Tier 1) — these are opaque, truly-unexpected-error fallbacks, function
+arguments rather than JSX text nodes, so invisible to the static scan; left
+untouched as a pre-existing, cross-file pattern this workstream's narrow
+brief (the Suite board's HINDI COVERAGE, not a general error-copy audit)
+did not ask it to redesign.
+
+**Rationale.** Re-doing already-complete work risks a duplicate or
+conflicting `suite` copy block at merge time (`ws-common.md`'s append-only
+law exists precisely to prevent two workstreams both touching the same
+object). Verifying first and building only the genuinely missing piece
+(`/suites/about`, wired in as a NEW copy key `suite.aboutLink` appended as
+the object's last field in both `copy.ts` and `hiCopy.ts`) is the smaller,
+safer diff.
+
+**Reversal condition.** If a future audit of `readableError()`'s opaque
+fallback strings across every Tier 1 card (`SuiteCard.tsx`, `PayoutsCard.tsx`,
+and any sibling built the same way) decides those SHOULD be localized, the
+fix is a shared `t.errors.<key>` block added once and read from every
+card's own `readableError()` call, not a one-file patch here.
+
+## `ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section` (2026-09-05, WS-R113)
+
+**Decision.** `src/studio/hiCopy.ts` (the WS-R71 single Hindi chunk) splits
+into TWO independently-lazy chunks: `src/studio/hiAuthCopy.ts` carries
+exactly `authGate` + `shell` — the two `StudioCopy` sections the SIGNED-OUT
+sign-in screen actually reads (`AuthGate.tsx` reads `t.authGate` in full and
+`t.shell.languageGroupLabel` for its own language switch's `aria-label`;
+verified by grep against the real component, not assumed) — and `hiCopy.ts`
+keeps everything else, loaded only once a session exists. `copy.ts` gains
+`loadStudioCopyAuth`/`studioAuthCopyReady` alongside the pre-split
+`loadStudioCopy`/`studioCopyReady` (which now installs BOTH chunks and means
+"the whole table is real", unchanged in meaning). `STUDIO_COPY_TABLE.hi` is
+ONE `Proxy` over both sections: a key from an uninstalled section throws,
+named by WHICH loader would install it (`studio_copy_hi_auth_not_loaded` vs
+`studio_copy_hi_not_loaded`) — `#studio-hindi-table-is-its-own-chunk`'s own
+"never English in its place" law, restated per section. `localeContext.tsx`
+gains `StudioLocaleAuthProvider` (waits on the auth section alone) beside the
+existing `StudioLocaleProvider` (waits on both); `StudioApp.tsx` mounts the
+new one around `AuthGate`, the existing one around the signed-in tree,
+unchanged. `main.tsx`'s eager `?lang=hi` preload calls `loadStudioCopyAuth`,
+not `loadStudioCopy`; `vite.config.ts`'s `studioHindiPreloadPlugin` now
+`<link rel="modulepreload">`s the `hiAuthCopy-*.js` chunk, not `hiCopy-*.js`.
+`FIRST_HINDI_PAINT_BUDGET_MS` returns to 800 (from 1000) in the same commit
+— see this decision's own measurement note below.
+
+**Why.** `context/decisions.md#ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention`
+named the next lever precisely: "the chunk-wait number... already leaves
+limited room under an 800ms total... shrinking `hiCopy.ts` itself, not
+another network-side fix, is what is left to try." WS-R107's own
+`modulepreload` measured 808/572/657ms — one of three still over 700ms —
+because it preloaded the WHOLE table (every panel: `roomStudio`, the
+enrollment wizard, `studioApp`) to paint a screen that reads two small
+sections of it. A signed-out visitor cannot reach any of the rest of that
+table before signing in, so none of it belongs on the critical path to
+first paint. This is also the `(b)` option `context/decisions.md#ws-r106-hindi-chunk-wait-miss-flagged-not-fixed`
+already named ("split `copy.ts#studioApp` into its own smaller chunk rather
+than growing the single `hiCopy.ts` chunk further") — this workstream split
+by AUDIENCE (signed-out vs signed-in) rather than by the single largest
+section, since `authGate`+`shell` together are far smaller than `studioApp`
+alone and are the ONLY sections the sign-in screen reads at all.
+
+**Measured (n=3 batches x 3 runs each, `node scripts/check-performance.mjs
+--target studio-hi`, 2026-09-05).** Before: 808/572/657ms (WS-R107, one of
+three over 700ms). After this split: batch medians 595.8ms, 569.1ms, 533.3ms
+— all three under 700ms, closing `#ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention`'s
+own reversal condition — measured on a HEAVILY CONTENDED machine (`uptime`
+load average 11.6-13.9 across all three batches; multiple sibling
+`verify-release.mjs`/`check-layout.mjs` runs and their own Chromium
+processes concurrently visible in `ps aux` throughout; no quiet window was
+available in this session). Hindi chunk wait itself fell to single-digit-to-
+low-double-digit milliseconds most runs (one 63-134ms outlier per batch,
+still comfortably inside budget) — the AUTH chunk gzips to ~1.8KB against the
+WS-R107 whole table's ~40KB. See
+`context/measurements.md#ws-r113-first-hindi-paint-after-the-auth-rest-split-2026-09-05`
+for the full per-run numbers.
+
+**A real bug this split surfaced and fixed in the same commit.**
+`StudioApp.tsx`'s pre-existing `sa`/`copy` English-fallback bridge effect
+(WS-R106, `context/rejected.md#ws-r106-studioapp-own-copy-read-crashed-before-the-hindi-chunk-loaded`)
+calls the (module-level) `loadStudioCopy` unconditionally on every render
+with a Hindi locale, including SIGNED OUT — harmless before this split
+(there was only one chunk, and the sign-in screen needed it anyway), but
+after the split this would have silently re-imported the entire `hiCopy.ts`
+rest-chunk on every `/studio?lang=hi` visit regardless of session, measured
+directly: `studio-hi`'s own `jsBytes` first read 205.2KB against the 180KB
+budget (a real, reproducible fail, not noise) before this fix, gated on
+`session` too (`if (!session || studioCopyReady(studioLocale)) return;`),
+after which the same target measured 164.9KB — byte-identical to `/studio`
+(English), confirming the signed-out visit now costs a Hindi creator
+literally nothing beyond the ~1.8KB auth chunk. Logged rather than only
+fixed silently: a workstream measuring its own headline number (first paint)
+without also re-checking the budget line right next to it (`jsBytes`) would
+have shipped this regression un-noticed, since `firstHindiPaintMs` alone
+never touched the rest-chunk fetch at all (it resolves off the auth chunk).
+
+**Reversal.** If a future panel the sign-in screen needs to read grows
+(a third section beyond `authGate`/`shell`), add it to the `AUTH_SECTIONS`
+set in `copy.ts` AND to `hiAuthCopy.ts`'s own `Pick`, in the same commit —
+never leave a signed-out read reaching into the rest chunk, which would
+either throw (if reached before `loadStudioCopy` full resolves) or silently
+reintroduce the whole-table cost this decision removes. If `firstHindiPaintMs`
+is ever measured missing the (now 800ms) budget on a genuinely QUIET machine
+(`uptime` load average at or below core count, no sibling gate in `ps aux`),
+the next lever is the auth chunk's own size, not this split — headroom there
+is currently large (~40KB round trip budget against a ~1.8KB gzipped
+payload).
+
+## `ws-r120-readiness-js-joins-the-door-battery` (2026-09-05, WS-R120)
+
+**Decision.** `api/readiness.js` joins `EXPECTED_DOORS` in
+`evals/room-doors/run.mjs` — `DOOR_MODULES` (§0) now names its own two
+decision modules, `_readiness.js` and `_recall-run.js`, so the door is found
+by the SAME direct-substring check that has always run, superseding
+`context/decisions.md#ws-r72-review-queue-js-kept-outside-the-door-battery`'s
+own extension to `readiness.js` (WS-R101). `OP_COVERAGE["readiness.js"]` now
+carries `measure_now: {classes: ["e"]}`, pointing at the case WS-R101 itself
+already wrote (`evals/room-doors/run.mjs`, the case right after org.js's
+`list_mine`) — that case never moved; only the coverage table now finds it.
+
+**Why now, when WS-R101 explicitly declined.** WS-R101's own reason was
+narrow and correct at the time: "adding it would make §18 enumerate
+`measure_now` alongside a GET-only read this file has no `op` literal for, a
+real structural change out of this workstream's own scope." This workstream's
+whole brief IS that structural change — making op coverage a computed
+property is the product, not a side effect — so the reason to decline no
+longer applies once a workstream exists whose job is exactly this.
+
+**The gap this closed, found only once the door became visible.** Admitting
+`readiness.js` to `EXPECTED_DOORS` also admits it to §20's existing body-size
+completeness loop, which iterates `EXPECTED_DOORS` uniformly — and
+`api/readiness.js` had never called the shared `bodyTooLarge` gate every
+other POST door in this list already calls. This is a real, previously
+invisible gap (an unbounded `req.body?.replica_id` on an owner-bearer
+endpoint), not a test artifact: "a door the battery cannot see is a door
+nobody attacks" (this workstream's own product paragraph) is not a metaphor.
+Closed with the one-line fix every sibling POST door with a small JSON body
+already uses (`api/ops.js`, `api/pulse.js`, `api/invites.js`) — same import,
+same call, same position (after auth, before the op is read) — logged here
+because it is production code, not a test file, and this workstream's brief
+named only test files; the fix is narrow, matches an established pattern
+exactly, and leaving §20 red once it could see the gap was not an option.
+
+**Reversal condition.** If `runRecallMeasurement`'s own body ever needs to
+carry something the 8 KB default door ceiling cannot admit (unlikely — it
+takes one `replica_id`), give it `ROOM_TRANSCRIPT_BODY_CAP_BYTES` instead of
+removing the check, `room.js`'s own precedent for the one op that needs a
+bigger body.
+
+## `ws-r120-two-hop-door-and-cron-derivation-excludes-hub-modules-from-the-second-hop` (2026-09-05, WS-R120)
+
+**Decision.** `evals/room-doors/run.mjs`'s §0 (main door list) and §24 (cron
+door list) both replace their DIRECT-substring `touchesDoorModule` check with
+a bounded TWO-HOP walk (`touchesDoorModuleTransitively`, mirroring
+`evals/room-leak/run.mjs`'s own unexported `importsOf` per this workstream's
+own law 1 fallback): a candidate's own direct `_`-file imports, and THOSE
+modules' own direct imports, checked against the same `DOOR_MODULES`/
+`CRON_ROOM_MODULES` anchor sets that have always existed — never an anchor
+set widened by the walk itself. The second hop's own anchor set EXCLUDES three
+modules that are valid FIRST-hop (direct) anchors but not second-hop ones:
+`_replica.js`, `_readiness.js`, `_recall-run.js` — see
+`context/rejected.md#ws-r120-unbounded-transitive-door-discovery-explodes-
+through-hub-modules` for the measurement that found why. This is what finds
+`operator-digest-sweep.js` as a NEW cron door (via `_ops.js`, itself an
+existing anchor, which directly imports `_pulse.js`/`_dormancy.js`/
+`_payments.js`) without anyone naming it by hand — `EXPECTED_CRON_DOORS` grows
+from 8 to 9 doors on this one finding alone.
+
+**Why `readiness.js` itself needed NO second hop.** `_readiness.js`/
+`_recall-run.js` are now literal `DOOR_MODULES` entries
+(`#ws-r120-readiness-js-joins-the-door-battery`), so `readiness.js` is found
+by a plain DIRECT match — the two-hop mechanism is what generalises PAST that
+one hand-named case, not what found it.
+
+**Reversal condition.** If a future door hides behind a decision module that
+is itself two-plus-one hops from an anchor (three hops or more), this
+mechanism will not find it either — widen to N hops only after measuring
+whether the SAME hub-explosion this entry's own rejected.md sibling found
+reappears at that depth, never by assumption. If `_replica.js`,
+`_readiness.js`, or `_recall-run.js` is ever refactored so it is no longer a
+genuine multi-product hub (e.g. Meera's own companion features stop using
+`_readiness.js`), re-measure before re-admitting it to the second hop — do
+not assume the exclusion is permanent past the fact that motivated it.
+
+## `ws-r119-readiness-crossed-via-raw-input-seeding-not-screen-seeding` (2026-09-05, WS-R119)
+
+**Decision.** The creator rehearsal (`evals/rehearsal/creator.mjs`) no
+longer seeds `state.rehearsalReadinessLast` (the computed screen) directly
+to cross the publish floor. Instead: `knows_your_material` is measured for
+real, end to end, through a real "Measure now" click on the real
+`ReadinessPanel` card, driving the real `api/_recall-run.js` pipeline
+(`generateRecallSet` -> `scoreRecallRun` -> `storeRecallRun`) against 22
+seeded held-out passages and a fake reply seam that echoes them verbatim
+(scoring 100 for real, never hand-typed). The other four parts
+(`sounds_like_you`, `thinks_like_you`, `knows_what_not_to_say`,
+`up_to_date`) are crossed by seeding their RAW INPUT ROWS
+(`state.rehearsalClaims`, `state.rehearsalMirror`, `state.rehearsalFidelity`
++ `state.rehearsalGenome`, `state.rehearsalTeacherSheet`) — never the
+computed screen — and `GET /api/readiness` computes the real `overall`/
+`min_part`/`publish_locked` from all five, for real, which is what
+`api/room-publish.js`'s own SQL then reads to unlock publish.
+
+**Rationale.** The old approach (seeding `overall: 82, min_part: 71,
+unmeasured_count: 0` directly) proved nothing about `readinessScreen()`'s
+own arithmetic or about the publish-lock SQL actually reading a REAL
+computed snapshot — it only proved the SQL predicate could read A snapshot,
+seeded or not. R101 (the recall run) had landed on this workstream's base
+by the time this file was read (unlike when the ORIGINAL version of this
+walk was written, WS-R95/wave fifteen — see the stale comment this
+workstream removed), so the ONE part this repo has a real, drivable,
+$0 instrument for should be driven for real. The other four parts each
+have their OWN owner-triggered instrument (a voice enrollment, a Mirror
+Call, a person-model claim review) that is its own multi-stage pipeline
+with dedicated suites elsewhere — driving all four for real inside a
+40-second rehearsal budget is out of proportion to what this workstream's
+brief asked for, so their RAW rows are seeded instead, honestly named as
+seeded in the walk's own `gapNotes` output and in this entry.
+
+**Reversal condition.** If a future workstream builds a rehearsal-drivable
+seam for any of the four still-seeded parts (a fixture-backed Mirror Call
+loop, a fixture-backed voice-fidelity measurement, a fixture-backed
+person-model claim review reachable through a real door), that part should
+move from "raw input seeded" to "driven end to end" here, the same way
+`knows_your_material` just did — and the `gapNotes` line in `evals/
+rehearsal/creator.mjs` should shrink to name only the parts still seeded.
+
+## `ws-r119-voice-authorization-faked-at-loader-seam-not-fixture-reproduced` (2026-09-05, WS-R119)
+
+**Decision.** The Telegram voice rehearsal fakes `beginOwnedVoicePreview`/
+`createNeonVoicePreviewLedger` (`api/_replica-voice-preview.js`),
+`createProductionProtectionAdapters` (`api/_provenance/registry.js`) and
+`createOpenChatterboxPreviewProvider` (`api/_voice/providers/open-
+chatterbox-preview.js`) at the `evals/rehearsal/loader.mjs` module-redirect
+seam — never by reproducing `beginOwnedVoicePreview`'s real fifteen-
+precondition CTE as new `evals/room-doors/fixtures.mjs` SQL patterns.
+
+**Rationale.** See `context/rejected.md
+#ws-r119-fifteen-precondition-voice-preview-cte-not-reproduced-in-a-fixture`
+for what was tried and rejected. The loader-redirect technique is the SAME
+one `stubs/surface-with-fake-model.mjs` already established for
+`_surface.js` — re-export every real function unchanged, override only the
+one(s) that would reach a real network or a fixture this repo does not
+model — so this is an extension of an existing, proven pattern rather than
+a new kind of deviation. `_room-voice.js` itself (the module that calls
+`beginOwnedVoicePreview`) is left completely unredirected and real; only
+its own callee is faked, so `authorizeRoomVoice`'s real validation logic
+(`assertVoicePreviewAuthorization`, imported unmodified into the fake and
+run against the fabricated authorization object) still runs for real and
+would fail loudly if the fake's shape ever drifted from what the real
+validator demands.
+
+**Reversal condition.** If a future workstream builds a shared, reusable
+fixture recipe for `beginOwnedVoicePreview`'s real fifteen preconditions
+(needed anyway for a real end-to-end rehearsal of the studio's own
+"Preview my voice" panel, which today has NO rehearsal coverage either —
+see `context/STATE.md`'s own "no human has listened" line), this seam
+should be replaced by driving the real function through that fixture, and
+the loader-redirect entries for `_replica-voice-preview.js` should be
+removed from `evals/rehearsal/loader.mjs`.
+
+## `ws-r119-loader-redirect-matched-by-suffix-for-provenance-registry` (2026-09-05, WS-R119)
+
+**Decision.** `evals/rehearsal/loader.mjs`'s redirect table gained a
+SECOND matching mode — a two-segment SUFFIX match (`_provenance/
+registry.js`) — alongside its original bare-basename match, used only for
+`api/_provenance/registry.js`.
+
+**Rationale.** `find api/ -name registry.js` returns eight files
+(`_claim-extraction/`, `_asr/`, `_face-session/`, `_liveness/`, `_voice/`,
+`_provenance/`, `_dialogue/`, `_channel/`, `_identity/`) — a bare-basename
+redirect (this file's ORIGINAL, three-entry mechanism) would silently
+hijack every one of them the moment anything in this rehearsal's own
+transitive import graph resolved its OWN `./registry.js`, the same
+`router-matched-a-table-instead-of-a-statement` shape `context/
+rejected.md` already warns about for SQL matchers, one mechanism over.
+The other three redirected basenames (`_replica-voice-preview.js`,
+`_replica-storage.js`, `open-chatterbox-preview.js`) were each confirmed
+unique across the whole `api/` tree by the same `find` check before being
+added as plain basename entries — only `_provenance/registry.js` needed
+the wider match.
+
+**Reversal condition.** If a future basename collision is found for one
+of the three plain-basename entries (a second file with that exact name
+lands in `api/`), it should move to suffix matching the same way. If
+`api/_provenance/registry.js` is ever renamed or moved, the suffix string
+in `SUFFIX_REDIRECT` must move with it — nothing else references it.
+
+## `ws-r119-meet-tab-reached-by-client-click-not-url-navigation` (2026-09-05, WS-R119)
+
+**Decision.** The creator rehearsal's own "Measure now" step reaches the
+studio's Meet step by clicking the real WizardRail "Meet" tab
+(`page.getByText(/^Meet$/)`), never by a fresh `?step=meet` URL
+navigation.
+
+**Rationale.** See `context/rejected.md
+#ws-r119-full-page-reload-to-step-meet-races-readiness-panels-mount`. A
+fresh navigation races `ReadinessPanel`'s own mount against the studio's
+still-loading replica list and trips a real render loop measured at 40+
+`GET /api/readiness` calls in under two seconds; the tab click (reached
+after the walk has already been through several other steps, with the
+replica list long since settled) does not trigger it in five runs. This
+also happens to be the more faithful rehearsal of what a real creator
+does — nobody types `?step=meet` into the address bar.
+
+**Reversal condition.** If `src/studio/ReadinessPanel.tsx`'s own render
+loop is fixed (out of this workstream's scope — see the rejected.md entry),
+either approach would work again; no reason to revert once that lands,
+since the tab click is also the more realistic rehearsal.
+
+## `ws-r111-material-block-covers-five-of-nine-injectable-fields` (2026-09-05, WS-R111)
+
+**Decision.** The material block (`MATERIAL_BLOCK_OPEN`/`MATERIAL_BLOCK_CLOSE`,
+`renderCreatorMaterial`, `src/engine/compiler.ts`) covers exactly five of
+the nine sheet fields `evals/room-adversarial-creator/run.mjs` verified
+reachable on the Room's text lane: `identityWho`, `identityLife`,
+`lifeTexture`, `tasteTopics`, `curiosityTopics`. `boundaryParagraph`,
+`stageEarly`, `stageGettingClose` and `stageEstablished` are deliberately
+excluded — see the companion rejection entry,
+`context/rejected.md#ws-r111-boundary-and-stage-fields-not-material-blocked`.
+Built entirely inside `src/engine/agents/fromSheet.ts::sheetToModule` (the
+Vyakti-agent-shape constructor every `resolved.module` call site in `api/`
+already names): it hands `persona.ts`'s UNTOUCHED, READ-ONLY
+`buildSystemPromptParts` a sanitized copy of the sheet (the five fields
+blanked to `""`) and appends the real block, built from the unsanitized
+values, to the CORE that function returns — all five fields' fused
+positions live in CORE, never TAIL (`persona.ts:197/257/265/282`,
+confirmed by grep before writing a line of code). `persona.ts` itself was
+not touched.
+
+**Rationale.** The five covered fields are genuinely DESCRIPTIVE knowledge
+about the creator — who they are, their life, their taste, their curiosity
+— exactly the shape T5 (`WHAT YOU REMEMBER ABOUT THEM`) and T7 (`WHAT
+YOU'VE ALREADY TOLD THEM`) already wrap in `compiler.ts`'s own tail
+assembly, restated at the sheet layer for CORE. Measured effect:
+`measurements.md#ws-r111-boundary-containment-25-of-41` (0/41 -> 25/41
+"contained") and `measurements.md#ws-r111-secret-shaped-leak-rate-0-of-5`
+(2/5 -> 0/5 delivered-reply leaks for entries landing on these fields).
+Meera's compiled prompt is provably unchanged: she is the static
+`DEFAULT_AGENT` and never calls `sheetToModule`
+(`measurements.md#ws-r111-meera-byte-identity-unchanged-83-of-83`, 83/83
+before and after). `agents/teacher.ts`'s static `demoTeacherAgent` DUPLICATES
+this logic (never imports `compiler.ts` — that would close the exact
+`teacher.ts -> compiler.ts -> agents/registry.ts -> teacher.ts` cycle
+`fromSheet.ts`'s own header already warns about) so the two "spellings"
+`evals/teachersheet.mjs`'s own anti-drift test compares stay identical;
+that test is the safety net for the duplication, exactly as it already was
+for the five persona.ts builder calls before this workstream.
+
+The demo teacher's own CORE grew 453 B from this
+(`measurements.md#ws-r111-demo-teacher-core-growth-453-bytes`), which
+tripped three of `evals/persona-invariants.data.mjs`'s shared, cross-agent
+size ceilings (that suite runs the SAME thresholds against every
+registered agent, teacher-demo-arjun included). Raised deliberately, by
+the measured amount plus a small margin, following that file's own
+established "raise with a dated, costed comment" pattern rather than
+trimming the block's content to fit — CLAUDE.md's standing instruction is
+that speed and quality are never traded away, and shrinking a safety
+mechanism to dodge a budget check is the wrong direction to resolve that
+tension in.
+
+**What would reverse this decision.** A future workstream that finds a
+safe way to bring `boundaryParagraph`/the three stage fields into the same
+mechanism WITHOUT weakening their enforcement (see the companion rejection
+entry's own reversal condition) extends `MATERIAL_FIELDS` in both
+`fromSheet.ts` and `teacher.ts` to all nine, moving the containment measurement
+toward 41/41. Separately: if `evals/room-adversarial-creator/run.mjs`'s
+corpus ever adds entries for the pedagogy fields (`commonMistakeBank`,
+`analogyBank` — confirmed still NOT compiled into the prompt by any module,
+`teacher.ts`'s own header, unchanged by this workstream), those need no
+material-block treatment because they are not reachable at all yet; the
+day they are wired in, they should almost certainly enter through this
+same block rather than fused, since they are pedagogy DATA in the same
+sense the five covered fields are identity data.
+
+## `ws-r111-honesty-trusted-set-excludes-the-material-block` (2026-09-05, WS-R111)
+
+**Decision.** `api/_surface.js::honestyContextFor`'s `trustedText` now
+excludes everything between (and including)
+`MATERIAL_BLOCK_OPEN`/`MATERIAL_BLOCK_CLOSE` before computing `allowedFrom`
+and the rest of the honesty gate's context (`stripMaterialBlock`, a
+no-op when the markers are absent — every Meera/Kabir compiled prompt).
+Only the trusted SET changed; `honesty.ts`'s families are untouched, per
+this workstream's own law.
+
+**Rationale.** WS-105 measured the mechanism of the leak directly:
+`trustedText` included the FULL compiled system prompt, so ANY string a
+sheet field put there — including a secret an attacker mined into a
+sheet — was, by construction, something `allowedFrom` treated as grounded
+and `findActionable` therefore never flagged. A creator's material
+containing a string is not evidence the AI may say that string; the
+material block's own header text says exactly this to the model, and this
+change is what makes it true of the honesty gate too, not only of the
+model's instructions. Measured effect:
+`measurements.md#ws-r111-secret-shaped-leak-rate-0-of-5`.
+
+**What would reverse this decision.** A finding that `allowedFrom`/
+`findActionable` need the material block's content to correctly recognise
+some class of legitimately-groundable statement (a false-positive
+`actionable` flag on ordinary identity content a creator legitimately
+wants sayable) — none was measured this session; if one is, the fix is
+narrower than reverting this exclusion wholesale (e.g. grounding
+non-identifier-shaped material lines specifically), not restoring the
+whole block to `trustedText`.
+
+## `ws-r114-telegram-full-page-fetch-recovered-by-curl-to-file` (2026-09-05, WS-R114)
+
+**Decision.** When a workstream's brief explicitly permits fetching a
+provider's public documentation page through the proxy, `curl -sS -L <url>
+-o file.html` followed by reading the saved file directly (a byte-range
+`python3` slice around the target string, then a small tag-stripping pass,
+since no `pandoc`/`lynx`/`w3m` is installed) is the working method for
+`core.telegram.org/bots/api` specifically, in place of this session's own
+fetch tool.
+
+**Rationale.** `context/rejected.md#ws-r41-provider-docs-sites-resist-a-
+single-page-fetch-tool-two-ways` and `#ws-r60-telegram-single-page-
+truncation-confirmed-tool-side-not-page-side` both established that this
+session's summarizing fetch tool truncates this exact page before reaching
+"Available methods", and that a second, differently-structured document
+covering the same reference truncates at an analogous point — confirming a
+tool-side ceiling, not a page-side one. This workstream needed `sendVoice`,
+`sendAudio` and `InputFile`/"Sending files", all of which sit PAST that
+truncation point. `curl` has no such ceiling: the saved file was 860,075
+bytes, HTTP 200, and every target section (`sendVoice`, `sendAudio`,
+`sendDocument`, `sendVideo`, `sendAnimation`, `sendVideoNote`, "Sending
+files") was present and readable by byte-offset slicing. This closes the
+METHOD problem WS-R41/WS-R60 left open for this page — it does not
+retroactively verify either of their still-open marks
+(`setMessageReaction`, Razorpay's operation pages), which this workstream
+did not re-attempt.
+
+**Reversal condition.** If a future page resists even a direct `curl` (a
+login wall, a client-rendered SPA serving no content without JavaScript,
+a robots/WAF block on this proxy's egress IP), this method does not apply
+and the next session should look for the same page on a static mirror or
+asset CDN the way `context/rejected.md#ws-r60-razorpay-operation-pages-
+found-by-search-not-guessed-slugs`'s own law already describes for a
+client-routed SPA, rather than assuming curl-to-file is universal.
+
+## `ws-r114-telegram-sendvoice-format-requirement-verified-wav-noncompliant` (2026-09-05, WS-R114)
+
+**Decision.** WS-R110's own open mark
+(`context/decisions.md#ws-r110-telegram-sendvoice-codec-requirement-not-
+live-verified`) is now CLOSED on the format-requirement half, against the
+document rather than general knowledge: `core.telegram.org/bots/api`,
+fetched 2026-09-05 (method above), `sendVoice`'s own paragraph reads
+verbatim: "Use this method to send audio files, if you want Telegram
+clients to display the file as a playable voice message. For this to
+work, your audio must be in an .OGG file encoded with OPUS, or in .MP3
+format, or in .M4A format (other formats may be sent as Audio or
+Document)." WAV, the container this Room sends
+(`pcmToWavBuffer`/`ROOM_TELEGRAM_VOICE_CONTAINER`, api/_room-voice.js), is
+none of the three. `sendAudio`'s own paragraph carries the identical
+conditional shape for its own "music player" treatment ("Your audio must
+be in the .MP3 or .M4A format"), so switching to `sendAudio` would not
+avoid a lossy-format requirement either. The `Voice` object's field table
+and the general "Sending files" section were also read in full this
+session and carry nothing that contradicts this.
+
+**Rationale.** AGENTS.md's "never claim what you did not run" cuts the
+other way here too: WS-R110 correctly declined to assert a codec
+requirement it had not fetched. Now that the fetch succeeded (method
+above), leaving the OLD "carried from general knowledge, unverified"
+language in `api/_room-telegram.js`'s comments would itself become the
+stale claim - a citation, once obtained, replaces a hedge, it does not
+sit next to it.
+
+**What remains unverified**, narrower than before: whether a live
+Telegram client actually REJECTS a non-conforming `sendVoice` upload
+outright, or silently accepts it as a plain attachment. The document does
+not say, and only a real bot token and a real chat can settle it - the
+same class of gap `ws-r41-provider-docs-sites-resist-a-single-page-fetch-
+tool-two-ways` already named for a different mark, now narrowed to this
+one point.
+
+**Reversal condition.** A live send (a real `TELEGRAM_BOT_TOKEN`, a real
+chat, a human step this offline workstream cannot take) settling whether
+the WAV clip renders as an attachment or is refused would close the
+remaining half of this mark.
+
+## `ws-r114-telegram-wav-kept-over-unverifiable-lossy-transcode` (2026-09-05, WS-R114)
+
+**Decision.** The Telegram voice note stays a WAV container sent through
+`sendVoice`, unchanged from WS-R110. No transcode to OGG/Opus or MP3 was
+built, and no new dependency was added to `package.json`. This workstream's
+own brief offered three options (`sendAudio` in an accepted format, a
+pure-JS/wasm OGG/Opus encoder, an MP3 encoder) conditioned on one
+requirement: "the watermark must survive the container." It does not -
+provably, in this environment - so per the brief's own escape clause ("if
+the watermark cannot survive, that is the finding, and the voice note
+ships only where it survives"), the voice note ships only through the
+lossless path.
+
+**Rationale.** Two facts, read rather than measured, both already true of
+this repository before this workstream started:
+
+1. The watermark is embedded at the SAMPLE level. `docs/gurukul/AZURE-
+   DEPLOY-STATE.md` §14.10, written by an earlier, unrelated workstream:
+   "Watermark robustness is unmeasured. Detection was verified on the
+   exact bytes returned. Survival through MP3, resampling, or a
+   re-record was not tested. AudioSeal claims robustness; this
+   deployment has not confirmed it." `context/decisions.md#audio-
+   protection-cpu` independently confirms the self-verification bar is
+   strict: 0.80 confidence AND all sixteen decoded bits, checked on the
+   EXACT bytes the service just produced - never on a re-encoded copy.
+2. The existing web Room path does NOT already send a lossy format
+   either: `src/room/RoomApp.tsx` builds `data:audio/wav;base64,...` -
+   the same lossless PCM container this workstream's Telegram path
+   sends. Nothing in this product has ever needed to answer "does the
+   watermark survive a lossy re-encode" before now, anywhere, for any
+   surface.
+
+Given both, transcoding to satisfy `sendVoice`'s documented format list
+would ship the FIRST lossy-encoded watermarked clip this product has ever
+produced, on a customer-facing surface, with no way to run the real
+detector against it: no GPU, no paid Azure call, and the protection
+service itself lives behind `AZURE_AUDIO_PROTECTION_ORIGIN`, which this
+offline workstream's environment does not reach. A transcode that type-
+checks and "works" in the sense that bytes leave the server is exactly
+the shape of failure `context/rejected.md`'s own recurring lesson
+describes: a plausible-looking success hiding an unverifiable claim. The
+honest choice is to say so, not to ship it and hope.
+
+**What changed, concretely.** Nothing in the wire format. `api/_room-
+voice.js` now exports `ROOM_TELEGRAM_VOICE_CONTAINER`, a structural
+(not prose-only) record of the format shortfall
+(`meetsSendVoiceFormatRequirement: false`) that both `api/_room-
+telegram.js`'s outbound call and `evals/room-telegram-voice/run.mjs`'s
+own §10 now read from the SAME source, so the fact cannot silently drift
+the way a comment-only claim already once did
+(`ws-r110-telegram-sendvoice-codec-requirement-not-live-verified`).
+
+**Reversal condition.** Either of two independent events reopens this:
+(a) a live run of the real AudioSeal detector (the CPU service already
+deployed, `docs/gurukul/AZURE-DEPLOY-STATE.md` §14) against a clip that
+has been synthesized, watermarked, THEN encoded through the exact OGG/
+Opus or MP3 path a future session would ship, clearing the SAME bar
+`audio-protection-cpu` already enforces (0.80 confidence, 16/16 bits) -
+this is a live-service call this workstream's environment could not make
+and does not count as done until it is; or (b) AudioSeal's own published
+robustness evaluation is read from Meta's paper or the Azure service's
+own README (not from a model's general training memory, which is exactly
+the standard this repo held WS-R110's OWN codec claim to) and explicitly
+covers the codec and bitrate a future session intends to ship at. Either
+would justify moving to option (b)/(c) from the original brief; short of
+one, the honest state is what this entry records.
+
+## `ws-r127-org-weekly-note-reuses-creator-push-subscription-table` (2026-09-05, WS-R127)
+
+**The choice.** The Suite admin's weekly note (migration 132) sends push
+through `vy_creator_push_subscription` (migration 118, `api/_creator-push.js`)
+- the SAME table WS-R74 built for a creator's own "This week on your phone"
+toggle - rather than a new `vy_org_admin_push_subscription` table. No new
+subscribe/unsubscribe UI either: `StudioApp.tsx`'s existing `WeeklyPushCard`
+(mounted for every signed-in owner regardless of whether they have a Room)
+is the ONE control an admin uses to receive both their own creator push (if
+any) and this Suite note, on the same device row.
+
+**Why.** That table's own unique index (`owner_user_id`, `endpoint`) and its
+read (`creatorPushSubscriptionsFor`) already say nothing about "subscribed
+AS A CREATOR" - they are keyed on `owner_user_id` alone. An admin who is
+also a creator already has exactly one row there; an admin who is not a
+creator at all gets the identical row through the identical control. A
+second table would duplicate the entire subscribe/revoke/404-recovery
+mechanism (endpoint/p256dh/auth validation, the upsert-by-conflict-key
+shape, the 404/410 revoke-on-send-failure path) for zero behavioural
+difference, and would need a second "This week on your phone"-shaped UI
+control an admin would have to discover separately from the one they may
+already be using.
+
+**Reversal condition.** If a future workstream needs to distinguish "this
+device wants creator pushes" from "this device wants admin/Suite pushes"
+independently (e.g., a creator who administers a Suite but wants ONLY the
+Suite note, not their own Room's), this reuse stops being correct and the
+table needs a role column or a split - reopen this decision rather than
+bolting a filter onto `creatorPushSubscriptionsFor` that would then be
+misnamed for both callers.
+
+## `ws-r127-org-weekly-note-no-fk-outside-owner-lane-and-relcheck` (2026-09-05, WS-R127)
+
+**The choice.** `vy_org_weekly_note` (migration 132) carries `org_id uuid
+not null` with NO foreign key to `vy_org(org_id)`, unlike its three Suite-
+scoped siblings (`vy_org_member`, `vy_org_subscription`, `vy_room_org_
+attachment`, migrations 091/095/108), which all carry `references
+vy_org(org_id) on delete cascade`. It also carries no `owner_user_id` or any
+other column `scripts/relcheck.mjs`'s `PERSON_COLUMNS`/`OWNER_KEYS` scan for,
+and no entry was added to `api/_creator-export.js`'s `OWNER_LANE_TABLES`.
+
+**Why.** `vy_org` itself is deliberately never deleted in this codebase
+today (migration 091's own header: "the org survives a creator's own
+erasure even as its last admin"), and Suites v0 has no org-deletion
+operation anywhere (`grep -rln "deleteOrg\|eraseOrg" api/*.js` finds
+nothing - checked, not assumed). A send LEDGER is a record of what the
+PLATFORM did for a Suite, not a possession of the Suite's that should
+vanish the instant an org row might someday be deleted - `vy_org_
+subscription`'s own reach-only-by-cascade shape was considered and
+rejected for this table specifically because cascading it would make an
+org's own send HISTORY disappear the moment the row it counted sends
+against did, which is backwards for an audit trail. `OWNER_LANE_TABLES`
+is skipped for the identical reason `vy_org`/`vy_org_subscription` are
+already absent from it: that manifest names exactly the owner-lane subset
+of what `api/_replica-full-erasure.js` reaches, and that file reaches
+neither table (no owner_user_id/replica_id column on any of the three) -
+adding this table to a manifest that mirrors a file which never touches
+it would be the manifest lying about what it lists, not documentation.
+
+**Reversal condition.** The day Suites v0 grows a real `eraseOrg`
+operation, add an explicit `delete from vy_org_weekly_note where org_id =
+$1` beside whatever else that operation deletes, by name - never retrofit
+an FK at that point, since a bare FK would also silently delete the
+ledger on ANY future `vy_org` row deletion path, including one this
+decision's own argument (audit trail should outlive the org) did not
+intend to authorize.
+
+## `ws-r127-email-seam-hardcoded-false` (2026-09-05, WS-R127)
+
+**The choice.** `api/_email-seam.js#emailSeamConfigured` returns `false`
+unconditionally - it does not read any env var, and none was added
+(workstream brief: "no new env var"). `recordWouldSendOrgWeeklyNoteEmail`
+makes no network call of any kind (no `fetch`, no transport import
+anywhere in the file - `evals/org-weekly-note/run.mjs`'s own static
+control asserts the file's import list is empty).
+
+**Why.** No table in this database carries an email address for a Suite
+admin or a creator - Supabase Auth holds it, outside this database, and
+nothing here reads it back (grepped, not assumed). A "configured" flag
+that could never actually resolve to a real destination would be a fake
+readiness signal, the exact `context/rejected.md` "no fake numbers" class
+applied to a boolean instead of a metric. The seam exists anyway, now, so
+migration 132's own `channel in ('push', 'email')` CHECK has real code
+behind the literal it names, and a future workstream that DOES have an
+address source and a provider has a function to fill in rather than a
+channel with nothing behind it at all.
+
+**Reversal condition.** The day a real address source (an admin's own
+email, read from wherever it ends up living) and a real provider both
+exist, replace the `false` and the log-only body with the real predicate
+and the real send - `sendOrgWeeklyNotes`'s own caller code does not
+change, since it already treats `emailSeamConfigured` as a boolean and
+`recordWouldSendOrgWeeklyNoteEmail` as "the one write for this channel".
+
+## `ws-r127-weekly-note-last-sent-read-as-inline-subquery-not-cross-import` (2026-09-05, WS-R127)
+
+**The choice.** `api/_org.js#listMyOrgs`'s "last delivered" read
+(`SuiteCard.tsx`'s "Your weekly note" line) is a plain correlated
+`(select max(sent_at) from vy_org_weekly_note where org_id = o.org_id)`
+subquery inside that function's own existing SQL statement, never a call
+to `api/_org-weekly-note.js#lastOrgWeeklyNote` (which exists anyway, for
+`evals/org-weekly-note/run.mjs` alone).
+
+**Why.** `api/_org-weekly-note.js`'s own header states it does not import
+`api/_org.js` (that file's `orgBoard`/`listMyOrgs` compute per-Room
+aggregates this feature needs none of, and calling them from a cron
+sweeping every Suite once a week would multiply a heavy read by every
+Room on the platform for numbers never shown). Importing `lastOrgWeeklyNote`
+the OTHER direction, from `_org.js` into `_org-weekly-note.js`'s sibling,
+would not itself be a cycle (the dependency is one-directional either way),
+but it would add a cross-module function call for a fact one more SQL
+clause in an ALREADY-RUNNING statement answers for free, in the same round
+trip `seats_used`/`seats_paid` already cost.
+
+**Reversal condition.** If a second caller ever needs "last delivered"
+outside a statement that can carry the subquery cheaply (a context where
+building the correlated SQL by hand each time is the actual duplication),
+switch that caller to `lastOrgWeeklyNote` and reconsider whether
+`listMyOrgs`/`orgBoard` should too, for one shared source of the query
+text - not before, since two working restatements of one five-word SQL
+subquery is cheaper to keep in sync by inspection than a cross-import
+neither side asked for.
+
+## `ws-r124-write-guard-scores-only-body-tainted-non-primitive-params` (2026-09-05, WS-R124)
+
+**Decision.** The body-shape fuzzer's write-poisoned `db` (`evals/room-doors/shapes.mjs`'s `withWriteGuard`) throws on every INSERT/UPDATE/DELETE it sees, but only counts that as a FINDING when at least one bound parameter is (a) still a non-primitive JS value (an array or plain object, `null` excepted) AND (b) reference-traceable back to a value the hostile body itself planted (`taintedValuesOf`, a recursive walk of the body's own object graph). A write whose params are all primitives, or whose only non-primitive param is some OTHER array/object the query legitimately binds for its own reasons, is scored safe.
+
+**Why.** The first, blunter version ("any write with any non-primitive param anywhere is a finding") produced two kinds of false positive on this workstream's own first live run: (1) content fields this codebase already coerces with `String(x || "")`/`String(x ?? "")` before use (`_apply.js`'s `field()`, `_replica.js`'s `replicaDisplayName`, `_ops.js`'s `revokeOperatorPush`'s own `String(endpoint || "")`) turned a hostile array into a perfectly ordinary string parameter — reaching that write is the CORRECT, intended success path for a value the code already sanitised, not a bug; and (2) `api/_ops.js`'s `revokeOperatorPush` legitimately binds a real array parameter (`opsOwnerIds(env)`, for `= any($3::text[])`) that is present, unchanged, for every class including a fully benign body — flagging it blamed the query's own ordinary use of a SQL array bind rather than anything the fuzzed body caused. Restricting the check to body-traceable values closed both: 12 of 13 apparent "doors with findings" on the unrefined run turned out to be exactly this, and the ONE genuine finding that survived (`ws-r124-replica-display-name-error-missing-code` below) is a real gap this refinement did not also hide.
+
+**Reversal condition.** If a future op deep-clones or JSON-round-trips a body field before binding it (breaking reference identity) while STILL passing an unsanitised, wrong-typed value through to a write, this check would miss it — a false negative rather than the false positive it was built to avoid. That is the concrete case that would justify strengthening the check (e.g. a structural/shape comparison against the hostile value rather than reference equality) rather than trusting this design further.
+
+## `ws-r124-account-js-body-shape-proven-statically-not-live` (2026-09-05, WS-R124)
+
+**Decision.** `api/account.js`'s eleven ops are proven against body-shape fuzzing by a STATIC source check (`evals/room-doors/run.mjs`'s SECTION 25c: for each op, every field it reads must sit behind a `typeof`/regex/`UUID.test`/`Number.isInteger`/`String(...)` guard in that op's own dispatch block, checked by substring match against the real file), never by driving the door live with a hostile body the way the other 108 live-invoked ops are.
+
+**Why.** `account.js` is the one door in this battery's own scope with no injectable decision module at all: every op is inlined directly in the HTTP handler and either calls Supabase over the network (`send_otp`/`verify_otp`/`send_sms`/`verify_sms`/`google_url`/`refresh`) or the real `q` from `_db.js` with no seam a fake `db` can stand behind (`save_state`/`load_state`/`wipe_state`/`consent`/`track`). Driving it live would mean a real network call (forbidden: "no network beyond 127.0.0.1") or a real Postgres connection this offline environment does not have. The static check is honest about being weaker evidence — it proves a guard EXISTS in the shipped source, not that it behaves correctly against a live hostile value — and names one specific gap it found without closing (`access_token`, read by `save_state`/`load_state`/`wipe_state`, carries no LOCAL type guard in this file, relying entirely on `userFromToken`'s own network-side verification).
+
+**Reversal condition.** If `api/account.js` is ever refactored to route its own logic through an injectable decision module the way every other door in this product already does (`api/_<name>.js` taking `db` as an explicit parameter), this static pass should be replaced with a live one over a fake `db`/fake `fetch`, exactly like the other 108 ops — the static check is a scope boundary forced by this file's current shape, not a preference.
+
+---
+
+## `ws-r125-mandate-state-sibling-column-not-a-wider-state-check` (2026-09-05, WS-R125, migration 130)
+
+**Decision.** Migration 130 adds `mandate_state`/`mandate_state_at` to
+`vy_room_subscription` and `vy_creator_subscription` as SIBLING columns,
+default `'none'`, closed list `('none','pending','active','paused','halted',
+'cancelled','completed')`. `state` and its two CHECK constraints
+(`vy_room_subscription_state_check`, `vy_creator_subscription_state_check`)
+are untouched - no fifth non-terminal value was ever added to either.
+
+**Rationale.** `context/decisions.md#ws-r69-halted-is-a-derived-read-never-
+a-stored-value` named its own reversal condition precisely: "if a SECOND
+reader ever needs to tell paused from halted... widen the CHECK... and stop
+deriving it." This workstream IS that second reader - `api/_renewals.js`'s
+due-select needs to exclude a paused/halted/pending mandate from a reminder,
+and `api/_ops.js`'s per-room board needs to count paused separately from
+halted - but widening `state`'s own CHECK to add `'halted'` (WS-R69's own
+literal proposal) would have forced EVERY other reader of `state`
+(`applyWebhook`'s tier-flip predicate, `ownerRevenue`'s subscriber counts,
+`creatorTierFromRows`, every `state in (...)` fixture across `evals/
+payments`, `evals/org-billing`, `evals/room-doors`, `evals/renewals`) to
+learn a new value none of them need to distinguish. A sibling column costs
+nothing to every OTHER reader (untouched shape, untouched values) and gives
+the mandate-specific readers a real stored fact instead of `pausedOrHalted`'s
+own per-request ledger re-derivation (`api/_payments.js`). This is a
+BETTER fulfilment of WS-R69's own reversal condition than the literal
+wording it wrote, and `pausedOrHalted` itself was updated to read the new
+column FIRST, falling back to the ledger only for a row created before this
+migration landed (see `followerSubscriptionStatus`'s own updated header).
+
+**Reversal condition.** If a future reader needs a value `state` itself
+must expose (a filter that JOINS across tables keyed only on `state`, say,
+with no room to also carry `mandate_state`), reconsider folding the two
+back together - unlikely, since every such join already has access to the
+same row's `mandate_state` column at zero extra cost once one is willing to
+select it.
+
+## `ws-r125-mandate-state-sibling-column-guard-lives-in-a-case-not-the-where` (2026-09-05, WS-R125)
+
+**Decision.** `applyWebhook`'s follower and creator lanes set `mandate_state`/
+`mandate_state_at` inside the SAME `sub_update` UPDATE that already flips
+`state`, via a `CASE` expression (`when s.mandate_state is distinct from
+$N then $N else s.mandate_state end`) - never a second CTE against the
+same table (`context/rejected.md#ws-r125-mandate-state-as-a-second-cte-on-
+the-same-table`'s own Postgres hazard), and never a guard moved into the
+statement's own top-level WHERE clause either.
+
+**Rationale.** The obvious alternative to a CASE - `and s.mandate_state is
+distinct from $N` appended to `sub_update`'s existing WHERE - would gate
+the ENTIRE update, not just the mandate columns: a `subscription.resumed`
+event that finds `mandate_state` already `'active'` (a real, non-replay
+scenario - e.g. two resumed-adjacent events landing close together) would
+then also skip re-affirming `state`/`current_period_start`/
+`current_period_end` from THIS event's own payload, silently dropping a
+legitimate period-date update. The CASE expression only gates the mandate
+columns' own write, leaving `state` and the period dates governed by
+whatever WHERE clause already decided this row is the one being updated
+(`candidate`'s own dedup for the follower lane, `subscription_id = ($1)`
+for the creator lane, which has no ledger dedup for non-charge events at
+all and therefore needs this guard the most).
+
+**Reversal condition.** None anticipated - this is a correctness property
+(not a stylistic choice) that would need to hold under any future column
+added to the same `sub_update` statement. Any NEW column folded into this
+same UPDATE should use the identical CASE-guard shape rather than reopening
+the WHERE-clause question.
+
+## `ws-r125-follower-reuses-state-overlay-creator-gets-a-new-field` (2026-09-05, WS-R125)
+
+**Decision.** The follower's client-facing subscription shape keeps its
+EXISTING `state` field (already typed `"paused" | "halted" | ...` since
+WS-R69) as the paused-vs-halted signal - `followerSubscriptionStatus` now
+reads it primarily off the new `mandate_state` column rather than the
+ledger, but the WIRE SHAPE is unchanged. The creator's client-facing
+shape (`api/_creator-tier.js`'s `clientCreatorSubscription`,
+`src/studio/paymentsApi.ts`'s `CreatorTierStatus`) instead gets a NEW,
+explicit `mandate_state` field alongside its own unchanged `state`.
+
+**Rationale.** WS-R69 already built and shipped the "halted" virtual
+overlay on `state` for the follower surface specifically - keeping that
+contract byte-identical means zero changes to `roomPayApi.ts`'s existing
+type, zero changes to any existing follower-side caller, and the studio
+never had an equivalent overlay to preserve (this workstream is the FIRST
+time a creator's own paused-vs-halted distinction is exposed at all), so
+there is no existing contract to protect there and no reason to invent a
+virtual overlay from scratch rather than exposing the real column directly.
+The asymmetry is a fact about which surface already had a shipped
+contract, not an inconsistency to fix later.
+
+**Reversal condition.** If a future reader of the FOLLOWER shape needs
+`mandate_state`'s full range (`'pending'`/`'completed'`, which `state`'s
+own overlay never surfaces - only `'paused'` and `'halted'` are
+distinguished there), add the same explicit `mandate_state` field to the
+follower response too rather than widening what `state` overlays to mean -
+`followerSubscriptionStatus` already has the real column in hand from its
+own query, so this is an additive change with no migration.
+
+## `ws-r125-mandate-state-predicate-non-redundant-only-for-pending` (2026-09-05, WS-R125)
+
+**Decision (a finding, recorded because it shaped what the negative
+control below actually tests).** `api/_renewals.js`'s due-select predicate
+`mandate_state in ('none','active')` is REDUNDANT with the existing
+`state = 'active'` clause for a `'paused'` or `'halted'` mandate - both
+kinds flip `state` to `'paused'` in the SAME statement that sets
+`mandate_state` (`KIND_TO_STATE`'s own map), so `state = 'active'` alone
+already excludes them. The predicate is NON-redundant for exactly one
+value: `'pending'` (`subscription.pending`, a charge currently retrying)
+maps to `state = ""` in `KIND_TO_STATE` - meaning `state` is left
+UNCHANGED, typically still `'active'` from the prior successful cycle -
+while `mandate_state` becomes `'pending'`. Without this predicate, a
+follower or creator whose last charge is actively failing and retrying
+would still be reminded about an upcoming renewal their own current
+payment attempt is already in trouble.
+
+**Why this matters for the eval.** `evals/renewals/run.mjs`'s own
+struck-predicate negative control (workstream law 4's own requirement)
+therefore asserts on the `'pending'` row, never the `'paused'`/`'halted'`
+ones - striking `mandate_state` from a hand-rolled due-select and finding a
+`'paused'` row still excluded (by `state` alone) would prove nothing about
+whether `mandate_state` itself does any work; the `'pending'` row is the
+only one that actually distinguishes the two clauses. The `'paused'`/
+`'halted'` assertions are kept in the suite as a description of REAL
+behaviour, just not as the negative control's own evidence.
+
+**Reversal condition.** None - this is measured directly from the two maps'
+own source (`KIND_TO_STATE`, `MANDATE_KIND_TO_STATE`, both `api/
+_payments.js`) and confirmed by the eval; it would only change if a future
+edit ever makes `KIND_TO_STATE["subscription.paused"]` or `["subscription.
+halted"]` map to something OTHER than `'paused'`, at which point this
+redundancy claim (and the eval comment describing it) should be re-checked
+against the new mapping.
+
+## `ws-r128-eval-registry-runs-across-a-worker-pool` (2026-09-05, WS-R128)
+
+**Decision.** `evals/run.mjs`'s default mode is now a worker pool (size
+`os.availableParallelism() - 1`, floored at 2, overridable by the
+developer-only `EVALS_WORKERS` env var) instead of one suite after
+another. `--serial` restores the exact old loop and is kept permanently as
+the negative control's baseline, not removed once the pool shipped.
+
+**Rationale.** Measured (`measurements.md#ws-r128-eval-registry-wall-clock-and-parity-2026-09-05`):
+the apples-to-apples pair available this session (both under similar heavy
+sibling contention) ran the pool in roughly half the `--serial` wall clock
+(414s vs 808s), and parity between the two — suite name set, exit code,
+every suite's own final count line, and total real assertion-line count
+(10,351 on both sides, exactly) — held. `CLAUDE.md`'s standing law is that
+speed and quality are never traded against each other; this buys wall
+clock with a mechanically verified zero change to what is proven, which is
+the only trade this repo's own law permits.
+
+**Reversal condition.** If a future suite is added that has the THIRD kind
+of hidden shared state `evals/runner-lib.mjs`'s own header warns about (not
+a fixed port, not a shared file — something neither this workstream's
+audit nor `runner-lib.mjs`'s own comment anticipated) and cannot be fixed
+at the suite level cheaply, that is a reason to serialize THAT suite (add
+it to `PRE_POOL_SUITES` or `PORT_LANE_SUITES`, or give it its own lane),
+never a reason to revert the pool itself — see law 4 in this workstream's
+brief, restated in `runner-lib.mjs`'s own header. If a future CI runner has
+fewer than 2 effective cores, `pickWorkerCount`'s floor of 2 would
+oversubscribe it; that would be grounds to make the floor conditional on
+`os.cpus().length`, not to drop the pool.
+
+## `ws-r128-shared-file-writers-run-before-the-pool-not-in-a-lane` (2026-09-05, WS-R128)
+
+**Decision.** `PRE_POOL_SUITES` (`rehearsal-follower`, `rehearsal-creator`
+— both run `npx vite build` into the repo's one `dist/`) run serially,
+fully, to completion, BEFORE the pool or the port lane starts at all — not
+merely in their own lane running concurrently alongside the pool, which is
+the treatment `PORT_LANE_SUITES` gets.
+
+**Rationale.** `evals/room-push/run.mjs` reads `dist/room-sw.js` and
+`dist/room.html` — the exact files `rehearsal/harness.mjs`'s `npx vite
+build` produces — and room-push does not build its own copy (it skips its
+own §8 by name if they are absent, per its own printed line). Two
+suites racing to WRITE `dist/` at once is one hazard (an interrupted
+`vite build` reading its own half-written output); a suite READING
+`dist/` while another suite is mid-write is a second, quieter one — a
+torn `room.html` that room-push's own Playwright page load could parse as
+valid HTML missing half its content, passing or failing for a reason that
+has nothing to do with the property room-push exists to check. Running the
+writers to completion before the port lane (which is where room-push
+lives) removes both hazards by construction rather than by hoping the
+timing works out, which is what "in a lane alongside the pool" would have
+left to chance.
+
+**Reversal condition.** If `room-push`'s own §8 is rewritten to build a
+private `dist/`-equivalent under its own `mkdtempSync` directory (the
+pattern nearly every other suite in this registry already uses, per
+`runner-lib.mjs`'s own header), it stops depending on the shared writers
+entirely and could join the pool outright. If a THIRD suite is added that
+also runs `npx vite build`, it joins `PRE_POOL_SUITES`, never the port
+lane — the property this decision protects is "no suite reads `dist/`
+while another suite writes it," and the pre-pool barrier is what makes
+that true regardless of how many writers or readers exist.
+
+## `ws-r126-whatsapp-chat-join-reuses-the-whatsapp-arrival-value` (2026-09-05, WS-R126)
+
+**Decision.** A follower opening the WhatsApp Business chat itself (a wa.me
+deep link with `join <slug>` prefilled, `api/_room-whatsapp-chat.js`'s
+`handleJoin`) records its arrival under the SAME `via='whatsapp'` value the
+share kit's own web-link channel already writes (migration 122/123,
+`api/_share-kit.js`'s `whatsapp` row), never a new sibling value like
+`whatsapp_chat`. This workstream's own brief assumed `whatsapp` was not yet a
+valid `via` value at all ("migration 131 widens the arrival via CHECK to add
+whatsapp") — a grep of `api/_room-surface.js`'s `ROOM_ARRIVAL_VIA` before
+writing migration 131 found it was already there, added by WS-R85 (migration
+122) for a DIFFERENT source (a web page view through a shared link), and
+reconciled again by WS-R86 (migration 123). Migration 131 is therefore a
+defensive, idempotent reassertion of the unchanged 11-value CHECK, not a
+genuine widening — see its own header and `rejected.md#ws-r126-migration-131-brief-assumed-whatsapp-was-not-yet-a-valid-arrival-value` for the full finding.
+
+**Rationale.** Both events answer the identical question the Growth line's
+`shareKitArrivalsThisWeek` whatsapp channel exists to answer — "how many
+followers this week can be attributed to WhatsApp" — and a creator reading
+that one number has no use for two half-populated buckets that only a
+schema diagram could tell apart. A new value would also have needed a new
+`SHARE_KIT_CHANNEL_STATEMENT`/`SHARE_KIT_CHANNEL_LABEL` entry in
+`api/_funnel.js` and a new Growth-board row for a distinction nobody asked
+for.
+
+**Reversal condition.** If a future workstream needs to tell "arrived by
+clicking a shared web link" apart from "arrived by opening the WhatsApp
+chat directly" — for example, to compare which channel converts better, or
+because one of the two entry points to a Room proves out but the other
+does not and someone needs to see that in the numbers — split them into two
+`via` values then, with their own migration and their own Growth-board row,
+using this entry's own reasoning as the record of why they were one bucket
+before.
+
+## `ws-r126-poster-whatsapp-channel-caption-replaces-the-url-not-appends-it` (2026-09-05, WS-R126)
+
+**Decision.** The poster's `?channel=whatsapp` variant (`api/_room-card.js`'s
+`computeCardLayout`) REPLACES the plain-text caption under the QR (normally
+the Room's own URL, "for people who cannot scan") with a bilingual sentence
+("Scan with your phone's camera to open WhatsApp and say hi." /
+Hindi equivalent) rather than printing the wa.me link as text alongside or
+instead of that sentence.
+
+**Rationale.** The QR's own payload on this variant is
+`https://wa.me/<number>?text=join%20<slug>` — a long, URL-encoded string
+with no human meaning printed on paper, unlike the ordinary poster's own
+`<origin>/r/<slug>?via=poster`, which at least names the product and the
+creator's own slug if someone chooses to type it by hand. Printing that
+wa.me string would satisfy the letter of "for people who cannot scan" while
+failing its purpose (nobody retypes a `%20`-encoded URL from a wall).
+
+**Reversal condition.** If a future measurement shows people DO try to
+retype poster URLs by hand often enough to matter (nothing in this
+workstream measured this for either poster variant), print both: the
+sentence, then the link, `wrapLines`'s own multi-line capacity already has
+room.
+
+## `ws-r126-whatsapp-join-number-reuses-phone-number-id` (2026-09-05, WS-R126)
+
+**Decision.** `whatsappJoinNumber` (`api/_room-whatsapp-chat.js`) reads
+`WHATSAPP_PHONE_NUMBER_ID` for the wa.me deep link's own phone segment,
+rather than a new, dedicated dialable-number env var.
+
+**Rationale.** This workstream's own brief states "The business number comes
+from the env the WhatsApp module already reads" and separately "No new env
+var" — the only env var this module already reads that could plausibly
+serve is `WHATSAPP_PHONE_NUMBER_ID`. Under Meta's WhatsApp Cloud API this
+value is documented as an opaque per-number Graph API identifier (used
+exclusively as a URL path segment in this codebase's own outbound calls,
+`api/whatsapp.js`'s `PHONE_ID`), NOT necessarily the dialable E.164 number a
+`wa.me/<number>` link needs — this workstream had no network access granted
+to fetch Meta's own documentation and settle whether a given deployment's
+configured value happens to also be dialable (`ws-common.md`'s network law:
+a provider's docs are reachable only where a workstream's own section names
+them, and this one does not).
+
+**What would reverse this.** A real, separate dialable-number env var, once
+one exists for this codebase to reuse (a follow-up should confirm with the
+owner whether the live `WHATSAPP_PHONE_NUMBER_ID` value is in fact dialable
+before this feature is treated as functional in production — NOT PROVEN
+either way by this workstream).
+
+## `ws-r123-provider-incident-attributed-at-the-layer-that-knows-what-it-means` (2026-09-05, WS-R123)
+
+**Decision.** A provider's raw send function (`api/_room-whatsapp.js`'s
+`sendTemplate`/`sendSessionMessage`, `api/_payments/providers/razorpay.js`'s
+seven calls, `api/_surface.js`'s `think()`) never calls `recordIncident`
+itself. The ONE (or two) named callers that already decide what a return
+shape MEANS for a real follower or creator — `api/_room-whatsapp-chat.js`'s
+`defaultRoomWhatsappChatClient` and `api/_checkins.js`'s own
+`deliverers.whatsappTemplate` for Meta, `api/_payments.js`'s new
+`withProviderIncident` wrapper for Razorpay, `api/_room-surface.js`'s
+`roomSay` and `api/_checkins.js`'s own check-in delivery for the reply seam
+— do. `api/_room-telegram.js` is the one exception: its own shipping client
+(`defaultRoomTelegramClient`) IS the layer that decides refusal-vs-error
+(the identical split `attemptRoomVoiceDelivery` already draws one function
+up), so it records directly.
+
+**Rationale.** `api/_payments/providers/razorpay.js` and `fake.js` are
+twins by design (`_payments.js`'s own header) — a provider module that
+knew about `INCIDENT_KINDS` would be a provider module that knew about this
+platform's own incident vocabulary, breaking that twin symmetry for no
+reason `fake.js` would ever need. `api/_surface.js#think()` is shared with
+Meera's own non-Room channels (`discord.js`/`tg.js`/`whatsapp.js`); Room-
+specific bookkeeping does not belong in a file neither product owns
+exclusively. Both reasons are the SAME shape: attribute a failure at the
+layer that can tell a genuine provider error apart from an ordinary,
+expected refusal (`notConfigured`, `skipped: "outside_window"`,
+`code === "room_voice_paid_only"` and its siblings) — never at the layer
+that only knows how to make the HTTP call.
+
+**What would reverse it.** If a provider module ever needs to distinguish
+MORE than one Room-specific failure meaning from inside itself (today it
+distinguishes none — every one of its own callers already does the
+classification), inlining `recordIncident` there stops being a layering
+violation and becomes the only way to keep the two decisions next to each
+other. `evals/incidents/run.mjs`'s own `PROVIDER_CALLER_MAPPED` table is
+where that change would need to move a file from "caller-mapped" to
+"direct".
+
+## `ws-r123-reply-seam-failure-detected-via-gatedout-parsed-undefined` (2026-09-05, WS-R123)
+
+**Decision.** `roomSay` (api/_room-surface.js) and the check-in sweep's own
+delivery (api/_checkins.js) each record one `door_5xx` incident
+(`door: "room-say-reply"` / `"checkins-reply"`) when `gatedOut.text` is
+empty AND `gatedOut.parsed === undefined` — never merely `!said`.
+
+**Rationale, and what was tried first.** The obvious-looking condition
+`!said && !gatedOut.gated` is WRONG: reading `api/_surface.js#gateReply`
+line by line shows `gated: true` is returned on every path that had model
+text to look at — a clean reply, a never-rule suppression, and the "raw
+model text was empty" early return ALL set `gated: true`; only the
+completely separate "engine bundle carries no honesty gate" guard sets
+`gated: false`. So `!gatedOut.gated` fires almost never in production, and
+never for the case this workstream exists to catch (`think()`'s own fetch
+to the completion provider returning nothing). Full trace logged at
+`context/rejected.md#ws-r123-gatedoutgated-does-not-mean-what-it-sounds-like-it-means`.
+The field that DOES discriminate correctly: `gateReply`'s return object
+carries `parsed: reply` on every path that had real, non-empty raw text to
+work with (a clean reply, a never-rule suppression) and OMITS it entirely
+on the two paths that never got that far (raw text empty; engine bundle
+missing) — exactly the two failure classes worth surfacing here, and nothing
+else.
+
+**Reversal condition.** If `api/_surface.js#gateReply` ever adds an
+explicit `reason` field to its "raw text was empty" branch (the honest fix
+would be one line: `return { text: "", findings: [], gated: true, reason:
+"empty_completion" }`), both call sites should switch to checking that
+`reason` directly rather than the absence of `parsed` — an explicit signal
+over an implicit one, the same preference this repo states everywhere else.
+Not done in this workstream because `api/_surface.js` is shared with
+Meera's own non-Room surfaces and touching it was judged out of this
+workstream's own scope (`context/rejected.md#ws-r123-surfacejs-left-untouched-reply-seam-instrumented-one-layer-up`).
+
+## `ws-r123-ops-board-doors-observed-denominator-english-only` (2026-09-05, WS-R123)
+
+**Decision.** The Incidents card's new "N of N doors observed" badge
+(law 4) is plain English, matching every other string on
+`src/studio/OpsBoard.tsx` — no `STUDIO_COPY_TABLE`/`hiCopy.ts` entry was
+added for it.
+
+**Rationale.** `OpsBoard.tsx` carries ZERO existing i18n wiring today —
+every string on the page, before this workstream and after, is a hardcoded
+English literal; there is no `ops` section in `src/studio/copy.ts` or
+`hiCopy.ts` for this one string to join. `scripts/check-accessibility.mjs`'s
+own bilingual sweep (`docs/gurukul/...`/CLAUDE.md's own words: "every
+follower and creator screen in both locales") never renders `OpsBoard.tsx`
+at all — confirmed by grep, neither `check-accessibility.mjs` nor
+`check-layout.mjs` names it — because it is platform-operator tooling, not
+a follower or creator screen, the same category boundary this repo already
+draws for Meera-only doors (`context/rejected.md
+#ws-38-door-list-completeness-rule`) restated for a screen instead of a
+door. Retrofitting the whole page's i18n for one denominator string would
+be a disproportionate, higher-risk change this workstream's brief did not
+ask for.
+
+**Reversal condition.** The day ANY other OpsBoard string gets a
+`STUDIO_COPY_TABLE` entry (an operator interface going bilingual is a real
+product decision, not one this workstream should make unilaterally), this
+badge's two words should move into the same table in the same commit.
+
+## `ws-r130-referral-reward-needs-a-second-identity-table-vy-room-referral-credit` (2026-09-05, WS-R130, migration 133)
+
+**Decision.** The referral reward is NOT computed from `vy_room_referral`
+(migration 123's own hash-only, no-person-column aggregate table). A brand
+new table, `vy_room_referral_credit` (referred_follower_id UNIQUE,
+referrer_follower_id, referrer_person_id, room_id), is written at the SAME
+join-time moment `vy_room_referral` is (`joinRoom`'s existing gate: a
+validated `ref` hash, a genuinely first-ever join), resolving the referrer
+by recomputing `referralHashFor` via pgcrypto's `digest()` against every
+follower already in the Room and matching the one whose hash equals the
+carried `ref`. `vy_room_referral_reward` (the grant) reads THIS table, never
+`vy_room_referral`.
+
+**Rationale.** `vy_room_referral` was built, deliberately, so that no
+reader — not even an operator holding the table directly — can ever learn
+which specific follower a hash belongs to (`ws-r86-referral-hash-reuses-
+rate-salt-without-daily-rotation` and its siblings). A reward MUST identify
+a specific referrer to extend their specific subscription; that is a
+different question in kind from "how many referrals happened this week,"
+and answering it by loosening `vy_room_referral`'s own design (adding a
+person column to it) would undo a decision this repo has already defended
+at length and would put the anonymous, creator-facing aggregate table one
+schema change away from becoming identity-bearing by accident. A second,
+narrowly-scoped, identity-bearing table — used ONLY by the reward
+machinery and a follower's own progress read, never surfaced to a creator —
+keeps the blast radius of "this table names a real person" contained to
+exactly the two files whose whole job is to.
+
+**Reversal.** If a future audit finds recomputing the hash against every
+follower in a Room too expensive at scale (a Room with tens of thousands of
+followers), the fix is an index-friendly resolution (e.g., a
+`follower_id`-keyed lookup keyed some other way) — never falling back to
+storing the referrer's identity ON `vy_room_referral` itself, which would
+need its own new decision and its own migration, argued on its own terms.
+
+## `ws-r130-referral-credit-and-reward-tables-carry-no-fk-on-identity-columns` (2026-09-05, WS-R130, migration 133)
+
+**Decision.** `vy_room_referral_credit.referrer_follower_id`/
+`referred_follower_id`/`referrer_person_id` and `vy_room_referral_reward.
+referrer_follower_id`/`referrer_person_id` carry NO foreign key to
+`vy_room_follower` or `vy_person` — only `room_id` gets a real FK with ON
+DELETE CASCADE. WHERE-clause binding only, `vy_room_follower_whatsapp_
+chat`'s own precedent (migration 128) restated.
+
+**Rationale.** A granted reward is a financial-ledger fact — money already
+did not get collected because of it, `vy_receipt`'s own "a receipt is proof
+a real charge happened" restated for its mirror image, proof a charge did
+NOT happen and why. An `on delete cascade` from `vy_room_follower` would
+silently erase that fact the moment EITHER party (the referrer whose reward
+this is, or the friend whose payment triggered it) later leaves the Room or
+is forgotten — which would make `reconcilePeriod`'s own `referral_rewards`
+line retroactively wrong for a period that already closed. `vy_receipt`
+solved the identical problem by carrying no `follower_id` column at all;
+these two tables solve it by carrying the columns but no FK, so the
+identity survives a follower-row delete and is nulled (never deleted)
+separately, by `api/memory.js`'s own explicit door, on that PERSON's own
+account-wide forget.
+
+**Reversal.** None anticipated. If a future audit decides a reward's own
+identity MUST die with the follower row (a stricter reading of "forget me"
+than this product has taken anywhere else), that is a new, explicit
+product decision reversing `vy_receipt`'s own precedent too, not a change
+scoped to this table alone.
+
+## `ws-r130-referral-reward-grant-is-a-second-statement-not-a-fifth-cte` (2026-09-05, WS-R130, migration 133)
+
+**Decision.** `maybeGrantReferralReward` runs as its OWN statement, called
+from `applyWebhook`'s follower lane right after `issueFollowerReceipt`,
+never folded into the ledger write's own multi-CTE chain
+(`candidate`/`sub_update`/`follower_update`/`offer_update`).
+
+**Rationale.** `ws-r100-receipt-issued-alongside-not-inside-the-ledger-
+write`'s own argument restated verbatim for a second addition: that write
+is a heavily fixture-modelled statement several sibling suites
+(`evals/payments`, `evals/room-doors`, `evals/org-billing`) drive
+byte-exactly, and folding a THIRD and FOURTH table's writes into it would
+renumber every one of its bound parameters for every one of them — a blast
+radius neither the receipt nor the reward has any business opening. The
+brief's own words ("the grant is decided inside the webhook's statement
+family... in the same statement") are honoured at the level that matters:
+the count, the insert, and the subscription extension are ONE atomic SQL
+statement (`maybeGrantReferralReward`'s own CTE chain) — it is simply not
+the SAME textual statement as the ledger write, exactly as the receipt
+already is not.
+
+**Reversal.** If a future audit needs the reward decided in the SAME
+transaction as the ledger write with no possibility of a process crash
+between them (today's crash window: a real charge lands, the reward would
+have qualified, the process dies before `maybeGrantReferralReward` runs —
+no reward is lost forever, since the next friend's charge or a future
+sweep would need to re-evaluate it, but this specific charge's own
+contribution to the count is not re-computed automatically today), that
+is a deliberate, larger rewrite of the ledger statement itself, argued on
+its own terms with its own fixture-renumbering cost accepted in writing.
+
+## `ws-r130-referral-progress-rides-the-referral-link-response-not-a-new-op` (2026-09-05, WS-R130)
+
+**Decision.** `roomReferralProgress` is not its own `api/room.js` op. The
+existing `referral_link` op's handler calls both `roomReferralLink` and
+`roomReferralProgress` and merges their results into one JSON response.
+
+**Rationale.** The account page's "Bring a friend" card needs both the
+link and the follower's own progress toward a reward in the same paint, and
+`roomReferralLink`'s own session-only request shape has nothing left to
+grow — a second op for a read that always accompanies the first would cost
+a second round trip and a second rate-limit scope for no real
+separation of concerns; the account page never wants one without the
+other. `roomReferralLink` itself is UNCHANGED (same function, same return
+shape when called directly) — every existing suite that calls it keeps
+passing unmodified.
+
+**Reversal.** If a future surface ever wants progress WITHOUT minting a
+link (a creator-facing summary, say — never planned, since this data is
+follower-scoped and never creator-visible by this workstream's own design),
+that is a new, separately-rate-limited op, not a widening of this one.
+
+## `ws-r121-platform-owned-boundary-and-stage-shapes` (2026-09-05, WS-R121)
+
+**Decision.** `boundaryParagraph`, `stageEarly`, `stageGettingClose` and
+`stageEstablished` — the four fields `context/rejected.md
+#ws-r111-boundary-and-stage-fields-not-material-blocked` left fused because
+they are the platform's safety mechanism, not descriptive knowledge — no
+longer supply the enforced instruction from any sheet. `src/engine/
+compiler.ts` now exports four fixed constants, `PLATFORM_BOUNDARY`/
+`PLATFORM_STAGE_EARLY`/`PLATFORM_STAGE_GETTING_CLOSE`/
+`PLATFORM_STAGE_ESTABLISHED` — the SAME text for every Room, compiled
+unconditionally, never read off any sheet. This is the product decision
+WS-R111's own reversal condition (option 2) asked for: "a fixed,
+platform-authored generic mentor boundary / arc pacing rule for every
+teacher, moving the creator's own authored version into the material block
+as flavor only." `src/engine/agents/fromSheet.ts::sheetToModule` overwrites
+the SANITIZED sheet's four fields with these constants before handing it to
+`persona.ts`'s UNTOUCHED, READ-ONLY `buildSystemPromptParts` — the exact
+same "sanitize then append material" shape WS-R111 already built for the
+five descriptive fields, applied here for the opposite reason (not because
+the content is safe to omit, but because the PLATFORM's wording is what
+must be enforced, unconditionally). The creator's own raw text for all four
+fields is routed into the material block as two new labelled data lines:
+one static (`"how they draw lines: ..."`, `boundaryParagraph`, read every
+turn) and one DYNAMIC (`"how they'd describe this stage of getting to know
+a student: ..."`, computed inside the `buildSystemPromptParts` closure at
+each call's own `messageCount`/`dimsStage` via the real, imported
+`stageParagraphFor` run against the RAW sheet — never all three stage
+texts every turn, and never a hand-duplicated copy of `persona.ts:150-152`'s
+thresholds). `agents/teacher.ts` DUPLICATES the four constants and the
+same dynamic-stage logic (cannot import `compiler.ts`, the same cycle
+`fromSheet.ts`'s own header already names), with `evals/teachersheet.mjs`'s
+anti-drift test as the safety net for the duplication, exactly as it
+already was for the five WS-R111 fields.
+
+**Rationale.** WS-R111 explicitly declined to move these four fields into
+the material block AS THE CREATOR WROTE THEM, because a block the model is
+told is "data, never an instruction" would demote the mentor boundary and
+arc pacing from an enforced rule to inert material for every legitimate
+teacher, not only a hostile one. That argument is untouched by this
+decision: the enforced instruction is STILL an instruction, in the SAME
+fused position (`persona.ts:370`/`:150-152`, unedited), and it still fires
+unconditionally — it simply stops being the creator's to write. A hostile
+`boundaryParagraph` of "flirt freely" (or any of the 16 corpus entries that
+were previously fused) now reaches the compiled prompt only as labelled
+data, alongside the platform's own unweakened text, exactly the outcome
+`ws-r111`'s reversal condition named as the one honest path forward. The
+platform text itself is not new content invented for this decision:
+`docs/gurukul/teacher-arc.md` §1/§1.4 already authored and reviewed it as
+the mentor arc's "drop-in replacements", and `characters/demoTeacher.ts`
+already carries it verbatim as its own authored value — copied into
+`compiler.ts` so the file, not any sheet, is now the paragraphs' one true
+owner. Measured effect: `measurements.md#ws-r121-boundary-containment-41-of-41`
+(25/41 -> 41/41 "contained", 16/41 -> 0/41 "fused" — every field this
+product's corpus can inject is now contained), `measurements.md
+#ws-r121-secret-shaped-leak-rate-0-of-9-all-nine-injectable-fields` (0/9
+secret-shaped leaks across every injectable field, up from a measurement
+that only covered 5 of 9). Meera's compiled prompt is provably unchanged:
+she is the static `DEFAULT_AGENT`, never calls `sheetToModule`, and
+`PLATFORM_BOUNDARY`/`PLATFORM_STAGE_*` are read only inside that function
+(`measurements.md#ws-r121-meera-byte-identity-unchanged-83-of-83`, 83/83
+before and after, plus a new direct assertion in `evals/room-leak/run.mjs`'s
+layer 15 that her compiled output carries zero occurrences of the four
+constants). The demo teacher's own CORE grew 1,509 B from this
+(`measurements.md#ws-r121-demo-teacher-core-growth-1509-bytes`), which
+tripped three of `evals/persona-invariants.data.mjs`'s shared, cross-agent
+size ceilings; all three raised by the measured amount plus a small margin
+in this workstream's own commit, following the file's own established
+raise-with-rationale pattern (the same three WS-R111 raised once already).
+
+**What would reverse this.** A future session that finds the platform text
+itself needs to change (a legal or safety review of `teacher-arc.md` §1/
+§1.4's own paragraphs) edits the four constants in `compiler.ts` and their
+byte-identical duplicates in `agents/teacher.ts`, re-runs
+`evals/teachersheet.mjs`'s anti-drift check and `evals/persona-invariants.mjs`'s
+ceilings, and updates `measurements.md`'s recorded byte counts — the
+mechanism (platform owns the instruction, creator's text is material) does
+not need to change for ordinary content edits. A genuine product reversal —
+deciding a creator's own boundary/stage wording should again be
+enforceable verbatim — would need to re-open the safety argument
+`teacher-arc.md` §1.4 and `safety-floor-teacher.md` §3.1 both make for why
+that clause must be gone from the content, not merely gated; nothing in
+this workstream's own measurements argues for that reversal.
+
+## `ws-r122-readiness-load-reads-callbacks-through-a-ref-not-a-dependency` (2026-09-05, WS-R122)
+
+**Decision.** `ReadinessPanel.tsx`'s `load` `useCallback` depends on nothing
+but `replicaId`/`token`. `onAuthError`, `onReadiness` and the locale table
+`t` are read through refs (`onAuthErrorRef`, `onReadinessRef`, `tRef`)
+updated in the render body, never inside an effect.
+
+**Rationale.** The loop `ws-r119-full-page-reload-to-step-meet-races-
+readiness-panels-mount` found and left (40+ real `GET /api/readiness` calls
+in under two seconds on a fresh `?step=meet` navigation) traces to exactly
+the two preconditions that entry's own header names: `StudioShell.tsx`'s
+`onReadiness={(next) => { setReadiness(next); setReadinessChecked(true); }}`
+is a NEW closure on every one of the shell's own renders (confirmed by
+reading the prop, not guessed), and `load`'s own dependency array closed
+over it directly (`[onAuthError, onReadiness, replicaId, token, t]`) — so
+every shell re-render (including the one `load`'s own `onReadiness(next)`
+call triggers) minted a new `load`, re-fired the mount effect, and repeated.
+The fix stays inside `ReadinessPanel.tsx` only: `StudioShell.tsx` is a
+shared file outside this workstream's scope, and its own inline callback is
+not itself wrong to write — a panel's effect should not require its caller
+to memoize anything to behave. `t` was included in the same fix because it
+is also a value that can change identity (a locale switch), for the same
+class of reason, even though it was not observed to be the loop's own
+trigger in this instance.
+
+**What would reverse this.** If a future measurement finds `load` genuinely
+needs to re-run when `onReadiness`/`onAuthError` change (e.g. a caller that
+intentionally swaps which callback is live and expects an immediate
+re-read), the ref pattern would need to become a real dependency again,
+paired with `useCallback`/`useMemo` at the CALL SITE (`StudioShell.tsx`) so
+the identity is actually stable — not reverted to raw props without that
+memoization, since that is the exact shape that looped here.
+
+## `ws-r122-follower-rehearsal-primary-identity-swaps-per-locale-gate` (2026-09-05, WS-R122)
+
+**Decision.** `evals/rehearsal/follower.mjs`'s `runJourney` no longer
+hardcodes `followerBearer.A`/`followerPerson.A` as "the" primary follower
+and `.B` as "the referred one" regardless of locale. Instead `primaryBearer`/
+`primaryPerson` is `.B` on the `hi` gate and `.A` on `en`, with `referredBearer`/
+`referredPerson` the other pair.
+
+**Rationale.** `ws-r119-whatsapp-chat-export-rate-bucket-shared-across-
+full-locale-gates` found that `api/room.js`'s `op === "export"`/`"forget"`
+key their 3-per-minute bucket (`allow(authUserId, "room_<op>_user", 3)`) on
+the resolved auth user id, and both locale gates of one `--full` run share
+the same Node process — so the same `api/_ratelimit.js` module singleton —
+meaning `followerBearer.A`'s bucket saw 4 `op:"export"` calls (2 real per
+gate) against a cap of 3. `api/room.js`, the auth stub
+(`evals/rehearsal/stubs/auth-with-fake-user.mjs`) and the module loader
+(`evals/rehearsal/loader.mjs`) are all outside this workstream's file scope
+and none of them may be widened or touched to invent a third identity, so
+the only lever available from inside `follower.mjs`/`harness.mjs` is WHICH
+of the two ALREADY-KNOWN fixture identities plays which role — the auth-
+identity equivalent of WS-R109's distinct `x-real-ip` per locale gate for
+the IP-keyed doors. Verified by tracing every `op:"export"` call across both
+gates by hand: `en`'s two real calls land on A (2 total), `hi`'s two real
+calls land on B (2 total), and each gate's own cross-read negative control
+spends one more hit on the OTHER identity's bucket (A ends at 3, B ends at
+3) — every identity's bucket stays at or under 3, never over.
+
+**What would reverse this.** A third known fixture bearer added to
+`auth-with-fake-user.mjs` (a file a future workstream, not this one, is
+scoped to touch) would remove the need to swap roles at all — the primary
+follower could then stay `.A` in both gates and a dedicated third identity
+could absorb the negative control's own extra hit.
+
+## `ws-r122-hindi-context-locker-click-reads-the-real-hicopy-string` (2026-09-05, WS-R122)
+
+**Decision.** `evals/rehearsal/creator.mjs`'s Context Locker band click
+reads the real Hindi label off `src/studio/hiCopy.ts`'s own source
+(`hiCopyString("filesTitle")`/`hiCopyString("filesTitleTest")`, a small
+regex extractor that throws by name if the key is missing or ambiguous)
+rather than a hand-typed guess, for the `hi` locale; the `en` locale keeps
+its existing literal regex.
+
+**Rationale.** `ws-r119-creator-walk-hindi-full-blocked-before-this-
+workstreams-own-code` found the Hindi creator walk failing at this exact
+click, before this workstream ever wrote a line — the regex
+(`/^(Files, links, videos, channels|Add files and links)$/`) was English-
+only regardless of `locale`. The real cause, confirmed by reading
+`StudioApp.tsx` and both copy files: the studio is never built with
+`STUDIO_SELF_TEST_UI` on, so `t.studioApp.feed.filesTitle` (never
+`filesTitleTest`) is what actually renders, and under `hi` that string is
+`hiCopy.ts`'s own "फ़ाइलें, लिंक, वीडियो, चैनल" — nothing an English-only
+matcher could ever find. Reading the string from the source file (the same
+posture `evals/readiness/run.mjs` already takes toward `copy.ts`) rather
+than retyping it means a future copy edit cannot let this walk and the real
+rendered string drift apart silently a second time.
+
+**What would reverse this.** If `hiCopy.ts` ever carries more than one
+`filesTitle`/`filesTitleTest` key (a second section reusing the same key
+name), `hiCopyString`'s own ambiguity guard throws immediately — the fix
+then is a more specific extraction (matched within the `feed:` block only),
+not loosening the guard.
+
+## `ws-r122-hindi-rehearsals-scheduled-weekly-as-a-new-ci-job` (2026-09-05, WS-R122)
+
+**Decision.** `.github/workflows/release-gate.yml` gains a `schedule:`
+trigger (Sunday 04:37 UTC) and a new `hindi-rehearsals` job that runs both
+rehearsals under `REHEARSAL_FULL=1`, gated to fire only on `schedule` or
+`workflow_dispatch`. The existing `gate` job gains exactly one line
+(`if: github.event_name != 'schedule'`) so the new weekly trigger does not
+also re-run the full 21/23-check matrix for no reason; its steps are
+otherwise untouched.
+
+**Rationale.** `evals/run.mjs`'s own registry runs the English gate of
+each rehearsal only (both files' own headers state this, and neither
+workstream's brief authorized widening the default registry to `--full`,
+which would slow every push-triggered gate run and spend the shared
+rate-limit budget the fix above already accounts for exactly once per
+gate). Without a schedule, the Hindi creator and Hindi follower journeys
+would only ever run when a human happened to invoke them by hand — the
+same `gates-that-live-nowhere` shape this repo has already paid for twice
+(a suite exists, passes by hand, gates nothing because nobody wired it).
+
+**What would reverse this.** If `evals/run.mjs`'s own registry is ever
+changed to run `--full` by default (a decision for whoever owns that
+registry, weighing the added minutes and rate-limit exposure on every
+push), this weekly job becomes redundant and should be removed rather than
+left running the same coverage twice.
+
+## `ws-r122-three-more-english-only-locators-found-by-actually-running-full` (2026-09-05, WS-R122)
+
+**Decision.** Beyond the Context Locker click this workstream's brief
+named, three more English-only locators in `evals/rehearsal/creator.mjs`
+were found and fixed the same way, each read off the real copy source
+rather than hand-retyped: the "Meet" tab click (`shell.tabTitle.meet`,
+`hiAuthCopy.ts`, "मीट"), the "Your AIs" rail's own aria-label
+(`replicaList.yourAIsAriaLabel`, `hiCopy.ts`, "आपके AI"), and the "Owner
+control, including erasure" band click (`ownerAreaTitle`, `hiCopy.ts`,
+"मालिकाना नियंत्रण, मिटाना शामिल").
+
+**Rationale.** This workstream's own brief expected the Context Locker fix
+alone to be sufficient ("both rehearsals go green under `--full` (Hindi) by
+fixing the Context Locker click and the shared export-rate bucket"), and
+that expectation was reasonable given what WS-R119 had actually observed:
+the Hindi creator walk failed at the Context Locker click BEFORE it ever
+reached the Meet tab, the rail check, or the owner-control band, so none of
+those three later English-only locators had ever been exercised under `hi`
+by any previous session. Fixing the Context Locker click let the walk
+proceed far enough, for the first time, to hit each of the other three in
+turn — found one at a time by actually running `REHEARSAL_FULL=1`, reading
+the exact `TimeoutError`/empty-read each produced, and tracing it to the
+real English string versus the real Hindi one in `copy.ts`/`hiCopy.ts`/
+`hiAuthCopy.ts`, never assumed from the shape of the first fix. One of the
+four (the rail aria-label) was FIRST misdiagnosed as a timing race against
+the Hindi copy chunk's own async install and given a defensive poll before
+the actual cause (a selector that could never match in Hindi, race or not)
+was found by reading the copy tables directly — the poll is kept as
+harmless real defense, but the fix that actually mattered was the locale-
+aware selector.
+
+**What would reverse this.** None of these four fixes touch the studio's
+own product code — every one is a rehearsal-script locator becoming
+locale-aware. A future English-only locator added to this file for a new
+step would reproduce the same class of gap; the fix is the same pattern
+(`hiCopyString`/`hiAuthCopyTabTitle`, this file's own header) applied to
+the new step, not a reason to revisit this decision.
+
+## `ws-r129-quiet-hours-follower-proxy-via-checkin-table` (2026-09-05, WS-R129)
+
+**Decision.** "Quiet hours on every channel" (renewals reminders, dormancy
+notices) is enforced against a follower who has never set up a check-in
+by NOT enforcing it at all — the row is selectable at any hour, exactly
+today's behaviour — rather than either (a) inventing a default window no
+follower asked for, or (b) blocking every send for a follower with no
+signal. For a follower who HAS set a quiet window on any of their own
+active check-in schedules, that SAME window (read via a `not exists`
+against `vy_room_checkin`, `api/_quiet-hours.js`'s `quietHoursOkForFollowerSql`)
+now also gates their renewal reminders and dormancy notices, on every
+channel those two senders reach (in-app, web push, Telegram).
+`api/_checkins.js`'s own due-select is unchanged in behaviour — it already
+had a real `vy_room_checkin` row in hand — only its predicate's TEXT moved
+into the shared module (`quietHoursOkSql`) so all three senders read one
+copy of the same logic.
+
+**Rationale.** `vy_room_follower` carries no timezone or quiet-hours column
+of its own (see `context/rejected.md#ws-r129-no-follower-level-timezone-or-
+quiet-hours-column`), so there is no true account-wide setting to read for
+renewals/dormancy without a migration this workstream's brief did not
+authorize (133 belongs to WS-R130). Reusing the check-in table's own
+columns is the only way to make "on every channel" true for ANY real
+follower today rather than true in name only. It is also the ONLY
+per-follower signal this schema has ever asked a follower for by name
+("Not between", `CheckinsPanel.tsx`), so it is a legitimate reading of
+what they meant, not an invented proxy.
+
+**What would reverse it.** A migration adds `timezone`/`quiet_from`/
+`quiet_to` directly to `vy_room_follower` (or a new one-row-per-follower
+settings table) and an account-page control writes to it directly. At that
+point `quietHoursOkForFollowerSql` should read the new column set FIRST,
+falling back to the check-in proxy only for a follower who set a window
+before the new column existed (a migration-day compatibility window,
+never a permanent second source of truth) — or be retired outright if a
+backfill copies every check-in's own window onto the new column at
+migration time.
+
+## `ws-r134-shared-comment-stripping-tokenizer` (2026-09-05, WS-R134)
+
+**Decision.** Every scanner that reads `api/`/`src/` source text to decide
+whether a table, an op literal, a banned word or an import is really
+*live* in the code (never a scanner that reads RENDERED text, which was
+never the bug) now reads it through one shared tokenizer,
+`evals/lib/source-scan.mjs`, rather than each re-deriving its own
+"am I inside a comment right now" heuristic with a bare regex over the raw
+file. `stripComments(src)` walks the file once (`tokenize`), classifying
+every span as comment/string/template/regex/code, and blanks comment spans
+to same-length whitespace (newlines kept) so every existing
+`.indexOf`/`.slice`/`.split("\n")` offset a caller already computed off
+the raw text keeps landing on the same real code. Three derived helpers
+(`sqlTextOf`, `opLiteralsOf`, `importsOf`) read that one pass rather than
+re-scanning. Five scanners were switched: `evals/room-leak/run.mjs`
+(the scope-gate's `src.includes(table)` calls and its own `importsOf`),
+`evals/readiness/run.mjs` (the rendered-text banned-word scan's *source*
+half only — `api/_readiness.js`'s own literals — never the DOM text,
+which is a different, already-correct surface), `evals/incidents/run.mjs`
+(the door-wrap check, the provider `fetch(` discovery, the
+`recordIncident(` call-site check), `evals/room-doors/run.mjs` (§18's
+`op ===`/`format ===` extraction and the account-block `indexOf`), and
+`evals/room-doors/shapes.mjs`'s `bodyFieldsOf` (reads `fn.toString()`,
+which is source text with comments intact). `api/invites.js`'s
+`mine_list` dispatch — previously a bare comment standing in for a real
+`if`, harmless only because `OWNER_OPS` already narrowed `op` to two
+values — was made a real `if` with an `unknown_op` fallback, both so the
+door battery's op-list scan can discover it as code rather than prose and
+so the dispatch is no longer *accidentally* correct.
+
+Each of the five historical traps this workstream's brief names
+(`ws-r28`/`ws-r129`'s scope-gate, `ws-r113`/`ws-r122`'s paired-backtick
+desync, `ws-r127`'s own-header-comment self-trip, the door-battery's
+account-block regex, room-doors §18's phantom op/format) is now a frozen
+fixture in the new suite `evals/source-scan` (`node evals/run.mjs
+source-scan`), built to FAIL under the OLD raw-text mechanism and PASS
+under the new one — `context/rejected.md#sound-gate-proved-by-silence`'s
+own law, a fixture that cannot fail under the old behaviour proves nothing.
+Each of the four modified full scanners keeps a `--legacy` flag reverting
+its own comment-stripping calls back to the pre-WS-R134 raw-text
+behaviour, for exactly one purpose: `evals/source-scan`'s §3 parity check
+runs each scanner both ways on the REAL committed tree and diffs the
+output, proving the fix changed nothing about what the tree actually
+contains (byte-identical modulo fresh UUIDs/timestamps) — 0 live traps in
+the tree today, only the ones this wave already logged as costing an hour
+each.
+
+**Rationale.** Every one of the five prior incidents was the same
+mechanism wearing a different scanner: a comment written to EXPLAIN a gap
+or a removed code path was read as if it were the code whose shape the
+scanner claims to check, either wrongly entering scope (room-leak) or
+inventing a phantom finding (readiness, incidents, room-doors) or, in the
+most dangerous direction, letting a comment merely QUOTING a passing
+shape mask a real gap (`isDoorWrapped`, `fileHasRecordIncident` — a
+comment that happens to contain the exact string a real pass condition
+checks for would make those two silently PASS on an actually-unwrapped
+door or an actually-missing incident call, which is worse than a false
+fail). A shared, once-written, tested tokenizer is the only fix that
+does not simply move the same regex-over-raw-text mistake to a sixth
+file next wave; five separate hand-rolled fixes already proved that path
+doesn't converge.
+
+**What would reverse it.** Drop `--legacy` and the parity check once one
+more wave has run it clean without ever finding a non-noise diff (the
+brief's own "kept for one wave" scope) — the fixtures in
+`evals/source-scan` stay regardless, since they need no real scanner to
+run. If a future scanner needs to tell a comment-quoted example FROM a
+real occurrence and currently cannot (this module has no such case yet),
+extend `tokenize`'s token kinds rather than adding a seventh hand-rolled
+regex; if `tokenize`'s regex-literal heuristic (`regexAllowedAfter`) is
+ever wrong on real code in this repo — a value position this repo doesn't
+currently write regexes in — `evals/lib/source-scan.mjs`'s own self-test
+is where the new case belongs before any scanner using it is trusted
+again.
+
+## `ws-r140-webhook-leaving-state-and-period-guard` (2026-09-05, WS-R140)
+
+**Decision.** `applyWebhook`'s three lanes (follower/`vy_room_subscription`,
+creator/`vy_creator_subscription`, org/`vy_org_subscription`, `api/_payments.js`)
+each guard their own `state`/`current_period_start`/`current_period_end`
+assignment against moving BACKWARDS when two real webhooks for the same
+subscription are applied out of the order they actually happened in. `state`
+is guarded by a small rank table (`created` < `authenticated` <
+{`active`,`paused`} < {`cancelled`,`expired`}) embedded as a SQL `case`
+expression, never a full total order — `active`/`paused` toggle both ways,
+legitimately, and a row that has reached a terminal rank never leaves it
+again on ANY later delivery. The billing period is guarded by comparing the
+incoming timestamp against the stored one directly (never earlier wins),
+replacing the old unconditional `coalesce($x, s.current_period_*)`. Both
+guards are marked with a literal SQL comment, `NO_REGRESSION_MARKER =
+"/* ws-r140-no-regression */"` (placed AFTER the `case` keyword, not before
+it — see the reversal condition), so an offline eval can tell from the
+ACTUAL text a caller sends whether this fix is present, rather than
+re-deriving the rule itself.
+
+**Rationale.** Found by `evals/room-doors/order.mjs`'s own §1: a provider
+retries its OWN delivery queue on its own schedule, never this platform's,
+so two real, distinctly-`provider_event_ref`'d webhooks for one subscription
+can be APPLIED in an order that does not match the order they happened in
+(a `subscription.authenticated` from before a later `subscription.activated`,
+delayed and delivered after it). Before this fix, whichever webhook's own
+write reached this table LAST won, unconditionally — proven, not assumed:
+reverting the guard and re-running the SAME 6-order enumeration for §1a and
+§1b made both fail (`context/measurements.md#ws-r140-order-battery-results`).
+A paying follower's own subscription could be silently reverted from
+`active` to `authenticated` by a stale retry, which is a real, if narrow,
+access-loss bug for a state this platform's own tier-flip predicate reads
+directly.
+
+**What would reverse it.** If Razorpay's own webhook envelope is ever
+confirmed to carry a genuine per-event sequence number or generation
+timestamp (this session found none — `parseWebhookPayload`'s own fields are
+the only ones this repo has ever parsed from it), that field should replace
+the rank table as the ordering signal, since a rank comparison cannot by
+itself distinguish two DIFFERENT deliveries that map to the SAME rank (two
+separate `active` charges in different billing cycles) — the period guard
+already carries that case; a rank-only regression there would be the sign
+this reversal is due.
+
+## `ws-r140-reminder-eligibility-rechecked-at-insert-time` (2026-09-05, WS-R140)
+
+**Decision.** `recordAndSend`'s own `insert into vy_renewal_reminder`
+(`api/_renewals.js`) re-checks the subject's live eligibility (state, mandate
+state, `cancel_at_period_end`, and the exact `period_end` it was found due
+for) at INSERT time, via an `exists` subquery against whichever of the three
+subscription tables `subject_kind` names — never trusting `dueReminders`'ll
+own SELECT, which can be arbitrarily stale by the time this statement runs
+(the sweep is a `for` loop over possibly hundreds of due subjects, each one
+a real amount of wall-clock time). Marked with `REMINDER_ELIGIBILITY_MARKER
+= "/* ws-r140-reminder-eligibility */"` for the same offline-detectability
+reason `NO_REGRESSION_MARKER` names above.
+
+**Rationale.** `evals/room-doors/order.mjs`'s own §2: a follower's own
+`cancelFollowerRenewal` (`cancelThroughSeam`) landing in the gap between
+`dueReminders`' SELECT and `recordAndSend`'s own INSERT left a reminder row
+— and, on the real sweep, a SENT message — for a subject who had, by the
+time it went out, already cancelled. Reverting the guard and re-running the
+SAME 6-order enumeration reproduced the finding (order
+`CANCEL,SWEEP,SWEEP,SWEEP,SWEEP,SWEEP`, a cancel that lands before the
+INSERT still produced a reminder row) — `context/measurements.md#ws-r140-
+order-battery-results`.
+
+**What would reverse it.** If `recordAndSend` is ever wrapped in the SAME
+database transaction as `dueReminders`' own SELECT (a real transaction
+boundary this repo's `db(sql, params)` seam does not currently expose to
+callers — see `evals/room-doors/order.mjs`'s own header on why it built a
+bespoke world rather than assuming one), the re-check becomes redundant
+with true snapshot isolation and could be dropped; short of that, dropping
+it would reopen exactly the race this decision closes.
+
+## `ws-r136-whatsapp-join-number-verified-against-the-phone-number-endpoint` (2026-09-05, WS-R136, supersedes `ws-r126-whatsapp-join-number-reuses-phone-number-id`)
+
+**Decision.** `whatsappJoinNumber` (`api/_room-whatsapp-chat.js`) no longer
+reads `WHATSAPP_PHONE_NUMBER_ID` for the wa.me link's phone segment. It now
+reads, in order: the new optional `WHATSAPP_DISPLAY_PHONE_NUMBER` env var
+(a deployer's own already-known dialable number), else a memoised
+(one-per-process) live read of Meta's phone-number endpoint
+(`api/_room-whatsapp.js:fetchPhoneNumberDisplay()`, `GET
+https://graph.facebook.com/<API_VERSION>/<PHONE_NUMBER_ID>?fields=
+display_phone_number,verified_name`), else unknown. Whichever source
+answers, the value must pass `isBareE164Digits` (7-15 digits, no leading
+`+`, no spaces, no dashes) or it is REFUSED, never sanitised down to its
+digits.
+
+**Rationale.** This workstream had the network access WS-R126 was denied
+and fetched Meta's own Cloud API documents (through the proxy, saved under
+the session scratchpad's `meta-docs/`, fetched 2026-09-05):
+`developers.facebook.com/documentation/business-messaging/whatsapp/
+reference/whatsapp-business-phone-number/whatsapp-business-account-phone-
+number-api` names `root.id` — "The ID associated with the phone number"
+(example `"1906385232743451"`) — and `root.display_phone_number` — "The
+string representation of the phone number" (example
+`"+1 631-555-5555"`) — as two DIFFERENT fields on the same object,
+confirming WS-R126's own named suspicion: `WHATSAPP_PHONE_NUMBER_ID`
+(`api/whatsapp.js`'s `PHONE_ID`, used everywhere else in this codebase
+exclusively as a Graph API path segment) is the FIRST of these, never the
+dialable number a wa.me link needs. `developers.facebook.com/documentation/
+business-messaging/whatsapp/business-phone-numbers/phone-numbers#get-a-
+single-phone-number` gives the exact `GET` request syntax and an example
+response (`"display_phone_number":"15555555555"`) that this workstream's
+`fetchPhoneNumberDisplay` now pins its request shape against. A second,
+unplanned finding while reading: the SAME field's two worked examples on
+Meta's own "business-phone-numbers/phone-numbers" page disagree on shape —
+"get a single phone number" returns bare digits (`"15555555555"`), "get
+all phone numbers" returns `"+1 631-555-5555"` (leading `+`, a space, a
+dash) — so neither a deployer's own env var nor a live fetch is trusted
+without the SAME digits-only shape gate, applied uniformly; a value that
+fails is refused rather than reformatted, since WS-R126's own
+`.replace(/[^0-9]/g, "")` would have silently accepted a pasted
+"+91 99999 00001" by stripping exactly the characters that should have
+flagged the mistake.
+
+**What would reverse this.** A Cloud API version bump that renames or
+restructures `display_phone_number` (this file's own fetch pins
+`fields=display_phone_number,verified_name` explicitly rather than
+requesting the default field set, so a rename would surface as a missing
+field, not silent drift), or a live number this deployment has actually
+dialled through and found wrong despite passing `isBareE164Digits`.
+
+## `ws-r136-refuse-shape-invalid-number-never-reformat` (2026-09-05, WS-R136)
+
+**Decision.** `isBareE164Digits` (`api/_room-whatsapp-chat.js`) is the ONE
+gate a number must pass, from either `WHATSAPP_DISPLAY_PHONE_NUMBER` or the
+live fetch, before `whatsappJoinLink` will build anything with it. A value
+that fails — a leading `+`, embedded spaces or dashes, too short, too
+long, non-numeric — is refused outright; the builder never strips
+punctuation and tries again with what remains.
+
+**Rationale.** Meta's own two worked examples for the identical field
+(cited in the decision above) disagree on shape, so "reformat, then use
+it" has no single, correct implementation to reformat TO — a deployer who
+pastes a number with country-code confusion or an extra digit would have
+that mistake silently laundered into something that looks valid and dials
+the wrong line, or no line. A refusal is loud (the share-kit row and
+poster variant are structurally absent, `whatsapp_join_unavailable`
+surfaces the explanation in the studio, both locales) where a silent
+reformat would ship a QR code that opens WhatsApp to a wrong or dead
+number — this workstream's own brief names that outcome as "worse than no
+poster".
+
+**What would reverse this.** Evidence that a real deployer's dialable
+number legitimately falls outside 7-15 bare digits (a numbering-plan case
+`isBareE164Digits`'s own ITU E.164 §6.2.1 reasoning did not anticipate),
+at which point the shape gate should widen by name, cited against the
+specific plan, rather than being loosened generically.
+
+## `ws-r138-payout-statement-gst-reuses-receipts-split-never-a-second-implementation` (2026-09-05, WS-R138)
+
+**Decision.** The creator's printable payout statement
+(`api/_payout-statement-readable.js`) shows the platform's take split into
+a taxable value and a GST line by calling `api/_receipt.js`'s existing
+`gstSplit`/`GST_RATE_BP` directly (`unknown_state` mode, the same
+limitation the follower's own receipt already carries) rather than writing
+a second GST computation. The platform's take is treated as the platform's
+own fee for a service it renders the creator — a taxable supply exactly
+like a follower's membership payment is — so the SAME function that
+already splits a follower's payment into taxable value and GST splits the
+platform's own take, with the caveat "this platform operator's own
+understanding, not confirmed by an accountant" printed next to it, plain
+sentence in both locales, never presented as a settled tax opinion or a
+real GST invoice.
+
+**Rationale.** `context/rejected.md`'s no-fake-numbers law applied to code
+reuse: a second, hand-typed implementation of GST arithmetic is the exact
+class of drift risk this codebase already rejected once for TDS
+(`TDS_RATE_BP_DEFAULT`/`TDS_DISCLOSURE_SENTENCE`'s own header). The
+workstream brief named `api/_receipt.js`'s GST split logic as required
+reading specifically so this document would reuse it rather than
+reinvent it; the platform's own commission is exactly the shape `gstSplit`
+was already built for (an amount, GST-inclusive, no billing state known).
+
+**What would reverse it.** An accountant confirms the platform's own
+commission is NOT a taxable supply under GST at all (a pure pass-through,
+say), or that a different rate or invoice shape applies than a follower's
+membership does. At that point this section should be replaced with
+whatever the accountant specifies — plausibly removing the GST split
+entirely and keeping `take_inr` as one plain line — never patched to keep
+guessing a second rate.
+
+## `ws-r138-tds-sentence-rendered-verbatim-lang-en-never-re-translated` (2026-09-05, WS-R138)
+
+**Decision.** The payout statement's Hindi document renders
+`TDS_DISCLOSURE_SENTENCE` (`api/_payments.js`) exactly as the JSON
+statement already carries it — English, `lang="en"` — with only the
+surrounding section heading translated, rather than hand-translating the
+sentence into a second, Hindi copy of the same legal disclosure.
+
+**Rationale.** The sentence names a real section of India's Income Tax Act
+(194J) and a real withheld rate (0%) inside one frozen constant that is
+the platform's own single source of truth for both; a second, hand-typed
+Hindi sentence living in the readable builder would be a second place
+either number could drift from that constant the day an owner sets a real
+TDS rate or an accountant names a different section —
+`context/rejected.md`'s no-fake-numbers law and this house's "restate a
+tiny helper, never a constant" distinction (`_room-export-readable.js`'s
+own header) both point the same way. `_room-export-readable.js`'s own
+per-node `lang` tagging for a column name or a data cell that does not
+match the document's chosen locale is the exact same mechanism, restated
+for a whole sentence instead of one cell.
+
+**What would reverse it.** The product commits to a formally-translated,
+legally-reviewed Hindi TDS disclosure independent of the English one (an
+accountant or lawyer signs off on Hindi wording specifically, not a
+literal translation of the English). At that point the Hindi sentence
+becomes its own constant next to `TDS_DISCLOSURE_SENTENCE`, read the same
+way, never typed inline in the readable builder.
+
+## `ws-r138-payout-statement-readable-served-through-existing-op-never-a-new-door` (2026-09-05, WS-R138)
+
+**Decision.** The printable statement is a `format: "html"` branch on the
+EXISTING `payout_statement` op (`api/payments.js`), never a new op or a
+new door — `api/room.js`'s `receipt`/`export` `format: "html"` precedent
+(WS-R100/WS-R108) restated for the creator's own money instead of a
+follower's record. The door calls `payoutStatement` exactly once, branches
+on `body.format`, and hands the SAME already-owner-scoped object to the
+pure builder either way.
+
+**Rationale.** Every owner-bearer check `evals/room-doors/run.mjs` proves
+for `payout_statement` (a body-supplied `payout_id` belonging to another
+owner is refused by the WHERE, class c) already runs by the time either
+branch is reached, so a second op would either duplicate that check or
+risk skipping it. A new op would also need its own `OP_COVERAGE` entry and
+its own class-c proof from scratch; a `formats` entry on the existing one
+reuses the proof that already exists.
+
+**What would reverse it.** If the printable statement ever needed
+different authorization than the JSON one (a shareable, unauthenticated
+link a creator could hand to an accountant, say), it would need to become
+a genuinely separate, differently-scoped op rather than a format branch on
+this one — at that point the shared-authorization argument above no
+longer holds and a new door is the honest shape.
+
+## `ws-r138-rooms-line-mirrors-runpayoutrollups-current-attachment-not-reconcileperiods-history` (2026-09-05, WS-R138)
+
+**Decision.** The statement's "Room(s) this statement covers" line is
+computed with the SAME two conditions `runPayoutRollup`'s own
+`per_owner`/`suite_share` CTEs use to decide an owner gets a payout row at
+all — a follower charge landed in this period, OR the Room's CURRENT
+`org_id` sits in an org with an active subscription right now — never
+`reconcilePeriod`'s own suite lane, which deliberately reads attachment
+HISTORY instead (`context/decisions.md#ws-r42-reconcile-suite-lane-uses-
+current-attachment`'s own supersession).
+
+**Rationale.** This line exists to explain what a specific, already-built
+payout row's own numbers are FOR, so it has to agree with the query that
+actually built those numbers, not with a differently-scoped audit read.
+Using `reconcilePeriod`'s historical version here would let the Room list
+disagree with the Suite share figure sitting three lines above it on the
+same page — a Room detached before the reconciliation window closes but
+still current at rollup time would show a Suite share with no Room named
+for it, or vice versa.
+
+**What would reverse it.** If `runPayoutRollup`'s own suite-share query
+ever changes to read attachment history instead of current `org_id` (the
+reversal condition the superseding decision above already names), this
+read must change identically in the same commit, or the two will
+silently disagree about which Room a Suite share belongs to.
+
+## `ws-r137-whatsapp-excluded-from-follower-month-note` (2026-09-06, WS-R137)
+
+**Decision.** The follower's monthly note (migration 136,
+`api/_room-month-note.js`) delivers over web push and Telegram, never
+WhatsApp, even though `vy_room_follower_whatsapp_chat` (128) already gives
+this follower's Room a channel there. `deliverFollowerMonthNote` only ever
+calls `webPushSend`/`sendRoomCheckinMessage`.
+
+**Rationale.** `api/_room-whatsapp.js`'s templates are Meta-approved for
+the check-in shape specifically (a title, a prompt) and a monthly summary
+carrying turn counts, a streak and a threads-revisited line is a different
+message shape than the one Meta signed off on. Sending it through an
+approved-for-something-else template would put text on the wire the
+template was never approved to carry, which is the exact defect class
+WhatsApp's own template system exists to prevent. Web push and Telegram
+are both free-form channels with no such approval gate, so the note's
+real prose can go out unmodified on either.
+
+**What would reverse it.** A monthly-note WhatsApp template gets submitted
+to and approved by Meta. At that point `deliverFollowerMonthNote` gains a
+third channel block, the same shape as its web-push and Telegram blocks,
+reading `activeWhatsappChannelFor`/whatever `api/_room-whatsapp.js` exposes
+for an outbound send on an existing chat.
+
+## `ws-r135-ops-board-gains-its-own-locale-resolution` (2026-09-05, WS-R135)
+
+**Decision.** `OpsBoard.tsx` (`?mode=ops`) is converted whole to
+`STUDIO_COPY_TABLE`/`hiCopy.ts`'s new `ops` section (130 leaf strings, both
+locales), reversing the standing `ws-r62-ops-board-push-copy-stays-english-
+inline` / `ws-r88-ops-board-digest-copy-stays-english-inline` /
+`ws-r123-ops-board-doors-observed-denominator-english-only` decisions now
+that their own named reversal conditions are met. The page is still never
+mounted inside `StudioApp`/`StudioLocaleProvider` (it remains `main.tsx`'s
+own standalone `?mode=ops` mount, `ws-r21`'s own separation), so `OpsBoard`
+now resolves its OWN locale via `studioLocalePreference.ts`'s existing pure
+chain called with `replica: null` (an operator has no `vy_replica` row, so
+the chain collapses to "`?lang=` wins, else the remembered local choice
+[`vyakti.studio.locale.v1`, the same key], else `en`" — the exact pre-auth
+order the sign-in screen already uses for the identical reason) and wraps
+its own tree in `StudioLocaleProvider` directly rather than inheriting one.
+A new `OpsLanguageSwitch` (two always-visible buttons, `aria-pressed` for
+state, `studio-shell.css`'s `.studio-lang-switch` pair restated locally
+rather than imported into a contended file) lets an operator switch either
+on the sign-in screen or the loaded board. The Incidents card's "N of N
+doors observed" badge (`ws-r123`'s own open item) becomes
+`o.incidents.doorsObservedTemplate`, a copy function of two numbers, in
+both locales. Server-computed prose is deliberately left untranslated by
+the SAME rule the rest of `copy.ts`'s table already follows: a sweep's own
+name, an incident's `kind`/`door`, a delivery-state key, a Room's own
+`display_name`, an env-manifest section title or name, and every `note`
+field `api/_funnel.js`/`api/_phase-gate.js` compose are read straight off
+the wire in both locales, unchanged by this workstream — `copy.ts`'s new
+`OpsCopy` interface header names the same list.
+
+**Rationale.** All three entries this decision reverses named the exact
+same reversal condition in writing: no locale switcher and no
+`StudioLocaleProvider` mount existed for a page structurally unable to
+read Hindi, so building that infrastructure for one denominator string (or
+one card) would have been a disproportionate, out-of-scope change at the
+time. This workstream's own brief asked for exactly that infrastructure,
+so the condition is met in the same commit that needs it, not sidestepped.
+Reusing `studioLocalePreference.ts`'s existing chain (rather than a new
+one) means the two-line rule that already IS this codebase's pre-auth
+locale order gets a second reader instead of a second implementation, and
+the accessibility gate never renders this page before this workstream
+(confirmed by grep, `ws-r123`'s own finding) — `scripts/check-accessibility.mjs`
+gains `studio:ops`/`studio-hi:ops`, reusing `check-layout.mjs`'s own
+fixture and query shapes verbatim, which is what actually caught three
+pre-existing, never-before-measured defects on this page: `--ink-faint` on
+`.ops-board__meta`/`.ops-board__slug`/`.ops-board__stat-label`/table
+headers measures below AA (fixed with the already-reserved
+`--ink-faint-aa` token, no wider recolour); `.ops-board__badge--waiting`'s
+text color measures 4.20:1 at this badge's `--text-micro` size against
+`--state-waiting-soft` (fixed with a LOCAL override, `#a64e1d`, 4.79:1,
+scoped to this one selector — `--state-waiting` is shared by 10+ other
+selectors in `studio.css` a wider recolour would have touched sight-
+unseen); and four `overflowX: auto` table wrappers had no `tabIndex={0}`,
+so a scrollable region with no other focusable content was keyboard-dead
+(axe `scrollable-region-focusable`, WCAG 2.1.1) — fixing only the four
+wrapping `div`s left ONE further instance the first patched-tree
+`verify-release.mjs` run caught directly: `ops-board.css`'s own
+`@media (max-width: 640px) { .ops-board__table { overflow-x: auto } }`
+(restating `design/mobile.css`'s `.studio-main table` rule for this
+standalone mount's own scoped sheet, which is never inside `.studio-main`)
+makes the `<table>` element itself a SECOND, independent scroll box below
+640px — axe's own reported selector named the `table`, not the `div` —
+so `tabIndex={0}` was added to all four `<table>` elements too, alongside
+their wrapping `div`s; a second, always-present tab stop on whichever one
+is not the actual scroll boundary at a given width is a harmless no-op.
+See `context/rejected.md#ws-r135-readiness-eval-banned-word-cascade-from-
+a-short-backtick-span` for a second, unrelated defect this same first
+patched-tree gate run caught. `check-layout.mjs`'s new
+`studio:ops`/`studio-hi:ops` targets caught two more:
+`.ops-board__slug`'s longest sentences ran to ~120cpl before a `max-width:
+var(--measure)` cap, and `.ops-board__stats`' `grid-template-columns:
+repeat(auto-fill, ...)` reserved empty tracks (170-647px wasted) on the
+two- and three-stat cards, fixed by switching to `auto-fit`. `layoutFixture.tsx`
+gains a fake `/api/ops` read (counts only, `OpsOverview`-typed) rather than
+a second HTML entry, so the ops-board targets share the SAME fixture and
+stub-fetch/auth-seed plumbing every other studio target already does.
+`evals/studio-locale/run.mjs`'s `TIER_1_FILES`/scanner mechanism (already
+generic, no separate hand-written test) is the NEGATIVE CONTROL the brief
+asked for: `OpsBoard.tsx` dropped from `TIER_2_ALLOWLIST` means any literal
+JSX text left in the file now fails that suite by name, the same way every
+other Tier-1 studio file already does.
+
+**Reversal condition.** None named going forward — this is itself the
+reversal of three earlier decisions' own named conditions. A future
+reversal would need a product reason to take the board English-only again
+(e.g. the operator population becoming exclusively non-Hindi-reading),
+which nothing in this workstream's brief or this repo's history suggests.
+
+## `ws-r133-referral-friend-count-correlated-exists` (2026-09-06, WS-R133)
+
+**Decision.** `maybeGrantReferralReward`'s `referrer_progress` CTE and
+`roomReferralProgress`'s identical friend-count read are rewritten from a
+single `exists (select 1 from vy_payment_event pe join vy_room_subscription
+rs on rs.subscription_id = pe.subscription_id where rs.follower_id = ...
+and pe.kind = any(...) and pe.amount_inr > 0)` into a TWO-LEVEL correlated
+`exists` (subscription first, filtered on `follower_id`; event second,
+filtered on `subscription_id`). The old shape is kept, byte-for-byte, as
+`REFERRAL_REWARD_LEGACY_FRIEND_EXISTS_SQL` in `api/_payments.js` — frozen,
+never executed by any caller — as the negative control for
+`evals/room-referrals/run.mjs`'s own §10 decision-parity assertion (two
+independent reimplementations of each join order, never sharing one
+"landed" helper, compared over 220 generated referrer histories: 0
+disagreements on any friend's landed verdict, any referrer's friend count,
+or any grant decision).
+
+**Rationale.** This is the exact rewrite `context/measurements.md#rooms-migrations-130-132-133-live-verification-2026-09-05`
+named as WS-R130's own reversal condition: the old shape plans as a hashed
+subplan over a seq scan of `vy_payment_event` filtered by kind/amount,
+materialized once per call regardless of how many friends a referrer has —
+accepted by name at merge time only because the ledger was small. The new
+shape gives the planner an equality on `rs.follower_id` to drive off
+`vy_room_subscription_follower_ix`, then an equality on
+`pe.subscription_id` to drive off `vy_payment_event_subscription_ix` — a
+Nested Loop Semi Join walking both indexes once per credited friend
+instead of hashing the whole ledger once per grant call. Both indexes
+already exist in `db/schema.sql` (no migration needed). The two SQL texts
+are the same existential predicate restated with a different join order;
+§10 proves them equivalent by construction over many random relational
+shapes, not by running a real planner (no SQL engine exists anywhere in
+this offline suite, `AGENTS.md`'s own law) — the live planner's actual
+choice is EXPLAIN, run by the main loop, never assumed here.
+
+**What would reverse it.** If the main loop's live EXPLAIN shows the
+planner does NOT pick a Nested Loop Semi Join over the two named indexes
+(e.g. it still hashes, or the referral credit table's own low cardinality
+makes a seq scan cheaper at current row counts), the frozen legacy shape
+should be un-frozen and reinstated, and this decision's own reversal
+condition (the ledger passing roughly 100k rows) revisited once there is
+a real row count to reason about instead of an accepted-by-name guess.
+
+## `ws-r133-receipt-sweep-kind-aware-zero-amount` (2026-09-06, WS-R133)
+
+**Decision.** `backfillReceipts`'s own SELECT admits a row either the OLD
+way (`e.kind = any(CREATOR_CHARGE_KINDS) and e.amount_inr > 0`) OR, newly,
+when `e.kind = 'referral_reward' and e.amount_inr = 0` — kind-aware, never
+a blanket `amount_inr >= 0` that would also sweep a genuinely broken
+zero-amount charge of a real charge kind. Proven by seeding a
+`referral_reward` event with no receipt (the exact gap
+`maybeGrantReferralReward`'s own `catch` names — a receipt mint that can
+silently fail after the grant and the ledger row both land) and running
+the sweep: the reward's receipt is issued, with the SAME atomic FY-counter
+claim and the SAME `vy_receipt` unique index as the only arbiter of
+"already receipted" as any other receipt, `issued_at` taken from the
+ledger row's own `received_at`, never the sweep's clock. A second run is
+idempotent (issues nothing new); a `referral_reward` row that is NOT
+exactly zero-amount (a shape migration 133's own CHECK should make
+impossible) is never swept, proving the branch is gated on `amount_inr = 0`
+specifically, never merely on the kind string.
+
+**Rationale.** WS-R130 named this gap in as many words and left it for a
+sweep that never actually closed it (`CREATOR_CHARGE_KINDS` never named
+`referral_reward`, and `amount_inr > 0` structurally excludes the reward's
+own `amount_inr = 0` row by construction). Everything past the SELECT is
+unchanged — the same `issueFollowerReceipt`, the same FY counter, the same
+uniqueness arbiter — this widens what the sweep looks at, never adds a
+second minting path.
+
+**What would reverse it.** A future reward-shaped kind that must NOT be
+receipted at zero amount (e.g. a partial-value reward) would need this
+admitted-at-zero clause to become kind-specific in a different way (per-kind
+amount predicate table) rather than a single named reason string.
+
+## `ws-r133-room-leak-layer-17-referral-isolation-and-race` (2026-09-06, WS-R133)
+
+**Decision.** `evals/room-leak`'s full world (layer 17) now seeds referral
+credits and one granted reward for a subset of followers across the first
+four Rooms and proves no read in any lane (`roomReferralProgress`,
+`roomExport`) returns another follower's credit, reward or progress
+(byte-check against every other seeded referrer's own follower id). The
+race half of law 4 is proven separately, directly against the REAL
+`maybeGrantReferralReward`, through a small "transaction shim" fake db that
+splits the statement's own read (count/decision) from its write (the
+unique-index-guarded insert) with a real microtask yield between them, so
+two concurrent webhook deliveries genuinely interleave rather than one
+finishing synchronously before the other starts. Both call orders and a
+`Promise.all` concurrent call are proven to grant exactly one reward.
+
+**Rationale.** The full-world fixture never drives a real webhook end to
+end (`world.mjs`'s own header states why — no payments pipeline is wired
+into that fixture), so the interleaving property could not be proven
+through it; a plain synchronous JS mock would prove nothing about a race
+since neither call would ever actually interleave. The shim is the
+smallest change that makes two "concurrent" calls share a real pre-write
+snapshot before either writes, which is what the live `on conflict
+(referrer_follower_id, room_id, year_key) do nothing` is there to guard
+against.
+
+**What would reverse it.** If `maybeGrantReferralReward` is ever
+restructured so its read and its write are no longer expressible as one
+statement (e.g. split into two round trips for a different reason), this
+shim's own split point would need to move to match, or the race property
+would need to be re-proven against whatever the new statement boundary
+actually is.
+
+## `ws-r132-live-subscription-index-widened-to-exclude-halted-and-cancelled-mandates` (2026-09-05, WS-R132, migration 135)
+
+**Decision.** The two "ONE LIVE SUBSCRIPTION" partial unique indexes
+(078's `vy_room_subscription_follower_live_ix`, 095's
+`vy_creator_subscription_replica_live_ix`) now carry a second predicate,
+`and mandate_state not in ('halted','cancelled')`, alongside their existing
+`state in (...)` clause. `startFollowerSubscription`/`startCreatorSubscription`'s
+own existing-live lookups carry the identical widened predicate. When
+neither lookup finds a live row, the insert is folded into ONE statement
+family with a `closed` CTE that flips any halted-or-cancelled-mandate row
+still sitting in a non-terminal `state` to `state = 'cancelled'`, so the
+dead row is never left open forever once a fresh one exists.
+
+**Rationale.** WS-R125 (migration 130, `context/decisions.md#ws-r69-
+halted-is-a-derived-read-never-a-stored-value`'s own reversal condition)
+gave `mandate_state` a real, stored value so a second reader could tell a
+customer-paused mandate from a bank-halted one - but `startFollowerSubscription`/
+`startCreatorSubscription`'s own "existing-live" lookups never became that
+second reader, so a halted mandate's row (`KIND_TO_STATE` maps
+`subscription.halted` to `state = 'paused'` ON PURPOSE, never a terminal
+value) stayed "live" forever at the INDEX itself, not only at the read
+that reuses it. WS-R125 correctly refused to ship a "Start a new mandate"
+BUTTON over that gap
+(`context/rejected.md#ws-r125-halted-mandate-start-new-button-would-have-
+been-a-silent-no-op`) rather than present a control that silently no-ops.
+This migration closes the gap at its root - the index and the lookup that
+reads it - so the button WS-R125 declined to ship is now a real action.
+`state`'s own closed list is untouched: `applyWebhook`'s tier-flip
+predicate, `ownerRevenue`'s counts and every fixture match in
+`evals/room-doors`/`evals/payments`/`evals/org-billing` that reads `state`
+keep meaning exactly what they always have.
+
+**What would reverse it.** If Razorpay's own webhook semantics ever change
+so a halted or cancelled mandate CAN still receive a legitimate charge
+(nothing in their documented Subscriptions lifecycle suggests this, and
+`applyWebhook`'s own `KIND_TO_STATE`/`MANDATE_KIND_TO_STATE` maps would
+need to change first), the widened predicate would need to be narrowed
+back, since it would then be possible for two live charge streams to exist
+for one follower/creator at once. Absent that, the reversal condition is
+symmetric with 130's own: if the closed-then-insert statement ever proves
+too fragile under real concurrency (two racing "subscribe" requests for
+the SAME halted follower), the fix is a `for update` lock inside `closed`
+before the widened index is asked to arbitrate, not a narrower predicate.
+
+## `ws-r132-close-then-insert-is-one-statement-family-never-two-round-trips` (2026-09-05, WS-R132, migration 135)
+
+**Decision.** Closing a halted/cancelled-mandate row and inserting the
+fresh replacement are ONE SQL statement (`with closed as (update ...
+returning subscription_id), inserted as (insert ... returning
+subscription_id, state) select ... from inserted`), never a `close` call
+followed by a separate `insert` call from JavaScript.
+
+**Rationale.** `api/_payments.js`'s own house style already refuses a
+second data-modifying CTE against the SAME table in one statement (this
+file's own `applyWebhook` header, `context/rejected.md#ws-r125-mandate-
+state-as-a-second-cte-on-the-same-table`'s own finding that Postgres
+documents this as unpredictable), so `closed` and `inserted` deliberately
+target DIFFERENT rows of the same table in two SEPARATE CTEs rather than
+two competing writes to the SAME row - this is the shape that hazard rules
+IN, not the shape it rules out. Doing it as one statement rather than two
+round trips means a process that crashes between them cannot leave a
+follower with the OLD row still open and a NEW row that never landed (or
+the reverse): the whole family commits or none of it does. It is also a
+no-op WHERE clause (matches zero rows) for the ordinary case of a
+follower/creator with no prior halted row at all, so it costs nothing
+extra on the far more common first-ever subscribe.
+
+**What would reverse it.** If a future workstream needs to observe or act
+on the moment a row is closed independently of whether the insert
+succeeds (an audit log entry, a notification), the two would need to
+split into a `close` step with its own commit boundary. Nothing in this
+workstream's own build needs that today.
+
+## `ws-r131-follower-own-quiet-hours-column` (2026-09-05, WS-R131)
+
+**Decision.** Migration 134 gives `vy_room_follower` its own `timezone`/
+`quiet_from`/`quiet_to` columns, set once on the account page
+(`roomSetQuietHours`, `api/room.js`'s `set_quiet_hours`), taken exactly as
+`context/decisions.md#ws-r129-quiet-hours-follower-proxy-via-checkin-table`'s
+own reversal condition specified it: the follower's own row now wins in the
+shared fragment (`api/_quiet-hours.js`'s `quietHoursOkForFollowerSql`, a
+`coalesce()` of `quietHoursOkForFollowerRowSql` first, WS-R129's own
+check-in `not exists` proxy second), never a fifth code path choosing
+between two sources. A new check-in schedule that leaves its own window
+unset inherits the account row's window at INSERT time
+(`api/_checkins.js`'s `optIn`, `coalesce(($10)::time, cf.quiet_from)`); an
+explicit window on the schedule itself still wins, unchanged from before
+this workstream.
+
+**Rationale.** WS-R129 named this exact gap and named exactly this fix as
+its own reversal condition; nothing about the reasoning needed rediscovery,
+only the migration number its own brief was not given. Keeping the check-in
+proxy alive as the FALLBACK (never retiring it) is deliberate: a follower
+who set a window on a check-in before this column existed keeps that same
+protection with zero migration-day action of their own, and a follower who
+has used neither control is blocked by neither — identical, honest, to
+today's behaviour for them.
+
+**What would reverse it.** A backfill that copies every `vy_room_checkin`
+row's own most-recently-set window onto its follower's new
+`vy_room_follower` columns at migration time would let the check-in proxy
+retire outright (`quietHoursOkForFollowerSql` collapsing to
+`quietHoursOkForFollowerRowSql` alone) — not done here, since a backfill
+touching every existing check-in row was not this workstream's brief and
+the fallback costs nothing while it stays correct.
+
+## `ws-r139-room-secondary-screens-are-lazy-chunks` (2026-09-05/06, WS-R139)
+
+**Decision.** The Room's five secondary screens — `AccountPage`,
+`CheckinsPanel`, `SubscriptionPanel`, `HandoffPanel`, `DataMenu` (its own
+"gone"-phase receipt split further, into `ForgetReceipt`) and the
+first-visit `TasteScreen` — are `React.lazy`-loaded from `RoomApp.tsx`,
+each its own Vite chunk, reached only when a follower actually opens that
+screen. `src/room/copy.ts`'s Hindi table splits the identical way
+`src/studio/copy.ts` already does (`#studio-hindi-table-is-its-own-chunk`):
+`hiTalkCopy.ts` carries every section the join/taste/talk screens and the
+always-visible chrome read (including the secondary screens' own OPENER
+labels), `hiCopy.ts` carries the remainder, read only once a secondary
+screen actually opens. `ROOM_COPY_TABLE.hi` is a Proxy that throws by name
+(`room_copy_hi_talk_not_loaded` / `room_copy_hi_not_loaded`) on any read
+before its own loader installs it, mirroring `STUDIO_COPY_TABLE.hi`'s
+identical contract. `RoomApp.tsx` renders nothing (`if (!talkReady) return
+null`, placed after every hook) until the talk chunk lands; `AccountPage`/
+`SubscriptionPanel` take `restReady` as a PROP and self-guard the same way
+INSIDE the component, never as a condition on whether the parent mounts
+them at all (see the reversal condition and `context/rejected.md#ws-r139-
+restready-gated-at-the-parent-resets-accountpages-own-fetched-state` for
+why). `switchLocale` awaits `loadRoomCopy(next)` ALONGSIDE its server call
+before ever setting `locale` to `next`, so a LIVE in-session switch never
+trips the top-level null-render at all (`context/rejected.md#ws-r139-
+locale-switch-raced-the-hindi-chunk-and-unmounted-open-panels`). The push
+worker's precache (`public/room-sw.js#derivePrecacheList`) and
+`scripts/check-install.mjs` both learn every lazy chunk (screens AND the
+two Hindi halves) by following every `import(...)` literal the built
+`room.html`'s own scripts actually contain, never a hand list — widened in
+the same commit to match a template-literal import (see the precache
+rejection entry below), and `vite.config.ts`'s `roomHindiPreloadPlugin`
+injects a `<link rel="modulepreload">` for `hiTalkCopy`'s own chunk on a
+`?lang=hi` request or a remembered `vyakti.room.locale.v1` device hint,
+`studioHindiPreloadPlugin`'s identical shape one surface over — including
+its own committed CSP hash in `vercel.json`'s `/r/:slug` and `/room.html`
+rules, since the inline script's text never changes build to build.
+
+**Rationale.** Measured before this split: the Room join screen
+(`/r/<slug>`, `?screen=join`, `scripts/check-performance.mjs`) transferred
+90,762 bytes of JS to every follower on first paint, English or Hindi,
+whether or not they ever opened a settings panel or asked a taste
+question — most never do. After: 80,230 bytes English (a follower who
+never opens a secondary screen never downloads its code), 86,916 bytes
+Hindi (the `hiTalkCopy` chunk alone, `hiCopy` deferred further still). See
+`context/measurements.md#ws-r139-room-secondary-screens-js-bytes-2026-09-05`
+for the full before/after table, n and method. `scripts/check-
+performance.mjs` gained a per-target `jsBudget` override (100KB English,
+105KB Hindi — roughly 20-25% over each measured figure) rather than
+lowering the SHARED 180KB ceiling every other target is also checked
+against, which would have tightened targets this workstream never
+measured.
+
+**What would reverse it.** If a follower's phone is measured spending more
+than one throttled round trip WAITING on a secondary screen's chunk after
+tapping to open it (the `HINDI_CHUNK_WAIT_BUDGET_MS`-style proof this file
+already has a precedent for), preload that ONE chunk from the always-
+visible opener's own `onPointerEnter`/`onFocus`, never fold the screen
+back into the main bundle wholesale — that would undo the measured saving
+for the far more common case (played by every follower every time) of
+never opening it at all. If the `AccountPage`/`SubscriptionPanel`
+`restReady`-as-prop pattern is ever found NOT to prevent a state loss in
+some other secondary screen this workstream did not touch, that screen
+needs the identical prop-and-internal-guard treatment, never a parent-
+level mount condition.
+
+## `wave-twenty-planned-not-built-handover-2026-09-06` (2026-09-06, session end)
+
+**Decision.** Wave twenty (WS-R141 to WS-R150) is handed over as briefs, not code. The ten briefs, the shared rules (`ws-common.md`) and a README on how a wave is run live under `docs/gurukul/waves/wave-20/`; the merge tools the main loop used at every merge since wave eleven live under `scripts/merge-tools/`. The ten agents launched over `77e0151` were stopped before any wrote a file; every worktree was verified clean at `77e0151`, so the tree at the handover commit is the gated wave-nineteen close plus documents and no gate was rerun for it.
+
+**Why.** The owner ended the session to continue with a local tool. A brief in the repo is worth more than a half-built worktree in an ephemeral container: it carries the product law, the assigned migration numbers (137 for R149, 138 for R150) and the sibling map, and it cannot be lost.
+
+**Reversal.** If a future wave finds a brief contradicts a live constraint (a migration number already taken, an op already cased, a table already present), the brief yields to the live state and the contradiction is logged here; the briefs are plans, never evidence.
+

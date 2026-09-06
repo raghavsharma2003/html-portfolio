@@ -131,6 +131,17 @@ export interface WizardInput {
    */
   connectedChannels: number | null;
   /**
+   * Is the owner's Room (WS-R7, `/r/<slug>`) published right now?
+   *
+   * `null` is UNKNOWN, not "not published" — `RoomStudio` has not answered
+   * yet, the same rule `connectedChannels` above already carries, so Deploy
+   * can never claim "not published" before the Room panel has ever loaded.
+   * A published Room is a second, independent way Deploy reads DONE: it is
+   * the primary, remembering address a follower actually reaches, not a
+   * channel on somebody else's platform.
+   */
+  roomPublished: boolean | null;
+  /**
    * What the PLATFORM is doing, reduced from `/api/replica-activity` (WS-AF).
    *
    * THE FIELD THE OWNER'S SCREENSHOT NEEDED AND DID NOT HAVE. Their uploaded
@@ -233,9 +244,9 @@ const TITLES: Record<StepId, {
   },
   meet: {
     title: "Meet it",
-    promise: "Talk to your clone, hear it, and correct it while it listens.",
-    nextPhrase: "talk to your clone",
-    backPhrase: "talking to your clone",
+    promise: "Talk to your AI, hear it, and correct it while it listens.",
+    nextPhrase: "talk to your AI",
+    backPhrase: "talking to your AI",
   },
   deploy: {
     title: "Deploy it",
@@ -301,10 +312,10 @@ const BLOCKER_META: Record<string, {
   inference_consent_required: {
     label: "Inference permission",
     owner: "you", step: "meet", anchor: "#model-consent-gate",
-    note: "Grant training and inference permission in Advanced on this step.",
+    note: "Grant build and inference permission in Advanced on this step.",
   },
   person_profile_not_approved: {
-    label: "Approved person model",
+    label: "Approved: what we learned about you",
     owner: "you", step: "meet", anchor: "#person-model-studio",
     note: "Review and confirm your claims in Advanced on this step.",
     needsProcessedMaterial: true,
@@ -328,9 +339,9 @@ const BLOCKER_META: Record<string, {
   // A production run measured the old copy telling an owner "nothing to do
   // here" while their own review-and-approve tap was the entire blocker.
   voice_genome_not_approved: {
-    label: "Approved voice model",
+    label: "Approved voice",
     owner: "you", step: "meet", anchor: "#processing-review",
-    note: "Review the evidence and queue a draft voice model under Check it and correct it on this step.",
+    note: "Review the evidence and queue a draft voice under Check it and correct it on this step.",
     needsProcessedMaterial: true,
   },
   voice_not_ready: {
@@ -349,7 +360,7 @@ const BLOCKER_META: Record<string, {
     note: "Runs automatically once every other gate is closed.",
   },
   replica_not_ready: {
-    label: "Approved voice and behavior models",
+    label: "Approved voice and behavior",
     owner: "platform", step: "deploy", anchor: "#runtime-gate",
     note: "Depends on the gates above being closed first.",
   },
@@ -503,7 +514,7 @@ function meetMissing(input: WizardInput): Missing[] {
       code: "sheet_not_saved",
       label: "A saved teaching sheet",
       owner: "you",
-      note: "Review the sheet and save it, so the clone answers as you and not as an example.",
+      note: "Review the sheet and save it, so your AI answers as you and not as an example.",
       anchor: "#teacher-sheet-studio",
     }, input));
   }
@@ -536,13 +547,19 @@ function deployMissing(input: WizardInput): Missing[] {
       anchor: "#runtime-gate",
     }, input));
   }
-  if (input.connectedChannels === 0) {
+  // WS-R7: a published Room is a reachable address in its own right, so a
+  // KNOWN zero channels no longer asks for one while the Room already
+  // answers. `roomPublished` defaults to `null` (unknown) wherever this
+  // build never mounts `RoomStudio`, which reduces to the old condition
+  // exactly — the same backward-compatible shape `connectedChannels` itself
+  // uses for "has not answered yet".
+  if (input.connectedChannels === 0 && input.roomPublished !== true) {
     rows.push(missing({
       code: "no_channel",
       label: "One place it can be reached",
       owner: "you",
-      note: "Connect at least one channel after you have read the disclosure card.",
-      anchor: "#channels-studio",
+      note: "Publish your Room, or connect at least one channel, after you have read the disclosure card.",
+      anchor: "#room-studio",
     }, input));
   }
   return rows;
@@ -560,8 +577,10 @@ function deployDone(input: WizardInput): boolean {
   if (!input.runtime?.active) return false;
   // Unknown channel state cannot complete the step: "we did not ask" is not
   // "one is connected". It is also not a blocker with a name, which is why
-  // `deployMissing` stays quiet about it.
-  return (input.connectedChannels ?? 0) > 0;
+  // `deployMissing` stays quiet about it. WS-R7: a published Room is the
+  // other honest way this step reads done, since it is the primary address a
+  // follower actually reaches.
+  return (input.connectedChannels ?? 0) > 0 || input.roomPublished === true;
 }
 
 /**

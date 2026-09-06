@@ -9,9 +9,146 @@ phase below — it tells you, without ever printing a value, whether the
 subsystems that phase touches are DARK (expected, before), LIVE (expected,
 after), or BROKEN-HALFWAY (stop and fix before continuing).
 
-Nothing in this file has been executed. It is a plan, verified against the
-tree as it exists on `claude/gurukul-platform` today, not a record of what
-happened.
+**This framing is now partially stale, and the section right below corrects
+it.** When this file was written, nothing in it had been executed. As of
+2026-09-03 the migrations in Phase 1's own range and beyond have been applied
+live, in several sessions, well past "a plan" for that part. The phase-by-phase
+Vercel env / standalone-service plan further down is still mostly unexecuted
+and is left as written; **§"The Vercel reality" is the record of what has
+actually happened, and where the two disagree, that section wins.**
+
+---
+
+## The Vercel reality (2026-09-03)
+
+Two Vercel projects build from this one GitHub repo
+(`raghavsharma2003/html-portfolio`), git-connected, each producing a preview
+deployment per branch pushed, behind Vercel's own SSO/deployment protection —
+so a preview URL is not public by default, unlike the production domains.
+Neither project's env vars are visible to the other; §22-25's "not one
+setting" rule applies across projects, not only across the five standalone
+Azure services.
+
+- **`html-portfolio`** — the original project. `.github/workflows/deploy-web.yml`
+  pins it by id (`VERCEL_PROJECT_ID: prj_NZ4BT0Vr2BbkVrvWPcJNF68XCObp`, Phase 0
+  item 2's own warning about why that pin exists). Serves Meera at `/chat` on
+  its production domain, and Vyakti's own landing at `/` for builds off the
+  Rooms platform branch (below).
+- **`vyakti-replica-lab`** — the studio project, added later. Its build sets
+  `STUDIO_ROOT=1` so `scripts/vercel-build.sh` serves the teacher/creator
+  studio at `/` regardless of branch name — "one build, two products, the
+  difference is a per-project env var, never a branch" (the script's own
+  comment). Neither `OPENROUTER_KEY`/`OPENROUTER_API_KEY`, `GOOGLE_KEYS`,
+  `AZURE_KEY` nor `AZURE_ENDPOINT` (ENV-MANIFEST.md §22, §25) has ever been set
+  on this project, so every LLM-backed reply on it — `/api/chat` and, through
+  the shared `think()`/`gatedReply()` door every other surface also uses, a
+  Room's follower turn, a Mirror Call reply, a channel message — cannot
+  produce a completion; see ENV-MANIFEST.md §25 for the two different failure
+  shapes that produces.
+
+**`scripts/vercel-build.sh`'s `site/vyakti.html`-at-`/` branch selection is a
+literal string match, and the platform branch has been renamed since it was
+written.** The script serves Vyakti's landing when `STUDIO_ROOT=1` OR
+`VERCEL_GIT_COMMIT_REF = "claude/gurukul-platform"` (`scripts/vercel-build.sh`,
+the `STUDIO_ROOT` check). `vyakti-replica-lab` is unaffected — it always sets
+`STUDIO_ROOT=1` explicitly. But the `html-portfolio` project's own preview of
+the Rooms platform branch depends on the SECOND half of that OR, and the
+platform branch is `claude/vyakti-cloning-platform-aq05n4` now, not
+`claude/gurukul-platform` (`context/decisions.md#ws-r10-worktree-wrong-base-commit`;
+`git branch -a` in this tree shows both `remotes/origin/claude/gurukul-platform`
+and `remotes/origin/claude/vyakti-cloning-platform-aq05n4` as distinct refs).
+**Resolved 2026-09-03 by the main loop:** `scripts/vercel-build.sh` now
+matches `claude/gurukul-platform` or any `claude/vyakti-cloning-platform-*`
+ref as the platform branch (a `case` pattern, so the next branch rename in
+that family needs no script change). Both Vercel projects build every push of
+the platform branch as a preview (`target: null` on their latest deployments,
+read from the Vercel API); neither has a production deployment from it, so
+the mismatch was preview-only and never changed what any production domain
+served. Checked after the change on the previews both projects built from
+`4e80c30`: `/` serves the Vyakti landing (`<title>Vyakti</title>`) on both,
+and `/chat` still answers 200 on `html-portfolio`
+(`context/measurements.md#platform-branch-previews-serve-vyakti-2026-09-03`).
+
+### Migrations actually applied to the live Neon database, in order
+
+Per `context/decisions.md#first-live-apply` (015-054), `#ws-o-live-verified`
+(056), the STATE.md LIVE table (015-062 as of 2026-08-27), the main-session
+06:35Z log entry (064), and `context/decisions.md#rooms-migrations-applied-live-in-the-union-order`
+(071-075, applied 2026-09-03 by the main loop in finish order 072, 074, 073,
+075, 071, each `EXPLAIN`ed against the live database before its branch
+merged): **015 through 065 and 071 through 075 are confirmed applied live.**
+**066-070 are deliberately unused** — another agent applied migrations under
+those numbers live without pushing the files, so the live database already
+carries `vy_replica_voice_preview_intent`, `vy_replica_voice_build_intent`,
+`vy_replica_voice_reference`, `vy_replica_claim_extraction_queue`,
+`vy_replica_claim_extraction_queue_item` and `vy_replica_expression_observation`
+— none of which any file in this tree creates — and leaving the numbers free
+is what lets that tree merge later without a renumbering collision.
+
+**076 (`vy_replica_drift_report`, WS-R9) is confirmed applied live.** The
+docs workstream that wrote this section (WS-R13) found no `context/` record of
+the apply and flagged it rather than assert it; the main loop then read the
+table and its three indexes (`_latest_ix`, `_inputs_ix`, `_alerts_ix`) back
+from the live database on 2026-09-03 and logged
+`context/decisions.md#rooms-migration-076-confirmed-live`. **077 is the next
+free migration number.**
+
+### How to apply a migration
+
+```bash
+NEON_URL=<connection string> node db/migrations/apply.mjs          # every *.sql in db/migrations/, idempotent
+NEON_URL=<connection string> node db/migrations/apply.mjs 076      # one file, by its numeric prefix
+```
+
+`apply.mjs` goes through `api/_db.js`'s `q()`, the same path everything else
+uses, and Neon's SQL-over-HTTP endpoint accepts exactly one statement per
+request — the runner splits each file and runs statements one by one, so every
+statement in every migration must be independently idempotent (Phase 1's own
+law, unchanged). Follow with `node scripts/relcheck.mjs` (the zero-orphan
+sweep) while `NEON_URL` is still set; it is a hard gate in
+`scripts/verify-release.mjs` whenever a URL is reachable and a skip, loudly
+printed, when it is not.
+
+### The one-gate-per-machine rule
+
+`scripts/check-layout.mjs` (the layout readability gate inside
+`verify-release.mjs`) binds `127.0.0.1:8931` to render the real signed-in
+studio for measurement, and releases it when the check finishes. Only one
+`verify-release.mjs` run — from any worktree, on this machine — can hold that
+port at a time; a second one gets `EADDRINUSE`. That is a collision with
+another gate run, not a defect: wait a minute for the first one to finish and
+rerun, rather than changing the port or skipping the gate. This rule is local
+only — GitHub's runner is a fresh machine per job, so the workflow below never
+collides with a worktree running the gate by hand, or with another job in its
+own Node-22/Node-24 matrix.
+
+### CI runs the whole gate (WS-R77, 2026-09-05)
+
+`.github/workflows/release-gate.yml` runs `node scripts/verify-release.mjs` on
+every push to `main` or a `claude/**` branch (and on demand via
+`workflow_dispatch`), in a Node 22 x Node 24 matrix, with a real headless
+Chromium installed on the runner — the same 21 checks (23 only when
+`NEON_URL` is set, which this job never is) that this file has always called
+"the law," now run somewhere other than whichever machine a person or an
+agent happened to run them on by hand. It needs no secret: `CI=1 node
+scripts/write-config.mjs --stub` writes every key empty before the gate runs,
+the same stub every offline check in this repo already uses, and a step in
+the workflow statically asserts the file itself references no
+`secrets.<NAME>` before the gate is allowed to run. The one thing it installs
+beyond `npm ci` is the bundled `@expo-google-fonts/noto-sans-devanagari` face
+as a user-local system font (via `fc-cache`, no `apt-get`, no root) so the
+layout gate's Hindi glyph pass is proven against a real font on the runner
+rather than however the runner's own default font set happens to substitute —
+see that workflow file's own comments for why a "generous" local sandbox
+cannot be trusted to represent a stock `ubuntu-latest` image here. It is a
+separate workflow from `build-apk.yml` and `deploy-web.yml` on purpose: those
+two build a debug APK and push a live deploy respectively, and either one
+failing should not be confused with the release gate itself failing, or vice
+versa. A local `verify-release.mjs` run is still the fast feedback loop and
+still what a workstream commits against; this workflow is the backstop that
+catches the push nobody ran it against by hand — see
+`context/decisions.md#ws-r77-ci-runs-the-whole-gate` for the reversal
+condition.
 
 ---
 
@@ -326,3 +463,59 @@ wait, not a target date.
 - [ ] `AZURE_IDENTITY_REVIEW_PATH_APPROVED` stays `false` until the
       not-yet-built document-review service (Phase 3 sixth dependency) is
       deployed and tested — do not flip this to unblock a demo.
+- [ ] `node scripts/probe-live.mjs <base-url>` run against the deployment
+      just pushed, and clean — see Phase 6 below.
+
+## Phase 6 — after every deploy: probe what actually shipped (WS-R64)
+
+`node scripts/verify-release.mjs --live <base-url>` exists and costs money
+(it probes the model). Nothing else ever checked, for free, that a
+deployment actually SERVES what the tree promised — WS-R57's security
+headers, WS-R40's bot unfurl, WS-R55's og.png/story.png, WS-R59's
+installable manifest and service worker, WS-R45's creator directory and
+sitemap, WS-R48's `/suites`, and every API door's refusal shape. A push
+that silently shipped a stale build, a dropped header, or a manifest byte
+that drifted from `public/room.webmanifest` looked identical to a clean
+deploy until a person went and clicked around by hand.
+
+```bash
+node scripts/probe-live.mjs <base-url>                              # unprotected prod domain
+node scripts/probe-live.mjs <base-url> --share <link> --cookie-jar <file>   # protected preview
+```
+
+**Run this after every push that reaches a real deployment** — production
+or a preview — as the last step of "push, then probe": push the branch,
+let Vercel build it, then run this against the URL it produced. It is
+**not** a gate in `scripts/verify-release.mjs` and never will be: a gate
+must run offline, and this makes real GET/HEAD requests (plus two
+harmless, always-refused `POST /api/room` bodies) against one live URL.
+Its own logic — every expectation it checks, parsed from this repo's own
+source rather than a second hand-typed copy — is proven offline instead,
+in `evals/probe-live/run.mjs`, which IS part of `node
+scripts/verify-release.mjs`'s eval suite.
+
+**Every request costs nothing** — GET/HEAD, plus `POST /api/room` with an
+unknown op and with no session, both refused by `api/room.js`/
+`api/_room-surface.js` before either could ever reach a compiler or a
+provider (the script's own static self-scan refuses to even start if its
+own source ever grows a POST body outside those two). No sign-in, no paid
+call, ever.
+
+**A protected preview** (Vercel deployment protection, on by default for
+every branch preview) answers every request with a redirect toward
+`vercel.com/sso-api` until a bypass cookie is set. Visit the preview's
+share link once with `--share <the link>` — the script follows its
+redirects itself and stores whatever cookie it sets in the file named by
+`--cookie-jar`, so later runs against the same preview do not need the
+link again. **Never commit that file, and never paste the share link into
+a `context/` entry or a commit message** — it is a bearer credential and
+it expires in about a day; treat it exactly like any other secret named in
+`docs/gurukul/ENV-MANIFEST.md`. A production domain (no deployment
+protection) needs neither flag.
+
+A finding names the surface, what the repo's own source promised, and what
+came back — fix anything the finding says is this repo's fault (a missing
+header on a route class, a wrong content type, a drifted manifest byte)
+before calling the deploy done; a finding that is Vercel's own or the
+owner's to fix (deployment protection itself, a DNS/CDN layer) gets logged
+in `context/`, not silently worked around.

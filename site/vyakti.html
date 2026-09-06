@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
   <title>Vyakti</title>
-  <meta name="description" content="Build a private AI clone from your own consented recordings, inspect the evidence behind it, and hear a protected preview before anything can be deployed." />
+  <meta name="description" content="A private AI built from a creator's own material. Every follower gets their own continuing relationship with it, and none of them can hear each other." />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Vyakti" />
-  <meta property="og:description" content="Consent first, provenance on every second of audio, and a fidelity score we publish instead of a promise we cannot keep." />
+  <meta property="og:description" content="A creator can only talk to one person at a time. Here, they talk to all of them, and none of them can hear each other." />
   <meta name="theme-color" content="#f4f1e9" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
@@ -23,56 +23,39 @@
     products. One self-contained file, no build coupling, no extra copy step
     in scripts/vercel-build.sh.
 
+    ══ WS-R10 REWRITE, 2026-09-03: WHAT CHANGED AND WHY ═════════════════════
+    This page used to pitch a single vertical (JEE teachers) and lead with
+    fidelity metrics from one owner's voice build: a bandwidth number, a
+    conditioning window, one listening comparison. Those numbers were true
+    and dated fast, and they answered a question ("does the voice sound
+    right yet") that is not this product's pitch. The product decided
+    2026-09-02 is Rooms: a creator's own AI, and a private, continuing
+    relationship for every follower who talks to it, with none of them able
+    to hear each other. This page now tells that story instead, keeps every
+    number it had a right to state (the free tier: 20 messages a month, no
+    voice, no check-ins) and invents none it did not: no adoption figures,
+    no pricing beyond "our share is one number, shown before you publish".
+    The word "clone" is gone from every string on this page; the copy gate
+    (`scripts/check-copy.mjs`, the "rooms vocabulary" rule) now fails the
+    build if it comes back. See `context/rejected.md#demo-teacher-is-not-a-
+    placeholder`: a fixture may never stand in on a page that asks someone
+    to commit their name and their audience to it, so this page states only
+    what is true of the product as built, never a number from one person's
+    one test run.
+
     ══ WHAT MAY BE SAID HERE ════════════════════════════════════════════════
-    Every number on this page is in `context/measurements.md` with its n and
-    its method, and every one of them is printed WITH the thing it does not
-    mean. That is not modesty. `context/STATE.md` is explicit that no ABX
-    bench has run and nothing may be claimed about how a clone SOUNDS, and
-    the honest framing is the actual pitch: a vendor that publishes the
-    ceiling of its own metric is making a different kind of promise than one
-    that publishes a superlative. No testimonials, no logos, no invented
-    users, no "trusted by" - there are none yet, and a fabricated one on the
-    consent page of an identity product would be the single most
-    self-defeating sentence we could write.
-
-    ══ WS-AG REVAMP, 2026-08-26: WHAT CHANGED AND WHY ══════════════════════
-    Against `docs/gurukul/DESIGN-LAW.md`. The previous version of this page
-    was honest and well-written and broke six composition rules:
-
-    1. The HERO carried six stacked elements (a build-status pill, an h1, a
-       55-word lede, two buttons, a fine-print line, and a three-cell figure)
-       against a limit of four, with a trust strip the law bans outright and
-       subtext at nearly three times the 20-word cap. The CTA sat below the
-       fold on a laptop. Hero is now four elements: headline, 16-word
-       subtext, one button, one line of fine print.
-    2. The build-status pill was not deleted. It is a truth the page owes and
-       `context/rejected.md`'s honest-states law requires, so it moved to the
-       section that exists for exactly that, as its first item. Honest is not
-       the same as first.
-    3. SIX EQUAL CARDS in an auto-fit grid rendered as three equal columns on
-       any desktop. They are now a prose list at one measure. The claims did
-       not change; the shape stopped pretending they were six features of
-       equal weight when one of them (disclosure) is a safety floor.
-    4. FIVE EYEBROWS across five sections against a limit of one per three.
-       One survives, on the section that has earned an interrupt.
-    5. TWO ACCENTS: forest, plus an ember dot and a large orange radial glow
-       behind the hero. The ember means "your turn to act" in this system
-       (`DESIGN-SYSTEM.md` §4.1) and there is no such state on a landing
-       page, so it is gone and forest is the only accent here.
-    6. NINE STEPS, from an ordering that `context/decisions.md#three-step-
-       wizard-ia` has since replaced with Feed, Meet, Deploy. The page now
-       says the three the studio actually implements.
-
-    MEASURED DEFECT, worth carrying elsewhere: `--ink-faint` (#7a7e74) is
-    3.67:1 on the paper ground and 4.11:1 on panel, under WCAG AA's 4.5:1,
-    and this page used it for 12.5px and 13px body text. It is #676b62 here
-    (4.82:1 on paper, 5.39:1 on panel). studio.css defines the old value and
-    is owned elsewhere this window; queued in docs/gurukul/UX-QUEUE.md.
+    No testimonials, no logos, no invented users, no "trusted by" - there are
+    none yet, and a fabricated one on the page that asks a real person to
+    apply would be the single most self-defeating sentence we could write.
+    The application process is described honestly: a person reads it, there
+    is no live self-serve signup yet, and no date is promised because none
+    has been decided.
 
     The em-dash ban (`scripts/check-copy.mjs`) covers every site/*.html, and
-    since today so do the version-stamp, numbered-eyebrow, scroll-cue,
-    filler-verb and one-middot rules. HTML comments are exempt, body copy is
-    not - which is why this comment may use the punctuation the page may not.
+    so do the version-stamp, numbered-eyebrow, scroll-cue, filler-verb and
+    one-middot rules, plus (as of WS-R10) the Rooms vocabulary rule. HTML
+    comments are exempt, body copy is not - which is why this comment may use
+    the punctuation the page may not.
   -->
 
   <style>
@@ -241,41 +224,15 @@
        under the law's ~6rem, so the button is above the fold on a 640px-tall
        laptop viewport with the nav included. */
     .hero { padding: clamp(40px, 6vw, 88px) 0 var(--space-section); }
-    /* 26ch and 56px is the pair that lands this 50-character headline on TWO
-       lines at desktop, which is the law's cap. Changing either one without
-       re-counting the lines is how a hero quietly becomes three lines tall. */
-    .hero h1 { max-width: 26ch; font-size: clamp(34px, 5vw, 56px); }
+    .hero h1 { max-width: 22ch; font-size: clamp(34px, 5vw, 56px); }
     .hero h1 em { font-style: normal; color: var(--forest); }
-    .hero p.lede { max-width: 46ch; margin-top: 22px; color: var(--ink-soft); font-size: clamp(17px, 1.8vw, 20px); }
+    .hero p.lede { max-width: 48ch; margin-top: 22px; color: var(--ink-soft); font-size: clamp(17px, 1.8vw, 20px); }
     .hero .btn { margin-top: 30px; }
     .hero p.fine { margin-top: 16px; color: var(--ink-faint); font-size: 13px; }
 
-    /* ── 2. the numbers: an asymmetric ledger, not three equal cells ───────
-       The fidelity score and its own ceiling are one argument and are set as
-       one; the isolation count is a separate claim and sits apart. Making
-       all three the same size was the old page saying they weigh the same. */
-    .numbers {
-      display: grid;
-      grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-      gap: 1px;
-      overflow: hidden;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-lg);
-      background: var(--line);
-      box-shadow: var(--shadow);
-    }
-    .numbers > div { padding: 30px var(--space-pad); background: var(--panel); }
-    .numbers .label { color: var(--forest); font-size: 11px; font-weight: 800; letter-spacing: var(--tracking-caps); text-transform: uppercase; }
-    .numbers .value { margin-top: 12px; font-family: var(--serif); font-size: 32px; line-height: 1; letter-spacing: var(--tracking-display); }
-    .numbers .value.lead { font-size: clamp(44px, 6vw, 68px); }
-    .numbers .say { margin-top: 14px; color: var(--ink-soft); font-size: 14px; line-height: 1.55; max-width: 44ch; }
-    .numbers .ceiling { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--line); }
-    .numbers-title { max-width: var(--measure); font-size: clamp(26px, 3.4vw, 34px); }
-    @media (max-width: 760px) { .numbers { grid-template-columns: minmax(0, 1fr); } }
-
-    /* ── 3. what you get: prose at one measure, not a card grid ────────── */
+    /* ── section prose: one measure, no card grid ──────────────────────── */
     section { padding: var(--space-section) 0; }
-    .head h2 { font-size: clamp(28px, 3.8vw, 40px); max-width: 24ch; }
+    .head h2 { font-size: clamp(28px, 3.8vw, 40px); max-width: 26ch; }
     .head p { max-width: var(--measure); margin-top: 18px; color: var(--ink-soft); font-size: 17px; }
 
     .claims { max-width: var(--measure); margin-top: 46px; display: grid; gap: 30px; }
@@ -283,32 +240,46 @@
     .claims b { color: var(--ink); font-weight: 700; }
     .claims code { font-family: var(--mono); font-size: 13px; color: var(--forest-deep); background: var(--forest-soft); border-radius: 5px; padding: 1px 5px; }
 
-    /* ── 4. the path: three steps, a wide gutter, hairline rows ────────── */
-    .path { margin-top: 46px; display: grid; gap: 2px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--line); }
-    .path li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 24px; padding: 30px var(--space-pad); background: var(--panel); }
-    .path .name { font-family: var(--serif); font-size: 22px; color: var(--forest); }
-    .path h3 { font-size: 19px; }
-    .path p { margin-top: 10px; max-width: 62ch; color: var(--ink-soft); font-size: 15px; }
-    .path .owner { margin-top: 12px; color: var(--ink-faint); font-size: 13px; font-weight: 600; }
-    @media (max-width: 620px) { .path li { grid-template-columns: 1fr; gap: 8px; } }
-
-    /* ── 5. the floor: one filled panel ────────────────────────────────── */
+    /* ── the floor: one filled panel ────────────────────────────────────── */
     .floor { padding: var(--space-pad); border: 1px solid rgba(23, 73, 59, 0.22); border-radius: var(--radius-lg); background: var(--forest-soft); }
-    .floor h2 { font-size: clamp(26px, 3.4vw, 34px); max-width: 22ch; }
+    .floor h2 { font-size: clamp(26px, 3.4vw, 34px); max-width: 26ch; }
     .floor > p { max-width: var(--measure); margin-top: 18px; color: var(--forest-deep); font-size: 15.5px; }
     .floor ul { margin: 28px 0 0; padding: 0; list-style: none; display: grid; gap: 14px; }
     .floor li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 14px; max-width: var(--measure); color: var(--forest-deep); font-size: 15px; }
     .floor li span { color: var(--forest); font-weight: 800; }
 
-    /* ── 6. what is not proven: a dashed block, deliberately plain ─────── */
+    /* ── what happens after you apply: a dashed block, deliberately plain ── */
     .limits { border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: var(--space-pad); }
     .limits h2 { font-size: 26px; }
     .limits ul { margin: 24px 0 0; padding-left: 20px; display: grid; gap: 14px; max-width: var(--measure); color: var(--ink-soft); font-size: 15px; }
     .limits strong { color: var(--ink); }
 
-    /* ── 7. close: centred, one column ─────────────────────────────────── */
+    /* ── the apply form (WS-R23): plain markup, no framework, this file's
+       own no-build-step rule. Same tokens and control radius the studio
+       uses (docs/gurukul/DESIGN-SYSTEM.md), restated here rather than
+       imported. ── */
+    .apply-form { margin-top: 32px; max-width: var(--measure); display: grid; gap: 18px; }
+    .apply-field { display: grid; gap: 6px; }
+    .apply-field label { font-size: 13px; font-weight: 700; color: var(--ink); }
+    .apply-field input, .apply-field textarea {
+      font: inherit;
+      font-size: 15px;
+      padding: 12px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-control);
+      background: var(--panel);
+      color: var(--ink);
+    }
+    .apply-field textarea { resize: vertical; min-height: 72px; }
+    .apply-form button { cursor: pointer; justify-self: start; }
+    .apply-form button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .apply-note { min-height: 1em; font-size: 13px; color: var(--ink-faint); }
+    .apply-note[data-state="error"] { color: var(--ink); font-weight: 700; }
+    .apply-note[data-state="ok"] { color: var(--forest-deep); font-weight: 700; }
+
+    /* ── close: centred, one column ─────────────────────────────────────── */
     .close { text-align: center; }
-    .close h2 { font-size: clamp(30px, 4.4vw, 46px); max-width: 100%; }
+    .close h2 { font-size: clamp(30px, 4.4vw, 46px); max-width: 100%; margin-inline: auto; }
     .close p { max-width: 52ch; margin: 20px auto 0; color: var(--ink-soft); font-size: 17px; }
     .close .btn { margin-top: 30px; }
     .close .fine { margin-top: 16px; color: var(--ink-faint); font-size: 13px; }
@@ -325,233 +296,178 @@
     <div class="wrap">
       <a class="brand" href="/" aria-label="Vyakti home">
         <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span><b>VYAKTI</b><br /><small>TEACHER STUDIO</small></span>
+        <span><b>VYAKTI</b><br /><small>ROOMS</small></span>
       </a>
       <span class="nav-spacer"></span>
-      <a class="nav-link" href="#limits">What we have not proven</a>
+      <a class="nav-link" href="#boundary">The privacy boundary</a>
     </div>
   </nav>
 
   <main>
 
-    <!-- ══ 1. hero. Four elements. Count them before adding a fifth. ═════ -->
+    <!-- ══ 1. hero. Four elements: the one line, one button, one fine print. -->
     <header class="hero">
       <div class="wrap">
-        <h1>Your teaching, in a voice that is <em>measurably</em> yours.</h1>
+        <h1>A creator can only talk to one person <em>at a time</em>.</h1>
         <p class="lede">
-          Build a private AI version of yourself, with every source, permission, measurement, and limit visible.
+          Here, they talk to all of them, and none of them can hear each other.
         </p>
-        <a class="btn" href="/studio?mode=teacher">Start with your recordings</a>
-        <p class="fine">You can only clone yourself. Identity and a live challenge come first.</p>
+        <a class="btn" href="#apply">Apply for one of the first Rooms</a>
+        <p class="fine">Free to build. You set what your followers pay. Our share is one number, shown before you publish.</p>
       </div>
     </header>
 
-    <!-- ══ 2. the numbers, each printed with what it does not mean ══════ -->
-    <section aria-labelledby="numbers-title">
-      <div class="wrap">
-        <h2 id="numbers-title" class="numbers-title">What the latest voice build proves, and what it does not.</h2>
-        <div class="numbers">
-          <div>
-            <p class="label">Selected reference bandwidth</p>
-            <p class="value lead">24 kHz</p>
-            <p class="say">
-              The corrected pipeline now selects a full-bandwidth owner window from the original recording instead of
-              forcing every reference through a band-limited separator. This is reference quality, not voice likeness.
-            </p>
-            <div class="ceiling">
-              <p class="label">Conditioning window</p>
-              <p class="value">10 s</p>
-              <p class="say">
-                Long recordings give the selector more speech to inspect, but the current zero-shot preview still uses
-                one strong window. More uploaded hours do not yet mean hours of model training.
-              </p>
-            </div>
-          </div>
-          <div>
-            <p class="label">Owner listening comparisons</p>
-            <p class="value">1</p>
-            <p class="say">
-              The owner judged the corrected sample better than the earlier clone and still not good. That is useful
-              directional evidence, not a benchmark, a similarity score, or proof that the voice is ready.
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ══ 3. what you get. Prose, one measure, no card grid. ═══════════ -->
-    <section aria-labelledby="what">
+    <!-- ══ 2. for the creator ═════════════════════════════════════════════ -->
+    <section aria-labelledby="creator-title">
       <div class="wrap">
         <div class="head">
-          <h2 id="what">A voice is the opening. A durable person model is the work.</h2>
+          <h2 id="creator-title">For you: an AI, built from your own material, that you keep correcting.</h2>
           <p>
-            The platform separates source evidence, approved identity, relationship memory, and delivery permissions.
-            Each layer has to earn its way into a deployed experience.
+            The Studio is where you build it, correct it, and watch it work: your AI, never a copy hidden
+            behind a job you cannot see inside, and a workspace that shows you exactly what it knows and
+            where it still needs you.
           </p>
         </div>
 
         <div class="claims">
           <p>
-            <b>Relational memory is evidence-bound.</b> The private runtime can keep facts, episodes, and interaction
-            patterns separate by clone and person. The public web widget is currently stateless, so this page does not
-            promise cross-session memory there.
+            <b>Readiness is one number.</b> Five parts feed it: whether your AI knows your material, sounds
+            like you, thinks like you, knows what not to say, and is still up to date. One number, five parts,
+            one suggested action. Publishing is locked while any part is too far behind the rest.
           </p>
           <p>
-            <b>New material stays reviewable.</b> Uploaded material becomes cited proposals. A channel watcher and video
-            enrollment lane exist, but automated third-party video extraction is still gated. Nothing should change an
-            approved person model until its owner accepts the proposal.
+            <b>You review what it says.</b> The Review queue puts one answer in front of you at a time:
+            Sounds right, Close, fix it, or Never say this. A correction is never just a note. It becomes
+            material your AI can point back to.
           </p>
           <p>
-            <b>It teaches the way you teach.</b> Strictness and warmth are separate settings, because they are separate
-            in real teachers. Your doubt-handling ladder decides what a student gets before they get a full solution,
-            which is also how the product refuses to be a homework machine.
+            <b>The interview asks what your archive did not answer.</b> Instead of guessing, it finds the
+            gaps in what you have given it and asks you directly. Nothing about your AI changes until you
+            answer.
           </p>
           <p>
-            <b>It is disclosed, every time.</b> A card before the first turn and a spoken line at the top of every call:
-            this is an AI clone, built from your recordings, and it is not you. You see the exact wording in the studio
-            before you publish. It cannot be shortened or switched off, including by us.
-          </p>
-          <p>
-            <b>Delivered audio is protected.</b> The deployed preview lane adds spoken disclosure, independent audio
-            protection, and a provenance ledger before it returns a clip. Full C2PA delivery remains a release gate,
-            not a claim made about every draft artifact.
-          </p>
-          <p>
-            <b>Withdrawal actually deletes.</b> Revoking stops future use in the same transaction that invalidates the
-            voice profile, then queues provider copies and private storage for erasure with durable retries. The studio
-            shows you each one being confirmed, not a message saying it was requested.
+            <b>An unfinished AI is an apprentice, not broken.</b> You show it your work, it asks, you correct
+            it. That loop is the product, not a setup step you get through once.
           </p>
         </div>
       </div>
     </section>
 
-    <!-- ══ 4. the path. Three steps, because the studio has three. ══════ -->
-    <section id="how" aria-labelledby="how-title">
+    <!-- ══ 3. for the follower ════════════════════════════════════════════ -->
+    <section aria-labelledby="follower-title">
       <div class="wrap">
         <div class="head">
-          <h2 id="how-title">Three steps, and you can see all three from inside the first.</h2>
+          <h2 id="follower-title">For them: a private Room, and a relationship that remembers them.</h2>
           <p>
-            The studio never hides what is still locked or who it is waiting on. Every step says whether it is your turn
-            or ours, and what it costs you in minutes.
+            Every follower who talks to your AI gets their own Room: "Your Room. Your AI, your people." It is
+            labelled as an AI on every screen they see, never presented as you.
           </p>
         </div>
 
-        <ol class="path">
-          <li>
-            <span class="name">Feed</span>
-            <div>
-              <h3>Give it something of yours</h3>
-              <p>
-                Name the clone, confirm four permission statements you can withdraw later, and add one lecture, one
-                voice note or one PDF of your notes. One is enough to see a draft. The file is fingerprinted in your
-                browser before it moves, and the filename is never stored. Then you prove you are you, with a government
-                ID and a live challenge recorded on the spot, which is what makes cloning someone else structurally
-                impossible rather than against the rules. The raw ID and the challenge media are erased once the match
-                is bound.
-              </p>
-              <p class="owner">Your turn. About fifteen minutes.</p>
-            </div>
-          </li>
-          <li>
-            <span class="name">Meet</span>
-            <div>
-              <h3>Hear it, then talk it into shape</h3>
-              <p>
-                Review the sheet we drafted from your uploads, with every claim cited to the moment it came from, and
-                approve it one line at a time. Hear a private preview that cannot join a call or activate anything. Pick
-                between two candidates without being told which is which, because you cannot judge your own voice once
-                you know the answer. Then take a calibration call with your own clone: it proposes changes while you are
-                talking, and nothing lands on your sheet without a tap.
-              </p>
-              <p class="owner">Your turn, and the part teachers enjoy.</p>
-            </div>
-          </li>
-          <li>
-            <span class="name">Deploy</span>
-            <div>
-              <h3>We run the gates, then you choose where it can be reached</h3>
-              <p>
-                Identity, intelligibility, artifacts, watermark, privacy and latency checks, plus the fidelity score
-                against your own ceiling. If it does not clear, we refuse to activate and tell you which check failed.
-                What clears goes to a web link, an embed on your own site, or a messaging channel. You see the student's
-                disclosure card before you choose any of them, because that is the informed half of informed consent.
-              </p>
-              <p class="owner">Ours, then yours. Nothing you can do to speed the gates up, and we will not pretend otherwise.</p>
-            </div>
-          </li>
-        </ol>
+        <div class="claims">
+          <p>
+            <b>It remembers them, specifically.</b> Not a transcript, a continuing relationship: it checks in
+            on them, and carries what they have told it forward, in their Room alone.
+          </p>
+          <p>
+            <b>Nobody else ever sees it.</b> What a follower says stays in their own private scope. It never
+            writes back into your AI's shared material, and it never reaches another follower's Room. Not
+            even you see it verbatim: at most, counts over a pattern that at least five different people
+            share, and only if you have opted in to seeing that much.
+          </p>
+          <p>
+            <b>Free means free, plainly.</b> A free follower gets 20 messages a month, no voice calls, and no
+            check-ins. What is paid is a number you set, not one we pick for you.
+          </p>
+        </div>
       </div>
     </section>
 
-    <!-- ══ 5. the floor ════════════════════════════════════════════════ -->
-    <section aria-labelledby="floor">
+    <!-- ══ 4. the boundary, in plain words ════════════════════════════════ -->
+    <section id="boundary" aria-labelledby="boundary-title">
       <div class="wrap">
         <div class="floor">
-          <h2 id="floor">The rules your clone cannot be talked out of.</h2>
+          <h2 id="boundary-title">The boundary, in plain words.</h2>
           <p>
-            These are not settings, and they are not instructions given to a model in a prompt. They are checks on the
-            way out, which is the difference between a preference and a guarantee. Most of your students are sixteen or
-            seventeen years old, and that is the reason.
+            Three scopes, and they do not blur into each other. This is not a setting you can turn off, it is
+            how the underlying scopes are structured.
           </p>
           <ul>
-            <li><span aria-hidden="true">&check;</span> Your clone never denies being an AI, and never implies you read or saw anything a student said.</li>
-            <li><span aria-hidden="true">&check;</span> Crisis helplines are guaranteed present, verified by a test that fails the build if they go missing.</li>
-            <li><span aria-hidden="true">&check;</span> Every student account defaults to the minor-safe tier. Engagement mechanics are structurally off, not merely disabled.</li>
-            <li><span aria-hidden="true">&check;</span> No streak anxiety, no manufactured urgency, no countdown to the exam. A mechanic ships only if removing every fear from it leaves it intact.</li>
-            <li><span aria-hidden="true">&check;</span> Your clone never speaks first without a reason it can cite. Silence is not a reason.</li>
-            <li><span aria-hidden="true">&check;</span> A full solution is never the first answer to a doubt. Your ladder decides what comes before it.</li>
+            <li><span aria-hidden="true">&check;</span> What you give your AI (your material, your corrections) flows down to every follower who talks to it.</li>
+            <li><span aria-hidden="true">&check;</span> What a follower tells your AI stays in their own Room. It never becomes something your AI knows about you, and it never reaches anyone else's Room.</li>
+            <li><span aria-hidden="true">&check;</span> You see counts, never words. A pattern shared by five or more followers can surface to you as a number, and only once you have opted in to seeing it.</li>
+            <li><span aria-hidden="true">&check;</span> Your AI never denies being an AI, on either side of that line.</li>
           </ul>
         </div>
       </div>
     </section>
 
-    <!-- ══ 6. what is not true yet. The page's one eyebrow lives here. ══ -->
-    <section id="limits" aria-labelledby="limits-title">
+    <!-- ══ 5. what happens after you apply, and the real form (WS-R23). ═══
+         Posts to api/apply.js (op:"submit"), api/_apply.js's one predicate:
+         at most one application per contact per day. No framework on this
+         page (this file's own header note), so a small inline script. ══ -->
+    <section aria-labelledby="apply-title" id="apply">
       <div class="wrap">
         <div class="limits">
-          <p class="eyebrow">Read this before you sign up</p>
-          <h2 id="limits-title">What we have not proven yet.</h2>
+          <p class="eyebrow">Read this before you apply</p>
+          <h2 id="apply-title">This is not a self-serve signup yet.</h2>
           <ul>
             <li>
-              <strong>This is a private build.</strong> The studio is live and you can work through it today. Voice
-              activation is still gated on checks that have not all passed, so a clone you build now may not be able to
-              speak yet, and the studio will tell you which gate is holding it.
+              <strong>A person reads every application.</strong> It goes to a person, not a queue with an
+              automatic reply. Send the form below and expect a real answer back.
             </li>
             <li>
-              <strong>No blind listening benchmark has passed.</strong> The owner preferred the corrected reference path
-              to the broken one and still rated the result as poor. We will not turn that into a quality claim.
+              <strong>We are opening the first Rooms in small batches.</strong> No date is promised here
+              because none has been decided, and a fake one would be worse than none.
             </li>
             <li>
-              <strong>We have not benchmarked ourselves against ElevenLabs</strong> or anyone else. When we do, the
-              result goes here whichever way it comes out.
-            </li>
-            <li>
-              <strong>The first clone off a cold start takes about three minutes</strong> because the voice runtime
-              scales to zero. You will see the real wait, not a progress bar that finishes early.
-            </li>
-            <li>
-              <strong>Deployment channels are built and not yet turned on.</strong> The web link and the embed come
-              first, messaging platforms after.
-            </li>
-            <li>
-              <strong>The public widget is stateless today.</strong> Per-person relationship continuity is not available
-              there until the deployed channel passes a two-clone isolation and recall test.
+              <strong>Your material and your calibration stay yours to correct.</strong> The Studio never
+              publishes anything you have not reviewed, and revocation is available from the day you start.
             </li>
           </ul>
+
+          <form class="apply-form" id="apply-form" novalidate>
+            <div class="apply-field">
+              <label for="apply-name">Your name</label>
+              <input id="apply-name" name="name" type="text" maxlength="200" required autocomplete="name" />
+            </div>
+            <div class="apply-field">
+              <label for="apply-archive">A link to your archive</label>
+              <input
+                id="apply-archive" name="archive_link" type="text" maxlength="2000" required
+                placeholder="A channel, a course, a feed, anything long"
+              />
+            </div>
+            <div class="apply-field">
+              <label for="apply-audience">Who is your audience</label>
+              <textarea
+                id="apply-audience" name="audience" maxlength="2000"
+                placeholder="Where they already find you, and roughly how many"
+              ></textarea>
+            </div>
+            <div class="apply-field">
+              <label for="apply-contact">Contact</label>
+              <input
+                id="apply-contact" name="contact" type="text" maxlength="320" required
+                placeholder="An email or a phone number" autocomplete="email"
+              />
+            </div>
+            <button class="btn" type="submit" id="apply-submit">Submit application</button>
+            <p class="apply-note" id="apply-status" role="status" aria-live="polite"></p>
+          </form>
         </div>
       </div>
     </section>
 
-    <!-- ══ 7. close ════════════════════════════════════════════════════ -->
+    <!-- ══ 6. close ═══════════════════════════════════════════════════════ -->
     <section class="close" aria-labelledby="close-title">
       <div class="wrap">
-        <h2 id="close-title">Start with your own recordings.</h2>
+        <h2 id="close-title">Talk to all of them. Let none of them hear each other.</h2>
         <p>
-          Add one or more recordings and inspect each processing step. A protected preview is created only when the
-          source and consent gates are ready. Training and deployment require separate permission.
+          Free to build. You set what your followers pay. Our share is one number, shown before you publish.
         </p>
-        <a class="btn" href="/studio?mode=teacher">Open the private studio</a>
-        <p class="fine">Self-cloning only. No public voice library. Auditable deletion.</p>
+        <a class="btn" href="#apply">Apply for one of the first Rooms</a>
+        <p class="fine">A short form, four fields. A person reads it. No automatic decision.</p>
       </div>
     </section>
 
@@ -560,11 +476,77 @@
   <footer class="foot">
     <div class="wrap">
       <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
-      <p>Vyakti builds an AI version of an expert, from their own consented material, with the fidelity published rather than promised.</p>
+      <p>Vyakti turns a creator's own material into a private AI, with a private, continuing relationship for every person who talks to it.</p>
       <span class="nav-spacer"></span>
       <a href="/privacy">Privacy and Terms</a>
     </div>
   </footer>
+
+  <!-- WS-R23: the apply form's own small inline script, this file's no-build-
+       step rule. Posts to api/apply.js; the one predicate that can refuse it
+       (one application per contact per day) is api/_apply.js's, never
+       re-implemented here - this script only reports whatever the server
+       already decided. -->
+  <script>
+    (function () {
+      var form = document.getElementById("apply-form");
+      var status = document.getElementById("apply-status");
+      var submit = document.getElementById("apply-submit");
+      if (!form || !status || !submit) return;
+
+      function setStatus(state, text) {
+        status.setAttribute("data-state", state);
+        status.textContent = text;
+      }
+
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var name = document.getElementById("apply-name").value.trim();
+        var archiveLink = document.getElementById("apply-archive").value.trim();
+        var audience = document.getElementById("apply-audience").value.trim();
+        var contact = document.getElementById("apply-contact").value.trim();
+        if (!name || !archiveLink || !contact) {
+          setStatus("error", "Your name, an archive link and a contact are all required.");
+          return;
+        }
+        submit.disabled = true;
+        setStatus("", "Sending.");
+        fetch("/api/apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            op: "submit",
+            name: name,
+            archive_link: archiveLink,
+            audience: audience,
+            contact: contact,
+          }),
+        })
+          .then(function (response) {
+            return response.json().catch(function () { return {}; }).then(function (data) {
+              return { ok: response.ok, status: response.status, data: data };
+            });
+          })
+          .then(function (result) {
+            submit.disabled = false;
+            if (result.ok) {
+              form.reset();
+              setStatus("ok", "Sent. A person will read this and reach out.");
+              return;
+            }
+            if (result.status === 429) {
+              setStatus("error", "One application per contact per day. Please try again tomorrow.");
+              return;
+            }
+            setStatus("error", "That did not go through. Check the form and try again.");
+          })
+          .catch(function () {
+            submit.disabled = false;
+            setStatus("error", "That did not reach the server. Check your connection and try again.");
+          });
+      });
+    })();
+  </script>
 
 </body>
 </html>

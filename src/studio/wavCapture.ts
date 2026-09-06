@@ -62,6 +62,79 @@ export interface PrivateWavCapture {
   cancel(): Promise<void>;
 }
 
+/**
+ * A capture-only tap on a MediaStream somebody else already opened (WS-R2).
+ *
+ * `openPrivateWavCapture` above opens its OWN microphone with `video: false`.
+ * The identity challenge needs the camera and the microphone in ONE
+ * `getUserMedia` call, because the clip that gets scored and the audio that
+ * gets transcribed have to be the same ten seconds. Opening the microphone a
+ * second time alongside the camera would be two capture sessions of one person
+ * on two clocks.
+ *
+ * It lives HERE, and not in the panel that uses it, because
+ * `evals/sound.mjs` enumerates every file allowed to construct an
+ * AudioContext and says exactly why: "An AudioContext built anywhere else is a
+ * second sound layer with no gate on it." That enumeration is only worth
+ * anything if new audio graphs come to the owner files rather than the
+ * allowlist growing to meet them. The same exactly-zero gain node the suite
+ * asserts on the two captures above applies here, for the same reason: the
+ * processor has to reach a destination for the browser to deliver frames, and
+ * nothing on this path may ever become audible.
+ *
+ * The caller owns the stream and its tracks. `stop()` tears down only what
+ * this function built.
+ */
+export interface StreamWavTap {
+  sampleRate: number;
+  stop(): Promise<File | null>;
+}
+
+export function openStreamWavTap(stream: MediaStream): StreamWavTap {
+  const context = new AudioContext({ latencyHint: "interactive" });
+  const source = context.createMediaStreamSource(stream);
+  const processor = context.createScriptProcessor(4096, 1, 1);
+  const silent = context.createGain();
+  silent.gain.value = 0;
+  const chunks: Float32Array[] = [];
+  let capturing = true;
+  processor.onaudioprocess = (event) => {
+    if (capturing) chunks.push(event.inputBuffer.getChannelData(0).slice());
+  };
+  source.connect(processor);
+  processor.connect(silent);
+  silent.connect(context.destination);
+  void context.resume();
+
+  return {
+    sampleRate: context.sampleRate,
+    async stop() {
+      capturing = false;
+      const sourceRate = context.sampleRate;
+      const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+      const merged = new Float32Array(total);
+      let offset = 0;
+      for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.length; }
+      chunks.length = 0;
+      try {
+        processor.disconnect();
+        source.disconnect();
+        silent.disconnect();
+        await context.close();
+      } catch {
+        // A context already torn down by an earlier cancel is not a failure
+        // worth surfacing to somebody recording their own voice.
+      }
+      // No samples means no file. Returning an empty WAV would give the
+      // transcript step something plausible to fail on later instead of
+      // failing here, where the person can simply record again.
+      if (!total) return null;
+      const samples = await resample(merged, sourceRate);
+      return new File([encodeWav(samples, 24_000)], "identity-challenge.wav", { type: "audio/wav" });
+    },
+  };
+}
+
 export async function openPrivateWavCapture(): Promise<PrivateWavCapture> {
   if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === "undefined")
     throw new Error("Private WAV recording is not supported in this browser.");

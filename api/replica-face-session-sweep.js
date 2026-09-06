@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
 import { configuredFaceSessionErasureBroker } from "./_face-session/registry.js";
 import { runFaceSessionCleanupSweep } from "./_replica-face-session.js";
+import { withSweepRun } from "./_sweep-run.js";
 
 export const config = { maxDuration: 120 };
 
@@ -16,9 +17,12 @@ export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "GET or POST only" });
   if (!authorized(req)) return res.status(401).json({ error: "unauthorized" });
   try {
-    const broker = configuredFaceSessionErasureBroker();
-    if (!broker) return res.status(200).json({ ok: true, disabled: true });
-    const summary = await runFaceSessionCleanupSweep({ db: q, broker, maxJobs: 2, timeBudgetMs: 100_000 });
+    // WS-R21: the ops board's heartbeat (migration 084).
+    const summary = await withSweepRun(q, "replica-face-session", async () => {
+      const broker = configuredFaceSessionErasureBroker();
+      if (!broker) return { disabled: true };
+      return runFaceSessionCleanupSweep({ db: q, broker, maxJobs: 2, timeBudgetMs: 100_000 });
+    });
     return res.status(200).json({ ok: true, ...summary });
   } catch (error) {
     const status = Number.isInteger(error?.status) ? error.status : 500;

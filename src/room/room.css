@@ -1,0 +1,1189 @@
+/* room.css — the Room's own components, and nothing else.
+ *
+ * WHAT THIS FILE DELIBERATELY DOES NOT CONTAIN: a palette. `src/room/main.tsx`
+ * imports `../studio/design/tokens.css` for the scale and `../studio/studio.css`
+ * for the palette and the base layer, in that order, exactly as the studio's own
+ * entry does. The Room could have declared its own `--paper` and `--forest` in
+ * fifteen lines and it would have been fifteen lines of drift: two surfaces of
+ * one product whose greens diverge on the first tweak, in the one place a
+ * follower and a creator both look. One palette, two callers, and the cost is a
+ * stylesheet the Room does not use most of.
+ *
+ * Everything below writes into the `components` and `responsive` layers that
+ * `studio.css` already declared, so it wins by source order on equal
+ * specificity rather than by out-specifying anything.
+ *
+ * MOBILE FIRST, and literally: every rule here is written for a 390px phone and
+ * the only media query widens. A follower arrives from a bio link, which means
+ * a phone, which means the wide layout is the exception. DESIGN-LAW's motion
+ * rules are the other constraint: transform and opacity only, under 300ms,
+ * never `ease-in` alone, and a reduced-motion branch for every keyframe.
+ */
+
+@layer components {
+  /* WS-R24: Devanagari coverage for a Hindi-chrome Room. `lang={locale}` on
+   * every `.room-shell` (RoomApp.tsx) is what makes `:lang(hi)` match here -
+   * `tokens.css`'s base stack (Inter, ui-sans-serif, ...) has no Devanagari
+   * glyphs at all, so without this rule Hindi copy would fall through to
+   * whatever the OS happens to substitute, with no product-chosen face and no
+   * guarantee two followers' phones agree on how it looks. No font file is
+   * bundled or fetched here - this repo loads no web fonts anywhere
+   * (`grep -rl "fonts.google" .` finds nothing), so this names the SYSTEM
+   * face by name, exactly as the base stack above already does for Latin. A
+   * platform that ships its own Noto Sans Devanagari (Android, most Linux
+   * desktops, and Windows/macOS's own Devanagari-capable system fonts) uses
+   * it; one that ships none still renders via its own Unicode fallback, which
+   * is the same honest floor the base stack already accepts for Latin. */
+  .room-shell:lang(hi) {
+    font-family: "Noto Sans Devanagari", "Noto Sans", "Nirmala UI", "Mangal", sans-serif;
+  }
+
+  /* WS-R43. A figure a follower actually reads as a NUMBER — a message
+   * count, a price, a date, minutes used — rather than a label that merely
+   * contains a digit. `tokens.css` names no such marker anywhere in this
+   * repo (`grep -rn "tabular-nums"` finds a dozen ad-hoc selectors in
+   * studio.css and nothing shared): the layout gate's own law 4 needed a
+   * class to point at, so this is it, applied at the CONTAINING element
+   * (the whole sentence, not a carved-out span) — `font-variant-numeric`
+   * only changes how digit glyphs are drawn, so it is harmless on the
+   * surrounding words and does not require restructuring a copy template
+   * that already splices a number into running prose.
+   */
+  .room-num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .room-shell {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 720px;
+    min-height: 100vh;
+    min-height: 100svh;
+    margin: 0 auto;
+    padding: 0;
+  }
+
+  /* ── the header ──────────────────────────────────────────────────────── */
+
+  .room-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    box-sizing: border-box;
+    padding: var(--space-item) var(--space-item) var(--space-row);
+    border-bottom: var(--hairline) solid var(--line);
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+    backdrop-filter: blur(12px);
+  }
+
+  .room-head h1 {
+    margin: 0;
+    font-size: var(--text-title);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-heading);
+    line-height: var(--leading-tight);
+  }
+
+  .room-head .room-stat {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    line-height: var(--leading-snug);
+  }
+
+  .room-head-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-tight);
+  }
+
+  /* ── the thread rail ─────────────────────────────────────────────────── */
+
+  .room-rail {
+    display: flex;
+    gap: var(--space-tight);
+    box-sizing: border-box;
+    width: 100%;
+    padding: var(--space-tight) var(--space-item);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .room-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .room-rail button {
+    flex: 0 0 auto;
+    /* WS-R43. Measured at 34px by the layout gate's own tap-target check
+     * (WCAG 2.5.8, 44x44 css px) — a thread pill a follower actually taps to
+     * switch topics, not label text, so it gets the real floor rather than
+     * an exception. */
+    min-height: 44px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-pill);
+    padding: 0 14px;
+    background: transparent;
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: var(--text-small);
+    font-weight: var(--weight-medium);
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+
+  .room-rail button:active {
+    transform: scale(0.97);
+  }
+
+  .room-rail button[aria-pressed="true"] {
+    border-color: var(--forest);
+    background: var(--forest);
+    color: var(--panel-solid);
+  }
+
+  /* ── pulse: "let this count" (WS-R17) ────────────────────────────────── */
+
+  .room-pulse {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    box-sizing: border-box;
+    width: 100%;
+    padding: 0 var(--space-item) var(--space-tight);
+  }
+
+  .room-pulse-toggle {
+    align-self: flex-start;
+    /* WS-R43: same 44px floor, same reason — a real toggle, not a label. */
+    min-height: 44px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-pill);
+    padding: 0 14px;
+    background: transparent;
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: var(--text-small);
+    font-weight: var(--weight-medium);
+    transition: transform var(--motion-instant) var(--ease-standard),
+                background var(--motion-quick) var(--ease-standard),
+                color var(--motion-quick) var(--ease-standard);
+  }
+
+  .room-pulse-toggle:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  .room-pulse-toggle[aria-pressed="true"] {
+    border-color: var(--forest);
+    background: var(--forest);
+    color: var(--panel-solid);
+  }
+
+  .room-pulse-explain {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    line-height: var(--leading-snug);
+  }
+
+  /* ── the conversation ────────────────────────────────────────────────── */
+
+  .room-thread {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--space-row);
+    box-sizing: border-box;
+    padding: var(--space-item);
+  }
+
+  .room-card {
+    box-sizing: border-box;
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: var(--space-item);
+    background: var(--forest-soft);
+    color: var(--forest-deep);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+  }
+
+  .room-card p {
+    margin: 0 0 var(--space-hair);
+    max-width: var(--measure);
+  }
+
+  .room-card p:last-child {
+    margin-bottom: 0;
+  }
+
+  .room-bubble {
+    box-sizing: border-box;
+    max-width: min(88%, var(--measure));
+    border-radius: var(--radius);
+    padding: var(--space-row) var(--space-item);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .room-bubble.from-them {
+    align-self: flex-start;
+    border: var(--hairline) solid var(--line);
+    background: var(--panel-solid);
+    color: var(--ink);
+  }
+
+  .room-bubble.from-me {
+    align-self: flex-end;
+    background: var(--forest);
+    color: var(--panel-solid);
+  }
+
+  .room-bubble-enter {
+    animation: room-rise var(--motion-enter) var(--ease-enter) both;
+  }
+
+  /* WS-R19: the paid voice play control. A small, quiet chip under a reply -
+     it must never compete with the words above it for attention. */
+  .room-bubble-voice {
+    display: block;
+    margin-top: var(--space-item);
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: var(--hairline) solid var(--line);
+    background: transparent;
+    color: inherit;
+    font-size: var(--text-small);
+    cursor: pointer;
+  }
+
+  .room-bubble-voice:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  /* WS-R67 (migration 116). "Flag this" - a small, quiet chip under every AI
+     reply, `room-bubble-voice`'s own shape one control over, but never
+     gated by tier: this is a safety report, not a paid feature. A real
+     44px tap target even though the chip itself reads smaller, WCAG 2.5.8
+     restated for a control this file's own header already treats as law. */
+  .room-bubble-flag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    margin-top: var(--space-hair);
+    margin-inline-start: var(--space-tight);
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: var(--hairline) solid var(--line);
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    cursor: pointer;
+  }
+
+  .room-bubble-flag[aria-pressed="true"] {
+    color: var(--ink);
+    border-color: var(--ink-soft);
+  }
+
+  .room-flag-sheet {
+    box-sizing: border-box;
+    margin-top: var(--space-tight);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: var(--space-item);
+    background: var(--panel);
+    animation: room-rise var(--motion-enter) var(--ease-enter) both;
+  }
+
+  .room-flag-sheet-title {
+    margin: 0 0 var(--space-tight);
+    font-weight: var(--weight-strong);
+  }
+
+  .room-flag-reasons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-tight);
+    margin-bottom: var(--space-tight);
+  }
+
+  .room-flag-reason {
+    min-height: 44px;
+    padding: 0 var(--space-item);
+    border-radius: var(--radius-sm);
+    border: var(--hairline) solid var(--line);
+    background: var(--panel-solid);
+    color: var(--ink);
+    font-size: var(--text-body);
+    cursor: pointer;
+  }
+
+  .room-flag-reason:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .room-flag-sheet {
+      animation: none;
+    }
+  }
+
+  @keyframes room-rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 6px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .room-bubble-enter {
+      animation: none;
+    }
+    .room-typing i {
+      animation: none;
+      opacity: 0.7;
+    }
+    .room-pulse-toggle {
+      transition: none;
+    }
+  }
+
+  .room-typing {
+    display: inline-flex;
+    align-self: flex-start;
+    gap: 5px;
+    align-items: center;
+    border-radius: var(--radius-pill);
+    padding: 10px 14px;
+    background: var(--panel-solid);
+    border: var(--hairline) solid var(--line);
+  }
+
+  .room-typing i {
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ink-faint);
+    animation: room-pulse 900ms var(--ease-standard) infinite;
+  }
+
+  .room-typing i:nth-child(2) {
+    animation-delay: 140ms;
+  }
+
+  .room-typing i:nth-child(3) {
+    animation-delay: 280ms;
+  }
+
+  @keyframes room-pulse {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: scale(0.85);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .room-cite {
+    /* WS-R43: 44px, same floor as every other control in this file. It reads
+     * as a text link (underline, no chrome) but it is still the ONLY way to
+     * reach the citation answer, so it is measured as a real control rather
+     * than assumed exempt as "inline text" — it sits on its own line, not
+     * inside a sentence, which is what that WCAG exception actually asks for.
+     * `inline-flex` + `align-items: center` keeps the underline tight to the
+     * glyphs while the invisible box around it grows to the floor. */
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    min-height: 44px;
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 0;
+    background: transparent;
+    /* --forest, not --ink-faint. The layout gate measured --ink-faint here at
+     * 3.67:1 against a 4.5:1 floor, which DESIGN-LAW section 3 calls a shipping
+     * defect rather than a preference. An affordance a person is meant to find
+     * is also the last place to spend contrast. */
+    color: var(--forest);
+    font: inherit;
+    font-size: var(--text-small);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .room-cite-answer {
+    align-self: flex-start;
+    max-width: var(--measure);
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+  }
+
+  .room-cite-answer ul {
+    margin: var(--space-hair) 0 0;
+    padding-left: 18px;
+  }
+
+  /* ── the composer ────────────────────────────────────────────────────── */
+
+  .room-composer {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    gap: var(--space-tight);
+    box-sizing: border-box;
+    padding: var(--space-row) var(--space-item)
+      calc(var(--space-item) + env(safe-area-inset-bottom, 0px));
+    border-top: var(--hairline) solid var(--line);
+    background: color-mix(in srgb, var(--paper) 94%, transparent);
+    backdrop-filter: blur(12px);
+  }
+
+  .room-composer textarea {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 44px;
+    max-height: 140px;
+    box-sizing: border-box;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    padding: 11px 14px;
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
+    line-height: var(--leading-snug);
+    resize: none;
+  }
+
+  .room-send {
+    flex: 0 0 auto;
+    min-width: 64px;
+    min-height: 44px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--forest);
+    color: var(--panel-solid);
+    font: inherit;
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+
+  .room-send:active {
+    transform: scale(0.97);
+  }
+
+  .room-send[disabled] {
+    opacity: 0.45;
+  }
+
+  /* ── the join sheet, the cap state, the data menu ────────────────────── */
+
+  .room-join,
+  .room-cap,
+  .room-menu,
+  .room-gone,
+  .room-taste {
+    box-sizing: border-box;
+    margin: var(--space-item);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius);
+    padding: var(--space-pad);
+    background: var(--panel-solid);
+    box-shadow: var(--shadow);
+  }
+
+  .room-join h2,
+  .room-cap h2,
+  .room-menu h2,
+  .room-gone h2 {
+    margin: 0 0 var(--space-tight);
+    font-size: var(--text-heading);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-heading);
+    line-height: var(--leading-tight);
+  }
+
+  .room-join h3,
+  .room-receipt h3 {
+    margin: var(--space-block) 0 var(--space-tight);
+    font-size: var(--text-title);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-heading);
+  }
+
+  /* WS-R27: the forget receipt, an inset panel inside the "gone" screen -
+     one level quieter than the outer .room-gone panel it sits in, since it
+     is a supporting artifact of that screen rather than a second one. */
+  .room-receipt {
+    box-sizing: border-box;
+    margin: var(--space-block) 0 0;
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius);
+    padding: var(--space-pad);
+    background: var(--panel);
+  }
+
+  .room-lede,
+  .room-fine {
+    max-width: var(--measure);
+    margin: 0 0 var(--space-item);
+    color: var(--ink-soft);
+    line-height: var(--leading-body);
+  }
+
+  .room-lede {
+    font-size: var(--text-lead);
+  }
+
+  /* --ink-soft, not --ink-faint, everywhere a sentence carries meaning.
+   * --ink-faint measures 3.67:1 on paper and this file's prose includes the
+   * consent explanation, which is the last copy in this product that may be
+   * hard to read (tokens.css says so where it declares the 11px floor). */
+  .room-fine {
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+  }
+
+  /* WS-R86 (migration 123). The "Bring a friend" link's own long, spaceless
+   * URL string - `.room-fine`'s own `max-width: var(--measure)` bounds the
+   * BOX, but a browser can only wrap at a space it finds, and a URL has
+   * none, so the box alone was not enough (caught by the layout gate: a
+   * 156px sideways scroll on a 390px phone). `.room-bubble`'s own
+   * `overflow-wrap: anywhere` restated for a URL instead of a follower's
+   * own message. */
+  .room-referral-url {
+    overflow-wrap: anywhere;
+  }
+
+  /* WS-R97. The "What this AI knows about you" link, a real navigation
+   * (`<a href>`), not a button - `min-height` on a plain inline `<a>` has no
+   * effect at all, so this needs its own `inline-flex` box for the tap
+   * target rule to bind (`.room-btn`'s own 48px min-height relies on a
+   * `<button>`'s default box, which an anchor does not share). Caught by
+   * the layout gate: a 157x14px link on a 390px phone. */
+  .room-about-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .room-keeps {
+    max-width: var(--measure);
+    margin: 0 0 var(--space-item);
+    padding-left: 20px;
+    color: var(--ink-soft);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+  }
+
+  .room-keeps li {
+    margin-bottom: var(--space-hair);
+  }
+
+  /* ── the taste (WS-R53) ──────────────────────────────────────────────── */
+
+  .room-taste h1 {
+    margin: 0;
+    font-size: var(--text-title);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-heading);
+    line-height: var(--leading-tight);
+  }
+
+  .room-taste-turns {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-row);
+    margin: 0 0 var(--space-item);
+  }
+
+  .room-taste-turn {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+  }
+
+  .room-taste-q,
+  .room-taste-a {
+    max-width: var(--measure);
+    margin: 0;
+    line-height: var(--leading-body);
+    overflow-wrap: anywhere;
+  }
+
+  .room-taste-q {
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    font-weight: var(--weight-medium);
+  }
+
+  .room-taste-a {
+    color: var(--ink);
+    font-size: var(--text-body);
+  }
+
+  /* WS-R53 law 4: "three dots that empty." A spent question turns its dot
+   * hollow rather than removing it, so the count of three is always visible
+   * regardless of how many have been asked - never a number a follower has
+   * to do the subtraction on. */
+  .room-taste-dots {
+    display: flex;
+    gap: var(--space-hair);
+    margin: 0 0 var(--space-item);
+  }
+
+  .room-taste-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: var(--hairline) solid var(--line-strong);
+    background: var(--forest);
+  }
+
+  .room-taste-dot-spent {
+    background: transparent;
+  }
+
+  .room-taste-input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 46px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: 0 14px;
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
+  }
+
+  .room-field {
+    display: block;
+    margin-bottom: var(--space-item);
+  }
+
+  .room-field > span {
+    display: block;
+    margin-bottom: var(--space-hair);
+    color: var(--ink-soft);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+
+  .room-field input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 46px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: 0 14px;
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
+  }
+
+  .room-check {
+    display: flex;
+    gap: var(--space-row);
+    align-items: flex-start;
+    max-width: var(--measure);
+    margin-bottom: var(--space-item);
+    color: var(--ink);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+  }
+
+  .room-check input {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    margin: 0;
+    accent-color: var(--forest);
+  }
+
+  .room-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-tight);
+  }
+
+  .room-btn {
+    min-height: 48px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: 0 var(--space-item);
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+
+  .room-btn:active {
+    transform: scale(0.98);
+  }
+
+  .room-btn.primary {
+    border-color: var(--forest);
+    background: var(--forest);
+    color: var(--panel-solid);
+  }
+
+  .room-btn.danger {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  .room-btn[disabled] {
+    opacity: 0.45;
+  }
+
+  .room-note {
+    max-width: var(--measure);
+    margin: var(--space-item) 0 0;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+  }
+
+  .room-error {
+    max-width: var(--measure);
+    margin: 0 0 var(--space-item);
+    border-radius: var(--radius-control);
+    padding: 10px 14px;
+    background: var(--danger-soft);
+    color: var(--danger);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+  }
+
+  /* The end-of-session line. A statement of where a follower is, rendered
+   * under the last reply, never across one. */
+  .room-upgrade {
+    max-width: var(--measure);
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+  }
+
+  .room-menu-open {
+    /* WS-R43: same 44px floor — every one of these is a real header action
+     * (check-ins, handoff, data, settings), never decoration. */
+    min-height: 44px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-pill);
+    padding: 0 14px;
+    background: transparent;
+    /* Measured at 2.78:1 as --ink-soft against the translucent header, which is
+     * a different background than the same token clears elsewhere. The token
+     * that reads on every one of them is --ink. */
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-small);
+    /* WS-R43: this button had NO pressed feedback at all — the layout gate's
+     * real `page.mouse.down()`/`up()` pass measured no transform change on
+     * these five header controls (check-ins, handoff, data, "your settings"),
+     * DESIGN-LAW's own "feedback on pointerdown" law unmet since whichever
+     * workstream first wrote this rule. `.room-btn`'s own pattern, this file. */
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+
+  .room-menu-open:active {
+    transform: scale(0.97);
+  }
+
+  /* Two header buttons instead of one (WS-R16), now as many as five
+   * (language, check-ins, handoff, data, WS-R39's own "your settings") on a
+   * Room with every optional surface turned on. `.room-head-row` already
+   * carries `justify-content: space-between`; this wraps them so they read
+   * as one group at its right edge instead of pushing apart - and WRAPS
+   * ONTO A SECOND LINE rather than forcing the row (and therefore the whole
+   * page) to scroll sideways at 390px, the exact failure class DESIGN-LAW's
+   * own layout gate exists to catch. */
+  .room-head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-hair);
+  }
+
+  /* ── the language switch (WS-R24) ────────────────────────────────────── */
+
+  .room-lang-switch {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-pill);
+    padding: 2px;
+  }
+
+  .room-lang-btn {
+    /* WS-R43: 44px, same floor — the language switch is reachable on every
+     * screen and is exactly the kind of control a follower with limited
+     * dexterity relies on, so it does not get a smaller-because-it's-small
+     * exception. */
+    min-height: 44px;
+    /* "हिन्दी" alone measured 41px wide — narrower than "English", not
+     * padding gone missing. `min-width` gives the shorter label the same
+     * floor rather than tuning padding around one string's advance width. */
+    min-width: 44px;
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 0 10px;
+    background: transparent;
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: var(--text-small);
+  }
+
+  /* The current locale, not disabled - a screen reader still announces it as
+   * the pressed state rather than an unreachable control. */
+  .room-lang-btn[aria-pressed="true"] {
+    background: var(--paper);
+    color: var(--ink);
+    font-weight: var(--weight-strong);
+  }
+
+  .room-lang-btn[disabled] {
+    opacity: 0.6;
+  }
+
+  /* ── the share control (WS-R40) ──────────────────────────────────────── */
+
+  .room-share {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  /* 44px on both axes - a deliberately larger target than `.room-menu-open`'s
+   * 34px siblings, because this is the one header control meant to be tapped
+   * fast, one-thumb, mid-conversation, on exactly the phone this whole file
+   * is written for. */
+  .room-share-btn {
+    min-height: 44px;
+    min-width: 44px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-pill);
+    padding: 0 16px;
+    background: var(--forest);
+    color: var(--panel-solid);
+    font: inherit;
+    font-size: var(--text-small);
+    font-weight: var(--weight-strong);
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+
+  .room-share-btn:active {
+    transform: scale(0.96);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .room-share-btn {
+      transition: none;
+    }
+  }
+
+  /* The "Link copied" confirmation. Text, not a toast that pops over other
+   * content - DESIGN-LAW's own rule against motion that steals attention
+   * from a conversation. Empty and inert until `copied` is true. */
+  .room-share-toast {
+    min-height: 1em;
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+  }
+
+  /* ── check-ins (WS-R16) ──────────────────────────────────────────────── */
+
+  .room-checkins-subhead {
+    margin: 0 0 var(--space-hair);
+    font-size: var(--text-small);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  .room-checkins-list {
+    list-style: none;
+    margin: 0 0 var(--space-item);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+  }
+
+  .room-checkins-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-tight);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-control);
+    padding: var(--space-tight) var(--space-row);
+  }
+
+  .room-checkins-row--pickable {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .room-checkins-schedule {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-tight);
+    margin-top: var(--space-tight);
+  }
+
+  .room-checkins-days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-hair);
+  }
+
+  .room-checkins-day {
+    /* WS-R43: 44px on both axes — WCAG 2.5.8 asks for BOTH, and this one
+     * only had the width half. */
+    min-height: 44px;
+    min-width: 44px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: var(--text-small);
+    transition: transform var(--motion-instant) var(--ease-standard),
+      background var(--motion-instant) var(--ease-standard);
+  }
+
+  .room-checkins-day:active {
+    transform: scale(0.96);
+  }
+
+  .room-checkins-day.on {
+    border-color: var(--forest);
+    background: var(--forest);
+    color: var(--panel-solid);
+  }
+
+  .room-checkins-schedule input[type="time"] {
+    min-height: 40px;
+    margin-top: var(--space-hair);
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: 0 10px;
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+  }
+
+  /* ── quiet hours (WS-R22) — a "not between" pair beside the picked time ── */
+  .room-checkins-quiet {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-tight);
+  }
+
+  /* ── web push (WS-R22): absent entirely on a deployment with no VAPID key,
+   *  so this only ever renders alongside its own copy and button. ────────── */
+  .room-checkins-push {
+    margin-top: var(--space-item);
+    padding-top: var(--space-item);
+    border-top: var(--hairline) solid var(--line);
+  }
+
+  /* ── the follower's monthly note (WS-R137, migration 136): `.room-checkins-
+   *  push`'s own divider rule, restated under its own name so a real-browser
+   *  test's own `.room-checkins-push:not(...)` selector for the push toggle
+   *  never also matches this card. */
+  .room-month-note {
+    margin-top: var(--space-item);
+    padding-top: var(--space-item);
+    border-top: var(--hairline) solid var(--line);
+  }
+
+  /* ── check-ins on WhatsApp (WS-R29): absent entirely on a deployment with
+   *  ROOM_WHATSAPP_TEMPLATE_APPROVED unset, `.room-checkins-push`'s own rule
+   *  one channel over. */
+  .room-checkins-wa-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-tight);
+    margin-top: var(--space-tight);
+  }
+
+  .room-checkins-wa-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+  }
+
+  .room-checkins-wa-form input[type="tel"] {
+    min-height: 40px;
+    min-width: 200px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: 0 10px;
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+  }
+
+  /* ── the follower's own quiet hours, set once in their account (WS-R131,
+   *  migration 134) — the account page's own control, `.room-checkins-wa-
+   *  form`'s own layout shape one control over. min-height: 44px on every
+   *  field meets the 44x44 CSS px tap-target floor (WCAG 2.5.8) on its own,
+   *  never relying on a wrapping row's padding to reach it. */
+  .room-checkins-quiet-set {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-tight);
+    margin-top: var(--space-tight);
+  }
+
+  .room-checkins-quiet-set label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+  }
+
+  .room-checkins-quiet-set input {
+    min-height: 44px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: 0 10px;
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+  }
+
+  .room-checkins-quiet-set input[type="text"] {
+    min-width: 180px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .room-checkins-day { transition: none; }
+  }
+
+  /* Handoff (WS-R20). The verbatim payload block reads as a quoted message,
+   * not a form field - `.room-checkins-row`'s own tokens so it belongs to
+   * the same visual family the rest of this dialog already uses. */
+  .room-handoff-payload {
+    max-width: var(--measure);
+    margin: 0 0 var(--space-item);
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: var(--space-tight) var(--space-row);
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .room-handoff-reply {
+    max-width: var(--measure);
+    margin: var(--space-hair) 0 0;
+    color: var(--ink);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+  }
+
+  .room-handoff textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 5em;
+    margin-top: var(--space-hair);
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: var(--space-tight) 14px;
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
+    resize: vertical;
+  }
+
+  /* WCAG 2.1 SC 1.4.11 (non-text contrast) — WS-R50. Without this the Room's
+   * keyboard focus ring falls through to `studio.css`'s BASE-layer
+   * `:focus-visible` rule (`outline: 3px solid rgba(23, 73, 59, 0.28)`),
+   * which that file's own comment already measured at "about 1.9:1 on
+   * paper" and fixed for `.studio-shell` specifically — the Room shares the
+   * same base layer (`main.tsx` imports `studio.css` for the palette) but
+   * has no `.studio-shell` class, so it never got the fix and stayed on the
+   * weak ring. Measured here the same way: rgba(23,73,59,.28) over
+   * `--paper` (#f4f1e9) is 1.87:1; over `--panel-solid` (#fffef9) it is
+   * 1.94:1. Both fail the 3:1 floor a focus indicator needs. This mirrors
+   * `.studio-shell :is(...):focus-visible` verbatim, using the SAME opaque
+   * `--forest` ring (`--focus-ring`, ~8.6:1) tokens.css already defines for
+   * exactly this purpose, so a keyboard user sees one consistent ring
+   * across both surfaces of the product rather than two different ones. */
+  .room-shell :is(button, a, input, select, textarea, summary):focus-visible {
+    outline: var(--focus-width) solid var(--focus-ring);
+    outline-offset: var(--focus-offset);
+  }
+}
+
+@layer responsive {
+  /* The only widening. Above a phone the shell gets breathing room and the
+   * rail can sit beside the header; nothing reflows into a second column,
+   * because a conversation in two columns is not a conversation. */
+  @media (min-width: 700px) {
+    .room-shell {
+      padding: 0 var(--space-item);
+    }
+
+    .room-head {
+      padding-inline: var(--space-block);
+    }
+
+    .room-thread,
+    .room-rail {
+      padding-inline: var(--space-block);
+    }
+
+    .room-composer {
+      padding-inline: var(--space-block);
+    }
+  }
+}

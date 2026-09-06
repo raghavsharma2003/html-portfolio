@@ -83,7 +83,16 @@ ok("migration 049 is owner, VoiceGenome and artifact bound", /voice_delivery_own
 ok("migration 049 enforces evidence depth, prompt diversity and draft-only lifecycle options", /evidence_count>=18/.test(migration) && /unique_prompt_count>=6/.test(migration) && /'draft','qualifying','qualified','approved','rejected','retired'/.test(migration));
 ok("migration 049 is independently splitter-safe and mirrored in canonical schema", splitSql(migration).length >= 3 && schema.includes("vy_replica_voice_delivery_policy"));
 ok("the owner HTTP boundary is bearer-only, rate limited and build-explicit", /requireUser/.test(route) && /replica_voice_delivery_policy_user/.test(route) && /input\.op === "build"/.test(route));
-ok("Studio shows immutable evidence depth and states that qualification is still required", /Voice Delivery Genome/.test(studio) && /held-out qualification/.test(studio) && /Repeating one familiar sentence cannot unlock/.test(studio));
+// WS-R10: the panel's label lost the word "genome" (Rooms vocabulary rule,
+// scripts/check-copy.mjs) — it reads "Voice Delivery" now, not "Voice
+// Delivery Genome". The check below moved with it; what it still proves
+// (evidence depth is shown as immutable and qualification is still gated)
+// is unchanged.
+// WS-R71: VoicePreviewLab.tsx's own literal strings moved into
+// src/studio/copy.ts (`t.voicePreviewLab`); this check now reads the
+// concatenation, `evals/readiness/run.mjs`'s own `panelWithCopy` shape.
+const studioWithCopy = `${studio}\n${readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8")}`;
+ok("Studio shows immutable evidence depth and states that qualification is still required", /Voice Delivery/.test(studioWithCopy) && /held-out qualification/.test(studioWithCopy) && /Repeating one familiar sentence cannot unlock/.test(studioWithCopy));
 ok("source erasure deletes derived delivery policies before private processing lineage disappears", /voice_delivery_policies as/.test(erasure) && erasure.indexOf("voice_delivery_policies as") < erasure.indexOf("voice_preferences as"));
 ok("the research contract forbids automatic promotion and requires held-out ABX", /never promotes/i.test(docs) && /held-out prompts/i.test(docs) && /owner ABX/i.test(docs));
 

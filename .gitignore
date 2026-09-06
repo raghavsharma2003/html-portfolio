@@ -74,3 +74,7 @@ earbench-out/
 vyakti-local.env
 api/_config.env
 .env*
+
+# WS-R43: screenshots the Room layout gate writes on every run (evidence for
+# a human, not a build artifact) — never committed.
+evals/room-browser/shots/

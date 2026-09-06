@@ -503,16 +503,40 @@ export async function listIngestRunsForReview(db, ownerUserId, replicaIdValue, l
  * corpus, and the consent predicate. Doing it here would be a second place
  * that decides what a clone of a named person may say, and the drifted copy
  * would keep returning 200.
+ *
+ * WS-R112: a run whose SOURCE is a `vy_context_item` the creator has since
+ * REFUSED (`decideReviewCard`'s 'remove_source' decision on an
+ * 'instruction_shaped' card, `api/_review-queue.js`) may never reach
+ * 'applied' - this IS the "sheet rebuild excludes it" law the workstream's
+ * own brief asked to be read and fixed, not assumed already true. Reading
+ * this function BEFORE that fix found it did not: it checked only
+ * `vy_ingest_run.status`, never the mined item's own state, so a proposal
+ * mined before a creator later removed its source could still be approved
+ * after the removal. The `not exists` clause below closes that: for a run
+ * whose `transcript_source = 'context_item'` (`api/_context-locker.js::
+ * mineStored`'s own literal), it is blocked when the item named by
+ * `video_ref` (`context:<item_id>`, that file's own convention) is
+ * `refused`. A run from any OTHER transcript source (a channel video, for
+ * instance) is untouched: the first clause of the `exists` is false for
+ * those, so the `not exists` is trivially true and this predicate adds
+ * nothing new for them.
  */
 export async function applyIngestRunDelta(db, ownerUserId, runId, approvedByUserId) {
   if (!UUID.test(String(ownerUserId || "")) || !UUID.test(String(runId || "")) || !UUID.test(String(approvedByUserId || ""))) {
     throw new ChannelIngestError("channel_ingest_identity_invalid", 400);
   }
   const rows = await db(
-    `update vy_ingest_run
+    `update vy_ingest_run r
         set status = 'applied', approved_by_user_id = $3::uuid, decided_at = now(), updated_at = now()
-      where run_id = $1::uuid and owner_user_id = $2::uuid and status = 'proposed'
-      returning run_id, status, proposed_delta, proposed_delta_count, approved_by_user_id, decided_at`,
+      where r.run_id = $1::uuid and r.owner_user_id = $2::uuid and r.status = 'proposed'
+        and not exists (
+          select 1 from vy_context_item i
+           where r.transcript_source = 'context_item'
+             and i.owner_user_id = r.owner_user_id
+             and i.item_id::text = split_part(r.video_ref, ':', 2)
+             and i.status = 'refused'
+        )
+      returning r.run_id, r.status, r.proposed_delta, r.proposed_delta_count, r.approved_by_user_id, r.decided_at`,
     [String(runId).toLowerCase(), String(ownerUserId).toLowerCase(), String(approvedByUserId).toLowerCase()],
   );
   if (!rows[0]) throw new ChannelIngestError("channel_ingest_run_not_approvable", 409);

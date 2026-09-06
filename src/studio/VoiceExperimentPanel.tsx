@@ -19,6 +19,10 @@ import {
   type VoiceExperimentRatingAnswer,
   type VoiceExperimentResult,
 } from "./voiceExperiment";
+import { useStudioLocale } from "./localeContext";
+import type { StudioCopy } from "./copy";
+
+type VEC = StudioCopy["voiceExperimentPanel"];
 
 const POINTER_PREFIX = "vy.voiceExperiment.latest.";
 const PROGRESS_PREFIX = "vy.voiceExperiment.progress.";
@@ -39,15 +43,22 @@ function restoreStoredValue(key: string, value: string | null) {
   else localStorage.setItem(key, value);
 }
 
-function friendlyImportError(cause: unknown, kind: "pack" | "ratings" | "result") {
+/** `kind` names which import this is; the word spliced into `{kind}` below
+ *  is locale-aware (`c.kindPack`/`c.kindRatings`/`c.kindResult`), not the
+ *  English internal code itself. */
+function kindWord(kind: "pack" | "ratings" | "result", c: VEC): string {
+  return kind === "pack" ? c.kindPack : kind === "ratings" ? c.kindRatings : c.kindResult;
+}
+
+function friendlyImportError(cause: unknown, kind: "pack" | "ratings" | "result", c: VEC) {
   const code = cause instanceof Error ? cause.message : "";
-  if (code.includes("cleanup_failed")) return "The new pack was not loaded because browser storage could not fully remove the old private experiment. The current experiment remains open.";
-  if (code.includes("mapping_leak")) return "This file reveals a candidate before ratings are locked, so it was refused.";
-  if (code.includes("binding") || code.includes("seal")) return `This ${kind} file belongs to a different sealed experiment.`;
-  if (code.includes("size")) return `This ${kind} file is outside the safe size limit.`;
-  if (code.includes("hash") || code.includes("geometry") || code.includes("wav")) return "One audio file failed its integrity check. Export the sealed pack again.";
-  if (code.includes("signature") || code.includes("attestation") || code.includes("public_key")) return "This report has no valid private-pack signature, so model identities remain hidden.";
-  return `This ${kind} file is not a valid Vyakti voice experiment export.`;
+  if (code.includes("cleanup_failed")) return c.errorCleanupFailed;
+  if (code.includes("mapping_leak")) return c.errorMappingLeak;
+  if (code.includes("binding") || code.includes("seal")) return c.errorBindingMismatch.split("{kind}").join(kindWord(kind, c));
+  if (code.includes("size")) return c.errorSizeLimit.split("{kind}").join(kindWord(kind, c));
+  if (code.includes("hash") || code.includes("geometry") || code.includes("wav")) return c.errorIntegrityCheck;
+  if (code.includes("signature") || code.includes("attestation") || code.includes("public_key")) return c.errorNoSignature;
+  return c.errorNotValidExport.split("{kind}").join(kindWord(kind, c));
 }
 
 function downloadJson(name: string, value: unknown) {
@@ -72,6 +83,8 @@ function firstIncomplete(bundle: VoiceExperimentBundle, answers: VoiceExperiment
 }
 
 export default function VoiceExperimentPanel({ replicaId }: { replicaId: string }) {
+  const { t } = useStudioLocale();
+  const c = t.voiceExperimentPanel;
   const [expanded, setExpanded] = useState(false);
   const [bundle, setBundle] = useState<VoiceExperimentBundle | null>(null);
   const [answers, setAnswers] = useState<VoiceExperimentAnswers>({});
@@ -193,12 +206,12 @@ export default function VoiceExperimentPanel({ replicaId }: { replicaId: string 
       setReferencePlayed(false);
       setResult(null);
       setExpanded(true);
-    } catch (cause) { setError(friendlyImportError(cause, "pack")); }
+    } catch (cause) { setError(friendlyImportError(cause, "pack", c)); }
     finally { setBusy(false); }
   }
 
   async function removePrivateExperiment() {
-    if (!bundle || !window.confirm("Remove this private experiment from this browser? Exported files on your computer are not deleted.")) return;
+    if (!bundle || !window.confirm(c.removeConfirm)) return;
     setBusy(true);
     setError("");
     try {
@@ -206,7 +219,7 @@ export default function VoiceExperimentPanel({ replicaId }: { replicaId: string 
       resetExperiment();
       setExpanded(true);
     } catch {
-      setError("Browser storage failed while removing this private experiment. The current experiment remains open. Try again before leaving this device.");
+      setError(c.errorStorageFailedRemoving);
     } finally { setBusy(false); }
   }
 
@@ -221,7 +234,7 @@ export default function VoiceExperimentPanel({ replicaId }: { replicaId: string 
       setLockedAt(sheet.complete ? sheet.finishedAt || "" : "");
       setIndex(firstIncomplete(bundle, sheet.answers));
       setPlayedTrialId("");
-    } catch (cause) { setError(friendlyImportError(cause, "ratings")); }
+    } catch (cause) { setError(friendlyImportError(cause, "ratings", c)); }
   }
 
   async function importResult(file: File | undefined) {
@@ -232,7 +245,7 @@ export default function VoiceExperimentPanel({ replicaId }: { replicaId: string 
       const next = await parseVoiceExperimentResult(await file.text(), bundle);
       setResult(next);
       try { localStorage.setItem(resultKey(replicaId, bundle.runId), JSON.stringify(next)); } catch { /* result remains in memory */ }
-    } catch (cause) { setError(friendlyImportError(cause, "result")); }
+    } catch (cause) { setError(friendlyImportError(cause, "result", c)); }
   }
 
   async function play(stimulusId: string, reference = false) {
@@ -252,7 +265,7 @@ export default function VoiceExperimentPanel({ replicaId }: { replicaId: string 
       await audio.play();
     } catch {
       stopAudio();
-      setError("Audio could not start. Check this browser's sound permission, then try again.");
+      setError(c.errorAudioCouldNotStart);
     }
   }
 
@@ -269,7 +282,8 @@ export default function VoiceExperimentPanel({ replicaId }: { replicaId: string 
   const heard = Boolean(trial && playedTrialId === trial.trialId);
   const canAdvance = Boolean(trial && heard && answerComplete(trial, answer));
   const progress = total ? Math.round((completed / total) * 100) : 0;
-  const status = result ? "Identities unlocked" : locked ? "Ratings locked" : allAnswered ? "Ready to lock" : bundle ? `${completed} of ${total} rated` : "No experiment loaded";
+  const status = result ? c.statusIdentitiesUnlocked : locked ? c.statusRatingsLocked : allAnswered ? c.statusReadyToLock
+    : bundle ? c.statusRatedCount.split("{n}").join(String(completed)).split("{n2}").join(String(total)) : c.statusNoExperiment;
   const sheet = useMemo(
     () => bundle && startedAt ? buildVoiceExperimentSheet(bundle, answers, startedAt, lockedAt) : null,
     [answers, bundle, lockedAt, startedAt],
@@ -286,72 +300,72 @@ export default function VoiceExperimentPanel({ replicaId }: { replicaId: string 
   return (
     <details className="voice-experiment" open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
       <summary>
-        <span><strong>Blind voice experiment</strong><small>Compare real outputs before seeing which model made them.</small></span>
+        <span><strong>{c.summaryTitle}</strong><small>{c.summarySubtitle}</small></span>
         <span className={result ? "unlocked" : bundle ? "active" : ""}>{status}</span>
       </summary>
 
       <div className="voice-experiment-body">
-        {error && <div className="voice-experiment-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError("")}>Dismiss</button></div>}
+        {error && <div className="voice-experiment-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError("")}>{c.dismiss}</button></div>}
 
         {!bundle ? (
           <div className="voice-experiment-import">
             <div>
-              <h3>Open a sealed listening pack</h3>
-              <p>Import the one-file Studio bundle. It contains opaque clips and score controls, never model names or the private answer key.</p>
+              <h3>{c.openSealedPackTitle}</h3>
+              <p>{c.openSealedPackBody}</p>
             </div>
             <label className={`button secondary-button ${busy ? "disabled" : ""}`}>
-              {busy ? "Checking pack..." : "Choose sealed pack"}
+              {busy ? c.checkingPack : c.chooseSealedPack}
               <input type="file" accept=".json,application/json" disabled={busy} onChange={(event) => { void importPack(event.target.files?.[0]); event.currentTarget.value = ""; }} />
             </label>
           </div>
         ) : result ? (
           <div className="voice-experiment-results">
             <header>
-              <div><h3>Experiment identities unlocked</h3><p>{result.acceptedListeners} accepted listener sheet. These are descriptive means, not an automatic model choice.</p></div>
-              <span>Signature verified</span>
+              <div><h3>{c.identitiesUnlockedTitle}</h3><p>{c.acceptedListenerNote.split("{n}").join(String(result.acceptedListeners))}</p></div>
+              <span>{c.signatureVerified}</span>
             </header>
             {result.cells.map((cell) => (
               <section key={cell.languageId} aria-labelledby={`voice-result-${cell.languageId}`}>
-                <h4 id={`voice-result-${cell.languageId}`}>{cell.languageId === "hi" ? "Hindi" : cell.languageId === "en" ? "English" : cell.languageId}</h4>
+                <h4 id={`voice-result-${cell.languageId}`}>{cell.languageId === "hi" ? c.languageHindi : cell.languageId === "en" ? c.languageEnglish : cell.languageId}</h4>
                 <div className="voice-experiment-result-grid">
                   {cell.candidates.map((candidate) => (
                     <article key={`${cell.languageId}-${candidate.armLabel}-${candidate.model}`}>
-                      <header><strong>{candidate.armLabel}</strong><span>{candidate.descriptiveOverallMean?.toFixed(2) ?? "No mean"}</span></header>
+                      <header><strong>{candidate.armLabel}</strong><span>{candidate.descriptiveOverallMean?.toFixed(2) ?? c.noMean}</span></header>
                       <small>{candidate.model} · n={candidate.n}</small>
                       <dl>
-                        {bundle.trials.axes.map((axis) => <div key={axis.id}><dt>{axis.label}</dt><dd>{candidate.means[axis.id]?.toFixed(2) ?? "None"}</dd></div>)}
+                        {bundle.trials.axes.map((axis) => <div key={axis.id}><dt>{axis.label}</dt><dd>{candidate.means[axis.id]?.toFixed(2) ?? c.noneLabel}</dd></div>)}
                       </dl>
                     </article>
                   ))}
                 </div>
               </section>
             ))}
-            <p className="voice-experiment-truth">No model is promoted here. Use the ratings as evidence alongside pronunciation checks, speaker similarity, latency, and cost.</p>
+            <p className="voice-experiment-truth">{c.noPromotionNote}</p>
           </div>
         ) : !startedAt ? (
           <div className="voice-experiment-start">
             <div>
               <span className="voice-experiment-seal">SEALED</span>
-              <h3>First, learn the owner's real voice</h3>
-              <p>Use headphones and keep one volume. Candidate identities remain outside this browser pack.</p>
+              <h3>{c.learnOwnerVoiceTitle}</h3>
+              <p>{c.headphonesNote}</p>
             </div>
             <div className="voice-experiment-start-actions">
-              <button className="button secondary-button" type="button" onClick={() => void play(bundle.trials.referenceId, true)}>{referencePlayed ? "Play owner again" : "Play real owner"}</button>
-              <button className="button primary-button" type="button" disabled={!referencePlayed} onClick={() => { setStartedAt(new Date().toISOString()); setIndex(firstIncomplete(bundle, answers)); }}>Start blind rating</button>
+              <button className="button secondary-button" type="button" onClick={() => void play(bundle.trials.referenceId, true)}>{referencePlayed ? c.playOwnerAgain : c.playRealOwner}</button>
+              <button className="button primary-button" type="button" disabled={!referencePlayed} onClick={() => { setStartedAt(new Date().toISOString()); setIndex(firstIncomplete(bundle, answers)); }}>{c.startBlindRating}</button>
             </div>
           </div>
         ) : locked ? (
           <div className="voice-experiment-locked">
-            <header><div><h3>Ratings locked on this browser</h3><p>The model mapping is still sealed. Export this sheet, admit it through the private listening gate, then import the unsealed report.</p></div><span>{storageState === "saved" ? "Saved locally" : "Export before leaving"}</span></header>
+            <header><div><h3>{c.ratingsLockedTitle}</h3><p>{c.ratingsLockedBody}</p></div><span>{storageState === "saved" ? c.savedLocally : c.exportBeforeLeaving}</span></header>
             <div className="voice-experiment-lock-actions">
-              <button className="button primary-button" type="button" onClick={() => sheet && downloadJson(`${bundle.runId}-owner-studio-ratings.json`, sheet)}>Export locked ratings</button>
-              <label className="button secondary-button">Import unsealed report<input type="file" accept=".json,application/json" onChange={(event) => { void importResult(event.target.files?.[0]); event.currentTarget.value = ""; }} /></label>
+              <button className="button primary-button" type="button" onClick={() => sheet && downloadJson(`${bundle.runId}-owner-studio-ratings.json`, sheet)}>{c.exportLockedRatings}</button>
+              <label className="button secondary-button">{c.importUnsealedReport}<input type="file" accept=".json,application/json" onChange={(event) => { void importResult(event.target.files?.[0]); event.currentTarget.value = ""; }} /></label>
             </div>
             <details className="voice-experiment-command">
-              <summary>Private gate commands</summary>
+              <summary>{c.privateGateCommandsSummary}</summary>
               <code>node scripts/voice-matched-pack.mjs import-studio-answers --file &lt;ratings.json&gt; --home &lt;pack-folder&gt;</code>
               <code>node scripts/voice-matched-pack.mjs unseal --confirm-ratings-locked --home &lt;pack-folder&gt;</code>
-              <small>Then import reports/unsealed-report.json above. A failed listening check does not unlock identities.</small>
+              <small>{c.privateGateCommandsNote}</small>
             </details>
           </div>
         ) : trial ? (
@@ -359,68 +373,68 @@ export default function VoiceExperimentPanel({ replicaId }: { replicaId: string 
             <div
               className="voice-experiment-progress"
               role="progressbar"
-              aria-label="Blind experiment progress"
+              aria-label={c.progressBarAriaLabel}
               aria-valuemin={0}
               aria-valuemax={total}
               aria-valuenow={completed}
-              aria-valuetext={`${completed} of ${total} ratings complete`}
+              aria-valuetext={c.progressAriaValueText.split("{n}").join(String(completed)).split("{n2}").join(String(total))}
             >
               <span style={{ width: `${progress}%` }} />
             </div>
-            <header><span>{trial.kind === "rating" ? trial.language : "Listening check"}</span><strong>{index + 1} of {total}</strong></header>
+            <header><span>{trial.kind === "rating" ? trial.language : c.listeningCheck}</span><strong>{c.positionLabel.split("{n}").join(String(index + 1)).split("{n2}").join(String(total))}</strong></header>
 
             {trial.kind === "rating" ? (
               <>
                 <p className="voice-experiment-prompt" lang={trial.langTag}>{trial.promptText}</p>
                 <div className="voice-experiment-play">
-                  <button className="button primary-button" type="button" onClick={() => void play(trial.stimulusId)}>{heard ? "Play hidden clip again" : "Play hidden clip"}</button>
-                  <button className="button secondary-button" type="button" onClick={() => void play(bundle.trials.referenceId, true)}>Play real owner</button>
-                  <span>{heard ? "Clip heard" : "Play before rating"}</span>
+                  <button className="button primary-button" type="button" onClick={() => void play(trial.stimulusId)}>{heard ? c.playHiddenClipAgain : c.playHiddenClip}</button>
+                  <button className="button secondary-button" type="button" onClick={() => void play(bundle.trials.referenceId, true)}>{c.playRealOwner}</button>
+                  <span>{heard ? c.clipHeard : c.playBeforeRating}</span>
                 </div>
                 <div className="voice-experiment-axes">
                   {bundle.trials.axes.map((axis) => (
                     <fieldset key={axis.id}>
-                      <legend><strong>{axis.label}</strong><span>1 {axis.low} · 5 {axis.high}</span></legend>
-                      <div>{[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" aria-label={`${axis.label}: ${value} of 5`} aria-pressed={(answer as VoiceExperimentRatingAnswer | undefined)?.[axis.id] === value} onClick={() => updateAnswer(trial.trialId, { [axis.id]: value })}>{value}</button>)}</div>
+                      <legend><strong>{axis.label}</strong><span>{c.axisScaleLabel.split("{n}").join(axis.low).split("{n2}").join(axis.high)}</span></legend>
+                      <div>{[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" aria-label={c.axisButtonAriaLabel.split("{label}").join(axis.label).split("{n}").join(String(value))} aria-pressed={(answer as VoiceExperimentRatingAnswer | undefined)?.[axis.id] === value} onClick={() => updateAnswer(trial.trialId, { [axis.id]: value })}>{value}</button>)}</div>
                     </fieldset>
                   ))}
                 </div>
                 <fieldset className="voice-experiment-disclosure">
-                  <legend>Was the spoken AI disclosure clear and complete?</legend>
+                  <legend>{c.disclosureLegend}</legend>
                   <div>{bundle.trials.disclosureOptions.map((option) => <button key={option.id} type="button" aria-pressed={(answer as VoiceExperimentRatingAnswer | undefined)?.disclosure === option.id} onClick={() => updateAnswer(trial.trialId, { disclosure: option.id as VoiceExperimentDisclosure })}>{option.label}</button>)}</div>
                 </fieldset>
-                <label className="voice-experiment-note">What sounded wrong, if anything?<textarea maxLength={400} rows={2} value={(answer as VoiceExperimentRatingAnswer | undefined)?.note || ""} onChange={(event) => updateAnswer(trial.trialId, { note: event.target.value })} /></label>
+                <label className="voice-experiment-note">{c.noteQuestion}<textarea maxLength={400} rows={2} value={(answer as VoiceExperimentRatingAnswer | undefined)?.note || ""} onChange={(event) => updateAnswer(trial.trialId, { note: event.target.value })} /></label>
               </>
             ) : (
               <div className="voice-experiment-attention">
-                <p>Play the short check, then choose what you heard.</p>
-                <button className="button primary-button" type="button" onClick={() => void play(trial.stimulusId)}>{heard ? "Play check again" : "Play check"}</button>
+                <p>{c.attentionPrompt}</p>
+                <button className="button primary-button" type="button" onClick={() => void play(trial.stimulusId)}>{heard ? c.playCheckAgain : c.playCheck}</button>
                 <div>{trial.options.map((option) => <button key={option.id} type="button" disabled={!heard} aria-pressed={(answer as { choice?: string } | undefined)?.choice === option.id} onClick={() => updateAnswer(trial.trialId, { choice: option.id })}>{option.label}</button>)}</div>
               </div>
             )}
 
             <footer>
-              <button className="text-button" type="button" disabled={index === 0} onClick={() => { stopAudio(); setPlayedTrialId(""); setIndex((current) => Math.max(0, current - 1)); }}>Back</button>
-              <span>{storageState === "saving" ? "Saving pack..." : storageState === "saved" ? "Progress saved locally" : "Export progress before leaving"}</span>
-              <button className="button primary-button" type="button" disabled={!canAdvance} onClick={next}>{index === total - 1 ? "Lock ratings" : "Save and continue"}</button>
+              <button className="text-button" type="button" disabled={index === 0} onClick={() => { stopAudio(); setPlayedTrialId(""); setIndex((current) => Math.max(0, current - 1)); }}>{c.back}</button>
+              <span>{storageState === "saving" ? c.savingPack : storageState === "saved" ? c.progressSavedLocally : c.exportProgressBeforeLeaving}</span>
+              <button className="button primary-button" type="button" disabled={!canAdvance} onClick={next}>{index === total - 1 ? c.lockRatings : c.saveAndContinue}</button>
             </footer>
-            {index === total - 1 && <p className="voice-experiment-lock-warning" role="note">Locking is irreversible in Studio. Export remains available afterward.</p>}
+            {index === total - 1 && <p className="voice-experiment-lock-warning" role="note">{c.lockIrreversibleNote}</p>}
             <div className="voice-experiment-portability">
-              <button type="button" onClick={() => sheet && downloadJson(`${bundle.runId}-owner-studio-progress.json`, sheet)}>Export progress</button>
-              <label>Import progress<input type="file" accept=".json,application/json" onChange={(event) => { void importRatings(event.target.files?.[0]); event.currentTarget.value = ""; }} /></label>
+              <button type="button" onClick={() => sheet && downloadJson(`${bundle.runId}-owner-studio-progress.json`, sheet)}>{c.exportProgress}</button>
+              <label>{c.importProgress}<input type="file" accept=".json,application/json" onChange={(event) => { void importRatings(event.target.files?.[0]); event.currentTarget.value = ""; }} /></label>
             </div>
           </div>
         ) : null}
 
         {bundle && (
           <div className="voice-experiment-lifecycle" aria-label="Private experiment storage">
-            <small>Replacing clears this pack, its local ratings, and any imported result from this browser.</small>
+            <small>{c.replaceClearsNote}</small>
             <div>
               <label className={`text-button ${busy ? "disabled" : ""}`}>
-                {busy ? "Working..." : "Replace pack"}
+                {busy ? c.working : c.replacePack}
                 <input type="file" accept=".json,application/json" disabled={busy} onChange={(event) => { void importPack(event.target.files?.[0]); event.currentTarget.value = ""; }} />
               </label>
-              <button className="text-button danger" type="button" disabled={busy} onClick={() => void removePrivateExperiment()}>Remove private experiment</button>
+              <button className="text-button danger" type="button" disabled={busy} onClick={() => void removePrivateExperiment()}>{c.removePrivateExperiment}</button>
             </div>
           </div>
         )}

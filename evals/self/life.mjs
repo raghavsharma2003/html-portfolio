@@ -133,12 +133,12 @@ const keysOfRows = (rows) => rows.map((r) => keyOf(r.id));
 // A fake req/res pair for the api/life.js handler. Each call gets its own
 // source ip so the 30/min rate limiter never becomes the thing under test.
 let ipN = 0;
-async function callApi(method, { body = null, query = null } = {}) {
+async function callApi(method, { body = null, query = null, headers = {} } = {}) {
   const req = {
     method,
     body,
     query: query || {},
-    headers: { "x-forwarded-for": `10.9.0.${++ipN % 250}` },
+    headers: { "x-forwarded-for": `10.9.0.${++ipN % 250}`, ...headers },
     socket: {},
   };
   let status = 0;
@@ -405,11 +405,17 @@ try {
   ok("G7-3 no secret → 403", (await callApi("POST", { body: { op: "propose", beat: "x" } })).status === 403);
   ok(
     "G7-4 wrong secret → 403",
-    (await callApi("POST", { body: { op: "approve", secret: "nope", id: 1 } })).status === 403,
+    (
+      await callApi("POST", {
+        body: { op: "approve", id: 1 },
+        headers: { "x-owner-secret": "nope-but-still-sixteen" },
+      })
+    ).status === 403,
   );
 
   const proposeStatus = await callApi("POST", {
-    body: { op: "propose", secret: LIFE_SECRET, beat: `${LIFE_TAG} clean beat`, status: "approved", agent: LIFE_AGENT },
+    body: { op: "propose", beat: `${LIFE_TAG} clean beat`, status: "approved", agent: LIFE_AGENT },
+    headers: { "x-owner-secret": LIFE_SECRET },
   });
   ok(
     "G7-5 propose cannot name a status — text and publication may not arrive together",
@@ -418,20 +424,21 @@ try {
   );
 
   const dirty = await callApi("POST", {
-    body: { op: "propose", secret: LIFE_SECRET, beat: "I told sneha about the flat.", agent: LIFE_AGENT },
+    body: { op: "propose", beat: "I told sneha about the flat.", agent: LIFE_AGENT },
+    headers: { "x-owner-secret": LIFE_SECRET },
   });
   ok("G7-6 a sentence-shaped beat is refused at write (recited-prompt)", dirty.status === 400, JSON.stringify(dirty.body));
 
   const proposed = await callApi("POST", {
     body: {
       op: "propose",
-      secret: LIFE_SECRET,
       beat: `${LIFE_TAG} chachi in town for four days`,
       kind: "family",
       arc_key: `${LIFE_ARC_PREFIX}-API`,
       at: new Date(Date.now() - MS_PER_DAY).toISOString(),
       agent: LIFE_AGENT,
     },
+    headers: { "x-owner-secret": LIFE_SECRET },
   });
   ok("G7-7 a clean propose lands as PENDING", proposed.status === 200 && proposed.body.row.status === "pending",
     JSON.stringify(proposed.body));
@@ -443,7 +450,8 @@ try {
   );
 
   const approveWithText = await callApi("POST", {
-    body: { op: "approve", secret: LIFE_SECRET, id: proposedId, beat: "something else entirely" },
+    body: { op: "approve", id: proposedId, beat: "something else entirely" },
+    headers: { "x-owner-secret": LIFE_SECRET },
   });
   ok(
     "G7-9 approve carrying text is REFUSED — publication is a second request or it is nothing",
@@ -451,7 +459,10 @@ try {
     JSON.stringify(approveWithText.body),
   );
 
-  const approved = await callApi("POST", { body: { op: "approve", secret: LIFE_SECRET, id: proposedId } });
+  const approved = await callApi("POST", {
+    body: { op: "approve", id: proposedId },
+    headers: { "x-owner-secret": LIFE_SECRET },
+  });
   ok("G7-10 a separate approve request publishes it", approved.status === 200 && approved.body.row.status === "approved",
     JSON.stringify(approved.body));
   const visibleNow = await L.untoldFor(qfn, P2, LIFE_AGENT, 50);
@@ -464,14 +475,20 @@ try {
      values (($1)::uuid, now() - interval '1 day', $2, 'small', $3, '[]'::jsonb, 'pending') returning id`,
     [LIFE_AGENT, `${LIFE_TAG} ${"long ".repeat(30)}`, `${LIFE_ARC_PREFIX}-DIRTY`],
   );
-  const approveDirty = await callApi("POST", { body: { op: "approve", secret: LIFE_SECRET, id: Number(dirtyId) } });
+  const approveDirty = await callApi("POST", {
+    body: { op: "approve", id: Number(dirtyId) },
+    headers: { "x-owner-secret": LIFE_SECRET },
+  });
   ok(
     "G7-12 approve re-lints the STORED text: a dirty row cannot be published",
     approveDirty.status === 422,
     JSON.stringify(approveDirty.body),
   );
 
-  const retired = await callApi("POST", { body: { op: "retire", secret: LIFE_SECRET, id: proposedId } });
+  const retired = await callApi("POST", {
+    body: { op: "retire", id: proposedId },
+    headers: { "x-owner-secret": LIFE_SECRET },
+  });
   ok("G7-13 retire withdraws it", retired.status === 200 && retired.body.row.status === "retired");
   const goneNow = await L.untoldFor(qfn, P2, LIFE_AGENT, 50);
   ok("G7-14 …and it leaves the anti-join", !goneNow.some((r) => Number(r.id) === Number(proposedId)));

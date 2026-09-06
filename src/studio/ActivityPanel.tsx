@@ -56,14 +56,25 @@ import {
   type ActivityView,
 } from "./activityApi";
 import { finalizeSource } from "./enrollmentApi";
+import { useStudioLocale } from "./localeContext";
+import type { StudioCopy } from "./copy";
 
 /** The four groups. "Your turn" first because it is the only one that is about
- *  the person; finished last because it is the only one they can stop reading. */
-const GROUPS: Record<string, { key: string; title: string; states: ActivityState[] }> = {
-  yours: { key: "yours", title: "Your turn", states: ["waiting_on_you"] },
-  working: { key: "working", title: "Working now", states: ["running", "queued"] },
-  stopped: { key: "stopped", title: "Stopped", states: ["failed", "blocked"] },
-  finished: { key: "finished", title: "Finished", states: ["done", "cancelled"] },
+ *  the person; finished last because it is the only one they can stop reading.
+ *  Titles are resolved from `t.activityPanel` at render time (see `GROUP_KEY`
+ *  below); this table only carries the states each group matches. */
+const GROUPS: Record<string, { key: string; states: ActivityState[] }> = {
+  yours: { key: "yours", states: ["waiting_on_you"] },
+  working: { key: "working", states: ["running", "queued"] },
+  stopped: { key: "stopped", states: ["failed", "blocked"] },
+  finished: { key: "finished", states: ["done", "cancelled"] },
+};
+
+const GROUP_TITLE: Record<string, keyof Pick<StudioCopy["activityPanel"], "groupYourTurn" | "groupWorkingNow" | "groupStopped" | "groupFinished">> = {
+  yours: "groupYourTurn",
+  working: "groupWorkingNow",
+  stopped: "groupStopped",
+  finished: "groupFinished",
 };
 
 /** WS-AE's `ProcessingStatusMount` asks for two moods, not one panel shown
@@ -77,16 +88,13 @@ const GROUPS: Record<string, { key: string; title: string; states: ActivityState
  *
  *  The same jobs answer both questions, so the data is identical and the ORDER
  *  and the framing are not: on `feed` the finished work is the reassurance and
- *  goes last; on `meet` the UNFINISHED work is the answer and goes first. */
+ *  goes last; on `meet` the UNFINISHED work is the answer and goes first.
+ *  Title/lede are resolved from `t.activityPanel` at render time. */
 const MOODS = {
   feed: {
-    title: "Where each upload is right now",
-    lede: "Everything you have handed over, and what is happening to it. Anything that needs you is at the top.",
     order: ["yours", "working", "stopped", "finished"],
   },
   meet: {
-    title: "What has finished, and what has not",
-    lede: "If your clone does not know something you are sure you gave it, the reason is usually here. Unfinished work first.",
     order: ["working", "stopped", "yours", "finished"],
   },
 } as const;
@@ -98,22 +106,22 @@ const MOODS = {
  *  about the page rather than information about the work. This is a property of
  *  the ROW, it moves only when the row does, and its floor is a minute so it
  *  never twitches. */
-function ago(iso: string | null): string {
+function ago(iso: string | null, c: StudioCopy["activityPanel"]): string {
   if (!iso) return "";
   const then = new Date(iso).getTime();
   if (!Number.isFinite(then)) return "";
   const minutes = Math.floor((Date.now() - then) / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 1) return c.justNow;
+  if (minutes < 60) return c.minutesAgo.split("{n}").join(String(minutes));
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  if (hours < 24) return hours === 1 ? c.hourAgoOne : c.hoursAgoMany.split("{n}").join(String(hours));
   const days = Math.floor(hours / 24);
-  return `${days} ${days === 1 ? "day" : "days"} ago`;
+  return days === 1 ? c.dayAgoOne : c.daysAgoMany.split("{n}").join(String(days));
 }
 
-function StepRail({ done, total }: { done: number; total: number }) {
+function StepRail({ done, total, c }: { done: number; total: number; c: StudioCopy["activityPanel"] }) {
   return (
-    <span className="vy-activity__steps" aria-label={`${done} of ${total} steps done`}>
+    <span className="vy-activity__steps" aria-label={c.stepsDoneAriaLabel.split("{n}").join(String(done)).split("{n2}").join(String(total))}>
       {Array.from({ length: total }, (_, i) => (
         <span key={i} className="vy-activity__step" data-done={i < done ? "true" : "false"} />
       ))}
@@ -134,13 +142,12 @@ function SkeletonRow() {
   );
 }
 
-function NotConnected({ lane }: { lane: ActivityLaneStatus }) {
+function NotConnected({ lane, c }: { lane: ActivityLaneStatus; c: StudioCopy["activityPanel"] }) {
   return (
     <div className="vy-activity__notice">
-      <p><strong>{lane.label}: not connected yet.</strong></p>
+      <p><strong>{c.notConnectedTitle.split("{label}").join(lane.label)}</strong></p>
       <p>
-        Nothing in this lane can run until it is set up, so an empty list here does not mean
-        nothing has happened. What is missing:{" "}
+        {c.notConnectedBody} {c.notConnectedMissingLabel}{" "}
         <span className="vy-activity__missing">{lane.missing.join(", ")}</span>
       </p>
     </div>
@@ -190,6 +197,8 @@ export default function ActivityPanel({
    *  additive and optional, so a mount that does not care is unchanged. */
   onView?: (view: ActivityView) => void;
 }) {
+  const { t } = useStudioLocale();
+  const c = t.activityPanel;
   const [view, setView] = useState<ActivityView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
@@ -219,7 +228,7 @@ export default function ActivityPanel({
         onAuthError?.(cause);
         return null;
       }
-      setError(cause instanceof Error ? cause.message : "could not read activity");
+      setError(cause instanceof Error ? cause.message : c.errorCouldNotRead);
       // A failed poll is not a reason to give up, but it IS a reason to slow
       // down: an endpoint that is 500ing does not get hammered every 3 s.
       return latest.current?.in_flight ? 15_000 : null;
@@ -275,38 +284,39 @@ export default function ActivityPanel({
     } catch (cause) {
       // Named, never swallowed. `source_state_changed` means it already moved
       // on, which is good news and is said as such.
-      const raw = cause instanceof Error ? cause.message : "the retry did not go through";
-      setError(raw.includes("source state changed")
-        ? "That upload had already moved on, so there was nothing to finish."
-        : raw);
+      const raw = cause instanceof Error ? cause.message : c.errorRetryFailed;
+      setError(raw.includes("source state changed") ? c.errorAlreadyMoved : raw);
     } finally {
       setRetrying("");
     }
   };
+
+  const moodTitle = where === "feed" ? c.feedTitle : c.meetTitle;
+  const moodLede = where === "feed" ? c.feedLede : c.meetLede;
 
   return (
     <section
       className="vy-activity"
       id={`processing-status-${where}`}
       aria-labelledby={showHeading ? `vy-activity-title-${where}` : undefined}
-      aria-label={showHeading ? undefined : mood.title}
+      aria-label={showHeading ? undefined : moodTitle}
     >
       {showHeading && (
         <>
           <header className="vy-activity__head">
-            <h2 className="vy-activity__title" id={`vy-activity-title-${where}`}>{mood.title}</h2>
+            <h2 className="vy-activity__title" id={`vy-activity-title-${where}`}>{moodTitle}</h2>
           </header>
-          <p className="vy-activity__lede">{mood.lede}</p>
+          <p className="vy-activity__lede">{moodLede}</p>
         </>
       )}
 
       {error ? <div className="vy-activity__error" role="status">{error}</div> : null}
 
-      {undeployed.map((lane) => <NotConnected key={lane.lane} lane={lane} />)}
+      {undeployed.map((lane) => <NotConnected key={lane.lane} lane={lane} c={c} />)}
 
       {loading && !view ? (
         <div className="vy-activity__group">
-          <p className="vy-activity__group-name">Loading</p>
+          <p className="vy-activity__group-name">{c.loadingGroupName}</p>
           <SkeletonRow />
           <SkeletonRow />
           <SkeletonRow />
@@ -314,15 +324,12 @@ export default function ActivityPanel({
       ) : null}
 
       {!loading && grouped.length === 0 ? (
-        <p className="vy-activity__empty">
-          Nothing has been started yet. Add a recording, a file or your channel and it will show up here
-          while it runs.
-        </p>
+        <p className="vy-activity__empty">{c.emptyState}</p>
       ) : null}
 
       {grouped.map((group) => (
         <div className="vy-activity__group" key={group.key}>
-          <p className="vy-activity__group-name">{group.title}</p>
+          <p className="vy-activity__group-name">{c[GROUP_TITLE[group.key]]}</p>
           {group.jobs.map((job) => (
             <article className="vy-activity__row" key={job.job_id} data-state={job.state} data-lane={job.lane}>
               <span className="vy-activity__dot" aria-hidden="true" />
@@ -331,14 +338,17 @@ export default function ActivityPanel({
                 <p className="vy-activity__reason">{job.state_reason}</p>
                 {job.progress ? (
                   <div className="vy-activity__meta">
-                    <StepRail done={job.progress.done} total={job.progress.total} />
-                    <span>{job.progress.done} of {job.progress.total} {job.progress.unit} done</span>
+                    <StepRail done={job.progress.done} total={job.progress.total} c={c} />
+                    <span>
+                      {c.ofCount.split("{n}").join(String(job.progress.done)).split("{n2}").join(String(job.progress.total))}{" "}
+                      {job.progress.unit} {c.doneLabel}
+                    </span>
                   </div>
                 ) : null}
               </div>
               <div className="vy-activity__side">
                 <span className="vy-activity__when">
-                  {job.finished_at ? ago(job.finished_at) : ago(job.updated_at)}
+                  {job.finished_at ? ago(job.finished_at, c) : ago(job.updated_at, c)}
                 </span>
                 {/* `owner_setup` joins wait and none as TEXT, not a button.
                     It names a deployment setting somebody has to change, and
@@ -364,7 +374,7 @@ export default function ActivityPanel({
                       }
                     }}
                   >
-                    {retrying === job.job_id ? "Working" : job.next_action.label}
+                    {retrying === job.job_id ? c.retryingLabel : job.next_action.label}
                   </button>
                 )}
               </div>

@@ -2711,3 +2711,1940 @@ alter table vy_replica_generation
   drop constraint if exists vy_replica_generation_preview_style_check,
   add constraint vy_replica_generation_preview_style_check
     check (jsonb_typeof(preview_style)='object' and octet_length(preview_style::text)<=2048);
+
+-- Migration 072 - owner identity by SPEAKER VERIFICATION (WS-R2). The third
+-- path past identity_verification_required / liveness_verification_required,
+-- beside the never-deployed Azure stack (039-041) and the owner-bound
+-- REPLICA_SELF_TEST_MODE flag (063). The owner speaks a freshly issued
+-- sentence on camera; the deployed voice-evidence service embeds it and
+-- Sarvam transcribes it; the two numbers decide. The decision is a ROW and
+-- the existing gate reads it through the SAME vy_replica columns the Azure
+-- path would have written. No FKs on replica_id/owner_user_id (009's
+-- WHERE-clause binding), so this table is deleted BY NAME in
+-- api/_replica-full-erasure.js and relcheck's owner-lane walk enforces that.
+create table if not exists vy_replica_voice_challenge (
+  challenge_id              uuid primary key default gen_random_uuid(),
+  replica_id                uuid not null,
+  owner_user_id             uuid not null,
+  sentence                  text not null,
+  sentence_hash             text not null,
+  nonce                     text not null,
+  policy_version            text not null,
+  challenge_policy          text not null,
+  attempt                   integer not null default 1 check (attempt > 0),
+  state                     text not null default 'issued'
+                            check (state in ('issued','captured','verifying','verified','failed','expired')),
+  decision                  text not null default ''
+                            check (decision in ('','accept','review','reject')),
+  similarity                double precision,
+  transcript_overlap        double precision,
+  reference_source_id       uuid,
+  reference_genome_version  integer,
+  captured_source_id        uuid,
+  transcript_source_id      uuid,
+  decision_basis            jsonb not null default '{}'::jsonb,
+  failure_code              text not null default '',
+  verification_attempt      integer not null default 0 check (verification_attempt >= 0),
+  verification_next_attempt_at   timestamptz not null default now(),
+  verification_lease_token_hash  text not null default '',
+  verification_leased_at         timestamptz,
+  verification_lease_expires_at  timestamptz,
+  issued_at                 timestamptz not null default now(),
+  expires_at                timestamptz not null,
+  decided_at                timestamptz,
+  updated_at                timestamptz not null default now()
+);
+alter table vy_replica_voice_challenge
+  drop constraint if exists vy_replica_voice_challenge_basis_check,
+  add constraint vy_replica_voice_challenge_basis_check
+    check (jsonb_typeof(decision_basis)='object' and octet_length(decision_basis::text)<=4096);
+alter table vy_replica_voice_challenge
+  drop constraint if exists vy_replica_voice_challenge_lease_check,
+  add constraint vy_replica_voice_challenge_lease_check
+    check (verification_lease_token_hash='' or verification_lease_token_hash ~ '^[0-9a-f]{64});
+alter table vy_replica_voice_challenge
+  drop constraint if exists vy_replica_voice_challenge_hash_check,
+  add constraint vy_replica_voice_challenge_hash_check
+    check (sentence_hash ~ '^[0-9a-f]{64});
+alter table vy_replica_voice_challenge
+  drop constraint if exists vy_replica_voice_challenge_decision_check,
+  add constraint vy_replica_voice_challenge_decision_check
+    check ((state in ('verified','failed')) = (decision <> '' and decided_at is not null));
+create unique index if not exists vy_replica_voice_challenge_owner_tuple_ix
+  on vy_replica_voice_challenge (challenge_id,replica_id,owner_user_id);
+create index if not exists vy_replica_voice_challenge_latest_ix
+  on vy_replica_voice_challenge (replica_id,owner_user_id,issued_at desc);
+create index if not exists vy_replica_voice_challenge_ready_ix
+  on vy_replica_voice_challenge (verification_next_attempt_at,issued_at)
+  where state in ('captured','verifying');
+create table if not exists vy_replica_voice_challenge_attempt (
+  challenge_id      uuid not null,
+  replica_id        uuid not null,
+  owner_user_id     uuid not null,
+  attempt           integer not null check (attempt > 0),
+  verifier          text not null,
+  verifier_version  text not null,
+  outcome           text not null check (outcome in ('running','retry','verified','failed')),
+  failure_code      text not null default '',
+  result            jsonb not null default '{}'::jsonb,
+  started_at        timestamptz not null default now(),
+  finished_at       timestamptz,
+  primary key (challenge_id,attempt)
+);
+alter table vy_replica_voice_challenge_attempt
+  drop constraint if exists vy_replica_voice_challenge_attempt_result_check,
+  add constraint vy_replica_voice_challenge_attempt_result_check
+    check (jsonb_typeof(result)='object' and octet_length(result::text)<=4096);
+create index if not exists vy_replica_voice_challenge_attempt_owner_ix
+  on vy_replica_voice_challenge_attempt (owner_user_id,replica_id,started_at desc);
+alter table vy_replica_source
+  drop constraint if exists vy_replica_source_capture_mode_check,
+  add constraint vy_replica_source_capture_mode_check
+    check (capture_mode in ('live_challenge','provider_consent','identity_document',
+                            'identity_challenge','upload','import','derived'));
+-- Migration 074 - the review queue: vy_review_card + vy_review_never_rule, and
+-- the `purpose` column that makes a correction a first-class source.
+--
+-- Contract: WS-R4. Thirty seconds a card. One question, the answer the AI gave,
+-- three buttons: Sounds right / Close, fix it / Never say this. This is where
+-- fidelity is actually made, so the three decisions are three DIFFERENT writes
+-- and none of them edits a derived row in place.
+--
+-- Idempotent, ONE STATEMENT PER REQUEST — 001's law, restated by 009/051/058/059
+-- and binding here for the same reason: Neon's SQL-over-HTTP endpoint takes
+-- exactly one statement per body, db/migrations/apply.mjs runs them
+-- individually with no transaction across them, and an apply interrupted
+-- halfway must be recoverable by running this file again. NO DO blocks and no
+-- functions: apply.mjs's splitter is deliberately small and does not handle
+-- them, so every constraint uses the drop-then-add idempotent pair.
+--
+-- ── no foreign keys on replica_id / owner_user_id ────────────────────────
+-- Same convention as 051/053/055/057/058/061: both columns are FK-SHAPED and
+-- carry no FK constraint, and the binding is enforced by the WHERE clause (009's
+-- law). Because there is no cascade to inherit, BOTH tables are deleted BY NAME
+-- in api/_replica-full-erasure.js — scripts/relcheck.mjs's owner-lane reach walk
+-- fails the build for any owner_user_id table reachable by neither, and it would
+-- have failed for these the moment they existed. They are deliberately NOT added
+-- to PERSON_TABLES: api/memory.js's "WHAT IS DELIBERATELY NOT IN THE LIST ABOVE"
+-- carries the argument, and relcheck's manifest check excludes owner-keyed
+-- tables for exactly that reason.
+--
+-- ── why 'fixed' cannot exist without a correction source ─────────────────
+-- 059's `vy_mirror_delta_applied_gate` is the precedent and the argument
+-- transfers unchanged: a tap that did nothing must not look like a tap that
+-- worked. "Close, fix it" means the owner's better answer became a CITED
+-- SOURCE. If that source row is not there, the card is not fixed, and
+-- `vy_review_card_fixed_gate` makes the half-landed state unrepresentable
+-- rather than merely untested. The API writes the source UPSTREAM of the state
+-- flip for the same reason `decideMirrorDelta` writes the sheet upstream of its
+-- flip (context/decisions.md#mirror-call-approval-is-one-sql-clause).
+--
+-- ── why the correction is a SOURCE and never a prompt line ───────────────
+-- `recited-prompt` (context/rejected.md): anything sentence-shaped in a brief
+-- gets recited verbatim, measured twice, in unrelated features. The owner's
+-- better answer is the single most recitable string this product can produce —
+-- a whole sentence, in their own words, about a question their audience really
+-- asks. So it enters the platform the way every other piece of owner material
+-- enters it: as a row on vy_replica_source with `purpose='correction'`,
+-- retrieved at answer time, never pasted into a persona. 059 states the same
+-- rule one table over for `vy_mirror_feedback.rephrase_text`.
+--
+-- ── why a never-rule is a table and not a sentence ───────────────────────
+-- docs/gurukul/safety-floor-teacher.md, quoting the governing measurement:
+-- "prompt instructions leaked 57-98%; the SQL predicate leaked 0 of 31,122 …
+-- a sentence in a brief is a preference, a predicate on the output is a
+-- guarantee." "Never say this" therefore writes a ROW that the reply predicate
+-- reads (api/_review-queue.js::compileNeverRules, applied inside
+-- api/_surface.js::gateReply, the one door), and writes nothing anywhere near a
+-- prompt.
+
+create table if not exists vy_review_card (
+  card_id              uuid primary key default gen_random_uuid(),
+  replica_id           uuid not null,
+  owner_user_id        uuid not null,
+  -- Where the card came from. 'question' is the pre-launch synthetic set drawn
+  -- from the replica's own sources; 'claim' is a mined claim awaiting decision;
+  -- 'delta' is a Mirror Call chip; 'follower_declined' is a real follower
+  -- question the AI declined or answered with low confidence. The last kind is
+  -- a HOOK: it is written from an event shape (api/_review-queue.js's
+  -- `followerDeclinedEvent`), not from any Room code this workstream depends on.
+  kind                 text not null
+                       check (kind in ('question','claim','delta','follower_declined')),
+  prompt_text          text not null
+                       check (prompt_text <> '' and length(prompt_text) <= 500),
+  -- What the AI said. '' is legal and means the AI DECLINED: a declined
+  -- question is the most valuable card in the deck and refusing to store it
+  -- because the answer field is empty would drop exactly those.
+  answer_text          text not null default '' check (length(answer_text) <= 4000),
+  -- The citations behind `answer_text`, as the studio renders them. A column
+  -- rather than a key inside a blob because the citation law on this platform's
+  -- other derived tables (vy_fact, vy_pattern, vy_mirror_delta) is a column too.
+  source_refs          jsonb not null default '[]'::jsonb
+                       check (jsonb_typeof(source_refs) = 'array'
+                          and octet_length(source_refs::text) <= 4096),
+  -- What the card was generated FROM, as `<kind>:<id>`, so a claim or a delta
+  -- can never produce two cards and a decision can be walked back to its
+  -- origin. '' for a synthetic question, which has no upstream row.
+  origin_ref           text not null default '' check (length(origin_ref) <= 128),
+  -- The DEDUPE key: sha256 over (kind, normalised prompt). A unique index on
+  -- (replica_id, dedupe_hash) is what makes "deduplicated" a property of the
+  -- database rather than of whichever generator ran last.
+  dedupe_hash          text not null check (dedupe_hash ~ '^[0-9a-f]{64}),
+  state                text not null default 'open'
+                       check (state in ('open','sounds_right','fixed','never')),
+  decided_at           timestamptz,
+  -- The vy_replica_source row carrying the owner's better answer. FK-shaped,
+  -- not FK, for the reason the header gives.
+  correction_source_id uuid,
+  created_at           timestamptz not null default now()
+);
+
+alter table vy_review_card drop constraint if exists vy_review_card_decided_gate;
+
+-- A decided card carries the moment it was decided, and an open one does not
+-- pretend to. "When did I say that" is the first question an owner asks of a
+-- decision they no longer agree with.
+alter table vy_review_card add constraint vy_review_card_decided_gate
+  check ((state = 'open') = (decided_at is null));
+
+alter table vy_review_card drop constraint if exists vy_review_card_fixed_gate;
+
+-- THE NEGATIVE CONTROL WRITTEN AS A CONSTRAINT. A 'fixed' card without the
+-- correction source it claims to have cannot exist, whatever a future statement
+-- tries to do; and a correction source cannot be attached to a card in any
+-- other state, which stops a correction being recorded against a card the owner
+-- actually approved. 059's `vy_mirror_delta_applied_gate`, one table over.
+alter table vy_review_card add constraint vy_review_card_fixed_gate
+  check ((state = 'fixed') = (correction_source_id is not null));
+
+create unique index if not exists vy_review_card_dedupe_ix
+  on vy_review_card (replica_id, dedupe_hash);
+
+create index if not exists vy_review_card_open_ix
+  on vy_review_card (owner_user_id, replica_id, created_at)
+  where state = 'open';
+
+create index if not exists vy_review_card_owner_ix
+  on vy_review_card (owner_user_id, replica_id, created_at desc);
+
+-- ── "Never say this" ─────────────────────────────────────────────────────
+--
+-- One row per thing this AI must never say, in the owner's own terms. `pattern`
+-- is matched case-insensitively against the assembled reply by
+-- api/_review-queue.js::compileNeverRules and enforced inside
+-- api/_surface.js::gateReply. It is NEVER rendered into a prompt: a list of
+-- forbidden sentences in a brief is a phrase bank pointed at the exact strings
+-- it forbids (`recited-prompt`).
+--
+-- `revoked_at` rather than DELETE, because "I un-forbade this on the 3rd" is a
+-- question an owner is entitled to be able to answer.
+create table if not exists vy_review_never_rule (
+  rule_id       uuid primary key default gen_random_uuid(),
+  replica_id    uuid not null,
+  owner_user_id uuid not null,
+  pattern       text not null check (pattern <> '' and length(pattern) <= 200),
+  reason        text not null default '' check (length(reason) <= 500),
+  -- The card that produced this rule, when one did. FK-shaped, not FK.
+  card_id       uuid,
+  created_at    timestamptz not null default now(),
+  revoked_at    timestamptz
+);
+
+create index if not exists vy_review_never_rule_active_ix
+  on vy_review_never_rule (replica_id, owner_user_id, created_at)
+  where revoked_at is null;
+
+create unique index if not exists vy_review_never_rule_pattern_ix
+  on vy_review_never_rule (replica_id, lower(pattern))
+  where revoked_at is null;
+
+-- ── a correction is a source with a purpose ──────────────────────────────
+--
+-- vy_replica_source already carries `capture_mode`, which says HOW bytes
+-- arrived (uploaded, imported, derived, captured live). It does not say WHY
+-- they exist, and a correction needs both: it arrives through the ordinary
+-- signed upload (`capture_mode='upload'`, so the existing DAG transcribes a
+-- dictated one without a second pipeline) and it exists because an owner
+-- corrected an answer. Defaulting to 'memory' leaves every source ever written
+-- byte-for-byte as it was.
+alter table vy_replica_source
+  add column if not exists purpose text not null default 'memory';
+
+alter table vy_replica_source
+  drop constraint if exists vy_replica_source_purpose_check;
+
+alter table vy_replica_source
+  add constraint vy_replica_source_purpose_check
+    check (purpose in ('memory','identity_document','correction','interview'));
+
+create index if not exists vy_replica_source_correction_ix
+  on vy_replica_source (replica_id, owner_user_id, created_at desc)
+  where purpose = 'correction';
+-- Migration 073 - vy_replica_readiness: the readiness snapshot behind the one
+-- creator screen (one number, five parts, one action, one publish lock).
+-- `parts` is the truth; `overall`, `min_part` and `unmeasured_count` are its
+-- projections and exist as columns because the publish lock is a SQL predicate
+-- inside two much larger statements (runtime activation, channel connect) and
+-- a jsonb path expression in that position is the kind of thing a later edit
+-- gets subtly wrong. A wrong lock opens. The two paired CHECKs make
+-- DESIGN-LAW §1's "the overall is undefined until every part has a value"
+-- unrepresentable rather than merely observed. No FK (009's convention);
+-- deleted by name in api/_replica-full-erasure.js.
+create table if not exists vy_replica_readiness (
+  readiness_id     uuid primary key default gen_random_uuid(),
+  replica_id       uuid not null,
+  owner_user_id    uuid not null,
+  computed_at      timestamptz not null default now(),
+  policy_version   text not null default '',
+  overall          integer,
+  min_part         integer,
+  unmeasured_count integer not null,
+  parts            jsonb not null default '{}'::jsonb,
+  blockers         jsonb not null default '[]'::jsonb,
+  suggested_action jsonb not null default '{}'::jsonb,
+  inputs_hash      text not null,
+  constraint vy_replica_readiness_unmeasured_range check (unmeasured_count >= 0 and unmeasured_count <= 5),
+  constraint vy_replica_readiness_overall_range check (overall is null or (overall >= 0 and overall <= 100)),
+  constraint vy_replica_readiness_min_part_range check (min_part is null or (min_part >= 0 and min_part <= 100)),
+  constraint vy_replica_readiness_overall_undefined
+    check ((unmeasured_count > 0 and overall is null) or (unmeasured_count = 0 and overall is not null)),
+  constraint vy_replica_readiness_min_part_pairs
+    check ((overall is null and min_part is null) or (overall is not null and min_part is not null)),
+  constraint vy_replica_readiness_inputs_hash check (inputs_hash ~ '^[0-9a-f]{64}),
+  constraint vy_replica_readiness_parts_object
+    check (jsonb_typeof(parts) = 'object' and jsonb_typeof(suggested_action) = 'object'
+           and jsonb_typeof(blockers) = 'array')
+);
+create index if not exists vy_replica_readiness_latest_ix
+  on vy_replica_readiness (replica_id, owner_user_id, computed_at desc);
+create index if not exists vy_replica_readiness_inputs_ix
+  on vy_replica_readiness (replica_id, inputs_hash, computed_at desc);
+-- Migration 075 - the interview: the Mirror Call re-pointed at the gaps in the
+-- archive (WS-R5). `purpose` on vy_replica_source is what lets retrieval prefer
+-- conversational material for register; the two tables below are the interview
+-- itself, and every one of their rows hangs off a Mirror Call session so there
+-- is no second transport, no second consent freeze and no second reply lane.
+alter table vy_replica_source add column if not exists purpose text not null default 'memory';
+alter table vy_replica_source drop constraint if exists vy_replica_source_purpose_check;
+alter table vy_replica_source add constraint vy_replica_source_purpose_check
+  check (purpose in ('memory','identity_document','correction','interview'));
+create index if not exists vy_replica_source_purpose_ix
+  on vy_replica_source (replica_id, owner_user_id, purpose);
+create table if not exists vy_interview_session (
+  session_id        uuid primary key default gen_random_uuid(),
+  replica_id        uuid not null,
+  owner_user_id     uuid not null,
+  mirror_session_id uuid not null references vy_mirror_session(session_id) on delete cascade,
+  policy_version    text not null,
+  started_at        timestamptz not null default now(),
+  ended_at          timestamptz,
+  gaps              jsonb not null default '[]'::jsonb,
+  questions_asked   integer not null default 0 check (questions_asked >= 0),
+  answers_captured  integer not null default 0 check (answers_captured >= 0),
+  updated_at        timestamptz not null default now(),
+  constraint vy_interview_session_owner_fk foreign key (replica_id, owner_user_id) references vy_replica (replica_id, owner_user_id) on delete cascade,
+  constraint vy_interview_session_gaps_shape check (jsonb_typeof(gaps) = 'array' and octet_length(gaps::text) <= 32768),
+  constraint vy_interview_session_answer_gate check (answers_captured <= questions_asked)
+);
+create unique index if not exists vy_interview_session_mirror_ix on vy_interview_session (mirror_session_id);
+create index if not exists vy_interview_session_owner_ix on vy_interview_session (owner_user_id, replica_id, started_at desc);
+create table if not exists vy_interview_answer (
+  answer_id          uuid primary key default gen_random_uuid(),
+  session_id         uuid not null references vy_interview_session(session_id) on delete cascade,
+  replica_id         uuid not null,
+  owner_user_id      uuid not null,
+  gap_kind           text not null check (gap_kind in ('contradiction','sheet_field','thin_topic','readiness')),
+  topic              text not null check (topic <> '' and length(topic) <= 120),
+  question_shape_hash text not null check (question_shape_hash ~ '^[0-9a-f]{64}),
+  source_id          uuid references vy_replica_source(source_id) on delete set null,
+  window_id          uuid references vy_mirror_window(window_id) on delete set null,
+  created_at         timestamptz not null default now(),
+  constraint vy_interview_answer_owner_fk foreign key (replica_id, owner_user_id) references vy_replica (replica_id, owner_user_id) on delete cascade
+);
+create unique index if not exists vy_interview_answer_shape_ix on vy_interview_answer (session_id, question_shape_hash);
+create index if not exists vy_interview_answer_session_ix on vy_interview_answer (session_id, created_at);
+create index if not exists vy_interview_answer_owner_ix on vy_interview_answer (owner_user_id, replica_id, created_at desc);
+create index if not exists vy_interview_answer_shape_history_ix on vy_interview_answer (replica_id, owner_user_id, question_shape_hash);
+-- Migration 071 - the Room: the follower's side of a published replica.
+-- vy_room is the OWNER lane (deleted by name in api/_replica-full-erasure.js);
+-- vy_room_follower and vy_room_thread are the PERSON lane (PERSON_TABLES,
+-- gated in activePersonTables() on this migration having landed). No column in
+-- any of the three can hold anything anybody said, and none ever may - 012's
+-- content law, and 016's reason for restating it on a consent ledger.
+create table if not exists vy_room (
+  room_id               uuid primary key,
+  slug                  text not null,
+  replica_id            uuid not null,
+  agent_id              uuid not null,
+  owner_user_id         uuid not null,
+  display_name          text not null default '',
+  free_monthly_messages integer not null default 20
+                        check (free_monthly_messages >= 0 and free_monthly_messages <= 100000),
+  published_at          timestamptz,
+  paused_at             timestamptz,
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now()
+);
+create unique index if not exists vy_room_slug_ix on vy_room (lower(slug));
+create unique index if not exists vy_room_replica_ix on vy_room (replica_id);
+create index if not exists vy_room_owner_ix on vy_room (owner_user_id, replica_id);
+create index if not exists vy_room_agent_ix on vy_room (agent_id);
+create table if not exists vy_room_follower (
+  follower_id         uuid primary key,
+  room_id             uuid not null references vy_room(room_id) on delete cascade,
+  person_id           uuid not null,
+  agent_id            uuid not null,
+  joined_at           timestamptz not null default now(),
+  age_attested_at     timestamptz,
+  memory_consent_at   timestamptz,
+  tier                text not null default 'free' check (tier in ('free','paid')),
+  month_key           text not null default '',
+  month_message_count integer not null default 0 check (month_message_count >= 0),
+  last_seen_at        timestamptz,
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now()
+);
+create unique index if not exists vy_room_follower_person_ix
+  on vy_room_follower (room_id, person_id);
+create index if not exists vy_room_follower_scope_ix
+  on vy_room_follower (person_id, agent_id);
+create index if not exists vy_room_follower_room_seen_ix
+  on vy_room_follower (room_id, last_seen_at desc);
+create table if not exists vy_room_thread (
+  thread_id       uuid primary key,
+  room_id         uuid not null references vy_room(room_id) on delete cascade,
+  person_id       uuid not null,
+  agent_id        uuid not null,
+  title           text not null default '' check (length(title) <= 80),
+  created_at      timestamptz not null default now(),
+  last_message_at timestamptz,
+  archived_at     timestamptz
+);
+create index if not exists vy_room_thread_scope_ix
+  on vy_room_thread (person_id, room_id, last_message_at desc);
+create unique index if not exists vy_room_thread_title_ix
+  on vy_room_thread (room_id, person_id, lower(title))
+  where archived_at is null and title <> '';
+
+-- Migration 076 - vy_replica_drift_report: the history behind "it notices
+-- drift" (WS-R9). No FK on replica/owner (009's convention); deleted by name
+-- in api/_replica-full-erasure.js.
+create table if not exists vy_replica_drift_report (
+  report_id                uuid primary key default gen_random_uuid(),
+  replica_id               uuid not null,
+  owner_user_id            uuid not null,
+  computed_at              timestamptz not null default now(),
+  state                    text not null,
+  score                    double precision,
+  ceiling                  double precision,
+  trend                    jsonb not null default '[]'::jsonb,
+  last_model_change_at     timestamptz,
+  last_model_commitment    text,
+  prosody_anchor_stale     boolean not null,
+  inputs_hash              text not null,
+  alerted_at               timestamptz,
+  constraint vy_replica_drift_report_state_check
+    check (state in ('steady','moved','not_measured')),
+  constraint vy_replica_drift_report_measured_shape check (
+    (state = 'not_measured' and (score is null or ceiling is null))
+    or (state in ('steady','moved') and score is not null and ceiling is not null)
+  ),
+  constraint vy_replica_drift_report_score_range
+    check (score is null or (score >= -1 and score <= 1)),
+  constraint vy_replica_drift_report_ceiling_range
+    check (ceiling is null or (ceiling > 0 and ceiling <= 1)),
+  constraint vy_replica_drift_report_inputs_hash
+    check (inputs_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_drift_report_commitment_hash
+    check (last_model_commitment is null or last_model_commitment ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_drift_report_swap_pairs
+    check ((last_model_change_at is null) = (last_model_commitment is null)),
+  constraint vy_replica_drift_report_trend_array
+    check (jsonb_typeof(trend) = 'array' and octet_length(trend::text) <= 8192),
+  constraint vy_replica_drift_report_alert_shape
+    check (alerted_at is null or state = 'moved')
+);
+create index if not exists vy_replica_drift_report_latest_ix
+  on vy_replica_drift_report (replica_id, owner_user_id, computed_at desc);
+create index if not exists vy_replica_drift_report_inputs_ix
+  on vy_replica_drift_report (replica_id, inputs_hash, computed_at desc);
+create index if not exists vy_replica_drift_report_alerts_ix
+  on vy_replica_drift_report (owner_user_id, alerted_at desc)
+  where alerted_at is not null;
+
+-- Migration 077 - the Room's cohort day table (WS-R12): one row per
+-- (room, follower, day) turns count. PERSON lane (PERSON_TABLES, gated in
+-- activePersonTables() on this migration having landed). Content-free like
+-- vy_room_follower/vy_room_thread: an id, a date and a count, never a word.
+create table if not exists vy_room_follower_day (
+  room_id   uuid not null references vy_room(room_id) on delete cascade,
+  person_id uuid not null,
+  day       date not null,
+  turns     integer not null default 0 check (turns >= 0),
+  primary key (room_id, person_id, day)
+);
+create index if not exists vy_room_follower_day_scope_ix
+  on vy_room_follower_day (room_id, person_id, day);
+-- Migration 078 - the durable ledger and provider seam for Rooms money
+-- (WS-R11). No FK on owner/person (009's convention); vy_room_price and
+-- vy_creator_payout deleted by name in api/_replica-full-erasure.js;
+-- vy_room_subscription is in api/memory.js's PERSON_TABLES (lane
+-- "relational", wipeWhere "state in ('cancelled','expired')" - a live mandate
+-- survives an account wipe rather than being silently orphaned);
+-- vy_payment_event is reached only by cascade (no owner/person column of its
+-- own, addressed by room_id/subscription_id like a real payment ledger).
+create table if not exists vy_room_price (
+  price_id           uuid primary key default gen_random_uuid(),
+  room_id            uuid not null references vy_room(room_id) on delete cascade,
+  owner_user_id      uuid not null,
+  follower_price_inr integer not null default 299,
+  currency           text not null default 'INR',
+  platform_take_bp   integer not null default 2500,
+  updated_at         timestamptz not null default now(),
+  constraint vy_room_price_band check (follower_price_inr >= 299 and follower_price_inr <= 599),
+  constraint vy_room_price_currency check (currency = 'INR'),
+  constraint vy_room_price_take_bp check (platform_take_bp >= 0 and platform_take_bp <= 10000)
+);
+create unique index if not exists vy_room_price_room_ix on vy_room_price (room_id);
+create index if not exists vy_room_price_owner_ix on vy_room_price (owner_user_id, room_id);
+
+create table if not exists vy_room_subscription (
+  subscription_id         uuid primary key default gen_random_uuid(),
+  room_id                 uuid not null references vy_room(room_id) on delete cascade,
+  person_id               uuid not null,
+  follower_id             uuid not null references vy_room_follower(follower_id) on delete cascade,
+  provider                text not null,
+  provider_subscription_ref text,
+  state                   text not null default 'created',
+  current_period_start    timestamptz,
+  current_period_end      timestamptz,
+  created_at              timestamptz not null default now(),
+  updated_at              timestamptz not null default now(),
+  constraint vy_room_subscription_provider_check check (provider in ('razorpay','fake')),
+  constraint vy_room_subscription_state_check
+    check (state in ('created','authenticated','active','paused','cancelled','expired'))
+);
+create index if not exists vy_room_subscription_room_person_ix on vy_room_subscription (room_id, person_id);
+create unique index if not exists vy_room_subscription_provider_ref_ix
+  on vy_room_subscription (provider, provider_subscription_ref)
+  where provider_subscription_ref is not null;
+create unique index if not exists vy_room_subscription_follower_live_ix
+  on vy_room_subscription (follower_id)
+  where state in ('created','authenticated','active','paused');
+create index if not exists vy_room_subscription_follower_ix on vy_room_subscription (follower_id, created_at desc);
+
+-- Migration 095 (WS-R33) widened this table with a Suite lane: room_id and
+-- subscription_id (the follower lane) are now NULLABLE, and org_id/
+-- org_subscription_id (the Suite lane) were added, with a CHECK making the
+-- two lanes mutually exclusive - see that migration's own header.
+create table if not exists vy_payment_event (
+  event_id            uuid primary key default gen_random_uuid(),
+  provider             text not null,
+  provider_event_ref   text not null,
+  room_id              uuid references vy_room(room_id) on delete cascade,
+  subscription_id      uuid references vy_room_subscription(subscription_id) on delete cascade,
+  org_id               uuid references vy_org(org_id) on delete set null,
+  org_subscription_id  uuid references vy_org_subscription(subscription_id) on delete cascade,
+  kind                 text not null,
+  amount_inr           integer not null default 0,
+  platform_take_inr    integer not null default 0,
+  creator_share_inr    integer not null default 0,
+  received_at          timestamptz not null default now(),
+  signature_verified   boolean not null,
+  payload_hash         text not null,
+  constraint vy_payment_event_provider_check check (provider in ('razorpay','fake')),
+  -- Widened by migration 133 (WS-R130) to admit 'referral_reward' - a
+  -- zero-amount, platform-authored row for a granted referral reward,
+  -- never a provider webhook event. See that migration's own header.
+  constraint vy_payment_event_kind_check check (kind in (
+    'subscription.authenticated','subscription.activated','subscription.charged',
+    'subscription.completed','subscription.cancelled','subscription.paused',
+    'subscription.resumed','subscription.pending','subscription.halted',
+    'payment.failed','referral_reward'
+  )),
+  constraint vy_payment_event_amounts_nonneg
+    check (amount_inr >= 0 and platform_take_inr >= 0 and creator_share_inr >= 0),
+  constraint vy_payment_event_split_sums check (platform_take_inr + creator_share_inr = amount_inr),
+  constraint vy_payment_event_signature_verified check (signature_verified = true),
+  constraint vy_payment_event_payload_hash check (payload_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_payment_event_one_lane check (
+    (room_id is not null and subscription_id is not null and org_id is null and org_subscription_id is null)
+    or
+    (room_id is null and subscription_id is null and org_id is not null and org_subscription_id is not null)
+  )
+);
+create unique index if not exists vy_payment_event_provider_ref_ix on vy_payment_event (provider, provider_event_ref);
+create index if not exists vy_payment_event_subscription_ix on vy_payment_event (subscription_id, received_at desc);
+create index if not exists vy_payment_event_room_ix on vy_payment_event (room_id, received_at desc);
+create index if not exists vy_payment_event_org_ix on vy_payment_event (org_id, received_at desc) where org_id is not null;
+
+-- Migration 098 (WS-R36) widened this table: `suite_share_inr` (a term in
+-- gross, see api/_payments.js's own SUITE_SEAT_SHARE_BP) and
+-- `provider_payout_ref` were added, and `state` grew from a two-value
+-- placeholder into the real closed set the payout leaves the platform
+-- through: built -> pending_account | queued -> sent -> settled | failed.
+create table if not exists vy_creator_payout (
+  payout_id           uuid primary key default gen_random_uuid(),
+  owner_user_id       uuid not null,
+  period_start        timestamptz not null,
+  period_end          timestamptz not null,
+  gross_inr           integer not null default 0,
+  take_inr            integer not null default 0,
+  net_inr             integer not null default 0,
+  tds_inr             integer not null default 0,
+  suite_share_inr     integer not null default 0,
+  provider_payout_ref text,
+  state               text not null default 'built',
+  created_at          timestamptz not null default now(),
+  -- Migration 111 (WS-R56): the payout status webhook's own trace of WHY
+  -- the row left `sent`/`queued` - see that migration's own header for why
+  -- this is a column, not a second table.
+  settled_at          timestamptz,
+  failure_reason      text,
+  constraint vy_creator_payout_state_check
+    check (state in ('built','pending_account','queued','sent','settled','failed')),
+  constraint vy_creator_payout_amounts_nonneg
+    check (gross_inr >= 0 and take_inr >= 0 and net_inr >= 0 and tds_inr >= 0 and suite_share_inr >= 0),
+  constraint vy_creator_payout_sums check (gross_inr = take_inr + tds_inr + net_inr),
+  constraint vy_creator_payout_period_order check (period_end > period_start),
+  constraint vy_creator_payout_suite_share_bound check (suite_share_inr <= gross_inr),
+  constraint vy_creator_payout_failure_reason_shape
+    check (failure_reason is null or length(failure_reason) <= 500)
+);
+create unique index if not exists vy_creator_payout_period_ix
+  on vy_creator_payout (owner_user_id, period_start, period_end);
+create index if not exists vy_creator_payout_failed_ix
+  on vy_creator_payout (created_at) where state = 'failed';
+create index if not exists vy_creator_payout_owner_list_ix
+  on vy_creator_payout (owner_user_id, period_start desc);
+-- Migration 111 (WS-R56): the payout status webhook's own lookup key.
+create unique index if not exists vy_creator_payout_provider_ref_ix
+  on vy_creator_payout (provider_payout_ref) where provider_payout_ref is not null;
+
+-- Migration 098 (WS-R36). The provider's own reference to a creator's bank
+-- account - never the bank detail itself, see that migration's own header.
+-- Owner lane, deleted by name in api/_replica-full-erasure.js on
+-- vy_creator_payout's own precedent, folded into that table's existing
+-- "owner_room_payments" receipt class.
+create table if not exists vy_creator_payout_account (
+  account_id        uuid primary key default gen_random_uuid(),
+  owner_user_id     uuid not null,
+  provider          text not null,
+  fund_account_ref  text not null,
+  verified_at       timestamptz,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now(),
+  constraint vy_creator_payout_account_provider_check check (provider in ('razorpay','fake')),
+  constraint vy_creator_payout_account_ref_shape
+    check (length(fund_account_ref) > 0 and length(fund_account_ref) <= 200)
+);
+create unique index if not exists vy_creator_payout_account_owner_provider_ix
+  on vy_creator_payout_account (owner_user_id, provider);
+
+-- Migration 079 - check-ins: follower-scheduled, task-bound (WS-R16).
+-- vy_room_checkin_design is the OWNER lane (deleted by name in
+-- api/_replica-full-erasure.js, like vy_room_price); vy_room_checkin and
+-- vy_room_checkin_delivery are the PERSON lane (PERSON_TABLES, gated in
+-- activePersonTables() on this migration having landed). Content-free like
+-- every Room table before it: an id, a schedule, a date, a state, never a
+-- word of what was said.
+create table if not exists vy_room_checkin_design (
+  design_id     uuid primary key,
+  room_id       uuid not null references vy_room(room_id) on delete cascade,
+  owner_user_id uuid not null,
+  title         text not null default '' check (length(title) <= 120),
+  prompt_shape  text not null default '' check (length(prompt_shape) <= 2000),
+  cadence_hint  text not null default '' check (length(cadence_hint) <= 200),
+  state         text not null default 'active' check (state in ('active','paused')),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create index if not exists vy_room_checkin_design_owner_ix
+  on vy_room_checkin_design (owner_user_id, room_id, created_at desc);
+
+create table if not exists vy_room_checkin (
+  checkin_id    uuid primary key,
+  room_id       uuid not null references vy_room(room_id) on delete cascade,
+  person_id     uuid not null,
+  follower_id   uuid not null references vy_room_follower(follower_id) on delete cascade,
+  design_id     uuid not null references vy_room_checkin_design(design_id) on delete cascade,
+  days_of_week  integer[] not null default '{}',
+  local_time    time not null,
+  timezone      text not null,
+  next_due_at   timestamptz,
+  state         text not null default 'active' check (state in ('active','stopped')),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  constraint vy_room_checkin_days_shape check (
+    array_length(days_of_week, 1) is not null
+    and array_length(days_of_week, 1) between 1 and 7
+    and days_of_week <@ array[1,2,3,4,5,6,7]
+  )
+);
+create index if not exists vy_room_checkin_due_ix
+  on vy_room_checkin (next_due_at)
+  where state = 'active';
+create index if not exists vy_room_checkin_scope_ix
+  on vy_room_checkin (person_id, room_id);
+create unique index if not exists vy_room_checkin_follower_design_ix
+  on vy_room_checkin (follower_id, design_id)
+  where state = 'active';
+
+create table if not exists vy_room_checkin_delivery (
+  delivery_id  uuid primary key,
+  checkin_id   uuid not null references vy_room_checkin(checkin_id) on delete cascade,
+  room_id      uuid not null references vy_room(room_id) on delete cascade,
+  person_id    uuid not null,
+  due_at       timestamptz not null,
+  delivered_at timestamptz,
+  channel      text not null default 'in_app' check (channel in ('in_app','whatsapp_template')),
+  state        text not null
+    check (state in ('delivered','skipped_free_tier','skipped_stopped','not_configured','failed')),
+  reason       text not null default '',
+  created_at   timestamptz not null default now(),
+  constraint vy_room_checkin_delivery_once unique (checkin_id, due_at, channel)
+);
+create index if not exists vy_room_checkin_delivery_scope_ix
+  on vy_room_checkin_delivery (person_id, room_id, due_at desc);
+create index if not exists vy_room_checkin_delivery_checkin_ix
+  on vy_room_checkin_delivery (checkin_id, due_at desc);
+-- Migration 080 - Pulse v0 (WS-R17): counts over the opt-in shared subgraph,
+-- n>=5, never verbatim. Three lanes: vy_room_pulse_optin is PERSON (a
+-- follower's own revocable toggle, content-free); vy_room_pulse_topic is
+-- OWNER (creator-typed labels only, never a follower's words);
+-- vy_room_pulse_snapshot is content-free and derived, with follower_count's
+-- own CHECK (>=5) refusing to let a bucket below the floor exist at all.
+create table if not exists vy_room_pulse_optin (
+  optin_id       uuid primary key,
+  room_id        uuid not null references vy_room(room_id) on delete cascade,
+  person_id      uuid not null,
+  thread_id      uuid references vy_room_thread(thread_id) on delete cascade,
+  policy_version integer not null default 1 check (policy_version > 0),
+  granted_at     timestamptz not null default now(),
+  revoked_at     timestamptz,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+create unique index if not exists vy_room_pulse_optin_scope_ix
+  on vy_room_pulse_optin (room_id, person_id, coalesce(thread_id, '00000000-0000-0000-0000-000000000000'::uuid));
+create index if not exists vy_room_pulse_optin_active_ix
+  on vy_room_pulse_optin (room_id, person_id)
+  where revoked_at is null;
+create index if not exists vy_room_pulse_optin_thread_ix
+  on vy_room_pulse_optin (thread_id)
+  where revoked_at is null and thread_id is not null;
+create index if not exists vy_room_pulse_optin_person_ix
+  on vy_room_pulse_optin (person_id, room_id);
+
+create table if not exists vy_room_pulse_topic (
+  topic_id      uuid primary key,
+  room_id       uuid not null references vy_room(room_id) on delete cascade,
+  owner_user_id uuid not null,
+  label         text not null check (length(label) between 1 and 60),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create unique index if not exists vy_room_pulse_topic_label_ix
+  on vy_room_pulse_topic (room_id, lower(label));
+create index if not exists vy_room_pulse_topic_owner_ix
+  on vy_room_pulse_topic (owner_user_id, room_id);
+
+create table if not exists vy_room_pulse_snapshot (
+  snapshot_id    uuid primary key,
+  room_id        uuid not null references vy_room(room_id) on delete cascade,
+  week_start     date not null,
+  topic_id       uuid not null references vy_room_pulse_topic(topic_id) on delete cascade,
+  follower_count integer not null check (follower_count >= 5),
+  computed_at    timestamptz not null default now()
+);
+create unique index if not exists vy_room_pulse_snapshot_week_ix
+  on vy_room_pulse_snapshot (room_id, week_start, topic_id);
+create index if not exists vy_room_pulse_snapshot_owner_read_ix
+  on vy_room_pulse_snapshot (room_id, week_start desc);
+-- Migration 082 - the Room on Telegram: which room a Telegram chat currently
+-- means (WS-R18). See db/migrations/082_room_telegram_channel.sql for the
+-- full argument; mirrored here per this file's own convention.
+create table if not exists vy_room_follower_channel (
+  channel_map_id uuid primary key,
+  room_id        uuid not null references vy_room(room_id) on delete cascade,
+  person_id      uuid not null,
+  follower_id    uuid not null references vy_room_follower(follower_id) on delete cascade,
+  channel        text not null,
+  channel_ref    text not null,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+  constraint vy_room_follower_channel_channel_check check (channel in ('telegram'))
+);
+create unique index if not exists vy_room_follower_channel_ref_ix
+  on vy_room_follower_channel (channel, channel_ref);
+create index if not exists vy_room_follower_channel_person_ix
+  on vy_room_follower_channel (person_id, channel);
+create index if not exists vy_room_follower_channel_follower_ix
+  on vy_room_follower_channel (follower_id);
+-- Migration 081 - the paid tier's fair-use ceilings and voice minutes
+-- (WS-R19). vy_room_follower gets the paid twin of its own free-tier month
+-- counter; vy_room gets the two creator-editable ceilings; vy_room_voice_usage
+-- is the PERSON-lane day-count sibling of 077's vy_room_follower_day, one
+-- column deeper (a real FK to vy_room_follower, 078's own precedent).
+alter table vy_room_follower
+  add column if not exists voice_seconds_month integer not null default 0;
+alter table vy_room_follower
+  drop constraint if exists vy_room_follower_voice_seconds_nonneg,
+  add constraint vy_room_follower_voice_seconds_nonneg check (voice_seconds_month >= 0);
+-- The voice meter's OWN rollover key, independent of `month_key` (071) - a
+-- shared key lets whichever of roomSay/roomSpeak runs first in a new month
+-- silently strand the other's counter unreset (context/rejected.md#ws-r19-
+-- shared-month-key-cross-counter-rollover).
+alter table vy_room_follower
+  add column if not exists voice_month_key text not null default '';
+
+alter table vy_room
+  add column if not exists paid_monthly_messages integer not null default 500;
+alter table vy_room
+  drop constraint if exists vy_room_paid_monthly_messages_band,
+  add constraint vy_room_paid_monthly_messages_band
+  check (paid_monthly_messages >= 100 and paid_monthly_messages <= 2000);
+alter table vy_room
+  add column if not exists paid_monthly_voice_seconds integer not null default 1800;
+alter table vy_room
+  drop constraint if exists vy_room_paid_monthly_voice_seconds_band,
+  add constraint vy_room_paid_monthly_voice_seconds_band
+  check (paid_monthly_voice_seconds >= 0 and paid_monthly_voice_seconds <= 3600);
+
+create table if not exists vy_room_voice_usage (
+  room_id     uuid not null references vy_room(room_id) on delete cascade,
+  person_id   uuid not null,
+  follower_id uuid not null references vy_room_follower(follower_id) on delete cascade,
+  day         date not null,
+  seconds     integer not null default 0 check (seconds >= 0),
+  clips       integer not null default 0 check (clips >= 0),
+  primary key (room_id, person_id, day)
+);
+create index if not exists vy_room_voice_usage_scope_ix
+  on vy_room_voice_usage (room_id, person_id, day);
+create index if not exists vy_room_voice_usage_follower_ix
+  on vy_room_voice_usage (follower_id);
+
+-- Migration 084 - the sweep heartbeat (WS-R21). No person/device/owner
+-- column by construction; see that migration's own header for why it needs
+-- no PERSON_TABLES entry and no relcheck exemption.
+create table if not exists vy_sweep_run (
+  run_id       uuid primary key,
+  sweep        text not null check (length(sweep) > 0 and length(sweep) <= 80),
+  started_at   timestamptz not null default now(),
+  finished_at  timestamptz,
+  outcome      text not null default 'running',
+  counts       jsonb not null default '{}'::jsonb,
+  error_code   text not null default ''
+);
+alter table vy_sweep_run drop constraint if exists vy_sweep_run_outcome_check;
+alter table vy_sweep_run add constraint vy_sweep_run_outcome_check
+  check (outcome in ('running', 'ok', 'partial', 'failed'));
+alter table vy_sweep_run drop constraint if exists vy_sweep_run_counts_object;
+alter table vy_sweep_run add constraint vy_sweep_run_counts_object
+  check (jsonb_typeof(counts) = 'object');
+alter table vy_sweep_run drop constraint if exists vy_sweep_run_counts_size;
+alter table vy_sweep_run add constraint vy_sweep_run_counts_size
+  check (octet_length(counts::text) <= 4096);
+alter table vy_sweep_run drop constraint if exists vy_sweep_run_finished_matches_outcome;
+alter table vy_sweep_run add constraint vy_sweep_run_finished_matches_outcome
+  check (
+    (outcome = 'running' and finished_at is null)
+    or (outcome <> 'running' and finished_at is not null)
+  );
+create index if not exists vy_sweep_run_sweep_started_ix
+  on vy_sweep_run (sweep, started_at desc);
+-- Migration 085 - web push for check-ins, the installable Room (WS-R22).
+-- vy_room_push_subscription is the PERSON lane (PERSON_TABLES, "forget-only",
+-- no agent_id column - reached purely through follower_id's own FK cascade,
+-- vy_room_follower_channel's precedent one migration family over, so
+-- roomForget needs no new explicit statement). The channel CHECK on
+-- vy_room_checkin_delivery widens to admit 'web_push'; vy_room_checkin gains
+-- its own quiet-hours window.
+create table if not exists vy_room_push_subscription (
+  subscription_id uuid primary key,
+  room_id         uuid not null references vy_room(room_id) on delete cascade,
+  person_id       uuid not null,
+  follower_id     uuid not null references vy_room_follower(follower_id) on delete cascade,
+  endpoint        text not null,
+  p256dh          text not null,
+  auth            text not null,
+  user_agent_hash text not null default '',
+  created_at      timestamptz not null default now(),
+  last_used_at    timestamptz,
+  revoked_at      timestamptz
+);
+create unique index if not exists vy_room_push_subscription_endpoint_ix
+  on vy_room_push_subscription (endpoint);
+create index if not exists vy_room_push_subscription_follower_ix
+  on vy_room_push_subscription (follower_id);
+create index if not exists vy_room_push_subscription_scope_ix
+  on vy_room_push_subscription (person_id, room_id);
+create index if not exists vy_room_push_subscription_active_ix
+  on vy_room_push_subscription (follower_id)
+  where revoked_at is null;
+
+alter table vy_room_checkin_delivery drop constraint if exists vy_room_checkin_delivery_channel_check;
+alter table vy_room_checkin_delivery add constraint vy_room_checkin_delivery_channel_check
+  check (channel in ('in_app','whatsapp_template','web_push'));
+
+alter table vy_room_checkin add column if not exists quiet_from time;
+alter table vy_room_checkin add column if not exists quiet_to time;
+-- Migration 086 - creator applications and invites (WS-R23). See
+-- db/migrations/086_creator_invites.sql for the full rationale: the public
+-- application form's rate limit is a plain-column unique index rather than a
+-- functional one (Postgres requires index expressions to be IMMUTABLE, and
+-- timestamptz-to-date is not); vy_creator_invite is on the OWNER lane
+-- (redeemed_by_user_id IS the replica owner's id once spent), not in
+-- api/memory.js's PERSON_TABLES, reached instead by a named delete in
+-- api/_replica-full-erasure.js and by scripts/relcheck.mjs's widened
+-- PERSON_COLUMNS/owner-lane walk.
+create table if not exists vy_creator_application (
+  application_id uuid primary key,
+  name           text not null default '' check (length(name) <= 200),
+  archive_link   text not null default '' check (length(archive_link) <= 2000),
+  audience       text not null default '' check (length(audience) <= 2000),
+  contact        text not null check (length(contact) between 1 and 320),
+  contact_key    text not null check (length(contact_key) between 1 and 320),
+  applied_on     date not null,
+  status         text not null default 'new' check (status in ('new','reviewing','invited','declined')),
+  created_at     timestamptz not null default now()
+);
+create unique index if not exists vy_creator_application_contact_day_ix
+  on vy_creator_application (contact_key, applied_on);
+create index if not exists vy_creator_application_created_ix
+  on vy_creator_application (created_at desc);
+create index if not exists vy_creator_application_status_ix
+  on vy_creator_application (status, created_at desc);
+
+create table if not exists vy_creator_invite (
+  invite_id           uuid primary key,
+  code_hash           text not null check (length(code_hash) = 64),
+  issued_to_contact   text not null default '' check (length(issued_to_contact) <= 320),
+  issued_by_user_id   uuid not null,
+  application_id      uuid,
+  expires_at          timestamptz not null,
+  redeemed_at         timestamptz,
+  redeemed_by_user_id uuid,
+  created_at          timestamptz not null default now()
+);
+create unique index if not exists vy_creator_invite_code_hash_ix
+  on vy_creator_invite (code_hash);
+create index if not exists vy_creator_invite_issued_ix
+  on vy_creator_invite (issued_by_user_id, created_at desc);
+create index if not exists vy_creator_invite_redeemed_ix
+  on vy_creator_invite (redeemed_by_user_id)
+  where redeemed_by_user_id is not null;
+-- Migration 083 - Handoff v0 (WS-R20): a follower asks for the human. See
+-- db/migrations/083_room_handoff.sql for the full argument; mirrored here
+-- per this file's own convention. `vy_room_handoff` is the one PERSON-lane
+-- exception to 071's "never a word" law, deliberately: the creator's read is
+-- gated on a SQL predicate that recomputes payload_sha256 over payload_text
+-- on every read, never a value the app asserts once and trusts thereafter.
+alter table vy_room
+  add column if not exists handoff_enabled boolean not null default false;
+alter table vy_room
+  add column if not exists handoff_monthly_cap integer not null default 5;
+alter table vy_room
+  drop constraint if exists vy_room_handoff_monthly_cap_band,
+  add constraint vy_room_handoff_monthly_cap_band
+  check (handoff_monthly_cap >= 0 and handoff_monthly_cap <= 50);
+
+create table if not exists vy_room_handoff (
+  handoff_id      uuid primary key,
+  room_id         uuid not null references vy_room(room_id) on delete cascade,
+  person_id       uuid not null,
+  follower_id     uuid not null references vy_room_follower(follower_id) on delete cascade,
+  thread_id       uuid references vy_room_thread(thread_id) on delete cascade,
+  payload_text    text not null check (length(payload_text) between 1 and 4000),
+  payload_sha256  text not null check (payload_sha256 ~ '^[0-9a-f]{64}$'),
+  policy_version  integer not null default 1,
+  state           text not null default 'drafted'
+    check (state in ('drafted','sent','answered','withdrawn')),
+  reply_text      text not null default '' check (length(reply_text) <= 4000),
+  month_key       text not null default '',
+  sent_at         timestamptz,
+  answered_at     timestamptz,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  constraint vy_room_handoff_sent_shape check (
+    (state in ('sent','answered','withdrawn')) = (sent_at is not null)
+  ),
+  constraint vy_room_handoff_answered_shape check (
+    (state = 'answered') = (answered_at is not null)
+  )
+);
+create index if not exists vy_room_handoff_queue_ix
+  on vy_room_handoff (room_id, state, sent_at);
+create index if not exists vy_room_handoff_person_ix
+  on vy_room_handoff (person_id, room_id);
+create index if not exists vy_room_handoff_cap_ix
+  on vy_room_handoff (follower_id, month_key, state);
+
+-- Migration 087 - the Room in Hindi (WS-R24). See
+-- db/migrations/087_room_locale.sql for the full argument: `locale` is the
+-- follower's OWN choice once they have a row (set at INSERT, changed only via
+-- api/_room-surface.js's session-scoped roomSetLocale, never reset by a
+-- repeat join), `default_locale` is the CREATOR's own fallback for a follower
+-- with no row yet and no usable browser hint. Both CHECK-bounded to the two
+-- locales this product ships.
+alter table vy_room_follower
+  add column if not exists locale text not null default 'en';
+alter table vy_room_follower
+  drop constraint if exists vy_room_follower_locale_check,
+  add constraint vy_room_follower_locale_check check (locale in ('en', 'hi'));
+
+alter table vy_room
+  add column if not exists default_locale text not null default 'en';
+alter table vy_room
+  drop constraint if exists vy_room_default_locale_check,
+  add constraint vy_room_default_locale_check check (default_locale in ('en', 'hi'));
+-- Migration 088 - the creator funnel marks (WS-R25). See
+-- db/migrations/088_replica_funnel.sql for the full rationale: the two
+-- moments no other table knows (studio wizard mount, Publish click), never a
+-- message, first write wins, deleted by name in
+-- api/_replica-full-erasure.js, no foreign key on 009's owner-lane
+-- convention.
+create table if not exists vy_replica_funnel_mark (
+  replica_id     uuid not null,
+  owner_user_id  uuid not null,
+  step           text not null,
+  at             timestamptz not null default now(),
+  primary key (replica_id, step)
+);
+alter table vy_replica_funnel_mark drop constraint if exists vy_replica_funnel_mark_step_check;
+alter table vy_replica_funnel_mark add constraint vy_replica_funnel_mark_step_check
+  check (step in ('studio_opened', 'publish_clicked'));
+create index if not exists vy_replica_funnel_mark_owner_ix
+  on vy_replica_funnel_mark (owner_user_id, replica_id);
+-- Migration 089 - abuse limits on the public doors (WS-R26). No
+-- person/device/owner column by construction - a sha256 hash of a caller's
+-- key salted per day, never the raw IP or contact; see that migration's own
+-- header for why it needs no PERSON_TABLES entry and no relcheck exemption.
+create table if not exists vy_public_rate (
+  scope        text not null check (length(scope) > 0 and length(scope) <= 64),
+  key_hash     text not null check (length(key_hash) = 64),
+  window_start timestamptz not null,
+  count        integer not null default 0 check (count >= 0),
+  updated_at   timestamptz not null default now(),
+  primary key (scope, key_hash, window_start)
+);
+create index if not exists vy_public_rate_window_ix
+  on vy_public_rate (window_start);
+-- Migration 090 - the forget receipt (WS-R27): the one row that survives a
+-- follower's "forget me" in a creator's Room. See
+-- db/migrations/090_room_forget_receipt.sql for the full argument; mirrored
+-- here per this file's own convention. No person_id column, deliberately -
+-- `person_hash` is a one-way SHA-256 of (room_id, person_id, policy_version),
+-- recomputed (never looked up) by the account-wide whole wipe.
+create table if not exists vy_room_forget_receipt (
+  receipt_id     uuid primary key,
+  room_id        uuid not null references vy_room(room_id) on delete cascade,
+  person_hash    text not null check (person_hash ~ '^[0-9a-f]{64}$'),
+  policy_version integer not null default 1 check (policy_version > 0),
+  counts         jsonb not null default '{}'::jsonb,
+  issued_at      timestamptz not null default now()
+);
+create index if not exists vy_room_forget_receipt_room_issued_ix
+  on vy_room_forget_receipt (room_id, issued_at desc);
+-- Migration 091 - Suites v0, the B2B unit (WS-R28). See
+-- db/migrations/091_org_suites.sql for the full argument; mirrored here per
+-- this file's own convention. `vy_org.created_by_user_id` is deliberately
+-- NOT named `owner_user_id` - the org survives a creator's own erasure even
+-- as its last admin, so it must never be a table scripts/relcheck.mjs's
+-- owner-lane walk asks api/_replica-full-erasure.js to justify deleting.
+-- `vy_room.org_id` is ON DELETE SET NULL, not CASCADE, so a Suite going away
+-- never silently deletes a Room, its followers or its revenue.
+create table if not exists vy_org (
+  org_id             uuid primary key default gen_random_uuid(),
+  name               text not null check (length(name) > 0 and length(name) <= 120),
+  slug               text not null check (slug ~ '^[a-z0-9][a-z0-9-]{2,39}$'),
+  created_by_user_id uuid not null,
+  plan               text not null default 'starter' check (plan in ('starter', 'institute')),
+  seat_limit         integer not null default 1 check (seat_limit >= 1 and seat_limit <= 500),
+  created_at         timestamptz not null default now()
+);
+create unique index if not exists vy_org_slug_ix on vy_org (lower(slug));
+create index if not exists vy_org_created_by_ix on vy_org (created_by_user_id);
+
+create table if not exists vy_org_member (
+  org_id        uuid not null references vy_org(org_id) on delete cascade,
+  owner_user_id uuid not null,
+  role          text not null check (role in ('admin', 'creator')),
+  added_at      timestamptz not null default now(),
+  primary key (org_id, owner_user_id)
+);
+create index if not exists vy_org_member_owner_ix on vy_org_member (owner_user_id);
+create index if not exists vy_org_member_org_role_ix on vy_org_member (org_id, role);
+
+alter table vy_room add column if not exists org_id uuid references vy_org(org_id) on delete set null;
+create index if not exists vy_room_org_ix on vy_room (org_id) where org_id is not null;
+
+create table if not exists vy_org_subscription (
+  subscription_id            uuid primary key default gen_random_uuid(),
+  org_id                     uuid not null references vy_org(org_id) on delete cascade,
+  plan                       text not null check (plan in ('starter', 'institute')),
+  seats                      integer not null check (seats >= 1 and seats <= 500),
+  price_per_seat_inr         integer not null check (price_per_seat_inr > 0),
+  currency                   text not null default 'INR' check (currency = 'INR'),
+  state                      text not null default 'created'
+                             check (state in ('created', 'authenticated', 'active', 'paused', 'cancelled', 'expired')),
+  provider                   text not null check (provider in ('razorpay', 'fake')),
+  provider_subscription_ref  text,
+  current_period_start       timestamptz,
+  current_period_end         timestamptz,
+  created_at                 timestamptz not null default now(),
+  updated_at                 timestamptz not null default now()
+);
+create unique index if not exists vy_org_subscription_org_live_ix
+  on vy_org_subscription (org_id)
+  where state in ('created', 'authenticated', 'active', 'paused');
+create unique index if not exists vy_org_subscription_provider_ref_ix
+  on vy_org_subscription (provider, provider_subscription_ref)
+  where provider_subscription_ref is not null;
+create index if not exists vy_org_subscription_org_ix on vy_org_subscription (org_id, created_at desc);
+
+-- Migration 095 (WS-R33). The creator tier subscription - what a creator
+-- pays for capacity, owner lane (deleted by name in
+-- api/_replica-full-erasure.js, never in api/memory.js's PERSON_TABLES).
+create table if not exists vy_creator_subscription (
+  subscription_id            uuid primary key default gen_random_uuid(),
+  owner_user_id              uuid not null,
+  replica_id                 uuid not null,
+  plan                       text not null check (plan in ('room', 'studio')),
+  price_inr                  integer not null check (price_inr > 0),
+  currency                   text not null default 'INR' check (currency = 'INR'),
+  state                      text not null default 'created'
+                             check (state in ('created', 'authenticated', 'active', 'paused', 'cancelled', 'expired')),
+  provider                   text not null check (provider in ('razorpay', 'fake')),
+  provider_subscription_ref  text,
+  current_period_start       timestamptz,
+  current_period_end         timestamptz,
+  created_at                 timestamptz not null default now(),
+  updated_at                 timestamptz not null default now()
+);
+create unique index if not exists vy_creator_subscription_replica_live_ix
+  on vy_creator_subscription (replica_id)
+  where state in ('created', 'authenticated', 'active', 'paused');
+create unique index if not exists vy_creator_subscription_provider_ref_ix
+  on vy_creator_subscription (provider, provider_subscription_ref)
+  where provider_subscription_ref is not null;
+create index if not exists vy_creator_subscription_owner_replica_ix
+  on vy_creator_subscription (owner_user_id, replica_id, created_at desc);
+
+-- Migration 092 - check-ins over WhatsApp utility templates (WS-R29). See
+-- db/migrations/092_room_whatsapp.sql for the full argument; mirrored here
+-- per this file's own convention. One row per follower (primary key
+-- follower_id) - a WhatsApp destination the follower themselves provided,
+-- separate from the Room's OTP sign-in phone. `state` carries the
+-- revoke-on-failure law: 'failed' is set by a 4xx from Meta naming an
+-- invalid number, `last_failure_code` names it, and no further sends go out
+-- until the follower opts in again.
+create table if not exists vy_room_follower_whatsapp (
+  follower_id     uuid primary key references vy_room_follower(follower_id) on delete cascade,
+  room_id         uuid not null references vy_room(room_id) on delete cascade,
+  person_id       uuid not null,
+  phone_e164      text not null check (phone_e164 ~ '^\+[1-9][0-9]{7,14}$'),
+  consented_at    timestamptz not null default now(),
+  state           text not null default 'active' check (state in ('active', 'stopped', 'failed')),
+  last_failure_code text not null default '',
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+create index if not exists vy_room_follower_whatsapp_scope_ix
+  on vy_room_follower_whatsapp (room_id, person_id);
+-- Added at the merge: the inbound webhook's lookup by the number Meta hands
+-- back planned as a sequential scan on the live database without this.
+create index if not exists vy_room_follower_whatsapp_phone_ix
+  on vy_room_follower_whatsapp (phone_e164);
+-- Migration 093 - the upgrade moment's own ledger (WS-R30): one row per time
+-- a follower is shown the conversion offer. See
+-- db/migrations/093_room_upgrade_offer.sql for the full argument; mirrored
+-- here per this file's own convention.
+create table if not exists vy_room_upgrade_offer (
+  offer_id    uuid primary key,
+  room_id     uuid not null references vy_room(room_id) on delete cascade,
+  person_id   uuid not null,
+  follower_id uuid not null references vy_room_follower(follower_id) on delete cascade,
+  shown_at    timestamptz not null default now(),
+  reason      text not null check (reason in ('session_worked', 'cap_reached')),
+  outcome     text check (outcome in ('dismissed', 'started', 'paid')),
+  outcome_at  timestamptz,
+  constraint vy_room_upgrade_offer_outcome_pairs check ((outcome is null) = (outcome_at is null))
+);
+create index if not exists vy_room_upgrade_offer_follower_ix
+  on vy_room_upgrade_offer (follower_id, shown_at desc);
+create index if not exists vy_room_upgrade_offer_room_shown_ix
+  on vy_room_upgrade_offer (room_id, shown_at desc);
+-- Migration 094 - an index on vy_room_forget_receipt.person_hash (WS-R32).
+-- See db/migrations/094_receipt_hash_index.sql for the full argument;
+-- mirrored here per this file's own convention. Closes ws-r27-whole-wipe-
+-- receipt-read-capped-at-10000: the account-wide whole wipe now deletes
+-- `where person_hash = any($1)` against a walk of every vy_room row times
+-- every receipt policy version, rather than reading the receipt table
+-- itself with a `limit 10000` - this index is what makes that delete an
+-- index scan.
+create index if not exists vy_room_forget_receipt_person_hash_ix
+  on vy_room_forget_receipt (person_hash);
+
+-- Migration 096 - check-ins over Telegram (WS-R34). See
+-- db/migrations/096_checkin_telegram.sql for the full argument; mirrored
+-- here per this file's own convention. The channel CHECK widens to admit
+-- 'telegram'; vy_room_follower_channel gains checkins_enabled (default-on,
+-- the pointer itself is the opt-in) and stopped_code (null = sendable, set
+-- on a 403/400 from Telegram).
+alter table vy_room_checkin_delivery drop constraint if exists vy_room_checkin_delivery_channel_check;
+alter table vy_room_checkin_delivery add constraint vy_room_checkin_delivery_channel_check
+  check (channel in ('in_app','whatsapp_template','web_push','telegram'));
+
+alter table vy_room_follower_channel add column if not exists checkins_enabled boolean not null default true;
+alter table vy_room_follower_channel add column if not exists stopped_code text;
+
+-- Migration 097 - Pulse v1 (WS-R35): k-anonymous label combinations. See
+-- db/migrations/097_pulse_v1.sql for the full argument; mirrored here per
+-- this file's own convention. Tightens v0's `vy_room_pulse_topic` bounds
+-- (2-32 characters, structurally capped at 12 active labels per Room via a
+-- 1..12 `slot` column plus a unique index) and adds two new tables:
+-- `vy_room_pulse_week` (one header row per Room per week, carrying only a
+-- `suppressed` count) and `vy_room_pulse_combo` (a count over a SET of 1-3
+-- label TEXTS captured at publish time, never a topic_id FK, so a later
+-- rename never rewrites an already-published week).
+alter table vy_room_pulse_topic
+  drop constraint if exists vy_room_pulse_topic_label_v1_len_check;
+alter table vy_room_pulse_topic
+  add constraint vy_room_pulse_topic_label_v1_len_check
+  check (length(label) between 2 and 32) not valid;
+
+alter table vy_room_pulse_topic add column if not exists slot smallint;
+
+alter table vy_room_pulse_topic
+  drop constraint if exists vy_room_pulse_topic_slot_check;
+alter table vy_room_pulse_topic
+  add constraint vy_room_pulse_topic_slot_check
+  check (slot is null or slot between 1 and 12) not valid;
+
+create unique index if not exists vy_room_pulse_topic_slot_ix
+  on vy_room_pulse_topic (room_id, slot);
+-- Validated at the merge: the live table held zero rows, so both CHECKs bind.
+alter table vy_room_pulse_topic validate constraint vy_room_pulse_topic_label_v1_len_check;
+alter table vy_room_pulse_topic validate constraint vy_room_pulse_topic_slot_check;
+
+create table if not exists vy_room_pulse_week (
+  week_id     uuid primary key,
+  room_id     uuid not null references vy_room(room_id) on delete cascade,
+  week_start  date not null,
+  suppressed  integer not null default 0 check (suppressed >= 0),
+  computed_at timestamptz not null default now()
+);
+create unique index if not exists vy_room_pulse_week_ix
+  on vy_room_pulse_week (room_id, week_start);
+create index if not exists vy_room_pulse_week_owner_read_ix
+  on vy_room_pulse_week (room_id, week_start desc);
+
+create table if not exists vy_room_pulse_combo (
+  combo_id       uuid primary key,
+  week_id        uuid not null references vy_room_pulse_week(week_id) on delete cascade,
+  room_id        uuid not null references vy_room(room_id) on delete cascade,
+  week_start     date not null,
+  labels         text[] not null check (coalesce(array_length(labels, 1), 0) between 1 and 3),
+  follower_count integer not null check (follower_count >= 5),
+  computed_at    timestamptz not null default now()
+);
+create unique index if not exists vy_room_pulse_combo_ix
+  on vy_room_pulse_combo (room_id, week_start, labels);
+create index if not exists vy_room_pulse_combo_owner_read_ix
+  on vy_room_pulse_combo (room_id, week_start desc);
+
+-- Migration 099 - the reminder ledger, and "renewed unasked" made real
+-- (WS-R37). See db/migrations/099_renewal_reminder.sql for the full
+-- argument; mirrored here per this file's own convention. One table, three
+-- mutually exclusive subject lanes (follower/creator/org), person lane for
+-- followers (PERSON_TABLES) and owner lane for creators (deleted by name in
+-- api/_replica-full-erasure.js); a Suite's own rows are reached only by
+-- cascade, vy_org_subscription's own 091 precedent.
+create table if not exists vy_renewal_reminder (
+  reminder_id    uuid not null default gen_random_uuid(),
+  subject_kind   text not null check (subject_kind in ('creator', 'follower', 'org')),
+  subject_id     uuid not null,
+  room_id        uuid references vy_room(room_id) on delete cascade,
+  person_id      uuid,
+  follower_id    uuid references vy_room_follower(follower_id) on delete cascade,
+  owner_user_id  uuid,
+  replica_id     uuid,
+  org_id         uuid references vy_org(org_id) on delete cascade,
+  period_end     timestamptz not null,
+  channel        text not null check (channel in ('in_app', 'web_push', 'telegram')),
+  sent_at        timestamptz,
+  reason         text not null default '',
+  created_at     timestamptz not null default now(),
+  primary key (subject_kind, subject_id, period_end, channel),
+  constraint vy_renewal_reminder_one_lane check (
+    (subject_kind = 'follower'
+       and room_id is not null and person_id is not null and follower_id is not null
+       and owner_user_id is null and replica_id is null and org_id is null)
+    or
+    (subject_kind = 'creator'
+       and owner_user_id is not null and replica_id is not null
+       and room_id is null and person_id is null and follower_id is null and org_id is null)
+    or
+    (subject_kind = 'org'
+       and org_id is not null
+       and room_id is null and person_id is null and follower_id is null
+       and owner_user_id is null and replica_id is null)
+  )
+);
+create index if not exists vy_renewal_reminder_room_person_ix
+  on vy_renewal_reminder (room_id, person_id) where room_id is not null;
+create index if not exists vy_renewal_reminder_owner_replica_ix
+  on vy_renewal_reminder (owner_user_id, replica_id) where owner_user_id is not null;
+create index if not exists vy_renewal_reminder_org_ix
+  on vy_renewal_reminder (org_id) where org_id is not null;
+create unique index if not exists vy_renewal_reminder_id_ix
+  on vy_renewal_reminder (reminder_id);
+
+create index if not exists vy_room_subscription_due_ix
+  on vy_room_subscription (state, current_period_end) where current_period_end is not null;
+create index if not exists vy_org_subscription_due_ix
+  on vy_org_subscription (state, current_period_end) where current_period_end is not null;
+create index if not exists vy_creator_subscription_due_ix
+  on vy_creator_subscription (state, current_period_end) where current_period_end is not null;
+
+alter table vy_room_subscription add column if not exists cancel_at_period_end boolean not null default false;
+alter table vy_org_subscription add column if not exists cancel_at_period_end boolean not null default false;
+alter table vy_creator_subscription add column if not exists cancel_at_period_end boolean not null default false;
+
+-- Migration 101 - the follower's own settings page needs one column
+-- (WS-R39). See db/migrations/101_room_follower_settings_reviewed.sql for
+-- the full argument: nullable, no table it belongs to is new, no
+-- PERSON_TABLES/erasure/relcheck change (the row it lives on is already
+-- reached by roomForget's own vy_room_follower delete).
+alter table vy_room_follower
+  add column if not exists settings_reviewed_at timestamptz null;
+
+-- Migration 105 - the creator directory's listing switch (WS-R45). See
+-- db/migrations/105_room_listed.sql for the full argument: `listed_at` is
+-- the creator's own opt-in to being found, independent of `published_at`
+-- (071) and checked alongside it in the SAME predicate by every reader;
+-- `one_line_bio` is the directory's third field, bounded to 140 characters.
+-- No PERSON_TABLES/erasure/relcheck change: both columns are on `vy_room`,
+-- already an owner-lane table deleted by name.
+alter table vy_room
+  add column if not exists listed_at timestamptz;
+alter table vy_room
+  add column if not exists one_line_bio text not null default '';
+alter table vy_room
+  drop constraint if exists vy_room_one_line_bio_len,
+  add constraint vy_room_one_line_bio_len check (length(one_line_bio) <= 140);
+create index if not exists vy_room_listed_ix
+  on vy_room (listed_at desc)
+  where listed_at is not null and published_at is not null;
+
+-- Migration 106 - creator-issued invites (WS-R47). See
+-- db/migrations/106_creator_issued_invites.sql for the full argument: one
+-- column on the table 086 already put on the owner lane, defaulted to
+-- 'operator' because every row this table has ever held was issued that way;
+-- no new PERSON_TABLES/relcheck wiring needed since the table's shape (and
+-- its owner-lane column, redeemed_by_user_id) does not change.
+alter table vy_creator_invite
+  add column if not exists issued_kind text not null default 'operator'
+    check (issued_kind in ('operator', 'creator'));
+create index if not exists vy_creator_invite_issued_kind_ix
+  on vy_creator_invite (issued_by_user_id, issued_kind);
+
+-- Migration 107 - Suites sell themselves (WS-R48). See
+-- db/migrations/107_suites_self_serve.sql for the full argument: `intent`
+-- distinguishes a Suite-first application from a creator application on the
+-- SAME apply form/table rather than overloading `audience`; `org_attached_at`
+-- is the honest "seats attached this week" signal `vy_room.updated_at`
+-- cannot be, since publish/pause/price/detach all touch that column too.
+alter table vy_creator_application
+  add column if not exists intent text not null default 'creator';
+alter table vy_creator_application drop constraint if exists vy_creator_application_intent_check;
+alter table vy_creator_application add constraint vy_creator_application_intent_check
+  check (intent in ('creator','suite'));
+
+alter table vy_room add column if not exists org_attached_at timestamptz null;
+create index if not exists vy_room_org_attached_ix
+  on vy_room (org_attached_at)
+  where org_attached_at is not null;
+create index if not exists vy_org_created_ix
+  on vy_org (created_at desc);
+
+-- Migration 102 - counting how a Room was arrived at, without a person
+-- (WS-R40, share and arrival). See db/migrations/102_room_arrival.sql for
+-- the full argument: no person column, no owner_user_id, real FK CASCADE
+-- from vy_room plus a delete-by-name in api/_replica-full-erasure.js, one
+-- upsert per open, via decided off a closed allowlist before this table is
+-- ever touched.
+create table if not exists vy_room_arrival (
+  room_id uuid not null references vy_room(room_id) on delete cascade,
+  day     date not null,
+  via     text not null check (via in ('share', 'direct', 'embed', 'search')),
+  count   integer not null default 0 check (count >= 0),
+  primary key (room_id, day, via)
+);
+create index if not exists vy_room_arrival_via_day_ix
+  on vy_room_arrival (via, day);
+
+-- Migration 104 (WS-R42). The creator-tier charge ledger, the dedicated
+-- table migration 095's own header and
+-- context/decisions.md#ws-r33-creator-tier-charge-has-no-ledger-row both
+-- named as the reversal condition, rather than a third disjunct on
+-- vy_payment_event_one_lane. Owner lane (deleted by name in
+-- api/_replica-full-erasure.js, folded into the existing
+-- owner_creator_tier_subscription receipt class; never in api/memory.js's
+-- PERSON_TABLES), scoped by owner_user_id/replica_id, no split columns - the
+-- whole amount is platform revenue. See
+-- db/migrations/104_creator_charge_event.sql for the full argument.
+create table if not exists vy_creator_charge_event (
+  charge_id             uuid primary key default gen_random_uuid(),
+  owner_user_id          uuid not null,
+  replica_id              uuid not null,
+  subscription_id         uuid not null references vy_creator_subscription(subscription_id) on delete cascade,
+  provider                text not null check (provider in ('razorpay','fake')),
+  provider_charge_ref     text not null,
+  amount_inr              integer not null default 0 check (amount_inr >= 0),
+  received_at             timestamptz not null default now(),
+  signature_verified      boolean not null check (signature_verified = true),
+  payload_hash             text not null check (payload_hash ~ '^[0-9a-f]{64}$')
+);
+create unique index if not exists vy_creator_charge_event_provider_ref_ix
+  on vy_creator_charge_event (provider, provider_charge_ref);
+create index if not exists vy_creator_charge_event_owner_ix
+  on vy_creator_charge_event (owner_user_id, received_at desc);
+create index if not exists vy_creator_charge_event_received_ix
+  on vy_creator_charge_event (received_at);
+
+-- Migration 108 - Suite attachment HISTORY (WS-R54). See
+-- db/migrations/108_room_org_attachment.sql for the full argument: money
+-- must be period-true (context/decisions.md#ws-r42-reconcile-suite-lane-uses-current-attachment's
+-- own reversal condition), so this table records every [attached_at,
+-- detached_at) interval a Room ever held with a Suite, one open row per
+-- Room at most (partial unique index), real FK CASCADE from vy_room and
+-- vy_org (neither is an owner/agent/replica column - the same two columns
+-- vy_room.org_id already carries a live FK to), no person column. Backfilled
+-- from vy_room.org_attached_at (107) where set, else now() as a known
+-- inexactness.
+create table if not exists vy_room_org_attachment (
+  id           uuid primary key default gen_random_uuid(),
+  room_id      uuid not null references vy_room(room_id) on delete cascade,
+  org_id       uuid not null references vy_org(org_id) on delete cascade,
+  attached_at  timestamptz not null default now(),
+  detached_at  timestamptz
+);
+create unique index if not exists vy_room_org_attachment_open_ix
+  on vy_room_org_attachment (room_id)
+  where detached_at is null;
+create index if not exists vy_room_org_attachment_room_ix
+  on vy_room_org_attachment (room_id, attached_at desc);
+create index if not exists vy_room_org_attachment_org_ix
+  on vy_room_org_attachment (org_id, attached_at desc);
+
+-- Migration 109 - the incident ledger (WS-R58). See
+-- db/migrations/109_incident.sql for the full argument: content-free by
+-- schema (kind CHECK-bounded to a closed list, door a bounded file name,
+-- every other column a number or a timestamp), keyed unique on
+-- (day, kind, door, status) so `recordIncident`'s upsert costs one row per
+-- failure shape per day regardless of occurrence count, `notified_at` on
+-- the row itself as the check-ins sweep's own once-per-kind-per-day
+-- idempotency. Not a person table - no owner/replica/room/follower/person
+-- column at all, `vy_sweep_run` (084)'s own precedent restated: invisible
+-- to scripts/relcheck.mjs's PERSON_COLUMNS scan by construction, no
+-- PERSON_TABLES entry, no erasure wiring.
+create table if not exists vy_incident (
+  incident_id  uuid primary key default gen_random_uuid(),
+  day          date not null default current_date,
+  kind         text not null,
+  door         text not null check (length(door) > 0 and length(door) <= 100),
+  status       integer not null check (status >= 0 and status < 1000),
+  count        integer not null default 1 check (count > 0),
+  notified_at  timestamptz,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+alter table vy_incident drop constraint if exists vy_incident_kind_check;
+alter table vy_incident add constraint vy_incident_kind_check
+  check (kind in ('door_5xx', 'provider_payments', 'provider_telegram', 'provider_whatsapp', 'provider_webpush'));
+create unique index if not exists vy_incident_day_kind_door_status_ix
+  on vy_incident (day, kind, door, status);
+create index if not exists vy_incident_day_ix
+  on vy_incident (day desc);
+-- Migration 110 - the taste (WS-R53). See db/migrations/110_room_taste.sql
+-- for the full argument: `taste_enabled` is the creator's per-Room switch
+-- (071/105 have no fitting column); `vy_room_taste_turn` is a dedicated,
+-- person-free (room, day) counter for "taste turns this week" on the ops
+-- board - deliberately NOT a fifth `vy_room_arrival.via` value, since that
+-- column names arrival SOURCES and a taste turn is a different dimension
+-- (an activity, not a source) that would make evals/room-share/run.mjs's
+-- fixed four-value assertion wrong for a reason it was never told about.
+alter table vy_room
+  add column if not exists taste_enabled boolean not null default true;
+create table if not exists vy_room_taste_turn (
+  room_id uuid not null references vy_room(room_id) on delete cascade,
+  day     date not null,
+  count   integer not null default 0 check (count >= 0),
+  primary key (room_id, day)
+);
+create index if not exists vy_room_taste_turn_day_ix
+  on vy_room_taste_turn (day);
+
+-- Migration 112 - the studio in Hindi (WS-R52). See
+-- db/migrations/112_replica_locale.sql for the full argument: the CREATOR's
+-- own chrome language, CHECK-bounded like vy_room_follower.locale and
+-- vy_room.default_locale one surface over. Never the AI's own replies, never
+-- the Room a follower sees.
+alter table vy_replica
+  add column if not exists locale text not null default 'en';
+alter table vy_replica
+  drop constraint if exists vy_replica_locale_check;
+alter table vy_replica
+  add constraint vy_replica_locale_check check (locale in ('en', 'hi'));
+
+-- Migration 113 (main loop, WS-R59 merge): `vy_room_arrival.via` admits
+-- `install` (a home-screen launch) alongside share, direct, embed and search,
+-- matching api/_room-surface.js's ROOM_ARRIVAL_VIA. The inline CHECK in the
+-- 102 block above is superseded by this named constraint.
+alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
+alter table vy_room_arrival add constraint vy_room_arrival_via_check
+  check (via in ('share', 'direct', 'embed', 'search', 'install'));
+
+-- Migration 114 - operator push subscriptions (WS-R62). See
+-- db/migrations/114_operator_push_subscription.sql for the full argument:
+-- closes the gap named in `context/decisions.md#ws-r58-operator-push-
+-- subscription-store-does-not-exist` - the same endpoint/p256dh/auth shape
+-- `vy_room_push_subscription` (085) keeps for a follower, narrowed to one
+-- operator's own `owner_user_id` (no room, no person, no follower). NOT a
+-- person table - an operator is an owner acting in a platform-staff
+-- capacity, `vy_creator_invite.issued_by_user_id`'s own precedent (086)
+-- restated - reached by the owner-lane erasure job by NAME
+-- (api/_replica-full-erasure.js), never by cascade.
+create table if not exists vy_operator_push_subscription (
+  id          uuid primary key,
+  owner_user_id uuid not null,
+  endpoint    text not null,
+  p256dh      text not null,
+  auth        text not null,
+  created_at  timestamptz not null default now(),
+  revoked_at  timestamptz
+);
+create unique index if not exists vy_operator_push_subscription_owner_endpoint_ix
+  on vy_operator_push_subscription (owner_user_id, endpoint);
+create index if not exists vy_operator_push_subscription_active_ix
+  on vy_operator_push_subscription (owner_user_id)
+  where revoked_at is null;
+-- Migration 115 - the creator's public page showcase (WS-R66). See
+-- db/migrations/115_room_showcase.sql for the full argument: up to five
+-- Q&A pairs a creator chooses to show a stranger on /c/<slug>, CREATOR
+-- material only (typed, edited, or copied from a 'sounds_right' review card
+-- whose kind is not 'follower_declined'), never a follower's words. No
+-- person column; FK CASCADE from vy_room; the partial unique index on
+-- (room_id, position) where removed_at is null is the five-slot ceiling
+-- itself, not a limit the application layer merely promises to respect.
+create table if not exists vy_room_showcase (
+  id         uuid primary key default gen_random_uuid(),
+  room_id    uuid not null references vy_room(room_id) on delete cascade,
+  question   text not null check (question <> '' and length(question) <= 200),
+  answer     text not null check (answer <> '' and length(answer) <= 1200),
+  position   integer not null check (position >= 1 and position <= 5),
+  created_at timestamptz not null default now(),
+  removed_at timestamptz
+);
+create unique index if not exists vy_room_showcase_position_ix
+  on vy_room_showcase (room_id, position)
+  where removed_at is null;
+-- Added at the merge: the erasure delete by room_id seq-scanned without it.
+create index if not exists vy_room_showcase_room_ix
+  on vy_room_showcase (room_id);
+
+-- Migration 116 - flag this reply (WS-R67). See
+-- db/migrations/116_room_reply_flag.sql for the full argument: TWO tables,
+-- one per lane. `vy_room_follower_reply_flag` is the follower's own copy
+-- (person_id + follower_id, unique per follower per reply, exported and
+-- forgotten with everything else theirs). `vy_room_reply_flag` is the
+-- creator's - no follower_id, no person_id, no thread reference at all, so
+-- it is content-free of follower identity by construction, admitted to
+-- evals/room-leak/run.mjs's aggregate-only class on that basis, and reached
+-- for erasure only by name, by room_id, never through api/memory.js's
+-- manifest.
+create table if not exists vy_room_follower_reply_flag (
+  flag_id      uuid primary key,
+  room_id      uuid not null references vy_room(room_id) on delete cascade,
+  person_id    uuid not null,
+  follower_id  uuid not null references vy_room_follower(follower_id) on delete cascade,
+  reply_sha256 text not null check (reply_sha256 ~ '^[0-9a-f]{64}$'),
+  reason       text not null
+               check (reason in ('wrong', 'harmful', 'not_them', 'other')),
+  created_at   timestamptz not null default now()
+);
+create unique index if not exists vy_room_follower_reply_flag_once_ix
+  on vy_room_follower_reply_flag (follower_id, reply_sha256);
+create index if not exists vy_room_follower_reply_flag_person_ix
+  on vy_room_follower_reply_flag (room_id, person_id, created_at desc);
+
+create table if not exists vy_room_reply_flag (
+  id           uuid primary key,
+  room_id      uuid not null references vy_room(room_id) on delete cascade,
+  reply_sha256 text not null check (reply_sha256 ~ '^[0-9a-f]{64}$'),
+  reply_text   text not null check (reply_text <> '' and length(reply_text) <= 4000),
+  reason       text not null
+               check (reason in ('wrong', 'harmful', 'not_them', 'other')),
+  created_at   timestamptz not null default now()
+);
+create index if not exists vy_room_reply_flag_room_reply_ix
+  on vy_room_reply_flag (room_id, reply_sha256, created_at desc);
+
+-- Migration 118 - the creator's weekly push (WS-R74). See
+-- db/migrations/118_creator_weekly_push.sql for the full argument. Two
+-- tables: `vy_creator_push_subscription` is `vy_operator_push_subscription`'s
+-- (migration 114) exact shape restated for a creator's own device instead
+-- of a platform operator's; `vy_creator_weekly_push` is `vy_room_pulse_
+-- week`'s (097) exact shape restated for a send ledger instead of a
+-- computed Pulse snapshot, its unique (room_id, week_start) index the whole
+-- "second push in the same week is refused" guarantee.
+create table if not exists vy_creator_push_subscription (
+  id            uuid primary key,
+  owner_user_id uuid not null,
+  endpoint      text not null,
+  p256dh        text not null,
+  auth          text not null,
+  created_at    timestamptz not null default now(),
+  revoked_at    timestamptz
+);
+create unique index if not exists vy_creator_push_subscription_owner_endpoint_ix
+  on vy_creator_push_subscription (owner_user_id, endpoint);
+create index if not exists vy_creator_push_subscription_active_ix
+  on vy_creator_push_subscription (owner_user_id)
+  where revoked_at is null;
+-- Added at the WS-R89 merge: the endpoint-alone read in subscribeCreatorPush.
+create index if not exists vy_creator_push_subscription_endpoint_active_ix
+  on vy_creator_push_subscription (endpoint)
+  where revoked_at is null;
+
+create table if not exists vy_creator_weekly_push (
+  push_id           uuid primary key,
+  room_id           uuid not null references vy_room(room_id) on delete cascade,
+  week_start        date not null,
+  sent_at           timestamptz not null default now(),
+  followers_count    integer not null default 0 check (followers_count >= 0),
+  messages_count     integer not null default 0 check (messages_count >= 0),
+  headline_included boolean not null default false
+);
+create unique index if not exists vy_creator_weekly_push_room_week_ix
+  on vy_creator_weekly_push (room_id, week_start);
+create index if not exists vy_creator_weekly_push_room_sent_ix
+  on vy_creator_weekly_push (room_id, sent_at desc);
+-- Migration 119 - dormancy (WS-R75). No new person table - both columns
+-- ride an existing person-lane row. See the migration file's own header.
+alter table vy_room add column if not exists dormancy_days integer;
+
+alter table vy_room drop constraint if exists vy_room_dormancy_days_floor;
+alter table vy_room add constraint vy_room_dormancy_days_floor
+  check (dormancy_days is null or dormancy_days >= 180);
+
+alter table vy_room_follower add column if not exists dormancy_notice_at timestamptz;
+
+create index if not exists vy_room_follower_dormancy_due_ix
+  on vy_room_follower (room_id, last_seen_at)
+  where dormancy_notice_at is null;
+
+create index if not exists vy_room_follower_dormancy_notice_ix
+  on vy_room_follower (dormancy_notice_at)
+  where dormancy_notice_at is not null;
+
+-- Migration 120 - the self-check cron needs one more incident kind
+-- (WS-R76). See db/migrations/120_incident_self_check.sql for the full
+-- argument: the 109 block above named five kinds; this widens the same
+-- named CHECK to six so `api/self-check.js` can report a failing check as
+-- an incident instead of being silently refused by the constraint.
+alter table vy_incident drop constraint if exists vy_incident_kind_check;
+alter table vy_incident add constraint vy_incident_kind_check
+  check (kind in ('door_5xx', 'provider_payments', 'provider_telegram', 'provider_whatsapp', 'provider_webpush', 'self_check'));
+-- Migration 121 - the poster and the QR (WS-R78). See
+-- db/migrations/121_room_arrival_via_poster.sql for the full argument:
+-- vy_room_arrival.via admits 'poster' alongside the five values migration
+-- 113 already named, matching api/_room-surface.js's ROOM_ARRIVAL_VIA
+-- widened in the same commit. The inline CHECK in the 102 block above and
+-- the named constraint from 113 are both superseded by this one.
+alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
+alter table vy_room_arrival add constraint vy_room_arrival_via_check
+  check (via in ('share', 'direct', 'embed', 'search', 'install', 'poster'));
+
+-- Migration 122 - the share kit (WS-R85). See
+-- db/migrations/122_room_arrival_via_share_kit.sql for the full argument:
+-- vy_room_arrival.via admits 'whatsapp', 'instagram', 'youtube' and
+-- 'telegram' alongside the six values migration 121 already named, matching
+-- api/_room-surface.js's ROOM_ARRIVAL_VIA widened in the same commit. The
+-- named constraint from 121 is superseded by this one.
+alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
+alter table vy_room_arrival add constraint vy_room_arrival_via_check
+  check (via in ('share', 'direct', 'embed', 'search', 'install', 'poster', 'whatsapp', 'instagram', 'youtube', 'telegram'));
+
+-- Migration 123 (its CHECK reconciled at the merge to the union of 122's channels and 123's friend) - follower referrals (WS-R86). See
+-- db/migrations/123_room_referral.sql for the full argument: a room-
+-- aggregate table with no person column at all, `referrer_hash` a salted
+-- sha256 (RATE_SALT's own shape, undated -- a referral link must keep
+-- comparing equal to itself for as long as it is shared) of the referring
+-- follower's own person id and the Room, plus `vy_room_arrival.via`
+-- widened to admit 'friend' alongside the six values migration 121 named.
+create table if not exists vy_room_referral (
+  referral_id   uuid primary key,
+  room_id       uuid not null references vy_room(room_id) on delete cascade,
+  referrer_hash text not null check (referrer_hash ~ '^[0-9a-f]{64}$'),
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists vy_room_referral_room_created_ix
+  on vy_room_referral (room_id, created_at);
+
+alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
+alter table vy_room_arrival add constraint vy_room_arrival_via_check
+  check (via in ('share', 'direct', 'embed', 'search', 'install', 'poster', 'whatsapp', 'instagram', 'youtube', 'telegram', 'friend'));
+
+-- Migration 125 - the operator's morning digest (WS-R88). See
+-- db/migrations/125_operator_digest.sql for the full argument: one row per
+-- DAY (never per subscription), content-free by schema, no person column at
+-- all - `vy_sweep_run` (084) and `vy_incident` (109)'s own precedent
+-- restated a third time.
+create table if not exists vy_operator_digest (
+  digest_id  uuid primary key,
+  day        date not null,
+  sent_at    timestamptz not null default now(),
+  counts     jsonb not null default '{}'::jsonb
+);
+create unique index if not exists vy_operator_digest_day_ix
+  on vy_operator_digest (day);
+alter table vy_operator_digest drop constraint if exists vy_operator_digest_counts_object;
+alter table vy_operator_digest add constraint vy_operator_digest_counts_object
+  check (jsonb_typeof(counts) = 'object');
+alter table vy_operator_digest drop constraint if exists vy_operator_digest_counts_size;
+alter table vy_operator_digest add constraint vy_operator_digest_counts_size
+  check (octet_length(counts::text) <= 4096);
+create index if not exists vy_operator_digest_day_desc_ix
+  on vy_operator_digest (day desc);
+
+-- Migration 126 - the follower's receipt (WS-R100). See
+-- db/migrations/126_receipt.sql for the full argument (CGST Rule 46
+-- citation, the erasure-lane reasoning): a per-financial-year counter
+-- claimed atomically, one receipt per payment event, `person_id` nullable
+-- so an account-wide "forget everything" can null it without deleting the
+-- row (the number and the amount survive; the person does not).
+create table if not exists vy_receipt_counter (
+  fy   text primary key check (fy ~ '^[0-9]{4}-[0-9]{2}$'),
+  next bigint not null default 1 check (next > 0)
+);
+
+create table if not exists vy_receipt (
+  receipt_id       uuid primary key default gen_random_uuid(),
+  receipt_no       bigint not null check (receipt_no > 0),
+  payment_event_id uuid not null references vy_payment_event(event_id) on delete cascade,
+  room_id          uuid not null references vy_room(room_id) on delete cascade,
+  person_id        uuid,
+  issued_at        timestamptz not null default now()
+);
+create unique index if not exists vy_receipt_payment_event_ix
+  on vy_receipt (payment_event_id);
+create index if not exists vy_receipt_room_person_ix
+  on vy_receipt (room_id, person_id, issued_at desc);
+
+-- Migration 127 - the recall run (WS-R101). See
+-- db/migrations/127_recall_run.sql for the full argument: one row per scored
+-- run over a held-out question set built from the replica's own sources,
+-- answered by the real compiled agent and scored 0-100. No foreign key
+-- (009's convention); `superseded_at` set in the same statement as the
+-- insert, guarded by the SAME predicate that enforces one run per replica
+-- per hour, so a rate-limited call disturbs nothing.
+create table if not exists vy_recall_run (
+  run_id         uuid primary key default gen_random_uuid(),
+  replica_id     uuid not null,
+  owner_user_id  uuid not null,
+  score          int not null check (score >= 0 and score <= 100),
+  n              int not null check (n > 0),
+  method         text not null default '',
+  set_hash       text not null check (set_hash ~ '^[0-9a-f]{64}$'),
+  created_at     timestamptz not null default now(),
+  superseded_at  timestamptz
+);
+create index if not exists vy_recall_run_owner_ix
+  on vy_recall_run (replica_id, owner_user_id, created_at desc);
+
+-- Migration 128 - the Room on WhatsApp (WS-R104). See
+-- db/migrations/128_room_whatsapp_chat.sql for the full argument: which
+-- room a WhatsApp phone number currently means, `vy_room_follower_channel`'s
+-- own pointer (082) restated one transport over, with the phone stored ONLY
+-- as a salted sha256 (never in the clear) and, unlike 082, no FK on
+-- person_id/follower_id (room_id keeps its FK with cascade; erasure reach
+-- is the explicit by-name delete in roomForgetCore, not a cascade).
+create table if not exists vy_room_follower_whatsapp_chat (
+  phone_hash   text primary key,
+  room_id      uuid not null references vy_room(room_id) on delete cascade,
+  person_id    uuid not null,
+  follower_id  uuid not null,
+  locale       text not null default 'en',
+  joined_at    timestamptz not null default now(),
+  stopped_at   timestamptz,
+  stopped_code text,
+  constraint vy_room_follower_whatsapp_chat_locale_check check (locale in ('en', 'hi')),
+  constraint vy_room_follower_whatsapp_chat_hash_check check (phone_hash ~ '^[0-9a-f]{64}$')
+);
+create index if not exists vy_room_follower_whatsapp_chat_person_ix
+  on vy_room_follower_whatsapp_chat (person_id, room_id);
+create index if not exists vy_room_follower_whatsapp_chat_follower_ix
+  on vy_room_follower_whatsapp_chat (follower_id);
+
+-- Migration 129 - review card kind widened to admit 'instruction_shaped'
+-- (WS-R112). See db/migrations/129_review_card_instruction_shaped.sql for
+-- the full argument. Drop-then-add on Postgres's own default name for this
+-- unnamed, single-column, inline CHECK — migration 096's own precedent one
+-- migration family over, for `vy_room_checkin_delivery`'s channel CHECK.
+alter table vy_review_card drop constraint if exists vy_review_card_kind_check;
+alter table vy_review_card add constraint vy_review_card_kind_check
+  check (kind in ('question','claim','delta','follower_declined','instruction_shaped'));
+
+-- Migration 130 - the UPI Autopay mandate lifecycle (WS-R125). See
+-- db/migrations/130_mandate_state.sql for the full argument: a SIBLING
+-- column to `state`, never a widening of `vy_room_subscription_state_check`/
+-- `vy_creator_subscription_state_check` (`context/decisions.md#ws-r69-
+-- halted-is-a-derived-read-never-a-stored-value`'s own reversal condition,
+-- exercised here for a second reader rather than a third fifth-value-on-
+-- `state`). Default 'none': a subscription with no bank-side mandate event
+-- yet observed is exactly as renewal-eligible as one confirmed 'active'.
+alter table vy_room_subscription add column if not exists mandate_state text not null default 'none';
+alter table vy_room_subscription add column if not exists mandate_state_at timestamptz;
+alter table vy_room_subscription drop constraint if exists vy_room_subscription_mandate_state_check;
+alter table vy_room_subscription add constraint vy_room_subscription_mandate_state_check
+  check (mandate_state in ('none', 'pending', 'active', 'paused', 'halted', 'cancelled', 'completed'));
+
+alter table vy_creator_subscription add column if not exists mandate_state text not null default 'none';
+alter table vy_creator_subscription add column if not exists mandate_state_at timestamptz;
+alter table vy_creator_subscription drop constraint if exists vy_creator_subscription_mandate_state_check;
+alter table vy_creator_subscription add constraint vy_creator_subscription_mandate_state_check
+  check (mandate_state in ('none', 'pending', 'active', 'paused', 'halted', 'cancelled', 'completed'));
+-- Migration 131 - join from WhatsApp (WS-R126). See
+-- db/migrations/131_arrival_via_whatsapp.sql for the full argument: 'whatsapp'
+-- is ALREADY a valid vy_room_arrival.via value as of migrations 122/123 (the
+-- share kit's own web-link channel); this workstream reuses that SAME value
+-- for a second, distinct arrival source (a follower opening the WhatsApp
+-- Business chat itself via a wa.me deep link, api/_room-whatsapp-chat.js's
+-- `handleJoin`) rather than adding a sibling one, so the two statements below
+-- are a defensive, idempotent reassertion of the unchanged 11-value list, not
+-- a genuine widening.
+alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
+alter table vy_room_arrival add constraint vy_room_arrival_via_check
+  check (via in ('share', 'direct', 'embed', 'search', 'install', 'poster', 'whatsapp', 'instagram', 'youtube', 'telegram', 'friend'));
+-- Migration 132 - the Suite admin's weekly note (WS-R127). See
+-- db/migrations/132_org_weekly_note.sql for the full argument; mirrored
+-- here per this file's own convention. Content-free (org_id, week_start,
+-- sent_at, channel), no FK on org_id (a send ledger outlives an org row the
+-- same way `vy_org` itself outlives a creator's own erasure), owner lane
+-- but outside PERSON_TABLES and outside scripts/relcheck.mjs's owner-lane
+-- reach walk (no owner_user_id/person column exists on it at all).
+create table if not exists vy_org_weekly_note (
+  note_id    uuid primary key,
+  org_id     uuid not null,
+  week_start date not null,
+  sent_at    timestamptz not null default now(),
+  channel    text not null check (channel in ('push', 'email'))
+);
+create unique index if not exists vy_org_weekly_note_org_week_channel_ix
+  on vy_org_weekly_note (org_id, week_start, channel);
+create index if not exists vy_org_weekly_note_org_sent_ix
+  on vy_org_weekly_note (org_id, sent_at desc);
+-- Migration 133 - the referral reward (WS-R130). See
+-- db/migrations/133_referral_reward.sql for the full argument: a follower
+-- whose personal link brought three friends who each completed a first
+-- paid month gets one free month. `vy_room_referral_credit` is the
+-- per-follower identity link `vy_room_referral` (123) deliberately does
+-- not carry; `vy_room_referral_reward` is the grant itself, capped one per
+-- follower per room per financial year by its own unique index. Neither
+-- table carries an FK on its identity columns (`vy_room_follower_whatsapp_
+-- chat`'s own precedent, 128) - both are financial-ledger rows that must
+-- survive a person's later forget with their number and room intact.
+create table if not exists vy_room_referral_credit (
+  credit_id             uuid primary key,
+  room_id               uuid not null references vy_room(room_id) on delete cascade,
+  referred_follower_id  uuid not null,
+  referrer_follower_id  uuid not null,
+  referrer_person_id    uuid not null,
+  created_at            timestamptz not null default now()
+);
+create unique index if not exists vy_room_referral_credit_referred_ix
+  on vy_room_referral_credit (referred_follower_id);
+create index if not exists vy_room_referral_credit_referrer_ix
+  on vy_room_referral_credit (referrer_follower_id);
+
+create table if not exists vy_room_referral_reward (
+  reward_id             uuid primary key,
+  room_id               uuid not null references vy_room(room_id) on delete cascade,
+  referrer_follower_id  uuid not null,
+  referrer_person_id    uuid not null,
+  granted_at            timestamptz not null default now(),
+  period_extended_to    timestamptz not null,
+  year_key              text not null,
+  reason                text not null default 'referral_reward',
+  constraint vy_room_referral_reward_year_key_check check (year_key ~ '^[0-9]{4}-[0-9]{2}$')
+);
+create unique index if not exists vy_room_referral_reward_cap_ix
+  on vy_room_referral_reward (referrer_follower_id, room_id, year_key);
+create index if not exists vy_room_referral_reward_room_granted_ix
+  on vy_room_referral_reward (room_id, granted_at);
+
+-- Migration 134 - the follower's own timezone and quiet hours (WS-R131).
+-- See db/migrations/134_follower_quiet_hours.sql for the full argument: a
+-- real, one-row-per-follower column set (nullable, both-or-neither on the
+-- quiet pair, IANA-shaped timezone), set once on the account page, that a
+-- new check-in schedule inherits and that the shared quiet-hours fragment
+-- (api/_quiet-hours.js) now prefers over WS-R129's check-in proxy.
+alter table vy_room_follower add column if not exists timezone text;
+alter table vy_room_follower add column if not exists quiet_from time;
+alter table vy_room_follower add column if not exists quiet_to time;
+alter table vy_room_follower drop constraint if exists vy_room_follower_quiet_hours_pairing_check;
+alter table vy_room_follower add constraint vy_room_follower_quiet_hours_pairing_check
+  check ((quiet_from is null and quiet_to is null) or (quiet_from is not null and quiet_to is not null));
+alter table vy_room_follower drop constraint if exists vy_room_follower_timezone_shape_check;
+alter table vy_room_follower add constraint vy_room_follower_timezone_shape_check
+  check (timezone is null or timezone ~ '^[A-Za-z_]+(/[A-Za-z_+-]+)*$');
+-- Migration 135 - starting a new mandate after a halted or cancelled one
+-- (WS-R132). See db/migrations/135_live_subscription_excludes_halted.sql
+-- for the full argument: the two "ONE LIVE SUBSCRIPTION" partial unique
+-- indexes below now also require `mandate_state not in ('halted',
+-- 'cancelled')`, so a halted or cancelled mandate no longer blocks a
+-- follower or creator from starting a fresh one. Both index definitions
+-- below REPLACE the ones created earlier in this file by migrations 078
+-- and 095 - this file mirrors the live schema's final shape, so the
+-- earlier `create unique index if not exists` statements for these same
+-- two names are stale and are not run again; only the migration file
+-- itself carries the `drop index` that actually widens the live database.
+drop index if exists vy_room_subscription_follower_live_ix;
+create unique index if not exists vy_room_subscription_follower_live_ix
+  on vy_room_subscription (follower_id)
+  where state in ('created','authenticated','active','paused')
+    and mandate_state not in ('halted','cancelled');
+drop index if exists vy_creator_subscription_replica_live_ix;
+create unique index if not exists vy_creator_subscription_replica_live_ix
+  on vy_creator_subscription (replica_id)
+  where state in ('created','authenticated','active','paused')
+    and mandate_state not in ('halted','cancelled');
+-- Migration 136 - the follower's monthly note (WS-R137). See
+-- db/migrations/136_room_follower_month_note.sql for the full argument.
+-- Content-free ledger (no counts, no text - api/_room-month-note.js
+-- recomputes the note fresh every time); unique (follower_id, room_id,
+-- month_key) is the whole idempotency. FK on room_id only, cascade; no FK
+-- on follower_id/person_id (009's convention) - a follower's own forget
+-- deletes this row by an explicit statement in roomForgetCore.
+create table if not exists vy_room_follower_month_note (
+  note_id             uuid primary key,
+  room_id             uuid not null references vy_room(room_id) on delete cascade,
+  follower_id         uuid not null,
+  person_id           uuid not null,
+  month_key           text not null,
+  built_at            timestamptz not null default now(),
+  delivered_channels  text[] not null default '{}'::text[],
+  constraint vy_room_follower_month_note_month_key_check
+    check (month_key ~ '^[0-9]{4}-[0-9]{2}$')
+);
+create unique index if not exists vy_room_follower_month_note_follower_room_month_ix
+  on vy_room_follower_month_note (follower_id, room_id, month_key);
+create index if not exists vy_room_follower_month_note_follower_built_ix
+  on vy_room_follower_month_note (follower_id, built_at desc);
+create index if not exists vy_room_follower_month_note_room_person_ix
+  on vy_room_follower_month_note (room_id, person_id);

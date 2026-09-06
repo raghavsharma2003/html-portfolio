@@ -28,6 +28,31 @@
 // persona that still answers is the `silent-truncation` failure shape: it
 // works, everything returns 200, and she is quietly someone else.
 export { compile, type CompileInput, type CompiledPrompt } from "./compiler";
+// WS-R111: the material block's real markers + renderer. Exported here for
+// this file's own standing reason (`api/_surface.js`'s `honestyContextFor`
+// needs `MATERIAL_BLOCK_OPEN`/`MATERIAL_BLOCK_CLOSE` to exclude the block
+// from `trustedText`, and `evals/room-adversarial-creator/run.mjs`'s scanner
+// needs them to find the real boundary from the real compiled source rather
+// than a retyped literal — both are plain-JS/offline callers under the same
+// zero-imports-from-src rule this file exists to cross for).
+export {
+  MATERIAL_BLOCK_OPEN,
+  MATERIAL_BLOCK_CLOSE,
+  renderCreatorMaterial,
+  type MaterialLine,
+} from "./compiler";
+// WS-R121: the platform-owned boundary/stage shapes, exported for the same
+// standing reason as the two markers above — `evals/room-adversarial-
+// creator/run.mjs` needs the REAL platform text to assert it (not a
+// creator's own sheet value) sits in the compiled prompt's INSTRUCTION
+// section, outside the material block, regardless of what a hostile sheet's
+// `boundaryParagraph`/stage fields say.
+export {
+  PLATFORM_BOUNDARY,
+  PLATFORM_STAGE_EARLY,
+  PLATFORM_STAGE_GETTING_CLOSE,
+  PLATFORM_STAGE_ESTABLISHED,
+} from "./compiler";
 export {
   renderMpRoster,
   renderMpBridge,

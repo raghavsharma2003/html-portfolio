@@ -5,9 +5,174 @@
   "rewrites": [
     { "source": "/chat", "destination": "/chat.html" },
     { "source": "/studio", "destination": "/studio.html" },
+    {
+      "source": "/r/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|WhatsApp|Twitterbot|TelegramBot|Slackbot|LinkedInBot|Discordbot|Googlebot).*"
+        }
+      ],
+      "destination": "/api/room-page?slug=:slug"
+    },
+    { "source": "/r/:slug/og.png", "destination": "/api/room-card?slug=:slug&kind=og" },
+    { "source": "/r/:slug/story.png", "destination": "/api/room-card?slug=:slug&kind=story" },
+    { "source": "/r/:slug/poster.png", "destination": "/api/room-card?slug=:slug&kind=poster" },
+    { "source": "/r/:slug/about", "destination": "/api/room-about?slug=:slug" },
+    { "source": "/r/:slug", "destination": "/room.html" },
+    {
+      "source": "/r/:slug/manifest.webmanifest",
+      "destination": "/api/room-manifest?slug=:slug"
+    },
+    { "source": "/suites", "destination": "/suites.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/delete-account", "destination": "/delete-account.html" },
-    { "source": "/embed.js", "destination": "/api/embed.js" }
+    { "source": "/embed.js", "destination": "/api/embed.js" },
+    { "source": "/room-embed.js", "destination": "/api/room-embed.js" },
+    { "source": "/creators", "destination": "/creators.html" },
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" },
+    { "source": "/c/:slug", "destination": "/api/creator-page?slug=:slug" },
+    { "source": "/suites/about", "destination": "/api/suites-about" }
+  ],
+  "headers": [
+    {
+      "source": "/r/:slug",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'sha256-bYYDbHcXTlAbpws39nUU3Ibq5KO86c04Tr/+LyLvP9o='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/room.html",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'sha256-bYYDbHcXTlAbpws39nUU3Ibq5KO86c04Tr/+LyLvP9o='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/studio",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'sha256-AnsxiNdMvRHkPU2yPOU1ffSBiVm6sO/Mrqo/tjZolGA='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(self), microphone=(self), geolocation=()" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/studio.html",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'sha256-AnsxiNdMvRHkPU2yPOU1ffSBiVm6sO/Mrqo/tjZolGA='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(self), microphone=(self), geolocation=()" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'sha256-/QFwWOhJSa2tr/PjLLGMbQxjh3nmfbFi3c/J+zIVHQQ=' 'sha256-luCC5t2kaE3aN+MepxvMyEgcOnWw2gZdx99yHA6NqPs=' 'sha256-WKQqS2/DkpA42+8bSVWtw+Cs3iovFy+Kv6FDc5W0xn0='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/vyakti",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'sha256-WKQqS2/DkpA42+8bSVWtw+Cs3iovFy+Kv6FDc5W0xn0='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/suites",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'sha256-9pgbjGROnDAvv2D/K1u5a6P4zG4VrcdV8J0cf0GtyAg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/suites.html",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'sha256-9pgbjGROnDAvv2D/K1u5a6P4zG4VrcdV8J0cf0GtyAg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/creators",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'sha256-RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=' 'sha256-ZtYn4xeqVJlR3lphpJdRVfrETZ7doQ8QRih8s1iFaaA='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/creators.html",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'sha256-RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=' 'sha256-ZtYn4xeqVJlR3lphpJdRVfrETZ7doQ8QRih8s1iFaaA='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/r/:slug/about",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/c/:slug",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/suites/about",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    }
   ],
   "crons": [
     { "path": "/api/consolidate-sweep", "schedule": "0 * * * *" },
@@ -15,7 +180,23 @@
     { "path": "/api/replica-liveness-sweep", "schedule": "*/5 * * * *" },
     { "path": "/api/replica-identity-sweep", "schedule": "*/5 * * * *" },
     { "path": "/api/replica-face-session-sweep", "schedule": "*/5 * * * *" },
+    { "path": "/api/replica-voice-identity-sweep", "schedule": "*/5 * * * *" },
     { "path": "/api/replica-model-build-sweep", "schedule": "*/5 * * * *" },
-    { "path": "/api/channel-ingest-sweep", "schedule": "0 */6 * * *" }
-  ]
+    { "path": "/api/channel-ingest-sweep", "schedule": "0 */6 * * *" },
+    { "path": "/api/drift-watch-sweep", "schedule": "0 */6 * * *" },
+    { "path": "/api/checkins-sweep", "schedule": "*/15 * * * *" },
+    { "path": "/api/pulse-sweep", "schedule": "0 3 * * 1" },
+    { "path": "/api/renewals-sweep", "schedule": "0 0 * * *" },
+    { "path": "/api/creator-push-sweep", "schedule": "0 4 * * 1" },
+    { "path": "/api/self-check", "schedule": "30 2 * * *" },
+    { "path": "/api/operator-digest-sweep", "schedule": "15 3 * * *" },
+    { "path": "/api/receipt-sweep", "schedule": "0 2 * * *" },
+    { "path": "/api/org-weekly-note-sweep", "schedule": "0 5 * * 1" },
+    { "path": "/api/room-month-note-sweep", "schedule": "0 6 * * *" }
+  ],
+  "functions": {
+    "api/room-card.js": {
+      "excludeFiles": "node_modules/@napi-rs/canvas-linux-x64-musl/**"
+    }
+  }
 }

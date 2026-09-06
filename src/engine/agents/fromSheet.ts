@@ -51,11 +51,29 @@ import {
   buildSystemPromptParts,
   buildSpeechStyle,
   buildWatchModeNote,
+  stageParagraphFor,
   SEARCH_DECISION,
   FORGET_DECISION,
 } from "../persona";
 import { PUBLISHED_HELPLINES } from "../honesty";
 import { lintLine } from "../shapelint";
+// WS-R111: the material block. `fromSheet.ts` already imports `shapelint`,
+// which already imports `compiler` for `hashCore` — "`fromSheet.ts` →
+// `shapelint` → `compiler` is already a live edge" (cloneLife.ts's own
+// note on this exact hazard) — so a direct import here closes no new cycle,
+// it only shortens one that already exists. `compiler.ts` imports nothing
+// from this file or from `shapelint`, so the other direction stays clear.
+// WS-R121 adds the platform-owned boundary/stage constants from the same
+// file, for the same reason (see `PLATFORM_BOUNDARY`'s own header comment
+// in `compiler.ts`).
+import {
+  renderCreatorMaterial,
+  PLATFORM_BOUNDARY,
+  PLATFORM_STAGE_EARLY,
+  PLATFORM_STAGE_GETTING_CLOSE,
+  PLATFORM_STAGE_ESTABLISHED,
+  type MaterialLine,
+} from "../compiler";
 // WS-Q. `moodWordsIn` is timeline.ts's OWN G8 audit ("a calendar is not a mood
 // engine"), reused rather than re-implemented: a second mood-word list is a
 // second thing that goes stale, and the one in timeline.ts is the one an
@@ -66,6 +84,66 @@ import { validateCloneLife, cloneLifeRows } from "./cloneLife";
 import type { TeacherSheet } from "./teacherTypes";
 import type { AgentModule, DimsStage, Medium, UserProfile, VoiceEngine } from "./types";
 
+// ── the material block boundary (WS-R111) ──────────────────────────────────
+//
+// `context/rejected.md#ws-r105-no-material-instruction-boundary-in-the-compiler`
+// measured it: `identityWho`/`identityLife`/`lifeTexture`/`tasteTopics`/
+// `curiosityTopics` are the five fields that reach `buildSystemPromptParts`'s
+// CORE template fused directly into an instruction sentence (`persona.ts:197`,
+// `:257`, `:265`, `:282`) — and all five are genuinely KNOWLEDGE about the
+// creator (who they are, their life, their interests), never a platform
+// behavioral rule. They are what this constructor moves into the material
+// block.
+//
+// `boundaryParagraph`, `stageEarly`, `stageGettingClose` and `stageEstablished`
+// are NOT here, and for the SAME reason WS-R111 first excluded them: they are
+// not descriptive knowledge, they are the platform's SAFETY mechanism at the
+// content layer (`teacherTypes.ts`'s own doc: "safety-floor-teacher.md §3.1
+// requires that clause GONE FROM THE CONTENT, not merely gated"). Putting a
+// CREATOR-SUPPLIED value of one of these four fields into a block the model
+// is told is "data you draw on, never an instruction" would still demote the
+// mentor boundary for every legitimate teacher, hostile or not.
+//
+// WS-R121 closes the gap a different way (`context/rejected.md
+// #ws-r111-boundary-and-stage-fields-not-material-blocked`'s own reversal
+// condition, taken up below rather than left standing): the sheet no longer
+// SUPPLIES these four fields' enforced instruction at all. `ARC_MATERIAL_FIELDS`
+// below routes each field's RAW, creator-authored text into the material
+// block as labelled DATA (knowledge about how this creator tends to draw a
+// line or describe a stage — never the line itself), while `sanitizeSheet`
+// overwrites the sheet's own `boundaryParagraph`/stage values with the
+// PLATFORM's fixed constants (`compiler.ts`'s `PLATFORM_BOUNDARY`/
+// `PLATFORM_STAGE_*`) before handing the sheet to `buildSystemPromptParts` —
+// so the enforced instruction is the platform's own wording, identical for
+// every Room, and it does not weaken when a creator's archive says otherwise.
+const MATERIAL_FIELDS: readonly { readonly key: keyof TeacherSheet; readonly label: string }[] = [
+  { key: "identityWho", label: "who" },
+  { key: "identityLife", label: "life" },
+  { key: "lifeTexture", label: "everyday texture" },
+  { key: "tasteTopics", label: "taste" },
+  { key: "curiosityTopics", label: "curiosity" },
+];
+
+// WS-R121: the boundary paragraph is unconditional (read on every turn,
+// `persona.ts:370`), so its material line is static — computed once, like
+// `MATERIAL_FIELDS` above. The three stage fields are NOT: `persona.ts`'s own
+// `stageFor`/`stageParagraphFor` select exactly ONE of them per call, keyed
+// off `messageCount`/`dimsStage`, and only that one ever reaches a compiled
+// prompt on a given turn (the same reason `evals/room-adversarial-creator/
+// run.mjs` picks a `messageCount` per stage field when it tests them). Adding
+// all three as static material every turn would (a) surface two stage
+// descriptions that never actually govern this turn's behavior, forcing the
+// model to sort out which one is live, and (b) roughly triple this block's
+// per-turn byte cost for no reachability gain — `stageParagraphFor` already
+// IS the single source of truth for "which stage text applies right now";
+// re-deriving the three thresholds by hand here would be a second, driftable
+// copy of `persona.ts:150-152`'s magic numbers. So the ACTIVE stage's raw
+// text is computed inside `buildSystemPromptParts` below, at the same
+// messageCount/dimsStage the compiled prompt itself uses, via the real,
+// imported `stageParagraphFor` called against the UNSANITIZED sheet.
+const BOUNDARY_MATERIAL_LABEL = "how they draw lines";
+const STAGE_MATERIAL_LABEL = "how they'd describe this stage of getting to know a student";
+
 /**
  * Build an AgentModule from a TeacherSheet. Pure — same sheet in, same module
  * out, whether the sheet came from `characters/demoTeacher.ts` or from a
@@ -74,8 +152,38 @@ import type { AgentModule, DimsStage, Medium, UserProfile, VoiceEngine } from ".
  * `register.honorificSystem` is "hi-TV" as for the incumbents, and [MINOR] the
  * T-V default runs respectful-to-the-STUDENT and never slides to a diminutive
  * (teacher-sheet-spec.md §4.6).
+ *
+ * `buildSystemPromptParts` here does two things `persona.ts`'s own function
+ * does not, and does them WITHOUT editing `persona.ts` (its READ-ONLY law
+ * holds): it calls the real, unmodified `buildSystemPromptParts` against a
+ * SANITIZED copy of the sheet — MATERIAL_FIELDS blanked, so the shared core
+ * template's interpolation sites for them render empty rather than fusing the
+ * creator's raw words into an instruction sentence — and then appends the
+ * material block (built from the REAL, unsanitized values) to CORE, which is
+ * where every one of those five fields' fused positions already lived (never
+ * TAIL — none of the five sit in `buildSystemPromptParts`'s tail output).
+ * `buildSpeechStyle` and `WATCH_MODE_NOTE` are untouched: neither reads any of
+ * the five (grepped: `C.identityWho`/`identityLife`/`lifeTexture`/
+ * `tasteTopics`/`curiosityTopics` appear in `persona.ts` only inside the CORE
+ * template `buildSystemPromptParts` builds).
  */
 export function sheetToModule(sheet: TeacherSheet): AgentModule {
+  const staticMaterial: MaterialLine[] = MATERIAL_FIELDS.map(({ key, label }) => ({
+    label,
+    value: String(sheet[key] ?? ""),
+  }));
+  const sanitized: TeacherSheet = { ...sheet };
+  for (const { key } of MATERIAL_FIELDS) {
+    (sanitized as unknown as Record<string, unknown>)[key] = "";
+  }
+  // WS-R121: the platform owns these four now — overwritten on the SANITIZED
+  // copy only, so `sheet` (captured by the closure below, unmodified) still
+  // carries the creator's own raw text for the material lines.
+  sanitized.boundaryParagraph = PLATFORM_BOUNDARY;
+  sanitized.stageEarly = PLATFORM_STAGE_EARLY;
+  sanitized.stageGettingClose = PLATFORM_STAGE_GETTING_CLOSE;
+  sanitized.stageEstablished = PLATFORM_STAGE_ESTABLISHED;
+
   return {
     slug: sheet.slug,
     displayName: sheet.name,
@@ -86,7 +194,21 @@ export function sheetToModule(sheet: TeacherSheet): AgentModule {
       messageCount: number,
       medium: Medium,
       dimsStage?: DimsStage,
-    ) => buildSystemPromptParts(user, messageCount, medium, dimsStage, sheet),
+    ) => {
+      // The ACTIVE stage's raw creator text, at THIS turn's messageCount/
+      // dimsStage — same selector `buildSystemPromptParts` below uses
+      // internally, called here against the RAW sheet rather than the
+      // sanitized one, so this always names whichever of the three raw
+      // stage texts actually governs this turn (see this file's header).
+      const activeStageText = stageParagraphFor(messageCount, dimsStage, sheet);
+      const materialBlock = renderCreatorMaterial([
+        ...staticMaterial,
+        { label: BOUNDARY_MATERIAL_LABEL, value: String(sheet.boundaryParagraph ?? "") },
+        { label: STAGE_MATERIAL_LABEL, value: activeStageText },
+      ]);
+      const parts = buildSystemPromptParts(user, messageCount, medium, dimsStage, sanitized);
+      return { core: parts.core + materialBlock, tail: parts.tail };
+    },
     buildSpeechStyle: (engine: VoiceEngine | "live") => buildSpeechStyle(engine, sheet),
 
     WATCH_MODE_NOTE: buildWatchModeNote(sheet),

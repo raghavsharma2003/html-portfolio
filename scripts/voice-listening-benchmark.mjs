@@ -364,6 +364,93 @@ function loadIndicF5(packRoot) {
   });
 }
 
+// ── the vendor arm registry ──────────────────────────────────────────────────
+// Every loader above reads a pack this platform's own runtime produced, whose
+// receipt carries an HMAC and a PerTh watermark the runtime embedded. A vendor
+// pack can carry neither, and this loader is explicit about that instead of
+// loosening the checks the other four depend on:
+//   - it REQUIRES `arm_identity: "sealed"` in public and a real arm id in
+//     private, exactly as the IndicF5 pack does;
+//   - it REQUIRES `protection_path: "delivery_audioseal"` and REFUSES a pack
+//     that claims `perth_watermark_verified`, because no vendor in this
+//     registry embeds PerTh and a claim to the contrary is fabricated evidence;
+//   - it carries `clones_the_owner` through to the stimulus, so a base voice
+//     cannot enter a likeness comparison unlabelled. That is the standing
+//     instruction from `rejected.md#azure-tts`: accent identity and likeness
+//     are different properties and a bench that conflates them gets the answer
+//     the owner's ear later overturns.
+//
+// UNEXERCISED. No vendor pack exists yet, because building one costs vendor
+// money nobody has authorised. The contract below is written from the shape
+// `scripts/voice-matched-pack.mjs` produces and has never loaded a real file.
+const VENDOR_PACK_CONTRACT = "vyakti-vendor-blind-pack/v1";
+const VENDOR_ARM_LABELS = Object.freeze({
+  elevenlabs: "ElevenLabs voice clone",
+  sarvam: "Sarvam Bulbul Indian-accent base voice",
+});
+
+function loadVendorPack(packRoot, armId) {
+  const publicManifest = readJson(join(packRoot, "blind", "manifest.json"));
+  const privateKey = readJson(join(packRoot, "private", "key.json"));
+  if (publicManifest.contract !== VENDOR_PACK_CONTRACT || privateKey.contract !== VENDOR_PACK_CONTRACT ||
+      publicManifest.arm_identity !== "sealed" || privateKey.arm_identity !== armId ||
+      !VENDOR_ARM_LABELS[armId] ||
+      publicManifest.human_listening_status !== "not_started" ||
+      publicManifest.evaluation_only !== true ||
+      publicManifest.protection_path !== "delivery_audioseal" ||
+      !isSha256(publicManifest.reference_sha256) ||
+      canonical(publicManifest.reference_sha256) !== canonical(privateKey.reference_sha256)) {
+    fail("benchmark_vendor_contract_invalid");
+  }
+  if (publicManifest.perth_watermark_verified === true || privateKey.perth_watermark_verified === true) {
+    fail("benchmark_vendor_perth_claim_invalid");
+  }
+  const privateItems = new Map(privateKey.items.map((item) => [item.id, item]));
+  if (!Array.isArray(publicManifest.items) || !publicManifest.items.length ||
+      publicManifest.items.length !== privateKey.items.length) {
+    fail("benchmark_vendor_item_set_invalid");
+  }
+  return publicManifest.items.map((item) => {
+    const privateItem = privateItems.get(item.id);
+    if (!privateItem || item.filename !== `${item.id}.wav` || !isSha256(item.prompt_sha256) ||
+        !isSha256(item.wav_sha256) || item.sample_rate !== 24_000 ||
+        privateItem.arm_id !== armId || !privateItem.model || !privateItem.model_revision ||
+        !isSha256(privateItem.model_commitment) || !isSha256(privateItem.consent_receipt_sha256) ||
+        typeof privateItem.clones_the_owner !== "boolean" ||
+        privateItem.reference_sha256 !== publicManifest.reference_sha256 ||
+        typeof privateItem.text !== "string" || sha256(privateItem.text) !== item.prompt_sha256) {
+      fail("benchmark_vendor_evidence_invalid");
+    }
+    const file = join(packRoot, "blind", item.filename);
+    const bytes = readFileSync(file);
+    const wav = parseWav(bytes);
+    if (sha256(bytes) !== item.wav_sha256) fail("benchmark_vendor_wav_hash_mismatch");
+    return Object.freeze({
+      pack: `vendor_${armId}`,
+      originalId: item.id,
+      candidateId: `${armId}:${privateItem.model}:${privateItem.model_revision}`,
+      candidateLabel: VENDOR_ARM_LABELS[armId],
+      modelCommitment: privateItem.model_commitment,
+      language: privateItem.language || "Hindi",
+      langTag: privateItem.lang_tag || "hi",
+      text: privateItem.text,
+      textSha256: item.prompt_sha256,
+      referenceSha256: privateItem.reference_sha256,
+      sourceFile: file,
+      sourceWavSha256: item.wav_sha256,
+      sourcePcmSha256: sha256(wav.pcm),
+      pcm: wav.pcm,
+      durationMs: wav.durationMs,
+      clonesTheOwner: privateItem.clones_the_owner,
+      // The platform protection this clip is entitled to is applied on delivery,
+      // not by the vendor. `protectionVerified` stays true for the bench's own
+      // count because the evidence it names is the delivery path, and the
+      // manifest above already refused any PerTh claim.
+      protectionVerified: publicManifest.protection_path === "delivery_audioseal",
+    });
+  });
+}
+
 function loadSourcesFromRecordedPacks(sourcePacks) {
   const sources = [];
   for (const pack of sourcePacks) {
@@ -371,9 +458,21 @@ function loadSourcesFromRecordedPacks(sourcePacks) {
     else if (pack.id === "qwen_english_20260828") sources.push(...loadQwen());
     else if (pack.id === "voxcpm2_20260828") sources.push(...loadVox());
     else if (pack.id === "indicf5_20260828") sources.push(...loadIndicF5(resolve(ROOT, pack.source)));
+    else if (pack.id.startsWith("vendor_")) sources.push(...loadVendorPack(resolve(ROOT, pack.source), pack.id.slice(7)));
     else fail("benchmark_recorded_source_pack_unknown");
   }
   return sources;
+}
+
+/** `--vendor-pack elevenlabs:path[,sarvam:path]`, parsed once. */
+function vendorPackFlags() {
+  const raw = flags.get("vendor-pack");
+  if (!raw || raw === true) return [];
+  return String(raw).split(",").map((entry) => entry.trim()).filter(Boolean).map((entry) => {
+    const [armId, ...rest] = entry.split(":");
+    if (!VENDOR_ARM_LABELS[armId] || !rest.length) fail("benchmark_vendor_pack_flag_invalid");
+    return { armId, path: resolve(rest.join(":")) };
+  });
 }
 
 function materialise(paths, secret, sourceStimuli, reference, sourcePackRoots) {
@@ -557,7 +656,15 @@ function build() {
     sourceStimuli.push(...loadIndicF5(indicPack));
     sourcePackRoots.set("indicf5_20260828", indicPack);
   }
-  const expectedSourceCount = indicPack ? 21 : 15;
+  const vendorPacks = vendorPackFlags();
+  let vendorStimuli = 0;
+  for (const vendorPack of vendorPacks) {
+    const loaded = loadVendorPack(vendorPack.path, vendorPack.armId);
+    vendorStimuli += loaded.length;
+    sourceStimuli.push(...loaded);
+    sourcePackRoots.set(`vendor_${vendorPack.armId}`, vendorPack.path);
+  }
+  const expectedSourceCount = (indicPack ? 21 : 15) + vendorStimuli;
   if (sourceStimuli.length !== expectedSourceCount || sourceStimuli.some((stimulus) => !stimulus.protectionVerified)) fail("benchmark_source_count_or_protection_invalid");
   const referenceBytes = readFileSync(SOURCE.ownerReference);
   const reference = { file: SOURCE.ownerReference, sha256: sha256(referenceBytes), wav: parseWav(referenceBytes) };
@@ -658,7 +765,8 @@ async function verify() {
 
   const servedText = Buffer.concat([manifestBytes, trialsBytes, pageBytes]).toString("utf8");
   const forbidden = new Set([
-    "chatterbox", "qwen", "voxcpm", "candidateId", "candidateLabel", "modelCommitment",
+    "chatterbox", "qwen", "voxcpm", "indicf5", "zonos", "elevenlabs", "sarvam", "bulbul",
+    "candidateId", "candidateLabel", "modelCommitment", "clonesTheOwner",
     "sourceStimulusId", "runSecret", '"correct"', "sourceFile", "originalId",
     ...key.stimuli.flatMap((stimulus) => [stimulus.originalId, stimulus.candidateId, stimulus.candidateLabel, stimulus.modelCommitment]),
   ]);
@@ -749,7 +857,7 @@ async function listen() {
 
 function usage() {
   console.log("voice-listening-benchmark");
-  console.log("  build [--home path] [--indicf5-pack path]");
+  console.log("  build [--home path] [--indicf5-pack path] [--vendor-pack elevenlabs:path,sarvam:path]");
   console.log("  listen [--home path] [--port 8791]");
   console.log("  score [--home path]");
   console.log("  verify [--home path]");

@@ -28,6 +28,93 @@ Optional adapters are already registered for IndicF5 in Hindi and ZONOS2 in
 English and Hindi. Adding both creates eight requests, four per language,
 without changing either comparison cell.
 
+## Vendor arms
+
+Two vendor arms are registered and neither has ever run. They exist because
+`context/decisions.md#platform-north-star` names the evidence that would make a
+vendor lane primary again, and until now nothing could produce it.
+
+| arm | what it is | can it win owner likeness |
+|---|---|---|
+| `elevenlabs` | a voice clone made from the same reference window every other arm hears | yes |
+| `sarvam` | Sarvam Bulbul with a preset Indian-accent speaker | no, and it is not there to |
+
+Sarvam's public API documents preset speakers and no custom-speaker endpoint, so
+that arm is a BASE voice and every receipt says so. It is the accent-identity
+control `context/rejected.md#azure-tts` asks for: the Azure battery measured
+pronunciation, never accent identity, and the ear overturned every number it
+produced.
+
+The vendor arms are opaque cells like every other arm. The sealed tree carries
+no vendor name, no model id and no arm category, and `verify` refuses a served
+tree that leaks one.
+
+### What a vendor arm costs
+
+List prices read on 2026-09-03:
+
+- ElevenLabs, Creator tier: USD 11 for 121,000 credits, one character is one
+  credit on the V2 multilingual models, so USD 0.18 per 1,000 characters.
+  Instant Voice Cloning carries no separate per-clone charge on a paid tier.
+- Sarvam Bulbul v3: INR 30 per 10,000 characters.
+
+One pack is 141 characters of English and 128 of Hindi per arm, disclosure
+included. So both languages on ElevenLabs is about **USD 0.05**, and both on
+Sarvam is about **INR 0.81**. `plan` prints the exact figure for the arms you
+chose before anything is confirmed.
+
+### Running it
+
+```powershell
+$env:VOICE_VENDOR_ARMS = "elevenlabs"
+$env:ELEVENLABS_API_KEY = "<key>"
+$env:ELEVENLABS_DAILY_CHARACTERS = "2000"
+$env:VOICE_MATCHED_CONSENT_STATEMENT_SHA256 = "<statement sha256>"
+$env:VOICE_MATCHED_CONSENT_AUDIO_SHA256 = "<consent recording sha256>"
+$env:VOICE_MATCHED_CONSENT_TEMPLATE_VERSION = "<template version>"
+$env:VOICE_MATCHED_PROVIDER_CONSENT_ID = "<provider consent uuid>"
+
+node scripts/voice-matched-pack.mjs plan `
+  --arms chatterbox,qwen,voxcpm2,elevenlabs `
+  --consent-receipt <active-owner-consent-sha256> `
+  --replica-id <owner-replica-uuid>
+
+node scripts/voice-matched-pack.mjs vendor-enroll `
+  --arm elevenlabs --confirm-vendor exact-text-matched-pack
+
+node scripts/voice-matched-pack.mjs run `
+  --confirm-cloud exact-text-matched-pack --max-usd 5 --max-chars 600 `
+  --only elevenlabs
+
+node scripts/voice-matched-pack.mjs vendor-erase --arm elevenlabs
+```
+
+`run` refuses to touch a vendor arm without `--max-chars`, and refuses if the
+pack needs more characters than the number you gave. The reservation happens
+before the request, so a run that fails halfway cannot walk past the ceiling by
+retrying. `vendor-erase` calls the same eraser the platform's erasure sweep
+uses, so a bench cannot leave a biometric voice sitting at a vendor.
+
+The consent hashes above come from the ceremony in
+`api/_replica-provider-consent.js`. The owner's legal name never reaches a
+vendor: what crosses is the statement hash and the consent recording's hash,
+both of which enter the enrollment commitment.
+
+### The disclosure, and why a cross-arm pack must trim it
+
+`context/rejected.md#disclosure-announces-the-clone`: every arm opens by saying
+out loud that it is an AI voice replica, so opaque filenames blind nothing.
+`seal --trim-disclosure` cuts each candidate at the pause after the disclosure
+and puts the owner reference through the identical loudness and length
+treatment, so the treatment is a constant of the bench rather than a cue. It
+FAILS CLOSED: no pause inside a plausible window, or an implausible
+chars-per-second on what is left, and the seal writes nothing.
+
+The removed prefixes, shuffled and unlabelled, land in
+`private/trim-check.wav`. That is the only file an operator may play to confirm
+the trim. Playing a stimulus to check it unblinds the one listener the bench
+has, which is the second and more interesting half of that rejected entry.
+
 ## Integrity contract
 
 Each accepted source receipt binds the request and response HMAC, immutable

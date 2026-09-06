@@ -1,0 +1,1056 @@
+[
+  {
+    "name": "ASR_HMAC_SECRET",
+    "section": "15b",
+    "sectionTitle": "Channel watch + ASR — the stays-current loop (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "ASR_SELF_HOSTED_MODEL",
+    "section": "15b",
+    "sectionTitle": "Channel watch + ASR — the stays-current loop (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "ASR_SELF_HOSTED_MODEL_COMMITMENT",
+    "section": "15b",
+    "sectionTitle": "Channel watch + ASR — the stays-current loop (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "ASR_SELF_HOSTED_ORIGIN",
+    "section": "15b",
+    "sectionTitle": "Channel watch + ASR — the stays-current loop (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "AZURE_AUDIO_PROTECTION_HMAC_SECRET",
+    "section": "6",
+    "sectionTitle": "Provenance / protection — watermark + C2PA, app side (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "audio-protection"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_AUDIO_PROTECTION_ORIGIN",
+    "section": "6",
+    "sectionTitle": "Provenance / protection — watermark + C2PA, app side (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_CLIENT_ID",
+    "section": "15c",
+    "sectionTitle": "Clone channels — \"deploy the clone anywhere\" (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "audio-protection"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_CLIENT_SECRET",
+    "section": "15c",
+    "sectionTitle": "Clone channels — \"deploy the clone anywhere\" (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "AZURE_COMPOSITE_IDENTITY_ENABLED",
+    "section": "3",
+    "sectionTitle": "Identity verification (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_COMPOSITE_IDENTITY_ENDPOINT",
+    "section": "3",
+    "sectionTitle": "Identity verification (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_COMPOSITE_IDENTITY_HMAC_KEY_B64",
+    "section": "3",
+    "sectionTitle": "Identity verification (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_COMPOSITE_IDENTITY_VERSION",
+    "section": "3",
+    "sectionTitle": "Identity verification (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_COMPOSITE_LIVENESS_ENABLED",
+    "section": "4",
+    "sectionTitle": "Liveness verification (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_COMPOSITE_LIVENESS_ENDPOINT",
+    "section": "4",
+    "sectionTitle": "Liveness verification (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_COMPOSITE_LIVENESS_HMAC_KEY_B64",
+    "section": "4",
+    "sectionTitle": "Liveness verification (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_COMPOSITE_LIVENESS_VERSION",
+    "section": "4",
+    "sectionTitle": "Liveness verification (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_FACE_DEDICATED_RESOURCE",
+    "section": "5",
+    "sectionTitle": "Face session broker (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "azure-verifier"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_FACE_DEVICE_CORRELATION_HMAC_KEY_B64",
+    "section": "5",
+    "sectionTitle": "Face session broker (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_FACE_LIVENESS_LIMITED_ACCESS_APPROVED",
+    "section": "4",
+    "sectionTitle": "Liveness verification (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "azure-verifier"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_FACE_LIVENESS_MODEL_VERSION",
+    "section": "5",
+    "sectionTitle": "Face session broker (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "azure-verifier"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_FACE_SESSION_BROKER_ENABLED",
+    "section": "5",
+    "sectionTitle": "Face session broker (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_FACE_SESSION_BROKER_HMAC_KEY_B64",
+    "section": "5",
+    "sectionTitle": "Face session broker (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_FACE_SESSION_BROKER_ORIGIN",
+    "section": "5",
+    "sectionTitle": "Face session broker (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_FACE_SESSION_BROKER_VERSION",
+    "section": "5",
+    "sectionTitle": "Face session broker (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_FOUNDRY_API_KEY",
+    "section": "1",
+    "sectionTitle": "Foundry — claim extraction + dialogue generation (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_FOUNDRY_CLAIM_MODEL",
+    "section": "1",
+    "sectionTitle": "Foundry — claim extraction + dialogue generation (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_FOUNDRY_DIALOGUE_MODEL",
+    "section": "1",
+    "sectionTitle": "Foundry — claim extraction + dialogue generation (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_FOUNDRY_ENDPOINT",
+    "section": "1",
+    "sectionTitle": "Foundry — claim extraction + dialogue generation (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS",
+    "section": "2",
+    "sectionTitle": "Foundry spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS",
+    "section": "2",
+    "sectionTitle": "Foundry spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_IDENTITY_REVIEW_PATH_APPROVED",
+    "section": "3",
+    "sectionTitle": "Identity verification (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_KEY_VAULT_URL",
+    "section": "15c",
+    "sectionTitle": "Clone channels — \"deploy the clone anywhere\" (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_MEDIA_EXTRACT_ORIGIN",
+    "section": "10b",
+    "sectionTitle": "In-house YouTube audio extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_OPEN_VOICE_ORIGIN",
+    "section": "9",
+    "sectionTitle": "Voice: Chatterbox preview — self-hosted, **no Microsoft approval gate** (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_PERSONAL_VOICE_BASE_MODEL",
+    "section": "7",
+    "sectionTitle": "Voice: Azure Personal Voice (`vercel-app`) — Microsoft Limited Access",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_PERSONAL_VOICE_COMPANY_NAME",
+    "section": "7",
+    "sectionTitle": "Voice: Azure Personal Voice (`vercel-app`) — Microsoft Limited Access",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_PERSONAL_VOICE_ENABLED",
+    "section": "7",
+    "sectionTitle": "Voice: Azure Personal Voice (`vercel-app`) — Microsoft Limited Access",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_PERSONAL_VOICE_ENDPOINT",
+    "section": "7",
+    "sectionTitle": "Voice: Azure Personal Voice (`vercel-app`) — Microsoft Limited Access",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_PERSONAL_VOICE_KEY",
+    "section": "7",
+    "sectionTitle": "Voice: Azure Personal Voice (`vercel-app`) — Microsoft Limited Access",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_PERSONAL_VOICE_LIMITED_ACCESS_APPROVED",
+    "section": "7",
+    "sectionTitle": "Voice: Azure Personal Voice (`vercel-app`) — Microsoft Limited Access",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_PERSONAL_VOICE_PROJECT_ID",
+    "section": "7",
+    "sectionTitle": "Voice: Azure Personal Voice (`vercel-app`) — Microsoft Limited Access",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_PERSONAL_VOICE_SYNTHESIS_USD_PER_MCHARACTERS",
+    "section": "8",
+    "sectionTitle": "Voice: Azure Personal Voice spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_PERSONAL_VOICE_TTS_ENDPOINT",
+    "section": "7",
+    "sectionTitle": "Voice: Azure Personal Voice (`vercel-app`) — Microsoft Limited Access",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_PERSONAL_VOICE_USD_PER_PROFILE",
+    "section": "8",
+    "sectionTitle": "Voice: Azure Personal Voice spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_REPLICA_APP_BUDGET_USD",
+    "section": "2",
+    "sectionTitle": "Foundry spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "processing-worker"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_REPLICA_BUDGET_ID",
+    "section": "2",
+    "sectionTitle": "Foundry spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "processing-worker"
+    ],
+    "required": false
+  },
+  {
+    "name": "AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR",
+    "section": "11",
+    "sectionTitle": "Voice evidence spend fencing — fast transcription (`vercel-app` + `processing-worker`)",
+    "target": [
+      "vercel-app",
+      "processing-worker"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_TENANT_ID",
+    "section": "15c",
+    "sectionTitle": "Clone channels — \"deploy the clone anywhere\" (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "AZURE_VOICE_EVIDENCE_HMAC_SECRET",
+    "section": "10",
+    "sectionTitle": "Voice evidence extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "voice-evidence",
+      "processing-worker"
+    ],
+    "required": true
+  },
+  {
+    "name": "AZURE_VOICE_EVIDENCE_ORIGIN",
+    "section": "10",
+    "sectionTitle": "Voice evidence extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "processing-worker"
+    ],
+    "required": true
+  },
+  {
+    "name": "CHANNEL_SECRET_BACKEND",
+    "section": "15c",
+    "sectionTitle": "Clone channels — \"deploy the clone anywhere\" (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "CLONE_WIDGET_SESSION_SECRET",
+    "section": "15c",
+    "sectionTitle": "Clone channels — \"deploy the clone anywhere\" (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "CRON_SECRET",
+    "section": "15",
+    "sectionTitle": "Cron auth — the vercel-env-only var (`vercel-app`, **not** baked by `write-config.mjs`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "ELEVENLABS_API_KEY",
+    "section": "25",
+    "sectionTitle": "Vyakti Rooms v1 additions (`vercel-app` + `web build`, WS-R1..R10, 2026-09-03)",
+    "target": [
+      "vercel-app",
+      "web build"
+    ],
+    "required": true
+  },
+  {
+    "name": "ELEVENLABS_CLONE_MODE",
+    "section": "25",
+    "sectionTitle": "Vyakti Rooms v1 additions (`vercel-app` + `web build`, WS-R1..R10, 2026-09-03)",
+    "target": [
+      "vercel-app",
+      "web build"
+    ],
+    "required": false
+  },
+  {
+    "name": "ELEVENLABS_MODEL_ID",
+    "section": "25",
+    "sectionTitle": "Vyakti Rooms v1 additions (`vercel-app` + `web build`, WS-R1..R10, 2026-09-03)",
+    "target": [
+      "vercel-app",
+      "web build"
+    ],
+    "required": false
+  },
+  {
+    "name": "MEDIA_EXTRACT_COOKIES_B64",
+    "section": "10b",
+    "sectionTitle": "In-house YouTube audio extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "media-extract"
+    ],
+    "required": true
+  },
+  {
+    "name": "MEDIA_EXTRACT_COOKIES_FILE",
+    "section": "10b",
+    "sectionTitle": "In-house YouTube audio extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "media-extract"
+    ],
+    "required": true
+  },
+  {
+    "name": "MEDIA_EXTRACT_HMAC_SECRET",
+    "section": "10b",
+    "sectionTitle": "In-house YouTube audio extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "media-extract"
+    ],
+    "required": true
+  },
+  {
+    "name": "MEDIA_EXTRACT_MAX_DURATION_MS",
+    "section": "10b",
+    "sectionTitle": "In-house YouTube audio extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "MEDIA_EXTRACT_POT_PROVIDER_URL",
+    "section": "10b",
+    "sectionTitle": "In-house YouTube audio extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "media-extract"
+    ],
+    "required": true
+  },
+  {
+    "name": "MEDIA_EXTRACT_PROVIDER",
+    "section": "10b",
+    "sectionTitle": "In-house YouTube audio extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "MEDIA_EXTRACT_PROVIDER_KEY",
+    "section": "10b",
+    "sectionTitle": "In-house YouTube audio extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "media-extract"
+    ],
+    "required": true
+  },
+  {
+    "name": "MEDIA_EXTRACT_PROXY_URL",
+    "section": "10b",
+    "sectionTitle": "In-house YouTube audio extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "MEDIA_EXTRACT_ROUTE",
+    "section": "10b",
+    "sectionTitle": "In-house YouTube audio extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "MEDIA_EXTRACT_TIMEOUT_MS",
+    "section": "10b",
+    "sectionTitle": "In-house YouTube audio extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "MEDIA_EXTRACT_TRANSCRIPT_ROUTE",
+    "section": "10b",
+    "sectionTitle": "In-house YouTube audio extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "OPEN_VOICE_HMAC_SECRET",
+    "section": "9",
+    "sectionTitle": "Voice: Chatterbox preview — self-hosted, **no Microsoft approval gate** (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "open-voice-runtime"
+    ],
+    "required": true
+  },
+  {
+    "name": "OPS_TELEGRAM_CHAT_IDS",
+    "section": "33",
+    "sectionTitle": "The operator digest, incident alert and self-check verdict over Telegram (`vercel-app`, WS-R98, 2026-09-05)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "PAYMENTS_FAKE_PAYOUT_WEBHOOK_SECRET",
+    "section": "27",
+    "sectionTitle": "The payout status webhook (`vercel-app`, WS-R56, migration 111, 2026-09-04)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "PLATFORM_GSTIN",
+    "section": "32",
+    "sectionTitle": "The follower's receipt (`vercel-app`, WS-R100, migration 126, 2026-09-05)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "PLATFORM_LEGAL_NAME",
+    "section": "32",
+    "sectionTitle": "The follower's receipt (`vercel-app`, WS-R100, migration 126, 2026-09-05)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "RECALL_RUN",
+    "section": "35",
+    "sectionTitle": "The recall run (`vercel-app`, WS-R101, migration 127, 2026-09-05)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "REPLICA_BACKUP_RETENTION_DAYS",
+    "section": "14",
+    "sectionTitle": "Erasure (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "REPLICA_COMMITMENT_SECRET",
+    "section": "6",
+    "sectionTitle": "Provenance / protection — watermark + C2PA, app side (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "REPLICA_ERASURE_KILL",
+    "section": "14",
+    "sectionTitle": "Erasure (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "REPLICA_ERASURE_RECEIPT_KEY_B64",
+    "section": "14",
+    "sectionTitle": "Erasure (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "REPLICA_ERASURE_SECRET",
+    "section": "14",
+    "sectionTitle": "Erasure (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "REPLICA_EVAL_KEK_B64",
+    "section": "13",
+    "sectionTitle": "Encryption-at-rest — three independent KEKs (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "REPLICA_EVAL_KEK_ID",
+    "section": "13",
+    "sectionTitle": "Encryption-at-rest — three independent KEKs (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "REPLICA_FACE_SESSION_BROKER",
+    "section": "5",
+    "sectionTitle": "Face session broker (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "REPLICA_FEEDBACK_KEK_B64",
+    "section": "13",
+    "sectionTitle": "Encryption-at-rest — three independent KEKs (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "REPLICA_FEEDBACK_KEK_ID",
+    "section": "13",
+    "sectionTitle": "Encryption-at-rest — three independent KEKs (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "REPLICA_IDENTITY_VERIFIER",
+    "section": "3",
+    "sectionTitle": "Identity verification (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "REPLICA_LIVENESS_VERIFIER",
+    "section": "4",
+    "sectionTitle": "Liveness verification (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "REPLICA_PROTECTION_MAX_PCM_BYTES",
+    "section": "6",
+    "sectionTitle": "Provenance / protection — watermark + C2PA, app side (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "REPLICA_PROVIDER_CONSENT_KEK_B64",
+    "section": "13",
+    "sectionTitle": "Encryption-at-rest — three independent KEKs (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "REPLICA_PROVIDER_CONSENT_KEK_ID",
+    "section": "13",
+    "sectionTitle": "Encryption-at-rest — three independent KEKs (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "REPLICA_SELF_TEST_ENVIRONMENT",
+    "section": "12b",
+    "sectionTitle": "Owner-only internal replica testing (`vercel-app` + `processing-worker`)",
+    "target": [
+      "vercel-app",
+      "processing-worker"
+    ],
+    "required": true
+  },
+  {
+    "name": "REPLICA_SELF_TEST_MODE",
+    "section": "12b",
+    "sectionTitle": "Owner-only internal replica testing (`vercel-app` + `processing-worker`)",
+    "target": [
+      "vercel-app",
+      "processing-worker"
+    ],
+    "required": false
+  },
+  {
+    "name": "REPLICA_SELF_TEST_OWNER_USER_ID",
+    "section": "12b",
+    "sectionTitle": "Owner-only internal replica testing (`vercel-app` + `processing-worker`)",
+    "target": [
+      "vercel-app",
+      "processing-worker"
+    ],
+    "required": true
+  },
+  {
+    "name": "REPLICA_STORAGE_BUCKET",
+    "section": "12",
+    "sectionTitle": "Replica private storage (`vercel-app` + `processing-worker`)",
+    "target": [
+      "vercel-app",
+      "processing-worker"
+    ],
+    "required": false
+  },
+  {
+    "name": "REPLICA_WATERMARK_TOKEN_SECRET",
+    "section": "6",
+    "sectionTitle": "Provenance / protection — watermark + C2PA, app side (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "ROOM_DORMANCY",
+    "section": "30",
+    "sectionTitle": "Dormancy (`vercel-app`, WS-R75, migration 119, 2026-09-05)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "ROOM_HANDOFF_KERNEL",
+    "section": "31",
+    "sectionTitle": "Handoff v1 on the relational kernel (`vercel-app`, WS-R87, 2026-09-05)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "ROOM_WHATSAPP_CHAT",
+    "section": "34",
+    "sectionTitle": "The Room on WhatsApp (`vercel-app`, WS-R104, migration 128, 2026-09-05)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "SARVAM_API_KEY",
+    "section": "15b",
+    "sectionTitle": "Channel watch + ASR — the stays-current loop (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "processing-worker"
+    ],
+    "required": true
+  },
+  {
+    "name": "SARVAM_API_ORIGIN",
+    "section": "15b",
+    "sectionTitle": "Channel watch + ASR — the stays-current loop (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "SARVAM_ASR_MODEL",
+    "section": "15b",
+    "sectionTitle": "Channel watch + ASR — the stays-current loop (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "processing-worker"
+    ],
+    "required": false
+  },
+  {
+    "name": "SARVAM_TTS_MODEL",
+    "section": "25",
+    "sectionTitle": "Vyakti Rooms v1 additions (`vercel-app` + `web build`, WS-R1..R10, 2026-09-03)",
+    "target": [
+      "vercel-app",
+      "web build"
+    ],
+    "required": false
+  },
+  {
+    "name": "SARVAM_TTS_SPEAKER",
+    "section": "25",
+    "sectionTitle": "Vyakti Rooms v1 additions (`vercel-app` + `web build`, WS-R1..R10, 2026-09-03)",
+    "target": [
+      "vercel-app",
+      "web build"
+    ],
+    "required": false
+  },
+  {
+    "name": "SUPABASE_SERVICE_ROLE_KEY",
+    "section": "12",
+    "sectionTitle": "Replica private storage (`vercel-app` + `processing-worker`)",
+    "target": [
+      "vercel-app",
+      "processing-worker"
+    ],
+    "required": true
+  },
+  {
+    "name": "SUPABASE_URL",
+    "section": "7",
+    "sectionTitle": "Voice: Azure Personal Voice (`vercel-app`) — Microsoft Limited Access",
+    "target": [
+      "vercel-app",
+      "processing-worker"
+    ],
+    "required": true
+  },
+  {
+    "name": "VITE_STUDIO_SHELL",
+    "section": "26",
+    "sectionTitle": "The studio collapsed to Feed/Meet/Share (`vercel-app`, WS-R31, 2026-09-04)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "VITE_VOICE_IDENTITY_CHALLENGE",
+    "section": "25",
+    "sectionTitle": "Vyakti Rooms v1 additions (`vercel-app` + `web build`, WS-R1..R10, 2026-09-03)",
+    "target": [
+      "vercel-app",
+      "web build"
+    ],
+    "required": false
+  },
+  {
+    "name": "VOICE_EVIDENCE_MAX_AUDIO_BYTES",
+    "section": "10",
+    "sectionTitle": "Voice evidence extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "voice-evidence",
+      "processing-worker"
+    ],
+    "required": false
+  },
+  {
+    "name": "VOICE_EVIDENCE_TIMEOUT_MS",
+    "section": "10",
+    "sectionTitle": "Voice evidence extraction — client side (`vercel-app`)",
+    "target": [
+      "vercel-app",
+      "processing-worker"
+    ],
+    "required": false
+  },
+  {
+    "name": "VOICE_IDENTITY_CHALLENGE",
+    "section": "25",
+    "sectionTitle": "Vyakti Rooms v1 additions (`vercel-app` + `web build`, WS-R1..R10, 2026-09-03)",
+    "target": [
+      "vercel-app",
+      "web build"
+    ],
+    "required": false
+  },
+  {
+    "name": "VOICE_PRIMARY_LANE",
+    "section": "25",
+    "sectionTitle": "Vyakti Rooms v1 additions (`vercel-app` + `web build`, WS-R1..R10, 2026-09-03)",
+    "target": [
+      "vercel-app",
+      "web build"
+    ],
+    "required": false
+  },
+  {
+    "name": "VOICE_VENDOR_ARMS",
+    "section": "25",
+    "sectionTitle": "Vyakti Rooms v1 additions (`vercel-app` + `web build`, WS-R1..R10, 2026-09-03)",
+    "target": [
+      "vercel-app",
+      "web build"
+    ],
+    "required": false
+  },
+  {
+    "name": "WHATSAPP_DISPLAY_PHONE_NUMBER",
+    "section": "34",
+    "sectionTitle": "The Room on WhatsApp (`vercel-app`, WS-R104, migration 128, 2026-09-05)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "YOUTUBE_OAUTH_CLIENT_ID",
+    "section": "15b",
+    "sectionTitle": "Channel watch + ASR — the stays-current loop (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  },
+  {
+    "name": "YOUTUBE_OAUTH_CLIENT_SECRET",
+    "section": "15b",
+    "sectionTitle": "Channel watch + ASR — the stays-current loop (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": true
+  }
+]

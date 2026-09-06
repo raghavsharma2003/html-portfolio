@@ -5,11 +5,21 @@
 // container reap away from gone. An eval that is not in version control
 // protects nothing.
 //
-//   node evals/run.mjs           # all suites
-//   node evals/run.mjs parse     # one suite
+//   node evals/run.mjs           # all suites, across a worker pool (default)
+//   node evals/run.mjs --serial  # all suites, one after another (the old
+//                                # behaviour, byte for byte — the negative
+//                                # control the parallel pool is measured
+//                                # against; see evals/runner-lib.mjs)
+//   node evals/run.mjs parse     # one suite, always run directly
+//
+// WS-R128. `runner-lib.mjs` carries the pool, the port lane and the
+// pre-pool serial writers, and its own header names exactly which suites
+// need which treatment and why. This file stays the registry plus the
+// driver: no suite-classification reasoning belongs here twice.
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { PRE_POOL_SUITES, PORT_LANE_SUITES, pickWorkerCount, runPool, runSuiteFile } from "./runner-lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -275,6 +285,113 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   clonechannel: "clonechannel.mjs",
+  // WS-R1, the Room: the follower's side of a published replica, at /r/<slug>.
+  //
+  // Wired here on the same `dead-writers` test as the suite above, and for the
+  // sharpest version of its reason yet: this is the first lane in the repo
+  // where two DIFFERENT members of a creator's audience hold rows in the same
+  // tables at the same time, so every failure here is a follower seeing
+  // another follower, and every one of them returns 200.
+  //
+  //  - ONE FOLLOWER CANNOT SEE ANOTHER. Two followers, one room, one thread
+  //    each. The suite asserts B is refused A's thread AND re-runs the same
+  //    shipping call with the person clause STRUCK out of the SQL, failing
+  //    unless the struck copy leaks. A check that passes against the bug it
+  //    exists to catch is not a check.
+  //  - THE CAP IS A PREDICATE. Twenty free messages a month, and the
+  //    twenty-first is refused by the UPDATE's own WHERE clause BEFORE any
+  //    work happens. The suite counts to 21, asserts the refusal is not
+  //    mid-turn, and rolls the month over to prove the allowance returns
+  //    through the same statement rather than through a second code path.
+  //  - MEMORY IS GATED, NOT FILTERED. A follower who declined the memory
+  //    question produces ZERO calls to the episode opener, the turn logger and
+  //    the recall path, asserted by call COUNT: a filter applied later is a
+  //    filter a later edit removes.
+  //  - THE DISCLOSURE IS BOUND. A session minted against a different card
+  //    cannot buy a turn, so a page cannot opt out of the card by not
+  //    rendering it.
+  //  - FORGET IS SCOPED AND REAL. It deletes over PERSON_TABLES, agent-scoped,
+  //    leaves the other follower's rows and the room itself standing, and
+  //    appends a withdrawal to the consent ledger rather than erasing a grant.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  room: "room/run.mjs",
+  // WS-R8. THE LEAK BATTERY — Phase 1's hard rule for Vyakti Rooms, made a
+  // gate: "The leak battery runs clean before a second follower joins any
+  // Room. No exception for a launch date." Built to `evals/mp/gate0.mjs`'s
+  // shape (context/measurements.md#gate0-structural): a scenario generator (N
+  // followers in {2,5,20} x 4 turns, each with unique tokens), the REAL
+  // follower lane and the REAL compiler driving every turn, a printed
+  // row-by-scenario count (16,080 retrieval checks + 441 boundary checks,
+  // 0 leaks), and two negative controls that MUST fail — a struck person
+  // clause and a "helpful" reply that pastes another follower's words in as
+  // an example — proving the scanner is not vacuous
+  // (`sound-gate-proved-by-silence`, context/rejected.md).
+  //
+  // Also asserts, statically, what no execution can: the follower lane's
+  // import graph never reaches a WRITE-shaped symbol from a creator-material
+  // file (the sheet, the person model, claims, mirror conditioning), and the
+  // only creator-facing read of the Room's own tables is a count. What it
+  // does NOT prove — `dmRecall`'s real SQL executing — is proven live,
+  // elsewhere, at `evals/mp/gate0.mjs` (0/31,122 violations); this suite
+  // checks that the exact predicate function is wired into `dmRecall`'s real
+  // query text rather than re-deriving a weaker offline copy of that proof.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, ~6s.
+  "room-leak": "room-leak/run.mjs",
+  // WS-R7, the Room's creator side. WS-R1 built /r/<slug> and the tables it
+  // reads (migration 071) but nothing INSERTED a `vy_room` row — until this
+  // landed no Room could ever be opened by anyone, the sharpest shape of
+  // `dead-writers` this repo has shipped. `api/_room-publish.js` is the
+  // writer; this is its suite.
+  //
+  //  - THE PUBLISH LOCK IS THE WRITE, NEVER A BRANCH ABOVE IT. `published_at`
+  //    only ever becomes non-null inside the UPDATE's own CASE, gated on
+  //    three conditions: an active runtime capability, the readiness lock
+  //    (its SQL fragment IMPORTED from `api/_clonechannel.js`, not re-typed,
+  //    so "same three conditions" is true by construction), and an approved
+  //    disclosure (the agent's `vy_teacher_sheet` published with a consent
+  //    artifact — the same gate `resolveRoom` already requires of every
+  //    follower, so `published_at` can never say "open" over a room nobody
+  //    can actually reach).
+  //  - THE NEGATIVE CONTROL. The readiness clause is struck out of the REAL
+  //    statement text captured off the fake's own call log — not a
+  //    hand-written approximation of the query, the query — and the suite
+  //    fails unless the struck copy leaks the write.
+  //  - A TAKEN SLUG IS A NAMED REFUSAL. `create` and `rename` both hit
+  //    `vy_room_slug_ix`; the suite asserts a code, never a 500.
+  //  - THE BLOCKER LIST IS CLASSED. A runtime held shut ONLY by
+  //    platform-owned gates reports `waiting_on_us`; anything else reports
+  //    `waiting_on_you` — `context/rejected.md#a-step-is-never-silently-blocked`.
+  //  - STATS ARE REAL COUNTS, NEVER INVENTED. A room with no followers gets
+  //    three real zeros from `count`/`sum` over an empty set, never a
+  //    placeholder.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  "room-publish": "room-publish/run.mjs",
+  // WS-R11, the Room's money. The durable ledger and the provider seam:
+  // price band enforcement, subscribe through the fake provider, webhook
+  // signature verification (byte-exact, bad signature refused), idempotent
+  // replay, the state machine, the tier flip (paid ONLY on 'active'), the
+  // 25% split's arithmetic, the payout roll-up, PAYMENTS_PROVIDER=none
+  // refusing every write, and the required negative control naming exactly
+  // what would need to change in api/_payments.js for a skipped
+  // verification to slip through.
+  payments: "payments/run.mjs",
+  // WS-R18, the Room on Telegram. A transport, never a tenant: every update
+  // that reaches a reply goes through the SAME follower lane
+  // (api/_room-surface.js) the web Room uses, with a Telegram-shaped
+  // identity bridge (`personForSurfaceUser`/`linkSurfacePerson`,
+  // `vy_surface_identity`) standing in for the web's Supabase bearer token.
+  // Webhook secret fail-closed (unconfigured is a named 503, wrong secret a
+  // 401, both before any db read), age attestation and the disclosure card
+  // sent before any reply, the free cap spent through the identical
+  // conditional UPDATE, `/forget` `/export` `/stop`, a group chat refused by
+  // name, and a two-follower run through the real follower lane proving zero
+  // cross-follower tokens (evals/room-leak's own scenario shape, reused).
+  //
+  // Offline, deterministic, $0, no DB, no network, no Telegram call.
+  "room-telegram": "room-telegram/run.mjs",
   // WS-AB (the universal "bring your context" lane). The Context Locker end to
   // end: many files and many links become owned, hashed, quota-capped items,
   // and the ones this platform can honestly read become CITED proposals on the
@@ -599,6 +716,16 @@ const suites = {
   // and consent binding. The suite is synthetic and offline; cloud execution
   // stays behind a separate explicit confirmation and a USD 5 ledger stop.
   voicematched: "voice-matched-pack/run.mjs",
+  // WS-R6. The vendor bench arms. `decisions.md#platform-north-star` names the
+  // evidence that would make a vendor primary again and no vendor arm had ever
+  // been benched, so the reversal condition was unfalsifiable. This suite is
+  // the mechanical half: an absent key is a named unavailability rather than a
+  // clip, vendor audio arrives as the platform's one format or fails by name,
+  // the per-day character budget refuses before a paid call, a 402 keeps its
+  // own blocker, and erasure reaches the vendor through the existing sweep.
+  // The negative control is the point: an arm that fabricates a clip with no
+  // key fails it. Offline, deterministic, $0, no network.
+  voicevendor: "voice-vendor/run.mjs",
   // Evidence-backed personality: append-only owner claim decisions,
   // contradiction-preserving typed Person Models, deterministic source-set
   // builds and explicit exact-version approval.
@@ -635,6 +762,30 @@ const suites = {
   // capture binding, one-way leases and evidence-bound biometric consent.
   livenessverify: "liveness-verification/run.mjs",
   identityproof: "identity-proofing/run.mjs",
+  // WS-R2. Owner identity by SPEAKER VERIFICATION: the path that ships now,
+  // beside the never-deployed Azure stack the two suites above cover.
+  //
+  // The score math over fixture ECAPA vectors at each of the three measured
+  // bands (accept 0.78, review 0.70-0.78, reject below 0.70, all citing
+  // measurements.md#first-real-clone), the thresholds proved to be DATA, the
+  // anti-replay half (a replayed recording of the owner scores HIGH on voice
+  // and is still refused, because it cannot contain a nonce generated after
+  // it was made), expiry, cancellation, crash recovery, and the settlement
+  // writing the SAME three vy_replica columns under the SAME age guard that
+  // the Azure liveness settlement writes.
+  //
+  // Wired here rather than left standalone for the `dead-writers` reason and
+  // because the thing it guards is THE identity gate: this is the only path
+  // by which anyone can satisfy identity_verification_required on a deployed
+  // tree, so a suite nothing runs is an identity gate that silently stops
+  // gating.
+  //
+  // Its load-bearing case is a NEGATIVE CONTROL that removes the transcript
+  // check and watches the identical replay be accepted, which is the only way
+  // to show the transcript half is what stops a replay rather than decoration
+  // beside the speaker score. Offline, deterministic, $0, no GPU, no model,
+  // no network.
+  identitychallenge: "identity-challenge/run.mjs",
   // Deployable Azure identity broker: exact private-byte binding, pinned
   // Document Intelligence and Face calls, independently signed authenticity
   // review, content-free results, tamper/replay fencing, official Face
@@ -1200,16 +1351,1564 @@ const suites = {
   // surface covers the first and `scripts/relcheck.mjs` the second, and
   // migration 060 has never been applied to any database.
   replicaactivity: "replicaactivity.mjs",
+  // WS-R4, the review queue. The card generator's dedupe and cap, each
+  // decision's writes read off the REAL SQL, the clause that stops a fix
+  // landing without its correction source, the invalidation request, and the
+  // never-rule predicate driven through the REAL `gateReply` with the negative
+  // control the brief asks for by name: remove the predicate and the forbidden
+  // reply travels, so the suite fails.
+  //
+  // Offline, deterministic, $0, no database, no network, no model call. What it
+  // CANNOT see is SQL types and referential integrity: `evals/sqlcast`'s strict
+  // surface covers the first and `scripts/relcheck.mjs` the second, and
+  // migration 074 has never been applied to any database.
+  reviewqueue: "review-queue/run.mjs",
+  // WS-R3. The one creator screen: one number, five parts, one action, one
+  // publish lock. What it exists to hold is DESIGN-LAW §1's hardest clause —
+  // the overall is UNDEFINED until every part has a value — against the very
+  // reasonable future request to "just average what we have", which would turn
+  // this screen into `plausible-return-hides-a-dead-pipeline` with a score
+  // attached. §4 of the suite removes that guard from a copy of the real
+  // module and requires the assertions to fail.
+  //
+  // It also holds the two lock predicates (runtime activation, channel
+  // connect) to their SQL shape, migration 073 to the splitter's rules, and
+  // the readiness history to the erasure reach.
+  //
+  // Offline, deterministic, $0, no database, no network, no model call. What
+  // it CANNOT see is SQL types and referential integrity: `evals/sqlcast`
+  // covers the first and `scripts/relcheck.mjs` the second, and migration 073
+  // has never been applied to any database.
+  readiness: "readiness/run.mjs",
+  // WS-R5. The interview — the Mirror Call re-pointed at the gaps in the
+  // archive, and the only lane in this product where the AI decides what to
+  // ASK.
+  //
+  // Three properties nothing else can gate:
+  //  - THE RANKING, which IS the feature: five questions and twenty minutes
+  //    means which five is the whole product, so the three orderings are
+  //    asserted directly (a contradiction outranks everything; a sheet field
+  //    with no evidence outranks one with some; a thin topic produces a gap
+  //    where a covered one produces none).
+  //  - NO QUOTABLE SENTENCE REACHES THE PROMPT. Every line of every ask block
+  //    the model can generate is run through `src/engine/shapelint.ts`'s OWN
+  //    `lintLine`, bundled from the real TypeScript on every run — including
+  //    the blocks built out of the owner's own claim bodies, which is the one
+  //    place their words ride into a prompt. The assertion was mutation-tested:
+  //    raising all four fragment caps makes it fail, raising any one does not.
+  //  - THE DETECTOR THAT COULD NOT RUN SAYS SO. §5 is the negative control and
+  //    it is the file's spine: the same assertion that passes with the
+  //    contradiction predicate wired MUST FAIL with it disabled, and the
+  //    payload must report `detectors.contradiction === false` rather than an
+  //    empty list a studio would read as "no contradictions".
+  //
+  // Plus: the answer write stamps a source and NO statement in the lane names
+  // `vy_teacher_sheet` or `vy_mirror_conditioning`
+  // (`mirror-reference-accumulation-was-inert`: answers grow the SOURCE set and
+  // change no voice), the ask block splices BEFORE the appended-last set or is
+  // refused outright (`prompt-position`), and the person-model register input
+  // is driven both ways so a builder ignoring it fails.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call. What it
+  // CANNOT see is SQL types and referential integrity: migration 075 is
+  // unapplied and no statement in this lane has executed against a database.
+  interview: "interview/run.mjs",
+  // WS-R9, drift watch. "It notices drift" — the two independent signals
+  // (a swap walked off `vy_replica_generation.preview_model_commitment`, a
+  // score drop against the SAME `genome_version` only), the 0.02 threshold
+  // held to the three measurements that justify it (6e-6 run noise, 0.0625
+  // window-choice spread, 0.0206 a genuine trained delta), the recency
+  // window that keeps "moved" answering "the day the score moved" rather
+  // than staying tripped forever, the prosody anchor reused rather than
+  // re-derived from `scripts/prosody-baseline.mjs`'s own verdict, and the
+  // negative control the brief asks for by name: a report that says
+  // "steady" across a swap must fail this suite.
+  //
+  // Also holds: the deliberate divergence from readiness's "a read that
+  // writes" (drift watch gates nothing, so the owner GET never writes;
+  // api/drift-watch-sweep.js is the sole writer), migration 076 to the
+  // splitter's rules, and the drift history to the erasure reach.
+  //
+  // Offline, deterministic, $0, no database, no network, no model call. What
+  // it CANNOT see is SQL types and referential integrity: `evals/sqlcast`
+  // covers the first and `scripts/relcheck.mjs` the second, and migration
+  // 076 has never been applied to any database.
+  driftwatch: "drift-watch/run.mjs",
+  // WS-R15, Phase 0's own proof: the first Room, in one command
+  // (`scripts/first-room.mjs`, `scripts/first-clone.mjs`'s sibling). This
+  // suite spawns the REAL script as a subprocess against a fake HTTP server
+  // (node:http, a random loopback port) replaying recorded response shapes —
+  // it never imports the script's internals, so a rewrite that keeps the
+  // words but breaks the contract is caught the same way a human running it
+  // would notice: by reading its own stdout.
+  //
+  //  - THE HAPPY PATH, owner and follower, every one of fourteen steps ok:
+  //    replica, consent, upload, the processing DAG polled to done, the five
+  //    readiness parts, the review queue filled without ever deciding a card,
+  //    the Room created and published, then open/join/say/history/forget on
+  //    a SECOND session.
+  //  - TWO NAMED REFUSALS. Publish locked by readiness (the blocker list
+  //    printed and split waiting-on-you/waiting-on-us, and the follower side
+  //    proven NEVER to run even though a follower token was supplied) and the
+  //    slug taken (stops at room-create; room-publish never appears as a
+  //    step).
+  //  - THE NEGATIVE CONTROL. A 200 with an empty body, struck mid-chain on the
+  //    consent grant, must fail that step by name (`empty_response`) and must
+  //    never let the upload step that follows it run — the exact rule the
+  //    script's own header names as its second law.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, ~2s.
+  firstroom: "first-room/run.mjs",
+  // WS-R12. The number that decides the company: week-six retention of
+  // followers who arrived in week one. Nothing measured this before migration
+  // 077 and api/_room-cohorts.js. Five sections: THE WRITE (roomSay upserts
+  // vy_room_follower_day once per accepted turn, gated on the migration
+  // having landed, skipped rather than a 500 when it has not), THE FORGET
+  // (roomForget's own explicit delete, gated the same way), THE MATH
+  // (cohortRow/verdictFor, pure, driven with the workstream brief's own
+  // numbers - a 2-week cohort, 3/10 at 7 weeks, 5/10 at 8 weeks), THE READ
+  // (roomFollowerCohorts/readOwnedRoomCohorts against a fake db, structurally
+  // aggregate-only), and a content-free negative control on the migration's
+  // own column list that MUST catch an injected text column.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  "room-cohorts": "room-cohorts/run.mjs",
+  // WS-R16. Check-ins: follower-scheduled, task-bound, migration 079. Five
+  // sections: THE MATH (computeNextDue, pure, across a DST-free IST fixture
+  // and one real DST zone), THE HAPPY PATH (a paid follower's due row
+  // delivered once through gatedReply, next_due_at advanced, a `delivered`
+  // ledger row written), IDEMPOTENCY (the same due timestamp swept twice
+  // yields one delivery, the unique constraint doing the work), and three
+  // NEGATIVE CONTROLS: a free follower's due row is skipped and the ledger
+  // says so; a stopped check-in is never selected (no delivery, no ledger
+  // row); and a static proof that the sweep's own SQL never names another
+  // follower's person_id — modelled on evals/room-leak's import-graph layer.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  checkins: "checkins/run.mjs",
+  // WS-R17. Pulse v0: counts over the opt-in shared subgraph, n>=5, never
+  // verbatim. Drives the real `api/_pulse.js` through a fake `db`
+  // (`evals/pulse/fixtures.mjs`) and a small world generator: (a) 4
+  // opted-in followers yields zero rows (room-total floor), (b) 5 yields
+  // one row with 5, (c) a non-opted-in follower with matching text
+  // contributes nothing, (d) revocation drops a bucket back below the
+  // floor on recompute (recomputed, never patched), a NEGATIVE CONTROL
+  // that calls the raw unguarded per-topic count directly and proves it
+  // DOES show a leaky 4 while `computeSnapshot`'s own floor refuses to
+  // emit it, a static check that the snapshot table's INSERT names only
+  // its six content-free columns, and `readPulse`'s two honest empty
+  // states (not enough opt-ins vs. no topic at floor).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  pulse: "pulse/run.mjs",
+  // WS-R19. The paid tier's fair-use ceilings as predicates, plus voice
+  // minutes metered (migration 081). A paid follower's message spend against
+  // `paid_monthly_messages` in the SAME conditional-UPDATE shape the free cap
+  // already uses; `roomSpeak`'s voice cap, spent before any synthesis;
+  // negative controls proving a free follower gets a named refusal and zero
+  // audio bytes, that a copy with the watermark read struck is caught, and
+  // that the ledger row `roomSpeak` writes matches the shape drift watch's
+  // sweep reads.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-paid-tier": "room-paid-tier/run.mjs",
+  // WS-R21. The ops board: `api/_ops.js` (per-Room aggregate counts, never a
+  // follower's words, admitted to evals/room-leak's AGGREGATE_ONLY class),
+  // `api/_sweep-run.js` (the heartbeat every cron in vercel.json now writes,
+  // migration 084's `vy_sweep_run`) and `api/_sweep-schedule.js` (the
+  // staleness math, read from vercel.json's own schedule table rather than
+  // guessed). Five sections: the platform-operator allowlist (pure, no db);
+  // the schedule table against every real cron in this repo; withSweepRun's
+  // start/finish heartbeat and its content-free digest; opsOverview's real
+  // counts and honest empty states over two Rooms (one populated, one
+  // empty); and NEGATIVE CONTROLS (a) a non-allowlisted user is refused
+  // before any db read, (b) an unset allowlist refuses everyone, (c) a
+  // select list with a follower text column appended fails the SAME
+  // aggregate-only parser evals/room-leak/run.mjs runs, (d) a sweep whose
+  // function throws still writes finished_at with outcome 'failed'.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  ops: "ops/run.mjs",
+  // WS-R58. The incident ledger (migration 109): `recordIncident`'s upsert
+  // and its four negative controls (unrecognised kind, empty door,
+  // out-of-range/non-integer status, a db that throws); `withDoor`'s own
+  // proof that a thrown door still answers with the SAME body as before and
+  // that a masked-200 door (tg.js/whatsapp.js's own posture) records
+  // nothing; `claimNewKindNotification`/`notifyNewIncidentKinds`'s
+  // at-most-once-per-kind-per-day guarantee end to end with an injected
+  // fake subscription, plus the "kind seen in the previous 7 days is never
+  // new" control; `pruneOldIncidents`'s 90-day bound; and a static scan of
+  // this file's own INSERT column list with two negative-control fixtures
+  // that add a message-shaped column and correctly fail it.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  incidents: "incidents/run.mjs",
+  // WS-R22. Web push for check-ins (migration 085): RFC 8291 aes128gcm
+  // encryption round-tripped against an independently-written decoder (real
+  // key material, not RFC 8291 Appendix A's own — see api/_push/webpush.js's
+  // header for exactly why), the VAPID JWT's ES256 header/claims/signature
+  // shape, subscribe/unsubscribe session scoping, the delivery ledger's
+  // states (delivered/failed/not_configured), and quiet-hours math (a plain
+  // window, a wraparound one, and the "no window" default). Three NEGATIVE
+  // CONTROLS: (a) a static source scan of `checkinPushPayload` refuses any
+  // check-in-text identifier in its own body; (b) a 410 from a fake push
+  // service revokes the subscription and a second sweep sends nothing to it;
+  // (c) a world check — another follower's active subscription never
+  // receives this follower's check-in payload.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-push": "room-push/run.mjs",
+  // WS-R23. Creator applications and invites, migration 086: the front door
+  // that has a lock in SQL. Applications (the happy path, the daily
+  // per-contact refusal proven against a fake unique index, the next-day
+  // clear, the operator's list/erase-by-contact), invites (issue returns
+  // the code exactly once, list's three status filters, revoke and erase's
+  // refusal on an already-redeemed invite), and the replica-create
+  // predicate itself: `createSelfReplica`'s own CTE, exercised through a
+  // fake db, with three negative controls (a redeemed code cannot be
+  // redeemed twice, an expired code refuses by name, and with
+  // INVITES_REQUIRED unset the predicate is structurally absent) plus a
+  // static proof that the gate lives inside the INSERT rather than a JS
+  // check around it.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  invites: "invites/run.mjs",
+  // WS-R20. Handoff v0 (migration 083): a follower asks for the human, and
+  // nothing moves without a verbatim payload screen. Drives the real
+  // api/_handoff.js through a fake `db` (evals/handoff/fixtures.mjs, wrapping
+  // evals/room/fixtures.mjs's own fakeDb): draft returns the exact bytes and
+  // a hash that matches them, both from a fresh note and from the follower's
+  // own picked messages (never the AI's); send is refused by name when the
+  // Room has handoff off, when a follower is over their monthly cap, when the
+  // stored hash does not match the submitted text, and when a thread_id
+  // belongs to a different follower; the owner's queue returns counts first
+  // and then only the oldest hash-matched 'sent' row, one at a time; answer
+  // lands once, only in the answering follower's own read, never another
+  // follower's; withdraw frees the follower's own row and does not count
+  // against their cap. Two NEGATIVE CONTROLS: (a) a copy of a sent row with
+  // its text tampered (hash untouched) is refused by the SAME predicate on
+  // both the queue read and the answer write; (b) a chat message a follower
+  // never submitted through send() is proven absent from every creator-facing
+  // read, evals/room-leak's own leakedTokens technique applied to this table.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  handoff: "handoff/run.mjs",
+  // WS-R25. The creator funnel (migration 088): "minutes to first Room" and
+  // "where creators stop", plus the sweep heartbeat's own retention delete
+  // (closing WS-R21's own open item). Drives `api/_funnel.js` through a
+  // dedicated fake db - two replicas (one published in 23 minutes, one
+  // stalled at readiness, 10 days old), `markStep`'s first-write-wins and
+  // ownership gate, `replicaFunnel`'s full ordered read, `funnelSummary`'s
+  // pure median/p90/stall math, and `opsFunnel`'s own board read - plus
+  // `api/_sweep-run.js`'s new bounded retention delete. Three NEGATIVE
+  // CONTROLS: (a) a mark from another owner is refused before any write,
+  // proven both by the thrown error and by the marks table being untouched;
+  // (b) evals/room-leak/run.mjs's own aggregate-only parser (copied, that
+  // file has no exported entry point, by design) catches a mutated select
+  // list carrying a bare follower column; (c) the retention delete removes
+  // an old row for the sweep that just finished while leaving an equally
+  // old row belonging to a DIFFERENT sweep untouched.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  funnel: "funnel/run.mjs",
+
+  // WS-R24, migration 087: the Room in Hindi. Every ROOM_COPY_TABLE key
+  // present in both locales; the disclosure card's three facts present in
+  // both languages; setLocale scoped to the caller's own session (B cannot
+  // set A's locale); the Telegram language_code -> locale mapping; three
+  // NEGATIVE CONTROLS: (a) a Hindi string with an em dash fails
+  // scripts/check-copy.mjs's dash rule, (b) a Hindi string containing क्लोन
+  // fails its rooms-vocabulary rule, (c) the AI's own reply text is
+  // byte-identical whatever the follower's chrome locale is (only chrome
+  // moves, never the model's own words). Offline, deterministic, $0.
+  "room-locale": "room-locale/run.mjs",
+  // WS-R27. Forget receipts (migration 090, `vy_room_forget_receipt`) and the
+  // export completeness battery: STATIC (every PERSON_TABLES entry carrying
+  // both room_id and person_id in the checked-in DDL is named by
+  // `roomExportManifest()`) and DYNAMIC (one follower through the real
+  // follower lane touches every surface - thread, check-in, opt-in,
+  // subscription, push subscription, handoff, voice usage, the Telegram
+  // pointer - `roomExport` carries a row/count from each, `roomForget` leaves
+  // zero, and the receipt's counts equal what was deleted). Two NEGATIVE
+  // CONTROLS: (a) a fake person-lane table added to a COPY of the manifest is
+  // caught as uncovered by the static check; (b) a struck copy of
+  // `roomForget` with one delete removed is caught by the same survivor scan
+  // the real run passes. See evals/room-export/run.mjs's own header.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  "room-export": "room-export/run.mjs",
+  // WS-R26. Abuse limits on the public doors, migration 089
+  // (`vy_public_rate`): the upsert's own boundary (under the limit admits,
+  // AT the limit returns zero rows - never a read then a separate write),
+  // the fixed-window rollover, Retry-After math against a clock, the key
+  // being a sha256 hash rather than a raw IP/contact, `limitsFor()`'s
+  // `RATE_LIMITS_JSON` operator override, and the retention sweep. THREE
+  // NEGATIVE CONTROLS: (a) an unknown scope is refused before any database
+  // write; (b) driven through the REAL api/_payments.js `applyWebhook`, five
+  // unsigned webhook attempts write zero rows to the rate table, proving the
+  // HMAC check really does run before the counter; (c) two different IPs
+  // never hash to the same key or share a counter. §7 is a static proof
+  // (evals/invites/run.mjs's own shape) that every named door - api/room.js's
+  // open/join/say/push_subscribe, api/apply.js's submit, api/room-tg.js and
+  // api/_payments.js's webhooks - really calls through this module, with the
+  // Telegram/payment signature checks proven to run strictly before the
+  // gate.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "rate-limit": "rate-limit/run.mjs",
+  // WS-R31. The studio collapsed to Feed/Meet/Share: bundles the REAL
+  // `src/studio/studioShellModel.ts` (`evals/mirrorcall.mjs`'s pattern) and
+  // asserts every existing panel is reachable from `StudioShell.tsx` or
+  // `StudioApp.tsx`'s "All panels" view (a static text scan against the
+  // real `src/studio/` listing), the headline state for each tab under
+  // empty / partial / complete fixtures, and that the primary control always
+  // equals the blocker list's own next thing. THREE NEGATIVE CONTROLS: (a) a
+  // panel struck from both files' text is caught as orphaned; (b) a
+  // hand-built headline with two primary controls is refused; (c) a string
+  // with "train"/"model" fails scripts/check-copy.mjs's own scanner.
+  //
+  // Offline, deterministic, $0, no DB, no network, no browser, no model call.
+  "studio-shell": "studio-shell/run.mjs",
+  // WS-R28. Suites v0 (migration 091, `vy_org`/`vy_org_member`/
+  // `vy_org_subscription`): createOrg's atomic admin-membership CTE,
+  // inviteMember's own no-write refusal and acceptMembership's self-consent
+  // write, attachRoom's law-2 single-predicate UPDATE (every named refusal -
+  // not_admin, no_seat at the exact boundary, creator_not_member - plus the
+  // two structural ones), detachRoom's owner-or-admin self-service exit,
+  // orgBoard's law-3 aggregate-only per-Suite board (imports and reuses
+  // api/_ops.js's own proven `roomOverview`, never re-derives it),
+  // orgSubscriptionStatus/listMyOrgs/listOrgMembers/roomSuiteStatus, and
+  // seatCoversCreatorTier (law 4's exemption predicate - built and proven
+  // even though nothing calls it yet, since no creator tier charge exists
+  // anywhere in this codebase). THREE NEGATIVE CONTROLS: (a) a non-admin
+  // attach writes nothing (the room's org_id is proven still null after);
+  // (b) the same aggregate-only parser evals/room-leak/run.mjs runs would
+  // catch a follower-leaking select list, copied inline exactly as
+  // evals/funnel/run.mjs's own §5 does; (c) a Room attached to org A is
+  // proven invisible to org B's board, and the reverse. §8 statically
+  // confirms the erasure job deletes the MEMBERSHIP row by name and never
+  // the Suite itself (the org survives its last admin's own erasure, by
+  // migration 091's own law).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  org: "org/run.mjs",
+  // WS-R29. Check-ins over WhatsApp utility templates, migration 092
+  // (`vy_room_follower_whatsapp`). Opt-in/stop/status scoped to the
+  // caller's own follower row, paid-tier gated, structurally absent when
+  // `ROOM_WHATSAPP_TEMPLATE_APPROVED` is unset; `buildTemplatePayload`'s
+  // own source scanned for any message-table identifier;
+  // `deliverers.whatsappTemplate` (api/_checkins.js) driven through every
+  // real outcome (not_configured, skipped_stopped, delivered, a 4xx revoke,
+  // a 429 that writes no row at all); the webhook door (api/room-wa.js +
+  // api/_room-whatsapp.js) reusing api/whatsapp.js's own HMAC/GET-handshake
+  // verify() rather than a second implementation, a signed status callback
+  // writing nothing, a signed inbound message producing exactly one
+  // deterministic app-voiced reply and persisting nothing, and an unsigned
+  // request refused before either. Export/forget for this table: a count,
+  // a state and a MASKED number, never the number in full. THREE NEGATIVE
+  // CONTROLS named in the workstream brief, each proven to actually bite:
+  // (a) a poisoned payload builder reading a message identifier IS caught
+  // by the same static scan that passes the real one; (b) an unsigned
+  // webhook request is refused before the handler is ever called, so it
+  // sends and writes nothing; (c) a stopped opt-in is never sent to.
+  //
+  // Offline, deterministic, $0, no DB, no network, no Meta, no model call.
+  "room-whatsapp": "room-whatsapp/run.mjs",
+  // WS-R30, migration 093 (`vy_room_upgrade_offer`). The conversion moment:
+  // `sessionWorked`'s three clauses (each tested to fail alone), the 14-day
+  // cooldown as a write not a read-then-write, `markOfferOutcome`'s "most
+  // recent OPEN offer only", `conversionReport`'s ratio and funnel,
+  // `renewedUnasked`'s honest zero (no creator-subscription table exists
+  // yet), `phaseGate`'s three-way composition (below/at_or_above/
+  // not_enough_data) and its one sentence, a real turn through `roomSay`
+  // carrying an offer, the cap-reached refusal ALSO recording an offer, and
+  // the payments webhook's inline `offer_update` CTE marking 'paid' in the
+  // same statement as the tier flip. THREE NEGATIVE CONTROLS: (a) a
+  // sessionWorked-shaped select reading a message-body column is caught by
+  // room-leak's own aggregate-only parser, copied inline; (b) a second offer
+  // inside 14 days never inserts; (c) the reply bytes are byte-identical
+  // whether or not an offer is attached.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "phase-gate": "phase-gate/run.mjs",
+  // WS-R34, migration 096. Check-ins over Telegram: the channel that already
+  // works (WS-R18's one-Room-per-chat pointer, `vy_room_follower_channel`)
+  // carries the thing itself, since the pointer IS the opt-in — no new
+  // person table. `/checkins on|off`, the toggle's own SQL predicate
+  // (`activeTelegramChannelFor` et al.), the reply-to-thread mapping
+  // (`resolveReplyThreadId`, an honest seam that resolves to the Room's
+  // default thread today because `vy_room_checkin` names no thread of its
+  // own), `deliverers.telegram` (not_configured/delivered/failed+revoke on
+  // 403 or 400/transient-on-429-or-5xx), the Room panel's own toggle, and a
+  // NEGATIVE CONTROL proving `deliverers.telegram` can reach no model call
+  // and carries the SAME `said` the in-app delivery already produced —
+  // never a second assembler. Two more NEGATIVE CONTROLS: (a) checkins_
+  // enabled:false never sends, (b) a stopped pointer never sends.
+  //
+  // Offline, deterministic, $0, no DB, no network, no Telegram call, no
+  // model call.
+  "room-telegram-checkins": "room-telegram-checkins/run.mjs",
+  // WS-R33, migration 095 (`vy_creator_subscription`, `vy_payment_event`'s
+  // widened Suite lane). The Suite's own money end to end through
+  // api/_payments.js's provider seam (`startOrgSubscription`,
+  // `updateOrgSeats`), the coalesced seat cap `api/_org.js`'s `attachRoom`
+  // now reads (an active subscription raises or lowers it, a
+  // never-authenticated one does not raise it, a lapsed one drops it to
+  // zero without detaching a single already-published Room), the creator
+  // tier charge and `seatCoversCreatorTier`'s (WS-R28) one caller, and
+  // `applyWebhook`'s widened three-lane resolution (follower/org/creator,
+  // one signature-verify-then-apply door for all three). THREE NEGATIVE
+  // CONTROLS: (a) an unsigned webhook writes nothing to any billing table;
+  // (b) a Suite subscription in state 'created' does not raise the seat
+  // cap; (c) a creator charge started while a seat covers them is refused
+  // before the provider is ever reached (the only db call made is the
+  // exemption's own read).
+  //
+  // Offline, deterministic, $0, no DB, no network, no real provider, no GPU.
+  "org-billing": "org-billing/run.mjs",
+  // WS-R39, migration 101 (`vy_room_follower.settings_reviewed_at`). The
+  // follower's own page: `roomSettings` (one composed read: disclosure,
+  // memory consent, the three check-in channels, the room's price, any OPEN
+  // cap-reached offer, `settings_reviewed_at`) and `roomSettingsReviewed`
+  // (the one write, session-scoped exactly as `roomSetLocale`'s is). A
+  // two-follower world proves B carries none of A's own channel/offer state;
+  // the cap-reached offer is recorded, surfaced, and dismissed exactly once
+  // (`api/_phase-gate.js`'s real `recordOffer`/`roomDismissOffer`); a static
+  // proof that `RoomApp.tsx`'s cap-reached card is gated on BOTH the refusal
+  // and the offer row, never either alone; both locales carry every new key.
+  // THREE NEGATIVE CONTROLS: (a) a body-supplied follower id is ignored by
+  // `roomSettingsReviewed`; (b) the composed read's own SQL never selects a
+  // message column, a static scan proven to bite on a poisoned copy; (c) a
+  // string naming the banned word or carrying an em dash fails the copy gate.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  "room-account": "room-account/run.mjs",
+  // WS-R36, migration 098. Creator payouts as a product: the Suite share
+  // folded into `runPayoutRollup`'s own arithmetic (a FLAT share of the
+  // Suite's own per-seat price, `SUITE_SEAT_SHARE_BP`, never a re-derivation
+  // of what the Suite's ledger actually collected), the closed payout state
+  // machine (built -> pending_account | queued -> sent -> settled | failed,
+  // one transition each), the `sendPayout`/`registerFundAccount` seam twins
+  // (never a bank detail, only the reference the provider issued), and the
+  // statement (`payoutStatementFromRows`/`payoutStatement`) - the four
+  // numbers, the period, the follower subscription count, the Suite line,
+  // the TDS disclosure sentence, the state, and nothing per follower.
+  // THREE NEGATIVE CONTROLS: (a) a payout with no fund account never reaches
+  // the provider (zero calls); (b) a statement never contains a follower
+  // identifier (static scan of the builder); (c) a second `sent` transition
+  // on the same payout is refused by the WHERE.
+  //
+  // Offline, deterministic, $0, no DB, no network, no real provider.
+  payouts: "payouts/run.mjs",
+  // WS-R37, migration 099 (`vy_renewal_reminder`). The due-select's window
+  // and NOT EXISTS (one statement per subject kind, no `vy_room_follower`/
+  // `vy_room_thread` reference anywhere in this file), the insert-then-send
+  // idempotency (`recordAndSend`), the cancel op per subject kind through
+  // the seam (never immediately - `cancel_at_period_end`, distinct from
+  // `state`), and `renewedUnaskedCount`'s wired LEFT JOIN against the real
+  // `vy_creator_subscription`. THREE NEGATIVE CONTROLS: (a) a second sweep
+  // in the same day inserts nothing and sends nothing; (b) a cancelled (or
+  // cancel-at-period-end) subscription is never reminded; (c) a follower's
+  // reminder carries no message text of theirs (static scan).
+  //
+  // Offline, deterministic, $0, no DB, no network, no real provider, no GPU.
+  renewals: "renewals/run.mjs",
+  // WS-R38. THE DOOR BATTERY — every way into a Room, attacked offline,
+  // through the REAL decision modules the thin HTTP doors call (never a
+  // re-implemented check): forged/expired sessions, cross-Room sessions,
+  // body-supplied ids belonging to someone else, webhook replay and
+  // signature tampering, an owner bearer reaching for another owner's
+  // replica/org, rate-key malformation, invite-code guessing, and the OTP
+  // verify brute-force floor (re-asserting WS-R32). The door LIST is
+  // enumerated by a static rule (reads a request body AND imports one of
+  // the closed set of Room/owner-door decision modules, or is
+  // `api/account.js` by name) and asserted complete against `api/`'s own
+  // directory listing, so a new door cannot appear unattacked. Two real
+  // findings were fixed building it: the 12h session TTL was enforced on
+  // only three of ten-plus session-consuming ops (`assertSessionFresh` now
+  // shared by every one of them), and `api/room.js`'s `thread` op created
+  // rows with no check that a live, attested follower still existed for
+  // the session at all (`createFollowerThread`). See evals/room-doors/
+  // run.mjs's own header for the full account and what each fix closed.
+  //
+  // Offline, deterministic, $0, no DB, no network, no GPU, no model call.
+  "room-doors": "room-doors/run.mjs",
+  // WS-R46. The Room on a creator's own site — one script tag, one button.
+  // `api/embed.js` is Meera's precedent; this is the Room's own version,
+  // narrowed by one law that widget never carried: v0 never frames the
+  // Room, so a follower who clicks through always lands ON the Room, in a
+  // new tab, never inside a creator's page.
+  //
+  // The script is executed for real, with `new Function` against a
+  // hand-rolled DOM fake (no jsdom): a published Room renders the button,
+  // the SERVER's own disclosure text and the "?via=embed" link; a missing
+  // `data-room`, an unpublished Room and an unknown slug all remove the
+  // script's own tag rather than leaving a dead button behind, and the
+  // last two answer through the REAL `resolveRoom` with the IDENTICAL
+  // `{room:null}` shape — a page must never learn whether a slug exists.
+  // Three negative controls prove the checks bite rather than being
+  // vacuous: a second fetch target, a follower-table reference, and an em
+  // dash caught by the real `scripts/check-copy.mjs` scanner.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  "room-embed": "room-embed/run.mjs",
+  // WS-R47, migration 106: creators invite creators. Extends WS-R23's own
+  // front door (evals/invites/run.mjs) with a fresh, narrowly-scoped fake db
+  // rather than editing that file's own: `issueCreatorInvite`'s quota INSERT
+  // (three codes issue, a fourth is zero rows, an unpublished or draft-Room
+  // creator is refused the same way), `myInvites` (owner-scoped, states
+  // only, no code text, quota computed off the same rows it returns),
+  // redemption proven unchanged (a creator-issued code redeems through
+  // `createSelfReplica`'s own CTE, which never references `issued_kind`),
+  // and the funnel's one aggregate line (the n>=5 floor never discloses a
+  // smaller true number, "application OR replica" both count, an operator-
+  // issued redemption never does, and a redemption from before this week
+  // does not). Three NEGATIVE CONTROLS: (a) a body-supplied
+  // `issued_by_user_id` is ignored — a static scan proves both owner ops
+  // pass only the verified bearer's own id; (b) the stored row never
+  // carries the plain code — a static scan of the INSERT's own column list
+  // plus a fixture read; (c) an em dash or the word "clone" in a
+  // Share-tab-shaped fixture fails `scripts/check-copy.mjs`'s real scanner
+  // under `src/studio/`'s own SCOPES options.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "creator-invites": "creator-invites/run.mjs",
+  // WS-R45. The creator directory (`api/_creators.js`), the crawler feed
+  // (`api/_sitemap.js`) and the `list`/`unlist`/`set_bio` ops added to
+  // `api/_room-publish.js`, all driven through a fake `db`. Proves the
+  // directory's own predicate (listed AND published, never one without the
+  // other) holds for both readers; that the directory read never names a
+  // follower table or runs an aggregate over one (a static scan of its own
+  // source, so the guarantee cannot silently drift the way a comment could);
+  // that a non-owner's `list` is refused by the owner-scoped WHERE; and that
+  // a bio carrying an em dash or a Rooms-vocabulary word is refused by the
+  // REAL `scripts/check-copy.mjs` scanner rather than a second, hand-rolled
+  // regex. The directory's JSON-LD builder is pulled out of
+  // `site/creators.html`'s own real source text and executed, never
+  // reimplemented. Offline, deterministic, $0, no DB, no network, no model call.
+  "creator-directory": "creator-directory/run.mjs",
+  // WS-R48. SUITES SELL THEMSELVES — site/suites.html (the B2B front door,
+  // both locales), the self-serve "Start a Suite" flow (a name and a seat
+  // count survive a sign-in redirect through startSuiteDraft.ts's own
+  // localStorage pattern, `studioAuth.ts`'s `restoreStudioMode()` restated,
+  // and land in the EXISTING SuiteCard.tsx/orgApi.ts, never a new write
+  // path), the apply form's `intent:"suite"` (migration 107), and two ops
+  // board lines (`suitesFunnelThisWeek`). THREE NEGATIVE CONTROLS: (a) every
+  // currency-adjacent digit run on the page is one of api/_org.js's own two
+  // real per-seat prices, a static scan; (b) a seat count outside
+  // vy_org/vy_org_subscription's own CHECK (extracted from db/schema.sql) is
+  // refused by a fake db enforcing that CHECK standalone, not only by the
+  // JS bound that also happens to refuse it; (c) a poisoned copy fixture
+  // fails scripts/check-copy.mjs's real scanner in this file's own shape,
+  // and the real page scans clean under it.
+  //
+  // Offline, deterministic, $0, no DB, no network, no real provider, no GPU.
+  "suites-self-serve": "suites-self-serve/run.mjs",
+  // WS-R42, migration 104. "The money reconciles": `reconcile` (a pure
+  // function over rows - follower-lane ledger sum vs. payout gross minus
+  // suite share; the Suite lane recomputes `runPayoutRollup`'s OWN flat
+  // per-seat formula from `suiteRows` rather than comparing against an
+  // org-lane ledger sum, which is not the invariant that actually holds -
+  // see api/_payments.js's own header on `reconcile` for why; the creator
+  // lane is reported, never compared), the creator-tier charge ledger
+  // (`vy_creator_charge_event`, written inside `applyWebhook`'s creator lane
+  // in the SAME statement as the state flip, idempotent on `(provider,
+  // provider_charge_ref)`, only for a landed charge kind with a positive
+  // amount), and `scripts/check-mirrors.mjs` (every `// mirror of
+  // api/<file>.js#<NAME>` marker parsed on both sides). FOUR NEGATIVE
+  // CONTROLS: (a) one ledger row removed produces exactly one finding
+  // naming the Room and the difference in paise; (b) a payout's
+  // `suite_share_inr` for a Room not attached at period end is a finding;
+  // (c) the creator-tier charge for a seat-covered creator writes zero
+  // ledger rows, proven structurally (zero `vy_creator_subscription` rows,
+  // and the ledger's own FK makes a charge row impossible without one);
+  // (d) `check-mirrors` fails on a fixture pair that differs by exactly one.
+  //
+  // Offline, deterministic, $0, no DB, no network, no real provider.
+  "payments-reconcile": "payments-reconcile/run.mjs",
+  // WS-R40, migration 102. Share and arrival: the crawler-only unfurl at
+  // /r/<slug> (`api/_room-page.js` over `api/_room-publish.js`'s new
+  // `publicRoomBySlug`), the Room header's share control (a static scan of
+  // `RoomApp.tsx`'s own url builder), the arrival upsert
+  // (`recordRoomArrival`/`resolveArrivalVia`, `api/_room-surface.js`), and
+  // the creator funnel's own n>=5 floored growth line
+  // (`shareArrivalsThisWeek`, `api/_funnel.js`). Also proves `vercel.json`'s
+  // bot rewrite sits ABOVE the existing static one and its `has` regex
+  // matches every named unfurl bot and not an ordinary phone browser. FOUR
+  // NEGATIVE CONTROLS: (a) the share url builder names no follower id,
+  // session, or token, static; (b) a `via` shaped like SQL becomes 'direct'
+  // before it ever reaches SQL; (c) the funnel line below the floor is the
+  // fixed sentence, never a number; (d) a Hindi string with an em dash fails
+  // the real `scripts/check-copy.mjs` scanner.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-share": "room-share/run.mjs",
+  // WS-R55. The Room's pictures: `renderRoomCard`/`computeCardLayout`
+  // (`api/_room-card.js`) drawn with `@napi-rs/canvas` (not the
+  // `@resvg/resvg-js` the brief named — see that file's own header for the
+  // measured Devanagari shaping corruption that ruled it out) and the
+  // bundled `@expo-google-fonts/noto-sans-devanagari` face. Proves: the SVG
+  // for `en` and `hi`, both kinds (og/story), sized exactly to
+  // `ROOM_CARD_SIZES`; the identical-bytes rule (a paused Room and an
+  // unknown slug rasterise to hash-identical PNGs); every rendered line —
+  // name, bio, disclosure sentence, brand mark — scans clean under the REAL
+  // `scripts/check-copy.mjs` scanner; the ETag is stable, distinct per kind
+  // and per Room, and identical for every unpublished-or-unknown slug. TWO
+  // NEGATIVE CONTROLS: (a) a poisoned fixture carrying `row.follower_count`
+  // is caught by a static scan of this file's own `row.<field>` property
+  // access, which the REAL `api/_room-card.js`/`api/room-card.js` pass
+  // clean (only `display_name`/`one_line_bio`/`default_locale`); (b) a bio
+  // containing the banned word "clone" is caught by the real scanner when
+  // run through this file's own rendered text.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-card": "room-card/run.mjs",
+  // WS-R52, migration 112. The studio in Hindi: src/studio/copy.ts is a
+  // locale table with the SAME shape as src/room/copy.ts, reusing
+  // evals/room-locale/run.mjs's own proof shape rather than a second
+  // mechanism -- KEY PARITY (STUDIO_COPY_TABLE.en and .hi carry the exact
+  // same keys, asserted against the real export), a STATIC SCAN over every
+  // src/studio/*.tsx file for a JSX text node of three or more words that is
+  // not read from `t.` (an allowlist, justified entry by entry, for
+  // server-authored prose and the honesty-gated blockerClass.ts/
+  // QuickStartPath.tsx vocabulary copy.ts's own header names), the owner
+  // preference op's ownership predicate (`setOwnedReplicaLocale`, migration
+  // 112 -- an account can set only its own replica's locale, never another
+  // owner's), and scripts/check-copy.mjs's Devanagari bans reconfirmed live
+  // on src/studio/. THREE NEGATIVE CONTROLS: (a) a Hindi string with an em
+  // dash fails the dash rule; (b) a Hindi string containing क्लोन/मॉडल
+  // fails the rooms-vocabulary rule; (c) an owner attempting to set a
+  // SECOND account's replica locale writes nothing and the second account's
+  // row is unchanged.
+  //
+  // Offline, deterministic, $0, no network, no model call, no GPU. Runs
+  // against a fake db (no NEON_URL needed).
+  "studio-locale": "studio-locale/run.mjs",
+  // WS-R59: the installable Room. The per-Room manifest builder
+  // (`api/_room-manifest.js` over `api/_room-publish.js`'s `publicRoomBySlug`)
+  // for English and Hindi, proven byte-identical (SHA-256) to
+  // `public/room.webmanifest` for the unpublished/paused/unknown case; the
+  // REAL `public/room-sw.js` source statically scanned for the one law that
+  // must never break (no `/api/` response is ever reachable by a cache
+  // write), with a NEGATIVE CONTROL worker that does cache one; the
+  // second-visit/30-day-dismiss rule (`src/room/installPrompt.ts`, bundled
+  // from source with esbuild) driven with a fake storage, THROWING storage
+  // included; and the manifest builder's own copy against the real
+  // `scripts/check-copy.mjs` scanner, with a NEGATIVE CONTROL manifest
+  // string carrying a banned word.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU, no
+  // browser.
+  "room-install": "room-install/run.mjs",
+  // WS-R53, migration 110. The taste: three questions a stranger may ask a
+  // creator's AI before the sign-in wall, from creator material alone,
+  // remembering nothing. `roomTaste` (`api/_room-taste.js`) over the REAL
+  // `resolveRoom`/`gatedReply`/engine compile — three accepted turns then a
+  // named 429 from `api/_rate-limit.js`'s own `room_taste` scope, the
+  // disclosure carried on turn one only, the per-Room `taste_enabled` switch
+  // (migration 110), and a byte-diff proving the compiled prompt differs
+  // from a remembering follower's ONLY in the absence of follower memory —
+  // never in the agent material both lanes compile from. FOUR NEGATIVE
+  // CONTROLS: (a) a taste turn built to call a real follower-lane writer
+  // (`joinRoom`) fails the reach proof `evals/room-leak/run.mjs` runs, so
+  // this suite re-derives the identical proof rather than trusting a
+  // sibling file's result silently; (b) a fourth answer past the 3/day limit
+  // is refused before the model is ever reached; (c) a compiled prompt
+  // seeded with a fake follower memory string is caught by the byte-diff;
+  // (d) a Hindi disclosure string with an em dash fails the real
+  // `scripts/check-copy.mjs` scanner.
+  //
+  // Offline, deterministic, $0, no DB, no network, no GPU.
+  "room-taste": "room-taste/run.mjs",
+  // WS-R64. THE LIVE PROBE'S OWN OFFLINE PROOF. `scripts/probe-live.mjs`
+  // (NOT itself a gate -- it is a documented post-deploy step, see
+  // docs/gurukul/DEPLOY.md and AGENTS.md's deploy paragraph, run against a
+  // real base URL, which a gate must never touch) checks a REAL deployment
+  // for what the tree promised: vercel.json's headers[] per route class,
+  // the Room's crawler unfurl and its og.png/story.png/manifest, the
+  // installable manifest, /room-sw.js, /room-embed.js, the directory/
+  // suites/sitemap/robots/privacy/delete-account pages, POST /api/room's
+  // two safe refusals (unknown op, no session), GET /api/room-embed for an
+  // unknown slug, and all twelve cron sweeps refusing an unauthenticated
+  // caller -- every expectation parsed from THIS repo's own source
+  // (`scripts/probeLiveExpectations.mjs`), never a second literal.
+  //
+  // This suite proves the PROBE's own logic against `evals/probe-live/
+  // fakeServer.mjs` on 127.0.0.1:8940 (above 8935, so it never collides
+  // with the layout/performance/accessibility/headers gates' own ports): a
+  // well-behaved fixture yields zero findings; two NEGATIVE CONTROLS (a
+  // dropped header, a corrupted manifest byte) each produce exactly the
+  // finding that defect should; and a MUTATED copy of the real script,
+  // fed a third, disallowed POST op, is proven to refuse to run before
+  // ever touching the network -- the static self-scan the live script's
+  // own header promises, exercised rather than merely asserted.
+  //
+  // Offline, deterministic, $0, no DB, no real network (127.0.0.1 only),
+  // no model call, no GPU, no browser.
+  "probe-live": "probe-live/run.mjs",
+  // WS-R65: the creator's first five minutes, the Feed tab's own path card
+  // (`src/studio/CreatorPath.tsx`). The step order equals
+  // `api/_funnel.js#FUNNEL_STEPS` byte for byte (both derived from the SAME
+  // mirrored string, `CREATOR_PATH_STEPS_ORDER`/`FUNNEL_STEPS_ORDER`); the
+  // Readiness floors (70/55) mirror `api/_readiness.js` exactly;
+  // `computeCreatorPath` is fuzzed as a pure function over 2000+ input
+  // combinations (deterministic, a DONE prefix then at most one CURRENT
+  // then an AHEAD suffix, and the disappearance rule -- hidden once
+  // `room_published`, back only if paused -- holding across the whole
+  // space); TWO NEGATIVE CONTROLS run the REAL `scripts/check-mirrors.mjs`
+  // against a REORDERED step string and a wrong Readiness floor, proving
+  // the mirror gate the brief asks for actually bites a drift.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU, no
+  // browser.
+  "studio-path": "studio-path/run.mjs",
+  // WS-R67: FLAG THIS REPLY (migration 116). The boundary law driven through
+  // the REAL decision module (`api/_room-surface.js::flagReply`/
+  // `unflagReply`/`followerFlags`, `api/_review-queue.js::readFlaggedReplies`/
+  // `neverRuleFromFlaggedReply`), never a re-implemented check: the read-back
+  // that proves a flag's reply text came from this follower's OWN history
+  // (never the request body), the unique-index refusal for a second flag of
+  // the same reply, the creator's count grouped per reply hash (ten followers,
+  // one card, n=10), the two-lane erasure, and a NEGATIVE CONTROL that a
+  // body-supplied reply text never reaches the creator's lane.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-flags": "room-flags/run.mjs",
+  // WS-R66: the creator's public page (`/c/<slug>`, migration 115). Drives
+  // the REAL `api/_creator-page.js` (the listed-AND-published-AND-unpaused
+  // read, the pure HTML builder, the pure Person+FAQPage JSON-LD builder)
+  // and the REAL `api/_room-publish.js` (`setRoomShowcase`/
+  // `removeRoomShowcase`/`readRoomShowcase`) through a small hand-rolled
+  // fake db. THREE NEGATIVE CONTROLS, named in this workstream's own brief:
+  // (a) a review card whose `kind` is 'follower_declined' is refused as a
+  // showcase source, even when its `state` is 'sounds_right' - the WHERE
+  // clause `kind <> 'follower_declined'` is the column that tells a real
+  // follower's own words apart from creator material; (b) a sixth slot
+  // (`position = 6`) is refused before any SQL runs, and overwriting an
+  // occupied slot never yields six active rows (a fake-db 23505 proves the
+  // retiring UPDATE is not merely convention); (c) an unlisted Room's page
+  // is byte-identical to an unknown slug's. Also proves the em-dash/Rooms-
+  // vocabulary copy gate on showcase text via the REAL `scripts/
+  // check-copy.mjs` scanner, that `/sitemap.xml` carries `/c/<slug>` beside
+  // `/r/<slug>`, that `vercel.json` rewrites and headers `/c/:slug`, and a
+  // STATIC scan proving the showcase writer is reachable ONLY from the
+  // owner-authenticated `api/room-publish.js`, never any follower-facing
+  // file.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "creator-page": "creator-page/run.mjs",
+  // WS-R70. The creator's export (api/_creator-export.js, over api/replica.js's
+  // `export` op) — the DSAR pair api/_replica-full-erasure.js's own erasure
+  // is the other half of. STATIC: OWNER_LANE_TABLES is compared against
+  // api/_replica-full-erasure.js's own source text (every table it reaches
+  // by name, minus PERSON_TABLES and four named, deliberate gaps) so a
+  // table added to either file and not the other fails the gate. DYNAMIC:
+  // two owners, one of them a published Room with a real follower in it,
+  // through the real `creatorExport` — Owner A's export carries Owner A's
+  // own rows in every one of the seven scopes this file's manifest uses,
+  // zero of Owner B's, and zero follower-lane rows at all, even though a
+  // follower's own thread, membership, subscription, conversation and
+  // handoff ask all live in the SAME room/replica the export is scoped to.
+  // FOUR NEGATIVE CONTROLS: (a) a follower-lane table added to a COPY of
+  // the manifest's table list is caught by the boundary scan; (b) a table
+  // dropped from a COPY of the manifest is caught by the completeness
+  // comparison; an owner with no replica yet gets an honest empty export,
+  // never a crash; the HTTP door's own wiring (the op, the rate scope, the
+  // authenticated-user-only id) is asserted against the real source.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  "creator-export": "creator-export/run.mjs",
+  // WS-R74 (migration 118). The creator's weekly push (api/_creator-push.js,
+  // over api/replica.js's `push_subscribe`/`push_revoke` ops and the
+  // Monday-morning cron, api/creator-push-sweep.js) — WS-R62's operator
+  // push mechanism restated for a creator's own Room. CONFIG (unset VAPID
+  // reports honestly unconfigured, never a fake key). SUBSCRIBE/REVOKE
+  // through the real functions with a fake db, including a class-e NEGATIVE
+  // CONTROL (another owner's endpoint is untouched by a stranger's revoke
+  // call). PAYLOAD BUILDER: pure, parameter-list-bounded, a static scan
+  // proves it names none of this repo's follower-facing content columns.
+  // SWEEP: one push per published Room, sourced from a real Pulse world
+  // (readPulse's own `combo_buckets`, never a second query this file
+  // writes itself), with the ledger's own unique (room_id, week_start)
+  // index proven as the ONLY idempotency mechanism — a second sweep tick
+  // the same week sends zero further pushes, and an UNPUBLISHED or PAUSED
+  // Room is never selected at all. THREE NEGATIVE CONTROLS: (a) the payload
+  // builder's own static scan, (b) the ledger's WHERE refusing a same-week
+  // resend, (c) a 404/410 from the push service revoking that one
+  // subscription and never touching another.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "creator-push": "creator-push/run.mjs",
+  // WS-R76 (migration 120). The self-check cron: env presence by NAME only
+  // (mirrors scripts/write-config.mjs's own required/optional lists, kept
+  // in sync by a static parse of that file's own source, never an import —
+  // that file WRITES api/_config.js and calls process.exit at module
+  // scope), `select 1` through the real api/_db.js failure shape
+  // (`neon_url_missing` named exactly), a small explicit list of
+  // information_schema reads proving every migration family the tree ships
+  // is present in the live catalog, and every OTHER cron's own staleness
+  // against vercel.json's schedule (self-check's own row excluded).
+  // NEGATIVE CONTROLS: a fixture that reports an env value's length or a
+  // prefix of one fails a static leak scan of the real source; a database
+  // outage skips (c)/(d) rather than cascading false "table missing"
+  // findings; a missing migration table or column is reported by its own
+  // name; a healthy result records zero incidents.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "self-check": "self-check/run.mjs",
+  // WS-R79. Language tagging for screen readers — the detection primitive
+  // every `Localized` component and every server-side `langSpan` call
+  // defers to (`src/room/copy.ts#detectRoomTextLang`, `src/studio/
+  // copy.ts#detectStudioTextLang`), proven against every real translated
+  // leaf string in both copy tables plus the named edge cases (digits, a
+  // bare loanword, a matra-only fragment, mixed script), and `api/
+  // _creator-page.js`'s `buildCreatorPageHtml`, proven against a
+  // deliberately mismatched Room (Hindi name/bio/showcase, page requested
+  // in English) by parsing the real, shipping HTML output rather than
+  // trusting it by construction. The browser-based proof — a real rendered
+  // DOM, `scripts/check-accessibility.mjs`'s own `langTagAudit`, its
+  // always-on self-test, and this workstream's fired-and-reverted negative
+  // control — lives in that gate, not here; this suite is the offline half
+  // under it.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "lang-tag": "lang-tag/run.mjs",
+  // WS-R78. The QR encoder (`api/_qr.js`, pure JS, byte mode, EC level M,
+  // versions 1-10, no third-party runtime for the encoder itself — see
+  // that file's own header on why `qrcode` (npm) was measured and rejected
+  // in favour of writing it). GF(256) hygiene; Reed-Solomon divisibility
+  // (an independent polynomial-division routine, not `_qr.js`'s own,
+  // proving a valid codeword block IS divisible by its generator and a
+  // corrupted one is not); known-vector BCH format info (EC level M, all
+  // 8 masks) and BCH version info (versions 7-10) against the standard
+  // published tables; structural sanity across a version spread including
+  // one forced into 7-10; a self-consistency round trip on the
+  // format/version-info modules; and — the layer that actually matters —
+  // `jsqr` (npm, zero dependencies, a devDependency, never imported by
+  // `api/`) decoding REAL rasterised pixels back to the exact input text
+  // across versions 1/4/7/8 and four different masks. This suite's own
+  // header names the two real bugs (a byte-reversed Reed-Solomon generator
+  // polynomial, an MSB-first format-info write where the spec wants
+  // LSB-first) that every earlier, purely self-referential layer passed
+  // twice over while a real scanner could not read a single poster; see
+  // `context/rejected.md#ws-r78-reversed-rs-generator-polynomial-passed-every-self-check`.
+  // FOUR NEGATIVE CONTROLS: flipping one byte of a valid RS codeword block
+  // breaks divisibility; flipping one format-info module changes the
+  // recovered mask pattern; erasing a finder pattern's own pixels in the
+  // rendered PNG breaks the real scanner's read; `chooseVersion` throws
+  // one byte past every version 1-10's own capacity.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "qr": "qr/run.mjs",
+  // WS-R75 (migration 119). Dormancy: a follower who has not visited for a
+  // year is told, then forgotten with a receipt, on a schedule the follower
+  // can see, behind a flag that is off. Drives the REAL `dormancyNoticeDue`/
+  // `dormancyForgetDue`/`dormancySweep` (api/_dormancy.js) and the REAL
+  // `roomForgetForFollower` (api/_room-surface.js) over a fake db: a
+  // follower past the notice threshold gets a notice and only a notice; a
+  // follower past the forget threshold with no visit since is forgotten
+  // through the SAME delete sequence a follower's own "forget me" op uses;
+  // `ROOM_DORMANCY` unset runs neither statement. TWO NEGATIVE CONTROLS: (a)
+  // a forget attempted with no prior notice is refused by the predicate
+  // itself (never reaches roomForgetForFollower); (b) a follower who visited
+  // AFTER their notice is never forgotten, even though the notice column was
+  // never cleared - the predicate's own timestamp comparison, not a cleared
+  // column, is what protects them.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-dormancy": "room-dormancy/run.mjs",
+  // WS-R88 (migration 125). The operator's morning digest:
+  // `api/_operator-digest.js`'s `digestCounts` (the n>=5 follower floor,
+  // reading only already-aggregated fields off `opsOverview`'s own shape,
+  // never a Room's slug), `operatorDigestPayload` (the WS-R22 "parameter
+  // list is the enforcement" shape, a static scan proving its own source
+  // names no follower/Room-content column, the body under 200 characters),
+  // `sendOperatorDigest`'s ledger claim (the unique `day` index is the
+  // idempotency, a second sweep tick the same day sends nothing more),
+  // `sendTestOperatorDigest` (sends to the caller's own subscription only,
+  // writes no ledger row, refuses a bearer not on OPS_OWNER_USER_IDS even
+  // called directly), and `lastOperatorDigest`'s own board read. THREE
+  // NEGATIVE CONTROLS: a body carrying a Room's slug or display name is
+  // impossible by construction (static scan); a follower count under 5
+  // never appears as an exact number in the body; a bearer not on the
+  // operator allowlist calling `sendTestOperatorDigest` directly pushes to
+  // nobody.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "operator-digest": "operator-digest/run.mjs",
+  // WS-R87. Handoff v1 on the relational kernel: api/_relational-core.js,
+  // a dependency-free port of the sibling repo's disclosure-act evaluator
+  // (/home/user/Vyakti-GroupAI, packages/relational-core/src/privacy.ts).
+  // Test vectors ported by hand from that repo's privacy.test.ts and
+  // privacy-matrix.test.ts (commit 9cdc1dc), cited line by line: the closed
+  // act list, deny-always-wins, a grant bound to an exact policy_version,
+  // expiry as an exclusive boundary, and an independent-oracle cross-check
+  // (exhaustive here rather than fast-check's random sample, since this
+  // module has no such dependency). Two NEGATIVE CONTROLS the workstream's
+  // own brief names directly: a grant whose scope is another Room is
+  // refused; a deny beats a grant.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU,
+  // no import of the sibling repo (read on disk only, never required).
+  "relational-core": "relational-core/run.mjs",
+  // WS-R85 (migration 122). The share kit: one tap gives a creator the exact
+  // text and picture for WhatsApp, an Instagram bio, a YouTube description
+  // and a Telegram channel post, each carrying its own `?via=` (`api/_share-
+  // kit.js`'s pure `buildShareKit`, no db). Proves: all four channels, both
+  // locales, each under its own platform's real limit, url shaped
+  // `<origin>/r/<slug>?via=<channel>` with every channel a member of
+  // `api/_room-surface.js`'s `ROOM_ARRIVAL_VIA` (migration 122's own CHECK);
+  // the brief's own picture mapping (story for WhatsApp/Telegram, og for
+  // YouTube, none for Instagram); a Room that has never published gets no
+  // kit at all — nothing honest to share yet; a static scan proves no
+  // follower/session/person/thread identifier is reachable from this file's
+  // own code; and copy parity — `SHARE_KIT_COPY` is byte-identical, both
+  // locales, to the REAL `src/studio/copy.ts`/`hiCopy.ts` `shareKit` section
+  // (`evals/studio-locale/run.mjs`'s own esbuild-bundle technique). THREE
+  // NEGATIVE CONTROLS: (a) a text over its own channel's limit THROWS rather
+  // than truncating; (b) a follower-identifier fixture is caught by the same
+  // static scan the real file passes; (c) a drifted copy of one template is
+  // caught by the same parity comparator.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "share-kit": "share-kit/run.mjs",
+  // WS-R86 (migration 123). Follower referrals: "Bring a friend" mints a
+  // hash-bearing link (`referralHashFor`, `api/_room-surface.js`); the join
+  // op credits the referrer exactly once, on the joiner's genuinely FIRST
+  // join (the xmax-based new-row detection), never a repeat toggle; a
+  // self-referral (the joiner's own recomputed hash equals the `ref` they
+  // carried) is refused structurally in the WRITE's own WHERE clause, not
+  // a JS `if`. Drives the REAL `roomReferralLink`/`joinRoom`/`roomExport`
+  // (api/_room-surface.js), `friendsBroughtThisWeek`/`friendArrivalsThisWeek`
+  // (api/_funnel.js) over a fake db. THREE NEGATIVE CONTROLS: (a) a joiner
+  // presenting their own hash as `ref` writes zero referral rows; (b) a
+  // repeat join (the memory toggle) with the SAME `ref` still present in
+  // the caller mints no second row; (c) a malformed `ref` (wrong length,
+  // uppercase, SQL-shaped) never reaches the insert at all.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-referrals": "room-referrals/run.mjs",
+  // WS-R83. `docs/legal/HINDI-CONSENT-REVIEW.md` proposes Hindi for the six
+  // consent-ceremony studio files WS-R61/WS-R71 held back from Hindi
+  // conversion for legal review (context/decisions.md
+  // #ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text and
+  // #ws-r71-consent-ceremony-files-found-and-not-converted). This suite
+  // re-extracts every consent statement, checkbox label, ceremony heading,
+  // legend, primary action and boundary/refusal line from the REAL six
+  // files and asserts each lands in the document's English column (a future
+  // edit to a ceremony fails this suite until the document is updated), runs
+  // the REAL `scanSource` from scripts/check-copy.mjs over every proposed
+  // Hindi row (zero offences; a hand-built क्लोन row is the negative
+  // control), and cross-checks the document's cited statement_set/
+  // policy_version ids against the real exported constants that write them.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "consent-review": "consent-review/run.mjs",
+  // WS-R99. ADVERSARIAL FOLLOWER INPUTS THROUGH THE ONE DOOR. The leak
+  // battery (WS-R8, R68) proves retrieval never crosses scopes for ORDINARY
+  // turns; nobody had ever sent it a hostile one. `evals/room-adversarial/
+  // corpus.mjs` carries 64 hostile inputs (English and Hindi: prompt
+  // injection, requests for another follower's or the creator's private
+  // material by name and by position, role-play as the creator or an
+  // operator, requests to reveal the system prompt, homoglyph/zero-width
+  // unicode variants, and the two structural edges — oversized, empty),
+  // driven through the REAL follower lane (`api/_room-surface.js::roomSay`)
+  // and the REAL taste lane (`api/_room-taste.js::roomTaste`) in the full
+  // world (`evals/room-leak/world.mjs`'s own five Rooms, hundred followers),
+  // with the model seam replaced by a fake that returns its ENTIRE compiled
+  // prompt as the reply.
+  //
+  // The assertion is STRUCTURAL: the captured compiled prompt (what the fake
+  // model actually received and echoed) contains the speaking follower's own
+  // tokens only, never another follower's, never an operator string; a
+  // direct `engine.compile()` comparison proves the compiled prompt is
+  // byte-identical between a hostile turn and a same-length benign one
+  // except the substituted turn text; the never-rule matcher itself
+  // (`api/_never-rules.js`, `api/_surface.js::gateReply`) is proven directly
+  // to suppress a hostile-elicited forbidden phrase in the SAME shape a
+  // benign one gets — alongside a NAMED, HONEST GAP found while building
+  // this: neither `roomSay` nor `roomTaste` currently passes `neverRules`
+  // into `gatedReply` at all, so a creator's "Never say this" rule has ZERO
+  // EFFECT on `/r/<slug>` today, only on the widget and Mirror Call.
+  //
+  // TWO NEGATIVE CONTROLS, both proven to actually catch what they claim to:
+  // a struck recall (ignores person/agent scoping) DOES leak, caught by the
+  // same token scan; a non-echoing fake model's reply trivially scans clean
+  // (the vacuous-pass risk the workstream brief names by name), caught
+  // instead by a separate echo-completeness self-test that the broken fake
+  // fails and the real one passes.
+  //
+  // Registered as its OWN gate line rather than folded into `room-leak`'s
+  // own report (see `evals/room-adversarial/run.mjs`'s header for why): the
+  // Build section named two new files, not an edit to an already 2,100+
+  // line, heavily concurrently-edited shared file, and this suite's own
+  // method (a corpus, a fake-model echo harness, a direct compile() diff)
+  // is a different shape of proof than that file's token-scan layers.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-adversarial": "room-adversarial/run.mjs",
+  // WS-R94. THE FOLLOWER'S JOURNEY, REHEARSED END TO END: a real Chromium
+  // drives the REAL built Room (`dist/room.html`, the real `/c/<slug>`
+  // handler) through the REAL `api/room.js`/`api/creator-page.js` HTTP doors
+  // — `evals/rehearsal/harness.mjs` mounts them, unmodified, over a fixture
+  // database (`evals/room-doors/fixtures.mjs`, extended) via a Node
+  // module-resolution hook (`evals/rehearsal/loader.mjs`, `evals/agent-room/
+  // loader.mjs`'s own precedent) that redirects exactly `./_db.js`,
+  // `./_surface.js` (the model call only) and `./_auth.js` (Supabase auth
+  // only) — nothing else is faked. Every OTHER suite in this registry that
+  // drives `roomSay`/`roomTaste`/`joinRoom` calls them directly with its own
+  // `deps.loadAgent`/`deps.engine`/`deps.reply` overrides; this is the one
+  // caller that goes through the unmodified door with zero deps, which is
+  // exactly why it found what it found (see `context/rejected.md`'s
+  // WS-R94 entries and `context/decisions.md#ws-r94-harness-over-fixture-db-
+  // not-a-second-fake-server`).
+  //
+  // Open a stranger's taste on `/c/<slug>` (the static island) to its own
+  // ceiling; join `/r/<slug>?via=search` with the age attestation and
+  // memory consent; say three things; read a citation; open a thread; the
+  // account page (a real language switch, the disclosure, "Bring a
+  // friend"); a SECOND browser context opens the referral link and joins;
+  // export; forget. Three negative controls: a fourth taste turn refused
+  // server-side after the UI itself hides the input; exporting one
+  // follower's session with another follower's bearer refused (403); the
+  // forget-completeness check itself proven non-vacuous against a
+  // deliberately mutated state. Runs the ENGLISH walk here (gate budget,
+  // `measurements.md#ws-r94-rehearsal-wall-clock-2026-09-05` — under 30s
+  // including a real `vite build`); `node evals/rehearsal/follower.mjs
+  // --full` additionally runs the SAME 22 checks in Hindi (a real language
+  // switch from the taste screen's own header, not a fixture-only `?lang=`
+  // flag — `/r/<slug>` has no such flag). Gracefully skips (exit 0) if
+  // `playwright` is not installed, `scripts/check-accessibility.mjs`'s own
+  // posture. $0, no network beyond 127.0.0.1.
+  "rehearsal-follower": "rehearsal/follower.mjs",
+  // WS-R100 (migration 126). The follower's receipt: a number, the date,
+  // the Room, the amount split into its GST lines, the platform's legal
+  // name and GSTIN (or a named placeholder), in the follower's own
+  // language, built from the ledger and never from the provider's page.
+  // Proves the pure math (financial-year boundary, the VY/<FY>/<n> shape
+  // and Rule 46(b)'s sixteen-character cap enforced as a throw, gstSplit's
+  // own arithmetic identities), the counter's atomic claim under
+  // concurrency (two different claims land two different, sequential
+  // numbers; the same payment event claimed twice burns no second number),
+  // the builder in both locales including the honest placeholder path when
+  // the platform's own legal identity is unset, the scoped read through the
+  // real follower lane, and export. TWO NEGATIVE CONTROLS: a receipt for
+  // another follower's real payment_event_id is refused by the WHERE; a
+  // duplicate claim for one payment event is refused (no second row, no
+  // second counter number burned). Forget's own nullify door is proven
+  // statically against the real source (api/memory.js's `q` is imported
+  // directly from api/_db.js, not injectable) - see the final report for
+  // what remains for `EXPLAIN` against the live database.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-receipt": "room-receipt/run.mjs",
+  // WS-R95 (wave fifteen), folded onto `evals/rehearsal/harness.mjs` by
+  // WS-R109 (wave sixteen) — the separate `harness-creator.mjs` this
+  // comment used to name is retired, see that file's own header. The
+  // creator's journey rehearsed end to end: a real Chromium drives the REAL
+  // built studio (`dist/studio.html`) against `evals/rehearsal/harness.mjs`'s
+  // real local HTTP server (`kind: "creator"`), which routes to the REAL
+  // `api/replica.js`, `api/context-items.js`,
+  // `api/review-queue.js`, `api/readiness.js` and `api/room-publish.js`
+  // handlers over `evals/room-doors/fixtures.mjs`'s `rehearsalCreatorDb`
+  // fixture — sign in (a seeded session, never a real OTP), create a
+  // replica, add one text source, read Readiness locked below the floor,
+  // decide three review cards (Sounds right, Close fix it, Never say
+  // this), verify the resulting never-rule bites a matching reply through
+  // the REAL predicate function, publish the Room once Readiness is seeded
+  // to cross the floor, pick a showcase card, read the share kit, and
+  // download the export and read its manifest. FOUR NEGATIVE CONTROLS:
+  // publishing below the floor is refused (409, named by code); the
+  // eligible-showcase read never offers a follower-sourced card AND
+  // forcing one through the door is refused; an unrelated reply is not
+  // caught by the minted never-rule; the export carries zero rows for
+  // every follower-lane table it names. This suite made a real product
+  // finding: `readinessScreen`'s "knows_your_material" part can never be
+  // measured today (no recall-run writer exists anywhere in this tree), so
+  // NO replica can cross the publish floor through a real computation —
+  // crossing it here is a fixture SEED, the same shortcut
+  // `evals/room-publish/run.mjs`'s own fixture takes, confirmed by this
+  // suite to be the only reachable path rather than merely a convenient
+  // one. See `evals/rehearsal/creator.mjs`'s own header for the full list
+  // of what is driven through the browser's DOM versus through the
+  // harness's own HTTP door directly (both reach the identical real
+  // handler). WS-R109 (wave sixteen) found the Share tab's own real gate:
+  // `?mode=teacher` on the studio URL, not runtime activation (the earlier
+  // note here was wrong about the mechanism, right that something gated
+  // it) — with that query param set, the picker and the share kit's own
+  // "Copy" button are both driven through a real click. Runs the English
+  // walk only; set `REHEARSAL_FULL=1` to also run the Hindi walk (both
+  // locales pass; Hindi is not in this gate's own time budget). $0, no
+  // model call, no GPU; Chromium only (never `playwright install` —
+  // /opt/pw-browsers is pre-installed).
+  "rehearsal-creator": "rehearsal/creator.mjs",
+  // WS-R98. The operator digest/incident/self-check alert reaching
+  // Telegram, no migration: `api/_operator-telegram.js`'s
+  // `operatorTelegramChatIds`/`operatorTelegramConfigured` (pure, env
+  // only), `sendOperatorTelegram` over a fake Telegram client (`api/_room-
+  // telegram.js#sendRoomCheckinMessage`'s own fake-fetch shape reused, no
+  // new HTTP client), and the three real callers
+  // (`api/_operator-digest.js#sendOperatorDigest`,
+  // `api/_incidents.js#notifyNewIncidentKinds`,
+  // `api/_self-check.js#sendSelfCheckTelegramAlert`) each folding exactly
+  // one summary field into their own `withSweepRun` digest. THREE NEGATIVE
+  // CONTROLS: a chat id not on `OPS_TELEGRAM_CHAT_IDS` is never sent to
+  // (proven directly against every url a fake fetch was called with); a
+  // 429/5xx is never recorded as a `provider_telegram` incident (only
+  // 403/400 are, and they remove nothing from the env-backed list); a body
+  // carrying a forbidden content name (a Room's slug, among others) fails a
+  // runtime content scan and sends zero messages to any chat.
+  //
+  // Offline, deterministic, $0, no DB, no network (every fetch is a fake),
+  // no model call, no GPU.
+  "operator-telegram": "operator-telegram/run.mjs",
+  // WS-R96: the day-one runbook (`docs/gurukul/DAY-ONE.md`) and its script
+  // (`scripts/day-one.mjs`). Proves `scripts/dayOneRunbook.mjs#parseRunbook`
+  // against the REAL runbook table (never a retyped copy), including the
+  // REQUIRED NEGATIVE CONTROL — a row whose Proving Command cell is blanked
+  // out fails the WHOLE parse, not one row of it — plus a second control for
+  // a dropped column. Then drives the REAL `scripts/day-one.mjs` as a
+  // subprocess against `evals/day-one/fakeServer.mjs` (a thin wrapper around
+  // the REAL `evals/probe-live/fakeServer.mjs`, reusing its server code
+  // rather than a second copy) in three self-check states — stub config,
+  // half configured, complete — asserting the exact per-step done/blocked
+  // verdicts each state should produce, that every `manual:` row is always
+  // `unknown` and never silently "done", and that the exit code always
+  // matches whether any row is blocked. Two more cases: no operator bearer
+  // given (every `self-check:` row degrades to `unknown`, probe-live rows
+  // are unaffected) and an unreachable base URL (never crashes, never claims
+  // a step is done).
+  //
+  // Offline, deterministic, $0, no DB, no real network (127.0.0.1 only), no
+  // model call, no GPU, no browser.
+  "day-one": "day-one/run.mjs",
+  // WS-R97. The follower's transparency page (`/r/<slug>/about`, no
+  // migration): what this AI knows about you, what the creator can see,
+  // how long it is kept, what a referral link carries, the free cap and
+  // what a paid tier adds, all read from the Room's own row and imported
+  // (never mirrored-by-literal) platform constants. Drives the REAL
+  // `api/_room-about.js` (`publicRoomAboutBySlug`/`buildRoomAboutHtml`)
+  // over a fake db. Proves: (1) the predicate is published+unpaused,
+  // deliberately NEVER `listed_at`-gated, unlike `/c/<slug>`; (2) the
+  // builder is pure, both locales; (3) every number on the page is the
+  // real imported constant (`PULSE_MIN_FOLLOWERS`, `DORMANCY_GRACE_DAYS`,
+  // the three room cap constants), checked both by rendered value and by a
+  // static import-source scan; (4) the retention section reads the Room's
+  // own `dormancy_days`, with different content when it is null; (5) the
+  // WS-R90 hreflang/x-default/og:locale shape; (6) vercel.json carries the
+  // rewrite (ordered before the generic `/r/:slug` catch-all) and the
+  // headers entry. NEGATIVE CONTROL: an unpublished Room, a paused Room,
+  // and an unknown slug all render BYTE IDENTICAL platform-only output,
+  // while a published-but-UNLISTED Room does not (this page's own
+  // predicate deliberately differs from `/c/<slug>`'s here).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-about": "room-about/run.mjs",
+  // WS-R103 (no migration). The receipt backfill sweep: `backfillReceipts`
+  // (api/_payments.js) finds every landed follower-lane charge
+  // (`CREATOR_CHARGE_KINDS`, amount > 0, room_id not null) with no
+  // `vy_receipt` row and issues one through the SAME `issueFollowerReceipt`
+  // WS-R100's own webhook path uses, carrying the CHARGE's own `received_at`
+  // as `issued_at`, never the sweep's clock. Also drives
+  // `receiptsIssuedLateThisWeek` (api/_ops.js), the ops board's own rolling
+  // 7-day read of the daily `receipt` cron's own `vy_sweep_run` history.
+  // TWO REQUIRED NEGATIVE CONTROLS: a version of the same select with the
+  // KIND filter removed would sweep a non-charge event with a positive
+  // amount, and a version with the ROOM_ID filter removed would sweep an
+  // org-lane charge - both proven against the identical fixture rows the
+  // real, filtered select leaves untouched. Also proves the table gate (an
+  // unapplied `vy_receipt` costs one boolean check, never a query), the
+  // caller-supplied `limit` bounding one run's own work, oldest-first
+  // ordering, and idempotency (a second run over the same rows issues
+  // nothing new).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "receipt-sweep": "receipt-sweep/run.mjs",
+  // WS-R110. Voice replies on Telegram: `roomSpeak` (WS-R19) reused by
+  // import, never a second synthesis path, bound to the SAME reply
+  // `roomSay` just delivered, metered by the SAME per-second ceiling, sent
+  // through Telegram's `sendVoice` wrapped in a real (never re-encoded)
+  // WAV container (`pcmToWavBuffer`, api/_room-voice.js). `/voice on` and
+  // `/voice off` are parsed and answered honestly rather than persisted —
+  // no available column exists on the channel pointer row or on
+  // `vy_room_follower`'s own settings shape without a migration this
+  // workstream does not have
+  // (`context/rejected.md#ws-r110-room-telegram-voice-preference-no-
+  // available-column`) — and neither command ever reaches `roomSay` or
+  // spends a follower's monthly cap. A free follower's ordinary message
+  // never reaches synthesis (NEGATIVE CONTROL, struck deliberately); the
+  // ceiling refusal sends a capped card at most once a day; a genuine
+  // synthesis failure records one incident (the existing `door_5xx` kind)
+  // and sends nothing, since the text reply has already arrived by then.
+  //
+  // Offline, deterministic, $0, no DB, no network, no Telegram call, no
+  // model call, no GPU.
+  "room-telegram-voice": "room-telegram-voice/run.mjs",
+  // WS-R104, migration 128 (`vy_room_follower_whatsapp_chat`). The Room on
+  // WhatsApp: `api/_room-telegram.js`'s own design over the Cloud API,
+  // reusing `api/_room-whatsapp.js`'s webhook verify and the ONE WhatsApp
+  // Business number. The phone number is never written — `phoneHash` is a
+  // salted sha256, stable (never rotated the way `api/_rate-limit.js`'s own
+  // hash is), proven deterministic and salt-sensitive. The join flow over
+  // WhatsApp reply buttons (`a1`/`a0`/`m1`/`m0:<slug>`, Telegram's own
+  // callback-data shape restated on a wire with no persisted "pending step"
+  // column at all), the two-question gate's atomicity, a phone with no
+  // pointer NEVER creating a person before `join <slug>` completes it, three
+  // ordinary turns through the REAL follower lane and the free cap (both
+  // PAYMENTS_PROVIDER states), the 24-hour session window driven through the
+  // SHIPPING sender (`api/_room-whatsapp.js`'s new `sendSessionMessage`) with
+  // a fake fetch and a fake clock — proving zero network calls outside the
+  // window and a real Cloud API body inside it — a redelivered message id
+  // being a database-free no-op (with a negative control proving a DIFFERENT
+  // id from the same phone is not), and `stop` (marks, never deletes) versus
+  // `forget` (the pointer row gone for real, the receipt issued). The
+  // cross-follower isolation proof for this transport (two phones, one Room,
+  // byte-checked) is layer 14 of the room-leak battery, not duplicated here.
+  //
+  // Offline, deterministic, $0, no DB, no network, no Meta call, no model
+  // call.
+  "room-whatsapp-chat": "room-whatsapp-chat/run.mjs",
+  // WS-R105. ADVERSARIAL CREATOR MATERIAL. `evals/room-adversarial/run.mjs`
+  // (WS-R99) attacked the Room from the FOLLOWER's side; nobody had attacked
+  // it from the CREATOR's — the one direction the product's own definition
+  // says MUST reach every follower ("creator material flows down to
+  // everyone", AGENTS.md). `evals/room-adversarial-creator/corpus.mjs`
+  // carries 41 injectable hostile passages (English and Hindi: instruction
+  // override, fake system-prompt framing, role reassignment, exfiltration
+  // bait, another creator's name and slug, secret-shaped strings,
+  // homoglyph variants), injected one at a time into the REAL, VERIFIED-
+  // reachable sheet fields `sheetToModule -> buildSystemPromptParts` reads
+  // on the Room's own text lane, compiled through the REAL, freshly-bundled
+  // compiler (`evals/room/fixtures.mjs`'s `loadFixtureAgent`), and driven
+  // through the REAL `api/_room-surface.js::roomSay` with WS-R99's own
+  // echo-everything fake model.
+  //
+  // THE CENTRAL, MEASURED FINDING (full reasoning in `run.mjs`'s own
+  // header, and `context/rejected.md#no-material-instruction-boundary-in-
+  // the-compiler`): reading `src/engine/persona.ts` and
+  // `src/engine/compiler.ts` end to end finds NO structural block
+  // separating creator-authored sheet content from instruction text on this
+  // lane — every field is concatenated directly into an instruction
+  // sentence or appended as a bare, unlabelled paragraph. Measured on all
+  // 41 corpus entries: 41/41 reach the compiled prompt, 0/41 land inside
+  // any kind of labelled, data-only block. The suite proves its own
+  // boundary-detection method is not vacuous first (law 3's two negative
+  // controls, against two TOY compiler twins built for exactly that — the
+  // real compiler has no block to twin), then measures the delivered-reply
+  // consequence directly: of 5 secret-shaped-string entries driven through
+  // the real `roomSay` and honesty gate, the exact leak count is measured
+  // and logged (`context/measurements.md#ws-r105-secret-shaped-material-
+  // leak-rate`) rather than assumed either way.
+  //
+  // `api/_material-detector.js` (moved here from this directory's own
+  // `detector.mjs` by WS-R112, unchanged) is the mitigation this finding
+  // leaves room for: a pure, no-model-call, NFKC-normalised regex detector
+  // (WS-R89's own precedent) measured at 100% recall on the corpus and 0%
+  // false positives on a benign-source sample crafted to trap a naive
+  // keyword match. WS-R105 could not ship it as a review-queue card kind —
+  // migration 074's `kind` CHECK was a closed four-value list and that
+  // workstream carried no migration, so law 4's own contingency ("if a
+  // migration would be needed, do not add the card, log why") applied
+  // regardless of the measured rate. WS-R112 (migration 129) shipped it:
+  // `api/_context-mining.js` runs the detector over every newly mined
+  // item's text and `api/_review-queue.js::persistInstructionShapedCard`
+  // writes one `kind='instruction_shaped'` card per flagged source; see
+  // `context/decisions.md#ws-r112-instruction-shaped-is-a-review-card-not-
+  // a-runtime-filter`.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-adversarial-creator": "room-adversarial-creator/run.mjs",
+  // WS-R108. The follower's READABLE export: one printable HTML document
+  // (both locales, no script, no external resource, A4 print stylesheet),
+  // built from `roomExport`'s (`api/_room-surface.js`) own return value by
+  // the pure builder in `api/_room-export-readable.js`. Proves: (1) static
+  // completeness — every table `roomExportManifest()` can name has a
+  // sentence in both locales in the builder's own copy table, and the
+  // reverse (no orphan entry); (2) the runtime negative control the
+  // workstream brief's law 4 asks for — a table present in an export result
+  // but absent from the copy table throws, named; (3) both locales render
+  // from the same real export, with the right `<html lang>` and no script/
+  // external resource; (4) the language walk — every rendered `<th>`/`<td>`/
+  // `<span>` carries a `lang` attribute matching its own text's actual
+  // script (WS-R79's law, `evals/lang-tag/run.mjs`'s own regex method
+  // applied to this page); (5) two followers in the same room, byte-checked:
+  // neither's readable page carries the other's secret token or person id.
+  // Two negative controls beyond the workstream brief's own one: a struck
+  // copy entry is caught by the static diff, and a deliberately mistagged
+  // node is caught by the language walk.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-export-readable": "room-export-readable/run.mjs",
+  // WS-R101. The recall run: Readiness's `knows_your_material` part gets its
+  // writer. `generateRecallSet` (deterministic, zero model calls) over a fake
+  // db's mined context items, approved review cards and transcribed
+  // interview answers; `scoreAnswer` (pure, 0-100) with its own negative
+  // control (order-blind scoring cannot tell an echo from the same words
+  // shuffled); `scoreRecallRun`/`runRecallMeasurement` driven through the
+  // REAL compiled agent (`api/_engine.gen.js`, the DEMO_TEACHER fixture
+  // sheet) with a fake `reply`; the rate predicate and the supersede-on-
+  // insert, both against a fake db with a controllable clock; `readRecallRun`
+  // reading the stored row back; and the capstone `evals/room-doors`/
+  // `evals/readiness` cannot prove alone — the publish lock crossing through
+  // a REAL recall run in the fixture world, no seed of `vy_replica_readiness`
+  // itself, superseding `context/decisions.md#ws-r95-readiness-floor-
+  // crossing-is-seeded-never-computed`'s own reversal condition.
+  //
+  // Offline, deterministic, $0, no network beyond the local esbuild bundle
+  // step (fixture-only, no external fetch), one real compiled-agent call
+  // path exercised with a fake reply — no live model call, no GPU.
+  "recall-run": "recall-run/run.mjs",
+  // WS-R116. `scripts/envManifest.mjs`'s own parser of `docs/gurukul/
+  // ENV-MANIFEST.md`'s markdown tables into `{name, section, sectionTitle,
+  // target, required}`: the real document parses to n names with no
+  // duplicates, every name matching `^[A-Z][A-Z0-9_]+$`, a hand-verified
+  // sample of known names present with the right section/target, a
+  // multi-name cell (`REPLICA_PROVIDER_CONSENT_KEK_ID` / `..._KEK_B64`)
+  // splitting into two entries sharing one row's `required`, and a name
+  // documented in more than one section (`AZURE_FACE_LIVENESS_LIMITED_
+  // ACCESS_APPROVED`, §4 and §5) collapsing to ONE entry whose `target` is
+  // the union of both. `scripts/build-env-manifest.mjs`'s own freshness
+  // check (`--check`) against the real committed `api/_env-manifest.gen.
+  // json` — this suite's own "generated file must be fresh" gate, folded
+  // into the existing `eval suite` check per this workstream's brief rather
+  // than a new named gate in `scripts/verify-release.mjs`. THREE NEGATIVE
+  // CONTROLS: an env-var table header appearing before any section heading
+  // throws; a row with the wrong cell count throws; a malformed name cell
+  // (unbalanced backtick, a name not matching the NAME_RE) throws; a
+  // document with zero env-var tables throws rather than returning `[]`
+  // silently.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "env-manifest": "env-manifest/run.mjs",
+  // WS-R117. The Suite admin's transparency page (`/suites/about`, no
+  // migration): what a Suite is, what an admin sees once they attach a
+  // Room, what an admin never sees, what happens to a Room when a Suite
+  // lapses (WS-R33's own law: kept, none admitted), and the seat price, all
+  // read from imported (never mirrored-by-literal) platform constants.
+  // Drives the REAL `api/_suites-about.js` (`buildSuitesAboutHtml`) — a
+  // pure builder with no `db` argument at all, unlike `/r/<slug>/about`
+  // one surface over, since this page is not slug-scoped and reads no row.
+  // Proves: (1) the builder is pure, both locales, `?lang=` picks the
+  // locale; (2) every number on the page is the real imported constant
+  // (the seat prices, `PULSE_MIN_FOLLOWERS`), checked both by rendered
+  // value and by a static import-source scan; (3) the WS-R90/WS-R97
+  // hreflang/x-default/og:locale shape; (4) vercel.json carries the
+  // rewrite and the headers entry, CSP with no unsafe-inline/unsafe-eval
+  // script-src; (5) no em dash/en dash in either locale's body; (6) a
+  // static import scan proving this file reads nothing from any follower
+  // table (no `./_db.js` import, an allowlist of the four platform-
+  // constant modules it may import); (7) `scripts/check-copy.mjs`'s real
+  // scanner run directly against both locale renders, with a NEGATIVE
+  // CONTROL proving it actually fires on a poisoned fixture.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "suites-about": "suites-about/run.mjs",
+  // WS-R127 (migration 132). The Suite admin's weekly note
+  // (api/_org-weekly-note.js, over api/org.js's new "send_test_weekly_note"
+  // op and the Monday-morning cron, api/org-weekly-note-sweep.js) —
+  // api/_creator-push.js's own mechanism restated for the ADMIN lane
+  // instead of the creator lane, reusing that file's own push-subscription
+  // table (workstream brief: "WS-R74's table shape reused"). FLOOR: a Room
+  // under 5 followers this week is `followers_joined_7d: null` /
+  // `followers_joined_below_floor: true` in the very object
+  // `buildOrgWeeklyNote` returns — never a raw number below the floor
+  // anywhere downstream, at the floor boundary itself and one below it.
+  // PAYLOAD BUILDER: pure, parameter-list-bounded (takes only the
+  // already-floored note object), a static scan proves it names none of
+  // this repo's follower-facing content columns (evals/room-leak/run.mjs's
+  // own layer 16 restates the identical scan as a leak-battery layer).
+  // LEDGER: the unique (org_id, week_start, channel) index proven as the
+  // ONLY idempotency mechanism, per channel independently — a second sweep
+  // tick the same week sends zero further pushes on 'push', and claiming
+  // 'push' does not consume 'email' or vice versa. EMAIL SEAM
+  // (api/_email-seam.js): `emailSeamConfigured` is unconditionally false
+  // (no address, no provider, no new env var — this workstream's own
+  // brief), and `recordWouldSendOrgWeeklyNoteEmail` is proven to make no
+  // network call at all (a static import scan of api/_email-seam.js itself
+  // — no fetch, no transport library). ADMIN OP: "Send a test note now"
+  // sends to the CALLING admin's own subscriptions only and writes no
+  // ledger row, with a class-e NEGATIVE CONTROL (a non-admin's call is
+  // refused org_not_found, 404, before any push is attempted).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "org-weekly-note": "org-weekly-note/run.mjs",
+  // WS-R128. The self-test of THIS file's own concurrency core: two fake
+  // suites (never the real 213) prove registry-order printing survives
+  // out-of-order completion, and exit codes aggregate the same way whether
+  // a suite fails on the first worker to grab it or the last. See
+  // evals/registry-runner/run.mjs's own header for why two fakes rather
+  // than a slice of the real registry — the real registry is exactly what
+  // this suite must stay decoupled from to be trustworthy.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, ~1s.
+  "registry-runner": "registry-runner/run.mjs",
+  // WS-R129 ("quiet hours on every channel"). `api/_quiet-hours.js`'s own
+  // shared fragment (`quietHoursOkSql`/`quietHoursOkForFollowerSql`), and a
+  // static scan proving it is actually spliced into every named proactive
+  // due-select: `api/_checkins.js`'s two sweep statements and
+  // `api/_renewals.js`'s follower reminder select and `api/_dormancy.js`'s
+  // notice-due statement all carry the module's own `QUIET_HOURS_MARKER`
+  // literal in the real SQL text they build, driven with a fake `db` that
+  // records every statement rather than re-typed and hand-matched. TWO
+  // REQUIRED NEGATIVE CONTROLS: a frozen copy of the follower due-select's
+  // WHERE clause exactly as it read before this workstream (no marker) is
+  // asserted to FAIL the same scan, and `quietHoursOkForFollowerSql` on a
+  // follower with zero active check-ins never blocks a send (the proxy's
+  // own "no data, no gate" rule, `api/_quiet-hours.js`'s header). Also the
+  // pure predicate's own math: a plain window and a midnight-wrapping one,
+  // each checked at the four boundary instants the workstream brief names
+  // (21:59/22:01/06:59/07:01, follower's own zone).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "quiet-hours": "quiet-hours/run.mjs",
+  // WS-R134. `evals/lib/source-scan.mjs`'s own suite: a self-test of the
+  // shared comment-stripping tokenizer (`stripComments`/`sqlTextOf`/
+  // `opLiteralsOf`/`importsOf`), one frozen fixture per historical trap
+  // this workstream's brief names (room-leak's scope-gate, readiness's
+  // paired-backtick desync, a scanner's own header comment tripping its
+  // own banned-substring check, the door-battery's account-block regex,
+  // room-doors' op/format extraction, shapes.mjs's bodyFieldsOf), each
+  // built to fail under the OLD raw-text behaviour and pass under the new
+  // one, and a PARITY check running evals/room-leak/run.mjs, evals/
+  // readiness/run.mjs, evals/incidents/run.mjs and evals/room-doors/run.mjs
+  // both normally and with their own `--legacy` flag, diffing the two
+  // (byte-identical on the real tree today, modulo fresh UUIDs/timestamps).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "source-scan": "source-scan/run.mjs",
+  // WS-R138. The creator's PRINTABLE payout statement:
+  // `api/_payout-statement-readable.js`'s pure `buildPayoutStatementReadableHtml`,
+  // `room-export-readable`'s own precedent restated for money instead of a
+  // memory export. Proves: (1) PARITY over 60 generated periods - every one
+  // of the four numbers, the Suite share (when nonzero) and the referral-
+  // rewards line (when nonzero) appears in the rendered document as the
+  // SAME rupee figure the statement object carries, and the reused
+  // `_receipt.js#gstSplit` breakdown of the platform's take sums back to
+  // `take_inr` exactly; (2) a REQUIRED NEGATIVE CONTROL - the parity checker
+  // catches a statement number perturbed AFTER the document was rendered,
+  // proving it is not vacuously permissive; (3) no `<script>` tag in any
+  // rendered document; (4) both locales render, `<html lang>` set, the TDS
+  // disclosure sentence present verbatim (`TDS_DISCLOSURE_SENTENCE`, never
+  // re-typed) and tagged `lang="en"` in the Hindi render.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "payout-statement-readable": "payout-statement-readable/run.mjs",
+  // WS-R137 (migration 136). The follower's monthly note
+  // (api/_room-month-note.js, over api/room.js's new "month_note" op and the
+  // daily cron, api/room-month-note-sweep.js) — built from the follower's
+  // own lane alone, never a model call. BUILDER: `computeFollowerMonthNote`
+  // takes no import of its own (a static scan of its own extracted source
+  // proves it), floor-free (unlike api/_org-weekly-note.js's admin-facing
+  // count, there is no n>=5 floor here — this note is shown back to the
+  // SAME person the rows are about). STREAK: consecutive-day math checked
+  // against a real gap. MEMORY PREDICATE: a follower with memory off gets
+  // `remembered_things_count: null`, the same `memory_consent_at is not
+  // null` check the reply lane uses. IDEMPOTENCY: the unique (follower_id,
+  // room_id, month_key) index is the whole mechanism, proven with an
+  // in-memory ledger. QUIET HOURS: the due-select carries
+  // `QUIET_HOURS_MARKER`, with a required negative control (a struck copy
+  // with the splice removed does NOT carry it). REQUIRED NEGATIVE CONTROL:
+  // the builder handed a world with a SECOND follower's rows in the same
+  // table refuses them by its own WHERE clause; a struck copy with that
+  // clause removed DOES leak the other follower's count — proving the check
+  // is real. `evals/room-leak/run.mjs`'s own layer 17 restates the two-
+  // follower world check as a release-gate layer.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-month-note": "room-month-note/run.mjs",
 };
-const pick = process.argv[2];
+
+const argv = process.argv.slice(2);
+const serial = argv.includes("--serial");
+const pick = argv.find((a) => !a.startsWith("--"));
+
+if (pick) {
+  // Single-suite mode: always direct, regardless of --serial. Nothing to
+  // pool when there is exactly one suite.
+  if (!(pick in suites)) {
+    console.error(`no such suite: ${pick}`);
+    process.exit(1);
+  }
+  const r = await runSuiteFile(pick, join(HERE, suites[pick]), { cwd: ROOT });
+  process.stdout.write(r.output);
+  process.exit(r.ok ? 0 : 1);
+}
+
+if (serial) {
+  // The negative control's baseline: the ORIGINAL loop, unchanged, so a
+  // side-by-side run proves the pool changes wall clock and nothing else.
+  let failed = 0;
+  const failedSuites = [];
+  for (const [name, file] of Object.entries(suites)) {
+    console.log(`\n── ${name} ──`);
+    try {
+      execSync(`node ${join(HERE, file)}`, { stdio: "inherit", cwd: ROOT });
+    } catch {
+      failed++;
+      failedSuites.push(name);
+    }
+  }
+  if (failedSuites.length) console.error(`\nfailed suites: ${failedSuites.join(", ")}`);
+  process.exit(failed ? 1 : 0);
+}
+
+// Parallel default. Three groups, in this order:
+//  1. PRE_POOL_SUITES — the dist/ writers — run serially, fully, before
+//     anything else starts (see runner-lib.mjs's header for why this is
+//     stricter than the port lane below rather than merged into it).
+//  2. PORT_LANE_SUITES — the fixed-port suites — run one at a time, but
+//     concurrently WITH the pool, since their ports never collide with a
+//     pool suite (none binds 8940/8941/8945) or with each other.
+//  3. Everything else — the pool, sized by pickWorkerCount().
+const entries = Object.entries(suites).map(([name, file]) => ({ name, file: join(HERE, file) }));
+const preSet = new Set(PRE_POOL_SUITES);
+const portSet = new Set(PORT_LANE_SUITES);
+const preEntries = entries.filter((e) => preSet.has(e.name));
+const portEntries = entries.filter((e) => portSet.has(e.name));
+const poolEntries = entries.filter((e) => !preSet.has(e.name) && !portSet.has(e.name));
+
+// A name in PRE_POOL_SUITES/PORT_LANE_SUITES that no longer matches a real
+// suite key (a typo, or a suite renamed without updating runner-lib.mjs)
+// must fail loudly here rather than silently promote a shared-file writer
+// or a fixed-port suite into the general pool.
+if (preEntries.length !== PRE_POOL_SUITES.length || portEntries.length !== PORT_LANE_SUITES.length) {
+  console.error(
+    `runner-lib.mjs names a suite that is not in the registry: ` +
+      `PRE_POOL_SUITES matched ${preEntries.length}/${PRE_POOL_SUITES.length}, ` +
+      `PORT_LANE_SUITES matched ${portEntries.length}/${PORT_LANE_SUITES.length}`,
+  );
+  process.exit(1);
+}
+
+const resultByName = new Map();
+const onDone = (r) => {
+  resultByName.set(r.name, r);
+  console.log(`  ${r.ok ? "ok  " : "FAIL"}  ${r.name} (${r.ms}ms)`);
+};
+
+console.log(`\n── pre-pool (dist/ writers, serial): ${PRE_POOL_SUITES.join(", ")} ──`);
+await runPool(preEntries, 1, { cwd: ROOT, onDone });
+
+const workers = pickWorkerCount();
+console.log(
+  `\n── pool (${workers} workers) + port lane (serial: ${PORT_LANE_SUITES.join(", ")}), ${poolEntries.length} pooled suites ──`,
+);
+await Promise.all([
+  runPool(poolEntries, workers, { cwd: ROOT, onDone }),
+  runPool(portEntries, 1, { cwd: ROOT, onDone }),
+]);
+
+// Printed whole, in REGISTRY order, once the run is complete — a failure
+// reads the same as it did under the old serial loop, because the text a
+// failing suite produced is printed under its own `── name ──` header
+// exactly as before, just after the fact rather than live.
 let failed = 0;
 const failedSuites = [];
-for (const [name, file] of Object.entries(suites)) {
-  if (pick && pick !== name) continue;
+for (const [name] of Object.entries(suites)) {
+  const r = resultByName.get(name);
   console.log(`\n── ${name} ──`);
-  try {
-    execSync(`node ${join(HERE, file)}`, { stdio: "inherit", cwd: ROOT });
-  } catch {
+  process.stdout.write(r.output);
+  if (!r.ok) {
     failed++;
     failedSuites.push(name);
   }

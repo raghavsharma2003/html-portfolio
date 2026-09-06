@@ -46,10 +46,13 @@ node scripts/ota-bundle.mjs
 # to the teacher studio instead of serving the companion landing — one build,
 # two products, the difference is a per-project env var, never a branch.
 mv dist/index.html dist/chat.html
-# Studio-root when explicitly flagged OR when this is a gurukul-platform build
-# (the vyakti product's branch) — so the replica project shows the studio at /
+# Studio-root when explicitly flagged OR when this is a platform-branch build
+# (claude/gurukul-platform, or any claude/vyakti-cloning-platform-* ref: the
+# vyakti product's branch family, matched as a pattern so a rename inside the
+# family needs no script change) — so the replica project shows the studio at /
 # with no per-project env var, while the companion branch keeps Meera's landing.
-if [ "${STUDIO_ROOT:-}" = "1" ] || [ "${VERCEL_GIT_COMMIT_REF:-}" = "claude/gurukul-platform" ]; then
+case "${VERCEL_GIT_COMMIT_REF:-}" in claude/gurukul-platform|claude/vyakti-cloning-platform-*) PLATFORM_BRANCH=1 ;; *) PLATFORM_BRANCH=0 ;; esac
+if [ "${STUDIO_ROOT:-}" = "1" ] || [ "$PLATFORM_BRANCH" = "1" ]; then
   # Vyakti's own landing, not a redirect. `/` used to be a one-line meta
   # refresh into /studio?mode=teacher, which meant the product had no
   # indexable page at all, no way to explain itself before asking a teacher
@@ -60,6 +63,11 @@ if [ "${STUDIO_ROOT:-}" = "1" ] || [ "${VERCEL_GIT_COMMIT_REF:-}" = "claude/guru
   cp site/vyakti.html dist/index.html
   cp site/vyakti-privacy.html dist/privacy.html
   cp site/vyakti-delete-account.html dist/delete-account.html
+  # WS-R48. Suites' own B2B front door, same rewrite-to-clean-URL shape as
+  # /studio and /r/:slug above (vercel.json). Vyakti-only, same as the three
+  # lines above it: an institute, a collective or an agency is a Vyakti
+  # buyer, not a Meera one.
+  cp site/suites.html dist/suites.html
 else
   cp site/index.html dist/index.html
   cp site/privacy.html dist/privacy.html
@@ -68,3 +76,14 @@ fi
 cp site/styles.css dist/styles.css
 mkdir -p dist/assets
 cp -R site/assets/. dist/assets/
+
+# WS-R45: the creator directory and robots.txt. Copied unconditionally
+# (neither branches on STUDIO_ROOT/PLATFORM_BRANCH the way vyakti.html does
+# above) — Meera's build has no /creators route and no crawler policy of its
+# own to collide with, and shipping these two static files on every build is
+# simpler than a second copy of the branch check above for one page and one
+# text file. robots.txt needs no vercel.json rewrite: a file already named
+# robots.txt at dist's root serves at /robots.txt with no rewrite required,
+# the same reason privacy.html DOES need one and this does not.
+cp site/creators.html dist/creators.html
+cp site/robots.txt dist/robots.txt

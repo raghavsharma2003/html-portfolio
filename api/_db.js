@@ -12,6 +12,13 @@ const HOST = URL_ ? URL_.split("@")[1]?.split("/")[0] : "";
  * slow Neon must never add ten seconds to something the user is waiting on.
  */
 export async function q(query, params = [], timeoutMs = 10_000) {
+  // A deployment built from the stub config (no NEON_URL on the Vercel
+  // project) used to reach here with HOST === "" and fail inside fetch with
+  // undici's bare "fetch failed", which every door then logged as if the
+  // database were down. Found by the main loop's live probe of the wave-
+  // eleven preview (2026-09-05): name the real cause so the runtime log and
+  // the incident ledger say what is missing, never what is not.
+  if (!HOST) throw new Error("neon_url_missing");
   const res = await fetch(`https://${HOST}/sql`, {
     method: "POST",
     headers: {

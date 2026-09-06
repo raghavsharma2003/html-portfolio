@@ -1,0 +1,656 @@
+// Shared fixture world for the Room's offline suites (WS-R1's `evals/room/run.mjs`
+// and WS-R8's `evals/room-leak/run.mjs`).
+//
+// Extracted rather than duplicated: `evals/mp/fixtures.mjs` is the precedent
+// (one scenario generator feeding both `gate0.mjs` and `withdraw.mjs`), and the
+// alternative — two suites each hand-rolling their own fake `db` for the same
+// migration — is exactly the drift `dead-writers`' sibling risk warns about: two
+// fakes that quietly stop agreeing about what the real SQL text says.
+//
+// `fakeDb` honours migration 071's laws because those are what both suites
+// exist to check and a fake that ignored them would be checking itself: the
+// (room, person) uniqueness on a follower, the conditional-increment semantics
+// of the cap UPDATE, and — the one that matters most for WS-R8 — the SCOPE
+// PREDICATES, read off the SQL TEXT rather than hardcoded, so a negative
+// control can strike a clause out of the shipping string and this fake honours
+// the strike.
+import { execSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+// WS-R130 (migration 133). The REAL hash function, not a second copy of it
+// here - `joinRoom`'s own `vy_room_referral_credit` write resolves a
+// referrer by recomputing this exact function for every follower already
+// in the Room (via pgcrypto in the real statement); this fixture has to
+// recompute the SAME function in JS to model that resolution honestly,
+// never a parallel reimplementation that could silently drift from it.
+//
+// LAZY, DYNAMIC IMPORT ON PURPOSE - never a static `import { referralHashFor }
+// from "../../api/_room-surface.js"` at the top of this file. This module is
+// imported by EVERY Room suite, including `evals/room-whatsapp/run.mjs`,
+// whose own header states a real, load-bearing ordering law: `api/whatsapp.js`
+// reads `WHATSAPP_APP_SECRET`/`WHATSAPP_VERIFY_TOKEN` into frozen module-level
+// constants the INSTANT it is first imported, and that suite sets both env
+// vars itself, in its own top-level code, BEFORE its own dynamic `import()`
+// of the module that needs them. A static import here would pull in
+// `api/_room-surface.js` transitively through `_ops.js` -> `_room-whatsapp.js`
+// -> `api/whatsapp.js` (confirmed by walking the import graph) at MODULE
+// LOAD TIME - which Node resolves and executes BEFORE any importing file's
+// own top-level statements run, landing before that suite's env vars were
+// ever set and silently freezing `api/whatsapp.js`'s HMAC secret as
+// `undefined`. Found and fixed THIS session
+// (`context/rejected.md#ws-r130-static-import-of-room-surface-in-the-shared-
+// fixture-broke-whatsapps-frozen-module-secret`) - a dynamic import inside
+// the one function that actually needs it runs at CALL time instead, long
+// after every suite's own setup has already run.
+let _referralHashForPromise = null;
+function getReferralHashFor() {
+  if (!_referralHashForPromise) {
+    _referralHashForPromise = import("../../api/_room-surface.js").then((m) => m.referralHashFor);
+  }
+  return _referralHashForPromise;
+}
+
+export const SLUG = "anjali";
+export const ROOM_ID = "d0000000-0000-4000-8000-000000000001";
+export const AGENT_ID = "b1000000-0000-4000-8000-000000000001";
+export const REPLICA_ID = "c1000000-0000-4000-8000-000000000001";
+export const OWNER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+export const USER_A = "11111111-1111-4111-8111-111111111111";
+export const USER_B = "22222222-2222-4222-8222-222222222222";
+export const PERSON_A = "aa111111-1111-4111-8111-111111111111";
+export const PERSON_B = "bb222222-2222-4222-8222-222222222222";
+
+/**
+ * Builds the REAL sheet -> module path via the shipping `sheetToModule`, and
+ * an `openRoom`/`joinRoom`/`roomSay`-compatible `loadAgent`. Bundled from the
+ * real source on every call (`CLAUDE.md`'s reason: a frozen copy of a sheet
+ * passes forever while the source rots) so `compile()` downstream does exactly
+ * what it does in production.
+ */
+export async function loadFixtureAgent(REPO) {
+  const engine = await import(pathToFileURL(join(REPO, "api/_engine.gen.js")).href);
+  const OUT = mkdtempSync(join(tmpdir(), "room-eval-"));
+  const ENTRY = join(OUT, "entry.ts");
+  writeFileSync(
+    ENTRY,
+    `export { DEMO_TEACHER } from ${JSON.stringify(join(REPO, "src/engine/agents/characters/demoTeacher"))};\n`,
+  );
+  const BUNDLE = join(OUT, "room.bundle.mjs");
+  execSync(
+    `npx esbuild ${ENTRY} --bundle --format=esm --platform=node --outfile=${BUNDLE} --log-level=error ` +
+      `--alias:@capacitor/core=${join(REPO, "evals/stubs/capacitor.mjs")}`,
+    { cwd: REPO, stdio: "inherit" },
+  );
+  const { DEMO_TEACHER } = await import(pathToFileURL(BUNDLE).href);
+  const SHEET = { ...DEMO_TEACHER, name: "Anjali", slug: SLUG };
+  const loadAgent = async (slug) => {
+    if (slug !== SLUG) throw new Error("teacher_sheet_unavailable");
+    return { module: engine.sheetToModule(SHEET), sheet: SHEET, row: {} };
+  };
+  return { engine, loadAgent, SHEET };
+}
+
+export function freshState() {
+  return {
+    rooms: [
+      {
+        room_id: ROOM_ID,
+        slug: SLUG,
+        replica_id: REPLICA_ID,
+        agent_id: AGENT_ID,
+        owner_user_id: OWNER,
+        display_name: "Anjali",
+        free_monthly_messages: 20,
+        // WS-R19 (migration 081): the paid tier's own two ceilings, the plan's
+        // own defaults - present on every room fixture from here on so a cap
+        // UPDATE for a paid follower always has a real column to read rather
+        // than `undefined`.
+        paid_monthly_messages: 500,
+        paid_monthly_voice_seconds: 1800,
+        // WS-R20 (migration 083): Handoff's own two switches, off by default
+        // exactly as production defaults them - present on every room
+        // fixture from here on so a predicate that reads either always has a
+        // real column rather than `undefined`.
+        handoff_enabled: false,
+        handoff_monthly_cap: 5,
+        // WS-R24 (migration 087): the creator's own fallback for a
+        // follower with no row yet and no usable browser hint - present on
+        // every room fixture from here on, "en" mirroring the column's
+        // real DB default.
+        default_locale: "en",
+        published_at: "2026-09-01T00:00:00.000Z",
+        paused_at: null,
+      },
+    ],
+    accounts: [],
+    persons: [],
+    followers: [],
+    threads: [],
+    consent: [],
+    devices: [],
+    // WS-R86 (migration 123). Empty by default - most suites sharing this
+    // fixture never touch referrals at all.
+    referrals: [],
+    // WS-R130 (migration 133). The per-follower identity link, `referrals`'
+    // own precedent one field up restated for the reward's own table.
+    referralCredits: [],
+    facts: [],
+    contextItems: [
+      { source_name: "Class 12 mechanics notes", status: "mined", created_at: "2026-08-01" },
+      { source_name: "Doubt session transcript", status: "routed", created_at: "2026-07-01" },
+      { source_name: "Not yet processed", status: "received", created_at: "2026-06-01" },
+    ],
+    // WS-R18: the Telegram identity bridge (api/_room.js's `vy_surface_identity`
+    // / `vy_tg_person`) and the channel pointer (migration 082's
+    // `vy_room_follower_channel`, read/written only through
+    // api/_room-surface.js's own three functions).
+    surfaceIdentities: [],
+    tgLegacy: [],
+    channelMap: [],
+  };
+}
+
+/**
+ * The fake db. See the module header for why this is shared rather than
+ * duplicated. `unknownUserFallback` is exercised whenever `authUserId` is
+ * neither `USER_A` nor `USER_B` — WS-R8 relies on it to run N > 2 followers
+ * through the identical fake without touching this function.
+ */
+export function fakeDb(state) {
+  const calls = [];
+  const db = async (sql, params = []) => {
+    calls.push(sql);
+    const has = (s) => sql.includes(s);
+
+    // ── WS-R18: the Telegram identity bridge (api/_room.js) ────────────────
+    // Placed FIRST and matched on the FULL statement text, deliberately: the
+    // generic `insert into vy_room_follower`/`from vy_room r` checks below
+    // would otherwise swallow these, since `vy_room_follower_channel` and
+    // `vy_person (person_id)` both contain those shorter strings as
+    // substrings — `router-matched-a-table-instead-of-a-statement`
+    // (context/rejected.md), restated one migration over.
+    if (has("select person_id, handle from vy_surface_identity")) {
+      const [surface, surfaceUserId] = params.map(String);
+      const row = state.surfaceIdentities.find(
+        (r) => r.surface === surface && r.surface_user_id === surfaceUserId,
+      );
+      return row ? [{ person_id: row.person_id, handle: row.handle }] : [];
+    }
+    if (has("select person_id, username from vy_tg_person")) {
+      const tgUserId = String(params[0]);
+      const row = state.tgLegacy.find((r) => r.tg_user_id === tgUserId);
+      return row ? [{ person_id: row.person_id, username: row.username }] : [];
+    }
+    if (has("insert into vy_surface_identity")) {
+      const [surface, surfaceUserId, personId, handle] = params.map(String);
+      if (!state.surfaceIdentities.some((r) => r.surface === surface && r.surface_user_id === surfaceUserId)) {
+        state.surfaceIdentities.push({ surface, surface_user_id: surfaceUserId, person_id: personId, handle });
+      }
+      return [];
+    }
+    if (has("insert into vy_tg_person")) {
+      const [tgUserId, personId, username] = params.map(String);
+      if (!state.tgLegacy.some((r) => r.tg_user_id === tgUserId)) {
+        state.tgLegacy.push({ tg_user_id: tgUserId, person_id: personId, username });
+      }
+      return [];
+    }
+    if (has("insert into vy_person (person_id)")) {
+      const personId = String(params[0]);
+      if (!state.persons.some((p) => p.person_id === personId)) {
+        state.persons.push({ person_id: personId, age_tier: "unverified" });
+      }
+      return [{ person_id: personId }];
+    }
+    if (has("select age_tier from vy_person")) {
+      const personId = String(params[0]);
+      const p = state.persons.find((x) => x.person_id === personId);
+      return p ? [{ age_tier: p.age_tier }] : [];
+    }
+
+    // ── WS-R18: the channel pointer (migration 082) ─────────────────────────
+    if (has("insert into vy_room_follower_channel")) {
+      const [id, roomId, personId, followerId, channelRef] = params.map(String);
+      const existing = state.channelMap.find(
+        (c) => c.channel === "telegram" && c.channel_ref === channelRef,
+      );
+      if (existing) {
+        existing.room_id = roomId;
+        existing.person_id = personId;
+        existing.follower_id = followerId;
+      } else {
+        state.channelMap.push({
+          channel_map_id: id, room_id: roomId, person_id: personId,
+          follower_id: followerId, channel: "telegram", channel_ref: channelRef,
+        });
+      }
+      return [];
+    }
+    if (has("from vy_room_follower_channel c")) {
+      const channelRef = String(params[0]);
+      const row = state.channelMap.find((c) => c.channel === "telegram" && c.channel_ref === channelRef);
+      if (!row) return [];
+      const room = state.rooms.find((r) => r.room_id === row.room_id);
+      return room ? [{ slug: room.slug }] : [];
+    }
+    if (has("delete from vy_room_follower_channel")) {
+      const channelRef = String(params[0]);
+      const before = state.channelMap.length;
+      state.channelMap = state.channelMap.filter(
+        (c) => !(c.channel === "telegram" && c.channel_ref === channelRef),
+      );
+      return state.channelMap.length < before ? [{ gone: 1 }] : [];
+    }
+
+    if (has("from vy_room r") && has("join vy_agent a")) {
+      const row = state.rooms.find(
+        (r) =>
+          r.slug.toLowerCase() === String(params[0]) &&
+          // the two gate clauses, read off the shipping text
+          (!has("r.published_at is not null") || r.published_at != null) &&
+          (!has("r.paused_at is null") || r.paused_at == null),
+      );
+      return row ? [{ ...row, agent_slug: row.slug }] : [];
+    }
+
+    if (has("insert into vy_account_person")) {
+      const uid = String(params[0]);
+      let bridge = state.accounts.find((a) => a.auth_user_id === uid);
+      if (!bridge) {
+        const pid = uid === USER_A ? PERSON_A : uid === USER_B ? PERSON_B : `pp${uid.slice(2)}`;
+        state.persons.push({ person_id: pid, age_tier: "unverified" });
+        bridge = { auth_user_id: uid, person_id: pid };
+        state.accounts.push(bridge);
+      }
+      return [{ person_id: bridge.person_id }];
+    }
+
+    if (has("from vy_room_follower f") && has("select f.follower_id")) {
+      const [roomId, personId, agentId] = params.map(String);
+      const row = state.followers.find(
+        (f) => f.room_id === roomId && f.person_id === personId && f.agent_id === agentId,
+      );
+      return row ? [{ ...row }] : [];
+    }
+
+    if (has("insert into vy_room_follower")) {
+      // WS-R24 (migration 087): `locale` is the 8th and last param on the
+      // real INSERT. Positional, matching every sibling in this handler.
+      const [followerId, roomId, personId, agentId, ageAt, memAt, monthKey, locale] = params;
+      const found = state.followers.find(
+        (f) => f.room_id === String(roomId) && f.person_id === String(personId),
+      );
+      if (found) {
+        found.age_attested_at = found.age_attested_at ?? ageAt;
+        found.memory_consent_at = memAt;
+        found.last_seen_at = new Date().toISOString();
+        // `locale` is deliberately UNTOUCHED here, mirroring the real
+        // statement's own ON CONFLICT SET list (`api/_room-surface.js`'s
+        // `joinRoom` header explains why): a repeat join must never reset a
+        // locale the follower may have changed since with `roomSetLocale`.
+        //
+        // WS-R86 (migration 123): `newly_joined` mirrors the real
+        // statement's `(xmax = 0)` RETURNING column - false here, this row
+        // already existed, the UPDATE arm fired.
+        return [{ ...found, newly_joined: false }];
+      }
+      const row = {
+        follower_id: String(followerId),
+        room_id: String(roomId),
+        person_id: String(personId),
+        agent_id: String(agentId),
+        joined_at: new Date().toISOString(),
+        age_attested_at: ageAt,
+        memory_consent_at: memAt,
+        tier: "free",
+        month_key: String(monthKey),
+        month_message_count: 0,
+        // WS-R24 (migration 087): the follower's OWN initial chrome locale,
+        // "en" mirroring the column's real DB default when a suite's fake
+        // caller passes nothing (most callers in the OLDER suites that share
+        // this fixture never pass one, and must keep working unchanged).
+        locale: locale ? String(locale) : "en",
+        // WS-R19 (migration 081): the paid tier's own spend counter and its
+        // OWN rollover key, always present from here on. A SEPARATE key from
+        // `month_key` on purpose - see migration 081's own header for the
+        // real cross-counter rollover defect a shared key causes. `''`
+        // mirrors the column's own DB default (`joinRoom`'s INSERT never
+        // names either voice column), not the join month - the first
+        // `roomSpeak` call still rolls it over exactly like any other month.
+        voice_seconds_month: 0,
+        voice_month_key: "",
+        last_seen_at: new Date().toISOString(),
+      };
+      state.followers.push(row);
+      // WS-R86 (migration 123): `newly_joined` mirrors the real statement's
+      // `(xmax = 0)` RETURNING column - true here, this row was just
+      // inserted, the INSERT arm fired. Returned on the row object rather
+      // than a separate call so `joinRoom`'s own `follower.newly_joined`
+      // read works unchanged against this fixture.
+      return [{ ...row, newly_joined: true }];
+    }
+
+    // WS-R130 (migration 133): the referral CREDIT write - checked BEFORE
+    // the plain `vy_room_referral` branch below on purpose. `"insert into
+    // vy_room_referral_credit"` is a SUPERSTRING of `"insert into
+    // vy_room_referral"`, `vy_room_follower_whatsapp_chat`'s own already-
+    // fixed trap (`context/rejected.md`'s WS-R104 entry) restated for this
+    // pair of tables: an unordered check here would route this statement
+    // into the WRONG branch below, corrupting `state.referrals` with a
+    // mis-destructured row for every suite that forces `tableApplied` true
+    // for both tables. Resolves the referrer honestly, by recomputing the
+    // REAL `referralHashFor` for every follower already in this Room and
+    // matching the one whose hash equals the `ref` the joiner carried -
+    // never a parallel reimplementation of that function.
+    if (has("insert into vy_room_referral_credit")) {
+      const [creditId, roomId, referredFollowerId, salt, referrerHash] = params.map(String);
+      state.referralCredits = state.referralCredits || [];
+      const already = state.referralCredits.find((c) => c.referred_follower_id === referredFollowerId);
+      if (already) return [];
+      const referralHashFor = await getReferralHashFor();
+      const match = state.followers.find(
+        (f) =>
+          f.room_id === roomId &&
+          f.follower_id !== referredFollowerId &&
+          referralHashFor(f.room_id, f.person_id, { RATE_SALT: salt }) === referrerHash,
+      );
+      if (!match) return [];
+      const row = {
+        credit_id: creditId,
+        room_id: roomId,
+        referred_follower_id: referredFollowerId,
+        referrer_follower_id: match.follower_id,
+        referrer_person_id: match.person_id,
+        created_at: new Date().toISOString(),
+      };
+      state.referralCredits.push(row);
+      return [{ credit_id: row.credit_id }];
+    }
+
+    // WS-R86 (migration 123): the referral write. Self-referral is refused
+    // in the WHERE on the real statement (`referrer_hash <> joiner_hash`) -
+    // modelled here the same way, never a JS `if` this fixture would have
+    // to keep in sync with the predicate.
+    if (has("insert into vy_room_referral")) {
+      const [referralId, roomId, referrerHash, joinerHash] = params;
+      if (String(referrerHash) === String(joinerHash)) return [];
+      state.referrals = state.referrals || [];
+      state.referrals.push({
+        referral_id: String(referralId),
+        room_id: String(roomId),
+        referrer_hash: String(referrerHash),
+        created_at: new Date().toISOString(),
+      });
+      return [{ referral_id: String(referralId) }];
+    }
+    // Matched on `referrer_hash =` specifically (roomExport's own read) so
+    // this never collides with `friendsBroughtThisWeek`'s DIFFERENT
+    // `created_at >=` read of the same table — two different questions
+    // over the same table, deliberately not matched by the same branch.
+    if (has("from vy_room_referral") && has("referrer_hash = ")) {
+      const roomId = params[0];
+      const hash = params[1];
+      const referrals = state.referrals || [];
+      const n = referrals.filter((r) => r.room_id === String(roomId) && r.referrer_hash === String(hash)).length;
+      return [{ n }];
+    }
+
+    // WS-R24 (migration 087): `roomSetLocale`'s own write. THE PREDICATE IS
+    // THE SCOPE - room, person and agent all come off the verified session,
+    // never a request field, so this branch's own params (positional, off
+    // the real statement) are what a negative control would strike to prove
+    // scoping, not a second check added here.
+    if (has("update vy_room_follower") && has("set locale = $4")) {
+      const [roomId, personId, agentId, locale] = params.map(String);
+      const f = state.followers.find(
+        (x) => x.room_id === roomId && x.person_id === personId && x.agent_id === agentId,
+      );
+      if (!f) return [];
+      if (has("age_attested_at is not null") && f.age_attested_at == null) return [];
+      f.locale = locale;
+      f.updated_at = new Date().toISOString();
+      return [{ locale: f.locale }];
+    }
+
+    // WS-R131 (migration 134): `roomSetQuietHours`'s own write - the
+    // follower's OWN timezone/quiet window, direct, no check-in row
+    // involved. Same scope shape as `set locale = $4` immediately above:
+    // room/person/agent off the verified session, params positional off the
+    // real statement.
+    if (has("update vy_room_follower") && has("set timezone = $4")) {
+      const [roomId, personId, agentId] = params.slice(0, 3).map(String);
+      const [tz, qf, qt] = params.slice(3, 6).map((v) => (v == null ? null : String(v)));
+      const f = state.followers.find(
+        (x) => x.room_id === roomId && x.person_id === personId && x.agent_id === agentId,
+      );
+      if (!f) return [];
+      f.timezone = tz;
+      f.quiet_from = qf;
+      f.quiet_to = qt;
+      f.updated_at = new Date().toISOString();
+      return [{ timezone: f.timezone, quiet_from: f.quiet_from, quiet_to: f.quiet_to }];
+    }
+
+    // THE CAP. The predicate is read off the shipping SQL rather than
+    // restated, so a strike lands here too. WS-R19: the free/paid CASE is
+    // matched by its two branch columns rather than by the whole expression
+    // text, so this fake keeps working whichever way the CASE is formatted -
+    // what a negative control strikes is one of these two column names, not
+    // whitespace.
+    if (has("update vy_room_follower f") && has("month_message_count") && !has("voice_seconds_month")) {
+      const [roomId, personId, agentId, monthKey] = params.map(String);
+      const f = state.followers.find(
+        (x) => x.room_id === roomId && x.person_id === personId && x.agent_id === agentId,
+      );
+      if (!f) return [];
+      if (has("f.age_attested_at is not null") && f.age_attested_at == null) return [];
+      const r = state.rooms.find((x) => x.room_id === roomId);
+      const paidCase = has("r.paid_monthly_messages") && has("r.free_monthly_messages");
+      const ceiling = paidCase
+        ? (f.tier === "paid" ? r.paid_monthly_messages : r.free_monthly_messages)
+        : r.free_monthly_messages;
+      const capped =
+        (paidCase || f.tier === "free") &&
+        f.month_key === monthKey &&
+        f.month_message_count >= ceiling;
+      if (capped) return [];
+      f.month_message_count = f.month_key === monthKey ? f.month_message_count + 1 : 1;
+      f.month_key = monthKey;
+      f.last_seen_at = new Date().toISOString();
+      return [
+        {
+          month_key: f.month_key,
+          month_message_count: f.month_message_count,
+          tier: f.tier,
+          free_monthly_messages: r.free_monthly_messages,
+          paid_monthly_messages: r.paid_monthly_messages,
+        },
+      ];
+    }
+
+    // WS-R19's voice cap - the identical shape one column over. `roomSpeak`
+    // spends `voice_seconds_month` against `r.paid_monthly_voice_seconds`,
+    // paid tier only, rolled over on its OWN `voice_month_key` (migration
+    // 081's header: a key shared with the message counter would let
+    // whichever op runs first in a new month strand the other unreset).
+    if (has("update vy_room_follower f") && has("voice_seconds_month") && has("set voice_month_key")) {
+      const [roomId, personId, agentId, monthKey, clipSeconds] = params;
+      const [rId, pId, aId, mKey] = [roomId, personId, agentId, monthKey].map(String);
+      const seconds = Number(clipSeconds);
+      const f = state.followers.find(
+        (x) => x.room_id === rId && x.person_id === pId && x.agent_id === aId,
+      );
+      if (!f) return [];
+      if (has("f.age_attested_at is not null") && f.age_attested_at == null) return [];
+      if (has("f.tier = 'paid'") && f.tier !== "paid") return [];
+      const r = state.rooms.find((x) => x.room_id === rId);
+      const nextSeconds = f.voice_month_key === mKey ? f.voice_seconds_month + seconds : seconds;
+      if (f.voice_month_key === mKey && nextSeconds > r.paid_monthly_voice_seconds) return [];
+      f.voice_seconds_month = nextSeconds;
+      f.voice_month_key = mKey;
+      f.last_seen_at = new Date().toISOString();
+      return [
+        {
+          voice_month_key: f.voice_month_key,
+          voice_seconds_month: f.voice_seconds_month,
+          paid_monthly_voice_seconds: r.paid_monthly_voice_seconds,
+        },
+      ];
+    }
+
+    if (has("insert into vy_person_device")) {
+      const [device, personId] = params.map(String);
+      if (!state.devices.some((d) => d.device_id === device)) {
+        state.devices.push({ device_id: device, person_id: personId });
+      }
+      return [];
+    }
+
+    if (has("insert into meera_consent")) {
+      state.consent.push({
+        device_id: String(params[0]),
+        user_id: params[1] == null ? null : String(params[1]),
+        kind: String(params[2]),
+        granted: params[3] === true,
+        version: params[4],
+        at: String(params[5]),
+      });
+      return [];
+    }
+
+    if (has("insert into vy_room_thread")) {
+      const [threadId, roomId, personId, agentId, title] = params.map(String);
+      const clash = state.threads.some(
+        (t) =>
+          t.room_id === roomId &&
+          t.person_id === personId &&
+          t.title.toLowerCase() === title.toLowerCase() &&
+          t.archived_at == null,
+      );
+      if (clash) return [];
+      const row = {
+        thread_id: threadId,
+        room_id: roomId,
+        person_id: personId,
+        agent_id: agentId,
+        title,
+        created_at: new Date().toISOString(),
+        last_message_at: null,
+        archived_at: null,
+      };
+      state.threads.push(row);
+      return [{ ...row }];
+    }
+
+    // THE THREAD SCOPE PREDICATE, and the reason this fake reads the SQL text.
+    // `ownedThread` selects two columns; `listThreads` selects four. Both are
+    // filtered by exactly the clauses that are PRESENT in the string.
+    if (has("from vy_room_thread t")) {
+      const byId = has("t.thread_id = ($1)::uuid");
+      const p = params.map(String);
+      const [threadId, roomId, personId, agentId] = byId ? p : [null, p[0], p[1], p[2]];
+      const rows = state.threads.filter(
+        (t) =>
+          (!byId || t.thread_id === threadId) &&
+          (!sql.includes("t.room_id = ") || t.room_id === roomId) &&
+          // THE CLAUSE THE NEGATIVE CONTROL STRIKES
+          (!sql.includes("t.person_id = ") || t.person_id === personId) &&
+          (!sql.includes("t.agent_id = ") || t.agent_id === agentId) &&
+          t.archived_at == null,
+      );
+      return rows.map((t) => ({ ...t }));
+    }
+
+    if (has("update vy_room_thread") && has("last_message_at = now()")) {
+      const t = state.threads.find((x) => x.thread_id === String(params[0]));
+      if (t) t.last_message_at = new Date().toISOString();
+      return [];
+    }
+
+    if (has("from vy_context_item c")) {
+      return state.contextItems
+        .filter((c) => ["mined", "routed"].includes(c.status) && c.source_name)
+        .map((c) => ({ source_name: c.source_name }));
+    }
+
+    if (has("count(*)::int as n") && has("vy_room_follower")) {
+      const roomId = String(params[0]);
+      return [{ n: state.followers.filter((f) => f.room_id === roomId).length }];
+    }
+
+    if (has("delete from vy_room_thread")) {
+      const [roomId, personId, agentId] = params.map(String);
+      const gone = state.threads.filter(
+        (t) => t.room_id === roomId && t.person_id === personId && t.agent_id === agentId,
+      );
+      state.threads = state.threads.filter((t) => !gone.includes(t));
+      return gone.map(() => ({ gone: 1 }));
+    }
+
+    if (has("delete from vy_room_follower") && !has("delete from vy_room_follower_channel")) {
+      const [roomId, personId, agentId] = params.map(String);
+      const gone = state.followers.filter(
+        (f) => f.room_id === roomId && f.person_id === personId && f.agent_id === agentId,
+      );
+      state.followers = state.followers.filter((f) => !gone.includes(f));
+      // WS-R18: `vy_room_follower_channel.follower_id` carries
+      // `on delete cascade` in the real schema - simulated here so this fake
+      // stays honest about what `roomForget`'s single explicit delete already
+      // reaches for real, rather than silently under-modelling it.
+      const goneIds = new Set(gone.map((f) => f.follower_id));
+      state.channelMap = state.channelMap.filter((c) => !goneIds.has(c.follower_id));
+      return gone.map(() => ({ gone: 1 }));
+    }
+
+    // The manifest lanes. One fixture table (vy_fact) stands in for all of
+    // them: what this suite checks is that the statement is AGENT-SCOPED and
+    // person-scoped, not that Postgres can delete a row.
+    if (has("delete from vy_fact")) {
+      const person = params[0];
+      const agentId = params[params.length - 1];
+      if (!sql.includes("agent_id = ")) throw new Error("forget statement is not agent-scoped");
+      const gone = state.facts.filter((f) => f.person_id === person && f.agent_id === agentId);
+      state.facts = state.facts.filter((f) => !gone.includes(f));
+      return gone.map(() => ({ gone: 1 }));
+    }
+    if (has("select * from vy_fact")) {
+      const person = params[0];
+      const agentId = params[params.length - 1];
+      if (!sql.includes("agent_id = ")) throw new Error("export statement is not agent-scoped");
+      return state.facts.filter((f) => f.person_id === person && f.agent_id === agentId);
+    }
+
+    return [];
+  };
+  db.calls = calls;
+  return db;
+}
+
+/** The memory seam, counted. What this suite proves about it is WHETHER it is
+ *  called and with WHAT, which is the whole question for a consent gate. It
+ *  proves nothing about whether the real statements parse — that is
+ *  `offline-mocks-cannot-type-check-sql`, and it is stated in the report. */
+export function fakeMemory(log) {
+  return {
+    openEpisode: async (person, device, agentId) => {
+      log.push({ call: "openEpisode", person, device, agentId });
+      return { id: 1, extended: false };
+    },
+    logTurn: async (args) => {
+      log.push({ call: "logTurn", ...args });
+    },
+    history: async (device, agentId) => {
+      log.push({ call: "history", device, agentId });
+      return log
+        .filter((e) => e.call === "logTurn" && e.device === device)
+        .map((e) => ({ role: e.role === "her" ? "assistant" : "user", content: e.content }));
+    },
+    recall: async (person, agentId) => {
+      log.push({ call: "recall", person, agentId });
+      return [];
+    },
+  };
+}

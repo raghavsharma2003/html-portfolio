@@ -46,6 +46,7 @@
 // exempts that line. `emdash-ok: <reason>` is kept as an alias so the existing
 // exemptions in the tree keep working.
 import { readFileSync, readdirSync, statSync } from "fs";
+import { isRoomsVocabAllowed } from "./roomsVocabAllowlist.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 
@@ -63,17 +64,44 @@ const ROOT = new URL("..", import.meta.url).pathname;
  * reason above.
  */
 const SCOPES = [
-  { dir: "src/studio/", rules: "full", codename: true },
+  { dir: "src/studio/", rules: "full", codename: true, roomsVocab: true },
+  // WS-R1, the Room. On the `full` list from its first commit, and it is the
+  // scope where the word rules matter most: this is the only surface a person
+  // who is not a customer of this platform ever reads, so a version stamp, a
+  // filler verb or the other product's codename lands in front of a stranger.
+  { dir: "src/room/", rules: "full", codename: true, roomsVocab: true },
   { dir: "src/gurukul/", rules: "full", codename: true },
   { dir: "src/replica/", rules: "full", codename: true },
   { dir: "site/", rules: "full", codename: false },
   { dir: "src/components/", rules: "dash", codename: false },
 ];
 
+/* Root-level HTML entry points. Not under any SCOPES dir, so they need their
+ * own list, walked the same way as a directory scope. */
+const EXTRA_FILES = [
+  { file: "studio.html", rules: "full", codename: false, roomsVocab: true },
+  { file: "room.html", rules: "full", codename: false, roomsVocab: true },
+];
+
 /* `site/index.html` and `site/privacy.html` ARE the Meera product's pages, so
  * the codename rule cannot bind there — it would be flagging a product for
- * being named. It binds on the Vyakti surfaces, where the name is a leak. */
-const CODENAME_FILES = /^site\/vyakti\.html$/;
+ * being named. It binds on the Vyakti surfaces, where the name is a leak.
+ * WS-R45 adds the creator directory: also a Vyakti surface, also a page a
+ * stranger reads first. WS-R48 adds `site/suites.html`: the same product's
+ * second landing page, telling the same Rooms story to a Suite buyer instead
+ * of a solo creator. */
+const CODENAME_FILES = /^site\/(vyakti|creators|suites)\.html$/;
+
+/* The Rooms vocabulary rule (WS-R10, docs/gurukul's Rooms plan): "not clone,
+ * in front of anyone." `site/` is `full` scope for everything else in it
+ * (privacy pages, the delete-account pages), but the Rooms word bans apply
+ * only to the pages that tell the Rooms story: the landing page, and (WS-R45)
+ * the directory a stranger reaches from search before they are anyone's
+ * follower — not to legal pages that were not part of either rewrite.
+ * WS-R48 adds `site/suites.html` alongside `site/vyakti.html`: a Suite is
+ * several Rooms under one bill, and this page describes what a Suite admin
+ * sees of them in the SAME vocabulary. */
+const ROOMS_VOCAB_FILES = /^site\/(vyakti|creators|suites)\.html$/;
 
 /* Files whose entire purpose is copy. Every literal in them is on its way to a
  * screen, so the visible-prop heuristic is skipped and all of them are read. */
@@ -191,6 +219,37 @@ const RULES = [
     why: "the internal codename of the OTHER product, in copy a teacher or student reads",
     test: (s) => /\bMeera\b/.test(s),
   },
+  {
+    id: "rooms-vocabulary",
+    pass: "visible",
+    roomsVocabOnly: true,
+    why:
+      'Rooms vocabulary (the Rooms plan\'s binding rule): "not clone, in front of anyone." ' +
+      'A creator sees "your AI"; a follower sees "<Name> AI". Never clone, replica, model, ' +
+      "fine-tune, train/training, weights, embedding, LoRA, or genome (say \"your voice\") " +
+      "in ANY language this product ships copy in - WS-R24 adds the Hindi equivalents for " +
+      "the Devanagari scope (क्लोन/मॉडल/प्रतिकृति) rather than leaving the ban English-only.",
+    test: (s) =>
+      /\bclon(?:e[sd]?|ing)\b/i.test(s) ||
+      /\breplica[s]?\b/i.test(s) ||
+      /\bfine[- ]?tun(?:e[sd]?|ing)\b/i.test(s) ||
+      /\btrain(?:ed|ing|s)?\b/i.test(s) ||
+      /\bmodel(?:s|ing|ed)?\b/i.test(s) ||
+      /\bweights?\b/i.test(s) ||
+      /\bembedding[s]?\b/i.test(s) ||
+      /\bLoRA\b/i.test(s) ||
+      /\bgenome[s]?\b/i.test(s) ||
+      // WS-R24, Hindi (Devanagari): क्लोन "clone", मॉडल "model", प्रतिकृति
+      // "replica". No word boundaries here - Devanagari is not covered by
+      // `\b` the way ASCII is (`\b` is defined over `\w`, which does not
+      // include the Devanagari block), so these match the bare substring,
+      // which is safe for the same reason the English list is safe: none of
+      // the three is a legitimate substring of an unrelated Hindi word this
+      // product's own copy would ever use.
+      /क्लोन/.test(s) ||
+      /मॉडल/.test(s) ||
+      /प्रतिकृति/.test(s),
+  },
 ];
 
 /* ═══ 3. EXTRACTION ═════════════════════════════════════════════════════════ */
@@ -300,13 +359,21 @@ function isVisibleLiteral(before, isCopyFile) {
   return false;
 }
 
+/** A run of letters in ANY script this product ships copy in, not only ASCII
+ *  - `[A-Za-z]` alone missed every text node written purely in Devanagari
+ *  (WS-R24: a Hindi sentence with no embedded Latin word, e.g. no "AI"/name
+ *  placeholder, has zero `A-Za-z` characters and was previously invisible to
+ *  this extractor entirely, so a banned word inside one could never trip the
+ *  gate). `ऀ-ॿ` is the Devanagari block. */
+const LETTER_RUN = /[A-Za-zऀ-ॿ]/;
+
 /** JSX/HTML text nodes: what sits between a `>` and the next `<`. */
 function textNodes(src, offsetLines = null) {
   // blank string literals first so a `>` inside a string cannot open a node
   const noStrings = src.replace(/(['"`])(?:\\.|(?!\1)[^\\])*\1/g, (m) => blank(m));
   const out = [];
   let line = 1;
-  const re = />([^<>{}]*[A-Za-z][^<>{}]*)</g;
+  const re = />([^<>{}]*)</g;
   let last = 0;
   let m;
   while ((m = re.exec(noStrings))) {
@@ -315,7 +382,7 @@ function textNodes(src, offsetLines = null) {
     // recover the REAL text from src (strings were blanked in the copy)
     const real = src.slice(m.index + 1, m.index + 1 + m[1].length);
     const t = real.replace(/\s+/g, " ").trim();
-    if (t && /[A-Za-z]/.test(t)) out.push({ text: t, line });
+    if (t && LETTER_RUN.test(t)) out.push({ text: t, line });
   }
   return out;
 }
@@ -333,7 +400,7 @@ const EXEMPT = /(?:copy-ok|emdash-ok)\s*:/;
  * `{ rule, line, text, why }`. Exported shape is what selfTest() asserts on.
  */
 export function scanSource(rel, src, opts = {}) {
-  const { rules = "full", codename = false } = opts;
+  const { rules = "full", codename = false, roomsVocab = false } = opts;
   const isHtml = /\.html?$/.test(rel);
   const offences = [];
   const rawLines = src.split("\n");
@@ -384,6 +451,10 @@ export function scanSource(rel, src, opts = {}) {
     for (const r of RULES) {
       if (r.pass !== "visible") continue;
       if (r.codenameOnly && !codename) continue;
+      if (r.roomsVocabOnly) {
+        if (!roomsVocab) continue;
+        if (isRoomsVocabAllowed(rel, v.text)) continue;
+      }
       if (r.test(v.text)) {
         offences.push({ rule: r.id, line: v.line, text: v.text.slice(0, 100), why: r.why });
       }
@@ -401,6 +472,10 @@ export function scanSource(rel, src, opts = {}) {
 const FIXTURES = [
   ["dash", "bad.tsx", 'const a = <p>Recorded — nothing owed.</p>;'],
   ["dash", "bad.html", "<p>Recorded &mdash; nothing owed.</p>"],
+  // WS-R24: the same rule bites Devanagari copy exactly as it bites English -
+  // the dash pass never looked at script, but this proves it against a real
+  // Hindi sentence rather than only asserting that from the rule's shape.
+  ["dash", "bad.tsx", 'const dashHi = { label: "यह रुका — फिर शुरू होगा।" };'],
   ["version-stamp", "bad.tsx", 'const x = <span>Studio v1.4.2</span>;'],
   ["version-stamp", "bad.html", "<p>Build 0048</p>"],
   ["section-number", "bad.html", "<p>01 / INDEX</p>"],
@@ -413,10 +488,21 @@ const FIXTURES = [
   ["codename", "bad.html", "<p>Sign in to Meera</p>"],
   ["version-stamp", "bad.tsx", 'const c = { label: "BETA" };'],
   ["codename", "bad.tsx", 'const d = <input aria-label="Meera password" />;'],
+  // WS-R10, the Rooms vocabulary rule: "not clone, in front of anyone."
+  ["rooms-vocabulary", "bad.tsx", 'const g = <p>Your AI clone learns from you.</p>;'],
+  ["rooms-vocabulary", "bad.html", "<p>Train your replica on your archive.</p>"],
+  ["rooms-vocabulary", "bad.tsx", 'const h = { label: "Fine-tune your voice model" };'],
+  // WS-R24: the same rule in Hindi. Each of these must fail exactly the way
+  // its English counterpart above does.
+  ["rooms-vocabulary", "bad.tsx", 'const i = <p>यह आपका AI क्लोन है।</p>;'],
+  ["rooms-vocabulary", "bad.html", "<p>अपने वॉइस मॉडल को ट्रेन करें।</p>"],
+  ["rooms-vocabulary", "bad.tsx", 'const j = { label: "अपनी प्रतिकृति बनाएं" };'],
 ];
 
 /* Must produce NOTHING. Every line here is a shape the gate must not punish:
- * house prose in comments, technical identifiers, module paths, one middot. */
+ * house prose in comments, technical identifiers, module paths, one middot,
+ * and (WS-R10) the actual replacement phrase the Rooms vocabulary rule exists
+ * to allow through clean. */
 const CLEAN = `
 // A comment — with an em-dash — is house prose and is exempt.
 /* So is a block comment — see DESIGN-LAW.md §1. */
@@ -425,15 +511,17 @@ const buildId = "build 0048";
 const cls = "panel · row";
 const el = <p>Recorded, nothing owed. Vyakti · teacher studio</p>;
 const f = { key: "seamless-migration", label: "Add one recording" };
+const g = <p>Meet your AI. Give it your material and it learns.</p>;
+const h = { label: "आप {name} AI से बात कर रहे हैं। यह {name} नहीं है।" };
 `;
 
 function selfTest() {
   const dead = [];
   for (const [rule, name, src] of FIXTURES) {
-    const hits = scanSource(name, src, { rules: "full", codename: true }).map((o) => o.rule);
+    const hits = scanSource(name, src, { rules: "full", codename: true, roomsVocab: true }).map((o) => o.rule);
     if (!hits.includes(rule)) dead.push(`${rule} did not fire on: ${src.trim()}`);
   }
-  const noise = scanSource("clean.tsx", CLEAN, { rules: "full", codename: true });
+  const noise = scanSource("clean.tsx", CLEAN, { rules: "full", codename: true, roomsVocab: true });
   for (const o of noise) dead.push(`false positive [${o.rule}] on clean fixture line ${o.line}: ${o.text}`);
   return dead;
 }
@@ -465,7 +553,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     for (const rel of walk(scope.dir)) {
       const src = readFileSync(ROOT + rel, "utf8");
       const codename = scope.codename || CODENAME_FILES.test(rel);
-      const found = scanSource(rel, src, { rules: scope.rules, codename }).map((o) => ({ ...o, file: rel }));
+      const roomsVocab = scope.roomsVocab || ROOMS_VOCAB_FILES.test(rel);
+      const found = scanSource(rel, src, { rules: scope.rules, codename, roomsVocab }).map((o) => ({ ...o, file: rel }));
       if (WAIVED.has(rel)) {
         if (found.length === 0) waiverClean.push(rel);
         waived.push(...found);
@@ -473,6 +562,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         offences.push(...found);
       }
     }
+  }
+  for (const extra of EXTRA_FILES) {
+    const rel = extra.file;
+    const src = readFileSync(ROOT + rel, "utf8");
+    const codename = extra.codename || CODENAME_FILES.test(rel);
+    const roomsVocab = extra.roomsVocab || ROOMS_VOCAB_FILES.test(rel);
+    const found = scanSource(rel, src, { rules: extra.rules, codename, roomsVocab }).map((o) => ({ ...o, file: rel }));
+    offences.push(...found);
   }
 
   if (waived.length) {

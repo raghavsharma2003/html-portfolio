@@ -49,6 +49,7 @@ import {
   MAX_ITEM_BYTES,
 } from "./_context/limits.js";
 import { citationViolations, mineContextItem } from "./_context-mining.js";
+import { persistInstructionShapedCard } from "./_review-queue.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -457,6 +458,21 @@ function bounded(value) {
 
 async function mineStored(db, stored, extraction, options, deps = {}) {
   const result = mineContextItem({ item_id: stored.item_id }, extraction, options);
+
+  // WS-R112. THE INSTRUCTION-SHAPED-MATERIAL CARD. Runs ahead of every
+  // branch below — a citation-integrity skip or a zero-candidate skip still
+  // surfaces the card, because the risk this exists for ("this text reached
+  // the platform at all") is independent of whether anything else about the
+  // item mined at all (`api/_context-mining.js::materialFlagFor`'s own
+  // header). One card per flagged source, `persistInstructionShapedCard`'s
+  // own dedupe index making a re-mine idempotent — never re-run inside a
+  // try/catch here, so a write failure surfaces exactly as loudly as every
+  // other write in this function does, rather than a safety card silently
+  // never landing.
+  if (result.materialFlag) {
+    const persistFlag = deps.persistInstructionShapedCard || persistInstructionShapedCard;
+    await persistFlag(db, stored.owner_user_id, stored.replica_id, stored.item_id, result.materialFlag);
+  }
 
   // THE INTEGRITY GATE, at WRITE time. A delta with an unresolvable citation is
   // not stored at all — the item is marked extracted with a named skip reason,

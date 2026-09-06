@@ -90,6 +90,57 @@ may import nothing beyond `./level` and `../engine/diag`.
 `npx vite build` alone is NOT a gate — it exits 0 with type errors. That is why
 `tsc` is separate and why CI runs both.
 
+**This same script also gates Vyakti**, the second product built in this
+repo (see the next section). As of WS-R57 (2026-09-04) it is **21
+checks without `NEON_URL`** (14 plus the room leak battery, `evals/room-leak/run.mjs`,
+the room export completeness battery, `evals/room-export/run.mjs`, the
+room door battery, `evals/room-doors/run.mjs` — every way into a Room
+attacked offline through the real decision modules the thin HTTP doors call
+— and `accessibility`, `scripts/check-accessibility.mjs` — axe-core plus a
+hand-written keyboard walk over every follower and creator screen in both
+locales, zero `serious`/`critical` findings — and `performance budgets`,
+`scripts/check-performance.mjs` — the four public entry points rendered in
+real Chromium under CDP throttling shaped like a bad Indian 4G day, failing
+on a named target and metric — and `mirrored constants`,
+`scripts/check-mirrors.mjs` — every `// mirror of api/<file>.js#<NAME>`
+marker in `src/` and `site/suites.html` parsed on both sides and asserted
+equal — and `security headers`, `scripts/check-headers.mjs` — the Room, the
+studio and four static marketing pages loaded in real Chromium on
+127.0.0.1:8934 with `vercel.json`'s own headers applied exactly as Vercel
+would and CSP violation reporting captured, plus `npm ci --dry-run` lockfile
+integrity, `npm audit --omit=dev --audit-level=high` (fails, never passes
+silently, if the registry is unreachable) and an install-script scan against
+the named allowlist in `scripts/installScriptAllowlist.mjs` — each added as
+a named gate) and **23 with
+it** (adding the zero-orphan sweep and citation discipline). `scripts/check-copy.mjs` — the same em-dash ban this
+file already names — also enforces a **Rooms vocabulary rule**: no `clone`,
+`replica`, `model`, `fine-tune`/`train`/`training`, `weights`, `embedding`,
+`LoRA` or `genome` in any user-visible string in `src/studio/`, `src/room/`,
+`site/vyakti.html`, `site/suites.html`, `studio.html` or `room.html`, with the only escape hatch
+(`scripts/roomsVocabAllowlist.mjs`) scoped by name to two files carrying
+pre-existing legal text a person already consented to.
+
+## Vyakti — the other product in this repo
+
+This repo also builds Vyakti, a platform where a creator turns their own
+archive into an AI version of themselves that talks to their followers.
+**Vyakti Rooms v1 (adopted 2026-09-02)** is the current product definition:
+a follower gets a private, continuing relationship with a creator's AI — "your
+AI" to the creator, "`<Name>` AI" to a follower, never "clone" in any
+user-visible string. Three scopes never blur: creator material flows down to
+everyone; a follower's own words stay in that follower's private scope alone;
+the creator sees only counts over an opt-in shared subgraph (`n>=5`, never
+verbatim). The Room lives at `/r/<slug>`; `AGENTS.md` and `docs/gurukul/`
+carry the full detail, `context/STATE.md` the current LIVE state, and this
+file's rules (gates, `context/`, the copy ban, never claiming what you did not
+run) bind Vyakti work exactly as they bind Meera's. Migrations: **015 through
+065, 071 through 099, 101 through 123 and 125 through 136 are applied live, except
+100, 103, 117, 124 and 131, which are unused (WS-R38, WS-R41, WS-R70, WS-R87 and WS-R126 needed no
+schema change);
+066-070 are deliberately left unused** (another agent's unpushed tree already
+occupies those numbers live). **137 is the next free number.**
+`context/STATE.md`'s session log carries the live-verification entry for each.
+
 **Prompt budget:** `scripts/check-prompt-budget.mjs` fails the build if an
 assembled prompt exceeds the cap `api/chat.js` slices it at. This exists because
 truncation is silent and eats the END of the prompt, where the newest and most

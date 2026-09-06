@@ -7,6 +7,7 @@
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
 import { calibrationDirectives } from "./_replica-calibration.js";
 import { FIDELITY_BLOCKER, FIDELITY_POLICY_VERSION } from "./_fidelity.js";
+import { READINESS_BLOCKER, READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR } from "./_readiness.js";
 
 export const RUNTIME_POLICY_VERSION = "replica-runtime-v1";
 export const REPLICA_CORE_CAP = 12_000;
@@ -73,6 +74,18 @@ export function runtimeBlockers(row) {
   // version), per the WS-B loader precedent: a caller must not be able to tell
   // "never benched" from "benched and failed".
   if (!truth(row.fidelity_qualified)) blockers.push(FIDELITY_BLOCKER);
+  // THE PUBLISH LOCK, and it is a PEER of the two gates above rather than a
+  // successor to them, exactly the way fidelity is a peer of the seven suites.
+  // The suites measure whether the clone behaves like the person; fidelity
+  // measures whether it sounds like them; readiness measures whether it is
+  // FINISHED ENOUGH to be let out, across five parts the creator can see and
+  // act on. A clone can pass any one of the three while failing the others.
+  //
+  // ONE code for every locked shape — never computed, computed and below the
+  // floor, computed with an instrument still missing — for FIDELITY_BLOCKER's
+  // reason: the gate must not be probeable for the difference. The creator is
+  // told the difference, in full, on their own readiness screen.
+  if (!truth(row.readiness_qualified)) blockers.push(READINESS_BLOCKER);
   return blockers;
 }
 
@@ -128,6 +141,22 @@ export function clientRuntimeStatus(row) {
     // needs your approval" rather than a bare count that reads as either
     // "not built" or "ready" depending on who is guessing.
     voice_genome_status: row.genome_latest_status || null,
+    // The publish lock's own summary, whitelisted the same way fidelity is.
+    // Never the parts and never the per-part method text: /api/readiness is
+    // where the creator reads those, at length, with the action attached. This
+    // is only enough for the launch gate to say which floor it is standing on.
+    // `null` when no snapshot exists, which is a different sentence from a
+    // snapshot that failed, and the gate treats both as locked.
+    readiness: row.readiness_computed_at
+      ? {
+          overall: Number.isFinite(Number(row.readiness_overall)) ? Number(row.readiness_overall) : null,
+          min_part: Number.isFinite(Number(row.readiness_min_part)) ? Number(row.readiness_min_part) : null,
+          unmeasured: Number(row.readiness_unmeasured || 0),
+          overall_floor: READINESS_OVERALL_FLOOR,
+          part_floor: READINESS_PART_FLOOR,
+          computed_at: row.readiness_computed_at,
+        }
+      : null,
     activated_at: row.capability_activated_at || null,
   };
 }
@@ -155,6 +184,18 @@ const RUNTIME_STATUS_SQL = `select r.replica_id,r.subject_mode,r.lifecycle,r.sub
   -- worth nothing if an active clone is exempt from the recomputation.
   (fid.status='pass') as fidelity_qualified,
   fid.status as fidelity_status,fid.score as fidelity_score,fid.computed_at as fidelity_computed_at,
+  -- THE PUBLISH LOCK, read off the LATEST readiness snapshot and nothing else.
+  -- Three conditions, all three in SQL: nothing unmeasured, the overall at or
+  -- above its floor, and the weakest part at or above its own. A null here (no
+  -- snapshot has ever been computed) is falsy, so the gate fails closed with no
+  -- branch in JS for a later edit to drop. Deliberately NOT short-circuited on
+  -- cap.state, for the reason stated above the fidelity line: an already-active
+  -- clone whose readiness has since fallen must report the blocker, or
+  -- "recomputed as the clone changes" means nothing for the clones that matter.
+  (rdy.unmeasured_count = 0 and rdy.overall >= $6::int4 and rdy.min_part >= $7::int4)
+    as readiness_qualified,
+  rdy.overall as readiness_overall,rdy.min_part as readiness_min_part,
+  rdy.unmeasured_count as readiness_unmeasured,rdy.computed_at as readiness_computed_at,
   cap.state as capability_state,cap.activated_at as capability_activated_at
 from vy_replica r
 left join vy_person p on p.person_id=r.subject_person_id
@@ -207,6 +248,16 @@ left join lateral (
      and x.policy_version=$5 and x.superseded_at is null
    limit 1
 ) fid on true
+-- The newest snapshot, whatever it says. Ordered rather than filtered on
+-- purpose: filtering to a PASSING snapshot here would let a clone that passed
+-- last week and fails today keep the old row's verdict, which is
+-- cache-outlives-the-voice with a readiness score instead of a voice.
+left join lateral (
+  select x.overall,x.min_part,x.unmeasured_count,x.computed_at
+    from vy_replica_readiness x
+   where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
+   order by x.computed_at desc limit 1
+) rdy on true
 left join lateral (
   select count(*) filter (where latest.verdict='pass') as passed
   from (
@@ -224,6 +275,7 @@ limit 1`;
 export async function ownedRuntimeStatus(db, ownerUserId, id) {
   const rows = await db(RUNTIME_STATUS_SQL, [
     replicaId(id), ownerUserId, REPLICA_POLICY_VERSION, [...RUNTIME_QUALIFICATION_SUITES], FIDELITY_POLICY_VERSION,
+    READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR,
   ]);
   return clientRuntimeStatus(rows[0]);
 }
@@ -283,6 +335,27 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
               and x.policy_version=$7 and x.superseded_at is null and x.status='pass'
             limit 1
          ) fid on true
+         -- THE PUBLISH LOCK (Vyakti Rooms v1: 70 overall, 55 on every part,
+         -- nothing unmeasured). An INNER lateral join and a peer of the
+         -- fidelity join above, for the same structural reason: no qualifying
+         -- readiness row means no 'selected' row means no capability, so the
+         -- gate fails closed by construction with no branch in JS that a later
+         -- edit can drop.
+         --
+         -- computed_at = max(computed_at) is the load-bearing clause. Without
+         -- it the join would find ANY passing snapshot in the history, so a
+         -- clone that passed once and has since regressed would activate off
+         -- its own best day. That is cache-outlives-the-voice with a readiness
+         -- score in place of a voice, and it is the exact defect the
+         -- superseded_at-is-null clause guards against one join up.
+         join lateral (
+           select x.readiness_id from vy_replica_readiness x
+            where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
+              and x.unmeasured_count=0 and x.overall>=$8::int4 and x.min_part>=$9::int4
+              and x.computed_at=(select max(y.computed_at) from vy_replica_readiness y
+                                  where y.replica_id=r.replica_id and y.owner_user_id=r.owner_user_id)
+            limit 1
+         ) rdy on true
          join lateral (
            select distinct on (e.suite) e.eval_id,e.suite,e.corpus_hash,e.verdict
              from vy_replica_eval_run e
@@ -339,7 +412,8 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
        from created_capability
      limit 1`,
     [rid, ownerUserId, REPLICA_POLICY_VERSION, [...RUNTIME_QUALIFICATION_SUITES],
-     RUNTIME_QUALIFICATION_SUITES.length, RUNTIME_POLICY_VERSION, FIDELITY_POLICY_VERSION],
+     RUNTIME_QUALIFICATION_SUITES.length, RUNTIME_POLICY_VERSION, FIDELITY_POLICY_VERSION,
+     READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR],
   );
   if (!rows[0]) {
     const status = await ownedRuntimeStatus(db, ownerUserId, rid);

@@ -13,6 +13,8 @@ import {
 import { ReplicaApiError } from "./replicaApi";
 import type { ConsentReceipt, ProviderConsent, Replica, VoiceProfile } from "./types";
 import { openPrivateWavCapture, type PrivateWavCapture } from "./wavCapture";
+import { useStudioLocale } from "./localeContext";
+import { withCount, withLabel, type StudioCopy } from "./copy";
 
 type Stage = "idle" | "permission" | "recording" | "hashing" | "authorizing" | "uploading" | "finalizing" | "creating" | "deleting";
 type Recording = { file: File; url: string; durationMs: number };
@@ -24,16 +26,23 @@ function activeScopes(consents: ConsentReceipt[]) {
   ).map((receipt) => receipt.scope));
 }
 
-function words(value: string) {
-  return value.replaceAll("_", " ");
+/** The stage label as it prints inside the "Secure statement" button while a
+ *  request is in flight -- `t.voiceEnrollmentLab`'s own words for each
+ *  in-progress `Stage`, never the raw enum value. */
+function stageLabel(c: StudioCopy["voiceEnrollmentLab"], stage: Stage) {
+  if (stage === "hashing") return c.stageHashing;
+  if (stage === "authorizing") return c.stageAuthorizing;
+  if (stage === "uploading") return c.stageUploading;
+  if (stage === "finalizing") return c.stageFinalizing;
+  return stage;
 }
 
-function statusCopy(profile: VoiceProfile | null) {
-  if (!profile) return "No provider voice has been created.";
-  if (profile.status === "ready") return `Ready from approved voice model version ${profile.genome_version}.`;
-  if (profile.status === "creating") return "Azure is validating and creating the private voice profile.";
-  if (profile.status === "deleting") return "Disabled now. Provider erasure is pending.";
-  return "Provider creation failed. Review the gate before retrying.";
+function statusCopy(c: StudioCopy["voiceEnrollmentLab"], profile: VoiceProfile | null) {
+  if (!profile) return c.statusNoProfile;
+  if (profile.status === "ready") return withCount(c.statusReadyTemplate, profile.genome_version);
+  if (profile.status === "creating") return c.statusCreating;
+  if (profile.status === "deleting") return c.statusDeleting;
+  return c.statusFailed;
 }
 
 export default function VoiceEnrollmentLab({
@@ -47,6 +56,8 @@ export default function VoiceEnrollmentLab({
   consents: ConsentReceipt[];
   onAuthError: (cause: unknown) => void;
 }) {
+  const { t } = useStudioLocale();
+  const c = t.voiceEnrollmentLab;
   const [providerConsent, setProviderConsent] = useState<ProviderConsent | null>(null);
   const [profile, setProfile] = useState<VoiceProfile | null>(null);
   const [fullName, setFullName] = useState("");
@@ -68,13 +79,13 @@ export default function VoiceEnrollmentLab({
   const busy = stage !== "idle";
   const scopes = useMemo(() => activeScopes(consents), [consents]);
   const blockers = [
-    !replica.age_verified && "Adult age verification",
-    !replica.identity_verified && "Identity verification",
-    !replica.liveness_verified && "Live-person verification",
-    !scopes.has("capture") && "Capture consent",
-    !scopes.has("storage") && "Private storage consent",
-    !scopes.has("biometric") && "Biometric modeling consent",
-    !scopes.has("training") && "Voice training consent",
+    !replica.age_verified && c.blockerAdultAge,
+    !replica.identity_verified && c.blockerIdentity,
+    !replica.liveness_verified && c.blockerLiveness,
+    !scopes.has("capture") && c.blockerCapture,
+    !scopes.has("storage") && c.blockerStorage,
+    !scopes.has("biometric") && c.blockerBiometric,
+    !scopes.has("training") && c.blockerVoiceBuilding,
   ].filter(Boolean) as string[];
 
   const report = useCallback((cause: unknown, fallback: string) => {
@@ -99,11 +110,11 @@ export default function VoiceEnrollmentLab({
         if (consentResult.status === "fulfilled") setProviderConsent(consentResult.value);
         if (profileResult.status === "fulfilled") setProfile(profileResult.value);
         const failed = [consentResult, profileResult].find((result) => result.status === "rejected");
-        if (failed?.status === "rejected") report(failed.reason, "Voice enrollment status is unavailable");
+        if (failed?.status === "rejected") report(failed.reason, c.errorStatusUnavailable);
       })
       .finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
-  }, [replica.replica_id, report, token]);
+  }, [replica.replica_id, report, token, c.errorStatusUnavailable]);
 
   useEffect(() => {
     if (stage !== "recording") return;
@@ -132,7 +143,7 @@ export default function VoiceEnrollmentLab({
       setProviderConsent(issued);
       setFullName("");
       setClock(Date.now());
-    } catch (cause) { report(cause, "Provider consent could not be issued"); }
+    } catch (cause) { report(cause, c.errorIssueFailed); }
     finally { setStage("idle"); }
   }
 
@@ -150,7 +161,7 @@ export default function VoiceEnrollmentLab({
       autoStopRef.current = window.setTimeout(() => void stopRecording(), 45_000);
     } catch (cause) {
       captureRef.current = null;
-      report(cause, "The microphone could not be opened");
+      report(cause, c.errorMicNotOpened);
       setStage("idle");
     }
   }
@@ -165,10 +176,10 @@ export default function VoiceEnrollmentLab({
       const next = await capture.stop();
       if (next.durationMs < 5_000 || next.durationMs > 90_000) {
         URL.revokeObjectURL(next.url);
-        throw new Error("Read the complete statement in one recording lasting at least five seconds.");
+        throw new Error(c.errorMinDuration);
       }
       setRecording(next);
-    } catch (cause) { report(cause, "The WAV recording could not be finalized"); }
+    } catch (cause) { report(cause, c.errorRecordingNotFinalized); }
     finally { setStage("idle"); }
   }
 
@@ -203,7 +214,7 @@ export default function VoiceEnrollmentLab({
         uploadCapability = created.upload;
       }
       if (!uploaded) {
-        if (!uploadCapability) throw new Error("Private upload authorization is missing.");
+        if (!uploadCapability) throw new Error(c.errorUploadAuthMissing);
         setStage("uploading");
         await putSignedUpload(recording.file, uploadCapability, setProgress);
         uploaded = true;
@@ -217,7 +228,7 @@ export default function VoiceEnrollmentLab({
       setPendingSourceId(null);
       setObjectUploaded(false);
       clearRecording();
-    } catch (cause) { report(cause, "Provider consent could not be secured"); }
+    } catch (cause) { report(cause, c.errorConsentNotSecured); }
     finally { setStage("idle"); }
   }
 
@@ -225,7 +236,7 @@ export default function VoiceEnrollmentLab({
     setError("");
     setStage("creating");
     try { setProfile(await createVoiceProfile(token, replica.replica_id)); }
-    catch (cause) { report(cause, "The provider voice could not be created"); }
+    catch (cause) { report(cause, c.errorProfileNotCreated); }
     finally { setStage("idle"); }
   }
 
@@ -238,7 +249,7 @@ export default function VoiceEnrollmentLab({
       setProfile(result.erasure === "complete" ? null : { ...profile, status: "deleting" });
       setProviderConsent((current) => current ? { ...current, state: "revoked" } : current);
       setDeleteText("");
-    } catch (cause) { report(cause, "The provider voice could not be erased"); }
+    } catch (cause) { report(cause, c.errorProfileNotErased); }
     finally { setStage("idle"); }
   }
 
@@ -246,112 +257,115 @@ export default function VoiceEnrollmentLab({
     <section id="voice-enrollment-lab" className="voice-enrollment-section" aria-labelledby="voice-enrollment-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Provider voice</p>
-          <h2 id="voice-enrollment-title">Create a voice only Microsoft can verify</h2>
+          <p className="eyebrow">{c.eyebrow}</p>
+          <h2 id="voice-enrollment-title">{c.title}</h2>
         </div>
         <span className={`voice-provider-state ${profile?.status === "ready" ? "ready" : ""}`}>
-          {loading ? "Checking" : profile?.status ?? "Not created"}
+          {loading ? c.stateChecking : profile?.status ?? c.stateNotCreated}
         </span>
       </div>
-      <p className="voice-enrollment-intro">
-        Your platform permissions are not provider consent. Microsoft requires a separate spoken legal statement,
-        then Vyakti binds it to one reviewed voice model and one private, metered profile.
-      </p>
+      <p className="voice-enrollment-intro">{c.intro}</p>
 
       {blockers.length > 0 && (
         <div className="voice-gate-blockers" role="status">
-          <strong>Enrollment remains locked</strong>
-          <p>Complete these independent gates first:</p>
+          <strong>{c.blockersHeadline}</strong>
+          <p>{c.blockersIntro}</p>
           <ul>{blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul>
         </div>
       )}
 
       <div className="voice-enrollment-grid">
         <article className="voice-enrollment-card">
-          <span className="voice-step">Provider statement</span>
-          <h3>Record exact consent</h3>
+          <span className="voice-step">{c.providerStatementStep}</span>
+          <h3>{c.recordExactConsent}</h3>
           {!challengeLive && providerConsent?.state !== "uploaded" && providerConsent?.state !== "accepted" && (
             <>
-              <label className="field-label" htmlFor="provider-full-name">Legal first and last name</label>
+              <label className="field-label" htmlFor="provider-full-name">{c.legalNameLabel}</label>
               <input id="provider-full-name" className="field" autoComplete="name" value={fullName}
-                onChange={(event) => setFullName(event.target.value)} placeholder="First and last name" />
+                onChange={(event) => setFullName(event.target.value)} placeholder={c.legalNamePlaceholder} />
               <button className="button primary-button" type="button"
                 disabled={busy || blockers.length > 0 || fullName.trim().split(/\s+/).length < 2}
-                onClick={() => void issue()}>Issue Microsoft statement</button>
+                onClick={() => void issue()}>{c.issueStatementButton}</button>
             </>
           )}
           {challengeLive && providerConsent?.statement && (
             <div className="provider-statement">
-              <span>Read every word exactly</span>
+              <span>{c.readExactlyLabel}</span>
+              {/* SERVER-COMPUTED PROSE: Microsoft's own required spoken legal
+                  statement, delivered by the provider consent API. This
+                  product does not author or translate it -- copy.ts's own
+                  header names this exact class of exception, applied here to
+                  a THIRD PARTY's fixed legal wording rather than this
+                  product's own. */}
               <blockquote>{providerConsent.statement}</blockquote>
-              <small>Expires {new Date(providerConsent.expires_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small>
+              <small>{withLabel(c.expiresTemplate, new Date(providerConsent.expires_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</small>
             </div>
           )}
           {stage === "recording" ? (
             <button className="button destructive-button" type="button" onClick={() => void stopRecording()}>
-              Stop recording · {seconds}s
+              {withCount(c.stopRecordingTemplate, seconds)}
             </button>
           ) : challengeLive && !recording ? (
             <button className="button secondary-button" type="button" disabled={busy} onClick={() => void startRecording()}>
-              Record private WAV
+              {c.recordPrivateWavButton}
             </button>
           ) : null}
           {recording && (
             <div className="provider-recording-review">
-              <audio controls src={recording.url}>Your browser cannot preview this recording.</audio>
-              <span>{(recording.durationMs / 1000).toFixed(1)} seconds · 24 kHz PCM WAV</span>
+              <audio controls src={recording.url}>{c.audioFallback}</audio>
+              <span>{withLabel(c.recordingDurationTemplate, (recording.durationMs / 1000).toFixed(1))}</span>
               <div className="voice-row-actions">
-                <button className="button secondary-button" disabled={busy} onClick={clearRecording}>Retake</button>
+                <button className="button secondary-button" disabled={busy} onClick={clearRecording}>{c.retakeButton}</button>
                 <button className="button primary-button" disabled={busy || !challengeLive} onClick={() => void upload()}>
-                  {stage === "idle" ? "Secure statement" : `${words(stage)}${progress ? ` ${progress}%` : ""}`}
+                  {stage === "idle" ? c.secureStatementButton : `${stageLabel(c, stage)}${progress ? ` ${progress}%` : ""}`}
                 </button>
               </div>
             </div>
           )}
           {(providerConsent?.state === "uploaded" || providerConsent?.state === "accepted") && (
             <>
-              <div className="voice-success"><span>✓</span><p><strong>Statement secured</strong><small>{providerConsent.state === "accepted" ? "Accepted by provider" : "Awaiting provider verification"}</small></p></div>
+              <div className="voice-success"><span>✓</span><p><strong>{c.statementSecuredTitle}</strong><small>{providerConsent.state === "accepted" ? c.acceptedByProvider : c.awaitingProviderVerification}</small></p></div>
               <dl className="voice-consent-receipt">
-                <div><dt>Provider</dt><dd>Microsoft Azure</dd></div>
-                <div><dt>Locale</dt><dd>{providerConsent.locale}</dd></div>
-                <div><dt>Attempt</dt><dd>{providerConsent.attempt} of 5</dd></div>
-                <div><dt>Statement</dt><dd>{providerConsent.statement_sha256.slice(0, 8)}…</dd></div>
+                <div><dt>{c.providerLabel}</dt><dd>{c.providerValue}</dd></div>
+                <div><dt>{c.localeLabel}</dt><dd>{providerConsent.locale}</dd></div>
+                <div><dt>{c.attemptLabel}</dt><dd>{withCount(c.attemptTemplate, providerConsent.attempt)}</dd></div>
+                <div><dt>{c.statementHashLabel}</dt><dd>{providerConsent.statement_sha256.slice(0, 8)}…</dd></div>
               </dl>
             </>
           )}
         </article>
 
         <article className="voice-enrollment-card">
-          <span className="voice-step">Exact model binding</span>
-          <h3>Build the private voice</h3>
-          <p>{statusCopy(profile)}</p>
+          <span className="voice-step">{c.exactVoiceBindingStep}</span>
+          <h3>{c.buildPrivateVoiceTitle}</h3>
+          <p>{statusCopy(c, profile)}</p>
           <div className="voice-binding-list">
-            <span><i className={providerConsent?.state === "uploaded" || providerConsent?.state === "accepted" ? "done" : ""} />Provider statement</span>
-            <span><i className={profile?.status === "ready" ? "done" : ""} />Approved voice model</span>
-            <span><i className={profile?.status === "ready" ? "done" : ""} />30 to 90 seconds of reviewed WAV</span>
-            <span><i className={profile?.status === "ready" ? "done" : ""} />Azure spend reservation</span>
+            <span><i className={providerConsent?.state === "uploaded" || providerConsent?.state === "accepted" ? "done" : ""} />{c.bindingProviderStatement}</span>
+            <span><i className={profile?.status === "ready" ? "done" : ""} />{c.bindingApprovedVoice}</span>
+            <span><i className={profile?.status === "ready" ? "done" : ""} />{c.bindingWavRange}</span>
+            <span><i className={profile?.status === "ready" ? "done" : ""} />{c.bindingSpendReservation}</span>
           </div>
           {!profile && (
             <button className="button primary-button" type="button"
               disabled={busy || providerConsent?.state !== "uploaded"}
               onClick={() => void createProfile()}>
-              {stage === "creating" ? "Creating verified profile" : "Create verified voice"}
+              {stage === "creating" ? c.creatingVerifiedProfileButton : c.createVerifiedVoiceButton}
             </button>
           )}
           {profile && (
             <div className="voice-profile-control">
-              <label className="field-label" htmlFor="delete-voice">Type DELETE VOICE to erase provider copy</label>
+              <label className="field-label" htmlFor="delete-voice">{c.deleteVoiceLabel}</label>
               <input id="delete-voice" className="field" value={deleteText}
                 onChange={(event) => setDeleteText(event.target.value.toUpperCase())} autoComplete="off" />
               <button className="button danger-button" type="button"
                 disabled={busy || deleteText !== "DELETE VOICE" || profile.status === "deleting"}
-                onClick={() => void eraseProfile()}>Erase provider voice</button>
+                onClick={() => void eraseProfile()}>{c.eraseProviderVoiceButton}</button>
             </div>
           )}
         </article>
       </div>
-      {error && <p className="inline-error" role="alert">{words(error)}</p>}
-      <p className="voice-enrollment-note">No public voice page, downloadable model, bulk API, telephony, or silent generation is enabled.</p>
+      {error && <p className="inline-error" role="alert">{error}</p>}
+      <p className="voice-enrollment-note">{c.footerNote}</p>
     </section>
   );
 }

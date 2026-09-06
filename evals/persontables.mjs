@@ -60,6 +60,10 @@ const PERSON_COLUMNS = [
   "granted_by",
   "granted_to",
   "owner_user_id",
+  // WS-R23 (086): joins relcheck's own list for the identical reason -
+  // vy_creator_invite's redeemed_by_user_id IS the replica owner's id once a
+  // code is spent, the owner-lane fact that keeps it off PERSON_TABLES.
+  "redeemed_by_user_id",
 ];
 
 // The owner lane. `owner_user_id` is the replica owner's Supabase auth id — a
@@ -111,6 +115,29 @@ const EXEMPT = {
     "the erasure cascade's root; the subject link is severed by 015's " +
     "on-delete-set-null when vy_person goes, and deleting the row is the " +
     "owner's request, not the subject's",
+  // WS-R23 (086). `ownerLane()` above only recognizes the LITERAL column name
+  // `owner_user_id`, by design (its own docstring), so a table on the owner
+  // lane through a differently-named column falls to this map instead of that
+  // function - redeemed_by_user_id IS the replica owner's id once a code is
+  // spent, the identical fact scripts/relcheck.mjs's widened owner-lane check
+  // (OWNER_KEYS) walks against the live FK graph. Reached by name in
+  // api/_replica-full-erasure.js, never by this manifest.
+  vy_creator_invite:
+    "redeemed_by_user_id is the owner lane under a different column name; " +
+    "erased by name in api/_replica-full-erasure.js, checked by relcheck's " +
+    "FK walk rather than this offline manifest",
+  // WS-R100 (migration 126). Mirrors scripts/relcheck.mjs's own EXEMPT
+  // entry, verbatim reasoning: an account-wide forget NULLS person_id on
+  // this table (api/memory.js's own explicit door) rather than deleting the
+  // row, so PERSON_TABLES membership (which means "wiped by the generic
+  // DELETE loop") would be the wrong mechanism for it. Reachable for forget
+  // (that explicit door) and export (api/_room-surface.js's
+  // ROOM_EXPORT_EXTRA) both, just not through this manifest.
+  vy_receipt:
+    "an account-wide forget NULLS person_id (api/memory.js's own explicit " +
+    "door) rather than deleting the row, so the number and the amount " +
+    "survive; PERSON_TABLES membership would mean the generic DELETE loop " +
+    "instead",
 };
 
 const listed = new Set(PERSON_TABLES.map((t) => t.table));
@@ -171,8 +198,15 @@ for (const t of PERSON_TABLES) {
     }
   }
   if (t.wipeWhere) {
-    for (const c of t.wipeWhere.match(/[a-z_][a-z0-9_]*/g) || []) {
-      if (["is", "null", "not", "and", "or", "true", "false"].includes(c)) continue;
+    // Quoted string literals are DATA, never identifiers - `state in
+    // ('cancelled','expired')` (WS-R11's own entry) must not have its
+    // literal's CONTENTS mistaken for a column name the way its identifiers
+    // legitimately are. Stripped before the identifier scan rather than
+    // excluded value-by-value, so any future literal is covered by
+    // construction instead of by an ever-growing exception list.
+    const withoutStringLiterals = t.wipeWhere.replace(/'[^']*'/g, "''");
+    for (const c of withoutStringLiterals.match(/[a-z_][a-z0-9_]*/g) || []) {
+      if (["is", "null", "not", "and", "or", "true", "false", "in"].includes(c)) continue;
       if (!(c in cols)) {
         problem(`PERSON_TABLES entry ${t.table} has wipeWhere naming ${c}, not a column of it.`);
       }

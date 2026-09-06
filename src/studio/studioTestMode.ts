@@ -25,7 +25,7 @@ export function selfTestWizard(base: WizardView): WizardView {
   const meetView: StepView = {
     ...meet,
     number: 2,
-    title: "Test your clone",
+    title: "Test your AI",
     promise: "Hear it, talk to it, and correct what it gets wrong.",
     state: "later",
     ember: false,

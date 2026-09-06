@@ -104,6 +104,7 @@
 // the backlog gradually and a killed invocation costs nothing but its hour.
 // ═══════════════════════════════════════════════════════════════════════════
 import { q } from "./_db.js";
+import { timingSafeEqual } from "node:crypto";
 import {
   runFullChainForPerson,
   LOG_BATCH_CAP,
@@ -113,6 +114,7 @@ import {
 } from "./consolidate.js";
 import { MEERA_AGENT_ID } from "./_agentscope.js";
 import { allow, ipOf } from "./_ratelimit.js";
+import { withSweepRun } from "./_sweep-run.js";
 
 const CRON_SECRET = process.env.CRON_SECRET || "";
 const SWEEP_SECRET = process.env.CONSOLIDATE_SWEEP_SECRET || "";
@@ -317,14 +319,26 @@ async function release(agentId, personId, runId) {
   );
 }
 
+/** Constant-time equality of two secrets, false for an unset or short
+ *  expected value (`api/self-check.js`'s own `authorized` shape restated). */
+function secretMatches(expected, provided) {
+  const e = Buffer.from(String(expected || ""));
+  const p = Buffer.from(String(provided || ""));
+  return e.length >= 16 && e.length === p.length && timingSafeEqual(e, p);
+}
+
+// WS-R89's second door battery found (and, being Room-scoped, left to the
+// main loop) two defects here: the sweep secret was also accepted from the
+// GET query string or the POST body, where it lands in access logs and
+// browser history, and both comparisons were plain `===`, which leaks the
+// match length in timing. Headers only now, both compared in constant time
+// (`context/rejected.md#ws-r89-consolidate-sweep-secret-in-query-or-body-found-out-of-scope`).
+// `docs/CONSOLIDATION.md`'s own runbook already sends `x-sweep-secret` as a
+// header; nothing in this repo sent the secret any other way.
 function authorized(req) {
-  const auth = req.headers.authorization || "";
-  if (CRON_SECRET && auth === `Bearer ${CRON_SECRET}`) return true;
-  const provided =
-    req.headers["x-sweep-secret"] ||
-    (req.method === "GET" ? req.query?.secret : req.body?.secret) ||
-    "";
-  if (SWEEP_SECRET && provided === SWEEP_SECRET) return true;
+  const auth = String(req.headers.authorization || "");
+  if (CRON_SECRET && auth.startsWith("Bearer ") && secretMatches(CRON_SECRET, auth.slice(7))) return true;
+  if (SWEEP_SECRET && secretMatches(SWEEP_SECRET, req.headers["x-sweep-secret"])) return true;
   return false;
 }
 
@@ -373,6 +387,12 @@ export default async function handler(req, res) {
   const personBudget = Math.max(1, Math.min(MAX_PERSON_BUDGET, Number(body.limit) || DEFAULT_PERSON_BUDGET));
 
   try {
+    // WS-R21: the ops board's heartbeat (migration 084). The inner function
+    // returns the same payload this handler used to `res.json()` directly;
+    // only the status-code decision (dryRun vs halted) now happens after the
+    // heartbeat's own UPDATE, from the returned object, so the JSON body a
+    // caller sees is byte-identical to before this change.
+    const summary = await withSweepRun(q, "consolidate", async () => {
     await ensureSchema();
     const t0 = Date.now();
     // The cron is deliberately pinned to Meera. Replica agents will need an
@@ -431,7 +451,7 @@ export default async function handler(req, res) {
           usd_estimate: usd(tin, tout),
         };
       };
-      return res.status(200).json({
+      return {
         ok: true,
         dryRun: true,
         enabled_by: enabledBy,
@@ -468,7 +488,7 @@ export default async function handler(req, res) {
           pending_rows: Number(c.pending_rows),
           oldest_pending_at: c.oldest_pending_at,
         })),
-      });
+      };
     }
 
     const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -563,7 +583,7 @@ export default async function handler(req, res) {
     }
 
     const s = spent();
-    return res.status(halted ? 500 : 200).json({
+    return {
       ok: !halted,
       dryRun: false,
       enabled_by: enabledBy,
@@ -586,7 +606,9 @@ export default async function handler(req, res) {
       },
       results,
       ms: Date.now() - t0,
+    };
     });
+    return res.status(summary.dryRun || !summary.halted ? 200 : 500).json(summary);
   } catch (e) {
     return res.status(500).json({ error: "sweep failure", message: e?.message });
   }

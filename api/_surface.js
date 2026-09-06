@@ -43,7 +43,13 @@
 // A degraded persona that still replies is the `silent-truncation` shape — it
 // works, everything returns 200, and she is quietly someone else.
 import { q } from "./_db.js";
+import { OPENROUTER_KEY } from "./_config.js";
 import { MEERA_AGENT_ID } from "./_agentscope.js";
+// WS-R4. The owner's "Never say this" rules, as a predicate on the assembled
+// reply. `api/_never-rules.js` imports NOTHING, on purpose: this file is on
+// every surface's reply path and must not gain a transitive dependency on
+// storage config or a database client to enforce an owner's rule.
+import { replyViolatesNeverRule } from "./_never-rules.js";
 import {
   setReadConsent,
   setQuiet,
@@ -279,7 +285,16 @@ export async function loadEngine() {
  *  `system_tail`. One copy for every surface — a second copy is a second set
  *  of sampling parameters nobody remembers to keep in step. */
 export async function think(engine, compiled, turns) {
-  const key = process.env.OPENROUTER_API_KEY || "";
+  // The SAME read every other completion caller in api/ makes (`chat.js`,
+  // `memory.js`, `speech.js`, `search.js`, `culture.js`, `_embed.js`): the
+  // env alias first, then the key `scripts/write-config.mjs` bakes into
+  // `_config.js` under the name the self-check verifies (`OPENROUTER_KEY`,
+  // `api/_self-check.js`'s REQUIRED_ENV). From 2026-09-03 to 2026-09-05
+  // this door read the alias ALONE, so a deployment with the required name
+  // set and the alias unset passed its own self-check while every Room,
+  // Mirror Call and channel reply came back empty (WS-R96's finding,
+  // `docs/gurukul/DAY-ONE.md`'s section 2).
+  const key = process.env.OPENROUTER_API_KEY || OPENROUTER_KEY || "";
   const body = {
     model: "google/gemini-3.6-flash",
     messages: [
@@ -359,12 +374,38 @@ export async function think(engine, compiled, turns) {
  *                 she may retell. NOT the brief, which mentions half the world
  *                 and would make the check vacuous.
  */
+/**
+ * WS-R111: the material block's own lines are excluded from `trustedText`.
+ * `context/rejected.md#ws-r105-no-material-instruction-boundary-in-the-compiler`
+ * measured a secret-shaped string placed in a sheet field reaching the
+ * delivered reply BECAUSE `trustedText` carried the whole compiled prompt —
+ * a string the creator's own material contains is not thereby something the
+ * gate should treat as grounded to say. This changes only the trusted SET
+ * (never `honesty.ts`'s families, per this workstream's own law) and is a
+ * no-op whenever the markers are absent — every Meera/Kabir compiled prompt,
+ * and any bundle predating this change, strips nothing.
+ */
+function stripMaterialBlock(text, engine) {
+  const open = engine?.MATERIAL_BLOCK_OPEN;
+  const close = engine?.MATERIAL_BLOCK_CLOSE;
+  if (!open || !close) return text;
+  let out = text;
+  let start = out.indexOf(open);
+  while (start >= 0) {
+    const end = out.indexOf(close, start);
+    if (end < 0) break; // an unclosed marker is a malformed prompt, not a block to strip
+    out = out.slice(0, start) + out.slice(end + close.length);
+    start = out.indexOf(open);
+  }
+  return out;
+}
+
 export function honestyContextFor(engine, compiled, turns, { record = [], nameable = [] } = {}) {
   const history = (turns || []).map((m) => ({
     from: m.role === "assistant" ? "her" : "me",
     text: String(m.content ?? ""),
   }));
-  const fullSystem = `${compiled?.core ?? ""}${compiled?.tail ?? ""}`;
+  const fullSystem = stripMaterialBlock(`${compiled?.core ?? ""}${compiled?.tail ?? ""}`, engine);
   return {
     trustedText: [
       fullSystem,
@@ -404,7 +445,7 @@ export function hasGate(engine) {
  * event is that the string it caught must not travel; logging it here would
  * put it in a log aggregator instead of a chat window, which is not better.
  */
-export function gateReply(engine, raw, honestyCtx, label = "surface") {
+export function gateReply(engine, raw, honestyCtx, label = "surface", neverRules = []) {
   const text = String(raw ?? "");
   if (!text) return { text: "", findings: [], gated: true };
   if (!hasGate(engine)) {
@@ -434,11 +475,33 @@ export function gateReply(engine, raw, honestyCtx, label = "surface") {
   // owns fragmentation (splitForLimit) — the engine does not get to decide how
   // many messages a wire wants. Newline-joined, so her burst structure
   // survives into whatever the adapter makes of it.
+  const joined = (reply.bubbles || []).join("\n").trim();
+  // ── WS-R4. THE OWNER'S "Never say this", AS A PREDICATE ON THE OUTPUT ────
+  //
+  // Last, and here rather than anywhere else, for the reason
+  // docs/gurukul/safety-floor-teacher.md states with a measurement attached:
+  // "prompt instructions leaked 57-98%; the SQL predicate leaked 0 of 31,122 …
+  // a sentence in a brief is a preference, a predicate on the output is a
+  // guarantee." A list of forbidden sentences in a persona would ALSO be a
+  // phrase bank pointed at the exact strings it forbids (`recited-prompt`), so
+  // the rules never go near a prompt — they are rows, read per turn, matched
+  // here, on the assembled bytes.
+  //
+  // A match SUPPRESSES. Saying nothing is the fail-closed direction and it is
+  // the same direction this function already takes when the gate is missing. The
+  // rule id travels in `neverRule` so a surface can say why it went quiet; the
+  // TEXT never does, for `gateReply`'s standing reason.
+  const violated = joined && neverRules.length ? replyViolatesNeverRule(joined, neverRules) : "";
+  if (violated) {
+    console.warn(`[${label}] never_rule_block rule=${violated}`);
+    return { text: "", findings, gated: true, parsed: reply, neverRule: violated };
+  }
   return {
-    text: (reply.bubbles || []).join("\n").trim(),
+    text: joined,
     findings,
     gated: true,
     parsed: reply,
+    neverRule: "",
   };
 }
 
@@ -451,6 +514,11 @@ export function gateReply(engine, raw, honestyCtx, label = "surface") {
  */
 export async function gatedReply(ctx, compiled, turns, opts = {}) {
   const label = opts.label || ctx.adapter?.surface || "surface";
+  // WS-R4. Compiled never-rules ride in on `opts` rather than being loaded
+  // here, because this file has no database and must keep none: a lane that
+  // knows the replica loads them (api/_review-queue.js::loadNeverRules) and
+  // hands them down, and a lane that does not passes none and is unchanged.
+  const neverRules = Array.isArray(opts.neverRules) ? opts.neverRules : [];
   const raw = await ctx.reply(compiled, turns);
   // The availability check comes BEFORE the context is built, and that order
   // is load-bearing rather than tidy: a bundle without the gate is also a
@@ -458,8 +526,8 @@ export async function gatedReply(ctx, compiled, turns, opts = {}) {
   // building the context first turns a refusal into a TypeError thrown out of
   // the middle of a lane — after the user's turn is logged and before hers is.
   // `evals/surface.mjs` drives exactly this, which is how the order was found.
-  if (!hasGate(ctx.engine)) return gateReply(ctx.engine, raw, { trustedText: [], openItems: [] }, label);
-  return gateReply(ctx.engine, raw, honestyContextFor(ctx.engine, compiled, turns, opts), label);
+  if (!hasGate(ctx.engine)) return gateReply(ctx.engine, raw, { trustedText: [], openItems: [] }, label, neverRules);
+  return gateReply(ctx.engine, raw, honestyContextFor(ctx.engine, compiled, turns, opts), label, neverRules);
 }
 
 // ─────────────────────────────────────────────────────────────────────────

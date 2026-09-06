@@ -1,0 +1,259 @@
+# WS-R77. `node scripts/verify-release.mjs` has always been "the law", and
+# the law lived on exactly one machine: whichever one a human, or an agent,
+# remembered to run it on. `build-apk.yml` and `deploy-web.yml` both run
+# `tsc -b` and the eval suite, but NEITHER runs the room leak battery, the
+# door battery, the export battery, accessibility, performance budgets,
+# security headers, or the layout gate's glyph pass. A push that only passed
+# those two workflows could still be breaking every one of those and nothing
+# in GitHub would say so. `gates-that-live-nowhere` and
+# `gates-that-live-nowhere-2` (`context/rejected.md`) are the same shape
+# twice already: a suite exists, runs clean by hand, and gates nothing in
+# CI because nobody wired it. This is the wiring, for the whole gate this
+# time, not one suite inside it.
+#
+# WHAT THIS JOB DOES NOT DO. It never reconstructs `api/_config.js` from a
+# secret (`consolidate.yml`/`deploy-web.yml`/`drift.yml` do, for their own
+# separate reasons) and it never touches the live database. Every one of the
+# 21 checks `node scripts/verify-release.mjs` runs without `NEON_URL` is
+# offline: a stub config with every key empty, and the two relational-db
+# checks skip themselves (printed, never silent) exactly as they do on any
+# machine without a URL. There is nothing here for `NEON_URL` to unlock —
+# this job never sets it — so this workflow is always the 21-check run, on
+# purpose, matched by the assertion step below.
+#
+# NODE 22 AND 24. This repo runs on Node 22 today; Vercel builds it on Node
+# 24. Nothing before this workflow ever ran the gate under both, so a
+# Node-24-only regression (a removed global, a changed default) would have
+# shipped straight to Vercel's build with no local signal — the matrix below
+# is the check for exactly that gap.
+name: Release gate
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  workflow_dispatch:
+  # WS-R122. Weekly, for the `hindi-rehearsals` job below only — the Hindi
+  # creator and follower rehearsals under `REHEARSAL_FULL=1` are not part of
+  # the 21/23-check gate `evals/run.mjs` registers by default (that registry
+  # runs the English gate of each rehearsal only, this workstream's own
+  # brief and `context/rejected.md`'s WS-R119 entries restate why: minutes
+  # and rate-limit budget a push-triggered gate cannot spend twice), so
+  # without a schedule the Hindi walks would run only when a human happens
+  # to invoke them by hand. Sunday 04:37 UTC: neither `drift.yml`'s existing
+  # weekly "15 3 * * 0" nor `culture.yml`'s existing daily "45 3 * * *"
+  # (`grep -rn "cron:" .github/workflows/*.yml`, checked before picking this
+  # so three schedules do not stack onto one runner-minute).
+  schedule:
+    - cron: "37 4 * * 0"
+
+# A newer push makes an in-flight gate run pointless before it finishes: the
+# gate is a pure function of the tree (no writes, no state), so the newest
+# commit's result is the only one that matters and racing an old run to
+# completion wastes runner minutes for an answer nobody will read. Same
+# posture as `deploy-web.yml`'s own concurrency group, scoped to this
+# workflow's own name so the two never collide.
+concurrency:
+  group: release-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    # WS-R122. The only line this workstream's brief allows to touch this
+    # job ("the existing job only, the existing job untouched" — this is
+    # the one line that is not a step, and it changes no gate LOGIC): the
+    # weekly `schedule:` trigger added above exists for `hindi-rehearsals`
+    # alone, and without this a bare schedule trigger would ALSO fire the
+    # full 21/23-check matrix here every week for no reason anyone asked
+    # for. `push`/`workflow_dispatch` are completely unaffected — this job
+    # runs on those exactly as it always did.
+    if: github.event_name != 'schedule'
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24]
+    runs-on: ubuntu-latest
+    # 25 minutes is this workstream's own measured trigger for splitting the
+    # browser checks into a parallel job sharing the build artifact (see the
+    # brief). The cap here is set a little above that so a run that is only
+    # slightly over 25 minutes finishes and is VISIBLE in the timing rather
+    # than being killed mid-run and reported as a generic timeout with no
+    # per-check breakdown. Local rehearsal (this workstream, both Node
+    # versions, `context/measurements.md#ws-r77-local-rehearsal-runtime-2026-09-05`)
+    # measured the 21 checks themselves at just over 10 minutes on a 4-core sandbox; a real
+    # `ubuntu-latest` runner (2 cores) plus checkout, `npm ci`, and a
+    # first-time Chromium download is expected to run slower, and only a
+    # real CI run can say how much. If a real run is ever measured at or
+    # above 25 minutes, split: a `build` job runs typecheck through
+    # `npx vite build` and `actions/upload-artifact`s `dist/`, then a
+    # `browser-gates` job downloads it and runs the layout/performance/
+    # accessibility/security-headers checks alone — `scripts/verify-
+    # release.mjs` would need a `--only <name>` flag it does not have today
+    # to make that split possible without duplicating gate logic; add it
+    # then, not speculatively now (`context/decisions.md#ws-r77-ci-gate-not-split-into-parallel-jobs-yet`).
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - run: npm ci
+
+      # NO SECRET REACHES THIS JOB. Every check below runs on a keyless stub
+      # config — an accidental query fails loudly instead of quietly
+      # reaching prod, the exact reason `--stub` exists
+      # (`context/rejected.md#gates-that-live-nowhere-2`).
+      - run: CI=1 node scripts/write-config.mjs --stub
+
+      # Static assertion, not a runtime property: greps THIS file for a
+      # GitHub Actions secret reference and fails if it finds one. Split
+      # across two shell variables so this line's own source text never
+      # spells the four-letter word followed by a dot — the exact substring
+      # it is searching for — or every run would trip on itself before ever
+      # reaching a real usage.
+      - name: Assert no secret reaches this job
+        run: |
+          NEEDLE_A="secrets"
+          NEEDLE_B="."
+          HIT=$(grep -Fn -- "${NEEDLE_A}${NEEDLE_B}" .github/workflows/release-gate.yml || true)
+          if [ -n "$HIT" ]; then
+            echo "::error::this workflow references a secret; the release gate must stay stub-config-only (api/_config.js is gitignored and holds every key, AGENTS.md's own law)"
+            echo "$HIT"
+            exit 1
+          fi
+          echo "ok -- this workflow never references a live secret"
+
+      # WS-R43 law 4 / this workstream's own law 4. `.room-shell:lang(hi)`
+      # (`src/room/room.css`) names "Noto Sans Devanagari" first and falls
+      # through to whatever the OS substitutes after it — this repo loads no
+      # web fonts anywhere (`grep -rl "fonts.google" .` finds nothing), so
+      # the glyph pass's real behaviour depends entirely on what font the
+      # machine running it happens to have. This repo's own dev sandbox
+      # already names the blind spot: `context/measurements.md#layout-gate-glyph-probe-uniformity-half-2026-09-05`
+      # says outright "every installed face has Devanagari, so a missing
+      # webfont still renders letters here" — the gate cannot even see the
+      # failure it exists to catch on a machine that happens to ship a
+      # generous fallback (this repo's local sandboxes do, via GNU FreeFont).
+      # A stock `ubuntu-latest` image is not guaranteed to be that generous
+      # and nothing here should depend on it being one way or the other by
+      # luck, so this installs the EXACT face the CSS names first, from the
+      # EXACT npm dependency this repo already carries for the identical
+      # reason (`api/_room-card.js`'s own rasteriser bundles this same file
+      # as a `data:` URI so it never depends on a system font either) — a
+      # user-local font directory plus `fc-cache`, no `apt-get`, no root, no
+      # network beyond what `npm ci` already fetched. `fc-list` must show it
+      # registered afterward or this step fails here, loudly, rather than
+      # letting the glyph pass either silently ride a substitute font or
+      # silently pass for the wrong reason.
+      - name: Install the bundled Devanagari face as a system font
+        run: |
+          mkdir -p "$HOME/.local/share/fonts"
+          cp node_modules/@expo-google-fonts/noto-sans-devanagari/400Regular/NotoSansDevanagari_400Regular.ttf "$HOME/.local/share/fonts/"
+          fc-cache -f "$HOME/.local/share/fonts"
+          fc-list | grep -qi "Noto Sans Devanagari" || { echo "::error::Noto Sans Devanagari did not register with fontconfig -- the glyph pass would be blind on this runner"; exit 1; }
+
+      # The audio floor. `evals/echosim/stucksim.mjs` (inside verify-release,
+      # named "stuck-turn endpoint") and the manual before/after tables both
+      # need this artifact built first, exactly as `AGENTS.md`'s own gate
+      # notes say — same rule as the missing-`_config.js` trap just above,
+      # different missing artifact.
+      - run: node evals/echosim/build.mjs
+
+      # The one download this job needs from the network beyond npm's own
+      # registry. Cached by Playwright's own version plus the lockfile hash,
+      # so a run that changes neither re-downloads nothing.
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-chromium-${{ runner.os }}-
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      # THE WHOLE GATE — every one of the 21 checks (23 only when `NEON_URL`
+      # is set, which this job never does; see the header above). This is
+      # the ONE command whose exit code this job's own status is allowed to
+      # depend on for its central claim ("CI ran the whole gate"): every
+      # step before this one is setup, and every step after it (none) would
+      # be reporting, never gating.
+      - run: node scripts/verify-release.mjs
+
+  # WS-R122. THE HINDI WALKS, on a schedule nobody has to remember. Both
+  # rehearsals (`evals/rehearsal/creator.mjs`, `follower.mjs`) are already
+  # locale-complete under `REHEARSAL_FULL=1` (WS-R122's own fix to the
+  # Context Locker click and the shared export-rate bucket — see
+  # `context/decisions.md` and `context/rejected.md`), but `evals/run.mjs`'s
+  # own registry runs the English gate of each ONLY (`creator.mjs`'s and
+  # `follower.mjs`'s own file headers restate this), so nothing before this
+  # job ever ran the Hindi creator or Hindi follower journey in CI at all —
+  # `gates-that-live-nowhere` one surface over: a suite exists, passes by
+  # hand, and gates nothing because nobody scheduled it.
+  hindi-rehearsals:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # Local rehearsal of both walks under `REHEARSAL_FULL=1` (this
+    # workstream, see the wall clocks logged in `context/measurements.md`)
+    # is well under five minutes combined; 15 covers a cold Chromium
+    # download and a slower shared runner with real margin, the same
+    # "measured, then padded" posture `gate`'s own 30-minute cap uses above.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Same posture as `gate`, restated rather than shared: no secret
+      # reaches this job either.
+      - run: CI=1 node scripts/write-config.mjs --stub
+
+      - name: Assert no secret reaches this job
+        run: |
+          NEEDLE_A="secrets"
+          NEEDLE_B="."
+          HIT=$(grep -Fn -- "${NEEDLE_A}${NEEDLE_B}" .github/workflows/release-gate.yml || true)
+          if [ -n "$HIT" ]; then
+            echo "::error::this workflow references a secret; the release gate must stay stub-config-only (api/_config.js is gitignored and holds every key, AGENTS.md's own law)"
+            echo "$HIT"
+            exit 1
+          fi
+          echo "ok -- this workflow never references a live secret"
+
+      # `gate`'s own step, restated: the Hindi walks render real Devanagari
+      # text and this is the one face `.room-shell:lang(hi)`/the studio's
+      # own Hindi styles name first.
+      - name: Install the bundled Devanagari face as a system font
+        run: |
+          mkdir -p "$HOME/.local/share/fonts"
+          cp node_modules/@expo-google-fonts/noto-sans-devanagari/400Regular/NotoSansDevanagari_400Regular.ttf "$HOME/.local/share/fonts/"
+          fc-cache -f "$HOME/.local/share/fonts"
+          fc-list | grep -qi "Noto Sans Devanagari" || { echo "::error::Noto Sans Devanagari did not register with fontconfig -- the Hindi walks would be blind on this runner"; exit 1; }
+
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-chromium-${{ runner.os }}-
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      # Each rehearsal builds its own `dist/` on first use
+      # (`evals/rehearsal/harness.mjs`'s own `startHarness`), so no separate
+      # build step — this mirrors running either file locally by hand.
+      - name: Creator rehearsal, English + Hindi (REHEARSAL_FULL=1)
+        run: REHEARSAL_FULL=1 node evals/rehearsal/creator.mjs
+
+      - name: Follower rehearsal, English + Hindi (REHEARSAL_FULL=1)
+        run: node evals/rehearsal/follower.mjs --full
