@@ -279,13 +279,42 @@ function makeChargeDb(state) {
     //    fixture is Suite-covered unless a test overrides it via deps. ──
     if (has("select exists (") && has("vy_org_subscription")) return [{ covered: false }];
 
-    // ── startCreatorSubscription's own reads/writes ──
+    // ── startCreatorSubscription's own reads/writes. WS-R132 (migration
+    // 135): the widened predicate excludes a halted or cancelled mandate
+    // too - a fixture row with no `mandate_state` at all (every row this
+    // file minted before this workstream) reads as `undefined`, which is
+    // not in the exclusion list either, so this is a no-op for every
+    // EXISTING test in this file. ──
     if (has("from vy_creator_subscription") && has("state in")) {
       const [replicaId] = params;
       const row = state.creatorSubscriptions
-        .filter((s) => s.replica_id === replicaId && ["created", "authenticated", "active", "paused"].includes(s.state))
+        .filter((s) => s.replica_id === replicaId
+          && ["created", "authenticated", "active", "paused"].includes(s.state)
+          && !["halted", "cancelled"].includes(s.mandate_state))
         .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
       return row ? [{ subscription_id: row.subscription_id, provider_subscription_ref: row.provider_subscription_ref, state: row.state }] : [];
+    }
+    // ── WS-R132's own "close halted/cancelled row, then insert" statement
+    // family - checked BEFORE the plain insert branch below, since it also
+    // contains the substring "insert into vy_creator_subscription". ──
+    if (has("with closed as (") && has("insert into vy_creator_subscription")) {
+      const [replicaId, ownerUserId, plan, priceInr, currency, provider] = params;
+      for (const s of state.creatorSubscriptions) {
+        if (s.replica_id === replicaId
+          && ["created", "authenticated", "active", "paused"].includes(s.state)
+          && ["halted", "cancelled"].includes(s.mandate_state)) {
+          s.state = "cancelled";
+        }
+      }
+      subCounter += 1;
+      const row = {
+        subscription_id: `e${String(subCounter).padStart(7, "0")}-0000-4000-8000-000000000000`,
+        owner_user_id: ownerUserId, replica_id: replicaId, plan, price_inr: priceInr, currency, provider,
+        state: "created", provider_subscription_ref: null, created_at: new Date(Date.now() + subCounter).toISOString(),
+        mandate_state: "none", mandate_state_at: null,
+      };
+      state.creatorSubscriptions.push(row);
+      return [{ subscription_id: row.subscription_id, state: row.state }];
     }
     if (has("insert into vy_creator_subscription")) {
       const [ownerUserId, replicaId, plan, priceInr, currency, provider] = params;
@@ -314,14 +343,25 @@ function makeChargeDb(state) {
       return row ? [{ subscription_id: row.subscription_id, owner_user_id: row.owner_user_id, replica_id: row.replica_id }] : [];
     }
 
-    // ── THE NEW STATEMENT: state flip + conditional charge insert, one CTE ──
+    // ── THE NEW STATEMENT: state flip + conditional charge insert, one CTE.
+    // WS-R132: the 10th bound param is `nextMandateState` (`api/_payments.js`'s
+    // own creator-lane `sub_update`, migration 130) - previously ignored
+    // here since no test in this file ever read `mandate_state` back;
+    // applied now with the SAME "only advance when leaving a different
+    // value" guard the real UPDATE's CASE expression carries, so a halt
+    // fired in this fixture is a real, stored fact the new close-then-insert
+    // branch above can act on. ──
     if (has("with sub_update as") && has("insert into vy_creator_charge_event")) {
-      const [subId, nextState, periodStart, periodEnd, provider, chargeRef, amountInr, payloadHash, isCharge] = params;
+      const [subId, nextState, periodStart, periodEnd, provider, chargeRef, amountInr, payloadHash, isCharge, nextMandateState] = params;
       const sub = state.creatorSubscriptions.find((s) => s.subscription_id === subId);
       if (!sub) return [];
       if (nextState !== "") sub.state = nextState;
       if (periodStart) sub.current_period_start = periodStart;
       if (periodEnd) sub.current_period_end = periodEnd;
+      if (nextMandateState && sub.mandate_state !== nextMandateState) {
+        sub.mandate_state = nextMandateState;
+        sub.mandate_state_at = new Date().toISOString();
+      }
       let chargeId = null;
       if (isCharge === true || isCharge === "true") {
         const dup = state.creatorChargeEvents.find((c) => c.provider === provider && c.provider_charge_ref === chargeRef);
@@ -541,6 +581,60 @@ console.log("\n§8 WS-R130 (migration 133) - reconcilePeriod names referral_rewa
   const ungated = await reconcilePeriod(gatedDb, { periodStart: PERIOD_START, periodEnd: PERIOD_END }, { tableApplied: async () => false });
   ok("§8 migration 133 not applied - referral_rewards reports zero without ever running that query",
     ungated.referral_rewards.count === 0 && ungated.referral_rewards.forgone_inr === 0 && gatedRanFlag() === false);
+}
+
+console.log("\n§9 WS-R132 (migration 135): A RESTARTED CREATOR MANDATE STILL PLACES EVERY RUPEE");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // §4's own charge ledger, restated: a creator whose FIRST mandate halts
+  // and who restarts must land exactly the charges each subscription
+  // actually earned - never a lost charge (the closed row's own history
+  // silently dropped) and never a double count (the new row's charges
+  // somehow re-summing the old one's).
+  const state = freshChargeState();
+  const db = makeChargeDb(state);
+  const replicaId = "d1000000-0000-4000-8000-0000000000c9";
+  const started = await startCreatorSubscription(db, { ownerUserId: OWNER_CREATOR, replicaId, plan: "room" }, { env: ENV });
+  const oldRef = started.provider_subscription_ref;
+
+  const fireRef = (ref, kind, tag, amountPaise = 0) => {
+    const body = RAZORPAY_EVENT(kind, ref, amountPaise);
+    const sig = fake.signWebhookForTest(body, WEBHOOK_SECRET);
+    return applyWebhook(db, { rawBody: body, signatureHeader: sig, eventRef: `evt_r132_${tag}` }, { env: ENV });
+  };
+  await fireRef(oldRef, "subscription.activated", "old_activate", 499900);
+  await fireRef(oldRef, "subscription.halted", "old_halt");
+  ok("§9 the first mandate landed exactly one charge before it halted",
+    state.creatorChargeEvents.filter((c) => c.subscription_id === started.subscription_id).length === 1);
+
+  const restarted = await startCreatorSubscription(db, { ownerUserId: OWNER_CREATOR, replicaId, plan: "room" }, { env: ENV });
+  ok("§9 the restart is a genuinely NEW subscription row", restarted.subscription_id !== started.subscription_id);
+  // NAMED FAKE-PROVIDER ARTIFACT (evals/org-billing/run.mjs's own §7, and
+  // evals/payments/run.mjs's own §19, restated): `createSubscription`'s ref
+  // is deterministic on (label, ref, priceInr) alone, so with the SAME
+  // replicaId/plan/price this restart's own `provider_subscription_ref`
+  // is, byte for byte, the SAME string as `oldRef` - a collision the REAL
+  // Razorpay provider structurally cannot produce, since its own
+  // subscription ids are minted server-side and never derived from the
+  // request. Reassigned here to a distinct fixture value to model what the
+  // real provider always guarantees - a fresh, unique id per subscription
+  // attempt - so `applyWebhook`'s own `(provider, provider_subscription_ref)`
+  // lookup (a lookup that DEPENDS on that id being unique, exactly like the
+  // database's own unique index on that pair) routes to the intended row,
+  // the property this section actually exists to prove.
+  const newRef = "fake_sub_restart_distinct_r132";
+  state.creatorSubscriptions.find((s) => s.subscription_id === restarted.subscription_id).provider_subscription_ref = newRef;
+  await fireRef(newRef, "subscription.activated", "new_activate", 499900);
+
+  ok("§9 the OLD subscription's own charge is untouched by the restart - still exactly one",
+    state.creatorChargeEvents.filter((c) => c.subscription_id === started.subscription_id).length === 1);
+  ok("§9 the NEW subscription earns its OWN charge, separately",
+    state.creatorChargeEvents.filter((c) => c.subscription_id === restarted.subscription_id).length === 1);
+  ok("§9 every rupee is placed exactly once - two charge rows total, one per subscription, never merged and never dropped",
+    state.creatorChargeEvents.length === 2
+      && state.creatorChargeEvents.reduce((sum, c) => sum + c.amount_inr, 0) === 4999 * 2);
+  ok("§9 no charge row was ever double-counted for the SAME provider_charge_ref",
+    new Set(state.creatorChargeEvents.map((c) => c.provider_charge_ref)).size === state.creatorChargeEvents.length);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

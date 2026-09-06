@@ -14391,3 +14391,23 @@ violation) before the clean run above.
 - WS-R125: the renewal due-select keeps `vy_room_subscription_due_ix` with the new mandate predicate as a filter on the same rows; `roomOverview`'s split counts a bitmap scan on `vy_room_subscription_room_person_ix`; the two `sub_update` UPDATEs and the two status SELECTs add columns to statements whose access path was planned at their own migrations.
 - WS-R130: `maybeGrantReferralReward`'s chain on `vy_room_subscription_follower_ix`, `vy_payment_event_subscription_ix`, `vy_room_referral_credit_referred_ix`, `vy_room_referral_credit_referrer_ix`, the reward's conflict arbiter `vy_room_referral_reward_cap_ix`, and `vy_room_subscription_follower_live_ix` for the extend; the friend count's `exists` is planned as a hashed subplan over a seq scan of `vy_payment_event` filtered by kind and amount, accepted by name (one grant per first charge, a small ledger). Reversal: when the ledger passes roughly 100k rows, rewrite the count as a correlated exists per credit so it walks the subscription and event indexes.
 - WS-R126: the chat join's arrival is `recordRoomArrival`'s own statement (planned at 102, 113 and 123) with a new caller. WS-R121, R122, R123, R124, R128, R129: no new SQL.
+
+### `ws-r132-payments-gate-counts-2026-09-05` (WS-R132, migration 135) - offline only, no live database reached this session.
+`node evals/payments/run.mjs`: 145 passed, 0 failed (was 121 before this
+workstream's own §19). `node evals/org-billing/run.mjs`: 69 passed, 0
+failed (was 62 before §7). `node evals/payments-reconcile/run.mjs`: 51
+passed, 0 failed (was 45 before §9). `node evals/renewals/run.mjs`: 82
+passed, 0 failed (was 79 before §1c). `node evals/room-doors/run.mjs`:
+2146 ok, 0 failed, unchanged in count (the existing `start_creator_subscription`
+ownership case at line ~1690 already passes through the widened fixture
+branches added this session). All five measured by running the file
+directly with `node`, method: `console.log` pass/fail tally printed by
+each suite's own harness, date 2026-09-05. **Statements planned with
+`EXPLAIN` (no ANALYZE) against the live database, still owed by the main
+loop, not yet run this session:** migration 135's two `drop index`/`create
+unique index` pairs; the widened `select ... where follower_id = ($1)::uuid
+and state in (...) and mandate_state not in ('halted','cancelled')` (and
+its replica-keyed twin); the new `with closed as (update ... returning
+subscription_id), inserted as (insert ... returning subscription_id,
+state) select ... from inserted` statement for both `vy_room_subscription`
+and `vy_creator_subscription`.

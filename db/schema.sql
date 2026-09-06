@@ -4587,3 +4587,25 @@ create unique index if not exists vy_room_referral_reward_cap_ix
   on vy_room_referral_reward (referrer_follower_id, room_id, year_key);
 create index if not exists vy_room_referral_reward_room_granted_ix
   on vy_room_referral_reward (room_id, granted_at);
+
+-- Migration 135 - starting a new mandate after a halted or cancelled one
+-- (WS-R132). See db/migrations/135_live_subscription_excludes_halted.sql
+-- for the full argument: the two "ONE LIVE SUBSCRIPTION" partial unique
+-- indexes below now also require `mandate_state not in ('halted',
+-- 'cancelled')`, so a halted or cancelled mandate no longer blocks a
+-- follower or creator from starting a fresh one. Both index definitions
+-- below REPLACE the ones created earlier in this file by migrations 078
+-- and 095 - this file mirrors the live schema's final shape, so the
+-- earlier `create unique index if not exists` statements for these same
+-- two names are stale and are not run again; only the migration file
+-- itself carries the `drop index` that actually widens the live database.
+drop index if exists vy_room_subscription_follower_live_ix;
+create unique index if not exists vy_room_subscription_follower_live_ix
+  on vy_room_subscription (follower_id)
+  where state in ('created','authenticated','active','paused')
+    and mandate_state not in ('halted','cancelled');
+drop index if exists vy_creator_subscription_replica_live_ix;
+create unique index if not exists vy_creator_subscription_replica_live_ix
+  on vy_creator_subscription (replica_id)
+  where state in ('created','authenticated','active','paused')
+    and mandate_state not in ('halted','cancelled');

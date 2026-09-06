@@ -185,15 +185,49 @@ function makeDb(state) {
       return [{ covered }];
     }
 
-    // ── startCreatorSubscription's existing-live lookup ──
+    // ── startCreatorSubscription's existing-live lookup. WS-R132 (migration
+    // 135): the widened predicate excludes a halted or cancelled MANDATE
+    // too, mirroring the real widened index. ──
     if (has("from vy_creator_subscription") && has("where replica_id = ($1)::uuid")) {
       const [replicaId] = params;
       const row = state.creatorSubscriptions
-        .filter((s) => s.replica_id === replicaId && ["created", "authenticated", "active", "paused"].includes(s.state))
+        .filter((s) => s.replica_id === replicaId
+          && ["created", "authenticated", "active", "paused"].includes(s.state)
+          && !["halted", "cancelled"].includes(s.mandate_state))
         .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
       return row ? [{ ...row }] : [];
     }
-    // ── startCreatorSubscription's insert ──
+    // ── startCreatorSubscription: WS-R132's own "close halted/cancelled
+    // row, then insert" statement family - checked BEFORE the plain insert
+    // branch below, since it also contains the substring "insert into
+    // vy_creator_subscription", with params in a DIFFERENT order
+    // (`[replicaId, ownerUserId, plan, priceInr, currency, provider]`). ──
+    if (has("with closed as (") && has("insert into vy_creator_subscription")) {
+      const [replicaId, ownerId, plan, priceInr, currency, provider] = params;
+      for (const s of state.creatorSubscriptions) {
+        if (s.replica_id === replicaId
+          && ["created", "authenticated", "active", "paused"].includes(s.state)
+          && ["halted", "cancelled"].includes(s.mandate_state)) {
+          s.state = "cancelled";
+        }
+      }
+      const live = state.creatorSubscriptions.some((s) => s.replica_id === replicaId
+        && ["created", "authenticated", "active", "paused"].includes(s.state)
+        && !["halted", "cancelled"].includes(s.mandate_state));
+      if (live) throw Object.assign(new Error("duplicate key value violates unique constraint \"vy_creator_subscription_replica_live_ix\""), { code: "23505" });
+      const row = {
+        subscription_id: nextSubId("f2"), owner_user_id: ownerId, replica_id: replicaId, plan, price_inr: priceInr,
+        currency, provider, provider_subscription_ref: null, state: "created",
+        created_at: new Date(NOW + state.creatorSubscriptions.length).toISOString(), updated_at: new Date(NOW).toISOString(),
+        mandate_state: "none", mandate_state_at: null,
+      };
+      state.creatorSubscriptions.push(row);
+      return [{ subscription_id: row.subscription_id, state: row.state }];
+    }
+    // ── startCreatorSubscription's plain insert. Dead for
+    // `startCreatorSubscription` since WS-R132 (that function now always
+    // issues the combined statement above), kept only in case a future
+    // caller inserts a row directly with no close-old-row step of its own. ──
     if (has("insert into vy_creator_subscription")) {
       const [ownerId, replicaId, plan, priceInr, currency, provider] = params;
       const row = {
@@ -729,6 +763,93 @@ console.log("\n§6 WS-R73: SUITES ON UPI — a locked mandate refuses BY NAME, n
   ok("a card-authorised Suite's seat update still succeeds", updated.seats === 6 && state.orgSubscriptions[0].seats === 6);
   ok("POSITIVE CONTROL: the provider WAS reached exactly once for the card lane, proving §6's zero counts above are a real refusal, not a broken counter",
     fake.updateSubscriptionQuantityCallCountForTest() === 1);
+}
+
+console.log("\n§7 WS-R132 (migration 135): STARTING A NEW CREATOR MANDATE AFTER A HALT");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // §4b's own halted creator, restated: this time asking whether the
+  // creator can ever get a WORKING second mandate rather than the SAME
+  // dead reference back forever -
+  // `context/rejected.md#ws-r125-halted-mandate-start-new-button-would-
+  // have-been-a-silent-no-op`'s own gap, closed by this migration, for the
+  // creator-tier lane rather than the follower one.
+  const state = freshState();
+  const db = makeDb(state);
+  const replicaId = `${REPLICA_PREFIX}0000000000c1`;
+  const started = await startCreatorSubscription(db, { ownerUserId: CREATOR, replicaId, plan: "room" }, { env: ENV });
+  const oldRef = started.provider_subscription_ref;
+  ok("§7 the first start mints a real provider ref", typeof oldRef === "string" && oldRef.length > 0);
+
+  const fire = (kind, tag, amountPaise = 0) => {
+    const body = RAZORPAY_EVENT(kind, oldRef, amountPaise);
+    const sig = fake.signWebhookForTest(body, WEBHOOK_SECRET);
+    return applyWebhook(db, { rawBody: body, signatureHeader: sig, eventRef: `evt_r132_${tag}` }, { env: ENV });
+  };
+  await fire("subscription.activated", "activate", 499900);
+  await fire("subscription.halted", "halt");
+  ok("§7 the mandate is genuinely halted before the restart", state.creatorSubscriptions[0].mandate_state === "halted");
+
+  // NEGATIVE CONTROL: the OLD, unwidened predicate - `evals/payments/run.mjs`'s
+  // own §19 "strike the clause" technique, restated for the creator lane -
+  // still calls the halted row 'live' and hands back its dead reference.
+  const staleRows = state.creatorSubscriptions.filter((s) => s.replica_id === replicaId
+    && ["created", "authenticated", "active", "paused"].includes(s.state));
+  ok("NEGATIVE CONTROL: the OLD predicate (no mandate_state clause) still calls the halted creator row 'live' and would hand back its dead reference",
+    staleRows.length === 1 && staleRows[0].provider_subscription_ref === oldRef);
+
+  // THE RESTART, through the REAL function.
+  const restarted = await startCreatorSubscription(db, { ownerUserId: CREATOR, replicaId, plan: "room" }, { env: ENV });
+  ok("§7 restarting after a halt returns a NEW local subscription row, never the halted one",
+    restarted.subscription_id !== started.subscription_id);
+  ok("§7 the OLD row is closed (state 'cancelled'), never left dangling forever",
+    state.creatorSubscriptions.find((s) => s.subscription_id === started.subscription_id).state === "cancelled");
+  ok("§7 the NEW row starts with a clean mandate slate ('none')",
+    state.creatorSubscriptions.find((s) => s.subscription_id === restarted.subscription_id).mandate_state === "none");
+  ok("§7 exactly two subscription rows exist for this replica - the close and the insert landed as ONE statement family",
+    state.creatorSubscriptions.filter((s) => s.replica_id === replicaId).length === 2);
+  ok("§7 the restart hands back a checkout link - a REAL second provider call happened, not a silent no-op",
+    typeof restarted.checkout_url === "string" && restarted.checkout_url.length > 0);
+  // `evals/payments/run.mjs`'s own §19 NAMED FAKE-PROVIDER ARTIFACT,
+  // restated for the creator lane: `createSubscription`'s ref is
+  // deterministic on (label, ref, priceInr), so a restart with the SAME
+  // plan on the SAME replica mints the SAME string back from the fake
+  // provider - a real Razorpay account never would, since its own ids are
+  // server-minted and non-deterministic.
+  ok("NAMED FAKE-PROVIDER ARTIFACT: with identical (label, ref, priceInr) inputs, the fake mints the SAME ref the restart got before - the real provider never would",
+    restarted.provider_subscription_ref === oldRef);
+
+  // Suite coverage still refuses BEFORE any provider call even for a
+  // halted-then-restarting creator - law 4 is unconditional, not scoped to
+  // a creator's FIRST ever subscription attempt.
+  const state2 = freshState();
+  seedOrg(state2, { seatLimit: 5 });
+  const db2 = makeDb(state2);
+  const replicaId2 = `${REPLICA_PREFIX}0000000000c2`;
+  // The room exists and is ALREADY attached to the Suite from the start -
+  // `attachRoom`'s own mechanics are `evals/org/run.mjs`'s own subject, not
+  // this one; here only the coverage predicate `seatCoversCreatorTier`
+  // reads (`room.org_id`, and later an active `vy_org_subscription` for
+  // that org) needs to be true by the time the SECOND `startCreatorSubscription`
+  // call below runs.
+  state2.rooms.push({ room_id: `${ROOM_PREFIX}0000000000c2`, replica_id: replicaId2, owner_user_id: CREATOR, org_id: ORG });
+  const started2 = await startCreatorSubscription(db2, { ownerUserId: CREATOR, replicaId: replicaId2, plan: "room" }, { env: ENV });
+  const fireRef = (ref, kind, tag, amountPaise = 0) => {
+    const body = RAZORPAY_EVENT(kind, ref, amountPaise);
+    const sig = fake.signWebhookForTest(body, WEBHOOK_SECRET);
+    return applyWebhook(db2, { rawBody: body, signatureHeader: sig, eventRef: `evt_r132b_${tag}` }, { env: ENV });
+  };
+  await fireRef(started2.provider_subscription_ref, "subscription.activated", "activate", 499900);
+  await fireRef(started2.provider_subscription_ref, "subscription.halted", "halt");
+  const orgStarted2 = await startOrgSubscription(db2, { ownerUserId: ADMIN, orgId: ORG, plan: "starter", seats: 3 }, { env: ENV });
+  // The ORG's own ref, never the creator's - a mistake here would silently
+  // re-fire against the creator lane instead (both webhooks resolve by
+  // provider_subscription_ref alone) and never actually activate the Suite
+  // subscription this test's own refusal depends on.
+  await fireRef(orgStarted2.provider_subscription_ref, "subscription.activated", "org_activate", 2999300);
+  const refused = await startCreatorSubscription(db2, { ownerUserId: CREATOR, replicaId: replicaId2, plan: "room" }, { env: ENV }).then(() => null, (e) => e);
+  ok("§7 a Suite seat that now covers this creator still refuses a restart BEFORE any provider call, exactly as it would a first attempt",
+    refused instanceof PaymentsError && refused.code === "creator_tier_covered_by_suite");
 }
 
 console.log(`\norg-billing: ${pass} passed, ${fail} failed`);

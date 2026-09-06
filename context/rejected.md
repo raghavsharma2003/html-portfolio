@@ -14793,3 +14793,68 @@ here too because this is the first time the trap was hit inside a BRAND
 NEW file rather than an edit to an existing one, which is worth knowing:
 grep `context/rejected.md` for a table name before writing ANY sentence
 that discusses it, even in a file that has never existed before.
+
+## `ws-r132-fake-provider-deterministic-ref-collides-on-a-genuine-restart` (2026-09-05, WS-R132)
+
+**Found, not fixed - named here because it is exploitable against a real
+staging database, even though it can never happen in production.**
+`api/_payments/providers/fake.js`'s own `createSubscription` mints its
+`provider_subscription_ref` deterministically from `(label, ref,
+priceInr)` alone, by design - "the same input always mints the same
+reference, so a RETRY of a request that died before the provider call is
+idempotent at the provider layer too" (that file's own header). Migration
+135 makes a genuinely NEW second `createSubscription` call possible for
+the SAME follower/replica after a halt - something the old, unwidened
+index made structurally impossible before this workstream (the old row
+was always found and reused first). Since a restart's `label`/`ref`/
+`priceInr` are byte-identical to the original start's, the fake provider
+hands back the EXACT SAME ref string for the new local row that it did for
+the now-closed one. `vy_room_subscription_provider_ref_ix`/
+`vy_creator_subscription_provider_ref_ix` (both from migrations 078/095)
+are `unique (provider, provider_subscription_ref)` with NO partial
+predicate on state, so setting that same ref onto a SECOND row in a REAL
+Postgres database would throw a genuine `23505` unique-violation the
+moment `startFollowerSubscription`/`startCreatorSubscription` tries to
+stamp it onto the fresh row - a real, if narrow, failure mode for
+`PAYMENTS_PROVIDER=fake` run against a real staging database through
+exactly this "start, halt, restart" sequence.
+
+**Why this is not a defect in migration 135 itself.** The REAL `razorpay`
+provider (`api/_payments/providers/razorpay.js`) never has this problem:
+every `createSubscription` call there returns a genuinely fresh,
+server-minted subscription id from Razorpay's own account, regardless of
+what the request body contains. This collision is purely a property of
+the FAKE provider's own determinism, which was designed for a narrower
+retry-idempotency case (a request that died between the local insert and
+the provider call, retried against the SAME still-`created` row) that
+never anticipated a genuinely SECOND local row for the same inputs
+existing at all.
+
+**Proven, not silently skipped.** `evals/payments/run.mjs`'s own §19 and
+`evals/org-billing/run.mjs`'s own §7 both assert this collision directly
+(`restarted.provider_subscription_ref === oldRef`) rather than assuming it
+away, so the behavior is a documented, tested fact rather than a surprise
+a future session would rediscover the hard way.
+`evals/payments-reconcile/run.mjs`'s own §9 works around it by manually
+reassigning the fixture's second row to a distinct ref, annotated in place,
+to prove the DB-side bookkeeping (closed row, new row, separate charge
+rows) is correct once ref routing DOES resolve to the right subscription -
+which the real provider always guarantees.
+
+**What would reverse this (a real follow-up, not done here - out of this
+migration's own scope).** Give the fake's `createSubscription` seed a
+nonce that varies per LOCAL ROW rather than per (label, ref, priceInr)
+alone - the cleanest shape is threading the freshly-inserted
+`subscription_id` into the seed at each of the three call sites
+(`startFollowerSubscription`/`startOrgSubscription`/`startCreatorSubscription`
+in `api/_payments.js`), so a retry of the SAME row (same subscription_id)
+stays idempotent while a genuinely NEW row (a fresh subscription_id, from
+a restart) always gets a fresh ref. Not done in this workstream because it
+touches `api/_payments/providers/fake.js`'s own seed formula, a shared
+file every payments suite (`evals/payments`, `evals/org-billing`,
+`evals/payments-reconcile`, `evals/room-doors`, `evals/rehearsal`) depends
+on for deterministic, reproducible fixtures - a change there is a wider
+blast radius than migration 135's own brief asked for, and this
+workstream's own gate run proved the collision is real but harmless to
+every EXISTING assertion (nothing currently asserts two different refs
+across two separate calls with identical inputs).

@@ -489,12 +489,47 @@ function doorsPatterns(state) {
       const row = state.prices.find((p) => p.room_id === String(params[0]));
       return row ? [{ follower_price_inr: row.follower_price_inr }] : [];
     }
+    // WS-R132 (migration 135): the widened predicate excludes a halted or
+    // cancelled MANDATE too - a no-op for every fixture row this battery
+    // seeds today (all default to `mandate_state: "none"`), mirroring the
+    // real widened index for the day a case here does seed one.
     if (has("from vy_room_subscription") && has("state in ('created','authenticated','active','paused')")) {
       const followerId = String(params[0]);
       const row = state.subscriptions
-        .filter((s) => s.follower_id === followerId && ["created", "authenticated", "active", "paused"].includes(s.state))
+        .filter((s) => s.follower_id === followerId
+          && ["created", "authenticated", "active", "paused"].includes(s.state)
+          && !["halted", "cancelled"].includes(s.mandate_state))
         .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
       return row ? [{ ...row }] : [];
+    }
+    // WS-R132's own "close halted/cancelled row, then insert" statement
+    // family - checked BEFORE the plain insert branch below, since it also
+    // contains the substring "insert into vy_room_subscription", with
+    // params in a DIFFERENT order (`[followerId, roomId, personId,
+    // provider]`, `evals/payments/run.mjs`'s own precedent).
+    if (has("with closed as (") && has("insert into vy_room_subscription")) {
+      const [followerId, roomId, personId, provider] = params;
+      for (const s of state.subscriptions) {
+        if (s.follower_id === String(followerId)
+          && ["created", "authenticated", "active", "paused"].includes(s.state)
+          && ["halted", "cancelled"].includes(s.mandate_state)) {
+          s.state = "cancelled";
+        }
+      }
+      const live = state.subscriptions.some((s) => s.follower_id === String(followerId)
+        && ["created", "authenticated", "active", "paused"].includes(s.state)
+        && !["halted", "cancelled"].includes(s.mandate_state));
+      if (live) throw Object.assign(new Error("duplicate key value violates unique constraint \"vy_room_subscription_follower_live_ix\""), { code: "23505" });
+      const row = {
+        subscription_id: `s${state.subscriptions.length + 1}`.padEnd(36, "0"),
+        room_id: String(roomId), person_id: String(personId), follower_id: String(followerId),
+        provider, provider_subscription_ref: null, state: "created",
+        current_period_start: null, current_period_end: null,
+        created_at: new Date(Date.now() + state.subscriptions.length).toISOString(),
+        mandate_state: "none", mandate_state_at: null,
+      };
+      state.subscriptions.push(row);
+      return [{ subscription_id: row.subscription_id, state: row.state }];
     }
     if (has("insert into vy_room_subscription")) {
       const [roomId, personId, followerId, provider] = params;

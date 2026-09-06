@@ -373,11 +373,18 @@ export async function startFollowerSubscription(db, { session }, deps = {}) {
   if (!price) throw new PaymentsError("room_price_not_set", 409);
   const priceInr = Number(price.follower_price_inr);
 
+  // WS-R132 (migration 135): the same predicate the widened partial index
+  // now carries - a row whose bank-side mandate has itself gone `'halted'`
+  // or `'cancelled'` is no longer "live" for this lookup either, so this
+  // follower is never handed the same dead `provider_subscription_ref` back
+  // (`context/rejected.md#ws-r125-halted-mandate-start-new-button-would-
+  // have-been-a-silent-no-op`).
   const existingRows = await db(
     `select subscription_id, provider_subscription_ref, state
        from vy_room_subscription
       where follower_id = ($1)::uuid
         and state in ('created','authenticated','active','paused')
+        and mandate_state not in ('halted','cancelled')
       order by created_at desc
       limit 1`,
     [String(follower.follower_id)],
@@ -387,11 +394,33 @@ export async function startFollowerSubscription(db, { session }, deps = {}) {
   let state = existingRows[0]?.state || null;
 
   if (!subscriptionId) {
+    // WS-R132: a halted or cancelled-mandate row may still sit in a
+    // non-terminal `state` (`KIND_TO_STATE` maps `subscription.halted` to
+    // `state = 'paused'` on purpose, this file's own header above) - the
+    // widened index above no longer blocks a second insert against it, but
+    // leaving it open forever would still be dishonest bookkeeping and
+    // would let a late, duplicate provider webhook for the OLD ref reach a
+    // row nobody is paying attention to any more. `closed` and `inserted`
+    // are ONE statement family (never two round trips) so a crash between
+    // them cannot leave a follower with neither an open old row nor a new
+    // one: `closed` either commits alongside `inserted` or the whole
+    // statement is rolled back, and it is a no-op WHERE clause (matches
+    // zero rows) the ordinary case of a follower with no prior row at all.
     const created = await db(
-      `insert into vy_room_subscription (room_id, person_id, follower_id, provider, state)
-       values (($1)::uuid, ($2)::uuid, ($3)::uuid, $4, 'created')
-       returning subscription_id, state`,
-      [String(room.room_id), String(follower.person_id), String(follower.follower_id), providerName],
+      `with closed as (
+         update vy_room_subscription
+            set state = 'cancelled', updated_at = now()
+          where follower_id = ($1)::uuid
+            and state in ('created','authenticated','active','paused')
+            and mandate_state in ('halted','cancelled')
+          returning subscription_id
+       ), inserted as (
+         insert into vy_room_subscription (room_id, person_id, follower_id, provider, state)
+         values (($2)::uuid, ($3)::uuid, ($1)::uuid, $4, 'created')
+         returning subscription_id, state
+       )
+       select subscription_id, state from inserted`,
+      [String(follower.follower_id), String(room.room_id), String(follower.person_id), providerName],
     );
     subscriptionId = created[0]?.subscription_id || null;
     state = created[0]?.state || "created";
@@ -783,11 +812,16 @@ export async function startCreatorSubscription(db, { ownerUserId, replicaId, pla
   const providerName = activeProviderName(env);
   const provider = providerFor(providerName);
 
+  // WS-R132 (migration 135): `startFollowerSubscription`'s own predicate,
+  // restated for the replica-keyed lookup - a row whose bank-side mandate
+  // has itself gone `'halted'` or `'cancelled'` is no longer "live" here
+  // either.
   const existingRows = await db(
     `select subscription_id, provider_subscription_ref, state
        from vy_creator_subscription
       where replica_id = ($1)::uuid
         and state in ('created','authenticated','active','paused')
+        and mandate_state not in ('halted','cancelled')
       order by created_at desc
       limit 1`,
     [String(replicaId)],
@@ -797,11 +831,23 @@ export async function startCreatorSubscription(db, { ownerUserId, replicaId, pla
   let state = existingRows[0]?.state || null;
 
   if (!subscriptionId) {
+    // WS-R132: `startFollowerSubscription`'s own "close, then insert, one
+    // statement family" above, restated for the replica lane.
     const created = await db(
-      `insert into vy_creator_subscription (owner_user_id, replica_id, plan, price_inr, currency, provider, state)
-       values (($1)::uuid, ($2)::uuid, $3, ($4)::int4, $5, $6, 'created')
-       returning subscription_id, state`,
-      [String(ownerUserId), String(replicaId), plan, priceInr, ROOM_PRICE_CURRENCY, providerName],
+      `with closed as (
+         update vy_creator_subscription
+            set state = 'cancelled', updated_at = now()
+          where replica_id = ($1)::uuid
+            and state in ('created','authenticated','active','paused')
+            and mandate_state in ('halted','cancelled')
+          returning subscription_id
+       ), inserted as (
+         insert into vy_creator_subscription (owner_user_id, replica_id, plan, price_inr, currency, provider, state)
+         values (($2)::uuid, ($1)::uuid, $3, ($4)::int4, $5, $6, 'created')
+         returning subscription_id, state
+       )
+       select subscription_id, state from inserted`,
+      [String(replicaId), String(ownerUserId), plan, priceInr, ROOM_PRICE_CURRENCY, providerName],
     );
     subscriptionId = created[0]?.subscription_id || null;
     state = created[0]?.state || "created";
