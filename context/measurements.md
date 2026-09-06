@@ -16079,3 +16079,8 @@ Measured2026-09-07 01:09IST after reverting image preload and forced TypeScript/
 Measured2026-09-07 India. Agent and root each ran evals/performance-prerequisites.mjs:9checks passed including real CLI missing-dist, missing-fixture, invalid-target and missing-Playwright cases, plus install-prerequisite and combined-result controls. Those tests do not launch a browser. Existing completed browser measurements remain evidence of runs with installed prerequisites. Windows standalone install checker entry detection now uses pathToFileURL.
 
 Root then ran the corrected real-browser diagnostic on /studio: three cold contexts, median LCP1972ms, TBT32ms, CLS0.071875. Final JSON status passed, exitCode0, zero budget/install/static findings; evidence scratchpad/studio-final-gate-diagnostic.json. This is a targeted check, not a fresh full release pass.
+
+
+## `authored-listening-corpus-coverage-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Agent validated JSON, unique IDs, nonempty texts and20 shared intents each represented once per language; root independently parsed and checked60 unique IDs with20hi,20hi-Latn,20en-IN. Files docs/gurukul/research/expert-fidelity-20260907/voice-listening-corpus.json and voice-listening-methodology.md. Status AUTHORED_NOT_RENDERED_NOT_RATED. No owner transcript, generated audio, model call, listening result or accepted holdout independence. Root traced existing benchmark grouping and report code; current descriptive report excludes repeat trials but does not compute proposed paired confidence intervals.

@@ -22553,3 +22553,8 @@ The reusable Neon client optionally pins the URL database and verifies server cu
 ## `performance-prerequisites-are-release-requirements-20260907` (2026-09-07)
 
 Missing build, required fixture, site, Playwright or Chromium now produce a named failed prerequisite. An install check that could not run also fails. Diagnostic JSON is emitted after install/static checks and retains combined findings and exitCode. Metrics and budgets are unchanged. Reversal condition: an explicitly separate diagnostic-only command may omit optional targets, but the shipping gate must continue to require every advertised check.
+
+
+## `reserved-expert-listening-corpus-reuses-benchmark-20260907` (2026-09-07)
+
+Reserve60 authored utterances across Hindi, Roman Hinglish and English for a future matched-text comparison after independent overlap audit. Reuse current opaque IDs, keyed randomization and rating validation; keep existing four axes and explicitly version proposed prosody/meaning/pairwise annotations. Owner plus at least five bilingual listeners follows the research brief; utterances are content units, not each repeated render or rating click. Reversal condition: audited overlap requires new holdout items, or a preregistered comparison establishes that another protocol better distinguishes owner identity and client comprehension without hiding language failures.

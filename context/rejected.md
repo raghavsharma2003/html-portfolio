@@ -16297,3 +16297,8 @@ Read-only inspection found the existing scheduled run-once worker runs model rec
 ## `performance-skip-zero-was-not-a-valid-release-pass-20260907` (2026-09-07)
 
 Inspection after the complete diagnostic found check-performance still returned0 for missing browser prerequisites and ignored install.skipped. The earlier layout hardening did not cover this separate runner. Also, JSON printed before install/static checks hid their outcomes. Replaced successful skips with failures and retained final combined diagnostic evidence. Do not relabel earlier actual browser measurements as skipped; the flaw concerns unavailable prerequisites.
+
+
+## `old-listening-pack-loader-does-not-accept-new-corpus-20260907` (2026-09-07)
+
+The existing benchmark build hardloads August Chatterbox/Qwen/Vox packs and owner reference, with15base stimuli or21withIndic plus vendor counts. New60-item JSON is not wired. Do not spoof historical source IDs, fake receipts or weaken counts to make it load. A generic recorded-pack adapter must preserve exact language/text hashes, protection, output/source/reference/checkpoint receipts and matched-cell boundaries. Translated intent groups are not matched acoustic inputs; only identical language and synthesis text compare within an item.

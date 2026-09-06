@@ -12309,6 +12309,24 @@
       "kind": "rejection",
       "title": "Successful skips concealed a missing measurement",
       "at": "2026-09-07"
+    },
+    {
+      "id": "reserved-expert-listening-corpus-reuses-benchmark-20260907",
+      "kind": "decision",
+      "title": "Use reserved multilingual prompts with the existing blinded listening machinery",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authored-listening-corpus-coverage-20260907",
+      "kind": "measurement",
+      "title": "Sixty authored prompts validate with no claimed listening result",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "old-listening-pack-loader-does-not-accept-new-corpus-20260907",
+      "kind": "rejection",
+      "title": "Existing benchmark is not yet a general corpus runner",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -24029,6 +24047,16 @@
       "src": "performance-skip-zero-was-not-a-valid-release-pass-20260907",
       "rel": "constrains",
       "dst": "performance-prerequisites-are-release-requirements-20260907"
+    },
+    {
+      "src": "reserved-expert-listening-corpus-reuses-benchmark-20260907",
+      "rel": "measured_by",
+      "dst": "authored-listening-corpus-coverage-20260907"
+    },
+    {
+      "src": "old-listening-pack-loader-does-not-accept-new-corpus-20260907",
+      "rel": "constrains",
+      "dst": "reserved-expert-listening-corpus-reuses-benchmark-20260907"
     }
   ]
 }
