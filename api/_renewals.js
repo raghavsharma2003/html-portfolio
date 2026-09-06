@@ -284,7 +284,44 @@ export async function dueReminders(db, now = Date.now()) {
  * failed send is a fact for a human reading the ops board to see, never
  * something the sweep quietly retries into a duplicate charge-adjacent
  * message.
+ *
+ * WS-R140 (the door battery's fifth pass, order). `dueReminders`' own
+ * WHERE clause (`state = 'active' and cancel_at_period_end = false and
+ * mandate_state in (...)`) proves eligibility ONCE, at select time — but the
+ * sweep is not one transaction: an arbitrary amount of real time (a whole
+ * tick's worth of `for` loop, in the real sweep) can pass between that
+ * SELECT and this INSERT, and a follower's own `cancelFollowerRenewal` can
+ * land in that gap. Before this workstream, the INSERT below trusted the
+ * caller's OWN params unconditionally — a cancel landing after the select
+ * but before this statement still got a reminder row, and `sendFn` still
+ * ran, for a follower who had, by the time the message went out, already
+ * cancelled (`evals/room-doors/order.mjs`'s own reminder-vs-cancel schedule
+ * proved this for the schedules where the cancel's own UPDATE lands between
+ * `dueReminders`' select and this INSERT).
+ *
+ * The fix is a leaving-state predicate moved from the SELECT to THIS
+ * statement: the INSERT is now a SELECT ... WHERE EXISTS, re-reading the
+ * subject's own live subscription row at INSERT TIME rather than trusting a
+ * possibly-stale read from moments earlier. `subject_kind` picks which of
+ * the three subscription tables to re-check (mirroring `dueReminders`' own
+ * three predicates exactly, including that `vy_org_subscription` carries no
+ * `mandate_state` column to check, matching that table's own schema) — a
+ * `subjectKind` this function already validated above, so exactly one arm
+ * of the `or` can ever be true for a given call. `period_end` is
+ * re-compared too: a subject who cancelled THIS cycle but already rolled
+ * onto a new one before the insert lands is a NEW cycle's reminder to earn
+ * on its own merits, not blocked by an old one's cancellation.
+ *
+ * `REMINDER_ELIGIBILITY_MARKER` is embedded in the WHERE clause below so an
+ * offline eval can tell, from the ACTUAL text this function sends, whether
+ * THIS call carries the re-check rather than re-typing the eligibility rule
+ * into a fake `db` and testing that copy's own self-consistency instead of
+ * this file's real SQL — `api/_quiet-hours.js`'s own `QUIET_HOURS_MARKER`
+ * restated for this fix, for the identical reason `stateNoRegressionCaseSql`'s
+ * own `NO_REGRESSION_MARKER` (`api/_payments.js`) names in full.
  */
+export const REMINDER_ELIGIBILITY_MARKER = "/* ws-r140-reminder-eligibility */";
+
 export async function recordAndSend(db, params, sendFn) {
   const {
     subjectKind, subjectId, periodEnd, channel,
@@ -302,8 +339,33 @@ export async function recordAndSend(db, params, sendFn) {
     `insert into vy_renewal_reminder
        (subject_kind, subject_id, room_id, person_id, follower_id, owner_user_id, replica_id, org_id,
         period_end, channel)
-     values ($1, ($2)::uuid, ($3)::uuid, ($4)::uuid, ($5)::uuid, ($6)::uuid, ($7)::uuid, ($8)::uuid,
-             ($9)::timestamptz, $10)
+     select $1, ($2)::uuid, ($3)::uuid, ($4)::uuid, ($5)::uuid, ($6)::uuid, ($7)::uuid, ($8)::uuid,
+            ($9)::timestamptz, $10
+      where ${REMINDER_ELIGIBILITY_MARKER} (
+        ($1 = 'follower' and exists (
+           select 1 from vy_room_subscription s
+            where s.follower_id = ($2)::uuid
+              and s.state = 'active'
+              and s.cancel_at_period_end = false
+              and s.mandate_state in ('none', 'active')
+              and s.current_period_end = ($9)::timestamptz
+        ))
+        or ($1 = 'creator' and exists (
+           select 1 from vy_creator_subscription s
+            where s.replica_id = ($2)::uuid
+              and s.state = 'active'
+              and s.cancel_at_period_end = false
+              and s.mandate_state in ('none', 'active')
+              and s.current_period_end = ($9)::timestamptz
+        ))
+        or ($1 = 'org' and exists (
+           select 1 from vy_org_subscription s
+            where s.org_id = ($2)::uuid
+              and s.state = 'active'
+              and s.cancel_at_period_end = false
+              and s.current_period_end = ($9)::timestamptz
+        ))
+      )
      on conflict (subject_kind, subject_id, period_end, channel) do nothing
      returning reminder_id`,
     [
@@ -466,7 +528,14 @@ export async function sweep(deps, now = Date.now()) {
 // LAW 5 - CANCEL, PER SUBJECT KIND, THROUGH THE SEAM
 // ─────────────────────────────────────────────────────────────────────────
 
-async function cancelThroughSeam(db, { table, key, subscriptionId, provider, providerRef }, deps) {
+// Exported (WS-R140, the door battery's fifth pass) so an offline order
+// battery can drive the real per-kind cancel decision directly, with a known
+// subscription id in hand, rather than re-deriving it through a signed
+// follower/owner session it has no reason to mint - the three exported
+// `cancel*Renewal` wrappers below are this same function with THEIR OWN
+// scope resolution in front of it; the decision this function makes is
+// identical either way.
+export async function cancelThroughSeam(db, { table, key, subscriptionId, provider, providerRef }, deps) {
   const env = deps.env ?? process.env;
   if (providerRef) {
     const secrets = deps.secrets ?? (await providerSecrets(provider, env, deps.secretBackend));
