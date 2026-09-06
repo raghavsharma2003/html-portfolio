@@ -30,7 +30,7 @@ name: Release gate
 
 on:
   push:
-    branches: [main, "claude/**"]
+    branches: [main, "claude/**", "codex/**"]
   workflow_dispatch:
   # WS-R122. Weekly, for the `hindi-rehearsals` job below only — the Hindi
   # creator and follower rehearsals under `REHEARSAL_FULL=1` are not part of

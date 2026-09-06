@@ -609,21 +609,8 @@ console.log("\n§9 WS-R132 (migration 135): A RESTARTED CREATOR MANDATE STILL PL
 
   const restarted = await startCreatorSubscription(db, { ownerUserId: OWNER_CREATOR, replicaId, plan: "room" }, { env: ENV });
   ok("§9 the restart is a genuinely NEW subscription row", restarted.subscription_id !== started.subscription_id);
-  // NAMED FAKE-PROVIDER ARTIFACT (evals/org-billing/run.mjs's own §7, and
-  // evals/payments/run.mjs's own §19, restated): `createSubscription`'s ref
-  // is deterministic on (label, ref, priceInr) alone, so with the SAME
-  // replicaId/plan/price this restart's own `provider_subscription_ref`
-  // is, byte for byte, the SAME string as `oldRef` - a collision the REAL
-  // Razorpay provider structurally cannot produce, since its own
-  // subscription ids are minted server-side and never derived from the
-  // request. Reassigned here to a distinct fixture value to model what the
-  // real provider always guarantees - a fresh, unique id per subscription
-  // attempt - so `applyWebhook`'s own `(provider, provider_subscription_ref)`
-  // lookup (a lookup that DEPENDS on that id being unique, exactly like the
-  // database's own unique index on that pair) routes to the intended row,
-  // the property this section actually exists to prove.
-  const newRef = "fake_sub_restart_distinct_r132";
-  state.creatorSubscriptions.find((s) => s.subscription_id === restarted.subscription_id).provider_subscription_ref = newRef;
+  const newRef = restarted.provider_subscription_ref;
+  ok("the real restart result routes to a different provider subscription", newRef !== oldRef);
   await fireRef(newRef, "subscription.activated", "new_activate", 499900);
 
   ok("§9 the OLD subscription's own charge is untouched by the restart - still exactly one",

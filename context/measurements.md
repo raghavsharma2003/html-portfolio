@@ -14666,3 +14666,13 @@ tightening, not a workaround for a number that would otherwise fail.
 - WS-R138: the statement's Room list plans on `vy_room_owner_ix` with two hashed subplans (`vy_payment_event_room_ix` by the period, `vy_org_subscription_org_live_ix`); the referral-rewards line on `vy_room_referral_reward_room_granted_ix` with a nested lookup of `vy_room_price`, gated behind `tableApplied` for a database without 133.
 - WS-R140: the reminder's live-eligibility re-check plans as three InitPlans on the three live-subscription indexes; the webhook's rank and timestamp CASEs change only the SET expressions.
 - WS-R134, R135, R136, R139: no SQL.
+
+## `codex-windows-untouched-baseline-2026-09-06` (2026-09-06, Codex)
+
+n=1 complete untouched-tree release run at 61385c57 on Windows, Node 24.13.0, npm ci (457 packages), CI keyless stub, echosim build, no NEON_URL. Result: 7 of 21 failed: engine bundle fresh, eval suite, room leak battery, room export completeness, room door battery, accessibility, security headers. The outer layout/performance ok lines contained internal no-Chromium skips and are not browser evidence. Context graph: 1835 nodes, 2077 edges, check passed.
+
+Git core.autocrlf was true. Normalizing the tracked source checkout to LF (without a logical source diff) made the engine-bundle freshness check pass (332854 bytes) and the monthly-note suite improve from 20 pass / 6 fail to 26 pass / 0 fail, with no logic edits to either. Full Chromium was present at a different installed revision; the follow-up run supplies CHROMIUM_PATH explicitly. Windows npm wrapper launch failure is distinct from a registry/network finding.
+
+## `codex-subscription-reference-regression-2026-09-06` (2026-09-06, Codex)
+
+n=1 run per affected suite after the reference fix on Windows/Node 24.13.0: payments 148 passed / 0 failed; org-billing 69 passed / 0 failed; payments-reconcile 52 passed / 0 failed. The payment suite includes same-row provider retry, different-row restart, and unkeyed-call uniqueness controls. The existing follower/creator restart checks now require unequal old/new references. Reconciliation uses restarted.provider_subscription_ref directly and still attributes one charge to each subscription. These are offline control-flow/provider-fixture proofs, not SQL parser, real payment, concurrency, or production evidence. No SQL was changed.

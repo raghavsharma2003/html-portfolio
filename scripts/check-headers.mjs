@@ -105,12 +105,23 @@ import { execFile, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { INSTALL_SCRIPT_ALLOWLIST } from "./installScriptAllowlist.mjs";
 
 const run = promisify(execFile);
+
+// Windows distributes npm as a .cmd wrapper, which execFile cannot launch.
+// Invoke its JS entry point directly; arguments (especially npm query's
+// selector) remain literal rather than being interpreted by a shell.
+const npmCli = [
+  process.env.npm_execpath,
+  join(dirname(process.execPath), "node_modules/npm/bin/npm-cli.js"),
+].find((path) => path && /npm-cli\.js$/.test(path) && existsSync(path));
+const runNpm = (args, options) => npmCli
+  ? run(process.execPath, [npmCli, ...args], options)
+  : run("npm", args, options);
 
 function rootFromModuleUrl(moduleUrl) {
   return fileURLToPath(new URL("..", moduleUrl));
@@ -566,7 +577,7 @@ async function runHeaderChecks(rules) {
 async function runSupplyChainChecks() {
   // (a) lockfile integrity
   try {
-    await run("npm", ["ci", "--dry-run"], { cwd: ROOT, maxBuffer: 32 * 1024 * 1024 });
+    await runNpm(["ci", "--dry-run"], { cwd: ROOT, maxBuffer: 32 * 1024 * 1024 });
   } catch (e) {
     fail("supply-chain", "npm ci --dry-run", "lockfile-integrity", `${e.stdout ?? ""}${e.stderr ?? ""}`.trim().split("\n").slice(-8).join("\n      "));
   }
@@ -579,7 +590,7 @@ async function runSupplyChainChecks() {
   // code rather than treating non-zero as automatically "not run".
   let auditOut = "";
   try {
-    const r = await run("npm", ["audit", "--omit=dev", "--audit-level=high", "--json"], {
+    const r = await runNpm(["audit", "--omit=dev", "--audit-level=high", "--json"], {
       cwd: ROOT,
       maxBuffer: 32 * 1024 * 1024,
     });
@@ -619,8 +630,7 @@ async function runSupplyChainChecks() {
   // (c) install scripts
   let queryOut = "";
   try {
-    const r = await run(
-      "npm",
+    const r = await runNpm(
       ["query", ":attr(scripts, [preinstall]), :attr(scripts, [postinstall])"],
       { cwd: ROOT, maxBuffer: 32 * 1024 * 1024 },
     );

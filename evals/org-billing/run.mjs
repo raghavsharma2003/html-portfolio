@@ -810,14 +810,8 @@ console.log("\n§7 WS-R132 (migration 135): STARTING A NEW CREATOR MANDATE AFTER
     state.creatorSubscriptions.filter((s) => s.replica_id === replicaId).length === 2);
   ok("§7 the restart hands back a checkout link - a REAL second provider call happened, not a silent no-op",
     typeof restarted.checkout_url === "string" && restarted.checkout_url.length > 0);
-  // `evals/payments/run.mjs`'s own §19 NAMED FAKE-PROVIDER ARTIFACT,
-  // restated for the creator lane: `createSubscription`'s ref is
-  // deterministic on (label, ref, priceInr), so a restart with the SAME
-  // plan on the SAME replica mints the SAME string back from the fake
-  // provider - a real Razorpay account never would, since its own ids are
-  // server-minted and non-deterministic.
-  ok("NAMED FAKE-PROVIDER ARTIFACT: with identical (label, ref, priceInr) inputs, the fake mints the SAME ref the restart got before - the real provider never would",
-    restarted.provider_subscription_ref === oldRef);
+  ok("a restarted subscription receives a distinct provider reference",
+    restarted.provider_subscription_ref !== oldRef);
 
   // Suite coverage still refuses BEFORE any provider call even for a
   // halted-then-restarting creator - law 4 is unconditional, not scoped to

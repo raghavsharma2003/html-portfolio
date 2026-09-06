@@ -15465,3 +15465,9 @@ use elsewhere in this repo.
 **Reversal condition.** Any FUTURE lazy screen added to the Room needs its
 own open-and-check gate assertion written as a poll from the start, never
 a fixed sleep sized against today's (synchronous) load time.
+
+## `codex-windows-green-summary-is-not-browser-evidence` (2026-09-06, Codex)
+
+The untouched release runner reported layout readability and performance budgets as ok, but direct invocation showed "skip layout readability: no chromium binary available". Their exit-zero skip was hidden by the outer runner's success summary. Accessibility/security checks failed separately for the absent expected browser. Treating this as browser validation was rejected: use an explicit installed full Chromium path and inspect the substantive results. Likewise an npm .cmd launch error is not evidence that the registry is unreachable, and a CRLF checkout mismatch is not evidence that the committed LF engine bundle changed.
+
+Reversal: an explicit runner-level skip status, or mandatory browser prerequisites that fail before any browser gate, would make the outer summary sufficient. Until then, retain separate evidence for skipped versus executed checks.
