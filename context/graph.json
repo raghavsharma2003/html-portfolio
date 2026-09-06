@@ -11074,6 +11074,12 @@
       "kind": "rejection",
       "title": "check-layout.mjs and check-accessibility.mjs opened a now-lazy dialog and waited a fixed sleep before checking it; the chunk fetch could eat into or exceed that sleep, so both became polls with generous timeouts.",
       "at": "2026-09-06"
+    },
+    {
+      "id": "rooms-migrations-134-135-136-live-verification-2026-09-06",
+      "kind": "measurement",
+      "title": "Migrations 134 (the follower's own time zone and quiet hours), 135 (the live-subscription indexes exclude a halted mandate) and 136 (the follower's monthly note) applied live at their merges, fifteen statements one per request; every new statement planned, on indexes except the once-a-month note due-select accepted by name.",
+      "at": "2026-09-06"
     }
   ],
   "edges": [
@@ -21441,6 +21447,21 @@
       "src": "ws-r139-room-secondary-screens-are-lazy-chunks",
       "rel": "caused_by",
       "dst": "ws-r139-lazy-dialog-open-fixed-sleep-flaked-under-load"
+    },
+    {
+      "src": "rooms-migrations-134-135-136-live-verification-2026-09-06",
+      "rel": "measured_by",
+      "dst": "ws-r131-follower-own-quiet-hours-column"
+    },
+    {
+      "src": "rooms-migrations-134-135-136-live-verification-2026-09-06",
+      "rel": "measured_by",
+      "dst": "ws-r132-live-subscription-index-widened-to-exclude-halted-and-cancelled-mandates"
+    },
+    {
+      "src": "rooms-migrations-134-135-136-live-verification-2026-09-06",
+      "rel": "measured_by",
+      "dst": "ws-r137-month-note-builder"
     }
   ]
 }
