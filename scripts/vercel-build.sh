@@ -51,7 +51,7 @@ mv dist/index.html dist/chat.html
 # vyakti product's branch family, matched as a pattern so a rename inside the
 # family needs no script change) — so the replica project shows the studio at /
 # with no per-project env var, while the companion branch keeps Meera's landing.
-case "${VERCEL_GIT_COMMIT_REF:-}" in claude/gurukul-platform|claude/vyakti-cloning-platform-*) PLATFORM_BRANCH=1 ;; *) PLATFORM_BRANCH=0 ;; esac
+case "${VERCEL_GIT_COMMIT_REF:-}" in claude/gurukul-platform|claude/vyakti-cloning-platform-*|codex/vyakti-*) PLATFORM_BRANCH=1 ;; *) PLATFORM_BRANCH=0 ;; esac
 if [ "${STUDIO_ROOT:-}" = "1" ] || [ "$PLATFORM_BRANCH" = "1" ]; then
   # Vyakti's own landing, not a redirect. `/` used to be a one-line meta
   # refresh into /studio?mode=teacher, which meant the product had no

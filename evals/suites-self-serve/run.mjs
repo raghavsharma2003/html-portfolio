@@ -215,7 +215,7 @@ function orgSeamDb(state) {
   // (Starter, api/_org.js's own constant), never a different number.
   const { createHash } = await import("node:crypto");
   const expectedPriceInr = 12 * 2999;
-  const seed = `${createdOrg.slug}:${createdOrg.org_id}:${expectedPriceInr}`;
+  const seed = `${createdOrg.slug}:${createdOrg.org_id}:${expectedPriceInr}:${sub.subscription_id}`;
   const expectedRef = `fake_sub_${createHash("sha256").update(seed).digest("hex").slice(0, 24)}`;
   ok("the reference the fake provider actually minted proves the price it received was seats*STARTER_INR",
     sub.provider_subscription_ref === expectedRef, `got ${sub.provider_subscription_ref}`);

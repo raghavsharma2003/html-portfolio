@@ -205,9 +205,9 @@ const ROOM_HANDLER = ({ body }) => {
     () => ({ status: 200, json: { room: { slug: "test-creator-ai", published: true, published_at: "2026-09-03T00:00:00.000Z" } } }),
   );
   const server = jsonServer({ ...lanes, "POST /api/room": ROOM_HANDLER });
-  const { stdout, code } = await run(server, { skipFollower: false });
+  const { stdout, stderr, code } = await run(server, { skipFollower: false });
 
-  ok("happy path exits 0", code === 0);
+  ok(`happy path exits 0 (received ${code}): ${stderr || (code === 0 ? "" : stdout)}`, code === 0);
   for (const step of ["probe", "replica", "consent", "upload", "processing", "readiness", "review-queue", "room-create", "room-publish", "follower-open", "follower-join", "follower-say", "follower-history", "follower-forget"]) {
     ok(`happy path step "${step}" is printed OK`, new RegExp(`\\[OK  \\] ${step}\\b`).test(stdout));
   }

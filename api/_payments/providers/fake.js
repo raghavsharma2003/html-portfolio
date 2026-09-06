@@ -14,11 +14,10 @@
 // every lane rather than a second provider client per lane (the workstream
 // brief's own law 1).
 //
-// Deterministic on purpose: the same (label, ref, priceInr) always mints the
-// same reference, so a retried "subscribe" request during a flaky network is
-// idempotent at the PROVIDER layer too, not only at api/_payments.js's own
-// database layer.
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+// A retry of one local subscription row keeps its provider reference. A new
+// row after a halted mandate gets a different reference, even at the same
+// price for the same customer. Calls without a row id mint a fresh reference.
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 export const name = "fake";
 
@@ -36,7 +35,7 @@ export const name = "fake";
 const FAKE_SUBSCRIPTION_METHODS = new Map();
 
 export async function createSubscription(input) {
-  const seed = `${input.label || ""}:${input.ref || ""}:${input.priceInr || 0}`;
+  const seed = `${input.label || ""}:${input.ref || ""}:${input.priceInr || 0}:${input.subscriptionId || randomUUID()}`;
   const ref = `fake_sub_${createHash("sha256").update(seed).digest("hex").slice(0, 24)}`;
   return { provider_subscription_ref: ref, checkout_url: `https://fake-provider.invalid/pay/${ref}`, status: "created" };
 }

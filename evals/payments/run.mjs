@@ -1374,26 +1374,8 @@ console.log("\n§19 WS-R132 (migration 135): STARTING A NEW MANDATE AFTER A HALT
     state.subscriptions.filter((s) => s.follower_id === followerId).length === 2);
   ok("§19 the restart hands back a checkout link - a REAL second provider call happened, not a silent no-op",
     typeof restarted.checkout_url === "string" && restarted.checkout_url.length > 0);
-  // KNOWN, NAMED LIMITATION OF THE FAKE PROVIDER ONLY (not of this
-  // migration, and not reachable with the real `razorpay` provider): §3's
-  // own header states `createSubscription`'s ref is DETERMINISTIC on
-  // `(label, ref, priceInr)` alone, by design, so a genuine retry of the
-  // SAME still-`created` row is idempotent at the provider layer too. That
-  // determinism was never designed for "start a SECOND, later subscription
-  // for the same follower/room/price" - a case that could not previously
-  // happen at all (the old index always found and reused the first row) -
-  // so this restart's `label`/`ref`/`priceInr` are byte-identical to the
-  // first start's, and the fake mints the SAME string back. The real
-  // Razorpay provider mints a fresh, server-side, non-deterministic
-  // subscription id on every `createSubscription` call regardless of input,
-  // so production never hits this - this assertion exists so the fake
-  // provider's own behavior here is a proven, understood fact rather than a
-  // surprise, and is named in this workstream's final report as a
-  // narrow follow-up worth a nonce in the fake's own seed if `PAYMENTS_
-  // PROVIDER=fake` is ever run against a real staging database through this
-  // exact sequence.
-  ok("NAMED FAKE-PROVIDER ARTIFACT: with identical (label, ref, priceInr) inputs, the fake mints the SAME ref the restart got before - the real provider never would",
-    restarted.provider_subscription_ref === oldRef);
+  ok("a restarted subscription receives a distinct provider reference",
+    restarted.provider_subscription_ref !== oldRef);
 
   // The widened index's OWN uniqueness guarantee, proven directly: a THIRD
   // live row for the SAME follower is still refused once the restarted row
@@ -1426,5 +1408,21 @@ console.log("\n§19 WS-R132 (migration 135): STARTING A NEW MANDATE AFTER A HALT
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+{
+  const input = { label: "retry-control", ref: "same-customer", priceInr: 399, subscriptionId: "local-row-one" };
+  const first = await fake.createSubscription(input);
+  const retry = await fake.createSubscription(input);
+  const restart = await fake.createSubscription({ ...input, subscriptionId: "local-row-two" });
+  ok("provider retry before persistence keeps the same local row's reference",
+    first.provider_subscription_ref === retry.provider_subscription_ref);
+  ok("the same customer's new local row gets a different provider reference",
+    first.provider_subscription_ref !== restart.provider_subscription_ref);
+  const { subscriptionId: _row, ...withoutRow } = input;
+  const unkeyedFirst = await fake.createSubscription(withoutRow);
+  const unkeyedNext = await fake.createSubscription(withoutRow);
+  ok("unkeyed provider calls never derive a shared reference from customer and price",
+    unkeyedFirst.provider_subscription_ref !== unkeyedNext.provider_subscription_ref);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

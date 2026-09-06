@@ -11086,6 +11086,30 @@
       "kind": "decision",
       "title": "Wave twenty planned and handed over unbuilt: ten briefs and the merge tools committed, nothing built, 137 next (2026-09-06)",
       "at": "context/decisions.md#wave-twenty-planned-not-built-handover-2026-09-06"
+    },
+    {
+      "id": "codex-takeover-product-boundaries-and-row-keyed-fake-subscriptions",
+      "kind": "decision",
+      "title": "Codex takeover preserves product boundaries and keys fake subscriptions by local row",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "codex-windows-untouched-baseline-2026-09-06",
+      "kind": "measurement",
+      "title": "Windows untouched release baseline fails 7 of 21 with missing browser and CRLF checkout",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "codex-subscription-reference-regression-2026-09-06",
+      "kind": "measurement",
+      "title": "Payment restart and retry regression checks use actual provider references",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "codex-windows-green-summary-is-not-browser-evidence",
+      "kind": "rejection",
+      "title": "Reject treating a zero-exit browser skip as successful validation",
+      "at": "2026-09-06"
     }
   ],
   "edges": [
@@ -21476,6 +21500,16 @@
       "source": "wave-twenty-planned-not-built-handover-2026-09-06",
       "target": "rooms-migrations-134-135-136-live-verification-2026-09-06",
       "type": "follows"
+    },
+    {
+      "src": "codex-takeover-product-boundaries-and-row-keyed-fake-subscriptions",
+      "rel": "measured_by",
+      "dst": "codex-windows-untouched-baseline-2026-09-06"
+    },
+    {
+      "src": "codex-takeover-product-boundaries-and-row-keyed-fake-subscriptions",
+      "rel": "measured_by",
+      "dst": "codex-subscription-reference-regression-2026-09-06"
     }
   ]
 }

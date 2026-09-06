@@ -436,7 +436,7 @@ export async function startFollowerSubscription(db, { session }, deps = {}) {
 
   const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
   const created = await withProviderIncident(db, () => provider.createSubscription(
-    { priceInr, label: room.slug, ref: String(follower.follower_id) },
+    { priceInr, label: room.slug, ref: String(follower.follower_id), subscriptionId: String(subscriptionId) },
     secrets,
   ));
   providerRef = String(created.provider_subscription_ref || "");
@@ -644,7 +644,7 @@ export async function startOrgSubscription(db, { ownerUserId, orgId, plan, seats
 
   const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
   const created = await withProviderIncident(db, () => provider.createSubscription(
-    { priceInr: pricePerSeatInr * seatCount, label: org.slug, ref: String(orgId) },
+    { priceInr: pricePerSeatInr * seatCount, label: org.slug, ref: String(orgId), subscriptionId: String(subscriptionId) },
     secrets,
   ));
   providerRef = String(created.provider_subscription_ref || "");
@@ -859,7 +859,7 @@ export async function startCreatorSubscription(db, { ownerUserId, replicaId, pla
   }
 
   const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
-  const created = await withProviderIncident(db, () => provider.createSubscription({ priceInr, label: `creator-tier:${plan}`, ref: String(replicaId) }, secrets));
+  const created = await withProviderIncident(db, () => provider.createSubscription({ priceInr, label: `creator-tier:${plan}`, ref: String(replicaId), subscriptionId: String(subscriptionId) }, secrets));
   providerRef = String(created.provider_subscription_ref || "");
   if (!providerRef) throw new PaymentsError("payments_provider_subscription_failed", 502);
 
