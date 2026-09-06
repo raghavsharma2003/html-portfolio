@@ -421,4 +421,5 @@ if (SKIP_FOLLOWER) {
 }
 
 summarize();
-process.exit(stages.some((stage) => stage.status !== "ok") ? 1 : 0);
+// Let completed HTTP handles and stdout drain before Node tears down libuv.
+process.exitCode = stages.some((stage) => stage.status !== "ok") ? 1 : 0;
