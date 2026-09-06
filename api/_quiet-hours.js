@@ -7,40 +7,45 @@
 // imported" helpers already name for a reason (this repo's own house style,
 // `ownedRoomHandle`'s header).
 //
-// ── THE GAP THIS FILE DOES NOT CLOSE ────────────────────────────────────────
+// ── THE GAP THIS FILE USED TO NOT CLOSE, AND NOW DOES (WS-R131, migration
+//    134) ────────────────────────────────────────────────────────────────
 //
-// The follower's own row carries NO timezone or quiet-hours column of its
-// own (checked against db/schema.sql before writing this file — the only
-// migration that ever added `quiet_from`/`quiet_to`/`timezone` is 085, and
-// all three live on `vy_room_checkin`, one row per check-in SCHEDULE, not
-// one row per follower). There is therefore no data source in this schema
-// today for "the follower's own quiet hours" that does not already require a
-// join through `vy_room_checkin` — see context/rejected.md#ws-r129-no-
-// follower-level-timezone-or-quiet-hours-column for the full argument and
-// what would close it (a migration adding those three columns to the
-// follower's own row directly — NOT taken by this workstream: 133 belongs to
-// WS-R130, and a workstream never takes a number its own brief did not
-// name).
+// Until this workstream, the follower's own row carried NO timezone or
+// quiet-hours column of its own — the only migration that ever added
+// `quiet_from`/`quiet_to`/`timezone` was 085, and all three lived on
+// `vy_room_checkin`, one row per check-in SCHEDULE, not one row per
+// follower (context/rejected.md#ws-r129-no-follower-level-timezone-or-
+// quiet-hours-column). Migration 134 adds those same three names directly
+// directly to the follower's own row — nullable, both-or-neither on the quiet pair,
+// IANA-shaped timezone — set once on the account page
+// (`api/_room-surface.js`'s `roomSetQuietHours`) and inherited by a new
+// check-in schedule whose own window is left unset (`api/_checkins.js`'s
+// `optIn`, its INSERT's own `coalesce`).
 //
-// Given that, "the follower's own quiet hours, on every channel" means two
-// different things depending on which sender is asking:
+// The shared fragment for a sender with no check-in row in hand
+// (`_renewals.js`/`_dormancy.js`) is therefore now TWO sources, combined in
+// ONE SQL expression rather than two code paths choosing between them:
 //
-//   `_checkins.js`'s own due-select already has a `vy_room_checkin` row IN
-//   HAND (the very row carrying the schedule that is due) — `quietHoursOkSql`
-//   below reads its three columns DIRECTLY, exactly as it already did before
-//   this file existed (WS-R22, migration 085); this file only moves that
-//   text to one shared place so `_renewals.js`/`_dormancy.js` can use the
-//   IDENTICAL logic rather than a second hand-typed copy that could drift.
+//   `quietHoursOkForFollowerRowSql` reads the follower's OWN row directly
+//   (migration 134's three columns) and returns NULL — not TRUE — when the
+//   window is unset, so a caller can `coalesce()` it with a fallback.
 //
-//   `_renewals.js`/`_dormancy.js` have no check-in row of their own — their
-//   due-selects join the follower's own row and nothing check-in shaped.
-//   `quietHoursOkForFollowerSql` answers "is this follower inside ANY of
-//   their own ACTIVE check-in schedules' quiet windows right now" — the
-//   only per-follower quiet-hours signal this schema has today. A follower
-//   who has never opted into a check-in (most followers: check-ins are
-//   paid-only, WS-R16's own workstream law #2) is never blocked by this
-//   predicate — identical, honest, to today's behaviour for them, never a
+//   `quietHoursOkForFollowerSql` is that coalesce: the follower's own row
+//   wins when set; otherwise it falls back to WS-R129's original proxy — "is
+//   this follower inside ANY of their own ACTIVE check-in schedules' quiet
+//   window right now" — for a follower who set a window on a check-in
+//   before this column existed, or who has never used the account-level
+//   control at all. A follower who has done neither (most followers: check-
+//   ins are paid-only, WS-R16's own workstream law #2) is never blocked by
+//   either half — identical, honest, to today's behaviour for them, never a
 //   new send that is silently colder or a fabricated always-block.
+//
+// `_checkins.js`'s own due-select is UNCHANGED by this workstream: it
+// already has the due `vy_room_checkin` row IN HAND, so `quietHoursOkSql`
+// below keeps reading that row's own three columns directly, exactly as it
+// did before this file existed (WS-R22, migration 085) — the schedule's own
+// window, inherited or explicit, already lives there by the time this
+// predicate runs.
 //
 // ── THE STATIC SCAN'S OWN HOOK ───────────────────────────────────────────
 //
@@ -81,23 +86,61 @@ export function quietHoursOkSql(alias, paramIndex = 1) {
 }
 
 /**
+ * WS-R131 (migration 134). The follower's OWN row, direct form — the
+ * IDENTICAL wall-clock math `quietHoursOkSql` runs, over `<alias>.timezone`/
+ * `quiet_from`/`quiet_to` on the follower's own row itself rather than a check-in
+ * schedule. Deliberately NOT the same return shape as `quietHoursOkSql`:
+ * this expression is NULL (never TRUE) when the window is unset OR the
+ * timezone is missing — a defensive belt for the second case, since
+ * `<alias>.timezone` feeds `at time zone` below and a null zone there must
+ * never be asked to resolve to "always ok" by accident — so that
+ * `quietHoursOkForFollowerSql` below can `coalesce()` this against a
+ * fallback in ONE SQL expression, never a second code path in JS choosing
+ * between them.
+ */
+export function quietHoursOkForFollowerRowSql(alias, paramIndex = 1) {
+  const p = `$${paramIndex}`;
+  return `${QUIET_HOURS_MARKER} (
+    case when ${alias}.quiet_from is not null and ${alias}.quiet_to is not null and ${alias}.timezone is not null then not (
+      case when ${alias}.quiet_from <= ${alias}.quiet_to
+        then ((${p})::timestamptz at time zone ${alias}.timezone)::time >= ${alias}.quiet_from
+             and ((${p})::timestamptz at time zone ${alias}.timezone)::time < ${alias}.quiet_to
+        else ((${p})::timestamptz at time zone ${alias}.timezone)::time >= ${alias}.quiet_from
+             or ((${p})::timestamptz at time zone ${alias}.timezone)::time < ${alias}.quiet_to
+      end
+    ) end
+  )`;
+}
+
+/**
  * The row-filter predicate, follower-proxy form: TRUE ("selectable, send
  * it") unless `<followerAlias>` (the caller's own follower-row alias,
  * exposing `follower_id`) has at least one ACTIVE `vy_room_checkin` row
  * whose own quiet window currently blocks it — the negation of `quietHoursOkSql`
  * wrapped in a `not exists`, so a follower with zero active check-ins never
  * matches the `exists` and this predicate is a no-op for them, exactly the
- * "the gap this file does not close" section above requires. Used by
- * `_renewals.js` and `_dormancy.js`, whose own due-selects have no
- * check-in row of their own to read quiet hours from directly.
+ * "the gap this file does not close" section above requires.
+ *
+ * WS-R131 (migration 134): this is now the FALLBACK half of a `coalesce()`,
+ * not the only source. `quietHoursOkForFollowerRowSql` above reads
+ * `<followerAlias>`'s own row directly and wins when it has a real window
+ * set; only when that expression is NULL (no row-level window at all) does
+ * this proxy's own check-in lookup ever get consulted. One SQL expression,
+ * coalesce-shaped, never two code paths deciding in JS which source to
+ * trust — every existing caller (`_renewals.js`, `_dormancy.js`) changes
+ * NOTHING about its own call site: this function's exported NAME and
+ * signature are unchanged, only what it expands to.
  */
 export function quietHoursOkForFollowerSql(followerAlias, paramIndex = 1) {
   const qc = `qh_${followerAlias}`;
-  return `${QUIET_HOURS_MARKER} not exists (
-    select 1 from vy_room_checkin ${qc}
-     where ${qc}.follower_id = ${followerAlias}.follower_id
-       and ${qc}.state = 'active'
-       and not ${quietHoursOkSql(qc, paramIndex)}
+  return `${QUIET_HOURS_MARKER} coalesce(
+    ${quietHoursOkForFollowerRowSql(followerAlias, paramIndex)},
+    not exists (
+      select 1 from vy_room_checkin ${qc}
+       where ${qc}.follower_id = ${followerAlias}.follower_id
+         and ${qc}.state = 'active'
+         and not ${quietHoursOkSql(qc, paramIndex)}
+    )
   )`;
 }
 
@@ -106,7 +149,8 @@ export function quietHoursOkForFollowerSql(followerAlias, paramIndex = 1) {
  * harness, or a future in-process check) that already has the three values
  * in hand and wants the identical answer with no round trip — `tz` a valid
  * IANA zone name, never validated here (every write path that accepts one
- * already validates it, `api/_checkins.js`'s `validateSchedule`).
+ * already validates it, `api/_checkins.js`'s `validateSchedule` and
+ * `api/_room-surface.js`'s `roomSetQuietHours`).
  */
 export function isQuietHoursOk(nowMs, tz, quietFrom, quietTo) {
   if (quietFrom == null || quietTo == null) return true;

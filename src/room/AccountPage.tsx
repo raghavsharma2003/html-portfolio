@@ -35,13 +35,14 @@ import {
   listReceipts,
   fetchReceiptHtml,
   fetchRoomExportReadableHtml,
+  setQuietHours,
   type RoomFlag,
   type RoomForgetReceipt,
   type RoomSettings,
   type RoomReceiptRow,
   type RoomReferralProgress,
 } from "./roomApi";
-import { listCheckinDesignsAndPushKey, setTelegramCheckins } from "./roomCheckinsApi";
+import { listCheckinDesignsAndPushKey, setTelegramCheckins, browserTimezone } from "./roomCheckinsApi";
 import { paymentStatus, type RoomPaymentStatus } from "./roomPayApi";
 import { activateOnKey, LanguageSwitch } from "./RoomApp";
 import { useDialogInView } from "./useDialogInView";
@@ -313,6 +314,19 @@ export default function AccountPage({
   const [tgOn, setTgOn] = useState(false);
   const [tgStopped, setTgStopped] = useState(false);
 
+  // WS-R131 (migration 134). "Set once, in your account." Pre-filled from
+  // `settings.own_quiet_hours` — never from `settings.quiet_hours`, which
+  // may be showing a check-in's own window this control must not silently
+  // adopt as if the follower had already saved it here. A follower with
+  // neither yet sees an empty from/to and their browser's own detected
+  // timezone (`browserTimezone`, `CheckinsPanel.tsx`'s own default one
+  // screen over), never a guessed window.
+  const [qhTimezone, setQhTimezone] = useState(browserTimezone());
+  const [qhFrom, setQhFrom] = useState("");
+  const [qhTo, setQhTo] = useState("");
+  const [qhBusy, setQhBusy] = useState(false);
+  const [qhError, setQhError] = useState("");
+
   useEffect(() => {
     if (!settings) return;
     setPushOn(settings.channels.push.subscribed);
@@ -320,7 +334,54 @@ export default function AccountPage({
     setWaPhoneMasked(settings.channels.whatsapp.phone_masked);
     setTgOn(settings.channels.telegram.checkins_enabled);
     setTgStopped(settings.channels.telegram.stopped);
+    if (settings.own_quiet_hours) {
+      setQhTimezone(settings.own_quiet_hours.timezone);
+      setQhFrom(settings.own_quiet_hours.quiet_from);
+      setQhTo(settings.own_quiet_hours.quiet_to);
+    }
   }, [settings]);
+
+  // Both writes below re-fetch `settings` wholesale afterward rather than
+  // hand-patching `quiet_hours`/`own_quiet_hours` locally — the EFFECTIVE
+  // value (`quiet_hours`) depends on a check-in fallback this page has no
+  // copy of client side (`roomSettings`'s own header), so the only honest
+  // way to show it after a write is to ask the server again, exactly as the
+  // page's own mount effect already does once.
+  const saveQuietHours = useCallback(async () => {
+    if (fixtureSettings) return;
+    setQhBusy(true);
+    setQhError("");
+    try {
+      await setQuietHours(session, qhTimezone.trim() || null, qhFrom || null, qhTo || null);
+      setSettings(await fetchRoomSettings(session));
+    } catch (e) {
+      setQhError(
+        e instanceof RoomApiError && e.code === "room_timezone_invalid"
+          ? copy.quietHours.timezoneInvalid
+          : e instanceof RoomApiError && e.code === "room_quiet_hours_invalid"
+          ? copy.quietHours.windowInvalid
+          : copy.quietHours.saveError,
+      );
+    } finally {
+      setQhBusy(false);
+    }
+  }, [fixtureSettings, session, qhTimezone, qhFrom, qhTo, copy]);
+
+  const clearQuietHours = useCallback(async () => {
+    if (fixtureSettings) return;
+    setQhBusy(true);
+    setQhError("");
+    try {
+      await setQuietHours(session, null, null, null);
+      setQhFrom("");
+      setQhTo("");
+      setSettings(await fetchRoomSettings(session));
+    } catch {
+      setQhError(copy.quietHours.saveError);
+    } finally {
+      setQhBusy(false);
+    }
+  }, [fixtureSettings, session, copy]);
 
   const togglePush = useCallback(async () => {
     if (fixtureSettings) return;
@@ -570,23 +631,96 @@ export default function AccountPage({
       <h3 className="room-checkins-subhead">{copy.account.channelsTitle}</h3>
       <p className="room-fine">{copy.account.channelsNote}</p>
 
-      {/* WS-R129 ("quiet hours on every channel"). Read-only here — the
-          window itself is still picked once, from Check-ins
-          (`CheckinsPanel.tsx`'s own "Not between" control). `settings` is
-          `null` only before the composed read resolves (or on the layout
-          gate's fixture, which always supplies one), so this renders once
-          real data exists rather than flashing an empty state first. */}
+      {/* WS-R129 ("quiet hours on every channel"), widened by WS-R131
+          (migration 134): the EFFECTIVE summary below is still the follower's
+          own account row when set, else whichever check-in schedule set one
+          (`settings.quiet_hours`'s own header, `roomApi.ts`) — but this page
+          now also OWNS a real "set once" control, writing only to the
+          follower's own row (`settings.own_quiet_hours`), never to a
+          check-in. `settings` is `null` only before the composed read
+          resolves (or on the layout gate's fixture, which always supplies
+          one), so this renders once real data exists rather than flashing an
+          empty state first. */}
       {settings != null && (
-        <p className="room-fine room-checkins-quiet-summary">
-          {settings.quiet_hours
-            ? `${withQuietWindow(
-                copy.quietHours.summary,
-                settings.quiet_hours.quiet_from,
-                settings.quiet_hours.quiet_to,
-                settings.quiet_hours.timezone,
-              )}. ${copy.quietHours.everyChannelNote}`
-            : copy.quietHours.none}
-        </p>
+        <>
+          <h3 className="room-checkins-subhead">{copy.quietHours.label}</h3>
+          <p className="room-fine room-checkins-quiet-summary">
+            {settings.quiet_hours
+              ? `${withQuietWindow(
+                  copy.quietHours.summary,
+                  settings.quiet_hours.quiet_from,
+                  settings.quiet_hours.quiet_to,
+                  settings.quiet_hours.timezone,
+                )}. ${copy.quietHours.everyChannelNote}`
+              : copy.quietHours.none}
+          </p>
+          {qhError && <p className="room-error">{qhError}</p>}
+          <div className="room-checkins-quiet-set">
+            <label className="room-fine">
+              {copy.quietHours.zoneLabel}
+              <input
+                type="text"
+                value={qhTimezone}
+                onChange={(e) => setQhTimezone(e.target.value)}
+              />
+            </label>
+            {/* A plain text field, deliberately never `type="time"`: this
+                Chromium build gives a native time input's hour/minute
+                segments their OWN internal Tab stops while
+                `document.activeElement` never changes, so ONE field can
+                consume four real Tab presses before advancing —
+                `scripts/check-accessibility.mjs`'s own fixed walk budget
+                (`focusable.length + 4`) cannot absorb two such fields and
+                the account page's own later controls ("Make it forget me",
+                "Close") never receive focus at all. `QUIET_HOURS_TIME_RE`
+                (`api/_room-surface.js`) is the same HH:MM shape this field
+                validates against client side. */}
+            <label className="room-fine">
+              {copy.quietHours.fromLabel}
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="HH:MM"
+                pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                value={qhFrom}
+                onChange={(e) => setQhFrom(e.target.value)}
+              />
+            </label>
+            <label className="room-fine">
+              {copy.quietHours.toLabel}
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="HH:MM"
+                pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                value={qhTo}
+                onChange={(e) => setQhTo(e.target.value)}
+              />
+            </label>
+            <div className="room-actions">
+              <button
+                type="button"
+                className="room-btn"
+                disabled={qhBusy || !qhFrom || !qhTo}
+                onPointerDown={() => void saveQuietHours()}
+                onKeyDown={activateOnKey(() => void saveQuietHours())}
+              >
+                {qhBusy ? copy.pay.working : copy.quietHours.save}
+              </button>
+              {settings.own_quiet_hours && (
+                <button
+                  type="button"
+                  className="room-btn"
+                  disabled={qhBusy}
+                  onPointerDown={() => void clearQuietHours()}
+                  onKeyDown={activateOnKey(() => void clearQuietHours())}
+                >
+                  {qhBusy ? copy.pay.working : copy.quietHours.clear}
+                </button>
+              )}
+            </div>
+          </div>
+        </>
       )}
 
       {pushKey && (

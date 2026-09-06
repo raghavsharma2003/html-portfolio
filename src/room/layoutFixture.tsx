@@ -197,6 +197,10 @@ const FIXTURE_SETTINGS: RoomSettings = {
   // WS-R129: a real value (not null) so the layout gate's own signed-in
   // walk actually renders the quiet-hours summary block at least once.
   quiet_hours: { quiet_from: "22:00", quiet_to: "07:00", timezone: "Asia/Kolkata" },
+  // WS-R131 (migration 134): a real value too, so the layout gate's own
+  // signed-in walk renders the "set once" control PRE-FILLED (the more
+  // common state going forward) rather than only its empty form.
+  own_quiet_hours: { quiet_from: "22:00", quiet_to: "07:00", timezone: "Asia/Kolkata" },
 };
 
 const FIXTURE_SETTINGS_HI: RoomSettings = {

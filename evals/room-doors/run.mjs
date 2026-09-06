@@ -317,7 +317,7 @@ const {
   mintRoomSession, mintFollowerSession, readRoomSession, RoomError,
   openRoom, joinRoom, roomSay, roomSetLocale, followerHistory, createFollowerThread,
   roomCitations, roomExport, roomForget, roomDismissOffer, ROOM_SESSION_TTL_MS,
-  roomDisclosureCard, roomSettings, roomSettingsReviewed,
+  roomDisclosureCard, roomSettings, roomSettingsReviewed, roomSetQuietHours,
   flagReply, unflagReply, followerFlags,
   // WS-R100 (migration 126). The follower's own receipt.
   roomReceipt, roomReceipts,
@@ -1322,6 +1322,43 @@ console.log("\n── §9: room.js settings / settings_reviewed (WS-R44) ──"
   okClass("b-cross-room", "room.js", "settings: cross-room session refused room_unavailable", settingsErr?.code === "room_unavailable");
   const reviewedErr = await threw(() => roomSettingsReviewed(db, { session: crossToken }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
   okClass("b-cross-room", "room.js", "settings_reviewed: cross-room session refused room_unavailable", reviewedErr?.code === "room_unavailable");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §9a2. WS-R131 (migration 134) — room.js's "set_quiet_hours". Same classes,
+// same shape as §9's settings/settings_reviewed: goes through selfScope, no
+// body-supplied person/follower id at all.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §9a2: room.js set_quiet_hours (WS-R131) ──");
+{
+  const { db, session } = await setupFollower();
+  await assertForgeryRefused("room.js", "set_quiet_hours", () => session);
+  const expired = mintRoomSession({ ...reencodeWithSameSig(session).payload, iat: NOW - (13 * 60 * 60 * 1000) }, ENV);
+  const qhErr = await threw(() => roomSetQuietHours(
+    db, { session: expired, timezone: "Asia/Kolkata", quietFrom: "22:00", quietTo: "07:00" }, { loadAgent, now: NOW, env: ENV },
+  ));
+  okClass("a-forged-session", "room.js", "set_quiet_hours: a stale session is refused (WS-R131)", qhErr?.code === "room_session_expired");
+
+  const okResult = await threw(() => roomSetQuietHours(
+    db, { session, timezone: "Asia/Kolkata", quietFrom: "22:00", quietTo: "07:00" }, { loadAgent, now: NOW, env: ENV },
+  ));
+  okClass("a-forged-session", "room.js", "set_quiet_hours: a fresh, valid session is NOT refused (the fixture itself is sound)", !(okResult instanceof RoomError));
+}
+{
+  const state = withSecondRoom(freshDoorsState());
+  const db = doorsDb(state);
+  const loadAgentTwoRooms = async (slug) => {
+    if (slug === SLUG) return loadAgent(slug);
+    if (slug === "kabir") return { module: {}, sheet: { name: "Kabir", slug: "kabir" } };
+    throw new Error("teacher_sheet_unavailable");
+  };
+  const joinedA = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV });
+  const { payload: payloadA } = reencodeWithSameSig(joinedA.session);
+  const crossToken = mintRoomSession({ ...payloadA, r: "kabir" }, ENV);
+  const qhCrossErr = await threw(() => roomSetQuietHours(
+    db, { session: crossToken, timezone: "Asia/Kolkata", quietFrom: "22:00", quietTo: "07:00" }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV },
+  ));
+  okClass("b-cross-room", "room.js", "set_quiet_hours: cross-room session refused room_unavailable", qhCrossErr?.code === "room_unavailable");
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -2757,6 +2794,11 @@ const OP_COVERAGE = {
     offer_dismiss: { classes: ["a"] },
     settings: { classes: ["a", "b"] },
     settings_reviewed: { classes: ["a", "b"] },
+    // WS-R131 (migration 134). "Set once, in your account" - the SAME
+    // classes and shape as settings_reviewed immediately above: goes
+    // through selfScope, no body-supplied person/follower id at all
+    // (`roomSetQuietHours`'s own header: the predicate is the scope).
+    set_quiet_hours: { classes: ["a", "b"] },
     citations: { classes: ["a", "b"] },
     // WS-R86 (migration 123). No body-supplied person/follower id at all —
     // `roomReferralLink` (`api/_room-surface.js`) reads only the session,
@@ -4408,6 +4450,9 @@ const OP_INVOKE = {
     offer_dismiss: (db, body) => roomDismissOffer(db, { session: body.session }, fuzzDeps),
     settings: (db, body) => roomSettings(db, { session: body.session }, fuzzDeps),
     settings_reviewed: (db, body) => roomSettingsReviewed(db, { session: body.session }, fuzzDeps),
+    set_quiet_hours: (db, body) => roomSetQuietHours(db, {
+      session: body.session, timezone: body.timezone, quietFrom: body.quiet_from, quietTo: body.quiet_to,
+    }, fuzzDeps),
     flag: (db, body) => flagReply(db, { session: body.session, replySha256: body.reply_sha256, reason: body.reason }, fuzzDeps),
     unflag: (db, body) => unflagReply(db, { session: body.session, replySha256: body.reply_sha256 }, fuzzDeps),
     flags: (db, body) => followerFlags(db, { session: body.session }, fuzzDeps),

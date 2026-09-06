@@ -21,6 +21,10 @@
 //   POST /api/room {op:"offer_dismiss", session}     -> "continue free" (WS-R30)
 //   POST /api/room {op:"settings", session}          -> the follower's own page (WS-R39)
 //   POST /api/room {op:"settings_reviewed", session} -> "I looked at this page"
+//   POST /api/room {op:"set_quiet_hours", session, timezone, quiet_from, quiet_to}
+//                                          -> the follower's own timezone/quiet
+//                                          window, set once, in their account
+//                                          (WS-R131, migration 134)
 //   POST /api/room {op:"citations", session}
 //   POST /api/room {op:"referral_link", session} -> "Bring a friend" link
 //                                          plus progress toward a reward
@@ -117,6 +121,7 @@ import {
   roomDismissOffer,
   roomSettings,
   roomSettingsReviewed,
+  roomSetQuietHours,
   personForAccount,
   readRoomSession,
   flagReply,
@@ -482,6 +487,20 @@ async function handler(req, res) {
 
     if (op === "settings_reviewed") {
       return res.status(200).json(await roomSettingsReviewed(q, { session: body.session }));
+    }
+
+    if (op === "set_quiet_hours") {
+      // WS-R131 (migration 134). The account page's "set once" control -
+      // `settings`/`settings_reviewed`'s own shape above, no cross-identity
+      // input (`roomSetQuietHours`'s own header: the predicate is the scope).
+      return res.status(200).json(
+        await roomSetQuietHours(q, {
+          session: body.session,
+          timezone: body.timezone,
+          quietFrom: body.quiet_from,
+          quietTo: body.quiet_to,
+        }),
+      );
     }
 
     if (op === "flag") {

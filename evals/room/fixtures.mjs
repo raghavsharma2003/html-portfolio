@@ -415,6 +415,25 @@ export function fakeDb(state) {
       return [{ locale: f.locale }];
     }
 
+    // WS-R131 (migration 134): `roomSetQuietHours`'s own write - the
+    // follower's OWN timezone/quiet window, direct, no check-in row
+    // involved. Same scope shape as `set locale = $4` immediately above:
+    // room/person/agent off the verified session, params positional off the
+    // real statement.
+    if (has("update vy_room_follower") && has("set timezone = $4")) {
+      const [roomId, personId, agentId] = params.slice(0, 3).map(String);
+      const [tz, qf, qt] = params.slice(3, 6).map((v) => (v == null ? null : String(v)));
+      const f = state.followers.find(
+        (x) => x.room_id === roomId && x.person_id === personId && x.agent_id === agentId,
+      );
+      if (!f) return [];
+      f.timezone = tz;
+      f.quiet_from = qf;
+      f.quiet_to = qt;
+      f.updated_at = new Date().toISOString();
+      return [{ timezone: f.timezone, quiet_from: f.quiet_from, quiet_to: f.quiet_to }];
+    }
+
     // THE CAP. The predicate is read off the shipping SQL rather than
     // restated, so a strike lands here too. WS-R19: the free/paid CASE is
     // matched by its two branch columns rather than by the whole expression

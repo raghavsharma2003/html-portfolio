@@ -627,7 +627,8 @@ export async function followerRow(db, roomId, personId, agentId) {
     `select f.follower_id, f.room_id, f.person_id, f.agent_id, f.joined_at,
             f.age_attested_at, f.memory_consent_at, f.tier,
             f.month_key, f.month_message_count, f.voice_seconds_month, f.voice_month_key, f.last_seen_at,
-            f.locale, f.settings_reviewed_at
+            f.locale, f.settings_reviewed_at,
+            f.timezone, f.quiet_from, f.quiet_to
        from vy_room_follower f
       where f.room_id = ($1)::uuid
         and f.person_id = ($2)::uuid
@@ -3539,19 +3540,24 @@ export async function roomSettings(db, { session }, deps = {}) {
     offer = rows[0] ? { reason: rows[0].reason, shown_at: rows[0].shown_at } : null;
   }
 
-  // ── quiet hours, read-only summary (WS-R129) ─────────────────────────────
-  // The account page never lets a follower SET this here - the window is
-  // still picked once, per schedule, from Check-ins (`CheckinsPanel.tsx`'s
-  // own "Not between" control, unchanged by this workstream). This is only
-  // the read-back: whichever of this follower's own ACTIVE check-in
-  // schedules most recently set a real window (both columns non-null),
-  // since migration 085 is the only place in this schema a follower's own
-  // quiet window and timezone live at all (`api/_quiet-hours.js`'s own
-  // header names the gap - there is no follower-level column to read
-  // instead). `null` when the follower has never set one, or has no
-  // check-in schedule at all (most followers - check-ins are paid-only).
-  let quietHours = null;
-  if (await isTableAppliedFor(deps)("vy_room_checkin")) {
+  // ── quiet hours (WS-R129, widened by WS-R131/migration 134) ─────────────
+  // `ownQuietHours` is the follower's OWN row, direct - exactly what
+  // `set_quiet_hours` (`roomSetQuietHours`, below) writes and the ONLY
+  // value that control ever pre-fills or edits. `quietHours` is the
+  // EFFECTIVE summary the rest of the account page's own sentence renders:
+  // the own row when set, else WS-R129's original read-back (whichever of
+  // this follower's own ACTIVE check-in schedules most recently set a real
+  // window) - the identical "own row wins, else the check-in proxy" order
+  // `api/_quiet-hours.js`'s own `quietHoursOkForFollowerSql` now applies to
+  // every proactive due-select, so what a follower reads here never
+  // disagrees with what actually gates their sends. `null` on either field
+  // means exactly what it always has: nothing set yet.
+  const ownQuietHours =
+    follower.quiet_from != null && follower.quiet_to != null && follower.timezone
+      ? { quiet_from: follower.quiet_from, quiet_to: follower.quiet_to, timezone: follower.timezone }
+      : null;
+  let quietHours = ownQuietHours;
+  if (!quietHours && (await isTableAppliedFor(deps)("vy_room_checkin"))) {
     const rows = await db(
       `select quiet_from, quiet_to, timezone from vy_room_checkin
         where follower_id = ($1)::uuid and state = 'active'
@@ -3584,6 +3590,12 @@ export async function roomSettings(db, { session }, deps = {}) {
     price,
     offer,
     quiet_hours: quietHours,
+    // WS-R131 (migration 134). The follower's OWN row, unmixed with the
+    // check-in fallback above - the account page's "set once" control reads
+    // and pre-fills THIS field, never `quiet_hours`, so an existing
+    // check-in-only window is never mistaken for something already saved to
+    // the account itself.
+    own_quiet_hours: ownQuietHours,
   };
 }
 
@@ -3609,6 +3621,85 @@ export async function roomSettingsReviewed(db, { session }, deps = {}) {
   );
   if (!rows[0]) throw new RoomError("room_join_required", 403);
   return { settings_reviewed_at: rows[0].settings_reviewed_at };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OP: set_quiet_hours — WS-R131 (migration 134)
+// ─────────────────────────────────────────────────────────────────────────
+
+const QUIET_HOURS_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * `Intl.DateTimeFormat` construction is the check used here — the SAME
+ * probe `api/_checkins.js`'s own `validateSchedule` already uses in
+ * production, for the same reason: `Intl.supportedValuesOf("timeZone")` was
+ * tried FIRST (law 3's own words) and MEASURED to reject `Asia/Kolkata`
+ * outright on this runtime's own ICU data (its canonical name here is
+ * `Asia/Calcutta`) — which would have refused the single most common Indian
+ * zone this product will ever see, on every deployment carrying the same
+ * ICU build. `Intl.DateTimeFormat` resolves aliases the way a real caller's
+ * browser does and throws ONLY for a genuinely unrecognised name, so it
+ * alone is both the necessary and the sufficient check. See
+ * `context/rejected.md#ws-r131-supportedvaluesof-timezone-rejects-asia-
+ * kolkata`.
+ */
+function isKnownTimeZone(tz) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * "Set once, in your account." Migration 134: the follower's OWN timezone
+ * and quiet window, written directly to their OWN row - no check-in
+ * schedule involved, unlike the pre-existing "Not between" control on
+ * Check-ins, which keeps working unchanged (`api/_checkins.js`'s own
+ * `optIn` now INHERITS this value for a new schedule that leaves its own
+ * window unset, never the other way round).
+ *
+ * THE PREDICATE IS THE SCOPE, `roomSetLocale`'s own words: room, person and
+ * agent all come off the verified session, so there is no request field
+ * that could name a different follower's row.
+ *
+ * `timezone: null, quietFrom: null, quietTo: null` clears everything -
+ * migration 134's own both-or-neither CHECK on the quiet pair is enforced
+ * here BEFORE the write (never relied on as the only guard), and a quiet
+ * window with no timezone to read it in is refused outright: the shared
+ * fragment's own row-level predicate (`api/_quiet-hours.js`'s
+ * `quietHoursOkForFollowerRowSql`) requires all three or none, so this op
+ * never writes a state that predicate could not interpret.
+ */
+export async function roomSetQuietHours(db, { session, timezone, quietFrom = null, quietTo = null }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+
+  const tz = timezone == null || timezone === "" ? null : String(timezone).trim();
+  const qf = quietFrom == null || quietFrom === "" ? null : String(quietFrom);
+  const qt = quietTo == null || quietTo === "" ? null : String(quietTo);
+
+  if ((qf == null) !== (qt == null)) throw new RoomError("room_quiet_hours_invalid", 400);
+  if (qf != null && (!QUIET_HOURS_TIME_RE.test(qf) || !QUIET_HOURS_TIME_RE.test(qt) || qf === qt)) {
+    throw new RoomError("room_quiet_hours_invalid", 400);
+  }
+  // A window with no timezone to read it in is meaningless — never written.
+  if (qf != null && tz == null) throw new RoomError("room_timezone_invalid", 400);
+  if (tz != null && !isKnownTimeZone(tz)) throw new RoomError("room_timezone_invalid", 400);
+
+  const rows = await db(
+    `update vy_room_follower
+        set timezone = $4, quiet_from = ($5)::time, quiet_to = ($6)::time, updated_at = now()
+      where room_id = ($1)::uuid and person_id = ($2)::uuid and agent_id = ($3)::uuid
+      returning timezone, quiet_from, quiet_to`,
+    [who.roomId, who.personId, who.agentId, tz, qf, qt],
+  );
+  if (!rows[0]) throw new RoomError("room_join_required", 403);
+  return {
+    timezone: rows[0].timezone,
+    quiet_from: rows[0].quiet_from,
+    quiet_to: rows[0].quiet_to,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

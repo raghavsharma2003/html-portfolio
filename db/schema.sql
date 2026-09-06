@@ -4587,3 +4587,19 @@ create unique index if not exists vy_room_referral_reward_cap_ix
   on vy_room_referral_reward (referrer_follower_id, room_id, year_key);
 create index if not exists vy_room_referral_reward_room_granted_ix
   on vy_room_referral_reward (room_id, granted_at);
+
+-- Migration 134 - the follower's own timezone and quiet hours (WS-R131).
+-- See db/migrations/134_follower_quiet_hours.sql for the full argument: a
+-- real, one-row-per-follower column set (nullable, both-or-neither on the
+-- quiet pair, IANA-shaped timezone), set once on the account page, that a
+-- new check-in schedule inherits and that the shared quiet-hours fragment
+-- (api/_quiet-hours.js) now prefers over WS-R129's check-in proxy.
+alter table vy_room_follower add column if not exists timezone text;
+alter table vy_room_follower add column if not exists quiet_from time;
+alter table vy_room_follower add column if not exists quiet_to time;
+alter table vy_room_follower drop constraint if exists vy_room_follower_quiet_hours_pairing_check;
+alter table vy_room_follower add constraint vy_room_follower_quiet_hours_pairing_check
+  check ((quiet_from is null and quiet_to is null) or (quiet_from is not null and quiet_to is not null));
+alter table vy_room_follower drop constraint if exists vy_room_follower_timezone_shape_check;
+alter table vy_room_follower add constraint vy_room_follower_timezone_shape_check
+  check (timezone is null or timezone ~ '^[A-Za-z_]+(/[A-Za-z_+-]+)*$');

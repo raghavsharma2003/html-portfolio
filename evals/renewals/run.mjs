@@ -90,9 +90,15 @@ function freshRenewalsState() {
     orgs: [],
     // WS-R129: the follower-proxy quiet-hours source, `api/_quiet-hours.js`'s
     // own `quietHoursOkForFollowerSql` - a follower's own ACTIVE check-in
-    // schedules, the only place this schema stores a quiet window/timezone
-    // per follower today.
+    // schedules, one of the two sources this schema stores a quiet
+    // window/timezone in per follower.
     checkins: [],
+    // WS-R131 (migration 134): the follower's OWN row - one entry per
+    // follower_id, `{ quiet_from, quiet_to, timezone }`, wins over the
+    // check-in proxy above when set (`quietHoursOkForFollowerSql`'s own
+    // coalesce). Empty by default, so every fixture row above this
+    // workstream's own section stays unaffected.
+    followers: [],
   };
 }
 
@@ -104,12 +110,20 @@ function renewalsDb(state) {
     if (has("from vy_room_subscription s") && has("s.follower_id as subject_id")) {
       const [nowIso, endIso] = params;
       const nowMs = Date.parse(nowIso);
-      // WS-R129: mirrors `quietHoursOkForFollowerSql("f", 1)` — blocked iff
-      // ANY of this follower's own active check-ins currently says no.
-      const quietHoursOk = (followerId) =>
-        !(state.checkins || [])
+      // Mirrors `quietHoursOkForFollowerSql("f", 1)` — WS-R131 (migration
+      // 134): the follower's OWN row wins when it has a real window set;
+      // only when it does not is WS-R129's original check-in proxy ever
+      // consulted (blocked iff ANY of this follower's own active check-ins
+      // currently says no). One coalesce, mirrored here as one branch.
+      const quietHoursOk = (followerId) => {
+        const own = (state.followers || []).find((f) => f.follower_id === followerId);
+        if (own && own.quiet_from != null && own.quiet_to != null && own.timezone) {
+          return isQuietHoursOk(nowMs, own.timezone, own.quiet_from, own.quiet_to);
+        }
+        return !(state.checkins || [])
           .filter((c) => c.follower_id === followerId && c.state === "active")
           .some((c) => !isQuietHoursOk(nowMs, c.timezone, c.quiet_from, c.quiet_to));
+      };
       return state.roomSubs
         // WS-R125 (migration 130): `s.mandate_state in ('none', 'active')`
         // is now part of the REAL query's own WHERE - a row with no
@@ -723,6 +737,64 @@ console.log("\n── §8: WS-R129 QUIET HOURS — the follower proxy, at the fo
   // select itself never returned.
   ok("deferred, not dropped: no reminder row exists yet for the quiet-window follower",
     !state.reminders.some((r) => r.subject_id === uuid(10)));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §8b: WS-R131 (migration 134) — the follower's OWN row, at the four boundary instants ──");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const periodEnd = "2026-09-08T00:00:00.000Z";
+  const t1959 = Date.parse("2026-09-05T16:29:00.000Z"); // 21:59 IST
+  const t2201 = Date.parse("2026-09-05T16:31:00.000Z"); // 22:01 IST
+  const t0659 = Date.parse("2026-09-06T01:29:00.000Z"); // 06:59 IST
+  const t0701 = Date.parse("2026-09-06T01:31:00.000Z"); // 07:01 IST
+
+  const state = freshRenewalsState();
+  state.roomSubs.push(
+    // A follower with NO check-in at all, but a real account-level window
+    // (migration 134) — the proxy has nothing to say; the row must govern
+    // on its own.
+    { follower_id: uuid(20), room_id: ROOM_ID, person_id: uuid(120), state: "active", cancel_at_period_end: false, current_period_end: periodEnd },
+    // A follower whose ACCOUNT window (23:00-06:00) DISAGREES with an
+    // active check-in's own window (22:00-07:00) — the account row must
+    // win: at 22:01 IST the check-in alone would block, but the account
+    // window has not started yet (23:00), so this follower stays due.
+    { follower_id: uuid(21), room_id: ROOM_ID, person_id: uuid(121), state: "active", cancel_at_period_end: false, current_period_end: periodEnd },
+  );
+  state.followers.push(
+    { follower_id: uuid(20), quiet_from: "22:00", quiet_to: "07:00", timezone: "Asia/Kolkata" },
+    { follower_id: uuid(21), quiet_from: "23:00", quiet_to: "06:00", timezone: "Asia/Kolkata" },
+  );
+  state.checkins.push(
+    { follower_id: uuid(21), state: "active", quiet_from: "22:00", quiet_to: "07:00", timezone: "Asia/Kolkata" },
+  );
+
+  const db = renewalsDb(state);
+  const at1959 = (await dueReminders(db, t1959)).follower.map((r) => r.subject_id);
+  ok("21:59 IST: the account-window follower (no check-in) IS due", at1959.includes(uuid(20)));
+  ok("21:59 IST: the disagreeing follower is due (both windows agree here)", at1959.includes(uuid(21)));
+
+  const at2201 = (await dueReminders(db, t2201)).follower.map((r) => r.subject_id);
+  ok("22:01 IST: the account-window follower (no check-in) is EXCLUDED — the row alone governs", !at2201.includes(uuid(20)));
+  ok(
+    "22:01 IST: the disagreeing follower is STILL DUE — their own account window (23:00-06:00) has not started, overriding the check-in's 22:00-07:00",
+    at2201.includes(uuid(21)),
+  );
+
+  // Advance to inside BOTH windows (23:30 IST) — now even the account-window
+  // follower's own row blocks, and the disagreeing follower's account row
+  // (which now also covers 23:30) blocks too — proving this is a real
+  // override, not a permanent "account row always wins to admit".
+  const t2330 = Date.parse("2026-09-05T18:00:00.000Z"); // 23:30 IST
+  const at2330 = (await dueReminders(db, t2330)).follower.map((r) => r.subject_id);
+  ok("23:30 IST: the account-window follower is excluded (inside 22:00-07:00)", !at2330.includes(uuid(20)));
+  ok("23:30 IST: the disagreeing follower is NOW excluded too (inside their own 23:00-06:00)", !at2330.includes(uuid(21)));
+
+  const at0659 = (await dueReminders(db, t0659)).follower.map((r) => r.subject_id);
+  ok("06:59 IST: the account-window follower still excluded (window wraps midnight)", !at0659.includes(uuid(20)));
+
+  const at0701 = (await dueReminders(db, t0701)).follower.map((r) => r.subject_id);
+  ok("07:01 IST: the account-window follower is due again", at0701.includes(uuid(20)));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

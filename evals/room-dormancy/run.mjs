@@ -155,11 +155,17 @@ function fakeDb(state) {
         if (!room || room.dormancy_days == null) continue;
         const threshold = new Date(nowIso).getTime() - (room.dormancy_days - 30) * DAY_MS;
         if (new Date(f.last_seen_at).getTime() >= threshold) continue;
-        // WS-R129: mirrors `quietHoursOkForFollowerSql("f", 1)` — blocked
-        // iff ANY of this follower's own active check-ins currently says no.
-        const blocked = (state.checkins || [])
-          .filter((c) => c.follower_id === f.follower_id && c.state === "active")
-          .some((c) => !isQuietHoursOk(nowMs, c.timezone, c.quiet_from, c.quiet_to));
+        // Mirrors `quietHoursOkForFollowerSql("f", 1)` — WS-R131 (migration
+        // 134): this follower's OWN row wins when it carries a real window;
+        // only when it does not is WS-R129's original check-in proxy ever
+        // consulted (blocked iff ANY of this follower's own active
+        // check-ins currently says no).
+        const ownWindowSet = f.quiet_from != null && f.quiet_to != null && f.timezone;
+        const blocked = ownWindowSet
+          ? !isQuietHoursOk(nowMs, f.timezone, f.quiet_from, f.quiet_to)
+          : (state.checkins || [])
+              .filter((c) => c.follower_id === f.follower_id && c.state === "active")
+              .some((c) => !isQuietHoursOk(nowMs, c.timezone, c.quiet_from, c.quiet_to));
         if (blocked) continue;
         f.dormancy_notice_at = nowIso;
         out.push({
@@ -512,6 +518,77 @@ console.log("\n── §9: WS-R129 QUIET HOURS — the follower proxy, at the fo
     const state = makeState();
     const due = await dormancyNoticeDue(fakeDb(state), t0701);
     ok("07:01 IST: the quiet-window follower is noticed again", due.some((r) => r.person_id === PERSON_QUIET));
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §9b: WS-R131 (migration 134) — the follower's OWN row, at the four boundary instants ──");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const t1959 = Date.parse("2026-09-05T16:29:00.000Z"); // 21:59 IST
+  const t2201 = Date.parse("2026-09-05T16:31:00.000Z"); // 22:01 IST
+  const t0659 = Date.parse("2026-09-06T01:29:00.000Z"); // 06:59 IST
+  const t0701 = Date.parse("2026-09-06T01:31:00.000Z"); // 07:01 IST
+
+  const PERSON_ROW = "aa000000-0000-4000-8000-0000000000b1"; // account window, no check-in at all
+  const PERSON_DISAGREE = "aa000000-0000-4000-8000-0000000000b2"; // account window disagrees with an active check-in
+  const FOLLOWER_ROW = "f0000000-0000-4000-8000-0000000000b1";
+  const FOLLOWER_DISAGREE = "f0000000-0000-4000-8000-0000000000b2";
+
+  function makeState() {
+    const state = freshState();
+    state.followers.push(
+      {
+        follower_id: FOLLOWER_ROW, room_id: ROOM_A, person_id: PERSON_ROW, agent_id: AGENT_ID, locale: "en",
+        age_attested_at: isoBefore(500), last_seen_at: isoBefore(340), dormancy_notice_at: null,
+        quiet_from: "22:00", quiet_to: "07:00", timezone: "Asia/Kolkata",
+      },
+      {
+        // Account window 23:00-06:00; the active check-in below says
+        // 22:00-07:00 — the account row must win, not the check-in.
+        follower_id: FOLLOWER_DISAGREE, room_id: ROOM_A, person_id: PERSON_DISAGREE, agent_id: AGENT_ID, locale: "en",
+        age_attested_at: isoBefore(500), last_seen_at: isoBefore(340), dormancy_notice_at: null,
+        quiet_from: "23:00", quiet_to: "06:00", timezone: "Asia/Kolkata",
+      },
+    );
+    state.checkins.push({ follower_id: FOLLOWER_DISAGREE, state: "active", quiet_from: "22:00", quiet_to: "07:00", timezone: "Asia/Kolkata" });
+    return state;
+  }
+
+  {
+    const state = makeState();
+    const due = await dormancyNoticeDue(fakeDb(state), t1959);
+    ok("21:59 IST: the account-window follower (no check-in) IS noticed", due.some((r) => r.person_id === PERSON_ROW));
+    ok("21:59 IST: the disagreeing follower is noticed (both windows agree here)", due.some((r) => r.person_id === PERSON_DISAGREE));
+  }
+  {
+    const state = makeState();
+    const due = await dormancyNoticeDue(fakeDb(state), t2201);
+    ok("22:01 IST: the account-window follower (no check-in) is EXCLUDED — the row alone governs", !due.some((r) => r.person_id === PERSON_ROW));
+    ok(
+      "22:01 IST: the disagreeing follower is STILL NOTICED — their own account window (23:00-06:00) has not started, overriding the check-in's 22:00-07:00",
+      due.some((r) => r.person_id === PERSON_DISAGREE),
+    );
+  }
+  {
+    // Inside BOTH windows (23:30 IST): now even the disagreeing follower's
+    // own account row blocks — proving this is a real override, not a
+    // permanent "account row always admits".
+    const state = makeState();
+    const t2330 = Date.parse("2026-09-05T18:00:00.000Z"); // 23:30 IST
+    const due = await dormancyNoticeDue(fakeDb(state), t2330);
+    ok("23:30 IST: the account-window follower is excluded (inside 22:00-07:00)", !due.some((r) => r.person_id === PERSON_ROW));
+    ok("23:30 IST: the disagreeing follower is NOW excluded too (inside their own 23:00-06:00)", !due.some((r) => r.person_id === PERSON_DISAGREE));
+  }
+  {
+    const state = makeState();
+    const due = await dormancyNoticeDue(fakeDb(state), t0659);
+    ok("06:59 IST: the account-window follower still excluded (window wraps midnight)", !due.some((r) => r.person_id === PERSON_ROW));
+  }
+  {
+    const state = makeState();
+    const due = await dormancyNoticeDue(fakeDb(state), t0701);
+    ok("07:01 IST: the account-window follower is noticed again", due.some((r) => r.person_id === PERSON_ROW));
   }
 }
 

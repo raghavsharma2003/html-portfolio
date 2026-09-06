@@ -145,19 +145,27 @@ function withCheckins(baseDb, state) {
         (x) => x.design_id === String(designId) && x.room_id === String(roomId) && x.state === "active",
       );
       if (!d) return [];
+      // WS-R131 (migration 134): the real statement's own `coalesce(($10)::
+      // time, f.quiet_from)`/`coalesce(($11)::time, f.quiet_to)` - a schedule
+      // that leaves its OWN window unset inherits whichever window the
+      // follower already set once, in their account, off the SAME `state.
+      // followers` row the shared fixture already carries.
+      const followerAccount = (state.followers || []).find((f) => f.follower_id === String(followerId));
+      const inheritedQf = qf ?? followerAccount?.quiet_from ?? null;
+      const inheritedQt = qt ?? followerAccount?.quiet_to ?? null;
       let row = state.checkins.find(
         (c) => c.follower_id === String(followerId) && c.design_id === String(designId) && c.state === "active",
       );
       if (row) {
         row.days_of_week = days; row.local_time = time; row.timezone = tz;
-        row.next_due_at = nextDue; row.quiet_from = qf ?? null; row.quiet_to = qt ?? null;
+        row.next_due_at = nextDue; row.quiet_from = inheritedQf; row.quiet_to = inheritedQt;
         row.updated_at = new Date().toISOString();
       } else {
         row = {
           checkin_id: String(id), room_id: String(roomId), person_id: String(personId),
           follower_id: String(followerId), design_id: String(designId),
           days_of_week: days, local_time: time, timezone: tz, next_due_at: nextDue,
-          quiet_from: qf ?? null, quiet_to: qt ?? null,
+          quiet_from: inheritedQf, quiet_to: inheritedQt,
           state: "active", created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
         };
         state.checkins.push(row);
@@ -630,6 +638,67 @@ console.log("\n── §6: WS-R129 QUIET HOURS, END TO END — the four boundary
     "NEGATIVE CONTROL: with the predicate struck, this exact row WOULD be due at 22:01 IST — the real predicate is what catches it",
     isQuietHoursOk(t2201, "Asia/Kolkata", "22:00", "07:00") === false,
   );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §7: WS-R131 — a new schedule inherits the follower's OWN account window ──");
+// ═════════════════════════════════════════════════════════════════════════
+// Migration 134 gives the follower a real, one-row-per-follower timezone and
+// quiet window. `optIn`'s own INSERT now `coalesce`s a schedule's unset
+// quiet_from/quiet_to against that row (`api/_checkins.js`'s own header) —
+// this section proves the real exported `optIn`, driven through the real
+// fixture, actually does that, and that an EXPLICIT window on the schedule
+// still wins over the account default unchanged from before this workstream.
+{
+  const { state: state3, db: db3, session: session3 } = await setup({ tier: "paid", memoryConsent: true });
+  const design3 = await createDesign(db3, OWNER, REPLICA_ID, {
+    title: "Morning check-in", promptShape: "ask how the morning is going", cadenceHint: "daily",
+  });
+  const follower3 = state3.followers.find((x) => x.room_id === ROOM_ID && x.person_id === PERSON_A);
+  // The account-level window a follower already set once, off THIS follower's
+  // own row — never a check-in row, `roomSetQuietHours`'s own write target.
+  follower3.timezone = "Asia/Kolkata";
+  follower3.quiet_from = "23:00";
+  follower3.quiet_to = "06:00";
+
+  const inherited = await optIn(
+    db3,
+    {
+      session: session3, designId: design3.design_id, daysOfWeek: [1, 2, 3, 4, 5, 6, 7], localTime: "08:00",
+      timezone: "Asia/Kolkata", // the schedule's own timezone, quietFrom/quietTo left UNSET
+    },
+    { now: Date.now(), loadAgent },
+  );
+  ok("a schedule created with NO quiet window of its own inherits the account's 23:00",
+    inherited.quiet_from === "23:00", JSON.stringify(inherited));
+  ok("a schedule created with NO quiet window of its own inherits the account's 06:00",
+    inherited.quiet_to === "06:00", JSON.stringify(inherited));
+
+  const explicit = await optIn(
+    db3,
+    {
+      session: session3, designId: design3.design_id, daysOfWeek: [1, 2, 3, 4, 5, 6, 7], localTime: "08:30",
+      timezone: "Asia/Kolkata", quietFrom: "21:00", quietTo: "05:00",
+    },
+    { now: Date.now(), loadAgent },
+  );
+  ok("an EXPLICIT window on the schedule itself still wins over the account default",
+    explicit.quiet_from === "21:00" && explicit.quiet_to === "05:00", JSON.stringify(explicit));
+
+  // A follower with NO account-level window at all (the shipping default,
+  // most followers today) gets exactly the pre-WS-R131 behaviour: an unset
+  // schedule window stays unset, never a fabricated inheritance from nothing.
+  const { state: state4, db: db4, session: session4 } = await setup({ tier: "paid", memoryConsent: true });
+  const design4 = await createDesign(db4, OWNER, REPLICA_ID, {
+    title: "Evening check-in", promptShape: "ask how the evening went", cadenceHint: "daily",
+  });
+  const noAccountWindow = await optIn(
+    db4,
+    { session: session4, designId: design4.design_id, daysOfWeek: [1, 2, 3, 4, 5, 6, 7], localTime: "20:00", timezone: "Asia/Kolkata" },
+    { now: Date.now(), loadAgent },
+  );
+  ok("no account-level window set: the new schedule's own window stays null, not fabricated",
+    noAccountWindow.quiet_from == null && noAccountWindow.quiet_to == null, JSON.stringify(noAccountWindow));
 }
 
 console.log(`\ncheckins: ${pass} ok, ${fail} failed`);
