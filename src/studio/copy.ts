@@ -320,6 +320,11 @@ interface PayoutsCopy {
   failureReasonLine: string; // "Failure reason: {label}"
   downloadJson: string;
   downloadText: string;
+  // WS-R138. The printable statement - `roomApi.ts`'s own `format:"html"`
+  // print-in-a-new-tab pattern (WS-R108), one door over.
+  printStatement: string;
+  openingStatement: string;
+  printError: string;
   couldNotLoadStatement: string;
   loadingStatement: string;
   noPayoutYet: string;
@@ -2310,6 +2315,9 @@ const EN: StudioCopy = {
     failureReasonLine: "Failure reason: {label}",
     downloadJson: "Download as JSON",
     downloadText: "Download as text",
+    printStatement: "Print statement",
+    openingStatement: "Opening...",
+    printError: "Could not open the printable statement.",
     couldNotLoadStatement: "Could not load this statement.",
     loadingStatement: "Loading statement.",
     noPayoutYet: "No payout has been built for you yet. This fills in once a period closes with revenue on it.",

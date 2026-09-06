@@ -906,6 +906,36 @@ function doorsPatterns(state) {
     if (has("select o.name") && has("join vy_org o on o.org_id = r.org_id")) {
       return [];
     }
+    // ── payoutStatement's own Room(s) read (WS-R138) - `evals/payouts/
+    //    run.mjs`'s own identical fixture, restated over this file's own
+    //    `state.rooms`/`state.events`/`state.orgSubscriptions` shape. The
+    //    second `has()` is load-bearing, not decorative:
+    //    `resolveCreatorPage`'s own query (`api/_creator-page.js`) starts
+    //    with the IDENTICAL `select room_id, slug, display_name` prefix
+    //    (it continues `, one_line_bio, default_locale, taste_enabled...`,
+    //    this one continues straight to `from vy_room`) and is driven
+    //    through this SAME shared `doorsDb` by `evals/rehearsal/follower.mjs`'s
+    //    own taste-island step - the first version of this check matched
+    //    that query too and silently fed it payout rows instead, found only
+    //    by running `evals/rehearsal/follower.mjs`, never by this file's own
+    //    suite (`context/rejected.md#ws-r138-room-fixture-substring-collided-
+    //    with-resolvecreatorpages-own-query`). ──
+    if (has("select room_id, slug, display_name") && has("where owner_user_id")) {
+      const [ownerUserId, start, end] = params.map(String);
+      const rooms = (state.rooms || []).filter((r) => r.owner_user_id === ownerUserId).filter((r) => {
+        const hasEvent = (state.events || []).some((e) => e.room_id === r.room_id && e.received_at >= start && e.received_at < end);
+        const activeSuite = r.org_id && (state.orgSubscriptions || []).some((s) => s.org_id === r.org_id && s.state === "active");
+        return hasEvent || activeSuite;
+      });
+      return rooms.map((r) => ({ room_id: r.room_id, slug: r.slug, display_name: r.display_name }));
+    }
+    // ── payoutStatement's own referral-rewards read (WS-R138) - never
+    //    modelled non-empty here, `tableApplied` resolving false with no
+    //    live database, `reconcilePeriod`'s own identical gate elsewhere in
+    //    this file. ──
+    if (has("from vy_room_referral_reward rr") && has("join vy_room r on r.room_id = rr.room_id")) {
+      return [];
+    }
     if (has("gross_inr, net_inr, state, created_at") && has("order by period_start desc")) {
       const [ownerUserId] = params.map(String);
       return state.payouts

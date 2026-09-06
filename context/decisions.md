@@ -21134,3 +21134,115 @@ number legitimately falls outside 7-15 bare digits (a numbering-plan case
 `isBareE164Digits`'s own ITU E.164 §6.2.1 reasoning did not anticipate),
 at which point the shape gate should widen by name, cited against the
 specific plan, rather than being loosened generically.
+
+## `ws-r138-payout-statement-gst-reuses-receipts-split-never-a-second-implementation` (2026-09-05, WS-R138)
+
+**Decision.** The creator's printable payout statement
+(`api/_payout-statement-readable.js`) shows the platform's take split into
+a taxable value and a GST line by calling `api/_receipt.js`'s existing
+`gstSplit`/`GST_RATE_BP` directly (`unknown_state` mode, the same
+limitation the follower's own receipt already carries) rather than writing
+a second GST computation. The platform's take is treated as the platform's
+own fee for a service it renders the creator — a taxable supply exactly
+like a follower's membership payment is — so the SAME function that
+already splits a follower's payment into taxable value and GST splits the
+platform's own take, with the caveat "this platform operator's own
+understanding, not confirmed by an accountant" printed next to it, plain
+sentence in both locales, never presented as a settled tax opinion or a
+real GST invoice.
+
+**Rationale.** `context/rejected.md`'s no-fake-numbers law applied to code
+reuse: a second, hand-typed implementation of GST arithmetic is the exact
+class of drift risk this codebase already rejected once for TDS
+(`TDS_RATE_BP_DEFAULT`/`TDS_DISCLOSURE_SENTENCE`'s own header). The
+workstream brief named `api/_receipt.js`'s GST split logic as required
+reading specifically so this document would reuse it rather than
+reinvent it; the platform's own commission is exactly the shape `gstSplit`
+was already built for (an amount, GST-inclusive, no billing state known).
+
+**What would reverse it.** An accountant confirms the platform's own
+commission is NOT a taxable supply under GST at all (a pure pass-through,
+say), or that a different rate or invoice shape applies than a follower's
+membership does. At that point this section should be replaced with
+whatever the accountant specifies — plausibly removing the GST split
+entirely and keeping `take_inr` as one plain line — never patched to keep
+guessing a second rate.
+
+## `ws-r138-tds-sentence-rendered-verbatim-lang-en-never-re-translated` (2026-09-05, WS-R138)
+
+**Decision.** The payout statement's Hindi document renders
+`TDS_DISCLOSURE_SENTENCE` (`api/_payments.js`) exactly as the JSON
+statement already carries it — English, `lang="en"` — with only the
+surrounding section heading translated, rather than hand-translating the
+sentence into a second, Hindi copy of the same legal disclosure.
+
+**Rationale.** The sentence names a real section of India's Income Tax Act
+(194J) and a real withheld rate (0%) inside one frozen constant that is
+the platform's own single source of truth for both; a second, hand-typed
+Hindi sentence living in the readable builder would be a second place
+either number could drift from that constant the day an owner sets a real
+TDS rate or an accountant names a different section —
+`context/rejected.md`'s no-fake-numbers law and this house's "restate a
+tiny helper, never a constant" distinction (`_room-export-readable.js`'s
+own header) both point the same way. `_room-export-readable.js`'s own
+per-node `lang` tagging for a column name or a data cell that does not
+match the document's chosen locale is the exact same mechanism, restated
+for a whole sentence instead of one cell.
+
+**What would reverse it.** The product commits to a formally-translated,
+legally-reviewed Hindi TDS disclosure independent of the English one (an
+accountant or lawyer signs off on Hindi wording specifically, not a
+literal translation of the English). At that point the Hindi sentence
+becomes its own constant next to `TDS_DISCLOSURE_SENTENCE`, read the same
+way, never typed inline in the readable builder.
+
+## `ws-r138-payout-statement-readable-served-through-existing-op-never-a-new-door` (2026-09-05, WS-R138)
+
+**Decision.** The printable statement is a `format: "html"` branch on the
+EXISTING `payout_statement` op (`api/payments.js`), never a new op or a
+new door — `api/room.js`'s `receipt`/`export` `format: "html"` precedent
+(WS-R100/WS-R108) restated for the creator's own money instead of a
+follower's record. The door calls `payoutStatement` exactly once, branches
+on `body.format`, and hands the SAME already-owner-scoped object to the
+pure builder either way.
+
+**Rationale.** Every owner-bearer check `evals/room-doors/run.mjs` proves
+for `payout_statement` (a body-supplied `payout_id` belonging to another
+owner is refused by the WHERE, class c) already runs by the time either
+branch is reached, so a second op would either duplicate that check or
+risk skipping it. A new op would also need its own `OP_COVERAGE` entry and
+its own class-c proof from scratch; a `formats` entry on the existing one
+reuses the proof that already exists.
+
+**What would reverse it.** If the printable statement ever needed
+different authorization than the JSON one (a shareable, unauthenticated
+link a creator could hand to an accountant, say), it would need to become
+a genuinely separate, differently-scoped op rather than a format branch on
+this one — at that point the shared-authorization argument above no
+longer holds and a new door is the honest shape.
+
+## `ws-r138-rooms-line-mirrors-runpayoutrollups-current-attachment-not-reconcileperiods-history` (2026-09-05, WS-R138)
+
+**Decision.** The statement's "Room(s) this statement covers" line is
+computed with the SAME two conditions `runPayoutRollup`'s own
+`per_owner`/`suite_share` CTEs use to decide an owner gets a payout row at
+all — a follower charge landed in this period, OR the Room's CURRENT
+`org_id` sits in an org with an active subscription right now — never
+`reconcilePeriod`'s own suite lane, which deliberately reads attachment
+HISTORY instead (`context/decisions.md#ws-r42-reconcile-suite-lane-uses-
+current-attachment`'s own supersession).
+
+**Rationale.** This line exists to explain what a specific, already-built
+payout row's own numbers are FOR, so it has to agree with the query that
+actually built those numbers, not with a differently-scoped audit read.
+Using `reconcilePeriod`'s historical version here would let the Room list
+disagree with the Suite share figure sitting three lines above it on the
+same page — a Room detached before the reconciliation window closes but
+still current at rollup time would show a Suite share with no Room named
+for it, or vice versa.
+
+**What would reverse it.** If `runPayoutRollup`'s own suite-share query
+ever changes to read attachment history instead of current `org_id` (the
+reversal condition the superseding decision above already names), this
+read must change identically in the same commit, or the two will
+silently disagree about which Room a Suite share belongs to.

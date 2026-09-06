@@ -2776,6 +2776,23 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "source-scan": "source-scan/run.mjs",
+  // WS-R138. The creator's PRINTABLE payout statement:
+  // `api/_payout-statement-readable.js`'s pure `buildPayoutStatementReadableHtml`,
+  // `room-export-readable`'s own precedent restated for money instead of a
+  // memory export. Proves: (1) PARITY over 60 generated periods - every one
+  // of the four numbers, the Suite share (when nonzero) and the referral-
+  // rewards line (when nonzero) appears in the rendered document as the
+  // SAME rupee figure the statement object carries, and the reused
+  // `_receipt.js#gstSplit` breakdown of the platform's take sums back to
+  // `take_inr` exactly; (2) a REQUIRED NEGATIVE CONTROL - the parity checker
+  // catches a statement number perturbed AFTER the document was rendered,
+  // proving it is not vacuously permissive; (3) no `<script>` tag in any
+  // rendered document; (4) both locales render, `<html lang>` set, the TDS
+  // disclosure sentence present verbatim (`TDS_DISCLOSURE_SENTENCE`, never
+  // re-typed) and tagged `lang="en"` in the Hindi render.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "payout-statement-readable": "payout-statement-readable/run.mjs",
 };
 
 const argv = process.argv.slice(2);

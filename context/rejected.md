@@ -14973,3 +14973,82 @@ a gate that refuses a shape-invalid value rather than reformatting it (see
 source; unknown or malformed resolves to structurally absent, never a
 guess. See `context/decisions.md#ws-r136-whatsapp-join-number-verified-
 against-the-phone-number-endpoint`.
+
+## `ws-r138-periodlabel-toisostring-on-an-invalid-date-crashed-before-datelabels-own-catch` (2026-09-05, WS-R138)
+
+**What was tried.** `api/_payout-statement-readable.js`'s `periodLabel`
+helper computed the period's own inclusive end date (one day before the
+half-open period's exclusive end instant) by calling
+`endInclusive.toISOString()` and handing the resulting string to
+`dateLabel`, which already wraps its own `new Date(iso)`/
+`toLocaleDateString` in a try/catch specifically so a bad date renders a
+raw fallback rather than crashing the whole document.
+
+**What broke.** `evals/payout-statement-readable/run.mjs`'s own generator
+produced a period whose end month rolled over past December (an
+off-by-one in the SUITE's generator, not the product's real period data,
+which always comes from `runPayoutRollup`'s own well-formed month
+boundaries) — an invalid `Date`. `.toISOString()` on an invalid `Date`
+throws `RangeError: Invalid time value` immediately, BEFORE the string
+ever reaches `dateLabel`'s own try/catch, so the one function in this file
+built specifically to fail soft on a bad date never got the chance to.
+
+**The fix, and the general lesson.** `periodLabel` now hands `dateLabel` a
+DATE OBJECT directly instead of pre-stringifying it with a method that can
+itself throw — `dateLabel`'s own `new Date(iso)` accepts a `Date` instance
+exactly as it accepts a string, and its existing catch now genuinely
+covers every path into it, including this one. The general lesson: a
+"pure, single try/catch guards a bad date" design is only as good as every
+CALLER routing every bad date through that one guarded function — a helper
+upstream of it that calls a throwing method on the SAME value first
+reintroduces the exact crash the guard exists to prevent, and it will only
+surface on an input the guarded function's own author never tried by hand
+(here: a generated fixture, not a hand-written one, which is the whole
+reason the workstream brief asked for 50+ GENERATED periods rather than a
+handful of hand-picked ones).
+
+## `ws-r138-room-fixture-substring-collided-with-resolvecreatorpages-own-query` (2026-09-05, WS-R138)
+
+**What was tried.** `payoutStatement`'s new Room(s) read
+(`api/_payments.js`) starts `select room_id, slug, display_name from
+vy_room where owner_user_id = ...`. The fake-`db` handler added for it in
+BOTH `evals/payouts/run.mjs`'s own `makeDb` and the shared `doorsDb`
+(`evals/room-doors/fixtures.mjs`) matched on `has("select room_id, slug,
+display_name")` alone — a plain substring test, this codebase's own
+standing convention for a fake `db`, `evals/payouts/run.mjs`'s own header
+comment names it explicitly ("Read off the REAL SQL text").
+
+**What broke.** `api/_creator-page.js#resolveCreatorPage`'s own query —
+built years before this workstream, driving `/c/<slug>`'s public page and
+proven end to end by `evals/rehearsal/follower.mjs`'s "the taste island"
+step — happens to start with the IDENTICAL five words: `select room_id,
+slug, display_name, one_line_bio, default_locale, listed_at,
+taste_enabled from vy_room where lower(slug) = $1 and ...`. `doorsDb` is
+shared across this whole battery AND the rehearsal harness
+(`evals/rehearsal/harness.mjs` imports it), so the moment this file's own
+new handler existed, EVERY call to `resolveCreatorPage` through that
+shared fixture was intercepted by MY handler instead, which answered with
+payout-shaped rows (or nothing matching `owner_user_id`) rather than the
+real creator-page row — `taste_enabled`/`listed_at` came back
+`undefined`, and the taste island silently stopped rendering. `evals/room-
+doors/run.mjs`'s own 2147 assertions all stayed green (nothing in that
+suite ever calls `resolveCreatorPage`), and `evals/payouts/run.mjs`'s own
+69 assertions stayed green too (its OWN `makeDb` fixture is never reached
+by a creator-page request) — the regression was invisible to every suite
+this workstream directly touched or ran first, and surfaced ONLY in
+`evals/rehearsal/follower.mjs`, a suite three files and two workstreams
+away from the one actually edited. Found by running the full registry
+(`node evals/run.mjs`) as `ws-common.md`'s own law requires before calling
+anything with a shared fixture done, not by this workstream's own new
+suite or by `evals/room-doors`/`evals/payouts` alone.
+
+**The fix.** Both handlers now require a SECOND substring,
+`has("where owner_user_id")`, present in the real `payoutStatement` query
+and absent from `resolveCreatorPage`'s (`where lower(slug) = $1`). The
+general lesson, restated for this codebase's specific convention rather
+than in the abstract: a fake `db`'s plain-substring `has()` match is only
+as safe as the PREFIX it matches being unique across every real query any
+suite sharing that fixture can ever issue — a five-to-seven-word `select`
+list prefix is exactly the kind of text two unrelated tables' own queries
+can share by coincidence, and the fix is never a fuzzier match but a
+SECOND, more specific substring that the colliding query provably lacks.

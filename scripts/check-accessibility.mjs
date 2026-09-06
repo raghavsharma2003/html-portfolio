@@ -1102,6 +1102,74 @@ async function main() {
     await ctx.close();
   }
 
+  // ── the creator's printable payout statement (WS-R138): `format:"html"`
+  // on the `payout_statement` op has no client app to navigate to either -
+  // `room-export-readable`'s own reason one block up, restated for the
+  // creator's own money instead of a follower's memory export. A
+  // representative statement fixture covering every optional line the real
+  // builder branches on (a Suite share WITH a name, referral rewards
+  // funded, a provider reference, and both the settled date and a failure
+  // reason at once - the accessibility walk cares about every node that can
+  // exist, not about which real payout state combination produced it), in
+  // both locales - the TDS disclosure sentence stays `lang="en"` in the
+  // Hindi render (`api/_payout-statement-readable.js`'s own header names
+  // why), so the Hindi pass is what actually proves that tag is there.
+  if (!targetFilter || targetFilter === "payout-statement-readable") {
+    const { buildPayoutStatementReadableHtml } = await import(
+      pathToFileURL(join(ROOT, "api/_payout-statement-readable.js")).href
+    );
+    const fixtureStatement = {
+      payout_id: "11111111-0000-4000-a000-000000000003",
+      period_start: "2026-08-01T00:00:00.000Z",
+      period_end: "2026-09-01T00:00:00.000Z",
+      currency: "INR",
+      rooms: [{ room_id: "11111111-0000-4000-a000-000000000004", slug: "anjali", display_name: "Anjali" }],
+      gross_inr: 5000,
+      take_inr: 1250,
+      tds_inr: 0,
+      net_inr: 3750,
+      suite_share_inr: 1500,
+      suite_name: "Acme Creators",
+      referral_rewards: { count: 2, forgone_inr: 798 },
+      follower_subscriptions: 12,
+      state: "failed",
+      provider_payout_ref: "fake_payout_0000000000000000000001",
+      created_at: "2026-09-01T00:05:00.000Z",
+      settled_at: null,
+      failure_reason: "account_closed",
+      tds_note:
+        "TDS reflects the rate the platform operator has configured. Right now that rate is 0%, so nothing is withheld. " +
+        "The operator believes Section 194J of India's Income Tax Act applies to a creator's Room earnings, but an accountant has not confirmed this, and the rate may change before any real payout is sent.",
+    };
+    for (const lang of ["en", "hi"]) {
+      const html = buildPayoutStatementReadableHtml(fixtureStatement, lang);
+      const where = `payout-statement-readable:${lang}`;
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+      const page = await ctx.newPage();
+      await page.setContent(html, { waitUntil: "domcontentloaded" });
+      await page.addScriptTag({ content: axeSource });
+      const result = await page.evaluate(
+        (tags) => window.axe.run(document, { runOnly: { type: "tag", values: tags } }),
+        AXE_TAGS,
+      );
+      pagesScanned++;
+      for (const v of result.violations) {
+        counts[v.impact] = (counts[v.impact] || 0) + 1;
+        axeFindings.push({
+          where, impact: v.impact, id: v.id, help: v.help,
+          nodesTotal: v.nodes.length,
+          nodes: v.nodes.map((n) => n.target.join(" ")),
+          detail: v.nodes.map((n) => n.failureSummary || "").filter(Boolean),
+        });
+      }
+      const langResult = await page.evaluate(langTagAudit);
+      devanagariNodesTotal += langResult.devanagariNodes;
+      taggedHiElementsTotal += langResult.taggedHiElements;
+      for (const f of langResult.findings) langFindings.push({ where, ...f });
+      await ctx.close();
+    }
+  }
+
   await browser.close();
   server.close();
   const runtimeMs = Date.now() - t0;
