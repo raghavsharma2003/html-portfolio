@@ -12615,6 +12615,30 @@
       "kind": "rejection",
       "title": "Optional expected commitment permits internally valid substitution",
       "at": "2026-09-07"
+    },
+    {
+      "id": "issued-contract-schema-preserves-legacy-without-backfill-20260907",
+      "kind": "decision",
+      "title": "Add nullable issued-contract fields without interpreting old challenges",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "issued-schema-real-development-63-controls-20260907",
+      "kind": "measurement",
+      "title": "Migration137 and63real PostgreSQL constraint cases pass",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "issued-schema-existing-sql-gates-20260907",
+      "kind": "measurement",
+      "title": "Existing relational and identity SQL checks remain green",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "multiply-invalid-json-fixture-does-not-isolate-guard-20260907",
+      "kind": "rejection",
+      "title": "Strengthen fixtures to isolate JSON type and size checks",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

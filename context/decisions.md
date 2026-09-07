@@ -22618,3 +22618,8 @@ Implement the reviewed plan in docs/gurukul/research/IDENTITY-ISSUED-CONTRACT-PL
 ## `issued-contract-requires-persisted-commitment-20260907` (2026-09-07)
 
 The pure issued-contract validator requires an expected SHA256 rather than offering an optional internal-consistency mode. Server-owned IDs, explicit locale/item, exact six spaced digits and positive int4 reference version build a canonical frozen document. Banks and profile are immutable unreviewed/nonservable prerequisites. Reversal condition: a separately authenticated persisted envelope supplies equivalent independent issue authority; self-consistency alone never does. New semantics or approval status require a new retained bank/profile version.
+
+
+## `issued-contract-schema-preserves-legacy-without-backfill-20260907` (2026-09-07)
+
+Migration137 adds five nullable columns to existing challenge table. AllNULL is allowed only for non-v2 historical policies; populated rows require exact v2 contract shape, known locale/bank/profile and row bindings. Entire CHECK uses IS TRUE with explicit JSON types and object CASE, so missing/null values cannot pass via UNKNOWN. SQL validates shape, not application canonical hash authority. Reversal condition: a differently versioned schema proves equivalent legacy preservation, strict bindings and bounded content without guessed backfill.

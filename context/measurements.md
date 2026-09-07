@@ -16198,3 +16198,13 @@ One Astra source audit on2026-09-07 produced the issued-contract plan; root read
 Measured2026-09-07 India. Root ran node evals/run.mjs identity-issued-contract:63checks passed through the real registry and source module. Both locale banks contain6draft items; all12 build/validate. Controls cover canonical ordering, deep freeze, changed challenge/replica/owner/locale/item/nonce/reference against original commitment, strict types/keys/prototypes/accessors, missing expected hash and registry-field tampering. Two in-memory actual-source mutants demonstrate unsupported profile acceptance without field binding and a rebuilt foreign nonce contract acceptance without expected-hash equality. Root separately ran registry-runner14pass and git diff --check. No schema, SQL, cloud, audio, owner review or identity acceptance occurred. Full release9 predates this additive module/registry change.
 
 Agent added UUID/hash trailing-newline controls after the root63check run. Root reran the registered final suite:65passed; evidence scratchpad/identity-issued-contract-root-final.log. This is the final focused revision.
+
+
+## `issued-schema-real-development-63-controls-20260907` (2026-09-07)
+
+Measured2026-09-07 India, final result2026-09-07T01:20:46.714Z. Root bound current_database exactly to vyakti_expert_integration_20260906, applied the2migration137 ALTER statements twice per invocation. Initial59case run passed; four stronger type/size fixtures added and final63case run passed, with1real insert EXPLAIN each run. Total4applications/8DDL statements across both runs. Positive Hindi/English and legacy rows, partialSQLnull, every missing/JSONnull contract key, mismatch/type/size cases tested. Numeric1e63 hashes actually satisfy64character text format but fail JSON string type. Raw numeric reference2 with5000trailing zeros is PostgreSQL-equal to integer2 yet exceeds4096bytes, isolating size refusal. Finally deleted only generated owner/replica/challenge tuples;0preexisting and0remaining challenge rows. No production, voice/model or identity acceptance. Evidence ROOT scratchpad/expert-tools/issued-schema-dev-result.json and tracked evals/identity-challenge/issued-schema-live.mjs.
+
+
+## `issued-schema-existing-sql-gates-20260907` (2026-09-07)
+
+After development migration137, root ran guarded real-development relcheck:34passed, owner erasure reach included. Existing actual issue/lease/settlement3EXPLAIN checks passed, no ANALYZE or identity writes. Final sqlcast scanned1028statements/553strict with0conflicts,0uncast sites,0unparseable shapes. Agent confirmed2split migration statements and exact appended schema mirror. These do not constitute a new frozen full release; release9 predates issued contract code/schema work.

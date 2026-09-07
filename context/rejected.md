@@ -16372,3 +16372,8 @@ Reference vectors retain family/evidence/vector/confidence but older builders an
 ## `self-consistent-contract-is-not-issued-authority-20260907` (2026-09-07)
 
 Initial proposed validator allowed omission of expectedContractSha256 for offline consistency checks. Review removed that optional path before completion: a fully rebuilt changed contract has a valid hash but is not the originally issued challenge. Offline callers also supply their retained commitment. Profile remains servable:false; a passing hash test cannot establish approved banks, model compatibility or implemented v2 decision semantics.
+
+
+## `multiply-invalid-json-fixture-does-not-isolate-guard-20260907` (2026-09-07)
+
+Initial oversized fixture also used an invalid bank item, so a rejection did not independently establish size enforcement. Numeric locale likewise failed equality before proving string-type enforcement. Added real PostgreSQL probes and three numeric SHA cases plus numerically equal oversized reference to isolate those boundaries. No passing schema result implies a reviewed challenge bank, valid canonical commitment, provider provenance or accepted identity.
