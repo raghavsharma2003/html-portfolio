@@ -70,6 +70,8 @@ const suites = {
   "modern-capture-readiness-ui": "modern-capture-readiness/component.mjs",
   "conversation-setup": "conversation-setup.mjs",
   "conversation-setup-ui": "conversation-setup-ui.mjs",
+  "dialogue-history": "dialogue-history.mjs",
+  "dialogue-history-ui": "dialogue-history-ui.mjs",
   "voice-challenge-finalize": "voice-challenge-finalize.mjs",
   "voice-challenge-finalize-ui": "voice-challenge-finalize-ui.mjs",
   "voice-challenge-finalize-harness": "voice-challenge-finalize-harness.mjs",

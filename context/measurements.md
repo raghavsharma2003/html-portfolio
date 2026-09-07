@@ -16538,3 +16538,13 @@ Agent12transport/22incumbent/93service groups passed; root independently ran12+2
 ## `nineteen-independent-integrated-ui-checks-20260907` (2026-09-07)
 
 On2026-09-07 root integrated capture frozen12files and Meet8files plus exact lifecycle JSX prop, preserving both independent CloneExperience changes. Root ran16handler/7actualnavigation-caller/29mountedcapture/34mountedMeet groups, allpassed, after using a unique optimizer cache for the capture suite. TypeScript/copy/graph/diff checks passed; graph2252nodes2361edges before this entry. Root visually inspected390pxMeet and destination fixtures. Meet primary action is readable and fits; destination screenshot has a deliberately delayed injectedhost and lacks full authenticated shell context, so it cannot establish shipping destination appearance. Actual fullrelease19 remains required. Receipt integration scratchpad/meet-setup-ui/1788781239984/result.json.
+
+
+## `dialogue-history-twelve-injected-controls-20260907` (2026-09-07)
+
+On2026-09-07 isolated codex/expert-dialogue-continuity from68283658 passed12actual helper/handler groups with injected SQL rows, including read/open auth, exact scope, missing-session refusal, billing commitment and unavailable/malformed states. TypeScript passed once after initial source implementation. No SQL execution, browser, provider, paid call or integration acceptance yet.
+
+
+## `private-history-twelve-sql-twenty-four-mounted-20260907` (2026-09-07)
+
+On2026-09-07 root executed12actual isolated-development SQL groups at12:13:49.665Z, remainingFixtureRows0/cleanupErrors[]. Exact helper SHA256796f8837f3c5d16f2fcaf79cd820cd5de07356edc9aaa4642bcaca0c0fe75069 and harness c544d8855ee400810aa272749910a7f785ef3d7f17294a5e69c5a3773638446e remained unchanged. Actual owner-predicate-removal control leaked10syntheticpairs; scoped reader refused. Agent24mounted390/1440groups, exact68283658oldcomponentnegative,12injectedhelper,31incumbentdialogue,12correctionUI and34setupUI passed; TypeScript/copy/diff passed. ROOT dialogue-history-sql-1788783160386.json and isolate dialogue-history-ui/1788783271022/result.json. Queued same-client opens are not transaction overlap. No actual owner/provider/voice or long-term-memory acceptance.

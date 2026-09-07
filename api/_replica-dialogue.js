@@ -15,6 +15,7 @@ import {
 } from "./_replica-runtime.js";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
 import { beginFoundrySpend, markFoundrySpendUncertain, releaseFoundrySpendBeforeCall, reserveFoundrySpend, settleFoundrySpend } from "./_provider-budget.js";
+import { readOwnedDialogueHistory, openOwnedDialogueSession } from "./_replica-dialogue-history.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TRACE = /^[A-Za-z0-9_-]{8,96}$/;
@@ -292,6 +293,15 @@ export function createReplicaDialogueHandler({ db, requireUser, resolveGenerator
     req.on?.("close", () => aborter.abort(new Error("client_closed")));
     try {
       const user = await requireUser(req);
+      if (req.method === "GET") {
+        const history = await readOwnedDialogueHistory(db, user.id, req.query || {});
+        return res.status(200).json({ history });
+      }
+      if (req.body?.op === "open_session") {
+        const session = await openOwnedDialogueSession(db, user.id, req.body);
+        return res.status(201).json({ session });
+      }
+      if (req.body?.op) fail("unknown_op", 400);
       const generator = await resolveGenerator();
       const turn = await generateOwnedDialogue(db, user.id, req.body || {}, generator, aborter.signal);
       return res.status(200).json({ turn });

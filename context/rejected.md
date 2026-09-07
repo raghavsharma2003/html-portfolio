@@ -16622,3 +16622,13 @@ The initial transport suite used a custom stalled ReadableStream; its abort race
 ## `mounted-gate-fixture-is-not-authenticated-destination-design-20260907` (2026-09-07)
 
 Meet route tests now execute both real entry dispatches but inject the authenticated StudioApp host. Root inspection of destination screenshot shows artificial blank host space and missing full-shell visual context. The test proves scoped routing, focus and gate behavior; it is not evidence of a polished full authenticated destination. Preserve this limitation and verify the actual shell separately before calling the complete product UX accepted.
+
+
+## `mounted-exchanges-are-not-durable-meet-continuity-20260907` (2026-09-07)
+
+Source trace found Meet switches between conversation/sample or another workspace by unmounting ExpertConversation. Its session_id came only from last mounted exchange, so remount starts another server session while private prompt history only reads the supplied session. Six relationship tables do not contain all prior factual messages. Rejected treating persisted raw logs or absent historical UI as proof of remembered next replies. No browser or database reproduction at audit time.
+
+
+## `history-browser-launch-and-premature-ui-assertion-20260907` (2026-09-07)
+
+A redundant old-only Chromium launch crashed before a page with nativeexit3221225477 after the earlier exactoldcomponentnegative passed. Do not count the failed launch as a completed regression. A new billing UI assertion also read disabled state before its asynchronous read had finished; corrected the harness to wait for actual enabled state, then24groups passed. No application timeout or budget was widened. Existing generating rows have no discovered sweeper; current restore preserves pending and does not invent terminality or release spend.

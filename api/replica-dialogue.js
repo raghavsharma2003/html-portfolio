@@ -21,7 +21,7 @@ const serve = createReplicaDialogueHandler({
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   res.setHeader("Cache-Control", "no-store");
 }
@@ -29,7 +29,7 @@ function cors(res) {
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+  if (req.method !== "POST" && req.method !== "GET") return res.status(405).json({ error: "GET or POST only" });
   if (!allow(ipOf(req), "replica_dialogue", 30)) return res.status(429).json({ error: "slow_down" });
   try {
     return await serve(req, res);

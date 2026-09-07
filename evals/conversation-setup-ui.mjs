@@ -72,7 +72,13 @@ const server = createServer(async (req, res) => {
       source_set_hash: null, dataset: null, changed_since_saved: false, checked_at: "2026-09-07T00:00:00Z",
       readiness: { ready_for_candidate_dataset: false, blockers: ["active_runtime_required"] },
     } });
-    if (url.pathname === "/api/replica-dialogue") return json(200, { turn: { turn_id: TURN, session_id: TURN,
+    if (url.pathname === "/api/replica-dialogue" && req.method === "GET") return json(200, { history: {
+      replica_id: url.searchParams.get("replica_id"), session_id: null, exchanges: [], pending: false, billing_pending: false, latest_request: null,
+    } });
+    if (url.pathname === "/api/replica-dialogue" && writes.at(-1)?.body.op === "open_session") return json(201, { session: {
+      replica_id: writes.at(-1).body.replica_id, session_id: writes.at(-1).body.session_id,
+    } });
+    if (url.pathname === "/api/replica-dialogue") return json(200, { turn: { turn_id: TURN, session_id: writes.at(-1).body.session_id,
       reply: "Synthetic reply retained while usage is reconciled.", can_voice: false, billing_state: "reconcile_required" } });
     return json(409, { error: "synthetic_mutation_refused" });
   }
@@ -163,7 +169,8 @@ try {
     await page.getByRole("heading", { name: "Reply saved", exact: true }).waitFor();
     assert.equal(await setup().count(), 0); assert.equal(await status().getByRole("button").count(), 0); assert.equal(await ask().isDisabled(), true);
     assert.equal(await page.getByText("Synthetic reply retained while usage is reconciled.", { exact: true }).count(), 1);
-    assert.equal(writes.length, 1); assert.equal(writes[0].path, "/api/replica-dialogue");
+    assert.equal(writes.length, 2); assert.equal(writes[0].body.op, "open_session");
+    assert.equal(writes[1].path, "/api/replica-dialogue"); assert.equal(writes[1].body.session_id, writes[0].body.session_id);
     checks.push(`${width}: reconciliation preserves reply without setup or automatic retry`);
     // Follow the real link through actual src/studio/main entry routing.
     runtimeMode = "inactive"; await page.goto(`${origin}/meet?lang=hi`); await setup().waitFor();

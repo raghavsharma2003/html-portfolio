@@ -13635,6 +13635,36 @@
       "kind": "rejection",
       "title": "Do not infer the full setup design from a delayed host fixture",
       "at": "2026-09-07"
+    },
+    {
+      "id": "restore-private-dialogue-without-new-memory-20260907",
+      "kind": "decision",
+      "title": "restore-private-dialogue-without-new-memory-20260907",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "dialogue-history-twelve-injected-controls-20260907",
+      "kind": "measurement",
+      "title": "dialogue-history-twelve-injected-controls-20260907",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "mounted-exchanges-are-not-durable-meet-continuity-20260907",
+      "kind": "rejection",
+      "title": "mounted-exchanges-are-not-durable-meet-continuity-20260907",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-history-twelve-sql-twenty-four-mounted-20260907",
+      "kind": "measurement",
+      "title": "private-history-twelve-sql-twenty-four-mounted-20260907",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "history-browser-launch-and-premature-ui-assertion-20260907",
+      "kind": "rejection",
+      "title": "history-browser-launch-and-premature-ui-assertion-20260907",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

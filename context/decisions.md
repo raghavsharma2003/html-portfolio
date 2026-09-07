@@ -22878,3 +22878,8 @@ Use explicit mode=setup through both actual entry routers into existing generic 
 ## `composite-v2-binds-each-signed-dispatch-20260907` (2026-09-07)
 
 Integrate modern composite protocolv2 with broker_nonce/time after private-read signing. Successful signed response must match protocol,operation,configuredverifierversion,freshnonce,rawrequestSHA,challengeattemptID andcaptureSHA. Native streamed timeout is normalized regardless of which abort rejection wins. Azure origin/redirect and65536byte limits remain. No composite service route or measurements added;404/501 stays unavailable. Reversal requires equally strong replay protection with documented actual service protocol; old signed replies cannot count as new evidence.
+
+
+## `restore-private-dialogue-without-new-memory-20260907` (2026-09-07)
+
+Resume the exact current owned private_chat session and at most10completed chronological exchanges from existing session/turn/raw-log tables. Opening uses a client UUID as existing session primary-key idempotency, before any model send. Preserve current runtime eligibility and12hour last-active cutoff; no read extends sessions. Keep navigation uncertainty as IDs only and recover by GET without generation retry. Reversal condition: actual SQL scope, erase, concurrency or mounted navigation evidence defeats the contract, or an explicit conversation-selection feature supersedes latest eligible restoration.

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createDialogueTurn, fetchProtectedTurnVoice } from "./dialogueApi";
+import { createDialogueTurn, fetchProtectedTurnVoice, readDialogueHistory, openDialogueSession } from "./dialogueApi";
 import { readRuntimeStatus } from "./runtimeApi";
 import { ReplicaApiError } from "./replicaApi";
 import TurnFeedback from "./TurnFeedback";
@@ -10,6 +10,15 @@ import "./expert-experience.css";
 import "./conversation-setup.css";
 
 type Exchange = { question: string; answer: ReplicaDialogueTurn };
+type Continuity = { sessionId?: string; openingId?: string; uncertainTrace?: string };
+// Identifiers only, scoped to this authenticated page lifetime. Navigation
+// keeps uncertainty; reload restores the last actual server session. Never
+// put private messages or bearer credentials into browser storage.
+const continuity = new Map<string, Continuity>();
+function remember(scope: string, value: Continuity) {
+  continuity.delete(scope); continuity.set(scope, value);
+  if (continuity.size > 20) continuity.delete(continuity.keys().next().value!);
+}
 type Props = {
   token: string; replicaId: string; runtimeStatus?: ReplicaRuntimeStatus | null;
   stopped: boolean; onAuthError: (cause: unknown) => void; onReview?: () => void;
@@ -28,8 +37,17 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
   const [heard, setHeard] = useState<Set<string>>(new Set());
   const [feedbackTurn, setFeedbackTurn] = useState("");
   const [feedbackRevision, setFeedbackRevision] = useState(0);
+  const [historyReady, setHistoryReady] = useState(false);
+  const [historyScope, setHistoryScope] = useState("");
+  const [historyPending, setHistoryPending] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [opening, setOpening] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
+  const scope = `${token}:${replicaId}`;
   const epoch = useRef(0);
   const readinessRequest = useRef(0);
+  const historyRequest = useRef(0);
+  const historyAbort = useRef<AbortController | null>(null);
   const sendLock = useRef(false);
   const voiceEpoch = useRef(0);
   const audio = useRef<HTMLAudioElement | null>(null);
@@ -44,6 +62,33 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
     blobUrl.current = "";
     setSpeaking("");
   }, []);
+  const restoreHistory = useCallback(async (currentScope: () => boolean) => {
+    const request = ++historyRequest.current;
+    const saved = continuity.get(scope) || {};
+    const chosen = saved.openingId || saved.sessionId;
+    historyAbort.current?.abort();
+    const aborter = new AbortController(); historyAbort.current = aborter;
+    setHistoryReady(false); setHistoryError("");
+    try {
+      const restored = await readDialogueHistory(token, replicaId, chosen, aborter.signal);
+      if (!currentScope() || request !== historyRequest.current) return;
+      const recovered = saved.uncertainTrace && restored.exchanges.some(item => item.trace_id === saved.uncertainTrace);
+      const observed = recovered || (saved.uncertainTrace && restored.latest_request?.trace_id === saved.uncertainTrace
+        && restored.latest_request.state !== "generating");
+      const next = { sessionId: restored.session_id || undefined, uncertainTrace: observed ? undefined : saved.uncertainTrace };
+      remember(scope, next);
+      setExchanges(restored.exchanges); setHistoryScope(scope); setHistoryPending(restored.pending || restored.billing_pending);
+      setUncertain(Boolean(next.uncertainTrace)); setHistoryReady(true);
+      if (recovered) {
+        setDraft(""); setError("Your saved reply has been recovered.");
+      }
+    } catch (cause) {
+      if (!currentScope() || request !== historyRequest.current) return;
+      setHistoryReady(false);
+      setHistoryError("We could not restore this conversation. Check again before sending another message.");
+      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+    }
+  }, [token, replicaId, scope, onAuthError]);
   const checkReadiness = useCallback(async () => {
     const requestEpoch = epoch.current;
     const request = ++readinessRequest.current;
@@ -55,45 +100,85 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
       if (!current()) return;
       if (result?.replica_id !== replicaId || typeof result.active !== "boolean") throw new Error("conversation_readiness_unavailable");
       setRuntime(result);
+      if (result.active) await restoreHistory(current);
     } catch (cause) {
       if (!current()) return;
       setRuntime(null);
       setReadUnavailable(true);
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
     } finally { if (current()) setChecking(false); }
-  }, [token, replicaId, onAuthError]);
+  }, [token, replicaId, onAuthError, restoreHistory]);
 
   useEffect(() => {
     epoch.current++;
     setRuntime(null); setExchanges([]); setDraft(""); setError(""); setHeard(new Set());
+    setHistoryReady(false); setHistoryScope(""); setHistoryPending(false); setHistoryError(""); setOpening(false);
+    setFeedbackTurn(""); setUncertain(Boolean(continuity.get(scope)?.uncertainTrace));
     setSending(false); sendLock.current = false;
     void checkReadiness();
-    return () => { epoch.current++; stopAudio(); };
-  }, [checkReadiness, stopAudio]);
+    return () => { epoch.current++; historyAbort.current?.abort(); stopAudio(); };
+  }, [checkReadiness, stopAudio, scope]);
   useEffect(() => { if (runtimeStatus?.replica_id === replicaId) setRuntime(runtimeStatus); }, [runtimeStatus, replicaId]);
   useEffect(() => { if (stopped) stopAudio(); }, [stopped, stopAudio]);
   useEffect(() => { latest.current?.scrollIntoView({ block: "nearest", behavior: "instant" }); }, [exchanges.length, sending]);
 
-  const unsettled = exchanges.at(-1)?.answer.billing_state === "reconcile_required";
-  const active = runtime?.replica_id === replicaId && runtime.active === true && !stopped && !checking && !readUnavailable && !unsettled;
+  const scopedExchanges = historyScope === scope ? exchanges : [];
+  const unsettled = scopedExchanges.at(-1)?.answer.billing_state === "reconcile_required";
+  const runtimeActive = runtime?.replica_id === replicaId && runtime.active === true && !stopped && !checking && !readUnavailable;
+  const active = runtimeActive && historyReady && historyScope === scope && !historyPending && !unsettled && !uncertain && !opening;
   const lifecycleStopped = lifecycle === undefined ? stopped : ["paused", "revoked", "purging"].includes(lifecycle);
   const readiness = lifecycleStopped ? "stopped" : unsettled ? "reconciling" : checking ? "checking"
     : readUnavailable || runtime?.replica_id !== replicaId ? "unavailable" : "setup";
+  async function openSession() {
+    const saved = continuity.get(scope) || {};
+    const id = saved.openingId || crypto.randomUUID();
+    remember(scope, { ...saved, openingId: id });
+    await openDialogueSession(token, replicaId, id);
+    if (continuity.get(scope)?.openingId === id) remember(scope, { sessionId: id });
+    return id;
+  }
+  async function startConversation() {
+    if (!runtimeActive || sending || opening || historyPending || unsettled) return;
+    const requestEpoch = epoch.current;
+    const current = () => requestEpoch === epoch.current;
+    setOpening(true); setError(""); setHistoryReady(false); stopAudio();
+    try {
+      await openSession();
+      if (!current()) return;
+      setDraft(""); setFeedbackTurn(""); setHeard(new Set());
+      await restoreHistory(current);
+    } catch (cause) {
+      if (!current()) return;
+      setHistoryError("Opening the conversation could not be confirmed. Retry opening to check the same conversation.");
+      if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
+    } finally { if (current()) setOpening(false); }
+  }
   async function send() {
     const question = draft.trim();
     if (!question || sendLock.current || !active) return;
     sendLock.current = true; setSending(true); setError("");
     const requestEpoch = epoch.current;
     try {
-      const answer = await createDialogueTurn(token, replicaId, question, exchanges.at(-1)?.answer.session_id);
+      const sessionId = continuity.get(scope)?.sessionId || await openSession();
+      if (requestEpoch !== epoch.current) return;
+      const traceId = `dialogue_${crypto.randomUUID().replaceAll("-", "")}`;
+      remember(scope, { sessionId, uncertainTrace: traceId });
+      const answer = await createDialogueTurn(token, replicaId, question, sessionId, traceId);
+      if (answer.session_id !== sessionId) throw new Error("conversation_response_changed");
+      if (continuity.get(scope)?.uncertainTrace === traceId) remember(scope, { sessionId });
       if (requestEpoch !== epoch.current) return;
       setExchanges(current => [...current, { question, answer }]); setDraft("");
+      setUncertain(false);
       if (answer.billing_state === "reconcile_required") setError("Your reply is saved. We need to reconcile its usage before another reply.");
       input.current?.focus();
     } catch (cause) {
       if (requestEpoch !== epoch.current) return;
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
-      else setError("Your AI could not complete this reply. Your message is still here. We have not retried it automatically.");
+      else {
+        setError("Your AI could not complete this reply. Your message is still here. We have not retried it automatically.");
+        setUncertain(Boolean(continuity.get(scope)?.uncertainTrace));
+        await restoreHistory(() => requestEpoch === epoch.current);
+      }
     } finally {
       if (requestEpoch === epoch.current) { sendLock.current = false; setSending(false); }
     }
@@ -121,7 +206,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
   }
   return <section className="expert-conversation" aria-label="Private expert conversation">
     <div className="expert-conversation__status"><span>{active ? "Private conversation" : "Private workspace"}</span><span>AI, reviewed by you</span></div>
-    {!active && <div className="expert-conversation__readiness" role="status">
+    {(!runtimeActive || unsettled) && <div className="expert-conversation__readiness" role="status">
       <h2>{readiness === "stopped" ? "This AI is stopped" : readiness === "reconciling" ? "Reply saved" : readiness === "checking" ? "Checking your AI" : readiness === "unavailable" ? "Readiness is unavailable" : "Set up your first conversation"}</h2>
       <p>{readiness === "stopped" ? "Private replies are unavailable for this AI."
         : readiness === "reconciling" ? "We are checking usage before another reply can begin."
@@ -133,9 +218,20 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
         <button type="button" onClick={() => { setError(""); void checkReadiness(); }}>Check again</button>
       </div>}
     </div>}
+    {runtimeActive && <div className="expert-conversation__actions">
+      <button type="button" disabled={sending || opening || historyPending || unsettled} onClick={() => void startConversation()}>
+        {opening ? "Opening conversation" : continuity.get(scope)?.openingId ? "Retry opening conversation" : "New conversation"}
+      </button>
+      <button type="button" disabled={sending || opening || checking} onClick={() => void checkReadiness()}>Check conversation</button>
+      <span>Recent completed replies</span>
+    </div>}
+    {(historyError || (runtimeActive && (historyPending || unsettled || uncertain))) && <p role="status">
+      {historyError || (historyPending || unsettled ? "We are checking the previous reply and its usage. Check the conversation before sending again."
+        : "The previous reply could not be confirmed. Check this conversation, or explicitly start a new one. We have not sent your message again.")}
+    </p>}
     <div className="expert-conversation__thread" aria-label="Conversation">
-      {!exchanges.length && active && <div className="expert-conversation__empty"><h2>Try a real question.</h2><p>Ask something a client would ask you. Listen, then show your AI what you would change.</p><button type="button" onClick={() => { setDraft("What is the first step you would recommend to someone new to my work?"); input.current?.focus(); }}>Help someone get started</button></div>}
-      {exchanges.map(({ question, answer }) => <div className="expert-exchange" key={answer.turn_id}>
+      {!scopedExchanges.length && active && <div className="expert-conversation__empty"><h2>Try a real question.</h2><p>Ask something a client would ask you. Listen, then show your AI what you would change.</p><button type="button" onClick={() => { setDraft("What is the first step you would recommend to someone new to my work?"); input.current?.focus(); }}>Help someone get started</button></div>}
+      {scopedExchanges.map(({ question, answer }) => <div className="expert-exchange" key={answer.turn_id}>
         <div className="expert-exchange__question"><span>You</span><p>{question}</p></div>
         <article className="expert-exchange__answer"><span>Your AI</span><p>{answer.reply}</p>
           <div className="expert-conversation__actions"><button type="button" disabled={!answer.can_voice || stopped} onClick={() => void speak(answer)}>{speaking === answer.turn_id ? "Stop audio" : "Listen"}</button><button type="button" aria-expanded={feedbackTurn === answer.turn_id} onClick={() => setFeedbackTurn(feedbackTurn === answer.turn_id ? "" : answer.turn_id)}>Teach a correction</button></div>
@@ -148,7 +244,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
     {error && <p className="expert-conversation__error" role="alert">{error}</p>}
     <form className="expert-conversation__composer" onSubmit={event => { event.preventDefault(); void send(); }}>
       <label htmlFor="expert-question">Ask your AI</label>
-      <textarea ref={input} id="expert-question" rows={2} maxLength={4000} value={draft} disabled={!active} onChange={event => setDraft(event.target.value)} placeholder="Bring a question from your work" />
+      <textarea ref={input} id="expert-question" rows={2} maxLength={4000} value={historyScope === scope ? draft : ""} disabled={!active} onChange={event => setDraft(event.target.value)} placeholder="Bring a question from your work" />
       <div><span>Private to this relationship</span><button type="submit" disabled={!active || sending || !draft.trim()}>{sending ? "Answering" : "Send"}</button></div>
     </form>
   </section>;
