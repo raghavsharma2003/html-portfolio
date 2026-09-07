@@ -84,7 +84,7 @@ import {
   setPrimaryVoiceSource,
 } from "./enrollmentApi";
 import {
-  type BiometricVerificationAttestations,
+  type LivenessIssueInput,
   type LivenessCaptureReadiness,
   livenessCaptureReadiness,
   cancelLivenessChallenge,
@@ -913,8 +913,8 @@ function ReplicaWorkspace({
   onFinalizeUpload: (sourceId: string) => Promise<ReplicaSource>;
   onSetPrimaryVoice: (sourceId: string) => Promise<ReplicaSource>;
   onDeleteSource: (sourceId: string) => Promise<"complete" | "pending">;
-  onCheckCaptureReadiness: () => Promise<LivenessCaptureReadiness>;
-  onIssueChallenge: (attestations: BiometricVerificationAttestations) => Promise<LivenessChallenge>;
+  onCheckCaptureReadiness: (signal?: AbortSignal) => Promise<LivenessCaptureReadiness>;
+  onIssueChallenge: (input: LivenessIssueInput, signal?: AbortSignal) => Promise<LivenessChallenge>;
   onStartFaceSession: (challengeId: string) => Promise<{ challenge: LivenessChallenge; quick_link_url: string }>;
   onPollFaceSession: (challengeId: string) => Promise<LivenessChallenge>;
   onCancelChallenge: (challengeId: string) => Promise<{
@@ -1383,6 +1383,8 @@ function ReplicaWorkspace({
                   onAuthError={onReviewAuthError}
                 />
                 <LivenessCapture
+                  scopeKey={JSON.stringify([accessToken, replica.replica_id, consents.filter(receipt => receipt.scope === "capture" || receipt.scope === "storage").map(receipt => [receipt.consent_id, receipt.revoked_at, receipt.expires_at]), sources.filter(source => source.voice_role === "primary").map(source => [source.source_id, source.updated_at, source.state])])}
+                  expectedSourceId={sources.find(source => source.voice_role === "primary")?.source_id}
                   consentActive={hasSourceConsent(consents) && replica.age_verified}
                   challenge={challenge}
                   loading={livenessLoading}
@@ -1613,6 +1615,10 @@ export default function StudioApp() {
   const replicaLoadRevision = useRef(0);
   const accountRevision = useRef(0);
   const creationRevision = useRef(0);
+  const livenessReadRevision = useRef(0);
+  const livenessIssueRevision = useRef(0);
+  const livenessMounted = useRef(false);
+  useEffect(() => { livenessMounted.current = true; return () => { livenessMounted.current = false; }; }, []);
   const consentRevision = useRef(0);
   const consentMutation = useRef<string | null>(null);
   const [consentRead, setConsentRead] = useState<{ scope: string; state: "loading" | "ready" | "error" }>({ scope: "", state: "loading" });
@@ -2504,21 +2510,39 @@ export default function StudioApp() {
     return () => window.removeEventListener("popstate", onPop);
   }, [loadReplicas, session]);
 
-  const handleCheckCaptureReadiness = useCallback(async () => {
+  const handleCheckCaptureReadiness = useCallback(async (signal?: AbortSignal) => {
     if (!session || !selected) throw new Error("Your session is no longer available");
+    const account = accountRevision.current, replicaId = selected.replica_id;
+    const revision = ++livenessReadRevision.current;
+    const current = () => livenessMounted.current && !signal?.aborted && account === accountRevision.current &&
+      activeSessionRef.current?.userId === session.userId && selectedIdRef.current === replicaId && revision === livenessReadRevision.current;
+    if (!current()) throw new Error("Your verification session changed. Check again.");
     const fresh = await refreshForRequest(session);
-    return livenessCaptureReadiness(fresh.accessToken, selected.replica_id);
+    if (!current() || !isCurrentSession(fresh)) throw new Error("Your verification session changed. Check again.");
+    const result = await livenessCaptureReadiness(fresh.accessToken, replicaId, signal);
+    if (!current() || !isCurrentSession(fresh)) throw new Error("Your verification session changed. Check again.");
+    setChallenge(result.challenge);
+    return result;
   }, [session, selected, refreshForRequest]);
 
-  async function handleIssueChallenge(attestations: BiometricVerificationAttestations) {
+  async function handleIssueChallenge(input: LivenessIssueInput, signal?: AbortSignal) {
     if (!session || !selected) throw new Error("Your session is no longer available");
+    const account = accountRevision.current, replicaId = selected.replica_id;
+    const revision = ++livenessIssueRevision.current;
+    let requestSession = session;
+    const current = () => livenessMounted.current && !signal?.aborted && account === accountRevision.current &&
+      activeSessionRef.current?.userId === session.userId && selectedIdRef.current === replicaId && revision === livenessIssueRevision.current;
     try {
+      if (!current()) throw new Error("Your verification session changed. Check again.");
       const fresh = await refreshForRequest(session);
-      const issued = await issueLivenessChallenge(fresh.accessToken, selected.replica_id, attestations);
+      requestSession = fresh;
+      if (!current() || !isCurrentSession(fresh)) throw new Error("Your verification session changed. Check again.");
+      const issued = await issueLivenessChallenge(fresh.accessToken, replicaId, input, signal);
+      if (!current() || !isCurrentSession(fresh)) throw new Error("Your verification session changed. Check for a saved attempt.");
       setChallenge(issued);
       return issued;
     } catch (cause) {
-      handleApiError(cause, "Could not issue a live phrase");
+      if (current() && isCurrentSession(requestSession)) handleApiError(cause, "Could not issue a live phrase");
       throw cause;
     }
   }

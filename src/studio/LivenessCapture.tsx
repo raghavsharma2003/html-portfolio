@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { putSignedUpload, sha256File } from "./enrollmentApi";
-import type { BiometricVerificationAttestations, LivenessCaptureReadiness } from "./livenessApi";
+import type { BiometricVerificationAttestations, LivenessCaptureReadiness, LivenessIssueInput, SelectedReferenceAttestations, SelectedReferenceComparison } from "./livenessApi";
 import type { LivenessChallenge, ReplicaSource, SignedUpload } from "./types";
 
 type CaptureMode = "audio" | "video";
@@ -51,11 +51,13 @@ function permissionMessage(cause: unknown, mode: CaptureMode) {
 }
 
 interface Props {
+  scopeKey?: string;
+  expectedSourceId?: string | null;
   consentActive: boolean;
   challenge: LivenessChallenge | null;
   loading: boolean;
-  onCheckReadiness: () => Promise<LivenessCaptureReadiness>;
-  onIssue: (attestations: BiometricVerificationAttestations) => Promise<LivenessChallenge>;
+  onCheckReadiness: (signal?: AbortSignal) => Promise<LivenessCaptureReadiness>;
+  onIssue: (input: LivenessIssueInput, signal?: AbortSignal) => Promise<LivenessChallenge>;
   onStartFace: (challengeId: string) => Promise<{ challenge: LivenessChallenge; quick_link_url: string }>;
   onPollFace: (challengeId: string) => Promise<LivenessChallenge>;
   onCancel: (challengeId: string) => Promise<{
@@ -74,6 +76,8 @@ interface Props {
 }
 
 export default function LivenessCapture({
+  scopeKey = "",
+  expectedSourceId,
   consentActive,
   challenge,
   loading,
@@ -97,6 +101,16 @@ export default function LivenessCapture({
   const [objectUploaded, setObjectUploaded] = useState(false);
   const [faceBusy, setFaceBusy] = useState(false);
   const [captureReadiness, setCaptureReadiness] = useState<LivenessCaptureReadiness["readiness"] | null>(null);
+  const [comparison, setComparison] = useState<SelectedReferenceComparison | null>(null);
+  const [locale, setLocale] = useState<"en-IN" | "hi-IN">("en-IN");
+  const [comparisonConsent, setComparisonConsent] = useState<Record<keyof SelectedReferenceAttestations, boolean>>({
+    selected_reference_is_my_voice: false,
+    compare_this_capture_to_selected_reference: false,
+    comparison_is_private_verification_only: false,
+  });
+  const [issueUncertain, setIssueUncertain] = useState(false);
+  const issueAbortRef = useRef<AbortController | null>(null);
+  const comparisonRef = useRef<SelectedReferenceComparison | null>(null);
   const [verificationConsent, setVerificationConsent] = useState<Record<keyof BiometricVerificationAttestations, boolean>>({
     live_face_and_voice_processing: false,
     compare_face_to_my_id: false,
@@ -113,7 +127,7 @@ export default function LivenessCapture({
   const facePopupRef = useRef<Window | null>(null);
   const mountedRef = useRef(false);
   const captureGenerationRef = useRef(0);
-  const captureScopeKey = [consentActive, challenge?.replica_id, challenge?.challenge_id,
+  const captureScopeKey = [scopeKey, expectedSourceId, consentActive, challenge?.replica_id, challenge?.challenge_id,
     challenge?.state, challenge?.expires_at, challenge?.face_session_state].join("|");
   const captureScopeRef = useRef({ key: captureScopeKey, callback: onCheckReadiness, consentActive, challenge });
   // Invalidate synchronously on render, before a pending promise can resume
@@ -134,8 +148,23 @@ export default function LivenessCapture({
   const facePassed = challenge?.face_session_state === "passed_deleted";
   const faceFailed = challenge?.face_session_state === "failed_deleted" || challenge?.face_session_state === "expired_deleted";
   const allVerificationConsent = Object.values(verificationConsent).every(Boolean);
+  const allComparisonConsent = Object.values(comparisonConsent).every(Boolean);
   const busy = ["requesting", "recording", "hashing", "authorizing", "uploading", "finalizing"].includes(stage);
-  const captureAvailable = captureReadiness?.ready === true;
+  const comparisonMatches = Boolean(comparison && (!expectedSourceId || comparison.primary_source_id === expectedSourceId));
+  const captureAvailable = captureReadiness?.ready === true && comparisonMatches;
+
+  function resetChoices() {
+    setVerificationConsent(current => Object.fromEntries(Object.keys(current).map(key => [key, false])) as typeof current);
+    setComparisonConsent(current => Object.fromEntries(Object.keys(current).map(key => [key, false])) as typeof current);
+  }
+
+  function acceptReadiness(result: LivenessCaptureReadiness) {
+    const next = result.comparison ?? null;
+    if (comparisonRef.current?.comparison_snapshot_sha256 !== next?.comparison_snapshot_sha256 || !result.readiness.ready) resetChoices();
+    comparisonRef.current = next;
+    setComparison(next);
+    setCaptureReadiness(result.readiness);
+  }
 
   function captureOperationCurrent(operation: number) {
     return mountedRef.current && captureGenerationRef.current === operation;
@@ -182,14 +211,20 @@ export default function LivenessCapture({
 
   useEffect(() => {
     let active = true;
+    const operation = captureGenerationRef.current;
+    const abort = new AbortController();
+    resetChoices();
+    setIssueUncertain(false);
+    comparisonRef.current = null;
+    setComparison(null);
     setCaptureReadiness(null);
-    onCheckReadiness().then((result) => {
-      if (active) setCaptureReadiness(result.readiness);
+    onCheckReadiness(abort.signal).then((result) => {
+      if (active && captureOperationCurrent(operation)) acceptReadiness(result);
     }).catch(() => {
-      if (active) setCaptureReadiness({ ready: false, waiting_on: "us", code: "liveness_readiness_unavailable" });
+      if (active && captureOperationCurrent(operation)) setCaptureReadiness({ ready: false, waiting_on: "us", code: "liveness_readiness_unavailable" });
     });
-    return () => { active = false; };
-  }, [onCheckReadiness]);
+    return () => { active = false; abort.abort(); issueAbortRef.current?.abort(); };
+  }, [onCheckReadiness, scopeKey, expectedSourceId]);
 
   async function requireFreshCaptureReadiness(operation: number) {
     assertCaptureOperation(operation);
@@ -268,27 +303,72 @@ export default function LivenessCapture({
   }, [challengeState, remaining, stage]);
 
   async function issue() {
-    if (!captureAvailable) return;
-    if (!allVerificationConsent) {
-      setError("Confirm every narrow biometric verification statement before requesting a challenge.");
+    if (!captureAvailable || !comparison || issueUncertain || issueAbortRef.current) return;
+    if (!allVerificationConsent || !allComparisonConsent) {
+      setError("Review the verification choices before requesting a phrase.");
       return;
     }
     setError("");
     clearRecording();
     stopTracks();
     setStage("requesting");
+    const operation = captureGenerationRef.current;
+    const selected = comparison;
+    const abort = new AbortController();
+    issueAbortRef.current = abort;
+    let dispatched = false;
     try {
-      await onIssue(Object.fromEntries(
-        Object.keys(verificationConsent).map((key) => [key, true]),
-      ) as BiometricVerificationAttestations);
-      setVerificationConsent((current) => Object.fromEntries(
-        Object.keys(current).map((key) => [key, false]),
-      ) as Record<keyof BiometricVerificationAttestations, boolean>);
-      setStage("idle");
-      setNow(Date.now());
+      const fresh = await onCheckReadiness(abort.signal);
+      if (!captureOperationCurrent(operation) || abort.signal.aborted) return;
+      acceptReadiness(fresh);
+      if (!fresh.readiness.ready || fresh.comparison?.comparison_snapshot_sha256 !== selected.comparison_snapshot_sha256 ||
+          fresh.comparison.primary_source_id !== selected.primary_source_id || fresh.comparison.primary_selection_id !== selected.primary_selection_id ||
+          fresh.comparison.source_sha256 !== selected.source_sha256) {
+        resetChoices();
+        throw new Error("The recording or its permissions changed. Review the current selection.");
+      }
+      if (fresh.challenge && ["issued", "uploaded", "verifying"].includes(fresh.challenge.state)) {
+        resetChoices();
+        throw new Error("A saved attempt already exists. Check it before requesting another.");
+      }
+      dispatched = true;
+      resetChoices();
+      await onIssue({ locale, expected_primary_source_id: selected.primary_source_id,
+        expected_primary_selection_id: selected.primary_selection_id, expected_primary_source_sha256: selected.source_sha256,
+        expected_comparison_snapshot_sha256: selected.comparison_snapshot_sha256,
+        attestations: Object.fromEntries(Object.keys(verificationConsent).map(key => [key, true])) as BiometricVerificationAttestations,
+        comparison_attestations: Object.fromEntries(Object.keys(comparisonConsent).map(key => [key, true])) as SelectedReferenceAttestations,
+      }, abort.signal);
+      if (captureOperationCurrent(operation)) setNow(Date.now());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "A live phrase could not be issued");
-      setStage("idle");
+      if (captureOperationCurrent(operation) && !abort.signal.aborted) {
+        setIssueUncertain(dispatched);
+        setError(dispatched ? "The request was not confirmed. Check for a saved attempt before trying again." : cause instanceof Error ? cause.message : "A live phrase could not be issued");
+      }
+    } finally {
+      if (issueAbortRef.current === abort) issueAbortRef.current = null;
+      if (captureOperationCurrent(operation)) setStage(current => current === "requesting" ? "idle" : current);
+    }
+  }
+
+  async function checkSavedAttempt() {
+    if (issueAbortRef.current) return;
+    const operation = captureGenerationRef.current;
+    const abort = new AbortController();
+    issueAbortRef.current = abort;
+    setStage("requesting");
+    try {
+      const result = await onCheckReadiness(abort.signal);
+      if (!captureOperationCurrent(operation) || abort.signal.aborted) return;
+      acceptReadiness(result);
+      resetChoices();
+      setIssueUncertain(false);
+      setError("");
+    } catch {
+      if (captureOperationCurrent(operation) && !abort.signal.aborted) setError("The saved attempt could not be checked. Try checking again.");
+    } finally {
+      if (issueAbortRef.current === abort) issueAbortRef.current = null;
+      if (captureOperationCurrent(operation)) setStage(current => current === "requesting" ? "idle" : current);
     }
   }
 
@@ -518,8 +598,9 @@ export default function LivenessCapture({
         </div>
 
         {!captureAvailable && <div className="evidence-gate" role="status" data-waiting-on="us">
-          <div><strong>{captureReadiness ? "Live verification is unavailable" : "Checking live verification"}</strong>
-            <p>We need to make the complete verifier available before you start a new face check or recording. You can still check or withdraw an existing attempt.</p>
+          <div><strong>{captureReadiness ? captureReadiness.ready ? "The selected recording needs checking" : "Live verification is unavailable" : "Checking live verification"}</strong>
+            <p>We need the complete verifier and your current recording before a new attempt. You can still check or withdraw a saved attempt.</p>
+            <button className="text-button" type="button" disabled={stage === "requesting"} onClick={() => void checkSavedAttempt()}>Check availability</button>
           </div>
         </div>}
 
@@ -553,21 +634,23 @@ export default function LivenessCapture({
         ) : !challengeIssued ? (
           <div className="challenge-empty">
             <div>
-              <p>
-                Request a one-time phrase, then complete both checks inside the ten-minute challenge window. The Azure
-                camera link expires sooner. Each phrase combines Hindi, English, an unpredictable code, and a narrow
-                biometric-consent statement to resist replay.
-              </p>
+              {comparison && <div className="comparison-recording" aria-label="Selected voice recording">
+                <strong>Selected recording</strong>
+                <p>Saved {new Date(comparison.source_created_at).toLocaleString()}.</p>
+              </div>}
+              {captureAvailable && <p>Confirm this recording is yours. Your recording phrase lasts ten minutes.</p>}
               {challenge?.state === "failed" && <p className="challenge-failure">Previous attempt failed: {challenge.failure_code.replaceAll("_", " ") || "verification did not pass"}</p>}
               {challenge?.state === "expired" && <p className="challenge-failure">The previous phrase expired without a completed upload.</p>}
-              <fieldset className="biometric-consent-list">
-                <legend>Before any biometric processing</legend>
+              {captureAvailable && <>
+              <label>Phrase language <select value={locale} disabled={stage === "requesting" || issueUncertain} onChange={event => { resetChoices(); setLocale(event.target.value as "en-IN" | "hi-IN"); }}><option value="en-IN">English</option><option value="hi-IN">हिन्दी</option></select></label>
+              <fieldset className="biometric-consent-list" disabled={stage === "requesting" || issueUncertain}>
+                <legend>Verify it's you</legend>
                 {([
-                  ["live_face_and_voice_processing", "Process my live face and voice only to verify this private self-replica."],
-                  ["compare_face_to_my_id", "Compare my live face with the government ID I submitted."],
-                  ["anti_spoof_and_synthetic_detection", "Run replay, synthetic-media, and single-speaker checks on this attempt."],
-                  ["erase_raw_and_provider_session", "Erase raw verification media and the provider session after the decision."],
-                  ["self_only_private_replica", "This is me, I am an adult, and this replica will remain private and disclosed as synthetic."],
+                  ["live_face_and_voice_processing", "Use my live face and voice only to verify my private clone."],
+                  ["compare_face_to_my_id", "Match my live face to the government ID I submitted."],
+                  ["anti_spoof_and_synthetic_detection", "Check for replayed or AI-made media and more than one speaker."],
+                  ["erase_raw_and_provider_session", "Erase the raw recording and verification session after the decision."],
+                  ["self_only_private_replica", "I am the person recorded and an adult. My clone stays private and labelled as AI."],
                 ] as const).map(([key, label]) => (
                   <label key={key}>
                     <input
@@ -579,10 +662,20 @@ export default function LivenessCapture({
                   </label>
                 ))}
               </fieldset>
+              <fieldset className="biometric-consent-list" disabled={stage === "requesting" || issueUncertain}>
+                <legend>Compare with this recording</legend>
+                {([
+                  ["selected_reference_is_my_voice", "The selected recording is my voice."],
+                  ["compare_this_capture_to_selected_reference", "Compare my new capture with this exact recording."],
+                  ["comparison_is_private_verification_only", "Use this comparison only for private verification."],
+                ] as const).map(([key, label]) => <label key={key}><input type="checkbox" checked={comparisonConsent[key]} onChange={event => setComparisonConsent(current => ({ ...current, [key]: event.target.checked }))} /><span>{label}</span></label>)}
+              </fieldset>
+              </>}
             </div>
-            <button className="button primary-button" type="button" disabled={!captureAvailable || stage === "requesting" || !allVerificationConsent} onClick={() => void issue()}>
+            {issueUncertain && <button className="text-button" type="button" disabled={stage === "requesting"} onClick={() => void checkSavedAttempt()}>Check saved attempt</button>}
+            {captureAvailable && <button className="button primary-button" type="button" disabled={issueUncertain || stage === "requesting" || !allVerificationConsent || !allComparisonConsent} onClick={() => void issue()}>
               {stage === "requesting" ? "Issuing phrase" : "Request live phrase"}
-            </button>
+            </button>}
           </div>
         ) : (
           <>
@@ -689,7 +782,7 @@ export default function LivenessCapture({
           </>
         )}
         {error && <p className="inline-error liveness-error" role="alert">{error}</p>}
-        <p className="liveness-boundary">Live evidence is not a verifier result. Only the independent server verifier can mark this challenge as passed.</p>
+        <p className="liveness-boundary">Recording alone does not complete verification. Wait for the result before continuing.</p>
       </div>
     </section>
   );
