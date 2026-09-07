@@ -151,7 +151,7 @@ const EVIDENCE_SQL = `with owned as (${OWNED}), latest as (
  select e.evidence_id,e.source_id,e.artifact_id,e.evidence_type,e.span_start_ms,e.span_end_ms,e.confidence,e.value,e.input_sha256,e.record_hash,
   e.adapter_family,e.adapter_name,e.adapter_version,e.created_at,l.decision,l.reason_code,l.reviewed_at,s.contains_third_parties
  from vy_replica_processing_evidence e join owned o on o.replica_id=e.replica_id
- join vy_replica_source s on s.source_id=e.source_id and s.replica_id=e.replica_id and s.owner_user_id=$2::uuid
+ join vy_replica_source s on s.purpose<>'comparison_reference' and s.source_id=e.source_id and s.replica_id=e.replica_id and s.owner_user_id=$2::uuid
  left join latest l on l.evidence_id=e.evidence_id order by e.created_at desc limit 300`;
 
 const BUILD_EVIDENCE_SQL = `with owned as (${OWNED}), latest as (
@@ -170,7 +170,7 @@ const BUILD_EVIDENCE_SQL = `with owned as (${OWNED}), latest as (
   e.confidence,e.value,e.input_sha256,e.record_hash,e.adapter_family,e.adapter_name,e.adapter_version,
   e.created_at,l.decision,l.reason_code,l.reviewed_at,s.contains_third_parties
  from vy_replica_processing_evidence e join owned o on o.replica_id=e.replica_id
- join vy_replica_source s on s.source_id=e.source_id and s.replica_id=e.replica_id
+ join vy_replica_source s on s.purpose<>'comparison_reference' and s.source_id=e.source_id and s.replica_id=e.replica_id
   and s.owner_user_id=$2::uuid and s.state='ready' and s.contains_third_parties=false
  join latest l on l.evidence_id=e.evidence_id and l.decision='accepted'
  where e.evidence_type=any($3::text[])
@@ -211,7 +211,7 @@ export async function loadAcceptedVoiceGenomeInput(db, ownerUserId, value) {
             a.byte_size,a.duration_ms,a.sha256,a.input_sha256,a.transform_name,a.transform_version,
             a.adapter_family,a.adapter_name,a.adapter_version
        from vy_replica_processing_artifact a
-       join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id
+       join vy_replica_source s on s.purpose<>'comparison_reference' and s.source_id=a.source_id and s.replica_id=a.replica_id
         and s.owner_user_id=a.owner_user_id and s.state='ready' and s.contains_third_parties=false
       where a.replica_id=$1::uuid and a.owner_user_id=$2::uuid
         and (a.artifact_id=any($3::uuid[]) or (a.source_id=any($4::uuid[]) and a.stage='enhance'
@@ -314,7 +314,7 @@ export async function getOwnedArtifactAudition(db, ownerUserId, value) {
        select a.artifact_id,a.storage_bucket,a.object_path,a.mime,a.duration_ms
          from vy_replica_processing_artifact a
          join vy_replica r on r.replica_id=a.replica_id and r.owner_user_id=a.owner_user_id
-         join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id
+         join vy_replica_source s on s.purpose<>'comparison_reference' and s.source_id=a.source_id and s.replica_id=a.replica_id
           and s.owner_user_id=a.owner_user_id
         where a.replica_id=$1::uuid and a.owner_user_id=$2::uuid and a.artifact_id=$3::uuid
           and a.stage in ('separate','enhance') and a.mime in ('audio/wav','audio/x-wav')
@@ -355,7 +355,7 @@ const REVIEW_OWNED = OWNED.replace('from vy_replica r where', 'from replica_gate
 export const REFERENCE_REVIEW_ARTIFACT_SQL = `with ${REFERENCE_REVIEW_GATES}, owned as (${REVIEW_OWNED}), target as materialized (
        select a.artifact_id,a.source_id,a.replica_id,a.owner_user_id
          from vy_replica_processing_artifact a join owned o on o.replica_id=a.replica_id
-         join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id
+         join vy_replica_source s on s.purpose<>'comparison_reference' and s.source_id=a.source_id and s.replica_id=a.replica_id
           and s.owner_user_id=a.owner_user_id
         where a.artifact_id=$3::uuid and a.stage='enhance' and a.mime in ('audio/wav','audio/x-wav')
           and s.state='ready' and s.contains_third_parties=false
@@ -411,7 +411,7 @@ export async function selectOwnedVoiceArtifact(db, ownerUserId, value, metadata 
   return null;
 }
 
-export const REFERENCE_REVIEW_EVIDENCE_SQL = `with ${REFERENCE_REVIEW_GATES}, owned as (select e.evidence_id,e.replica_id,e.owner_user_id,e.evidence_type from vy_replica_processing_evidence e join replica_gate r on r.replica_id=e.replica_id and r.owner_user_id=$2::uuid join vy_replica_source s on s.source_id=e.source_id and s.replica_id=$1::uuid and s.owner_user_id=$2::uuid where e.evidence_id=$3::uuid and e.replica_id=$1::uuid and e.owner_user_id=$2::uuid and e.evidence_type=any($6::text[])), locked as materialized (select owned.*,pg_try_advisory_xact_lock(hashtextextended(owned.replica_id::text || ':voice_genome_review',0)) acquired from owned), inserted as (insert into vy_replica_processing_evidence_decision(evidence_id,replica_id,owner_user_id,decision,reason_code,reviewer_user_id) select evidence_id,replica_id,owner_user_id,$4,$5,$2::uuid from locked where acquired returning decision_id,evidence_id,decision,reason_code,created_at), reference_epoch as (update vy_replica r set reference_authority_epoch=r.reference_authority_epoch+1
+export const REFERENCE_REVIEW_EVIDENCE_SQL = `with ${REFERENCE_REVIEW_GATES}, owned as (select e.evidence_id,e.replica_id,e.owner_user_id,e.evidence_type from vy_replica_processing_evidence e join replica_gate r on r.replica_id=e.replica_id and r.owner_user_id=$2::uuid join vy_replica_source s on s.purpose<>'comparison_reference' and s.source_id=e.source_id and s.replica_id=$1::uuid and s.owner_user_id=$2::uuid where e.evidence_id=$3::uuid and e.replica_id=$1::uuid and e.owner_user_id=$2::uuid and e.evidence_type=any($6::text[])), locked as materialized (select owned.*,pg_try_advisory_xact_lock(hashtextextended(owned.replica_id::text || ':voice_genome_review',0)) acquired from owned), inserted as (insert into vy_replica_processing_evidence_decision(evidence_id,replica_id,owner_user_id,decision,reason_code,reviewer_user_id) select evidence_id,replica_id,owner_user_id,$4,$5,$2::uuid from locked where acquired returning decision_id,evidence_id,decision,reason_code,created_at), reference_epoch as (update vy_replica r set reference_authority_epoch=r.reference_authority_epoch+1
  where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and exists(select 1 from inserted i join owned o using(evidence_id)
  where o.evidence_type in ('voice_embedding','voice_measurement')) returning r.replica_id) select * from inserted`;
 
@@ -454,7 +454,7 @@ export const REFERENCE_REVIEW_BATCH_SQL = `with ${REFERENCE_REVIEW_GATES}, owned
        select e.evidence_id, e.replica_id, e.owner_user_id
          from vy_replica_processing_evidence e
          join locked l on l.replica_id=e.replica_id and l.owner_user_id=e.owner_user_id
-         join vy_replica_source s on s.source_id=e.source_id and s.replica_id=e.replica_id
+         join vy_replica_source s on s.purpose<>'comparison_reference' and s.source_id=e.source_id and s.replica_id=e.replica_id
           and s.owner_user_id=e.owner_user_id and s.contains_third_parties=false
         where e.evidence_type=any($4::text[])
           and lower(e.adapter_family||' '||e.adapter_name||' '||e.adapter_version) !~ '(fake|fixture|test|mock)'
@@ -503,7 +503,7 @@ export async function queueOwnedVoiceGenome(db, ownerUserId, value) {
     `with latest as (select distinct on (d.artifact_id) d.artifact_id,d.decision from vy_replica_processing_artifact_decision d where d.replica_id=$1::uuid and d.owner_user_id=$2::uuid order by d.artifact_id,d.created_at desc,d.decision_id desc)
      select a.artifact_id,a.stage,l.decision selection_decision from vy_replica_processing_artifact a
      join latest l on l.artifact_id=a.artifact_id and l.decision='selected'
-      join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id and s.owner_user_id=a.owner_user_id
+      join vy_replica_source s on s.purpose<>'comparison_reference' and s.source_id=a.source_id and s.replica_id=a.replica_id and s.owner_user_id=a.owner_user_id
       where a.replica_id=$1::uuid and a.owner_user_id=$2::uuid and a.stage='enhance' and s.state='ready' and s.contains_third_parties=false
         and ($3::uuid is null or a.source_id=$3::uuid)`,
     [rid, ownerUserId, candidateSourceId],

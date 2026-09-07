@@ -3,6 +3,9 @@ import { leaseNextProcessingJob, leaseTokenHash, renewProcessingLease, retryProc
 import { commitProcessingOutput } from "./repository.js";
 import { applySelfTestAutoGrant, selfTestModeEnabled } from "./self-test.js";
 import { executeProcessingJob } from "./worker.js";
+import {isComparisonSource} from './comparison.js';
+import {requireCurrentComparisonPreparation} from '../_comparison-preparation.js';
+import {createComparisonDispatch} from './comparison-dispatch.js';
 import { deleteReplicaObjects } from "../_replica-storage.js";
 import {
   acquireProcessingSourceStorageWriter,
@@ -25,7 +28,7 @@ const INPUT_STAGE = Object.freeze({ enhance: "separate", voice_quality: "enhance
 
 export async function loadLeasedProcessingContext(db, job) {
   const sources = await db(
-    `select s.source_id,s.replica_id,s.owner_user_id,s.kind,s.capture_mode,s.state,s.storage_bucket,s.object_path,
+    `select s.source_id,s.replica_id,s.owner_user_id,s.kind,s.capture_mode,s.purpose,s.state,s.storage_bucket,s.object_path,
             s.mime,s.byte_size,s.duration_ms,s.sha256,s.contains_third_parties,s.language_hint,s.provenance,
             -- A staged replacement is enrollment voice input, but is not the
             -- active primary until its exact VoiceGenome draft exists. This
@@ -114,7 +117,7 @@ async function settle(db, leased, output, env) {
     // by the time this runs, so a self-test error here is logged and
     // swallowed rather than turning a successful `voice_quality` commit into
     // a failed job.
-    if (leased.job.step === "voice_quality" && selfTestModeEnabled(env, leased.job.owner_user_id)) {
+    if (!leased.job.comparison_preparation_id && leased.job.step === "voice_quality" && selfTestModeEnabled(env, leased.job.owner_user_id)) {
       try {
         await applySelfTestAutoGrant(db, { ownerUserId: leased.job.owner_user_id, replicaId: leased.job.replica_id, env });
       } catch (error) {
@@ -138,6 +141,9 @@ async function settle(db, leased, output, env) {
     outcome: output.outcome,
     failureCode: output.failure_code,
   });
+  if(leased.job.comparison_preparation_id)await db(`update vy_replica_comparison_preparation set state='failed',updated_at=now()
+   where preparation_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid and state in ('authorized','queued','running')`,
+   [leased.job.comparison_preparation_id,leased.job.replica_id,leased.job.owner_user_id]);
   return Object.freeze({ outcome: output.outcome, job_id: leased.job.job_id, source_id: leased.job.source_id, step: leased.job.step, failure_code: output.failure_code });
 }
 
@@ -277,6 +283,9 @@ export async function runNextProcessingJob(options) {
   try {
     const context = await loadLeasedProcessingContext(options.db, leased.job);
     assertProcessingPurpose(context.source, leased.job.step);
+    const preparation=isComparisonSource(context.source)?await requireCurrentComparisonPreparation(options.db,context.source):null;
+    const guard=async()=>{if(preparation)await requireCurrentComparisonPreparation(options.db,context.source);};
+    const comparison=preparation?createComparisonDispatch({db:options.db,leased,source:context.source,preparation,meter:options.comparisonMeter}):null;
     output = await executeWithLeaseHeartbeat(options, leased, (signal) => executeProcessingJob({
       job: leased.job,
       source: context.source,
@@ -285,8 +294,9 @@ export async function runNextProcessingJob(options) {
       inputArtifacts: context.inputArtifacts,
       completedSteps: context.completedSteps,
       diarizeSegments: context.diarizeSegments,
-      resolveInput: options.resolveInput,
-      withMaterializedAudio: options.withMaterializedAudio,
+      resolveInput: options.resolveInput?async(...args)=>{await guard();return options.resolveInput(...args);}:undefined,
+      withMaterializedAudio: options.withMaterializedAudio?async(...args)=>{await guard();return options.withMaterializedAudio(...args);}:undefined,
+      comparison,
       spendDb: options.db,
       budgetEnv: options.budgetEnv,
       maxAttempts: options.maxAttempts || 5,

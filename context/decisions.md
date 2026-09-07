@@ -23335,3 +23335,8 @@ Persist modern capture authority in the existing biometric grant receipt and use
 ## `comparison-reference31-purpose-choice` (2026-09-08)
 
 Use a separately withdrawable, immutable private comparison receipt over existing completed evidence. Never interpret capture/storage or ordinary training consent as this choice. Reverse only if a reviewed equivalent preserves exact evidence, purpose and authority races. Dedicated preparation 146 remains unconnected; see COMPARISON-REFERENCE31-HANDOFF-20260908.md.
+
+
+## `comparison-preparation31-purpose` (2026-09-08)
+
+Implement a separate explicit private processing receipt and seven-stage worker branch. Preserve ordinary capture/training/genome gates and refuse missing GPU accounting before model work. Fresh dedicated selection remains a coordinated145 seam; no readiness activation. Reverse if real SQL admits stale authority, comparison-only material reaches ordinary selection/builds, or uncertain dispatch retries. See docs/gurukul/research/COMPARISON-PREPARATION31-HANDOFF-20260908.md.

@@ -17106,3 +17106,8 @@ Rejected try-advisory/NOWAIT as sufficient freshness: a competing decision appen
 ## `comparison-reference31-no-preparation-assumption` (2026-09-08)
 
 Do not declare fresh comparison upload end-to-end from 145 selection alone: its binding uses existing primary_selection_id and ordinary completed evidence, while frozen146 purpose uploads are deliberately excluded from ordinary primary selection. A dedicated discovery and selection identity is required. The prior pinned Journey has no comparison selection caller; the retained mounted negative reproduces that omission.
+
+
+## `comparison-preparation31-ordinary-primary` (2026-09-08)
+
+Rejected routing comparison-only uploads through the ordinary primary selector: actual setter admitted purpose comparison_reference and could rotate its primary_selection_id, despite ordinary build/review refusing that material. Added actual target predicate and ordinary-list exclusion. Captured SQL control preserves synthetic pointer/epoch; removing that predicate reproduces mutation. Real SQL pointer CAS remains unrun. Also rejected treating unmetered GPU request duration or retail-window estimates as settled Azure spend; actual meter remains unavailable.

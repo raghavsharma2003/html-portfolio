@@ -15423,6 +15423,21 @@
       "kind": "rejection",
       "title": "Existing evidence is not fresh preparation",
       "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-preparation31-purpose",
+      "kind": "decision",
+      "title": "comparison preparation31 purpose"
+    },
+    {
+      "id": "comparison-preparation31-offline",
+      "kind": "measurement",
+      "title": "comparison preparation31 offline"
+    },
+    {
+      "id": "comparison-preparation31-ordinary-primary",
+      "kind": "rejection",
+      "title": "comparison preparation31 ordinary primary"
     }
   ],
   "edges": [
@@ -27528,6 +27543,16 @@
       "src": "modern-issued-authority30-20260908",
       "rel": "caused_by",
       "dst": "modern-issued-authority30-snapshot-and-bootstrap-20260908"
+    },
+    {
+      "src": "comparison-preparation31-purpose",
+      "rel": "measured_by",
+      "dst": "comparison-preparation31-offline"
+    },
+    {
+      "src": "comparison-preparation31-ordinary-primary",
+      "rel": "constrains",
+      "dst": "comparison-preparation31-purpose"
     }
   ]
 }
