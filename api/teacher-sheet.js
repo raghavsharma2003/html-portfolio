@@ -31,6 +31,7 @@ import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { obsBestEffort } from "./_obs.js";
+import { readContextProposalReview } from "./_context-proposal-review.js";
 import {
   TeacherSheetDraftError,
   readOwnedTeacherSheet,
@@ -65,6 +66,9 @@ export default async function handler(req, res) {
     if (!allow(user.id, "teacher_sheet_user", 60)) return res.status(429).json({ error: "slow_down" });
 
     if (req.method === "GET") {
+      if (req.query?.op === "ingest_review") {
+        return res.status(200).json(await readContextProposalReview(q, user.id, req.query?.replica_id, req.query?.item_id));
+      }
       const sheet = await readOwnedTeacherSheet(q, user.id, req.query?.replica_id);
       return sheet ? res.status(200).json({ sheet }) : notFound(res);
     }

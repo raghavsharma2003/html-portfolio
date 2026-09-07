@@ -27,10 +27,9 @@
 // first and compared in JS. A disqualified row that reaches JS can still be
 // logged, partially rendered, or escape through a branch added later.
 //
-// A replica is the studio's handle; `vy_teacher_sheet` is keyed by `agent_id`.
-// The join is `vy_replica.agent_id` (migration 015), and a replica with no
-// agent bound yet is a distinct, nameable answer rather than a 404 that could
-// mean four things.
+// Explicit private drafts can precede runtime activation (migration 139).
+// Their authority is replica_id + owner_user_id. Historical bound sheets keep
+// their agent join; publishing still uses that bound path and its own gates.
 import {
   validateTeacherSheet,
   transcriptStats,
@@ -103,11 +102,65 @@ async function ownedReplica(db, ownerUserId, replicaId) {
     `select r.replica_id, r.agent_id
        from vy_replica r
       where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
+        and r.lifecycle not in ('revoked','purging')
       limit 1`,
     [replicaId, ownerUserId],
   );
   return rows[0] || null;
 }
+
+// Exports let the opt-in database harness EXPLAIN the exact runtime statements.
+// Explicit ownership takes precedence over the legacy agent-only join: a row
+// belonging to another replica cannot become readable through a shared agent.
+export const PRIVATE_TEACHER_SHEET_READ_SQL = `select s.sheet_id, s.agent_id, s.version, s.sheet, s.status,
+            s.consent_artifact_id, s.created_at, s.updated_at, s.published_at
+       from vy_teacher_sheet s
+       join vy_replica r on r.agent_id = s.agent_id or r.replica_id = s.replica_id
+      where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
+        and r.lifecycle not in ('revoked','purging')
+        and (
+          (s.replica_id = r.replica_id and s.owner_user_id = r.owner_user_id
+            and (s.agent_id is null or s.agent_id = r.agent_id))
+          or (s.replica_id is null and s.owner_user_id is null and s.agent_id = r.agent_id)
+        )
+      order by s.created_at desc, s.sheet_id desc limit 1`;
+
+export const PRIVATE_TEACHER_SHEET_SAVE_SQL = `with owned as materialized (
+       select r.replica_id, r.owner_user_id, r.agent_id from vy_replica r
+        where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
+          and r.lifecycle not in ('revoked','purging')
+        for update of r
+     ), existing as materialized (
+       select s.sheet_id from vy_teacher_sheet s join owned o on
+         (s.replica_id = o.replica_id and s.owner_user_id = o.owner_user_id
+           and (s.agent_id is null or s.agent_id = o.agent_id))
+         or (s.replica_id is null and s.owner_user_id is null and s.agent_id = o.agent_id)
+        where s.status in ('draft','validated')
+        order by (s.replica_id is not null and s.status = 'draft') desc,
+                 s.created_at desc, s.sheet_id desc limit 1
+     ), updated as (
+       update vy_teacher_sheet s
+          set sheet = $3::jsonb, version = $4, status = 'draft', updated_at = now(),
+              replica_id = o.replica_id, owner_user_id = o.owner_user_id
+         from existing e cross join owned o
+        where s.sheet_id = e.sheet_id and s.status in ('draft','validated')
+          and ((s.replica_id = o.replica_id and s.owner_user_id = o.owner_user_id
+                 and (s.agent_id is null or s.agent_id = o.agent_id))
+            or (s.replica_id is null and s.owner_user_id is null and s.agent_id = o.agent_id))
+       returning s.sheet_id, s.agent_id, s.version, s.sheet, s.status,
+                 s.consent_artifact_id, s.created_at, s.updated_at, s.published_at
+     ), inserted as (
+       insert into vy_teacher_sheet (sheet_id, agent_id, replica_id, owner_user_id, version, sheet, status)
+       select $5::uuid, o.agent_id, o.replica_id, o.owner_user_id, $4, $3::jsonb, 'draft' from owned o
+        where not exists (select 1 from existing)
+       on conflict (replica_id) where replica_id is not null and status = 'draft'
+       do update set sheet = excluded.sheet, version = excluded.version, updated_at = now()
+         where vy_teacher_sheet.owner_user_id = $2::uuid
+           and vy_teacher_sheet.agent_id is not distinct from excluded.agent_id
+       returning sheet_id, agent_id, version, sheet, status,
+                 consent_artifact_id, created_at, updated_at, published_at
+     )
+     select * from updated union all select * from inserted`;
 
 /** The client shape. `sheet` is the draft body; the row's own state rides
  *  beside it rather than inside it, which is the distinction `fromSheet.ts`
@@ -129,19 +182,58 @@ function clientSheet(row) {
   };
 }
 
-/** The newest sheet row for an owner's replica, whatever its status. Ordered
- *  newest-first so a draft written after a publish is what the studio edits —
- *  the loader's `order by published_at desc` answers a different question and
- *  filters to `published` before it asks. */
-async function currentRow(db, ownerUserId, replicaId) {
-  const rows = await db(
-    `select s.sheet_id, s.agent_id, s.version, s.sheet, s.status,
+// Publication has a bound-only reader. A shared agent is never authority over
+// an explicitly replica-owned sheet; only historical rows use agent-only scope.
+export const BOUND_TEACHER_SHEET_READ_SQL = `select s.sheet_id, s.agent_id, s.version, s.sheet, s.status,
             s.consent_artifact_id, s.created_at, s.updated_at, s.published_at
        from vy_teacher_sheet s
        join vy_replica r on r.agent_id = s.agent_id
       where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
-      order by s.created_at desc
-      limit 1`,
+        and r.lifecycle not in ('revoked','purging')
+        and s.status <> 'revoked'
+        and ((s.replica_id = r.replica_id and s.owner_user_id = r.owner_user_id)
+          or (s.replica_id is null and s.owner_user_id is null))
+      order by s.created_at desc, s.sheet_id desc limit 1`;
+
+export const BOUND_TEACHER_SHEET_PUBLISH_SQL = `with owned as materialized (
+       select r.replica_id, r.owner_user_id, r.agent_id from vy_replica r
+        where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid and r.agent_id is not null
+          and r.lifecycle not in ('revoked','purging')
+        for update of r
+     ), target as materialized (
+       select s.sheet_id from vy_teacher_sheet s join owned o on s.agent_id = o.agent_id
+        where s.sheet_id = $3::uuid and s.status <> 'revoked'
+          and s.consent_artifact_id is not null
+          and s.sheet = $4::jsonb and s.status = $5::text
+          and s.consent_artifact_id = $6::uuid and s.version = $7::text
+          and ((s.replica_id = o.replica_id and s.owner_user_id = o.owner_user_id)
+            or (s.replica_id is null and s.owner_user_id is null))
+        for update of s
+     ), demoted as (
+       update vy_teacher_sheet s set status = 'validated'
+         from owned o
+        where s.agent_id = o.agent_id and s.status = 'published' and s.sheet_id <> $3::uuid
+          and exists (select 1 from target)
+          and ((s.replica_id = o.replica_id and s.owner_user_id = o.owner_user_id)
+            or (s.replica_id is null and s.owner_user_id is null))
+       returning s.sheet_id
+     )
+     update vy_teacher_sheet s
+        set status = 'published', published_at = now(), updated_at = now()
+      from owned o cross join target t
+      where s.sheet_id = t.sheet_id and s.sheet_id = $3::uuid and s.agent_id = o.agent_id
+        and (select count(*) from demoted) >= 0
+        and s.status <> 'revoked' and s.consent_artifact_id is not null
+        and s.sheet = $4::jsonb and s.status = $5::text
+        and s.consent_artifact_id = $6::uuid and s.version = $7::text
+        and ((s.replica_id = o.replica_id and s.owner_user_id = o.owner_user_id)
+          or (s.replica_id is null and s.owner_user_id is null))
+    returning s.sheet_id, s.agent_id, s.version, s.sheet, s.status,
+              s.consent_artifact_id, s.created_at, s.updated_at, s.published_at`;
+
+async function currentRow(db, ownerUserId, replicaId) {
+  const rows = await db(
+    BOUND_TEACHER_SHEET_READ_SQL,
     [replicaId, ownerUserId],
   );
   return rows[0] || null;
@@ -159,7 +251,8 @@ export async function readOwnedTeacherSheet(db, ownerUserId, replicaIdValue) {
   // studio opening the sheet screen for the first time is the normal case, and
   // `teacherSheetApi.ts` documents the caller as one that "should keep editing
   // locally rather than blocking the screen".
-  return clientSheet(await currentRow(db, ownerUserId, replicaId));
+  const rows = await db(PRIVATE_TEACHER_SHEET_READ_SQL, [replicaId, ownerUserId]);
+  return clientSheet(rows[0]);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -180,40 +273,17 @@ export async function saveOwnedTeacherSheetDraft(db, ownerUserId, replicaIdValue
   const sheet = sheetBodyOf(draftValue);
   const owned = await ownedReplica(db, ownerUserId, replicaId);
   if (!owned) return null;
-  if (!owned.agent_id) fail("replica_has_no_agent", 409, { replica_id: replicaId });
 
   const validation = validateTeacherSheet(sheet);
   const version = typeof sheet.version === "string" ? sheet.version : "";
 
-  // One statement, owner-scoped inside the CTE. `sheet_id` is derived from the
-  // agent so a save is an UPSERT and a studio autosaving every keystroke does
-  // not accumulate a row per keystroke. A published row is never overwritten
-  // by a draft save — the `status <> 'published'` predicate on the update — so
-  // the live clone cannot be edited out from under its students by the draft
-  // screen; publishing is the only path that moves published bytes.
+  // An explicit save stores exactly the submitted incomplete draft. It does
+  // not seed an identity or activate an agent. Published and revoked rows are
+  // never overwritten. Existing unbound drafts remain unbound: runtime binding
+  // and publication are separate operations. The partial unique index handles
+  // concurrent first saves even when both statements began before insertion.
   const rows = await db(
-    `with owned as materialized (
-       select r.agent_id from vy_replica r
-        where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid and r.agent_id is not null
-          and r.lifecycle not in ('revoked','purging')
-        for update of r
-     ), existing as (
-       select s.sheet_id from vy_teacher_sheet s join owned o on o.agent_id = s.agent_id
-        where s.status <> 'published' order by s.created_at desc limit 1
-     ), updated as (
-       update vy_teacher_sheet s
-          set sheet = $3::jsonb, version = $4, status = 'draft', updated_at = now()
-         from existing e where s.sheet_id = e.sheet_id and s.status <> 'published'
-       returning s.sheet_id, s.agent_id, s.version, s.sheet, s.status,
-                 s.consent_artifact_id, s.created_at, s.updated_at, s.published_at
-     ), inserted as (
-       insert into vy_teacher_sheet (sheet_id, agent_id, version, sheet, status)
-       select $5::uuid, o.agent_id, $4, $3::jsonb, 'draft' from owned o
-        where not exists (select 1 from existing)
-       returning sheet_id, agent_id, version, sheet, status,
-                 consent_artifact_id, created_at, updated_at, published_at
-     )
-     select * from updated union all select * from inserted`,
+    PRIVATE_TEACHER_SHEET_SAVE_SQL,
     [replicaId, ownerUserId, JSON.stringify(sheet), version, newSheetId()],
   );
   if (!rows[0]) fail("teacher_sheet_write_failed", 409, { replica_id: replicaId });
@@ -278,31 +348,15 @@ export async function publishOwnedTeacherSheet(db, ownerUserId, replicaIdValue, 
   }
 
   const rows = await db(
-    `with owned as materialized (
-       select r.agent_id from vy_replica r
-        where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid and r.agent_id is not null
-          and r.lifecycle not in ('revoked','purging')
-        for update of r
-     ), demoted as (
-       update vy_teacher_sheet s set status = 'validated'
-         from owned o
-        where s.agent_id = o.agent_id and s.status = 'published' and s.sheet_id <> $3::uuid
-       returning s.sheet_id
-     )
-     update vy_teacher_sheet s
-        set status = 'published', published_at = now(), updated_at = now()
-       from owned o
-      where s.sheet_id = $3::uuid and s.agent_id = o.agent_id
-        and s.consent_artifact_id is not null
-    returning s.sheet_id, s.agent_id, s.version, s.sheet, s.status,
-              s.consent_artifact_id, s.created_at, s.updated_at, s.published_at`,
-    [replicaId, ownerUserId, row.sheet_id],
+    BOUND_TEACHER_SHEET_PUBLISH_SQL,
+    [replicaId, ownerUserId, row.sheet_id, JSON.stringify(sheet),
+      row.status, row.consent_artifact_id, row.version ?? ""],
   );
-  // Zero rows here means the SQL consent predicate refused what the JS gate
-  // allowed. That is not a race to retry past — it is the third layer catching
-  // a disagreement between the other two, and it is reported as such.
+  // The exact validated snapshot must still exist. A concurrent save or
+  // consent/status change requires a fresh read and validation, never a retry
+  // of these old bytes. The target gate also prevents any publication demotion.
   if (!rows[0]) {
-    fail("teacher_sheet_publish_gate", 409, { replica_id: replicaId, blockers: ["consent_artifact_missing"] });
+    fail("teacher_sheet_publish_conflict", 409, { replica_id: replicaId, blockers: ["sheet_changed_or_unavailable"] });
   }
 
   return { ok: true, errors: [], blockers: [], phraseBank: verdict.phraseBank, sheet: clientSheet(rows[0]) };

@@ -51,6 +51,7 @@ import {
   roomNeverRules,
 } from "./_room-surface.js";
 import { tableApplied } from "./memory.js";
+import { roomReplyLanguagePolicy } from "./_room-reply-language.js";
 
 /** How many questions a stranger may ask before the join control replaces
  *  the input — the workstream brief's own number, and the SAME number
@@ -120,6 +121,7 @@ export async function roomTaste(db, { slug, message, locale: hintLocale = null, 
   const text = String(message ?? "").trim();
   if (!text) throw new RoomError("room_message_empty", 400);
   if (text.length > ROOM_INBOUND_LIMIT) throw new RoomError("room_message_too_long", 413);
+  const replyLanguagePolicy = roomReplyLanguagePolicy(deps.env || process.env);
 
   const resolved = await resolveRoom(db, slug, deps);
   // The creator's own switch (migration 110). Checked AFTER `resolveRoom`
@@ -178,9 +180,13 @@ export async function roomTaste(db, { slug, message, locale: hintLocale = null, 
     // recall and no history to carry — every claim of a shared past would be
     // false by construction, exactly `roomSay`'s memory-free branch.
     memories: "",
+    // Public Q&A retrieval is currently connected only to ordinary Room
+    // replies. Keep this guest input explicit and byte-equivalent to absent.
+    publicKnowledge: [],
     herLife: "",
     cultureNoteText: "",
     latestUserText: text,
+    replyLanguagePolicy: replyLanguagePolicy,
   });
 
   // ONE TURN, NEVER A THREAD. No history is read from anywhere and none is

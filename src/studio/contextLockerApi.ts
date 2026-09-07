@@ -69,6 +69,43 @@ export interface ContextLockerView {
   };
 }
 
+export interface ContextProposalView {
+  replica_id: string;
+  item_id: string;
+  source_name: string;
+  proposal: {
+    run_id: string;
+    state: "pending" | "rejected" | "historical_unconfirmed";
+    candidates: Array<{
+      candidate_id: string;
+      field: "boardVerbalisms" | "exSlangRepeat";
+      fragment: string;
+      occurrences: number;
+      citations: Array<{ excerpt: string; clipped: boolean }>;
+    }>;
+  };
+}
+
+export async function loadContextProposal(token: string, replicaId: string, itemId: string, signal?: AbortSignal): Promise<ContextProposalView> {
+  const data = await replicaRequest<ContextProposalView>(token,
+    `/api/teacher-sheet?op=ingest_review&replica_id=${encodeURIComponent(replicaId)}&item_id=${encodeURIComponent(itemId)}`,
+    { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : undefined });
+  if (!data || data.replica_id !== replicaId || data.item_id !== itemId || typeof data.source_name !== "string"
+    || !data.proposal || typeof data.proposal.run_id !== "string"
+    || !["pending", "rejected", "historical_unconfirmed"].includes(data.proposal.state)
+    || !Array.isArray(data.proposal.candidates) || !data.proposal.candidates.length || data.proposal.candidates.length > 100
+    || data.proposal.candidates.some(c => !c || typeof c.candidate_id !== "string"
+      || !["boardVerbalisms", "exSlangRepeat"].includes(c.field)
+      || typeof c.fragment !== "string" || !c.fragment.trim() || c.fragment.length > 500
+      || !Number.isSafeInteger(c.occurrences) || c.occurrences < 1
+      || !Array.isArray(c.citations) || !c.citations.length || c.citations.length > 3
+      || c.citations.some(citation => !citation || typeof citation.excerpt !== "string"
+        || citation.excerpt.length > 240 || typeof citation.clipped !== "boolean"))) {
+    throw new Error("context_proposal_response_invalid");
+  }
+  return data;
+}
+
 export async function loadContextLocker(token: string, replicaId: string): Promise<ContextLockerView> {
   return replicaRequest<ContextLockerView>(
     token,

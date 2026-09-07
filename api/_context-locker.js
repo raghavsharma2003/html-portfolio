@@ -543,6 +543,49 @@ function bounded(value) {
   });
 }
 
+// The final producer fence is in the INSERT statement, after any awaited
+// evidence/card writes. A stale in-memory item cannot recreate its proposal
+// after removal. Lock the canonical source before the item, matching source
+// erasure completion; source-less legacy text still requires a live item lock.
+export const CONTEXT_INGEST_RUN_INSERT_SQL = `with current_item as materialized (
+       select i.item_id,i.source_id from vy_context_item i
+        where i.item_id=$8::uuid and i.replica_id=$2::uuid and i.owner_user_id=$3::uuid
+     ), source_gate as materialized (
+       select s.source_id from vy_replica_source s join current_item i on i.source_id=s.source_id
+        where s.replica_id=$2::uuid and s.owner_user_id=$3::uuid and s.state='ready'
+        for update of s
+     ), replica_gate as materialized (
+       select r.replica_id,r.owner_user_id
+         from vy_replica r cross join current_item i
+        where r.replica_id=$2::uuid and r.owner_user_id=$3::uuid
+          and r.lifecycle not in ('revoked','purging')
+          and (i.source_id is null or exists (select 1 from source_gate g where g.source_id=i.source_id))
+        for update of r
+     ), item_gate as materialized (
+       select i.item_id,i.replica_id,i.owner_user_id
+         from vy_context_item i join replica_gate r
+           on r.replica_id=i.replica_id and r.owner_user_id=i.owner_user_id
+         join current_item original on original.item_id=i.item_id
+        where i.item_id=$8::uuid and i.replica_id=$2::uuid and i.owner_user_id=$3::uuid
+          and i.status in ('extracted','mined')
+          and i.source_id is not distinct from original.source_id
+          and (i.source_id is null or exists (select 1 from source_gate g where g.source_id=i.source_id))
+        for update of i
+     ), inserted as (
+       insert into vy_ingest_run
+         (run_id, replica_id, owner_user_id, watch_id, video_ref, transcript_source,
+          stats, proposed_delta, proposed_delta_count, status)
+       select $1::uuid,g.replica_id,g.owner_user_id,null,$4,'context_item',
+              $5::jsonb,$6::jsonb,$7,'proposed'
+         from item_gate g
+        where $4='context:' || g.item_id::text
+       on conflict (replica_id, video_ref) do nothing
+       returning run_id, status, proposed_delta_count
+     ) select * from inserted
+       union all
+       select null::uuid,'source_unavailable'::text,0::integer
+        where not exists (select 1 from item_gate)`;
+
 async function mineStored(db, stored, extraction, options, deps = {}) {
   const result = mineContextItem({ item_id: stored.item_id }, extraction, options);
 
@@ -589,25 +632,11 @@ async function mineStored(db, stored, extraction, options, deps = {}) {
   // already has a proposal must not reset a proposal the owner is mid-review
   // on. Same idempotence mechanism, same constraint, as the channel lane's.
   const runs = await db(
-    `with replica_gate as materialized (
-       select r.replica_id,r.owner_user_id
-         from vy_replica r
-        where r.replica_id=$2::uuid and r.owner_user_id=$3::uuid
-          and r.lifecycle not in ('revoked','purging')
-        for update of r
-     ), inserted as (
-       insert into vy_ingest_run
-         (run_id, replica_id, owner_user_id, watch_id, video_ref, transcript_source,
-          stats, proposed_delta, proposed_delta_count, status)
-       select $1::uuid,g.replica_id,g.owner_user_id,null,$4,'context_item',
-              $5::jsonb,$6::jsonb,$7,'proposed'
-         from replica_gate g
-       on conflict (replica_id, video_ref) do nothing
-       returning run_id, status, proposed_delta_count
-     ) select * from inserted`,
+    CONTEXT_INGEST_RUN_INSERT_SQL,
     [runId, stored.replica_id, stored.owner_user_id, `context:${stored.item_id}`,
-      bounded(result.stats), bounded(result.delta), result.deltaCount],
+      bounded(result.stats), bounded(result.delta), result.deltaCount, stored.item_id],
   );
+  if (runs[0]?.status === "source_unavailable") fail("context_source_unavailable", 409);
   if (!runs[0]) {
     const item = await markItem(db, stored, { status: "mined", mine_skip_reason: "", run_id: null });
     return { item, proposal: { ok: true, proposed: 0, reason: "proposal_already_exists" } };
@@ -762,17 +791,30 @@ export function storedExportBody(extraction) {
  *  survive as a content-free audit receipt. Removing an undecided proposal is
  *  itself an authenticated owner decision, so that proposal becomes rejected
  *  instead of remaining as an empty, apparently reviewable draft. */
-export async function removeContextItem(db, ownerUserId, replicaIdValue, itemIdValue) {
-  const replicaId = idOf(replicaIdValue, "valid_replica_id_required");
-  const itemId = idOf(itemIdValue, "valid_item_id_required");
-  const rows = await db(
-    `with target as (
-       select item_id,source_id
-         from vy_context_item
-        where item_id = $1::uuid and replica_id = $2::uuid and owner_user_id = $3::uuid
-        for update
+export const CONTEXT_ITEM_REMOVE_SQL = `with current_item as materialized (
+       select item_id,source_id from vy_context_item
+        where item_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid
+     ), source_gate as materialized (
+       select s.source_id from vy_replica_source s join current_item i on i.source_id=s.source_id
+        where s.replica_id=$2::uuid and s.owner_user_id=$3::uuid
+        for update of s
+     ), target as materialized (
+       select i.item_id,i.source_id from vy_context_item i
+       join current_item original on original.item_id=i.item_id
+        where i.item_id=$1::uuid and i.replica_id=$2::uuid and i.owner_user_id=$3::uuid
+          and i.source_id is not distinct from original.source_id
+          and (i.source_id is null or exists (select 1 from source_gate s where s.source_id=i.source_id))
+        for update of i
      ), scrubbed_run as (
-       update vy_ingest_run r
+       -- UPSERT also sees a conflicting producer committed after this statement's
+       -- snapshot. A plain UPDATE can miss that row after waiting on the item.
+       insert into vy_ingest_run as r
+         (run_id,replica_id,owner_user_id,video_ref,transcript_source,status,
+          stats,proposed_delta,proposed_delta_count,video_title,failure_code,approved_by_user_id,decided_at)
+       select $4::uuid,$2::uuid,$3::uuid,'context:' || t.item_id::text,'context_item','rejected',
+              '{}'::jsonb,'{}'::jsonb,0,'','context_source_removed',$3::uuid,now()
+         from target t where true
+       on conflict (replica_id,video_ref) do update
           set stats = '{}'::jsonb,
               proposed_delta = '{}'::jsonb,
               proposed_delta_count = 0,
@@ -788,45 +830,56 @@ export async function removeContextItem(db, ownerUserId, replicaIdValue, itemIdV
                 else now()
               end,
               updated_at = now()
-         from target t
         where r.replica_id = $2::uuid
           and r.owner_user_id = $3::uuid
           and r.transcript_source = 'context_item'
-          and r.video_ref = 'context:' || t.item_id::text
+          and r.watch_id is null
+          and r.video_ref = 'context:' || $1::uuid::text
         returning r.run_id
+     ), authorized_target as materialized (
+       select t.* from target t where exists (select 1 from scrubbed_run)
      ), invalidated_claims as (
        update vy_replica_claim c set status='superseded',updated_at=now()
-         from target t
+         from authorized_target t
         where t.source_id is not null and c.replica_id=$2::uuid and c.owner_user_id=$3::uuid
           and t.source_id=any(c.source_ids) and c.status in ('proposed','approved')
        returning c.claim_id
      ), removed_evidence as (
-       delete from vy_replica_processing_evidence e using target t
+       delete from vy_replica_processing_evidence e using authorized_target t
         where t.source_id is not null and e.source_id=t.source_id
           and e.replica_id=$2::uuid and e.owner_user_id=$3::uuid
        returning e.evidence_id
      ), source_erasure as (
        update vy_replica_source s set state='deleting',erasure_next_attempt_at=now(),updated_at=now()
-         from target t
+         from authorized_target t
         where t.source_id is not null and s.source_id=t.source_id
           and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid
        returning s.source_id
      ), removed_text as (
-       delete from vy_context_item_text t using target i
+       delete from vy_context_item_text t using authorized_target i
         where t.item_id = i.item_id
           and t.replica_id = $2::uuid
           and t.owner_user_id = $3::uuid
        returning t.item_id
      ), removed as (
-       delete from vy_context_item i using target t
+       delete from vy_context_item i using authorized_target t
         where i.item_id = t.item_id
           and i.replica_id = $2::uuid
           and i.owner_user_id = $3::uuid
        returning i.item_id
      )
-     select item_id,(select source_id from source_erasure limit 1) source_id from removed`,
-    [itemId, replicaId, ownerUserId],
+     select item_id,(select source_id from source_erasure limit 1) source_id,false provenance_conflict from removed
+     union all
+     select item_id,source_id,true from target where not exists (select 1 from scrubbed_run)`;
+
+export async function removeContextItem(db, ownerUserId, replicaIdValue, itemIdValue) {
+  const replicaId = idOf(replicaIdValue, "valid_replica_id_required");
+  const itemId = idOf(itemIdValue, "valid_item_id_required");
+  const rows = await db(
+    CONTEXT_ITEM_REMOVE_SQL,
+    [itemId, replicaId, ownerUserId, randomUUID()],
   );
+  if (rows[0]?.provenance_conflict) fail("context_source_provenance_conflict", 409);
   return rows[0] ? {
     removed: true,
     item_id: rows[0].item_id,

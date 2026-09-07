@@ -52,6 +52,50 @@ Otherwise it throws `claim_extractor_unavailable` before provider I/O.
 
 ## 2. LLM spend fencing (`vercel-app`)
 
+### Azure-only serving in the app and processing worker
+
+`VYAKTI_MODEL_SERVING=azure_only` must be set independently in each serving
+deployment. The local development fetch guard does not configure workers.
+Stored ElevenLabs synthesis is refused in this mode; historical vendor deletion
+remains available. Worker transcription requires a valid Azure Speech lane and
+does not fall back to Sarvam when that lane is absent or fails.
+
+Older generic memory helpers have their own Azure configuration:
+
+| name | consumed at | required in strict mode | missing behavior |
+|---|---|---|---|
+| `AZURE_ENDPOINT`, `AZURE_API_KEY` | `api/memory.js`, `api/consolidate.js` | valid Azure endpoint and key for extraction/consolidation; existing config-file values remain supported | named unavailability, no OpenRouter fallback |
+| `AZURE_PHOTO_MODEL` | `api/memory.js` | explicit Azure deployment/model for photo description | `memory_azure_photo_model_unconfigured` |
+| `AZURE_AUDIT_MODEL` | `api/consolidate.js` | explicit audit model identifier different from the extraction identifier | `consolidate_azure_audit_model_unconfigured` before consolidation writes |
+
+A configured identifier does not prove vision support or independent model-family
+auditing. Verify the deployed model before enabling these capabilities. Strict
+forget-hook failures retain the existing honest lexical fallback; they do not
+call Google's free pool. Normal Room memory uses SQL-backed callbacks and is
+distinct from these generic extraction helpers.
+
+Room answer delivery has an independent experimental server opt-in:
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `ROOM_REPLY_TEXT_PROFILE` | `api/_room-surface.js`, `api/_surface.js` | optional; exact `expert_answer` only | unset preserves companion parsing and four-bubble limit | no default change; invalid values fail before admission; expert answers over 4,000 JavaScript string units are refused, not sliced |
+
+This profile preserves all segments surviving the existing parser. It does not
+guarantee arbitrary formatting or grounded facts. Keep unset until the intended
+expert route and new held-out answers pass acceptance. It does not change the
+language policy below, or increase model token budgets.
+
+Room text language is a separate experimental server opt-in:
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `ROOM_REPLY_LANGUAGE_POLICY` | `api/_room-reply-language.js`, called by Room and guest taste | optional; only `follow_current_user` accepted | unset preserves the existing teacher prompt | unset has no effect; an empty or unrecognized value refuses before model work |
+
+The policy prioritizes the current user's language and script preference over
+the teacher's default register. It does not infer language from source material,
+change disclosure locale, translate stored knowledge, or establish measured
+language quality. Keep deployment opt-in separate from experimental results.
+
 `api/_provider-budget.js`'s `reserveFoundrySpend`/`beginFoundrySpend`/
 `settleFoundrySpend`, called from `api/_replica-claims.js:212` and
 `api/_replica-dialogue.js:216` — every Foundry call in §1 is fenced by this

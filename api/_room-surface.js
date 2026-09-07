@@ -70,6 +70,7 @@
 import { createHmac, timingSafeEqual, createHash, randomUUID } from "node:crypto";
 import {
   gatedReply,
+  roomReplyTextProfile,
   makeCtx,
   splitForLimit,
   loadEngine,
@@ -93,6 +94,7 @@ import { sessionWorked, recordOffer, markOfferOutcome } from "./_phase-gate.js";
 // shape, on `_clonechat.js`'s precedent); `compileNeverRules` imports nothing.
 import { loadNeverRules } from "./_review-queue.js";
 import { compileNeverRules } from "./_never-rules.js";
+import { roomReplyLanguagePolicy } from "./_room-reply-language.js";
 // WS-R100 (migration 126). `_receipt.js` is a leaf module (no imports of its
 // own beyond node builtins) - never `_payments.js`, which imports FROM this
 // file (`roomSettings`'s own header names the wall: a file this one already
@@ -1811,6 +1813,10 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
   const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);
   if (!follower || follower.age_attested_at == null) throw new RoomError("room_join_required", 403);
 
+  // Validate the server policy before quota admission or any model request.
+  const replyLanguagePolicy = roomReplyLanguagePolicy(deps.env || process.env);
+  const textProfile = roomReplyTextProfile(deps.env || process.env);
+
   const thread = await ownedThread(db, resolved.room.room_id, payload.p, resolved.agentId, threadId);
   const device = roomThreadDevice(resolved.room.room_id, payload.p, thread?.thread_id || null);
 
@@ -1994,6 +2000,7 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     herLife: "",
     cultureNoteText: "",
     latestUserText: text,
+    replyLanguagePolicy: replyLanguagePolicy,
   });
 
   const turns = [...history, { role: "user", content: text }];
@@ -2009,6 +2016,7 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
   const gatedOut = await gatedReply(ctx, compiled, turns, {
     record: facts.map((f) => f.body),
     label: "web/room",
+    textProfile,
     neverRules: await roomNeverRules(db, resolved.room, deps),
   });
   const said = gatedOut.text;

@@ -1111,17 +1111,18 @@ console.log("\n── layer 7: taste (guest lane, no follower writer reachable) 
 {
   const tasteSrc = fs.readFileSync(join(REPO, "api/_room-taste.js"), "utf8");
 
-  // The whole file may import from only these three - `_surface.js` (no
+  // The whole file may import from only these four - `_surface.js` (no
   // database at all, by that file's own header: "this file has no database
   // and must keep none"), `_room-surface.js` (the follower lane's own file,
   // narrowed below to a closed read-only allowlist) and `memory.js`
-  // (narrowed below to the one pure read helper). No direct import of
+  // (narrowed below to the one pure read helper), plus the dependency-free
+  // reply-language validator whose symbol/call closure is checked below. No direct import of
   // `episodes.js`, `_phase-gate.js`, `_pulse.js`, `_room-push.js`,
   // `_room-whatsapp.js`, `_handoff.js`, `_room-voice.js` or `_db.js` -
   // every one of those either owns a follower writer or a live connection
   // this stateless lane has no business holding.
   const importedFiles = [...tasteSrc.matchAll(/from\s+"\.\/(_?[\w.-]+\.js)"/g)].map((m) => m[1]);
-  const ALLOWED_TASTE_IMPORT_FILES = new Set(["_surface.js", "_room-surface.js", "memory.js"]);
+  const ALLOWED_TASTE_IMPORT_FILES = new Set(["_surface.js", "_room-surface.js", "memory.js", "_room-reply-language.js"]);
   ok("api/_room-taste.js imports from a closed set of files only (no direct import of a writer-owning or db-holding file)",
     importedFiles.length > 0 && importedFiles.every((f) => ALLOWED_TASTE_IMPORT_FILES.has(f)),
     importedFiles.join(","));
@@ -1155,6 +1156,61 @@ console.log("\n── layer 7: taste (guest lane, no follower writer reachable) 
   const gotFromMemory = importsFrom("memory\\.js");
   ok("api/_room-taste.js imports ONLY tableApplied from memory.js",
     JSON.stringify(gotFromMemory) === JSON.stringify(["tableApplied"]));
+
+  const gotFromLanguage = importsFrom("_room-reply-language\\.js");
+  const exactLanguageImport = (names) => JSON.stringify(names) === JSON.stringify(["roomReplyLanguagePolicy"]);
+  ok("taste imports only the exact reply-language validator symbol",
+    exactLanguageImport(gotFromLanguage));
+  ok("NEGATIVE CONTROL: an extra language-helper symbol fails the same closed import check",
+    !exactLanguageImport([...gotFromLanguage, "sendMessage"]));
+
+  // Parse the tiny validator rather than relying on a comment or a blacklist
+  // of provider names. Only local control flow, one env-property read and
+  // construction of a named Error are allowed; no import or I/O capability.
+  const ts = await import("typescript");
+  const languageSrc = fs.readFileSync(join(REPO, "api/_room-reply-language.js"), "utf8");
+  const isClosedLanguageValidator = (source) => {
+    const file = ts.createSourceFile("language-helper.js", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+    if (file.parseDiagnostics.length || file.statements.length !== 1) return false;
+    const fn = file.statements[0];
+    if (!ts.isFunctionDeclaration(fn) || fn.name?.text !== "roomReplyLanguagePolicy" ||
+        !fn.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword)) return false;
+    const identifiers = new Set(["roomReplyLanguagePolicy", "env", "process", "value", "undefined", "Object", "assign", "Error", "ROOM_REPLY_LANGUAGE_POLICY", "code", "status"]);
+    let safe = true;
+    const visit = node => {
+      if (ts.isIdentifier(node) && !identifiers.has(node.text)) safe = false;
+      if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node) || ts.isImportEqualsDeclaration(node) ||
+          node.kind === ts.SyntaxKind.ImportKeyword || ts.isElementAccessExpression(node) || ts.isDeleteExpression(node)) safe = false;
+      if (ts.isPropertyAccessExpression(node) && !["process.env", "env.ROOM_REPLY_LANGUAGE_POLICY", "Object.assign"].includes(node.getText(file))) safe = false;
+      if (ts.isCallExpression(node) && (node.expression.getText(file) !== "Object.assign" || node.arguments.length !== 2 ||
+          !ts.isNewExpression(node.arguments[0]) || node.arguments[0].expression.getText(file) !== "Error" ||
+          !ts.isObjectLiteralExpression(node.arguments[1]))) safe = false;
+      if (ts.isNewExpression(node) && (node.expression.getText(file) !== "Error" || node.arguments?.length !== 1 ||
+          !ts.isStringLiteral(node.arguments[0]))) safe = false;
+      if (ts.isBinaryExpression(node) && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+          node.operatorToken.kind <= ts.SyntaxKind.LastAssignment) safe = false;
+      if ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+          [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(node.operator)) safe = false;
+      if (ts.isFunctionDeclaration(node) && node !== fn || ts.isArrowFunction(node) || ts.isFunctionExpression(node)) safe = false;
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
+    return safe;
+  };
+  ok("reply-language helper has a closed pure symbol/call surface with no imports or I/O",
+    isClosedLanguageValidator(languageSrc));
+  for (const [name, mutant] of [
+    ["static database import", 'import { q } from "./_db.js";\n' + languageSrc],
+    ["dynamic import", languageSrc.replace("return value;", 'import("./_db.js"); return value;')],
+    ["network call", languageSrc.replace("return value;", 'fetch("https://example.invalid"); return value;')],
+    ["extra export", languageSrc + '\nexport function sendMessage() {}'],
+    ["additional env read", languageSrc.replace("return value;", 'return process.env.OTHER_CONFIG;')],
+    ["env assignment", languageSrc.replace("return value;", 'env.ROOM_REPLY_LANGUAGE_POLICY = "changed"; return value;')],
+    ["Object.assign mutation", languageSrc.replace("return value;", 'Object.assign(env, {}); return value;')],
+  ]) {
+    ok(`NEGATIVE CONTROL: language-helper ${name} is rejected by the same closure check`,
+      mutant !== languageSrc && !isClosedLanguageValidator(mutant));
+  }
 
   // DERIVED, not asserted: the same fixed-point technique (1a) uses,
   // applied to `_room-surface.js`'s OWN exports this time, against the

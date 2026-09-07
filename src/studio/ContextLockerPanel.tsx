@@ -9,7 +9,7 @@
 // Every item shows exactly one of five states, and four of them carry a
 // reason:
 //
-//   mined        N proposals waiting for you in Review
+//   mined        private suggested phrases, available to inspect
 //   read         we read it, and it produced nothing — here is why
 //   refused      we will not pretend to have read this — here is why
 //   routed       it belongs to another step — here is which
@@ -35,7 +35,7 @@
 // know renders the CODE. IngestChannelStudio.tsx makes the same choice for the
 // same reason: a list that quietly drops the one row it did not recognise is
 // how a person learns nothing from the screen that exists to tell them.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ReplicaApiError } from "./replicaApi";
 import {
   addContextFiles,
@@ -51,6 +51,7 @@ import type {
   ContextLockerView,
   ContextSpeaker,
 } from "./contextLockerApi";
+const ContextProposalReview = lazy(() => import("./ContextProposalReview"));
 
 const REASON_COPY: Record<string, string> = {
   // refusals — files
@@ -102,7 +103,7 @@ const REASON_COPY: Record<string, string> = {
   declared_speaker_not_in_export: "Nobody by that name sends messages in this export.",
   no_candidates_cleared_held_out: "Read, but nothing in it repeated often enough to be worth proposing. That is normal for a short document.",
   citation_integrity_failed: "Read, but the proposals could not be traced back to the text they came from, so none were kept.",
-  proposal_already_exists: "Already proposed. See Review.",
+  proposal_already_exists: "Suggestions are already saved privately.",
   image_ocr_not_configured: "Stored privately with an exact image hash and pixel region. OCR and visual interpretation are not connected, so no claim was made from it.",
   context_source_permissions_required: "Record source capture and private storage permission before adding this file.",
   context_private_storage_failed: "Private storage could not retain this file. Nothing was claimed from it. Try again.",
@@ -170,6 +171,23 @@ export default function ContextLockerPanel({
   const [acknowledged, setAcknowledged] = useState(testEnvironment);
   const [recent, setRecent] = useState<Row[]>([]);
   const fileInput = useRef<HTMLInputElement | null>(null);
+  const [reviewItem, setReviewItem] = useState<{ replicaId: string; itemId: string } | null>(null);
+  const reviewRegionId = useId();
+  const reviewTrigger = useRef<HTMLButtonElement | null>(null);
+  const lockerHeading = useRef<HTMLHeadingElement | null>(null);
+  const openItemId = reviewItem?.replicaId === replicaId ? reviewItem.itemId : null;
+  const closeReview = () => {
+    setReviewItem(null);
+    (reviewTrigger.current?.isConnected ? reviewTrigger.current : lockerHeading.current)?.focus();
+  };
+  const reviewButton = (item: ContextItem) => item.status === "mined" ? <button
+    type="button" className="button" disabled={busy}
+    aria-expanded={openItemId === item.item_id} aria-controls={reviewRegionId}
+    onClick={event => {
+      reviewTrigger.current = event.currentTarget;
+      if (openItemId === item.item_id) closeReview();
+      else setReviewItem({ replicaId, itemId: item.item_id });
+    }}>View phrases</button> : null;
 
   const fail = useCallback(
     (e: unknown) => {
@@ -377,6 +395,7 @@ export default function ContextLockerPanel({
               <span className="context-result-name">{row.label}</span>
               <span className="context-result-state">{stateLabel(row)}</span>
               <span className="field-note">{stateDetail(row)}</span>
+              {row.item && reviewButton(row.item)}
 
               {row.item && row.item.status === "extracted"
                 && row.item.mine_skip_reason === "speaker_unattributed_no_style_evidence"
@@ -415,7 +434,12 @@ export default function ContextLockerPanel({
         </ul>
       )}
 
-      <h3 className="context-list-title">In your locker</h3>
+      {openItemId && <Suspense fallback={<p role="status">Opening phrases</p>}>
+        <ContextProposalReview key={`${replicaId}:${openItemId}`} token={token} replicaId={replicaId}
+          itemId={openItemId} regionId={reviewRegionId} onClose={closeReview} onAuthError={onAuthError} />
+      </Suspense>}
+
+      <h3 ref={lockerHeading} tabIndex={-1} className="context-list-title">In your locker</h3>
       {loading ? (
         <p className="field-note" role="status">Loading…</p>
       ) : items.length === 0 ? (
@@ -432,14 +456,20 @@ export default function ContextLockerPanel({
               </span>
               <span className="field-note">{stateDetail({ key: item.item_id, item, label: "" })}</span>
               <span className="context-result-actions">
+                {reviewButton(item)}
                 <button
                   type="button"
                   className="button destructive-button"
                   disabled={busy}
                   onClick={() => {
                     setBusy(true);
+                    if (openItemId === item.item_id) setReviewItem(null);
                     void removeContextItem(token, replicaId, item.item_id)
-                      .then(load)
+                      .then(async () => {
+                        setRecent(rows => rows.filter(row => row.item?.item_id !== item.item_id));
+                        await load();
+                        lockerHeading.current?.focus();
+                      })
                       .catch(fail)
                       .finally(() => setBusy(false));
                   }}
@@ -465,7 +495,7 @@ export default function ContextLockerPanel({
 function stateLabel(row: Row): string {
   if (!row.item) return "Not added";
   if (row.item.status === "mined") {
-    return row.proposed ? `${row.proposed} proposal${row.proposed === 1 ? "" : "s"}` : "Proposals ready";
+    return row.proposed ? `${row.proposed} suggestion${row.proposed === 1 ? "" : "s"}` : "Suggestions saved";
   }
   if (row.item.status === "refused") return "Not read";
   if (row.item.status === "routed") return "Belongs elsewhere";
@@ -479,7 +509,7 @@ function stateDetail(row: Row): string {
   if (!row.item) return copyFor(row.error || "request_failed");
   if (row.item.status === "refused") return copyFor(row.item.refusal_reason);
   if (row.item.status === "routed") return copyFor(row.item.routed_to);
-  if (row.item.status === "mined") return "Waiting for you in Review. Nothing is applied to your clone until you approve it.";
+  if (row.item.status === "mined") return "Phrase suggestions are saved privately.";
   if (row.item.status === "extracted") return copyFor(row.item.mine_skip_reason || "no_candidates_cleared_held_out");
   return "";
 }

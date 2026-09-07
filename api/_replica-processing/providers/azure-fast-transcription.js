@@ -3,6 +3,7 @@ import { createReadStream } from "node:fs";
 import { stat as statFile } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { ProcessingAdapterError, assertSha256, sha256Hex } from "../contracts.js";
+import { assertAzureServingOrigin, isAzureOnlyServing } from "../../_model-serving-policy.js";
 
 export const AZURE_FAST_TRANSCRIPTION_API_VERSION = "2025-10-15";
 export const AZURE_FAST_TRANSCRIPTION_MAX_BYTES = 250_000_000;
@@ -452,6 +453,8 @@ async function postTranscription({ endpoint, authHeaders, input, audio, definiti
 }
 
 export function createAzureFastTranscriptionAdapter(options = {}) {
+  const env = options.env || process.env;
+  if (options.endpoint) assertAzureServingOrigin(options.endpoint, env);
   if (typeof options.resolveInput !== "function" && typeof options.withInputFile !== "function") {
     throw adapterError("azure_asr_input_resolver_missing");
   }
@@ -460,7 +463,11 @@ export function createAzureFastTranscriptionAdapter(options = {}) {
   }
   const endpoint = endpointUrl(options.endpoint);
   const getAuthHeaders = authFactory(options);
-  const fetchImpl = options.fetchImpl || globalThis.fetch;
+  const transport = options.fetchImpl || globalThis.fetch;
+  const fetchImpl = (url, init) => {
+    assertAzureServingOrigin(url, env);
+    return transport(url, { ...init, ...(isAzureOnlyServing(env) ? { redirect: "error" } : {}) });
+  };
   const locales = localeList(options.locales);
   const maxInputs = boundedInteger(options.maxInputs, 4, 1, 4);
   const maxInputBytes = boundedInteger(

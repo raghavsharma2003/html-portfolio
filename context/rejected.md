@@ -16447,3 +16447,53 @@ Review caught use of an existing truncated base64url session hash helper in the 
 ## `public-qa-review-finds-runtime-ui-and-unicode-gaps-20260907` (2026-09-07)
 
 Astra review found that normal successful replies rotate the Room session and the session-dependent history effect replaced turns without their source metadata. Thread changes also allowed stale history or citation responses. The UI correction keys loads by conversation scope rather than token rotation and discards obsolete async results. Separately an actual reader/compiler probe accepted 101 emoji characters in PostgreSQL-compatible reader validation but rejected 202 UTF-16 units in the compiler. Root aligned character limits with the reader, retained bounded allocation and rejected NUL/unpaired surrogates. The actual compiler now passes30 checks plus83 incumbent fixtures; the rebuilt engine passes11 integration groups again. These discovered gaps show why isolated API tests alone did not prove the browser journey.
+
+
+## `room-only-compile-change-missed-taste-contract-20260907` (2026-09-07)
+
+The new Room path passed its focused tests but omitted explicit publicKnowledge from taste, violating an existing cross-surface compiler field contract. The full release caught it. Do not delete the field-equality test or wire an unrelated retrieval path merely to make this result green. Correct the empty input explicitly and retain focused negative evidence.
+
+
+## `successful-source-contract-is-not-language-quality-20260907` (2026-09-07)
+
+Six real calls passed all delivery/source/ledger assertions, yet two replies did not match the question language/script. The teacher persona can dominate language when no explicit turn-level output contract exists. Do not call transport success multilingual acceptance or use the same six questions as a final holdout after tuning. Preserve them as development failure evidence and evaluate any language correction on new cases.
+
+
+## `append-language-policy-does-not-repair-expert-reply-20260907` (2026-09-07)
+
+The experimental policy passed13structural checks,39taste,30compiler plus83incumbent fixtures,11integration and forcedTypeScript; agent closed-import gate repair passed329leak checks. Nevertheless paired real outputs showed language drift, corrupted identifiers and unsupported policy claims. This rules out treating prompt presence or leak tests as acceptance. Postprocessing also dropped a requested label that existed in raw model text. Preserve the failed experiment and keep opt-in disabled; no repeated tuning on this corpus.
+
+
+## `private-draft-live-harness-assumed-shared-agent-20260907` (2026-09-07)
+
+First139harness run failed23505 vy_replica_agent_id_key: two replicas cannot share one agent. This was a harness assumption, not an observed production ownership leak. Corrected harness uses distinct agents and asserts actual uniqueness refusal; hypothetical shared-agent fixtures remain defense against schema regression. Next runs failed assertion matching because sanitized SQL wrapper carries constraint separately from message; fixed matcher without weakening required23505+constraint identity. Failed fixtures were cleaned; final successful run proves20groups and0remaining.
+
+
+## `presentation-segments-can-discard-expert-answer-20260907` (2026-09-07)
+
+Retained baseline supported reply contains requested worksheet label after the fourth genuine segment. parseBubbles slices first4 before shared gate, so later answer is neither delivered nor inspected. Separator fix only recovers phantom-slot loss. Next bounded experiment will preserve parser segments under explicit expert delivery configuration and4000unit reply limit, keeping default companion behavior; this does not certify facts or preserve all formatting.
+
+
+## `vendor-ranking-is-not-owner-hinglish-acceptance-20260907` (2026-09-07)
+
+Fish author-runHindi table favors speakerSIM while worseningWER versusElevenLabs; Auto-ATT naturalness uses an automated evaluator. Qwen official language coverage excludesHindi. These source findings reject broad best-model or1000xbetter claims. Current deployed revisions, native owner listening and pricing remain unmeasured; more generic searching cannot replace those experiments.
+
+
+## `preserving-late-answer-can-preserve-error-20260907` (2026-09-07)
+
+Opt-in profile recovers baseline BIRCH-28 and the unsupported assertion following it. Existing protocol/format cleanup and honesty repair can still alter content. Do not describe parser preservation as complete faithful formatting, multilingual acceptance or truthful answers. The real failed language corpus remains development evidence, not a reusable final holdout.
+
+
+## `local-fetch-guard-is-not-deployed-provider-policy-20260907` (2026-09-07)
+
+Earlier shared-reply/ASR/claim/embedding controls did not cover storedvoice factories or worker composition and genericmemory directfetch. A provider class or registry can be complete while its caller bypasses that registry. Test actual leaf calls with strict mode, valid foreign credentials and deceptive origins; require zero non-Azure network attempts before claiming closure.
+
+
+## `provider-absence-cannot-masquerade-as-memory-success-20260907` (2026-09-07)
+
+Strictfallback closure alone wouldstillhideunsupportedphoto configuration orinvalid auditoutputbehinddesc-empty/abstain. Newstrictbranches requireexplicitmodels, finish_reasonstop, nonemptycontent andexactauditYES/NO/ABSTAIN; configurationpreflight precedesconsolidationwrites. Forgetretainsits existingfailedreceipt/lexicalfallback instead ofinvokingGoogle. Nonstrict behavior preserved; no inferredmodelcapabilities.
+
+
+## `deferred-producer-test-missed-overlapping-snapshot-20260907` (2026-09-07)
+
+Initial11real erasuregroups proved delayedINSERT aftercompleteddelete wasrefused, but directremoval had inverted source/itemlockorder and an old READCOMMITTEDsnapshot couldmiss a concurrentlycommitted proposal. Realinteractive oldUPDATEnegativecontrol retained syntheticquotation afterdeletion, confirmingthebug. NewUPSERT plusorderedlocks passedbothsource-backed/source-less cases. Canonicalcompletion hasseparatelycommitteddeleting statefence; do notconflate itsauthority withdirectremove.

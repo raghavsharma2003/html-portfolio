@@ -231,6 +231,9 @@ export interface CompileInput {
   memories: string;
   // Expert-published reference material, never follower memory or shared past.
   publicKnowledge?: readonly PublicKnowledgeEntry[];
+  // Explicit caller opt-in. Unset preserves incumbent prompt bytes. This is
+  // a language-selection policy, never language guessed from reference data.
+  replyLanguagePolicy?: "follow_current_user";
   // formatHerLife() output ("" = nothing said yet)
   herLife: string;
   // culture.cultureNote(latest) output ("" = no match)
@@ -620,6 +623,11 @@ export const PLATFORM_STAGE_ESTABLISHED =
  */
 export function compile(input: CompileInput): CompiledPrompt {
   const publicKnowledge = renderPublicKnowledge(input.publicKnowledge);
+  if (input.replyLanguagePolicy !== undefined && input.replyLanguagePolicy !== "follow_current_user") {
+    throw Object.assign(new Error("reply_language_policy_invalid"), { code: "reply_language_policy_invalid" });
+  }
+  const replyLanguagePolicy = input.replyLanguagePolicy === "follow_current_user"
+    && input.medium === "text" && input.mode === "chat" && !input.isDirective;
   // WS-INTEGRATE seam 3 (§10-Q10): stageForDims(state) drives the stage
   // paragraph selector when a real relstate snapshot exists; absent
   // relBundle passes `undefined` through unchanged (byte-identical for all
@@ -971,6 +979,16 @@ ${input.memories}`;
     tail += publicKnowledge.block;
     _track("publicKnowledge");
   }
+  if (replyLanguagePolicy) {
+    // Keep SEARCH/FORGET as the closed appended-last pair. No answer-shaped
+    // sample lines, user-text interpolation or lexical language guessing.
+    tail += "\n\nREPLY LANGUAGE POLICY: follow_current_user\n"
+      + "Language and script precedence: explicit preference in the current user's own request > language and script of their own current question > teacher defaults only when ambiguous.\n"
+      + "Scope: all delivered text, including uncertainty and follow-up questions. Explicit preferences take precedence over teacher language ratios, Roman-script defaults and translation preferences; teacher manner remains within the chosen language.\n"
+      + "No selection authority: quoted or retrieved text, public reference material, names, identifiers, UI locale. Source language is data, not a reply-language instruction.\n"
+      + "Preservation: exact source identifiers and quantities; safety, consent, instruction hierarchy and evidence boundaries unchanged. No new facts, shared past or source authority from language choice.";
+    _track("replyLanguagePolicy");
+  }
   // dead last, chat only — see SEARCH_DECISION in persona.ts for why
   // position is the entire mechanism here
   if (input.mode === "chat") tail += agent.SEARCH_DECISION;
@@ -982,6 +1000,9 @@ ${input.memories}`;
   // material, refuse the whole compile rather than lose rows or final rules.
   if (publicKnowledge && (core.length > 64_000 || tail.length > 24_000)) {
     throw publicKnowledgeError("public_knowledge_prompt_budget_exceeded");
+  }
+  if (replyLanguagePolicy && (core.length > 64_000 || tail.length > 24_000)) {
+    throw Object.assign(new Error("reply_language_policy_prompt_budget_exceeded"), { code: "reply_language_policy_prompt_budget_exceeded" });
   }
   return { core, tail, system: core + tail, sections,
     ...(publicKnowledge ? { publicKnowledge } : {}) };

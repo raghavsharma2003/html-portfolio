@@ -18,7 +18,9 @@
 //      REJECTED episode is rejected too — strict, no salvage.
 //   3. citation enforcement layer 3 — a 5% SAMPLED ENTAILMENT AUDIT, second-
 //      family judge (extraction runs on the Azure/xAI family; the audit
-//      runs on Google via OpenRouter — a different family, per SPEC §0.3).
+//      uses an explicitly configured Azure deployment in strict mode; legacy
+//      mode requests Google via OpenRouter. Family independence still needs
+//      deployment evidence; a configured model name alone does not prove it).
 //      Refutation >2% (n>=5) HALTS the run — the GH Actions job goes red,
 //      which is this repo's existing "page the owner" convention
 //      (.github/workflows/culture.yml's own comment: "still worth a red
@@ -57,6 +59,7 @@
 // active agent before selection or rank. vy_person_device remains
 // person-intrinsic; it resolves the human and never chooses the relationship.
 import { q } from "./_db.js";
+import { isAzureOnlyServing, assertAzureServingOrigin } from "./_model-serving-policy.js";
 import { embedBatch, toHalfvecLiteral } from "./_embed.js";
 import { AZURE_ENDPOINT, AZURE_KEY, OPENROUTER_KEY } from "./_config.js";
 import { agentScopePredicate, agentValue, MEERA_AGENT_ID } from "./_agentscope.js";
@@ -174,7 +177,51 @@ export function costDelta(before, after = costSnapshot()) {
   return out;
 }
 
-async function llm(messages, maxTokens, { model = null } = {}) {
+function strictConsolidationConfig(env = process.env) {
+  const endpoint = env.AZURE_ENDPOINT || (env === process.env ? AZURE_ENDPOINT : "");
+  const key = env.AZURE_API_KEY || (env === process.env ? AZURE_KEY : "");
+  if (!endpoint || !key) throw Object.assign(new Error("consolidate_azure_unconfigured"), { code: "consolidate_azure_unconfigured", status: 503 });
+  const url = `${endpoint}/chat/completions`;
+  assertAzureServingOrigin(url, env);
+  return { url, key };
+}
+
+function strictAuditModel(env = process.env) {
+  const model = env.AZURE_AUDIT_MODEL;
+  // An explicit deployment is required. A different identifier alone does
+  // not establish model-family independence; that remains deployment evidence.
+  if (typeof model !== "string" || !model.trim() || model.trim() === EXTRACT_MODEL_AZURE) {
+    throw Object.assign(new Error("consolidate_azure_audit_model_unconfigured"), { code: "consolidate_azure_audit_model_unconfigured", status: 503 });
+  }
+  return model;
+}
+
+export async function llm(messages, maxTokens, { model = null, env = process.env, fetchImpl = globalThis.fetch } = {}) {
+  if (isAzureOnlyServing(env)) {
+    const { url, key } = strictConsolidationConfig(env);
+    cost.azure_attempts++;
+    try {
+      const response = await fetchImpl(url, {
+        method: "POST", redirect: "error",
+        headers: { "api-key": key, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: model || EXTRACT_MODEL_AZURE, max_tokens: maxTokens, messages }),
+        signal: AbortSignal.timeout(45_000),
+      });
+      if (!response.ok) throw Object.assign(new Error("consolidate_azure_http_failed"), { code: "consolidate_azure_http_failed", status: 502 });
+      const data = await response.json();
+      cost.azure_tokens_in += Number(data?.usage?.prompt_tokens) || 0;
+      cost.azure_tokens_out += Number(data?.usage?.completion_tokens) || 0;
+      const choice = data?.choices?.[0];
+      if (choice?.finish_reason !== "stop" || typeof choice?.message?.content !== "string" || !choice.message.content.trim()) {
+        throw Object.assign(new Error("consolidate_azure_response_incomplete"), { code: "consolidate_azure_response_incomplete", status: 502 });
+      }
+      cost.azure_calls++;
+      return choice.message.content;
+    } catch (error) {
+      if (/^consolidate_azure_/.test(String(error?.code || ""))) throw error;
+      throw Object.assign(new Error("consolidate_azure_transport_failed"), { code: "consolidate_azure_transport_failed", status: 502 });
+    }
+  }
   if (AZ_ENDPOINT && AZ_KEY) {
     cost.azure_attempts++;
     try {
@@ -612,15 +659,21 @@ export function acceptKinProposals(parsed, batch, episodeIdByIdx, rxs = [], span
   return { kin, rituals, rejected };
 }
 
-async function auditJudge(factBody, episodeSummaries, sourceLines) {
+export async function auditJudge(factBody, episodeSummaries, sourceLines, options = {}) {
   const prompt = `A memory system derived this fact from a conversation. Judge ONLY whether the fact is ENTAILED by the source text — supported, not merely plausible. Reply with ONLY one word: YES, NO, or ABSTAIN (if the source is genuinely ambiguous).
 
 FACT: ${factBody}
 EPISODE SUMMARY: ${episodeSummaries.join(" / ")}
 SOURCE LINES:
 ${sourceLines.join("\n")}`;
-  const r = await llm([{ role: "user", content: prompt }], 8, { model: AUDIT_MODEL });
+  const strict = isAzureOnlyServing(options.env || process.env);
+  const r = await llm([{ role: "user", content: prompt }], 8, {
+    ...options, model: strict ? strictAuditModel(options.env || process.env) : AUDIT_MODEL,
+  });
   const verdict = String(r || "").trim().toUpperCase();
+  if (strict && !["YES", "NO", "ABSTAIN"].includes(verdict)) {
+    throw Object.assign(new Error("consolidate_azure_audit_response_invalid"), { code: "consolidate_azure_audit_response_invalid", status: 502 });
+  }
   if (verdict.startsWith("YES")) return "entailed";
   if (verdict.startsWith("NO")) return "refuted";
   return "abstain";
@@ -651,7 +704,12 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
   const raw = await llm([{ role: "user", content: extractionPrompt(rendered, batch.length - 1) }], 2200);
   if (!raw) return rep; // a failed derivation is a late pass, never a lost one — retried next run
   const parsed = parseJsonLoose(raw);
-  if (!parsed) return rep;
+  if (!parsed) {
+    if (isAzureOnlyServing()) {
+      throw Object.assign(new Error("consolidate_azure_extraction_invalid"), { code: "consolidate_azure_extraction_invalid", status: 502 });
+    }
+    return rep;
+  }
 
   const rxs = await suppressionRegexes(person, agentId);
   const proposedEpisodes = Array.isArray(parsed.episodes) ? parsed.episodes : [];
@@ -1034,7 +1092,7 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
       await q(
         `insert into vy_derivation (agent_id, person_id, model, prompt_hash, input_from, input_to, wrote, audit_status)
          values (${agentValue("$7")},$1,$2,'audit',$3,$4,$5::jsonb,$6)`,
-        [person, AUDIT_MODEL, inputFrom, inputTo, JSON.stringify([{ table: "vy_fact", id: item.factId }]), verdict, agentId],
+        [person, isAzureOnlyServing() ? strictAuditModel() : AUDIT_MODEL, inputFrom, inputTo, JSON.stringify([{ table: "vy_fact", id: item.factId }]), verdict, agentId],
       ).catch(() => {});
     }
   }
@@ -2773,6 +2831,12 @@ export async function runLifeTold({ limit = DEFAULT_PERSON_LIMIT, dryRun = false
 }
 
 export async function runConsolidation({ limit = DEFAULT_PERSON_LIMIT, dryRun = false, onlyPerson = null, agentId = MEERA_AGENT_ID } = {}) {
+  if (isAzureOnlyServing()) {
+    // Before backfill or any other write: a missing audit deployment cannot
+    // masquerade as an abstention after new facts have already been stored.
+    strictConsolidationConfig();
+    strictAuditModel();
+  }
   const t0 = Date.now();
   const weBackfilled = await backfillWeParticipation({ dryRun, onlyPerson, agentId });
   const persons = onlyPerson ? [onlyPerson] : await findEligiblePersons(limit, agentId);
@@ -2946,6 +3010,9 @@ export default async function handler(req, res) {
     });
     return res.status(out.halted ? 500 : 200).json(out);
   } catch (e) {
+    if (isAzureOnlyServing() && /^consolidate_azure_|^model_serving_/.test(String(e?.code || ""))) {
+      return res.status(e.status || 502).json({ error: e.code });
+    }
     return res.status(500).json({ error: "consolidate failure", message: e?.message });
   }
 }

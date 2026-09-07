@@ -91,7 +91,7 @@ export { CRISIS_LINES, type UserProfile } from "./persona";
 // These are exported as the gate's PUBLIC contract — the same functions
 // brain.ts's own `gate()` calls, in the same order — so a surface inherits
 // every future family with zero per-surface code.
-export { parseBubbles, stripTextingDashes, type ParsedReply } from "./brain";
+export { parseBubbles, parseExpertAnswer, stripTextingDashes, type ParsedReply } from "./brain";
 export {
   guardReply,
   openCommitments,

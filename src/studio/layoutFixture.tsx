@@ -177,6 +177,13 @@ const VOICE_DRAFT_REVIEW = {
   },
 };
 
+const PHRASE_ITEM = {
+  item_id: "22222222-2222-4222-8222-222222222222", kind: "file", format: "txt",
+  source_name: "My lesson notes.txt", source_url: "", byte_size: 640, extracted_chars: 430,
+  extractor: "text", status: "mined", refusal_reason: "", routed_to: "", mine_skip_reason: "",
+  authorship: "mine", owner_speaker: "", consent_scope: "private_context", proposal: "present",
+  created_at: "2026-09-07T00:00:00Z", updated_at: "2026-09-07T00:00:00Z",
+};
 const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
   // Nothing uploaded yet. The base table already is this scenario; listed
   // for symmetry so `?scenario=empty` and no param at all are the same page.
@@ -184,6 +191,10 @@ const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
 
   "public-capture": {
     "/api/replica-consent": { consents: FIXTURE_CONSENTS.slice(0, 3) },
+  },
+  "knowledge-phrases": {
+    "/api/replica-consent": { consents: FIXTURE_CONSENTS.slice(0, 3) },
+    "/api/context-items": { ...(ROUTES["/api/context-items"] as object), items: [PHRASE_ITEM] },
   },
 
   // The two states a static empty fixture cannot reach. Both mount the real
@@ -336,6 +347,7 @@ function installStubFetch() {
     ? [...(routes["/api/replica-consent"] as { consents: ConsentReceipt[] }).consents]
     : [];
   let sourceSequence = 0;
+  let phraseRemoved = false;
   const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
     status, headers: { "content-type": "application/json" },
   });
@@ -343,6 +355,30 @@ function installStubFetch() {
     const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const requestUrl = new URL(raw, window.location.origin);
     const path = requestUrl.pathname;
+    if (scenarioName === "knowledge-phrases" && path === "/api/context-items") {
+      const method = init?.method || "GET";
+      if (method === "DELETE") { phraseRemoved = true; return reply({ removed: true }); }
+      if (method === "POST") return reply({ results: [
+        { item: PHRASE_ITEM, proposal: { ok: true, proposed: 2 } },
+        { item: null, source_name: "Unreadable.pdf", error: "pdf_no_text_layer" },
+      ] });
+      return reply({ ...(ROUTES[path] as object), items: phraseRemoved ? [] : [PHRASE_ITEM] });
+    }
+    if (scenarioName === "knowledge-phrases" && path === "/api/teacher-sheet" && requestUrl.searchParams.get("op") === "ingest_review") {
+      if (phraseRemoved || params.get("phrases") === "unavailable") return reply({ error: "context_proposal_not_available" }, 404);
+      if (params.get("phrases") === "delayed") {
+        await new Promise(resolve => window.setTimeout(resolve, 800));
+        document.body.dataset.phraseReadCompleted = "true";
+      }
+      return reply({ replica_id: FIXTURE_REPLICA.replica_id, item_id: PHRASE_ITEM.item_id, source_name: PHRASE_ITEM.source_name,
+        proposal: { run_id: "33333333-3333-4333-8333-333333333333", state: params.get("phrases") === "historical" ? "historical_unconfirmed" : "pending",
+          candidates: [
+            { candidate_id: "fixture:0", field: "boardVerbalisms", fragment: "चलो समझते हैं", occurrences: 6,
+              citations: [{ excerpt: "चलो समझते हैं। Start with what the question gives you, then check the units.", clipped: false }] },
+            { candidate_id: "fixture:1", field: "exSlangRepeat", fragment: "<script>alert(1)</script>", occurrences: 5,
+              citations: [{ excerpt: "A literal text example: <script>alert(1)</script>", clipped: false }] },
+          ] } });
+    }
     if (path === "/api/replica-consent") {
       let payload: Record<string, unknown> = {};
       try {

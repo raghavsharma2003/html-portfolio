@@ -540,6 +540,21 @@ export function stripTextingDashes(text: string): string {
 }
 
 export function parseBubbles(raw: string): ParsedReply {
+  return parseTextReply(raw, false);
+}
+
+// Room's explicit expert text lane retains all parsed segments. Formatting
+// cleanup and protocol extraction remain the same as companion parsing.
+export function parseExpertAnswer(raw: string): ParsedReply {
+  if (raw.length > 4000) {
+    throw Object.assign(new Error("expert_answer_text_too_long"), {
+      code: "expert_answer_text_too_long", status: 502,
+    });
+  }
+  return parseTextReply(raw, true);
+}
+
+function parseTextReply(raw: string, expertAnswer: boolean): ParsedReply {
   const out: ParsedReply = { bubbles: [] };
   // ── protocol extraction, GLOBAL and lenient: markers are honored wherever
   // they appear (own line, inline, sloppy spacing, dropped closing bracket) —
@@ -693,8 +708,9 @@ export function parseBubbles(raw: string): ParsedReply {
     .replace(/\[\s*(?:voice note|they sent a photo|replying to|a voice call starts|the call ended)[^\]]*\]?/gi, "")
     .replace(/\[\d{1,2}:\d{2}\s*(?:am|pm)?\]/gi, "");
 
-  // models separate thoughts with "---" or plain newlines — both are bubbles
-  for (const part of raw.split(/\n?---\n?|\n+/)) {
+  // Consume the whole separator run: matching only three of four hyphens
+  // leaves a bare "-" bubble that wastes one of the existing four slots.
+  for (const part of raw.split(/\n?-{3,}\n?|\n+/)) {
     let p = part.trim();
     if (!p) continue;
     // the photo's own slot: record how many bubbles preceded it and drop it,
@@ -750,7 +766,7 @@ export function parseBubbles(raw: string): ParsedReply {
     if (!p) continue;
     out.bubbles.push(...splitLong(p.replace(/^["']|["']$/g, "")));
   }
-  out.bubbles = out.bubbles.slice(0, 4);
+  if (!expertAnswer) out.bubbles = out.bubbles.slice(0, 4);
   if (searchBroken && !out.search) out.searchBroken = true;
   // leaks can hide inside media payloads too (a spoken voicenote, a caption)
   if (out.voice && META_LEAK.test(out.voice.text)) out.voice = undefined;

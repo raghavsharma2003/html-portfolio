@@ -456,8 +456,47 @@ export function hasGate(engine) {
  * event is that the string it caught must not travel; logging it here would
  * put it in a log aggregator instead of a chat window, which is not better.
  */
-export function gateReply(engine, raw, honestyCtx, label = "surface", neverRules = []) {
+// Explicit server selection only; never infer an answer profile from a request,
+// source text or persona. Keeping this pure adds no Room import capability.
+export function roomReplyTextProfile(env = process.env) {
+  const value = env.ROOM_REPLY_TEXT_PROFILE;
+  if (value === undefined) return undefined;
+  if (value !== "expert_answer") {
+    throw Object.assign(new Error("room_reply_text_profile_invalid"), {
+      code: "room_reply_text_profile_invalid", status: 503,
+    });
+  }
+  return value;
+}
+
+function assertReplyTextProfile(engine, profile) {
+  if (profile === undefined) return;
+  if (profile !== "expert_answer") {
+    throw Object.assign(new Error("reply_text_profile_invalid"), {
+      code: "reply_text_profile_invalid", status: 503,
+    });
+  }
+  if (typeof engine?.parseExpertAnswer !== "function") {
+    throw Object.assign(new Error("expert_answer_parser_unavailable"), {
+      code: "expert_answer_parser_unavailable", status: 503,
+    });
+  }
+}
+
+function assertExpertAnswerLength(text, profile) {
+  // String units match Room's transcript and roomSpeak bounds. Reject whole
+  // answers instead of delivering a prefix with a misleading source receipt.
+  if (profile === "expert_answer" && text.length > 4000) {
+    throw Object.assign(new Error("expert_answer_text_too_long"), {
+      code: "expert_answer_text_too_long", status: 502,
+    });
+  }
+}
+
+export function gateReply(engine, raw, honestyCtx, label = "surface", neverRules = [], textProfile = undefined) {
+  assertReplyTextProfile(engine, textProfile);
   const text = String(raw ?? "");
+  assertExpertAnswerLength(text, textProfile);
   if (!text) return { text: "", findings: [], gated: true };
   if (!hasGate(engine)) {
     console.error(
@@ -471,7 +510,7 @@ export function gateReply(engine, raw, honestyCtx, label = "surface", neverRules
   // then the texting-dash predicate — text lane only, and every surface lane
   // is a text lane; the live voice lane does not come through this file — then
   // the honesty gate over the bubbles.
-  const parsed = engine.parseBubbles(text);
+  const parsed = textProfile === "expert_answer" ? engine.parseExpertAnswer(text) : engine.parseBubbles(text);
   parsed.bubbles = (parsed.bubbles || []).map((b) => engine.stripTextingDashes(b)).filter(Boolean);
   const { reply, findings } = engine.guardReply(parsed, honestyCtx);
   if (findings.length) {
@@ -487,6 +526,7 @@ export function gateReply(engine, raw, honestyCtx, label = "surface", neverRules
   // many messages a wire wants. Newline-joined, so her burst structure
   // survives into whatever the adapter makes of it.
   const joined = (reply.bubbles || []).join("\n").trim();
+  assertExpertAnswerLength(joined, textProfile);
   // ── WS-R4. THE OWNER'S "Never say this", AS A PREDICATE ON THE OUTPUT ────
   //
   // Last, and here rather than anywhere else, for the reason
@@ -524,6 +564,8 @@ export function gateReply(engine, raw, honestyCtx, label = "surface", neverRules
  * of a rule someone has to remember on the day they add the fifth surface.
  */
 export async function gatedReply(ctx, compiled, turns, opts = {}) {
+  // Validate before ctx.reply: old bundles must not silently apply the chat cap.
+  assertReplyTextProfile(ctx.engine, opts.textProfile);
   const label = opts.label || ctx.adapter?.surface || "surface";
   // WS-R4. Compiled never-rules ride in on `opts` rather than being loaded
   // here, because this file has no database and must keep none: a lane that
@@ -537,8 +579,8 @@ export async function gatedReply(ctx, compiled, turns, opts = {}) {
   // building the context first turns a refusal into a TypeError thrown out of
   // the middle of a lane — after the user's turn is logged and before hers is.
   // `evals/surface.mjs` drives exactly this, which is how the order was found.
-  if (!hasGate(ctx.engine)) return gateReply(ctx.engine, raw, { trustedText: [], openItems: [] }, label, neverRules);
-  return gateReply(ctx.engine, raw, honestyContextFor(ctx.engine, compiled, turns, opts), label, neverRules);
+  if (!hasGate(ctx.engine)) return gateReply(ctx.engine, raw, { trustedText: [], openItems: [] }, label, neverRules, opts.textProfile);
+  return gateReply(ctx.engine, raw, honestyContextFor(ctx.engine, compiled, turns, opts), label, neverRules, opts.textProfile);
 }
 
 // ─────────────────────────────────────────────────────────────────────────

@@ -16293,3 +16293,83 @@ On 2026-09-07 root independently passed 19 reader groups, 29 compiler checks plu
 ## `public-qa-ui-lifecycle-regression-20260907` (2026-09-07)
 
 Root independently passed8 actual RoomApp callback groups with deferred history, digest and catalog responses; source mutants demonstrate stale-write and session-reload failures when guards are removed. Agent forced TypeScript passed after the UI correction. These callback fixtures do not prove a full signed-in browser journey. Root separately observed the local Studio sign-in DOM with zero browser console errors; initial navigation timed out before that successful inspection. No authentication or model call occurred in that browser check.
+
+
+## `release-thirteen-completed-with-taste-contract-failure-20260907` (2026-09-07)
+
+Frozen13255708 completed release13 exit1 on2026-09-07. Exactly23 of24 software checks passed; only eval suite failed, specifically room-taste31passed1failed because compile input fields differ after adding publicKnowledge to roomSay. Layout257132ms, performance111772ms and accessibility68746ms passed. All9performance targets x3runs passed unchanged budgets/profile: Studio LCP2128ms,TBT91ms; HindiStudio2228ms,TBT101ms. Real relational gates skipped in this runner; earlier dev13SQL and34relcheck remain separate. No implementation edits overlapped. Log scratchpad/expert-integrated-release-13.log.
+
+
+## `taste-empty-public-knowledge-39-checks-20260907` (2026-09-07)
+
+After frozen release13 failed room-taste, agent added explicit empty publicKnowledge and source/actual-compiler regressions. Root independently ran registered room-taste:39passed0failed. Nonempty public-Q&A fixture causes no taste retrieval, no source sentinel or metadata, and unchanged compiled bytes; compiler field equality remains checked. Existing island minifier emitted npx ENOENT and used its unchanged5722byte raw fallback; no new minified-size claim. This focused correction does not turn the historical release13 into a pass. Log scratchpad/room-taste-contract-root.log.
+
+
+## `public-knowledge-six-real-azure-answers-20260907` (2026-09-07)
+
+On2026-09-07 root ran six synthetic cases through actual Room/compiler/gatedReply/think with injected Room DB/persona/memory and real Azure gpt-4.1-mini plus isolated-development provider ledger. All six delivered, source commitments matched, memory callbacks stayed0, and six receipts settled with0reserved. Ledger estimate32496microUSD at configured input0.40/output1.60per million tokens, not invoice verification. Latencies4487/3409/4247/2591/2505/2118ms include local orchestration and ledger. Root qualitative review:3supported answers preserved requested18+7sequence/worksheet roles;3unsupported answers invented no refund amount/date. ENunsupported mixedHinglish; HIunsupported usedRomanHindi despiteDevanagari input. n1per condition, no blinded/statistical/competitor/voice claim. Raw/delivered texts retained in research/PUBLIC-KNOWLEDGE-LIVE-SMOKE-20260907.json.
+
+
+## `paired-language-policy-real-azure-failed-quality-20260907` (2026-09-07)
+
+Root ran one baseline and one policy output for each of six new frozen synthetic cases on2026-09-07, same corpus and source hashes. All12delivered and settled; estimates32706+33115=65821microUSD at configured rates, not invoice verification. Baseline implicitEnglish answeredHinglish; baselineHindi unsupported invented an application deadline tied to23minute lesson timing. Policy implicitEnglish/Hindi failedlanguage, PINE-63 becamepne-63 in raw model output, unsupportedHindi invented reimbursement rules, and supportedHinglish lost BIRCH-28 during delivery shortening. Zero gate findings on some incorrect answers demonstrates gates do not certify usefulness/truth. Raw texts retained in research/EXPERT-LANGUAGE-COMPARISON-20260907.json. n1per arm/case, fixedarmorder, no statistical or competitor claim.
+
+
+## `private-draft-real-development-twenty-checks-20260907` (2026-09-07)
+
+On2026-09-07T07:52:41.324Z root completed20 actual isolated-development SQL groups. Migration139 applied twice in successful run (16DDL); preexisting and final TeacherSheet counts0. Four exact exported runtime SQL statements EXPLAINed. Eight concurrent first saves converged to one private draft; unbound reads/saves, composite ownership, lifecycle refusal, real agent uniqueness, legacy adoption, distinct-agent isolation and erasure cascade passed. Four separate before-publication mutations to sheet/status/consent/version returned0 without demoting prior synthetic publication. All generated fixtures removed. Synthetic consent markers exercise negative SQL only, not human authorization. Root relcheck34 passed after139;94owner-lane tables,73cascade/21named deletion. No production migration or voice acceptance.
+
+
+## `private-context-review-ui-and-real-sql-20260907` (2026-09-07)
+
+Root independently passed19 registered helper checks and9 actual isolated-development SQL groups at2026-09-07T07:38:41.872Z. Exact exported query EXPLAIN and actual removeContextItem scrub/read-refusal passed;0fixture rows. Agent passed26 final phone/desktop browser checks,93ContextLocker,20CloneQA,TypeScript/copy/Impeccable. Root inspected retained phone screenshot. Preview is read-only and current-run/owner/citation scoped; historical applied status is unconfirmed. No approval, owner draft merge or complete signed-in journey is implied.
+
+
+## `separator-runs-recover-one-retained-answer-20260907` (2026-09-07)
+
+Root passed8 registered parse-separator-runs checks using actual generated engine and an old-regex mutant. Four-plus hyphens no longer produce phantom single-dash bubbles, recovering BIRCH-28 in retained policy output. The four-bubble limit remains and still drops the baseline label; recovered raw content may still include unsupported claims. Agent parse38/surface84/honesty613/burst49 passed. No new model call or grounding improvement claimed.
+
+
+## `hydration-resume-callback-fix-20260907` (2026-09-07)
+
+Agent actual AST callback/initializer tests passed15groups with original-code negative control, plus20CloneQA andTypeScript. Initial null-to-first replica now preserves enrich/evolve/call/share URL destination; deliberate switch/clear resetsvoice. No new browser round or full authentication run.
+
+
+## `voice-frontier-primary-research-pdf-20260907` (2026-09-07)
+
+On2026-09-07 worker reviewed8primary voice sources with5queries; root used2discovery queries and targeted source reads for Azure and critical model claims. Qwen language list excludesHindi; root verified FishTable2Hindi ranking disagreement and automated naturalness method. Two-page Vyakti-quality-frontier.pdf generated50911bytes,10link annotations, allpages structurally and visually inspected after removing orphan third page. Canonical source and claim ledger live under docs/gurukul/research/voice-frontier-20260907. No newvoice, deployment, commercialprice, ownerlikeness or PMFacceptance.
+
+
+## `expert-answer-profile-eighteen-checks-20260907` (2026-09-07)
+
+On2026-09-07 root independently ran registered room-expert-answer:18checks passed against actual generatedengine and Room seam. Cases include retained outputs, fifth-segment honesty/never rules, raw/post-gate4000/4001boundaries, default/client-config exclusion, staleengine beforeprovider refusal, complete accepted transcript/sourcehash, consented assistantmemory and no partialdelivery on refusal. Agent also passed329leak,613honesty,84surface,38parse,8separator,13language,11knowledgeintegration,forcedTypeScript andenginefreshness. Engine337040bytes SHA2565844ae8ceb13feb6150628ee2b5183bd51e2452e2d5864450b236c2220d7a7b3. No model or SQL call and config remains unset.
+
+
+## `remaining-azure-serving-dispatch-audit-20260907` (2026-09-07)
+
+On2026-09-07 agent traced actual StudioListen→replica-speech→storedvoiceprovider, processingworker→composeProcessingAdapters→Sarvamfallback, and genericmemory extraction/consolidation/photo→OpenRouter. VYAKTI_MODEL_SERVING=azure_only alone did not fence these leaves; local5177fetchguard can contain them but is not worker/deployed enforcement. This is source inspection, not observed egress. Normal Room DEFAULT_MEMORY remains SQL callbacks, so not every Room turn uses generic extraction. Bounded closures are now assigned; no cloud changes.
+
+
+## `azure-only-voice-worker-thirty-two-checks-20260907` (2026-09-07)
+
+On2026-09-07 root independently ran32 registered azure-only-voice-processing checks. ActualstoredElevenLabs factory and synthesis refuse beforecredential/budget/network;204/404historicalerasure remainsavailable. Strictworker neverconstructsSarvam, validatesAzureorigin, rejectsredirects, preservesnamedmissing/partial/failure states. Agent incumbentvoice45,worker45,sweep44 andallreplica-processing passed. No cloudrequest or configactivation; deployedworkersstillrequireupdatedimage.
+
+
+## `azure-memory-serving-fifteen-checks-20260907` (2026-09-07)
+
+Root independently ran15 registered azure-memory-serving groups on2026-09-07. Extraction/photo/consolidation/audit/forget routeAzureonly withorigin/redirectguards; foreignfallback requests0; missing/incomplete/failure states remain named errors. ActualHTTP handlers and preflightnowrites assertions pass withinjectedtransport. Agent consolidation144,gamemem149,forget48,existingAzure20 passed. Separatephoto integration stoppedneon_url_missing; no realDB/model result. AZURE_PHOTO_MODEL andAZURE_AUDIT_MODEL remainunconfigured bythisphase; identifier alonedoesnotprovevision orsecond-family audit independence.
+
+
+## `context-removal-real-overlap-sixteen-checks-20260907` (2026-09-07)
+
+At2026-09-07T08:16:59.079Z root completed16 actual development PostgreSQL groups using Neon WebSocket interactive sessions. Four overlap cases require observed pg_blocking_pids relation before producer COMMIT: actual and UPDATE-only mutant, each canonical-source and source-less. Actual removal scrubbed quotation; mutant retained it after item deletion. Also actual/removal-mutantEXPLAIN,emptytombstone/retry,sixrunstate receipts, ownerFK/API refusal and transcript/watchcollision no-destruction passed. All sessions drained and exactfixturecount0. Firstrun stopped only because strict timestamp equality compared separate JSDateobjects; deep equality correctedharness, noSQLchange. No productiondata, provider orstorageoperation.
+
+
+## `context-review-sql-recheck-after-tombstone-20260907` (2026-09-07)
+
+Root repeated9actualprivateproposalreview SQL groups at2026-09-07T08:17:05.885Z afterdirectremoval changed. ActualqueryEXPLAIN, exactowner/run/canonicalchecks and actualremoveContextItem scrub/readrefusal passed;0fixture rows. Root focusedproposal-erasure9checks passed; agentContextLocker93 andsource-erasure59passed. These proveboundeddevelopmentbehavior, not completecreator-to-client acceptance.
+
+
+## `canonical-source-proposals-eleven-sql-checks-20260907` (2026-09-07)
+
+At2026-09-07T08:18:32.834Z root repeated11actualdevelopmentSQLgroups on finalsource/removalcode: exactcompletion/producerEXPLAIN,ready-sourceidempotence,sixstates scrub+receipt/wronglease/retry,pausedproducer aftercanonical/directremoval refusal andunrelatedownercontrol.0fixture rows. Interactive16group overlap proof is separate. No objectstorage/provider execution; synthetic manifests only.

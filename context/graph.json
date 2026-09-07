@@ -12915,6 +12915,240 @@
       "kind": "measurement",
       "title": "Source-detail lifecycle passes eight callback regression groups",
       "at": "2026-09-07"
+    },
+    {
+      "id": "release-thirteen-completed-with-taste-contract-failure-20260907",
+      "kind": "measurement",
+      "title": "Frozen release13 passes23 of24 checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "taste-preserves-explicit-empty-public-knowledge-20260907",
+      "kind": "decision",
+      "title": "Keep short preview knowledge scope explicit",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "room-only-compile-change-missed-taste-contract-20260907",
+      "kind": "rejection",
+      "title": "Room focused checks missed adjacent preview contract",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "live-answer-probe-declares-injected-publication-boundary-20260907",
+      "kind": "decision",
+      "title": "Measure model answers without fabricating publication consent",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "taste-empty-public-knowledge-39-checks-20260907",
+      "kind": "measurement",
+      "title": "Explicit taste knowledge scope passes39 focused checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "public-knowledge-six-real-azure-answers-20260907",
+      "kind": "measurement",
+      "title": "Six real Azure replies expose language-control gap",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "successful-source-contract-is-not-language-quality-20260907",
+      "kind": "rejection",
+      "title": "Live replies pass contracts but fail language consistency",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "knowledge-first-review-must-persist-real-draft-20260907",
+      "kind": "decision",
+      "title": "Close the actual context proposal approval handoff",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "paired-language-policy-real-azure-failed-quality-20260907",
+      "kind": "measurement",
+      "title": "Twelve paired Azure answers fail expert acceptance",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "do-not-enable-unaccepted-language-policy-20260907",
+      "kind": "decision",
+      "title": "Keep language opt-in disabled after failed live comparison",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "append-language-policy-does-not-repair-expert-reply-20260907",
+      "kind": "rejection",
+      "title": "Additional language instructions did not fix live answers",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-teacher-draft-precedes-voice-activation-20260907",
+      "kind": "decision",
+      "title": "Allow explicit owner draft work without a runtime agent",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-draft-real-development-twenty-checks-20260907",
+      "kind": "measurement",
+      "title": "Private draft and publication snapshot pass real SQL",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-context-review-ui-and-real-sql-20260907",
+      "kind": "measurement",
+      "title": "Private phrase preview passes UI and real SQL",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "review-preview-does-not-pretend-approval-20260907",
+      "kind": "decision",
+      "title": "Expose source phrases before voice without false applied state",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publish-exact-validated-snapshot-20260907",
+      "kind": "decision",
+      "title": "Publication compares the validated snapshot under SQL lock",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-draft-live-harness-assumed-shared-agent-20260907",
+      "kind": "rejection",
+      "title": "Fixture agent assumption failed on real uniqueness constraint",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "separator-runs-recover-one-retained-answer-20260907",
+      "kind": "measurement",
+      "title": "Separator parser regression passes eight actual runtime checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "presentation-segments-can-discard-expert-answer-20260907",
+      "kind": "rejection",
+      "title": "Chat bubble cap discarded answer content before safety inspection",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "hydration-resume-callback-fix-20260907",
+      "kind": "measurement",
+      "title": "Initial replica hydration preserves requested room",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-delivery-optin-before-broad-change-20260907",
+      "kind": "decision",
+      "title": "Bound complete expert segments without changing companion defaults",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "voice-frontier-primary-research-pdf-20260907",
+      "kind": "measurement",
+      "title": "Primary-source voice and Azure decision brief verified",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "voice-quality-independent-axes-20260907",
+      "kind": "decision",
+      "title": "Evaluate recognizable voice and intelligibility separately",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "vendor-ranking-is-not-owner-hinglish-acceptance-20260907",
+      "kind": "rejection",
+      "title": "Published voice rankings do not settle Vyakti quality",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-answer-profile-eighteen-checks-20260907",
+      "kind": "measurement",
+      "title": "Opt-in expert delivery preserves late answer segments",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "preserving-late-answer-can-preserve-error-20260907",
+      "kind": "rejection",
+      "title": "Delivery completeness is not grounded factual correctness",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "keep-expert-profile-disabled-until-route-acceptance-20260907",
+      "kind": "decision",
+      "title": "Ship experimental contract without silently activating it",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "remaining-azure-serving-dispatch-audit-20260907",
+      "kind": "measurement",
+      "title": "Three strict-mode dispatch gaps confirmed in source",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "strict-azure-leaf-enforcement-20260907",
+      "kind": "decision",
+      "title": "Enforce Azure-only at remaining model dispatch leaves",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "local-fetch-guard-is-not-deployed-provider-policy-20260907",
+      "kind": "rejection",
+      "title": "Local proxy containment cannot establish portable Azure-only behavior",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "azure-only-voice-worker-thirty-two-checks-20260907",
+      "kind": "measurement",
+      "title": "Voice and worker strict-serving boundaries verified offline",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "azure-memory-serving-fifteen-checks-20260907",
+      "kind": "measurement",
+      "title": "Generic memory strict-serving failures remain honest",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "provider-absence-cannot-masquerade-as-memory-success-20260907",
+      "kind": "rejection",
+      "title": "Failed providers must not become valid empty memories or abstentions",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "context-removal-real-overlap-sixteen-checks-20260907",
+      "kind": "measurement",
+      "title": "Real overlapping transactions prove proposal scrub",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "context-removal-tombstone-closes-snapshot-gap-20260907",
+      "kind": "decision",
+      "title": "Use scoped UPSERT for deletion under concurrent creation",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "deferred-producer-test-missed-overlapping-snapshot-20260907",
+      "kind": "rejection",
+      "title": "Sequential removal proof did not prove simultaneous behavior",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "context-review-sql-recheck-after-tombstone-20260907",
+      "kind": "measurement",
+      "title": "Review source removal remains correct after concurrency repair",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "freeze-fourteen-after-owned-review-20260907",
+      "kind": "decision",
+      "title": "Freeze one integrated checkpoint for release14",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "canonical-source-proposals-eleven-sql-checks-20260907",
+      "kind": "measurement",
+      "title": "Canonical source proposal cleanup passes final SQL rerun",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

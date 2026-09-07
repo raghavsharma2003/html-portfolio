@@ -22698,3 +22698,68 @@ Connect the existing up-to-five public showcase answers to roomSay as separate e
 ## `public-qa-delivery-revalidates-publication-20260907` (2026-09-07)
 
 Ordinary Room replies receive up to five explicitly published Q&As through a separate bounded compiler data block. Read by Room, owner, replica and agent, then revalidate before provider dispatch and successful delivery. Immediate reply metadata says provided_to_model, never exact citation; the UI checks the full reply SHA-256. Historical fallback shows the current public catalog only. Private locker titles are no longer returned as citations. Reversal condition: measured source coverage requires a broader explicitly approved corpus, or a versioned transactional publication protocol offers stronger revocation bounds. This does not revoke information already transmitted to a model.
+
+
+## `taste-preserves-explicit-empty-public-knowledge-20260907` (2026-09-07)
+
+Add publicKnowledge:[] to the taste compiler input while preserving its existing no-retrieval scope and the input-field parity assertion. Prove the empty input produces no public-source metadata and never reads public Q&A, even when a fixture contains published answers. Reversal condition: a deliberate preview product decision adds the same public knowledge with measured latency and source-isolation checks.
+
+
+## `live-answer-probe-declares-injected-publication-boundary-20260907` (2026-09-07)
+
+Prepare six synthetic EN/HI/Hinglish answers through actual roomSay/compiler/gatedReply/think with fixture persona, Room SQL and memory, but real Azure transport and isolated-development spend ledger. This explicitly limited experiment excludes real Room SQL, HTTP auth and default publication-loader acceptance; those results must not be called end-to-end. Do not fabricate a consent artifact to unblock a synthetic teacher. Reversal condition: legitimate default publication is established and a full integrated trial can replace the injected boundaries. No model call has run for this phase yet.
+
+
+## `knowledge-first-review-must-persist-real-draft-20260907` (2026-09-07)
+
+First-run ContextLocker promises Review for mined vy_ingest_run proposals, while visible Review mounts another store and list/apply functions lack runtime callers. applyIngestRunDelta only marks a receipt; it does not update the teacher draft. Audit an owner-scoped human review and atomic draft/receipt operation before adding navigation. Reversal condition: source audit identifies an existing complete runtime consumer or a product decision deliberately keeps this material archival and changes all readiness claims. No auto-approval or fake applied result.
+
+
+## `do-not-enable-unaccepted-language-policy-20260907` (2026-09-07)
+
+ROOM_REPLY_LANGUAGE_POLICY remains unset in normal development and all deployments. The helper and optional compiler path are experiments only. Do not promote this policy based on structural tests or the initial6case factual smoke. Next diagnose expert prompt selection, grounded uncertainty and answer truncation together. Reversal condition: independent heldout cases and human review establish factual completeness, uncertainty and language/script fit without degraded boundaries.
+
+
+## `private-teacher-draft-precedes-voice-activation-20260907` (2026-09-07)
+
+Fresh createSelfReplica sets noagent; agent binding happens only at voice-gated runtime activation. Add replica-owned private unbound TeacherSheet drafts for explicit owner saves, with ownership FK/cascade and unpublished constraints. Store submitted incomplete content without inventing a persona or consent. Keep runtime/voice/publication gates intact. Reversal condition: an existing correctly scoped private-draft store can be reused without duplicating authority or the first-run product deliberately requires voice before any private draft work.
+
+
+## `review-preview-does-not-pretend-approval-20260907` (2026-09-07)
+
+Provide reachable private suggested phrases with bounded citations and explicit not-applied state. Keep approval controls absent until selected candidate merge, atomic receipt, concurrent-source validation and source-removal reversal exist. Reversal condition: actual SQL and owner journey demonstrate that complete mutation lifecycle with exact approved bytes and honest retry states.
+
+
+## `publish-exact-validated-snapshot-20260907` (2026-09-07)
+
+Bind the validated JSON, status, consent artifact and version in both locked target and final publication write. Target refusal must prevent demotion of existing publication. Return a named conflict requiring fresh review. Reversal condition: a versioned immutable publication object provides equivalent atomic validated-byte and authorization binding.
+
+
+## `expert-delivery-optin-before-broad-change-20260907` (2026-09-07)
+
+Prepare server-selected ROOM_REPLY_TEXT_PROFILE=expert_answer, unset by default. Retain parser segment boundaries for safety inspection and reject over4000JSunits rather than truncate, matching existing history/voice contracts. Keep broader formatting sanitizer and lean expert compiler separate. Reversal condition: tested universal delivery contract preserves companion cadence and complete expert content without weakening protocol/safety boundaries.
+
+
+## `voice-quality-independent-axes-20260907` (2026-09-07)
+
+Select Azure-compatible evaluation candidates by exact model variant and supported languages; do not inferHindi fromQwen English or nativeHinglish from separate language coverage. Freeze references/revisions/protection and compare identity,intelligibility,naturalness,prosody,latency and cost separately with native bilingual listening. Reversal condition: validated owner/domain evidence demonstrates a combined metric predicts these outcomes without hiding failures.
+
+
+## `keep-expert-profile-disabled-until-route-acceptance-20260907` (2026-09-07)
+
+ROOM_REPLY_TEXT_PROFILE remains unset in normal local and deployment configuration. Server-only opt-in prepares bounded complete parsed-segment evaluation while companion behavior stays stable. Reversal condition: intended expert route, held-out complete answers, language/grounding and compatible voice/history are accepted with retained evidence.
+
+
+## `strict-azure-leaf-enforcement-20260907` (2026-09-07)
+
+Reject stored non-Azure voice synthesis and unavailable/invalid Azure transcription or memory configuration before non-Azure dispatch. Preserve historical vendor erasure and nonstrict compatibility. Provider failure must remain unavailable, never authorize OpenRouter/Sarvam fallback in strict mode. Reversal condition: owner explicitly changes serving constraint and audited routing can support the revised boundary; local-only fetch guarding is not sufficient.
+
+
+## `context-removal-tombstone-closes-snapshot-gap-20260907` (2026-09-07)
+
+Direct removal locks canonical source before item and upserts a content-free rejected run under unique(replica_id,video_ref). Conflict updates require exactowner/context provenance and nullwatch; all destructiveCTEs depend on successfulscrub. This sees conflicting committedrows invisibleto a statement's initialsnapshot; a plainUPDATE afterrowlock can miss them. Preserve completeddecision metadata. Reversal condition: another verified transactional design prevents after-snapshot insertion and removes source-derivedbytes acrosscanonical andlegacyitems without weakeningprovenance.
+
+
+## `freeze-fourteen-after-owned-review-20260907` (2026-09-07)
+
+After agent source freezes, rootreviews/registered focusedtests and actualdevelopmentSQL, commit exactreviewedfiles andrunfullverify-release withunchangedbudgets. Recordhead, outputlogs,exitstatus andwhethertrackedtreechangedduringrun. No editsduringacceptance. Reversal condition: a failure requiresanexplicitfix followedbyanewfrozenrun; neverreinterpretanoldfailedrun aspassing.

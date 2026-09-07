@@ -253,6 +253,28 @@ export async function completeSourceErasure(db, lease) {
           join affected_genomes affected on affected.version=vp.genome_version
            where vp.replica_id=c.replica_id and vp.owner_user_id=c.owner_user_id
         )
+     ), source_context_items as materialized (
+       -- Capture the exact context handles before source deletion cascades
+       -- through the item/text FKs. Ingest runs retain a text video_ref rather
+       -- than an item FK, so that cascade alone cannot erase their quotations.
+       select i.item_id,i.replica_id,i.owner_user_id
+         from vy_context_item i join target t
+           on i.source_id=t.source_id and i.replica_id=t.replica_id
+          and i.owner_user_id=t.owner_user_id
+        for update of i
+     ), context_ingest_runs as (
+       update vy_ingest_run r
+          set stats='{}'::jsonb,proposed_delta='{}'::jsonb,proposed_delta_count=0,
+              video_title='',failure_code='context_source_removed',
+              status=case when r.status in ('applied','rejected') then r.status else 'rejected' end,
+              approved_by_user_id=case when r.status in ('applied','rejected') then r.approved_by_user_id else $3::uuid end,
+              decided_at=case when r.status in ('applied','rejected') then r.decided_at else now() end,
+              updated_at=now()
+         from source_context_items i
+        where r.replica_id=i.replica_id and r.owner_user_id=i.owner_user_id
+          and r.replica_id=$2::uuid and r.owner_user_id=$3::uuid
+          and r.transcript_source='context_item' and r.video_ref='context:' || i.item_id::text
+       returning r.run_id
      ), source_windows as materialized (
        -- vy_mirror_window.source_id is ON DELETE SET NULL for historical
        -- source-less calls. A source erasure must therefore capture the exact
@@ -577,6 +599,7 @@ export async function completeSourceErasure(db, lease) {
           where s.source_id=t.source_id and s.replica_id=t.replica_id and s.owner_user_id=t.owner_user_id
            and (select count(*) from identity_cases)>=0 and (select count(*) from preserved_identity)>=0
            and (select count(*) from mirror_windows)>=0
+           and (select count(*) from context_ingest_runs)>=0
         returning t.source_id,t.replica_id,t.owner_user_id,t.erasure_attempts
      ), attempted as (
        update vy_replica_source_erasure_attempt a set outcome='complete',failure_code='',finished_at=now()
@@ -591,6 +614,7 @@ export async function completeSourceErasure(db, lease) {
                 'mirror_deltas_removed',(select count(*) from mirror_deltas),
                 'expression_observations_removed',(select count(*) from expression_observations),
                 'canonical_evidence_removed',(select count(*) from canonical_evidence),
+                'context_ingest_runs_scrubbed',(select count(*) from context_ingest_runs),
                 'teacher_sheets_rewritten',(select count(*) from teacher_sheet_effects)
               ) from removed
      ) select source_id from removed`,

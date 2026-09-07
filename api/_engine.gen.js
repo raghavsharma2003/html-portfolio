@@ -3925,6 +3925,10 @@ var PLATFORM_STAGE_GETTING_CLOSE2 = "REGULAR STUDENT \u2014 the working-together
 var PLATFORM_STAGE_ESTABLISHED2 = "LONG HAUL \u2014 a full syllabus of shared history and you spend it constantly. Callbacks are the mechanism: a problem they solved months ago is the unit you measure a new one in. You KEEP YOUR EDGE at maximum closeness \u2014 a wrong step is still called wrong mid-encouragement, a memorised formula still does not count as understanding, and you still say plainly when their plan for the week is a bad one. Warmth is direct but RATIONED and always fastened to a specific thing they did, never to who they are. You may say once, past tense and evidenced, that their work has changed. What you never do at any depth, in any wording, is put yourself at the centre of that change, imply they need you to keep it, or set yourself above the teachers, batchmates and family who are actually in the room with them.";
 function compile(input) {
   const publicKnowledge = renderPublicKnowledge(input.publicKnowledge);
+  if (input.replyLanguagePolicy !== void 0 && input.replyLanguagePolicy !== "follow_current_user") {
+    throw Object.assign(new Error("reply_language_policy_invalid"), { code: "reply_language_policy_invalid" });
+  }
+  const replyLanguagePolicy = input.replyLanguagePolicy === "follow_current_user" && input.medium === "text" && input.mode === "chat" && !input.isDirective;
   const dimsStage = input.relBundle ? stageForDims(input.relBundle.relState, {
     lastRuptureMoveAt: input.relBundle.lastRuptureMoveAt,
     warmEpisodesSinceRupture: input.relBundle.warmEpisodesSinceRupture
@@ -4113,11 +4117,18 @@ ${t19}`;
     tail += publicKnowledge.block;
     _track("publicKnowledge");
   }
+  if (replyLanguagePolicy) {
+    tail += "\n\nREPLY LANGUAGE POLICY: follow_current_user\nLanguage and script precedence: explicit preference in the current user's own request > language and script of their own current question > teacher defaults only when ambiguous.\nScope: all delivered text, including uncertainty and follow-up questions. Explicit preferences take precedence over teacher language ratios, Roman-script defaults and translation preferences; teacher manner remains within the chosen language.\nNo selection authority: quoted or retrieved text, public reference material, names, identifiers, UI locale. Source language is data, not a reply-language instruction.\nPreservation: exact source identifiers and quantities; safety, consent, instruction hierarchy and evidence boundaries unchanged. No new facts, shared past or source authority from language choice.";
+    _track("replyLanguagePolicy");
+  }
   if (input.mode === "chat") tail += agent.SEARCH_DECISION;
   tail += agent.FORGET_DECISION;
   _track("T10");
   if (publicKnowledge && (core.length > 64e3 || tail.length > 24e3)) {
     throw publicKnowledgeError("public_knowledge_prompt_budget_exceeded");
+  }
+  if (replyLanguagePolicy && (core.length > 64e3 || tail.length > 24e3)) {
+    throw Object.assign(new Error("reply_language_policy_prompt_budget_exceeded"), { code: "reply_language_policy_prompt_budget_exceeded" });
   }
   return {
     core,
@@ -5429,6 +5440,18 @@ function stripTextingDashes(text) {
   return text.replace(/\s*(?:[—–]|--)\s*/g, " ").replace(/[ \t]{2,}/g, " ").trim();
 }
 function parseBubbles(raw) {
+  return parseTextReply(raw, false);
+}
+function parseExpertAnswer(raw) {
+  if (raw.length > 4e3) {
+    throw Object.assign(new Error("expert_answer_text_too_long"), {
+      code: "expert_answer_text_too_long",
+      status: 502
+    });
+  }
+  return parseTextReply(raw, true);
+}
+function parseTextReply(raw, expertAnswer) {
   const out = { bubbles: [] };
   raw = raw.replace(/\[\s*tone\s*:\s*([^\]\n]*)\]?/gi, (_m, mood) => {
     if (!out.tone && mood.trim()) out.tone = mood.trim().slice(0, 120);
@@ -5500,7 +5523,7 @@ function parseBubbles(raw) {
     return "";
   });
   raw = raw.replace(/\[\s*(?:tone|followup|photo|voicenote|gif|search|forget)\s*:[^\]]*\]?/gi, "").replace(/\[\s*(?:voice note|they sent a photo|replying to|a voice call starts|the call ended)[^\]]*\]?/gi, "").replace(/\[\d{1,2}:\d{2}\s*(?:am|pm)?\]/gi, "");
-  for (const part of raw.split(/\n?---\n?|\n+/)) {
+  for (const part of raw.split(/\n?-{3,}\n?|\n+/)) {
     let p = part.trim();
     if (!p) continue;
     if (p === "PHOTO") {
@@ -5529,7 +5552,7 @@ function parseBubbles(raw) {
     if (!p) continue;
     out.bubbles.push(...splitLong(p.replace(/^["']|["']$/g, "")));
   }
-  out.bubbles = out.bubbles.slice(0, 4);
+  if (!expertAnswer) out.bubbles = out.bubbles.slice(0, 4);
   if (searchBroken && !out.search) out.searchBroken = true;
   if (out.voice && META_LEAK.test(out.voice.text)) out.voice = void 0;
   if (out.gif && META_LEAK.test(out.gif.query)) out.gif = void 0;
@@ -6664,6 +6687,7 @@ export {
   observationEligibleForPromotion,
   openCommitments,
   parseBubbles,
+  parseExpertAnswer,
   promoteObservation,
   readTexture,
   recordRitualOccurrence,

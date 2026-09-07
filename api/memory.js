@@ -16,6 +16,7 @@
 
 import { allow, ipOf } from "./_ratelimit.js";
 import { q } from "./_db.js";
+import { isAzureOnlyServing, assertAzureServingOrigin } from "./_model-serving-policy.js";
 // A1 (docs/research/MEMORY-FIELD-SURVEY.md §Q5): the mutation-time forget
 // matcher's one model call. Deliberately the SAME helper api/chat.js reaches
 // the free pool with — a forget must not grow a second, differently-behaved
@@ -116,8 +117,33 @@ const AZ_ENDPOINT = process.env.AZURE_ENDPOINT || AZURE_ENDPOINT;
 const AZ_KEY = process.env.AZURE_API_KEY || AZURE_KEY;
 const AZ_EXTRACT_MODEL = "grok-4-1-fast-reasoning";
 
-/** Ask the extraction brain. Azure (reasoning) first, OpenRouter as fallback. */
-async function extractChat(messages, maxTokens) {
+/** Strict: guarded Azure or named failure. Legacy: Azure then OpenRouter. */
+export async function extractChat(messages, maxTokens, { env = process.env, fetchImpl = globalThis.fetch, model = AZ_EXTRACT_MODEL, timeoutMs = 25_000 } = {}) {
+  if (isAzureOnlyServing(env)) {
+    const endpoint = env.AZURE_ENDPOINT || (env === process.env ? AZURE_ENDPOINT : "");
+    const key = env.AZURE_API_KEY || (env === process.env ? AZURE_KEY : "");
+    if (!endpoint || !key) throw Object.assign(new Error("memory_azure_unconfigured"), { code: "memory_azure_unconfigured", status: 503 });
+    const url = `${endpoint}/chat/completions`;
+    assertAzureServingOrigin(url, env);
+    try {
+      const response = await fetchImpl(url, {
+        method: "POST", redirect: "error",
+        headers: { "api-key": key, "Content-Type": "application/json" },
+        body: JSON.stringify({ model, max_tokens: maxTokens, messages }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!response.ok) throw Object.assign(new Error("memory_azure_http_failed"), { code: "memory_azure_http_failed", status: 502 });
+      const data = await response.json();
+      const choice = data?.choices?.[0];
+      if (choice?.finish_reason !== "stop" || typeof choice?.message?.content !== "string" || !choice.message.content.trim()) {
+        throw Object.assign(new Error("memory_azure_response_incomplete"), { code: "memory_azure_response_incomplete", status: 502 });
+      }
+      return choice.message.content;
+    } catch (error) {
+      if (/^memory_azure_/.test(String(error?.code || ""))) throw error;
+      throw Object.assign(new Error("memory_azure_transport_failed"), { code: "memory_azure_transport_failed", status: 502 });
+    }
+  }
   if (AZ_ENDPOINT && AZ_KEY) {
     try {
       const r = await fetch(`${AZ_ENDPOINT}/chat/completions`, {
@@ -1935,6 +1961,9 @@ nodes/edges = the USER's world and what the TWO of them share. Only things worth
     const raw = content;
     parsed = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
   } catch {
+    if (isAzureOnlyServing()) {
+      throw Object.assign(new Error("memory_azure_extraction_invalid"), { code: "memory_azure_extraction_invalid", status: 502 });
+    }
     return { ok: false };
   }
   // her own improvised life: returned to the client, never written to the
@@ -4543,10 +4572,22 @@ async function forgetCandidates(devices, name, rx, agentId = MEERA_AGENT_ID) {
  * than a transport of its own. It takes plain arguments and touches no
  * database, so exporting it buys the coverage and exposes nothing.
  */
-export async function askForgetHook(marker, candidates) {
+export async function askForgetHook(marker, candidates, options = {}) {
   if (!candidates.length) return { failed: true };
   const messages = forgetHookPrompt(marker, candidates);
   const allowed = candidates.map((c) => c.id);
+  if (isAzureOnlyServing(options.env || process.env)) {
+    // A failed semantic resolver retains the existing lexical delete and its
+    // hedged receipt. It never escalates a deletion into a Google request.
+    try {
+      const content = await extractChat(messages, 2000, { ...options, model: FORGET_HOOK_AZ_MODEL, timeoutMs: FORGET_HOOK_FUSE_MS });
+      const ids = parseForgetHook(content, allowed);
+      return ids ? { ids } : { failed: true, code: "memory_azure_forget_response_invalid" };
+    } catch (error) {
+      return { failed: true, code: /^memory_azure_|^model_serving_/.test(String(error?.code || ""))
+        ? error.code : "memory_azure_forget_failed" };
+    }
+  }
   let calls = 0;
   const budget = () => calls < FORGET_HOOK_MAX_CALLS;
 
@@ -5332,7 +5373,7 @@ export function photoIdFromUrl(url) {
 /** The write path itself. Never throws — an enhancement layered on a call
  *  whose primary job (handing the client a description) already happened;
  *  this must never cost the client that response. */
-export async function recordPhotoMemory(device, url, rawDesc) {
+export async function recordPhotoMemory(device, url, rawDesc, { extractorModel = PHOTO_DESC_MODEL } = {}) {
   const desc = lintPhotoDesc(rawDesc);
   if (!desc) return { ok: true, wrote: false };
   try {
@@ -5383,7 +5424,7 @@ export async function recordPhotoMemory(device, url, rawDesc) {
     await writeVisualAssertion(
       person,
       ep.id,
-      { claim: desc, extractorModel: PHOTO_DESC_MODEL, confidence: PHOTO_VISION_CONFIDENCE, illegible: false },
+      { claim: desc, extractorModel, confidence: PHOTO_VISION_CONFIDENCE, illegible: false },
       agentId,
     );
 
@@ -5465,10 +5506,22 @@ export async function recordPhotoMemory(device, url, rawDesc) {
   }
 }
 
-async function opDescribe(body) {
+export async function opDescribe(body, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
   const device = String(body.device || "");
   const url = String(body.url || "");
   if (!url.startsWith(`${SB_URL}/storage/v1/object/public/meera-photos/`)) return { desc: "" };
+  const extractorModel = isAzureOnlyServing(env) ? env.AZURE_PHOTO_MODEL : PHOTO_DESC_MODEL;
+  let content;
+  if (isAzureOnlyServing(env)) {
+    const model = extractorModel;
+    if (typeof model !== "string" || !model.trim()) {
+      throw Object.assign(new Error("memory_azure_photo_model_unconfigured"), { code: "memory_azure_photo_model_unconfigured", status: 503 });
+    }
+    content = await extractChat([{ role: "user", content: [
+      { type: "text", text: "Describe this photo in one factual line (<=110 chars) for a chat log, e.g. 'a plate of pasta on a desk' or 'screenshot of a code error in vs code'. Only the line." },
+      { type: "image_url", image_url: { url } },
+    ] }], 90, { env, fetchImpl, model });
+  } else {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -5495,7 +5548,9 @@ async function opDescribe(body) {
   });
   if (!res.ok) return { desc: "" };
   const data = await res.json();
-  const desc = String(data?.choices?.[0]?.message?.content || "").trim().slice(0, 140);
+  content = data?.choices?.[0]?.message?.content;
+  }
+  const desc = String(content || "").trim().slice(0, 140);
   // Fire-and-forget from the CLIENT's point of view is not the same thing as
   // unawaited here: this function must finish writing before the response
   // goes out (the handler does `await opDescribe(...)`), but describePhoto()
@@ -5504,7 +5559,7 @@ async function opDescribe(body) {
   // nothing the user is waiting on. `.catch` belt-and-braces on top of the
   // try/catch already inside recordPhotoMemory: this path must never cost
   // the client its `desc`.
-  if (UUID.test(device)) await recordPhotoMemory(device, url, desc).catch(() => {});
+  if (UUID.test(device)) await recordPhotoMemory(device, url, desc, { extractorModel }).catch(() => {});
   return { desc };
 }
 
@@ -5530,6 +5585,9 @@ export default async function handler(req, res) {
     if (op === "forget") return res.status(200).json(await opForget(device, req.body));
     return res.status(400).json({ error: "unknown op" });
   } catch (e) {
+    if (isAzureOnlyServing() && /^memory_azure_|^model_serving_/.test(String(e?.code || ""))) {
+      return res.status(e.status || 502).json({ error: e.code });
+    }
     // the message goes to the server log only — the client gets the same
     // opaque error it always did, but an operator can now see WHICH statement
     // a forget died on instead of diagnosing "memory failure" from nothing

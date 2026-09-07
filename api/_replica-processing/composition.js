@@ -6,6 +6,7 @@ import { createAzureVoiceEvidenceAdapters } from "./providers/azure-voice-eviden
 import { createAzureFastTranscriptionAdapter } from "./providers/azure-fast-transcription.js";
 import { createNativeMediaAdapters } from "./providers/native-media.js";
 import { createSarvamTranscriptionAdapter } from "./providers/sarvam-transcription.js";
+import { isAzureOnlyServing } from "../_model-serving-policy.js";
 import { createReplicaProcessingStorage } from "./storage.js";
 
 // COMPOSING THE REAL PIPELINE, INCLUDING THE PARTS THAT ARE NOT THERE
@@ -55,7 +56,7 @@ export { CAPABILITY_ABSENCE_CODES };
 export function selectTranscriptionLane(env, azure, sarvam) {
   // A half-configured Azure lane must fail with its own configuration code,
   // never disappear behind a silent vendor fallback.
-  return env.AZURE_SPEECH_ENDPOINT || env.AZURE_SPEECH_KEY ? azure : sarvam;
+  return isAzureOnlyServing(env) || env.AZURE_SPEECH_ENDPOINT || env.AZURE_SPEECH_KEY ? azure : sarvam;
 }
 
 function boundedInteger(value, fallback, min, max) {
@@ -217,10 +218,10 @@ export function composeProcessingAdapters(options = {}) {
   }
 
   // ── the ASR family: transcribe ───────────────────────────────────────────
-  // Prefer Azure only when explicitly configured. The prior Sarvam-only
-  // decision reversed once Azure AI Services became available; Sarvam remains
-  // the no-Azure fallback.
+  // Strict serving retains Azure's named failure when it is unavailable.
+  // The legacy Sarvam fallback is composed only outside that policy.
   const azureAsr = tryBuild(() => createAzureFastTranscriptionAdapter({
+    env,
     endpoint: env.AZURE_SPEECH_ENDPOINT,
     apiKey: env.AZURE_SPEECH_KEY,
     locales: ["en-IN", "hi-IN"],
@@ -235,7 +236,7 @@ export function composeProcessingAdapters(options = {}) {
     timeoutMs: 15 * 60_000,
     fetchImpl: options.fetchImpl,
   }));
-  const sarvamAsr = tryBuild(() => createSarvamTranscriptionAdapter({
+  const sarvamAsr = isAzureOnlyServing(env) ? null : tryBuild(() => createSarvamTranscriptionAdapter({
     apiKey: env.SARVAM_API_KEY,
     model: env.SARVAM_ASR_MODEL,
     langHint: env.ASR_INGEST_LANG_HINT,

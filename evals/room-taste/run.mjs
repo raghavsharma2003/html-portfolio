@@ -244,6 +244,42 @@ const COMPILE_BASE = {
     JSON.stringify({ say: sayKeys, taste: tasteKeys }));
   ok("roomTaste's own memories argument is a literal empty string, never a computed one",
     /memories:\s*""/.test(roomTasteSrc));
+  const explicitEmptyKnowledge = (src) => /publicKnowledge:\s*\[\s*\]/.test(src);
+  ok("taste explicitly withholds public Q&A with a literal empty array",
+    explicitEmptyKnowledge(roomTasteSrc));
+  ok("NEGATIVE CONTROL: dropping the actual empty field is detected without relaxing field equality",
+    !explicitEmptyKnowledge(roomTasteSrc.replace(/publicKnowledge:\s*\[\s*\],/, "")));
+  ok("NEGATIVE CONTROL: replacing the empty array with a computed source is detected",
+    !explicitEmptyKnowledge(roomTasteSrc.replace(/publicKnowledge:\s*\[\s*\]/, "publicKnowledge: knowledge.sources")));
+}
+
+// A real public corpus in the shared fixture must not silently expand the
+// guest lane. Run the actual taste caller and compiler, not a hand-built
+// empty compile input, and inspect every database statement it issued.
+{
+  const sentinel = "PUBLIC_QA_NOT_AVAILABLE_TO_TASTE";
+  const state = freshState({ publishedQA: [{
+    id: "d1000000-0000-4000-8000-000000000001", room_id: ROOM_ID,
+    question: "What is the public-only sentinel?", answer: sentinel,
+    position: 1, removed_at: null,
+  }] });
+  const db = fakeDb(state);
+  let input = null, sent = null;
+  const observedEngine = { ...engine, compile: (value) => { input = value; return engine.compile(value); } };
+  const result = await roomTaste(db, { slug: SLUG, message: "what do you teach?", turnIndex: 1 }, {
+    loadAgent, engine: observedEngine, neverRules: [], tableApplied: async () => false,
+    reply: (compiled) => { sent = compiled; return "a taste answer."; },
+  });
+  ok("actual taste compiles empty public knowledge even when this Room has a published Q&A",
+    Array.isArray(input?.publicKnowledge) && input.publicKnowledge.length === 0 && result.reply.length > 0);
+  ok("taste does not retrieve public Q&A or private follower/claim/Context Locker material",
+    !db.calls.some(sql => /\bvy_(?:room_showcase|fact|episode|replica_claim|context_item)\b/.test(sql)));
+  ok("taste provider input contains neither the public sentinel nor a supplied-evidence receipt",
+    sent != null && !JSON.stringify(sent).includes(sentinel) && !Object.hasOwn(sent, "publicKnowledge") &&
+      !Object.hasOwn(result, "knowledge"));
+  const { publicKnowledge: _empty, ...withoutKnowledge } = input;
+  ok("actual taste empty-array compile is byte-equivalent to its previous absent-field compile",
+    JSON.stringify(sent) === JSON.stringify(engine.compile(withoutKnowledge)));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

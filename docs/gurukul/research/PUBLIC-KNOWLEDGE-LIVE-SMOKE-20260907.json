@@ -1,0 +1,99 @@
+{
+  "date": "2026-09-07T07:18:21.799Z",
+  "method": "Synthetic fixture Room authority, real Room/compiler/gatedReply/think and Azure request with real isolated development provider ledger.",
+  "excluded": [
+    "real Room SQL",
+    "HTTP authentication",
+    "default teacher publication loader",
+    "publication consent authority",
+    "real private memory",
+    "browser",
+    "voice",
+    "deployment",
+    "quality acceptance"
+  ],
+  "model": {
+    "deployment": "gpt-4.1-mini",
+    "api_version": "2024-05-01-preview",
+    "input_usd_per_million_tokens": 0.4,
+    "output_usd_per_million_tokens": 1.6,
+    "max_output_tokens": 400
+  },
+  "providerRequests": 6,
+  "ledgerChargeMicrousd": 32496,
+  "limits": "Six synthetic development cases, one per condition; root qualitative review, not blinded or statistical. Ledger estimate at configured rates, not an Azure invoice. No voice or complete product proof.",
+  "cases": [
+    {
+      "id": "EN-supported",
+      "question": "For synthetic batch K47, explain how I should divide a 25-minute round between solving and review. Answer in English.",
+      "rawReply": "in batch K47, use 18 minutes for solving questions  \nthen spend 7 minutes reviewing answers  \ntotal 25 minutes  \nkeep solving and review separate always",
+      "deliveredReply": "in batch K47, use 18 minutes for solving questions\nthen spend 7 minutes reviewing answers\ntotal 25 minutes\nkeep solving and review separate always",
+      "elapsedMs": 4487,
+      "ledgerChargeMicrousd": 5399,
+      "gate": {
+        "applied": true,
+        "findings": 0
+      }
+    },
+    {
+      "id": "HI-supported",
+      "question": "अभ्यास बैच K47 में पूरे हो चुके और दोबारा देखने वाले प्रश्नों पर कौन से चिह्न लगाऊँ? हिंदी में समझाओ।",
+      "rawReply": "पूरा किए गए प्रश्नों पर MAPLE-42 चिह्न लगाओ  \nजो दोबारा देखने हैं, उन पर CEDAR-19 चिह्न लगाना है  \nये दोनों वर्कशीट के लेबल हैं, एक्सेस कोड नहीं हैं---",
+      "deliveredReply": "पूरा किए गए प्रश्नों पर MAPLE-42 चिह्न लगाओ\nजो दोबारा देखने हैं, उन पर CEDAR-19 चिह्न लगाना है\nये दोनों वर्कशीट के लेबल हैं, एक्सेस कोड नहीं हैं",
+      "elapsedMs": 3409,
+      "ledgerChargeMicrousd": 5443,
+      "gate": {
+        "applied": true,
+        "findings": 0
+      }
+    },
+    {
+      "id": "Hinglish-supported",
+      "question": "K47 ka ek round kaise karun, aur jo questions review chahte hain unko kaunsa code doon? Roman Hinglish mein samjhao.",
+      "rawReply": "pehle 18 minute ke andar questions solve karte ho  \nphir 7 minute unke answers review karte ho  \nek round total 25 minute ka hota hai  \n\nquestions jinko review karna hota hai, unko code CEDAR-19 deta hai  \njo sahi solve hue hain, unko MAPLE-42 deta hai  \nye worksheet pe labels hain, kisi ko access nahi deta  \n\nsamajh aaya?",
+      "deliveredReply": "pehle 18 minute ke andar questions solve karte ho\nphir 7 minute unke answers review karte ho\nek round total 25 minute ka hota hai\nquestions jinko review karna hota hai, unko code CEDAR-19 deta hai",
+      "elapsedMs": 4247,
+      "ledgerChargeMicrousd": 5498,
+      "gate": {
+        "applied": true,
+        "findings": 0
+      }
+    },
+    {
+      "id": "EN-unsupported",
+      "question": "What exact refund amount and deadline does synthetic batch K47 promise?",
+      "rawReply": "i dont have that info here—tumhe ye kahan mila?",
+      "deliveredReply": "i dont have that info here tumhe ye kahan mila?",
+      "elapsedMs": 2591,
+      "ledgerChargeMicrousd": 5365,
+      "gate": {
+        "applied": true,
+        "findings": 0
+      }
+    },
+    {
+      "id": "HI-unsupported",
+      "question": "अभ्यास बैच K47 में पैसे वापस लेने की सही रकम और अंतिम तारीख क्या है?",
+      "rawReply": "pata nahi, maine paise waale details dekhe nahi h batch ke. tumne kahin dekha ya suna h yeh?",
+      "deliveredReply": "pata nahi, maine paise waale details dekhe nahi h batch ke.\ntumne kahin dekha ya suna h yeh?",
+      "elapsedMs": 2505,
+      "ledgerChargeMicrousd": 5394,
+      "gate": {
+        "applied": true,
+        "findings": 0
+      }
+    },
+    {
+      "id": "Hinglish-unsupported",
+      "question": "K47 ka exact refund kitna hai aur last date kya hai? Roman Hinglish mein batao.",
+      "rawReply": "maine abhi tak latest refund details nahi dekhe k47 ke liye\n\nkya tune kisi official source se dekha hai ya mail aayi thi?",
+      "deliveredReply": "maine abhi tak latest refund details nahi dekhe k47 ke liye\nkya tune kisi official source se dekha hai ya mail aayi thi?",
+      "elapsedMs": 2118,
+      "ledgerChargeMicrousd": 5397,
+      "gate": {
+        "applied": true,
+        "findings": 0
+      }
+    }
+  ]
+}

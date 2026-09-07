@@ -131,7 +131,7 @@ function fakeDb(state) {
       return [];
     }
 
-    if (sql.includes("insert into vy_ingest_run")) {
+    if (sql.includes("insert into vy_ingest_run") && !sql.includes("scrubbed_run as")) {
       const [runId, replicaId, ownerUserId, videoRef, stats, delta, count] = params;
       if (state.purgeBeforeRunInsert) {
         state.replicas.length = 0;
@@ -139,7 +139,11 @@ function fakeDb(state) {
         state.texts.clear();
       }
       if (!state.replicas.some((r) => r.replica_id === replicaId && r.owner_user_id === ownerUserId &&
-          !["revoked", "purging"].includes(r.lifecycle))) return [];
+          !["revoked", "purging"].includes(r.lifecycle))) return [{run_id:null,status:"source_unavailable",proposed_delta_count:0}];
+      if (!state.items.some((i) => i.item_id === params[7] && i.replica_id === replicaId &&
+          i.owner_user_id === ownerUserId && ["extracted","mined"].includes(i.status))) {
+        return [{run_id:null,status:"source_unavailable",proposed_delta_count:0}];
+      }
       if (state.runs.some((r) => r.replica_id === replicaId && r.video_ref === videoRef)) return [];
       const row = {
         run_id: runId, replica_id: replicaId, owner_user_id: ownerUserId, watch_id: null,
@@ -151,15 +155,19 @@ function fakeDb(state) {
       return [{ run_id: runId, status: "proposed", proposed_delta_count: count }];
     }
 
-    if (sql.includes("with target as") && sql.includes("scrubbed_run as")) {
+    if (sql.includes("scrubbed_run as")) {
       const [itemId, replicaId, ownerUserId] = params;
       const at = state.items.findIndex((i) => i.item_id === itemId && i.replica_id === replicaId && i.owner_user_id === ownerUserId);
       if (at < 0) return [];
-      const run = state.runs.find((r) =>
-        r.replica_id === replicaId
-        && r.owner_user_id === ownerUserId
-        && r.transcript_source === "context_item"
-        && r.video_ref === `context:${itemId}`);
+      let run = state.runs.find((r) => r.replica_id === replicaId && r.video_ref === `context:${itemId}`);
+      if (run && (run.owner_user_id !== ownerUserId || run.transcript_source !== "context_item" || run.watch_id)) {
+        return [{ item_id: itemId, provenance_conflict: true }];
+      }
+      if (!run) {
+        run = {run_id:params[3],replica_id:replicaId,owner_user_id:ownerUserId,video_ref:`context:${itemId}`,
+          transcript_source:"context_item",status:"rejected",approved_by_user_id:ownerUserId,decided_at:"removed-now"};
+        state.runs.push(run);
+      }
       if (run) {
         run.stats = {};
         run.proposed_delta = {};
@@ -405,13 +413,15 @@ try {
 } catch (error) { staleContextError = error; }
 const staleContextRunSql = staleContextDb.calls.find((sql) => sql.includes("insert into vy_ingest_run")) || "";
 ok("a stale context mine cannot insert a non-FK run after the replica purge receipt",
-  staleContextError?.code === "context_item_write_failed" && staleContextState.runs.length === 0 &&
+  staleContextError?.code === "context_source_unavailable" && staleContextState.runs.length === 0 &&
   staleContextState.replicas.length === 0);
 ok("context item and proposal inserts both serialize on the exact active owner replica row",
   staleContextDb.calls.filter((sql) => /insert into vy_(?:context_item|ingest_run)/.test(sql)).length === 2 &&
   staleContextDb.calls.filter((sql) => /insert into vy_(?:context_item|ingest_run)/.test(sql)).every((sql) =>
     /lifecycle not in \('revoked','purging'\)/.test(sql) && /for update of r/.test(sql)) &&
-  /with replica_gate as materialized/.test(staleContextRunSql));
+  /replica_gate as materialized/.test(staleContextRunSql) &&
+  /source_gate as materialized/.test(staleContextRunSql) && /for update of s/.test(staleContextRunSql) &&
+  /item_gate as materialized/.test(staleContextRunSql) && /for update of i/.test(staleContextRunSql));
 
 // ─────────────────────────────────────────────────────────────────────────
 // 3. somebody else's words are never mined

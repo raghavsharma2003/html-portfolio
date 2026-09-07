@@ -762,7 +762,9 @@ export default function CloneExperience(props: CloneExperienceProps) {
     setEnrichView("menu");
     setVoiceSaga(readVoiceSaga(nextReplicaId));
     setVoiceBuildIntent(null);
-    setRoom("voice");
+    // The first replica arrives after sign-in/list hydration. Keep the URL's
+    // initial room then; changing or clearing an existing replica resets it.
+    if (activeReplicaRef.current !== null) setRoom("voice");
     activeReplicaRef.current = nextReplicaId;
   }, [selected?.replica_id]);
 

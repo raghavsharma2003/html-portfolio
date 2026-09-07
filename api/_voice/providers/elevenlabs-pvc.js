@@ -66,6 +66,7 @@ import {
   vendorOrigin,
   vendorSignal,
 } from "./vendor-common.js";
+import { isAzureOnlyServing } from "../../_model-serving-policy.js";
 
 export const ELEVENLABS_ARM_ID = "elevenlabs";
 export const ELEVENLABS_PROVIDER_NAME = "elevenlabs_voice_clone";
@@ -76,7 +77,12 @@ const LANGUAGES = new Set(["en", "hi"]);
 const MAX_REFERENCE_FILES = 5;
 const MAX_RESPONSE_BYTES = 24 * 1024 * 1024;
 
+function assertServingAllowed(env) {
+  if (isAzureOnlyServing(env)) vendorFail("model_serving_provider_denied");
+}
+
 export function elevenLabsVoiceConfig(env = process.env) {
+  assertServingAllowed(env);
   const key = vendorApiKey(env.ELEVENLABS_API_KEY, "elevenlabs_api_key_required");
   const origin = vendorOrigin(env.ELEVENLABS_BASE_URL, "https://api.elevenlabs.io",
     [".elevenlabs.io"], "elevenlabs_origin_invalid");
@@ -91,6 +97,9 @@ export function elevenLabsVoiceConfig(env = process.env) {
 
 /** Honest state for the panel and the bench: available, or a named reason. */
 export function elevenLabsArmState(env = process.env) {
+  if (isAzureOnlyServing(env)) return Object.freeze({
+    armId: ELEVENLABS_ARM_ID, available: false, reason: "model_serving_provider_denied", blocker: "waiting_on_us",
+  });
   return vendorArmState(ELEVENLABS_ARM_ID, env, elevenLabsVoiceConfig);
 }
 
@@ -221,6 +230,7 @@ export function createElevenLabsVoiceProvider(options = {}) {
   }
 
   async function synthesize({ voiceId, renderedText, languageId, seed, signal, requestKey, commitment }) {
+    assertServingAllowed(env);
     const characters = billableCharacters(renderedText);
     const reservation = await budget.reserve(db, {
       vendor: ELEVENLABS_ARM_ID,
@@ -326,6 +336,7 @@ export function createElevenLabsVoiceProvider(options = {}) {
     state: () => elevenLabsArmState(env),
 
     async createVoice(input) {
+      assertServingAllowed(env);
       const consent = assertVendorConsent(input?.consent);
       const refs = references(input);
       const idempotencyKey = String(input?.idempotencyKey || "");
@@ -388,6 +399,7 @@ export function createElevenLabsVoiceProvider(options = {}) {
     },
 
     async synthesizeStream({ providerRef, text, languageId = "en", seed = 0, signal, requestKey }) {
+      assertServingAllowed(env);
       const { voiceId } = parseElevenLabsRef(providerRef);
       if (typeof requestKey !== "string" || requestKey.length < 16) vendorFail("elevenlabs_synthesis_request_key_required", 400);
       if (!LANGUAGES.has(String(languageId).toLowerCase())) vendorFail("elevenlabs_language_not_supported", 400);
@@ -421,6 +433,7 @@ export function createElevenLabsVoiceProvider(options = {}) {
      * learning which is which.
      */
     async synthesizePreview(raw) {
+      assertServingAllowed(env);
       const reference = assertReferenceBytes(raw?.reference);
       const languageId = String(raw?.languageId || "en").toLowerCase();
       if (!LANGUAGES.has(languageId)) vendorFail("elevenlabs_language_not_supported", 400);
