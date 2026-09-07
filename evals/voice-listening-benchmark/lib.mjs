@@ -191,10 +191,21 @@ export function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-export function buildCells(stimuli) {
+export function buildCells(stimuli, { scope = "legacy" } = {}) {
+  if (!["legacy", "recorded/v1"].includes(scope)) throw new Error("benchmark_comparison_scope_invalid");
   const cells = new Map();
   for (const stimulus of stimuli) {
-    const identity = sha256(`${stimulus.language}\n${stimulus.textSha256}`).slice(0, 16);
+    let scopeKey = "";
+    if (scope === "recorded/v1") {
+      const value = stimulus.comparisonScope;
+      const fields = ["runId", "planSha256", "subjectId", "conditioningGroupId", "listeningReferenceManifestSha256", "comparisonRecipeId"];
+      if (!value || Object.keys(value).length !== fields.length || fields.some((key) => typeof value[key] !== "string" || !value[key])
+        || !/^[0-9a-f]{64}$/u.test(value.listeningReferenceManifestSha256)
+        || !/^[0-9a-f]{64}$/u.test(value.planSha256)
+        || !/^[0-9a-f]{64}$/u.test(stimulus.textSha256)) throw new Error("benchmark_recorded_scope_required");
+      scopeKey = `${canonical(value)}\n`;
+    } else if (stimulus.comparisonScope !== undefined) throw new Error("benchmark_recorded_scope_mode_required");
+    const identity = sha256(`${scopeKey}${stimulus.language}\n${stimulus.textSha256}`).slice(0, 16);
     const cell = cells.get(identity) || {
       id: identity,
       language: stimulus.language,

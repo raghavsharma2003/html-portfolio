@@ -19,7 +19,8 @@
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { PRE_POOL_SUITES, PORT_LANE_SUITES, pickWorkerCount, runPool, runSuiteFile } from "./runner-lib.mjs";
+import { PRE_POOL_SUITES, PORT_LANE_SUITES, pickWorkerCount, runPool, runSuiteFile, createBrowserBudget } from "./runner-lib.mjs";
+import { classifySuiteResources } from "./suite-resources.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -34,6 +35,10 @@ execSync(
 );
 
 const suites = {
+  "azure-self-check": "azure-self-check/run.mjs",
+  "azure-build-config": "azure-build-config/run.mjs",
+  "recorded-listening-pack": "voice-listening-benchmark/recorded-run.mjs",
+  "browser-resource": "browser-resource/run.mjs",
   "first-use-activity-abort-ui": "first-use-private-flow/activity-abort.mjs",
   "first-use-refresh-ui": "first-use-private-flow/refresh.mjs",
   "first-use-refresh-source": "first-use-private-flow/refresh-source.mjs",
@@ -3010,7 +3015,8 @@ if (serial) {
 //     concurrently WITH the pool, since their ports never collide with a
 //     pool suite (none binds 8940/8941/8945) or with each other.
 //  3. Everything else — the pool, sized by pickWorkerCount().
-const entries = Object.entries(suites).map(([name, file]) => ({ name, file: join(HERE, file) }));
+const entries = classifySuiteResources(Object.entries(suites).map(([name, file]) => ({ name, file: join(HERE, file) })), { root: ROOT });
+const browserBudget = createBrowserBudget(2);
 const preSet = new Set(PRE_POOL_SUITES);
 const portSet = new Set(PORT_LANE_SUITES);
 const preEntries = entries.filter((e) => preSet.has(e.name));
@@ -3041,11 +3047,11 @@ await runPool(preEntries, 1, { cwd: ROOT, onDone });
 
 const workers = pickWorkerCount();
 console.log(
-  `\n── pool (${workers} workers) + port lane (serial: ${PORT_LANE_SUITES.join(", ")}), ${poolEntries.length} pooled suites ──`,
+  `\n── pool (${workers} workers, shared browser cap ${browserBudget.limit}) + port lane (serial: ${PORT_LANE_SUITES.join(", ")}), ${poolEntries.length} pooled suites ──`,
 );
 await Promise.all([
-  runPool(poolEntries, workers, { cwd: ROOT, onDone }),
-  runPool(portEntries, 1, { cwd: ROOT, onDone }),
+  runPool(poolEntries, workers, { cwd: ROOT, onDone, browserBudget }),
+  runPool(portEntries, 1, { cwd: ROOT, onDone, browserBudget }),
 ]);
 
 // Printed whole, in REGISTRY order, once the run is complete — a failure

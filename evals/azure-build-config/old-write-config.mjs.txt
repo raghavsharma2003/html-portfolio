@@ -74,29 +74,6 @@ if (existsSync(OUT) && !process.env.CI) {
   process.exit(1);
 }
 
-// Explicit Azure selection uses the same pure admission configuration as the
-// shared reply adapter. This import closure has no config-file or service I/O.
-// Validate before writing, including --stub, so a selected but invalid Azure
-// lane cannot be disguised as a successful static preview.
-const azureSelected = process.env.VYAKTI_MODEL_SERVING === "azure_only" ||
-  process.env.VYAKTI_REPLY_PROVIDER === "azure_foundry";
-if (azureSelected) {
-  try {
-    const { resolveReplyServingProvider } = await import("../api/_model-serving-policy.js");
-    const { azureSurfaceReplyConfig } = await import("../api/_azure-surface-reply.js");
-    resolveReplyServingProvider(process.env);
-    azureSurfaceReplyConfig(process.env);
-    if (!String(process.env.NEON_URL || "").trim()) {
-      throw Object.assign(new Error("NEON_URL_required"), { code: "NEON_URL_required" });
-    }
-  } catch (error) {
-    const code = /^[A-Za-z][A-Za-z0-9_]{2,100}$/.test(error?.code || "")
-      ? error.code : "azure_build_config_invalid";
-    console.error(`::error::${code} - explicit Azure configuration refused.`);
-    process.exit(1);
-  }
-}
-
 const lines = [
   "// GENERATED AT DEPLOY TIME from CI secrets by scripts/write-config.mjs.",
   "// Not a source file: edit the secrets, not this.",
@@ -183,10 +160,6 @@ if (researchFallback) {
 // empty string, so nothing is granted, and an accidental query against an
 // empty NEON_URL fails loudly instead of quietly reaching production. The
 // deploy guard below is skipped because there is nothing to deploy.
-if (azureSelected) {
-  console.log("  explicit Azure shared reply configuration validated; private dialogue/auth/storage readiness remains separate.");
-  process.exit(0);
-}
 if (process.argv.includes("--stub")) {
   console.log("  (--stub: no keys, gate use only — this build cannot deploy or reach the DB)");
   process.exit(0);

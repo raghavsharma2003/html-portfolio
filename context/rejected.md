@@ -16896,3 +16896,58 @@ Mounted readiness polling showed the original transport can swallow an aborted s
 ## `focused-passes-cannot-substitute-combined25-release-20260908` (2026-09-07)
 
 Do not combine many independently passing component fixtures into a claimed full release or ordinary customer deployment. The original first-use mounted18 predates its final account guard; the forthcoming full runner must execute final merged source. Earlier failed regex gate, delayed-edit losses, refresh spinner and body-abort crash remain documented. No source-edit or test rerun will silently replace the frozen release result.
+
+
+## `azure-target403-and-old-key-requirement-not-ready-20260908` (2026-09-07)
+
+Read-only Vercel get_project/list_deployments calls returned403 for both supplied project IDs under supplied team. Target Git binding, environment presence and runtime state therefore remain unverified. Source audit found write-config requires OPENROUTER_KEY despite explicit Azure selection, with build stub fallback; this is being isolated for actual config tests, not bypassed using dummy production keys. Reject treating local build success or a push as working deployment.
+
+
+## `generic-pack-is-not-historical-or-authority-20260908` (2026-09-08)
+
+Exact old loader rejects a new pack ID; old language/text grouping merges different subjects. Neither behavior can be generalized by relaxing August counts or pretending a fresh pack is an old one. New controls retain failed/uncertain attempts without audio, reject substitutions and signed fixture binding drift, and refuse protected boolean/unknown verifier. Root/Astra review required planSha256 in scope to prevent revised same-ID plans merging; implemented before final70controls. Unequal clip/reference geometry remains refused because no protection-preserving common transformation was verified. Initial fixture-capture helper used a wrong relative library import and failed before producing fixtures; corrected, not counted as success.
+
+
+## `equal-reference-duration-is-invented-prerequisite-20260908` (2026-09-08)
+
+The initial candidate turned historical common audio treatment into a mandatory equal reference/output duration even though the new path never transforms or serves audio. Root and Astra correctly rejected that as an invented blocker: independent human comparison speech and generated utterances normally differ. Actual signed unequal-duration refusal was executed and retained before removing the condition. The final control creates and signs different-duration inputs before ingestion; it does not merely change a hash under an old signature.
+
+
+## `openrouter-required-for-explicit-azure-build-20260908` (2026-09-08)
+
+Retained old writer rejects valid Azure-only settings without OpenRouter; retained old build proceeds to Vite through --stub even with invalid Azure settings. The writer already writes supplied values before its old guard and stub does not erase them, so reject claiming all otherwise valid settings are necessarily destroyed. First test attempt stalled during repeated-copy temp work with no final receipt, was stopped using exact runner identity, and remains unaccepted; no filesystem cause established. Final test reused immutable copies and completed without product changes.
+
+
+## `mined-cta-whole-component-hash-20260908` (2026-09-07)
+
+Actual combined25 failure: mined CTA negative reconstructed oldpredicate inside CURRENT entire ContextLockerPanel then pinned old fullfile hash. Valid subsequent focus changes invalidate this wholefile identity before any behavior runs. Root captured exact historical CTA expression from original frozen candidate after authenticating fullfile SHA b66074d371b3ce85a42b660a2a883350f460a2f819c50679f1b6f914d6694438. Committed portable expression fixture pins its own SHA and tests actual current rendered branch. No fixture hash updated to bless current code and no production behavior changed.
+
+
+## `reject-timeout-fix-without-cause-20260908` (2026-09-07)
+
+Two native browser actionability timeouts from release25 did not reproduce in two-suite replay. No production disabled/hidden cause found yet. Reject arbitrary timeout increases, forced clicks, and calling a passing retry a root-cause fix. Retain original logs, add passive frame/visibility diagnostics and reproduce pool conditions before proposing scheduling or product changes.
+
+
+## `azure-self-check-openrouter-false-incident-20260908` (2026-09-08)
+
+Retained old actual runSelfCheck with valid Azure config and successful injected DB fails only env: OPENROUTER_KEY missing, which its real cron feeds to incident recording. Do not fix by providing an unused external key or suppressing all env failures. First new eval import failed missing ignored _config; old import reproduced same incumbent prerequisite before an empty sanitized stub was generated. No new runtime import regression or live SQL failure established.
+
+
+## `private-grant-not-publication-authority-20260908` (2026-09-07)
+
+Actual account grant excludes sharing; private question receipt explicitly excludes publication; public teacher compiler requires persisted published principal authority. Filling its consent column, impersonating the owner for visitor requests, or bypassing full-runtime activation creates false capabilities. Dedicated account-material publication must have an actual review/tap, own source-bound receipt, visitor authorization/quota, revocation/erasure and actual Azure reply. Do not stop at a new helper or disabled visitor screen.
+
+
+## `browser-parallelism-is-not-only-port-isolation-20260908` (2026-09-07)
+
+Real7-suite overlap exhausted host headroom and stalled native interaction despite connected visible enabled fields, no active animations, and no reported JS longtasks. Root's previous wholefile-mined-fixture defect was independent and is already repaired. Retain all original failure logs and the distinction that replay action positions differed. Passing bounded replay does not retroactively make release25 green; next combined release remains mandatory.
+
+
+## `browser-isolated-pass-does-not-explain-release-20260908` (2026-09-08)
+
+The two isolated suites passed while the unchanged full25 run failed. Seven real concurrent suites then reproduced stalls at different actions, with renderer scheduling gaps and host pressure. Do not claim the exact original checkbox/textarea failure was reproduced or a Chromium internal cause established. Retain original full25 and failed overlap artifacts. Initial classifier catalog control failed on creator rehearsal computed helper import; actual launch-call coverage fixed it without weakening the assertion.
+
+
+## `checkpoint26-merge-lineendings-and-registry-context-20260908` (2026-09-07)
+
+Browser merge first refused different checkout CRLF/LF hash before mutation. Root checked normalized source equality plus exact Git blob against base25, then accepted only representation difference. Git apply check next refused registry hunk because root already added three suites; still before mutation. Root authenticated entire driver after removing exactly those three additions against base25, then composed reviewed agent driver and those declared additions. No blindly replaced registry or bypassed source provenance.

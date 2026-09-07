@@ -16876,3 +16876,63 @@ On2026-09-08 local date, exact final StudioApp pending-refresh delta passed nati
 ## `combined25-final-merges-before-preflight-20260908` (2026-09-07)
 
 Root merged exact refresh a1c2e0f delta and separate transportcfd6a92f. Agent refresh12groups/24outcomes passed18:52:44.426Z; original Activity aborted-body overlap4 passed18:55:56.942Z at390/1440. Native24/incumbent18/transport15 and independent source review retained. Root has not rerun these mounted suites; final combined release will do so. Four new refresh context nodes, not an assumed three, were inspected after merger preflight refused before writes; all four were imported by ID. No live DB/model/auth calls in these repairs.
+
+
+## `checkpoint25-frozen-preflight63-20260908` (2026-09-07)
+
+Root preflight passed forced TypeScript, copy7scopes/21negative controls, locale94/16scanner controls, first-use actual18, context2423nodes/2393edges and diff. Committed63files as7d4b121abf73a171b44e3e1baba467c39d8ba38f, restored exact reviewed bytes after Windows checkout and confirmed tracked clean. Full release25 began19:03:36.274Z on2026-09-07 and is pending at this measurement. The earlier failed24 runner remains unchanged evidence.
+
+
+## `recorded-listening-mechanics70-20260908` (2026-09-08)
+
+At 2026-09-07T19:10:03.043Z,70focused actual-function/CLI/loopback groups passed with public synthetic tones/signatures; five loopback requests, zero outbound calls/generations/listeners. Exact portable old loader/grouping negatives execute.35existing mechanics passed; historical private scratchpad pack was absent and skipped. Syntax checks passed. No browser/build/cloud/Docker/runtime/provider/fullrelease ran. Recorded fixture ingestion stays synthetic and nonplayable. Artifact scratchpad/recorded-pack-1788808201207/result.json; initial66pass retained separately. Report evals/voice-listening-benchmark/RECORDED-PACK.md.
+
+
+## `recorded-listening-corrected71-20260908` (2026-09-08)
+
+At 2026-09-07T19:15:39.671Z,71 corrected offline/CLI/loopback groups passed, five loopback calls, zero outbound/model/listener work. A newly signed synthetic fixture has100ms conditioning,170ms independent listening and70/120ms outputs; actual verifier inputs equal every original byte. Wrong format/hash/protection still refuse. Before editing, the exact prior candidateSHA4bca531fe7b4735312bc53f687ee03610ca23347ff35d83a5831a45ea8080a2a rejected that fully signed fixture with recorded_common_delivery_geometry_required at2026-09-07T19:14:45.966Z; retained scratchpad/recorded-unequal-old-negative.json. Final artifact scratchpad/recorded-pack-1788808528648/result.json. Incumbent35mechanics previously passed; no legacy code changed after that run.
+
+
+## `azure-build-config-actual-writer-shell28-20260908` (2026-09-08)
+
+At 2026-09-07T19:20:30.931Z, 28 synthetic subprocess controls passed: actual old/current config writer, pure imports before _config exists, network sentinel, legacy byte equality, 13 invalid settings, preserved prewrite output, and real Bash build branches stopped at a fake npx Vite sentinel. Receipt scratchpad/azure-build-config/1788808830945.json. Existing keyring14 emitted controls and self-check85 passed. No real Vite/install/browser/cloud/DB/model. Shared reply validation does not prove private dialogue/KEK/auth/storage or target readiness; legacy runtime self-check still requires OpenRouter.
+
+
+## `release25-completed23of24-20260908` (2026-09-07)
+
+2026-09-07 UTC19:03:36.274 to19:28:04.534; n=24 software release checks,23 passed, eval suite failed explicit-action-focus and teacher-sheet-edit-races native browser actionability waits plus feed-meet-mined-cta historical full-component hash. Runner exit1, changedDuringRun=false, head7d4b121abf73a171b44e3e1baba467c39d8ba38f. Layout, performance, accessibility and security headers passed. Database gates skipped in this runner; separate prior24 readonly proofs do not change this failure. Completion receipt integration/scratchpad/release-25-completion.json. No production changes.
+
+
+## `mined-cta-portable-negative15-20260908` (2026-09-07)
+
+2026-09-08 local / Sept7 UTC, root ran node evals/feed-meet-return/mined-cta.mjs in expert-26-combined after fixture repair:15 actual React branch groups passed, including historical mined absence, extracted/mined currentpresence, noneligible exclusion and native disabled state. No browser/database/network claim. Exact historical source provenance and expression hash retained in old-mined-cta.json and test. Other two browser failures unresolved pending isolated diagnosis.
+
+
+## `release25-browser-replay112-20260908` (2026-09-07)
+
+Agent checkpoint_review ran unchanged product/actions/timeouts with passive diagnostics only and two concurrent browsers after full25 finished. Focus58 and teacher-sheet-edit-races54 passed; artifacts release25-browser-controls scratchpad/action-focus/1788809358818 and editor-edit-races/1788809368875, editor finished2026-09-07T19:29:57Z. n112controlgroups, synthetic mountedfixtures. This does not erase original fullpool failures or prove contention. Stronger bounded7-suite overlap probe being prepared; root avoids simultaneous browser/build.
+
+
+## `self-check-azure-actual21-legacy85-keyring14-20260908` (2026-09-08)
+
+At 2026-09-07T19:32:28.496Z, 21 actual old/current self-check and existing incident-consumer controls passed with injected routed SQL and a throwing fetch sentinel. Valid Azure old false-negative and repaired result, effective names, ten invalid cases, byte-equivalent default results, real-failure preservation and no secret markers covered. Receipt scratchpad/azure-self-check/1788809548557.json. Existing self-check85/keyring14 passed. No real DB/provider/browser/deployment. Private dialogue, KEK/auth/storage readiness is not implied.
+
+
+## `text-publication-caller-audit-20260908` (2026-09-07)
+
+Astra source-only audit of checkpoint25 saved TEXT-PUBLICATION-MINIMUM-20260908.md SHA298d4046e5c97424a86b6352a0b5869aae96468b62054d12c836e04ae693131d. Traced runtime activation, account/private grants, teacher sheet authority, Room publish/resolver, erasure and provider machinery. No tests/SQL/provider/UI measurement. New publication epoch required because private_text_epoch rotates on private edits. Root separately merged Azure self-check21 controls plus existing85/14, graph2445/2402 before this phase. Whole product quality remains unproven.
+
+
+## `browser-seven-bounded199-20260908` (2026-09-07)
+
+Agent checkpoint_review bounded run completed2026-09-07T19:42:57.494Z:7/7 suites,199 groups = Activity4 + refresh12 + focus58 + firstuse18 + editor54 + Feed13 + private refinement40. Same actions/deadlines, worker count7 and browser cap2. Result scratchpad/release25-browser-controls/scratchpad/browser-overlap/1788809935363/result.json. Unbounded7 earlier reproduced focus/editor failures at different actions from original25;204 samples minimumfree0.532GiB,parentloopmax496ms, editor renderer frame gaps5233/8766ms. Bounded237samples minimumfree2.710GiB,parentloopmax249ms. Synthetic scheduler12 and incumbent15 passed. This supports resource-pressure diagnosis, not product performance/real-user acceptance. Final candidate awaiting frozen manifest; root source review no blocking finding.
+
+
+## `browser-overlap-seven-bounded199-20260908` (2026-09-08)
+
+On 2026-09-08 IST, first paired replay passed focus58/editor54. One seven-suite unbounded probe completed19:35:41.634Z with5PASS/2FAIL at alternate native actions; editor frames had5233/8766ms gaps while visible/editable, with204parent samples/minfree0.532GiB. Same7 under shared cap2 completed19:42:57.494Z ALLPASS199groups:4+12+58+18+54+13+40,237samples/minfree2.710GiB. Native scheduler12 and incumbent15 passed. Artifacts are in release25-browser-controls/scratchpad/browser-overlap/1788809532618 and1788809935363; no cloud/real auth/SQL/model/fullrelease. Report BROWSER-RESOURCE-SCHEDULING-20260908.md distinguishes final classifier coverage and inference limits.
+
+
+## `checkpoint26-root-merged-reviewed-sources-20260908` (2026-09-07)
+
+Root verified all four manifests and prerequisites for recorded71+35, Azurebuild28+keyring14+selfcheck85, Azureselfcheck21+85+14, browserresource12+incumbent15+bounded199. Root directly ran correctedmined15 and context checks. No new model/cloud/DB calls. New publication UI isolate has initial sign-in/client code and forced typecheck passed, but no mounted/end-to-end proof or feature acceptance yet. Final combined26 release not yet run.

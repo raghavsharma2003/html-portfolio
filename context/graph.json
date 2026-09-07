@@ -14649,6 +14649,210 @@
       "kind": "rejection",
       "title": "Keep scope of focused proof and upcoming release distinct",
       "at": "2026-09-07"
+    },
+    {
+      "id": "isolate26-while25-frozen-release-20260908",
+      "kind": "decision",
+      "title": "Protect release identity while preparing next bounded work",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "checkpoint25-frozen-preflight63-20260908",
+      "kind": "measurement",
+      "title": "Sixty-three reviewed files frozen after preflight",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "azure-target403-and-old-key-requirement-not-ready-20260908",
+      "kind": "rejection",
+      "title": "A built website is not a verified Azure deployment",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "recorded-listening-preparation-before-spend-20260908",
+      "kind": "decision",
+      "title": "Prepare versioned scoped recorded listening declarations",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "recorded-listening-mechanics70-20260908",
+      "kind": "measurement",
+      "title": "70 new plus35 incumbent listening mechanics",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "generic-pack-is-not-historical-or-authority-20260908",
+      "kind": "rejection",
+      "title": "Reject dated pack spoofing, cross-plan merging and fake protection",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "recorded-independent-duration-preserves-original-20260908",
+      "kind": "decision",
+      "title": "Independent references do not require generated clip duration",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "recorded-listening-corrected71-20260908",
+      "kind": "measurement",
+      "title": "71 corrected recorded-pack controls and exact unequal-duration proof",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "equal-reference-duration-is-invented-prerequisite-20260908",
+      "kind": "rejection",
+      "title": "Reject equal independent reference/output duration requirement",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "explicit-azure-build-config-before-write-20260908",
+      "kind": "decision",
+      "title": "Validate explicitly selected Azure before build writes",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "azure-build-config-actual-writer-shell28-20260908",
+      "kind": "measurement",
+      "title": "Twenty-eight actual writer and build-branch controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "openrouter-required-for-explicit-azure-build-20260908",
+      "kind": "rejection",
+      "title": "Legacy required key and stub fallback misclassify Azure build",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release25-preserve-failed-combined-20260908",
+      "kind": "decision",
+      "title": "Keep failed combined release immutable and repair in26",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release25-completed23of24-20260908",
+      "kind": "measurement",
+      "title": "Full25 completed23 of24 checks on unchanged source",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "mined-cta-whole-component-hash-20260908",
+      "kind": "rejection",
+      "title": "Reject historical negative reconstructed from evolving full component",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "mined-cta-portable-negative15-20260908",
+      "kind": "measurement",
+      "title": "Portable historical CTA and current behavior15 passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-explicit-goal-start-20260908",
+      "kind": "decision",
+      "title": "Track the explicitly requested end-to-end product goal",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release25-browser-replay112-20260908",
+      "kind": "measurement",
+      "title": "Both failing browser suites passed in bounded replay",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "reject-timeout-fix-without-cause-20260908",
+      "kind": "rejection",
+      "title": "Do not fix unreproduced timeouts with weaker actions",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "self-check-classifies-explicit-azure-provider-20260908",
+      "kind": "decision",
+      "title": "Classify self-check requirements by explicit serving lane",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "self-check-azure-actual21-legacy85-keyring14-20260908",
+      "kind": "measurement",
+      "title": "Twenty-one Azure self-check controls plus legacy suites",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "azure-self-check-openrouter-false-incident-20260908",
+      "kind": "rejection",
+      "title": "OpenRouter requirement creates false Azure health failure",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "connected-account-material-publication-20260908",
+      "kind": "decision",
+      "title": "Build sharing as an earlier capability of the same clone",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "text-publication-caller-audit-20260908",
+      "kind": "measurement",
+      "title": "Existing source proves missing publication authority and callable alternatives",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-grant-not-publication-authority-20260908",
+      "kind": "rejection",
+      "title": "Reject private receipt or early full-agent activation as sharing shortcut",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "browser-resource-budget-two-20260908",
+      "kind": "decision",
+      "title": "Bound concurrent browser suites without reducing behavioral checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "browser-seven-bounded199-20260908",
+      "kind": "measurement",
+      "title": "Seven unchanged browser suites passed under cap2",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "browser-parallelism-is-not-only-port-isolation-20260908",
+      "kind": "rejection",
+      "title": "Reject unconstrained browser work as CPU-only independent tests",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "browser-suite-budget-two-20260908",
+      "kind": "decision",
+      "title": "Bound concurrent browser suites while preserving CPU and port scheduling",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "browser-overlap-seven-bounded199-20260908",
+      "kind": "measurement",
+      "title": "Seven browser suites fail unbounded and pass 199 groups with a two-slot cap",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "browser-isolated-pass-does-not-explain-release-20260908",
+      "kind": "rejection",
+      "title": "Do not repair browser stalls with forced actions or blanket timeouts",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "checkpoint26-freeze-reviewed-repairs-20260908",
+      "kind": "decision",
+      "title": "Freeze combined repairs before full release26",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "checkpoint26-root-merged-reviewed-sources-20260908",
+      "kind": "measurement",
+      "title": "Reviewed source manifests merged into26",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "checkpoint26-merge-lineendings-and-registry-context-20260908",
+      "kind": "rejection",
+      "title": "Preserve independent registry edits across Windows checkout representation",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -26619,6 +26823,61 @@
       "src": "first-use-refresh-settles-only-owned-status-20260908",
       "rel": "measured_by",
       "dst": "first-use-pending-refresh-mounted12-overlap4-20260908"
+    },
+    {
+      "src": "recorded-listening-preparation-before-spend-20260908",
+      "rel": "measured_by",
+      "dst": "recorded-listening-mechanics70-20260908"
+    },
+    {
+      "src": "recorded-listening-preparation-before-spend-20260908",
+      "rel": "caused_by",
+      "dst": "generic-pack-is-not-historical-or-authority-20260908"
+    },
+    {
+      "src": "recorded-independent-duration-preserves-original-20260908",
+      "rel": "supersedes",
+      "dst": "recorded-listening-preparation-before-spend-20260908"
+    },
+    {
+      "src": "recorded-independent-duration-preserves-original-20260908",
+      "rel": "measured_by",
+      "dst": "recorded-listening-corrected71-20260908"
+    },
+    {
+      "src": "recorded-independent-duration-preserves-original-20260908",
+      "rel": "caused_by",
+      "dst": "equal-reference-duration-is-invented-prerequisite-20260908"
+    },
+    {
+      "src": "explicit-azure-build-config-before-write-20260908",
+      "rel": "measured_by",
+      "dst": "azure-build-config-actual-writer-shell28-20260908"
+    },
+    {
+      "src": "explicit-azure-build-config-before-write-20260908",
+      "rel": "caused_by",
+      "dst": "openrouter-required-for-explicit-azure-build-20260908"
+    },
+    {
+      "src": "self-check-classifies-explicit-azure-provider-20260908",
+      "rel": "measured_by",
+      "dst": "self-check-azure-actual21-legacy85-keyring14-20260908"
+    },
+    {
+      "src": "self-check-classifies-explicit-azure-provider-20260908",
+      "rel": "caused_by",
+      "dst": "azure-self-check-openrouter-false-incident-20260908"
+    },
+    {
+      "src": "browser-suite-budget-two-20260908",
+      "rel": "measured_by",
+      "dst": "browser-overlap-seven-bounded199-20260908"
+    },
+    {
+      "src": "browser-suite-budget-two-20260908",
+      "rel": "caused_by",
+      "dst": "browser-isolated-pass-does-not-explain-release-20260908"
     }
   ]
 }

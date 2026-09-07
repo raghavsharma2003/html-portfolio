@@ -39,11 +39,10 @@
 // ...)` or binds port 0 (grep `evals/*.mjs` and `evals/*/run.mjs` for
 // `join(tmpdir(),` and `listen(` before adding a suite that does neither).
 //
-// A third resource was measured on 2026-09-08: seven concurrent mounted
-// browser suites starved renderer frames for 5.2 and 8.8 seconds despite
-// visible/editable controls. Browser work shares a two-slot budget across
-// the pool and port lane; CPU work still uses the existing worker count.
-// Classification follows actual automation imports in suite/helper source.
+// A suite that fails in the pool and passes serially is a suite with a THIRD
+// shape of hidden shared state this sweep did not find. Fix the suite —
+// its own temp dir, its own port — never this file. See
+// context/rejected.md for the one this workstream did find.
 
 import { spawn } from "node:child_process";
 import { availableParallelism, cpus } from "node:os";
@@ -114,38 +113,20 @@ export function runSuiteFile(name, file, { cwd, nodePath = process.execPath } = 
  * regardless of completion order, which is what lets the caller print
  * everything back out in registry order afterward.
  */
-export function createBrowserBudget(limit = 2) {
-  if(!Number.isInteger(limit)||limit<1)throw new Error('browser budget must be a positive integer');
-  let active=0;const listeners=new Set();
-  return {
-    limit,
-    acquire() {
-      if(active>=limit)return null;
-      active++;let released=false;
-      return ()=>{if(released)return;released=true;active--;for(const listener of [...listeners])listener();};
-    },
-    subscribe(listener){listeners.add(listener);return()=>listeners.delete(listener);},
-  };
-}
-
-export async function runPool(entries, concurrency, { cwd, onDone, browserBudget } = {}) {
+export async function runPool(entries, concurrency, { cwd, onDone } = {}) {
   const results = new Array(entries.length);
-  const n = Math.max(1, Math.min(concurrency, entries.length || 1));
-  const pending=new Set(entries.map((_,i)=>i)),active=new Set();
-  while(pending.size||active.size){
-    for(const i of pending){
-      if(active.size>=n)break;
-      const {name,file,browser}=entries[i];
-      const release=browser&&browserBudget?browserBudget.acquire():()=>{};
-      if(!release)continue;
-      pending.delete(i);
-      const task=runSuiteFile(name,file,{cwd}).then(result=>{results[i]=result;if(onDone)onDone(result);}).finally(()=>{active.delete(task);release();});
-      active.add(task);
+  let next = 0;
+  const worker = async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= entries.length) return;
+      const { name, file } = entries[i];
+      const r = await runSuiteFile(name, file, { cwd });
+      results[i] = r;
+      if (onDone) onDone(r);
     }
-    if(!active.size&&!pending.size)break;
-    let unsubscribe=()=>{};
-    const change=browserBudget?new Promise(resolve=>{unsubscribe=browserBudget.subscribe(resolve);}):new Promise(()=>{});
-    try{await Promise.race([...active,change]);}finally{unsubscribe();}
-  }
+  };
+  const n = Math.max(1, Math.min(concurrency, entries.length || 1));
+  await Promise.all(Array.from({ length: n }, worker));
   return results;
 }

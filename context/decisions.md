@@ -23130,3 +23130,58 @@ A same-owner token refresh may end its current create/list/select loading state 
 ## `freeze25-after-real-refresh-crash-repair-20260908` (2026-09-07)
 
 One reviewed combined checkpoint now includes all first-use, editing, focus and transport fixes; stop additional source changes before root preflight and the full release. Root owns final exact-byte verification and integration. Reverse on any final gate failure, source drift, caller mismatch or live target failure; keep failed runs immutable. A passing software gate permits a scoped pilot review, not an assertion of full voice/publication/product-market fit.
+
+
+## `isolate26-while25-frozen-release-20260908` (2026-09-07)
+
+Keep integration7d4b121a immutable throughout release25. Next root staging26 starts from that commit and logs research/tooling/config work separately; no candidate source is automatically accepted. Prioritize any25releasefailure over adding features. Reverse if a source mutation or concurrent build alters measured release identity/resources. No cloud writes, live owner grants or GPU allocation are part of these tasks.
+
+
+## `recorded-listening-preparation-before-spend-20260908` (2026-09-08)
+
+Prepare a portable sealed plan and counts-only public summary before new voice spend. Existing CLI gets explicit recorded commands; historic defaults and loader bytes remain. Real ingestion refuses external_verification_unavailable before media read/write because arbitrary imported authority/protection lacks a compatible verifier. New comparison keys bind run, plan hash, subject, conditioning group, listening reference, recipe, language and exact text. Limit one subject/listening reference and unchanged common geometry. Reverse if an equivalent tested adapter appears, owner declines comparison, or a reviewed external verifier requires a changed contract.
+
+
+## `recorded-independent-duration-preserves-original-20260908` (2026-09-08)
+
+Supersede only the initial recorded preparation geometry restriction: validate supported WAV format and original hashes/protection independently, allowing unrelated utterance durations. This mode performs no transformations or playback, so equal sample/byte lengths are not a protection prerequisite. Real ingestion still refuses the missing external verifier. Reverse only if a future explicitly chosen transformed delivery recipe needs common geometry and proves preservation; do not silently force reference duration.
+
+
+## `explicit-azure-build-config-before-write-20260908` (2026-09-08)
+
+Explicit azure_only or azure_foundry selection reuses actual shared reply configuration and provider policy before generating config, with nonempty Neon and exact reply rates/budget. Vercel build cannot catch that refusal into a static stub. No-selection companion/static-preview behavior remains unchanged. Reverse on adapter/build validation drift, secret output, invalid selected Azure reaching Vite, or a supported legacy regression. No env activation or deployment follows.
+
+
+## `release25-preserve-failed-combined-20260908` (2026-09-07)
+
+Frozen25 failed its combined eval suite, so no push, preview restart or deployment is accepted. Keep head7d4b121 and original logs immutable; fix actual causes in26 with historical negatives. Reverse only after complete corrected release passes unchanged source. Azure build and recorded-plan additions are staged26 separately, not evidence of25 acceptance.
+
+
+## `expert-explicit-goal-start-20260908` (2026-09-07)
+
+User explicitly requested a goal and continued parallel execution on2026-09-08 local. Created active goal for verified creator-first Vyakti release, Azure-only serving, responsive workflow, honest voice/identity evidence and deployment where access permits. No token budget requested or set. Four concurrent slots includingroot is actual session capacity; attempts to resume an additional agent were refused by tool thread limit. Use bounded sequential followups, never claim64 agents. Reverse scope only on user steering or evidence that a narrower acceptance boundary is necessary.
+
+
+## `self-check-classifies-explicit-azure-provider-20260908` (2026-09-08)
+
+Keep legacy exported required/optional mirrors; explicit Azure uses effective endpoint/key names, model/reply rates/budget/Neon and pure runtime validation. Name-only findings reach existing incidents; unrelated private features remain separate. Reverse on false accepted invalid config, changed legacy verdict, leaked inputs or missing incident propagation.
+
+
+## `connected-account-material-publication-20260908` (2026-09-07)
+
+The goal retains complete voice/personality/memory/relations and evidence-based competitor quality, including the user's expanded design ambition. Implement an earlier text capability within the same replica Share journey, with explicit reviewed material publication permission and authenticated visitor questions. This does not replace the fullclone goal or convey voice/identity authority. Use separate narrowly scoped publication/visitor/request records rather than prematurely activating full vy_agent. Reverse if the capability causes identity confusion, source/privacy leakage, duplicate product flows or lifecycle/budget controls fail. Backend and UI isolates start from25, excluded from current26 release repair until connected and tested.
+
+
+## `browser-resource-budget-two-20260908` (2026-09-07)
+
+Seven real browser suites under the existing worker pool reproduced action stalls. Introduce a shared two-browser budget across ordinary and fixed-port lanes while retaining CPU worker count and serial shared-file writers. Source-discover actual browser imports and helper calls; this classification is not a complete JavaScript program analysis. Reverse if hidden shared output instead explains failures, browser work escapes the budget, CPU/port work deadlocks, or unchanged full release still fails. Do not increase native interaction deadlines or force clicks.
+
+
+## `browser-suite-budget-two-20260908` (2026-09-08)
+
+Use a shared two-slot browser-suite budget across the normal and fixed-port pools, preserving the overall worker count and pre-pool serial writers. Source-discover automation imports and actual launch callers. Reverse on missed registered callers, CPU/port/writer regression, a demonstrated UI eligibility defect or evidence supporting higher concurrency without missed actions. No action timeout, forced click or application change.
+
+
+## `checkpoint26-freeze-reviewed-repairs-20260908` (2026-09-07)
+
+Combine reviewed Azure build validation, provider-aware operations self-check, portable historical mined CTA test, recorded-pack preparation and browser resource budget. Preserve failed25 logs. Freeze after final sequential preflight then run whole release on clean unchangedsource; do not mix ongoing publication API/UI work into this candidate. Reverse if combined verification fails or final source drifts.

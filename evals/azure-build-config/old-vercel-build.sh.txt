@@ -38,11 +38,7 @@ fi
 # has no env vars yet, fall back to the stub LOUDLY: the static site still
 # deploys and renders, the APIs stay honestly dead until the values are set
 # (which ones: docs/gurukul/ENV-MANIFEST.md).
-if [ "${VYAKTI_MODEL_SERVING:-}" = "azure_only" ] || [ "${VYAKTI_REPLY_PROVIDER:-}" = "azure_foundry" ]; then
-  # Explicit serving configuration must validate even with an existing file.
-  # set -e stops this build on refusal; the legacy static stub is not a fallback.
-  CI=1 node scripts/write-config.mjs
-elif [ ! -f api/_config.js ]; then
+if [ ! -f api/_config.js ]; then
   if ! CI=1 node scripts/write-config.mjs; then
     echo "WARNING: env vars not set on this Vercel project — API routes will fail until they are (docs/gurukul/ENV-MANIFEST.md). Building with stub config."
     CI=1 node scripts/write-config.mjs --stub

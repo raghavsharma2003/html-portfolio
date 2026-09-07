@@ -1,5 +1,6 @@
 // Actual mounted editors and API clients. Synthetic loopback transport only.
 import assert from 'node:assert/strict';
+import {observeBrowser,recordBrowserFailure} from '../browser-action-diagnostics.mjs';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {join,resolve,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -33,7 +34,7 @@ try{
  });await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
  browser=await chromium.launch({headless:true});
  for(const width of [390,1440]){
-  const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'}),page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());
+  const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'}),page=await context.newPage();await observeBrowser(context);page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());
   const open=async(lane,legacy=false,value=initial,hi=false)=>{assert.equal(pending.length,0);raw=structuredClone(value);mode='normal';posts=[];gets=[];published=false;await page.goto(`${origin}/evals/teacher-sheet-edit-races/host.html?${lane==='studio'?'studio=1&':''}${legacy?'old=1&':''}${hi?'hi=1':''}`);await page.locator('#teacher-sheet-studio').waitFor();};
   const load=()=>page.locator('.section-heading button'),save=()=>page.locator('.person-model-action button');
   const settle=async()=>{assert.equal(pending.length,1);pending.shift()();await page.waitForFunction(()=>!document.querySelector('.section-heading button')?.disabled&&!document.querySelector('.person-model-action button')?.disabled);};
@@ -68,4 +69,4 @@ try{
   await context.close();
  }
  assert.deepEqual(errors,[]);writeFileSync(join(art,'result.json'),JSON.stringify({at:new Date().toISOString(),checks,errors,oldHashes:old.hashes,sourceHashes:Object.fromEntries(['src/studio/TeacherSheetStudio.tsx','src/creatorStudio/TeacherSheetStudio.tsx','src/creatorStudio/copy.ts','src/creatorStudio/hiCopy.ts'].map(f=>[f,createHash('sha256').update(readFileSync(join(root,f))).digest('hex')])),scope:'Actual mounted editors, native controls and API clients; synthetic HTTP only, no full Studio shell/SQL/provider or publication permission acceptance.'},null,2));console.log(`PASS ${checks.length} groups; ${art}`);
-}catch(e){writeFileSync(join(art,'failure.json'),JSON.stringify({at:new Date().toISOString(),checks,errors,error:String(e.stack||e)},null,2));throw e;}finally{await browser?.close();for(const done of pending)done();server?.closeAllConnections();if(server)await new Promise(r=>server.close(r));}
+}catch(e){await recordBrowserFailure(browser,art);writeFileSync(join(art,'failure.json'),JSON.stringify({at:new Date().toISOString(),checks,errors,error:String(e.stack||e)},null,2));throw e;}finally{await browser?.close();for(const done of pending)done();server?.closeAllConnections();if(server)await new Promise(r=>server.close(r));}

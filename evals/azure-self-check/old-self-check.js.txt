@@ -35,13 +35,12 @@ import { sendOperatorTelegram } from "./_operator-telegram.js";
 // vercel-app names, generated at build time - a LEAF module (imports
 // nothing from api/), safe beside the two imports above with no cycle risk.
 import { ENV_MANIFEST_ENTRIES, groupAbsentBySection } from "./_env-manifest.js";
-import { selfCheckServing } from "./_self-check-serving.js";
 
 // ═════════════════════════════════════════════════════════════════════════
 // (a) env presence, by NAME only
 // ═════════════════════════════════════════════════════════════════════════
 //
-// Legacy defaults mirror `scripts/write-config.mjs`'s two lists: `REQUIRED_ENV`
+// Mirrors `scripts/write-config.mjs`'s own two lists exactly: `REQUIRED_ENV`
 // is that file's own closing `for (const required of [...])` deploy guard
 // ("the site cannot function without these two"); `OPTIONAL_ENV` is its own
 // `STRINGS` array (every OTHER name it bakes into `api/_config.js`) plus
@@ -103,10 +102,7 @@ export const MANIFEST_ONLY_ENV = Object.freeze(
  * value, never `.length`, never a prefix. `Boolean(env[name])` is the WHOLE
  * read; nothing downstream of this function ever sees the string itself.
  *
- * Explicit Azure selection uses the provider classifier's effective names
- * and adds missing names once. Validation findings are fixed provider codes,
- * never values. The exported lists remain the legacy build-script mirror.
- * In the legacy default, every `MANIFEST_ONLY_ENV` row is `required: false` —
+ * Every `MANIFEST_ONLY_ENV` row is `required: false` unconditionally —
  * widening WHICH names this file can report on is this workstream's whole
  * point; widening WHICH names can fail the morning check is a different,
  * deliberately untouched decision (workstream law 1, WS-R102's own
@@ -116,11 +112,10 @@ export const MANIFEST_ONLY_ENV = Object.freeze(
  * into a deploy-blocking check on its own).
  */
 export function envPresence(env = process.env) {
-  const serving = selfCheckServing(env);
-  const required = new Set(serving?.required || REQUIRED_ENV);
   const out = [];
-  const names = new Set([...REQUIRED_ENV, ...OPTIONAL_ENV, ...MANIFEST_ONLY_ENV, ...required]);
-  for (const name of names) out.push({ name, required: required.has(name), present: Boolean(env[name]) });
+  for (const name of REQUIRED_ENV) out.push({ name, required: true, present: Boolean(env[name]) });
+  for (const name of OPTIONAL_ENV) out.push({ name, required: false, present: Boolean(env[name]) });
+  for (const name of MANIFEST_ONLY_ENV) out.push({ name, required: false, present: Boolean(env[name]) });
   return out;
 }
 
@@ -334,8 +329,6 @@ export async function runSelfCheck(deps = {}) {
     else if (!entry.present) optionalAbsent.push(entry.name);
   }
   optionalAbsent.sort();
-  const serving = selfCheckServing(env);
-  if (serving) checks.push(serving.check);
 
   const dbResult = await checkDatabase(db);
   checks.push({ door: dbResult.door || "db: select 1", ok: dbResult.ok });

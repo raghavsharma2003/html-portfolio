@@ -862,10 +862,18 @@ function usage() {
   console.log("  score [--home path]");
   console.log("  verify [--home path]");
   console.log("  unseal --confirm-ratings-locked [--home path]");
+  console.log("  recorded-prepare --plan path --home new-path");
+  console.log("  recorded-verify --home path");
+  console.log("  recorded-ingest --pack path --media-root path --home path (external verification prerequisite required)");
 }
 
 try {
-  if (command === "build") build();
+  if (command.startsWith("recorded-")) {
+    const { runRecordedCommand } = await import("../evals/voice-listening-benchmark/recorded-cli.mjs");
+    await runRecordedCommand(command, rawFlags);
+  }
+  else if (["plan", "pack", "media-root"].some((flag) => flags.has(flag))) fail("benchmark_recorded_flags_require_explicit_mode");
+  else if (command === "build") build();
   else if (command === "listen") await listen();
   else if (command === "score") score();
   else if (command === "verify") await verify();

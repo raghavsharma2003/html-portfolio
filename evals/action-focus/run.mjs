@@ -1,5 +1,6 @@
 // Actual components/clients; in-memory build, port 0 and synthetic loopback only.
 import assert from 'node:assert/strict';
+import {observeBrowser,recordBrowserFailure} from '../browser-action-diagnostics.mjs';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {join,resolve,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -36,7 +37,7 @@ if((mode==='hold'&&req.method==='POST')||(mode==='hold-read'&&req.method==='GET'
 const asset=assets.get(u.pathname);if(asset!==undefined){res.writeHead(200,{'content-type':extname(u.pathname)==='.html'?'text/html':extname(u.pathname)==='.css'?'text/css':'text/javascript'});res.end(asset);return;}res.writeHead(404).end();});await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
 browser=await chromium.launch({headless:true});
 for(const width of [390,1440]){
-const ctx=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'}),page=await ctx.newPage();page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());
+const ctx=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'}),page=await ctx.newPage();await observeBrowser(ctx);page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());
 const open=async(kind,legacy=false,holdRead=false,restored=false)=>{assert.equal(pending.length,0);mine=false;mode=holdRead?'hold-read':'normal';requests=[];await page.goto(origin+'/evals/action-focus/host.html?replica='+RID+(kind==='source'?'&locker=1':'')+(legacy?'&old=1':'')+(restored?'&rehearsal_request='+GRANT:''));if(!holdRead)await page.waitForLoadState('networkidle');};
 const active=()=>page.evaluate(()=>({tag:document.activeElement?.tagName,text:document.activeElement?.textContent,id:document.activeElement?.id}));
 const prepare=async kind=>{if(kind==='save'){await page.getByRole('button',{name:'Edit draft details',exact:true}).click();await page.getByRole('button',{name:'Save private draft',exact:true}).waitFor();}if(kind==='answer'){await page.locator('#ptr-question').fill('What is the period?');for(const box of await page.locator('.ptr-attestation input').all())await box.check();}};
@@ -53,4 +54,4 @@ for(const kind of ['source','answer']){await open(kind,false,true,kind==='answer
 await ctx.close();
 }
 assert.deepEqual(errors,[]);writeFileSync(join(art,'result.json'),JSON.stringify({at:new Date().toISOString(),checks,errors,oldHashes:old.hashes,sourceHashes:Object.fromEntries(Object.keys(old.files).map(f=>[f,createHash('sha256').update(readFileSync(join(root,f))).digest('hex')])),scope:'Actual components/API clients/native focus, synthetic loopback only; no real permission, SQL, model, whole-shell or visual superiority acceptance.'},null,2));console.log('PASS '+checks.length+' groups; '+art);
-}catch(e){writeFileSync(join(art,'failure.json'),JSON.stringify({checks,errors,error:String(e.stack||e)},null,2));throw e;}finally{await browser?.close();for(const finish of pending)finish();server?.closeAllConnections();if(server)await new Promise(r=>server.close(r));}
+}catch(e){await recordBrowserFailure(browser,art);writeFileSync(join(art,'failure.json'),JSON.stringify({checks,errors,error:String(e.stack||e)},null,2));throw e;}finally{await browser?.close();for(const finish of pending)finish();server?.closeAllConnections();if(server)await new Promise(r=>server.close(r));}

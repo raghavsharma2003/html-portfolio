@@ -9,10 +9,12 @@ import ts from 'typescript';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const bytes=readFileSync(root+'src/studio/ContextLockerPanel.tsx');
 const source=bytes.toString('utf8');
-const current='["extracted", "mined"].includes(item.status)', prior='item.status === "extracted"';
+const current='["extracted", "mined"].includes(item.status)';
 assert.equal(source.split(current).length,2);
-const old=source.replace(current,prior);
-assert.equal(createHash('sha256').update(old).digest('hex'),'b66074d371b3ce85a42b660a2a883350f460a2f819c50679f1b6f914d6694438','negative is exact original frozen candidate bytes');
+const fixture=JSON.parse(readFileSync(new URL('./old-mined-cta.json',import.meta.url),'utf8'));
+assert.equal(fixture.originalSourceSha256,'b66074d371b3ce85a42b660a2a883350f460a2f819c50679f1b6f914d6694438');
+assert.equal(createHash('sha256').update(fixture.expression).digest('hex'),'342678d7d2d52dd82ed7c465ba442f80c555f544a1972222d748413a900589ab','exact captured historical CTA expression');
+const old='const component = <>{'+fixture.expression+'}</>;';
 function renderer(source){
  const ast=ts.createSourceFile('locker.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let expression;
  function visit(node){if(ts.isJsxExpression(node)&&node.expression&&ts.isConditionalExpression(node.expression)&&node.expression.getText(ast).startsWith('onTestSource &&'))expression=node.expression.getText(ast);ts.forEachChild(node,visit);}visit(ast);assert(expression,'actual CTA expression');
