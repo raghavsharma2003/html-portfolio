@@ -465,10 +465,11 @@ export async function completeSourceErasure(db, lease) {
               identity_expires_at=case when e.revoke_identity then null else r.identity_expires_at end,
               lifecycle=case when e.revoke_identity and r.lifecycle not in ('revoked','purging')
                 then 'enrolling' else r.lifecycle end,
+              private_text_epoch=r.private_text_epoch+1,
               primary_selection_id=case when e.withdraw_primary then gen_random_uuid() else r.primary_selection_id end,
               updated_at=now()
          from replica_effects e where r.replica_id=e.replica_id and r.owner_user_id=e.owner_user_id
-          and (e.revoke_identity or e.withdraw_primary)
+          -- Every erased source invalidates its private rehearsal snapshot.
        returning case when e.revoke_identity then r.subject_person_id end subject_person_id
      ), identity_consent as (
        update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())

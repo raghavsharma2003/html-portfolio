@@ -170,6 +170,8 @@ export const OWNER_LANE_TABLES = Object.freeze([
 
   // ── consent ─────────────────────────────────────────────────────────────
   { table: "vy_replica_consent", scope: "replica" },
+  // Exact owner-scoped encrypted archive; withdrawal removes its payloads.
+  { table: "vy_private_text_rehearsal", scope: "replica" },
   { table: "vy_replica_provider_consent", scope: "replica" },
 
   // ── Mirror Call, interview, the review queue ───────────────────────────
@@ -408,14 +410,19 @@ export async function creatorExport(db, ownerUserId, options = {}) {
   for (const entry of OWNER_LANE_TABLES) {
     if (!(await isApplied(entry.table))) continue;
     const { sql, params } = scopedQuery(entry, ctx);
-    const rows = await db(sql, params).catch(() => {
-      if (entry.scope === "teacher_sheet") {
-        throw Object.assign(new Error("creator_export_teacher_sheet_unavailable"), {
-          code: "creator_export_teacher_sheet_unavailable", status: 503,
+    let rows = await db(sql, params).catch(() => {
+      if (entry.scope === "teacher_sheet" || entry.table === "vy_private_text_rehearsal") {
+        const code=entry.scope === "teacher_sheet"?"creator_export_teacher_sheet_unavailable":"creator_export_private_rehearsal_unavailable";
+        throw Object.assign(new Error(code), {
+          code, status: 503,
         });
       }
       return [];
     });
+    if(entry.table === "vy_private_text_rehearsal" && rows.length){
+      const {privateTextExportRow}=await import('./_private-text-rehearsal-crypto.js');
+      rows=rows.map(row=>privateTextExportRow(row,ownerUserId,options.env||process.env));
+    }
     manifest.push({ table: entry.table, rows: rows.length });
     if (rows.length) tables[entry.table] = rows;
   }

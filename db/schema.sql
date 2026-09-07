@@ -5545,3 +5545,92 @@ alter table vy_replica
 -- No inferred snapshot for historical intents; an owner must issue a new one.
 alter table vy_replica_voice_build_intent
   add column if not exists expected_primary_selection_id uuid;
+
+-- 141: one owner-authorized private text question. No verified model scope.
+alter table vy_replica add column if not exists private_text_epoch bigint not null default 0 check (private_text_epoch >= 0);
+
+alter table vy_replica_consent drop constraint if exists vy_replica_consent_scope_check;
+
+alter table vy_replica_consent add constraint vy_replica_consent_scope_check check (scope in ('capture','transcription','biometric','training','inference','storage','sharing','api','telephony','model_improvement','private_text_rehearsal'));
+
+create unique index if not exists vy_private_text_consent_request_ix on vy_replica_consent ((metadata->>'request_id')) where scope='private_text_rehearsal';
+
+create table if not exists vy_private_text_rehearsal (
+  request_id uuid primary key,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  consent_id uuid not null,
+  receipt_hash text not null check (receipt_hash ~ '^[0-9a-f]{64}$'),
+  request_hash text not null check (request_hash ~ '^[0-9a-f]{64}$'),
+  question_hash text not null check (question_hash ~ '^[0-9a-f]{64}$'),
+  sheet_id uuid not null,
+  context_item_id uuid not null references vy_context_item(item_id) on delete cascade,
+  source_id uuid not null,
+  authority_epoch bigint not null check (authority_epoch >= 0),
+  snapshot_hash text not null check (snapshot_hash ~ '^[0-9a-f]{64}$'),
+  snapshot jsonb not null check (jsonb_typeof(snapshot)='object'),
+  state text not null default 'admitted' check (state in ('admitted','dispatched','complete','blocked','uncertain','withdrawn')),
+  dispatch_token_hash text,
+  dispatched_at timestamptz,
+  reservation_id uuid,
+  budget_id text,
+  spend_request_hash text,
+  provider jsonb,
+  billing_state text not null default 'not_started' check (billing_state in ('not_started','reserved','in_flight','settled','reconcile_required')),
+  question_envelope jsonb,
+  raw_envelope jsonb,
+  answer_envelope jsonb,
+  raw_hash text,
+  answer_hash text,
+  gate_sidecar jsonb not null default '{}'::jsonb,
+  failure_code text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint vy_private_text_owner_fk foreign key(replica_id,owner_user_id) references vy_replica(replica_id,owner_user_id) on delete cascade,
+  constraint vy_private_text_consent_fk foreign key(consent_id,replica_id,owner_user_id) references vy_replica_consent(consent_id,replica_id,owner_user_id) on delete cascade,
+  constraint vy_private_text_source_fk foreign key(source_id,replica_id,owner_user_id) references vy_replica_source(source_id,replica_id,owner_user_id) on delete cascade,
+  constraint vy_private_text_receipt_once unique(consent_id),
+  constraint vy_private_text_complete_payload check (state<>'complete' or (answer_envelope is not null and answer_hash ~ '^[0-9a-f]{64}$')),
+  constraint vy_private_text_withdrawn_payload check (state<>'withdrawn' or (question_envelope is null and raw_envelope is null and answer_envelope is null))
+);
+
+create index if not exists vy_private_text_owner_ix on vy_private_text_rehearsal(owner_user_id,replica_id,created_at desc);
+
+-- 142: an owned terminal request ID can exist without ever minting consent.
+alter table vy_private_text_rehearsal
+  alter column consent_id drop not null,
+  alter column receipt_hash drop not null,
+  alter column request_hash drop not null,
+  alter column question_hash drop not null,
+  alter column sheet_id drop not null,
+  alter column context_item_id drop not null,
+  alter column source_id drop not null,
+  alter column authority_epoch drop not null,
+  alter column snapshot_hash drop not null,
+  alter column snapshot drop not null;
+
+alter table vy_private_text_rehearsal drop constraint if exists vy_private_text_rehearsal_billing_state_check;
+
+alter table vy_private_text_rehearsal add constraint vy_private_text_rehearsal_billing_state_check
+ check (billing_state in ('not_started','reserved','in_flight','settled','reconcile_required','unknown'));
+
+alter table vy_private_text_rehearsal drop constraint if exists vy_private_text_authority_or_cancel;
+
+alter table vy_private_text_rehearsal add constraint vy_private_text_authority_or_cancel check (
+ (consent_id is not null and receipt_hash is not null and request_hash is not null and question_hash is not null
+  and sheet_id is not null and context_item_id is not null and source_id is not null
+  and authority_epoch is not null and snapshot_hash is not null and snapshot is not null)
+ or (state='withdrawn' and billing_state='unknown' and consent_id is null and receipt_hash is null
+  and request_hash is null and question_hash is null and sheet_id is null and context_item_id is null
+  and source_id is null and authority_epoch is null and snapshot_hash is null and snapshot is null
+  and reservation_id is null and budget_id is null and spend_request_hash is null and provider is null
+  and dispatch_token_hash is null and dispatched_at is null and raw_hash is null and answer_hash is null)
+);
+
+alter table vy_private_text_rehearsal drop constraint if exists vy_private_text_live_request_payload;
+
+alter table vy_private_text_rehearsal add constraint vy_private_text_live_request_payload
+ check (state='withdrawn' or (question_envelope is not null and billing_state<>'unknown'));
+
+-- Existing request PK arbitrates cancellation versus late admission. Existing
+-- owner index and replica FK also cover tombstones with no source/consent FK.

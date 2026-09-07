@@ -13791,6 +13791,108 @@
       "kind": "measurement",
       "title": "Eighty-six room push checks after actual activation",
       "at": "2026-09-07"
+    },
+    {
+      "id": "release-twenty-one-all-software-gates-20260907",
+      "kind": "measurement",
+      "title": "Checkpoint21 passes all software gates",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-request-withdrawal-is-not-cost-reconciliation-20260907",
+      "kind": "decision",
+      "title": "A withdrawn test may be followed by a separately authorized question",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-text-real-sql-found-first-write-coverage-20260907",
+      "kind": "rejection",
+      "title": "Actual SQL exposes same-statement evidence visibility",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-cancel-closes-unadmitted-request-20260907",
+      "kind": "decision",
+      "title": "An explicit cancellation closes an unknown request UUID",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-text-combined-thirteen-sql-fourteen-ui-20260907",
+      "kind": "measurement",
+      "title": "Combined rehearsal SQL and original mounted interface proof",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-cancel-ten-real-sql-overlap-20260907",
+      "kind": "measurement",
+      "title": "Cancellation passes both witnessed transaction directions",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "native-neon-q-sqlstate-20260907",
+      "kind": "measurement",
+      "title": "Actual production database adapter preserves SQLSTATE",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-proof-exposes-driver-and-fixture-assumptions-20260907",
+      "kind": "rejection",
+      "title": "Do not substitute WebSocket SQL behavior for the application HTTP driver",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-rehearsal-combined-preserves-primary-epoch-20260907",
+      "kind": "decision",
+      "title": "Combine frozen private rehearsal slices without replacing checkpoint21 selection or capture",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-rehearsal-combined-offline-checks-20260907",
+      "kind": "measurement",
+      "title": "Merged candidate passes focused offline composition checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-rehearsal-combined-dual-replica-update-rejected-20260907",
+      "kind": "rejection",
+      "title": "Reject two updates to the same replica and stale schema replacement",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-rehearsal-followup-scoped-merge-20260907",
+      "kind": "decision",
+      "title": "Merge durable cancellation, explicit UI recovery and parsed SQLSTATE",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-rehearsal-followup-offline-controls-20260907",
+      "kind": "measurement",
+      "title": "Frozen follow-up offline checks and separately reported root evidence",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "windows-copy-exit-zero-is-not-a-scan-20260907",
+      "kind": "rejection",
+      "title": "Reject inert Windows copy-gate exit0 as validation",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-rehearsal-forty-four-root-mounted-20260907",
+      "kind": "measurement",
+      "title": "Merged private tests and restored attribution browser checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "copy-gate-execution-must-be-observed-20260907",
+      "kind": "decision",
+      "title": "Treat the Windows copy gate as unaccepted until it executes",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "git-blob-byte-equality-is-not-windows-text-equality-20260907",
+      "kind": "rejection",
+      "title": "Preserve exact source manifests while comparing base text correctly",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -25601,6 +25703,26 @@
       "src": "aac-padding-and-adapter-tests-do-not-justify-identity-enablement-20260907",
       "rel": "constrains",
       "dst": "same-recording-foundation-keeps-identity-disabled-20260907"
+    },
+    {
+      "src": "private-rehearsal-combined-preserves-primary-epoch-20260907",
+      "rel": "measured_by",
+      "dst": "private-rehearsal-combined-offline-checks-20260907"
+    },
+    {
+      "src": "private-rehearsal-combined-dual-replica-update-rejected-20260907",
+      "rel": "constrains",
+      "dst": "private-rehearsal-combined-preserves-primary-epoch-20260907"
+    },
+    {
+      "src": "private-rehearsal-followup-scoped-merge-20260907",
+      "rel": "measured_by",
+      "dst": "private-rehearsal-followup-offline-controls-20260907"
+    },
+    {
+      "src": "windows-copy-exit-zero-is-not-a-scan-20260907",
+      "rel": "constrains",
+      "dst": "private-rehearsal-followup-scoped-merge-20260907"
     }
   ]
 }

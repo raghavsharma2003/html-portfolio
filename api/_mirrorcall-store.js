@@ -1051,10 +1051,10 @@ export async function decideMirrorDelta(db, ownerUserId, replicaIdValue, session
 
   const rows = await db(
     `with owned as materialized (
-       select r.replica_id, r.agent_id, r.policy_version from vy_replica r
+       update vy_replica r set private_text_epoch=r.private_text_epoch+1
         where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
           and r.lifecycle not in ('revoked','purging')
-        for update of r
+        returning r.replica_id, r.agent_id, r.policy_version
      ), sess as (
        select s.session_id from vy_mirror_session s join owned o on o.replica_id = s.replica_id
         where s.session_id = $3::uuid and s.owner_user_id = $2::uuid and s.state = 'open'
@@ -1079,7 +1079,10 @@ export async function decideMirrorDelta(db, ownerUserId, replicaIdValue, session
         where c.target_field <> '' and $5 = 'accepted' and $6::jsonb is not null
      ), existing_sheet as (
        select s.sheet_id from vy_teacher_sheet s join owned o on o.agent_id = s.agent_id
-        where s.status <> 'published' order by s.created_at desc limit 1
+        where s.status <> 'published'
+          and ((s.replica_id=o.replica_id and s.owner_user_id=$2::uuid)
+            or (s.replica_id is null and s.owner_user_id is null))
+        order by s.created_at desc limit 1
      ), sheet_updated as (
        update vy_teacher_sheet s
           set sheet = $6::jsonb, status = 'draft', updated_at = now()
@@ -1104,7 +1107,9 @@ export async function decideMirrorDelta(db, ownerUserId, replicaIdValue, session
          from candidate c
         where d.delta_id = c.delta_id and d.state in ('proposed','deferred')
           and (not exists (select 1 from writable) or exists (select 1 from landed))
-       returning ${DELTA_COLUMNS}
+       returning d.delta_id, d.session_id, d.replica_id, d.owner_user_id, d.kind, d.fragment,
+         d.target_field, d.origin, d.occurrences, d.corpus_tokens, d.evidence, d.citation, d.cited_windows, d.state,
+         d.applied_at, d.applied_sheet_id, d.decided_at, d.created_at, d.updated_at
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)

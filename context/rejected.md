@@ -16662,3 +16662,28 @@ Release20 quick fixture still asserted getTracks().forEach and await context.clo
 ## `notification-first-push-readiness-was-promise-truthiness-20260907` (2026-09-07)
 
 Release20 notification control and firstcheckin failed with Noactive registration while later kinds passed. Root first repair checked active.state activated and removed swallowed waits, but samefocused run still had78pass5fail; retained room-push-twenty-repair.log. Agent native/CDP trace then showed waitForFunction returned while active=null and installing.state=installing. The installed polling implementation tested predicate() truthiness before awaiting its Promise, so asynchronous false looked ready. Event-backed registration activation passed the explicit33browser-only diagnostics without changing the300ms postpush delay. This is measured for this installed runner, not a claim about every Playwright release. MDN confirms active may mean activating or activated: https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorkerRegistration/active. Root fulldefaultpush run is still required.
+
+
+## `private-text-real-sql-found-first-write-coverage-20260907` (2026-09-07)
+
+Migration141 applied only to development. First proof stopped before fixture writes because root manifest validation incorrectly required v4 IDs for content-addressed v5 evidence. Corrected only that wrapper shape. Second proof reached actual canonical insertion and reported context_evidence_persist_denied: covered reread the base table under the statement snapshot and ignored inserted RETURNING. Exact fixture cleanup returned0/errors[]. Candidate now counts exact inserted ID/hash plus existing scoped matches. Third run passed that phase but parser fixture supplied a31-character erasure token to a helper requiring32, so SQL was not reached for that call; cleanup0/errors[]. Retain all failures. No model or genuine identity/consent acceptance occurred.
+
+
+## `private-proof-exposes-driver-and-fixture-assumptions-20260907` (2026-09-07)
+
+Real query parsing exposed ambiguous delta_id in the incumbent Mirror update RETURNING projection; merged source now explicitly qualifies all19 target columns. The WebSocket SQL harness exposed error.code while application HTTP q discarded structured SQLSTATE, so fixture success did not prove the actual duplicate-request consumer. Repair preserves the existing message and attaches only a validated five-character top-level SQLSTATE; root confirmed two actual HTTP errors. The first cancellation proof also compared separate created_at Date objects by identity and failed after1 group, despite equal timestamps; finite valueOf comparisons repaired the harness. That failed receipt remains private-text-cancellation-sql-1788791657640.json, with2 manifests and clean zero-row cleanup. None of these failures is erased by later passes.
+
+
+## `private-rehearsal-combined-dual-replica-update-rejected-20260907` (2026-09-07)
+
+Frozen authority adds private_text_fence UPDATE while checkpoint21 already updates the same vy_replica row for primary/identity effects. Reject mechanical concatenation: compose private epoch into the one update and retain CAS locks. First merge helper stopped on git merge-file conflict count2 because it only accepted exit1; resumed from immutable HEAD, never partially merged files. First primary CAS suite passed12 then failed literal schema mirror after merge helper changed schema CRLF toLF; preserving checkout line endings restores14 without changing SQL/test. Root reported actual Mirror42702 from unqualified DELTA_COLUMNS in UPDATE d FROM candidate c; combined-only projection now qualifies all19 columns. Original manifests stay unchanged. New captured-SQL projection mutant catches ambiguity shape, but root real SQL rerun is still required.
+
+
+## `windows-copy-exit-zero-is-not-a-scan-20260907` (2026-09-07)
+
+Direct node scripts/check-copy.mjs on Windows exits0 without entering the main block because its file URL comparison is not portable. Forcing that entry reveals URL.pathname producing C:\C:\ in filesystem paths. An in-memory root-path adapter executes the existing scanner and21negative controls; it finds125Rooms-vocabulary violations, all exact rule/text matches on untouched c56cadfe. Three changed UI/client files are clean with all rule families enabled. No copy-gate source changed in this slice; independent cross-platform repair and disposition of existing violations remain necessary.
+
+
+## `git-blob-byte-equality-is-not-windows-text-equality-20260907` (2026-09-07)
+
+The first root final-copy preflight refused api/_context-locker.js before any writes because Git's LF blob differed from the unchanged Windows CRLF worktree. Tracked status was clean outside root-owned context. The repaired destination preflight checks both tracked cleanliness and exact text after only CRLF-to-LF normalization; incoming frozen source SHA checks and copied bytes remain exact. No content mismatch was ignored or overwritten. Final integration copied60 source/report/test files and appended6 nonduplicate combined journal entries; original dirty checkout remains preserved.

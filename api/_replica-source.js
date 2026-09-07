@@ -571,6 +571,9 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
         where replica_id = $1::uuid and owner_user_id = $2::uuid and source_id = $3::uuid
           and exists (select 1 from owned where snapshot_current)
         returning ${SOURCE_RETURNING}
+     ), private_text_erased as (
+       delete from vy_private_text_rehearsal h using target t
+       where h.replica_id=t.replica_id and h.owner_user_id=$2::uuid and h.source_id=t.source_id
      ), processing_jobs as (
        update vy_replica_processing_job j
           set state='failed',failure_code='source_erased',lease_token_hash='',
@@ -689,6 +692,7 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
                 or exists (select 1 from liveness_challenges) then null else r.liveness_verified_at end,
               identity_expires_at=case when exists (select 1 from identity_cases)
                 or exists (select 1 from liveness_challenges) then null else r.identity_expires_at end,
+              private_text_epoch=r.private_text_epoch+1,
               primary_selection_id=case when exists (select 1 from voice_reference)
                 then gen_random_uuid() else r.primary_selection_id end,
               lifecycle=case when r.lifecycle in ('revoked','purging') then r.lifecycle else 'enrolling' end,

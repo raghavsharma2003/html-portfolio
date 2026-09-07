@@ -126,10 +126,10 @@ export const PRIVATE_TEACHER_SHEET_READ_SQL = `select s.sheet_id, s.agent_id, s.
       order by s.created_at desc, s.sheet_id desc limit 1`;
 
 export const PRIVATE_TEACHER_SHEET_SAVE_SQL = `with owned as materialized (
-       select r.replica_id, r.owner_user_id, r.agent_id from vy_replica r
+       update vy_replica r set private_text_epoch=r.private_text_epoch+1
         where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
           and r.lifecycle not in ('revoked','purging')
-        for update of r
+        returning r.replica_id, r.owner_user_id, r.agent_id
      ), existing as materialized (
        select s.sheet_id from vy_teacher_sheet s join owned o on
          (s.replica_id = o.replica_id and s.owner_user_id = o.owner_user_id

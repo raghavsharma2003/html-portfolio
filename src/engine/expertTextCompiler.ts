@@ -114,6 +114,16 @@ function material(label: string, data: unknown): string {
   return `\n\n${MATERIAL_BLOCK_OPEN}\n${label}: ${encoded}\n${MATERIAL_BLOCK_CLOSE}`;
 }
 
+// Shared content primitives, never publication or inference authorization.
+// The published compiler above/below keeps its original prompt bytes.
+export function privateExpertPlatformFloor(): string {
+  return FLOOR
+    .replace("teacher projection = approved descriptive facts", "teacher projection = owner-supplied draft descriptive facts")
+    .replace("public source claims only when supported by supplied public knowledge", "source claims only when supported by supplied private owner evidence");
+}
+export const expertReplyLanguage = LANGUAGE;
+export const expertMaterialBlock = material;
+
 /** Copies only the allowlisted fields; unrelated sheet getters are untouched. */
 function projection(sheet: ExpertTeacherProjection): ExpertTeacherProjection {
   if (!object(sheet)) fail("expert_text_teacher_invalid");

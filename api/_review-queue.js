@@ -541,14 +541,17 @@ export async function neverRuleFromFlaggedReply(db, ownerUserId, input, deps = {
   const pattern = neverRulePattern(found[0].reply_text);
   const reason = reviewText(input?.reason, 500);
   const rows = await db(
-    `with existing as (
+    `with private_text_fence as (
+       update vy_replica r set private_text_epoch=r.private_text_epoch+1
+       where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid returning r.replica_id
+     ), existing as (
        select rule_id from vy_review_never_rule
         where replica_id = $1::uuid and owner_user_id = $2::uuid
           and lower(pattern) = lower($3::text) and revoked_at is null
      ), inserted as (
        insert into vy_review_never_rule (replica_id, owner_user_id, pattern, reason)
        select $1::uuid, $2::uuid, $3::text, $4::text
-        where not exists (select 1 from existing)
+        where not exists (select 1 from existing) and exists(select 1 from private_text_fence)
        on conflict do nothing
        returning rule_id
      )
@@ -985,7 +988,10 @@ export async function decideReviewCard(db, ownerUserId, input) {
   const reason = decision === "never" ? reviewText(input?.reason, 500) : "";
 
   const rows = await db(
-    `with authorized as (${OWNED}), candidate as (
+    `with authority as (${OWNED}), authorized as (
+       update vy_replica r set private_text_epoch=r.private_text_epoch+1
+       from authority a where r.replica_id=a.replica_id and r.owner_user_id=$2::uuid returning r.replica_id
+     ), candidate as (
        select c.card_id, c.kind, c.origin_ref, c.answer_text
          from vy_review_card c join authorized a on a.replica_id = c.replica_id
         where c.card_id = $3::uuid and c.owner_user_id = $2::uuid and c.state = 'open'

@@ -43,7 +43,7 @@ export interface StudioSession {
   expiresAt: number;
 }
 
-export type ConsentScope = "capture" | "transcription" | "storage" | "biometric" | "training" | "inference";
+export type ConsentScope = "capture" | "transcription" | "storage" | "biometric" | "training" | "inference" | "private_text_rehearsal";
 
 export interface ConsentReceipt {
   consent_id: string;

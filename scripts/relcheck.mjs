@@ -410,6 +410,8 @@ const erasureSrc = await readFile(
   "utf8",
 );
 const unreachable = [...ownerOnly]
+  // 141's vy_private_text_rehearsal is an owner lane with replica/source/item
+  // cascades and an explicit full-erasure delete. This catalog walk checks it.
   .filter((t) => !reached.has(t))
   .filter((t) => !new RegExp(`delete from ${t}\\b`).test(erasureSrc));
 if (unreachable.length) {

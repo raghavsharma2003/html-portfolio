@@ -22918,3 +22918,28 @@ Owned WAV capture.start returns a Promise. All four actual callers await success
 ## `voice-candidate-explicit-same-source-reissue-20260907` (2026-09-07)
 
 For named primary_voice_selection_changed or primary_selection_snapshot_missing failures, offer an explicit same-recording owner action. Re-read actual owned replica/source/consents, reject stale scope or missing callback, persist/readback a new intent UUID before dispatch, and preserve it after uncertain responses. Generic failures do not auto-reissue; unavailable source/read/storage preserves the old upload and saga. Reversal requires equivalent no-reupload recovery with durable idempotency and no silent override of a newer owner selection.
+
+
+## `private-request-withdrawal-is-not-cost-reconciliation-20260907` (2026-09-07)
+
+Allow an explicit new question after durable withdrawal of the prior private request. Withdrawal must preserve any incurred or uncertain billing, communicate that it does not refund or reconcile, and never automatically repeat generation. The existing development budget remains enforced. No user requirement mandates a global one-request billing lock. Reversal requires observed duplicate-cost confusion or ledger correctness evidence supporting stricter scoped admission with a usable reconciliation path.
+
+
+## `private-cancel-closes-unadmitted-request-20260907` (2026-09-07)
+
+Use an owner-bound terminal tombstone in the existing private request table for cancellation that arrives before admission. Migration142 preserves complete authority constraints for every nonterminal request, creates no fictional consent, and keeps unknown billing explicitly unknown. A subsequent independently authorized question uses a new UUID. Reverse only if an alternative passes both observed transaction overlap directions, scoped cancellation, preserved spend and erasure without fabricating grants or implying refunds.
+
+
+## `private-rehearsal-combined-preserves-primary-epoch-20260907` (2026-09-07)
+
+Merge only hash-verified engine, UI, authority and Unicode manifests onto c56cadfe. Preserve source-first NOWAIT locks and primary-selection snapshot CAS; increment private_text_epoch in the same existing replica UPDATE, never a second update of that row in one statement. Completion updates the private epoch for any actual erased target. Append schema140 then141. Keep cancellation142 and successor UI outside this candidate. Reversal requires merged real SQL/lock evidence that another composition preserves both epochs and all old selection outcomes. No inferred voice or publication authority.
+
+
+## `private-rehearsal-followup-scoped-merge-20260907` (2026-09-07)
+
+The original48-file combined freeze was verified before mutation; four frozen input manifests were verified and only noncontext files copied. Migration142 was appended after the original320743-byte schema prefix, preserving140/141. The actual eval registry now includes cancellation, db-sqlstate and context-attribution-ui. Existing Mirror qualified projection, source/erasure primary-selection and private-memory epoch composition, generated engine and recorder remain byte-identical. Reverses if exact source hashes, scoped cancellation authority, preserved billing, or caller tests fail; revert the bounded follow-up slice, never silently reissue paid work.
+
+
+## `copy-gate-execution-must-be-observed-20260907` (2026-09-07)
+
+Do not infer a successful copy scan from direct Windows exit0: the file URL entry comparison skips its body, and forcing entry reveals URL.pathname root conversion failure. A separate bounded repair must prove actual execution with a retained negative. The scanner with only an in-memory root correction reports125 exact baseline vocabulary violations and zero new violations; three changed UI/client files and21 negative controls pass. Reverse the unaccepted status only when the actual cross-platform command executes its scan and all remaining findings have been resolved under current product/design instructions.

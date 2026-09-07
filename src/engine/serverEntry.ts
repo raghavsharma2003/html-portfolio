@@ -28,6 +28,8 @@
 // persona that still answers is the `silent-truncation` failure shape: it
 // works, everything returns 200, and she is quietly someone else.
 export { compile, type CompileInput, type CompiledPrompt } from "./compiler";
+export { compilePrivateExpertRehearsal, PRIVATE_REHEARSAL_PROFILE, PRIVATE_REHEARSAL_LIMITS,
+  type PrivateRehearsalAuthority, type PrivateRehearsalInput } from "./privateExpertRehearsal";
 // Pure compiler for the explicit Room server opt-in; default compile unchanged.
 export {
   compileExpertText, EXPERT_TEXT_PROFILE, EXPERT_TEXT_LIMITS,

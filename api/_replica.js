@@ -237,9 +237,14 @@ export async function requestOwnedReplicaErasure(db, ownerUserId, id) {
   let rows = await db(
     `with revoked as (
        update vy_replica
-          set lifecycle = 'revoked', revoked_at = coalesce(revoked_at, now()), updated_at = now()
+          set lifecycle = 'revoked', revoked_at = coalesce(revoked_at, now()), updated_at = now(),
+              private_text_epoch=private_text_epoch+1
         where replica_id = $1::uuid and owner_user_id = $2::uuid and lifecycle <> 'purging'
         returning ${RETURNING}
+     ), private_text_erased as (
+       update vy_private_text_rehearsal h set state='withdrawn',question_envelope=null,raw_envelope=null,answer_envelope=null,
+         gate_sidecar='{}'::jsonb,failure_code='replica_revoked',updated_at=now()
+       from revoked r where h.replica_id=r.replica_id and h.owner_user_id=$2::uuid
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)

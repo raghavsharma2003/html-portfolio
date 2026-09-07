@@ -546,6 +546,8 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- replica was gone. CHILD FIRST, as the runtime chain above is ordered:
      -- the text row is deleted before the item row that names it, so nothing
      -- can strand a body whose item is already gone.
+     private_text_rehearsals as (delete from vy_private_text_rehearsal x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      context_item_texts as (delete from vy_context_item_text x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      context_items as (delete from vy_context_item x using target t

@@ -139,7 +139,26 @@ const rowFrom = (result: ContextAddResult, fallbackLabel: string): Row => ({
   label: result.item?.source_name || result.item?.source_url || result.source_name || fallbackLabel,
 });
 
-export default function ContextLockerPanel({
+type ContextLockerPanelProps = {
+  token: string;
+  replicaId: string;
+  testEnvironment?: boolean;
+  onAuthError?: (error: ReplicaApiError) => void;
+  onProposals?: (count: number) => void;
+  onItemCount?: (count: number) => void;
+};
+
+export default function ContextLockerPanel(props: ContextLockerPanelProps) {
+  const scope = useRef({ token: props.token, replicaId: props.replicaId, generation: 0 });
+  if (scope.current.token !== props.token || scope.current.replicaId !== props.replicaId) {
+    scope.current = { token: props.token, replicaId: props.replicaId, generation: scope.current.generation + 1 };
+  }
+  // Old requests may finish, but cannot retain the former owner's rows or
+  // callbacks when the authenticated scope changes.
+  return <ContextLockerScope key={scope.current.generation} {...props} />;
+}
+
+function ContextLockerScope({
   token,
   replicaId,
   testEnvironment = false,
@@ -170,6 +189,13 @@ export default function ContextLockerPanel({
   const [links, setLinks] = useState("");
   const [acknowledged, setAcknowledged] = useState(testEnvironment);
   const [recent, setRecent] = useState<Row[]>([]);
+  const mounted = useRef(false);
+  const loadGeneration = useRef(0);
+  const reminePending = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; loadGeneration.current += 1; };
+  }, []);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [reviewItem, setReviewItem] = useState<{ replicaId: string; itemId: string } | null>(null);
   const reviewRegionId = useId();
@@ -201,9 +227,12 @@ export default function ContextLockerPanel({
   );
 
   const load = useCallback(async () => {
+    if (!mounted.current) return;
+    const generation = ++loadGeneration.current;
     setLoading(true);
     try {
       const next = await loadContextLocker(token, replicaId);
+      if (!mounted.current || generation !== loadGeneration.current) return;
       if (!next
         || !Array.isArray(next.items)
         || !next.quota
@@ -216,9 +245,9 @@ export default function ContextLockerPanel({
       onItemCount?.(next.items.length);
       setError("");
     } catch (e) {
-      fail(e);
+      if (mounted.current && generation === loadGeneration.current) fail(e);
     } finally {
-      setLoading(false);
+      if (mounted.current && generation === loadGeneration.current) setLoading(false);
     }
   }, [token, replicaId, fail, onItemCount]);
 
@@ -228,7 +257,7 @@ export default function ContextLockerPanel({
 
   const send = useCallback(
     async (files: File[]) => {
-      if (!files.length) return;
+      if (!files.length || !mounted.current) return;
       setBusy(true);
       setError("");
       try {
@@ -239,15 +268,17 @@ export default function ContextLockerPanel({
             third_party_acknowledged: acknowledged,
           })),
         );
+        if (!mounted.current) return;
         const results = await addContextFiles(token, replicaId, payload);
+        if (!mounted.current) return;
         const rows = results.map((result, i) => rowFrom(result, files[i]?.name ?? "file"));
         setRecent(rows);
         onProposals?.(rows.reduce((n, row) => n + (row.proposed ?? 0), 0));
         await load();
       } catch (e) {
-        fail(e);
+        if (mounted.current) fail(e);
       } finally {
-        setBusy(false);
+        if (mounted.current) setBusy(false);
       }
     },
     [token, replicaId, acknowledged, load, fail, onProposals],
@@ -260,22 +291,27 @@ export default function ContextLockerPanel({
     setError("");
     try {
       const results = await addContextLinks(token, replicaId, urls);
+      if (!mounted.current) return;
       setRecent(results.map((result, i) => rowFrom(result, urls[i] ?? "link")));
       setLinks("");
       await load();
     } catch (e) {
-      fail(e);
+      if (mounted.current) fail(e);
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   }, [token, replicaId, links, load, fail]);
 
   const remine = useCallback(
     async (itemId: string, options: { authorship?: "mine" | "not_mine"; owner_speaker?: string }) => {
+      if (!mounted.current || reminePending.current || busy) return;
+      reminePending.current = true;
       setBusy(true);
       setError("");
       try {
         const result = await remineContextItem(token, replicaId, itemId, options);
+        if (!mounted.current) return;
+        if (!result?.item || result.item.item_id !== itemId) throw new Error("context_locker_response_invalid");
         onProposals?.(result.proposal?.proposed ?? 0);
         setRecent((rows) =>
           rows.map((row) => (row.item?.item_id === itemId
@@ -284,13 +320,28 @@ export default function ContextLockerPanel({
         );
         await load();
       } catch (e) {
-        fail(e);
+        if (mounted.current) fail(e);
       } finally {
-        setBusy(false);
+        reminePending.current = false;
+        if (mounted.current) setBusy(false);
       }
     },
-    [token, replicaId, load, fail, onProposals],
+    [token, replicaId, load, fail, onProposals, busy],
   );
+
+  const attributionControls = (item: ContextItem) => item.kind === "file"
+    && item.status === "extracted" && item.extracted_chars > 0
+    && item.consent_scope === "own_context"
+    && ["text", "markdown", "pdf", "docx"].includes(item.format) ? (
+      <span className="context-result-actions" role="group" aria-label="Writing attribution">
+        <button type="button" className="button" disabled={busy || item.authorship === "mine"}
+          aria-pressed={item.authorship === "mine"}
+          onClick={() => void remine(item.item_id, { authorship: "mine" })}>My writing</button>
+        <button type="button" className="button" disabled={busy || item.authorship === "not_mine"}
+          aria-pressed={item.authorship === "not_mine"}
+          onClick={() => void remine(item.item_id, { authorship: "not_mine" })}>Reference only</button>
+      </span>
+    ) : null;
 
   const drop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
@@ -415,20 +466,7 @@ export default function ContextLockerPanel({
                 </span>
               )}
 
-              {row.item && row.item.status === "extracted" && row.item.kind === "file"
-                && row.item.format !== "whatsapp_export"
-                && row.item.mine_skip_reason === "not_owner_authored_no_style_evidence" && (
-                <span className="context-result-actions">
-                  <button
-                    type="button"
-                    className="button primary-button"
-                    disabled={busy}
-                    onClick={() => void remine(row.item!.item_id, { authorship: "mine" })}
-                  >
-                    This is my own writing
-                  </button>
-                </span>
-              )}
+              {row.item && attributionControls(row.item)}
             </li>
           ))}
         </ul>
@@ -440,7 +478,7 @@ export default function ContextLockerPanel({
       </Suspense>}
 
       <h3 ref={lockerHeading} tabIndex={-1} className="context-list-title">In your locker</h3>
-      {loading ? (
+      {loading && !view ? (
         <p className="field-note" role="status">Loading…</p>
       ) : items.length === 0 ? (
         <p className="field-note">Nothing yet.</p>
@@ -455,6 +493,7 @@ export default function ContextLockerPanel({
                 {item.owner_speaker ? ` · your messages as ${item.owner_speaker}` : ""}
               </span>
               <span className="field-note">{stateDetail({ key: item.item_id, item, label: "" })}</span>
+              {attributionControls(item)}
               <span className="context-result-actions">
                 {reviewButton(item)}
                 <button
@@ -466,12 +505,13 @@ export default function ContextLockerPanel({
                     if (openItemId === item.item_id) setReviewItem(null);
                     void removeContextItem(token, replicaId, item.item_id)
                       .then(async () => {
+                        if (!mounted.current) return;
                         setRecent(rows => rows.filter(row => row.item?.item_id !== item.item_id));
                         await load();
-                        lockerHeading.current?.focus();
+                        if (mounted.current) lockerHeading.current?.focus();
                       })
-                      .catch(fail)
-                      .finally(() => setBusy(false));
+                      .catch(error => { if (mounted.current) fail(error); })
+                      .finally(() => { if (mounted.current) setBusy(false); });
                   }}
                 >
                   Remove

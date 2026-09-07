@@ -160,11 +160,12 @@ export async function grantAccountConsent(db, ownerUserId, id, input, options = 
   });
   const rows = await db(
     `with owned as (
-       select replica_id, policy_version from vy_replica
+       update vy_replica set private_text_epoch=private_text_epoch+1
         where replica_id = $1::uuid and owner_user_id = $2::uuid
           and subject_mode = 'self'
           and policy_version = $7
           and lifecycle not in ('revoked','purging')
+       returning replica_id,policy_version
      ), revoked as (
        update vy_replica_consent
           set revoked_at = coalesce(revoked_at, $6::timestamptz)
@@ -301,20 +302,32 @@ export async function revokeOwnedConsent(db, ownerUserId, id, value) {
   const rid = replicaId(id);
   const scopes = consentScopes(value, "verified");
   const rows = await db(
-    `with revoked as (
+    `with source_gate as materialized (
+       select s.source_id from vy_replica_source s where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid
+       order by s.source_id for update of s
+     ), owned as (
+       update vy_replica r set private_text_epoch=r.private_text_epoch+1,
+         lifecycle=case when r.lifecycle in ('active','ready','calibrating') then 'paused' else 'consent_pending' end,
+         updated_at=now()
+       where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
+         and (select count(*) from source_gate)>=0
+         and exists(select 1 from vy_replica_consent c where c.replica_id=r.replica_id
+           and c.owner_user_id=r.owner_user_id and c.scope=any($3::text[]) and c.revoked_at is null)
+       returning r.replica_id
+     ), revoked as (
        update vy_replica_consent
           set revoked_at = coalesce(revoked_at, now())
         where replica_id = $1::uuid and owner_user_id = $2::uuid
           and scope = any($3::text[]) and revoked_at is null
           and exists (
-            select 1 from vy_replica r where r.replica_id = $1 and r.owner_user_id = $2
+            select 1 from owned
           )
        returning ${CONSENT_RETURNING}
-     ), paused as (
-       update vy_replica set
-         lifecycle = case when lifecycle in ('active','ready','calibrating') then 'paused' else 'consent_pending' end,
-         updated_at = now()
-       where replica_id = $1::uuid and owner_user_id = $2::uuid and exists (select 1 from revoked)
+     ), private_text_erased as (
+       update vy_private_text_rehearsal h set state='withdrawn',question_envelope=null,raw_envelope=null,answer_envelope=null,
+         gate_sidecar='{}'::jsonb,failure_code='rehearsal_account_consent_revoked',updated_at=now()
+       where h.replica_id=$1::uuid and h.owner_user_id=$2::uuid and exists(select 1 from revoked)
+         and ('capture'=any($3::text[]) or 'storage'=any($3::text[]))
      ), sources as (
        update vy_replica_source set state = 'deleting', updated_at = now()
         where replica_id = $1::uuid and owner_user_id = $2::uuid

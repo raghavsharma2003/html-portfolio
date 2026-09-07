@@ -16588,3 +16588,38 @@ After manifest-verified four-slice merge, root passed36feedback mounted groups,3
 ## `room-push-eighty-six-native-boundary-checks-20260907` (2026-09-07)
 
 On 2026-09-07 root ran the default full evals/room-push/run.mjs against integration's actual local dist: 86 passed, zero failed, exit0. It includes crypto/API fixture sections and native Chromium notification/service-worker controls. The event-backed activation repair awaits the exact worker's activated state and reports failure instead of swallowing it. The async-false negative control accepts only an actual false result or Playwright TimeoutError, neither as readiness. Browser-only/dist overrides remain explicit diagnostic modes. Retained integration scratchpad/room-push-twenty-one-final.log and native handoff. This is synthetic localhost notification evidence, not external push delivery or real subscriber acceptance.
+
+
+## `release-twenty-one-all-software-gates-20260907` (2026-09-07)
+
+Frozen c56cadfe72a20ee02781485752d8d67fcfc6fb21 ran2026-09-07T13:54:27.548Z to14:13:13.907Z, exit0, changedDuringRun=false. All24software checks passed, including layout250623ms,performance110023ms and accessibility69958ms. Two relational gates skipped absentNEON_URL; earlier actual development SQL8feedback/29primaryCAS and separate new private-rehearsal SQL attempts retain their own scope. Full logs and release21completion retained. Local5177 restarted after21 through protectedAzure launcher exec45513, isolated-database startup and HTTP200 verified. No real-owner voice, likeness, native listening or competitor acceptance follows.
+
+
+## `private-text-combined-thirteen-sql-fourteen-ui-20260907` (2026-09-07)
+
+Root ran13 actual development SQL groups at2026-09-07T14:30:27.701Z;11 fixture manifests preceded writes, remainingFixtureRows0,cleanupErrors[]. This includes canonical first write,10 changed incumbent query parser controls, encrypted admission, scope, spend binding, settled-only commit, interposed epoch mutation, withdrawal and erasure. The interposed mutation is not overlapping-transaction evidence. Root separately passed14 mounted interface groups in scratchpad/private-rehearsal-combined/scratchpad/private-text-ui/1788791382249. These used synthetic HTTP fixtures, not authenticated owner/model calls. Subsequent cancellation/recovery UI changes require new focused acceptance.
+
+
+## `private-cancel-ten-real-sql-overlap-20260907` (2026-09-07)
+
+On2026-09-07 root ran the frozen cancellation store and migration142 against isolated development, passing10 groups. Receipt scratchpad/expert-tools/private-text-cancellation-sql-1788791947031.json records6 prewrite manifests,remainingFixtureRows0,cleanupErrors[]. pg_blocking_pids witnessed admission then cancellation at231ms and cancellation then late admission at926ms; the late admission returned23505 and produced no compiler input or leaked grant. Other groups cover old withdrawal failure, authority constraints, owner scope, fresh IDs, terminal receipt failure/retry, preserved settled spend and cascades. No provider, actual owner, storage or identity operation occurred.
+
+
+## `native-neon-q-sqlstate-20260907` (2026-09-07)
+
+Root at2026-09-07T14:35:32.597Z made3 read-only SQL-over-HTTP calls through the frozen actual q implementation: target database readback, division by zero and invalid UUID. Actual error.code values22012 and22P02 matched, existing error-message prefix remained, no HTTP status mapping appeared. Runtime SHA88125c60ec9898a5549f77c1ac36905699f04b2bd92de58c21af39e512240d8d. Receipt scratchpad/expert-tools/native-neon-sqlstate-proof-20260907.json. No fixtures, grants or model calls. Separately the agent passed12 groups using58 synthetic HTTP responses, including23505 consumer behavior.
+
+
+## `private-rehearsal-combined-offline-checks-20260907` (2026-09-07)
+
+2026-09-07, Node24.13.0, isolated c56cadfe candidate. Verified all45 source manifest hashes and omitted4 stale context files. Forced tsc passed. Actual compiler17, handler17, store16, Unicode13, source UI11 plus2 persistence, primary CAS14, merge7, owned capture helper33, clone QA20 and registry15 passed. Engine freshness check354368 reported bytes passed. Three changed UI files passed actual scanSource. No mounted UI/browser, live SQL/model or full gate performed by this agent. See research/PRIVATE-REHEARSAL-COMBINED-20260907.md and scratchpad/combined-checks logs for precise scopes.
+
+
+## `private-rehearsal-followup-offline-controls-20260907` (2026-09-07)
+
+2026-09-07, isolated private-rehearsal-combined from c56cadfe. Actual source tests: cancellation10, incumbent store16, SQLSTATE12groups/58synthetic fetches, handler17, compiler17, merged SQL-shape/recorder safeguards7, UI11initial+14cancellation response groups+2navigation controls and retained old-client negative, registry scheduler15. Eight registry entries verified exactly once. Forced tsc -b --force passed. Copy21negative controls and three changed UI/client files passed; the full scan reports125preexisting violations with exact rule/text parity against c56cadfe, not a full copy pass. Original37unaffected manifest files and schema prefix retain exact hashes. Root independently reports mounted private UI20 and restored-context24 passes at scratchpad/private-text-ui/1788792624234 and scratchpad/context-attribution/1788792635726. Root actual cancellationSQL10groups, two blocking-direction witnesses, cleanup0/errors[] are retained separately in ROOT scratchpad/expert-tools/private-text-cancellation-sql-1788791947031.json. This agent made no DB/model/provider calls and ran no full release.
+
+
+## `private-rehearsal-forty-four-root-mounted-20260907` (2026-09-07)
+
+On2026-09-07 root independently ran final merged private-text UI20 mounted groups and restored-attribution24 mounted groups, both exit0. Actual browser artifacts are scratchpad/private-rehearsal-combined/scratchpad/private-text-ui/1788792624234 and context-attribution/1788792635726. Coverage includes durable unknown cancellation, reload, preserved uncertain billing, explicit private successor save, stale account/replica completion, restored supported document attribution, delayed remine and authoritative list refresh at390/1440. These are mounted synthetic HTTP controls, not actual authenticated upload or native model proof. All60 noncontext files were manifest-verified before integration.

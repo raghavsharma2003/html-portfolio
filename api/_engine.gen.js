@@ -1747,10 +1747,10 @@ function lintLine(line) {
   if (FIRST_PERSON_LINE_INITIAL_RE.test(trimmed)) reasons.push("first-person-Meera voice, line-initial");
   return { line, reasons };
 }
-function lintBlock(text2, allowlist = []) {
+function lintBlock(text3, allowlist = []) {
   const violations = [];
   let linesChecked = 0;
-  for (const rawLine of text2.split("\n")) {
+  for (const rawLine of text3.split("\n")) {
     const line = rawLine.trim();
     if (!line) continue;
     if (allowlist.some((a) => line.includes(a))) continue;
@@ -1791,10 +1791,10 @@ function ruptureStance(input, now = /* @__PURE__ */ new Date()) {
 var TU_MARKERS = [" tu ", " tera ", " teri ", " tere ", " tujhe ", " tujhko "].map((s) => s);
 var AAP_MARKERS = [" aap ", " aapka ", " aapki ", " aapke ", " aapko ", " aapse "].map((s) => s);
 function finish(lines, header) {
-  const text2 = lines.length ? `${header}
+  const text3 = lines.length ? `${header}
 ${lines.map((l) => `- ${l}`).join("\n")}` : "";
   const lint = lintBlock(lines.join("\n"));
-  return { text: text2, lint: { clean: lint.clean, violations: lint.violations.length } };
+  return { text: text3, lint: { clean: lint.clean, violations: lint.violations.length } };
 }
 function renderRelSnapshot(state, meta = { lastHonorificMoveAt: null }, now = /* @__PURE__ */ new Date()) {
   const lines = [];
@@ -2037,10 +2037,10 @@ function renderIndiaDynamic(rituals, homeRegion, currency, now = /* @__PURE__ */
     lines.push(`currency: ${c.topic} (${c.kind})`);
   }
   lines.push(...renderKinLines(kin));
-  const text2 = lines.length ? `INDIA CONTEXT (context only, never raise unprompted \u2014 a due ritual is not an instruction to perform it, just a note it exists):
+  const text3 = lines.length ? `INDIA CONTEXT (context only, never raise unprompted \u2014 a due ritual is not an instruction to perform it, just a note it exists):
 ${lines.map((l) => `- ${l}`).join("\n")}` : "";
   const lint = lintBlock(lines.join("\n"));
-  const result = { text: text2, lint: { clean: lint.clean, violations: lint.violations.length } };
+  const result = { text: text3, lint: { clean: lint.clean, violations: lint.violations.length } };
   if (result.text.length > 1e3) {
     return { ...result, lint: { ...result.lint, violations: result.lint.violations + 1 } };
   }
@@ -2147,8 +2147,8 @@ var PROFANITY_MARKERS = [
 function padTexture(s) {
   return " " + String(s || "").toLowerCase().replace(/(\p{Extended_Pictographic})/gu, " $1 ").replace(/[^\p{L}\p{N}\p{Extended_Pictographic}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
 }
-function rawWords(text2) {
-  return String(text2 || "").split(/\s+/).filter(Boolean).length;
+function rawWords(text3) {
+  return String(text3 || "").split(/\s+/).filter(Boolean).length;
 }
 function percentile(nums, p) {
   if (!nums.length) return 0;
@@ -2170,14 +2170,14 @@ function textureCounts(contents) {
   let profanity = 0;
   const words2 = [];
   for (const raw of contents) {
-    const text2 = String(raw || "");
-    const padded = padTexture(text2);
+    const text3 = String(raw || "");
+    const padded = padTexture(text3);
     if (hasAny(padded, TEASING_MARKERS)) teasing++;
     if (hasAny(padded, HUMOUR_MARKERS) || LAUGH_ELONGATION_RE.test(padded)) humour++;
     if (hasAny(padded, PROFANITY_MARKERS)) profanity++;
-    if (TEXTURE_MEDIA_RE.test(text2)) media++;
-    if (TEXTURE_EMOJI_RE.test(text2)) emoji++;
-    words2.push(rawWords(text2));
+    if (TEXTURE_MEDIA_RE.test(text3)) media++;
+    if (TEXTURE_EMOJI_RE.test(text3)) emoji++;
+    words2.push(rawWords(text3));
   }
   return {
     teasing: r3(teasing / n),
@@ -2393,12 +2393,12 @@ function renderTexture(row) {
     }
     for (const t of safe) lines.push(`avoid: ${t}`);
   }
-  const text2 = `${TEXTURE_HEADER}
+  const text3 = `${TEXTURE_HEADER}
 ${lines.map((l) => `- ${l}`).join("\n")}`;
   const lint = lintBlock(lines.join("\n"));
   let violations = lint.violations.length;
-  if (text2.length > TEXTURE_BUDGET) violations++;
-  return { text: text2, lint: { clean: violations === 0, violations } };
+  if (text3.length > TEXTURE_BUDGET) violations++;
+  return { text: text3, lint: { clean: violations === 0, violations } };
 }
 
 // src/engine/reciprocity.ts
@@ -2419,9 +2419,9 @@ function reciprocityNote(state) {
   const lean = reciprocityLean(state);
   if (!lean) return "";
   const row = lean === "she-holds-back" ? "lately: theirs open, yours held back" : "lately: yours open, theirs held back";
-  const text2 = `${RECIPROCITY_HEADER}
+  const text3 = `${RECIPROCITY_HEADER}
 - ${row}`;
-  return text2.length <= RECIPROCITY_BUDGET ? text2 : "";
+  return text3.length <= RECIPROCITY_BUDGET ? text3 : "";
 }
 
 // src/engine/selfarc.ts
@@ -2446,8 +2446,8 @@ var DIM_MARKERS = {
   humour: ["joke", "jokes", "joking", "mazaak", "mazak", "funny", "tease", "teases", "teasing", "sarcasm", "sarcastic", "deadpan", "punchline"],
   patience: ["patient", "patience", "patiently", "sabar", "rushes", "rushing", "hurries", "interrupts", "interrupting", "waits", "slower", "dheere", "jaldbaazi"]
 };
-function classifyDim(text2) {
-  const hay = padT2(text2);
+function classifyDim(text3) {
+  const hay = padT2(text3);
   let bestDim = null;
   let bestHits = 0;
   let tied = false;
@@ -2774,10 +2774,10 @@ function bandSpan(spanDays) {
   return "1y+";
 }
 function finish2(lines, header) {
-  const text2 = lines.length ? `${header}
+  const text3 = lines.length ? `${header}
 ${lines.map((l) => `- ${l}`).join("\n")}` : "";
   const lint = lintBlock(lines.join("\n"));
-  return { text: text2, lint: { clean: lint.clean, violations: lint.violations.length } };
+  return { text: text3, lint: { clean: lint.clean, violations: lint.violations.length } };
 }
 function renderSelfArc(rows, moment) {
   const header = "SELF, OVER TIME (context only \u2014 never narrate this, never say you have changed, never raise it yourself):";
@@ -2893,10 +2893,10 @@ function renderUntold(rows, turn) {
 var UNTOLD_HEADER = "YOUR LIFE \u2014 WHAT THEY HAVE NOT HEARD (context only, never raise unprompted). Here so you don't re-tell them something they already heard, and so you know what would be new to them. Not a list to get through; nothing here is a reason to start a topic. If they ask, or it comes up on its own, this is what they don't know yet:";
 var UNTOLD_WORST_CASE_CHARS = UNTOLD_HEADER.length + MAX_UNTOLD_BEATS * (1 + 2 + 24 + MAX_BEAT_CHARS);
 function finish3(lines, header) {
-  const text2 = lines.length ? `${header}
+  const text3 = lines.length ? `${header}
 ${lines.map((l) => `- ${l}`).join("\n")}` : "";
   const lint = lintBlock(lines.join("\n"));
-  return { text: text2, lint: { clean: lint.clean, violations: lint.violations.length } };
+  return { text: text3, lint: { clean: lint.clean, violations: lint.violations.length } };
 }
 function capToRenderResult3(result, budget) {
   if (result.text.length <= budget) return result;
@@ -3458,8 +3458,8 @@ var MOOD_PHRASES = Object.freeze([
   "man nahi",
   "mann nahi"
 ]);
-function moodWordsIn(text2) {
-  const hay = padT3(text2);
+function moodWordsIn(text3) {
+  const hay = padT3(text3);
   return [
     ...MOOD_WORDS.filter((w) => hay.includes(` ${w} `)),
     ...MOOD_PHRASES.filter((p) => hay.includes(` ${p} `))
@@ -3511,9 +3511,9 @@ function renderAway(nowMs, gapMs) {
   ];
   if (crossedNight(nowMs, gapMs)) bits.push("gap covered the night");
   if (now.dateKey !== then.dateKey) bits.push("different day");
-  const text2 = `SINCE YOU LAST SPOKE \u2014 facts about the clock, not a script. React to a real gap the way anyone would; say nothing about it when it doesn't matter:
+  const text3 = `SINCE YOU LAST SPOKE \u2014 facts about the clock, not a script. React to a real gap the way anyone would; say nothing about it when it doesn't matter:
 ${bits.join(" \xB7 ")}`;
-  return text2.length > AWAY_BUDGET ? text2.slice(0, AWAY_BUDGET) : text2;
+  return text3.length > AWAY_BUDGET ? text3.slice(0, AWAY_BUDGET) : text3;
 }
 
 // src/engine/repeat.ts
@@ -3525,8 +3525,8 @@ var MIN_TERM_LEN = 3;
 var SHORT_REPLY_WORDS = 3;
 var MAX_TERMS = 3;
 var RAISED_BUDGET = 400;
-function tokens(text2) {
-  return (text2.toLowerCase().match(/[a-zऀ-ॿ]+/g) || []).filter(
+function tokens(text3) {
+  return (text3.toLowerCase().match(/[a-zऀ-ॿ]+/g) || []).filter(
     (t) => t.length >= MIN_TERM_LEN
   );
 }
@@ -3568,8 +3568,8 @@ function renderRaised(rows) {
     const how = r.theirWords === 0 ? "they did not answer" : r.theirWords <= SHORT_REPLY_WORDS ? `they answered short (~${r.theirWords} words)` : `they engaged (~${r.theirWords} words)`;
     return `${r.term} \xB7 ${r.times}x \xB7 ${how}`;
   });
-  const text2 = "YOU HAVE ALREADY RAISED THESE \u2014 count, and how they answered. Not a ban: a thing they engage with is worth returning to, a thing they answer in two words is one a person would let go. You decide:\n" + lines.join("\n");
-  return text2.length > RAISED_BUDGET ? text2.slice(0, RAISED_BUDGET) : text2;
+  const text3 = "YOU HAVE ALREADY RAISED THESE \u2014 count, and how they answered. Not a ban: a thing they engage with is worth returning to, a thing they answer in two words is one a person would let go. You decide:\n" + lines.join("\n");
+  return text3.length > RAISED_BUDGET ? text3.slice(0, RAISED_BUDGET) : text3;
 }
 
 // src/engine/activity.ts
@@ -3595,11 +3595,11 @@ function renderActivity(a, nowMs) {
   const mins = nowMs && a.startedAt && nowMs > a.startedAt ? Math.floor((nowMs - a.startedAt) / 6e4) : null;
   const head = a.over ? `YOU TWO JUST FINISHED ${LABEL[a.kind].toUpperCase()}` + (mins !== null && mins >= 1 ? ` \u2014 it ended about ${mins} min ago` : " \u2014 moments ago") + `. It already happened; carry it the way a person carries a game they just played \u2014 a mention if it comes up, an afterglow or a grudge if it fits, never a replay:` : `RIGHT NOW YOU TWO ARE IN THE MIDDLE OF ${LABEL[a.kind].toUpperCase()}` + (mins !== null && mins >= 1 ? ` \u2014 ${mins} min in` : "") + `. This is something you are doing WHILE you talk, not the only thing to talk about; the conversation can wander off it and come back the way it does with anyone. React when something actually strikes you, and be quiet when nothing does:`;
   const rows = a.facts.map((f) => `- ${f}`);
-  let text2 = `${head}
+  let text3 = `${head}
 ${rows.join("\n")}`;
-  while (text2.length > ACTIVITY_BUDGET && rows.length > 1) {
+  while (text3.length > ACTIVITY_BUDGET && rows.length > 1) {
     rows.pop();
-    text2 = `${head}
+    text3 = `${head}
 ${rows.join("\n")}`;
   }
   return `${head}${truthBlock(a)}
@@ -3840,9 +3840,9 @@ var INITIATIVE_HEADER = "YOU ARE SPEAKING FIRST THIS TURN, and this is the one r
 function renderInitiative(verdict) {
   if (!verdict || verdict.mayInitiate !== true || !verdict.reason || !verdict.citedAt) return "";
   const row = `- ${verdict.reason}`;
-  const text2 = `${INITIATIVE_HEADER}
+  const text3 = `${INITIATIVE_HEADER}
 ${row}`;
-  return text2.length > INITIATIVE_BUDGET ? "" : text2;
+  return text3.length > INITIATIVE_BUDGET ? "" : text3;
 }
 
 // src/engine/compiler.ts
@@ -4184,8 +4184,8 @@ var PUBLISHED_HELPLINES = [
   // Childline India (under-18)
 ];
 var APP_ADDRESSES = ["meera-silk.vercel.app", "https://meera-silk.vercel.app"];
-function findActionable(text2, allowed) {
-  const s = String(text2 ?? "");
+function findActionable(text3, allowed) {
+  const s = String(text3 ?? "");
   const okValue = (v) => Boolean(allowed?.values.has(v.trim().toLowerCase()));
   const okDigits = (d) => Boolean(allowed?.digits.has(d));
   const hits = [];
@@ -4233,13 +4233,13 @@ function allowedFrom(parts) {
   const hit = ALLOWED_CACHE.find((e) => e.key === key);
   if (hit) return hit.val;
   const out = emptyAllowed();
-  const absorb = (text2) => {
-    for (const h of findActionable(text2)) {
+  const absorb = (text3) => {
+    for (const h of findActionable(text3)) {
       out.values.add(h.value.toLowerCase());
       const d = digitsOf(h.value);
       if (d.length >= 3) out.digits.add(d);
     }
-    for (const m of text2.match(/\d[\d\s-]*\d|\d/g) ?? []) {
+    for (const m of text3.match(/\d[\d\s-]*\d|\d/g) ?? []) {
       const d = digitsOf(m);
       if (d.length >= 3 && d.length <= 7) out.digits.add(d);
     }
@@ -4284,8 +4284,8 @@ function receiptAbout(clause, re) {
   const subjects = spansOf(re, clause);
   return subjects.some((s) => verbs.some((v) => wordGap(clause, s, v) <= NEAR_WORDS));
 }
-function clausesOf(text2) {
-  const parts = String(text2 ?? "").split(/([.!?…\n,;]+)/);
+function clausesOf(text3) {
+  const parts = String(text3 ?? "").split(/([.!?…\n,;]+)/);
   const out = [];
   for (let i = 0; i < parts.length; i += 2) {
     const t = (parts[i] ?? "").trim();
@@ -4294,9 +4294,9 @@ function clausesOf(text2) {
   }
   return out;
 }
-function findOutOfBandReceipts(text2) {
+function findOutOfBandReceipts(text3) {
   const out = [];
-  for (const c of clausesOf(text2)) {
+  for (const c of clausesOf(text3)) {
     if (RE_NEGATED.test(c.text)) continue;
     if (isInterrogative(c.text, c.terminator)) continue;
     if (!receiptAbout(c.text, RE_OOB_CHANNEL)) continue;
@@ -4340,14 +4340,14 @@ function openCommitments(history) {
   const open = /* @__PURE__ */ new Set();
   for (const m of history) {
     if (m.from !== "me") continue;
-    const text2 = String(m.text ?? "");
-    const delivered = m.kind === "photo" || m.kind === "voice" || m.kind === "gif" || text2.length > 200;
+    const text3 = String(m.text ?? "");
+    const delivered = m.kind === "photo" || m.kind === "voice" || m.kind === "gif" || text3.length > 200;
     if (delivered) {
       open.clear();
       continue;
     }
-    if (!RE_PROMISE_SEND.test(text2)) continue;
-    const lower = text2.toLowerCase();
+    if (!RE_PROMISE_SEND.test(text3)) continue;
+    const lower = text3.toLowerCase();
     for (const item of PROMISABLE) {
       if (new RegExp(`\\b${item}s?\\b`, "i").test(lower)) open.add(item);
     }
@@ -4355,10 +4355,10 @@ function openCommitments(history) {
   return [...open];
 }
 var HER_COMMITMENT_TTL_MS = 7 * 24 * 60 * 60 * 1e3;
-function findUnsupportedReceipts(text2, openItems) {
+function findUnsupportedReceipts(text3, openItems) {
   if (!openItems.length) return [];
   const out = [];
-  for (const c of clausesOf(text2)) {
+  for (const c of clausesOf(text3)) {
     if (RE_NEGATED.test(c.text)) continue;
     if (isInterrogative(c.text, c.terminator)) continue;
     const item = openItems.find((it) => receiptAbout(c.text, new RegExp(`\\b${it}s?\\b`, "i")));
@@ -4386,9 +4386,9 @@ function objectPhraseGap(s, a, b) {
 function verbChannelNear(clause, verb, channel) {
   return wordGap(clause, verb, channel) <= NEAR_WORDS || objectPhraseGap(clause, verb, channel) <= NEAR_WORDS;
 }
-function findChannelPromises(text2, channel = "chat") {
+function findChannelPromises(text3, channel = "chat") {
   const out = [];
-  for (const c of clausesOf(text2)) {
+  for (const c of clausesOf(text3)) {
     if (RE_NEGATED.test(c.text)) continue;
     if (isInterrogative(c.text, c.terminator)) continue;
     const verbs = spansOf(RE_SEND_FUTURE, c.text);
@@ -4408,9 +4408,9 @@ var RE_FIRST_PERSON_SENDER = /\b(?:maine|main\s*ne|i)\b/i;
 var RE_SEND_PAST_SELF = /\b(?:e-?mail(?:ed)|mail(?:ed)|dm'?d|whats\s?app(?:ed)|whatsapp(?:ed)|insta(?:grammed)|forward(?:ed))\b/i;
 var RE_SEND_PAST_GENERIC = /\b(?:kar\s*d(?:iya|i)|bhej\s*d(?:iya|i)|bhej(?:a|i)\b|sent)\b/i;
 var RE_OOB_CHANNEL_OR_FORWARD = new RegExp(`${RE_OOB_CHANNEL.source}|forward`, RE_OOB_CHANNEL.flags);
-function findPastSendClaims(text2) {
+function findPastSendClaims(text3) {
   const out = [];
-  for (const c of clausesOf(text2)) {
+  for (const c of clausesOf(text3)) {
     if (RE_NEGATED.test(c.text)) continue;
     if (isInterrogative(c.text, c.terminator)) continue;
     if (!RE_FIRST_PERSON_SENDER.test(c.text)) continue;
@@ -4491,9 +4491,9 @@ function sharedVocabulary(texts) {
     }
   return v;
 }
-function findFalseAttributions(text2, hisVocab) {
+function findFalseAttributions(text3, hisVocab) {
   const out = [];
-  const matches = text2.match(ATTRIBUTION_RE);
+  const matches = text3.match(ATTRIBUTION_RE);
   if (!matches) return out;
   for (const clause of matches) {
     const claim = claimTokens(clause.replace(MARKER_HEAD_RE, " ")).filter(
@@ -4687,15 +4687,15 @@ var GENERIC_SMALLTALK = /* @__PURE__ */ new Set([
   "studies"
 ]);
 var PRESUPPOSED_RE = /\b([a-zऀ-ॿ]{3,})\s+(?:kaisa|kaisi|kaise)\s+(?:raha|rahi|gaya|gayi|tha|thi|hui|hua|chala|chali)\b|\b(?:kaisa|kaisi|kaise)\s+(?:raha|rahi|gaya|gayi|tha|thi|hui|hua|chala|chali)\s+(?:tera\s+|teri\s+|tumhara\s+|tumhari\s+)?([a-zऀ-ॿ]{3,})\b|\bhow(?:'?d)?\s+(?:was|did|went)?\s*(?:the\s+|your\s+|ur\s+)([a-zऀ-ॿ]{3,})\b|\b(?:did|was|were)\s+(?:the|your|ur)\s+([a-zऀ-ॿ]{3,})\b|\b([a-zऀ-ॿ]{3,})\s+(?:thik|theek|acch?[ai]|badhiya|mast)\s+(?:raha|rahi|gaya|gayi|tha|thi)\b|\bwhat\s+did\s+(?:the\s+|your\s+|ur\s+)?([a-z]{3,})\s+say\b|\b([a-zऀ-ॿ]{3,})\s+ne\s+kya\s+(?:bola|kaha|bataya)\b|\bdid\s+you\s+get\s+(?:the\s+|your\s+)?([a-z]{3,})\b|\b([a-zऀ-ॿ]{3,})\s+ka\s+kya\s+hua\b/gi;
-function findSharedPastFabrications(text2, support) {
+function findSharedPastFabrications(text3, support) {
   const out = [];
-  for (const m of text2.matchAll(PRESUPPOSED_RE)) {
+  for (const m of text3.matchAll(PRESUPPOSED_RE)) {
     const topic = (m.slice(1).find(Boolean) || "").toLowerCase();
     if (!topic || GENERIC_SMALLTALK.has(topic) || SHARED_STOP.has(topic)) continue;
     if (SHARED_MARKER_TOKENS.has(topic)) continue;
     if (!isSupported(topic, support)) out.push({ clause: m[0], unsupported: [topic] });
   }
-  const matches = text2.match(WE_PAST_RE);
+  const matches = text3.match(WE_PAST_RE);
   if (!matches) return out;
   for (const clause of matches) {
     const claim = sharedClaimTokens(clause);
@@ -4893,12 +4893,12 @@ var ACTIVITY_MARKER_TOKENS = /* @__PURE__ */ new Set([
   "boring",
   "nice"
 ]);
-function gameClauses(text2) {
-  return String(text2 || "").split(/[.!?\n]+|(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]️?)+/u).map((c) => c.trim()).filter(Boolean);
+function gameClauses(text3) {
+  return String(text3 || "").split(/[.!?\n]+|(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]️?)+/u).map((c) => c.trim()).filter(Boolean);
 }
-function findActivitySpecifics(text2, support) {
+function findActivitySpecifics(text3, support) {
   const out = [];
-  for (const clause of gameClauses(text2)) {
+  for (const clause of gameClauses(text3)) {
     if (!GAME_PAST_RE.test(clause)) continue;
     if (!SHARED_GAME_FRAME_RE.test(clause) && !GAME_IDENTIFIER_RE.test(clause) && !RE_SAN.test(clause))
       continue;
@@ -4954,9 +4954,9 @@ var REFUSE_ACTIVITY = [
   "arre puri detail gadbad ho rhi h mere dimaag me. tu batao",
   "hmm itna exact yaad nhi mujhe yaar, tere paas h kya"
 ];
-function pickBy(text2, arr) {
+function pickBy(text3, arr) {
   let h = 0;
-  for (let i = 0; i < text2.length; i++) h = h * 31 + text2.charCodeAt(i) | 0;
+  for (let i = 0; i < text3.length; i++) h = h * 31 + text3.charCodeAt(i) | 0;
   return arr[Math.abs(h) % arr.length];
 }
 function poolFor(bad) {
@@ -4967,20 +4967,20 @@ function poolFor(bad) {
   if (bad.every((f) => f.rule === "activity-specific" || f.rule === "shared-past")) return REFUSE_ACTIVITY;
   return REFUSE_RECEIPT;
 }
-function inspect(text2, allowed, openItems, hisVocab, sharedVocab, channel = "chat", activityVocab) {
+function inspect(text3, allowed, openItems, hisVocab, sharedVocab, channel = "chat", activityVocab) {
   const out = [];
-  for (const h of findActionable(text2, allowed)) out.push({ rule: "actionable", kind: h.kind });
-  for (const h of findOutOfBandReceipts(text2)) out.push({ rule: h.rule });
-  for (const h of findPastSendClaims(text2)) out.push({ rule: h.rule });
-  for (const h of findUnsupportedReceipts(text2, openItems)) out.push({ rule: h.rule });
-  for (const h of findChannelPromises(text2, channel)) out.push({ rule: h.rule });
+  for (const h of findActionable(text3, allowed)) out.push({ rule: "actionable", kind: h.kind });
+  for (const h of findOutOfBandReceipts(text3)) out.push({ rule: h.rule });
+  for (const h of findPastSendClaims(text3)) out.push({ rule: h.rule });
+  for (const h of findUnsupportedReceipts(text3, openItems)) out.push({ rule: h.rule });
+  for (const h of findChannelPromises(text3, channel)) out.push({ rule: h.rule });
   if (hisVocab) {
-    for (const _ of findFalseAttributions(text2, hisVocab)) out.push({ rule: "false-attribution" });
+    for (const _ of findFalseAttributions(text3, hisVocab)) out.push({ rule: "false-attribution" });
     const support = sharedVocab ? /* @__PURE__ */ new Set([...hisVocab, ...sharedVocab]) : hisVocab;
-    for (const _ of findSharedPastFabrications(text2, support)) out.push({ rule: "shared-past" });
+    for (const _ of findSharedPastFabrications(text3, support)) out.push({ rule: "shared-past" });
   }
   if (activityVocab) {
-    for (const _ of findActivitySpecifics(text2, activityVocab)) out.push({ rule: "activity-specific" });
+    for (const _ of findActivitySpecifics(text3, activityVocab)) out.push({ rule: "activity-specific" });
   }
   return out;
 }
@@ -5197,9 +5197,9 @@ var VERBALISM_MAX_ITEMS = 12;
 var MIN_IDENTIFIER_DIGITS = 3;
 var digitsOf2 = (s) => s.replace(/\D+/g, "");
 var HELPLINE_DIGITS = new Set(PUBLISHED_HELPLINES.map(digitsOf2));
-function helplineNumbersIn(text2) {
+function helplineNumbersIn(text3) {
   const out = [];
-  for (const m of text2.match(/\+?\d[\d\s-]*\d|\d+/g) ?? []) {
+  for (const m of text3.match(/\+?\d[\d\s-]*\d|\d+/g) ?? []) {
     const d = digitsOf2(m);
     if (d.length >= MIN_IDENTIFIER_DIGITS) out.push(d);
   }
@@ -5393,6 +5393,11 @@ ${MATERIAL_BLOCK_OPEN2}
 ${label}: ${encoded}
 ${MATERIAL_BLOCK_CLOSE2}`;
 }
+function privateExpertPlatformFloor() {
+  return FLOOR.replace("teacher projection = approved descriptive facts", "teacher projection = owner-supplied draft descriptive facts").replace("public source claims only when supported by supplied public knowledge", "source claims only when supported by supplied private owner evidence");
+}
+var expertReplyLanguage = LANGUAGE;
+var expertMaterialBlock = material;
 function projection(sheet) {
   if (!object(sheet)) fail("expert_text_teacher_invalid");
   const picked = {};
@@ -5506,6 +5511,102 @@ Successful execution receipt: absent; no deletion-complete, past-tense deletion 
     },
     privateMemoryRecord: rows.map((row) => row.body),
     ...publicKnowledge ? { publicKnowledge } : {}
+  };
+}
+
+// src/engine/privateExpertRehearsal.ts
+var PRIVATE_REHEARSAL_PROFILE = "private_text_rehearsal/v1";
+var PRIVATE_REHEARSAL_LIMITS = Object.freeze({ question: 2e3, evidence: 8e3, core: 8e3, system: 3e4 });
+var UUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+var HASH = /^[0-9a-f]{64}$/;
+var uuid2 = (value) => typeof value === "string" && value.length === 36 && UUID2.test(value) && !/^00000000-0000-[1-8]000-[89ab]000-000000000000$/i.test(value);
+var hash = (value) => typeof value === "string" && value.length === 64 && HASH.test(value);
+var TEXT = [
+  "name",
+  "identityWho",
+  "credentialFacts",
+  "subjectDomain",
+  "syllabusScope",
+  "outOfScopePolicy",
+  "languageTextRule",
+  "technicalTermRule",
+  "explanationOrder",
+  "workedExamplePattern",
+  "firstMoveOnDoubt",
+  "notationConventions"
+];
+var LIST = ["subjectStrands", "examTrack", "doubtEscalationLadder", "rigorFloor"];
+function fail2(code) {
+  throw Object.assign(new Error(code), { code, status: 400 });
+}
+function object2(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function text2(value, cap, code) {
+  if (typeof value !== "string" || !value.trim() || value.length > cap || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value) || /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value)) fail2(code);
+  return value;
+}
+function bounded2(value, cap, code) {
+  if (value.length > cap) fail2(code);
+  return value;
+}
+function compilePrivateExpertRehearsal(input) {
+  if (!object2(input) || !object2(input.authority)) fail2("private_rehearsal_authority_invalid");
+  const a = input.authority;
+  if (a.scope !== "private_text_rehearsal" || a.basis !== "owner_question_attestation_v1" || ![a.ownerId, a.replicaId, a.requestId, a.sheetId, a.receiptId].every(uuid2) || !hash(a.sheetHash)) fail2("private_rehearsal_authority_invalid");
+  if (!object2(input.draft)) fail2("private_rehearsal_draft_invalid");
+  const projection2 = {};
+  for (const key of TEXT) {
+    const value = input.draft[key];
+    if (["name", "identityWho", "subjectDomain"].includes(key) || value !== void 0 && value !== "") {
+      projection2[key] = text2(value, 4e3, `private_rehearsal_draft_${key}_invalid`);
+    }
+  }
+  if (!["physics", "chemistry", "maths"].includes(String(projection2.subjectDomain))) fail2("private_rehearsal_domain_unsupported");
+  for (const key of LIST) {
+    const value = input.draft[key];
+    if (value === void 0) continue;
+    if (!Array.isArray(value) || value.length > 24) fail2("private_rehearsal_draft_invalid");
+    projection2[key] = Array.from(value, (item) => text2(item, 4e3, "private_rehearsal_draft_invalid"));
+  }
+  for (const key of ["warmth", "strictness"]) {
+    const value = input.draft[key];
+    if (value === void 0) continue;
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 4) fail2("private_rehearsal_draft_invalid");
+    projection2[key] = value;
+  }
+  if (input.draft.pacePreference !== void 0) {
+    if (!["push", "balanced", "drill"].includes(String(input.draft.pacePreference))) fail2("private_rehearsal_draft_invalid");
+    projection2.pacePreference = input.draft.pacePreference;
+  }
+  if (!Array.isArray(input.contexts) || !input.contexts.length || input.contexts.length > 32) fail2("private_rehearsal_context_invalid");
+  let total = 0;
+  let selectedItem = "", selectedSource = "";
+  const evidence = Array.from(input.contexts, (row) => {
+    if (!object2(row) || !uuid2(row.itemId) || !uuid2(row.sourceId) || !hash(row.hash)) fail2("private_rehearsal_context_invalid");
+    if (selectedItem && (selectedItem !== row.itemId || selectedSource !== row.sourceId)) fail2("private_rehearsal_one_context_required");
+    selectedItem = row.itemId;
+    selectedSource = row.sourceId;
+    const body = text2(row.body, PRIVATE_REHEARSAL_LIMITS.evidence, "private_rehearsal_context_invalid");
+    total += body.length;
+    if (total > PRIVATE_REHEARSAL_LIMITS.evidence) fail2("private_rehearsal_evidence_too_large");
+    return { body };
+  });
+  const question = text2(input.question, PRIVATE_REHEARSAL_LIMITS.question, "private_rehearsal_question_invalid");
+  const core = bounded2(privateExpertPlatformFloor() + expertMaterialBlock("OWNER DRAFT JSON", projection2), PRIVATE_REHEARSAL_LIMITS.core, "private_rehearsal_core_too_large");
+  const tail = expertMaterialBlock("PRIVATE OWNER EVIDENCE JSON", evidence) + "\n\nPRIVATE DRAFT REHEARSAL: one owner-authorized text question; no verified identity, voice, publication, shared past or persistent relationship memory. Draft manner is provisional. Use only the supplied evidence for expert-specific factual claims; conflicting or missing support stays explicit. No source claims beyond this material. Search, external actions and deletion execution unavailable; no action markers or completion promises. No automatic learning or saved-personality changes." + expertReplyLanguage + "\n\nOUTPUT: the requested structured JSON only. reply contains the complete answer; delivery is a non-executing description, never permission to synthesize audio.";
+  const system = bounded2(core + tail, PRIVATE_REHEARSAL_LIMITS.system, "private_rehearsal_system_too_large");
+  return {
+    profile: PRIVATE_REHEARSAL_PROFILE,
+    core,
+    tail,
+    system,
+    question,
+    provenance: {
+      authority: { scope: a.scope, basis: a.basis, ownerId: a.ownerId, replicaId: a.replicaId, requestId: a.requestId, sheetId: a.sheetId, sheetHash: a.sheetHash, receiptId: a.receiptId },
+      context: input.contexts.map(({ itemId, sourceId, hash: hash2 }) => ({ itemId, sourceId, hash: hash2 }))
+    },
+    privateMemoryRecord: []
   };
 }
 
@@ -5922,8 +6023,8 @@ function splitLong(bubble) {
   return out.length ? out : [bubble];
 }
 var META_LEAK = /\b(base model|minimal text|text mode|chat mode|call mode|system prompt|language model|as an ai\b|ai model|reasoning effort|max.?_?tokens|token (limit|budget)|persona (prompt|instruction)|instruction(s)? (say|state|require)|default model|llm|assistant mode|output format)\b/i;
-function stripTextingDashes(text2) {
-  return text2.replace(/\s*(?:[—–]|--)\s*/g, " ").replace(/[ \t]{2,}/g, " ").trim();
+function stripTextingDashes(text3) {
+  return text3.replace(/\s*(?:[—–]|--)\s*/g, " ").replace(/[ \t]{2,}/g, " ").trim();
 }
 function parseBubbles(raw) {
   return parseTextReply(raw, false);
@@ -6342,11 +6443,11 @@ var BARE_STOPWORDS = /* @__PURE__ */ new Set([
 var PHRASE_BANK_MAX_WORDS = 3;
 var PHRASE_BANK_MIN_OCCURRENCES = 5;
 var PHRASE_BANK_LINE_CEILING = 2;
-function normalizeText(text2) {
-  return String(text2 ?? "").toLowerCase().replace(/[^\p{L}\p{M}\p{N}'\s]+/gu, " ").replace(/\s+/g, " ").trim();
+function normalizeText(text3) {
+  return String(text3 ?? "").toLowerCase().replace(/[^\p{L}\p{M}\p{N}'\s]+/gu, " ").replace(/\s+/g, " ").trim();
 }
-function tokenize(text2) {
-  const normalized = normalizeText(text2);
+function tokenize(text3) {
+  const normalized = normalizeText(text3);
   return normalized ? normalized.split(" ") : [];
 }
 function countFragment(tokens2, fragment) {
@@ -6844,6 +6945,8 @@ export {
   PLATFORM_STAGE_EARLY2 as PLATFORM_STAGE_EARLY,
   PLATFORM_STAGE_ESTABLISHED2 as PLATFORM_STAGE_ESTABLISHED,
   PLATFORM_STAGE_GETTING_CLOSE2 as PLATFORM_STAGE_GETTING_CLOSE,
+  PRIVATE_REHEARSAL_LIMITS,
+  PRIVATE_REHEARSAL_PROFILE,
   QUALITATIVE_PROPOSABLE_FIELDS,
   ROOM_INTRO_DIRECTIVE,
   ROOM_MEMBER_CAP,
@@ -6857,6 +6960,7 @@ export {
   cloneNowAt,
   compile,
   compileExpertText,
+  compilePrivateExpertRehearsal,
   consentGateBlockers,
   countFragment,
   createQualitativePass,

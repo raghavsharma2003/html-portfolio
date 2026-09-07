@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   DIALOGUE_SCHEMA,
   cleanDialogueText,
+  hasMalformedDialogueUnicode,
   compileDialoguePrompt,
   dialogueSpeechStyle,
   validateDialogueOutput,
@@ -190,15 +191,19 @@ async function failDialogueTurn(db, ownerUserId, turnId, code) {
 export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator, signal) {
   if (!generator || typeof generator.generate !== "function" || !generator.family || !generator.name || !generator.version || !generator.model)
     fail("dialogue_generator_unavailable", 503);
+  // Reject the current question whole before normalization or any scoped IO.
+  // Its accepted size uses the same UTF-16 units as the prompt's 4000 cap.
+  const rawMessage = String(rawInput?.message || "");
+  if (rawMessage.length > 4_000) fail("dialogue_message_too_large", 413);
+  if (hasMalformedDialogueUnicode(rawMessage)) fail("dialogue_message_invalid", 400);
   const input = {
     replica_id: replicaId(rawInput?.replica_id),
     session_id: rawInput?.session_id || null,
     channel: String(rawInput?.channel || "private_chat"),
-    message: cleanDialogueText(rawInput?.message, 4_000),
+    message: cleanDialogueText(rawMessage, 4_000),
     trace_id: TRACE.test(String(rawInput?.trace_id || "")) ? String(rawInput.trace_id) : `dialogue_${randomUUID().replaceAll("-", "")}`,
   };
   if (!input.message) fail("dialogue_message_required", 400);
-  if (Array.from(String(rawInput?.message || "")).length > 4_000) fail("dialogue_message_too_large", 413);
   const runtime = await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id);
   if (!runtime) fail("dialogue_runtime_not_active");
   const session = await ensureSession(db, ownerUserId, runtime, input);

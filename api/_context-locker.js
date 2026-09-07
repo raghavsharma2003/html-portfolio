@@ -697,8 +697,17 @@ export async function remineContextItem(db, ownerUserId, replicaIdValue, itemIdV
     : String(options.owner_speaker || "").slice(0, 120);
 
   await db(
-    `update vy_context_item set authorship = $3, owner_speaker = $4, updated_at = now()
-      where item_id = $1::uuid and owner_user_id = $2::uuid`,
+    `with source_gate as materialized (
+       select s.source_id from vy_replica_source s join vy_context_item i on i.source_id=s.source_id
+       and i.replica_id=s.replica_id and i.owner_user_id=s.owner_user_id
+       where i.item_id=$1::uuid and i.owner_user_id=$2::uuid for update of s
+     ), owned as (
+       update vy_replica r set private_text_epoch=r.private_text_epoch+1
+       where r.owner_user_id=$2::uuid and exists(select 1 from vy_context_item i
+         where i.item_id=$1::uuid and i.replica_id=r.replica_id and i.owner_user_id=r.owner_user_id
+         and (i.source_id is null or exists(select 1 from source_gate))) returning r.replica_id
+     ) update vy_context_item i set authorship = $3, owner_speaker = $4, updated_at = now()
+       from owned o where i.item_id = $1::uuid and i.owner_user_id = $2::uuid and i.replica_id=o.replica_id`,
     [itemId, ownerUserId, authorship, ownerSpeaker],
   );
 
@@ -798,9 +807,15 @@ export const CONTEXT_ITEM_REMOVE_SQL = `with current_item as materialized (
        select s.source_id from vy_replica_source s join current_item i on i.source_id=s.source_id
         where s.replica_id=$2::uuid and s.owner_user_id=$3::uuid
         for update of s
+     ), private_text_fence as (
+       update vy_replica r set private_text_epoch=r.private_text_epoch+1
+       where r.replica_id=$2::uuid and r.owner_user_id=$3::uuid
+         and exists(select 1 from current_item i where i.source_id is null or exists(select 1 from source_gate))
+       returning r.replica_id
      ), target as materialized (
        select i.item_id,i.source_id from vy_context_item i
        join current_item original on original.item_id=i.item_id
+       join private_text_fence f on f.replica_id=i.replica_id
         where i.item_id=$1::uuid and i.replica_id=$2::uuid and i.owner_user_id=$3::uuid
           and i.source_id is not distinct from original.source_id
           and (i.source_id is null or exists (select 1 from source_gate s where s.source_id=i.source_id))

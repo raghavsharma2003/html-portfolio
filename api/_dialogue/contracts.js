@@ -13,18 +13,25 @@ function fail(code) {
   throw Object.assign(new Error(code), { code });
 }
 
+export function hasMalformedDialogueUnicode(value) {
+  return /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value);
+}
+
 export function cleanDialogueText(value, max = 4_000) {
-  return Array.from(String(value || ""))
+  const cleaned = Array.from(String(value || ""))
     .filter((character) => {
       const code = character.codePointAt(0);
-      return code === 10 || (code >= 32 && code !== 127);
+      return code === 10 || (code >= 32 && code !== 127 && (code < 0xd800 || code > 0xdfff));
     })
     .join("")
     .replace(/<\/?(?:system|assistant|developer|tool)[^>]*>/gi, "")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
-    .trim()
-    .slice(0, max);
+    .trim();
+  // Prompt budgets remain UTF-16 units. Never leave half of a scalar at a
+  // deliberate prefix boundary; complete answers are validated before here.
+  const prefix = cleaned.slice(0, max);
+  return /[\uD800-\uDBFF]$/.test(prefix) ? prefix.slice(0, -1) : prefix;
 }
 
 function historyRows(value) {
@@ -42,6 +49,8 @@ function historyRows(value) {
 }
 
 export const DIALOGUE_OUTPUT_SCHEMA = Object.freeze({
+  // JSON Schema counts code points; runtime validation additionally enforces
+  // the existing UTF-16 storage/prompt caps before any normalization.
   type: "object",
   additionalProperties: false,
   required: ["reply", "delivery"],
@@ -63,9 +72,12 @@ export const DIALOGUE_OUTPUT_SCHEMA = Object.freeze({
 });
 
 export function compileDialoguePrompt({ core, relationship, history, message }) {
+  const rawMessage = String(message || "");
+  if (rawMessage.length > 4_000) fail("dialogue_message_too_large");
+  if (hasMalformedDialogueUnicode(rawMessage)) fail("dialogue_message_invalid");
   const safeCore = cleanDialogueText(core, 6_000);
   const safeRelationship = cleanDialogueText(relationship, 4_000);
-  const safeMessage = cleanDialogueText(message, 4_000);
+  const safeMessage = cleanDialogueText(rawMessage, 4_000);
   if (!safeCore) fail("dialogue_person_model_required");
   if (!safeMessage) fail("dialogue_message_required");
   const recent = historyRows(history);
@@ -93,14 +105,15 @@ export function validateDialogueOutput(value) {
   const raw = typeof value === "string" ? (() => { try { return JSON.parse(value); } catch { fail("dialogue_output_invalid_json"); } })() : value;
   if (!raw || typeof raw !== "object" || Object.keys(raw).some((key) => !OUTPUT_KEYS.has(key))) fail("dialogue_output_invalid");
   if (!raw.delivery || typeof raw.delivery !== "object" || Object.keys(raw.delivery).some((key) => !DELIVERY_KEYS.has(key))) fail("dialogue_delivery_invalid");
-  if (typeof raw.reply !== "string" || Array.from(raw.reply).length > 1_600) fail("dialogue_reply_too_large");
+  if (typeof raw.reply !== "string" || raw.reply.length > 1_600) fail("dialogue_reply_too_large");
+  if (hasMalformedDialogueUnicode(raw.reply)) fail("dialogue_reply_invalid");
   const reply = cleanDialogueText(raw.reply, 1_600);
   if (!reply) fail("dialogue_reply_empty");
   if (dangerousReply(reply)) fail("dialogue_reply_safety_blocked");
   const mode = String(raw.delivery.mode || "");
   const pace = String(raw.delivery.pace || "");
   const intensity = Number(raw.delivery.intensity);
-  if (typeof raw.delivery.language_hint !== "string" || Array.from(raw.delivery.language_hint).length > 32) fail("dialogue_delivery_invalid");
+  if (typeof raw.delivery.language_hint !== "string" || raw.delivery.language_hint.length > 32 || hasMalformedDialogueUnicode(raw.delivery.language_hint)) fail("dialogue_delivery_invalid");
   const language_hint = cleanDialogueText(raw.delivery.language_hint, 32);
   if (!Array.isArray(raw.delivery.nonverbals) || raw.delivery.nonverbals.length > 3) fail("dialogue_delivery_invalid");
   const nonverbals = [...new Set(raw.delivery.nonverbals.map(String))];

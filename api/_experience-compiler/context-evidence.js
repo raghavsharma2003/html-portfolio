@@ -307,9 +307,17 @@ export function verifyContextCanonicalEvidence(record) {
   return record;
 }
 
-export const CONTEXT_EVIDENCE_WRITE_SQL = `with owned_item as materialized (
+export const CONTEXT_EVIDENCE_WRITE_SQL = `with source_gate as materialized (
+  select s.source_id from vy_replica_source s join vy_context_item i on i.source_id=s.source_id
+   and i.replica_id=s.replica_id and i.owner_user_id=s.owner_user_id
+   where i.item_id=$1::uuid and i.replica_id=$2::uuid and i.owner_user_id=$3::uuid for update of s
+), private_text_fence as (
+  update vy_replica r set private_text_epoch=r.private_text_epoch+1
+   where r.replica_id=$2::uuid and r.owner_user_id=$3::uuid and exists(select 1 from source_gate)
+   returning r.replica_id
+), owned_item as materialized (
   select i.item_id,i.replica_id,i.owner_user_id,i.source_id,i.content_sha256,i.format,i.extractor
-    from vy_context_item i
+    from vy_context_item i join private_text_fence f on f.replica_id=i.replica_id
     join vy_replica_source s on s.source_id=i.source_id and s.replica_id=i.replica_id
      and s.owner_user_id=i.owner_user_id and s.state='ready' and s.sha256=i.content_sha256
    where i.item_id=$1::uuid and i.replica_id=$2::uuid and i.owner_user_id=$3::uuid
@@ -337,9 +345,14 @@ export const CONTEXT_EVIDENCE_WRITE_SQL = `with owned_item as materialized (
      and (d.item#>>'{value,provenance,protected_trait_inference}')::boolean=false
      and (d.item#>>'{value,provenance,inner_state_inference}')::boolean=false
      and (d.item->>'evidence_type'<>'text_span' or d.item#>>'{value,text}' is not null)
-  on conflict do nothing returning evidence_id
+  on conflict do nothing returning evidence_id,record_hash
 ), covered as (
+  -- Data-modifying CTEs share a snapshot: base-table reads cannot see rows
+  -- inserted above. Count their RETURNING rows as well as exact old matches.
   select count(*)::integer total from desired d where exists (
+    select 1 from inserted e where e.evidence_id=(d.item->>'evidence_id')::uuid
+      and e.record_hash=d.item->>'record_hash'
+  ) or exists (
     select 1 from vy_replica_processing_evidence e,owned_item i
      where e.evidence_id=(d.item->>'evidence_id')::uuid
        and e.replica_id=i.replica_id and e.owner_user_id=i.owner_user_id
@@ -353,9 +366,17 @@ select total from covered`;
 // intentionally fail-closed: if the following insert is interrupted, there is
 // temporarily no evidence rather than stale evidence assigned to the wrong
 // speaker. A retry deterministically restores the exact same rows.
-export const CONTEXT_TEXT_EVIDENCE_CLEAR_SQL = `with owned_item as materialized (
+export const CONTEXT_TEXT_EVIDENCE_CLEAR_SQL = `with source_gate as materialized (
+  select s.source_id from vy_replica_source s join vy_context_item i on i.source_id=s.source_id
+   and i.replica_id=s.replica_id and i.owner_user_id=s.owner_user_id
+   where i.item_id=$1::uuid and i.replica_id=$2::uuid and i.owner_user_id=$3::uuid for update of s
+), private_text_fence as (
+  update vy_replica r set private_text_epoch=r.private_text_epoch+1
+   where r.replica_id=$2::uuid and r.owner_user_id=$3::uuid and exists(select 1 from source_gate)
+   returning r.replica_id
+), owned_item as materialized (
   select i.item_id,i.replica_id,i.owner_user_id,i.source_id
-    from vy_context_item i
+    from vy_context_item i join private_text_fence f on f.replica_id=i.replica_id
    where i.item_id=$1::uuid and i.replica_id=$2::uuid and i.owner_user_id=$3::uuid
      and i.source_id is not null
 ), invalidated_claims as (

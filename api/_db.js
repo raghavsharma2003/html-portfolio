@@ -28,13 +28,21 @@ export async function q(query, params = [], timeoutMs = 10_000) {
     body: JSON.stringify({ query, params }),
     signal: AbortSignal.timeout(timeoutMs),
   });
-  if (!res.ok) throw new Error(`neon ${res.status}${await pgDetail(res)}`);
+  if (!res.ok) {
+    const detail = await pgDetail(res);
+    const error = new Error(`neon ${res.status}${detail.suffix}`);
+    // Only a parsed PostgreSQL SQLSTATE is machine-readable authority. Keep
+    // the existing message; neither HTTP status nor message text is a code.
+    if (detail.code) error.code = detail.code;
+    throw error;
+  }
   const data = await res.json();
   return data.rows ?? [];
 }
 
 /**
- * The Postgres `code` and `message` off a non-ok Neon response, as a suffix.
+ * The Postgres `code` and `message` off a non-ok Neon response, as a suffix,
+ * plus an optional validated five-character SQLSTATE for exact caller checks.
  *
  * This used to be dropped on the floor: every failure collapsed to
  * `neon 400`, and the body carrying `42883 operator does not exist: uuid =
@@ -53,18 +61,22 @@ export async function q(query, params = [], timeoutMs = 10_000) {
  * matches /neon 4\d\d/ on the message. Suffixing keeps that true.
  */
 async function pgDetail(res) {
+  const empty = { suffix: "" };
   try {
     const body = await res.text();
-    if (!body) return "";
+    if (!body) return empty;
     let code, message;
     try {
       ({ code, message } = JSON.parse(body));
     } catch {
-      return "";
+      return empty;
     }
     const parts = [code, message].filter((v) => typeof v === "string" && v);
-    return parts.length ? `: ${parts.join(" ")}` : "";
+    return {
+      suffix: parts.length ? `: ${parts.join(" ")}` : "",
+      ...(typeof code === "string" && code.length === 5 && /^[0-9A-Z]{5}$/.test(code) ? { code } : {}),
+    };
   } catch {
-    return ""; // a body we cannot read must never mask the status we have
+    return empty; // a body we cannot read must never mask the status we have
   }
 }
