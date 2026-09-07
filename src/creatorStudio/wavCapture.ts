@@ -57,7 +57,7 @@ async function resample(samples: Float32Array, sourceRate: number, targetRate = 
 }
 
 export interface PrivateWavCapture {
-  start(): void;
+  start(): Promise<void>;
   stop(): Promise<WavRecording>;
   cancel(): Promise<void>;
 }
@@ -147,14 +147,39 @@ export async function openPrivateWavCapture(): Promise<PrivateWavCapture> {
   } catch (cause) {
     throw new Error(permissionMessage(cause));
   }
+  let ownedContext: AudioContext | undefined;
+  const nodes: AudioNode[] = [];
+  let detachListener: (() => void) | undefined;
+  let recording = false;
+  let starting = false;
+  let closed = false;
+  async function close() {
+    if (closed) return;
+    closed = true;
+    recording = false;
+    detachListener?.();
+    let failure: unknown;
+    for (const track of stream.getTracks()) {
+      try { track.stop(); } catch (cause) { failure ??= cause; }
+    }
+    for (const node of nodes) {
+      try { node.disconnect(); } catch (cause) { failure ??= cause; }
+    }
+    try { await ownedContext?.close(); } catch (cause) { failure ??= cause; }
+    if (failure) throw failure;
+  }
+  try {
   const context = new AudioContext({ latencyHint: "interactive", sampleRate: 48_000 });
+  ownedContext = context;
   const source = context.createMediaStreamSource(stream);
+  nodes.push(source);
   const processor = context.createScriptProcessor(4096, 1, 1);
+  nodes.push(processor);
+  detachListener = () => { processor.onaudioprocess = null; };
   const silent = context.createGain();
+  nodes.push(silent);
   silent.gain.value = 0;
   const chunks: Float32Array[] = [];
-  let recording = false;
-  let closed = false;
   processor.onaudioprocess = (event) => {
     if (recording) chunks.push(event.inputBuffer.getChannelData(0).slice());
   };
@@ -162,23 +187,19 @@ export async function openPrivateWavCapture(): Promise<PrivateWavCapture> {
   processor.connect(silent);
   silent.connect(context.destination);
 
-  async function close() {
-    if (closed) return;
-    closed = true;
-    recording = false;
-    processor.disconnect();
-    source.disconnect();
-    silent.disconnect();
-    stream.getTracks().forEach((track) => track.stop());
-    await context.close();
-  }
-
   return {
-    start() {
-      if (closed || recording) throw new Error("Microphone session is not ready.");
+    async start() {
+      if (closed || recording || starting) throw new Error("Microphone session is not ready.");
+      starting = true;
       chunks.length = 0;
-      recording = true;
-      void context.resume();
+      try {
+        await context.resume();
+        if (closed) throw new Error("Microphone session was closed before recording started.");
+        recording = true;
+      } catch (cause) {
+        await close().catch(() => {});
+        throw cause;
+      } finally { starting = false; }
     },
     async stop() {
       if (!recording) throw new Error("No consent recording is active.");
@@ -197,4 +218,8 @@ export async function openPrivateWavCapture(): Promise<PrivateWavCapture> {
     },
     cancel: close,
   };
+  } catch (cause) {
+    await close().catch(() => {});
+    throw cause;
+  }
 }

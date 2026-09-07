@@ -61,19 +61,29 @@ export default function QuickVoiceCapture({ disabled = false, onUseRecording }: 
   const samplePeakRef = useRef(0);
   const audibleFramesRef = useRef(0);
   const totalFramesRef = useRef(0);
+  const mountedRef = useRef(false);
+  const captureAttemptRef = useRef(0);
+  const recordingUrlRef = useRef<string | null>(null);
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
 
   const clearRecording = useCallback(() => {
-    setRecording((current) => {
-      if (current) URL.revokeObjectURL(current.url);
-      return null;
-    });
+    if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
+    recordingUrlRef.current = null;
+    setRecording(null);
   }, []);
 
   const finish = useCallback(async (submitWhenClean = false) => {
     if (!captureRef.current || stoppingRef.current) return;
     stoppingRef.current = true;
+    const attempt = captureAttemptRef.current;
+    const capture = captureRef.current;
     try {
-      const result = await captureRef.current.stop();
+      const result = await capture.stop();
+      if (!mountedRef.current || attempt !== captureAttemptRef.current || disabledRef.current) {
+        URL.revokeObjectURL(result.url);
+        return;
+      }
       captureRef.current = null;
       setElapsedMs(result.durationMs);
       const audibleRatio = totalFramesRef.current
@@ -97,13 +107,15 @@ export default function QuickVoiceCapture({ disabled = false, onUseRecording }: 
         onUseRecording(renamed, language);
         return;
       }
+      recordingUrlRef.current = result.url;
       setRecording(result);
       setCaptureState("review");
     } catch (cause) {
+      if (!mountedRef.current || attempt !== captureAttemptRef.current) return;
       setError(cause instanceof Error ? cause.message : "The recording could not be finished.");
       setCaptureState("idle");
     } finally {
-      stoppingRef.current = false;
+      if (attempt === captureAttemptRef.current) stoppingRef.current = false;
     }
   }, [language, onUseRecording]);
 
@@ -117,12 +129,33 @@ export default function QuickVoiceCapture({ disabled = false, onUseRecording }: 
     return () => window.clearInterval(timer);
   }, [captureState, finish]);
 
-  useEffect(() => () => {
-    if (captureRef.current) void captureRef.current.cancel();
-    if (recording) URL.revokeObjectURL(recording.url);
-  }, [recording]);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      captureAttemptRef.current++;
+      const capture = captureRef.current;
+      captureRef.current = null;
+      if (capture) void capture.cancel().catch(() => {});
+      if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
+      recordingUrlRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!disabled) return;
+    captureAttemptRef.current++;
+    const capture = captureRef.current;
+    captureRef.current = null;
+    if (capture) void capture.cancel().catch(() => {});
+    stoppingRef.current = false;
+    clearRecording();
+    setCaptureState("idle");
+  }, [clearRecording, disabled]);
 
   async function start() {
+    if (!mountedRef.current || disabledRef.current || captureState !== "idle") return;
+    const attempt = ++captureAttemptRef.current;
     setError("");
     clearRecording();
     setCaptureState("requesting");
@@ -137,6 +170,7 @@ export default function QuickVoiceCapture({ disabled = false, onUseRecording }: 
     try {
       const capture = await openPrivateWavCapture({
         onLevel(next, nextSamplePeak) {
+          if (!mountedRef.current || attempt !== captureAttemptRef.current || disabledRef.current) return;
           setLevel(next);
           setSamplePeak((current) => Math.max(current, nextSamplePeak));
           setTotalFrames((current) => current + 1);
@@ -148,21 +182,31 @@ export default function QuickVoiceCapture({ disabled = false, onUseRecording }: 
           }
         },
       });
+      if (!mountedRef.current || attempt !== captureAttemptRef.current || disabledRef.current) { await capture.cancel(); return; }
       captureRef.current = capture;
-      capture.start();
+      await capture.start();
+      if (!mountedRef.current || attempt !== captureAttemptRef.current || disabledRef.current) { await capture.cancel(); return; }
       startedAtRef.current = Date.now();
       setCaptureState("recording");
     } catch (cause) {
+      if (!mountedRef.current || attempt !== captureAttemptRef.current) return;
+      captureRef.current = null;
       setError(cause instanceof Error ? cause.message : "The browser could not start recording.");
       setCaptureState("idle");
     }
   }
 
   async function retake() {
-    if (captureRef.current) {
-      await captureRef.current.cancel();
-      captureRef.current = null;
+    const attempt = ++captureAttemptRef.current;
+    const capture = captureRef.current;
+    captureRef.current = null;
+    try { await capture?.cancel(); }
+    catch (cause) {
+      if (mountedRef.current && attempt === captureAttemptRef.current) setError(cause instanceof Error ? cause.message : "The microphone could not be closed.");
+      return;
     }
+    if (!mountedRef.current || attempt !== captureAttemptRef.current) return;
+    stoppingRef.current = false;
     clearRecording();
     setCaptureState("idle");
     setElapsedMs(0);

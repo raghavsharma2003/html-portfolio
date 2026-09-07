@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { REPLICA_POLICY_VERSION } from "./_replica.js";
 import { sha256Hex } from "./_replica-processing/contracts.js";
 import { deleteReplicaSourceObjects, replicaStorageBucketDescriptor } from "./_replica-storage.js";
+import { primarySelectionQuery } from "./_replica-primary-selection.js";
 
 const MAX_RETRY_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_PENDING_UPLOAD_STALE_MS = 24 * 60 * 60 * 1000;
@@ -199,8 +200,11 @@ function requireSettlement(rows, code) {
 }
 
 export async function completeSourceErasure(db, lease) {
-  const rows = await db(
-    `with review_lock as materialized (
+  const rows = await primarySelectionQuery(db,
+    `with selection_snapshot as materialized (
+       select primary_selection_id from vy_replica
+        where replica_id=$2::uuid and owner_user_id=$3::uuid
+     ), review_lock as materialized (
        select pg_try_advisory_xact_lock(hashtextextended($2::text || ':voice_genome_review',0)) acquired
      ), candidate as materialized (
        select s.source_id,s.replica_id,s.owner_user_id,s.erasure_attempts,
@@ -234,7 +238,13 @@ export async function completeSourceErasure(db, lease) {
                  'issuing','ready','polling','passed_deleting','failed_deleting','expired_deleting'
                )
            )
-        for update
+        for update of s nowait
+     ), primary_owner as materialized (
+       select r.replica_id,r.primary_selection_id=ss.primary_selection_id snapshot_current
+         from vy_replica r cross join selection_snapshot ss
+        where r.replica_id=$2::uuid and r.owner_user_id=$3::uuid
+          and exists (select 1 from candidate)
+        for update of r nowait
      ), affected_genomes as materialized (
        select g.version,g.source_set_hash
          from vy_replica_voice_genome g join candidate c on c.replica_id=g.replica_id
@@ -248,7 +258,7 @@ export async function completeSourceErasure(db, lease) {
         )
      ), target as materialized (
        select c.* from candidate c
-        where not exists (
+        where exists (select 1 from primary_owner where snapshot_current) and not exists (
           select 1 from vy_replica_voice_profile vp
           join affected_genomes affected on affected.version=vp.genome_version
            where vp.replica_id=c.replica_id and vp.owner_user_id=c.owner_user_id
@@ -436,14 +446,30 @@ export async function completeSourceErasure(db, lease) {
           -- for deletion must not be skipped when there happen to be none.
           and (select count(*) from identity_challenge_sources)>=0
        returning ic.replica_id,ic.owner_user_id
+     ), removed_primary as (
+       delete from vy_replica_voice_reference vr using target t
+        where vr.replica_id=t.replica_id and vr.owner_user_id=t.owner_user_id and vr.source_id=t.source_id
+       returning vr.replica_id,vr.owner_user_id
+     ), replica_effects as materialized (
+       select t.replica_id,t.owner_user_id,
+              exists (select 1 from identity_cases ic where ic.replica_id=t.replica_id
+                and ic.owner_user_id=t.owner_user_id) revoke_identity,
+              exists (select 1 from removed_primary p where p.replica_id=t.replica_id
+                and p.owner_user_id=t.owner_user_id) withdraw_primary
+         from target t
      ), identity_replica as (
-       update vy_replica r set age_verified_at=null,identity_verified_at=null,liveness_verified_at=null,
-              identity_expires_at=null,
-              lifecycle=case when lifecycle in ('revoked','purging') then lifecycle else 'enrolling' end,
+       update vy_replica r
+          set age_verified_at=case when e.revoke_identity then null else r.age_verified_at end,
+              identity_verified_at=case when e.revoke_identity then null else r.identity_verified_at end,
+              liveness_verified_at=case when e.revoke_identity then null else r.liveness_verified_at end,
+              identity_expires_at=case when e.revoke_identity then null else r.identity_expires_at end,
+              lifecycle=case when e.revoke_identity and r.lifecycle not in ('revoked','purging')
+                then 'enrolling' else r.lifecycle end,
+              primary_selection_id=case when e.withdraw_primary then gen_random_uuid() else r.primary_selection_id end,
               updated_at=now()
-        where exists (select 1 from identity_cases ic where ic.replica_id=r.replica_id
-          and ic.owner_user_id=r.owner_user_id)
-       returning r.subject_person_id
+         from replica_effects e where r.replica_id=e.replica_id and r.owner_user_id=e.owner_user_id
+          and (e.revoke_identity or e.withdraw_primary)
+       returning case when e.revoke_identity then r.subject_person_id end subject_person_id
      ), identity_consent as (
        update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
         where exists (select 1 from identity_cases ic where ic.replica_id=c.replica_id
@@ -608,6 +634,7 @@ export async function completeSourceErasure(db, lease) {
            and (select count(*) from identity_cases)>=0 and (select count(*) from preserved_identity)>=0
            and (select count(*) from mirror_windows)>=0
            and (select count(*) from context_ingest_runs)>=0
+           and (select count(*) from identity_replica)>=0
         returning t.source_id,t.replica_id,t.owner_user_id,t.erasure_attempts
      ), attempted as (
        update vy_replica_source_erasure_attempt a set outcome='complete',failure_code='',finished_at=now()
@@ -625,7 +652,8 @@ export async function completeSourceErasure(db, lease) {
                 'context_ingest_runs_scrubbed',(select count(*) from context_ingest_runs),
                 'teacher_sheets_rewritten',(select count(*) from teacher_sheet_effects)
               ) from removed
-     ) select source_id from removed`,
+     ) select coalesce((select jsonb_agg(x) from (select source_id from removed) x),'[]'::jsonb) primary_selection_rows,
+              exists (select 1 from primary_owner where not snapshot_current) primary_selection_snapshot_stale`,
     [lease.source.sourceId, lease.source.replicaId, lease.source.ownerUserId,
       sourceErasureLeaseTokenHash(lease.leaseToken), REPLICA_POLICY_VERSION],
   );

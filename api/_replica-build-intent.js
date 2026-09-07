@@ -1,12 +1,13 @@
 import { clientIntentId, replicaId } from "./_replica.js";
 import { queueOwnedVoiceGenome } from "./_replica-review.js";
+import { primarySelectionQuery } from "./_replica-primary-selection.js";
 
 const INTENT_RETURNING = `intent_id,replica_id,owner_user_id,candidate_source_id,state,build_id,
-  blockers,last_error_code,promoted_at,next_check_at,created_at,updated_at`;
+  blockers,last_error_code,promoted_at,next_check_at,created_at,updated_at,expected_primary_selection_id`;
 const INTENT_SELECT = `i.intent_id,i.replica_id,i.owner_user_id,i.candidate_source_id,i.state,i.build_id,
-  i.blockers,i.last_error_code,i.promoted_at,i.next_check_at,i.created_at,i.updated_at`;
+  i.blockers,i.last_error_code,i.promoted_at,i.next_check_at,i.created_at,i.updated_at,i.expected_primary_selection_id`;
 const INTENT_UPDATE_RETURNING = `i.intent_id,i.replica_id,i.owner_user_id,i.candidate_source_id,
-  i.state,i.build_id,i.blockers,i.last_error_code,i.promoted_at,i.next_check_at,i.created_at,i.updated_at`;
+  i.state,i.build_id,i.blockers,i.last_error_code,i.promoted_at,i.next_check_at,i.created_at,i.updated_at,i.expected_primary_selection_id`;
 
 function safeCodes(values) {
   return [...new Set((Array.isArray(values) ? values : [])
@@ -50,6 +51,7 @@ export async function getOwnedVoiceBuildIntent(db, ownerUserId, value) {
   const intentId = clientIntentId(value.build_intent_id, "valid_build_intent_id_required");
   const rows = await db(
     `select ${INTENT_SELECT},b.state build_state,b.target_version,b.failure_code,
+            i.expected_primary_selection_id is distinct from r.primary_selection_id primary_selection_changed,
             s.state candidate_state,s.kind candidate_kind,s.capture_mode candidate_capture_mode,
             s.contains_third_parties candidate_contains_third_parties
        from vy_replica_voice_build_intent i
@@ -70,15 +72,21 @@ async function createOwnedVoiceBuildIntent(db, ownerUserId, value) {
   const rid = replicaId(value.replica_id);
   const intentId = clientIntentId(value.build_intent_id, "valid_build_intent_id_required");
   const candidateSourceId = replicaId(value.candidate_source_id);
-  const rows = await db(
-    `with owned as (
-       select r.replica_id,r.owner_user_id,r.policy_version
+  const rows = await primarySelectionQuery(db,
+    `with source_lock as materialized (
+       select s.* from vy_replica_source s
+        where s.source_id=$4::uuid and s.replica_id=$1::uuid and s.owner_user_id=$2::uuid
+        for update of s nowait
+     ), owned as materialized (
+       select r.replica_id,r.owner_user_id,r.policy_version,r.primary_selection_id
          from vy_replica r
         where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
           and r.lifecycle not in ('revoked','purging')
+          and exists (select 1 from source_lock)
+        for update of r nowait
      ), candidate as (
-       select s.source_id,s.replica_id,s.owner_user_id
-         from vy_replica_source s join owned o on o.replica_id=s.replica_id
+       select s.source_id,s.replica_id,s.owner_user_id,o.primary_selection_id
+         from source_lock s join owned o on o.replica_id=s.replica_id
           and o.owner_user_id=s.owner_user_id
         where s.source_id=$4::uuid and s.kind in ('audio','video')
           and s.capture_mode in ('upload','import','derived')
@@ -86,8 +94,8 @@ async function createOwnedVoiceBuildIntent(db, ownerUserId, value) {
           and not (s.capture_mode='derived' and s.provenance->>'purpose'='mirror_window')
      ), inserted as (
        insert into vy_replica_voice_build_intent
-         (intent_id,replica_id,owner_user_id,candidate_source_id,state)
-       select $3::uuid,replica_id,owner_user_id,source_id,'waiting' from candidate
+         (intent_id,replica_id,owner_user_id,candidate_source_id,state,expected_primary_selection_id)
+       select $3::uuid,replica_id,owner_user_id,source_id,'waiting',primary_selection_id from candidate
        on conflict (intent_id) do nothing
        returning ${INTENT_RETURNING},false intent_replayed
      ), superseded as (
@@ -200,13 +208,29 @@ async function bindBuild(db, ownerUserId, rid, intentId, build) {
 }
 
 async function promoteCandidate(db, ownerUserId, row) {
-  const rows = await db(
-    `with target as materialized (
+  const rows = await primarySelectionQuery(db,
+    `with source_lock as materialized (
+       select s.* from vy_replica_source s
+        join vy_replica_voice_build_intent i on i.candidate_source_id=s.source_id
+         and i.replica_id=s.replica_id and i.owner_user_id=s.owner_user_id
+        where i.intent_id=$3::uuid and i.replica_id=$1::uuid and i.owner_user_id=$2::uuid
+        for update of s nowait
+     ), owned as materialized (
+       select r.* from vy_replica r
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
+          and exists (select 1 from source_lock)
+        for update of r nowait
+     ), intent_lock as materialized (
+       select i.* from vy_replica_voice_build_intent i
+        where i.intent_id=$3::uuid and i.replica_id=$1::uuid and i.owner_user_id=$2::uuid
+          and exists (select 1 from owned)
+        for update of i nowait
+     ), target as materialized (
        select i.intent_id,i.replica_id,i.owner_user_id,i.candidate_source_id,i.build_id,
               b.target_version,b.source_set_hash,r.policy_version,vr.source_id previous_source_id
-         from vy_replica_voice_build_intent i
-         join vy_replica r on r.replica_id=i.replica_id and r.owner_user_id=i.owner_user_id
-         join vy_replica_source s on s.source_id=i.candidate_source_id and s.replica_id=i.replica_id
+         from intent_lock i
+         join owned r on r.replica_id=i.replica_id and r.owner_user_id=i.owner_user_id
+         join source_lock s on s.source_id=i.candidate_source_id and s.replica_id=i.replica_id
           and s.owner_user_id=i.owner_user_id
          join vy_replica_model_build b on b.build_id=i.build_id and b.replica_id=i.replica_id
           and b.owner_user_id=i.owner_user_id
@@ -222,15 +246,21 @@ async function promoteCandidate(db, ownerUserId, row) {
           and s.capture_mode in ('upload','import','derived') and s.contains_third_parties=false
           and not (s.capture_mode='derived' and s.provenance->>'purpose'='mirror_window')
           and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
+          and i.expected_primary_selection_id=r.primary_selection_id
           and not exists (
             select 1 from vy_replica_voice_build_intent newer
              where newer.replica_id=i.replica_id and newer.owner_user_id=i.owner_user_id
                and newer.state in ('waiting','queued') and newer.intent_id<>i.intent_id
                and (newer.created_at,newer.intent_id)>(i.created_at,i.intent_id)
           )
+     ), epoch as (
+       update vy_replica r set primary_selection_id=gen_random_uuid()
+         from target t where r.replica_id=t.replica_id and r.owner_user_id=t.owner_user_id
+       returning r.replica_id
      ), selected as (
        insert into vy_replica_voice_reference(replica_id,owner_user_id,source_id,selected_at)
        select replica_id,owner_user_id,candidate_source_id,now() from target
+        where exists (select 1 from epoch)
        on conflict (replica_id) do update
          set owner_user_id=excluded.owner_user_id,source_id=excluded.source_id,selected_at=excluded.selected_at
        returning replica_id,owner_user_id,source_id
@@ -264,7 +294,10 @@ async function promoteCandidate(db, ownerUserId, row) {
     build_intent_id: row.intent_id,
   });
   if (!current || ["review", "failed"].includes(current.state)) return current;
-  return settleFailed(db, ownerUserId, row.replica_id, row.intent_id, "candidate_promotion_denied");
+  return settleFailed(db, ownerUserId, row.replica_id, row.intent_id,
+    current.expected_primary_selection_id == null
+      ? "primary_selection_snapshot_missing"
+      : current.primary_selection_changed ? "primary_voice_selection_changed" : "candidate_promotion_denied");
 }
 
 async function refreshBoundIntent(db, ownerUserId, row) {
@@ -296,6 +329,11 @@ export async function advanceOwnedVoiceBuildIntent(db, ownerUserId, value, optio
   });
   if (!current) return null;
   if (["review", "failed"].includes(current.state)) return clientVoiceBuildIntent(current);
+  if (current.expected_primary_selection_id == null) {
+    return clientVoiceBuildIntent(await settleFailed(
+      db, ownerUserId, rid, intentId, "primary_selection_snapshot_missing",
+    ));
+  }
   if (current.candidate_contains_third_parties === true
     || ["rejected", "deleting"].includes(String(current.candidate_state))) {
     return clientVoiceBuildIntent(await settleFailed(
@@ -330,6 +368,8 @@ export async function advanceOwnedVoiceBuildIntent(db, ownerUserId, value, optio
     if (["review", "failed"].includes(bound.state)) return clientVoiceBuildIntent(bound);
     return clientVoiceBuildIntent(await refreshBoundIntent(db, ownerUserId, bound));
   } catch (error) {
+    // Keep a bound queued intent intact so the reconciler can retry promotion.
+    if (error?.code === "primary_voice_selection_busy") throw error;
     if (error?.message === "voice_genome_not_ready") {
       const waiting = await settleWaiting(db, ownerUserId, rid, intentId, error?.details?.blockers || []);
       return clientVoiceBuildIntent(waiting);

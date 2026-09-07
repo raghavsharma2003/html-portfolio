@@ -2,11 +2,11 @@
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
-import { recordOwnedTurnFeedback } from "./_replica-feedback.js";
+import { recordOwnedTurnFeedback, readOwnedTurnFeedback } from "./_replica-feedback.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   res.setHeader("Cache-Control", "no-store");
 }
@@ -14,11 +14,15 @@ function cors(res) {
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+  if (!["GET", "POST"].includes(req.method)) return res.status(405).json({ error: "GET or POST only" });
   if (!allow(ipOf(req), "replica_feedback", 80)) return res.status(429).json({ error: "slow_down" });
   try {
     const user = await requireUser(req);
     if (!allow(user.id, "replica_feedback_user", 160)) return res.status(429).json({ error: "slow_down" });
+    if (req.method === "GET") {
+      const current = await readOwnedTurnFeedback(q, user.id, req.query || {});
+      return res.status(200).json({ current });
+    }
     const feedback = await recordOwnedTurnFeedback(q, user.id, req.body || {});
     return res.status(201).json({ feedback });
   } catch (error) {
@@ -27,4 +31,3 @@ export default async function handler(req, res) {
     return res.status(status).json({ error: status === 500 ? "replica_feedback_failed" : String(error.code || error.message) });
   }
 }
-

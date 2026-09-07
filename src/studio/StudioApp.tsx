@@ -2306,6 +2306,18 @@ export default function StudioApp() {
     }
   }
 
+  const handleReadVoiceReissue = useCallback(async () => {
+    if (!session || !selectedId) throw new Error("Your session is no longer available");
+    const fresh = await refreshForRequest(session);
+    const [replica, nextSources, nextConsents] = await Promise.all([
+      readReplica(fresh.accessToken, selectedId),
+      listSources(fresh.accessToken, selectedId),
+      listEnrollmentConsent(fresh.accessToken, selectedId),
+    ]);
+    if (selectedIdRef.current !== selectedId) throw new Error("The selected clone changed. Check its recording again.");
+    return { replica, sources: nextSources, consents: nextConsents };
+  }, [session, selectedId, refreshForRequest]);
+
   async function handleRequestVoiceBuild(input: { candidateSourceId: string; buildIntentId: string }): Promise<VoiceBuildIntent> {
     if (!session || !selected) throw new Error("Your session is no longer available");
     try {
@@ -2631,6 +2643,7 @@ export default function StudioApp() {
         onRetryUpload={handleRetryUpload}
         onFinalizeUpload={handleFinalizeUpload}
         onRequestVoiceBuild={handleRequestVoiceBuild}
+        onReadVoiceReissue={handleReadVoiceReissue}
         onDeleteSource={handleDeleteSource}
         onRefreshEnrollment={handleIdentityChanged}
         onRefreshReview={refreshVerificationReview}

@@ -5537,3 +5537,11 @@ create unique index if not exists vy_teacher_sheet_private_draft_ix
 create index if not exists vy_teacher_sheet_private_owner_recent_ix
   on vy_teacher_sheet(owner_user_id,replica_id,created_at desc)
   where replica_id is not null;
+
+-- 140: persistent selection epoch, including absence. This grants no identity.
+alter table vy_replica
+  add column if not exists primary_selection_id uuid not null default gen_random_uuid();
+
+-- No inferred snapshot for historical intents; an owner must issue a new one.
+alter table vy_replica_voice_build_intent
+  add column if not exists expected_primary_selection_id uuid;

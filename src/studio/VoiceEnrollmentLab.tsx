@@ -63,6 +63,15 @@ export default function VoiceEnrollmentLab({
   const captureRef = useRef<PrivateWavCapture | null>(null);
   const startedRef = useRef(0);
   const autoStopRef = useRef<number | null>(null);
+  const mountedRef = useRef(false);
+  const captureAttemptRef = useRef(0);
+  const recordingUrlRef = useRef<string | null>(null);
+  const captureScopeRef = useRef({ replicaId: replica.replica_id, token });
+  captureScopeRef.current = { replicaId: replica.replica_id, token };
+  function captureIsCurrent(attempt: number) {
+    return mountedRef.current && attempt === captureAttemptRef.current
+      && captureScopeRef.current.replicaId === replica.replica_id && captureScopeRef.current.token === token;
+  }
   const expiresAt = providerConsent ? new Date(providerConsent.expires_at).getTime() : 0;
   const challengeLive = providerConsent?.state === "issued" && expiresAt > clock;
   const busy = stage !== "idle";
@@ -83,7 +92,8 @@ export default function VoiceEnrollmentLab({
   }, [onAuthError]);
 
   function clearRecording() {
-    if (recording) URL.revokeObjectURL(recording.url);
+    if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
+    recordingUrlRef.current = null;
     setRecording(null);
     setProgress(0);
     setPendingSourceId(null);
@@ -117,11 +127,22 @@ export default function VoiceEnrollmentLab({
     return () => window.clearInterval(timer);
   }, [providerConsent?.state]);
 
-  useEffect(() => () => {
-    void captureRef.current?.cancel();
-    if (recording) URL.revokeObjectURL(recording.url);
-    if (autoStopRef.current) window.clearTimeout(autoStopRef.current);
-  }, [recording]);
+  useEffect(() => {
+    mountedRef.current = true;
+    setRecording(null);
+    setStage((current) => current === "permission" || current === "recording" ? "idle" : current);
+    return () => {
+      mountedRef.current = false;
+      captureAttemptRef.current++;
+      const capture = captureRef.current;
+      captureRef.current = null;
+      if (capture) void capture.cancel().catch(() => {});
+      if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
+      recordingUrlRef.current = null;
+      if (autoStopRef.current) window.clearTimeout(autoStopRef.current);
+      autoStopRef.current = null;
+    };
+  }, [replica.replica_id, token]);
 
   async function issue() {
     setError("");
@@ -137,18 +158,23 @@ export default function VoiceEnrollmentLab({
   }
 
   async function startRecording() {
+    if (!mountedRef.current || stage !== "idle" || !challengeLive) return;
+    const attempt = ++captureAttemptRef.current;
     setError("");
     clearRecording();
     setStage("permission");
     try {
       const capture = await openPrivateWavCapture();
+      if (!captureIsCurrent(attempt)) { await capture.cancel(); return; }
       captureRef.current = capture;
-      capture.start();
+      await capture.start();
+      if (!captureIsCurrent(attempt)) { await capture.cancel(); return; }
       startedRef.current = Date.now();
       setSeconds(0);
       setStage("recording");
       autoStopRef.current = window.setTimeout(() => void stopRecording(), 45_000);
     } catch (cause) {
+      if (!captureIsCurrent(attempt)) return;
       captureRef.current = null;
       report(cause, "The microphone could not be opened");
       setStage("idle");
@@ -161,15 +187,21 @@ export default function VoiceEnrollmentLab({
     const capture = captureRef.current;
     captureRef.current = null;
     if (!capture) return;
+    const attempt = captureAttemptRef.current;
     try {
       const next = await capture.stop();
+      if (!captureIsCurrent(attempt)) { URL.revokeObjectURL(next.url); return; }
       if (next.durationMs < 5_000 || next.durationMs > 90_000) {
         URL.revokeObjectURL(next.url);
         throw new Error("Read the complete statement in one recording lasting at least five seconds.");
       }
+      recordingUrlRef.current = next.url;
       setRecording(next);
-    } catch (cause) { report(cause, "The WAV recording could not be finalized"); }
-    finally { setStage("idle"); }
+    } catch (cause) {
+      if (captureIsCurrent(attempt)) report(cause, "The WAV recording could not be finalized");
+    } finally {
+      if (captureIsCurrent(attempt)) setStage("idle");
+    }
   }
 
   async function upload() {

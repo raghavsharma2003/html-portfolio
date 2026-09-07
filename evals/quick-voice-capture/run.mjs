@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,10 +24,20 @@ ok("negative control: eager mount-time microphone access is detectable",
 ok("microphone access begins only in the explicit start action",
   /async function start\(\)[\s\S]*await openPrivateWavCapture/.test(capture)
   && !/useEffect\([\s\S]{0,300}openPrivateWavCapture/.test(capture));
-ok("capture cleanup closes live microphone resources on cancel and unmount",
-  /captureRef\.current\.cancel\(\)/.test(capture)
-  && /stream\.getTracks\(\)\.forEach\(\(track\) => track\.stop\(\)\)/.test(wav)
-  && /await context\.close\(\)/.test(wav));
+// Execute the actual owned helper, including partial acquisition, throwing
+// disconnects and its cleanup-removal control. A source spelling cannot prove
+// resource release. Actual component unmount/late results are separately
+// exercised by capture-lifetime and recorder-lifecycle's mounted fixtures.
+let cleanupVerified = false;
+try {
+  execFileSync(process.execPath, [join(ROOT, "evals/wav-capture-cleanup.mjs")], {
+    cwd: ROOT, encoding: "utf8", timeout: 30_000, stdio: "pipe",
+  });
+  cleanupVerified = true;
+} catch (cause) {
+  console.error("Actual owned-helper cleanup proof failed:", cause.stdout?.toString() || "", cause.stderr?.toString() || cause.message);
+}
+ok("owned WAV helper closes acquired microphone resources (actual helper suite)", cleanupVerified);
 ok("the guided session has an honest minimum, target and hard maximum",
   /MINIMUM_MS = 12_000/.test(capture)
   && /TARGET_MS = 30_000/.test(capture)

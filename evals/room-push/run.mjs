@@ -43,7 +43,7 @@
 import fs from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { randomUUID, generateKeyPairSync } from "node:crypto";
+import { randomUUID, generateKeyPairSync, createHash } from "node:crypto";
 import {
   ROOM_ID,
   SLUG,
@@ -56,6 +56,9 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
+// Isolated diagnosis can exercise the browser boundary without importing
+// private API configuration. The normal release invocation still runs all sections.
+const browserOnly = process.env.ROOM_PUSH_BROWSER_ONLY === "1";
 
 process.env.ROOM_SESSION_SECRET = "r".repeat(48);
 
@@ -72,11 +75,11 @@ const {
   encryptPayload, decryptPayload, vapidHeaders, checkinPushPayload, renewalPushPayload, dormancyPushPayload,
   b64uEncode, b64uDecode,
 } = WP;
-const ROOM = await import(pathToFileURL(join(REPO, "api/_room-surface.js")).href);
+const ROOM = browserOnly ? {} : await import(pathToFileURL(join(REPO, "api/_room-surface.js")).href);
 const { joinRoom } = ROOM;
-const PUSH = await import(pathToFileURL(join(REPO, "api/_room-push.js")).href);
+const PUSH = browserOnly ? {} : await import(pathToFileURL(join(REPO, "api/_room-push.js")).href);
 const { setSubscription, removeSubscription, subscriptionStatus } = PUSH;
-const CI = await import(pathToFileURL(join(REPO, "api/_checkins.js")).href);
+const CI = browserOnly ? {} : await import(pathToFileURL(join(REPO, "api/_checkins.js")).href);
 const { computeNextDue, deliverers } = CI;
 
 // ── a real P-256 keypair in the raw uncompressed-point / raw-scalar shape
@@ -91,6 +94,7 @@ function ecKeypair() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+if (!browserOnly) {
 console.log("── §1: THE CRYPTO — aes128gcm round-trip, independently decoded ──");
 // ═════════════════════════════════════════════════════════════════════════
 {
@@ -494,6 +498,7 @@ console.log("\n── §7: RFC 8291 APPENDIX A, REPRODUCED (WS-R41) ──");
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+}
 console.log("\n── §8: REAL CHROMIUM — public/room-sw.js's own push handler, every kind ──");
 // ═════════════════════════════════════════════════════════════════════════
 // WS-R81's own law #4: dispatch a synthetic `push` event for EACH kind
@@ -523,7 +528,7 @@ await (async () => {
   const { createServer } = await import("node:http");
   const { extname, join: pjoin, normalize } = await import("node:path");
 
-  const DIST = join(REPO, "dist");
+  const DIST = resolve(browserOnly && process.env.ROOM_PUSH_DIST || join(REPO, "dist"));
   const PORT = 8941; // never 8931-8935/8940 - every other Chromium gate's own port (ws-common.md)
   const SLUG8 = "anjali";
 
@@ -531,9 +536,9 @@ await (async () => {
     console.log("  skip  §8: dist/room-sw.js or dist/room.html absent, run `npx vite build` first");
     return;
   }
-  let chromium;
+  let chromium, playwrightErrors;
   try {
-    ({ chromium } = await import("playwright"));
+    ({ chromium, errors: playwrightErrors } = await import("playwright"));
   } catch {
     console.log("  skip  §8: playwright not installed");
     return;
@@ -626,33 +631,78 @@ self.addEventListener("push", (event) => {
     const cdp = await context.newCDPSession(page);
     await cdp.send("ServiceWorker.enable");
     const registrations = new Map(); // scopeURL -> registrationId
+    const trace = { startedAt: new Date().toISOString(), dist: DIST, browser: browser.version(),
+      sourceHashes: Object.fromEntries([join(HERE,"run.mjs"),join(DIST,"room-sw.js"),join(DIST,"room.html")].map(path=>[path,createHash("sha256").update(fs.readFileSync(path)).digest("hex")])),
+      events: [], snapshots: [] };
+    async function snapshot(label) {
+      if (!process.env.ROOM_PUSH_DIAGNOSTICS) return;
+      const state = await page.evaluate(async () => {
+        const worker = value => value ? {scriptURL:value.scriptURL,state:value.state} : null;
+        return {controller:worker(navigator.serviceWorker.controller),permission:Notification.permission,
+          registrations:(await navigator.serviceWorker.getRegistrations()).map(r=>({scope:r.scope,active:worker(r.active),waiting:worker(r.waiting),installing:worker(r.installing)}))};
+      });
+      trace.snapshots.push({label,at:new Date().toISOString(),state});
+      if(process.env.ROOM_PUSH_DIAGNOSTICS)fs.writeFileSync(process.env.ROOM_PUSH_DIAGNOSTICS,JSON.stringify(trace,null,2));
+      console.log('  state '+label+' '+JSON.stringify(state));
+    }
+    cdp.on("ServiceWorker.workerVersionUpdated", event => trace.events.push({kind:'version',at:new Date().toISOString(),...event}));
     cdp.on("ServiceWorker.workerRegistrationUpdated", (e) => {
+      trace.events.push({kind:'registration',at:new Date().toISOString(),...e});
       for (const r of e.registrations || []) registrations.set(r.scopeURL, r.registrationId);
     });
 
-    // ── register the REAL worker at scope "/" ──
-    await page.evaluate(() => navigator.serviceWorker.register("/room-sw.js"));
-    await page
-      .waitForFunction(
-        () => navigator.serviceWorker.getRegistration("/room-sw.js").then((r) => !!r && !!r.active),
-        null,
-        { timeout: 15_000 },
-      )
-      .catch(() => {});
-    await page.waitForTimeout(400);
+    // This installed Playwright polls the immediate predicate return. A
+    // Promise is truthy even when it resolves false, so an async registration
+    // predicate used to return while the real worker was still installing.
+    let falsePredicatePath;
+    let falsePredicateRefused = false;
+    try {
+      const falseHandle = await page.waitForFunction(() => Promise.resolve(false), null, {timeout: 1000});
+      try {
+        falsePredicateRefused = await falseHandle.jsonValue() === false;
+        falsePredicatePath = "returned false handle (installed Promise-truthiness behavior)";
+      } finally { await falseHandle.dispose(); }
+    } catch (error) {
+      if (!(error instanceof playwrightErrors.TimeoutError)) throw error;
+      falsePredicateRefused = true;
+      falsePredicatePath = "TimeoutError (async false correctly refused)";
+    }
+    ok("§8 NEGATIVE CONTROL: an async-false polling predicate does not establish activation", falsePredicateRefused, falsePredicatePath);
 
-    // ── register the BROKEN, pre-fix worker at a distinct scope ──
-    await page.evaluate(() =>
-      navigator.serviceWorker.register("/broken-test/sw.js", { scope: "/broken-test/" }),
-    );
-    await page
-      .waitForFunction(
-        () => navigator.serviceWorker.getRegistration("/broken-test/").then((r) => !!r && !!r.active),
-        null,
-        { timeout: 15_000 },
-      )
-      .catch(() => {});
-    await page.waitForTimeout(400);
+    async function registerActivated(script, scope) {
+      return page.evaluate(async ({script,scope}) => {
+        const expectedScope = new URL(scope, location.href).href;
+        const expectedScript = new URL(script, location.href).href;
+        const reg = await navigator.serviceWorker.register(script, {scope});
+        if (reg.scope !== expectedScope) throw new Error("room_push_registration_scope_mismatch");
+        const worker = reg.installing || reg.waiting || reg.active;
+        if (!worker || worker.scriptURL !== expectedScript) throw new Error("room_push_registration_worker_missing");
+        await new Promise((resolve, reject) => {
+          let timer;
+          function finish(error) {
+            clearTimeout(timer);
+            worker.removeEventListener("statechange", changed);
+            error ? reject(error) : resolve();
+          }
+          function changed() {
+            if (worker.state === "redundant") finish(new Error("room_push_worker_install_failed_redundant"));
+            else if (worker.state === "activated") {
+              finish(reg.active === worker ? null : new Error("room_push_active_worker_mismatch"));
+            }
+          }
+          worker.addEventListener("statechange", changed);
+          timer = setTimeout(() => finish(new Error("room_push_worker_activation_timeout:" + worker.state)), 15000);
+          changed();
+        });
+        return {scope:reg.scope,scriptURL:reg.active.scriptURL,state:reg.active.state};
+      }, {script,scope});
+    }
+    const realRegistration = await registerActivated("/room-sw.js", "/");
+    ok("§8 setup: real worker is actually activated before any notification", realRegistration.state === "activated");
+    await snapshot("real-activation-wait-returned");
+    const brokenRegistration = await registerActivated("/broken-test/sw.js", "/broken-test/");
+    ok("§8 setup: old-guard worker is actually activated at its own scope", brokenRegistration.state === "activated");
+    await snapshot("broken-activation-wait-returned");
 
     const origin = `http://127.0.0.1:${PORT}`;
     const realRegId = registrations.get(`${origin}/`);
@@ -683,9 +733,12 @@ self.addEventListener("push", (event) => {
       control.shown === 1,
       control.shown === 1
         ? "1"
-        : `${control.error || `getNotifications() returned ${control.shown}`} (Notification.permission=${control.permission}): ` +
-          "this is Playwright's chromium-headless-shell, which grants no notification permission; launch the full build (channel: \"chromium\")",
+        : `${control.error || `getNotifications() returned ${control.shown}`} (Notification.permission=${control.permission}); ` +
+          "notification capability or worker state could not be verified",
     );
+
+    trace.control = control;
+    await snapshot("after-page-notification-control");
 
     async function notificationsFor(swPath) {
       return page.evaluate(async (p) => {
@@ -707,6 +760,7 @@ self.addEventListener("push", (event) => {
       if (!registrationId) return;
       await cdp.send("ServiceWorker.deliverPushMessage", { origin, registrationId, data: dataString });
       await page.waitForTimeout(300);
+      await snapshot("after-push-" + JSON.parse(dataString).t);
     }
 
     if (realRegId) {
@@ -792,7 +846,7 @@ console.log("\n── §9: THE PRECACHE LEARNS THE ROOM'S LAZY CHUNKS FROM THE B
 await (async () => {
   const { existsSync } = fs;
   const { readFile } = await import("node:fs/promises");
-  const DIST = join(REPO, "dist");
+  const DIST = resolve(browserOnly && process.env.ROOM_PUSH_DIST || join(REPO, "dist"));
   if (!existsSync(join(DIST, "room.html"))) {
     console.log("  skip  §9: dist/room.html absent, run `npx vite build` first");
     return;
@@ -874,7 +928,7 @@ await (async () => {
     falseHit === null, falseHit ? falseHit[0] : "");
 })();
 
-console.log(`\nroom-push: ${pass} ok, ${fail} failed`);
+console.log(`\nroom-push${browserOnly ? " (browser-only diagnostic)" : ""}: ${pass} ok, ${fail} failed`);
 process.exit(fail ? 1 : 0);
 
 // ── local helpers ──────────────────────────────────────────────────────────

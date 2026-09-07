@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decryptTurnExemplar, encryptTurnExemplar, exemplarTextHash } from "../../api/_replica-feedback-crypto.js";
-import { loadOwnedFeedbackLearningExample, recordOwnedTurnFeedback, TURN_FEEDBACK_SCHEMA, validateTurnFeedback } from "../../api/_replica-feedback.js";
+import { CURRENT_TURN_FEEDBACK_SQL, loadOwnedFeedbackLearningExample, recordOwnedTurnFeedback, TURN_FEEDBACK_SCHEMA, validateTurnFeedback } from "../../api/_replica-feedback.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -49,6 +49,7 @@ ok("missing production encryption material fails closed", true);
 
 const calls = [];
 const saved = await recordOwnedTurnFeedback(async (sql, params) => {
+  if (sql === CURRENT_TURN_FEEDBACK_SQL) return [{ feedback_id: null }];
   calls.push({ sql, params });
   return [{
     feedback_id: FEEDBACK, turn_id: TURN, revision: 2, ratings: params[4], reason_codes: params[6],
@@ -68,11 +69,12 @@ ok("feedback revisions append and supersede instead of mutating history", /coale
 
 let voiceSql = "";
 await recordOwnedTurnFeedback(async (sql, params) => {
+  if (sql === CURRENT_TURN_FEEDBACK_SQL) return [{ feedback_id: null }];
   voiceSql = sql;
   return [{ feedback_id: FEEDBACK, turn_id: TURN, revision: 1, ratings: params[4], reason_codes: [], correction_hash: null, source_generation_id: GENERATION, created_at: "2026-08-24T00:00:00.000Z", exemplar_written: false }];
 }, OWNER, { replica_id: RID, turn_id: TURN, ratings: { voice_identity: "exact" } }, ENV);
 ok("voice identity feedback requires and binds a sealed generated artifact", /g\.state='sealed'/.test(voiceSql) && /not \$9::boolean or a\.source_generation_id is not null/.test(voiceSql));
-await assert.rejects(recordOwnedTurnFeedback(async () => [], OWNER, { replica_id: RID, turn_id: TURN, ratings: { voice_identity: "off" } }, ENV), /sealed_voice_generation_required/);
+await assert.rejects(recordOwnedTurnFeedback(async sql => sql === CURRENT_TURN_FEEDBACK_SQL ? [{ feedback_id: null }] : [], OWNER, { replica_id: RID, turn_id: TURN, ratings: { voice_identity: "off" } }, ENV), /sealed_voice_generation_required/);
 ok("voice feedback without heard sealed audio is refused", true);
 await assert.rejects(recordOwnedTurnFeedback(async () => [], OWNER, { replica_id: RID, turn_id: TURN, ratings: { overall: "off" } }, ENV), /feedback_turn_not_available/);
 ok("cross-owner stale or inactive turns resolve to the same denial", true);

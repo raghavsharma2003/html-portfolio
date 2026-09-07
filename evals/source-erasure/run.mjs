@@ -226,7 +226,9 @@ ok("source erasure audit records content-free Mirror and canonical deletion coun
 ok("verified ID media is detached while invalid evidence clears its case challenge and every derived gate before unlink",
   /preserved_identity as/.test(completeSql) && /set source_id=null/.test(completeSql) &&
   /delete from vy_replica_identity_case/.test(completeSql) && /not b\.preserve/.test(completeSql) &&
-  /age_verified_at=null,identity_verified_at=null,liveness_verified_at=null/.test(completeSql) &&
+  ["age_verified_at", "identity_verified_at", "liveness_verified_at", "identity_expires_at"]
+    .every((field) => completeSql.includes(`${field}=case when e.revoke_identity then null else r.${field} end`)) &&
+  /returning case when e.revoke_identity then r.subject_person_id end/.test(completeSql) &&
   completeSql.indexOf("identity_cases as") < completeSql.indexOf("delete from vy_replica_source"));
 ok("untraceable derived person voice and calibration definitions are scrubbed rather than merely retired",
   /update vy_replica_voice_genome/.test(completeSql) && /update vy_replica_profile/.test(completeSql) &&

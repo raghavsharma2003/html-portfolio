@@ -84,6 +84,44 @@ function clientFeedback(row) {
   };
 }
 
+// Same live turn/version eligibility as the writer. A missing revision is distinct
+// from a missing or stopped turn; no original reply or provider metadata is returned.
+export const CURRENT_TURN_FEEDBACK_SQL = `select f.*,
+    e.algorithm,e.key_id,encode(e.nonce,'base64') as nonce_b64,
+    encode(e.ciphertext,'base64') as ciphertext_b64,encode(e.auth_tag,'base64') as auth_tag_b64,
+    encode(e.wrapped_dek,'base64') as wrapped_dek_b64,encode(e.wrap_nonce,'base64') as wrap_nonce_b64,
+    encode(e.wrap_auth_tag,'base64') as wrap_auth_tag_b64,e.aad_sha256,e.text_sha256
+  from vy_replica_dialogue_turn t
+  join vy_replica r on r.replica_id=t.replica_id and r.owner_user_id=t.owner_user_id
+  join vy_replica_runtime_capability c on c.capability_id=t.capability_id
+    and c.replica_id=t.replica_id and c.owner_user_id=t.owner_user_id
+    and c.profile_version=t.profile_version and c.calibration_version=t.calibration_version
+  left join lateral (select f.* from vy_replica_turn_feedback f
+    where f.turn_id=t.turn_id and f.replica_id=t.replica_id and f.owner_user_id=t.owner_user_id
+      and f.capability_id=t.capability_id and f.profile_version=t.profile_version
+      and f.calibration_version=t.calibration_version and f.response_hash=t.response_hash
+    order by f.revision desc limit 1) f on true
+  left join vy_replica_turn_exemplar e on e.feedback_id=f.feedback_id
+    and e.replica_id=f.replica_id and e.owner_user_id=f.owner_user_id
+  where t.replica_id=$1::uuid and t.owner_user_id=$2::uuid and t.turn_id=$3::uuid
+    and t.state='complete' and t.response_hash is not null and r.lifecycle='active'
+    and r.subject_mode='self' and r.policy_version=$4 and c.state='active'`;
+
+export async function readOwnedTurnFeedback(db, ownerUserId, rawInput, env = process.env) {
+  const rid = replicaId(rawInput?.replica_id);
+  const turn = safeUuid(rawInput?.turn_id, "valid_dialogue_turn_id_required");
+  const rows = await db(CURRENT_TURN_FEEDBACK_SQL, [rid, ownerUserId, turn, REPLICA_POLICY_VERSION]);
+  const row = rows[0];
+  if (!row) fail("feedback_turn_not_available", 409);
+  let correction = "";
+  if (row.correction_hash) {
+    correction = decryptTurnExemplar(row, { feedback_id: row.feedback_id, replica_id: rid,
+      turn_id: turn, text_sha256: row.correction_hash }, env);
+    if (!correction || exemplarTextHash(correction) !== row.correction_hash) fail("feedback_exemplar_hash_mismatch", 409);
+  }
+  return { replica_id: rid, turn_id: turn, feedback: row.feedback_id ? clientFeedback(row) : null, correction };
+}
+
 export async function recordOwnedTurnFeedback(db, ownerUserId, rawInput, env = process.env) {
   if (typeof db !== "function") fail("feedback_db_required", 503);
   const input = {
@@ -91,6 +129,15 @@ export async function recordOwnedTurnFeedback(db, ownerUserId, rawInput, env = p
     turn_id: safeUuid(rawInput?.turn_id, "valid_dialogue_turn_id_required"),
     ...validateTurnFeedback(rawInput),
   };
+  // Old callers may create a first revision, but may never overwrite an unseen one.
+  const expectedRevision = rawInput?.expected_revision ?? 0;
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) fail("feedback_revision_required");
+  if (rawInput?.clear_correction !== undefined && typeof rawInput.clear_correction !== "boolean") fail("feedback_clear_invalid");
+  if (rawInput?.clear_correction && Object.hasOwn(rawInput, "correction")) fail("feedback_correction_action_conflict");
+  if (Object.hasOwn(rawInput, "correction") && !input.correction) fail("feedback_explicit_clear_required");
+  const current = await readOwnedTurnFeedback(db, ownerUserId, input, env);
+  if ((current.feedback?.revision || 0) !== expectedRevision) fail("feedback_revision_conflict", 409);
+  if (!Object.hasOwn(rawInput, "correction") && !rawInput?.clear_correction) input.correction = current.correction;
   const feedbackId = randomUUID();
   const ratingsHash = sha256Hex(canonicalJson({ schema: TURN_FEEDBACK_SCHEMA, ratings: input.ratings, reason_codes: input.reason_codes }));
   const correctionHash = input.correction ? exemplarTextHash(input.correction) : null;
@@ -129,7 +176,9 @@ export async function recordOwnedTurnFeedback(db, ownerUserId, rawInput, env = p
               a.response_hash,case when $9::boolean then a.source_generation_id else null end,
               coalesce(p.revision,0)+1,p.feedback_id,$5::jsonb,$6,$7::text[],$8,$10
          from authorized a left join previous p on true
-        where not $9::boolean or a.source_generation_id is not null
+        where (not $9::boolean or a.source_generation_id is not null)
+          and coalesce(p.revision,0)=$20::integer
+       on conflict (turn_id,revision) do nothing
        returning *
      ), exemplar as (
        insert into vy_replica_turn_exemplar
@@ -144,9 +193,13 @@ export async function recordOwnedTurnFeedback(db, ownerUserId, rawInput, env = p
       input.reason_codes, correctionHash, requiresVoice, REPLICA_POLICY_VERSION, encrypted?.algorithm || null,
       encrypted?.key_id || null, encrypted?.nonce_b64 || null, encrypted?.ciphertext_b64 || null,
       encrypted?.auth_tag_b64 || null, encrypted?.aad_sha256 || null, encrypted?.wrapped_dek_b64 || null,
-      encrypted?.wrap_nonce_b64 || null, encrypted?.wrap_auth_tag_b64 || null],
+      encrypted?.wrap_nonce_b64 || null, encrypted?.wrap_auth_tag_b64 || null, expectedRevision],
   );
-  if (!rows[0]) fail(requiresVoice ? "sealed_voice_generation_required" : "feedback_turn_not_available", 409);
+  if (!rows[0]) {
+    const latest = await readOwnedTurnFeedback(db, ownerUserId, input, env);
+    if ((latest.feedback?.revision || 0) !== expectedRevision) fail("feedback_revision_conflict", 409);
+    fail(requiresVoice ? "sealed_voice_generation_required" : "feedback_turn_not_available", 409);
+  }
   if (correctionHash && !rows[0].exemplar_written) fail("feedback_exemplar_persist_failed", 500);
   return clientFeedback(rows[0]);
 }

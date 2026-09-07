@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { clientIntentId, replicaId } from "./_replica.js";
 import { REPLICA_STORAGE_WRITE_BUCKET } from "./_replica-storage.js";
+import { primarySelectionQuery } from "./_replica-primary-selection.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -377,7 +378,7 @@ export async function listOwnedSources(db, ownerUserId, id) {
 export async function setOwnedPrimaryVoiceSource(db, ownerUserId, id, source) {
   const rid = replicaId(id);
   const sid = replicaId(source);
-  const rows = await db(
+  const rows = await primarySelectionQuery(db,
     `with target as materialized (
        select s.* from vy_replica_source s
         where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.source_id=$3::uuid
@@ -385,9 +386,21 @@ export async function setOwnedPrimaryVoiceSource(db, ownerUserId, id, source) {
           and s.state in ('quarantined','processing','ready') and s.contains_third_parties=false
           and not (s.capture_mode='derived' and s.provenance->>'purpose'='mirror_window')
         limit 1
+        for update of s nowait
+     ), owned as materialized (
+       select r.replica_id from vy_replica r
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
+          and exists (select 1 from target)
+        for update of r nowait
+     ), epoch as (
+       update vy_replica r set primary_selection_id=gen_random_uuid()
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
+          and exists (select 1 from owned)
+       returning r.replica_id
      ), selected as (
        insert into vy_replica_voice_reference(replica_id,owner_user_id,source_id,selected_at)
        select replica_id,owner_user_id,source_id,now() from target
+        where exists (select 1 from epoch)
        on conflict (replica_id) do update
          set owner_user_id=excluded.owner_user_id,source_id=excluded.source_id,selected_at=excluded.selected_at
        returning source_id
@@ -534,8 +547,21 @@ export async function discardUnboundContextSource(db, ownerUserId, id, source) {
 export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
   const rid = replicaId(id);
   const sid = replicaId(source);
-  const rows = await db(
-    `with target as (
+  const rows = await primarySelectionQuery(db,
+    `with selection_snapshot as materialized (
+       select primary_selection_id from vy_replica
+        where replica_id=$1::uuid and owner_user_id=$2::uuid
+     ), source_lock as materialized (
+       select s.source_id from vy_replica_source s
+        where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.source_id=$3::uuid
+        for update of s nowait
+     ), owned as materialized (
+       select r.replica_id,r.primary_selection_id=ss.primary_selection_id snapshot_current
+         from vy_replica r cross join selection_snapshot ss
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
+          and exists (select 1 from source_lock)
+        for update of r nowait
+     ), target as (
        update vy_replica_source
           set state = 'deleting',
               provenance = provenance || jsonb_build_object(
@@ -543,6 +569,7 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
               ),
               updated_at = now()
         where replica_id = $1::uuid and owner_user_id = $2::uuid and source_id = $3::uuid
+          and exists (select 1 from owned where snapshot_current)
         returning ${SOURCE_RETURNING}
      ), processing_jobs as (
        update vy_replica_processing_job j
@@ -570,6 +597,7 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
        delete from vy_replica_voice_reference vr
         where vr.replica_id=$1::uuid and vr.owner_user_id=$2::uuid and vr.source_id=$3::uuid
           and exists (select 1 from target)
+       returning vr.replica_id
      ), liveness_challenges as (
        update vy_replica_liveness_challenge ch set state='failed',failure_code='liveness_evidence_deleted',
               face_session_state=case
@@ -586,9 +614,6 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
               failure_code='liveness_evidence_deleted',finished_at=now()
         from liveness_challenges ch where a.challenge_id=ch.challenge_id
           and a.attempt=ch.verification_attempt and a.outcome='running'
-     ), liveness_replica as (
-       update vy_replica r set identity_verified_at=null,liveness_verified_at=null,identity_expires_at=null,updated_at=now()
-        where r.replica_id=$1 and r.owner_user_id=$2 and exists (select 1 from liveness_challenges)
      ), liveness_consent as (
        update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
         where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.scope='biometric' and c.revoked_at is null
@@ -655,10 +680,22 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
           and (exists (select 1 from liveness_challenges ch where ch.challenge_id=g.challenge_id)
             or exists (select 1 from identity_challenges ch where ch.challenge_id=g.challenge_id))
      ), identity_replica as (
-       update vy_replica r set age_verified_at=null,identity_verified_at=null,liveness_verified_at=null,
-              identity_expires_at=null,updated_at=now() where r.replica_id=$1 and r.owner_user_id=$2
-          and exists (select 1 from identity_cases)
-       returning r.subject_person_id
+       -- One replica UPDATE for the disjoint and overlapping invalidations.
+       update vy_replica r
+          set age_verified_at=case when exists (select 1 from identity_cases) then null else r.age_verified_at end,
+              identity_verified_at=case when exists (select 1 from identity_cases)
+                or exists (select 1 from liveness_challenges) then null else r.identity_verified_at end,
+              liveness_verified_at=case when exists (select 1 from identity_cases)
+                or exists (select 1 from liveness_challenges) then null else r.liveness_verified_at end,
+              identity_expires_at=case when exists (select 1 from identity_cases)
+                or exists (select 1 from liveness_challenges) then null else r.identity_expires_at end,
+              primary_selection_id=case when exists (select 1 from voice_reference)
+                then gen_random_uuid() else r.primary_selection_id end,
+              lifecycle=case when r.lifecycle in ('revoked','purging') then r.lifecycle else 'enrolling' end,
+              updated_at=now()
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
+          and exists (select 1 from target)
+       returning case when exists (select 1 from identity_cases) then r.subject_person_id end subject_person_id
      ), identity_consent as (
        update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
         where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.scope='biometric' and c.revoked_at is null
@@ -705,10 +742,6 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
               revoked_at = coalesce(revoked_at, now()), updated_at = now()
         where replica_id = $1::uuid and owner_user_id = $2::uuid and source_id = $3::uuid
           and state <> 'revoked' and exists (select 1 from target)
-     ), replica as (
-       update vy_replica set lifecycle = 'enrolling', updated_at = now()
-        where replica_id = $1::uuid and owner_user_id = $2::uuid
-          and lifecycle not in ('revoked','purging') and exists (select 1 from target)
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
@@ -717,7 +750,8 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
               'allowed', jsonb_build_object('derived_models_invalidated', true)
          from target
      )
-     select * from target`,
+     select coalesce((select jsonb_agg(t) from target t),'[]'::jsonb) primary_selection_rows,
+            exists (select 1 from owned where not snapshot_current) primary_selection_snapshot_stale`,
     [rid, ownerUserId, sid],
   );
   return rows[0] || null;

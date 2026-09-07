@@ -51,6 +51,10 @@ const MAXIMUM_RECORDING_MS = 60_000;
 const REVEAL_KEY = "vyakti:experience:reveal";
 const VOICE_SAGA_KEY = "vyakti:experience:voice-saga:v1";
 
+export type VoiceReissueSnapshot = { replica: Replica; sources: ReplicaSource[]; consents: ConsentReceipt[] };
+
+const SELECTION_REISSUE_CODES = new Set(["primary_selection_snapshot_missing", "primary_voice_selection_changed"]);
+
 type VoiceCreationSaga = {
   uploadIntentId: string;
   buildIntentId: string;
@@ -306,7 +310,11 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
         return;
       }
       captureRef.current = capture;
-      capture.start();
+      await capture.start();
+      if (!mountedRef.current || captureAttemptRef.current !== captureAttempt) {
+        await capture.cancel();
+        return;
+      }
       startedAtRef.current = Date.now();
       setCaptureState("recording");
       setHint("Speak naturally about anything. A complete thought is better than a script.");
@@ -713,6 +721,7 @@ export interface CloneExperienceProps {
   onRetryUpload: (sourceId: string) => Promise<{ source: ReplicaSource; upload: SignedUpload | null; replayed: boolean; finalized: boolean }>;
   onFinalizeUpload: (sourceId: string, uploadIntentId?: string) => Promise<ReplicaSource>;
   onRequestVoiceBuild: (input: { candidateSourceId: string; buildIntentId: string }) => Promise<VoiceBuildIntent>;
+  onReadVoiceReissue?: () => Promise<VoiceReissueSnapshot>;
   onDeleteSource: (sourceId: string) => Promise<"complete" | "pending">;
   onRefreshEnrollment: () => Promise<void>;
   onRefreshReview: () => Promise<void>;
@@ -737,7 +746,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
     notice, error, onDismissNotice, onDismissError,
     onSignOut, onBeginClone, onGrantConsent, onSelectReplica, onStartNew, onRevoke,
     onCreateUpload, onRetryUpload, onFinalizeUpload, onRequestVoiceBuild, onDeleteSource,
-    onRefreshEnrollment, onRefreshReview, onCheckCaptureReadiness, onIssueChallenge, onStartFaceSession,
+    onRefreshEnrollment, onRefreshReview, onReadVoiceReissue, onCheckCaptureReadiness, onIssueChallenge, onStartFaceSession,
     onPollFaceSession, onCancelChallenge, onCreateLivenessUpload, onFinalizeLiveness,
     onVerifiedConsentChanged,
     onActivityView, onActivityAct, onAuthError, onContextCount,
@@ -766,6 +775,13 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const agreementLockedRef = useRef(false);
   const [voiceSaga, setVoiceSaga] = useState<VoiceCreationSaga | null>(() => readVoiceSaga(selected?.replica_id ?? null));
   const [voiceBuildIntent, setVoiceBuildIntent] = useState<VoiceBuildIntent | null>(null);
+  const [reissueBusy, setReissueBusy] = useState(false);
+  const [reissueError, setReissueError] = useState("");
+  const reissueOperation = useRef(0);
+  const reissueLocked = useRef(false);
+  const reissueMounted = useRef(false);
+  const reissueCurrent = useRef(props);
+  reissueCurrent.current = props;
   const requestVoiceBuildRef = useRef(onRequestVoiceBuild);
   const refreshEnrollmentRef = useRef(onRefreshEnrollment);
   const refreshReviewRef = useRef(onRefreshReview);
@@ -793,6 +809,74 @@ export default function CloneExperience(props: CloneExperienceProps) {
       return belongsToCurrentJourney && (job.state === "waiting_on_you" || job.state === "blocked" || job.state === "failed");
     }) ?? null;
   }, [activeCandidate?.source_id, activityView, currentPrimary?.source_id, voiceBuildIntent?.build_id, voiceSaga]);
+  const selectionReissue = voiceBuildIntent?.state === "failed" && SELECTION_REISSUE_CODES.has(voiceBuildIntent.last_error_code);
+  useEffect(() => {
+    reissueMounted.current = true;
+    return () => { reissueMounted.current = false; reissueOperation.current += 1; };
+  }, []);
+  useEffect(() => {
+    reissueOperation.current += 1;
+    reissueLocked.current = false;
+    setReissueBusy(false);
+    setReissueError("");
+  }, [identity, accessToken, selected?.replica_id, onReadVoiceReissue]);
+
+  async function reissueSavedRecording() {
+    if (reissueLocked.current || !selectionReissue || !selected || !voiceSaga?.sourceId || !onReadVoiceReissue) return;
+    const replicaId = selected.replica_id;
+    const previous = voiceSaga;
+    let previousStored: string | null = null;
+    const operation = ++reissueOperation.current;
+    const currentScope = () => {
+      const current = reissueCurrent.current;
+      return reissueMounted.current && reissueOperation.current === operation
+        && current.identity === identity && current.accessToken === accessToken
+        && current.selected?.replica_id === replicaId && current.onReadVoiceReissue === onReadVoiceReissue;
+    };
+    const eligible = (replica: Replica, rows: ReplicaSource[], receipts: ConsentReceipt[]) => {
+      const source = rows.find(row => row.source_id === previous.sourceId && row.replica_id === replicaId);
+      return replica.replica_id === replicaId && !["revoked", "purging"].includes(replica.lifecycle)
+        && activeEnrollmentConsent(receipts.filter(row => row.replica_id === replicaId), replica.policy_version)
+        && source && (source.kind === "audio" || source.kind === "video")
+        && ["upload", "import", "derived"].includes(source.capture_mode)
+        && ["quarantined", "processing", "ready"].includes(source.state) && !source.contains_third_parties;
+    };
+    reissueLocked.current = true;
+    setReissueBusy(true);
+    setReissueError("");
+    try {
+      try { previousStored = window.localStorage.getItem(voiceSagaKey(replicaId)); }
+      catch { throw new Error("This browser could not read the saved request. No build was sent. Allow local storage and try again."); }
+      const fresh = await onReadVoiceReissue();
+      if (!currentScope()) return;
+      const current = reissueCurrent.current;
+      if (!current.selected || !eligible(current.selected, current.sources, current.consents)
+        || !eligible(fresh.replica, fresh.sources, fresh.consents)) {
+        throw new Error("This saved recording is not available for a new request. Refresh its status before trying again.");
+      }
+      if (window.localStorage.getItem(voiceSagaKey(replicaId)) !== previousStored
+        || readVoiceSaga(replicaId)?.buildIntentId !== previous.buildIntentId) {
+        throw new Error("This recording request changed in another tab. Reload before choosing again.");
+      }
+      const next = { ...previous, buildIntentId: crypto.randomUUID() };
+      const serialized = JSON.stringify(next);
+      // Persist before the poll effect can send. An uncertain response reuses this exact UUID, including after reload.
+      try {
+        window.localStorage.setItem(voiceSagaKey(replicaId), serialized);
+        if (window.localStorage.getItem(voiceSagaKey(replicaId)) !== serialized) throw new Error("storage_readback_failed");
+      } catch {
+        throw new Error("This browser could not save the new request. No build was sent. Allow local storage and try again.");
+      }
+      if (retryRef.current?.sourceId === previous.sourceId) retryRef.current.buildIntentId = next.buildIntentId;
+      setVoiceBuildIntent(null);
+      setVoiceSaga(next);
+    } catch (cause) {
+      if (currentScope()) setReissueError(cause instanceof Error ? cause.message : "Could not check this recording. Your saved request has been kept.");
+    } finally {
+      if (currentScope()) { reissueLocked.current = false; setReissueBusy(false); }
+    }
+  }
+
   const needsAgreement = creatingNew || !selected || !consentActive;
   const reduceMotion = Boolean(useReducedMotion());
 
@@ -1117,7 +1201,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
           ) : showRecorder && !knowledgeOpen ? (
             <motion.div className="vx-scene" key="record" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><ResonanceRecorder key={selected?.replica_id} onKnowledge={() => chooseRoom("enrich")} onProceed={(sample, language) => void submitRecording(sample, language)} /></motion.div>
           ) : showVerification && selected && !knowledgeOpen ? (
-            <motion.div className="vx-scene vx-verification" key="verification" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>{voiceBuildIntent?.state === "failed" ? <aside className="vx-recovery" role="alert"><div><strong>This exact recording could not build.</strong><span>{voiceBuildIntent.last_error_code.replaceAll("_", " ") || "The private build stopped on our side."}</span></div><button type="button" onClick={() => void replaceRecording()}>Record again</button></aside> : recoveryJob ? <aside className="vx-recovery" role={recoveryJob.state === "waiting_on_you" ? "status" : "alert"}><div><strong>{recoveryJob.state === "waiting_on_you" ? "One action is needed" : "This step stopped"}</strong><span>{recoveryJob.state_reason}</span></div>{recoveryJob.next_action.kind !== "none" && recoveryJob.next_action.kind !== "wait" && recoveryJob.next_action.kind !== "owner_setup" ? <button type="button" disabled={recoveryBusy} onClick={() => void runRecoveryAction()}>{recoveryBusy ? "Checking" : recoveryJob.next_action.label}</button> : null}</aside> : null}<CloneVerificationJourney token={accessToken} replica={selected} consents={consents} sources={sources} review={review} candidateSourceId={activeCandidate?.source_id} buildIntent={voiceBuildIntent} reviewLoading={reviewLoading} challenge={challenge} livenessLoading={livenessLoading} onOpenSourcePermission={() => { void onGrantConsent().catch(onAuthError); }} onResetLegacyClone={onRevoke} onReturnToVoice={() => void replaceRecording()} onContinue={finishCandidateJourney} onCreateSourceUpload={onCreateUpload} onRetryUpload={onRetryUpload} onFinalizeSourceUpload={onFinalizeUpload} onDeleteSource={onDeleteSource} onSourcesChanged={onRefreshEnrollment} onIdentityChanged={onRefreshEnrollment} onCheckCaptureReadiness={onCheckCaptureReadiness} onIssueChallenge={onIssueChallenge} onStartFaceSession={onStartFaceSession} onPollFaceSession={onPollFaceSession} onCancelChallenge={onCancelChallenge} onCreateLivenessUpload={onCreateLivenessUpload} onFinalizeLiveness={onFinalizeLiveness} onVerifiedConsentChanged={onVerifiedConsentChanged} onRefreshReview={onRefreshReview} onAuthError={onAuthError} /></motion.div>
+            <motion.div className="vx-scene vx-verification" key="verification" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>{voiceBuildIntent?.state === "failed" ? <aside className="vx-recovery" role="alert"><div><strong>{selectionReissue ? "Choose whether to use this saved recording." : "This exact recording could not build."}</strong><span>{selectionReissue ? voiceBuildIntent.last_error_code === "primary_selection_snapshot_missing" ? "This older request needs a new confirmation. Your saved recording is still available." : "Your selected recording changed. Confirm only if you want this saved recording to replace that choice." : voiceBuildIntent.last_error_code.replaceAll("_", " ") || "The private build stopped on our side."}</span>{selectionReissue && !onReadVoiceReissue ? <span>Checking this saved recording is unavailable here. Your previous request has been kept.</span> : null}{reissueError ? <span role="alert">{reissueError}</span> : null}</div>{selectionReissue ? <button type="button" disabled={reissueBusy || !onReadVoiceReissue} onClick={() => void reissueSavedRecording()}>{reissueBusy ? "Checking recording" : "Use this recording"}</button> : null}<button type="button" disabled={reissueBusy} onClick={() => void replaceRecording()}>Record again</button></aside> : recoveryJob ? <aside className="vx-recovery" role={recoveryJob.state === "waiting_on_you" ? "status" : "alert"}><div><strong>{recoveryJob.state === "waiting_on_you" ? "One action is needed" : "This step stopped"}</strong><span>{recoveryJob.state_reason}</span></div>{recoveryJob.next_action.kind !== "none" && recoveryJob.next_action.kind !== "wait" && recoveryJob.next_action.kind !== "owner_setup" ? <button type="button" disabled={recoveryBusy} onClick={() => void runRecoveryAction()}>{recoveryBusy ? "Checking" : recoveryJob.next_action.label}</button> : null}</aside> : null}<CloneVerificationJourney token={accessToken} replica={selected} consents={consents} sources={sources} review={review} candidateSourceId={activeCandidate?.source_id} buildIntent={voiceBuildIntent} reviewLoading={reviewLoading} challenge={challenge} livenessLoading={livenessLoading} onOpenSourcePermission={() => { void onGrantConsent().catch(onAuthError); }} onResetLegacyClone={onRevoke} onReturnToVoice={() => void replaceRecording()} onContinue={finishCandidateJourney} onCreateSourceUpload={onCreateUpload} onRetryUpload={onRetryUpload} onFinalizeSourceUpload={onFinalizeUpload} onDeleteSource={onDeleteSource} onSourcesChanged={onRefreshEnrollment} onIdentityChanged={onRefreshEnrollment} onCheckCaptureReadiness={onCheckCaptureReadiness} onIssueChallenge={onIssueChallenge} onStartFaceSession={onStartFaceSession} onPollFaceSession={onPollFaceSession} onCancelChallenge={onCancelChallenge} onCreateLivenessUpload={onCreateLivenessUpload} onFinalizeLiveness={onFinalizeLiveness} onVerifiedConsentChanged={onVerifiedConsentChanged} onRefreshReview={onRefreshReview} onAuthError={onAuthError} /></motion.div>
           ) : showRooms && selected ? (
             <motion.div className="vx-scene vx-room" key={room} initial={reduceMotion ? false : { opacity: 0, filter: "blur(7px)" }} animate={{ opacity: 1, filter: "blur(0px)" }} exit={reduceMotion ? undefined : { opacity: 0, filter: "blur(5px)" }} transition={{ duration: reduceMotion ? 0 : 0.2 }}>
               {room === "voice" && <section className="vx-room__panel vx-room__voice vx-room__scroll"><div className="vx-stage-title"><h1>Meet {selected.display_name}.</h1><p>Ask a question or listen to a voice sample.</p></div><div className="vx-conversation-switch" role="group" aria-label="Meet experience"><button type="button" aria-pressed={meetView === "conversation"} onClick={() => setMeetView("conversation")}>Conversation</button><button type="button" aria-pressed={meetView === "sample"} onClick={() => setMeetView("sample")}>Voice sample</button></div>{meetView === "conversation" ? <Suspense fallback={<p role="status">Opening conversation</p>}><ExpertConversation key={selected.replica_id} token={accessToken} replicaId={selected.replica_id} lifecycle={selected.lifecycle} runtimeStatus={runtimeStatus} stopped={selected.lifecycle !== "active" && selected.lifecycle !== "ready"} onAuthError={onAuthError} onReview={() => chooseRoom("evolve")} /></Suspense> : <VoicePreviewPanel token={accessToken} replicaId={selected.replica_id} wizardInput={wizardInput} onAuthError={onAuthError} testEnvironment onManageSources={() => chooseRoom("enrich")} />}</section>}

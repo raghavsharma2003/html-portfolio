@@ -7,7 +7,9 @@ export async function saveTurnFeedback(
   turnId: string,
   ratings: Record<string, TurnFeedbackRating>,
   reasonCodes: string[],
-  correction: string,
+  correction: string | undefined,
+  expectedRevision = 0,
+  clearCorrection = false,
 ): Promise<ReplicaTurnFeedback> {
   const data = await replicaRequest<{ feedback: ReplicaTurnFeedback }>(token, "/api/replica-feedback", {
     method: "POST",
@@ -16,10 +18,34 @@ export async function saveTurnFeedback(
       turn_id: turnId,
       ratings,
       reason_codes: reasonCodes,
-      ...(correction.trim() ? { correction: correction.trim() } : {}),
+      expected_revision: expectedRevision,
+      ...(clearCorrection ? { clear_correction: true } : correction !== undefined ? { correction: correction.trim() } : {}),
     }),
   });
-  return data.feedback;
+  return parseTurnFeedback(data.feedback, turnId);
+}
+
+export interface CurrentTurnFeedback { replica_id: string; turn_id: string; feedback: ReplicaTurnFeedback | null; correction: string }
+const dimensions = ["overall", "wording", "behavior", "relationship", "memory", "delivery", "voice_identity"];
+function parseTurnFeedback(value: unknown, turnId: string): ReplicaTurnFeedback {
+  const f = value as ReplicaTurnFeedback;
+  if (!f || f.turn_id !== turnId || !id(f.feedback_id) || !Number.isSafeInteger(f.revision) || f.revision < 1
+    || !f.ratings || typeof f.ratings !== "object" || Array.isArray(f.ratings) || !Object.keys(f.ratings).length
+    || Object.entries(f.ratings).some(([key, rating]) => !dimensions.includes(key) || !["exact", "close", "off", "unsafe"].includes(rating))
+    || !Array.isArray(f.reason_codes) || f.reason_codes.length > 8 || f.reason_codes.some(reason => typeof reason !== "string")
+    || typeof f.has_correction !== "boolean" || typeof f.voice_generation_bound !== "boolean" || typeof f.created_at !== "string")
+    throw new ReplicaApiError("The saved correction could not be verified", 502, {});
+  return f;
+}
+export async function readTurnFeedback(token: string, replicaId: string, turnId: string, signal?: AbortSignal): Promise<CurrentTurnFeedback> {
+  const data = await replicaRequest<{ current: CurrentTurnFeedback }>(token,
+    `/api/replica-feedback?replica_id=${encodeURIComponent(replicaId)}&turn_id=${encodeURIComponent(turnId)}`,
+    { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : undefined });
+  const c = data.current;
+  if (!c || c.replica_id !== replicaId || c.turn_id !== turnId || typeof c.correction !== "string" || Array.from(c.correction).length > 2000
+    || (c.feedback === null ? c.correction !== "" : Boolean(c.correction) !== c.feedback?.has_correction))
+    throw new ReplicaApiError("The current correction could not be verified", 502, {});
+  return { ...c, feedback: c.feedback === null ? null : parseTurnFeedback(c.feedback, turnId) };
 }
 
 const hash = (value: unknown) => typeof value === "string" && value.length === 64 && /^[0-9a-f]+$/.test(value);

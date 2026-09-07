@@ -601,6 +601,9 @@ export const HI: StudioRestCopy = {
   },
 
   turnFeedback: {
+    loading: "आपका सेव किया सुधार पढ़ रहे हैं...",
+    checkSaved: "सेव किया सुधार देखें",
+    clearSaved: "इस रिविज़न से सेव किए शब्द हटाएँ",
     dimensionLabel: {
       wording: "शब्द चयन",
       behavior: "व्यवहार",

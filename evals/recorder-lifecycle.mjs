@@ -57,6 +57,24 @@ try {
     await open('?legacy-effect=1');await button().click();await page.evaluate(()=>window.recorderProbe.resolveOpen());
     await page.waitForFunction(()=>window.recorderProbe.counts.cancel===1);assert.equal((await counts()).start,0);
   });
+  await check('actual recorder waits for audio resume before announcing recording',async()=>{
+    await open('?deferred-resume=1');await button().click();await page.evaluate(()=>window.recorderProbe.resolveOpen());
+    await page.waitForFunction(()=>window.recorderProbe.counts.start===1);
+    assert.equal(await page.getByRole('button',{name:/Finish recording/}).count(),0);
+    await page.evaluate(()=>window.recorderProbe.resolveResume());await page.getByRole('button',{name:/Finish recording/}).waitFor();
+  });
+  await check('resume rejection is visible and a new attempt remains available',async()=>{
+    await open('?deferred-resume=1');await button().click();await page.evaluate(()=>window.recorderProbe.resolveOpen());
+    await page.waitForFunction(()=>window.recorderProbe.counts.start===1);await page.evaluate(()=>window.recorderProbe.rejectResume());
+    await button().waitFor();assert((await page.getByRole('alert').innerText()).includes('Synthetic resume failed'));
+    assert.equal((await counts()).cancel,1);assert.equal((await counts()).proceed,0);
+  });
+  await check('unmount during resume closes capture before late resolution',async()=>{
+    await open('?deferred-resume=1');await button().click();await page.evaluate(()=>window.recorderProbe.resolveOpen());
+    await page.waitForFunction(()=>window.recorderProbe.counts.start===1);await page.evaluate(()=>{window.recorderProbe.unmount();window.recorderProbe.resolveResume();});
+    await page.waitForFunction(()=>window.recorderProbe.counts.cancel>=1);assert.equal(await page.getByRole('button',{name:/Finish recording/}).count(),0);
+    assert.equal((await counts()).proceed,0);
+  });
   await check('permission resolving after unmount cancels without recording',async()=>{
     await open();await button().click();await page.evaluate(()=>window.recorderProbe.unmount());
     await page.evaluate(()=>window.recorderProbe.resolveOpen());

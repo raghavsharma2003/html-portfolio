@@ -57,7 +57,7 @@ async function resample(samples: Float32Array, sourceRate: number, targetRate = 
 }
 
 export interface PrivateWavCapture {
-  start(): void;
+  start(): Promise<void>;
   stop(): Promise<WavRecording>;
   cancel(): Promise<void>;
 }
@@ -98,6 +98,7 @@ export async function openPrivateWavCapture(options: PrivateWavCaptureOptions = 
   const nodes: AudioNode[] = [];
   let detachListener: (() => void) | undefined;
   let recording = false;
+  let starting = false;
   let closed = false;
   async function close() {
     if (closed) return;
@@ -149,11 +150,18 @@ export async function openPrivateWavCapture(options: PrivateWavCaptureOptions = 
   silent.connect(context.destination);
 
   return {
-    start() {
-      if (closed || recording) throw new Error("Microphone session is not ready.");
+    async start() {
+      if (closed || recording || starting) throw new Error("Microphone session is not ready.");
+      starting = true;
       chunks.length = 0;
-      recording = true;
-      void context.resume();
+      try {
+        await context.resume();
+        if (closed) throw new Error("Microphone session was closed before recording started.");
+        recording = true;
+      } catch (cause) {
+        await close().catch(() => {});
+        throw cause;
+      } finally { starting = false; }
     },
     async stop() {
       if (!recording) throw new Error("No consent recording is active.");

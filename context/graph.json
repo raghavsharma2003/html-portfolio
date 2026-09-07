@@ -13713,6 +13713,84 @@
       "kind": "measurement",
       "title": "Selection epoch migration is development-only and its first overlap proof failed",
       "at": "2026-09-07"
+    },
+    {
+      "id": "voice-primary-selection-epoch-cas-20260907",
+      "kind": "decision",
+      "title": "Preserve a newer voice selection against older builds",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "voice-primary-selection-twenty-nine-real-sql-20260907",
+      "kind": "measurement",
+      "title": "Twenty-nine actual selection SQL checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "pooled-backend-pid-is-not-transaction-identity-20260907",
+      "kind": "rejection",
+      "title": "The first race harness watched the wrong transaction identity",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "correction-reopen-retain-and-explicit-clear-20260907",
+      "kind": "decision",
+      "title": "Restore corrections and reject stale edits",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "feedback-reopen-eight-real-sql-20260907",
+      "kind": "measurement",
+      "title": "Eight real encrypted correction SQL groups",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "blank-correction-is-local-validation-not-uncertain-post-20260907",
+      "kind": "rejection",
+      "title": "A local validation error should not erase the editor draft",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release-twenty-frozen-two-eval-failures-20260907",
+      "kind": "measurement",
+      "title": "Release20 retained with23of24software gates",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "owned-recorder-await-start-before-capture-20260907",
+      "kind": "decision",
+      "title": "Wait for actual audio engine start and close owned resources",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "combined-twenty-one-flow-checks-20260907",
+      "kind": "measurement",
+      "title": "Root combined flow verification",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "quick-cleanup-spelling-is-not-resource-proof-20260907",
+      "kind": "rejection",
+      "title": "Quick cleanup gate assumed obsolete source spelling",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "voice-candidate-explicit-same-source-reissue-20260907",
+      "kind": "decision",
+      "title": "Reuse a recording only after explicit fresh selection",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "notification-first-push-readiness-was-promise-truthiness-20260907",
+      "kind": "rejection",
+      "title": "A fulfilled wait did not mean the worker had activated",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "room-push-eighty-six-native-boundary-checks-20260907",
+      "kind": "measurement",
+      "title": "Eighty-six room push checks after actual activation",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

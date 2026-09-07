@@ -47,13 +47,13 @@ for(const stage of ['source.disconnect','processor.disconnect','gain.disconnect'
   });
 }
 await check('normal capture retains actual PCM encoding and closes once',async()=>{
-  const f=fixture();const capture=await f.open();capture.start();f.emit();const wav=await capture.stop();await capture.cancel();
+  const f=fixture();const capture=await f.open();await capture.start();f.emit();const wav=await capture.stop();await capture.cancel();
   assert.deepEqual(f.counts.tracks,[1,1]);assert.equal(f.counts.closed,1);
   const view=new DataView(await wav.file.arrayBuffer());assert.equal(view.getUint32(24,true),24000);assert.equal(view.getUint32(40,true),8);
   assert.equal(view.getInt16(46,true),16383);assert.equal(view.getInt16(48,true),-16384);
 });
 await check('actual setup-cleanup removal control leaks the opened microphone',async()=>{
-  const old=source.replace('await close().catch(() => {});','/* old setup behavior: no acquired-resource cleanup */');assert.notEqual(old,source);
+  const old=source.slice(0,source.lastIndexOf('await close().catch(() => {});')) + source.slice(source.lastIndexOf('await close().catch(() => {});')).replace('await close().catch(() => {});','/* old setup behavior: no acquired-resource cleanup */');assert.notEqual(old,source);
   const f=fixture('processor',old);await assert.rejects(f.open());assert.deepEqual(f.counts.tracks,[0,0]);assert.equal(f.counts.closed,0);
 });
 console.log(`PASS ${passed} actual WAV helper groups; synthetic Web Audio/device APIs, no real microphone or resampling-quality claim.`);

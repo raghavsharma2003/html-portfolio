@@ -54,6 +54,7 @@ const server = createServer(async (req, res) => {
     } });
     if (url.pathname === "/api/replica-dialogue" && data.op === "open_session") return json(201, { session: { replica_id: data.replica_id, session_id: data.session_id } });
     if (url.pathname === "/api/replica-dialogue") return json(200, { turn: { turn_id: TURN, session_id: data.session_id, reply: "Synthetic answer for the correction workflow.", can_voice: false } });
+    if (url.pathname === "/api/replica-feedback" && req.method === "GET") return json(200, { current: { replica_id: url.searchParams.get("replica_id"), turn_id: url.searchParams.get("turn_id"), feedback: null, correction: "" } });
     if (url.pathname === "/api/replica-feedback") {
       const finish = () => { count++; json(200, { feedback: { feedback_id: TURN, turn_id: TURN, revision: count, ratings: data.ratings, reason_codes: [], has_correction: false, voice_generation_bound: false, created_at: now } }); };
       if (holdFeedback) { feedbackPending = finish; return; } return finish();

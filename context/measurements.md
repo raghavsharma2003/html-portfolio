@@ -16563,3 +16563,28 @@ On 2026-09-07 agent passed 59 full-shell groups using actual studio.html, both e
 ## `development-migration140-partial-cas-proof-20260907` (2026-09-07)
 
 Root applied the two exact statements of migration 140 only to vyakti_expert_integration_20260906 after target verification; before/after catalog artifacts retain the defaults and nullable historical-intent contract. First CAS run at 2026-09-07T12:30:17.183Z passed 11 groups including actual old-query overwrite, but failed to witness the intended blocked overlap and reported a session cleanup connection error. Exact fixture recount was zero. Do not accept the entire concurrency feature. Retained ROOT primary-selection-sql-1788784133006.json and migration/manifest artifacts. Investigation found the harness read backend PIDs outside transactions on a pooled endpoint, but actual PID drift remains unmeasured; a revised bounded witness is being prepared. No production migration, storage, identity or voice operation occurred.
+
+
+## `voice-primary-selection-twenty-nine-real-sql-20260907` (2026-09-07)
+
+Root completed 29 actual development SQL groups at2026-09-07T12:44:12.142Z against vyakti_expert_integration_20260906. Exact old query overwrote a newer manual selection after an observed pg_blocking_pids witness; new query refused NOWAIT and a fresh retry preserved the selection. Same-source reselection, absent ABA, historical NULL, replay, foreign scope, identity/liveness invalidation and ten owner/source-lock counterpart cases passed. Sixteen fixture sets were manifested before writes; cleanup remaining0/errors[]. Receipt ROOT scratchpad/expert-tools/primary-selection-sql-1788784961799.json. Pinned twelve-file manifest includes harnessSHA d09310270cc4f19facaaff95a8eddaf1d74fa339df0911471a1468f10f82f3af. No production, storage, real identity or voice operation.
+
+
+## `feedback-reopen-eight-real-sql-20260907` (2026-09-07)
+
+Root frozen-source execution at2026-09-07T12:43:22.599Z passed8actualSQLgroups on vyakti_expert_integration_20260906, with12prewrite manifests,remainingFixtureRows0,cleanupErrors[]. Exact old writer lost correction on a rating-only update; new writer retained encrypted wording, required explicit clear, rejected stale/omitted revisions and foreign/inactive scope, and turn deletion cascaded all revisions. Two independent connections shared a pre-write barrier; one revision won and one conflicted. No pg_blocking_pids witness or claim of measured overlapping PostgreSQL snapshots. Synthetic encryption key and prerequisites only; no owner, model, activation or training proof. Agent36mounted/9helper/28incumbent/12dataset/93locale focused checks passed separately.
+
+
+## `release-twenty-frozen-two-eval-failures-20260907` (2026-09-07)
+
+Frozen da3ac2aeac29571ae45a4507d947b1cf603cf9c1 ran2026-09-07T12:41:11.567Z to13:03:39.449Z, exit1,changedDuringRun=false.23of24software gates passed; evalsuite failed quickvoicecapture and room-push. Layout254595ms andperformance109872ms passed. DBgates skipped, separate realSQL proofs retain scope. Full logs and release20completion retained. This checkpoint is not release accepted; don't erase failures with later focused passes.
+
+
+## `combined-twenty-one-flow-checks-20260907` (2026-09-07)
+
+After manifest-verified four-slice merge, root passed36feedback mounted groups,32actual Quick/modernLab/creatorLab lifetime groups,18same-source recovery groups with actualStudioAppcaller controls,14primaryCASinjected groups and27incumbentQuick checks. Agent13+33helper and12normalRecorder groups are separate focused evidence. Root forced TypeScript initially found an unused creator feedback type import; removed that import and the forced rerun passed. Copy and diff checks passed. No physical microphone, owner voice or new model call; full release21 remains required.
+
+
+## `room-push-eighty-six-native-boundary-checks-20260907` (2026-09-07)
+
+On 2026-09-07 root ran the default full evals/room-push/run.mjs against integration's actual local dist: 86 passed, zero failed, exit0. It includes crypto/API fixture sections and native Chromium notification/service-worker controls. The event-backed activation repair awaits the exact worker's activated state and reports failure instead of swallowing it. The async-false negative control accepts only an actual false result or Playwright TimeoutError, neither as readiness. Browser-only/dist overrides remain explicit diagnostic modes. Retained integration scratchpad/room-push-twenty-one-final.log and native handoff. This is synthetic localhost notification evidence, not external push delivery or real subscriber acceptance.

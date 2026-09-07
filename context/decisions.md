@@ -22898,3 +22898,23 @@ Re-arm the actual ResonanceRecorder mounted flag on every effect setup, fence de
 ## `preserve-css-and-owned-selection-through-real-setup-entry-20260907` (2026-09-07)
 
 Separate the creator and personal asynchronous entry loaders so the built preload keeps the correct stylesheet dependencies. Resolve an explicit setup replica only from the authenticated owned list; do not substitute the first row for a specified unavailable workspace. Scope pending list/refresh results across sign-out and account changes. Keep the existing visual system, fit the account link inside its actual header group, offset anchored content below the sticky header and disclose technical version/provider details secondarily. Reverse only on built-artifact and full-shell evidence that an alternative preserves styles, exact selection and a clearer usable destination.
+
+
+## `voice-primary-selection-epoch-cas-20260907` (2026-09-07)
+
+Use an owner-scoped persistent primary_selection_id epoch, captured only on newly requested candidate intent, rotated on actual selection and withdrawal, with common source then replica NOWAIT locking and exact epoch comparison at promotion. Historical intents remain NULL and require an explicit fresh intent; ambiguous retries retain their request UUID. Migration140 applies only to isolated development. Reversal requires an alternative that passes observed old-overwrite negatives, same-source and absent ABA cases, counterpart lock order and source invalidation without inferring historical owner intent. Production rollout must drain or upgrade old writers that do not rotate the epoch. This does not prove speaker ownership or authorize a new voice.
+
+
+## `correction-reopen-retain-and-explicit-clear-20260907` (2026-09-07)
+
+Read the current owned completed turn revision before editing. Absent wording retains and reencrypts it into the new revision; nonempty wording replaces it; explicit clear_correction removes current wording. SQL revision comparison and existing unique turn/revision constraint reject stale writes. Both editor surfaces use scoped hydration and readback after an uncertain save; no automatic duplicate POST. Reversal requires equivalent preservation, explicit removal, owner isolation and stale-write evidence without losing immutable correction history. Saving a correction does not apply it to prompts or prove subsequent answer improvement.
+
+
+## `owned-recorder-await-start-before-capture-20260907` (2026-09-07)
+
+Owned WAV capture.start returns a Promise. All four actual callers await successful AudioContext resume before presenting recording; stale permission/start/stop results are generation scoped and physical tracks and partially acquired nodes are closed on failures/unmount. Both owned helper copies have equivalent behavior; the creator borrowed-stream identity recorder stays unchanged. Reversal requires real resource-lifetime proofs that the earlier void-start contract cannot provide. No change to PCM sampling policy or authority grants.
+
+
+## `voice-candidate-explicit-same-source-reissue-20260907` (2026-09-07)
+
+For named primary_voice_selection_changed or primary_selection_snapshot_missing failures, offer an explicit same-recording owner action. Re-read actual owned replica/source/consents, reject stale scope or missing callback, persist/readback a new intent UUID before dispatch, and preserve it after uncertain responses. Generic failures do not auto-reissue; unavailable source/read/storage preserves the old upload and saga. Reversal requires equivalent no-reupload recovery with durable idempotency and no silent override of a newer owner selection.

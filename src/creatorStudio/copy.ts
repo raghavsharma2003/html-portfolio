@@ -730,6 +730,9 @@ interface RuntimeGateCopy {
 
 // ── turnFeedback: TurnFeedback.tsx (WS-R61) ────────────────────────────────
 interface TurnFeedbackCopy {
+  loading: string;
+  checkSaved: string;
+  clearSaved: string;
   dimensionLabel: Record<"wording" | "behavior" | "relationship" | "memory" | "delivery" | "voice_identity", string>;
   dimensionDescription: Record<"wording" | "behavior" | "relationship" | "memory" | "delivery" | "voice_identity", string>;
   ratingLabel: Record<"exact" | "close" | "off", string>;
@@ -2842,6 +2845,9 @@ const EN: StudioCopy = {
   },
 
   turnFeedback: {
+    loading: "Reading your saved correction...",
+    checkSaved: "Check saved correction",
+    clearSaved: "Remove saved wording from this revision",
     dimensionLabel: {
       wording: "Wording",
       behavior: "Behavior",

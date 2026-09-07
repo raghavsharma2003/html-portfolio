@@ -184,6 +184,7 @@ function buildIntentHarness() {
       state.intent = {
         intent_id: params[2], replica_id: params[0], owner_user_id: params[1], candidate_source_id: params[3],
         state: "waiting", build_id: null, blockers: [], last_error_code: "", promoted_at: null,
+        expected_primary_selection_id: "90000000-0000-4000-8000-000000000009",
         next_check_at: "2026-09-02T00:00:30.000Z",
         created_at: "2026-09-02T00:00:00.000Z", updated_at: "2026-09-02T00:00:00.000Z",
       };

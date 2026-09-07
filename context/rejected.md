@@ -16642,3 +16642,23 @@ First Vite development fixture did not complete and was interrupted, without acc
 ## `deploy-only-filter-and-pointerdown-concealed-unmet-setup-20260907` (2026-09-07)
 
 The actual lower Deploy model filtered to Deploy-owned blockers, then invited activation when that local list was empty even though identity/liveness/voice checks elsewhere still blocked the real runtime. Preserve all runtime blockers and require explicit server can_activate before inviting activation; unknown permission stays a platform state. Mirrored prerequisite links must change to the owning step before focusing its mounted target. Full-shell pointerdown execution added tabindex to the target but native button focus subsequently overwrote it. A one-frame workaround was tested then removed; native onClick gives correct pointer, Enter and Space behavior. This specific measured navigation exception supersedes the old pointerdown comment without changing the broad design law. Existing waiting-on-us versus waiting-on-you classification is preserved.
+
+
+## `pooled-backend-pid-is-not-transaction-identity-20260907` (2026-09-07)
+
+The first CAS run passed11groups but failed blocked-witness observation and reported a cleanup connection error; it remains preserved at primary-selection-sql-1788784133006.json, with zero fixture rows. Updated harness keeps product files unchanged, captures backend IDs only after BEGIN, records pending outcomes and bounded actual lock observations. Successful rerun measured both pretransaction IDs5327 but actual pinned setter5327/promoter5415, proving PID drift in this run. At493ms PostgreSQL reported promoter5415 waiting on setter5327; old statement later completed the overwrite at741ms. This corroborates the pooled PID problem but does not reconstruct every event in the first run. No timeout increase or blind green retry.
+
+
+## `blank-correction-is-local-validation-not-uncertain-post-20260907` (2026-09-07)
+
+Agent initially routed a cleared textarea without explicit removal through uncertain-POST recovery even though no POST was sent. Moved this local validation before send and added three mounted controls; final36groups passed. Earlier fixture assumptions about owner-change closing the editor and incompatible mixed old/new component clients were rejected and retained. These checks do not establish that retained wording will change the next reply.
+
+
+## `quick-cleanup-spelling-is-not-resource-proof-20260907` (2026-09-07)
+
+Release20 quick fixture still asserted getTracks().forEach and await context.close. Actual20helper had per-track cleanup and ownedContext cleanup; root focused reproduction failed only this static assertion. The repaired incumbent invokes actual13group helper cleanup checks; component late callback/unmount behavior remains covered by the separate mounted suite. All27incumbentQuick assertions pass. Agent priorfeedback TS command checked tsconfig.app only; rootforced build additionally covered creator imports and caught unused ReplicaTurnFeedback. Do not equate the narrower TS command with the full release type gate.
+
+
+## `notification-first-push-readiness-was-promise-truthiness-20260907` (2026-09-07)
+
+Release20 notification control and firstcheckin failed with Noactive registration while later kinds passed. Root first repair checked active.state activated and removed swallowed waits, but samefocused run still had78pass5fail; retained room-push-twenty-repair.log. Agent native/CDP trace then showed waitForFunction returned while active=null and installing.state=installing. The installed polling implementation tested predicate() truthiness before awaiting its Promise, so asynchronous false looked ready. Event-backed registration activation passed the explicit33browser-only diagnostics without changing the300ms postpush delay. This is measured for this installed runner, not a claim about every Playwright release. MDN confirms active may mean activating or activated: https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorkerRegistration/active. Root fulldefaultpush run is still required.
