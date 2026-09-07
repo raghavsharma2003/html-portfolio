@@ -19,6 +19,7 @@
 // teacher's to see as an editable control, and DisclosurePreview is the
 // dedicated, non-editable step for what a student sees of them.
 import { useCallback, useMemo, useState } from "react";
+import { teacherSheetEditorView, type TeacherSheetEditorView } from "./teacherSheetEditorView";
 import { ReplicaApiError } from "./replicaApi";
 import { readTeacherSheetDraft, saveTeacherSheetDraft } from "./teacherSheetApi";
 import { SYLLABUS } from "../engine/practice/syllabus";
@@ -52,7 +53,7 @@ const WARMTH_LABELS: Record<TeacherWarmth, string> = {
 // table, not all of it — the highest-signal, highest-recitation-risk fields,
 // which is exactly where a teacher most needs to SEE what was drafted even
 // though they cannot edit it here.
-const INGESTED_PREVIEW: ReadonlyArray<{ key: keyof TeacherSheet; label: string; render: (sheet: TeacherSheet) => string }> = [
+const INGESTED_PREVIEW: ReadonlyArray<{ key: keyof TeacherSheet; label: string; render: (sheet: TeacherSheetEditorView) => string }> = [
   { key: "languageVoiceRule", label: "Language / voice ratio", render: (s) => s.languageVoiceRule },
   { key: "sttSoundAlikes", label: "STT sound-alike pairs", render: (s) => s.sttSoundAlikes },
   { key: "boardVerbalisms", label: "Board verbalisms (catchphrase field)", render: (s) => s.boardVerbalisms.join(", ") },
@@ -61,7 +62,8 @@ const INGESTED_PREVIEW: ReadonlyArray<{ key: keyof TeacherSheet; label: string; 
   { key: "commonMistakeBank", label: "Common mistake bank", render: (s) => `${s.commonMistakeBank.length} rows, strand-scoped` },
 ];
 
-function chaptersFor(subject: TeacherSheet["subjectDomain"]) {
+function chaptersFor(subject: TeacherSheet["subjectDomain"] | undefined) {
+  if (!subject) return [];
   const found = SYLLABUS.find((s) => s.id === SUBJECT_ID[subject]);
   return found ? found.units.map((unit) => ({ unit: unit.name, chapters: unit.chapters.map((c) => c.name) })) : [];
 }
@@ -79,14 +81,15 @@ export default function TeacherSheetStudio({
    *  `/api/teacher-sheet`, or a SEED built from this owner's own replica by
    *  `sheetSeed.ts`. It is never the demo teacher: rendering a fixture's name
    *  on a real teacher's consent screen is the defect UX-Q-02 names. */
-  sheetDraft: TeacherSheet;
+  sheetDraft: Partial<TeacherSheet>;
   /** Which of those two the sheet above is. Drives the provenance labels: a
    *  seed may not be captioned "drafted from your uploads", because nothing was
    *  drafted and nothing was uploaded (copy audit C17). */
   sheetProvenance: SheetProvenance;
   onAuthError: (cause: unknown) => void;
 }) {
-  const [sheet, setSheet] = useState<TeacherSheet>(sheetDraft);
+  const [draft, setDraft] = useState<Partial<TeacherSheet>>(sheetDraft);
+  const sheet = useMemo(() => teacherSheetEditorView(draft), [draft]);
   const [ladderDraft, setLadderDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
@@ -103,7 +106,7 @@ export default function TeacherSheetStudio({
     setError("");
     try {
       const status = await readTeacherSheetDraft(token, replicaId);
-      if (status.draft) setSheet(status.draft);
+      if (status.draft) setDraft(status.draft);
       setServiceUnavailable(false);
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
@@ -115,29 +118,29 @@ export default function TeacherSheetStudio({
 
   function toggleChapter(name: string) {
     const key = name.toLowerCase();
-    setSheet((current) => ({
+    setDraft((current) => ({
       ...current,
       subjectStrands: coveredChapters.has(key)
-        ? current.subjectStrands.filter((strand) => strand.toLowerCase() !== key)
-        : [...current.subjectStrands, name],
+        ? (current.subjectStrands ?? []).filter((strand) => strand.toLowerCase() !== key)
+        : [...(current.subjectStrands ?? []), name],
     }));
   }
 
   function setSubject(subjectDomain: TeacherSheet["subjectDomain"]) {
-    setSheet((current) => ({ ...current, subjectDomain, subjectStrands: [] }));
+    setDraft((current) => ({ ...current, subjectDomain, subjectStrands: [] }));
   }
 
   function addLadderRung() {
     const rung = ladderDraft.trim();
     if (!rung) return;
-    setSheet((current) => ({ ...current, doubtEscalationLadder: [...current.doubtEscalationLadder, rung] }));
+    setDraft((current) => ({ ...current, doubtEscalationLadder: [...(current.doubtEscalationLadder ?? []), rung] }));
     setLadderDraft("");
   }
 
   function removeLadderRung(index: number) {
-    setSheet((current) => ({
+    setDraft((current) => ({
       ...current,
-      doubtEscalationLadder: current.doubtEscalationLadder.filter((_, i) => i !== index),
+      doubtEscalationLadder: (current.doubtEscalationLadder ?? []).filter((_, i) => i !== index),
     }));
   }
 
@@ -146,7 +149,7 @@ export default function TeacherSheetStudio({
     setError("");
     setNotice("");
     try {
-      await saveTeacherSheetDraft(token, replicaId, sheet);
+      await saveTeacherSheetDraft(token, replicaId, draft);
       setServiceUnavailable(false);
       setNotice("Sheet draft saved.");
     } catch (cause) {
@@ -199,9 +202,10 @@ export default function TeacherSheetStudio({
           <select
             id="subject-domain"
             className="field"
-            value={sheet.subjectDomain}
+            value={sheet.subjectDomain ?? ""}
             onChange={(event) => setSubject(event.target.value as TeacherSheet["subjectDomain"])}
           >
+            <option value="" disabled>Not set</option>
             <option value="physics">Physics</option>
             <option value="chemistry">Chemistry</option>
             <option value="maths">Maths</option>
@@ -213,7 +217,7 @@ export default function TeacherSheetStudio({
             className="field"
             rows={2}
             value={sheet.syllabusScope}
-            onChange={(event) => setSheet((current) => ({ ...current, syllabusScope: event.target.value }))}
+            onChange={(event) => setDraft((current) => ({ ...current, syllabusScope: event.target.value }))}
           />
 
           <p className="field-note">
@@ -251,9 +255,10 @@ export default function TeacherSheetStudio({
           <select
             id="strictness"
             className="field"
-            value={sheet.strictness}
-            onChange={(event) => setSheet((current) => ({ ...current, strictness: Number(event.target.value) as TeacherStrictness }))}
+            value={sheet.strictness ?? ""}
+            onChange={(event) => setDraft((current) => ({ ...current, strictness: Number(event.target.value) as TeacherStrictness }))}
           >
+            <option value="" disabled>Not set</option>
             {[0, 1, 2, 3, 4].map((value) => (
               <option key={value} value={value}>{value}. {STRICTNESS_LABELS[value as TeacherStrictness]}</option>
             ))}
@@ -263,9 +268,10 @@ export default function TeacherSheetStudio({
           <select
             id="warmth"
             className="field"
-            value={sheet.warmth}
-            onChange={(event) => setSheet((current) => ({ ...current, warmth: Number(event.target.value) as TeacherWarmth }))}
+            value={sheet.warmth ?? ""}
+            onChange={(event) => setDraft((current) => ({ ...current, warmth: Number(event.target.value) as TeacherWarmth }))}
           >
+            <option value="" disabled>Not set</option>
             {[0, 1, 2, 3, 4].map((value) => (
               <option key={value} value={value}>{value}. {WARMTH_LABELS[value as TeacherWarmth]}</option>
             ))}
@@ -317,7 +323,7 @@ export default function TeacherSheetStudio({
             className="field"
             rows={2}
             value={sheet.identityLife}
-            onChange={(event) => setSheet((current) => ({ ...current, identityLife: event.target.value }))}
+            onChange={(event) => setDraft((current) => ({ ...current, identityLife: event.target.value }))}
           />
           <div className="teacher-sheet-readonly">
             <span className="claim-meta">Mentor boundary · not editable here</span>

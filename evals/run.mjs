@@ -51,6 +51,9 @@ const suites = {
   // controls. Pool-safe: no shared-file writer or fixed port.
   "private-rehearsal-compiler": "private-rehearsal-compiler.mjs",
   "private-rehearsal-handler": "private-rehearsal-handler.mjs",
+  "private-teaching-refinement": "private-teaching-refinement.mjs",
+  "private-refinement-recovery": "private-refinement-recovery.mjs",
+  "private-teaching-refinement-ui": "private-teaching-refinement/run.mjs",
   "private-text-rehearsal-store": "private-text-rehearsal-store.mjs",
   "private-text-cancellation": "private-text-cancellation-store.mjs",
   "db-sqlstate": "db-sqlstate/run.mjs",
@@ -60,6 +63,10 @@ const suites = {
   // does not overwrite dist or require the fixed-port/pre-pool writer lanes.
   "private-text-rehearsal-ui": "private-text-rehearsal/run.mjs",
   "context-attribution-ui": "context-attribution/run.mjs",
+  "private-draft-editor": "private-draft-editor/run.mjs",
+  "private-draft-full-shell": "private-draft-full-shell.mjs",
+  "copy-gate-portable": "copy-gate-portable/run.mjs",
+  "copy-room-scope": "copy-gate-portable/scope.mjs",
   "room-expert-runtime": "room-expert-runtime.mjs",
   "studio-entry-css": "studio-entry-css.mjs",
   "room-knowledge": "room-knowledge.mjs",

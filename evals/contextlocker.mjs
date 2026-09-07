@@ -124,10 +124,18 @@ function fakeDb(state) {
       return [{ ...row }];
     }
 
-    if (sql.includes("update vy_context_item set authorship")) {
+    if (head.startsWith("with source_gate as materialized") && sql.includes("update vy_context_item i set authorship")) {
+      for(const clause of ["for update of s","private_text_epoch=r.private_text_epoch+1","i.replica_id=s.replica_id","i.owner_user_id=s.owner_user_id","i.replica_id=o.replica_id"]){
+        if(!sql.includes(clause))throw new Error('remine fixture missing authority clause: '+clause);
+      }
       const [itemId, ownerUserId, authorship, ownerSpeaker] = params;
       const row = state.items.find((i) => i.item_id === itemId && i.owner_user_id === ownerUserId);
-      if (row) Object.assign(row, { authorship, owner_speaker: ownerSpeaker });
+      const replica = row && state.replicas.find(r=>r.replica_id===row.replica_id&&r.owner_user_id===ownerUserId);
+      const source = row?.source_id == null || (state.sources || []).some(s=>s.source_id===row.source_id&&s.replica_id===row.replica_id&&s.owner_user_id===ownerUserId);
+      if (row && replica && source) {
+        replica.private_text_epoch=(replica.private_text_epoch||0)+1;
+        Object.assign(row, { authorship, owner_speaker: ownerSpeaker });
+      }
       return [];
     }
 
@@ -673,6 +681,17 @@ ok("removal preserves an existing human decision while scrubbing its payload",
   decidedRun.status === "applied" && decidedRun.approved_by_user_id === OWNER
   && decidedRun.decided_at === "original-decision-time"
   && Object.keys(decidedRun.proposed_delta).length === 0);
+
+const remineSql=chatDb.calls.find(sql=>sql.trimStart().startsWith('with source_gate as materialized')&&sql.includes('update vy_context_item i set authorship'));
+ok('actual remine route advances the owned private-text epoch',!!remineSql&&chatState.replicas[0].private_text_epoch>0);
+const remineControlDb=fakeDb(chatState);
+for(const clause of ['private_text_epoch=r.private_text_epoch+1','i.replica_id=s.replica_id','i.owner_user_id=s.owner_user_id']){
+  let caught=false;try{await remineControlDb(remineSql.replace(clause,'true'),[chat.item.item_id,OWNER,'mine','Arjun Sir']);}catch(error){caught=error.message.startsWith('remine fixture missing authority clause:');}
+  ok('NEGATIVE CONTROL remine fixture refuses missing '+clause,caught);
+}
+const beforeEpoch=chatState.replicas[0].private_text_epoch;
+await remineControlDb(remineSql,[chat.item.item_id,'99999999-9999-4999-8999-999999999999','mine','foreign']);
+ok('foreign owner cannot advance remine epoch or change attribution',chatState.replicas[0].private_text_epoch===beforeEpoch&&chatState.items.find(i=>i.item_id===chat.item.item_id).owner_speaker==='Arjun Sir');
 
 const everySql = [db.calls, chatDb.calls, wrongDb.calls, dedupDb.calls, decidedDb.calls,
   linkDb.calls, ownDb.calls, quotaDb.calls, byteDb.calls].flat();

@@ -24,11 +24,11 @@ interface PrivateTextBoundResult {
   answer?: string; consent: { consent_id: string; receipt_hash: string; statement_set: string; expires_at: string };
   source: { sheet_id: string; sheet_hash: string; context_item_id: string; source_id: string; source_hash: string; evidence_hash: string };
   billing_state: Exclude<PrivateTextBillingState, "unknown">;
-  failure_code?: string; can_voice: false; created_at: string;
+  failure_code?: string; can_review_teaching?: true; can_voice: false; created_at: string;
 }
 export interface PrivateTextCancelledResult {
   replica_id: string; request_id: string; state: "withdrawn"; billing_state: "unknown";
-  can_voice: false; created_at: string; answer?: never; consent?: never; source?: never; failure_code?: never;
+  can_voice: false; created_at: string; answer?: never; consent?: never; source?: never; failure_code?: never; can_review_teaching?: never;
 }
 export type PrivateTextResult = PrivateTextBoundResult | PrivateTextCancelledResult;
 export interface PrivateTextWithdrawal {
@@ -69,12 +69,13 @@ export function validatePrivateTextReadiness(value: PrivateTextReadiness, replic
 export function validatePrivateTextResult(value: PrivateTextResult, replicaId: string, requestId: string): PrivateTextResult {
   if (value?.state === "withdrawn" && value.consent === undefined && value.source === undefined) {
     if (value.replica_id !== replicaId || value.request_id !== requestId || value.can_voice !== false
-      || value.billing_state !== "unknown" || value.answer !== undefined || value.failure_code !== undefined
+      || value.billing_state !== "unknown" || value.answer !== undefined || value.failure_code !== undefined || value.can_review_teaching !== undefined
       || !Number.isFinite(Date.parse(value.created_at))) throw failure();
     return value;
   }
   if (!value || value.replica_id !== replicaId || value.request_id !== requestId || value.can_voice !== false
     || !["complete", "pending", "uncertain", "blocked", "withdrawn"].includes(value.state)
+    || value.can_review_teaching !== undefined && (value.can_review_teaching !== true || value.state !== "blocked" || value.failure_code !== "rehearsal_inputs_changed")
     || !["not_started", "reserved", "in_flight", "settled", "reconcile_required"].includes(value.billing_state)
     || (value.state === "complete" ? !text(value.answer, 4000) || !value.answer?.trim() : value.answer !== undefined)
     || !value.consent || !isPrivateTextId(value.consent.consent_id) || !hash(value.consent.receipt_hash)

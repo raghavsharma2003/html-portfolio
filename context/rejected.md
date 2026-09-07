@@ -16687,3 +16687,50 @@ Direct node scripts/check-copy.mjs on Windows exits0 without entering the main b
 ## `git-blob-byte-equality-is-not-windows-text-equality-20260907` (2026-09-07)
 
 The first root final-copy preflight refused api/_context-locker.js before any writes because Git's LF blob differed from the unchanged Windows CRLF worktree. Tracked status was clean outside root-owned context. The repaired destination preflight checks both tracked cleanliness and exact text after only CRLF-to-LF normalization; incoming frozen source SHA checks and copied bytes remain exact. No content mismatch was ignored or overwritten. Final integration copied60 source/report/test files and appended6 nonduplicate combined journal entries; original dirty checkout remains preserved.
+
+
+## `refinement-predicate-mutant-still-needs-sql-parameter-types-20260907` (2026-09-07)
+
+Root's first actual private teaching refinement SQL proof passed5groups then failed42P18 on EXPLAIN of the old-epoch predicate mutant. Removing the sole typed $5 equality left the supplied parameter without an inferred PostgreSQL type.4prewrite manifests,remainingFixtureRows0,cleanupErrors[]; receipt ROOT scratchpad/expert-tools/private-teaching-refinement-sql-1788794362704.json. The five passedgroups include actual explicit patch, unchanged published row, uncertain readback, next admission/compiler seeing the saved field, clear and owner/hash/version refusal. Remaining predicate and two overlap witnesses are unaccepted. Fix the mutant's inert type use, not production authorization.
+
+
+## `private-editor-must-not-invent-complete-sheet-fields-20260907` (2026-09-07)
+
+The current supported three-field private draft reaches a full teacher editor that calls missing arrays. Frozen candidate retains actual old source crashes in both editors, then supplies structural defaults only for controls; explicit saves keep raw unknown fields and missing authority. Agent26 mounted and129 incumbent controls passed, root combined acceptance remains pending. Do not solve this by saving seeded identity, publishing floor or consent.
+
+
+## `rooms-policy-conflict-is-not-identifier-false-positive-20260907` (2026-09-07)
+
+Most125hits are real visible owner labels, technical status or permission copy under an explicitly broad09-03Rooms rule. Current09-07expert-first owner direction reopens product scope, but08-26horizontal directive alone predates the rule. One creatorStudio spoken-disclosure path lacks the matching Studio legal exception; PAUSE MODEL also names an actual input contract. No blanket exclusions or bulk rewrites. See research/COPY-GATE-PORTABLE-20260907.md.
+
+
+## `path-only-room-scope-drops-translated-copy-20260907` (2026-09-07)
+
+The proposed path matcher selected35files and removed125legacy scope hits, but Room component copy is in shared creator EN/HI tables. Added explicit16section source parsing so a banned Room key still fails while private keys remain allowed. First test draft named filler instead of actual filler-verb and assumed simple string initializers; corrected test AST traversal handles actual concatenated values. Policy and original scanner were not weakened for those harness failures.
+
+
+## `component-editor-proof-missed-wrong-workspace-entry-20260907` (2026-09-07)
+
+First root full-entry diagnostic, artifact scratchpad/private-draft-full-shell/1788793619263, passed5 and failed1 before a desktop detached-element exception. Its actual teacher-sheet requests targeted the first owned replica ending002 while URL requested001. Source confirmed requestedId was read only for mode setup; teacher mode discarded it. The temporary seed could render before saved draft hydration, so waiting for generic editor attachment was also not proof. Revised diagnostic waits for the actual saved synthetic draft title and verifies owner-scoped request IDs. Keep this failed artifact; component26passes alone did not establish full-entry correctness.
+
+
+## `private-teaching-refinement-full-save-and-old-epoch-ban-rejected-20260907` (2026-09-07)
+
+Rejected reusing unconstrained save_draft for a result-bound one-field correction: its current/legacy row selection and whole-body replacement do not prove the reviewed request/draft still matches or preserve unrelated concurrent edits. The new field patch compares exact content and epoch and separately locks the completed request, because withdrawal intentionally does not bump the replica epoch. Also rejected the incumbent teacher-sheet-private regex banning every update vy_replica: actual43230 code now requires private_text_epoch invalidation. Retain its executed failure, replace the assertion with the exact allowed epoch assignment, and keep executed lifecycle/agent/model/publication negatives. Removing a broad assertion without stronger controls was not accepted.
+
+Rejected deleting the entire sole `$5::bigint` expression from the refinement epoch mutant: root actual SQL raised42P18 after5 passing groups, preventing any bypass outcome from being measured. A typed inert check preserves the13-parameter protocol while removing only epoch equality. The source-shape check is offline evidence only; the negative's real execution remains for root rerun.
+
+
+## `private-refinement-replaced-opener-lost-focus-20260907` (2026-09-07)
+
+The first27group UI batch passed its asserted controls, but retained390/1440focus JSON showed BODY after opening. Those assertions did not yet cover entry focus. First screenshots also placed saved-state next question below the viewport because inherited grid/text margins stacked. Bounded repair focuses the actual replacement heading, cancels pending focus on subsequent pointer/keyboard/wheel/touch interaction, and keeps current saved guidance in native details with next action primary. Confirmation27groups include heading/next focus assertions; separate pending-save focus5groups passed. No fabricated training/improvement success or automatic retry was used to close the journey.
+
+
+## `release-twenty-two-fixture-routing-stale-20260907` (2026-09-07)
+
+Frozen43230e5e release22 finished2026-09-07T15:18:34.373Z with23/24 runner checks and six eval suite failures. Old teacher-private assertion prohibited the intentional private epoch update; primary CAS schema check confused CRLF with SQL drift; four mocks failed to recognize new source/authority/epoch gates and returned plausible defaults. Preserve the failing release log. Repair fixture routing and add deliberate missing-fence/foreign-owner/old-fallback negatives; no runtime gate was weakened. Root independent reruns remain separately recorded.
+
+
+## `private-refinement-complete-only-hides-reload-recovery-20260907` (2026-09-07)
+
+The exact combined caller mounted refinement only for result.state complete. A committed save rotates the epoch; when its response is lost, reloading the persisted request returns blocked with rehearsal_inputs_changed. The dedicated current-guidance GET still supports that stored-complete request, but its only caller disappeared. The retained executed old conditional reproduces absent recovery at both390/1440. Broadly allowing every blocked request was rejected because dispatched requests also become input-stale; use the validated stored-complete marker and a GET-only recovery mode. Initial new store fixture expected every invalid evidence/account branch to return blocked, but incumbent code honestly returns named503 for some; the assertion now checks the actual blocked-or-named503 refusal without changing that policy.

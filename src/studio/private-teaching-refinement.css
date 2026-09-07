@@ -1,0 +1,7 @@
+.ptr-refinement { gap:12px; }
+.ptr-refinement :is(h3,p) { margin:0; }
+.ptr-refinement form { display:grid; gap:12px; }
+.ptr-refinement .ptr-actions { margin:4px 0; }
+.ptr-refinement .ptr-count { margin-top:6px; }
+.ptr-refinement .ptr-guidance-text { white-space:pre-wrap; }
+.ptr-refinement h3:focus { outline:none; }

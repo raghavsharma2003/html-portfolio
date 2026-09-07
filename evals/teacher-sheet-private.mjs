@@ -61,6 +61,18 @@ function fixture({agentId=null,rows=[],lifecycle='consent_pending',beforeSave=nu
 const row=(extra={})=>({sheet_id:'66666666-6666-4666-8666-666666666666',agent_id:agent,replica_id:null,owner_user_id:null,status:'draft',sheet:{identityWho:'Synthetic private field'},version:'v1',...extra});
 const publishParams=s=>[replica,owner,s.sheet_id,JSON.stringify(s.sheet),s.status,s.consent_artifact_id,s.version];
 
+function assertPrivateDraftWrites(calls){
+  const writes=calls.filter(c=>c.sql===PRIVATE_TEACHER_SHEET_SAVE_SQL||/update\s+vy_replica\b/i.test(c.sql));
+  assert(writes.length>0,'actual private save SQL must be observed');
+  for(const {sql}of writes){
+    const updates=[...sql.matchAll(/update\s+vy_replica\s+r\s+set\s+([\s\S]*?)\s+where\b/gi)];
+    assert.equal(updates.length,1,'one actual replica mutation');
+    assert.equal(updates[0][1].replace(/\s/g,''),'private_text_epoch=r.private_text_epoch+1','only the private epoch may change');
+    for(const match of sql.matchAll(/(?:insert\s+into|update(?!\s+set\b)|delete\s+from)\s+(\w+)/gi))assert(['vy_replica','vy_teacher_sheet'].includes(match[1]),'no agent, model or runtime writes');
+    assert(!/(?:set\s+|,\s*)status\s*=\s*'published'/i.test(sql),'no sheet publication');
+  }
+}
+
 await check('fresh read is empty and creates no storage or identity',async()=>{
   const {db,state}=fixture();assert.equal((await readOwnedTeacherSheet(db,owner,replica)).draft,null);assert.equal(state.rows.length,0);
   assert(state.calls.every(c=>! /\b(insert|update|delete)\b/i.test(c.sql)));
@@ -71,7 +83,22 @@ await check('explicit unbound save retains exact incomplete body and validation 
   assert.deepEqual(saved.sheet.draft,body);assert.equal(saved.ok,false);assert(saved.errors.length>0);
   assert.equal(state.rows[0].agent_id,null);assert.equal(state.agentId,null);assert.equal(state.lifecycle,'consent_pending');
   assert.deepEqual((await readOwnedTeacherSheet(db,owner,replica)).draft,body);
-  assert(!state.calls.some(c=>/insert into vy_agent|update vy_replica|set status = 'published'/.test(c.sql)));
+  assertPrivateDraftWrites(state.calls);
+  // The exact checkpoint43230 assertion rejected the required authority141
+  // epoch invalidation, before any new refinement feature existed.
+  assert.throws(()=>assert(!state.calls.some(c=>/insert into vy_agent|update vy_replica|set status = 'published'/.test(c.sql))));
+});
+await check('private epoch allowance still rejects activation and publication mutations',async()=>{
+  for(const mutate of [
+    sql=>sql.replace('private_text_epoch=r.private_text_epoch+1',"private_text_epoch=r.private_text_epoch+1,lifecycle='active'"),
+    sql=>sql.replace('private_text_epoch=r.private_text_epoch+1','private_text_epoch=r.private_text_epoch+1,agent_id=$5::uuid'),
+    sql=>sql+" update vy_replica_model set state='active' where model_id=$5::uuid",
+    sql=>sql.replace("status = 'draft', updated_at", "status = 'published', updated_at"),
+  ]){
+    const {db,state}=fixture({mutateSql:sql=>sql===PRIVATE_TEACHER_SHEET_SAVE_SQL?mutate(sql):sql});
+    await saveOwnedTeacherSheetDraft(db,owner,replica,{});
+    assert.throws(()=>assertPrivateDraftWrites(state.calls),'an executed captured-SQL activation mutant must fail');
+  }
 });
 await check('repeated explicit save reuses the same private draft',async()=>{
   const {db,state}=fixture();const a=await saveOwnedTeacherSheetDraft(db,owner,replica,{});

@@ -27,9 +27,9 @@
 // It CANNOT see SQL types or referential integrity —
 // `offline-mocks-cannot-type-check-sql`, and a mock cannot even tell you the
 // statement PARSES. Those are covered from the other side: every statement in
-// this lane is on `evals/sqlcast`'s STRICT surface, and MIGRATION 074 HAS NEVER
-// BEEN APPLIED TO ANY DATABASE. NO STATEMENT IN THIS LANE HAS EVER BEEN
-// EXPLAINED. That is said out loud here rather than implied by a green line.
+// this lane is on `evals/sqlcast`'s STRICT surface. This suite does not apply
+// a migration or EXPLAIN a statement; separately retained real SQL evidence
+// has its own scope and must not be inferred from this fixture result.
 //
 // ── the fake database routes on STATEMENT SHAPE, never on a table name ────
 // `router-matched-a-table-instead-of-a-statement`. Each branch matches a phrase
@@ -132,7 +132,12 @@ function fakeDb(options = {}) {
       state.inserted = params;
       return (options.inserted || []).map((row) => ({ ...row }));
     }
-    if (has("with authorized as") && has("insert into vy_review_never_rule")) {
+    if (has("with authority as") && has("insert into vy_review_never_rule")) {
+      for(const clause of ['update vy_replica r set private_text_epoch=r.private_text_epoch+1','from authority a','r.owner_user_id=$2::uuid','join authorized a on a.replica_id = c.replica_id']){
+        if(!has(clause))throw new Error('review fixture missing authority clause: '+clause);
+      }
+      if(params[0]!==REPLICA||params[1]!==OWNER)return [];
+      state.privateTextEpoch=(state.privateTextEpoch||0)+1;
       state.decide = { sql, params };
       return options.decided === false ? [] : [{
         card_id: CARD, kind: "claim", origin_ref: "claim:7", prompt_text: "p", answer_text: "a",
@@ -165,7 +170,10 @@ function fakeDb(options = {}) {
     if (has("select f.reply_text") && has("from vy_room_reply_flag f join vy_room r on r.room_id = f.room_id")) {
       return params[0] === REPLICA && params[1] === OWNER ? (options.flagReplyRows || []) : [];
     }
-    if (has("with existing as (") && has("insert into vy_review_never_rule") && has("lower(pattern) = lower($3::text)")) {
+    if (has("with private_text_fence as (") && has("insert into vy_review_never_rule") && has("lower(pattern) = lower($3::text)")) {
+      for(const clause of ['private_text_epoch=r.private_text_epoch+1','r.replica_id=$1::uuid and r.owner_user_id=$2::uuid','exists(select 1 from private_text_fence)'])if(!has(clause))throw new Error('flag fixture missing authority clause: '+clause);
+      if(params[0]!==REPLICA||params[1]!==OWNER)return [];
+      state.privateTextEpoch=(state.privateTextEpoch||0)+1;
       return [{ rule_id: options.flagNeverRuleId ?? "nr-fixture-1" }];
     }
     state.unmatched.push(sql.slice(0, 70));
@@ -1078,6 +1086,18 @@ console.log("\n── 8. the instruction-shaped-material card ──");
     "NEGATIVE CONTROL: but WITHOUT NFKC it MISSES instruction_override — the fullwidth letters never match the ASCII pattern, proving normalisation is load-bearing, not decoration");
 }
 
+{
+  const fenced=fakeDb();
+  await R.decideReviewCard(fenced,OWNER,{replica_id:REPLICA,card_id:CARD,decision:'sounds_right'});
+  eq(fenced.state.privateTextEpoch,1,'actual decision advances owned private-text epoch');
+  const {sql,params}=fenced.state.decide;
+  await throws('NEGATIVE CONTROL missing decision epoch refuses fixture route',()=>fenced(sql.replace('private_text_epoch=r.private_text_epoch+1','private_text_epoch=0'),params));
+  await throws('NEGATIVE CONTROL missing owner fence refuses fixture route',()=>fenced(sql.replace('r.owner_user_id=$2::uuid','true'),params));
+  const foreign=[...params];foreign[1]=STRANGER;
+  eq((await fenced(sql,foreign)).length,0,'foreign owner gets no decision from epoch route');
+  eq(fenced.state.privateTextEpoch,1,'foreign decision leaves owned epoch unchanged');
+}
+
 console.log(`\nreview-queue: ${checks - failed}/${checks} checks passed`);
 if (failed) {
   console.error(`\n${failed} review-queue check(s) FAILED`);
@@ -1085,7 +1105,7 @@ if (failed) {
 }
 console.log("review-queue: ok");
 console.log(
-  "NOTE: migration 074 has never been applied to any database and no statement in this\n" +
-  "lane has ever been EXPLAINed. This suite proves control flow and clause presence.\n" +
+  "NOTE: this suite does not apply migrations or EXPLAIN SQL. It proves control flow\n" +
+  "and clause presence; separately retained database proofs have their own scope.\n" +
   "It cannot prove SQL types or referential integrity (`offline-mocks-cannot-type-check-sql`).",
 );

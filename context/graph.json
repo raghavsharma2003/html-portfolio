@@ -13893,6 +13893,180 @@
       "kind": "rejection",
       "title": "Preserve exact source manifests while comparing base text correctly",
       "at": "2026-09-07"
+    },
+    {
+      "id": "release-twenty-two-frozen-six-eval-failures-20260907",
+      "kind": "measurement",
+      "title": "Checkpoint22 reports23of24 with six failing eval suites",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "native-private-rehearsal-english-hindi-hinglish-20260907",
+      "kind": "measurement",
+      "title": "Three actual authenticated private answers with preserved accounting",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "refinement-predicate-mutant-still-needs-sql-parameter-types-20260907",
+      "kind": "rejection",
+      "title": "Actual SQL rejects an untyped negative-control parameter",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "refinement-acceptance-requires-next-prompt-and-withdrawal-race-20260907",
+      "kind": "decision",
+      "title": "Measure an explicit edit through its next use",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "refinement-next-phase-keeps-release-frozen-20260907",
+      "kind": "decision",
+      "title": "Build the refinement journey without changing the running release",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-rehearsal-three-native-azure-languages-20260907",
+      "kind": "measurement",
+      "title": "Native authenticated private rehearsal passes three languages",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-editor-must-not-invent-complete-sheet-fields-20260907",
+      "kind": "rejection",
+      "title": "A display projection must not become saved authority",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "copy-gate-uses-node-url-path-boundaries-20260907",
+      "kind": "decision",
+      "title": "Copy gate entry and root use Node URL helpers",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "copy-gate-nine-real-process-controls-20260907",
+      "kind": "measurement",
+      "title": "Nine real process controls expose125baseline vocabulary findings",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "rooms-policy-conflict-is-not-identifier-false-positive-20260907",
+      "kind": "rejection",
+      "title": "Do not dismiss125visible vocabulary hits or rewrite consent blindly",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-clone-terminology-scopes-room-naming-20260907",
+      "kind": "decision",
+      "title": "Current owner expert-clone directive narrows only Rooms vocabulary",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-copy-scope-twelve-source-groups-20260907",
+      "kind": "measurement",
+      "title": "125to0with targeted scope and actual Room copy negatives",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "path-only-room-scope-drops-translated-copy-20260907",
+      "kind": "rejection",
+      "title": "Reject path-only policy that misses mixed translated Room tables",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "explicit-teacher-workspace-is-an-owner-selection-20260907",
+      "kind": "decision",
+      "title": "Honor explicit workspace links in teaching and sharing modes",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "minimal-private-editor-root-full-shell-20260907",
+      "kind": "measurement",
+      "title": "Private draft renders through full application entries",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "component-editor-proof-missed-wrong-workspace-entry-20260907",
+      "kind": "rejection",
+      "title": "Full entry selected another owned workspace",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-teaching-refinement-explicit-field-cas-20260907",
+      "kind": "decision",
+      "title": "Bind explicit private teaching edits to reviewed content and request authority",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-teaching-refinement-fourteen-offline-controls-20260907",
+      "kind": "measurement",
+      "title": "Fourteen offline private refinement controls and incumbent checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-teaching-refinement-full-save-and-old-epoch-ban-rejected-20260907",
+      "kind": "rejection",
+      "title": "Reject unrestricted full saves and the obsolete no-epoch-update assertion",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-result-refinement-explicit-draft-only-20260907",
+      "kind": "decision",
+      "title": "Result-bound teaching refinement remains an explicit private draft edit",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-refinement-ui-mounted27-focus5-20260907",
+      "kind": "measurement",
+      "title": "Result-to-next-question controls and focus preservation measured",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-refinement-replaced-opener-lost-focus-20260907",
+      "kind": "rejection",
+      "title": "Replacing the opener lost keyboard focus and saved-state layout hid next action",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "refinement-twenty-three-evidence-bound-20260907",
+      "kind": "decision",
+      "title": "Accept explicit refinement against actual authority",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "refinement-root-eleven-sql-twenty-nine-ui-20260907",
+      "kind": "measurement",
+      "title": "Root SQL11 and mounted29 refinement controls",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release-twenty-two-fixture-routing-stale-20260907",
+      "kind": "rejection",
+      "title": "Six stale fixture assumptions failed release22",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "refinement-root-stale-fixtures-and-typecheck-20260907",
+      "kind": "measurement",
+      "title": "Root fixture, type and visual checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-refinement-stale-complete-readback-only-20260907",
+      "kind": "decision",
+      "title": "Recover current private guidance after navigation with completed-request authority",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-refinement-reload-mounted40-store7-20260907",
+      "kind": "measurement",
+      "title": "Mounted reload recovery40 and actual store7 controls",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-refinement-complete-only-hides-reload-recovery-20260907",
+      "kind": "rejection",
+      "title": "Complete-only result action cannot recover an applied save after reload",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -25723,6 +25897,51 @@
       "src": "windows-copy-exit-zero-is-not-a-scan-20260907",
       "rel": "constrains",
       "dst": "private-rehearsal-followup-scoped-merge-20260907"
+    },
+    {
+      "src": "copy-gate-uses-node-url-path-boundaries-20260907",
+      "rel": "measured_by",
+      "dst": "copy-gate-nine-real-process-controls-20260907"
+    },
+    {
+      "src": "rooms-policy-conflict-is-not-identifier-false-positive-20260907",
+      "rel": "constrains",
+      "dst": "copy-gate-uses-node-url-path-boundaries-20260907"
+    },
+    {
+      "src": "expert-clone-terminology-scopes-room-naming-20260907",
+      "rel": "measured_by",
+      "dst": "expert-copy-scope-twelve-source-groups-20260907"
+    },
+    {
+      "src": "path-only-room-scope-drops-translated-copy-20260907",
+      "rel": "constrains",
+      "dst": "expert-clone-terminology-scopes-room-naming-20260907"
+    },
+    {
+      "src": "expert-clone-terminology-scopes-room-naming-20260907",
+      "rel": "supersedes",
+      "dst": "ws-r10-rooms-vocabulary-gate"
+    },
+    {
+      "src": "private-teaching-refinement-explicit-field-cas-20260907",
+      "rel": "measured_by",
+      "dst": "private-teaching-refinement-fourteen-offline-controls-20260907"
+    },
+    {
+      "src": "private-teaching-refinement-full-save-and-old-epoch-ban-rejected-20260907",
+      "rel": "constrains",
+      "dst": "private-teaching-refinement-explicit-field-cas-20260907"
+    },
+    {
+      "src": "private-result-refinement-explicit-draft-only-20260907",
+      "rel": "measured_by",
+      "dst": "private-refinement-ui-mounted27-focus5-20260907"
+    },
+    {
+      "src": "private-result-refinement-explicit-draft-only-20260907",
+      "rel": "caused_by",
+      "dst": "private-refinement-replaced-opener-lost-focus-20260907"
     }
   ]
 }

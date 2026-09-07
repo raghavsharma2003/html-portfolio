@@ -46,11 +46,9 @@
 // exempts that line. `emdash-ok: <reason>` is kept as an alias so the existing
 // exemptions in the tree keep working.
 import { readFileSync, readdirSync, statSync } from "fs";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { isRoomsVocabAllowed } from "./roomsVocabAllowlist.mjs";
-import { ROOM_VOCAB_PATH, roomCopySectionSource } from "./copy-room-scope.mjs";
 
-const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const ROOT = new URL("..", import.meta.url).pathname;
 
 /* ═══ 1. SCOPE ══════════════════════════════════════════════════════════════
  *
@@ -66,13 +64,13 @@ const ROOT = fileURLToPath(new URL("..", import.meta.url));
  * reason above.
  */
 const SCOPES = [
-  { dir: "src/studio/", rules: "full", codename: true },
-  { dir: "src/creatorStudio/", rules: "full", codename: true },
+  { dir: "src/studio/", rules: "full", codename: true, roomsVocab: true },
+  { dir: "src/creatorStudio/", rules: "full", codename: true, roomsVocab: true },
   // WS-R1, the Room. On the `full` list from its first commit, and it is the
   // scope where the word rules matter most: this is the only surface a person
   // who is not a customer of this platform ever reads, so a version stamp, a
   // filler verb or the other product's codename lands in front of a stranger.
-  { dir: "src/room/", rules: "full", codename: true },
+  { dir: "src/room/", rules: "full", codename: true, roomsVocab: true },
   { dir: "src/gurukul/", rules: "full", codename: true },
   { dir: "src/replica/", rules: "full", codename: true },
   { dir: "site/", rules: "full", codename: false },
@@ -82,8 +80,8 @@ const SCOPES = [
 /* Root-level HTML entry points. Not under any SCOPES dir, so they need their
  * own list, walked the same way as a directory scope. */
 const EXTRA_FILES = [
-  { file: "studio.html", rules: "full", codename: false },
-  { file: "room.html", rules: "full", codename: false },
+  { file: "studio.html", rules: "full", codename: false, roomsVocab: true },
+  { file: "room.html", rules: "full", codename: false, roomsVocab: true },
 ];
 
 /* `site/index.html` and `site/privacy.html` ARE the Meera product's pages, so
@@ -95,10 +93,16 @@ const EXTRA_FILES = [
  * of a solo creator. */
 const CODENAME_FILES = /^site\/(vyakti|creators|suites)\.html$/;
 
-/* The current expert-clone owner directive supersedes WS-R10's blanket
- * Studio naming restriction. copy-room-scope.mjs retains Room vocabulary on
- * recipient/distribution surfaces and named Room sections in mixed locale
- * tables. Every other copy rule still uses the complete scopes above. */
+/* The Rooms vocabulary rule (WS-R10, docs/gurukul's Rooms plan): "not clone,
+ * in front of anyone." `site/` is `full` scope for everything else in it
+ * (privacy pages, the delete-account pages), but the Rooms word bans apply
+ * only to the pages that tell the Rooms story: the landing page, and (WS-R45)
+ * the directory a stranger reaches from search before they are anyone's
+ * follower — not to legal pages that were not part of either rewrite.
+ * WS-R48 adds `site/suites.html` alongside `site/vyakti.html`: a Suite is
+ * several Rooms under one bill, and this page describes what a Suite admin
+ * sees of them in the SAME vocabulary. */
+const ROOMS_VOCAB_FILES = /^site\/(vyakti|creators|suites)\.html$/;
 
 /* Files whose entire purpose is copy. Every literal in them is on its way to a
  * screen, so the visible-prop heuristic is skipped and all of them are read. */
@@ -512,16 +516,6 @@ const g = <p>Meet your AI. Give it your material and it learns.</p>;
 const h = { label: "आप {name} AI से बात कर रहे हैं। यह {name} नहीं है।" };
 `;
 
-export async function scanScopedSource(rel, source, options = {}) {
-  const hits = scanSource(rel, source, { ...options, roomsVocab: ROOM_VOCAB_PATH.test(rel) });
-  const roomSections = await roomCopySectionSource(rel, source);
-  if (roomSections !== null) {
-    hits.push(...scanSource(rel, roomSections, { ...options, roomsVocab: true })
-      .filter(hit => hit.rule === "rooms-vocabulary"));
-  }
-  return hits;
-}
-
 function selfTest() {
   const dead = [];
   for (const [rule, name, src] of FIXTURES) {
@@ -545,7 +539,7 @@ function walk(dir, acc = []) {
   return acc;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const dead = selfTest();
   if (dead.length) {
     console.log(`FAIL  check-copy self-test: the gate is not biting (${dead.length}):`);
@@ -560,7 +554,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     for (const rel of walk(scope.dir)) {
       const src = readFileSync(ROOT + rel, "utf8");
       const codename = scope.codename || CODENAME_FILES.test(rel);
-      const found = (await scanScopedSource(rel, src, { rules: scope.rules, codename })).map((o) => ({ ...o, file: rel }));
+      const roomsVocab = scope.roomsVocab || ROOMS_VOCAB_FILES.test(rel);
+      const found = scanSource(rel, src, { rules: scope.rules, codename, roomsVocab }).map((o) => ({ ...o, file: rel }));
       if (WAIVED.has(rel)) {
         if (found.length === 0) waiverClean.push(rel);
         waived.push(...found);
@@ -573,7 +568,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const rel = extra.file;
     const src = readFileSync(ROOT + rel, "utf8");
     const codename = extra.codename || CODENAME_FILES.test(rel);
-    const found = (await scanScopedSource(rel, src, { rules: extra.rules, codename })).map((o) => ({ ...o, file: rel }));
+    const roomsVocab = extra.roomsVocab || ROOMS_VOCAB_FILES.test(rel);
+    const found = scanSource(rel, src, { rules: extra.rules, codename, roomsVocab }).map((o) => ({ ...o, file: rel }));
     offences.push(...found);
   }
 

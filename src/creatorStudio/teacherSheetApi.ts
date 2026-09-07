@@ -29,7 +29,7 @@ export async function readTeacherSheetDraft(token: string, replicaId: string): P
 export async function saveTeacherSheetDraft(
   token: string,
   replicaId: string,
-  draft: TeacherSheet,
+  draft: Partial<TeacherSheet>,
 ): Promise<TeacherSheetDraftStatus> {
   const data = await replicaRequest<{ sheet: TeacherSheetDraftStatus }>(token, "/api/teacher-sheet", {
     method: "POST",

@@ -48,8 +48,19 @@ assert.equal(splitSql(migration).length,2);assert.doesNotMatch(migration,/\bDO\s
 assert.match(migration,/primary_selection_id uuid not null default gen_random_uuid\(\)/);
 assert.match(migration,/expected_primary_selection_id uuid;/);
 const schema=await readFile(new URL('../../db/schema.sql',import.meta.url),'utf8');
-for(const statement of splitSql(migration))assert.ok(schema.includes(statement.replace(/^--[^\n]*\n/gm,'' ).trim()) || schema.includes(statement.match(/alter table[\s\S]*/i)?.[0]));
+const lf=text=>text.replaceAll('\r\n','\n');
+const mirrored=(schemaText,migrationText)=>splitSql(lf(migrationText)).every(statement=>{
+  const clean=statement.replace(/^--[^\n]*\n/gm,'').trim();
+  const alter=statement.match(/alter table[\s\S]*/i)?.[0];
+  return lf(schemaText).includes(clean)||(alter!==undefined&&lf(schemaText).includes(alter));
+});
+assert.ok(mirrored(schema,migration));
+assert.ok(mirrored(lf(schema),lf(migration).replaceAll('\n','\r\n')));
+assert.ok(mirrored(lf(schema).replaceAll('\n','\r\n'),lf(migration)));
+const broken=schema.replaceAll('primary_selection_id uuid not null default gen_random_uuid()','primary_selection_id text');
+assert.notEqual(broken,schema);assert.equal(mirrored(broken,migration),false);
 ok('two idempotent mirrored statements; absent primaries have an epoch, legacy intents stay NULL');
+ok('line endings do not change SQL mirroring; a changed column contract still fails');
 const old=JSON.parse(await readFile(new URL('./fixtures/old-promotion.json',import.meta.url),'utf8'));
 assert.doesNotMatch(old.sql,/expected_primary_selection_id|primary_selection_id|for update/i);
 assert.match(old.sql,/on conflict \(replica_id\) do update/);

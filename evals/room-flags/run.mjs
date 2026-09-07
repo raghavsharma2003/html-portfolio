@@ -384,6 +384,22 @@ console.log("\n── static: flagReply reads no body-supplied reply text ──
     JSON.stringify([...FLAG_REASONS]) === JSON.stringify(["wrong", "harmful", "not_them", "other"]));
 }
 
+{
+  let captured;
+  await neverRuleFromFlaggedReply(async(sql,params)=>{if(sql.includes('insert into vy_review_never_rule'))captured={sql,params};return db(sql,params);},OWNER,{replica_id:REPLICA_ID,reply_sha256:REPLY_HASH},{tableApplied:async()=>true});
+  ok('actual flagged-rule route advances an owned private-text epoch',(state.privateTextEpochs?.get(REPLICA_ID+':'+OWNER)||0)>0);
+  for(const clause of ['private_text_epoch=r.private_text_epoch+1','exists(select 1 from private_text_fence)']){
+    let caught=false;try{await db(captured.sql.replace(clause,'true'),captured.params);}catch(error){caught=error.message.startsWith('flag fixture missing authority clause:');}
+    ok('NEGATIVE CONTROL flagged-rule fixture refuses missing '+clause,caught);
+  }
+  const before=state.neverRules.length,epoch=state.privateTextEpochs.get(REPLICA_ID+':'+OWNER);
+  const foreign=[...captured.params];foreign[1]='99999999-9999-4999-8999-999999999999';
+  const rows=await db(captured.sql,foreign);
+  ok('foreign owner cannot write a never-rule or advance the owned epoch',rows.length===0&&state.neverRules.length===before&&state.privateTextEpochs.get(REPLICA_ID+':'+OWNER)===epoch);
+  let unrouted=false;try{await db(captured.sql.replace('with private_text_fence as (','with unknown_fence as ('),captured.params);}catch(error){unrouted=error.message==='unrouted flagged never-rule write';}
+  ok('NEGATIVE CONTROL unrecognized never-rule write cannot fall through to plausible empty base reply',unrouted);
+}
+
 console.log(`\n── verdict ──`);
 console.log(`  ${pass} passed, ${fail} failed`);
 if (fail) {

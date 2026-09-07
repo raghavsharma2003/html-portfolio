@@ -104,7 +104,9 @@ async function currentAuthority(db,owner,row){
 export async function readPrivateTextRehearsal(db,owner,input,options={}){
  const row=await requestRow(db,owner,input);if(!row)fail('rehearsal_not_found',404);
  if(row.state==='withdrawn'||row.state==='blocked')return wire(row);
- try{await currentAuthority(db,owner,row);}catch(e){if(OWNER_ERRORS.has(e.code))return {...wire(row),state:'blocked',failure_code:e.code};fail('rehearsal_read_unavailable',503,row);}
+ // A stale completed request may review current guidance, but cannot deliver its
+ // old answer. Receipt and source validation above the snapshot comparison still apply.
+ try{await currentAuthority(db,owner,row);}catch(e){if(OWNER_ERRORS.has(e.code))return {...wire(row),state:'blocked',failure_code:e.code,...(row.state==='complete'&&e.code==='rehearsal_inputs_changed'?{can_review_teaching:true}:{})};fail('rehearsal_read_unavailable',503,row);}
  if(row.state!=='complete')return wire(row);
  return wire(row,decryptPrivateText(json(row.answer_envelope),binding(row,'answer',row.answer_hash),envOf(options)));
 }

@@ -121,9 +121,14 @@ export function flagsDb(state, base) {
 
     // ── neverRuleFromFlaggedReply's own never-rule upsert (existing/
     //    inserted CTE) ────────────────────────────────────────────────────
-    if (has("insert into vy_review_never_rule") && has("with existing as (") &&
+    if (has("insert into vy_review_never_rule") && has("with private_text_fence as (") &&
         has("lower(pattern) = lower($3::text)")) {
+      for(const clause of ['private_text_epoch=r.private_text_epoch+1','r.replica_id=$1::uuid and r.owner_user_id=$2::uuid','exists(select 1 from private_text_fence)'])if(!has(clause))throw new Error('flag fixture missing authority clause: '+clause);
       const [replicaId, ownerUserId, pattern, reason] = p;
+      if(!state.rooms.some(r=>r.replica_id===replicaId&&r.owner_user_id===ownerUserId))return [];
+      state.privateTextEpochs ||= new Map();
+      const epochKey=replicaId+':'+ownerUserId;
+      state.privateTextEpochs.set(epochKey,(state.privateTextEpochs.get(epochKey)||0)+1);
       const existing = state.neverRules.find(
         (r) => r.replica_id === replicaId && r.owner_user_id === ownerUserId &&
           r.pattern.toLowerCase() === pattern.toLowerCase() && !r.revoked_at,
@@ -136,6 +141,7 @@ export function flagsDb(state, base) {
       return [{ rule_id: ruleId }];
     }
 
+    if(has('insert into vy_review_never_rule'))throw new Error('unrouted flagged never-rule write');
     return base(sql, params);
   };
 }

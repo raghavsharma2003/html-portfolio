@@ -16623,3 +16623,60 @@ Root at2026-09-07T14:35:32.597Z made3 read-only SQL-over-HTTP calls through the 
 ## `private-rehearsal-forty-four-root-mounted-20260907` (2026-09-07)
 
 On2026-09-07 root independently ran final merged private-text UI20 mounted groups and restored-attribution24 mounted groups, both exit0. Actual browser artifacts are scratchpad/private-rehearsal-combined/scratchpad/private-text-ui/1788792624234 and context-attribution/1788792635726. Coverage includes durable unknown cancellation, reload, preserved uncertain billing, explicit private successor save, stale account/replica completion, restored supported document attribution, delayed remine and authoritative list refresh at390/1440. These are mounted synthetic HTTP controls, not actual authenticated upload or native model proof. All60 noncontext files were manifest-verified before integration.
+
+
+## `release-twenty-two-frozen-six-eval-failures-20260907` (2026-09-07)
+
+Frozen43230e5e94d2086bfaf8b974fbb041862736b28c ran2026-09-07T14:57:44.125Z to15:18:34.373Z,exit1,changedDuringRun=false.23of24runner checks passed; evalsuite failed teacher-sheet-private,primary-selection-cas,context-proposal-erasure,contextlocker,reviewqueue,room-flags. Layout255712ms,performance110525ms,accessibility71128ms passed. Relational gates skipped; separate actualSQL and nativeHTTP proofs retain scope. Copy runner direct invocation is known inert on Windows; next separate portable/scoped gate passes actual scan, not yetintegration. Log and completion retained. This is not release accepted.
+
+
+## `native-private-rehearsal-english-hindi-hinglish-20260907` (2026-09-07)
+
+On43230e5e root's frozen361-file native HTTP/auth/DB/Azure probe completed2026-09-07T14:59:41.710Z,3actualAzure calls. English31+13=44,Hindi31+11=42,Hinglish29+18=47 matched synthetic notes and requested script/order on root inspection. Actual usage receipts total1475microUSD; existing development budget spent119279,reserved0. All reads,replays,withdrawals added0calls.9synthetic content tablecounts0,exactdisposableSupabaseuser absent,spendreceipts retained. Artifact ROOT scratchpad/expert-tools/private-rehearsal-native-checkpoint22.json. Directly seeded synthetic notes/draft, no actual browser upload, real-owner likeness, voice, training, competitor or PMF acceptance.
+
+
+## `private-rehearsal-three-native-azure-languages-20260907` (2026-09-07)
+
+Root native HTTP probe on43230e5e completed2026-09-07T14:59:41.710Z. Actual Supabase authentication, application q/store/encryption/compiler/gates/ledger and Azure produced3 settled answers: English31+13=44, Hindi31+11=42, Hinglish29+18=47. Each read/replay/withdraw added0model calls. All9 synthetic content tables recounted0, disposable auth user absent, actual spend receipts preserved. New spend1475microUSD (input950/956/956 and output67/68/70 tokens across the three receipts), total119279,reserved0. Artifact ROOT scratchpad/expert-tools/private-rehearsal-native-checkpoint22.json. Root inspected correct requested language/script and numeric order. Synthetic seeded notes, no actual browser upload, owner persona similarity, voice or competitor acceptance.
+
+
+## `copy-gate-nine-real-process-controls-20260907` (2026-09-07)
+
+2026-09-07, Windows Node24.13.0, c56cadfe isolated candidate. Nine actual child-process/filesystem groups pass, including encoded paths and21scanner negatives, old silent0 and forced-old ENOENT. Actual repository command exits1 with125Rooms-vocabulary findings across27files,124Studio+1creatorStudio; no other rule fires. No full copy or release acceptance. Original combined audit showed every rule/text matches c56cadfe. No browser/DB/provider/model call.
+
+
+## `expert-copy-scope-twelve-source-groups-20260907` (2026-09-07)
+
+2026-09-07, Windows Node24.13.0, isolated c56cadfe candidate. Actual gate before policy: exit1,125Rooms-vocabulary findings; after approved scoped policy: exit0,7scopes clean,21original negatives. Nine real process/filesystem groups and12scope groups pass, including32actual EN/HIRoom-section mutants and10malformed-table negatives. Private clone/model words allowed; dash/filler/codename retained. All existing scanner/rule bytes unchanged. No browser, DB, provider, model or full release.
+
+
+## `minimal-private-editor-root-full-shell-20260907` (2026-09-07)
+
+Root26 mounted editor controls passed in next combined, artifact scratchpad/private-draft-editor/1788793539631. Root actual full entry+StudioApp+CSS then passed12 checks at390/1440 with the requested replica second in the owned list after repairing selection; artifact scratchpad/private-draft-full-shell/1788793790118. Synthetic API/auth fixture only; no real account, DB, upload, voice or publication. The new tracked full-shell suite adds explicit unavailable-workspace controls for next run.
+
+
+## `private-teaching-refinement-fourteen-offline-controls-20260907` (2026-09-07)
+
+On2026-09-07 isolated from43230e5e:14 actual handler/private reader/AES/compiler groups pass with injected identity/database and0fetch. Incumbent store16 and compiler17 pass. Root-only SQL harness has11 intended groups and two pinned-PID blocking witnesses; syntax/import only, no SQL run by this agent. Untouched teacher-sheet-private initially passed1 then failed an obsolete no-replica-update assertion. The authorized test-only repair passes17 groups and executes the old43230 predicate plus four activation/publication mutants as rejected negatives. No model, auth, DB, browser, quality or full-release acceptance follows.
+
+Root's first development refinement SQL attempt passed5 groups before42P18 at the epoch-bypass negative;4manifests,0remaining rows,cleanupErrors[], retained private-teaching-refinement-sql-1788794362704.json. The negative had removed the only typed occurrence of parameter5. Replacing equality with a typed non-null check preserves its deliberate bypass. The revised15-group offline suite passes with0fetch, including an exact replacement/13-parameter shape control. Production SQL/handler bytes are unchanged; later real SQL groups and both transaction witnesses remain pending.
+
+
+## `private-refinement-ui-mounted27-focus5-20260907` (2026-09-07)
+
+On2026-09-07 the initial and confirmation mounted batches each passed27groups (3actual client controls plus24mounted groups across390/1440). Confirmed real component/API caller sends expected hash/epoch/field, explicit clear, then refetched readiness and fresh attestations before a new question POST. No automatic generation. Late replica/token/request/unmount reads and saves, conflict and uncertain applied/unchanged readbacks passed. A separate focused5group run (same3client plus2viewport focus groups) proved no focus theft after pointer/keyboard interaction during pending save; final default runner contains29distinct groups but was not rerun as one29group batch. Forced TypeScript, incumbent27source/navigation/cancellation controls plus retained negative, three actual copy scans, syntax/diff/context passed. All HTTP/model answers are synthetic localhost; no SQL/model/full-shell/quality acceptance.
+
+
+## `refinement-root-eleven-sql-twenty-nine-ui-20260907` (2026-09-07)
+
+Root on2026-09-07 passed11 actual isolated-development SQL groups, receipt ROOT scratchpad/expert-tools/private-teaching-refinement-sql-1788794574073.json. Nine prewrite manifests, remainingFixtureRows0 and cleanupErrors[]. PostgreSQL witnessed both transaction blocking directions at247/466ms. Next real admission/compiler saw the saved field; no model or actual owner operation in this SQL proof. Root default mounted suite separately passed29 distinct groups at390/1440, artifact scratchpad/private-teaching-refinement/1788794655430, synthetic HTTP only. Full Studio minimal-draft shell16 passed at1788794181061.
+
+
+## `refinement-root-stale-fixtures-and-typecheck-20260907` (2026-09-07)
+
+Root on2026-09-07 independently passed context-proposal-erasure9, contextlocker98, reviewqueue194 and room-flags45 after hash-verifying the six-file fixture/report handoff. Logs retained in nextcombined scratchpad/root-*-fixture.log. Forced tsc -b --force exited0; actual portable copy scanned7scopes and21negative controls, graph2318nodes/2374edges passed. Root inspected final390 edit and1440 saved screenshots: clear primary progression, readable fields and retained reduced-motion/focus tests. This visual inspection covered the mounted result flow only, not authenticated full onboarding. Independent review subsequently found a lost-save reload recovery caller gap; checkpoint23 freeze waits for that repair and its regression controls.
+
+
+## `private-refinement-reload-mounted40-store7-20260907` (2026-09-07)
+
+2026-09-07, isolated private-refinement-recovery from43230e5e with exact combined refinement prerequisites. Focused mounted14 groups passed, then full mounted40 (all29 incumbent plus11 new groups) at390/1440, artifacts scratchpad/private-teaching-refinement/1788795641702/result.json. Executed old complete-only conditional loses recovery while current code restores it. Lost-save and explicit-clear reload, no automatic POST/model request, read-only malformed response refusal, ineligible states and delayed token/replica/request replacement passed. Actual store7 new and16 incumbent groups passed using synthetic injected SQL rows with real canonical evidence/crypto; tsc -b --force and git diff --check passed. No SQL statements changed, no database/auth/model/external-network calls and no full release run. Parent prior11 real SQL groups prove the earlier CAS implementation separately, not this mounted recovery path.

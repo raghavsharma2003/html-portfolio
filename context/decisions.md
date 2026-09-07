@@ -22943,3 +22943,50 @@ The original48-file combined freeze was verified before mutation; four frozen in
 ## `copy-gate-execution-must-be-observed-20260907` (2026-09-07)
 
 Do not infer a successful copy scan from direct Windows exit0: the file URL entry comparison skips its body, and forcing entry reveals URL.pathname root conversion failure. A separate bounded repair must prove actual execution with a retained negative. The scanner with only an in-memory root correction reports125 exact baseline vocabulary violations and zero new violations; three changed UI/client files and21 negative controls pass. Reverse the unaccepted status only when the actual cross-platform command executes its scan and all remaining findings have been resolved under current product/design instructions.
+
+
+## `refinement-acceptance-requires-next-prompt-and-withdrawal-race-20260907` (2026-09-07)
+
+Accept private teaching refinement only after actual owned CAS/clear SQL, next admission/compiler input and both witnessed cancellation orders pass, plus mounted explicit save/readback/new-question flow. Keep runtime/public personas unchanged and never call a saved draft instruction learning or training. Reverse if a simpler owner-reviewed flow proves equivalent scope, uncertainty, preserved fields and no automatic generation.
+
+
+## `refinement-next-phase-keeps-release-frozen-20260907` (2026-09-07)
+
+Keep release22 on43230e5e unchanged while combining independently frozen partial-draft rendering, actual copy-gate execution and explicit private teaching refinement in this isolate. No automatic persona update, publication or paid question. Reverse only when an alternative preserves reproducible release evidence and scoped integration without invalidating in-flight measurements.
+
+
+## `copy-gate-uses-node-url-path-boundaries-20260907` (2026-09-07)
+
+Use fileURLToPath for filesystem root and pathToFileURL for guarded main entry comparison. Rules, scopes, allowlist and copy remain unchanged. Reverses only on a reproduced supported-platform entry/import/path regression, not to restore a false green release.
+
+
+## `expert-clone-terminology-scopes-room-naming-20260907` (2026-09-07)
+
+Root relayed and approved the current user request for expert AI cloning, voice models and an expert-first unified platform. This supersedes09-03application-wide Rooms-only naming, not dash/filler/codename/accessibility or honest-copy laws. Apply Rooms vocabulary to actual recipient/distribution paths and nine named Room component types, plus16Room-owned EN/HIsections in mixed creator copy tables. No receipt, legal statement, confirmation token or allowlist changed. Reverses if owner changes product scope or observed user confusion supports different terminology on the affected surfaces.
+
+
+## `explicit-teacher-workspace-is-an-owner-selection-20260907` (2026-09-07)
+
+Apply the owned-list exact requested replica lookup to every creator Studio entry mode, preserving the existing stale-account guard and explicit unavailable refusal. Setup was the only mode previously honoring the query, so teacher/share links silently chose the first workspace. Reverse only when full-entry evidence demonstrates another navigation contract preserves the requested owner workspace, no fallback for unavailable IDs and deliberate manual selection.
+
+
+## `private-teaching-refinement-explicit-field-cas-20260907` (2026-09-07)
+
+Add one explicit explanationOrder edit/clear operation on the authenticated teacher-sheet endpoint, bound to the current completed private request and explicitly owned draft. Preserve unrelated JSON/version, validate the actual private compiler and compare the reviewed full content/epoch before rotating private_text_epoch. Source -> replica lock-only -> request lock handles withdrawal without a global epoch change. Published and validated targets remain outside this path; no generation or automatic persona adoption occurs. Reverse this separate patch operation only if the legacy full-body save can prove equivalent result binding, exact field preservation and withdrawal/epoch concurrency safety. No schema or new retention store is added.
+
+Keep every bound SQL parameter typed in a predicate mutant. The epoch negative now replaces the equality with `$5::bigint is not null`, so its only semantic weakening is ignoring the reviewed epoch value. Reverse this fixture choice if actual SQL shows the substitute no longer isolates that invariant. Do not alter production locking to make a broken negative parse.
+
+
+## `private-result-refinement-explicit-draft-only-20260907` (2026-09-07)
+
+Completed settled private results expose an explicit explanationOrder-only edit, using the reviewed current sheet hash and private-text epoch. No read or mount posts a change. Removal uses clear:true with no value. Confirmed POST receipts are distinguished from uncertain-save GET readback; matching current guidance is not a mutation-specific receipt. Changed drafts invalidate old readiness and attestations before an explicit new question. No runtime or published persona mutation. Reversal requires equivalent request/owner/source/version authority and honest recovery without automatic inference.
+
+
+## `refinement-twenty-three-evidence-bound-20260907` (2026-09-07)
+
+Combine only hash-frozen partial-draft rendering, explicit correction, portable copy and release22 fixture repairs. Preserve actual request/source/owner/epoch authority and all failed receipts. Reverse on a reproduced regression or an alternative with equivalent explicit user control and measured authority preservation.
+
+
+## `private-refinement-stale-complete-readback-only-20260907` (2026-09-07)
+
+A successfully saved teaching correction changes the private epoch, so its old completed rehearsal becomes input-stale. Emit can_review_teaching only when the stored row was complete, the current receipt and selected source validate, and the authority failure is exactly rehearsal_inputs_changed. The client accepts only that combination and offers an explicit current-guidance GET in a recovery-only component; even an editable malformed GET cannot expose a form or save. Do not replay inference or infer a unique save receipt from current-state readback. Reverse if any pending, withdrawn, revoked, foreign or source-blocked request gains recovery authority, or if recovery can write without a fresh completed test.

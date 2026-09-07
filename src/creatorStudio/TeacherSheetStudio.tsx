@@ -19,6 +19,7 @@
 // teacher's to see as an editable control, and DisclosurePreview is the
 // dedicated, non-editable step for what a student sees of them.
 import { useCallback, useMemo, useState } from "react";
+import { teacherSheetEditorView, type TeacherSheetEditorView } from "../studio/teacherSheetEditorView";
 import { ReplicaApiError } from "./replicaApi";
 import { readTeacherSheetDraft, saveTeacherSheetDraft } from "./teacherSheetApi";
 import { SYLLABUS } from "../engine/practice/syllabus";
@@ -53,7 +54,7 @@ function warmthLabel(value: TeacherWarmth, c: TSC): string {
 // at render time (see `ingestedPreview` below).
 const INGESTED_PREVIEW: ReadonlyArray<{ key: keyof TeacherSheet; labelKey: keyof Pick<TSC,
   "languageVoiceRuleLabel" | "sttSoundAlikesLabel" | "boardVerbalismsLabel" | "notationConventionsLabel" | "analogyBankLabel" | "commonMistakeBankLabel">;
-  render: (sheet: TeacherSheet, c: TSC) => string }> = [
+  render: (sheet: TeacherSheetEditorView, c: TSC) => string }> = [
   { key: "languageVoiceRule", labelKey: "languageVoiceRuleLabel", render: (s) => s.languageVoiceRule },
   { key: "sttSoundAlikes", labelKey: "sttSoundAlikesLabel", render: (s) => s.sttSoundAlikes },
   { key: "boardVerbalisms", labelKey: "boardVerbalismsLabel", render: (s) => s.boardVerbalisms.join(", ") },
@@ -62,7 +63,8 @@ const INGESTED_PREVIEW: ReadonlyArray<{ key: keyof TeacherSheet; labelKey: keyof
   { key: "commonMistakeBank", labelKey: "commonMistakeBankLabel", render: (s, c) => c.commonMistakeBankSummary.split("{n}").join(String(s.commonMistakeBank.length)) },
 ];
 
-function chaptersFor(subject: TeacherSheet["subjectDomain"]) {
+function chaptersFor(subject: TeacherSheet["subjectDomain"] | undefined) {
+  if (!subject) return [];
   const found = SYLLABUS.find((s) => s.id === SUBJECT_ID[subject]);
   return found ? found.units.map((unit) => ({ unit: unit.name, chapters: unit.chapters.map((c) => c.name) })) : [];
 }
@@ -80,16 +82,17 @@ export default function TeacherSheetStudio({
    *  `/api/teacher-sheet`, or a SEED built from this owner's own replica by
    *  `sheetSeed.ts`. It is never the demo teacher: rendering a fixture's name
    *  on a real teacher's consent screen is the defect UX-Q-02 names. */
-  sheetDraft: TeacherSheet;
+  sheetDraft: Partial<TeacherSheet>;
   /** Which of those two the sheet above is. Drives the provenance labels: a
    *  seed may not be captioned "drafted from your uploads", because nothing was
    *  drafted and nothing was uploaded (copy audit C17). */
   sheetProvenance: SheetProvenance;
   onAuthError: (cause: unknown) => void;
 }) {
-  const { t } = useStudioLocale();
+  const { t, locale } = useStudioLocale();
   const c = t.teacherSheetStudio;
-  const [sheet, setSheet] = useState<TeacherSheet>(sheetDraft);
+  const [draft, setDraft] = useState<Partial<TeacherSheet>>(sheetDraft);
+  const sheet = useMemo(() => teacherSheetEditorView(draft), [draft]);
   const [ladderDraft, setLadderDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
@@ -106,7 +109,7 @@ export default function TeacherSheetStudio({
     setError("");
     try {
       const status = await readTeacherSheetDraft(token, replicaId);
-      if (status.draft) setSheet(status.draft);
+      if (status.draft) setDraft(status.draft);
       setServiceUnavailable(false);
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
@@ -118,29 +121,29 @@ export default function TeacherSheetStudio({
 
   function toggleChapter(name: string) {
     const key = name.toLowerCase();
-    setSheet((current) => ({
+    setDraft((current) => ({
       ...current,
       subjectStrands: coveredChapters.has(key)
-        ? current.subjectStrands.filter((strand) => strand.toLowerCase() !== key)
-        : [...current.subjectStrands, name],
+        ? (current.subjectStrands ?? []).filter((strand) => strand.toLowerCase() !== key)
+        : [...(current.subjectStrands ?? []), name],
     }));
   }
 
   function setSubject(subjectDomain: TeacherSheet["subjectDomain"]) {
-    setSheet((current) => ({ ...current, subjectDomain, subjectStrands: [] }));
+    setDraft((current) => ({ ...current, subjectDomain, subjectStrands: [] }));
   }
 
   function addLadderRung() {
     const rung = ladderDraft.trim();
     if (!rung) return;
-    setSheet((current) => ({ ...current, doubtEscalationLadder: [...current.doubtEscalationLadder, rung] }));
+    setDraft((current) => ({ ...current, doubtEscalationLadder: [...(current.doubtEscalationLadder ?? []), rung] }));
     setLadderDraft("");
   }
 
   function removeLadderRung(index: number) {
-    setSheet((current) => ({
+    setDraft((current) => ({
       ...current,
-      doubtEscalationLadder: current.doubtEscalationLadder.filter((_, i) => i !== index),
+      doubtEscalationLadder: (current.doubtEscalationLadder ?? []).filter((_, i) => i !== index),
     }));
   }
 
@@ -149,7 +152,7 @@ export default function TeacherSheetStudio({
     setError("");
     setNotice("");
     try {
-      await saveTeacherSheetDraft(token, replicaId, sheet);
+      await saveTeacherSheetDraft(token, replicaId, draft);
       setServiceUnavailable(false);
       setNotice(c.saved);
     } catch (cause) {
@@ -194,9 +197,10 @@ export default function TeacherSheetStudio({
           <select
             id="subject-domain"
             className="field"
-            value={sheet.subjectDomain}
+            value={sheet.subjectDomain ?? ""}
             onChange={(event) => setSubject(event.target.value as TeacherSheet["subjectDomain"])}
           >
+            <option value="" disabled>{locale === "hi" ? "अभी तय नहीं" : "Not set"}</option>
             <option value="physics">{c.subjectPhysics}</option>
             <option value="chemistry">{c.subjectChemistry}</option>
             <option value="maths">{c.subjectMaths}</option>
@@ -208,7 +212,7 @@ export default function TeacherSheetStudio({
             className="field"
             rows={2}
             value={sheet.syllabusScope}
-            onChange={(event) => setSheet((current) => ({ ...current, syllabusScope: event.target.value }))}
+            onChange={(event) => setDraft((current) => ({ ...current, syllabusScope: event.target.value }))}
           />
 
           <p className="field-note">{c.chapterNote}</p>
@@ -240,9 +244,10 @@ export default function TeacherSheetStudio({
           <select
             id="strictness"
             className="field"
-            value={sheet.strictness}
-            onChange={(event) => setSheet((current) => ({ ...current, strictness: Number(event.target.value) as TeacherStrictness }))}
+            value={sheet.strictness ?? ""}
+            onChange={(event) => setDraft((current) => ({ ...current, strictness: Number(event.target.value) as TeacherStrictness }))}
           >
+            <option value="" disabled>{locale === "hi" ? "अभी तय नहीं" : "Not set"}</option>
             {[0, 1, 2, 3, 4].map((value) => (
               <option key={value} value={value}>{value}. {strictnessLabel(value as TeacherStrictness, c)}</option>
             ))}
@@ -252,9 +257,10 @@ export default function TeacherSheetStudio({
           <select
             id="warmth"
             className="field"
-            value={sheet.warmth}
-            onChange={(event) => setSheet((current) => ({ ...current, warmth: Number(event.target.value) as TeacherWarmth }))}
+            value={sheet.warmth ?? ""}
+            onChange={(event) => setDraft((current) => ({ ...current, warmth: Number(event.target.value) as TeacherWarmth }))}
           >
+            <option value="" disabled>{locale === "hi" ? "अभी तय नहीं" : "Not set"}</option>
             {[0, 1, 2, 3, 4].map((value) => (
               <option key={value} value={value}>{value}. {warmthLabel(value as TeacherWarmth, c)}</option>
             ))}
@@ -300,7 +306,7 @@ export default function TeacherSheetStudio({
             className="field"
             rows={2}
             value={sheet.identityLife}
-            onChange={(event) => setSheet((current) => ({ ...current, identityLife: event.target.value }))}
+            onChange={(event) => setDraft((current) => ({ ...current, identityLife: event.target.value }))}
           />
           <div className="teacher-sheet-readonly">
             <span className="claim-meta">{c.mentorBoundaryLabel}</span>

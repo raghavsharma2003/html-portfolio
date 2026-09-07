@@ -57,7 +57,10 @@ await check('actual re-mine paused before INSERT cannot recreate a removed sourc
   let reached=false;let inserts=0;
   const db=async(sql)=>{
     if(sql.trimStart().startsWith('select i.item_id'))return[{...row}];
-    if(sql.startsWith('update vy_context_item set authorship'))return[];
+    if(sql.trimStart().startsWith('with source_gate as materialized')&&sql.includes('update vy_context_item i set authorship')){
+      for(const clause of ['for update of s','private_text_epoch=r.private_text_epoch+1','i.replica_id=s.replica_id','i.owner_user_id=s.owner_user_id','i.replica_id=o.replica_id'])assert(sql.includes(clause));
+      return[];
+    }
     if(sql===CONTEXT_INGEST_RUN_INSERT_SQL){reached=true;row=null;return[{run_id:null,status:'source_unavailable',proposed_delta_count:0}];}
     if(sql.includes('insert into vy_ingest_run'))inserts++;
     throw new Error('unexpected-context-fixture-statement');

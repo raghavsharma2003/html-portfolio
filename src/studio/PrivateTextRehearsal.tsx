@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import PrivateTeachingRefinement from "./PrivateTeachingRefinement";
 import { ReplicaApiError } from "./replicaApi";
 import type { ReplicaLifecycle } from "./types";
 import { askPrivateText, isPrivateTextId, PRIVATE_TEXT_ATTESTATIONS, readPrivateRehearsalDraft, readPrivateTextReadiness, readPrivateTextResult, savePrivateRehearsalDraft, withdrawPrivateText,
@@ -54,6 +55,7 @@ function PrivateTextSession({ token, replicaId, onBack, onEditContext, onAuthErr
   const [attested, setAttested] = useState<PrivateTextAttestation[]>([]);
   const [requestId, setRequestId] = useState<string | null>(() => savedRequest(replicaId));
   const [result, setResult] = useState<PrivateTextResult | null>(null);
+  const [refinementOpen, setRefinementOpen] = useState(false);
   const [erased, setErased] = useState(false);
   const [withdrawalBilling, setWithdrawalBilling] = useState<PrivateTextBillingState | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -170,7 +172,7 @@ function PrivateTextSession({ token, replicaId, onBack, onEditContext, onAuthErr
   function newQuestion() {
     if (busy) return;
     try { persistRequest(replicaId, null); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not clear the saved handle."); return; }
-    operation.current++; setRequestId(null); setResult(null); setErased(false); setWithdrawalBilling(null); setNotFound(false); setQuestion(""); setAttested([]); setError(""); setRefresh(value => value + 1);
+    operation.current++; readOperation.current++; setReadiness(null); setRefinementOpen(false); setRequestId(null); setResult(null); setErased(false); setWithdrawalBilling(null); setNotFound(false); setQuestion(""); setAttested([]); setError(""); setRefresh(value => value + 1);
   }
   const canStartAnother = erased || result?.state === "withdrawn" || result && ["complete", "blocked"].includes(result.state) && ["settled", "not_started"].includes(result.billing_state);
   return <section className="ptr-panel" aria-labelledby="ptr-title">
@@ -181,9 +183,13 @@ function PrivateTextSession({ token, replicaId, onBack, onEditContext, onAuthErr
       {requestId ? <section className="ptr-result" aria-label="Saved private test">
         <h2>{erased || result?.state === "withdrawn" ? "Private test removed." : result?.state === "complete" ? "Your private text answer" : "Check your private request."}</h2>
         {!erased && result?.state === "complete" ? <><p className="ptr-answer">{result.answer}</p><p className="ptr-source">Source: {readiness?.context_items.find(item => item.item_id === result.source.context_item_id)?.source_name || "Selected private source"}. Teaching draft: {readiness?.drafts.find(item => item.sheet_id === result.source.sheet_id)?.name || "Selected private draft"}.</p></> : erased || result?.state === "withdrawn" ? <p>This request is closed. Any saved question and answer have been removed.</p> : <p>{result?.state === "blocked" ? "This answer is unavailable under the current draft or source permissions." : "An answer is not confirmed yet. Checking the saved result does not send another question."}</p>}
+        {!erased && (result?.state === "complete" || result?.state === "blocked" && result.can_review_teaching === true) && result.billing_state === "settled" ? <PrivateTeachingRefinement recoveryOnly={result.state !== "complete"} token={token} replicaId={replicaId} requestId={result.request_id} sheetId={result.source.sheet_id} disabled={Boolean(busy)} onOpenChange={setRefinementOpen} onAuthError={onAuthErrorRef.current} onNextQuestion={newQuestion} onDraftChanged={view => {
+          readOperation.current++; setReadiness(null); setAttested([]);
+          setSelection({sheetId: view.sheet_id, contextItemId: result.source.context_item_id}); setRefresh(value => value + 1);
+        }} /> : null}
         {unresolvedUsage(withdrawalBilling || result?.billing_state) ? <p role="status">Removing a test does not cancel incurred usage.</p> : null}
         {result?.failure_code ? <details><summary>Request details</summary><p>{result.failure_code.replaceAll("_", " ")}</p></details> : null}
-        <div className="ptr-actions">{!erased && result?.state !== "withdrawn" ? <><button type="button" disabled={Boolean(busy)} onClick={() => void checkResult()}>{busy === "read" ? "Checking result" : "Check saved result"}</button><button type="button" disabled={Boolean(busy)} onClick={() => void removeTest()}>{busy === "withdraw" ? "Closing private request" : notFound ? "Cancel this request" : "Remove this private test"}</button></> : null}{canStartAnother ? <button type="button" disabled={Boolean(busy)} onClick={newQuestion}>Prepare another question</button> : null}</div>
+        <div className="ptr-actions">{!erased && result?.state !== "withdrawn" ? <><button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void checkResult()}>{busy === "read" ? "Checking result" : "Check saved result"}</button><button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void removeTest()}>{busy === "withdraw" ? "Closing private request" : notFound ? "Cancel this request" : "Remove this private test"}</button></> : null}{canStartAnother && !refinementOpen ? <button type="button" disabled={Boolean(busy) || refinementOpen} onClick={newQuestion}>Prepare another question</button> : null}</div>
       </section> : <>
         <section className="ptr-material" aria-label="Selected material">
           <div className="ptr-section-heading"><h2>Choose what the answer uses.</h2><button type="button" disabled={Boolean(busy)} onClick={() => { setError(""); setRefresh(value => value + 1); }}>Refresh availability</button></div>

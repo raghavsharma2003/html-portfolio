@@ -1756,7 +1756,9 @@ export default function StudioApp() {
       const mine = await listReplicas(fresh.accessToken);
       if (!current()) return;
       const query = new URLSearchParams(window.location.search);
-      const requestedId = query.get("mode") === "setup" ? query.get("replica") : null;
+      // Share and teaching links carry the same explicit owner selection as
+      // setup. Do not silently open the first workspace in another mode.
+      const requestedId = query.get("replica");
       const requested = mine.find((item) => item.replica_id === requestedId);
       if (requestedId !== null && !requested) throw new Error("This workspace is unavailable. Open your AI from Studio and try again.");
       setReplicas(mine);
