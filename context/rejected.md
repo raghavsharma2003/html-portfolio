@@ -16552,3 +16552,23 @@ Existing remembering Room logs the current user, reads history including that wr
 ## `lean-prompt-does-not-fix-facts-or-delivery-loss-20260907` (2026-09-07)
 
 Reducing companion invention and requesting exact quantities did not prevent a real Hindi duration hallucination or Hinglish source omission. Shared delivery also removed substantive bullet lines from raw answers. Transport/source metadata indicated material provided to the model, not correct use. Do not treat lean prompt presence, smaller token count, all six settled requests or existing gate findings=0 as quality acceptance. Next phase replays retained outputs through actual parser/cleanup/guard stages to isolate deterministic content loss without further model calls.
+
+
+## `companion-bullet-filter-discarded-expert-evidence-20260907` (2026-09-07)
+
+The shared parser discarded any dash bullet longer than40 units or containing short/sharp/charming/bubble/separator/style/format/reply/tone, even for expert answers. Real Hindi and Hinglish source values were removed before honesty checks. Four-bubble limits, dash normalization and guard filtering were not the cause in the retained six cases. Rejected using a short message as the revised parity fixture because short itself triggers the incumbent heuristic; use a plain message and retain separate old-code negative controls for substantive lists.
+
+
+## `legacy-upload-fix-is-not-modern-identity-completion-20260907` (2026-09-07)
+
+Earlier handoff called the teacher/ops finalizer current recording finalization without naming its route. Caller audit shows src/creatorStudio only loads for /studio?mode=teacher or mode=ops behind VITE_VOICE_IDENTITY_CHALLENGE; default Studio uses CloneVerificationJourney and separate livenessApi. Treating the legacy SQL repair as modern identity completion would conceal unresolved verifier and recording-continuity gaps. Corrected handoff explicitly names the surface; no identity completion claim.
+
+
+## `competitor-memory-absence-is-not-supported-20260907` (2026-09-07)
+
+A six-page official competitor sweep found Delphi's Matthew Hussey case explicitly claims remembered conversations. Earlier local claim that competitors have no persistent listener memory is not supported. Vendor claims do not establish accuracy or architecture, but remove absence of memory as an evidenced distinction. Report docs/gurukul/research/EXPERT-PILOT-DISTRIBUTION-20260907.md keeps pricing/customer claims separate from pilot hypotheses; no paid Vyakti customer or PMF evidence.
+
+
+## `disabled-action-does-not-retain-keyboard-focus-20260907` (2026-09-07)
+
+First synthetic socket-destruction test timed out and did not establish deterministic transport-loss behavior. Replaced by a committed201with undecodable JSON to test uncertain receipt recovery with honest scope. Second browser batch exposed actual focus loss when native-disabled Prepare remained mounted. Fixed guarded current-request/current-replica connected-element focus restoration only when focus is body; functional confirmation then passed. Both failure artifacts retained; no claimed transport-loss or extra visual-polish acceptance. Integration guard initially stopped on types.ts CRLF-only difference; verified no Git content difference and normalized line endings for baseline comparison before copy.

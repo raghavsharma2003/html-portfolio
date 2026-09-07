@@ -13359,6 +13359,90 @@
       "kind": "rejection",
       "title": "Lean instructions did not guarantee faithful expert answers",
       "at": "2026-09-07"
+    },
+    {
+      "id": "release-sixteen-failed-landing-blocking-time-20260907",
+      "kind": "measurement",
+      "title": "Release sixteen passed 23 of 24 software gates",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "retain-expert-list-bodies-through-shared-guards-20260907",
+      "kind": "decision",
+      "title": "Preserve expert list facts with existing shared guards",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-list-stage-replay-and-integrated-checks-20260907",
+      "kind": "measurement",
+      "title": "Six exact retained stage replays and 15 list groups",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "companion-bullet-filter-discarded-expert-evidence-20260907",
+      "kind": "rejection",
+      "title": "Companion instruction heuristic removed real expert facts",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "legacy-finalization-locks-exact-source-authority-20260907",
+      "kind": "decision",
+      "title": "Finalize legacy uploads against locked attachments and grants",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "legacy-finalizer-twenty-one-development-sql-groups-20260907",
+      "kind": "measurement",
+      "title": "Legacy finalizer SQL and retry proof",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "legacy-upload-fix-is-not-modern-identity-completion-20260907",
+      "kind": "rejection",
+      "title": "Legacy repair does not complete default Studio enrollment",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "feedback-dataset-ten-development-groups-20260907",
+      "kind": "measurement",
+      "title": "Correction set review and build passed ten actual SQL groups",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "competitor-memory-absence-is-not-supported-20260907",
+      "kind": "rejection",
+      "title": "Delphi already advertises remembered conversations",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "pair-existing-azure-models-on-fresh-source-cases-20260907",
+      "kind": "decision",
+      "title": "Prepare bounded existing-Azure quality comparison",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "owner-reviews-correction-snapshot-before-preparation-20260907",
+      "kind": "decision",
+      "title": "Connect saved corrections to an explicit draft preparation step",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "correction-panel-phone-desktop-and-client-proof-20260907",
+      "kind": "measurement",
+      "title": "Correction panel integrated after focused and browser proof",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "disabled-action-does-not-retain-keyboard-focus-20260907",
+      "kind": "rejection",
+      "title": "Browser checks exposed uncertainty-fixture and focus failures",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "paired-azure-twelve-deliveries-cost-and-scope-20260907",
+      "kind": "measurement",
+      "title": "Twelve fresh paired Azure deliveries with settled receipts",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

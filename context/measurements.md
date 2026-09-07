@@ -16443,3 +16443,33 @@ At 2026-09-07T09:50:45.741Z root completed nine groups against the exact isolate
 ## `six-fresh-lean-azure-contracts-quality-failed-20260907` (2026-09-07)
 
 From 2026-09-07T09:53:08.690Z to 09:53:46.107Z root ran six new synthetic English/Hindi/Roman Hinglish cases through actual isolated lean Room/compiler/shared gates/think/Azure gpt-4.1-mini and the development ledger. All six delivery/source/publication-reader/never-rule/ledger controls passed; each had one settled request, no retries, and zero reserved spend after. Estimated ledger delta 5353 microUSD (USD 0.005353), not an invoice or full service cost. End-to-end fixture elapsed times 4820/7499/4822/2226/2480/2495 ms include ledger and gate work. Manual review failed quality: Hindi changed exact15-minute duration to five-to-fifteen; Hinglish missed explicit exclusion of personal consultation; delivered lists lost durations and labels present in raw text. Three unknown-policy cases declined all absent values and preserved IRIS-27. Full retained evidence: docs/gurukul/research/EXPERT-LEAN-TEXT-TRIAL-20260907.json. No paired competitor or native-panel acceptance.
+
+
+## `release-sixteen-failed-landing-blocking-time-20260907` (2026-09-07)
+
+Frozen HEAD 6a43559c ran from 2026-09-07T09:57:25.976Z to 10:19:28.132Z, exit 1, changedDuringRun=false. All software gates except performance passed; two relational gates skipped without NEON_URL. Only performance finding: /vyakti median TBT 808ms above 300ms, n=3 runs 1019/808/0; LCP 1404/1296/808ms, CLS0, one8747-byte document and no external asset transfer. All other targets passed. A separate bounded profile diagnostic after completion had LCP880/896/792ms and TBT0/0/0, no observed longtasks; profiling is attribution work, not release acceptance. The first diagnostic command used an invalid target name and ran no browser measurements. Corrected artifact scratchpad/vyakti-release16-valid-profile-20260907.json. Cause remains unproven; no threshold relaxation or landing-page change.
+
+
+## `expert-list-stage-replay-and-integrated-checks-20260907` (2026-09-07)
+
+On 2026-09-07 agent reconstructed all six original compiler/turn hashes and delivered replies through the actual generated parser, dash cleanup, honesty and output gates. Parser output already equaled delivered text; later stages caused no loss. The old bullet heuristic dropped Hindi7/7 and Hinglish6/9 bullets. Patch recovers Hindi687 to1014units and Hinglish381 to782; other four delivered replies stay byte-identical and factual mistakes remain. Root rebuilt engine348163bytes SHA2562fc9b9aee46934ff9c7415165bca9fd9204c01f630aa09811d59719649a19714, matching isolated artifact, and passed15list groups plus18existing expert delivery groups. No new model calls in this proof.
+
+
+## `legacy-finalizer-twenty-one-development-sql-groups-20260907` (2026-09-07)
+
+At 2026-09-07T10:03:04.608Z root ran21groups against exact isolated database vyakti_expert_integration_20260906: actual EXPLAIN/execution, both attachment orders, original-query negative control, metadata and ownership/lifecycle/current-grant exclusions, five witnessed NOWAIT overlaps and retry outcomes. Nineteen synthetic replicas were manifested before writes; all fixture rows removed. No identity timestamps, storage/provider or real consent evidence. Root integrated and independently passed5finalizer,8actual callback/readback and4harness safety groups. No browser enrollment proof. ROOT artifact development-concurrency-voice-finalize-20260907.json.
+
+
+## `feedback-dataset-ten-development-groups-20260907` (2026-09-07)
+
+At2026-09-07T10:19:17.459Z root ran10actual SQL groups in exact isolated development, including owner scope, empty evidence, reviewed hash, draft save/idempotency, persisted ready-flag negative control, independent feedback revision and authority changes between review and INSERT, old-version exclusion and removed-session counts. Exact UUID manifests persisted before writes; remainingFixtureRows0. Synthetic prerequisites only, no identity/consent grants, activation or model output. This tests independent writes before INSERT, not overlapping lock timing. Correction UI/API remains isolated pending browser handoff. ROOT artifact development-concurrency-feedback-dataset-20260907.json.
+
+
+## `correction-panel-phone-desktop-and-client-proof-20260907` (2026-09-07)
+
+On2026-09-07 isolated agent passed50backend/control-flow,18actual bundled client and12headless phone/desktop groups at390/1440 with real ExpertConversation/TurnFeedback/panel and synthetic loopbackHTTP. Covered persisted callback, empty/readiness states, keyboard disclosures,409refetch/focus, exact receipt, committed201with undecodable receipt followed by readback/no repeatPOST, delayed former-replica read isolation, no overflow/runtime errors. Both screenshots inspected by agent; root also inspected390px. Root independently passed50backend,18client,typecheck after exact source integration. Earlier10actualdevSQLgroups remain applicable with0fixture rows. This is not real-owner feedback, training effectiveness or full end-to-end acceptance.
+
+
+## `paired-azure-twelve-deliveries-cost-and-scope-20260907` (2026-09-07)
+
+From2026-09-07T10:28:55.612Z to10:30:55.205Z root ran12real Azure calls, six new C92cases paired across gpt-4.1-mini and Mistral-Large-3 with alternating first arm and matching prompt hashes. All12transport/source/output/receipt checks passed with one attempt each; no retries and reservedspend0 afterward. Estimated ledgerdelta13731microUSD (USD0.013731), GPT5777 andMistral7954. Per-case elapsed including Room/gates/ledger: GPT6784/5660/4457/2534/3362/3074ms, Mistral8463/11704/10893/4681/18012/8777ms. ActualRoom/compiler/think/guards plus realdevelopmentledger; Room/publication/empty-memoryauthority were synthetic, noHTTPauth/private-memory/voice/owner evidence. Model-assisted blind review and root semantic review remain separate;12delivered answers do not mean12correct answers. No servingflag/modeldefault changed.

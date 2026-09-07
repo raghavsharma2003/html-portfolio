@@ -732,11 +732,13 @@ function parseTextReply(raw: string, expertAnswer: boolean): ParsedReply {
     if (!p) continue;
     if (/^(bubble\s*\d*\s*[:.]?|separators?\.?|styling with.*|formats?[:.]?|protocols?[:.]?|\(.*protocol.*\)|response[:.]?|reply[:.]?)$/i.test(p)) continue;
     if (/^-\s+/.test(p)) {
-      // dash bullet: leaked instruction text is dropped, but a real message
-      // that happens to start with a dash keeps its words
-      if (p.length > 40 || /short|sharp|charming|bubble|separator|style|format|reply|tone/i.test(p)) continue;
+      // Keep the companion instruction-bullet heuristic unchanged. Expert
+      // lists can carry long facts and teaching terms such as tone or style;
+      // retain their bodies for the same downstream content and output gates.
+      if (!expertAnswer && (p.length > 40 || /short|sharp|charming|bubble|separator|style|format|reply|tone/i.test(p))) continue;
       p = p.replace(/^-\s+/, "");
       if (!p) continue;
+      if (expertAnswer && /^(bubble\s*\d*\s*[:.]?|separators?\.?|styling with.*|formats?[:.]?|protocols?[:.]?|\(.*protocol.*\)|response[:.]?|reply[:.]?)$/i.test(p)) continue;
     }
     if (/^\*[^*]+\*$/.test(p)) {
       // "*flips through sketchbook*" roleplay actions — hard-dropped

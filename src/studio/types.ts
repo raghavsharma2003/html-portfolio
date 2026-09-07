@@ -385,6 +385,41 @@ export interface ReplicaTurnFeedback {
   created_at: string;
 }
 
+export interface FeedbackDatasetStats {
+  examples: number;
+  sessions: number;
+  split_counts: Record<"train" | "development" | "test", number>;
+  session_counts: Record<"train" | "development" | "test", number>;
+  kind_counts: Record<"preference" | "positive_eval" | "negative_eval" | "safety_holdout", number>;
+  dimension_counts: Record<"wording" | "behavior" | "relationship" | "memory" | "delivery", number>;
+  train_preferences: number;
+  holdout_positives: number;
+}
+
+export interface FeedbackDatasetReceipt {
+  dataset_id: string;
+  version: number;
+  capability_id: string | null;
+  profile_version: number;
+  calibration_version: number;
+  source_set_hash: string;
+  status: "draft" | "approved" | "retired" | "rejected";
+  created_at: string;
+}
+
+export interface FeedbackDatasetReview {
+  replica_id: string;
+  state: "inactive" | "empty" | "stale" | "collecting" | "ready";
+  can_build: boolean;
+  binding: { capability_id: string; profile_version: number; calibration_version: number } | null;
+  source_set_hash: string | null;
+  stats: FeedbackDatasetStats | null;
+  readiness: { ready_for_candidate_dataset: boolean; blockers: string[] };
+  dataset: FeedbackDatasetReceipt | null;
+  changed_since_saved: boolean;
+  checked_at: string;
+}
+
 export type CandidateEvalDimension = "overall" | "wording" | "behavior" | "relationship" | "memory" | "delivery";
 export type CandidateEvalChoice = "a" | "b" | "tie";
 

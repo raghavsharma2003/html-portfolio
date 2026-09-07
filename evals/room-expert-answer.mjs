@@ -84,7 +84,7 @@ await check('retained policy has both timing parts, label and no ghost separator
 });
 await check('format cleanup and protocol extraction remain byte-identical below the default cap', () => {
   for (const raw of ['[tone: calm]one\n----\ntwo', 'PINE-63 and BIRCH-28', 'call 1800-599-0019 pe',
-    'hello [stage direction] there', '- a long bullet that currently exceeds the parser presentation threshold\nhello',
+    'hello [stage direction] there', '- a plain message\nhello',
     '[search: exercise]\nhello', '*looks around*\nhello', '']) {
     assert.deepEqual(engine.parseExpertAnswer(raw), engine.parseBubbles(raw));
   }

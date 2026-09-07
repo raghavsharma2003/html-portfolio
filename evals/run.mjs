@@ -60,6 +60,10 @@ const suites = {
   "parse-separator-runs": "parse-separator-runs.mjs",
   "clone-hydration-resume": "clone-hydration-resume.mjs",
   "room-expert-answer": "room-expert-answer.mjs",
+  "room-expert-answer-lists": "room-expert-answer-lists.mjs",
+  "voice-challenge-finalize": "voice-challenge-finalize.mjs",
+  "voice-challenge-finalize-ui": "voice-challenge-finalize-ui.mjs",
+  "voice-challenge-finalize-harness": "voice-challenge-finalize-harness.mjs",
   "context-proposal-erasure": "source-erasure/context-proposals.mjs",
   "azure-only-voice-processing": "azure-only-voice-processing.mjs",
   "azure-memory-serving": "azure-memory-serving.mjs",
@@ -894,6 +898,8 @@ const suites = {
   // Content-free, conversation-locked feedback datasets with immutable split
   // assignments, depth/coverage gates and exact latest-revision rechecks.
   feedbackdataset: "feedback-dataset/run.mjs",
+  "feedback-dataset-client": "feedback-dataset-client.mjs",
+  "feedback-dataset-ui": "feedback-dataset-ui.mjs",
   // Blinded paired target-improvement plus cross-layer noninferiority and
   // zero-tolerance safety gates; qualification never activates a candidate.
   candidatequal: "candidate-qualification/run.mjs",

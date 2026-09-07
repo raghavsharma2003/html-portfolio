@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { buildFeedbackDatasetDefinition, buildOwnedFeedbackDataset, FEEDBACK_DATASET_SCHEMA } from "../../api/_replica-feedback-dataset.js";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { buildFeedbackDatasetDefinition, buildOwnedFeedbackDataset, readOwnedFeedbackDatasetReview, FEEDBACK_DATASET_REVIEW_SQL, FEEDBACK_DATASET_BUILD_SQL, FEEDBACK_DATASET_SCHEMA } from "../../api/_replica-feedback-dataset.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -73,22 +73,131 @@ ok("an unsafe example in a previously frozen train session blocks reuse instead 
 const small = buildFeedbackDatasetDefinition(rows.slice(0, 5), [], { replica_id: RID, profile_version: 7, calibration_version: 3 });
 ok("small attractive-looking datasets remain blocked by explicit depth and split gates", !small.readiness.ready_for_candidate_dataset && small.readiness.blockers.includes("twelve_independent_sessions_required") && small.readiness.blockers.includes("two_test_sessions_required"));
 
+// Twelve CURRENT sessions, but only one development and one test session.
+// Each holdout contains enough examples; two unrelated historical sessions
+// must not supply the missing independent-session evidence.
+const currentCommitments = [...new Set(built.definition.examples.map(example => example.session_commitment))];
+const sparseAssignments = currentCommitments.map((session_commitment, index) => ({ session_commitment, split: index < 10 ? "train" : index === 10 ? "development" : "test" }));
+const extraAssignments = [{ session_commitment: "a".repeat(64), split: "development" }, { session_commitment: "b".repeat(64), split: "test" }];
+assert.ok(extraAssignments.every(assignment => !currentCommitments.includes(assignment.session_commitment)));
+const sparseRows = [...rows];
+for (const commitment of currentCommitments.slice(10)) {
+  const example = built.definition.examples.find(example => example.session_commitment === commitment && example.kind === "positive_eval");
+  const source = rows.find(row => row.feedback_id === example.feedback_id);
+  for (let index = 0; index < 20; index++) sparseRows.push({ ...source, feedback_id: uuid(id++), turn_id: uuid(20_000 + id) });
+}
+const historical = buildFeedbackDatasetDefinition(sparseRows, [...sparseAssignments, ...extraAssignments], { replica_id: RID, profile_version: 7, calibration_version: 3 });
+ok("historical sessions cannot satisfy current independent holdout requirements", historical.definition.stats.sessions === 12
+  && historical.definition.stats.session_counts.development === 1 && historical.definition.stats.session_counts.test === 1
+  && historical.definition.stats.train_preferences >= 30 && historical.definition.stats.split_counts.development >= 20 && historical.definition.stats.split_counts.test >= 30
+  && historical.readiness.blockers.includes("two_development_sessions_required") && historical.readiness.blockers.includes("two_test_sessions_required")
+  && !historical.readiness.ready_for_candidate_dataset);
+ok("historical split assignments remain immutable and available for returning sessions", [...sparseAssignments, ...extraAssignments].every(previous => historical.assignments.some(current => current.session_commitment === previous.session_commitment && current.split === previous.split)));
+const withoutHistory = buildFeedbackDatasetDefinition(sparseRows, sparseAssignments, { replica_id: RID, profile_version: 7, calibration_version: 3 });
+ok("unrelated historical assignments do not change the current dataset commitment", historical.source_set_hash === withoutHistory.source_set_hash);
+
+const removedDevelopment = built.assignments.find(assignment => assignment.split === "development").session_commitment;
+const removedTurns = new Set(built.definition.examples.filter(example => example.session_commitment === removedDevelopment).map(example => example.turn_id));
+const removed = buildFeedbackDatasetDefinition(rows.filter(row => !removedTurns.has(row.turn_id)), built.assignments, { replica_id: RID, profile_version: 7, calibration_version: 3 });
+ok("removing a session removes its readiness contribution without deleting its frozen split", removed.definition.stats.sessions === 11 && removed.definition.stats.session_counts.development === 1
+  && removed.readiness.blockers.includes("two_development_sessions_required") && removed.assignments.some(assignment => assignment.session_commitment === removedDevelopment && assignment.split === "development"));
+const returned = buildFeedbackDatasetDefinition(rows, removed.assignments, { replica_id: RID, profile_version: 7, calibration_version: 3 });
+ok("returning evidence reuses its prior split and restores the same source commitment", returned.source_set_hash === built.source_set_hash);
+const newVersion = buildFeedbackDatasetDefinition(rows, built.assignments, { replica_id: RID, profile_version: 8, calibration_version: 4 });
+ok("a new version cannot count sessions represented only by older-version feedback", newVersion.definition.stats.examples === 0 && newVersion.definition.stats.sessions === 0
+  && Object.values(newVersion.definition.stats.session_counts).every(count => count === 0) && !newVersion.readiness.ready_for_candidate_dataset);
+
+// Execute the real implementation with just the old counting expression
+// restored. The fixture must expose an incorrect ready=true, not merely check
+// that a source-code string is absent.
+const implementationPath = join(ROOT, "api/_replica-feedback-dataset.js");
+const implementation = readFileSync(implementationPath, "utf8");
+const oldCounting = implementation.replace("[...groups.keys()].filter((commitment) => assignments.get(commitment) === split)", "[...assignments.values()].filter((value) => value === split)");
+assert.notEqual(oldCounting, implementation);
+const absoluteImports = oldCounting.replace(/from "(\.[^"]+)"/g, (_, specifier) => `from ${JSON.stringify(new URL(specifier, pathToFileURL(implementationPath)).href)}`);
+const oldModule = await import(`data:text/javascript;base64,${Buffer.from(absoluteImports).toString("base64")}`);
+const falseReady = oldModule.buildFeedbackDatasetDefinition(sparseRows, [...sparseAssignments, ...extraAssignments], { replica_id: RID, profile_version: 7, calibration_version: 3 });
+ok("NEGATIVE CONTROL: actual former counting incorrectly reports this dataset ready", falseReady.readiness.ready_for_candidate_dataset && falseReady.definition.stats.session_counts.development === 2 && falseReady.definition.stats.session_counts.test === 2);
+
+const CAP = uuid(90_001);
+const checkedAt = "2026-09-07T10:00:00.000Z";
+const bound = buildFeedbackDatasetDefinition(rows, [], { replica_id: RID, capability_id: CAP, profile_version: 7, calibration_version: 3 });
+const snapshot = (feedbackRows = rows, overrides = {}) => ({ replica_id: RID, capability_id: CAP,
+  profile_version: 7, calibration_version: 3, feedback_rows: feedbackRows, assignments: [], saved_dataset: null, checked_at: checkedAt, ...overrides });
+const savedReceipt = (overrides = {}) => ({ dataset_id: uuid(99_999), version: 1, capability_id: CAP,
+  profile_version: 7, calibration_version: 3, source_set_hash: bound.source_set_hash, status: "draft", created_at: checkedAt, ...overrides });
+async function buildFailure(feedbackRows, active = true, expectedHash = bound.source_set_hash) {
+  let writes = 0;
+  let failure;
+  try {
+    await buildOwnedFeedbackDataset(async sql => {
+      if (sql === FEEDBACK_DATASET_REVIEW_SQL) return [snapshot(feedbackRows, active ? {} : { capability_id: null })];
+      if (sql === FEEDBACK_DATASET_BUILD_SQL) { writes++; return []; }
+      throw new Error("unexpected SQL");
+    }, OWNER, RID, expectedHash);
+  } catch (error) { failure = error; }
+  return { failure, writes };
+}
+const emptyBuild = await buildFailure([]);
+ok("zero eligible feedback returns an honest named error without attempting a dataset write", emptyBuild.failure?.code === "feedback_dataset_no_eligible_evidence" && emptyBuild.failure.status === 409 && emptyBuild.writes === 0
+  && emptyBuild.failure.details.stats.examples === 0 && emptyBuild.failure.details.stats.sessions === 0
+  && emptyBuild.failure.details.readiness.ready_for_candidate_dataset === false && emptyBuild.failure.details.readiness.blockers.length > 0);
+const ineligibleBuild = await buildFailure(rows.map(row => ({ ...row, profile_version: 6 })));
+ok("old-version feedback is also no eligible evidence, never a ready empty dataset", ineligibleBuild.failure?.code === "feedback_dataset_no_eligible_evidence" && ineligibleBuild.writes === 0);
+const inactiveBuild = await buildFailure([], false);
+ok("inactive runtime retains its distinct refusal ahead of empty evidence", inactiveBuild.failure?.code === "feedback_dataset_runtime_not_active" && inactiveBuild.writes === 0);
+const racedBuild = await buildFailure(rows);
+ok("feedback changing after a nonempty read retains the concurrency refusal", racedBuild.failure?.code === "feedback_dataset_changed_during_build" && racedBuild.writes === 1);
+
 const dbCalls = [];
 const stored = await buildOwnedFeedbackDataset(async (sql, params) => {
   dbCalls.push({ sql, params });
-  if (/select f\.\*,t\.session_id/i.test(sql)) return rows;
-  if (/select session_commitment,split from vy_replica_feedback_split/i.test(sql)) return [];
-  if (/select c\.profile_version,c\.calibration_version/i.test(sql)) return [{ profile_version: 7, calibration_version: 3 }];
-  if (/insert into vy_replica_feedback_dataset/i.test(sql)) return [{ dataset_id: uuid(99_999), version: 1, profile_version: 7, calibration_version: 3, source_set_hash: built.source_set_hash, definition: built.definition, readiness: built.readiness, status: "draft", created_at: "2026-08-24T00:00:00.000Z" }];
+  if (sql === FEEDBACK_DATASET_REVIEW_SQL) return [snapshot()];
+  if (sql === FEEDBACK_DATASET_BUILD_SQL) return [savedReceipt()];
   throw new Error(`unexpected SQL ${sql.slice(0, 100)}`);
-}, OWNER, RID);
-ok("owner build returns a draft rather than silently approving training data", stored.status === "draft" && stored.version === 1);
+}, OWNER, RID, bound.source_set_hash);
+ok("owner build returns a draft rather than silently approving training data", stored.dataset.status === "draft" && stored.dataset.version === 1 && stored.review.dataset.status === "draft");
 const mutation = dbCalls.find((call) => /insert into vy_replica_feedback_dataset/i.test(call.sql));
 ok("mutation rechecks the complete latest feedback id and revision set", /full join expected e using\(feedback_id,revision\)/i.test(mutation.sql) && /feedback_dataset_changed_during_build/.test(readFileSync(join(ROOT, "api/_replica-feedback-dataset.js"), "utf8")));
 ok("replica row lock serializes dataset version allocation", /for update of r/i.test(mutation.sql) && /coalesce\(max\(d\.version\),0\)\+1/i.test(mutation.sql));
 ok("split registry rejects a concurrent conflicting assignment before dataset insertion", /compatible as/i.test(mutation.sql) && /where x\.split<>s\.split/i.test(mutation.sql) && /from authorized a,numbered n,unchanged,compatible/i.test(mutation.sql));
 ok("same source set is idempotent and cannot allocate a second dataset", /on conflict \(replica_id,owner_user_id,profile_version,calibration_version,source_set_hash\)/i.test(mutation.sql));
 ok("persisted dataset definition contains hashes and opaque ids but no reply or correction text", !/(original_reply|preferred_output|correction_text|transcript)/i.test(JSON.stringify(mutation.params[7])));
+
+const read = (overrides = {}, evidence = rows) => readOwnedFeedbackDatasetReview(async (sql, params) => {
+  assert.equal(sql, FEEDBACK_DATASET_REVIEW_SQL, "GET only uses the read statement");
+  assert.equal(params[0], RID); assert.equal(params[1], OWNER);
+  return [snapshot(evidence, overrides)];
+}, OWNER, RID);
+const current = await read();
+ok("GET recomputes readiness without allocating any dataset", current.state === "ready" && current.dataset === null && current.source_set_hash === bound.source_set_hash && current.readiness.ready_for_candidate_dataset);
+const emptyReview = await read({}, []);
+ok("GET names empty evidence with real zero counts and no ready state", emptyReview.state === "empty" && !emptyReview.can_build && emptyReview.stats.examples === 0 && !emptyReview.readiness.ready_for_candidate_dataset);
+const inactiveReview = await read({ capability_id: null, saved_dataset: savedReceipt() });
+ok("inactive owner GET returns no old dataset or current authority", inactiveReview.state === "inactive" && inactiveReview.dataset === null && inactiveReview.binding === null && inactiveReview.source_set_hash === null);
+await assert.rejects(() => readOwnedFeedbackDatasetReview(async () => [], OWNER, RID), error => error.code === "replica_not_found" && error.status === 404);
+ok("missing and foreign owner scopes refuse without a dataset receipt", true);
+const staleReview = await read({ saved_dataset: { ...savedReceipt({ source_set_hash: "a".repeat(64) }), readiness: { ready_for_candidate_dataset: true }, definition: { secret: "never exposed" } } }, rows.slice(0, 5));
+ok("stored historical ready flags cannot override current evidence", staleReview.state === "stale" && !staleReview.readiness.ready_for_candidate_dataset && staleReview.changed_since_saved && staleReview.stats.sessions === 1);
+ok("read/build responses exclude manifests, ratings, session ids and source text", !/(never exposed|definition|feedback_id|turn_id|ratings|session_id|correction_text|original_reply)/.test(JSON.stringify([current, staleReview, stored])));
+ok("receipt preserves an already approved status without claiming a new approval", (await read({ saved_dataset: savedReceipt({ status: "approved" }) })).dataset.status === "approved");
+const changedCap = await read({ capability_id: uuid(90_002) });
+ok("same evidence under a new capability changes the reviewed commitment", changedCap.source_set_hash !== current.source_set_hash && changedCap.binding.capability_id !== CAP);
+const changedVersion = await read({ profile_version: 8 });
+ok("new current profile cannot reuse a former version's feedback or hash", changedVersion.state === "empty" && changedVersion.source_set_hash !== current.source_set_hash);
+const changedCalibration = await read({ calibration_version: 4 });
+ok("new calibration independently changes reviewed authority and evidence", changedCalibration.state === "empty" && changedCalibration.source_set_hash !== current.source_set_hash);
+let hashlessReads = 0;
+for (const hash of [undefined, null, "", bound.source_set_hash + "\n", "A".repeat(64)]) await assert.rejects(
+  () => buildOwnedFeedbackDataset(async () => { hashlessReads++; return []; }, OWNER, RID, hash), error => error.code === "feedback_dataset_review_required" && error.status === 400);
+ok("every build requires an exact reviewed hash before any database work", hashlessReads === 0);
+const staleBuild = await buildFailure(rows, true, "a".repeat(64));
+ok("a stale reviewed source set refuses before any mutation", staleBuild.failure?.code === "feedback_dataset_review_changed" && staleBuild.writes === 0);
+ok("actual SQL binds current capability and locks both authority rows", /c\.capability_id=\$13::uuid/.test(mutation.sql) && /for update of r,c/.test(mutation.sql) && mutation.params[12] === CAP);
+ok("race guard rechecks all classification and source commitment inputs", /l\.fingerprint is distinct from e\.fingerprint/.test(mutation.sql)
+  && Object.keys(JSON.parse(mutation.params[8])[0].fingerprint).sort().join() === ["turn_id", "ratings", "ratings_hash", "response_hash", "correction_hash", "source_generation_id", "session_id"].sort().join());
+ok("read authority does not traverse shared agent metadata or infer full activation readiness", !/agent_id|vy_replica_readiness|vy_replica_consent/.test(FEEDBACK_DATASET_REVIEW_SQL)
+  && /r\.subject_mode='self'/.test(FEEDBACK_DATASET_REVIEW_SQL) && /r\.policy_version=\$3/.test(FEEDBACK_DATASET_REVIEW_SQL));
 
 const migration = readFileSync(join(ROOT, "db/migrations/030_replica_feedback_dataset.sql"), "utf8");
 ok("feedback dataset migration remains one-statement-runner safe", splitSql(migration).length === 4);

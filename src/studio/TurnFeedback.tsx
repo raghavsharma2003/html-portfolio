@@ -42,12 +42,14 @@ export default function TurnFeedback({
   turnId,
   voiceHeard,
   onAuthError,
+  onSaved,
 }: {
   token: string;
   replicaId: string;
   turnId: string;
   voiceHeard: boolean;
   onAuthError: (cause: unknown) => void;
+  onSaved?: (feedback: ReplicaTurnFeedback) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [ratings, setRatings] = useState<Record<string, TurnFeedbackRating>>({});
@@ -75,6 +77,7 @@ export default function TurnFeedback({
       setSaved(result);
       setOpen(false);
       setRatings(nextRatings);
+      onSaved?.(result);
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
       setError(cause instanceof Error ? cause.message : "This fidelity note could not be secured");

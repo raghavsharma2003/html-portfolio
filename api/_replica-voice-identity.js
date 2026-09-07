@@ -672,44 +672,75 @@ export async function createVoiceChallengeSource(db, ownerUserId, id, challenge,
  * that says "captured" with half its evidence would be leased and then fail
  * for a reason the owner cannot act on.
  */
-export async function finalizeVoiceChallengeSource(db, ownerUserId, id, challenge, source, objectInfo) {
-  const rid = replicaId(id);
-  const cid = replicaId(challenge);
-  const sid = replicaId(source);
-  const verdict = verifyStoredObject(
-    { byte_size: objectInfo.expectedByteSize, mime: objectInfo.expectedMime },
-    objectInfo,
-  );
-  const sourceState = verdict.ok ? "quarantined" : "rejected";
-  const facts = JSON.stringify({
-    storage_metadata_verified: verdict.ok,
-    storage_object_id: verdict.ok ? String(objectInfo.objectId || "").slice(0, 256) : "",
-    sha256_status: "pending_server_verification",
-  });
-  const rows = await db(
-    `with eligible as (
-       select s.source_id
-         from vy_replica_source s
-         join vy_replica_voice_challenge ch
-           on ch.replica_id=s.replica_id and ch.owner_user_id=s.owner_user_id
+// Existing cancellation/deletion/consent writers use different lock orders.
+// NOWAIT makes overlap an explicit retry instead of introducing a lock cycle.
+// No writes occur until every current source and authority row is locked.
+export const VOICE_CHALLENGE_FINALIZE_SQL = `with snapshot as materialized (
+       select ch.captured_source_id,ch.transcript_source_id
+         from vy_replica_voice_challenge ch
+        where ch.challenge_id=$3::uuid and ch.replica_id=$1::uuid and ch.owner_user_id=$2::uuid
+     ), locked_sources as materialized (
+       select s.* from vy_replica_source s cross join snapshot ch
+        where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid
           and s.source_id in (ch.captured_source_id,ch.transcript_source_id)
-        where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.source_id=$4::uuid
-          and s.capture_mode='identity_challenge' and s.state='pending_upload'
-          and ch.challenge_id=$3::uuid and ch.state='issued' and ch.expires_at>now()
+        order by s.source_id for update of s nowait
+     ), owned as materialized (
+       select r.replica_id,r.owner_user_id,r.policy_version
+         from vy_replica r cross join (select count(*) from locked_sources) barrier
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
+          and r.subject_mode='self' and r.lifecycle not in ('revoked','purging') and r.policy_version=$8::text
+        for share of r nowait
+     ), consent as materialized (
+       select c.consent_id,c.scope from vy_replica_consent c join owned r
+         on c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
+        where c.scope in ('capture','storage') and c.policy_version=r.policy_version
+          and c.revoked_at is null and (c.expires_at is null or c.expires_at>clock_timestamp())
+        order by c.consent_id for share of c nowait
+     ), current_challenge as materialized (
+       select ch.* from vy_replica_voice_challenge ch cross join snapshot previous
+         join owned r on true
+        where ch.challenge_id=$3::uuid and ch.replica_id=r.replica_id and ch.owner_user_id=r.owner_user_id
+          and ch.state='issued' and ch.expires_at>clock_timestamp() and ch.policy_version=r.policy_version
+          and ch.captured_source_id is not distinct from previous.captured_source_id
+          and ch.transcript_source_id is not distinct from previous.transcript_source_id
+          and (select count(distinct scope) from consent)=2
+          and (select count(*) from locked_sources)=
+              (case when ch.captured_source_id is null then 0 else 1 end +
+               case when ch.transcript_source_id is null then 0 else 1 end)
+        for update of ch nowait
+     ), eligible as materialized (
+       select s.source_id from locked_sources s cross join current_challenge ch
+        where s.source_id=$4::uuid and s.source_id in (ch.captured_source_id,ch.transcript_source_id)
+          and s.capture_mode='identity_challenge' and s.state='pending_upload' and s.contains_third_parties=false
+          and ((s.source_id=ch.captured_source_id and s.kind='video') or
+               (s.source_id=ch.transcript_source_id and s.kind='audio'))
+          and s.byte_size=$9::bigint and s.mime=$10::text
+          and not exists (select 1 from locked_sources other
+            where other.capture_mode<>'identity_challenge' or other.contains_third_parties<>false
+              or other.state not in ('pending_upload','quarantined')
+              or (other.source_id=ch.captured_source_id and other.kind<>'video')
+              or (other.source_id=ch.transcript_source_id and other.kind<>'audio')
+              or not exists (select 1 from consent source_consent
+                where source_consent.consent_id=other.consent_id and source_consent.scope='capture'))
      ), updated_source as (
        update vy_replica_source s
           set state=$5,rejection_code=$6,updated_at=now(),provenance=provenance||$7::jsonb
-         from eligible e where s.source_id=e.source_id
+         from eligible e where s.source_id=e.source_id and s.replica_id=$1::uuid and s.owner_user_id=$2::uuid
+           and s.state='pending_upload'
        returning s.*
+     ), ready_sources as materialized (
+       -- The base table still has this statement's pre-update snapshot.
+       select source_id,state from locked_sources where source_id<>$4::uuid
+       union all select source_id,state from updated_source
      ), updated_challenge as (
        update vy_replica_voice_challenge ch
           set state=case
                 when $5<>'quarantined' then 'failed'
                 when exists (
-                  select 1 from vy_replica_source ready
+                  select 1 from ready_sources ready
                    where ready.source_id=ch.captured_source_id and ready.state='quarantined'
                 ) and exists (
-                  select 1 from vy_replica_source ready
+                  select 1 from ready_sources ready
                    where ready.source_id=ch.transcript_source_id and ready.state='quarantined'
                 ) then 'captured'
                 else ch.state end,
@@ -719,18 +750,39 @@ export async function finalizeVoiceChallengeSource(db, ownerUserId, id, challeng
               updated_at=now()
         from updated_source s
         where ch.challenge_id=$3::uuid and ch.replica_id=$1::uuid and ch.owner_user_id=$2::uuid
+          and ch.state='issued'
         returning ch.*
      ), audit as (
        insert into vy_replica_audit
          (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
        select $1::uuid,$2::uuid,'voice_identity.challenge.upload.finalize','voice_challenge',
-              challenge_id::text,$8,case when $5='quarantined' then 'allowed' else 'denied' end,
-              jsonb_build_object('reason_code',$6) from updated_challenge
+              challenge_id::text,$8::text,case when $5='quarantined' then 'allowed' else 'denied' end,
+              jsonb_build_object('reason_code',$6::text) from updated_challenge
      )
      select row_to_json(s) as source, row_to_json(ch) as challenge
-       from updated_source s cross join updated_challenge ch`,
-    [rid, ownerUserId, cid, sid, sourceState, verdict.code, facts, REPLICA_POLICY_VERSION],
+       from updated_source s cross join updated_challenge ch`;
+
+export async function finalizeVoiceChallengeSource(db, ownerUserId, id, challenge, source, objectInfo) {
+  const rid = replicaId(id);
+  const cid = replicaId(challenge);
+  const sid = replicaId(source);
+  const verdict = verifyStoredObject(
+    { byte_size: objectInfo.expectedByteSize, mime: objectInfo.expectedMime }, objectInfo,
   );
+  const facts = JSON.stringify({ storage_metadata_verified: verdict.ok,
+    storage_object_id: verdict.ok ? String(objectInfo.objectId || "").slice(0, 256) : "",
+    sha256_status: "pending_server_verification" });
+  let rows;
+  try {
+    rows = await db(VOICE_CHALLENGE_FINALIZE_SQL,
+      [rid, ownerUserId, cid, sid, verdict.ok ? "quarantined" : "rejected", verdict.code, facts,
+        REPLICA_POLICY_VERSION, objectInfo.expectedByteSize, objectInfo.expectedMime]);
+  } catch (error) {
+    if (error?.code !== "55P03") throw error;
+    throw Object.assign(new Error("voice_challenge_finalize_busy"), {
+      code: "voice_challenge_finalize_busy", status: 409, retryable: true, cause: error,
+    });
+  }
   const row = rows[0];
   if (!row) return null;
   return { source: row.source, challenge: clientVoiceChallenge(row.challenge) };

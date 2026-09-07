@@ -3,6 +3,7 @@ import { createDialogueTurn, fetchProtectedTurnVoice } from "./dialogueApi";
 import { readRuntimeStatus } from "./runtimeApi";
 import { ReplicaApiError } from "./replicaApi";
 import TurnFeedback from "./TurnFeedback";
+import FeedbackDatasetPanel from "./FeedbackDatasetPanel";
 import type { ReplicaDialogueTurn, ReplicaRuntimeStatus } from "./types";
 import "./expert-experience.css";
 
@@ -22,6 +23,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
   const [speaking, setSpeaking] = useState("");
   const [heard, setHeard] = useState<Set<string>>(new Set());
   const [feedbackTurn, setFeedbackTurn] = useState("");
+  const [feedbackRevision, setFeedbackRevision] = useState(0);
   const epoch = useRef(0);
   const sendLock = useRef(false);
   const voiceEpoch = useRef(0);
@@ -117,11 +119,12 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
         <div className="expert-exchange__question"><span>You</span><p>{question}</p></div>
         <article className="expert-exchange__answer"><span>Your AI</span><p>{answer.reply}</p>
           <div className="expert-conversation__actions"><button type="button" disabled={!answer.can_voice || stopped} onClick={() => void speak(answer)}>{speaking === answer.turn_id ? "Stop audio" : "Listen"}</button><button type="button" aria-expanded={feedbackTurn === answer.turn_id} onClick={() => setFeedbackTurn(feedbackTurn === answer.turn_id ? "" : answer.turn_id)}>Teach a correction</button></div>
-          {feedbackTurn === answer.turn_id && <TurnFeedback token={token} replicaId={replicaId} turnId={answer.turn_id} voiceHeard={heard.has(answer.turn_id)} onAuthError={onAuthError} />}
+          {feedbackTurn === answer.turn_id && <TurnFeedback token={token} replicaId={replicaId} turnId={answer.turn_id} voiceHeard={heard.has(answer.turn_id)} onAuthError={onAuthError} onSaved={() => setFeedbackRevision(current => current + 1)} />}
         </article>
       </div>)}
       {sending && <p className="expert-conversation__working" role="status">Your AI is preparing a reply</p>}<div ref={latest} />
     </div>
+    <FeedbackDatasetPanel key={replicaId} token={token} replicaId={replicaId} feedbackRevision={feedbackRevision} onAuthError={onAuthError} />
     {error && <p className="expert-conversation__error" role="alert">{error}</p>}
     <form className="expert-conversation__composer" onSubmit={event => { event.preventDefault(); void send(); }}>
       <label htmlFor="expert-question">Ask your AI</label>

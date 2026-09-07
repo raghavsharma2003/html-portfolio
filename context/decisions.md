@@ -22813,3 +22813,23 @@ Run at most six actual Azure gpt-4.1-mini requests on root-authored fresh Englis
 ## `integrate-disabled-lean-scaffold-after-failed-trial-20260907` (2026-09-07)
 
 Integrate the isolated lean compiler, scoped teacher reader, strict history/recall options and actual Room runtime tests with ROOM_EXPERT_TEXT_PROFILE unset. New candidate is available for bounded experiments only; normal companion compiler behavior remains unchanged. Register generated-artifact/compiler and Room runtime checks and document the flag in ENV-MANIFEST. Preserve failed raw/delivered corpus for offline regression diagnosis. Reversal condition: default behavior changes, SQL authority fails, or a future independently evaluated candidate earns explicit activation. Six failed-quality cases are not a reason to silently enable the candidate.
+
+
+## `retain-expert-list-bodies-through-shared-guards-20260907` (2026-09-07)
+
+Integrate only the expert branch of the parser bullet heuristic; companion behavior remains byte-identical. Keep expert substantive list bodies regardless of length or ordinary teaching words such as tone/style, then apply existing metadata, protocol and roleplay filters plus downstream honesty/never-rule and 4000-unit whole-answer limits. Reversal condition: actual list content bypasses shared guards or default companion behavior changes. This does not promise arbitrary Markdown/code fidelity or improve raw model facts.
+
+
+## `legacy-finalization-locks-exact-source-authority-20260907` (2026-09-07)
+
+Integrate legacy voice challenge finalizer and resumable per-artifact upload state. Lock attached sources, replica, active source-bound capture/storage consent and challenge with NOWAIT; return named retryable409 only for55P03. Read the current source through UPDATE RETURNING when testing both finalized attachments. Retry completed uploads by finalization only; uncertain authorization requires a new attempt, while uncertain finalization allows one exact authenticated readback. Reversal condition: witnessed concurrency or lifecycle evidence invalidates the authority predicates or retry behavior. Scope is creatorStudio teacher/ops behind both voice-challenge flags, not the default modern Studio liveness journey.
+
+
+## `pair-existing-azure-models-on-fresh-source-cases-20260907` (2026-09-07)
+
+Prepare at most12calls, six fresh C92 English/Hindi/Roman Hinglish cases paired counterbalanced across gpt-4.1-mini and Mistral-Large-3, exact same frozen post-parser Room/guards and real development ledger capped atUSD1. No retries or default activation. Root verified existing eastus2 GlobalStandard deployments at10:19:34Z: GPT model2025-04-14 and Mistral version1, bothSucceeded. Public Azure retail exact eastus2 Global Consumption Large3 rows areUSD0.0005input/0.0015output per1K tokens, effective2025-12-01; incumbent rates0.40/1.60perM. These are cost estimates, not invoices. Reversal condition: preflight model/SKU/transport/rate/ledger mismatch; stop and retain failures. No paired calls have run at this entry.
+
+
+## `owner-reviews-correction-snapshot-before-preparation-20260907` (2026-09-07)
+
+Integrate owner-only correction review and preparation in existing ExpertConversation. GET recomputes counts/readiness from one SQL snapshot. POST requires reviewed source_set_hash and rechecks current replica/capability/profile/calibration plus evidence fingerprints. An explicit Prepare action stores a draft manifest only; no training, activation or persona update. Persisted feedback callback invalidates review. Uncertain success reads a receipt once without automatic POST retry; guarded focus restoration applies only to the current connected action if focus fell to body. Reversal condition: actual owner testing shows wrong placement, source authority/CAS fails or keyboard focus is stolen. Overlapped transaction guarantees remain separate from tested independent pre-insert changes.

@@ -6021,9 +6021,10 @@ function parseTextReply(raw, expertAnswer) {
     if (!p) continue;
     if (/^(bubble\s*\d*\s*[:.]?|separators?\.?|styling with.*|formats?[:.]?|protocols?[:.]?|\(.*protocol.*\)|response[:.]?|reply[:.]?)$/i.test(p)) continue;
     if (/^-\s+/.test(p)) {
-      if (p.length > 40 || /short|sharp|charming|bubble|separator|style|format|reply|tone/i.test(p)) continue;
+      if (!expertAnswer && (p.length > 40 || /short|sharp|charming|bubble|separator|style|format|reply|tone/i.test(p))) continue;
       p = p.replace(/^-\s+/, "");
       if (!p) continue;
+      if (expertAnswer && /^(bubble\s*\d*\s*[:.]?|separators?\.?|styling with.*|formats?[:.]?|protocols?[:.]?|\(.*protocol.*\)|response[:.]?|reply[:.]?)$/i.test(p)) continue;
     }
     if (/^\*[^*]+\*$/.test(p)) {
       continue;

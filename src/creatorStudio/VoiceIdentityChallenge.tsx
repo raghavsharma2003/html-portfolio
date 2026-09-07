@@ -49,6 +49,15 @@ type Recording = {
   durationMs: number;
   mime: string;
 };
+type UploadAttempt = {
+  challengeId: string;
+  replicaId: string;
+  recording: Recording;
+  blocked: boolean;
+  slots: Partial<Record<"capture" | "transcript", {
+    sourceId: string; upload: SignedUpload; uploaded: boolean; finalized: boolean;
+  }>>;
+};
 
 const VIDEO_TYPES = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"];
 const TARGET_MS = 10_000;
@@ -153,6 +162,12 @@ export default function VoiceIdentityChallengeBand({
   const startedAtRef = useRef(0);
   const previewRef = useRef<HTMLVideoElement>(null);
   const autoStopRef = useRef<number | null>(null);
+  const uploadAttemptRef = useRef<UploadAttempt | null>(null);
+  const uploadRunningRef = useRef(false);
+  const challengeRef = useRef(challenge);
+  const consentRef = useRef(consentActive);
+  challengeRef.current = challenge;
+  consentRef.current = consentActive;
 
   const videoMime = useMemo(() => supportedVideoType(), []);
   const expiresAt = challenge ? new Date(challenge.expires_at).getTime() : 0;
@@ -176,6 +191,7 @@ export default function VoiceIdentityChallengeBand({
   }
 
   function clearRecording() {
+    uploadAttemptRef.current = null;
     if (recording) URL.revokeObjectURL(recording.url);
     setRecording(null);
     setProgress(0);
@@ -185,6 +201,14 @@ export default function VoiceIdentityChallengeBand({
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    clearRecording();
+    stopTracks();
+    setStage("idle");
+    setError("");
+    return () => { uploadAttemptRef.current = null; };
+  }, [challenge?.replica_id, challenge?.challenge_id]);
 
   useEffect(() => {
     if (stage !== "recording") return;
@@ -355,45 +379,97 @@ export default function VoiceIdentityChallengeBand({
   }
 
   function retake() {
+    if (uploadAttemptRef.current) { void cancel(); return; }
     clearRecording();
     stopTracks();
     setError("");
     setStage("idle");
   }
 
-  /** One artifact: hash, authorize, upload, finalize. Called twice. The
-   *  challenge only becomes `captured` once the server has both. */
-  async function sendOne(challengeId: string, role: "capture" | "transcript", file: File, kind: "audio" | "video") {
-    setStage("hashing");
-    setProgress(0);
-    const sha256 = await sha256File(file, setProgress);
-    setStage("authorizing");
-    setProgress(0);
-    const created = await onCreateUpload({
-      challengeId, role, kind, mime: file.type, byteSize: file.size, sha256,
-    });
-    setStage("uploading");
-    await putSignedUpload(file, created.upload, setProgress);
+  function currentAttempt(attempt: UploadAttempt) {
+    const current = challengeRef.current;
+    if (uploadAttemptRef.current !== attempt || !consentRef.current ||
+        current?.challenge_id !== attempt.challengeId || current.replica_id !== attempt.replicaId ||
+        !["issued", "captured"].includes(current.state) || new Date(current.expires_at).getTime() <= Date.now()) {
+      attempt.blocked = true;
+      throw new Error("This attempt changed or expired. Refresh and start a new attempt.");
+    }
+  }
+
+  async function sendOne(attempt: UploadAttempt, role: "capture" | "transcript", file: File, kind: "audio" | "video") {
+    currentAttempt(attempt);
+    let slot = attempt.slots[role];
+    if (!slot) {
+      setStage("hashing"); setProgress(0);
+      const sha256 = await sha256File(file, setProgress);
+      currentAttempt(attempt);
+      setStage("authorizing"); setProgress(0);
+      try {
+        const created = await onCreateUpload({ challengeId: attempt.challengeId, role, kind,
+          mime: file.type, byteSize: file.size, sha256 });
+        currentAttempt(attempt);
+        if (created.challenge.challenge_id !== attempt.challengeId || created.challenge.replica_id !== attempt.replicaId ||
+            created.source.replica_id !== attempt.replicaId ||
+            created.challenge[role === "capture" ? "captured_source_id" : "transcript_source_id"] !== created.source.source_id) {
+          throw new Error("The upload belongs to another attempt. Cancel and start again.");
+        }
+        slot = { sourceId: created.source.source_id, upload: created.upload, uploaded: false, finalized: false };
+        attempt.slots[role] = slot;
+      } catch (cause) {
+        attempt.blocked = true;
+        throw new Error("Upload permission could not be confirmed. Cancel this attempt and start again.", { cause });
+      }
+    }
+    if (slot.finalized) return;
+    if (!slot.uploaded) {
+      setStage("uploading");
+      await putSignedUpload(file, slot.upload, setProgress);
+      currentAttempt(attempt);
+      slot.uploaded = true;
+    }
     setStage("finalizing");
-    await onFinalize(challengeId, created.source.source_id);
+    const finalized = await onFinalize(attempt.challengeId, slot.sourceId);
+    currentAttempt(attempt);
+    if (finalized.challenge_id !== attempt.challengeId || finalized.replica_id !== attempt.replicaId ||
+        finalized[role === "capture" ? "captured_source_id" : "transcript_source_id"] !== slot.sourceId ||
+        !["issued", "captured"].includes(finalized.state)) {
+      attempt.blocked = true;
+      throw new Error("This recording is no longer available. Cancel this attempt and start again.");
+    }
+    slot.finalized = true;
   }
 
   async function upload() {
-    if (!recording || !issued || !challenge) return;
+    if (!recording || !issued || !challenge || uploadRunningRef.current) return;
+    const attempt = uploadAttemptRef.current || { challengeId: challenge.challenge_id, replicaId: challenge.replica_id,
+      recording, blocked: false, slots: {} };
+    if (attempt.blocked || attempt.recording !== recording) return;
+    uploadAttemptRef.current = attempt;
+    uploadRunningRef.current = true;
     setError("");
     try {
       setBusyLabel("Securing the recording");
-      await sendOne(challenge.challenge_id, "capture", recording.video, "video");
+      await sendOne(attempt, "capture", recording.video, "video");
       setBusyLabel("Securing the audio");
-      await sendOne(challenge.challenge_id, "transcript", recording.wav, "audio");
+      await sendOne(attempt, "transcript", recording.wav, "audio");
       setBusyLabel("");
       setStage("idle");
       clearRecording();
       onRefresh();
     } catch (cause) {
+      if (uploadAttemptRef.current !== attempt) return;
+      const failure = cause as { status?: number; data?: { error?: string } };
+      if ([403, 404].includes(failure?.status || 0) || (failure?.status === 409 &&
+          failure?.data?.error !== "voice_challenge_finalize_busy")) attempt.blocked = true;
       setBusyLabel("");
-      setError(cause instanceof Error ? cause.message : "The recording could not be secured");
+      setError(attempt.blocked ? "This upload cannot continue. Cancel this attempt and start again."
+        : failure?.data?.error === "voice_challenge_finalize_busy"
+          ? "The recording is busy. Choose Retry to confirm the upload."
+          : "The upload could not be confirmed. Choose Retry to continue from this step.");
       setStage("recorded");
+      onRefresh();
+    } finally {
+      uploadRunningRef.current = false;
     }
   }
 
@@ -547,10 +623,10 @@ export default function VoiceIdentityChallengeBand({
                 <video src={recording.url} controls playsInline aria-label="Review your recording" />
                 <div className="recording-review-meta">
                   <div>
-                    <strong>Still only on this device</strong>
-                    <span>{Math.round(recording.durationMs / 1000)} seconds, not sent yet</span>
+                    <strong>{uploadAttemptRef.current ? "Upload in progress" : "Still only on this device"}</strong>
+                    <span>{Math.round(recording.durationMs / 1000)} seconds{uploadAttemptRef.current ? ", awaiting confirmation" : ", not sent yet"}</span>
                   </div>
-                  <button className="text-button" type="button" disabled={busy} onClick={retake}>Record again</button>
+                  <button className="text-button" type="button" disabled={busy} onClick={retake}>{uploadAttemptRef.current ? "Cancel this attempt" : "Record again"}</button>
                 </div>
                 {busy && (
                   <div className="upload-status" role="status">
@@ -571,10 +647,10 @@ export default function VoiceIdentityChallengeBand({
                 <button
                   className="button primary-button liveness-upload"
                   type="button"
-                  disabled={busy || remaining <= 0}
+                  disabled={busy || remaining <= 0 || uploadAttemptRef.current?.blocked === true || !consentActive}
                   onClick={() => void upload()}
                 >
-                  {busy ? "Sending" : "Send this for checking"}
+                  {busy ? "Sending" : uploadAttemptRef.current ? "Retry" : "Send this for checking"}
                 </button>
               </div>
             )}

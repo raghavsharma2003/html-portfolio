@@ -1,4 +1,5 @@
 import { replicaRequest } from "./replicaApi";
+import { listSources } from "./enrollmentApi";
 import type { ReplicaSource, SignedUpload, VoiceIdentityChallenge } from "./types";
 
 /** The frontend half of the WS-R2 seam. Default OFF, so a build without the
@@ -71,7 +72,8 @@ export async function finalizeVoiceIdentityUpload(
   challengeId: string,
   sourceId: string,
 ) {
-  return replicaRequest<{
+  try {
+    return await replicaRequest<{
     challenge: VoiceIdentityChallenge;
     source: ReplicaSource;
   }>(token, ENDPOINT, {
@@ -82,5 +84,25 @@ export async function finalizeVoiceIdentityUpload(
       challenge_id: challengeId,
       source_id: sourceId,
     }),
-  });
+    });
+  } catch (error) {
+    // A lost response can follow a committed finalize. One readback can
+    // confirm upload state; it does not perform or infer identity acceptance.
+    const status = (error as { status?: number })?.status;
+    if (status !== undefined && status !== 404 && status < 500) throw error;
+    try {
+      const [challenge, sources] = await Promise.all([
+        voiceIdentityStatus(token, replicaId), listSources(token, replicaId),
+      ]);
+      const source = sources.find((item) => item.source_id === sourceId && item.replica_id === replicaId &&
+        item.capture_mode === "identity_challenge" && item.state === "quarantined");
+      if (challenge?.challenge_id === challengeId && challenge.replica_id === replicaId &&
+          (challenge.state === "issued" || challenge.state === "captured") &&
+          new Date(challenge.expires_at).getTime() > Date.now() &&
+          [challenge.captured_source_id, challenge.transcript_source_id].includes(sourceId) && source) {
+        return { challenge, source };
+      }
+    } catch { /* An unavailable readback is still an uncertain finalize. */ }
+    throw error;
+  }
 }
