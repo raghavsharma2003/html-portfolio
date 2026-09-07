@@ -12,7 +12,6 @@ export class ReplicaApiError extends Error {
 }
 
 export async function replicaRequest<T>(token: string, path: string, init?: RequestInit): Promise<T> {
-  const signal = init?.signal || AbortSignal.timeout(20_000);
   const response = await fetch(path, {
     ...init,
     headers: {
@@ -20,19 +19,9 @@ export async function replicaRequest<T>(token: string, path: string, init?: Requ
       "Content-Type": "application/json",
       ...init?.headers,
     },
-    signal,
+    signal: init?.signal || AbortSignal.timeout(20_000),
   });
-  let data: any;
-  try {
-    data = await response.json();
-  } catch (error) {
-    // Body cancellation must not turn a successful HTTP status into empty data.
-    if (error instanceof Error && error.name === "AbortError") throw error;
-    signal.throwIfAborted();
-    if (response.ok) throw error;
-    data = {};
-  }
-  signal.throwIfAborted();
+  const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const raw = typeof data?.error === "string"
       ? data.error

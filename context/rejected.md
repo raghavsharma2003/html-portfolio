@@ -16789,3 +16789,110 @@ The reviewed publication panel keyed invalidation only by stable draft JSON and 
 ## `mention-order-success-can-reverse-event-meaning-20260907` (2026-09-07)
 
 English prose-user placed observation17 before calibration24 using followed by, despite source calibration-before-observation. Both root and independent agent rejected this as a joint success: the quantity relationships are correct but wording strongly implies reversed event order. This text is present in raw Azure output. Do not mechanically reorder chronological phrases, equate order scores with factual quality or promote a representation change from three unreplicated synthetic cases.
+
+
+## `feed-meet-indirect-return-loses-question-20260907` (2026-09-07)
+
+Executed old source editor round trip loses unsent question and both selected IDs; no source CTA. Reject persistent storage of text, implicit ask or source-authority assumptions. Existing saved request must not be silently removed or shown as another source test, so optional row shortcut is withheld. Initial Windows test-write encoding/output-directory and JSX fragment syntax failures are documented in the research report; no provider calls occurred.
+
+
+## `source-erasure-is-not-global-cleanup-20260907` (2026-09-07)
+
+The repaired Feed24 source now has actual physical erasure evidence. This does not erase the earlier Feed23 source whose active writer remains fenced until17:42:22.929748Z, nor settle four older full-replica backup certificates. Reject a blanket cleanup-complete or product-complete claim. Keep immutable failed artifacts and use the exact prepared cleanup-only wrapper after the real writer expiry; do not shorten the lease or mint success receipts.
+
+
+## `regex-generic-prose-and-code-exemption-20260907` (2026-09-07)
+
+Checkpoint24 focus repair contains querySelector<HTMLInputElement> followed by a selector expression and a second generic. The old locale regex matches the intervening program text as prose. Adding this selector to a string allowlist or rewriting correct focus behavior was rejected. The first AST replacement also treated literal executable code commands as prose requiring translation; semantic code elements are now narrowly excluded, while visible instructions with semicolons or code words remain detectable.
+
+
+## `extracted-only-cta-misses-real-mined-file-20260907` (2026-09-07)
+
+The initial Feed-to-Meet UI fixture used extracted, but the actual repaired upload ended mined. The candidate exposed no Test this source action for that eligible real state. Retained exact old source render reproduces the omission. Do not infer frontend end-to-end acceptance from a fixture state that excludes the actual successful handler result.
+
+
+## `teacher-sheet-readonly-before-save-density-rejected-20260907` (2026-09-07)
+
+Retained checkpoint24 creator screenshots show4291px mobile and2399px desktop full-page fixture captures. Six read-only blocks and the long mentor boundary occupy the path to Save. Both exact checkpoint24 editors also fail the executed native structural control requiring Save before read-only details. Replacing saved text with a guessed short interpretation was rejected: native disclosure instead retains the exact body and explicit malformed states. No timing or human cognitive-load claim follows from a screenshot or structural assertion.
+
+
+## `saved-load-and-save-not-bound-to-local-edit-20260907` (2026-09-07)
+
+Source-only independent review of both TeacherSheetStudio components found Load unconditionally applies its awaited body while edits remain possible. Holding GET(A), editingB and releasingA overwritesB. Save(A) followed by editB can show a generic Saved message over unsavedB; transport failure claims Not saved despite an uncertain outcome. These are source-derived schedules, not yet mounted reproductions. Existing disclosure18 and publication40 do not test this local edit race. Preserve report ROOT expert-tools/TEACHER-SHEET-DISCLOSURE-REVIEW25-20260907.md; new agent repair must execute old negatives.
+
+
+## `seeded-entry-does-not-prove-new-owner-flow-20260907` (2026-09-07)
+
+Reject treating a preselected enrolling replica with preexisting grants as evidence that a newly signed-in person can complete Create my AI without confusion. The production default opens recording first despite a private text path; slow or failed reads can look like missing agreement. Account/source permission remains distinct from per-question material permission, so merging all grants into one checkbox is not the repair.
+
+
+## `separate-feed-and-seeded-answer-not-connected-proof-20260907` (2026-09-07)
+
+The actual Feed24 readiness proof used zero model calls; previous actual answer proofs seeded canonical source/evidence directly. Do not present their combination as an actual uploaded-file answer. New composite must compare original upload, extracted canonical body, selected snapshot and actual outbound material; GET/replay must preserve one-call accounting. Unsettled attempted spend retains fixture authority and source for later cleanup, rather than claiming zero charge or erasing the reconciliation path.
+
+
+## `new-private-write-guard-blocks-existing-erasure-sql-20260907` (2026-09-07)
+
+The new composite guard rejected any otherwise-unrecognized query updating vy_replica_consent, including the existing scoped completeSourceErasure CTE in cleanup_worker. Actual source worker leased1/retried1/completed0; SQL never forwarded, so this is not a measured production SQL failure. ObjectDELETE202/HEAD404/prefixlist200 already established physical object absence, with providers1/confirmedAbsent1 retained. Source/auth manifest remains. A successful answer plus blob absence is not complete cleanup; allow only this exact completion statement through the inherited scope guard in a separate resume proof.
+
+
+## `teacher-sheet-delayed-load-overwrites-newer-20260907` (2026-09-07)
+
+The exact retained combined25 editor bytes execute before the fixed controls: holding GET, editing syllabus or explicitly replacing malformed lists, then releasing GET restores the old values in both editors at both widths. A successful POST previously announced an undifferentiated saved status even after later edits, and a failure claimed not saved although the write could have committed. Reject those states, not editing during a load. Pre-browser fixture setup failures are retained: wrong CRLF reconstruction despite original LF bytes, an unsuccessful PowerShell quoting command, and a missing StrictMode closing tag. The initial typecheck also caught misplaced copy interface keys; fixed before final verification. No test failure was replaced with an unmeasured success.
+
+
+## `cleanup-resume-is-not-paid-experiment-rerun-20260907` (2026-09-07)
+
+Reject rerunning the answer or deleting its failed artifacts to obtain a green all-in-one report. Root reran12 frozen cleanup guard controls, then only the scoped cleanup continuation; zero model attempts and unchanged spend confirm the boundary. Exact source completion was allowed only with the frozen SQL hash, source/replica/owner parameters and physical receipt, while original Feed mutation checks still applied.
+
+
+## `first-use-unknown-is-not-empty-and-old-read-is-not-receipt-20260907` (2026-09-07)
+
+Source trace found normal Studio ignores loadState, showing agreement while initial listing is pending or failed. Selected creation also starts consent list before grant; allSettled can later overwrite actual returned receipts with its earlier empty snapshot. Retained exact old Studio/CloneExperience fixtures will execute both schedules. Do not fabricate enrolling from create consent_pending or treat mocked initial enrolling/all-three-consents as fresh-owner proof. Initial edit script missed CRLF multiline matches and TypeScript reported missing props; normalization of this touched file and exact guarded insert repaired the editing failure, not product authority.
+
+
+First mounted attempt26: one old unresolved-account group passed, then actual390 retry click failed because the existing fixed error toast intercepted its pointer. Retained scratchpad/first-use-private-flow/178880*/failure.json records exact call log. Dedicated centered read panels now suppress duplicate toast only while their blocking status is visible; retry remains explicit. Source-only fixture review also corrected unknown-authorship upload status to extracted, with mined only after explicit remine, matching the caller. One bounded repair confirmation follows.
+
+
+Independent26 source review rejected token equality alone for accepted creation completion: it both swallowed refreshed-token read failures and rejected legitimate new-source navigation. Account/sign-out generation and accepted refreshed request scope now distinguish them. Old completed promises also wrote global history after unmount, and old401 could sign out a new owner. Exact native controls execute old predicates and current guards. The final account-generation guard also refuses same-credential sign-out/re-entry before created-row UI adoption. All first-use screenshots were inspected; no owner-quality claim follows.
+
+
+## `expired-writer-cleanup-needs-no-lease-bypass-20260907` (2026-09-07)
+
+The original upload SQL failure left an active source writer. Reject force expiry, forged release, rerunning the upload or changing the original failed result. The prepared scoped continuation was run only after actual expiry and completed without model calls. Cleanup acceptance for these three recent fixtures does not settle older global backup certificates.
+
+
+## `body-focus-after-action-replacement-20260907` (2026-09-07)
+
+Retained exact old ContextLockerPanel and PrivateTextRehearsal sources execute in the mounted fixture: authorship replacement, closing the saved draft form and replacing the question with a result each strand focus on BODY. Unconditional response autofocus is rejected because a user may have started other work. Early fixture failures remain preserved: missing actual readiness/rehearsal response envelopes, then an unrelated synthetic control placed underneath the real private panel absolute layout. Corrected the fixture transport and dedicated64px sibling header; production source did not change between those runs. These failures are not attributed to the product.
+
+
+## `abort-json-empty-success-crashes-activity-20260908` (2026-09-07)
+
+Refresh fixture with actual ActivityView still failed undefined jobs.map. Source traces replicaRequest response.json().catch(()=>({})) and successful200 return, followed by ActivityPanel onView consuming the empty object after token-change abort. Holding the activity response until read completion isolates the separate refresh-busy test but does not repair this actual failure. Retain original failure and add exact transport negative; do not count a schedule avoiding the bug as proof it is fixed.
+
+
+## `generic-voice-cells-cannot-borrow-reference-20260908` (2026-09-07)
+
+Historic buildCells groups language/text, valid only within its historical single-owner setting. Reusing that key for generic multispeaker/conditioning packs could compare unlike recordings and borrow one owner-reference player. Reject relaxing legacy pack IDs/counts, inventing protected booleans, treating fixtures as owner voices or starting another sweep before authority and listening prerequisites. Use explicit new versioned scope and preserved failed/uncertain attempts.
+
+
+## `replica-json-catch-empty-hides-abort-20260908` (2026-09-08)
+
+Reject response.json().catch(()=>({})) on successful HTTP responses. The retained old actual function resolves {} after a native deferred HTTP200 body is aborted; jobs.map on that returned object throws. Existing ActivityPanel checks signal.aborted only in catch, which never runs when the transport fabricates success. Repair the shared transport instead of masking the original overlap in the fixture or changing ActivityPanel for this specific cause.
+
+
+## `token-equality-cannot-own-busy-cleanup-20260908` (2026-09-08)
+
+Final d5b source review found strict token checks skip both stale payload and own busy/error cleanup when readiness polling refreshes the same account during a pending request. Frozen old method snippets are retained; current source controls execute the hang versus explicit retry. Same-owner generation can settle status but does not authorize stale payload adoption. No provider or SQL change.
+
+
+First dedicated mounted refresh attempt retained at scratchpad/first-use-refresh-settlement/1788806301563/failure.json: old390 deferred create success/error both reproduced, then current retry assertion ran while its fresh list request was not yet dispatched. networkidle was already true before the retry started. Fixture now awaits the exact current-token list response and loading heading removal; production unchanged by this timing repair.
+
+
+Mounted readiness polling showed the original transport can swallow an aborted successful response body into{}. Explicit valid ActivityView fixture data did not prevent this because token-effect cleanup interrupts native JSON. The serialized narrow state proof is insufficient for this adjacent release blocker: separate overlap4 now executes200 partial-body abort with old crash/new refusal at both widths against the agent-owned transport delta. Back/list setup was also corrected to wait for actual response, URL and new poll before history navigation.
+
+
+## `focused-passes-cannot-substitute-combined25-release-20260908` (2026-09-07)
+
+Do not combine many independently passing component fixtures into a claimed full release or ordinary customer deployment. The original first-use mounted18 predates its final account guard; the forthcoming full runner must execute final merged source. Earlier failed regex gate, delayed-edit losses, refresh spinner and body-abort crash remain documented. No source-edit or test rerun will silently replace the frozen release result.

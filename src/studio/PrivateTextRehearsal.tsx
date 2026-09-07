@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import PrivateTeachingRefinement from "./PrivateTeachingRefinement";
 import { ReplicaApiError } from "./replicaApi";
 import type { ReplicaLifecycle } from "./types";
@@ -6,7 +6,46 @@ import { askPrivateText, isPrivateTextId, PRIVATE_TEXT_ATTESTATIONS, readPrivate
   type PrivateDraftBody, type PrivateTextAttestation, type PrivateTextBillingState, type PrivateTextReadiness, type PrivateTextResult } from "./privateTextRehearsalApi";
 import "./private-text-rehearsal.css";
 
-type Props = { token: string; replicaId: string; lifecycle: ReplicaLifecycle; onBack: () => void; onEditContext: () => void; onAuthError: (cause: unknown) => void };
+// An explicit action may replace its focused control. Recover only that lost
+// focus; later input/focus movement permanently cancels this one-shot intent.
+function useActionFocus() {
+  type Intent = { origin: HTMLElement; target?: () => HTMLElement | null; dispose: () => void };
+  const pending = useRef<Intent | null>(null);
+  const cancel = () => { pending.current?.dispose(); pending.current = null; };
+  useEffect(() => cancel, []);
+  useLayoutEffect(() => {
+    const intent = pending.current;
+    if (!intent?.target) return;
+    cancel();
+    if (document.activeElement === document.body && (!intent.origin.isConnected || intent.origin.matches(":disabled"))) {
+      const target = intent.target();
+      if (target?.isConnected) target.focus();
+    }
+  });
+  return (container: HTMLElement) => {
+    cancel();
+    const origin = document.activeElement;
+    if (!(origin instanceof HTMLElement) || !container.contains(origin)) return { finish: (_target: () => HTMLElement | null) => {}, cancel: () => {} };
+    const moved = () => cancel();
+    const focused = (event: FocusEvent) => { if (event.target !== origin && event.target !== document.body) cancel(); };
+    const intent: Intent = { origin, dispose: () => {
+      document.removeEventListener("pointerdown", moved, true);
+      document.removeEventListener("keydown", moved, true);
+      document.removeEventListener("input", moved, true);
+      document.removeEventListener("focusin", focused, true);
+    } };
+    pending.current = intent;
+    document.addEventListener("pointerdown", moved, true);
+    document.addEventListener("keydown", moved, true);
+    document.addEventListener("input", moved, true);
+    document.addEventListener("focusin", focused, true);
+    return { finish: (target: () => HTMLElement | null) => { if (pending.current === intent) intent.target = target; }, cancel: () => { if (pending.current === intent) cancel(); } };
+  };
+}
+
+export type PrivateTextReturnDraft = { question: string; sheetId: string; contextItemId: string };
+
+type Props = { initialDraft?: PrivateTextReturnDraft; token: string; replicaId: string; lifecycle: ReplicaLifecycle; onBack: () => void; onEditContext: (draft: PrivateTextReturnDraft) => void; onAuthError: (cause: unknown) => void };
 const REQUEST_PARAM = "rehearsal_request";
 function savedRequest(replicaId: string) {
   const query = new URLSearchParams(location.search);
@@ -48,10 +87,10 @@ function StoppedPrivateText({ token, replicaId, lifecycle, onBack, onAuthError }
   }
   return <section className="ptr-panel"><div className="ptr-content"><button type="button" onClick={onBack}>Back to your workspace</button><h1>Private draft test is stopped.</h1><p>{lifecycle === "purging" ? "Erasure is already underway for this AI." : "This workspace must be available before a private answer can be requested or read."}</p>{error ? <p role="alert">{error}</p> : null}{removed && unresolvedUsage(billing) ? <p>Removing a test does not cancel incurred usage.</p> : null}{removed ? <p role="status">This saved test's private payload has been removed.</p> : id && lifecycle !== "purging" ? <button type="button" disabled={busy} onClick={() => void remove()}>{busy ? "Removing saved test" : "Remove saved test"}</button> : null}</div></section>;
 }
-function PrivateTextSession({ token, replicaId, onBack, onEditContext, onAuthError }: Props) {
+function PrivateTextSession({ token, replicaId, initialDraft, onBack, onEditContext, onAuthError }: Props) {
   const [readiness, setReadiness] = useState<PrivateTextReadiness | null>(null);
-  const [selection, setSelection] = useState({ sheetId: "", contextItemId: "" });
-  const [question, setQuestion] = useState("");
+  const [selection, setSelection] = useState(() => ({ sheetId: isPrivateTextId(initialDraft?.sheetId) ? initialDraft.sheetId : "", contextItemId: isPrivateTextId(initialDraft?.contextItemId) ? initialDraft.contextItemId : "" }));
+  const [question, setQuestion] = useState(() => typeof initialDraft?.question === "string" && initialDraft.question.length <= 2000 ? initialDraft.question : "");
   const [attested, setAttested] = useState<PrivateTextAttestation[]>([]);
   const [requestId, setRequestId] = useState<string | null>(() => savedRequest(replicaId));
   const [result, setResult] = useState<PrivateTextResult | null>(null);
@@ -66,6 +105,9 @@ function PrivateTextSession({ token, replicaId, onBack, onEditContext, onAuthErr
   const [editor, setEditor] = useState<PrivateDraftBody | null>(null);
   const [editorBase, setEditorBase] = useState<PrivateDraftBody | null>(null);
   const [editorFromPublished, setEditorFromPublished] = useState(false);
+  const actionFocus = useActionFocus();
+  const materialHeading = useRef<HTMLHeadingElement>(null);
+  const resultHeading = useRef<HTMLHeadingElement>(null);
   const operation = useRef(0);
   const readOperation = useRef(0);
   const lock = useRef(false);
@@ -115,19 +157,25 @@ function PrivateTextSession({ token, replicaId, onBack, onEditContext, onAuthErr
     catch (cause) { if (current()) handleError(cause, cause instanceof Error ? cause.message : "This action could not be confirmed."); }
     finally { if (current()) { lock.current = false; setBusy(""); } }
   }
-  async function ask() {
-    if (!canAsk || !selected) return;
+  async function ask(trigger: HTMLFormElement) {
+    if (!canAsk || !selected || lock.current) return;
+    const focus = actionFocus(trigger);
+    let focusQueued = false;
     await act("ask", async (signal, current) => {
       const id = crypto.randomUUID();
       persistRequest(replicaId, id); setRequestId(id); setAttested([]);
       try {
         const next = await askPrivateText(token, { replica_id: replicaId, request_id: id, sheet_id: selected.sheet_id,
           context_item_id: selected.context_item_id, expected_snapshot_hash: selected.snapshot_hash, question }, signal);
-        if (current()) setResult(next);
+        if (current()) {
+          if (next.state === "complete") { focus.finish(() => resultHeading.current); focusQueued = true; }
+          setResult(next);
+        }
       } catch (cause) {
         if (current()) handleError(cause, "We could not confirm the answer. This request may have started. Check its saved result; no question will be sent again automatically.");
       }
     });
+    if (!focusQueued) focus.cancel();
   }
   async function checkResult() {
     if (!requestId) return;
@@ -162,12 +210,15 @@ function PrivateTextSession({ token, replicaId, onBack, onEditContext, onAuthErr
       setEditorBase(view.draft || {}); setEditor(view.draft || {}); setAttested([]);
     });
   }
-  async function saveDraft() {
-    if (!editor || !editorBase) return;
+  async function saveDraft(trigger: HTMLFormElement) {
+    if (!editor || !editorBase || lock.current) return;
+    const focus = actionFocus(trigger);
+    let focusQueued = false;
     await act("save", async (signal, current) => {
       const saved = await savePrivateRehearsalDraft(token, replicaId, { ...editorBase, ...editor }, signal);
-      if (current()) { setEditor(null); setEditorBase(null); setSelection(value => ({ ...value, sheetId: saved.sheet_id! })); setReadiness(null); setRefresh(value => value + 1); }
+      if (current()) { focus.finish(() => materialHeading.current); focusQueued = true; setEditor(null); setEditorBase(null); setSelection(value => ({ ...value, sheetId: saved.sheet_id! })); setReadiness(null); setRefresh(value => value + 1); }
     });
+    if (!focusQueued) focus.cancel();
   }
   function newQuestion() {
     if (busy) return;
@@ -181,7 +232,7 @@ function PrivateTextSession({ token, replicaId, onBack, onEditContext, onAuthErr
       <header className="ptr-heading"><h1 id="ptr-title">Test your private draft.</h1><p>Review your teaching draft and one extracted source. This produces a private AI text answer.</p></header>
       {error ? <p className="ptr-message" role="alert">{error}</p> : null}
       {requestId ? <section className="ptr-result" aria-label="Saved private test">
-        <h2>{erased || result?.state === "withdrawn" ? "Private test removed." : result?.state === "complete" ? "Your private text answer" : "Check your private request."}</h2>
+        <h2 ref={resultHeading} tabIndex={-1}>{erased || result?.state === "withdrawn" ? "Private test removed." : result?.state === "complete" ? "Your private text answer" : "Check your private request."}</h2>
         {!erased && result?.state === "complete" ? <><p className="ptr-answer">{result.answer}</p><p className="ptr-source">Source: {readiness?.context_items.find(item => item.item_id === result.source.context_item_id)?.source_name || "Selected private source"}. Teaching draft: {readiness?.drafts.find(item => item.sheet_id === result.source.sheet_id)?.name || "Selected private draft"}.</p></> : erased || result?.state === "withdrawn" ? <p>This request is closed. Any saved question and answer have been removed.</p> : <p>{result?.state === "blocked" ? "This answer is unavailable under the current draft or source permissions." : "An answer is not confirmed yet. Checking the saved result does not send another question."}</p>}
         {!erased && (result?.state === "complete" || result?.state === "blocked" && result.can_review_teaching === true) && result.billing_state === "settled" ? <PrivateTeachingRefinement recoveryOnly={result.state !== "complete"} token={token} replicaId={replicaId} requestId={result.request_id} sheetId={result.source.sheet_id} disabled={Boolean(busy)} onOpenChange={setRefinementOpen} onAuthError={onAuthErrorRef.current} onNextQuestion={newQuestion} onDraftChanged={view => {
           readOperation.current++; setReadiness(null); setAttested([]);
@@ -192,15 +243,15 @@ function PrivateTextSession({ token, replicaId, onBack, onEditContext, onAuthErr
         <div className="ptr-actions">{!erased && result?.state !== "withdrawn" ? <><button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void checkResult()}>{busy === "read" ? "Checking result" : "Check saved result"}</button><button type="button" disabled={Boolean(busy) || refinementOpen} onClick={() => void removeTest()}>{busy === "withdraw" ? "Closing private request" : notFound ? "Cancel this request" : "Remove this private test"}</button></> : null}{canStartAnother && !refinementOpen ? <button type="button" disabled={Boolean(busy) || refinementOpen} onClick={newQuestion}>Prepare another question</button> : null}</div>
       </section> : <>
         <section className="ptr-material" aria-label="Selected material">
-          <div className="ptr-section-heading"><h2>Choose what the answer uses.</h2><button type="button" disabled={Boolean(busy)} onClick={() => { setError(""); setRefresh(value => value + 1); }}>Refresh availability</button></div>
+          <div className="ptr-section-heading"><h2 ref={materialHeading} tabIndex={-1}>Choose what the answer uses.</h2><button type="button" disabled={Boolean(busy)} onClick={() => { setError(""); setRefresh(value => value + 1); }}>Refresh availability</button></div>
           {loading ? <p role="status">Checking saved draft and source</p> : null}
           <div className="ptr-fields"><label>Teaching draft<select value={selection.sheetId || selected?.sheet_id || ""} disabled={Boolean(busy)} onChange={event => changeSelection({ ...selection, sheetId: event.target.value })}><option value="">Choose a saved draft</option>{readiness?.drafts.map(draft => <option key={draft.sheet_id} value={draft.sheet_id}>{draft.name || "Unnamed draft"}</option>)}</select></label><label>Extracted source<select value={selection.contextItemId || selected?.context_item_id || ""} disabled={Boolean(busy)} onChange={event => changeSelection({ ...selection, contextItemId: event.target.value })}><option value="">Choose a saved text source</option>{readiness?.context_items.map(item => <option key={item.item_id} value={item.item_id} disabled={!item.eligible}>{item.source_name}{item.eligible ? "" : " (unavailable)"}</option>)}</select></label></div>
           {readiness?.blockers.length ? <ul className="ptr-blockers">{readiness.blockers.map((blocker, index) => <li key={`${blocker.code}:${index}`}><strong>{blocker.responsibility === "platform" ? "Waiting on us: " : "Needs your input: "}</strong>{blocker.field ? `${blocker.field}: ` : ""}{blocker.code.replaceAll("_", " ")}</li>)}</ul> : null}
-          <div className="ptr-actions"><button type="button" disabled={Boolean(busy)} onClick={() => void editDraft()}>{busy === "edit" ? "Reading draft" : readiness?.drafts.length ? "Edit draft details" : "Create a private draft"}</button><button type="button" disabled={Boolean(busy)} onClick={onEditContext}>Add or edit source material</button></div>
-          {editor ? <form className="ptr-editor" onSubmit={event => { event.preventDefault(); void saveDraft(); }}><h3>{editorFromPublished ? "Create a private draft from this sheet" : "Private draft details"}</h3>{editorFromPublished ? <p>Saving creates a private draft for testing. It does not publish your changes.</p> : null}<label>Your name<input value={String(editor.name || "")} maxLength={200} onChange={event => setEditor({ ...editor, name: event.target.value })} /></label><label>Who you are<textarea value={String(editor.identityWho || "")} maxLength={2000} rows={3} onChange={event => setEditor({ ...editor, identityWho: event.target.value })} /></label><label>Subject<select name="subjectDomain" aria-label="Subject" value={String(editor.subjectDomain || "")} onChange={event => setEditor({ ...editor, subjectDomain: event.target.value as PrivateDraftBody["subjectDomain"] })}><option value="">Choose a subject</option><option value="physics">Physics</option><option value="chemistry">Chemistry</option><option value="maths">Maths</option></select></label><p>You can save an incomplete draft. These three fields are required to ask a private question.</p><div className="ptr-actions"><button type="submit" disabled={Boolean(busy)}>{busy === "save" ? "Saving draft" : "Save private draft"}</button><button type="button" disabled={Boolean(busy)} onClick={() => setEditor(null)}>Cancel edit</button></div></form> : null}
+          <div className="ptr-actions"><button type="button" disabled={Boolean(busy)} onClick={() => void editDraft()}>{busy === "edit" ? "Reading draft" : readiness?.drafts.length ? "Edit draft details" : "Create a private draft"}</button><button type="button" disabled={Boolean(busy)} onClick={() => onEditContext({ question, sheetId: selection.sheetId || selected?.sheet_id || "", contextItemId: selection.contextItemId || selected?.context_item_id || "" })}>Add or edit source material</button></div>
+          {editor ? <form className="ptr-editor" onSubmit={event => { event.preventDefault(); void saveDraft(event.currentTarget); }}><h3>{editorFromPublished ? "Create a private draft from this sheet" : "Private draft details"}</h3>{editorFromPublished ? <p>Saving creates a private draft for testing. It does not publish your changes.</p> : null}<label>Your name<input value={String(editor.name || "")} maxLength={200} onChange={event => setEditor({ ...editor, name: event.target.value })} /></label><label>Who you are<textarea value={String(editor.identityWho || "")} maxLength={2000} rows={3} onChange={event => setEditor({ ...editor, identityWho: event.target.value })} /></label><label>Subject<select name="subjectDomain" aria-label="Subject" value={String(editor.subjectDomain || "")} onChange={event => setEditor({ ...editor, subjectDomain: event.target.value as PrivateDraftBody["subjectDomain"] })}><option value="">Choose a subject</option><option value="physics">Physics</option><option value="chemistry">Chemistry</option><option value="maths">Maths</option></select></label><p>You can save an incomplete draft. These three fields are required to ask a private question.</p><div className="ptr-actions"><button type="submit" disabled={Boolean(busy)}>{busy === "save" ? "Saving draft" : "Save private draft"}</button><button type="button" disabled={Boolean(busy)} onClick={() => setEditor(null)}>Cancel edit</button></div></form> : null}
           {selected && !editor ? <div className="ptr-review"><div><h3>{selected.material.draft.name}</h3><p>{selected.material.draft.identityWho}</p><p>Subject: {selected.material.draft.subjectDomain}</p></div><details open><summary>Review source: {selected.material.context.source_name}</summary><p className="ptr-source-body">{selected.material.context.body}</p></details></div> : null}
         </section>
-        <form className="ptr-question" onSubmit={event => { event.preventDefault(); void ask(); }}>
+        <form className="ptr-question" onSubmit={event => { event.preventDefault(); void ask(event.currentTarget); }}>
           <label htmlFor="ptr-question">Your question<textarea id="ptr-question" rows={4} value={question} maxLength={2000} disabled={Boolean(busy)} onChange={event => { setQuestion(event.target.value); setAttested([]); }} /></label><p className="ptr-count">{question.length} / 2000 characters</p>
           <fieldset disabled={!ready || Boolean(busy)}><legend>For this question and selected material</legend>{readiness?.statements.map(statement => <label className="ptr-attestation" key={statement.id}><input type="checkbox" checked={attested.includes(statement.id)} onChange={event => setAttested(value => event.target.checked ? [...value, statement.id] : value.filter(id => id !== statement.id))} /><span>{statement.text}</span></label>)}</fieldset>
           <p className="ptr-retention">Permission lasts 30 days. Saved tests stay until you remove them.</p>

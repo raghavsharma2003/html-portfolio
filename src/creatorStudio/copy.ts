@@ -1264,6 +1264,7 @@ interface TeacherSheetStudioCopy {
   boundariesNote: string;
   identityLifeLabel: string;
   mentorBoundaryLabel: string;
+  draftDetailsLabel: string;
   ingestedTitleDraft: string;
   ingestedTitleEmpty: string;
   ingestedNoteDraft: string;
@@ -1280,6 +1281,10 @@ interface TeacherSheetStudioCopy {
   publishNote: string;
   saved: string;
   savedLocalOnly: string;
+  loadKeptNewerEdits: string;
+  savedEarlierEdits: string;
+  saveUnconfirmed: string;
+  loadingSavedDraft: string;
   saving: string;
   save: string;
 }
@@ -3337,7 +3342,7 @@ const EN: StudioCopy = {
     intro: "Only what you have to decide is editable here. What we drafted from your uploads is read only, and you correct it in the claims step.",
     loadSavedDraft: "Load saved draft",
     provenanceSeedNotice: "Nothing is saved for your AI yet. The fields below are blank or set to a middle default, and they carry your name because we will never show you somebody else's. Save when you are ready.",
-    serviceUnavailableNotice: "The sheet service did not answer. Anything you type stays in this browser and is not saved to your account.",
+    serviceUnavailableNotice: "The saved draft could not be loaded. Your current edits remain here.",
     subjectCardTitle: "Subject & syllabus coverage",
     subjectLabel: "Subject your AI answers in",
     subjectPhysics: "Physics",
@@ -3370,6 +3375,7 @@ const EN: StudioCopy = {
     boundariesNote: "identityLife is yours to write and is never ingested. A teacher's private life is not consented material for your AI even when it appears in your own uploaded videos.",
     identityLifeLabel: "Teaching life, in one breath",
     mentorBoundaryLabel: "Mentor boundary - not editable here",
+    draftDetailsLabel: "Draft details (read only)",
     ingestedTitleDraft: "Drafted from your uploads",
     ingestedTitleEmpty: "Nothing drafted yet",
     ingestedNoteDraft: "Read only here. Review or correct each one in the claims step.",
@@ -3385,6 +3391,10 @@ const EN: StudioCopy = {
     commonMistakeBankSummary: "{n} rows, strand-scoped",
     publishNote: "Saving here never publishes your AI. Publish runs the full floor and consent gate separately.",
     saved: "Sheet draft saved.",
+    loadKeptNewerEdits: "Your newer edits were kept. The saved draft was not loaded.",
+    savedEarlierEdits: "Earlier edits saved. Your newer edits still need saving.",
+    saveUnconfirmed: "Saving could not be confirmed. Your edits remain here. Load the saved draft to check.",
+    loadingSavedDraft: "Loading saved draft...",
     savedLocalOnly: "Not saved to your account. The sheet service did not answer, so this draft is still only in this browser.",
     saving: "Saving...",
     save: "Save sheet draft",

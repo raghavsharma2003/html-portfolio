@@ -8,15 +8,17 @@ import {fileURLToPath} from 'node:url';
 import {createServer} from 'node:http';
 import {build} from 'vite';
 import {chromium} from 'playwright';
+import {checkDisclosures} from './disclosures.mjs';
 import {INVALID_DRAFT_CASES} from '../private-draft-invalid-display.mjs';
 const root=fileURLToPath(new URL('../../',import.meta.url)),art=join(root,'scratchpad/private-draft-editor',String(Date.now()));mkdirSync(art,{recursive:true});
 const rid='10000000-0000-4000-8000-000000000001';
 const minimal={name:'Anjali',identityWho:'Physics teacher',subjectDomain:'physics'};
-let raw={...minimal},posts=[],gets=[],browser,server;const checks=[],errors=[];
+let raw={...minimal},posts=[],gets=[],browser,server;const checks=[],errors=[],measurements=[];
 const old=Object.fromEntries(['creatorStudio','studio'].map(l=>[l,execFileSync('git',['show',`c56cadfe:src/${l}/TeacherSheetStudio.tsx`],{cwd:root,encoding:'utf8'})]));
+const densityOld=Object.fromEntries(['creatorStudio','studio'].map(l=>[l,execFileSync('git',['show',`3db85f82:src/${l}/TeacherSheetStudio.tsx`],{cwd:root,encoding:'utf8'})]));
 const check=n=>{checks.push(n);console.log('PASS '+n);};
 try{
- const built=await build({root,configFile:false,logLevel:'silent',build:{write:false,minify:true,rolldownOptions:{input:join(root,'evals/private-draft-editor/host.html')}},plugins:[{name:'exact-old-editor',resolveId(id){if(id==='virtual:old-creator')return '\0old-creator.tsx';if(id==='virtual:old-studio')return '\0old-studio.tsx';},load(id){const lane=id==='\0old-creator.tsx'?'creatorStudio':id==='\0old-studio.tsx'?'studio':null;if(lane)return old[lane].replace(/(from\s*|import\s*|import\()(["'])(\.\.?\/[^"']+)\2/g,(_,p,q,r)=>p+q+resolve(root,'src',lane,r).replaceAll('\\','/')+q);}}]});
+ const built=await build({root,configFile:false,logLevel:'silent',build:{write:false,minify:true,rolldownOptions:{input:join(root,'evals/private-draft-editor/host.html')}},plugins:[{name:'exact-old-editor',resolveId(id){if(id==='virtual:density-old-creator')return '\0density-old-creator.tsx';if(id==='virtual:density-old-studio')return '\0density-old-studio.tsx';if(id==='virtual:old-creator')return '\0old-creator.tsx';if(id==='virtual:old-studio')return '\0old-studio.tsx';},load(id){if(id==='\0density-old-creator.tsx'||id==='\0density-old-studio.tsx'){const lane=id==='\0density-old-creator.tsx'?'creatorStudio':'studio';return densityOld[lane].replace(/(from\s*|import\s*|import\()(["'])(\.\.?\/[^"']+)\2/g,(_,p,q,r)=>p+q+resolve(root,'src',lane,r).replaceAll('\\','/')+q);}const lane=id==='\0old-creator.tsx'?'creatorStudio':id==='\0old-studio.tsx'?'studio':null;if(lane)return old[lane].replace(/(from\s*|import\s*|import\()(["'])(\.\.?\/[^"']+)\2/g,(_,p,q,r)=>p+q+resolve(root,'src',lane,r).replaceAll('\\','/')+q);}}]});
  const assets=new Map(built.output.map(x=>['/'+x.fileName,x.type==='chunk'?x.code:x.source]));
  server=createServer(async(req,res)=>{const url=new URL(req.url,'http://fixture');const send=(code,data)=>{res.writeHead(code,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(data));};
   if(url.pathname==='/api/teacher-sheet'){
@@ -31,6 +33,8 @@ try{
  for(const width of [390,1440]){
   const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>r.request().url().startsWith(origin)?r.continue():r.abort());
   const open=async(suffix,draft=minimal)=>{posts=[];gets=[];raw=structuredClone(draft);await page.goto(origin+'/evals/private-draft-editor/host.html'+suffix);await page.getByRole('button',{name:'Meet it',exact:true}).click();};
+  if(!process.argv.includes('--invalid-only'))await checkDisclosures({page,width,open,posts:()=>posts,gets:()=>gets,art,check,measurements});
+  if(process.argv.includes('--disclosures-only')){await context.close();continue;}
   for(const lane of ['creator','studio']){
    const suffix=lane==='studio'?'&studio=1':'';
    for(const [label,change]of INVALID_DRAFT_CASES){
@@ -62,5 +66,5 @@ try{
   if(!process.argv.includes('--invalid-only')){await open('?hi=1');await page.locator('#teacher-sheet-studio').waitFor();assert.equal(await page.locator('#strictness option:checked').innerText(),'अभी तय नहीं');assert.equal(await page.locator('#warmth option:checked').innerText(),'अभी तय नहीं');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:join(art,`${width}-hindi.png`)});check(`${width}: Hindi unset controls and responsive fit`);}
   await context.close();
  }
- assert.deepEqual(errors,[]);writeFileSync(join(art,'result.json'),JSON.stringify({at:new Date().toISOString(),checks,errors,scope:'Actual mounted editor/API wrappers, exact old source negative, synthetic HTTP. No full-shell, SQL or model acceptance.'},null,2));console.log(`${checks.length} groups passed; ${art}`);
+ assert.deepEqual(errors,[]);writeFileSync(join(art,'result.json'),JSON.stringify({at:new Date().toISOString(),checks,errors,measurements,scope:'Actual mounted editor/API wrappers, exact old source negative, synthetic HTTP. No full-shell, SQL or model acceptance.'},null,2));console.log(`${checks.length} groups passed; ${art}`);
 }catch(e){writeFileSync(join(art,'failure.json'),JSON.stringify({checks,errors,error:String(e.stack||e)},null,2));throw e;}finally{await browser?.close();server?.closeAllConnections();if(server)await new Promise(r=>server.close(r));}

@@ -35,7 +35,7 @@
 // know renders the CODE. IngestChannelStudio.tsx makes the same choice for the
 // same reason: a list that quietly drops the one row it did not recognise is
 // how a person learns nothing from the screen that exists to tell them.
-import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState } from "react";
 import { ReplicaApiError } from "./replicaApi";
 import {
   addContextFiles,
@@ -52,6 +52,43 @@ import type {
   ContextSpeaker,
 } from "./contextLockerApi";
 const ContextProposalReview = lazy(() => import("./ContextProposalReview"));
+
+// An explicit action may replace its focused control. Recover only that lost
+// focus; later input/focus movement permanently cancels this one-shot intent.
+function useActionFocus() {
+  type Intent = { origin: HTMLElement; target?: () => HTMLElement | null; dispose: () => void };
+  const pending = useRef<Intent | null>(null);
+  const cancel = () => { pending.current?.dispose(); pending.current = null; };
+  useEffect(() => cancel, []);
+  useLayoutEffect(() => {
+    const intent = pending.current;
+    if (!intent?.target) return;
+    cancel();
+    if (document.activeElement === document.body && (!intent.origin.isConnected || intent.origin.matches(":disabled"))) {
+      const target = intent.target();
+      if (target?.isConnected) target.focus();
+    }
+  });
+  return (container: HTMLElement) => {
+    cancel();
+    const origin = document.activeElement;
+    if (!(origin instanceof HTMLElement) || !container.contains(origin)) return { finish: (_target: () => HTMLElement | null) => {}, cancel: () => {} };
+    const moved = () => cancel();
+    const focused = (event: FocusEvent) => { if (event.target !== origin && event.target !== document.body) cancel(); };
+    const intent: Intent = { origin, dispose: () => {
+      document.removeEventListener("pointerdown", moved, true);
+      document.removeEventListener("keydown", moved, true);
+      document.removeEventListener("input", moved, true);
+      document.removeEventListener("focusin", focused, true);
+    } };
+    pending.current = intent;
+    document.addEventListener("pointerdown", moved, true);
+    document.addEventListener("keydown", moved, true);
+    document.addEventListener("input", moved, true);
+    document.addEventListener("focusin", focused, true);
+    return { finish: (target: () => HTMLElement | null) => { if (pending.current === intent) intent.target = target; }, cancel: () => { if (pending.current === intent) cancel(); } };
+  };
+}
 
 const REASON_COPY: Record<string, string> = {
   // refusals — files
@@ -146,6 +183,8 @@ type ContextLockerPanelProps = {
   onAuthError?: (error: ReplicaApiError) => void;
   onProposals?: (count: number) => void;
   onItemCount?: (count: number) => void;
+  onTestSource?: (source: { replicaId: string; itemId: string }) => void;
+  testSourceLabel?: string;
 };
 
 export default function ContextLockerPanel(props: ContextLockerPanelProps) {
@@ -165,6 +204,8 @@ function ContextLockerScope({
   onAuthError,
   onProposals,
   onItemCount,
+  onTestSource,
+  testSourceLabel = "Test this source",
 }: {
   token: string;
   replicaId: string;
@@ -180,6 +221,8 @@ function ContextLockerScope({
    *  panel is the only thing that asks the server. Reporting it up is cheaper
    *  and more honest than a second fetch that could disagree with this one. */
   onItemCount?: (count: number) => void;
+  onTestSource?: (source: { replicaId: string; itemId: string }) => void;
+  testSourceLabel?: string;
 }) {
   const [view, setView] = useState<ContextLockerView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -192,6 +235,7 @@ function ContextLockerScope({
   const mounted = useRef(false);
   const loadGeneration = useRef(0);
   const reminePending = useRef(false);
+  const actionFocus = useActionFocus();
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; loadGeneration.current += 1; };
@@ -244,6 +288,7 @@ function ContextLockerScope({
       setView(next);
       onItemCount?.(next.items.length);
       setError("");
+      return true;
     } catch (e) {
       if (mounted.current && generation === loadGeneration.current) fail(e);
     } finally {
@@ -303,8 +348,10 @@ function ContextLockerScope({
   }, [token, replicaId, links, load, fail]);
 
   const remine = useCallback(
-    async (itemId: string, options: { authorship?: "mine" | "not_mine"; owner_speaker?: string }) => {
+    async (itemId: string, options: { authorship?: "mine" | "not_mine"; owner_speaker?: string }, trigger?: HTMLButtonElement) => {
       if (!mounted.current || reminePending.current || busy) return;
+      const focus = trigger ? actionFocus(trigger) : null;
+      let focusQueued = false;
       reminePending.current = true;
       setBusy(true);
       setError("");
@@ -318,10 +365,14 @@ function ContextLockerScope({
             ? { ...row, item: result.item ?? row.item, proposed: result.proposal?.proposed }
             : row)),
         );
-        await load();
+        if (await load() && mounted.current) {
+          focus?.finish(() => Array.from(lockerHeading.current?.parentElement?.querySelectorAll<HTMLButtonElement>("[data-test-source]") || []).find(button => button.dataset.testSource === itemId && !button.disabled) || lockerHeading.current);
+          focusQueued = true;
+        }
       } catch (e) {
         if (mounted.current) fail(e);
       } finally {
+        if (!focusQueued) focus?.cancel();
         reminePending.current = false;
         if (mounted.current) setBusy(false);
       }
@@ -336,10 +387,10 @@ function ContextLockerScope({
       <span className="context-result-actions" role="group" aria-label="Writing attribution">
         <button type="button" className="button" disabled={busy || item.authorship === "mine"}
           aria-pressed={item.authorship === "mine"}
-          onClick={() => void remine(item.item_id, { authorship: "mine" })}>My writing</button>
+          onClick={event => void remine(item.item_id, { authorship: "mine" }, event.currentTarget)}>My writing</button>
         <button type="button" className="button" disabled={busy || item.authorship === "not_mine"}
           aria-pressed={item.authorship === "not_mine"}
-          onClick={() => void remine(item.item_id, { authorship: "not_mine" })}>Reference only</button>
+          onClick={event => void remine(item.item_id, { authorship: "not_mine" }, event.currentTarget)}>Reference only</button>
       </span>
     ) : null;
 
@@ -495,6 +546,12 @@ function ContextLockerScope({
               <span className="field-note">{stateDetail({ key: item.item_id, item, label: "" })}</span>
               {attributionControls(item)}
               <span className="context-result-actions">
+                {onTestSource && item.kind === "file" && ["extracted", "mined"].includes(item.status) && item.extracted_chars > 0
+                  && item.consent_scope === "own_context" && item.authorship === "mine"
+                  && ["text", "markdown", "pdf", "docx"].includes(item.format) ?
+                  <button type="button" className="button" data-test-source={item.item_id} disabled={busy || loading} onClick={() => {
+                    if (mounted.current && !busy && !loading) onTestSource({ replicaId, itemId: item.item_id });
+                  }}>{testSourceLabel}</button> : null}
                 {reviewButton(item)}
                 <button
                   type="button"

@@ -14277,6 +14277,378 @@
       "kind": "measurement",
       "title": "Final merged checkpoint24 source checks passed",
       "at": "2026-09-07"
+    },
+    {
+      "id": "feed-meet-ephemeral-source-return-20260907",
+      "kind": "decision",
+      "title": "Restore an unsent private question through an explicit source return",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "feed-meet-return-mounted10-callback12-20260907",
+      "kind": "measurement",
+      "title": "Ten final mounted and twelve exact callback controls",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "feed-meet-indirect-return-loses-question-20260907",
+      "kind": "rejection",
+      "title": "Indirect source return discards the question and selections",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "native-feed24-accept-bounded-real-path-20260907",
+      "kind": "decision",
+      "title": "Accept measured Feed upload and deletion path",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "native-feed24-real-readiness-and-erasure-20260907",
+      "kind": "measurement",
+      "title": "Actual Feed24 and scoped erasure passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "checkpoint24-real-readonly-relational-gates-20260907",
+      "kind": "measurement",
+      "title": "Actual development relational gates passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "source-erasure-is-not-global-cleanup-20260907",
+      "kind": "rejection",
+      "title": "Do not conflate new success and older pending fixtures",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "locale-scan-uses-tsx-syntax-20260907",
+      "kind": "decision",
+      "title": "Use installed TSX parser for visible prose",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release24-completed-locale-scanner-failure-20260907",
+      "kind": "measurement",
+      "title": "Frozen release24 finished23 of24",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "locale-tsx-parser16-full94-20260907",
+      "kind": "measurement",
+      "title": "Corrected locale scan and negative controls passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "regex-generic-prose-and-code-exemption-20260907",
+      "kind": "rejection",
+      "title": "Regex cannot distinguish type arguments and prose",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "feed-mined-state-keeps-source-test-20260907",
+      "kind": "decision",
+      "title": "Processed source remains testable",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "feed-mined-root-react15-20260907",
+      "kind": "measurement",
+      "title": "Actual mined-state CTA controls passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "extracted-only-cta-misses-real-mined-file-20260907",
+      "kind": "rejection",
+      "title": "Successful upload loses CTA under extracted-only check",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "teacher-sheet-native-disclosures-preserve-editing-20260907",
+      "kind": "decision",
+      "title": "Save editable teaching choices before optional read-only details",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "teacher-sheet-disclosures-native17-20260907",
+      "kind": "measurement",
+      "title": "Seventeen native React and private draft controls pass",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "teacher-sheet-readonly-before-save-density-rejected-20260907",
+      "kind": "rejection",
+      "title": "Always-expanded read-only material delays the draft save action",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "teacher-sheet-disclosures-mounted18-20260907",
+      "kind": "measurement",
+      "title": "Eighteen mounted disclosure controls preserve content and move Save earlier",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert25-holds-editor-race-before-freeze-20260907",
+      "kind": "decision",
+      "title": "Preserve newer edits before checkpoint25 freeze",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "combined25-disclosures17-types-and-mined13-20260907",
+      "kind": "measurement",
+      "title": "Merged25 focused controls and independent review",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "saved-load-and-save-not-bound-to-local-edit-20260907",
+      "kind": "rejection",
+      "title": "Incumbent asynchronous editor completions misrepresent local state",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert26-default-entry-resolves-authority-first-20260907",
+      "kind": "decision",
+      "title": "Guide first use through resolved workspace and Feed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "default-studio-first-use-source-audit-20260907",
+      "kind": "measurement",
+      "title": "Actual default entry differs from existing fixtures",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "seeded-entry-does-not-prove-new-owner-flow-20260907",
+      "kind": "rejection",
+      "title": "Seeded enrolling fixtures hide first-use read races",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "native-feed-answer-one-call-commitment-20260907",
+      "kind": "decision",
+      "title": "Test actual uploaded evidence through one Azure answer",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "native-feed-answer-offline20-root-20260907",
+      "kind": "measurement",
+      "title": "Root verified frozen native composite controls",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "separate-feed-and-seeded-answer-not-connected-proof-20260907",
+      "kind": "rejection",
+      "title": "Separate successful paths do not prove their connection",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "native-upload-answer-one-call-hinglish-20260907",
+      "kind": "measurement",
+      "title": "Actual uploaded source yielded correct Hinglish answer",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "native-answer-cleanup-exact-sql-only-20260907",
+      "kind": "decision",
+      "title": "Resume only exact source completion after harness refusal",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "new-private-write-guard-blocks-existing-erasure-sql-20260907",
+      "kind": "rejection",
+      "title": "New test guard blocked production completion before forwarding",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "teacher-sheet-explicit-edit-wins-20260907",
+      "kind": "decision",
+      "title": "Fence saved loads by explicit edit revision",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "teacher-sheet-edit-races-mounted54-20260907",
+      "kind": "measurement",
+      "title": "Actual editors pass 54 mounted race groups",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "teacher-sheet-delayed-load-overwrites-newer-20260907",
+      "kind": "rejection",
+      "title": "Reject blind replacement and generic save confirmation",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "native-answer-cleanup-complete98-20260907",
+      "kind": "measurement",
+      "title": "Exact native answer fixture cleanup completed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "native-answer-cleanup-result-remains-separate-20260907",
+      "kind": "decision",
+      "title": "Keep continuation evidence separate from original failed run",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "cleanup-resume-is-not-paid-experiment-rerun-20260907",
+      "kind": "rejection",
+      "title": "No new paid call needed to finish cleanup",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "first-use-read-state-and-receipt-revisions-20260907",
+      "kind": "decision",
+      "title": "Resolve reads before first-use agreement; retain actual mutation receipts",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "first-use26-source-contracts-before-mounted-20260907",
+      "kind": "measurement",
+      "title": "First-use source contracts and incumbent offline controls passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "first-use-unknown-is-not-empty-and-old-read-is-not-receipt-20260907",
+      "kind": "rejection",
+      "title": "Do not use unresolved list or older consent read as permission evidence",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "default-studio-first-use-mounted18-source18-20260907",
+      "kind": "measurement",
+      "title": "Default Studio source-to-private-answer mounted18 and scoped native18 passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "feed23-expired-writer-cleanup98-20260907",
+      "kind": "measurement",
+      "title": "Original failed upload cleanup completed after real expiry",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "consolidate-first-use-and-editing25-20260907",
+      "kind": "decision",
+      "title": "One reviewed combined creator checkpoint",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expired-writer-cleanup-needs-no-lease-bypass-20260907",
+      "kind": "rejection",
+      "title": "Preserve actual writer fence and failed upload history",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "explicit-action-focus-continuity-20260907",
+      "kind": "decision",
+      "title": "Recover only focus lost by explicit async actions",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "explicit-action-focus-mounted58-20260907",
+      "kind": "measurement",
+      "title": "58 actual mounted action focus controls",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "body-focus-after-action-replacement-20260907",
+      "kind": "rejection",
+      "title": "Reject lost focus and unconditional completion autofocus",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "combined25-aborted-body-is-release-blocker-20260908",
+      "kind": "decision",
+      "title": "Repair the actual aborted-body transport before release",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "combined25-focus58-source-review-20260908",
+      "kind": "measurement",
+      "title": "Explicit action focus independently reviewed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "abort-json-empty-success-crashes-activity-20260908",
+      "kind": "rejection",
+      "title": "Aborted body must not become a plausible empty payload",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "protected-pack-preparation-before-next-voice-spend-20260908",
+      "kind": "decision",
+      "title": "Prepare matched voice comparisons without inventing readiness",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "voice-corpus60-and-caller-audit-20260908",
+      "kind": "measurement",
+      "title": "Sixty candidate prompts and a missing benchmark input path",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "generic-voice-cells-cannot-borrow-reference-20260908",
+      "kind": "rejection",
+      "title": "Do not merge different speakers by common text",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "replica-body-abort-is-not-empty-success-20260908",
+      "kind": "decision",
+      "title": "Preserve cancellation and malformed success as transport failures",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "replica-body-abort-native15-20260908",
+      "kind": "measurement",
+      "title": "Fifteen actual transport controls pass",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "replica-json-catch-empty-hides-abort-20260908",
+      "kind": "rejection",
+      "title": "Empty fallback hides cancelled successful response",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "first-use-refresh-settles-only-owned-status-20260908",
+      "kind": "decision",
+      "title": "Pending refresh settles owned status without adopting stale payload",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "first-use-pending-refresh-native24-20260908",
+      "kind": "measurement",
+      "title": "Exact deferred-operation native24 and incumbent18 passed",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "token-equality-cannot-own-busy-cleanup-20260908",
+      "kind": "rejection",
+      "title": "Refusing an old token response cannot strand its loading state",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "first-use-pending-refresh-mounted12-overlap4-20260908",
+      "kind": "measurement",
+      "title": "Pending refresh mounted12 and actual Activity abort overlap4 passed",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "freeze25-after-real-refresh-crash-repair-20260908",
+      "kind": "decision",
+      "title": "Freeze combined source only after both refresh failures are closed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "combined25-final-merges-before-preflight-20260908",
+      "kind": "measurement",
+      "title": "Final candidate source merged with original failure controls",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "focused-passes-cannot-substitute-combined25-release-20260908",
+      "kind": "rejection",
+      "title": "Keep scope of focused proof and upcoming release distinct",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -26172,6 +26544,81 @@
       "src": "publication-review-invalidates-on-saved-load-20260907",
       "rel": "caused_by",
       "dst": "publication-same-json-load-is-not-same-authority-20260907"
+    },
+    {
+      "src": "teacher-sheet-native-disclosures-preserve-editing-20260907",
+      "rel": "measured_by",
+      "dst": "teacher-sheet-disclosures-native17-20260907"
+    },
+    {
+      "src": "teacher-sheet-native-disclosures-preserve-editing-20260907",
+      "rel": "caused_by",
+      "dst": "teacher-sheet-readonly-before-save-density-rejected-20260907"
+    },
+    {
+      "src": "teacher-sheet-native-disclosures-preserve-editing-20260907",
+      "rel": "measured_by",
+      "dst": "teacher-sheet-disclosures-mounted18-20260907"
+    },
+    {
+      "src": "teacher-sheet-explicit-edit-wins-20260907",
+      "rel": "measured_by",
+      "dst": "teacher-sheet-edit-races-mounted54-20260907"
+    },
+    {
+      "src": "teacher-sheet-explicit-edit-wins-20260907",
+      "rel": "caused_by",
+      "dst": "teacher-sheet-delayed-load-overwrites-newer-20260907"
+    },
+    {
+      "src": "first-use-read-state-and-receipt-revisions-20260907",
+      "rel": "measured_by",
+      "dst": "first-use26-source-contracts-before-mounted-20260907"
+    },
+    {
+      "src": "first-use-read-state-and-receipt-revisions-20260907",
+      "rel": "caused_by",
+      "dst": "first-use-unknown-is-not-empty-and-old-read-is-not-receipt-20260907"
+    },
+    {
+      "src": "first-use-read-state-and-receipt-revisions-20260907",
+      "rel": "measured_by",
+      "dst": "default-studio-first-use-mounted18-source18-20260907"
+    },
+    {
+      "src": "explicit-action-focus-continuity-20260907",
+      "rel": "measured_by",
+      "dst": "explicit-action-focus-mounted58-20260907"
+    },
+    {
+      "src": "explicit-action-focus-continuity-20260907",
+      "rel": "caused_by",
+      "dst": "body-focus-after-action-replacement-20260907"
+    },
+    {
+      "src": "replica-body-abort-is-not-empty-success-20260908",
+      "rel": "measured_by",
+      "dst": "replica-body-abort-native15-20260908"
+    },
+    {
+      "src": "replica-body-abort-is-not-empty-success-20260908",
+      "rel": "caused_by",
+      "dst": "replica-json-catch-empty-hides-abort-20260908"
+    },
+    {
+      "src": "first-use-refresh-settles-only-owned-status-20260908",
+      "rel": "measured_by",
+      "dst": "first-use-pending-refresh-native24-20260908"
+    },
+    {
+      "src": "first-use-refresh-settles-only-owned-status-20260908",
+      "rel": "caused_by",
+      "dst": "token-equality-cannot-own-busy-cleanup-20260908"
+    },
+    {
+      "src": "first-use-refresh-settles-only-owned-status-20260908",
+      "rel": "measured_by",
+      "dst": "first-use-pending-refresh-mounted12-overlap4-20260908"
     }
   ]
 }

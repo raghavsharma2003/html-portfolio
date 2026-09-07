@@ -1546,3 +1546,11 @@
 
   }
 }
+
+/* Read failures must leave their one retry action reachable under the app header. */
+@layer components {
+  .vx-read-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 112px 24px 48px; overflow-y: auto; }
+  .vx-read-state .vx-stage-title h1 { font-size: clamp(28px, 4vw, 44px); line-height: 1.1; }
+  .vx-read-state > button { width: min(100%, 360px); }
+  .vx-read-state > p { text-align: center; }
+}

@@ -1,0 +1,15 @@
+# Replica response cancellation repair
+
+8 September 2026 IST. Isolated `codex/replica-response-abort`, base checkpoint24 `3db85f82f9491322a8db2a62556cf39be8234937`. The actual staging25 `src/studio/replicaApi.ts` prerequisite is unchanged from this base (SHA256 `2ecabf28ffcd1c37865ff218a640cf8a045b0fffb5f1a5980b39fe1880797973`). No integration or staging writes.
+
+The original JSON catch converted a cancelled HTTP200 body into a successful empty object. ActivityPanel then called onView with that object; downstream jobs.map could crash during token-change cleanup. Its existing catch already checks signal.aborted, so this cause requires no ActivityPanel edit.
+
+The one production delta captures the effective supplied/default 20-second signal, preserves a body's original AbortError, checks cancellation on parse failure and after decoding, and rejects malformed successful JSON. Non-JSON HTTP401/500 still produce ReplicaApiError with their actual status and original fallback wording; structured error and rejection-code normalization remain unchanged. Valid JSON shape validation remains the responsibility of typed endpoint callers; this slice does not claim that every valid JSON value is a valid ActivityView.
+
+Run `node evals/replica-response-abort/run.mjs`. The portable runner uses Node24 built-in type stripping, URL-derived paths, native loopback HTTP and controlled Response objects. It hash-checks retained old source with checkout line-ending normalization and records actual byte hashes. No remote services or packages are downloaded. `--record` writes an exclusive timestamped receipt under ignored scratchpad.
+
+Final focused run: 15 groups passed at 2026-09-07T18:55:28.752Z; artifact `scratchpad/replica-response-abort/1788807328753.json`. Old negative used actual HTTP200 headers and incomplete JSON, signalled reading started, then aborted; old resolved {}, new rejected the exact original native body error. Other cases cover successful JSON, malformed2xx old/current, non-JSON401/500, fetch/body identity, supplied/default signal postbody cancellation, structured failures and unchanged headers. Forced TypeScript, context graph (2364 nodes/2380 edges) and git diff check passed. Earlier receipt `1788807224544.json` is retained; only the fixture hash check became checkout-portable afterward.
+
+No browser/full-release run by this agent. The first-use owner received frozen production SHA256 `cfd6a92f80c4feccc9a9a6a45eec706c6da8758d515afe6b90c3416a6749cdf9` to rerun the original unheld Activity/account-refresh overlap, separately from the focused transport proof. Root owns registration, integration and final merged gates. No paid, production, identity or publication action occurred.
+
+Decision: transport cancellation must reject rather than fabricate usable data. Reverse or refine only for a demonstrated supported endpoint requiring an explicit non-JSON success contract, or an observed cancellation/HTTP compatibility regression. Do not restore blanket empty-success fallback.

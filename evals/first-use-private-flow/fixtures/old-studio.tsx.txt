@@ -1609,25 +1609,6 @@ export default function StudioApp() {
   const [mode] = useState<StudioMode>(readStudioMode);
   const copy = STUDIO_SELF_TEST_UI ? TEST_COPY : GENERIC_COPY;
   const [session, setSession] = useState<StudioSession | null>(null);
-  const activeSessionRef = useRef<StudioSession | null>(null);
-  const replicaLoadRevision = useRef(0);
-  const accountRevision = useRef(0);
-  const creationRevision = useRef(0);
-  const consentRevision = useRef(0);
-  const consentMutation = useRef<string | null>(null);
-  const [consentRead, setConsentRead] = useState<{ scope: string; state: "loading" | "ready" | "error" }>({ scope: "", state: "loading" });
-  const [consentRetry, setConsentRetry] = useState(0);
-  const setCurrentSession = useCallback((next: StudioSession | null) => {
-    if (activeSessionRef.current?.accessToken !== next?.accessToken || activeSessionRef.current?.userId !== next?.userId) {
-      if (activeSessionRef.current?.userId !== next?.userId) { replicaLoadRevision.current += 1; accountRevision.current += 1; }
-      consentRevision.current += 1;
-      consentMutation.current = null;
-    }
-    activeSessionRef.current = next;
-    setSession(next);
-  }, []);
-  const isCurrentSession = useCallback((candidate: StudioSession) => activeSessionRef.current?.userId === candidate.userId && activeSessionRef.current?.accessToken === candidate.accessToken, []);
-  const consentScope = (candidate: StudioSession, replicaId: string) => `${candidate.userId}:${candidate.accessToken}:${replicaId}`;
   const [authChecked, setAuthChecked] = useState(false);
   const [authResumeIntent, setAuthResumeIntent] = useState<AuthResumeIntent | null>(null);
   const [replicas, setReplicas] = useState<Replica[]>([]);
@@ -1779,11 +1760,9 @@ export default function StudioApp() {
   const signOut = useCallback((resumeIntent: AuthResumeIntent | null = null) => {
     writeStoredSession(null);
     setAuthResumeIntent(resumeIntent);
-    setCurrentSession(null);
-    setCreating(false);
+    setSession(null);
     setReplicas([]);
     setSelected(null);
-    selectedIdRef.current = null;
     setErasureRequestId("");
     setErasureStatus(null);
     setError(null);
@@ -1791,10 +1770,9 @@ export default function StudioApp() {
 
   const refreshForRequest = useCallback(async (candidate: StudioSession) => {
     const fresh = await ensureStudioSession(candidate);
-    if (!isCurrentSession(candidate) && !isCurrentSession(fresh)) throw new Error("Your signed-in account changed. Please try again.");
     if (fresh.accessToken !== candidate.accessToken) {
       writeStoredSession(fresh);
-      setCurrentSession(fresh);
+      setSession(fresh);
     }
     return fresh;
   }, []);
@@ -1812,19 +1790,11 @@ export default function StudioApp() {
   }, [handleApiError]);
 
   const loadReplicas = useCallback(async (activeSession: StudioSession, preferredReplicaId: string | null = null) => {
-    const revision = ++replicaLoadRevision.current;
-    const account = accountRevision.current;
-    const ownsRead = () => accountRevision.current === account && activeSessionRef.current?.userId === activeSession.userId && revision === replicaLoadRevision.current;
     setLoadState("loading");
     setError(null);
-    let requestSession = activeSession;
     try {
       const fresh = await refreshForRequest(activeSession);
-      requestSession = fresh;
-      if (revision !== replicaLoadRevision.current) return;
       const mine = await listReplicas(fresh.accessToken);
-      if (!ownsRead()) return;
-      if (!isCurrentSession(fresh)) { setLoadState("error"); return; }
       const visible = STUDIO_SELF_TEST_UI
         ? mine.filter((item) => item.lifecycle !== "revoked" && item.lifecycle !== "purging")
         : mine;
@@ -1853,15 +1823,14 @@ export default function StudioApp() {
       setShowCreate(visible.length === 0);
       setLoadState("ready");
     } catch (cause) {
-      if (!ownsRead()) return;
-      if (isCurrentSession(requestSession)) handleApiError(cause, "Could not load your private workspace");
+      handleApiError(cause, "Could not load your private workspace");
       setLoadState("error");
     }
   }, [handleApiError, refreshForRequest]);
 
   const acceptAuthenticatedSession = useCallback((next: StudioSession) => {
     const intent = authResumeIntent;
-    setCurrentSession(next);
+    setSession(next);
     if (intent) {
       setStep(intent.step);
       try {
@@ -1877,7 +1846,6 @@ export default function StudioApp() {
 
   const refreshReplicaView = useCallback(async (activeSession: StudioSession, replicaId: string) => {
     const replica = await readReplica(activeSession.accessToken, replicaId);
-    if (!isCurrentSession(activeSession) || selectedIdRef.current !== replicaId) return replica;
     setSelected(replica);
     setReplicas((items) => items.map((item) => item.replica_id === replica.replica_id ? replica : item));
     return replica;
@@ -1923,7 +1891,7 @@ export default function StudioApp() {
     let live = true;
     restoreSession().then((restored) => {
       if (!live) return;
-      setCurrentSession(restored);
+      setSession(restored);
       setAuthChecked(true);
       if (restored) void loadReplicas(restored);
     });
@@ -1985,9 +1953,6 @@ export default function StudioApp() {
     }
     let live = true;
     const replicaId = selectedId;
-    const revision = consentRevision.current;
-    const scope = consentScope(session, replicaId);
-    setConsentRead((previous) => previous.scope === scope && previous.state === "ready" ? previous : { scope, state: "loading" });
     setEnrollmentLoading(true);
     setLivenessLoading(true);
     // Every one of the four new reads below is `allSettled` and every one of
@@ -2018,10 +1983,7 @@ export default function StudioApp() {
           mode === "teacher" ? listChannels(fresh.accessToken, replicaId) : Promise.resolve(null),
         ]);
         if (!live) return;
-        if (revision === consentRevision.current && consentMutation.current !== consentScope(fresh, replicaId) && isCurrentSession(fresh) && selectedIdRef.current === replicaId) {
-          if (consentResult.status === "fulfilled") setConsents(consentResult.value);
-          setConsentRead({ scope: consentScope(fresh, replicaId), state: consentResult.status === "fulfilled" ? "ready" : "error" });
-        }
+        if (consentResult.status === "fulfilled") setConsents(consentResult.value);
         if (sourceResult.status === "fulfilled") setSources(sourceResult.value);
         if (challengeResult.status === "fulfilled") setChallenge(challengeResult.value);
         if (runtimeResult.status === "fulfilled") setRuntimeStatus(runtimeResult.value);
@@ -2036,17 +1998,14 @@ export default function StudioApp() {
         const failed = [consentResult, sourceResult, challengeResult].find((result) => result.status === "rejected");
         if (failed?.status === "rejected") handleApiError(failed.reason, "Some enrollment controls could not be loaded");
       } catch (cause) {
-        if (live && revision === consentRevision.current && consentMutation.current !== scope) {
-          setConsentRead({ scope, state: "error" });
-          handleApiError(cause, "Could not load consent and private sources");
-        }
+        if (live) handleApiError(cause, "Could not load consent and private sources");
       } finally {
         if (live) setEnrollmentLoading(false);
         if (live) setLivenessLoading(false);
       }
     })();
     return () => { live = false; };
-  }, [consentRetry, handleApiError, mode, refreshForRequest, selectedId, session]);
+  }, [handleApiError, mode, refreshForRequest, selectedId, session]);
 
   const activityKey = useMemo(() => activityRevision(activityView), [activityView]);
   const readinessPending = useMemo(() => {
@@ -2133,12 +2092,11 @@ export default function StudioApp() {
         if (next && ["uploaded", "verifying"].includes(next.state)) {
           timer = window.setTimeout(() => void poll(), 5_000);
         } else if (next?.state === "passed") {
-          const revision = consentRevision.current;
           const [nextConsents] = await Promise.all([
             listEnrollmentConsent(fresh.accessToken, selectedId),
             refreshReplicaView(fresh, selectedId),
           ]);
-          if (live && isCurrentSession(fresh) && selectedIdRef.current === selectedId && revision === consentRevision.current && consentMutation.current !== consentScope(fresh, selectedId)) setConsents(nextConsents);
+          if (live) setConsents(nextConsents);
           if (live) setNotice("Independent liveness verification passed. Training and inference remain separately permissioned.");
         }
       } catch (cause) {
@@ -2162,19 +2120,12 @@ export default function StudioApp() {
       step,
       email: session.email || "",
     };
-    const revision = ++replicaLoadRevision.current;
-    const account = accountRevision.current;
-    const ownsRead = () => accountRevision.current === account && activeSessionRef.current?.userId === session.userId && revision === replicaLoadRevision.current;
     setLoadState("loading");
     setShowCreate(false);
     setError(null);
-    let requestSession = session;
     try {
       const fresh = await refreshForRequest(session);
-      requestSession = fresh;
       const replica = await readReplica(fresh.accessToken, id);
-      if (!ownsRead()) return;
-      if (!isCurrentSession(fresh)) { setLoadState("error"); return; }
       setSelected(replica);
       selectedIdRef.current = replica.replica_id;
       window.history.pushState(
@@ -2184,8 +2135,7 @@ export default function StudioApp() {
       );
       setLoadState("ready");
     } catch (cause) {
-      if (!ownsRead()) return;
-      if (isCurrentSession(requestSession)) handleApiError(cause, "Could not open this workspace");
+      handleApiError(cause, "Could not open this workspace");
       setLoadState("error");
     }
   }
@@ -2254,75 +2204,53 @@ export default function StudioApp() {
     }
   }
 
-  function beginConsentMutation(active: StudioSession, replicaId: string) {
-    if (!isCurrentSession(active) || selectedIdRef.current !== replicaId) throw new Error("The selected clone changed. Check its permissions again.");
-    const revision = ++consentRevision.current;
-    consentMutation.current = consentScope(active, replicaId);
-    setConsentRead({ scope: consentScope(active, replicaId), state: "loading" });
-    return revision;
-  }
-
-  function settleConsentMutation(active: StudioSession, replicaId: string, revision: number, receipts?: ConsentReceipt[]) {
-    if (!isCurrentSession(active) || selectedIdRef.current !== replicaId || consentRevision.current !== revision) return false;
-    consentRevision.current += 1;
-    consentMutation.current = null;
-    if (receipts) setConsents(receipts);
-    setConsentRead({ scope: consentScope(active, replicaId), state: receipts ? "ready" : "error" });
-    return true;
-  }
-
   async function handleGrantConsent() {
     if (!session || !selected) throw new Error("Your session is no longer available");
-    const fresh = await refreshForRequest(session);
-    const replicaId = selected.replica_id;
-    const revision = beginConsentMutation(fresh, replicaId);
     try {
-      const granted = await grantEnrollmentConsent(fresh.accessToken, replicaId);
-      if (!settleConsentMutation(fresh, replicaId, revision, granted)) throw new Error("The selected clone changed. Check its permissions again.");
-      setNotice("Source permissions recorded.");
-      // Receipt success is independent of this optional lifecycle read.
-      void refreshReplicaView(fresh, replicaId).catch(() => {});
+      const fresh = await refreshForRequest(session);
+      const granted = await grantEnrollmentConsent(fresh.accessToken, selected.replica_id);
+      setConsents(granted);
+      await refreshReplicaView(fresh, selected.replica_id);
+      setNotice("Source permissions recorded. Private evidence intake is now open.");
     } catch (cause) {
-      if (settleConsentMutation(fresh, replicaId, revision)) handleApiError(cause, "We could not confirm source permissions. Check again.");
+      handleApiError(cause, "Could not record source permissions");
       throw cause;
     }
   }
 
   async function handleRevokeConsent() {
     if (!session || !selected) throw new Error("Your session is no longer available");
-    const fresh = await refreshForRequest(session);
-    const replicaId = selected.replica_id;
-    const revision = beginConsentMutation(fresh, replicaId);
     try {
-      await revokeEnrollmentConsent(fresh.accessToken, replicaId);
+      const fresh = await refreshForRequest(session);
+      await revokeEnrollmentConsent(fresh.accessToken, selected.replica_id);
       const [nextConsents, nextSources] = await Promise.all([
-        listEnrollmentConsent(fresh.accessToken, replicaId), listSources(fresh.accessToken, replicaId),
+        listEnrollmentConsent(fresh.accessToken, selected.replica_id),
+        listSources(fresh.accessToken, selected.replica_id),
       ]);
-      if (!settleConsentMutation(fresh, replicaId, revision, nextConsents)) return;
+      setConsents(nextConsents);
       setSources(nextSources);
-      await refreshReplicaView(fresh, replicaId);
-      setNotice("Source permissions withdrawn. Source erasure is pending.");
+      await refreshReplicaView(fresh, selected.replica_id);
+      setNotice("Source permissions withdrawn. The replica is non-operational and source erasure is pending.");
     } catch (cause) {
-      if (settleConsentMutation(fresh, replicaId, revision)) handleApiError(cause, "Could not confirm permission withdrawal");
+      handleApiError(cause, "Could not withdraw source permissions");
       throw cause;
     }
   }
 
   async function handleVerifiedConsentChanged() {
     if (!session || !selected) throw new Error("Your session is no longer available");
-    const fresh = await refreshForRequest(session);
-    const replicaId = selected.replica_id;
-    const revision = beginConsentMutation(fresh, replicaId);
     try {
+      const fresh = await refreshForRequest(session);
       const [nextConsents] = await Promise.all([
-        listEnrollmentConsent(fresh.accessToken, replicaId), refreshReplicaView(fresh, replicaId),
+        listEnrollmentConsent(fresh.accessToken, selected.replica_id),
+        refreshReplicaView(fresh, selected.replica_id),
       ]);
-      if (!settleConsentMutation(fresh, replicaId, revision, nextConsents)) return;
+      setConsents(nextConsents);
       setNotice(nextConsents.some((receipt) => receipt.scope === "inference" && !receipt.revoked_at)
         ? "Private training and disclosed inference permissions recorded. No model is active until every independent gate passes."
         : "Training and inference withdrawn. Model use is disabled and derived copies are queued for erasure.");
     } catch (cause) {
-      if (settleConsentMutation(fresh, replicaId, revision)) handleApiError(cause, "Could not refresh verified model permissions");
+      handleApiError(cause, "Could not refresh verified model permissions");
       throw cause;
     }
   }
@@ -2421,24 +2349,14 @@ export default function StudioApp() {
     if (!session) throw new Error("Your session is no longer available");
     setCreating(true);
     setError(null);
-    const previousReplicaId = selectedIdRef.current;
-    const operationAccount = accountRevision.current;
-    const operation = ++creationRevision.current;
-    const ownsCreation = () => accountRevision.current === operationAccount && activeSessionRef.current?.userId === session.userId && creationRevision.current === operation;
-    let requestSession = session;
-    let requestReplicaId = previousReplicaId;
     const baseName = "Me";
     const existing = replicas.filter((item) => item.display_name === baseName || item.display_name.startsWith(`${baseName} `)).length;
     const displayName = existing ? `${baseName} ${existing + 1}` : baseName;
     try {
       const fresh = await refreshForRequest(session);
-      requestSession = fresh;
       const replica = await createReplica(fresh.accessToken, displayName, durableCreationIntent(fresh.userId));
-      if (accountRevision.current !== operationAccount || !isCurrentSession(fresh) || selectedIdRef.current !== previousReplicaId) throw new Error("Your workspace changed. Check your clones before continuing.");
-      replicaLoadRevision.current += 1;
       clearCreationIntent(fresh.userId);
-      setReplicas((items) => [replica, ...items.filter((item) => item.replica_id !== replica.replica_id)]);
-      requestReplicaId = replica.replica_id;
+      setReplicas((items) => [replica, ...items]);
       setSelected(replica);
       selectedIdRef.current = replica.replica_id;
       setSources([]);
@@ -2450,24 +2368,15 @@ export default function StudioApp() {
         "",
         queryForReplica(queryForStep(window.location.search, "feed"), replica.replica_id),
       );
-      const revision = beginConsentMutation(fresh, replica.replica_id);
-      try {
-        const granted = await grantEnrollmentConsent(fresh.accessToken, replica.replica_id);
-        if (!settleConsentMutation(fresh, replica.replica_id, revision, granted)) throw new Error("Your workspace changed. Check its permissions again.");
-      } catch (cause) {
-        settleConsentMutation(fresh, replica.replica_id, revision);
-        throw cause;
-      }
-      setNotice("");
+      const granted = await grantEnrollmentConsent(fresh.accessToken, replica.replica_id);
+      setConsents(granted);
+      setNotice("Private capture is ready.");
       return replica;
     } catch (cause) {
-      if (ownsCreation() && selectedIdRef.current === requestReplicaId) {
-        if (isCurrentSession(requestSession)) handleApiError(cause, "Could not open your private clone");
-        else setLoadState("error");
-      }
+      handleApiError(cause, "Could not open your private clone");
       throw cause;
     } finally {
-      if (ownsCreation()) setCreating(false);
+      setCreating(false);
     }
   }
 
@@ -2700,11 +2609,6 @@ export default function StudioApp() {
       <Suspense fallback={<DeferredWorkspacePanel />}>
       <StudioWorkspaceStyles />
       <CloneExperience
-        accountScope={`${session.userId}:${accountRevision.current}`}
-        workspaceReadState={loadState === "ready" ? "ready" : loadState === "error" ? "error" : "loading"}
-        consentReadState={!session || !selectedId || consentRead.scope !== consentScope(session, selectedId) ? "loading" : consentRead.state}
-        onRetryWorkspace={() => { if (session) void loadReplicas(session); }}
-        onRetryConsent={() => { setError(null); consentRevision.current += 1; setConsentRead({ scope: "", state: "loading" }); setConsentRetry((value) => value + 1); }}
         identity={identity}
         accessToken={session.accessToken}
         replicas={replicas}

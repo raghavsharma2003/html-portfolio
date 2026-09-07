@@ -23035,3 +23035,98 @@ Both actual editors increment a saved-load revision when an explicit load starts
 ## `structured-evidence-hypothesis-after-finite-diagnostic-20260907` (2026-09-07)
 
 Keep conditional f2fdcd07 withheld. The fresh baseline23 factorial suggests representation affects saved-order adherence on three synthetic examples. Next inspect existing cited owner-reviewed structured knowledge paths and propose a fresh-holdout slice preserving factual relations, chronology and erasure. Reverse this hypothesis if larger matched fresh cases or owner tasks do not reproduce the contrast, or if transformation changes source meaning/authority. No automatic source rewriting, model switch or product quality acceptance follows.
+
+
+## `feed-meet-ephemeral-source-return-20260907` (2026-09-07)
+
+Use an optional owner-row source hint with current identity/token/replica-scoped ephemeral parent question/selection state. Existing readiness revalidates the exact IDs; navigation never saves, asks or grants. Suppress shortcut for a saved request rather than deleting recovery or reopening a wrong-source result. Reverse on a reproduced scope leak, implicit mutation, wrong source or equivalent simpler verified flow.
+
+
+## `native-feed24-accept-bounded-real-path-20260907` (2026-09-07)
+
+Accept only the frozen checkpoint24 synthetic native HTTP path proven by actual auth, Azure storage, canonical extraction, selected readiness and source-scoped erasure. Keep owner browser, inference, voice and full-replica backup acceptance separate. Reverse if retained storage/SQL receipts disagree or a real caller cannot reproduce these operations.
+
+
+## `locale-scan-uses-tsx-syntax-20260907` (2026-09-07)
+
+Replace the locale guard regex with the installed TypeScript TSX parser. Inspect actual JsxText with the incumbent three-English-word threshold, fail on parse errors, and exempt only semantic code elements that contain literal commands. Sibling instructions and preformatted prose remain checked. No production localization or focus logic changes. Reverse if syntax traversal skips visible prose, mishandles malformed input or introduces unsupported parser dependency.
+
+
+## `feed-mined-state-keeps-source-test-20260907` (2026-09-07)
+
+Offer the optional source-test navigation for both extracted and mined owned supported documents. Actual native Feed24 produces mined after suggestions are saved; canonical private readiness still permits it. Keep original phrase-review action and exact source readiness revalidation. Reverse if a refused/routed/foreign/source-without-body item gains the action or navigation bypasses server authority.
+
+
+## `teacher-sheet-native-disclosures-preserve-editing-20260907` (2026-09-07)
+
+Keep every editable control and required review notice visible. Move explicit Save before six read-only preview fields, and place those fields plus the long mentor boundary behind two native disclosures. Closed summaries retain malformed warnings; malformed sections initially open. Raw JSON, explicit replacement, publication source and APIs remain unchanged. Reverse if disclosure hides a required action, misstates missing/invalid content, loses exact saved data or stale publication protection, or if the measured mobile layout no longer improves access to Save.
+
+
+## `expert25-holds-editor-race-before-freeze-20260907` (2026-09-07)
+
+Independent review found incumbent Load and Save completion races in both combined editors. Hold25freeze for a bounded local edit-revision and request/scope repair, preserving publication invalidation and raw content. Reverse if an explicit newer edit can be replaced by a stale response, unsaved newer text is labelled saved, or caller authority is weakened. No SQL/model changes are needed for this repair.
+
+
+## `expert26-default-entry-resolves-authority-first-20260907` (2026-09-07)
+
+Next26 isolates the actual personal /studio first-use path. Distinguish loading/error/confirmed-empty account and consent reads; explicit retry only rereads. Fence stale consent/list reads against owner/replica scope and actual grant mutations. After confirmed new creation+source grants, make Knowledge/files the first text outcome and voice an explicit alternative. Preserve returning navigation, saved requests and partial creation recovery. Reverse on duplicate create/grant, stale owner state, invented lifecycle/consent or weakened voice/identity authority.
+
+
+## `native-feed-answer-one-call-commitment-20260907` (2026-09-07)
+
+Run one independently frozen synthetic uploaded-file/private-draft/private-answer/replay/withdraw/source-erasure proof on immutable checkpoint24. Reuse actual handlers, exact development DB/private Azure storage, one existing Azure deployment and existing1USD ledger. Fetch permits one model attempt, no retry. Root authored fresh Roman Hinglish question; quality rubric separates value/chronology/unknown facts/language from operational success. Reverse or stop on source/query/scope/accounting drift; no identity, voice, training or publication grant is allowed.
+
+
+## `native-answer-cleanup-exact-sql-only-20260907` (2026-09-07)
+
+Prepare separately frozen cleanup-only derivative for the existing manifested synthetic source01ab8bee-8ec5-48af-a5d2-c2347628254d. Permit only exact production completion SQL hash bdef71ac2a2a88bd38d1404dcc69f1d0b83fd433c1c0a014417bf08dff599ed6 in cleanup_worker under existing source/replica/owner and physical receipt checks. Preserve original failed-run artifacts, forbid model/upload/authcreate and preserve settled usage. Reverse on scope/hash drift or missing physical/accounting authority. The writer is already released; no fabricated expiry wait or early lease release is needed.
+
+
+## `teacher-sheet-explicit-edit-wins-20260907` (2026-09-07)
+
+Both editors preserve every explicit newer edit against an older Load saved draft response. Save and Load share one synchronous request lock. Request generations bind late results to mounted actor/replica scope; newer edits clear stale save notices. A successful save confirms only the submitted revision, while ambiguous failures remain unconfirmed and require an explicit read. Keep the existing savedLoadRevision invalidation at current load start and settle, including ignored/failed loads. Reverse if any actual edit is overwritten, raw unrelated fields are changed, old-scope responses update current state, or the user cannot explicitly recover. No API or publication component mutation.
+
+
+## `native-answer-cleanup-result-remains-separate-20260907` (2026-09-07)
+
+Accept the actual uploaded-source answer/replay/withdraw behavior and the separately completed source/account teardown under their exact run identities. Preserve original harness refusal and both freezes; do not rewrite original state to passed. Reverse cleanup acceptance if source/storage/audit or scoped counts disagree. This bounded synthetic proof does not establish an ordinary owner browser flow, voice fidelity or full-replica backup erasure.
+
+
+## `first-use-read-state-and-receipt-revisions-20260907` (2026-09-07)
+
+Separate workspace/consent loading, error and confirmed absence in the actual personal Studio entry. Fence old list/consent responses by session, replica and mutation revision; explicit read retries never grant. Only the new creation agreement opens Files after actual receipts, with voice still available. Per-question and identity/voice authority remain unchanged. Reverse if an old scope can replace current receipts, read failure enables creation, returning navigation changes or any automatic grant/inference occurs.
+
+
+## `consolidate-first-use-and-editing25-20260907` (2026-09-07)
+
+Combine first-use account/consent handling, Feed-to-Meet, readable editors, local edit race repairs and action focus in one reviewed checkpoint25 before one full release. Final first-use post-create account-generation guard has18 actual native controls but was added after mounted18; final merged browser suite remains required. Reverse if exact prerequisite hashes drift, newer edits are lost, stale authority updates current state or any source change bypasses full verification.
+
+
+## `explicit-action-focus-continuity-20260907` (2026-09-07)
+
+Three explicit actions arm a one-shot focus intent: source authorship, private draft save, and private question submission. Later pointer/key/input or focus movement cancels it permanently. On a successful current completion, a layout effect focuses the same source action or a section/result heading only if BODY still owns focus and the initiating control was removed/disabled. No initial/readiness/restored-result read arms an intent. Existing keyed token/replica lifetimes clean up listeners; API generations and aborts stay authoritative. Reverse if unrelated focus is stolen, mobile keyboard opens, pending reads acquire focus, or scope changes allow stale completions.
+
+
+## `combined25-aborted-body-is-release-blocker-20260908` (2026-09-07)
+
+A new token-refresh browser schedule exposed successful200 response.json() abort being swallowed to{} by replicaRequest. Hold combined25 for a bounded transport repair plus original browser schedule, while preserving HTTP error status and scope guards. Reverse if cancellation yields successful data, malformed success is accepted, HTTP errors lose their status or any old-scope callback mutates the current account. No live service or provider call is required.
+
+
+## `protected-pack-preparation-before-next-voice-spend-20260908` (2026-09-07)
+
+Astra source/primary-doc audit recommends generic protected recorded-pack ingestion, reusing existing harness and preserving historical mode. Commission in a separate next-checkpoint isolate while25 closes release blockers. New scope includes run, subject, listening reference, conditioning group and recipe before language/text; real media remains blocked without actual verification evidence. Reverse if equivalent tested adapter already exists or owner declines comparison. No owner media, generation, service mutation or continuing GPU allocation.
+
+
+## `replica-body-abort-is-not-empty-success-20260908` (2026-09-08)
+
+Capture the effective supplied/default signal once, preserve the original body AbortError, recheck that signal after decoding and on parse failure, and reject malformed successful JSON. Retain non-JSON HTTP failure fallback/status and existing structured error behavior. Reverses if cancellation can reach onView as data, HTTP status handling regresses, or a supported endpoint is shown to intentionally return a successful non-JSON response requiring its own explicit contract.
+
+
+## `first-use-refresh-settles-only-owned-status-20260908` (2026-09-08)
+
+A same-owner token refresh may end its current create/list/select loading state using account and operation generations. Old-token payloads remain refused, old401 cannot sign out the refreshed account, and recovery exposes an explicit read retry rather than a POST retry. Newer account or operation owns its own state. Reverse if cleanup accepts stale data, clears a newer operation, changes account, or starts automatic creation/grant/inference.
+
+
+## `freeze25-after-real-refresh-crash-repair-20260908` (2026-09-07)
+
+One reviewed combined checkpoint now includes all first-use, editing, focus and transport fixes; stop additional source changes before root preflight and the full release. Root owns final exact-byte verification and integration. Reverse on any final gate failure, source drift, caller mismatch or live target failure; keep failed runs immutable. A passing software gate permits a scoped pilot review, not an assertion of full voice/publication/product-market fit.

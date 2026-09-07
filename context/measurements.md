@@ -16757,3 +16757,122 @@ Root frozen baseline23 diagnostic finished2026-09-07T16:36:23.703Z:12actual Azur
 ## `final-combined24-type-copy-graph-20260907` (2026-09-07)
 
 After same-JSON publication-load invalidation was merged from de8a4419, root forced TypeScript passed; actual copy7scopes/21negative controls and git diff --check passed. Context graph2357nodes/2378edges at that point. Agent final load repair16mounted including12 old-component negatives remains separately logged, and the full runner will execute its default40 combined publication groups along with malformed48. Final packaging replaces old isolated Git dependency with byte-identical committed fixture strings; it was syntax/byte checked, not another browser run.
+
+
+## `feed-meet-return-mounted10-callback12-20260907` (2026-09-07)
+
+2026-09-07: old actual checkpoint23 full-shell negative passed before edits; first batch29 (9 new+20 incumbent) passed; final exact-production10 mounted groups at390/1440 passed at16:40:58.720Z, artifact scratchpad/feed-meet-return/1788799227800/result.json. Actual callback/render AST12 passed including stale scopes and old callback. Earlier forced tsc passed before saved-handle guard; final browser build passed. Synthetic loopback only, no DB/model or full gate. Report FEED-MEET-RETURN-20260907.md records scope and limitations.
+
+
+## `native-feed24-real-readiness-and-erasure-20260907` (2026-09-07)
+
+Root frozen3db85f82 probe ran2026-09-07T16:42:50.051Z to16:44:42.647Z, one synthetic UTF8 note via actual authenticated add_files. Azure block201/blocklist201/read200; source mined, selected private readiness ready/can_ask after explicit incomplete draft save. DELETE revoked readiness; exact source d1188ccd-0ca1-4b83-a766-1311364f8093 physically absent with erasure attempt1 complete, storage confirmedAbsent1/providers1 and SQL audit_complete true. Teardown98 catalog table scope counts0 and auth absent.455 SQL transports/16auth, two deliberately refused unscoped diagnostics, model0, ledger unchanged128467microUSD/reserved0. Artifact ROOT scratchpad/expert-tools/native-feed-readiness-checkpoint24.json. Older Feed23 active-writer fixture remains separate pending17:42:22.929748Z.
+
+
+## `checkpoint24-real-readonly-relational-gates-20260907` (2026-09-07)
+
+On2026-09-07 root ran the existing protected readonly gate wrapper against isolated vyakti_expert_integration_20260906 on frozen checkpoint24. relcheck34 passed in9110ms and citation discipline passed in2136ms; logs ROOT scratchpad/expert-tools/relcheck-checkpoint24.log and citations-checkpoint24.log. No provider/auth calls or writes. Full release24 is independently still running without NEON_URL and will report relational skips; these actual checks must not be attributed to that runner.
+
+
+## `release24-completed-locale-scanner-failure-20260907` (2026-09-07)
+
+Root frozen3db85f82 release24 ran2026-09-07T16:40:38.868Z to17:01:42.221Z, exit1, changedDuringRun:false.23/24software gates passed, including layout/performance/accessibility and security headers. Eval suite failed studio-locale only:91passed/2failed, actual querySelector generic selector was read as English JSX prose. Original complete log and completion JSON remain in expert-integration/scratchpad. Relational gates skipped in runner; separate actual development relcheck34/citations passed as logged. Not full-release accepted.
+
+
+## `locale-tsx-parser16-full94-20260907` (2026-09-07)
+
+Root staging25 installed-TypeScript AST scanner passed16 controls: executed exact old selector false positive, adjacent/nested/after-expression/multiline prose, punctuation/code-word prose, localized expressions, comments/attributes/script strings, Hindi/short text, semantic code with checked sibling and pre prose, malformed TSX refusal. Final actual studio-locale suite94passed/0failed; log scratchpad/studio-locale-checkpoint25-code-boundary.log. First AST run92passed/2failed found executable commands in VoiceExperimentPanel code tags; their structural code distinction was added with controls, not filename/string allowlisting. Initial redirect to a nonexistent scratchpad directory never launched the suite; that shell exit0 is not test evidence.
+
+
+## `feed-mined-root-react15-20260907` (2026-09-07)
+
+Root compared actual native Feed24 file_results status mined and readiness ready with publicItem status passthrough and the new CTA extracted-only predicate. Root merged exact four-file mined delta and reran15 actual React CTA-branch groups including SHA-verified old source negative, both eligible states, refused/routed/pending/extracting exclusions, authorship/scope/type/body/caller checks and disabled controls. Full mounted13 remains running separately; no extra DB/model call.
+
+
+## `teacher-sheet-disclosures-native17-20260907` (2026-09-07)
+
+2026-09-07 in codex/teacher-sheet-disclosures from checkpoint24 3db85f82f9491322a8db2a62556cf39be8234937. Actual private-save/generated validation/React render passed17 groups:13 incumbent malformed controls plus4 current/old disclosure controls across both editors. Default DB and fetch counters0. Forced tsc -b --force and actual copy7 scopes/21 negatives passed. Impeccable mechanical detector returned[]; that is not user quality evidence. Mounted18 prepared but held while parent release24 runs; no new browser/build, actual SQL/auth/model or full release acceptance at this phase.
+
+## `teacher-sheet-disclosures-mounted18-20260907` (2026-09-07)
+
+After root release24 clearance, the single bounded disclosure batch passed18 groups on its first run at2026-09-07T17:02:33.569Z. Artifact scratchpad/private-draft-editor/1788800541768/result.json in teacher-sheet-disclosures; zero page errors. Both390/1440 lanes, Hindi, four exact old/current layout controls, keyboard disclosure, exact text and raw-save preservation, malformed warnings and explicit replacement/focus passed. Same synthetic creator390 fixture height4118 to2844 and Save top3779.359375 to2407.765625 CSS pixels; studio390 height4139 to2865 and Save3800.359375 to2428.765625. Both1440 lanes height2247 to1866 and Save1935.015625 to1457.484375. One run per lane/width, no human task-speed or quality claim. Retained current creator390/1440 and Hindi screenshots inspected; no repair/rebuild followed. Full66 incumbent-plus-new batch and publication40 were not rerun here; parent full gate remains required. No actual DB/auth/model or publication authority change.
+
+
+## `combined25-disclosures17-types-and-mined13-20260907` (2026-09-07)
+
+Root combined25 forced TypeScript passed after disclosure and Feed mined delta merge; native actual-save/React17, actual copy7scopes/21negatives, context2379nodes/2381edges and diffcheck passed. Agent final exact Feed source mounted13 passed2026-09-07T17:05:27.933Z, root15React controls and earlier12callbacks passed. Root inspected390/1440 disclosure PNGs; agent18mounted is distinct from full-shell/user testing. No full release25 yet. Merge first refused differing CRLF bytes in unchanged protected files before any write; exact normalized hashes matched manifest and every original target byte was preserved, recorded in disclosures-merged25.json.
+
+
+## `default-studio-first-use-source-audit-20260907` (2026-09-07)
+
+2026-09-07 source-only audit traces bare /studio through personal StudioApp/CloneExperience, not creator setup mode. Existing Feed fixture seeds enrolling replica+three grants and mode=replica; other full-shell fixtures use teacher/setup modes. Actual create returns consent_pending and grant returns only consents. Audit found a source-supported schedule where pre-grant consent list[] waits for sibling reads then overwrites successful receipts, and unresolved initial account read can render actionable agreement. No new runtime reproduction yet;26must test exact default entry and real endpoint shapes.
+
+
+## `native-feed-answer-offline20-root-20260907` (2026-09-07)
+
+On2026-09-07 root reran20offline controls at17:20:37.977Z, zero network/nativeDB/model. Reviewed frozen helper/guards, corpus, exact source362/query inventories and inherited physical cleanup. Freeze SHA e2d0c2cb3fd29254ba454125ff47a91f202fd8a16453505e9ad77d2a0efe8305; helper8fd05fcc3d8932738400c597a73d1dd797bf03c100850faefc97ac9bb084e4e4. Source immutable3db85f82. Wrapper syntax passed and dedicated protected launcher mode --native-feed-answer24 added; ordinary server never gets Supabaseadmin. Actual call has not yet run at this entry.
+
+
+## `native-upload-answer-one-call-hinglish-20260907` (2026-09-07)
+
+Root native immutable3db85f82 run2026-09-07T17:22:29.413Z to17:23:50.224Z exercised actual auth/upload/extraction/private draft/readiness, one actual Azure admitted question, encrypted/gated persistence, GET and same-ID replay without another call, explicit payload withdrawal and logical source removal. Root and independent fresh-rubric review found checking18min then graphing25min,43total and unknown learner count correct in natural Roman Hinglish; raw/delivered facts agree, line breaks differ.926input/105output tokens,539microUSD, ledger129006/reserved0 with older receipts preserved.288SQL/18auth, two intentionally refused diagnostics. Final state cleanup_pending because a new harness guard refused source-completion SQL; no complete teardown acceptance. Original artifacts ROOT expert-tools/native-feed-answer-run-checkpoint24.json and manifest are immutable.
+
+
+## `teacher-sheet-edit-races-mounted54-20260907` (2026-09-07)
+
+At 2026-09-07T17:28:08.915Z, one completed synthetic loopback batch passed 54 groups at 390/1440 using actual old/current editors, API clients and native controls under StrictMode. Eight old-source groups reproduced scalar/replacement loss, eight corresponding new groups preserved local edits and exact unrelated raw JSON. Remaining groups cover save revision notices and double-tap exclusion, uncertain-save explicit readback, same-JSON publication invalidation for normal/ignored/failed loads, old auth responses after token/replica/unmount, disclosure keyboard/overflow and Hindi status. No page errors. Forced TypeScript passed; copy law seven scopes and 21 negatives passed. Artifacts: scratchpad/editor-edit-races/1788802055713/result.json. Two screenshots manually inspected (390 creator, 1440 studio), scoped editor only. No SQL, real auth, provider, publication authority or full-shell acceptance. The existing full release was not run.
+
+
+## `native-answer-cleanup-complete98-20260907` (2026-09-07)
+
+Root frozen cleanup-only resume ran2026-09-07T17:30:28.096Z to17:31:23.895Z, state cleanup_complete. Source01ab8bee-8ec5-48af-a5d2-c2347628254d actual erasure attempt2 completed17:30:34.050092Z, source_absent true, providers1/confirmedAbsent1/audit_complete true.98 catalog scope counts0, authabsent,219SQL/3auth/0blocked, model0, ledger unchanged129006/reserved0. Artifact ROOT expert-tools/native-feed-answer-cleanup-checkpoint24-resume1.json. Original answer run remains immutable cleanup_pending; continuation supplies actual completion evidence without another answer. Separate older Feed23 source and four old full-replica certificates remain pending.
+
+
+## `first-use26-source-contracts-before-mounted-20260907` (2026-09-07)
+
+2026-09-07, isolated codex/first-use-private-flow from3db85f82 plus exact four staging25 prerequisite files, snapshot4dcede9a. Actual-contract source checks3, incumbent clone QA20 and deterministic brand-reveal checks passed. Forced TypeScript and copy7/21 passed before final small focus/copy changes; final check still required. No mounted, real auth, DB, model or full-release claim at this phase.
+
+
+## `default-studio-first-use-mounted18-source18-20260907` (2026-09-07)
+
+2026-09-07T17:39:13.459Z: actual bare studio.html/personalMain mounted18 passed at390/1440 with six retained-old negatives, delayed read/grant barriers, refreshed-token failures, one full source/draft/question/result-reload flow per width, and no unexpected server/page errors. Synthetic localhost only, no actual auth/SQL/model. Artifact scratchpad/first-use-private-flow/1788802689317/result.json in codex/first-use-private-flow. Final source18 also passed exact-function old spinner, unmounted history, old401, account-generation success and receipt-scope controls. Final post-create account-generation predicate followed mounted18 and has two native controls; mounted hashes remain explicitly prior to that one guard, parent merged full gate required. Final forced TypeScript, copy7/21, clone QA20 and deterministic brand reveal passed. Focus moves naturally to Files and private-test headings, while material-row replacement/draft-save/answer completion still focus BODY. Three failed attempts are preserved: real toast obstruction, uncontrolled empty-snapshot scheduling and overly narrow recorder-only old expectation. No full release run here.
+
+
+## `feed23-expired-writer-cleanup98-20260907` (2026-09-07)
+
+Root exact frozen cleanup-only resume ran2026-09-07T17:46:40.177Z to17:47:36.239Z, after actual writer expiry17:42:22.929748Z. Source20645761-f134-4493-b140-5199419d4eb6 storageDELETE202/HEAD404/prefixlist200; all98 catalog scope counts0, authabsent,217SQL/3auth/0blocked, model0, ledger unchanged129006/reserved0. Artifact ROOT expert-tools/native-feed-cleanup-checkpoint23-resume1.json. Original failed upload artifact and immutable23 source remain intact. Four older full-replica backup certificates remain a distinct open issue.
+
+
+## `explicit-action-focus-mounted58-20260907` (2026-09-07)
+
+At 2026-09-07T17:50:01.153Z, actual current and SHA-verified retained combined25 components passed58 synthetic loopback groups at390/1440 under StrictMode. Six old-component controls reproduce BODY after the three transitions; six new controls move to the intended non-input target. Other groups cover typing, away-then-body, token/replica/unmount, failure, Enter activation and delayed initial/restored reads. Exact one POST per explicit action; none on initial reads; fresh draft attestations remain unchecked. Forced TypeScript and copy7scopes/21negatives pass. Screenshots retained;390answer and1440source inspected as scoped functional fixtures, not complete shell/design acceptance. No real auth, DB, model or release run.
+
+
+## `combined25-focus58-source-review-20260908` (2026-09-07)
+
+Agent58 mounted groups passed on exact manifest56432a2f9a2f4fbe0d40286b4bccefbf2ac8fc733bb1b7da70a1c11db866e890, at390/1440. Root merged seven exact files. Root and independent source reviews found listeners disposed on cancellation/unmount, one-shot origin ownership, later user activity cancellation and keyed actor/replica lifetime. Neither reviewer reran the58 mounted groups; combined full gate remains pending. Root visually inspected actual first-use390/1440 answer screenshots, with clean fit and readable controls; no blanket product-design or owner-quality acceptance.
+
+
+## `voice-corpus60-and-caller-audit-20260908` (2026-09-07)
+
+Read-only audit on2026-09-08 parsed60 unique corpus IDs,20each Hindi/RomanHinglish/IndianEnglish. Ordinary preview supplies reference/style but no optional LoRA adapter; benchmark CLI hardcodes August packs and one historical reference. Primary-source model capabilities and Azure scale-to-zero docs were checked; no runtime health, generation, listening or cost experiment was run. Report VOICE-NEXT-EXPERIMENT-20260908.md, SHA0737be7beae0ab8033085f78bb707bb8c364d7a15180cdcec28e206dc6d77b13. Corpus independence remains unaudited.
+
+
+## `replica-body-abort-native15-20260908` (2026-09-08)
+
+At 2026-09-07T18:53:44.542Z, 15 controls loaded the actual TypeScript with Node24 type stripping. Native loopback HTTP200 sent headers and incomplete JSON, then client abort occurred after body reading began: retained old source returned {}, current source rejected the exact body exception. Other controls cover valid JSON, malformed2xx, real non-JSON401/500, fetch/body exception identity, supplied/default20000ms signal and postbody checks, structured error/status/header compatibility. Artifact scratchpad/replica-response-abort/1788807224544.json. Forced TypeScript passed. No external service, DB, model, browser or full-release run by this agent; mounted Activity overlap belongs to separate reviewer.
+
+
+## `first-use-pending-refresh-native24-20260908` (2026-09-08)
+
+2026-09-08 local date: fresh codex/first-use-refresh-settlement from frozen d5b10788; actual function24 controls passed with exact frozen old/current create/list/select success/error after same-owner refresh and newer account/operation refusals. Incumbent actual functions18 passed. Native promise fixture first used two microtasks as a start assumption and emitted an unhandled unused rejection after its24 assertions; repaired with actual request-start promise barrier, exit0 confirmed. Mounted12 groups/24case schedules prepared with real readiness focus-resume caller; not yet run. No actual auth/DB/model.
+
+
+## `first-use-pending-refresh-mounted12-overlap4-20260908` (2026-09-08)
+
+On2026-09-08 local date, exact final StudioApp pending-refresh delta passed native24 plus incumbent18. Actual Studio readiness focus-resume mounted12 groups/24 success-and401 cases at390/1440 completed2026-09-07T18:52:44.426Z, artifactscratchpad/first-use-refresh-settlement/1788807094429/result.json; no stale payload adoption, duplicate mutation or auth logout. Separate native Activity body overlap4 completed2026-09-07T18:55:56.942Z, artifactscratchpad/first-use-activity-abort/1788807343576/result.json, using agent-owned API cfd6a92f: exact old API swallowed nativeAbortError and crashed jobs.map both widths; new API keeps app mounted/retryable. No real auth/DB/model or full release. Report FIRST-USE-PENDING-REFRESH-20260908.md retains all failed fixture/body-crash attempts and exact scope.
+
+
+## `combined25-final-merges-before-preflight-20260908` (2026-09-07)
+
+Root merged exact refresh a1c2e0f delta and separate transportcfd6a92f. Agent refresh12groups/24outcomes passed18:52:44.426Z; original Activity aborted-body overlap4 passed18:55:56.942Z at390/1440. Native24/incumbent18/transport15 and independent source review retained. Root has not rerun these mounted suites; final combined release will do so. Four new refresh context nodes, not an assumed three, were inspected after merger preflight refused before writes; all four were imported by ID. No live DB/model/auth calls in these repairs.

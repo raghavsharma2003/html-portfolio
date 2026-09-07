@@ -24,11 +24,11 @@ export async function runInvalidDraftDisplayChecks(){
  },load(url,ctx,next){
   // Native React markup assertions do not load stylesheets. The mounted
   // browser suite separately builds and renders the actual publication CSS.
-  if(url.endsWith('/src/studio/teacherSheetPublication.css'))return {format:'module',shortCircuit:true,source:'export {};'};
+  if(['/src/studio/teacherSheetPublication.css','/src/studio/teacherSheetDisclosures.css'].some(path=>url.endsWith(path)))return {format:'module',shortCircuit:true,source:'export {};'};
   if(url.endsWith('/api/_db.js'))return {format:'module',shortCircuit:true,source:'export const q=(...args)=>globalThis.__invalidDraftDb(...args);'};
   if(url.endsWith('/api/_config.js'))throw Error('secret config prohibited');
-  if(/\.tsx?(?:\?old-private-draft)?$/.test(url)){
-   const path=fileURLToPath(url);const source=url.includes('?old-private-draft')?execFileSync('git',['show','0a3b2d26:'+relative(root,path).replaceAll('\\','/')],{cwd:root,encoding:'utf8'}):readFileSync(path,'utf8');
+  if(/\.tsx?(?:\?(?:old-private-draft|before-disclosures))?$/.test(url)){
+   const path=fileURLToPath(url);const source=url.includes('?old-private-draft')||url.includes('?before-disclosures')?execFileSync('git',['show',(url.includes('?before-disclosures')?'3db85f82':'0a3b2d26')+':'+relative(root,path).replaceAll('\\','/')],{cwd:root,encoding:'utf8'}):readFileSync(path,'utf8');
    return {format:'module',shortCircuit:true,source:ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX}}).outputText};
   }return next(url,ctx);
  }});
@@ -56,6 +56,19 @@ export async function runInvalidDraftDisplayChecks(){
   for(const {current}of lanes)assert(!render(current,empty).includes('draft-invalid-notice'));
   const good={...minimal,subjectStrands:['mechanics'],doubtEscalationLadder:['known values'],analogyBank:[{topic:'force',anchor:'push'}],boardVerbalisms:['dekho'],commonMistakeBank:['unit check'],strictness:0,warmth:4};
   assert.equal(teacherSheetEditorView(good).invalidFields.size,0);for(const {current}of lanes)assert(!render(current,good).includes('draft-invalid-notice'));await save(good);checks.push('missing and well-shaped fields retain their prior display and exact save body');
+  const detailBody={...good,boundaryParagraph:'Exact saved mentor boundary.',languageVoiceRule:'Exact saved language rule.',sttSoundAlikes:'Exact saved sounds.',notationConventions:'Exact saved notation.'};
+  for(const {lane,current}of lanes){
+   const before=(await import(pathToFileURL(join(root,`src/${lane}/TeacherSheetStudio.tsx`)).href+'?before-disclosures')).default;
+   const oldHtml=render(before,detailBody),html=render(current,detailBody);
+   const order=h=>assert(h.indexOf('class="person-model-action"')<h.indexOf('teacher-sheet-ingested'));
+   assert.throws(()=>order(oldHtml));order(html);
+   assert(!oldHtml.includes('<details'));assert.equal((html.match(/<details\b/g)||[]).length,2);assert(!html.includes(' open=""'));
+   for(const value of ['Exact saved mentor boundary.','Exact saved language rule.','Exact saved sounds.','Exact saved notation.'])assert(html.includes(value));
+   for(const tag of ['select','textarea','input'])assert.equal((html.match(new RegExp('<'+tag+'\\b','g'))||[]).length,(oldHtml.match(new RegExp('<'+tag+'\\b','g'))||[]).length);
+   assert.equal((html.match(/class="teacher-sheet-publication"/g)||[]).length,1);checks.push(`${lane}: old save-after-details rejected; native disclosures preserve exact content and editable controls`);
+   const malformed=render(current,{...detailBody,boundaryParagraph:{keep:true},analogyBank:[null]});
+   assert.equal((malformed.match(/<details[^>]*open=""/g)||[]).length,2);assert.equal((malformed.match(/class="disclosure-review"/g)||[]).length,2);assert(malformed.includes('draft-invalid-notice'));checks.push(`${lane}: malformed read-only details open with persistent summary warnings`);
+  }
   assert.equal(network,0);assert.equal(defaultDb,0);return{passed:checks.length,checks,networkCalls:network,defaultDbCalls:defaultDb,scope:'Actual private save/validator and React renderToString; injected SQL, no browser lifecycle, DB, auth or model calls.'};
  }finally{hooks.deregister();globalThis.fetch=previousFetch;delete globalThis.__invalidDraftDb;}
 }

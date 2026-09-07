@@ -9,10 +9,9 @@
 //    at every level, asserted against the REAL export.
 // 2. THE STATIC SCAN. Every `src/creatorStudio/*.tsx` file this workstream converted
 //    (`TIER_1_FILES` below) carries ZERO literal JSX text nodes of three or
-//    more words that are not routed through `t.` — a heuristic scan (no full
-//    JSX/TS parser is a dependency of this repo), so a code-shaped false
-//    positive (a TS generic like `useState<Foo | null>`) is filtered by a
-//    second pass rather than hand-allowlisted string by string. Every OTHER
+//    more words that are not routed through `t.`. TypeScript's installed TSX
+//    parser distinguishes visible text from type arguments and code strings.
+//    Parse errors fail rather than silently skipping a file. Every OTHER
 //    `src/creatorStudio/*.tsx` file is in `TIER_2_ALLOWLIST`, one entry per file,
 //    each with the reason it was not converted this workstream — the
 //    brief's own "an allowlist you justify entry by entry" law, applied at
@@ -40,6 +39,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { execSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { literalEnglishTextNodes } from "./jsx-text.mjs";
+import { checkJsxTextScanner } from "./jsx-text-controls.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -248,31 +249,8 @@ await installStudioCopy("hi");
   const STUDIO_DIR = join(REPO, "src/creatorStudio");
   const allTsx = readdirSync(STUDIO_DIR).filter((f) => f.endsWith(".tsx"));
 
-  // Every literal JSX text node of >= 3 words. Anchored on an actual opening
-  // tag (`<Tag ...>`) rather than a bare `>`, so a TS generic like
-  // `useState<Foo | null>(null)` — which has no `<` immediately before the
-  // "tag" name — never matches; a second pass drops anything left that still
-  // looks like code (an operator, a keyword, a comment marker) rather than
-  // prose a person reads.
-  // Trailing `<` is a LOOKAHEAD, never consumed: two adjacent tags
-  // (`<section><h3>...`) share that boundary character, and consuming it
-  // would make the second tag's own leading `<` invisible to the next
-  // `exec()` call — the exact way this scan first shipped silently blind to
-  // every nested tag, caught only by its own negative control below.
-  const TAG_TEXT = /<[A-Za-z][A-Za-z0-9.]*(?:\s[^<>]*)?>([^<>{}]+)(?=<)/g;
-  const CODE_SHAPED = /=|;|useState|useRef|const\s|\/\*|\/\//;
-  function literalEnglishTextNodes(src) {
-    const hits = [];
-    let m;
-    TAG_TEXT.lastIndex = 0;
-    while ((m = TAG_TEXT.exec(src))) {
-      const text = m[1].replace(/\s+/g, " ").trim();
-      if (!text || CODE_SHAPED.test(text)) continue;
-      const words = text.split(" ").filter((w) => /[A-Za-z]/.test(w));
-      if (words.length >= 3) hits.push(text);
-    }
-    return hits;
-  }
+  ok("TSX scanner passes 16 controls including the executed old generic-selector false positive",
+    checkJsxTextScanner() === 16);
 
   // Every file this workstream actually converted (law 1: "existing
   // components import t(); no component keeps a literal English sentence").

@@ -34,6 +34,17 @@ execSync(
 );
 
 const suites = {
+  "first-use-activity-abort-ui": "first-use-private-flow/activity-abort.mjs",
+  "first-use-refresh-ui": "first-use-private-flow/refresh.mjs",
+  "first-use-refresh-source": "first-use-private-flow/refresh-source.mjs",
+  "replica-response-abort": "replica-response-abort/run.mjs",
+  "explicit-action-focus": "action-focus/run.mjs",
+  "first-use-private-flow-ui": "first-use-private-flow/run.mjs",
+  "first-use-private-flow-source": "first-use-private-flow/source.mjs",
+  "teacher-sheet-edit-races": "teacher-sheet-edit-races/run.mjs",
+  "feed-meet-mined-cta": "feed-meet-return/mined-cta.mjs",
+  "feed-meet-return-ui": "feed-meet-return/run.mjs",
+  "feed-meet-return-callbacks": "feed-meet-return/callbacks.mjs",
   "context-source-finalize": "context-source-finalize.mjs",
   "performance-prerequisites": "performance-prerequisites.mjs",
   "azure-only-fetch": "azure-only-fetch.mjs",
