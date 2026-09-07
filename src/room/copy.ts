@@ -239,8 +239,9 @@ const EN = {
     whereFrom: "Where did that come from?",
     /** What the server can honestly answer today: the creator's own material,
      *  by name. Never a passage and never a claim of exactness. */
-    citedFrom: "This comes from {name}'s own material.",
-    citedNone: "This comes from {name}'s own material.",
+    citedFrom: "Published answers from {name}.",
+    citedSupplied: "Published answers supplied for this reply.",
+    citedNone: "No published answers yet.",
     notRemembering:
       "This room is not remembering you. Turn that on any time from the menu.",
   },

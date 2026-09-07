@@ -104,8 +104,9 @@ export const HI_TALK: RoomTalkCopy = {
     send: "भेजें",
     thinking: "लिख रहे हैं",
     whereFrom: "यह जानकारी कहां से आई?",
-    citedFrom: "यह {name} की अपनी सामग्री से है।",
-    citedNone: "यह {name} की अपनी सामग्री से है।",
+    citedFrom: "{name} के प्रकाशित जवाब।",
+    citedSupplied: "इस जवाब के लिए दिए गए प्रकाशित जवाब।",
+    citedNone: "अभी कोई प्रकाशित जवाब नहीं है।",
     notRemembering: "यह रूम आपको याद नहीं रख रहा। इसे मेन्यू से कभी भी चालू करें।",
   },
 

@@ -93,7 +93,7 @@ export async function loadFixtureAgent(REPO) {
   return { engine, loadAgent, SHEET };
 }
 
-export function freshState() {
+export function freshState({ publishedQA = [] } = {}) {
   return {
     rooms: [
       {
@@ -138,6 +138,9 @@ export function freshState() {
     // own precedent one field up restated for the reward's own table.
     referralCredits: [],
     facts: [],
+    // Explicit public copies only. Private Context Locker titles below do not
+    // implicitly become published answers in this fixture or in the reader.
+    publishedQA: publishedQA.map((item) => ({ ...item })),
     contextItems: [
       { source_name: "Class 12 mechanics notes", status: "mined", created_at: "2026-08-01" },
       { source_name: "Doubt session transcript", status: "routed", created_at: "2026-07-01" },
@@ -164,6 +167,29 @@ export function fakeDb(state) {
   const db = async (sql, params = []) => {
     calls.push(sql);
     const has = (s) => sql.includes(s);
+
+    // Exact public-Q&A reader shape, before generic Room routing. Interpret
+    // each real SQL guard so removing it changes this fixture's result. This
+    // models predicates only; real PostgreSQL parsing/constraints need SQL.
+    if (has("select r.room_id,k.id,k.question,k.answer,k.position") && has("from vy_room_showcase s")) {
+      const rooms = state.rooms.filter((room) =>
+        (!has("r.room_id=$1::uuid") || room.room_id === String(params[0])) &&
+        (!has("r.replica_id=$2::uuid") || room.replica_id === String(params[1])) &&
+        (!has("r.owner_user_id=$3::uuid") || room.owner_user_id === String(params[2])) &&
+        (!has("r.agent_id=$4::uuid") || room.agent_id === String(params[3])) &&
+        (!has("r.published_at is not null") || room.published_at != null) &&
+        (!has("r.paused_at is null") || room.paused_at == null));
+      return rooms.flatMap((room) => {
+        let items = (state.publishedQA || []).filter((item) =>
+          (!has("s.room_id=r.room_id") || item.room_id === room.room_id) &&
+          (!has("s.removed_at is null") || item.removed_at == null));
+        items = [...items].sort((a, b) => a.position - b.position || String(a.id).localeCompare(String(b.id)));
+        if (has("limit 5")) items = items.slice(0, 5);
+        return items.length ? items.map(({ id, question, answer, position }) =>
+          ({ room_id: room.room_id, id, question, answer, position })) :
+          [{ room_id: room.room_id, id: null, question: null, answer: null, position: null }];
+      });
+    }
 
     // ── WS-R18: the Telegram identity bridge (api/_room.js) ────────────────
     // Placed FIRST and matched on the FULL statement text, deliberately: the

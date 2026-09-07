@@ -361,7 +361,11 @@ const deps = (extra = {}) => ({ loadAgent, engine, reply, personTables, ...extra
 
 // ── 7. citations, stats, export, forget ───────────────────────────────────
 {
-  const state = freshState();
+  const state = freshState({ publishedQA: [{
+    id: "d1000000-0000-4000-8000-000000000001", room_id: ROOM_ID,
+    question: "How do you check a force diagram?", answer: "Check each force separately.",
+    position: 1, removed_at: null,
+  }] });
   const db = fakeDb(state);
   const a = await joinRoom(
     db,
@@ -379,11 +383,13 @@ const deps = (extra = {}) => ({ loadAgent, engine, reply, personTables, ...extra
   );
 
   const cites = await roomCitations(db, { session: a.session }, deps());
-  ok("citations name the creator's own material, not a passage",
-    cites.name === "Anjali" && cites.sources.includes("Class 12 mechanics notes"));
+  ok("citations name explicitly published public questions, not private source passages",
+    cites.name === "Anjali" && cites.sources.includes("How do you check a force diagram?") &&
+      cites.relation === "published_catalog");
   ok("citations do not claim to be exact when they are not", cites.exact === false);
-  ok("unprocessed material is not cited as a source",
-    !cites.sources.includes("Not yet processed"));
+  ok("mined, routed and unprocessed private material titles are not published citations",
+    !cites.sources.includes("Class 12 mechanics notes") &&
+      !cites.sources.includes("Doubt session transcript") && !cites.sources.includes("Not yet processed"));
 
   const stats = await roomStats(db, { slug: SLUG }, deps());
   ok("room stats are one real count and nothing else",

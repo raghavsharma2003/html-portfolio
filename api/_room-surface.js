@@ -107,6 +107,26 @@ import { buildReceiptContext } from "./_receipt.js";
 // is used the identical way: `recordIncident` is called only inside
 // `roomSay`, never at this file's own top level.
 import { recordIncident } from "./_incidents.js";
+import { readPublicRoomKnowledge, assertPublicRoomKnowledgeCurrent } from "./_room-knowledge.js";
+
+function publicKnowledgeScope(resolved) {
+  return {
+    roomId: resolved.room.room_id, replicaId: resolved.room.replica_id,
+    ownerUserId: resolved.room.owner_user_id, agentId: resolved.agentId,
+  };
+}
+
+function assertKnowledgeWasCompiled(compiled, knowledge) {
+  if (!knowledge.sources.length) return;
+  const material = compiled?.publicKnowledge;
+  if (!material || typeof material.block !== "string" || !material.block ||
+      JSON.stringify(material.ids) !== JSON.stringify(knowledge.sources.map(source => source.id)) ||
+      typeof compiled.core !== "string" || typeof compiled.tail !== "string" ||
+      compiled.core.length > 64_000 || compiled.tail.length > 24_000 ||
+      !compiled.tail.includes(material.block)) {
+    throw new RoomError("room_knowledge_prompt_unavailable", 503);
+  }
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -138,8 +158,6 @@ export const ROOM_PAID_MONTHLY_MESSAGES = 500;
 /** The paid voice minutes allowance in SECONDS, as the DEFAULT for a new
  *  room. The live number is `vy_room.paid_monthly_voice_seconds`. */
 export const ROOM_PAID_MONTHLY_VOICE_SECONDS = 1800;
-/** How many of the creator's own material names a citation answer may name. */
-export const ROOM_CITATION_SOURCES = 4;
 /** The consent ledger `kind` values this surface writes. New VALUES rather
  *  than a new table, which is migration 016's own instruction: one ledger
  *  answers "what has this person agreed to". They are distinct from Meera's
@@ -1940,12 +1958,20 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     }
   }
 
+  // Public teaching material is independent of this follower's private memory.
+  // Re-read before dispatch and delivery; never cache removed public answers.
+  const knowledgeScope = publicKnowledgeScope(resolved);
+  const knowledge = await readPublicRoomKnowledge(db, knowledgeScope);
   const { sent, adapter } = collector();
   const ctx = makeCtx(adapter, {
     engine,
     agent: resolved.module,
     agentId: resolved.agentId,
-    reply: deps.reply || ((compiled, turns) => think(engine, compiled, turns)),
+    reply: async (compiled, turns) => {
+      assertKnowledgeWasCompiled(compiled, knowledge);
+      await assertPublicRoomKnowledgeCurrent(db, knowledgeScope, knowledge);
+      return deps.reply ? deps.reply(compiled, turns) : think(engine, compiled, turns);
+    },
   });
 
   const compiled = engine.compile({
@@ -1964,6 +1990,7 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     innerThread: "",
     innerWants: "",
     memories: facts.map((f) => `- ${f.body}`).join("\n"),
+    publicKnowledge: knowledge.sources.map(({ id, question, answer }) => ({ id, question, answer })),
     herLife: "",
     cultureNoteText: "",
     latestUserText: text,
@@ -1986,6 +2013,7 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
   });
   const said = gatedOut.text;
   if (said) {
+    await assertPublicRoomKnowledgeCurrent(db, knowledgeScope, knowledge);
     await deliver(ctx, "room", { kind: "text", text: said, replyTo: null, buttons: [] });
     if (remembers) {
       await memory.logTurn({ device, person: payload.p, role: "her", content: said, agentId: resolved.agentId });
@@ -2064,6 +2092,13 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     reply: said,
     remembers,
     thread_id: thread?.thread_id ?? null,
+    knowledge: said && knowledge.sources.length ? {
+      scope: "public_room_qa", relation: "provided_to_model", exact: false,
+      reply_sha256: createHash("sha256").update(said, "utf8").digest("hex"), evidence_set_sha256: knowledge.setSha256,
+      sources: knowledge.sources.map(({ id, question, contentSha256 }) => ({
+        id, question, content_sha256: contentSha256,
+      })),
+    } : null,
     // Chrome, never a second reply — see the block above. `null` when no
     // offer applies, exactly like `thread_id`'s own `?? null`.
     offer,
@@ -3833,11 +3868,10 @@ export async function roomReceipt(db, { session, paymentEventId }, deps = {}) {
  * sentence drew on, and inventing a mapping here would be a plausible return
  * hiding a dead pipeline: a citation that looks like evidence and is a guess.
  *
- * So this returns what is TRUE and says exactly that: the material came from
- * this creator, and here are the names of the pieces of it that are in the
- * Context Locker. `source_name` is what the creator typed when they added it.
- * The day the engine carries per-reply provenance, this function narrows from
- * "their material" to "this piece of it" and the client changes nothing.
+ * This endpoint returns the current explicitly public Q&A catalog. It never
+ * reads private Context Locker titles or reconstructs historical source use.
+ * Immediate roomSay metadata separately identifies material supplied to the
+ * model; neither contract claims sentence-level attribution.
  */
 export async function roomCitations(db, { session }, deps = {}) {
   const payload = readRoomSession(session, deps.env);
@@ -3848,26 +3882,15 @@ export async function roomCitations(db, { session }, deps = {}) {
   // the creator's own source titles forever.
   assertSessionFresh(payload, deps.now ?? Date.now());
   const resolved = await resolveRoom(db, payload.r, deps);
-  if (String(resolved.room.room_id) !== String(payload.i)) throw roomUnavailable();
+  if (String(resolved.room.room_id) !== String(payload.i) || String(resolved.agentId) !== String(payload.a)) throw roomUnavailable();
   const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);
   if (!follower || follower.age_attested_at == null) throw new RoomError("room_join_required", 403);
-  const rows = await db(
-    `select c.source_name
-       from vy_context_item c
-      where c.replica_id = ($1)::uuid
-        and c.owner_user_id = ($2)::uuid
-        and c.status in ('mined','routed')
-        and c.source_name <> ''
-      order by c.created_at desc
-      limit ${ROOM_CITATION_SOURCES}`,
-    [String(resolved.room.replica_id), String(resolved.room.owner_user_id)],
-  );
+  const knowledge = await readPublicRoomKnowledge(db, publicKnowledgeScope(resolved));
   return {
     name: roomNameFor(resolved.sheet),
-    // A count and a handful of names. Never a chunk, never a passage, never a
-    // score: the creator's material is theirs and a citation endpoint is not a
-    // way to read it out of the product.
-    sources: rows.map((r) => String(r.source_name).slice(0, 120)),
+    // Current public catalog only. It cannot reconstruct past model use.
+    sources: knowledge.sources.map(source => source.question),
+    scope: "public_room_qa", relation: "published_catalog",
     exact: false,
   };
 }

@@ -134,6 +134,14 @@ export interface RoomTurn {
   upgrade_prompt: boolean;
   offer: RoomOffer | null;
   session: string;
+  knowledge?: {
+    scope: "public_room_qa";
+    relation: "provided_to_model";
+    exact: false;
+    reply_sha256: string;
+    evidence_set_sha256: string;
+    sources: { id: string; question: string; content_sha256: string }[];
+  } | null;
 }
 
 export interface RoomHistory {
@@ -146,6 +154,7 @@ export interface RoomCitations {
   name: string;
   sources: string[];
   exact: boolean;
+  relation?: "provided_to_model" | "published_catalog";
 }
 
 async function post<T>(body: Record<string, unknown>, accessToken?: string | null): Promise<T> {

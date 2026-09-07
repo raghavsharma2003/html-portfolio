@@ -22693,3 +22693,8 @@ Keep entry tokens and sign-in styles eager; load signed-in scene, voice and veri
 ## `public-showcase-is-first-room-knowledge-slice-20260907` (2026-09-07)
 
 Connect the existing up-to-five public showcase answers to roomSay as separate expert knowledge, never follower shared-past memories. Keep exact Room/owner/replica/agent authority, live removal checks, bounded prompt data and honest provided-to-model source metadata. Do not read private Mirror claims or mined locker titles as publication. Reversal condition: measured launch coverage requires a broader independently reviewed publication scope; that evidence can justify a new corpus rather than automatic exposure.
+
+
+## `public-qa-delivery-revalidates-publication-20260907` (2026-09-07)
+
+Ordinary Room replies receive up to five explicitly published Q&As through a separate bounded compiler data block. Read by Room, owner, replica and agent, then revalidate before provider dispatch and successful delivery. Immediate reply metadata says provided_to_model, never exact citation; the UI checks the full reply SHA-256. Historical fallback shows the current public catalog only. Private locker titles are no longer returned as citations. Reversal condition: measured source coverage requires a broader explicitly approved corpus, or a versioned transactional publication protocol offers stronger revocation bounds. This does not revoke information already transmitted to a model.

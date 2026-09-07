@@ -16283,3 +16283,13 @@ Agent ran three cold studio-hi contexts before and after on 2026-09-07. Initial 
 ## `published-qa-room-path-source-audit-20260907` (2026-09-07)
 
 One Astra source audit identified authenticated showcase_set/remove and public page display, while ordinary roomSay uses the published TeacherSheet and follower-only recall without showcase retrieval. Private owner context therefore exists but is not a public knowledge grant. Current roomCitations lists mined/routed locker titles rather than actual per-reply sources. No DB/model/quality test ran in this audit. Report docs/gurukul/research/EXPERT-KNOWLEDGE-ROOM-PATH-20260907.md.
+
+
+## `public-qa-focused-and-development-sql-20260907` (2026-09-07)
+
+On 2026-09-07 root independently passed 19 reader groups, 29 compiler checks plus 83 incumbent byte fixtures, and 11 actual Room/compiler/Azure-adapter integration groups with injected transport. The real isolated development SQL harness passed 13 scenarios including EXPLAIN, four scope predicates, empty publication, removal, edit and pause; exact synthetic cleanup left zero fixture rows at 06:40:56Z. Root subsequently passed forced TypeScript, 54 locale checks, copy checks and the 34-check real development relational sweep. Agent reported existing Room54, Room doors2195 plus354 orders, and leak319 assertions; root did not repeat those three suites. No real model call or listening evaluation ran in this phase. Full release12 remains incomplete; these focused checks do not replace a frozen release.
+
+
+## `public-qa-ui-lifecycle-regression-20260907` (2026-09-07)
+
+Root independently passed8 actual RoomApp callback groups with deferred history, digest and catalog responses; source mutants demonstrate stale-write and session-reload failures when guards are removed. Agent forced TypeScript passed after the UI correction. These callback fixtures do not prove a full signed-in browser journey. Root separately observed the local Studio sign-in DOM with zero browser console errors; initial navigation timed out before that successful inspection. No authentication or model call occurred in that browser check.

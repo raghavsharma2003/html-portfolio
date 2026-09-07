@@ -16437,3 +16437,13 @@ IAB127.0.0.1:5177 retained SyntaxError pointing at ExpertEntryVisual, even with 
 ## `public-knowledge-is-not-shared-past-20260907` (2026-09-07)
 
 Placing public expert answers in follower memories or gatedReply record would authorize fabricated shared-past statements. Reading all accepted claims or importing owner-person recall would expose private material. Importing _room-publish back into _room-surface creates a module cycle. Use a dependency-light scoped reader and a distinct compiler data input. Implementation begins next; no grounded-answer acceptance yet.
+
+
+## `truncated-session-hash-is-not-reply-sha256-20260907` (2026-09-07)
+
+Review caught use of an existing truncated base64url session hash helper in the new reply metadata. Replaced it with full SHA-256 hexadecimal output matching the actual browser replySha256 helper, and integration assertions passed. A list of source titles is not proof that an answer used them; the new metadata states only that public answers were supplied. Private mined locker filenames are not publication authority. Prompt-data escaping is a structural boundary, not proof of model resistance to every instruction attack.
+
+
+## `public-qa-review-finds-runtime-ui-and-unicode-gaps-20260907` (2026-09-07)
+
+Astra review found that normal successful replies rotate the Room session and the session-dependent history effect replaced turns without their source metadata. Thread changes also allowed stale history or citation responses. The UI correction keys loads by conversation scope rather than token rotation and discards obsolete async results. Separately an actual reader/compiler probe accepted 101 emoji characters in PostgreSQL-compatible reader validation but rejected 202 UTF-16 units in the compiler. Root aligned character limits with the reader, retained bounded allocation and rejected NUL/unpaired surrogates. The actual compiler now passes30 checks plus83 incumbent fixtures; the rebuilt engine passes11 integration groups again. These discovered gaps show why isolated API tests alone did not prove the browser journey.

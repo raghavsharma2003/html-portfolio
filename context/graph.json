@@ -12885,6 +12885,36 @@
       "kind": "rejection",
       "title": "Keep published expertise separate from personal memory",
       "at": "2026-09-07"
+    },
+    {
+      "id": "public-qa-delivery-revalidates-publication-20260907",
+      "kind": "decision",
+      "title": "Bind public Q&A to the exact Room and reply",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "public-qa-focused-and-development-sql-20260907",
+      "kind": "measurement",
+      "title": "Public knowledge integration passes focused checks and real development SQL",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "truncated-session-hash-is-not-reply-sha256-20260907",
+      "kind": "rejection",
+      "title": "Use full reply hashes and honest source semantics",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "public-qa-review-finds-runtime-ui-and-unicode-gaps-20260907",
+      "kind": "rejection",
+      "title": "Review catches session-refresh provenance loss and Unicode mismatch",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "public-qa-ui-lifecycle-regression-20260907",
+      "kind": "measurement",
+      "title": "Source-detail lifecycle passes eight callback regression groups",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

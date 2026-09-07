@@ -101,11 +101,12 @@ import {
   type RoomMonthNote,
   type RoomSettings,
   type RoomThread,
+  type RoomTurn,
 } from "./roomApi";
 import { RoomPayApiError, startSubscription, type RoomPaymentStatus } from "./roomPayApi";
 import { noteInstallVisit, markInstallDismissed, shouldShowInstallCard } from "./installPrompt";
 
-type Turn = { role: "user" | "assistant"; content: string; fresh?: boolean };
+type Turn = { role: "user" | "assistant"; content: string; fresh?: boolean; knowledge?: RoomTurn["knowledge"] };
 /** The one shape this file needs off a captured `beforeinstallprompt` event
  *  (WS-R59) — typed loosely rather than importing a DOM lib type, since none
  *  ships with this project's `lib` and every browser that fires the real
@@ -235,6 +236,10 @@ export default function RoomApp({
   const [tasteDismissed, setTasteDismissed] = useState(fixtureTasteDismissed ?? false);
   const [auth, setAuth] = useState<StudioSession | null>(null);
   const [session, setSession] = useState<string | null>(fixtureOpen?.session ?? null);
+  const sessionRef = useRef(session);
+  const historyRequestRef = useRef(0);
+  const citationRequestRef = useRef(0);
+  useEffect(() => { sessionRef.current = session; }, [session]);
   const [turns, setTurns] = useState<Turn[]>(fixtureTurns ?? []);
   const [threads, setThreads] = useState<RoomThread[]>(fixtureOpen?.threads ?? []);
   const [thread, setThread] = useState<string | null>(null);
@@ -369,6 +374,9 @@ export default function RoomApp({
 
   const name = room?.room.name || room?.room.display_name || "";
   const remembers = room?.follower?.remembers === true;
+  const hasSession = session !== null;
+  const roomScope = room?.room.slug ?? slug;
+  const accountScope = auth?.userId ?? null;
   // Check-ins are paid-only and require a remembered thread to land in
   // (api/_checkins.js's own reasoning) — the button is simply absent rather
   // than present-and-disabled, `context/rejected.md`'s standing rule that a
@@ -725,24 +733,32 @@ export default function RoomApp({
       .catch(() => {});
   }, [session, fixtureOpen]);
 
-  /* Remembered history, per thread. A follower who declined memory gets an
-   * honestly empty answer from the server rather than an invented one here. */
-  const loadHistory = useCallback(
-    async (token: string, which: string | null) => {
-      try {
-        const past = await roomHistory(token, which);
-        setTurns(past.turns.map((t) => ({ role: t.role, content: t.content })));
-      } catch {
-        setTurns([]);
-      }
-    },
-    [],
-  );
-
+  // Load on conversation-scope changes, not the token rotation every reply
+  // causes. Otherwise a history refresh discards its transient evidence.
+  // A superseded request cannot overwrite a new thread or an in-flight send.
   useEffect(() => {
-    if (fixtureOpen || phase !== "talking" || !session || !remembers) return;
-    void loadHistory(session, thread);
-  }, [phase, session, thread, remembers, loadHistory, fixtureOpen]);
+    const token = sessionRef.current;
+    const request = ++historyRequestRef.current;
+    let live = true;
+    if (fixtureOpen) return;
+    setTurns([]);
+    if (phase !== "talking" || !hasSession || !token || !remembers) return;
+    void roomHistory(token, thread).then((past) => {
+      if (live && request === historyRequestRef.current) {
+        setTurns(past.turns.map((turn) => ({ role: turn.role, content: turn.content })));
+      }
+    }).catch(() => {
+      if (live && request === historyRequestRef.current) setTurns([]);
+    });
+    return () => { live = false; };
+  }, [phase, hasSession, thread, remembers, fixtureOpen, slug, roomScope, accountScope]);
+
+  // A late source catalog or digest must not label another thread's reply.
+  useEffect(() => {
+    citationRequestRef.current++;
+    setCite(null);
+    return () => { citationRequestRef.current++; };
+  }, [slug, roomScope, thread, phase, hasSession, accountScope]);
 
   /* WS-R22 built this as a client-side Blob-URL swap, because no server
    * route for a per-Room manifest existed yet. WS-R59 adds one
@@ -880,6 +896,8 @@ export default function RoomApp({
   async function send() {
     const text = draft.trim();
     if (!text || !session || sending) return;
+    const request = ++historyRequestRef.current;
+    citationRequestRef.current++;
     setError("");
     setCite(null);
     setDraft("");
@@ -893,15 +911,17 @@ export default function RoomApp({
         // second, unsigned copy of a history the server already owns.
         transcript: remembers ? [] : turns.map((t) => ({ role: t.role, content: t.content })),
       });
+      if (request !== historyRequestRef.current) return;
       setSession(turn.session);
       setQuota(turn.quota);
       setUpgrade(turn.upgrade_prompt);
       if (turn.offer) setOfferCard(turn.offer);
-      setTurns((prev) => [...prev, { role: "assistant", content: turn.reply, fresh: true }]);
+      setTurns((prev) => [...prev, { role: "assistant", content: turn.reply, fresh: true, knowledge: turn.knowledge }]);
       if (turn.thread_id && !threads.some((t) => t.thread_id === turn.thread_id)) {
         setThreads((prev) => prev);
       }
     } catch (cause) {
+      if (request !== historyRequestRef.current) return;
       if (cause instanceof RoomApiError && cause.code === "room_free_cap_reached") {
         setCapped(true);
         // The message is handed back, not swallowed: the follower typed it and
@@ -1433,8 +1453,19 @@ export default function RoomApp({
             type="button"
             className="room-cite"
             onClick={async () => {
+              const request = ++citationRequestRef.current;
+              const latest = [...turns].reverse().find(turn => turn.role === "assistant");
+              const digest = latest?.knowledge?.relation === "provided_to_model"
+                ? await replySha256(latest.content).catch(() => null) : null;
+              if (request !== citationRequestRef.current) return;
+              if (latest?.knowledge?.relation === "provided_to_model" && digest &&
+                  latest.knowledge.reply_sha256 === digest) {
+                setCite({ name, sources: latest.knowledge.sources.map(source => source.question),
+                  exact: false, relation: "provided_to_model" });
+                return;
+              }
               const answer = await roomCitations(session).catch(() => null);
-              if (answer) setCite(answer);
+              if (request === citationRequestRef.current && answer) setCite(answer);
             }}
           >
             {copy.conversation.whereFrom}
@@ -1443,7 +1474,8 @@ export default function RoomApp({
 
         {cite && (
           <div className="room-cite-answer">
-            {withName(copy.conversation.citedFrom, cite.name || name)}
+            {withName(cite.relation === "provided_to_model" ? copy.conversation.citedSupplied :
+              cite.sources.length ? copy.conversation.citedFrom : copy.conversation.citedNone, cite.name || name)}
             {cite.sources.length > 0 && (
               <ul>
                 {cite.sources.map((s) => (
