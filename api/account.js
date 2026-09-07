@@ -22,6 +22,7 @@ import { q } from "./_db.js";
 import { withDoor } from "./_incidents.js";
 import { SB_URL, SB_KEY, authFetch, userFromToken } from "./_auth.js";
 import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
+import { forgetTextPublicationAccount } from './_text-publication-store.js';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ── WS-R32: the OTP doors behind vy_public_rate (closes ws-r26-otp-doors-
@@ -233,6 +234,7 @@ async function handler(req, res) {
       if (!user) return res.status(401).json({ error: "invalid session" });
       const mode = b.mode === "forget" ? "forget" : "clear";
       if (mode === "forget") {
+        await forgetTextPublicationAccount(q, user.id);
         const gone = await q(`delete from meera_state where user_id = $1 returning user_id`, [
           user.id,
         ]).catch(() => []);

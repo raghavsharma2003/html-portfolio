@@ -1,0 +1,101 @@
+import assert from 'node:assert/strict';
+import {EventEmitter} from 'node:events';
+import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {createHash} from 'node:crypto';
+import * as engine from '../../api/_engine.gen.js';
+import {createTextPublicationOwnerHandler,createTextPublicationVisitorHandler,textPublicationOutput} from '../../api/_text-publication-runtime.js';
+import {compileNeverRules} from '../../api/_never-rules.js';
+globalThis.fetch=async()=>{throw Error('unexpected_network_refused');};
+const {gateReply,hasGate,honestyContextFor}=await import('../../api/_surface.js');
+const id=n=>`c0000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+const owner=id(1),replica=id(2),publication=id(3),visitor=id(4),requestId=id(5);
+const question='How many items are in FIR-83?';
+const compilerInput={authority:{scope:'account_material_publication',basis:'account_material_publication/v1',ownerId:owner,replicaId:replica,publicationId:publication,requestId,visitorId:visitor,projectionHash:'a'.repeat(64),receiptHash:'b'.repeat(64),sourceHash:'c'.repeat(64)},projection:{name:'Synthetic maths materials',subjectDomain:'maths'},contexts:[{itemId:id(6),sourceId:id(7),hash:'d'.repeat(64),body:'FIR-83 has 29 items and 8 checks.'}],question};
+const output=(reply,language_hint='en-IN')=>JSON.stringify({reply,delivery:{mode:'grounded',pace:'natural',intensity:0.3,language_hint,nonverbals:[]}});
+const error=(code,status=409)=>Object.assign(new Error(code),{code,status});
+const request=(method='POST',input={})=>Object.assign(new EventEmitter(),{method,body:input,query:input,aborted:false});
+const response=()=>Object.assign(new EventEmitter(),{destroyed:false,writableEnded:false,status(n){this.code=n;return this;},json(body){this.body=body;this.writableEnded=true;return this;}});
+async function run(config={}){
+ const events=[];let saved=null;const req=request(config.method||'POST',{op:config.op||'ask',public_id:publication,session_token:'synthetic-session',request_id:config.uppercase?requestId.toUpperCase():requestId,question,owner_user_id:id(99)}),res=response();
+ req.aborted=!!config.aborted;res.destroyed=!!config.destroyed;
+ const scope=(actor,input)=>{assert.equal(actor,visitor);assert.equal(input.public_id,publication);assert.equal(input.session_token,'synthetic-session');};
+ const store={
+  async openTextPublication(db,actor){assert.equal(actor,null);events.push('open');return{public_id:publication,can_text:true,can_voice:false};},
+  async joinTextPublication(db,actor){assert.equal(actor,visitor);events.push('join');return{publication:{public_id:publication},session_token:'synthetic-session'};},
+  async forgetTextPublicationVisitor(db,actor){assert.equal(actor,visitor);events.push('forget');return{forgotten:true,private_payload_erased:true};},
+  async admitTextPublicationRequest(db,actor,input){scope(actor,input);events.push('admit');if(config.denied)throw error('text_publication_not_found',404);return{created:!config.replay,request:{public_id:publication,request_id:requestId},owner_user_id:owner,replica_id:replica,compilerInput:config.privateAuthority?{...compilerInput,authority:{...compilerInput.authority,scope:'private_text_rehearsal',basis:'owner_question_attestation_v1'}}:compilerInput};},
+  async readTextPublicationRequest(db,actor,input){scope(actor,input);events.push('read');if(config.foreign||config.readChanged)throw error('text_publication_not_found',404);return saved||{public_id:publication,request_id:requestId,state:config.replayState||'complete',...(config.replayState?{}:{answer:'Saved'}),can_voice:false};},
+  async claimTextPublicationRequest(db,actor,input){scope(actor,input);assert.equal(input.request_id,requestId);events.push('claim');if(config.claimError)throw error('text_publication_dispatch_uncertain',503);if(config.abortClaim)req.emit('aborted');return config.emptyClaim?{}:{dispatch_token:'synthetic-dispatch'};},
+  async completeTextPublicationRequest(db,actor,input){scope(actor,input);events.push('complete');if(config.commitError)throw error('text_publication_delivery_blocked');assert.equal(input.dispatch_token,'synthetic-dispatch');saved={public_id:publication,request_id:requestId,state:'complete',answer:input.answer,billing_state:input.billing_state,can_voice:false};return saved;},
+  async failTextPublicationRequest(db,actor,input){scope(actor,input);events.push('fail:'+input.billing_state);if(config.failError)throw Error('sensitive source contents');},
+ };
+ const budget={foundryBudgetConfig(){if(config.budgetInvalid)throw error('provider_budget_invalid',503);},async reserveFoundrySpend(db,input){events.push('reserve');assert.equal(input.requestKey,'text-publication:'+requestId);return{reservation_id:id(8)};},
+  async beginFoundrySpend(){events.push('begin');if(config.beginError)throw error('provider_start_unknown',503);if(config.abortBegin)req.emit('aborted');},async releaseFoundrySpendBeforeCall(){events.push('release');if(config.releaseError)throw error('release_unknown',503);return config.releaseEmpty?null:{budget_id:'synthetic'};},
+  async settleFoundrySpend(){events.push('settle');if(config.settleError)throw error('settlement_unknown',503);},async markFoundrySpendUncertain(){events.push('uncertain');}};
+ const handler=createTextPublicationVisitorHandler({db:async()=>{throw Error('implicit_db_refused');},store,budget,env:{},engine:config.noEngine?{}:engine,
+  requireUser:async()=>{events.push('auth');if(config.noAuth)throw error('invalid_session',401);return{id:visitor};},
+  gateReply,hasGate,honestyContextFor,compileNeverRules,loadNeverRules:async(db,rid,uid)=>{events.push('rules');assert.equal(rid,replica);assert.equal(uid,owner);if(config.ruleReadError)throw error('never_rules_unavailable',503);return config.rules||[];},
+  resolveGenerator:async()=>{events.push('adapter');if(config.noAdapter)throw error('text_publication_azure_unavailable',503);return{name:config.otherProvider?'external':'azure-foundry-structured-output',family:'dialogue',version:'synthetic-v1',model:'synthetic',billing:{meter:config.badMeter?'other':'azure_foundry_tokens',max_output_tokens:700},
+   async generate({prompt,signal}){events.push('generate');assert.equal(prompt.schema,'account_material_publication/v1');assert.equal(prompt.messages.length,2);assert.equal(prompt.messages.at(-1).content,question);assert(!prompt.messages[0].content.includes('synthetic-session'));assert(!signal.aborted);if(config.networkError)throw new Error('sensitive endpoint and authorization');if(config.abortGenerate)req.emit('aborted');return{output:config.invalid?'invalid JSON':output(config.reply||'FIR-83 has 29 items.',config.languageHint),usage:{input_tokens:100,output_tokens:10}};}};}});
+ await handler(req,res);assert.equal(req.listenerCount('aborted'),0);assert.equal(res.listenerCount('close'),0);return{events,res};
+}
+const checks=[];async function check(name,fn){await fn();checks.push(name);console.log(`ok ${checks.length} - ${name}`);}
+await check('actual publication compiler and shared gates, one dispatch with server-owner rules and fresh readback',async()=>{const{res,events}=await run();assert.equal(res.code,201);assert.equal(res.body.request.answer,'FIR-83 has 29 items.');assert.equal(res.body.request.can_voice,false);assert.deepEqual(events,['auth','admit','adapter','reserve','claim','begin','generate','settle','rules','complete','read']);assert(!JSON.stringify(res.body).includes(owner));});
+await check('private rehearsal authority is not publication authority; actual compiler refuses before reserve',async()=>{const{res,events}=await run({privateAuthority:true});assert.equal(res.code,400);assert.equal(res.body.error,'text_publication_compiler_invalid');assert(!events.includes('reserve'));});
+await check('complete, pending, uncertain and withdrawn replay never resolve provider or reserve',async()=>{for(const replayState of ['complete','pending','uncertain','withdrawn']){const{res,events}=await run({replay:true,replayState,noEngine:true,noAdapter:true});assert.equal(res.code,200);assert.equal(res.body.request.state,replayState);assert.deepEqual(events,['auth','admit','read']);}});
+await check('foreign publication/session admission refuses with zero dispatch',async()=>{const{res,events}=await run({denied:true});assert.equal(res.code,404);assert.deepEqual(events,['auth','admit']);});
+await check('foreign visitor result refused independently of body owner claims',async()=>{const{res,events}=await run({op:'result',foreign:true});assert.equal(res.code,404);assert.deepEqual(events,['auth','read']);});
+await check('only discovery is unauthenticated; all visitor POST operations require user',async()=>{const open=await run({method:'GET',op:'open',noAuth:true});assert.equal(open.res.code,200);assert.deepEqual(open.events,['open']);for(const op of ['join','ask','result','forget']){const{res,events}=await run({op,noAuth:true});assert.equal(res.code,401);assert.deepEqual(events,['auth']);}});
+await check('GET result cannot accept a session token in URL or dispatch',async()=>{const{res,events}=await run({method:'GET',op:'result'});assert.equal(res.code,400);assert.deepEqual(events,[]);});
+await check('join, forget and result remain available during engine/provider outage',async()=>{for(const op of ['join','forget','result']){const{res,events}=await run({op,noEngine:true,noAdapter:true});assert.equal(res.code,200);assert(!events.includes('adapter'));assert(!events.includes('reserve'));}});
+await check('missing engine, invalid budget and non-Azure adapter/meter buy no reservation',async()=>{for(const c of [{noEngine:true},{budgetInvalid:true},{badMeter:true},{otherProvider:true}]){const{res,events}=await run(c);assert(res.code>=400);assert(!events.includes('reserve'));}});
+await check('lost/empty claim releases only unique admission reservation, never generates',async()=>{for(const c of [{claimError:true},{emptyClaim:true},{abortClaim:true}]){const{events}=await run(c);assert(events.includes('release'));assert(events.includes('fail:not_started'));assert(!events.includes('begin'));assert(!events.includes('generate'));}});
+await check('release ambiguity is reconciliation, not no-charge success',async()=>{const{events}=await run({claimError:true,releaseError:true});assert(events.includes('uncertain'));assert(events.includes('fail:reconcile_required'));assert(!events.includes('generate'));});
+await check('empty release receipt does not claim confirmed no-charge state',async()=>{const{events}=await run({claimError:true,releaseEmpty:true});assert(events.includes('fail:reconcile_required'));assert(!events.includes('fail:not_started'));assert(!events.includes('generate'));});
+await check('begin ambiguity or postbegin abort does not release or generate',async()=>{for(const c of [{beginError:true},{abortBegin:true}]){const{events}=await run(c);assert(events.includes('uncertain'));assert(!events.includes('release'));assert(!events.includes('generate'));}});
+await check('transport ambiguity dispatches once, records reconciliation and exposes no exception text',async()=>{const{res,events}=await run({networkError:true,failError:true});assert.equal(events.filter(e=>e==='generate').length,1);assert(events.includes('fail:reconcile_required'));assert.equal(res.body.error,'text_publication_failed');assert(!JSON.stringify(res.body).includes('sensitive'));});
+await check('provider that ignores abort still settles usage but cannot complete',async()=>{const{events,res}=await run({abortGenerate:true});assert(events.includes('settle'));assert(events.includes('fail:settled'));assert(!events.includes('complete'));assert.equal(res.body.error,'text_publication_request_aborted');});
+await check('authority revoked after provider settles refuses completion with payable cost',async()=>{const{events,res}=await run({commitError:true});assert.equal(res.code,409);assert(events.includes('settle'));assert(events.includes('fail:settled'));assert(!res.body.request);});
+await check('fresh result refusal after completion withholds stored answer',async()=>{const{events,res}=await run({readChanged:true});assert.equal(res.code,404);assert(events.includes('complete'));assert(events.includes('read'));assert(!res.body.request);});
+await check('real late never rule sees every substantive bullet and blocks whole answer',async()=>{const reply='FIR-83 has 29 items.\n- This long teaching style bullet retains the forbidden reference value.';const{events,res}=await run({reply,rules:[{rule_id:id(9),pattern:'forbidden reference value',revoked_at:null}]});assert.equal(res.code,409);assert(events.indexOf('rules')>events.indexOf('generate'));assert(!events.includes('complete'));});
+await check('never-rule read failure cannot become valid empty rules',async()=>{const{events,res}=await run({ruleReadError:true});assert.equal(res.code,503);assert(events.includes('settle'));assert(!events.includes('complete'));});
+await check('malformed JSON and overlong/malformed output are withheld before cleaner',async()=>{for(const c of [{invalid:true},{reply:'x'.repeat(1601)},{reply:'x'.repeat(1599)+'🙂'},{reply:'valid\ud800'},{languageHint:'x'.repeat(33)},{languageHint:'en\ud800'}]){const{events,res}=await run(c);assert(res.code>=400);assert(events.includes('settle'));assert(!events.includes('complete'));assert(!events.includes('uncertain'));}});
+await check('structured output validator refuses unrecognized action keys',async()=>{assert.throws(()=>textPublicationOutput({reply:'x',delivery:{mode:'grounded',pace:'natural',intensity:0.3,language_hint:'en',nonverbals:[]},voice:true}));});
+await check('settlement uncertainty retained honestly alongside gated known output',async()=>{const{events,res}=await run({settleError:true});assert.equal(res.code,201);assert.equal(res.body.request.billing_state,'reconcile_required');assert(events.includes('uncertain'));});
+await check('already closed request invokes neither auth nor admission',async()=>{for(const c of [{aborted:true},{destroyed:true}]){const{events,res}=await run(c);assert.equal(res.code,409);assert.deepEqual(events,[]);}});
+await check('canonical durable IDs feed reservation and claim',async()=>{const{res}=await run({uppercase:true});assert.equal(res.code,201);});
+
+async function ownerRun(op,config={}){
+ const events=[],req=request(['readiness','status'].includes(op)?'GET':'POST',{op,replica_id:replica,publication_id:publication,owner_user_id:id(99)}),res=response();
+ const publicationWire={public_id:publication,can_voice:false,state:op==='unpublish'?'revoked':'active'};
+ const scoped=actor=>assert.equal(actor,owner);
+ const store={async readTextPublicationReadiness(db,actor){scoped(actor);events.push('readiness');return{can_publish:true,blockers:[],state:'ready'};},async readOwnedTextPublication(db,actor){scoped(actor);events.push('status');return publicationWire;},async unpublishTextPublication(db,actor){scoped(actor);events.push('unpublish');return publicationWire;},async publishTextPublication(db,actor,input){scoped(actor);events.push('publish');assert.equal(input.publication_id,publication);if(config.stale)throw error('text_publication_review_changed');return{created:!config.replay,publication:publicationWire};}};
+ const handler=createTextPublicationOwnerHandler({db:async()=>{},requireUser:async()=>{events.push('auth');return{id:owner};},store,engine,hasGate,budget:{foundryBudgetConfig(){}},resolveGenerator:async()=>{events.push('adapter');if(config.unavailable)throw error('text_publication_azure_unavailable',503);return{name:'azure-foundry-structured-output',billing:{meter:'azure_foundry_tokens'},generate(){throw Error('never_generate');}};}});
+ await handler(req,res);return{res,events};
+}
+await check('explicit owner publish creation/replay uses authenticated account, never body identity',async()=>{for(const replay of [false,true]){const{res,events}=await ownerRun('publish',{replay});assert.equal(res.code,replay?200:201);assert.equal(res.body.publication.public_id,publication);assert.deepEqual(events,['auth','publish']);}});
+await check('stale review refuses explicit owner publish and no implicit replace occurs',async()=>{const{res,events}=await ownerRun('publish',{stale:true});assert.equal(res.code,409);assert.deepEqual(events,['auth','publish']);});
+await check('owner readiness reports platform provider outage without model calls',async()=>{const{res}=await ownerRun('readiness',{unavailable:true});assert.equal(res.code,200);assert.equal(res.body.readiness.can_publish,false);assert.equal(res.body.readiness.blockers[0].responsibility,'platform');});
+await check('owner status/unpublish remain available during provider outage',async()=>{for(const op of ['status','unpublish']){const{res,events}=await ownerRun(op,{unavailable:true});assert.equal(res.code,200);assert.deepEqual(events,['auth',op]);}});
+
+// Execute each actual endpoint module with only its imported dependencies replaced.
+// This verifies the production caller, CORS/cache, limiter and auth wiring, not SQL.
+await check('actual owner and visitor endpoint modules call correct authenticated runtime and handle OPTIONS without auth',async()=>{
+ for(const [file,factory] of [['replica-text-publication.js','createTextPublicationOwnerHandler'],['text-publication.js','createTextPublicationVisitorHandler']]){
+  const source=readFileSync(new URL('../../api/'+file,import.meta.url),'utf8'),events=[];
+  globalThis.__publicationEndpointDeps={q:async()=>{},requireUser:async()=>{events.push('auth');return{id:visitor};},allow:(id,lane)=>{events.push(lane);return true;},ipOf:()=> 'synthetic-ip',engine:{},store:{},hasGate:()=>true,createProductionDialogueGenerator:()=>{},gateReply:()=>{},honestyContextFor:()=>{},loadNeverRules:()=>{},compileNeverRules:()=>{},[factory]:options=>async(req,res)=>{events.push('runtime');await options.requireUser(req);return res.status(200).json({ok:true});}};
+  const withoutImports=source.replace(/^import .*?;\r?\n/gm,'');assert(!/^import /m.test(withoutImports));
+  const names=Object.keys(globalThis.__publicationEndpointDeps).join(',');
+  const module=await import('data:text/javascript;base64,'+Buffer.from(`const {${names}}=globalThis.__publicationEndpointDeps;\n`+withoutImports).toString('base64'));
+  if(file==='text-publication.js')assert.equal(module.config.maxDuration,60);
+  const make=()=>{const res=response();res.headers={};res.setHeader=(k,v)=>{res.headers[k]=v;};res.end=()=>res;return res;};
+  const preflight=make();await module.default(request('OPTIONS'),preflight);assert.equal(preflight.code,204);assert.deepEqual(events,[]);assert.equal(preflight.headers['Cache-Control'],'no-store');
+  const res=make();await module.default(request('POST',{op:'result'}),res);assert.equal(res.code,200);assert(events.includes('auth'));assert(events.includes('runtime'));assert(events.some(e=>e.endsWith('_ip')));assert(events.some(e=>e===('text_publication_'+(file.startsWith('replica')?'owner':'visitor'))));
+ }
+ delete globalThis.__publicationEndpointDeps;
+});
+const root=new URL('../../',import.meta.url),files=['api/_text-publication-runtime.js','api/replica-text-publication.js','api/text-publication.js','api/_engine.gen.js','src/engine/publishedMaterialAssistant.ts'];
+const receipt={at:new Date().toISOString(),passed:checks.length,checks,method:'actual runtime/compiler/gates and endpoint caller with injected store/auth/budget/provider; not SQL or real provider proof',source_hashes:Object.fromEntries(files.map(f=>[f,createHash('sha256').update(readFileSync(new URL(f,root))).digest('hex')]))};
+const folder=new URL('scratchpad/text-publication-runtime/',root);mkdirSync(folder,{recursive:true});const out=new URL(Date.now()+'.json',folder);writeFileSync(out,JSON.stringify(receipt,null,2)+'\n');
+console.log(`${checks.length} text publication runtime groups passed. Receipt: ${fileURLToPath(out)}`);

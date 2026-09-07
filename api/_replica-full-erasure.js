@@ -48,6 +48,7 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // and a deletion receipt that did not name them would understate what
       // was held. Additive; the eval asserts membership, never the exact list.
       "owner_context_locker",
+      "published_account_text_and_visitor_payloads",
       // 058. Named as its own class rather than folded into replica_feedback:
       // a Mirror Call holds the owner's own transcript and the habits mined
       // from it, and a deletion receipt that could not say those were included
@@ -546,6 +547,14 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- replica was gone. CHILD FIRST, as the runtime chain above is ordered:
      -- the text row is deleted before the item row that names it, so nothing
      -- can strand a body whose item is already gone.
+     retired_text_publication_ids as (
+       insert into vy_text_publication_id_ledger(id,kind)
+       select x.publication_id,'publication' from vy_text_publication x join target t
+         on x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id
+       on conflict do nothing returning id),
+     text_publications as (delete from vy_text_publication x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id
+         and (select count(*) from retired_text_publication_ids)>=0),
      private_text_rehearsals as (delete from vy_private_text_rehearsal x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      context_item_texts as (delete from vy_context_item_text x using target t

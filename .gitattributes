@@ -17,3 +17,6 @@ Dockerfile text eol=lf
 # Captured SQL contains literal whitespace inside PostgreSQL E-string values.
 # Preserve its exact committed provenance hash across platforms.
 evals/source-erasure/fixtures/legacy-teacher-sheet-erasure.sql -text whitespace=-blank-at-eol
+
+# This full historical caller is authenticated by its original byte hash.
+evals/text-publication-ui/early-share-old-clone.tsx.txt -text

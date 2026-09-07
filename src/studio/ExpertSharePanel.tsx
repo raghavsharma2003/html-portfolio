@@ -1,7 +1,8 @@
 import { expertWorkspaceUrl } from "./workspaceNavigation";
 import type { ReplicaRuntimeStatus } from "./types";
+import MaterialSharePanel from "./publication/MaterialSharePanel";
 
-export default function ExpertSharePanel({ replicaId }: {
+export default function ExpertSharePanel({ replicaId, token }: {
   token: string;
   replicaId: string;
   stopped: boolean;
@@ -10,9 +11,11 @@ export default function ExpertSharePanel({ replicaId }: {
   onReview: () => void;
 }) {
   return <section className="vx-expert-share" aria-labelledby="expert-share-title">
-    <div className="vx-stage-title"><h1 id="expert-share-title">Give your AI a home.</h1><p>A private conversation for each person. Your knowledge, with continuity.</p></div>
-    <a className="vx-button vx-button--primary" href={expertWorkspaceUrl(replicaId, "share", window.location.search)}>Open expert workspace</a>
-    <p>Review your profile and readiness before publishing. Your AI stays private until those checks pass.</p>
-    <p>Publishing currently supports teaching profiles. Other expert profiles need their own reviewed setup.</p>
+    <div className="vx-stage-title"><h1 id="expert-share-title">Give your AI a home.</h1></div>
+    <MaterialSharePanel token={token} replicaId={replicaId} />
+    <details className="vp-data"><summary>Voice and other channels</summary>
+      <p>These need their own verification before sharing.</p>
+      <a className="vx-button" href={expertWorkspaceUrl(replicaId, "share", window.location.search)}>Review readiness</a>
+    </details>
   </section>;
 }

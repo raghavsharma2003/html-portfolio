@@ -1507,3 +1507,19 @@ from a different claim-extraction deployment.
 | `AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS` | `api/_azure-surface-reply.js` | optional unless Azure replies are selected | none | unpriced replies cannot reserve budget |
 | `AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS` | `api/_azure-surface-reply.js` | optional unless Azure replies are selected | none | unpriced replies cannot reserve budget |
 
+## 37. Account-material text publication (`vercel-app`, 2026-09-08)
+
+Deployment target: the server handling `/api/replica-text-publication`, `/api/text-publication` and `/api/text-publication-expire`. These settings are server environment variables. Never expose the encryption key or cron secret to browser code.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `TEXT_PUBLICATION_BUDGET_USD` | `api/_text-publication-store.js` | optional unless text publication is used; positive USD, at least one microdollar and at most 10 USD | none | readiness reports a platform blocker and publication refuses |
+| `PRIVATE_TEXT_REHEARSAL_KEK_ID` | `api/_text-publication-crypto.js` | optional unless private rehearsal or text publication is used; stable identifier for the configured encryption key | none | publication encryption is unavailable |
+| `PRIVATE_TEXT_REHEARSAL_KEK_B64` | `api/_text-publication-crypto.js` | optional unless private rehearsal or text publication is used; canonical base64 encoding of a 32-byte key | none | encrypted content cannot be written or read |
+| `CRON_SECRET` | `api/text-publication-expire.js`, `api/_text-publication-store.js` | required, at least 24 characters; authenticated Bearer header | none | publishing refuses without retention configuration; unauthenticated sweeps refuse |
+
+The Azure dialogue endpoint, model, API key, token prices and shared provider budget from the existing Foundry sections are also required before answers can be generated. Public link access does not prove provider readiness.
+
+The displayed publication budget is an additional per-publication allocation cap. It does not replace the shared provider ledger. Admitted attempts count toward the fixed 20 questions per visitor and 200 per publication even if an answer cannot be delivered. Version 1 expires publications and retains conversations for at most 30 days; visitors can request deletion sooner.
+
+The expiry caller is registered every ten minutes. Verify that the intended deployment actually invokes it and that its bounded cleanup catches up; source registration and a configured secret alone do not prove retention cleanup is running. Key rotation needs an explicit migration/read strategy for existing encrypted content. Replacing the key bytes while retaining the same identifier will make earlier conversations unreadable.

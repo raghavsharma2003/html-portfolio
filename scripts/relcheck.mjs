@@ -318,6 +318,7 @@ const PERSON_COLUMNS = [
   "granted_to",
   "owner_user_id",
   "redeemed_by_user_id",
+  "visitor_user_id",
 ];
 
 // `owner_user_id` is the replica OWNER's Supabase auth id — a natural person,
@@ -346,6 +347,17 @@ const PERSON_COLUMNS = [
 // gets: reachable by cascade or named in api/_replica-full-erasure.js, walked
 // below rather than merely asserted.
 const OWNER_KEYS = ["owner_user_id", "redeemed_by_user_id"];
+// Public text carries both owner and visitor identity. Owner reach below is
+// insufficient for visitor forgetting: inspect both explicit live callers.
+const publicationStore = await readFile(new URL('../api/_text-publication-store.js', import.meta.url), 'utf8');
+const publicationAccount = await readFile(new URL('../api/account.js', import.meta.url), 'utf8');
+if (!publicationStore.includes('where v.visitor_user_id=$1::uuid and v.publication_id in(select publication_id from locked)')
+    || !publicationAccount.includes('await forgetTextPublicationAccount(q, user.id)')) {
+  failed++;
+  console.log('FAIL  published text visitor account erasure caller missing');
+}
+// Request ciphertext cascades from (publication_id,visitor_user_id). The
+// content-free retired-ID table has no owner/person/content field to erase.
 
 const keyed = await q(
   `select distinct table_name from information_schema.columns

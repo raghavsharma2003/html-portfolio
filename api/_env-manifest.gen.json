@@ -794,6 +794,24 @@
     "required": false
   },
   {
+    "name": "PRIVATE_TEXT_REHEARSAL_KEK_B64",
+    "section": "37",
+    "sectionTitle": "Account-material text publication (`vercel-app`, 2026-09-08)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "PRIVATE_TEXT_REHEARSAL_KEK_ID",
+    "section": "37",
+    "sectionTitle": "Account-material text publication (`vercel-app`, 2026-09-08)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
     "name": "RECALL_RUN",
     "section": "35",
     "sectionTitle": "The recall run (`vercel-app`, WS-R101, migration 127, 2026-09-05)",
@@ -1118,6 +1136,15 @@
       "processing-worker"
     ],
     "required": true
+  },
+  {
+    "name": "TEXT_PUBLICATION_BUDGET_USD",
+    "section": "37",
+    "sectionTitle": "Account-material text publication (`vercel-app`, 2026-09-08)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
   },
   {
     "name": "VITE_STUDIO_SHELL",

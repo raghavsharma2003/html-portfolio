@@ -23185,3 +23185,63 @@ Use a shared two-slot browser-suite budget across the normal and fixed-port pool
 ## `checkpoint26-freeze-reviewed-repairs-20260908` (2026-09-07)
 
 Combine reviewed Azure build validation, provider-aware operations self-check, portable historical mined CTA test, recorded-pack preparation and browser resource budget. Preserve failed25 logs. Freeze after final sequential preflight then run whole release on clean unchangedsource; do not mix ongoing publication API/UI work into this candidate. Reverse if combined verification fails or final source drifts.
+
+
+## `freeze26-work-outside-release-20260908` (2026-09-07)
+
+Fullrelease26 runs on clean3eb404d4 after sequentialpreflight passed. No integration edits until terminalreceipt; newpublication code staysisolated. Reverse only if runnerterminates and reviewrequirescorrection.
+
+
+## `publication-ui-connected-review-recovery-20260908` (2026-09-07)
+
+Root UI in isolated text-publication-ui uses same /studio?publication=UUID entry selected before owner app, existing emailOTP/account session, explicit owner material/projection/terms review, visitor adult/AI/retention agreement, durable request/publication IDs and read-only recovery. Unknown publish can be kept private using backend terminal receipt; no automatic second model call on unknown question. Full voice/identity capability stays unavailable. Reverse if mounted tests expose wrong-scope continuation, non-explicit consent, inaccessible flow, privacy leakage or contract mismatch. Interface wiring is not acceptance until real backend/database/browser proof.
+
+
+## `publication-ui-test-connected-before-merge-20260908` (2026-09-07)
+
+Connected owner review and visitor route are implemented only in isolated text-publication-ui. Keep them out of integration26 while its fullrelease runs. Next mounted controls must use real components/client API and original user actions to prove signup/admission/publish/ask/readback/forget plus refresh/unknown-response recovery at390/1440. Reverse UI choices if tests expose stale authority, inaccessible progression or lost request handles.
+
+
+## `publication-three-specialists-real-proof-20260908` (2026-09-07)
+
+The active goal remains the complete expert clone product. Current session has four slots including root. Three specialists now own full-shell early Share verification, prepared real PostgreSQL lifecycle acceptance, and independent two-session race acceptance; root owns visitor auth/recovery UI and release integration. Keep checkpoint26 source frozen after passing and new publication code isolated. Reverse division if file contention or measured resource contention impedes acceptance.
+
+
+## `publication-recovery-before-real-provider-20260908` (2026-09-07)
+
+Use actual mounted UI at390/1440 with synthetic HTTP boundaries to verify refresh/deletion/account-race behavior before wiring real provider traffic. Then run separately scoped PostgreSQL and native auth/upload/Azure proof; synthetic answers never establish factual or voice quality. Reverse UI recovery behavior if connected tests reveal a gap. Use project-installed Vite for fixture bundling rather than introducing an unused esbuild dependency.
+
+
+## `early-share-explicit-focus-authority-20260908` (2026-09-07)
+
+Permit explicit text Share beside Knowledge with current account consent and actual publication readiness. Preserve voiceWorkspaceReady and voice-only RoomNav. Focus follows only an explicit navigation action into Share or Knowledge and never steals a later keyboard selection when readiness resolves. Reverse if dedicated text authority ceases supporting early lifecycle or mounted regression invalidates the focus guard.
+
+
+## `publication-real-sql-before-integration-20260908` (2026-09-07)
+
+Execute reviewed143 only on exact verified development database vyakti_expert_integration_20260906. All8DDL are additive idempotent individual statements. Protected launcher pins frozen production source and acceptance helper/dependency manifest before realSQL, blocks fetch/defaultdatabase, declares synthetic fixture IDs before seed, and retains content-free retired IDs while requiring privatepayload cleanup. Global expiry is parsing-only in shared development DB. Reverse acceptance if missing freeze/lock witness, SQLerror or privatecleanup residue occurs.
+
+
+## `account-material-publication-connected-stage-20260908` (2026-09-08)
+
+Implement an explicit account-material publication receipt, immutable reviewed projection and authenticated visitor text path without creating an agent or weakening verified voice/runtime gates. Atomic claim-once publication/request IDs, persisted dispatch authority epoch, quota/budget and fresh erasure cleanup protect the complete flow. Root owns connected UI, real SQL/Azure proof and release. Reverse if source/visitor isolation, Never-rule freshness, irreversible URL retirement, quota preservation or cleanup overlap fails. No deployment or paid call is authorized by this source change.
+
+
+## `publication27-real-acceptance-and-ui-integration-20260908` (2026-09-07)
+
+Candidate expert-27-combined starts at accepted26 and combines15UI files from clean2160ef527cb9efd77f5495071a1d0ec944444d92 plus34 reviewed backend/runtime/testfiles. Every overwrite checked base25 bytes equal target26 commit; new26 work preserved. Exact historical caller fixture is marked -text to survive Windows checkout. Do not promote this candidate until actual race/nativeHTTP/completegate succeeds. Reverse any integrated behavior contradicted by exact caller tests.
+
+
+## `publication27-freeze-after-connected-review-20260908` (2026-09-07)
+
+Current27 combines reviewed UI and backend atop26 but remains a working candidate. Six publication suites registered in existing shared browser-capped evaldriver. Owner link availability must use canonical public authority instead of stored metadata; reviewer implementing guarded actual GET while always retaining Unpublish. Freeze only after this review change and concurrency fixes pass. Reverse any stored readiness label contradicted by actual visitor open.
+
+
+## `publication-owner-public-access-check-20260908` (2026-09-07)
+
+Published metadata remains Published link. A bounded canonical public-open GET with abort and token/replica/publication/action fences establishes visitor access only. Keep Unpublish available even while access is unconfirmed. Reverse if the public API provides stronger measured serving readiness or an equally authoritative cheaper invalidation signal. Do not label access as Azure health or a promised answer.
+
+
+## `publication27-pin-before-native-proof-20260908` (2026-09-07)
+
+Freeze a clean27 candidate only after current typed/UI/store/runtime and realSQL evidence is logged. Native proof must pin full API/migration/query/helper closure and root-authored Hindi corpus, use actual two synthetic auth accounts and HTTP create/consent/upload/publish, and cap real Azure dispatch at one under existing USD1 ledger. No identity/voice authority or provider superiority follows from this example. Reverse release readiness if native proof, cleanup or full release gate fails.

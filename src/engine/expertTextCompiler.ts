@@ -121,6 +121,11 @@ export function privateExpertPlatformFloor(): string {
     .replace("teacher projection = approved descriptive facts", "teacher projection = owner-supplied draft descriptive facts")
     .replace("public source claims only when supported by supplied public knowledge", "source claims only when supported by supplied private owner evidence");
 }
+export function publishedMaterialPlatformFloor(): string {
+  return FLOOR
+    .replace('teacher projection = approved descriptive facts', 'account projection = explicitly reviewed descriptive facts')
+    .replace('public source claims only when supported by supplied public knowledge', 'source claims only when supported by supplied published account material');
+}
 export const expertReplyLanguage = LANGUAGE;
 export const expertMaterialBlock = material;
 

@@ -6,7 +6,9 @@ const mode = new URLSearchParams(window.location.search).get("mode");
 // preload attaches only the personal entry's CSS dependencies to both routes.
 async function openCreatorStudio() { await import("../creatorStudio/main"); }
 async function openPersonalStudio() { await import("./personalMain"); }
-if (mode === "teacher" || mode === "ops" || mode === "setup") {
+if (new URLSearchParams(window.location.search).has("publication")) {
+  void import("./publication/main");
+} else if (mode === "teacher" || mode === "ops" || mode === "setup") {
   void openCreatorStudio();
 } else {
   void openPersonalStudio();

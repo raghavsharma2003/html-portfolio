@@ -16951,3 +16951,63 @@ The two isolated suites passed while the unchanged full25 run failed. Seven real
 ## `checkpoint26-merge-lineendings-and-registry-context-20260908` (2026-09-07)
 
 Browser merge first refused different checkout CRLF/LF hash before mutation. Root checked normalized source equality plus exact Git blob against base25, then accepted only representation difference. Git apply check next refused registry hunk because root already added three suites; still before mutation. Root authenticated entire driver after removing exactly those three additions against base25, then composed reviewed agent driver and those declared additions. No blindly replaced registry or bypassed source provenance.
+
+
+## `release26-not-accepted-on-preflight-alone-20260908` (2026-09-07)
+
+Prior25 independentlypassing suites failed whencombined. Do not push/deploy/restartpreview on new37filepreflight alone; await wholeunchangedsourcegate. PublicationUI initialforcedtypespass proves syntax/types only, not ownerorvisitorworkflow.
+
+
+## `publication-tombstone-is-not-live-summary-20260908` (2026-09-07)
+
+Root identified owner recovery for a lost publish needs a distinct confirmed terminal receipt: a publication that never existed has no title/disclosure/terms to display. Backend contract now returns explicit publication_never_created revoked union; root validates it only for owner recovery, never visitor admission. Actual full-publication validator refusal retained as negative; owner-specific validator accepts exact terminal shape and rejects added authority. Also fixed initial UI reload code that cleared a pending request ID even when same-user auth did not retrigger receipt hydration; final mounted regression still required.
+
+
+## `publication-unknown-response-narrowing-20260908` (2026-09-07)
+
+The combined unknown-object condition followed by an arrow never helper did not narrow value for subsequent terms access under this compiler. Actual forcedtsc emittedTS18046; use explicit early return after record check, preserve all runtime response validations, and rerun typecheck. No any cast added to silence unknown shape and no feature pass inferred from source writing.
+
+
+## `publication-review-found-hidden-share-stale-auth-20260908` (2026-09-07)
+
+Independent source review found prevoice Share unreachable behind CloneExperience voice-ready branching, stale async auth restoration able to overwrite a newer stored account, expired tokens allocated question IDs before admission, lost deletion responses leaving displayed answers and missing deletion recovery outside active admission, and hidden owner readiness blockers. Source repairs now separate text room routing, fence refreshed accounts against stored session, refresh before allocating IDs, persist pending deletion and hide answers, and expose owner next actions. These are source-derived findings and repairs, not yet mounted regression passes. The old direct MaterialSharePanel fixture incorrectly passed legacy stopped=false and used two fake consent statements; replaced with actual four backend statements and removed obsolete prop. Full-shell agent will test caller separately.
+
+
+## `publication-fixture-transport-and-selectors-20260908` (2026-09-07)
+
+First mounted attempt could not import esbuild absent from installed dependencies; use existing Vite8. Next run timed out exact Material accessible-name selector because wrapping label includes option text; use actual nonexact label. Following run observed2publish requests after destroying a reused HTTP connection before headers; actual replicaRequest has one fetch and no application retry. Changed failure injection to flush200headers and a truncated declared-length JSON body before disconnect, so readback recovery is exercised as a body-read failure without confusing transport behavior with application dispatch. Corrected run26 passed. These retained failures are fixture limitations, not fabricated product regressions.
+
+
+## `early-share-standalone-panel-and-focus-20260908` (2026-09-07)
+
+The old full CloneExperience caller lacks early Share actions and routes requested Share to recorder; a standalone panel with stopped=false concealed this. First agent exact Teaching profile locator included option text and timed out, fixed only selector. Prior16group pass measured BODY focus at Share and Knowledge menu; extend existing guarded action destination selector and then18groups passed, including delayed readiness cannot steal keyboard focus. Retained old fullsource fixture SHA bb88a25d53210b1d9666b8db118c4b70fd4b70b1c1aac89e0dd373f6a1cf0674 authenticates original regression control.
+
+
+## `publication-live-harness-review-tombstone-20260908` (2026-09-07)
+
+Read-only reviewer found sequential harness expected unknown-cancelled publication to throw on later publish; actual intended store contract returns created:false with persisted minimal revoked summary. Corrected assertion checks noactivation/noreceipt instead. Reviewer also found Never race would reject at authorized read before capturing completionbindings; race author moved capture to explicit no-write pre-mutation sentinel. Neither prepared assertion is proof of actualSQL. Review requires removing admission_uncertain from accepted refusal list and pinned race source before execution.
+
+
+## `publication-fresh-epoch-and-reused-id-are-not-authority-20260908` (2026-09-08)
+
+Review found that a newly read completion epoch could accept output gated before a Never-rule edit, and request row deletion could allow UUID reuse against an older reserved spend row. Persist claim epoch and atomically claim every request/publication ID in a content-free ledger. Account wipe_state forget is not auth deletion and must not reset visitor quota. A terminal statement can miss admissions/ciphertext committed while waiting; use fresh exact-scope cleanup including joined-only visitor receipts. Empty expiry results and unused prepared parameter slots are not success. SQL concurrency evidence is still required.
+
+
+## `publication-race-setup-window-and-client-deadline-20260908` (2026-09-07)
+
+Actual race witness timer started before publication readiness and parameter read round trips, each wrapped EXPLAIN/savepoint.17observations through4648ms had no blocking witness; final resolved state was collected after holder rollback and cannot prove pre-timeout completion. Author preparing actual target-SQL dispatch barrier; retained failed receipt andoldsourcehashd9a8... . Separate integrated caller review found ask inherits20s client deadline while Azure adapter45-55s and route60s; candidate now dedicates90s ask deadline, keeps20s readback and no automaticretry. Three actual client-option controls passed including removed-deadline simulated30s negative; no measured provider latency claim.
+
+
+## `publication-owner-stored-ready-label-20260908` (2026-09-07)
+
+Integrated reviewer found a real consent-caller path pauses ready/active/calibrating replica when inference/training is revoked while dedicated materialpublication remains storedactive. Owner metadata summary advertised Ready for questions; public authoritative open correctly refuses paused lifecycle. Fix candidateownerUI to label stored link separately and query actual publicauthority with stale-response guards. Unpublish must remain usable even when serving cannot be confirmed. This is an honesty defect, not authority bypass. Windows config verification helper also initially used a bare absolute path for ESM import after writing stub, failed URLscheme; corrected pathToFileURL then verified existingstub without rewriting secrets.
+
+
+## `publication-access-not-provider-health-20260908` (2026-09-07)
+
+Public open validates current publication authority; provider/budget checks occur on ask. Even a successful canonical open therefore cannot support Ready for questions or a broad available promise. Final confirmed copy is Visitors can open this conversation. Existing owner runtime readiness skips provider validation when can_publish is alreadyfalse, so stored link and access labels must remain distinct from response generation capability. SyntheticHTTP controls prove UI guards only, not provider quality.
+
+
+## `publication-wrapper-double-close-and-env-shape-20260908` (2026-09-07)
+
+The SQL runners correctly closed their dedicated sessions, but rootwrapper then awaited Client.end again, leaving unresolved top-level await after saving successful full receipts. Commands exited1; no claim of clean commandexit. Root made closeClient idempotent and tested actual repeatedclose in read-onlyclose-check exit0. No active transaction was observed afterward; pooled idle backend labels are not proof of live application clients. New environment docs initially used an unrecognized table header, so env-manifest tests passed while ignoring newsettings. Corrected to numbered37/vercel-app and exact supported header, regenerated135server entries including newpublication settings, and actual manifest suitepassed. Conditional publication settings remain optional globally and enforced by feature readiness.

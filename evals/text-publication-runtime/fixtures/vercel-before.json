@@ -520,10 +520,6 @@
     {
       "path": "/api/replica-claim-sweep",
       "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/text-publication-expire",
-      "schedule": "*/10 * * * *"
     }
   ],
   "functions": {

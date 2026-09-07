@@ -263,6 +263,15 @@ export async function completeSourceErasure(db, lease) {
           join affected_genomes affected on affected.version=vp.genome_version
            where vp.replica_id=c.replica_id and vp.owner_user_id=c.owner_user_id
         )
+     ), retired_text_links as (
+       insert into vy_text_publication_id_ledger(id,kind)
+       select p.publication_id,'publication' from vy_text_publication p join target t on p.source_id=t.source_id
+         and p.replica_id=t.replica_id and p.owner_user_id=t.owner_user_id
+       on conflict do nothing returning id
+     ), erased_text_publications as (
+       delete from vy_text_publication p using target t where p.source_id=t.source_id
+         and p.replica_id=t.replica_id and p.owner_user_id=t.owner_user_id
+         and (select count(*) from retired_text_links)>=0 returning p.publication_id
      ), source_context_items as materialized (
        -- Capture the exact context handles before source deletion cascades
        -- through the item/text FKs. Ingest runs retain a text video_ref rather
@@ -271,6 +280,7 @@ export async function completeSourceErasure(db, lease) {
          from vy_context_item i join target t
            on i.source_id=t.source_id and i.replica_id=t.replica_id
           and i.owner_user_id=t.owner_user_id
+          and (select count(*) from erased_text_publications)>=0
         for update of i
      ), context_ingest_runs as (
        update vy_ingest_run r

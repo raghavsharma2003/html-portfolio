@@ -14853,6 +14853,228 @@
       "kind": "rejection",
       "title": "Preserve independent registry edits across Windows checkout representation",
       "at": "2026-09-07"
+    },
+    {
+      "id": "freeze26-work-outside-release-20260908",
+      "kind": "decision",
+      "title": "Keep ongoing publication outside frozen26",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release26-started-clean37-20260908",
+      "kind": "measurement",
+      "title": "Committed37 reviewed files and launched full26",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release26-not-accepted-on-preflight-alone-20260908",
+      "kind": "rejection",
+      "title": "Preflight is not full release acceptance",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-ui-connected-review-recovery-20260908",
+      "kind": "decision",
+      "title": "Wire owner review and visitor conversation to explicit authority",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-client-boundary21-20260908",
+      "kind": "measurement",
+      "title": "Twenty-one actual client boundary controls passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-tombstone-is-not-live-summary-20260908",
+      "kind": "rejection",
+      "title": "Do not fabricate public terms to render cancelled unpublished link",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-ui-test-connected-before-merge-20260908",
+      "kind": "decision",
+      "title": "Require mounted owner and visitor recovery before integration",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-ui-types-and-boundary21-final-20260908",
+      "kind": "measurement",
+      "title": "Corrected UI types and21 boundary controls passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-unknown-response-narrowing-20260908",
+      "kind": "rejection",
+      "title": "Runtime refusal is not sufficient TypeScript narrowing",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-three-specialists-real-proof-20260908",
+      "kind": "decision",
+      "title": "Use available concurrency for connected acceptance",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release26-passed24-unchanged-preview200-20260908",
+      "kind": "measurement",
+      "title": "Frozen release26 passed available gates and local restart",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-review-found-hidden-share-stale-auth-20260908",
+      "kind": "rejection",
+      "title": "Component completeness did not prove the actual user path",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-recovery-before-real-provider-20260908",
+      "kind": "decision",
+      "title": "Require recovery evidence before connecting publication spending",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-ui-mounted26-20260908",
+      "kind": "measurement",
+      "title": "26 mounted owner and visitor controls passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-fixture-transport-and-selectors-20260908",
+      "kind": "rejection",
+      "title": "Socket destruction is not an exact one-request failure fixture",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "early-share-explicit-focus-authority-20260908",
+      "kind": "decision",
+      "title": "Separate early text navigation from voice readiness",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "early-share18-visitor28-mounted-20260908",
+      "kind": "measurement",
+      "title": "Full shell18 and connected visitor28 passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "early-share-standalone-panel-and-focus-20260908",
+      "kind": "rejection",
+      "title": "Standalone panel masked shell gating and focus loss",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-real-sql-before-integration-20260908",
+      "kind": "decision",
+      "title": "Test isolated real SQL and retain request retirement evidence",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication143-dev-migration-and-parser-start-20260908",
+      "kind": "measurement",
+      "title": "Actual development migration143 applied",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-live-harness-review-tombstone-20260908",
+      "kind": "rejection",
+      "title": "A terminal replay is a response rather than required exception",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "account-material-publication-connected-stage-20260908",
+      "kind": "decision",
+      "title": "Keep early public text attached to the same replica",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "account-material-store-offline26-inventory17-20260908",
+      "kind": "measurement",
+      "title": "Twenty-six offline store controls and seventeen prepared SQL statements",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "publication-fresh-epoch-and-reused-id-are-not-authority-20260908",
+      "kind": "rejection",
+      "title": "Reject fresh-after-gate epochs, reused requests and stale cleanup snapshots",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "publication27-real-acceptance-and-ui-integration-20260908",
+      "kind": "decision",
+      "title": "Keep a separate candidate until concurrent and native proof completes",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-real-sql18-cleanup0-20260908",
+      "kind": "measurement",
+      "title": "Sequential realSQL18 passed with private cleanup zero",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-race-setup-window-and-client-deadline-20260908",
+      "kind": "rejection",
+      "title": "Do not confuse harness setup latency with observed lock correctness",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication27-freeze-after-connected-review-20260908",
+      "kind": "decision",
+      "title": "Review actual integrated caller contracts before freezing",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication27-offline-combined-baseline-20260908",
+      "kind": "measurement",
+      "title": "Combined store26 runtime43 and types passed before availability edit",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-owner-stored-ready-label-20260908",
+      "kind": "rejection",
+      "title": "Stored active link is not current serving authority",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-owner-public-access-check-20260908",
+      "kind": "decision",
+      "title": "Check actual visitor access separately from stored publication state",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-owner-access12-integrated28-20260908",
+      "kind": "measurement",
+      "title": "Owner access12 and integrated conversation28 passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-access-not-provider-health-20260908",
+      "kind": "rejection",
+      "title": "Canonical public open still does not prove the answer service is ready",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication27-final-types-shell18-20260908",
+      "kind": "measurement",
+      "title": "Final candidate types and fullshell18 passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication27-pin-before-native-proof-20260908",
+      "kind": "decision",
+      "title": "Freeze reviewed candidate before one connected Azure question",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-real-race13-quota5-cleanup-20260908",
+      "kind": "measurement",
+      "title": "Real PostgreSQL13 races and5 quota scenarios passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-wrapper-double-close-and-env-shape-20260908",
+      "kind": "rejection",
+      "title": "Driver shutdown and ignored documentation cannot be treated as acceptance",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -26878,6 +27100,16 @@
       "src": "browser-suite-budget-two-20260908",
       "rel": "caused_by",
       "dst": "browser-isolated-pass-does-not-explain-release-20260908"
+    },
+    {
+      "src": "account-material-publication-connected-stage-20260908",
+      "rel": "measured_by",
+      "dst": "account-material-store-offline26-inventory17-20260908"
+    },
+    {
+      "src": "account-material-publication-connected-stage-20260908",
+      "rel": "caused_by",
+      "dst": "publication-fresh-epoch-and-reused-id-are-not-authority-20260908"
     }
   ]
 }

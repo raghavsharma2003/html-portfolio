@@ -16936,3 +16936,70 @@ On 2026-09-08 IST, first paired replay passed focus58/editor54. One seven-suite 
 ## `checkpoint26-root-merged-reviewed-sources-20260908` (2026-09-07)
 
 Root verified all four manifests and prerequisites for recorded71+35, Azurebuild28+keyring14+selfcheck85, Azureselfcheck21+85+14, browserresource12+incumbent15+bounded199. Root directly ran correctedmined15 and context checks. No new model/cloud/DB calls. New publication UI isolate has initial sign-in/client code and forced typecheck passed, but no mounted/end-to-end proof or feature acceptance yet. Final combined26 release not yet run.
+
+
+## `release26-started-clean37-20260908` (2026-09-07)
+
+Root preflight passed types/copy/locale/mined/Azurebuild/Azureselfcheck/recorded/context/diff;37files hashed then committed3eb404d4a3e00bf1d0b108a91a420003cfc5dc2a and integratedexactbytes. Fullrunner started2026-09-07T19:50:00.001Z PID31096 exec46655; no outcome claimed.
+
+
+## `publication-client-boundary21-20260908` (2026-09-07)
+
+2026-09-08 local, root ran evals/text-publication-ui/source.mjs:21 controls over transpiled actual TypeScript validators. Covers public/request scope substitution, voice/memory/term escalation, withdrawn answer leakage, live publication vs minimal never-created tombstone, and invented tombstone terms. No browser/SQL/provider/auth proof. Forcedtypecheck passed earlier connected UI before final validator changes; final forcedtypes running separately. Browser testing deferred while frozenrelease26 runs.
+
+
+## `publication-ui-types-and-boundary21-final-20260908` (2026-09-07)
+
+Root forced typecheck first failed TS18046 at publicationApi.ts value.terms after the combined unknown-object guard. Split explicit record refusal with return, then actual tsc -b completed exit0 (exec99179) and final actual client source controls21 passed. Earlier forcedrun40892 exit1 retained; no passing forced-final claim. This is types/client-boundary evidence only, not mounted layout, actualauth, SQL, Azure or feature acceptance. Frozenrelease26 stillrunning independently.
+
+
+## `release26-passed24-unchanged-preview200-20260908` (2026-09-07)
+
+n=1 full node scripts/verify-release.mjs via frozen runner, head3eb404d4a3e00bf1d0b108a91a420003cfc5dc2a, started2026-09-07T19:50:00.001Z finished20:13:16.935Z exit0 changedDuringRunfalse. All24 available checks passed; two live relational gates SKIPPED because this runner had no NEON_URL. Exact checked restart helper restarted local5177 on that head and HTTP GET /studio returned200. This is not browser/full-auth/database acceptance, a Git push or deployment. Publication UI remains isolated and latest review fixes await type/mounted tests.
+
+
+## `publication-ui-mounted26-20260908` (2026-09-07)
+
+n=26 checks across390x900 and1440x900, node evals/text-publication-ui/run.mjs completed exit0 in exec27624. Receipt and4screenshots: scratchpad/text-publication-ui/1788812334707/result.json under UI isolate. Actual React owner/visitor components, real HTTP fixture and native Playwright actions proved four unchecked publication statements, same-ID unknown publish readback, email OTP UI, explicit admission, question/result refresh without new dispatch, lost-body deletion hides answers and prevents admission, persisted pending deletion after reload, deletion after unpublish, expired-token refresh before ask, delayed restore cannot undo signout, no horizontal overflow/page exceptions. Root viewed visitor390 and owner1440 screenshots: readable layout, modest visual polish, fixture answer has artificial missing spaces; not model evidence. Typecheck49751 exit0; actual client-boundary21 passed separately. Real PostgreSQL/auth/provider and complete visual/motion acceptance remain unrun.
+
+
+## `early-share18-visitor28-mounted-20260908` (2026-09-07)
+
+Independent agent n=18 mounted groups at390/1440 completed2026-09-07T20:19:53.612Z, receipt scratchpad/text-publication-early-share/1788812350588/result.json in UI isolate. Actual default Studio+CloneExperience proved old fullcaller negative, current menu/files Share and return, voice/paused/missinggrant guards and action focus without late theft. Clone SHA b7fb64ac4965ba7af81ec4acff5cc9c7f42b052a0cb1f6d3f3297c0c7b5ddb8e. Root final visitor/owner n=28 completed exit0 exec10874, receipt scratchpad/text-publication-ui/1788812441993/result.json pins five component/client/style hashes before/after; includes failed refresh creating no new question receipt or dispatch. Both are synthetic HTTP fixtures, not live auth/database/model evidence. Copy gate passed7scopes/21negativecontrols; diff checkpassed. Actual PostgreSQL runners remain prepared, not executed.
+
+
+## `publication143-dev-migration-and-parser-start-20260908` (2026-09-07)
+
+n=1 readonly preflight artifact text-publication-sql-preflight-1788812578920 confirmed exact development database and no existing publication columns. n=8 actual individual143DDL statements applied successfully artifact text-publication-sql-migrate-1788812603051, four publicationtables confirmed. Root then started real sequential acceptance exec42131 with frozen backend plus manifest3c73448ca3f1654c293bae03777f2b1bb2333db20c63cb5264ef40f4273c6eb9; result pending. First17EXPLAIN phases emitted, no completed acceptance claim yet. Noauth,provider,storage orproduction mutation.
+
+
+## `account-material-store-offline26-inventory17-20260908` (2026-09-08)
+
+2026-09-08: node evals/text-publication-store/run.mjs passed26 groups against actual source/evidence verifier/AES-GCM/generated compiler with an explicit SQL stub; no SQL parsing, locks, real auth or provider call claimed. Normal engine bundle regenerated. Offline SQL inventory assembled17 actual complete statements with synthetic parameters and hashes; none executed. Source-only independent review prompted dispatch-epoch, request-ID retirement, conversation-forget quota and fresh-cleanup corrections. Runtime/expiry and root UI/gate measurements remain separate.
+
+Runtime agent final separate evidence for account-material-store-offline26-inventory17-20260908:43 offline groups (29 HTTP/provider runtime,10 expiry,4 held actual-store authority/replay), plus17 incumbent private handler groups, reported by grounded_live_probe against final store4556efb5 and enginea3e263b7. Its freeze manifest scratchpad/text-publication-runtime/FREEZE-20260908.json SHAceac20ac22f8dd408a8c7a516d1444fe55ee66965aacc19547521caaad61e39c. No real SQL or provider call. Details and reversal: docs/gurukul/research/TEXT-PUBLICATION-RUNTIME-HANDOFF.md. Root owns registry, UI, SQL and release.
+
+
+## `publication-real-sql18-cleanup0-20260908` (2026-09-07)
+
+Actual protected exec42131 completed with artifact text-publication-sql-sequential-1788812645502-result.json. Inspect nested result rather than wrapper's sparse initial console: statepassed,17EXPLAIN,18checks,failure null,5fixture cleanup scopes with14table counts each private_rows_remaining0, cleanup_errors[],11content-free retired IDs retained. Root corrected future wrapper normalization/strict pass check without rerunning this successfulproof. Migration1438DDL alreadyapplied only isolated devDB. Concurrency exec6560 artifact text-publication-sql-races-1788812827032 failed at unknown-unpublish-before-publish after1check;14fixturecleanup scopes each private0,1retiredID, SQLerrors0. Not concurrency acceptance.
+
+
+## `publication27-offline-combined-baseline-20260908` (2026-09-07)
+
+Candidate27 actual store26 passed; runtime all29+expiry10+heldauthority4 passed on combinedsource. npx tsc-b exec79266 exit0 before latest owneravailability edit. Copy7scopes/21negativecontrols passed. This candidate initially lacked ignored _config.js; runtime import failed environmental ERR_MODULE_NOT_FOUND. Root generated all-empty offline stub via normal configwriter under cleared variables, separately verified every export empty/emptyarray. No real provider activation. Latest integrated owneravailability change requires subsequenttype/browser confirmation; earlier UI28+18 belongs to pre-reviewsource.
+
+
+## `publication-owner-access12-integrated28-20260908` (2026-09-07)
+
+Final12 mounted groups at390/1440 completed2026-09-07T20:38:29.908Z; candidate receipt scratchpad/publication-owner-availability/1788813502797/result.json. Panel SHA3b98648fcfe13a674053e2bb31afd1cccf881a50166ca9dcc5e2bf3ecd22d13b; test204a8e3405aafc5e9181d21a3140b5f095f13922bd5f09ee9c9f176e2d031c86. Includes exactoldsource negative, heldcheck, active-to-unavailable/409, late replica/token/unpublish responses that ignore cancellation, and retained Unpublish despite metadata flags. Root integrated28 fixture passed exec61260 source-hash-bound before finalwording change, receipt1788813440261. Root current fullshell18 exec16716 and finaltypes34622 pending. Corrected real13races92186running; no new SQLpass yet.
+
+
+## `publication27-final-types-shell18-20260908` (2026-09-07)
+
+Actual final npx tsc-b exec34622 exit0 after owner availability implementation. Actual full-shell18 mounted controls at390/1440 exec16716 exit0, receipt scratchpad/text-publication-early-share/1788813544416/result.json, after final owner-access wording and90sask deadline. Dedicated owner-access12 final receipt1788813502797 and integratedconversation28 receipt1788813440261 remain separate scopes. No production/auth/provider inference. Corrected real13race exec92186 confirmedrunning on lastpoll; quota5notyetexecuted. Native oneAzure-call helper under independentreview; interruptedcleanup/billingambiguity fixes remain before executablefreeze.
+
+
+## `publication-real-race13-quota5-cleanup-20260908` (2026-09-07)
+
+Inspect actual receipts, not wrapper exit alone. text-publication-sql-races-1788813428653-result.json: passtrue,13checks,13lockwitnesses,SQLerrors[],failure null,14cleanupscopes private0,27retiredIDs. text-publication-sql-quota-1788813801408-result.json: passtrue,5checks,5lockwitnesses,SQLerrors[],failure null,5cleanupscopes private0,11retiredIDs. Both retained complete receipts before wrapper shutdown warning. Prior sequential18/17EXPLAIN remains separately passed. No paidprovider/auth/storagecalls in these SQLfixtures. Real connection close-check1788813980198 exit0 confirmed fixed idempotent shutdown on repeated close without rerunning accepted SQL scenarios. Offline native36 controls and independent review ready, modelnotcalled.

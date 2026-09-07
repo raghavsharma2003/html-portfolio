@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { REPLICA_POLICY_VERSION, replicaId } from "./_replica.js";
 import { canonicalJson } from "./_provenance/contracts.js";
+import { cleanupWithdrawnTextPublicationAccount } from './_text-publication-store.js';
 
 export const ACCOUNT_ATTESTATION_SCOPES = Object.freeze([
   "capture",
@@ -328,6 +329,21 @@ export async function revokeOwnedConsent(db, ownerUserId, id, value) {
          gate_sidecar='{}'::jsonb,failure_code='rehearsal_account_consent_revoked',updated_at=now()
        where h.replica_id=$1::uuid and h.owner_user_id=$2::uuid and exists(select 1 from revoked)
          and ('capture'=any($3::text[]) or 'storage'=any($3::text[]))
+     ), text_publications_revoked as (
+       update vy_text_publication p set state='revoked',epoch=p.epoch+1,projection=null,receipt=null,revoked_at=coalesce(p.revoked_at,now())
+       where p.replica_id=$1::uuid and p.owner_user_id=$2::uuid and exists(select 1 from revoked)
+         and ('capture'=any($3::text[]) or 'storage'=any($3::text[])) returning p.publication_id
+     ), text_publication_ids_retired as (
+       insert into vy_text_publication_id_ledger(id,kind) select publication_id,'publication' from text_publications_revoked
+       on conflict do nothing returning id
+     ), text_visitors_revoked as (
+       update vy_text_publication_visitor v set session_epoch=v.session_epoch+1,admission=null,admission_hash=null,expires_at=null
+       where v.publication_id in(select publication_id from text_publications_revoked)
+         and (select count(*) from text_publication_ids_retired)>=0 returning v.publication_id
+     ), text_requests_erased as (
+       update vy_text_publication_request h set state='withdrawn',question_envelope=null,answer_envelope=null,raw_envelope=null,
+         gate_sidecar='{}'::jsonb,failure_code='text_publication_permission_revoked'
+       where h.publication_id in(select publication_id from text_visitors_revoked)
      ), sources as (
        update vy_replica_source set state = 'deleting', updated_at = now()
         where replica_id = $1::uuid and owner_user_id = $2::uuid
@@ -432,5 +448,8 @@ export async function revokeOwnedConsent(db, ownerUserId, id, value) {
      select * from revoked order by scope`,
     [rid, ownerUserId, scopes, REPLICA_POLICY_VERSION],
   );
+  if (scopes.includes('capture') || scopes.includes('storage')) {
+    await cleanupWithdrawnTextPublicationAccount(db, ownerUserId, rid);
+  }
   return rows.map(clientConsent);
 }
