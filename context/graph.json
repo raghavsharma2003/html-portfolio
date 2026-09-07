@@ -15387,6 +15387,24 @@
       "kind": "measurement",
       "title": "Four actual SQL shapes parsed against development Postgres",
       "at": "2026-09-07"
+    },
+    {
+      "id": "modern-issued-authority30-20260908",
+      "kind": "decision",
+      "title": "Persist modern capture authority in the existing biometric grant receipt and use a dedicated reference_authority_epoch (",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "modern-issued-authority30-offline-20260908",
+      "kind": "measurement",
+      "title": "On 2026-09-08 in isolated source based f4235c68",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "modern-issued-authority30-snapshot-and-bootstrap-20260908",
+      "kind": "rejection",
+      "title": "Rejected try-advisory/NOWAIT as sufficient freshness",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -27482,6 +27500,16 @@
       "src": "publication-release-integration29-20260908",
       "rel": "caused_by",
       "dst": "publication-registry-is-not-operational-integration29-20260908"
+    },
+    {
+      "src": "modern-issued-authority30-20260908",
+      "rel": "measured_by",
+      "dst": "modern-issued-authority30-offline-20260908"
+    },
+    {
+      "src": "modern-issued-authority30-20260908",
+      "rel": "caused_by",
+      "dst": "modern-issued-authority30-snapshot-and-bootstrap-20260908"
     }
   ]
 }

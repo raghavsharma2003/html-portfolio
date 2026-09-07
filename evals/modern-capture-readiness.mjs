@@ -25,7 +25,8 @@ async function run(op,{text=route,ready=false,auth=true,mode='live_challenge',ow
  const challenge={challenge_id:'challenge',state:'issued',face_session_state:'not_started'};
  const d={q:no,requireUser:async()=>{calls.push('auth');if(!auth)throw new AuthError();return{id:'owner'};},AuthError,allow:()=>true,ipOf:()=>'',
   modernCaptureReadiness,requireModernCaptureReadiness:()=>{calls.push('readiness');if(!ready)requireModernCaptureReadiness();},
-  issueOwnedChallenge:hit('issue',challenge),latestOwnedChallenge:hit('status',challenge),cancelOwnedChallenge:hit('cancel',challenge),
+  issueOwnedModernChallenge:hit('issue',challenge),getOwnedModernComparisonDescriptor:hit('comparison',null),
+  latestOwnedChallenge:hit('status',challenge),cancelOwnedChallenge:hit('cancel',challenge),
   createChallengeSource:hit('source',row),finalizeChallengeSource:hit('finalize',{challenge,source:{...row,state:'quarantined'}}),clientSource:x=>x,
   assertUploadWithinSourceFence:(_s,x)=>x,getPendingSource:hit('pending',owned?row:null),reserveOwnedSourceUploadAuthorization:hit('reserve',row),
   configuredFaceSessionBroker:()=>{calls.push('broker');return{};},configuredFaceSessionErasureBroker:no,
@@ -48,7 +49,7 @@ for(const op of ['issue','start_face','create_upload'])await check(`${op} refuse
 });
 await check('authentication precedes readiness',async()=>{const r=await run('issue',{auth:false});assert.equal(r.statusCode,401);assert.deepEqual(r.calls,['auth']);});
 for(const op of ['status','cancel','poll_face'])await check(`${op} remains available while disabled`,async()=>{const r=await run(op);assert.equal(r.statusCode,200);assert(!r.calls.includes('readiness'));});
-await check('owner status and bounded platform reason returned by actual readiness caller',async()=>{const r=await run('capture_readiness');assert.equal(r.statusCode,200);assert.deepEqual(r.calls,['auth','status']);assert.deepEqual(r.body.readiness,modernCaptureReadiness());});
+await check('owner status and bounded platform reason returned by actual readiness caller',async()=>{const r=await run('capture_readiness');assert.equal(r.statusCode,200);assert.deepEqual(r.calls,['auth','status','comparison']);assert.deepEqual(r.body.readiness,modernCaptureReadiness());assert.equal(r.body.comparison,null);assert.equal(r.body.comparison_code,'selected_reference_not_available');});
 await check('already uploaded evidence can finalize while unavailable',async()=>{
  const r=await run('finalize',{mode:'upload'});assert.equal(r.statusCode,404); // fetched fixture is not a live-challenge source, and gets existing refusal
  assert.deepEqual(r.calls,['auth','pending']);

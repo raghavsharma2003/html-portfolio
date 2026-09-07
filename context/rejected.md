@@ -17096,3 +17096,8 @@ Adding publication's cron and erasure entries without adapting sweep-name discov
 ## `expert-publication-fixture-encoding` (2026-09-07)
 
 Identical retained bundle served by the incumbent fixture withoutcharset produced document.characterSet windows-1252, SyntaxError, empty Reactroot and0APIrequests. Adding only UTF-8 meta produced UTF-8, no parseerror, profile selector and1readinessrequest. Production studio/index HTML already declared UTF-8. Fix fixture encoding, preserve same-bundle negative and positive controls; do not alter product code or call a timeout an answer-rendering failure. Full30publicationcontrols then passed.
+
+
+## `modern-issued-authority30-snapshot-and-bootstrap-20260908` (2026-09-08)
+
+Rejected try-advisory/NOWAIT as sufficient freshness: a competing decision append can commit after statement snapshot but before lock acquisition, leaving old accepted evidence visible without an epoch mutation. Also rejected insert-before-expire replacement because migration016 has a partial unique live-challenge index; failed insertion must roll back prior expiry rather than swallow a conflict. Reusing private_text_epoch for voice review would invalidate completed publication answer readback. Signed VAD revisions were discarded by normalizedMeasurements, so historical reference compatibility cannot be inferred. Finally, legacy selected artifacts require prior liveness plus training/biometric consent; this is not a brand-new-owner comparison producer. The handoff preserves these walls and specifies a distinct purpose-limited reference preparation caller without training/inference grants.

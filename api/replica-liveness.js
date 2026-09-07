@@ -2,7 +2,6 @@ import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import {
-  issueOwnedChallenge,
   latestOwnedChallenge,
   cancelOwnedChallenge,
   createChallengeSource,
@@ -13,6 +12,7 @@ import { assertUploadWithinSourceFence, getPendingSource, reserveOwnedSourceUplo
 import { configuredFaceSessionBroker, configuredFaceSessionErasureBroker } from "./_face-session/registry.js";
 import { deleteOwnedFaceSessionNow, pollOwnedFaceSession, startOwnedFaceSession } from "./_replica-face-session.js";
 import { modernCaptureReadiness, requireModernCaptureReadiness } from "./_liveness/capture-readiness.js";
+import { issueOwnedModernChallenge, getOwnedModernComparisonDescriptor } from "./_liveness/issued-authority.js";
 import {
   ReplicaStorageError,
   REPLICA_STORAGE_WRITE_BUCKET,
@@ -63,11 +63,19 @@ export default async function handler(req, res) {
 
     if (body.op === "capture_readiness") {
       const challenge = await latestOwnedChallenge(q, user.id, body.replica_id);
-      return res.status(200).json({ challenge, readiness: modernCaptureReadiness() });
+      const comparison = await getOwnedModernComparisonDescriptor(q, user.id, body.replica_id);
+      return res.status(200).json({ challenge, readiness: modernCaptureReadiness(), comparison,
+        comparison_code: comparison ? "" : "selected_reference_not_available" });
     }
 
     if (body.op === "issue") {
-      const challenge = await issueOwnedChallenge(q, user.id, body.replica_id, { attestations: body.attestations });
+      const challenge = await issueOwnedModernChallenge(q, user.id, body.replica_id, {
+        attestations: body.attestations, comparison_attestations: body.comparison_attestations,
+        locale: body.locale, expected_primary_source_id: body.expected_primary_source_id,
+        expected_primary_selection_id: body.expected_primary_selection_id,
+        expected_primary_source_sha256: body.expected_primary_source_sha256,
+        expected_comparison_snapshot_sha256: body.expected_comparison_snapshot_sha256,
+      });
       return challenge
         ? res.status(201).json({ challenge })
         : res.status(409).json({ error: "challenge_not_authorized_or_daily_limit" });

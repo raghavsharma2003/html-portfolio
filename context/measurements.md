@@ -17102,3 +17102,8 @@ On an isolate based exactly on frozen f027349a, all six release28-failing suites
 ## `expert-publication29-four-real-sql-shapes` (2026-09-07)
 
 At2026-09-07T21:54:13.482Z, n=4 actual export/heartbeat shapes passed EXPLAIN in BEGIN READ ONLY on vyakti_expert_integration_20260906. Negative invalid-column control returned42703. No ANALYZE, writes, private rows, real export or expiry executed. Source42a01d02 and2811tracked hashes unchanged; root verified3sourcepins equal merged29 and retained receiptSHA5f32d096fcd158f8f4b189c5e8fc35d9cc8aaafc68782c8e8e3ad276048f1334. This proves parser/type acceptance for these query bytes, not whole-product execution.
+
+
+## `modern-issued-authority30-offline-20260908` (2026-09-08)
+
+On 2026-09-08 in isolated source based f4235c68: new41 offline actual issuer/registry/loader/SQL-capture controls passed; revision-lineage56 passed including10 new signed VAD retention and retained-old-expression controls. Impacted incumbent groups passed modern-capture52, readiness16, liveness22, composite13, evidence25, identity-audio39, replica-review38 and self-test31. Synthetic transport/DB callbacks only; no real SQL, model, browser, deployment, identity or likeness acceptance. Eight actual query shapes and one proposed unapplied migration are prepared for root parser/CAS proof. Copy7scopes21negatives passed.

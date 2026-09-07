@@ -23325,3 +23325,8 @@ Close publication's existing export, visitor inventory, cron observability and p
 ## `expert-candidate29-freeze-combined-source` (2026-09-07)
 
 Assemble math retention, nativeMathML rendering, verification navigation, fixture layer/encoding corrections and the six publication integration repairs in one candidate29 commit. Transfer that commit into the separately installed expert-29-release checkout; compare package/lock hashes before reusing its private install. Full gate and known native regression require this immutable source. Reversal: any new defect or drift requires a reviewed change and new freeze, not mutation under a running gate.
+
+
+## `modern-issued-authority30-20260908` (2026-09-08)
+
+Persist modern capture authority in the existing biometric grant receipt and use a dedicated reference_authority_epoch (proposed migration144) for successful reference review and issuance. Bind the owner preview pre-state and store the incremented post-state; the actual registry supplies the SQL loader. Keep capture readiness false, preserve legacy voice/training gates and forbid old grant conversion. Existing primary/live-challenge uniqueness and atomic rollback govern replacement. Reverse if real PostgreSQL CAS/rollback proof admits stale authority, owner erasure retains private evidence, or a narrower implementation proves equivalent isolation. Details: docs/gurukul/research/MODERN-ISSUED-AUTHORITY30-HANDOFF-20260908.md.

@@ -9,8 +9,8 @@ import { validateModernCaptureContract, bindModernCaptureLease, captureContractE
 
 const FAMILIES = {'speechbrain-ecapa-voxceleb':'speechbrain-ecapa','speechbrain-xvector-voxceleb':'speechbrain-xvector'};
 const fail = part => { throw captureContractError(part,503); };
-// Production has no modern issued-authority SQL loader yet. Deliberately refuse
-// before storage, service construction or outbound requests. Not an env flag.
+// No authority port means no permission. The registry supplies the persisted
+// SQL loader when a DB is available; standalone construction still refuses.
 export async function unavailableModernCaptureAuthority() { fail('unavailable'); }
 
 function referenceSnapshot(reference, c) {

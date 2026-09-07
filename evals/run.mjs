@@ -50,6 +50,7 @@ const suites = {
   "text-publication-early-share-ui": "text-publication-ui/early-share.mjs",
   "published-grounding": "published-grounding/run.mjs",
   "modern-issued-capture": "modern-issued-capture/run.mjs",
+  "modern-issued-authority": "modern-issued-authority/run.mjs",
   "personality-review-scope-ui": "personality-flow28/mounted.mjs",
   "personality-dialogue-flow": "personality-flow28/flow.mjs",
   "browser-resource": "browser-resource/run.mjs",
