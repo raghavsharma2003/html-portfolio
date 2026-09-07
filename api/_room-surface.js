@@ -95,6 +95,8 @@ import { sessionWorked, recordOffer, markOfferOutcome } from "./_phase-gate.js";
 import { loadNeverRules } from "./_review-queue.js";
 import { compileNeverRules } from "./_never-rules.js";
 import { roomReplyLanguagePolicy } from "./_room-reply-language.js";
+import { roomExpertTextProfile, assertExpertConversation } from "./_room-expert-profile.js";
+import { readRoomExpertTeacher, assertRoomExpertTeacherMatches, assertRoomExpertTeacherCurrent } from "./_room-expert-teacher.js";
 // WS-R100 (migration 126). `_receipt.js` is a leaf module (no imports of its
 // own beyond node builtins) - never `_payments.js`, which imports FROM this
 // file (`roomSettings`'s own header names the wall: a file this one already
@@ -1733,7 +1735,9 @@ const DEFAULT_MEMORY = {
     openOrExtendEpisode(person, device, "chat", { agentId }),
   logTurn: (args) => logDmTurn(args),
   history: (device, agentId, limit) => dmHistory(device, undefined, limit, agentId),
+  historyStrict: (device, agentId, limit) => dmHistory(device, undefined, limit, agentId, { strict: true }),
   recall: (person, agentId) => dmRecall(person, { agentId }),
+  recallStrict: (person, agentId) => dmRecall(person, { agentId, strict: true }),
 };
 
 /**
@@ -1814,8 +1818,11 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
   if (!follower || follower.age_attested_at == null) throw new RoomError("room_join_required", 403);
 
   // Validate the server policy before quota admission or any model request.
-  const replyLanguagePolicy = roomReplyLanguagePolicy(deps.env || process.env);
-  const textProfile = roomReplyTextProfile(deps.env || process.env);
+  const expertProfile = roomExpertTextProfile(deps.env || process.env);
+  const replyLanguagePolicy = expertProfile ? "follow_current_user" : roomReplyLanguagePolicy(deps.env || process.env);
+  const textProfile = expertProfile ? "expert_answer" : roomReplyTextProfile(deps.env || process.env);
+  const teacherSnapshot = expertProfile ? await readRoomExpertTeacher(db, publicKnowledgeScope(resolved)) : null;
+  if (teacherSnapshot) assertRoomExpertTeacherMatches(teacherSnapshot, resolved.sheet, resolved.module.slug);
 
   const thread = await ownedThread(db, resolved.room.room_id, payload.p, resolved.agentId, threadId);
   const device = roomThreadDevice(resolved.room.room_id, payload.p, thread?.thread_id || null);
@@ -1926,6 +1933,9 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
   // prompt here would be a second, unvalidated version of a real, named, living
   // person that nobody consented to.
   if (!engine) throw new RoomError("room_engine_unavailable", 503);
+  if (expertProfile && (typeof engine.compileExpertText !== "function" || typeof engine.parseExpertAnswer !== "function")) {
+    throw new RoomError("room_expert_engine_unavailable", 503);
+  }
 
   const memory = { ...DEFAULT_MEMORY, ...(deps.memory || {}) };
   // THE CONSENT GATE, and it is a branch rather than a filter on purpose: with
@@ -1942,17 +1952,31 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     // device is history the follower's own wipe cannot find.
     await bindThreadDevice(db, device, payload.p);
     await memory.openEpisode(payload.p, device, resolved.agentId);
+    if (expertProfile) {
+      // Snapshot prior turns before this request's user write. Matching text
+      // cannot identify a duplicate: repeated legitimate questions must remain.
+      // Concurrent requests can still interleave; this is not serialization.
+      try { history = await memory.historyStrict(device, resolved.agentId, ROOM_RECALL_TURNS); }
+      catch { throw new RoomError("room_expert_history_unavailable", 503); }
+    }
     await memory.logTurn({ device, person: payload.p, role: "me", content: text, agentId: resolved.agentId });
-    history = await memory.history(device, resolved.agentId, ROOM_RECALL_TURNS);
+    if (!expertProfile) history = await memory.history(device, resolved.agentId, ROOM_RECALL_TURNS);
     // The disclosure predicate with one recipient and no room: their own facts
     // under this agent, and nobody else's, because nobody else was there.
-    facts = await memory.recall(payload.p, resolved.agentId);
+    if (expertProfile) {
+      try { facts = await memory.recallStrict(payload.p, resolved.agentId); }
+      catch { throw new RoomError("room_expert_recall_unavailable", 503); }
+    } else facts = await memory.recall(payload.p, resolved.agentId);
   } else {
     // The memory-free path. The transcript rides on the request and is bound by
     // the SAME digest the anonymous widget lane uses, imported rather than
     // re-implemented: a client that edited history, or invented an `assistant`
     // turn putting words in a real named creator's AI's mouth, presents a
     // digest that does not match and is refused.
+    if (expertProfile) {
+      if (!Array.isArray(transcript) || transcript.length > ROOM_HISTORY_TURNS) throw new RoomError("room_expert_conversation_invalid", 400);
+      assertExpertConversation([...transcript, { role: "user", content: text }]);
+    }
     history = (Array.isArray(transcript) ? transcript : [])
       .slice(-ROOM_HISTORY_TURNS)
       .map((t) => ({
@@ -1968,6 +1992,23 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
   // Re-read before dispatch and delivery; never cache removed public answers.
   const knowledgeScope = publicKnowledgeScope(resolved);
   const knowledge = await readPublicRoomKnowledge(db, knowledgeScope);
+  if (expertProfile && !Array.isArray(history)) throw new RoomError("room_expert_history_unavailable", 503);
+  const turns = [...history, { role: "user", content: text }];
+  if (expertProfile) assertExpertConversation(turns);
+  // The legacy callback remains unchanged outside the opt-in. In this lane,
+  // malformed recall cannot be treated as an empty private record.
+  if (expertProfile && (!Array.isArray(facts) || facts.some(f => !f || typeof f.body !== "string"))) {
+    throw new RoomError("room_expert_recall_unavailable", 503);
+  }
+  const assertExpertAuthorityCurrent = async () => {
+    if (!expertProfile) return;
+    await assertRoomExpertTeacherCurrent(db, knowledgeScope, teacherSnapshot);
+    const current = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);
+    if (!current || current.age_attested_at == null
+        || String(current.memory_consent_at ?? "") !== String(follower.memory_consent_at ?? "")) {
+      throw new RoomError("room_expert_follower_consent_changed", 409);
+    }
+  };
   const { sent, adapter } = collector();
   const ctx = makeCtx(adapter, {
     engine,
@@ -1976,11 +2017,22 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     reply: async (compiled, turns) => {
       assertKnowledgeWasCompiled(compiled, knowledge);
       await assertPublicRoomKnowledgeCurrent(db, knowledgeScope, knowledge);
+      await assertExpertAuthorityCurrent();
       return deps.reply ? deps.reply(compiled, turns) : think(engine, compiled, turns);
     },
   });
 
-  const compiled = engine.compile({
+  const compiled = expertProfile ? engine.compileExpertText({
+    profile: expertProfile,
+    teacher: teacherSnapshot.sheet,
+    publication: teacherSnapshot.publication,
+    personId: payload.p,
+    privateMemory: { enabled: remembers, agentId: resolved.agentId, personId: payload.p,
+      rows: facts.map(f => ({ id: f.id, body: f.body, agentId: resolved.agentId,
+        personId: payload.p, consentStatus: "active" })) },
+    publicKnowledge: knowledge.sources.map(({ id, question, answer }) => ({ id, question, answer })),
+    // Room has no search/forget execution receipt flow. No capabilities granted.
+  }) : engine.compile({
     agent: resolved.module,
     user: { name: "", vibe: [], facts: {} },
     // A remembering follower is not a stranger, and `messageCount` is what the
@@ -2003,7 +2055,6 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     replyLanguagePolicy: replyLanguagePolicy,
   });
 
-  const turns = [...history, { role: "user", content: text }];
   // THE ONE DOOR. `record` is the retrieved set and nothing else: a moment the
   // AI was HANDED is a moment it may retell, and one it was not is a
   // fabrication. On the memory-free path `record` is empty, which makes honesty
@@ -2014,14 +2065,18 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
   // widget and Mirror Call and never on their own Room (WS-R99's finding,
   // `context/rejected.md#room-reply-lanes-carried-no-never-rules`).
   const gatedOut = await gatedReply(ctx, compiled, turns, {
-    record: facts.map((f) => f.body),
+    record: expertProfile ? compiled.privateMemoryRecord : facts.map((f) => f.body),
     label: "web/room",
     textProfile,
     neverRules: await roomNeverRules(db, resolved.room, deps),
   });
+  if (expertProfile && (gatedOut.parsed?.search || gatedOut.parsed?.forget)) {
+    throw new RoomError("room_expert_tool_unavailable", 503);
+  }
   const said = gatedOut.text;
   if (said) {
     await assertPublicRoomKnowledgeCurrent(db, knowledgeScope, knowledge);
+    await assertExpertAuthorityCurrent();
     await deliver(ctx, "room", { kind: "text", text: said, replyTo: null, buttons: [] });
     if (remembers) {
       await memory.logTurn({ device, person: payload.p, role: "her", content: said, agentId: resolved.agentId });

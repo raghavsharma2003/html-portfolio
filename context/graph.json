@@ -13233,6 +13233,132 @@
       "kind": "decision",
       "title": "Retain per-run performance data in full release logs",
       "at": "2026-09-07"
+    },
+    {
+      "id": "frozen-fifteen-completed-twenty-three-of-twenty-four-20260907",
+      "kind": "measurement",
+      "title": "Release15 completed23 of24software gates",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "isolated-performance-pass-is-not-frozen-release-pass-20260907",
+      "kind": "rejection",
+      "title": "Isolated timing pass did not survive full release",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "defer-authenticated-workspace-css-preserving-cascade-20260907",
+      "kind": "decision",
+      "title": "Measure a bounded authenticated CSS split",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "adoption-harness-cleanup-masked-primary-refusal-20260907",
+      "kind": "rejection",
+      "title": "Adoption harness cleanup hid its original test failure",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "recover-four-synthetic-adoption-readiness-rows-20260907",
+      "kind": "measurement",
+      "title": "Recovered four exact synthetic readiness rows",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "lean-candidate-actual-artifact-parity-20260907",
+      "kind": "measurement",
+      "title": "Isolated lean compiler source and generated artifact agree",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-optin-preserves-persisted-publication-and-strict-memory-20260907",
+      "kind": "decision",
+      "title": "Wire expert profile with honest publication and memory authority",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-draft-handoff-after-qualified-activation-20260907",
+      "kind": "decision",
+      "title": "Adopt private drafts after qualified activation",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-draft-adoption-twelve-live-groups-20260907",
+      "kind": "measurement",
+      "title": "Twelve actual private draft adoption SQL groups passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "activation-explain-missed-parameter-ambiguity-20260907",
+      "kind": "rejection",
+      "title": "EXPLAIN missed a real activation bind failure",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "partition-studio-css-with-original-cascade-oracle-20260907",
+      "kind": "decision",
+      "title": "Partition entry and workspace declarations without redesign",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "studio-css-full-focused-performance-pass-20260907",
+      "kind": "measurement",
+      "title": "Studio CSS partition passed full focused performance batch",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "studio-css-browser-cascade-and-layout-parity-20260907",
+      "kind": "measurement",
+      "title": "Actual auth and workspace cascade parity passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "studio-css-oracle-and-preexisting-optional-failures-20260907",
+      "kind": "rejection",
+      "title": "CSS validation required a true original cascade oracle",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "fresh-six-case-lean-azure-trial-20260907",
+      "kind": "decision",
+      "title": "Freeze lean candidate before six fresh Azure calls",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-teacher-nine-real-sql-groups-20260907",
+      "kind": "measurement",
+      "title": "Scoped expert teacher reader passed nine actual SQL groups",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-sql-harness-undefined-sheet-input-20260907",
+      "kind": "rejection",
+      "title": "Root wrapper supplied an undefined teacher fixture",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "room-replayed-current-question-and-masked-writes-20260907",
+      "kind": "rejection",
+      "title": "Current question duplicated and writes remain unverified",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "six-fresh-lean-azure-contracts-quality-failed-20260907",
+      "kind": "measurement",
+      "title": "Six fresh Azure contracts passed but quality failed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "integrate-disabled-lean-scaffold-after-failed-trial-20260907",
+      "kind": "decision",
+      "title": "Integrate tested scaffold while keeping serving disabled",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "lean-prompt-does-not-fix-facts-or-delivery-loss-20260907",
+      "kind": "rejection",
+      "title": "Lean instructions did not guarantee faithful expert answers",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

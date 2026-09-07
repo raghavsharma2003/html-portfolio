@@ -9,6 +9,7 @@ import { calibrationDirectives } from "./_replica-calibration.js";
 import { FIDELITY_BLOCKER, FIDELITY_POLICY_VERSION } from "./_fidelity.js";
 import { READINESS_BLOCKER, READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR } from "./_readiness.js";
 import { personProfileValiditySql } from "./_person-model.js";
+import { adoptActivatedPrivateTeacherSheet } from "./_teacher-sheet-adoption.js";
 
 export const RUNTIME_POLICY_VERSION = "replica-runtime-v1";
 export const REPLICA_CORE_CAP = 12_000;
@@ -162,7 +163,7 @@ export function clientRuntimeStatus(row) {
   };
 }
 
-const RUNTIME_STATUS_SQL = `select r.replica_id,r.subject_mode,r.lifecycle,r.subject_person_id,
+export const RUNTIME_STATUS_SQL = `select r.replica_id,r.subject_mode,r.lifecycle,r.subject_person_id,
   r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,r.identity_expires_at,
   p.age_tier as person_age_tier,
   exists(select 1 from vy_account_person ap
@@ -391,7 +392,7 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
        insert into vy_agent (agent_id,slug,display_name,persona_version,register,status)
        select gen_random_uuid(),'replica-'||replace(s.replica_id::text,'-',''),s.display_name,
               'replica-profile/'||s.profile_version::text,
-              jsonb_build_object('runtimePolicy',$6,'selfReplica',true),'active'
+              jsonb_build_object('runtimePolicy',$6::text,'selfReplica',true),'active'
          from selected s
         where s.agent_id is null and not exists(select 1 from existing_capability)
        returning agent_id
@@ -429,6 +430,13 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
     if (!status) return null;
     throw runtimeError("runtime_not_qualified", 409, { blockers: status.blockers });
   }
+  // A fresh statement is deliberate: activation may have waited on a first
+  // owner save, whose committed draft was invisible to its earlier snapshot.
+  // Retry reuses the qualified capability if this private handoff conflicts.
+  await adoptActivatedPrivateTeacherSheet(db, {
+    replicaId: rid, ownerUserId, capabilityId: rows[0].capability_id,
+    replicaPolicy: REPLICA_POLICY_VERSION, runtimePolicy: RUNTIME_POLICY_VERSION,
+  });
   return {
     replica_id: rows[0].replica_id,
     active: rows[0].state === "active",

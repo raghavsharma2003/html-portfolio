@@ -229,6 +229,7 @@ ok("a clone with no measurement surfaces null rather than a blank pass",
 const activationCalls = [];
 await activateOwnedRuntime(async (sql, params) => {
   activationCalls.push({ sql, params });
+  if (sql.includes('as adoption_status')) return [{ adoption_status: 'no_private_draft' }];
   return [{ capability_id: VOICE, replica_id: RID, state: "active", genome_version: 3, profile_version: 7, calibration_version: 2, activated_at: "2026-08-26T00:00:00.000Z" }];
 }, OWNER, RID);
 const activationSql = activationCalls[0].sql;

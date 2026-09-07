@@ -166,6 +166,7 @@ ok("status refuses an approved profile after claim or training authority changes
 const activationCalls = [];
 const activated = await activateOwnedRuntime(async (sql, params) => {
   activationCalls.push({ sql, params });
+  if (sql.includes('as adoption_status')) return [{ adoption_status: 'no_private_draft' }];
   return [{ capability_id: CAP, replica_id: RID, state: "active", genome_version: 3, profile_version: 7, calibration_version: 2, activated_at: "2026-08-24T00:00:00.000Z" }];
 }, OWNER, RID);
 const activationSql = activationCalls[0].sql;

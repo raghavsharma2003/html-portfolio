@@ -32,6 +32,7 @@ import type {
 import { getReplicaReview, requestVoiceGenomeBuild } from "./processingApi";
 const EnrollmentWorkspace = lazy(() => import("./EnrollmentWorkspace"));
 const CloneExperience = lazy(() => import("./CloneExperience"));
+const StudioWorkspaceStyles = lazy(() => import("./StudioWorkspaceStyles"));
 import ExpertEntryVisual from "./ExpertEntryVisual";
 import VyaktiMark from "./VyaktiMark";
 const VoicePreviewPanel = lazy(() => import("./VoicePreviewPanel"));
@@ -2583,6 +2584,7 @@ export default function StudioApp() {
   if (!STUDIO_SELF_TEST_UI) {
     return (
       <Suspense fallback={<DeferredWorkspacePanel />}>
+      <StudioWorkspaceStyles />
       <CloneExperience
         identity={identity}
         accessToken={session.accessToken}
@@ -2638,6 +2640,8 @@ export default function StudioApp() {
   }
 
   return (
+    <Suspense fallback={<DeferredWorkspacePanel />}>
+    <StudioWorkspaceStyles />
     <div className={`studio-shell${STUDIO_SELF_TEST_UI ? " studio-shell-self-test" : ""}`}>
       <header className="studio-header">
         <a className="studio-logo" href="/" aria-label="Vyakti home">
@@ -2788,5 +2792,6 @@ export default function StudioApp() {
         </main>
       </div>
     </div>
+    </Suspense>
   );
 }

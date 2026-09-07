@@ -30,7 +30,7 @@ Implement exact owner, sheet revision, intended scope and valid receipt binding 
 
 ## 3. Adopt the private draft after legitimate activation
 
-`_replica-runtime.js::activateOwnedRuntime` binds the replica agent; private drafts intentionally stay unbound. Add exact owned-draft adoption after legitimate runtime activation, with no publication or consent substitution. Preserve submitted bytes and published versions. Test conflicting agents, duplicate drafts, races and revocation. This caller is absent today.
+`_replica-runtime.js::activateOwnedRuntime` now calls exact owned-draft adoption after qualified activation. It changes only the draft agent binding, with no publication or consent substitution. Root verified 12 actual isolated SQL groups, including witnessed first-save races, revocation and retries, with zero remaining fixtures. The qualification evidence was synthetic; ordinary owner activation still needs the identity and voice prerequisites below.
 
 ## 4. Connect corrections to an owner-reviewed candidate
 
@@ -44,7 +44,7 @@ After legitimate identity and reference authority exist, run exact pinned Azure 
 
 ## Cross-cutting answer quality
 
-`ROOM_REPLY_TEXT_PROFILE=expert_answer` now offers bounded parsed-segment preservation; the normal setting remains unset. It does not repair source grounding, all formatting or language. `ROOM_REPLY_LANGUAGE_POLICY` also remains unset after failed real comparisons. A lean expert compiler should preserve approved manner, source boundaries and private continuity while removing companion invention and deliberate error instructions. Freeze new evaluation cases before the next model trial; do not retune against the retained failed holdout.
+`ROOM_REPLY_TEXT_PROFILE=expert_answer` offers bounded parsed-segment preservation; the normal setting remains unset. It does not repair source grounding, all formatting or language. `ROOM_REPLY_LANGUAGE_POLICY` also remains unset after failed comparisons. The integrated `ROOM_EXPERT_TEXT_PROFILE=lean_v1` candidate preserves typed teaching material, source boundaries and private continuity while removing companion invention. Its six fresh Azure calls passed transport contracts but failed factual and list-content acceptance. It remains unset. See EXPERT-LEAN-TEXT-TRIAL-20260907.json. Diagnose deterministic delivery loss offline; future model trials need new cases.
 
 ## Product validation after the working loop
 

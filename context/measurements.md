@@ -16403,3 +16403,43 @@ On2026-09-07 opt-in profiler n3 measured native toLocaleDateString135/315/302ms 
 ## `room-entry-performance-all-targets-after-fix-20260907` (2026-09-07)
 
 At2026-09-07T09:02:15Z agent completed one full standard --json performance gate:9targets x3coldruns,27/27positive supportedLCPobservations, exit0, no findings orinstallfailures, unchanged4xCPU/1.6Mbps/750Kbps/150ms andbudgets. Median RoomEN LCP1576ms/TBT122ms,RoomHI1896/162,StudioEN2372/123,StudioHI2280/127. All287source/build fingerprints unchanged duringtiming;57fullprocess countersnapshots retained withoutcommands/credentials. Artifacts scratchpad/room-entry-after-performance-20260907.{json,identity.json,cpu.json,stderr.log}. This focused fullperformance result is not the fullrelease result.
+
+
+## `frozen-fifteen-completed-twenty-three-of-twenty-four-20260907` (2026-09-07)
+
+Release15 ran2026-09-07T09:05:35.304Z to09:23:47.019Z on46434a41c91c71baf091d80ea3999045c9e68d54,exit1,changedDuringRun=false.23/24software gates passed, including entireevalsuite,layout,accessibility,leak/door/export andsecuritychecks. Onlyperformance failed: HindiStudio medianLCP2676ms>2500; all27observationsvalid. HindiStudio runs2488/2676/2800ms,TBT186/216/298ms. RoomEN median1660/TBT273,RoomHI2004/117,StudioEN2468/164. TwoDBgates skipped forabsentNEON_URL; separate development proofs retainownscope. Structured27runJSON retained in scratchpad/release-logs/2026-09-07T09-05-35-421Z-20656/performance-budgets.stdout.log. No release acceptance.
+
+
+## `recover-four-synthetic-adoption-readiness-rows-20260907` (2026-09-07)
+
+Read-onlyrecovery identified4orphan readinessrows created09:06:08-21Z underonegeneratedowner, matchingthesynthetic100/100,unmeasured0,emptyJSON/hash/policy andfirstrunwindow. At2026-09-07T09:20:14.763Z rootdeletedbyexactrecordedreadinessID+owner+replica+computed_at+fullcontentsnapshot+orphanpredicate.15recoveredscopedtablecounts are0; originalunknownpersonUUID wasnotindependentlyrecounted. RetainedROOTscratchpad/expert-tools/adoption-readiness-{recovery,cleanup}-20260907.json. No productiondata wasread orchanged.
+
+
+## `lean-candidate-actual-artifact-parity-20260907` (2026-09-07)
+
+Inisolatedcodex/expert-lean-text basedona93ae825, agentpassed18sourcegroups and19actualapi/_engine.gen.js artifactgroups, including83defaultcompilerbytefixtures and6candidate source/artifactparitycases; regenerated347956byteenginefreshness/diffpassed. Initialfulltypecheckpassed. UUID36lengthdefense andnewlinecoverageadded; reviewer's bypassclaimwasnotreproduced andisnotanacceptedbug. Candidatecurrentlyunintegrated; Physics/Chemistry/Maths TeacherSheet only, no realmodelcalls oranswerquality acceptance. Nextopt-inroute wiring isseparatework.
+
+
+## `private-draft-adoption-twelve-live-groups-20260907` (2026-09-07)
+
+At 2026-09-07T09:36:43.875Z root completed 12 groups in isolated database vyakti_expert_integration_20260906. Actual activation/adoption/status SQL execution, missing scope, uncast 42P08 negative control, revoked/expired authority refusal, exact owner/capability binding, unchanged draft bytes and legacy/published versions, schema duplicate refusal, three witnessed concurrency cases and revocation between statements passed. All recorded fixture counts were zero after cleanup. Identity, consent, readiness and fidelity prerequisites were synthetic SQL fixtures only, not human evidence or serving authorization. Retained result: ROOT scratchpad/expert-tools/development-concurrency-adoption-20260907.json.
+
+
+## `studio-css-full-focused-performance-pass-20260907` (2026-09-07)
+
+On 2026-09-07 agent captured source/build identity at 09:46:26.267Z and completed one standard performance batch at 09:48:21.369Z, exit 0: 9 targets times 3 cold runs, all 27 positive observed LCP values, unchanged throttling and budgets. Studio English median LCP 1820 ms/TBT 31 ms; Hindi 2028/35, with Hindi LCP runs 1924/2028/2108. Room English 1252/72, Hindi 1704/70. Studio CSS transfer 37620 to 8143 bytes; JS 101305 to 101415, fonts 84148, image 52628 and CLS 0.071875 unchanged. All captured source/build hashes unchanged; 56 process CPU snapshots retained. This focused pass does not supersede failed release 15. Artifacts: scratchpad/studio-entry-after-performance-20260907.*.
+
+
+## `studio-css-browser-cascade-and-layout-parity-20260907` (2026-09-07)
+
+Agent passed 19 combined source/browser checks against independently minified original studio/honesty/mobile/auth cascade at 390 and 1440 pixels: email, code, returning-session workspace and sign-out computed non-custom styles match; holding real workspace CSS holds workspace behind Suspense. Existing Studio layout check passed 1663 prose blocks at 390/834/1355 across English/Hindi Feed/Meet/Deploy/shell/sign-out/ops. Typecheck/build passed. Root independently ran registered source subset: 7 checks passed, including changed-declaration and missing-responsive-rule negative controls. No new complete authentication or voice-enrollment proof.
+
+
+## `expert-teacher-nine-real-sql-groups-20260907` (2026-09-07)
+
+At 2026-09-07T09:50:45.741Z root completed nine groups against the exact isolated development database: exact SELECT EXPLAIN/execution, two-owner reads, four wrong scope bindings, legacy ownership transition, foreign explicit ownership, paused/revoked/demoted states, receipt-column/JSON mismatch and snapshot change, and same-version content change. Cleanup remaining 0, errors empty. Synthetic persisted publication columns were fixtures only, not independent consent grants. Root then ran actual Room runtime checks 20/20 after the history-order fix; compiler and teacher reader stayed unchanged.
+
+
+## `six-fresh-lean-azure-contracts-quality-failed-20260907` (2026-09-07)
+
+From 2026-09-07T09:53:08.690Z to 09:53:46.107Z root ran six new synthetic English/Hindi/Roman Hinglish cases through actual isolated lean Room/compiler/shared gates/think/Azure gpt-4.1-mini and the development ledger. All six delivery/source/publication-reader/never-rule/ledger controls passed; each had one settled request, no retries, and zero reserved spend after. Estimated ledger delta 5353 microUSD (USD 0.005353), not an invoice or full service cost. End-to-end fixture elapsed times 4820/7499/4822/2226/2480/2495 ms include ledger and gate work. Manual review failed quality: Hindi changed exact15-minute duration to five-to-fifteen; Hinglish missed explicit exclusion of personal consultation; delivered lists lost durations and labels present in raw text. Three unknown-policy cases declined all absent values and preserved IRIS-27. Full retained evidence: docs/gurukul/research/EXPERT-LEAN-TEXT-TRIAL-20260907.json. No paired competitor or native-panel acceptance.

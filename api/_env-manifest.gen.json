@@ -1006,6 +1006,15 @@
     "required": false
   },
   {
+    "name": "ROOM_EXPERT_TEXT_PROFILE",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
     "name": "ROOM_HANDOFF_KERNEL",
     "section": "31",
     "sectionTitle": "Handoff v1 on the relational kernel (`vercel-app`, WS-R87, 2026-09-05)",

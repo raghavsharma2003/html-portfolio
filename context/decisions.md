@@ -22783,3 +22783,33 @@ Use a fixed-position React useMemo with phase,due,baseline,locale dependencies. 
 ## `retain-every-release-performance-run-20260907` (2026-09-07)
 
 verify-release invokes check-performance with --json so retained stdout contains every cold run, without enabling profiler/diagnostic work. Freeze reviewed checkpoint and run fullrelease15 with originalbudgets. Reversal condition: an equally complete structured artifact is retained by the runner through a different output path; terse aggregate text alone lost evidence needed to diagnose14.
+
+
+## `defer-authenticated-workspace-css-preserving-cascade-20260907` (2026-09-07)
+
+Prepare anentryCSS subset preserving exactauth/base/tokendeclarations, andload unchangedfullstudio/honesty/mobile styles beforeauthenticatedworkspace renders. Prove lessentryCSS, declaration/cascadeparity andsigned-inlayout, thenmeasureoriginalbudgets. Noartwork,font,copy oranimation change. Reversal condition: parity/layout ormeasuredentryperformance worsens, ordependencytimings showthisworkisnothelpful.
+
+
+## `expert-optin-preserves-persisted-publication-and-strict-memory-20260907` (2026-09-07)
+
+Nextisolatedleanroute usesexactRoom/owner/replica/agent publishedTeacherSheet readandrevalidation, preservingpersistedreceiptbasis withoutclaimingindependentgrantverification. No consentwriterorconfigurationactivation. Newleanopt-in mustrejectauthoritativerecallfailure instead ofcallingit validemptymemory, whilenormaldefaultbehavior staysunchanged. Reversal condition: a verifiedpublicationgrantledger/caller supersedeslegacyreceiptbasis, oranapprovedretry/availabilitycontractprovides equallyhonestmemoryfailurehandling.
+
+
+## `private-draft-handoff-after-qualified-activation-20260907` (2026-09-07)
+
+Integrate the reviewed isolated adoption patch into expert-unified. Only agent_id on the exact owned draft is changed after actual activation returns a qualified capability. A fresh second statement sees a first save committed while activation waited on the replica lock. Content, status, version and consent remain untouched. Conflicts return a named error; activation may already have succeeded and retries reuse its capability. Reversal condition: actual concurrency or authority evidence defeats these predicates, or a transactional authoring API replaces the handoff with equal preservation and retry guarantees.
+
+
+## `partition-studio-css-with-original-cascade-oracle-20260907` (2026-09-07)
+
+Keep original studio.css as a canonical parity oracle. Eager entry CSS and deferred complementary workspace CSS contain every original rule exactly once, preserving values and within-partition order. A lazy CSS module shares the authenticated Suspense boundary, so workspace waits for its styles. Original honesty/mobile order is retained; artwork, fonts, copy and animation are unchanged. Reversal condition: actual computed-style or signed-in layout parity breaks, or measured performance regresses. This supersedes the initial duplicate-full-styles plan because late duplicated auth rules could change sign-out cascade.
+
+
+## `fresh-six-case-lean-azure-trial-20260907` (2026-09-07)
+
+Run at most six actual Azure gpt-4.1-mini requests on root-authored fresh English/Hindi/Roman Hinglish cases, using the isolated frozen lean compiler, actual Room/shared gates/think and real development spend ledger capped at USD 1. Room, publication and memory authority remain synthetic injected fixtures; no production publication or owner data. No retries or tuning on this corpus. Expected parts and unknown-policy boundaries are recorded before execution. Reversal condition: preflight, scoped SQL, code identity, ledger or output contract fails; stop and preserve evidence. A successful small trial is not broad multilingual, identity, voice or competitive acceptance.
+
+
+## `integrate-disabled-lean-scaffold-after-failed-trial-20260907` (2026-09-07)
+
+Integrate the isolated lean compiler, scoped teacher reader, strict history/recall options and actual Room runtime tests with ROOM_EXPERT_TEXT_PROFILE unset. New candidate is available for bounded experiments only; normal companion compiler behavior remains unchanged. Register generated-artifact/compiler and Room runtime checks and document the flag in ENV-MANIFEST. Preserve failed raw/delivered corpus for offline regression diagnosis. Reversal condition: default behavior changes, SQL authority fails, or a future independently evaluated candidate earns explicit activation. Six failed-quality cases are not a reason to silently enable the candidate.

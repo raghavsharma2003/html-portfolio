@@ -4,27 +4,12 @@ import "@fontsource-variable/geist";
 import "@fontsource-variable/instrument-sans";
 import "@fontsource/noto-sans-devanagari/devanagari-600.css";
 import StudioApp from "./StudioApp";
-// Design tokens FIRST, studio.css second. Both write into the `tokens` cascade
-// layer, so on any name declared in both, studio.css wins by source order —
-// tokens.css adds the scale (type, space, motion, status, focus) without
-// overruling the palette studio.css already owns. See its header comment and
-// docs/gurukul/DESIGN-SYSTEM.md.
+// Tokens first, then the original studio's sign-in/base declarations. The
+// entry subset preserves layer order and the studio palette overrides.
 import "./design/tokens.css";
-import "./studio.css";
-// AFTER studio.css, both of them, and the order is the point. Both write into
-// cascade layers studio.css already declared, so within a layer the later
-// source wins on equal specificity, which is how these two say the final word
-// without having to out-specify 3 300 lines of panel CSS.
-//
-//   honesty.css   how the two blocker classes look, at every width
-//   mobile.css    the phone layout, stated positively rather than subtracted
-//
-// Separate files for the mechanical reason `design/tokens.css` gives in its own
-// header: `studio.css` is the most contended file in this repo, and a layout
-// that only exists as a diff inside a contended file is a layout that loses a
-// merge. See each file's header for what it owns and why.
-import "./design/honesty.css";
-import "./design/mobile.css";
+import "./studio-entry.css";
+// The complete studio/honesty/mobile cascade loads inside the authenticated
+// Suspense boundary. Sign-in needs only the exact entry subset above.
 import "./auth-entry.css";
 import "./vyakti-mark.css";
 import { restoreStudioMode } from "./studioAuth";

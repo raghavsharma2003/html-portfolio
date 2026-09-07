@@ -455,7 +455,7 @@ export async function roomRecall(groupId, recipients, { limit = 8, agentId = MEE
  * no separate code path": a room's recipient set is strictly more restrictive
  * than any 1:1 evaluation of the same predicate.
  */
-export async function dmRecall(personId, { limit = 8, agentId = MEERA_AGENT_ID } = {}, t = ident) {
+export async function dmRecall(personId, { limit = 8, agentId = MEERA_AGENT_ID, strict = false } = {}, t = ident) {
   const pred = applyResolver(disclosurePredicate("fact", BIND), t);
   return await q(
     `select f.id, f.body, f.name, f.created_at
@@ -465,7 +465,10 @@ export async function dmRecall(personId, { limit = 8, agentId = MEERA_AGENT_ID }
       limit ${Number(limit) | 0}`,
     [[personId], false, null, NEGATIVE_AFFECT_TAGS, agentId],
     20_000,
-  ).catch(() => []);
+  ).catch(() => {
+    if (strict) throw Object.assign(new Error("room_expert_recall_unavailable"), { code: "room_expert_recall_unavailable", status: 503 });
+    return [];
+  });
 }
 
 /** The synthetic device for a Telegram 1:1 channel — uuid v5 over the user id,

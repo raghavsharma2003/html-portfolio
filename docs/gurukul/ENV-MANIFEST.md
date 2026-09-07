@@ -76,6 +76,18 @@ distinct from these generic extraction helpers.
 
 Room answer delivery has an independent experimental server opt-in:
 
+The lean expert candidate has a single server selection. It remains disabled
+after the six-case Azure trial on 7 September found incorrect source claims and
+lost list content. Structural checks are separate from answer acceptance.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `ROOM_EXPERT_TEXT_PROFILE` | `api/_room-expert-profile.js`, `api/_room-surface.js` | optional; exact `lean_v1` only | unset preserves the existing Room compiler | lean selection combines current-user language and expert delivery; conflicting legacy flags refuse; requires scoped published TeacherSheet and strict memory reads |
+
+This candidate supports the existing teaching subjects. Publication authority
+is the persisted sheet receipt column, not an independently verified grant.
+Keep unset until new end-to-end quality evidence supports enabling it.
+
 | name | consumed at | required | fallback | breaks without it |
 |---|---|---|---|---|
 | `ROOM_REPLY_TEXT_PROFILE` | `api/_room-surface.js`, `api/_surface.js` | optional; exact `expert_answer` only | unset preserves companion parsing and four-bubble limit | no default change; invalid values fail before admission; expert answers over 4,000 JavaScript string units are refused, not sliced |

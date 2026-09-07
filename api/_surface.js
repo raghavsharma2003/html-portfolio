@@ -1182,13 +1182,16 @@ export async function logDmTurn(
  * surface layer's own copy of the same discipline, and it moves with this
  * function wherever the function moves.
  */
-export async function dmHistory(device, t = ident, limit = 30, agentId = MEERA_AGENT_ID) {
+export async function dmHistory(device, t = ident, limit = 30, agentId = MEERA_AGENT_ID, { strict = false } = {}) {
   const rows = await q(
     `select role, content from ${t("meera_log")}
       where device_id = $1 and agent_id = $2::uuid and group_id is null
       order by id desc limit ${limit | 0}`,
     [device, agentId],
-  ).catch(() => []);
+  ).catch(() => {
+    if (strict) throw Object.assign(new Error("room_expert_history_unavailable"), { code: "room_expert_history_unavailable", status: 503 });
+    return [];
+  });
   return rows
     .reverse()
     .map((r) => ({ role: r.role === "her" ? "assistant" : "user", content: r.content }));

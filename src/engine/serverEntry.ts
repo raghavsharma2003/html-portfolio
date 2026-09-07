@@ -28,6 +28,12 @@
 // persona that still answers is the `silent-truncation` failure shape: it
 // works, everything returns 200, and she is quietly someone else.
 export { compile, type CompileInput, type CompiledPrompt } from "./compiler";
+// Pure compiler for the explicit Room server opt-in; default compile unchanged.
+export {
+  compileExpertText, EXPERT_TEXT_PROFILE, EXPERT_TEXT_LIMITS,
+  type ExpertTextInput, type ExpertTeacherProjection, type ExpertPublicationBinding,
+  type ExpertPrivateMemory, type CompiledExpertText,
+} from "./expertTextCompiler";
 // WS-R111: the material block's real markers + renderer. Exported here for
 // this file's own standing reason (`api/_surface.js`'s `honestyContextFor`
 // needs `MATERIAL_BLOCK_OPEN`/`MATERIAL_BLOCK_CLOSE` to exclude the block

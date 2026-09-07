@@ -80,6 +80,7 @@ await explain("runtime status current-profile guard parses on live Neon",
 await explain("runtime activation current-profile guard parses on live Neon",
   (db) => activateOwnedRuntime(db, OWNER, REPLICA), [{
     capability_id: REPLICA,
+    adoption_status: 'no_private_draft',
     replica_id: REPLICA,
     state: "active",
     genome_version: 1,

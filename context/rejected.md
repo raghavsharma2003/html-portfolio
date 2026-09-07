@@ -16517,3 +16517,38 @@ Root found Azure generic memory fields in a four-column table ignored by the int
 ## `fixed-dwell-can-end-before-first-contentful-paint-20260907` (2026-09-07)
 
 Retained diagnostic saw visible/focused document and no input, yet first-contentful-paint3388ms arrived after the earlier performance snapshot(wall3096ms). MissingLCP was not0 or proved fast rendering. New collector waits at most2500ms only for missing supported LCP, retains navigation-relative startTime and unchanged2500ms budget. Its full-run longtask window extends in that case; late observations can now fail the actual speed budget. All prior failed batches remain retained.
+
+
+## `isolated-performance-pass-is-not-frozen-release-pass-20260907` (2026-09-07)
+
+The samebudget focusedbatch passed before15, but frozenfull15 missed HindiStudioLCP. Do notreplacefailedrun withpassingdiagnostic. Later unchanged-dist studio-hi diagnostics recorded3128/2156/2052ms; heroIMGwonall3,fontscompletedafterLCP. CSS34732compressedbytes completed1220-1283ms; hero discovered1558-1941ms. Worstimage responseEnd2381 vsload3036/render3128 hasunattributed delay, withno retainedlongtask after1943ms. Noopacitygate: motionistranslate-only. These observations supportinvestigating eagerworkspaceCSS, notclaimingfont/animationcausality.
+
+
+## `adoption-harness-cleanup-masked-primary-refusal-20260907` (2026-09-07)
+
+Firstisolated adoptionSQLharness endedERR_ASSERTION withoutretainedprimaryscope. Itsfinally reliedoncascade forvy_replica_readiness, whichhasno replicaFK;4syntheticreadinessrows remained andcleanupassertion maskedoriginalfailure. Newharness requiresID-only manifestbeforewrites, explicitreadinessdelete, separateprimary/transaction/cleanupfailures andzero-rowcounts. Its6offlinefailurecontrols and9adoptiongroups passed. Secondactualrun nowreported activation-gates-still-refuse atline85 andverifiedcleanup0; refusalshape stillunderdiagnosis. Noadoptionintegration orruntimeacceptance.
+
+
+## `activation-explain-missed-parameter-ambiguity-20260907` (2026-09-07)
+
+Actual activation failed PostgreSQL 42P08 for policy parameter $6 used uncast in jsonb_build_object, although EXPLAIN passed. Root reproduced execution failure with no fixture writes through both Neon WebSocket and SQL-over-HTTP. Casting only that JSON value to text fixed the actual missing-scope execution. HTTP proof at 2026-09-07T09:36:21.215Z recorded originalExplainPassed=true, originalExecutionError=42P08, fixedRows=0 and fixtureRowsCreated=0. Keep the uncast execution negative control; parse success alone did not prove this parameterized statement executable.
+
+
+## `studio-css-oracle-and-preexisting-optional-failures-20260907` (2026-09-07)
+
+Initial browser tests compared raw to minified color strings and selected unrelated creator CSS. Corrected those test oracles and independently minified original styles. Duplicate late auth declarations were rejected in favor of a complementary partition. Older unregistered studio-auth-link-code and generic-entry-ui suites failed 1 and 8 assertions respectively, reproduced identically on exact 46434a41 baseline files. Retained baseline logs distinguish those failures from CSS regressions; they are not accepted as passing user journeys.
+
+
+## `expert-sql-harness-undefined-sheet-input-20260907` (2026-09-07)
+
+The first reader SQL run failed result validation after EXPLAIN because root destructured DEMO_TEACHER from a generated module that does not export it; dynamic destructuring yielded undefined. This was a wrapper defect, not an observed reader bug. Exact synthetic rows were cleaned with zero remaining. Correct wrapper loads the real sheet fixture through loadFixtureAgent. Harness now rejects missing/malformed input before any DB work and validates composed sheets before writes.
+
+
+## `room-replayed-current-question-and-masked-writes-20260907` (2026-09-07)
+
+Existing remembering Room logs the current user, reads history including that write, then appends the current user again. Lean opt-in now snapshots strict history before the write, tested with legitimate identical prior/current questions retained exactly twice. Default ordering is unchanged. Concurrent requests can still interleave; this is not serialization. Quota admission precedes strict-read failures, with no refund contract. logDmTurn still masks INSERT errors, so strict recall/history does not prove durable conversation writes. No complete continuity claim follows.
+
+
+## `lean-prompt-does-not-fix-facts-or-delivery-loss-20260907` (2026-09-07)
+
+Reducing companion invention and requesting exact quantities did not prevent a real Hindi duration hallucination or Hinglish source omission. Shared delivery also removed substantive bullet lines from raw answers. Transport/source metadata indicated material provided to the model, not correct use. Do not treat lean prompt presence, smaller token count, all six settled requests or existing gate findings=0 as quality acceptance. Next phase replays retained outputs through actual parser/cleanup/guard stages to isolate deterministic content loss without further model calls.

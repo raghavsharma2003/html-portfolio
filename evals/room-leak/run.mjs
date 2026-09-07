@@ -3079,6 +3079,86 @@ console.log("\n── layer 18: referral credits and rewards (WS-R133) — isola
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// Lean Room opt-in: new imports have closed capabilities, not a file-wide
+// exemption. Config/budgets are pure; the teacher reader can only use injected
+// SELECT SQL and the existing pure validation/hash functions.
+{
+  const ts = await import("typescript");
+  const profileSource = fs.readFileSync(join(REPO, "api/_room-expert-profile.js"), "utf8");
+  const closedProfile = source => {
+    const file = ts.createSourceFile("expert-profile.js", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+    if (file.parseDiagnostics.length || file.statements.length !== 3) return false;
+    const names = new Set(["roomExpertTextProfile", "env", "process", "value", "ROOM_EXPERT_TEXT_PROFILE",
+      "undefined", "Object", "assign", "Error", "code", "status", "ROOM_REPLY_LANGUAGE_POLICY", "ROOM_REPLY_TEXT_PROFILE",
+      "ROOM_EXPERT_CONVERSATION_LIMIT", "assertExpertConversation", "turns", "Array", "isArray", "length", "units",
+      "turn", "includes", "role", "content", "test"]);
+    let safe = true;
+    const visit = node => {
+      if (ts.isIdentifier(node) && !names.has(node.text)) safe = false;
+      if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node) || ts.isImportEqualsDeclaration(node)
+          || node.kind === ts.SyntaxKind.ImportKeyword || ts.isElementAccessExpression(node)
+          || ts.isArrowFunction(node) || ts.isFunctionExpression(node)) safe = false;
+      if (ts.isCallExpression(node)) {
+        const callee = node.expression;
+        const name = callee.getText(file);
+        const localPredicate = ts.isPropertyAccessExpression(callee)
+          && ((callee.name.text === "includes" && ts.isArrayLiteralExpression(callee.expression))
+            || (callee.name.text === "test" && ts.isRegularExpressionLiteral(callee.expression)));
+        if (!["Object.assign", "Array.isArray"].includes(name) && !localPredicate) safe = false;
+      }
+      if (ts.isNewExpression(node) && (node.expression.getText(file) !== "Error"
+          || node.arguments?.length !== 1 || !ts.isStringLiteral(node.arguments[0]))) safe = false;
+      ts.forEachChild(node, visit);
+    };
+    visit(file); return safe;
+  };
+  ok("lean profile/budget helper has no imports or I/O and a closed identifier/call set", closedProfile(profileSource));
+  for (const [label, source] of [
+    ["extra export", profileSource + "\nexport function send() {}"],
+    ["dynamic import", profileSource.replace("return value;", 'import("./_db.js"); return value;')],
+    ["network call", profileSource.replace("return value;", 'fetch("https://example.invalid"); return value;')],
+    ["extra env authority", profileSource.replace("return value;", "return env.OTHER_FLAG;")],
+  ]) ok(`NEGATIVE CONTROL: lean helper rejects ${label}`, !closedProfile(source));
+  const readerSource = fs.readFileSync(join(REPO, "api/_room-expert-teacher.js"), "utf8");
+  const closedReader = source => {
+    const file = ts.createSourceFile("expert-reader.js", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+    if (file.parseDiagnostics.length) return false;
+    const expected = new Map([
+      ["./_engine.gen.js", ["consentGateBlockers", "validateTeacherSheet"]],
+      ["./_provenance/contracts.js", ["canonicalJson", "sha256Hex"]],
+    ]);
+    const calls = new Set(["fail", "uuid", "scopeOf", "digest", "db", "validateTeacherSheet", "consentGateBlockers",
+      "canonicalJson", "sha256Hex", "Object.assign", "Object.freeze", "Array.isArray", "JSON.parse", "JSON.stringify",
+      "String", "readRoomExpertTeacher", "value.toLowerCase"]);
+    let safe = true, imports = 0;
+    const visit = node => {
+      if (ts.isImportDeclaration(node)) {
+        imports++;
+        const names = node.importClause?.namedBindings;
+        const got = names && ts.isNamedImports(names) ? names.elements.map(e => e.name.text).sort() : [];
+        if (JSON.stringify(got) !== JSON.stringify(expected.get(node.moduleSpecifier.text))) safe = false;
+      }
+      if (node.kind === ts.SyntaxKind.ImportKeyword || ts.isImportEqualsDeclaration(node) || ts.isExportDeclaration(node)) safe = false;
+      if (ts.isCallExpression(node)) {
+        const callee=node.expression;
+        const predicate=ts.isPropertyAccessExpression(callee)
+          && ((callee.name.text==="test"&&ts.isRegularExpressionLiteral(callee.expression))
+            || (callee.name.text==="includes"&&ts.isArrayLiteralExpression(callee.expression)));
+        if (!calls.has(callee.getText(file)) && !predicate) safe=false;
+      }
+      if (ts.isNewExpression(node) && node.expression.getText(file) !== "Error") safe=false;
+      ts.forEachChild(node,visit);
+    };
+    visit(file);return safe&&imports===2&&!/\b(insert\s+into|update\s+vy_[a-z0-9_]+|delete\s+from)\b/i.test(source);
+  };
+  ok("lean publication reader has exact validation/hash imports and SELECT-only injected database calls",closedReader(readerSource));
+  for(const [label,source] of [
+    ["writer import",readerSource.replace("validateTeacherSheet, consentGateBlockers","validateTeacherSheet, consentGateBlockers, publishTeacher")],
+    ["direct network",readerSource.replace("const scope = scopeOf(input);",'fetch("https://example.invalid"); const scope = scopeOf(input);')],
+    ["SQL mutation",readerSource.replace("select r.room_id", "update vy_teacher_sheet set status='published'; select r.room_id")],
+  ]) ok(`NEGATIVE CONTROL: lean reader rejects ${label}`,!closedReader(source));
+}
+
 console.log(`\n── verdict ──`);
 for (const w of worldSummaries) {
   console.log(`  N=${String(w.followers).padEnd(3)} followers  ${String(w.turns).padEnd(4)} turns  ${w.checks} retrieval checks`);
