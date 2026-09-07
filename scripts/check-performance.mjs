@@ -63,16 +63,11 @@
 // that answers "did this delay first paint" without a hand-rolled heuristic
 // for async/defer/media-query guessing.
 //
-// FONTS. The budget table below carries a 120 KB font ceiling because the
-// brief asked for one; the honest number for every target this gate measures
-// is zero. `grep -rl "@font-face\|fonts.googleapis\|\.woff2\?" site/ *.html
-// src/room src/studio` finds nothing outside archived research docs — this
-// repo loads no web font anywhere, Devanagari included (src/room/room.css's
-// own comment: "this repo loads no web fonts anywhere... names the SYSTEM
-// face by name"). So "font subsetting or font-display: swap for the
-// Devanagari face" (the brief's fix menu) is not a fix this tree needs; the
-// budget stays as a floor in case that ever changes, and this comment is the
-// record that it was checked, not skipped.
+// FONTS. Studio imports local Geist, Instrument Sans and Noto Devanagari
+// packages in src/studio/personalMain.tsx. The 120 KB ceiling counts completed
+// transfers; zero bytes alone does not prove that no fonts were requested or
+// that text finished rendering. Missing LCP is a measurement failure, never
+// a fast-paint result. Font transfer remains diagnostic, not a required floor.
 //
 // THE NEGATIVE SPACE THIS GATE DOES NOT COVER, STATED PLAINLY: it measures
 // four representative screens, not the full follower/creator journey; it
@@ -140,16 +135,16 @@ const BUDGETS = {
 // regression the way a lax budget would.
 const HINDI_CHUNK_WAIT_BUDGET_MS = 800;
 
-// WS-R91. The metric the brief originally asked for and WS-R82 could not
-// build: not a proxy any more, because `AuthGate.tsx` (this workstream) now
-// actually renders Hindi text on this exact screen. Same 800ms budget as
+// WS-R91. The historical firstHindiPaintMs wire key measures the first Hindi
+// DOM text mutation relative to first paint, not verified visible text paint.
+// Keep that key for retained-result compatibility. Same 800ms budget as
 // the chunk-wait metric above, for the same reason -- one throttled round
 // trip for a chunk comfortably under 40KB gzipped, with headroom for parse
 // and layout on a throttled CPU. Measured ALONGSIDE `hindiChunkWaitMs`,
 // never in place of it: the chunk wait proves the CHUNK itself is fast: this
-// proves the SCREEN a real visitor watches is fast, and the two can now
+// tracks when Hindi DOM text appears, and the two can now
 // diverge (a slow re-render after a fast chunk load would move this one
-// without moving that one) in a way only a second, real measurement can see.
+// without moving that one). Neither this marker nor chunk timing replaces LCP.
 //
 // 800 again as of WS-R113 (2026-09-05), closing the reversal condition
 // `context/decisions.md#ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention`
@@ -254,8 +249,8 @@ const TARGETS = [
   // still cost the signed-out visitor NOTHING, and this target is what
   // proves that rather than assuming it. `hindiChunkWaitMs` measures how
   // long the Hindi chunk itself takes to become usable once something asks
-  // for it; `firstHindiPaintMs` (WS-R91) measures the thing a real visitor
-  // actually watches, the first Devanagari text node painted on screen —
+  // for it; `firstHindiPaintMs` (WS-R91, historical wire key) measures the
+  // first Devanagari DOM text mutation relative to first paint —
   // see `measureOnce`'s own comment for exactly what each captures and why
   // both are kept rather than one replacing the other.
   { name: "studio-hi", path: "/studio?lang=hi", label: "Studio, signed out, Hindi (?lang=hi)" },
@@ -384,7 +379,7 @@ async function measureOnce(browser, target, diagnostics = false) {
   // WS-R91 fixed that (`AuthGate.tsx` is its own file now, reading `t.`
   // under a provider mounted ABOVE the sign-in gate), so the proxy is no
   // longer the only available measurement — see `firstHindiPaintMs` below
-  // for the literal thing. This one still measures a real, useful, DIFFERENT
+  // for the DOM-text marker. This one still measures a real, useful, DIFFERENT
   // fact: how long the Hindi CHUNK itself takes to become usable once
   // anything asks for it, decoupled from render time. The instant the
   // English shell's own first paint fires, it starts a real `import()` of
@@ -433,14 +428,19 @@ async function measureOnce(browser, target, diagnostics = false) {
       try { const u = new URL(value, location.href); return `${u.origin}${u.pathname.startsWith("/api/") ? "/api/[redacted]" : u.pathname}`; } catch { return null; }
     };
     window.__PERF__ = {
-      lcp: 0, cls: 0, longtasks: [], firstPaintMs: null, hindiChunkWaitMs: null,
+      lcp: null, lcpObserved: false, lcpObserverSupported: false,
+      cls: 0, longtasks: [], firstPaintMs: null, hindiChunkWaitMs: null,
       firstHindiPaintMs: null,
       ...(diagnostics ? { diagnostic: { lcpEntries: [], longtasks: [] } } : {}),
     };
     try {
+      if (!PerformanceObserver.supportedEntryTypes.includes("largest-contentful-paint")) {
+        throw new Error("LCP observer unsupported");
+      }
       new PerformanceObserver((list) => {
         for (const e of list.getEntries()) {
           window.__PERF__.lcp = e.startTime;
+          window.__PERF__.lcpObserved = true;
           if (diagnostics) window.__PERF__.diagnostic.lcpEntries.push({
             startTime: e.startTime, renderTime: e.renderTime, loadTime: e.loadTime, size: e.size,
             resource: resourceName(e.url),
@@ -448,6 +448,7 @@ async function measureOnce(browser, target, diagnostics = false) {
           });
         }
       }).observe({ type: "largest-contentful-paint", buffered: true });
+      window.__PERF__.lcpObserverSupported = true;
     } catch {}
     try {
       new PerformanceObserver((list) => {
@@ -478,10 +479,9 @@ async function measureOnce(browser, target, diagnostics = false) {
           }
         }).observe({ type: "paint", buffered: true });
       } catch {}
-      // WS-R91. The literal thing WS-R82 could not measure: the first
-      // Devanagari text node actually painted. `AuthGate.tsx`'s sign-in
-      // screen now renders real Hindi text once `StudioLocaleProvider`'s
-      // own chunk load resolves, so this watches `document.body`'s own
+      // WS-R91. A DOM-text marker, not a visibility or paint assertion.
+      // The historical firstHindiPaintMs key is retained for compatibility.
+      // This watches `document.body`'s own
       // text for the first Devanagari character to appear (U+0900-U+097F,
       // `copy.ts#detectStudioTextLang`'s own range) and records the
       // timestamp — `textContent`, never `innerText`, so the check itself
@@ -567,6 +567,8 @@ async function measureOnce(browser, target, diagnostics = false) {
   return {
     ...(diagnostics ? { diagnostic } : {}),
     lcpMs: perf.lcp,
+    lcpObserved: perf.lcpObserved,
+    lcpObserverSupported: perf.lcpObserverSupported,
     cls: perf.cls,
     tbtMs,
     bytes,
@@ -577,11 +579,10 @@ async function measureOnce(browser, target, diagnostics = false) {
     hindiChunkBytes,
     firstPaintMs: perf.firstPaintMs,
     hindiChunkWaitMs: perf.hindiChunkWaitMs,
-    // WS-R91. `null` if no Devanagari text ever painted (every target but
+    // WS-R91. `null` if no Devanagari DOM text was observed (every target but
     // `studio-hi`, since `hiChunkPath` gates the observer above) or if it
-    // painted before `firstPaintMs` was ever recorded (should not happen —
-    // `first-paint` fires before any text node can exist — but a `null`
-    // here is a fact to report, never a NaN to hide).
+    // appeared without a recorded first-paint entry. DOM mutation is not a
+    // visibility or paint guarantee; a null is unavailable timing, not zero.
     firstHindiPaintMs:
       perf.firstHindiPaintMs !== null && perf.firstPaintMs !== null
         ? perf.firstHindiPaintMs - perf.firstPaintMs
@@ -611,7 +612,7 @@ async function measureTarget(browser, target, diagnostics = false) {
     jsBudget: target.jsBudget,
     runs,
     median: {
-      lcpMs: median(runs.map((r) => r.lcpMs)),
+      lcpMs: runs.every(validLcpMeasurement) ? median(runs.map((r) => r.lcpMs)) : null,
       cls: median(runs.map((r) => r.cls)),
       tbtMs: median(runs.map((r) => r.tbtMs)),
       jsBytes: median(runs.map((r) => r.bytes.js)),
@@ -631,9 +632,25 @@ async function measureTarget(browser, target, diagnostics = false) {
   };
 }
 
-function evaluateBudgets(result) {
+function validLcpMeasurement(run) {
+  return run?.lcpObserved === true && run.lcpObserverSupported === true &&
+    Number.isFinite(run.lcpMs) && run.lcpMs > 0;
+}
+
+function evaluateLcpMeasurements(runs) {
+  if (!Array.isArray(runs) || runs.length !== RUNS) {
+    return [{ metric: "LCP measurement", detail: `expected ${RUNS} observed runs` }];
+  }
+  return runs.flatMap((run, index) => validLcpMeasurement(run) ? [] : [{
+    metric: "LCP measurement",
+    detail: `run ${index + 1}: ${run?.lcpObserverSupported === false ? "observer unavailable" : "finite positive observed LCP missing"}`,
+  }]);
+}
+
+export function evaluateBudgets(result) {
   const m = result.median;
-  const findings = [];
+  // Validate every run: a good median must never hide an unobserved paint.
+  const findings = evaluateLcpMeasurements(result.runs);
   if (result.crashed) {
     findings.push({ metric: "page error", detail: result.crashed });
     return findings;
@@ -686,15 +703,14 @@ function evaluateBudgets(result) {
         detail: `${Math.round(result.median.hindiChunkWaitMs)}ms > ${HINDI_CHUNK_WAIT_BUDGET_MS}ms budget`,
       });
     }
-    // WS-R91. The real metric now that `AuthGate.tsx` actually paints Hindi
-    // on this screen -- same three-way split as the chunk-wait check above,
+    // WS-R91. Hindi DOM text timing uses the same three-way split as chunk wait,
     // for the identical reason (an environmental "chunk not found" must
     // never read as a regression this gate should fail the build over).
     if (result.median.firstHindiPaintMs === null) {
-      findings.push({ metric: "First Hindi paint", detail: "no Devanagari text node was ever observed painting — see runs[].firstHindiPaintMs with --json" });
+      findings.push({ metric: "Hindi DOM text", detail: "no Devanagari DOM text was observed; see runs[].firstHindiPaintMs with --json" });
     } else if (result.median.firstHindiPaintMs > FIRST_HINDI_PAINT_BUDGET_MS) {
       findings.push({
-        metric: "First Hindi paint",
+        metric: "Hindi DOM text",
         detail: `${Math.round(result.median.firstHindiPaintMs)}ms > ${FIRST_HINDI_PAINT_BUDGET_MS}ms budget`,
       });
     }
@@ -710,7 +726,7 @@ function printReport(results) {
     const m = r.median;
     console.log(
       `  ${r.target.padEnd(14)}` +
-        `${Math.round(m.lcpMs).toString().padStart(6)}ms` +
+        `${m.lcpMs === null ? "n/a".padStart(8) : `${Math.round(m.lcpMs)}ms`.padStart(8)}` +
         `${m.cls.toFixed(3).padStart(8)}` +
         `${Math.round(m.tbtMs).toString().padStart(6)}ms` +
         `${(m.jsBytes / 1024).toFixed(1).padStart(8)}K` +
@@ -721,8 +737,8 @@ function printReport(results) {
           ? `   Hindi chunk wait: ${Math.round(m.hindiChunkWaitMs)}ms`
           : r.target === "studio-hi" ? "   Hindi chunk wait: n/a" : "") +
         (m.firstHindiPaintMs !== null && m.firstHindiPaintMs !== undefined
-          ? `   First Hindi paint: ${Math.round(m.firstHindiPaintMs)}ms`
-          : r.target === "studio-hi" ? "   First Hindi paint: n/a" : ""),
+          ? `   Hindi DOM text: ${Math.round(m.firstHindiPaintMs)}ms`
+          : r.target === "studio-hi" ? "   Hindi DOM text: n/a" : ""),
     );
   }
   console.log("");

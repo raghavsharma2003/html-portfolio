@@ -2,6 +2,8 @@
 
 ## START HERE: ACTIVE EXPERT INTEGRATION (2026-09-07)
 
+Latest result: frozen release11 on f22bc6e0 completed with 23 of 24 software checks passing; performance failed with seven findings. This supersedes the older release10 pass as current release status. Targeted diagnostics are investigating missing Studio paint measurements and elevated blocking time; no budgets were relaxed. First-enrollment source audit found a reference/identity dependency loop. Resolve it before enabling the new verifier; see docs/gurukul/research/FRESH-ENROLLMENT-DEPENDENCY-AUDIT-20260907.md. Strict verification remains disabled. Local server restarted as exec60234 with isolated-database startup verified. Targeted unchanged-build studio-hi and /vyakti diagnostics passed; this does not supersede the failed aggregate. Existing independent document/face bootstrap is preferred. Exact Azure Blob document transport now passes 82 offline service tests; independent review and Face readiness remain unresolved. The stricter per-run paint gate passes all nine targets in a separate browser run and 26 focused controls. These changed-code checks are separate from release11; next frozen aggregate is release12.
+
 Current verified update (2026-09-07): frozen release10 on a3dcdead completed all24software checks; relational checks skipped in that runner. The exact synthetic source erasure completed at23:15:13Z on September6 (04:45:13IST September7), with0remaining source rows. Earlier pending-source/run9-running statements below are superseded. Four full-replica erasure receipts are still separate and pending. Local5177 server was restarted after the gate (exec13762), with isolated-database startup and StudioHTTP200 verified. No deployment or identity/voice-quality acceptance.
 
 

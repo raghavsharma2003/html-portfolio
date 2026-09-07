@@ -22653,3 +22653,23 @@ Detached speech-v2 validates the retained issued commitment, applies strict nonc
 ## `retain-forward-speaker-revision-claims-20260907` (2026-09-07)
 
 Signed voice_quality response maps each embedding family to its named speaker model revision. Present metadata must contain both valid40hex revisions; absent map remains absent. Worker and builder independently validate any supplied optional model_revision. Only voice_quality adapter metadata becomesv2; evidence/source-set/manifest hashes commit changed revisions. No historical row rewrite, builder queue-version rewrite or comparison approval. Reversal condition: a stronger executed-model attestation replaces signed claims while preserving historical absence and exact family/input bindings.
+
+
+## `resolve-enrollment-bootstrap-before-verifier-routing-20260907` (2026-09-07)
+
+Prioritize a bounded comparison-reference path or the existing independent document/face route before connecting the detached Azure speech verifier. Ordinary genome creation and synthesis keep their identity predicates. Reversal condition: a verified ordinary caller already provides a reference without requiring the identity it is intended to establish.
+
+
+## `prefer-existing-independent-enrollment-bootstrap-20260907` (2026-09-07)
+
+Prefer the existing document/face path because it can establish age and identity before a voice genome. Start with exact private Azure Blob document transport; keep provider enable/approval flags disabled. Reversal condition: the independent review/Face route cannot be established, or a deliberate product requirement and measured alternative justify a separate comparison-reference authority. A comparison artifact alone does not establish age.
+
+
+## `performance-requires-observed-paint-per-run-20260907` (2026-09-07)
+
+Each of the three performance runs must have a supported observer and finite positive observed LCP. Unavailable values remain null and display n/a; a median cannot hide an invalid run. Existing CPU/network profile, settling times and budgets are unchanged. Preserve firstHindiPaintMs JSON compatibility but label it Hindi DOM text, which is what its observer measures. Reversal condition: another measured paint protocol provides equivalent per-run availability evidence and explicitly versions the retained result contract.
+
+
+## `azure-document-transport-binds-exact-container-20260907` (2026-09-07)
+
+Add conditional VYAKTI_PRIVATE_SOURCE_AZURE_CONTAINER with exact Azure account origin, container and existing three-UUID original-document path. Require current signer SAS keys, read-only blob/HTTPS permissions and matching short expiry. Preserve Supabase behavior, byte/hash/MIME verification and no redirects. Keep readiness flags disabled; source transport is not authenticity or Face acceptance. Reversal condition: a newly versioned storage signer contract proves equivalent exact source and capability bounds; do not broaden to arbitrary Azure URLs.

@@ -16233,3 +16233,28 @@ Measured2026-09-07 India. Agent and root independently passed registered speech-
 ## `revision-affected-regressions-20260907` (2026-09-07)
 
 Agent reported completed voice-evidence25,replica-processing80,model-build17checks andclean diff on finalfrozenfiles. Root reviewed source and focusedtest and independentlyran46lineagechecks; it did not independentlyrerun these3affected suites. No edits followed. Full release10 predates this speech/revision work; next frozen runner is11.
+
+
+## `fresh-enrollment-source-dependency-audit-20260907` (2026-09-07)
+
+One read-only Astra source audit on 2026-09-07, reviewed by root: source processing may create evidence before identity, but artifact selection, model-build queue/lease/completion require identity; voice challenge issuance requires an existing draft or approved genome. Actual worker and sweep callers use the same predicates. The independent document/face path exists in source; its operational readiness was not established. No SQL, deployment, model execution or end-to-end enrollment measurement. Retained report: docs/gurukul/research/FRESH-ENROLLMENT-DEPENDENCY-AUDIT-20260907.md.
+
+
+## `frozen-release-eleven-performance-failure-20260907` (2026-09-07)
+
+Release11 started 2026-09-07T05:18:02.103Z on frozen f22bc6e0 and exited 1. Root inspected the completed aggregate: 23 of 24 software checks passed; performance failed with seven findings. Three cold contexts per target under the existing CPU/network profile: /vyakti TBT 515 ms; /r/<slug> TBT 528 ms; room-hi LCP 2816 ms and TBT 323 ms; /studio TBT 662 ms; studio-hi TBT 542 ms and Hindi chunk wait 1645 ms. Limits remain 300 ms TBT, 2500 ms LCP and 800 ms chunk wait. Eval suite 457874 ms; accessibility 69641 ms. Relational gates skipped without NEON_URL. Log: scratchpad/expert-integrated-release-11.log. No implementation edits overlapped. No deployment or owner likeness acceptance.
+
+
+## `bootstrap-resolution-and-performance-diagnostics-20260907` (2026-09-07)
+
+On 2026-09-07 root reviewed one Astra resolution audit: verifier private media currently accepts Supabase origin/path only; development storage uses Azure Blob. Independent document review deployment and Face operational acceptance are unresolved. Separately root ran unchanged built output for studio-hi and /vyakti, three cold contexts each. Both diagnostic commands exited 0: studio-hi median LCP 2212 ms, TBT 70 ms, fonts 84148 bytes, Hindi chunk wait 54.8 ms; /vyakti LCP 704 ms and TBT 0. All three Studio runs had observed positive LCP entries. These diagnostics do not erase release11 failure or establish its cause. Logs scratchpad/release11-studio-hi-diagnostic.json and release11-vyakti-diagnostic.json. Local server restarted as exec60234 with Azure configuration in memory and isolated-database startup verified; no live synthesis or identity acceptance.
+
+
+## `observed-paint-nine-target-browser-pass-20260907` (2026-09-07)
+
+Root ran the registered performance-measurements suite: 26 checks passed, including an actual-source guard-removal mutant. Root then ran the changed performance gate against unchanged built assets on 2026-09-07: all nine targets, three cold contexts each, passed with no findings; installable Room and static prerequisites also passed. Median LCP/TBT milliseconds: / 956/0, /vyakti 844/0, /r/<slug> 1348/141, room-hi 1932/226, /studio 2108/55, studio-hi 2288/72, /c/<slug> 488/0, room-about 492/121, suites-about 424/96. Every run passed the new observation validity guard. Logs scratchpad/performance-measurements-root.log and performance-observed-paint-root.json. This separate changed-gate result does not rewrite the frozen release11 failure.
+
+
+## `azure-document-transport-82-service-checks-20260907` (2026-09-07)
+
+On 2026-09-07 agent passed 50 focused Azure document tests and 82 total verifier tests; root independently ran registered azureverify and all 82 passed. Actual createSignedReplicaRead source ran with isolated synthetic config and injected HEAD, then actual descriptor validator and bounded byte fetch ran with injected responses. Negative controls cover account/container/path/SAS/expiry/newline/redirect/MIME/size/hash changes; actual-source mutants remove container, expiry binding and hash checks. No network, provider, model, identity documents or cloud mutations. Root env-manifest suite also passed after documenting the conditional variable. Log scratchpad/azure-document-transport-root.log. No deployment template wiring or enabled review/Face path is implied.

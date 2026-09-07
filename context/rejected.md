@@ -16397,3 +16397,23 @@ Legacy nonceSpoken strips nondigits then substring-matches, admitting longer num
 ## `current-model-revision-cannot-fill-historical-absence-20260907` (2026-09-07)
 
 Historical evidence had no retained per-family model revision; today's service constants cannot fill that absence. Updated adapter preserves only signedresponseclaims andrejectspresentmalformedmaps. Root also found exported VOICE_GENOME_BUILDER_VERSION is not the queue writer, which uses a literal in _replica-review.js; blindlybumping only that constant would misdescribe behavior. Kept optionalbuilderfield backwardcompatible andversioned voice_quality output only. Neither storedrevision nor speechmatch proves compatible executedweights or identity.
+
+
+## `scheduling-cannot-break-enrollment-reference-loop-20260907` (2026-09-07)
+
+Tracing the real processing worker and build sweep found both call the same identity-gated builder. Adding a scheduler or connecting speech-v2 alone cannot create the missing first reference. Removing ordinary genome identity predicates would change synthesis authority rather than establish a bounded comparison artifact. No bypass was implemented.
+
+
+## `missing-paint-is-not-zero-latency-20260907` (2026-09-07)
+
+Retained run11 output reports LCP 0 and font transfer 0 for both Studio targets. The observer defaults to zero and the budget checks only the upper bound; missing observations can therefore look fast. This is a measurement-validity gap, not evidence of instant rendering. Run10 and run11 asset transfer totals are unchanged; neither a code regression nor host contention is established as the cause. A targeted diagnostic on unchanged built output is the next test; budgets are not relaxed.
+
+
+## `comparison-reference-does-not-establish-age-20260907` (2026-09-07)
+
+Source audit shows voice settlement requires preexisting age_verified_at. A separate pre-identity voice reference would resolve a comparison dependency while leaving age evidence unresolved. Document Intelligence extraction also cannot substitute for authenticity review. Do not claim either component alone completes fresh enrollment.
+
+
+## `transport-pass-is-not-operational-enrollment-20260907` (2026-09-07)
+
+The Azure transport previously rejected the actual development storage origin and path; that concrete source incompatibility is now fixed. Injected byte tests cannot establish independent document-review service availability, Azure Face access, provider deletion or fresh-user identity settlement. Those remain next runtime prerequisites, and strict voice verification stays unavailable.

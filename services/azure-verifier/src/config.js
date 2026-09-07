@@ -55,8 +55,17 @@ function pinned(value, code) {
 }
 
 export function loadConfig(env = process.env) {
-  const sourceOrigin = endpoint(env.VYAKTI_PRIVATE_SOURCE_ORIGIN, [".supabase.co", ".supabase.net"], "source_origin_required");
+  // Azure source access is one configured account/container, never a domain allowlist.
+  const sourceValue = required(env.VYAKTI_PRIVATE_SOURCE_ORIGIN, "source_origin_required");
+  const azureSource = /^https:\/\/[a-z0-9]{3,24}\.blob\.core\.windows\.net\/?$/.test(sourceValue);
+  if (azureSource && sourceValue !== env.VYAKTI_PRIVATE_SOURCE_ORIGIN) fail("source_origin_required", 500);
+  const sourceOrigin = azureSource ? new URL(sourceValue)
+    : endpoint(sourceValue, [".supabase.co", ".supabase.net"], "source_origin_required");
   sourceOrigin.pathname = "";
+  const sourceAzureContainer = azureSource ? required(env.VYAKTI_PRIVATE_SOURCE_AZURE_CONTAINER, "source_container_required") : "";
+  if (azureSource && (sourceAzureContainer !== env.VYAKTI_PRIVATE_SOURCE_AZURE_CONTAINER ||
+      !/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/.test(sourceAzureContainer) ||
+      sourceAzureContainer.includes("--"))) fail("source_container_invalid", 500);
   const reviewEndpoint = endpoint(
     env.AZURE_DOCUMENT_REVIEW_ENDPOINT,
     [".azurecontainerapps.io", ".azurewebsites.net"],
@@ -77,6 +86,8 @@ export function loadConfig(env = process.env) {
     hmacKey: key(env.VYAKTI_BROKER_HMAC_KEY_B64, "broker_hmac_key_required"),
     version,
     sourceOrigin: sourceOrigin.origin,
+    sourceProvider: azureSource ? "azure_blob" : "supabase",
+    sourceAzureContainer,
     document: Object.freeze({
       endpoint: endpoint(env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT, [".cognitiveservices.azure.com"], "document_endpoint_required").origin,
       key: required(env.AZURE_DOCUMENT_INTELLIGENCE_KEY, "document_key_required"),

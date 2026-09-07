@@ -543,6 +543,7 @@ HTTPS, not a Vercel function.
 |---|---|---|---|---|
 | `PORT` | `config.js:75` | optional | defaults `8080`, bounded 1-65535 | none |
 | `VYAKTI_PRIVATE_SOURCE_ORIGIN` | `config.js:58` | required | throws `source_origin_required` | service fails to start |
+| `VYAKTI_PRIVATE_SOURCE_AZURE_CONTAINER` | `config.js` | required only for an Azure Blob source origin | throws `source_container_required` or `source_container_invalid` | exact private document container; does not enable verification |
 | `VYAKTI_BROKER_HMAC_KEY_B64` | `config.js:77` | required | throws `broker_hmac_key_required` | service fails to start |
 | `VERIFIER_VERSION` | `config.js:66` | required | throws `verifier_version_required` (must not contain `latest`/`preview-head`) | service fails to start |
 | `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` | `config.js:81` | required | throws | service fails to start |

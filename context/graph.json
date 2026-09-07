@@ -12729,6 +12729,84 @@
       "kind": "rejection",
       "title": "Do not invent revisions or mutate existing contract versions globally",
       "at": "2026-09-07"
+    },
+    {
+      "id": "resolve-enrollment-bootstrap-before-verifier-routing-20260907",
+      "kind": "decision",
+      "title": "Resolve the first-enrollment dependency before enabling verification",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "fresh-enrollment-source-dependency-audit-20260907",
+      "kind": "measurement",
+      "title": "Source audit finds a first-enrollment dependency loop",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "scheduling-cannot-break-enrollment-reference-loop-20260907",
+      "kind": "rejection",
+      "title": "Do not treat the enrollment block as a missing schedule",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "frozen-release-eleven-performance-failure-20260907",
+      "kind": "measurement",
+      "title": "Frozen f22bc6e0 passes 23 of 24 checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "missing-paint-is-not-zero-latency-20260907",
+      "kind": "rejection",
+      "title": "Do not interpret zero LCP as instant paint",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "prefer-existing-independent-enrollment-bootstrap-20260907",
+      "kind": "decision",
+      "title": "Repair the existing independent enrollment path first",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "bootstrap-resolution-and-performance-diagnostics-20260907",
+      "kind": "measurement",
+      "title": "Source resolution and two unchanged-build performance diagnostics",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "comparison-reference-does-not-establish-age-20260907",
+      "kind": "rejection",
+      "title": "Do not replace the dependency loop with an incomplete authority",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "performance-requires-observed-paint-per-run-20260907",
+      "kind": "decision",
+      "title": "Reject unavailable paint measurements before aggregation",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "observed-paint-nine-target-browser-pass-20260907",
+      "kind": "measurement",
+      "title": "Stricter performance check passes nine targets and 26 controls",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "azure-document-transport-binds-exact-container-20260907",
+      "kind": "decision",
+      "title": "Accept the configured private Azure document transport",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "azure-document-transport-82-service-checks-20260907",
+      "kind": "measurement",
+      "title": "Azure document transport passes 82 offline service tests",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "transport-pass-is-not-operational-enrollment-20260907",
+      "kind": "rejection",
+      "title": "Keep the remaining enrollment blockers explicit",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

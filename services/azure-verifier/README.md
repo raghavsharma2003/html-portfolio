@@ -62,6 +62,17 @@ AZURE_LIVENESS_SESSION_SEAL_KEY_B64=<separate 32 random bytes, canonical base64>
 VYAKTI_PUBLIC_APP_ORIGIN=https://<application-origin>
 ```
 
+For Azure Blob document storage, use the exact account origin
+`https://<account>.blob.core.windows.net` for `VYAKTI_PRIVATE_SOURCE_ORIGIN`
+and set `VYAKTI_PRIVATE_SOURCE_AZURE_CONTAINER` to the exact private container.
+Only the existing owner/replica/source UUID path ending in `original` is
+accepted. The read-only blob SAS must match the descriptor expiry and the
+current application signer contract. Other containers, redirects and altered
+bytes are rejected. Supabase storage retains its existing path contract.
+This transport support does not enable identity or liveness. Deployment
+configuration must supply the container explicitly; no infrastructure was
+deployed or approval flags enabled by this change.
+
 The Bicep parameters `faceResourceDedicated` and
 `faceLivenessErasureEnabled` default to `false`. Enabling new sessions fails
 deployment unless the erasure plane is also enabled and an operator explicitly

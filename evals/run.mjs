@@ -44,6 +44,7 @@ const suites = {
   "identity-nonce-v2": "identity-nonce-v2.mjs",
   "identity-speech-v2": "identity-speech-v2.mjs",
   "voice-revision-lineage": "voice-evidence/revision-lineage.mjs",
+  "performance-measurements": "performance-measurements.mjs",
   "azure-only-serving": "azure-only-serving.mjs",
   parse: "parse.mjs",
   // WS-BURST. The multi-message wait policy — pure, offline, no model call,
