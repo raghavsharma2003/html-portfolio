@@ -13635,6 +13635,84 @@
       "kind": "rejection",
       "title": "Do not infer the full setup design from a delayed host fixture",
       "at": "2026-09-07"
+    },
+    {
+      "id": "release-nineteen-all-software-gates-20260907",
+      "kind": "measurement",
+      "title": "Frozen checkpoint19 passed all24software gates",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "verify-real-entry-shell-before-ux-acceptance-20260907",
+      "kind": "decision",
+      "title": "Expand verification through the actual entry and authenticated shell",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "setup-host-fixture-missed-real-router-css-and-selection-20260907",
+      "kind": "rejection",
+      "title": "Focused component success missed destination failures",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "restore-owned-private-meet-session-before-sending-20260907",
+      "kind": "decision",
+      "title": "Keep the private conversation across navigation",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-meet-twelve-sql-and-twenty-four-mounted-20260907",
+      "kind": "measurement",
+      "title": "Restoration passed actual development SQL and mounted navigation checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "persisted-logs-did-not-restore-private-meet-session-20260907",
+      "kind": "rejection",
+      "title": "Saved messages were lost to the next prompt after leaving Meet",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "recorder-lifecycle-owns-device-and-preview-cleanup-20260907",
+      "kind": "decision",
+      "title": "Restore recording after effect replay and release abandoned resources",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "recorder-nine-mounted-thirteen-helper-controls-20260907",
+      "kind": "measurement",
+      "title": "Recording lifecycle and partial Web Audio failures were exercised",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "recorder-fixture-ordering-and-unavailable-bundler-20260907",
+      "kind": "rejection",
+      "title": "Retain failed test setup separately from recorder evidence",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "preserve-css-and-owned-selection-through-real-setup-entry-20260907",
+      "kind": "decision",
+      "title": "Make the actual setup destination work on phone and desktop",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "setup-fifty-nine-full-shell-and-actionable-prerequisites-20260907",
+      "kind": "measurement",
+      "title": "Actual setup routes and prerequisite navigation passed after integration",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "deploy-only-filter-and-pointerdown-concealed-unmet-setup-20260907",
+      "kind": "rejection",
+      "title": "Do not invite activation or lose focus while another step remains incomplete",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "development-migration140-partial-cas-proof-20260907",
+      "kind": "measurement",
+      "title": "Selection epoch migration is development-only and its first overlap proof failed",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

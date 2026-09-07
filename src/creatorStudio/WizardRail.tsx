@@ -288,8 +288,9 @@ export function PlatformWorkBanner({
  * could hold the Activate button shut while the checklist read clear
  * (`wizardModel.unknownBlockers` now renders those instead of dropping them).
  */
-function BlockerRow({ row }: { row: Missing }) {
+function BlockerRow({ row, onGoTo }: { row: Missing; onGoTo?: (row: Missing) => void }) {
   const { t } = useStudioLocale();
+  const go = () => onGoTo ? onGoTo(row) : jumpTo(row.anchor, row.label);
   return (
     <li className={`wizard-blocker wizard-blocker-${row.cls}`}>
       <span className="wizard-blocker-label">{row.label}</span>
@@ -298,16 +299,11 @@ function BlockerRow({ row }: { row: Missing }) {
         <button
           className="text-button"
           type="button"
-          // Feedback on pointerdown, never on release (DESIGN-LAW §2). The
-          // scroll is the feedback here, so starting it on press is the whole
-          // difference between "the button responds" and "the button lags".
-          onPointerDown={() => jumpTo(row.anchor, row.label)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              jumpTo(row.anchor, row.label);
-            }
-          }}
+          // Navigation uses native click: pointerdown focus was overwritten
+          // by the browser's default button focus after the new panel mounted.
+          // Click also preserves Enter/Space and cancellation before release.
+          // Revisit only with full-shell focus evidence for all three inputs.
+          onClick={go}
         >
           {row.cls === "you" ? t.wizardRail.goThere : t.wizardRail.seeWhatIsHappening}
         </button>
@@ -316,7 +312,7 @@ function BlockerRow({ row }: { row: Missing }) {
   );
 }
 
-export function StepBlockers({ step, compact = false }: { step: StepView; compact?: boolean }) {
+export function StepBlockers({ step, compact = false, onGoTo }: { step: StepView; compact?: boolean; onGoTo?: (row: Missing) => void }) {
   const { t } = useStudioLocale();
   if (step.state === "done" || step.missing.length === 0) return null;
   const yours = step.missing.filter((row) => row.cls === "you");
@@ -336,7 +332,7 @@ export function StepBlockers({ step, compact = false }: { step: StepView; compac
       {lead && (
         <div className={`wizard-blockers-lead wizard-blockers-lead-${lead.cls}`}>
           <p className="wizard-blockers-lead-class">{t.classLabels[lead.cls]}</p>
-          <ul><BlockerRow row={lead} /></ul>
+          <ul><BlockerRow row={lead} onGoTo={onGoTo} /></ul>
         </div>
       )}
 
@@ -358,7 +354,7 @@ export function StepBlockers({ step, compact = false }: { step: StepView; compac
             {restYours.length > 0 && (
               <div>
                 <p className="wizard-blockers-owner">{t.classLabels.you}</p>
-                <ul>{restYours.map((row) => <BlockerRow key={row.code} row={row} />)}</ul>
+                <ul>{restYours.map((row) => <BlockerRow key={row.code} row={row} onGoTo={onGoTo} />)}</ul>
               </div>
             )}
             {restOurs.length > 0 && (
@@ -368,7 +364,7 @@ export function StepBlockers({ step, compact = false }: { step: StepView; compac
                     comes from the one table so a second surface cannot invent
                     a softer word for the same state. */}
                 <p className="wizard-blockers-owner">{t.classLabels.us}</p>
-                <ul>{restOurs.map((row) => <BlockerRow key={row.code} row={row} />)}</ul>
+                <ul>{restOurs.map((row) => <BlockerRow key={row.code} row={row} onGoTo={onGoTo} />)}</ul>
               </div>
             )}
           </div>

@@ -372,6 +372,15 @@ export interface ReplicaDialogueTurn {
   created_at: string;
 }
 
+export interface ReplicaDialogueHistory {
+  replica_id: string;
+  session_id: string | null;
+  exchanges: Array<{ question: string; trace_id: string; answer: ReplicaDialogueTurn }>;
+  latest_request: { trace_id: string; state: "generating" | "complete" | "failed" | "blocked" } | null;
+  pending: boolean;
+  billing_pending: boolean;
+}
+
 export type TurnFeedbackRating = "exact" | "close" | "off" | "unsafe";
 
 export interface ReplicaTurnFeedback {

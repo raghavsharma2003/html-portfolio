@@ -69,6 +69,8 @@ export type StepState = "done" | "waiting" | "running" | "later" | "stopped";
 export type Owner = "you" | "platform";
 
 export interface Missing {
+  /** Step that mounts the destination, when a prerequisite appears elsewhere. */
+  step?: StepId;
   /** Stable code so an eval can assert on identity rather than on prose. */
   code: string;
   label: string;
@@ -117,6 +119,8 @@ export interface WizardInput {
   /** `null` until `/api/replica-runtime` answers. Never guessed. */
   runtime: {
     active: boolean;
+    /** Only the server's explicit permission can invite activation. */
+    canActivate?: boolean;
     blockers: readonly string[];
     voiceGenomeVersion: number | null;
   } | null;
@@ -413,7 +417,7 @@ function heldByUsNote(input: WizardInput): string {
  * `cls` is derived here, once.
  */
 function missing(
-  row: { code: string; label: string; owner: Owner; note: string; anchor: string; needsProcessedMaterial?: boolean },
+  row: { code: string; label: string; owner: Owner; note: string; anchor: string; step?: StepId; needsProcessedMaterial?: boolean },
   input: WizardInput,
 ): Missing {
   const heldByUs = Boolean(row.needsProcessedMaterial) && platformIsHoldingWork(input);
@@ -425,6 +429,7 @@ function missing(
       cls: "us",
       note: heldByUsNote(input),
       anchor: row.anchor,
+      ...(row.step ? { step: row.step } : {}),
     };
   }
   return {
@@ -434,6 +439,7 @@ function missing(
     cls: row.owner === "you" ? "you" : "us",
     note: row.note,
     anchor: row.anchor,
+    ...(row.step ? { step: row.step } : {}),
   };
 }
 
@@ -528,7 +534,9 @@ function meetMissing(input: WizardInput): Missing[] {
 }
 
 function deployMissing(input: WizardInput): Missing[] {
-  const rows: Missing[] = blockersForStep(input.runtime?.blockers ?? [], "deploy", input);
+  const rows: Missing[] = [...new Set(input.runtime?.blockers ?? [])]
+    .filter((code) => Boolean(BLOCKER_META[code]))
+    .map((code) => missing({ code, ...BLOCKER_META[code] }, input));
   for (const code of unknownBlockers(input.runtime?.blockers ?? [])) {
     rows.push(missing({
       code,
@@ -538,12 +546,21 @@ function deployMissing(input: WizardInput): Missing[] {
       anchor: "#runtime-gate",
     }, input));
   }
-  if (input.runtime && !input.runtime.active && rows.length === 0) {
+  if (input.runtime && !input.runtime.active && input.runtime.canActivate === true && input.runtime.blockers.length === 0) {
     rows.push(missing({
       code: "not_activated",
       label: "Activation",
       owner: "you",
       note: "Every gate is closed. Activate the runtime when you are ready.",
+      anchor: "#runtime-gate",
+    }, input));
+  }
+  if (input.runtime && !input.runtime.active && rows.length === 0) {
+    rows.push(missing({
+      code: "activation_unavailable",
+      label: "Activation status",
+      owner: "platform",
+      note: "Activation is not available yet. Check the current status above.",
       anchor: "#runtime-gate",
     }, input));
   }

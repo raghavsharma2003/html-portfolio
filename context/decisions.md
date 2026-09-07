@@ -22878,3 +22878,23 @@ Use explicit mode=setup through both actual entry routers into existing generic 
 ## `composite-v2-binds-each-signed-dispatch-20260907` (2026-09-07)
 
 Integrate modern composite protocolv2 with broker_nonce/time after private-read signing. Successful signed response must match protocol,operation,configuredverifierversion,freshnonce,rawrequestSHA,challengeattemptID andcaptureSHA. Native streamed timeout is normalized regardless of which abort rejection wins. Azure origin/redirect and65536byte limits remain. No composite service route or measurements added;404/501 stays unavailable. Reversal requires equally strong replay protection with documented actual service protocol; old signed replies cannot count as new evidence.
+
+
+## `verify-real-entry-shell-before-ux-acceptance-20260907` (2026-09-07)
+
+Use actual built entry routers, creatorStudioApp and imported CSS with explicitly synthetic API/auth fixtures to verify two-owned-replica setup and390/1440layout. Keep focused injected-host tests for their narrower asynchronous-control proof, but require real-shell evidence before destination design acceptance. Separately repair actual recorder lifecycle and private Meet session restoration in isolated worktrees. Reversal condition: a smaller verification boundary demonstrably reproduces these exact router/CSS/selection defects and still proves the complete destination, or the duplicate entry is removed through an independently accepted unified flow.
+
+
+## `restore-owned-private-meet-session-before-sending-20260907` (2026-09-07)
+
+Integrate the existing owned private_chat session restore and explicit idempotent session opening before paid generation. Read at most ten complete chronological pairs from actual turn/log tables, repeat current runtime eligibility, preserve the existing 12-hour active-session rule and recover uncertain replies by readback without generation retries. Reads do not extend sessions. No new memory extraction or transcript copy. Reverse if actual owner scope, erasure, lifecycle or navigation evidence defeats this contract, or an explicitly accepted conversation-selection feature replaces latest eligible restoration.
+
+
+## `recorder-lifecycle-owns-device-and-preview-cleanup-20260907` (2026-09-07)
+
+Re-arm the actual ResonanceRecorder mounted flag on every effect setup, fence delayed permission/stop/file metadata by current attempt, and retain object URL ownership until preview replacement or unmount. Metadata reads have a bounded 15-second fallback and cleanup cancels prior reads. Shared WAV helper releases microphone tracks before attempting all graph disconnects/context close, including partial setup failure. Preserve actual setup error and unchanged WAV encoding. Reverse if mounted lifecycle or actual device evidence reveals legitimate recording loss, stale reuse or resource leakage; keep executed old-behavior controls. Asynchronous AudioContext.resume rejection and lifecycle of older separate capture components remain outside this bounded slice.
+
+
+## `preserve-css-and-owned-selection-through-real-setup-entry-20260907` (2026-09-07)
+
+Separate the creator and personal asynchronous entry loaders so the built preload keeps the correct stylesheet dependencies. Resolve an explicit setup replica only from the authenticated owned list; do not substitute the first row for a specified unavailable workspace. Scope pending list/refresh results across sign-out and account changes. Keep the existing visual system, fit the account link inside its actual header group, offset anchored content below the sticky header and disclose technical version/provider details secondarily. Reverse only on built-artifact and full-shell evidence that an alternative preserves styles, exact selection and a clearer usable destination.

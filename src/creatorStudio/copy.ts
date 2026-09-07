@@ -687,6 +687,8 @@ interface VideoLinkMountCopy {
 
 // ── runtimeGate: RuntimeGate.tsx (WS-R61). Launch gate labels + chrome ────
 interface RuntimeGateCopy {
+  setupIntro: string;
+  versionDetails: string;
   labels: Record<
     | "self_replica_only"
     | "replica_not_ready"
@@ -2795,6 +2797,8 @@ const EN: StudioCopy = {
   },
 
   runtimeGate: {
+    setupIntro: "Complete the checks below to start private conversations with your AI.",
+    versionDetails: "Version details",
     labels: {
       self_replica_only: "Self-only policy",
       replica_not_ready: "Approved voice and behavior",
@@ -2811,7 +2815,7 @@ const EN: StudioCopy = {
       qualification_incomplete: "Seven-suite qualification",
     },
     eyebrow: "Runtime",
-    title: "What has to pass before your AI can talk to anyone",
+    title: "Private conversations",
     intro:
       "Launch binds the exact version of what we learned about you, the exact voice, provider voice, " +
       "relationship namespace, and evaluation set. New drafts cannot silently change an active AI.",

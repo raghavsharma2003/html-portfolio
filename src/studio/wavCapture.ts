@@ -94,14 +94,39 @@ export async function openPrivateWavCapture(options: PrivateWavCaptureOptions = 
   } catch (cause) {
     throw new Error(permissionMessage(cause));
   }
-  const context = new AudioContext({ latencyHint: "interactive", sampleRate: 48_000 });
-  const source = context.createMediaStreamSource(stream);
-  const processor = context.createScriptProcessor(4096, 1, 1);
-  const silent = context.createGain();
-  silent.gain.value = 0;
-  const chunks: Float32Array[] = [];
+  let ownedContext: AudioContext | undefined;
+  const nodes: AudioNode[] = [];
+  let detachListener: (() => void) | undefined;
   let recording = false;
   let closed = false;
+  async function close() {
+    if (closed) return;
+    closed = true;
+    recording = false;
+    detachListener?.();
+    let failure: unknown;
+    // Release the device even if disconnecting a partially built graph fails.
+    for (const track of stream.getTracks()) {
+      try { track.stop(); } catch (cause) { failure ??= cause; }
+    }
+    for (const node of nodes) {
+      try { node.disconnect(); } catch (cause) { failure ??= cause; }
+    }
+    try { await ownedContext?.close(); } catch (cause) { failure ??= cause; }
+    if (failure) throw failure;
+  }
+  try {
+  const context = new AudioContext({ latencyHint: "interactive", sampleRate: 48_000 });
+  ownedContext = context;
+  const source = context.createMediaStreamSource(stream);
+  nodes.push(source);
+  const processor = context.createScriptProcessor(4096, 1, 1);
+  nodes.push(processor);
+  detachListener = () => { processor.onaudioprocess = null; };
+  const silent = context.createGain();
+  nodes.push(silent);
+  silent.gain.value = 0;
+  const chunks: Float32Array[] = [];
   processor.onaudioprocess = (event) => {
     if (!recording) return;
     const samples = event.inputBuffer.getChannelData(0);
@@ -122,17 +147,6 @@ export async function openPrivateWavCapture(options: PrivateWavCaptureOptions = 
   source.connect(processor);
   processor.connect(silent);
   silent.connect(context.destination);
-
-  async function close() {
-    if (closed) return;
-    closed = true;
-    recording = false;
-    processor.disconnect();
-    source.disconnect();
-    silent.disconnect();
-    stream.getTracks().forEach((track) => track.stop());
-    await context.close();
-  }
 
   return {
     start() {
@@ -158,4 +172,10 @@ export async function openPrivateWavCapture(options: PrivateWavCaptureOptions = 
     },
     cancel: close,
   };
+  } catch (cause) {
+    // A setup exception owns the reported error; cleanup still releases all
+    // acquired tracks/nodes and attempts to close the context.
+    await close().catch(() => {});
+    throw cause;
+  }
 }

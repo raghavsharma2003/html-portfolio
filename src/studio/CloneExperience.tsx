@@ -191,12 +191,13 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const captureAttemptRef = useRef(0);
   const mountedRef = useRef(true);
+  const sampleUrlRef = useRef<string | null>(null);
+  const pendingMediaRef = useRef<(() => void) | null>(null);
 
   const clearSample = useCallback(() => {
-    setSample((current) => {
-      if (current) URL.revokeObjectURL(current.url);
-      return null;
-    });
+    if (sampleUrlRef.current) URL.revokeObjectURL(sampleUrlRef.current);
+    sampleUrlRef.current = null;
+    setSample(null);
   }, []);
 
   const stop = useCallback(async () => {
@@ -206,10 +207,17 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
       return;
     }
     stoppingRef.current = true;
+    const attempt = captureAttemptRef.current;
+    const capture = captureRef.current;
     try {
-      const result = await captureRef.current.stop();
+      const result = await capture.stop();
+      if (!mountedRef.current || attempt !== captureAttemptRef.current) {
+        URL.revokeObjectURL(result.url);
+        return;
+      }
       captureRef.current = null;
       const renamed = new File([result.file], safeRecordingName(), { type: "audio/wav", lastModified: Date.now() });
+      sampleUrlRef.current = result.url;
       setSample({
         file: renamed,
         url: result.url,
@@ -223,10 +231,11 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
       setCaptureState("review");
       setHint("Your sample stayed on this device. Listen once, then continue or record again.");
     } catch (cause) {
+      if (!mountedRef.current || attempt !== captureAttemptRef.current) return;
       setError(cause instanceof Error ? cause.message : "The recording could not be finished.");
       setCaptureState("idle");
     } finally {
-      stoppingRef.current = false;
+      if (attempt === captureAttemptRef.current) stoppingRef.current = false;
     }
   }, []);
 
@@ -253,13 +262,23 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
     return () => window.removeEventListener("keydown", keyboard);
   });
 
-  useEffect(() => () => {
-    mountedRef.current = false;
-    captureAttemptRef.current += 1;
-    if (captureRef.current) void captureRef.current.cancel();
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      captureAttemptRef.current += 1;
+      const capture = captureRef.current;
+      captureRef.current = null;
+      if (capture) void capture.cancel().catch(() => {});
+      pendingMediaRef.current?.();
+      pendingMediaRef.current = null;
+      if (sampleUrlRef.current) URL.revokeObjectURL(sampleUrlRef.current);
+      sampleUrlRef.current = null;
+    };
   }, []);
 
   async function start() {
+    if (!mountedRef.current || disabled || captureState !== "idle") return;
     const captureAttempt = captureAttemptRef.current + 1;
     captureAttemptRef.current = captureAttempt;
     setError("");
@@ -292,6 +311,7 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
       setCaptureState("recording");
       setHint("Speak naturally about anything. A complete thought is better than a script.");
     } catch (cause) {
+      if (!mountedRef.current || captureAttemptRef.current !== captureAttempt) return;
       setError(cause instanceof Error ? cause.message : "The browser could not open your microphone.");
       setCaptureState("idle");
     }
@@ -299,10 +319,16 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
 
   async function retake() {
     captureAttemptRef.current += 1;
+    const attempt = captureAttemptRef.current;
+    pendingMediaRef.current?.();
+    pendingMediaRef.current = null;
     if (captureRef.current) {
-      await captureRef.current.cancel();
+      const capture = captureRef.current;
       captureRef.current = null;
+      await capture.cancel();
     }
+    if (!mountedRef.current || attempt !== captureAttemptRef.current) return;
+    stoppingRef.current = false;
     clearSample();
     setCaptureState("idle");
     setElapsedMs(0);
@@ -313,16 +339,41 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
   }
 
   async function chooseFile(file: File | null) {
-    if (!file) return;
+    if (!file || !mountedRef.current) return;
+    const attempt = ++captureAttemptRef.current;
+    pendingMediaRef.current?.();
+    pendingMediaRef.current = null;
     clearSample();
+    setCaptureState("requesting");
+    setFileOwnershipConfirmed(false);
     const url = URL.createObjectURL(file);
     const durationMs = await new Promise<number | null>((resolve) => {
       const media = file.type.startsWith("video/") ? document.createElement("video") : new Audio();
+      let finished = false;
+      const finish = (duration: number | null) => {
+        if (finished) return;
+        finished = true;
+        window.clearTimeout(timer);
+        media.onloadedmetadata = null;
+        media.onerror = null;
+        media.removeAttribute("src");
+        media.load();
+        if (pendingMediaRef.current === cancel) pendingMediaRef.current = null;
+        resolve(duration);
+      };
+      const cancel = () => finish(null);
+      const timer = window.setTimeout(cancel, 15_000);
+      pendingMediaRef.current = cancel;
       media.preload = "metadata";
-      media.onloadedmetadata = () => resolve(Number.isFinite(media.duration) ? media.duration * 1000 : null);
-      media.onerror = () => resolve(null);
+      media.onloadedmetadata = () => finish(Number.isFinite(media.duration) ? media.duration * 1000 : null);
+      media.onerror = cancel;
       media.src = url;
     });
+    if (!mountedRef.current || attempt !== captureAttemptRef.current) {
+      URL.revokeObjectURL(url);
+      return;
+    }
+    sampleUrlRef.current = url;
     setSample({ file, url, kind: file.type.startsWith("video/") ? "video" : "audio", durationMs, samplePeak: null, audibleRatio: null, recordedHere: false });
     setFileOwnershipConfirmed(false);
     setCaptureState("review");

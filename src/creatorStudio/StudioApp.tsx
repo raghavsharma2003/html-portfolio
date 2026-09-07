@@ -1,4 +1,5 @@
 import { expertWorkspaceUrl } from "../studio/workspaceNavigation";
+import { useWizardBlockerNavigation } from "./useWizardBlockerNavigation";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { ensureStudioSession, isStudioAuthDead } from "./studioAuth";
 import {
@@ -768,6 +769,7 @@ export function ReplicaWorkspace({
   const erased = erasureStatus?.state === "complete";
   const view = wizard.steps.find((row) => row.id === step) ?? wizard.steps[0];
   const stepNumber = view.number;
+  const goToBlocker = useWizardBlockerNavigation(replica.replica_id, accessToken, step, onGoStep);
   const previewWizardInput = testEnvironment
     ? { ...wizardInput, sourceConsent: true, identityVerified: true, livenessVerified: true, mode: "generic" as const, runtime: null }
     : wizardInput;
@@ -1366,7 +1368,7 @@ export function ReplicaWorkspace({
             </>
           )}
 
-          {!testEnvironment && <StepBlockers step={view} compact={compact} />}
+          {!testEnvironment && <StepBlockers step={view} compact={compact} onGoTo={goToBlocker} />}
         </>
       )}
 
@@ -1421,6 +1423,7 @@ export default function StudioApp() {
   const [authChecked, setAuthChecked] = useState(false);
   const [replicas, setReplicas] = useState<Replica[]>([]);
   const [selected, setSelected] = useState<Replica | null>(null);
+  const replicaLoadRequest = useRef(0);
   const [loadState, setLoadState] = useState<LoadState>("booting");
   const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState(false);
@@ -1706,6 +1709,7 @@ export default function StudioApp() {
   const activeChallengeState = challenge?.state || "";
 
   const signOut = useCallback(() => {
+    replicaLoadRequest.current++;
     writeStoredSession(null);
     setSession(null);
     setReplicas([]);
@@ -1737,20 +1741,34 @@ export default function StudioApp() {
   }, [handleApiError]);
 
   const loadReplicas = useCallback(async (activeSession: StudioSession) => {
+    const generation = ++replicaLoadRequest.current;
+    const current = () => generation === replicaLoadRequest.current;
     setLoadState("loading");
     setError(null);
     try {
-      const fresh = await refreshForRequest(activeSession);
+      // Do not let a delayed session refresh restore a signed-out account.
+      const fresh = await ensureStudioSession(activeSession);
+      if (!current()) return;
+      if (fresh.accessToken !== activeSession.accessToken) {
+        writeStoredSession(fresh);
+        setSession(fresh);
+      }
       const mine = await listReplicas(fresh.accessToken);
+      if (!current()) return;
+      const query = new URLSearchParams(window.location.search);
+      const requestedId = query.get("mode") === "setup" ? query.get("replica") : null;
+      const requested = mine.find((item) => item.replica_id === requestedId);
+      if (requestedId !== null && !requested) throw new Error("This workspace is unavailable. Open your AI from Studio and try again.");
       setReplicas(mine);
-      setSelected((current) => mine.find((item) => item.replica_id === current?.replica_id) ?? mine[0] ?? null);
+      setSelected((previous) => mine.find((item) => item.replica_id === previous?.replica_id) ?? requested ?? mine[0] ?? null);
       setShowCreate(mine.length === 0);
       setLoadState("ready");
     } catch (cause) {
+      if (!current()) return;
       handleApiError(cause, "Could not load your private workspace");
       setLoadState("error");
     }
-  }, [handleApiError, refreshForRequest]);
+  }, [handleApiError]);
 
   const refreshReplicaView = useCallback(async (activeSession: StudioSession, replicaId: string) => {
     const replica = await readReplica(activeSession.accessToken, replicaId);
@@ -1782,7 +1800,7 @@ export default function StudioApp() {
       setAuthChecked(true);
       if (restored) void loadReplicas(restored);
     });
-    return () => { live = false; };
+    return () => { live = false; replicaLoadRequest.current++; };
   }, [loadReplicas]);
 
   useEffect(() => {
@@ -2386,6 +2404,7 @@ export default function StudioApp() {
     runtime: runtimeStatus
       ? {
         active: runtimeStatus.active,
+        canActivate: runtimeStatus.can_activate,
         blockers: runtimeStatus.blockers,
         voiceGenomeVersion: runtimeStatus.versions.voice_genome,
       }
@@ -2449,13 +2468,13 @@ export default function StudioApp() {
     <StudioLocaleProvider locale={studioLocale}>
     <div className={`studio-shell${STUDIO_SELF_TEST_UI ? " studio-shell-self-test" : ""}`}>
       <header className="studio-header">
-        {selected && <a className="text-button" href={expertWorkspaceUrl(selected.replica_id, "voice", window.location.search)}>My voice</a>}
         <a className="studio-logo" href="/" aria-label={sa.header.homeAriaLabel}>
           <Mark />
           <span><strong>VYAKTI</strong><small>{mode === "teacher" ? sa.header.gurukulStudio : sa.header.genericStudio}</small></span>
         </a>
         <div className="header-trust"><span className="secure-dot" />{STUDIO_SELF_TEST_UI ? sa.header.internalTestWorkspace : mode === "teacher" ? sa.header.privateTeachingWorkspace : sa.header.privateSelfOnlyWorkspace}</div>
         <div className="account-menu">
+          {selected && <a className="text-button" href={expertWorkspaceUrl(selected.replica_id, "voice", window.location.search)}>My voice</a>}
           <span className="account-copy"><strong>{identity}</strong><small>{STUDIO_SELF_TEST_UI ? sa.header.testWorkspaceSession : sa.header.verifiedAccountSession}</small></span>
           <button className="signout-button" type="button" onClick={signOut}>{sa.header.signOut}</button>
         </div>

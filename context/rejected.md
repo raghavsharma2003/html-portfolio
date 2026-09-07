@@ -16622,3 +16622,23 @@ The initial transport suite used a custom stalled ReadableStream; its abort race
 ## `mounted-gate-fixture-is-not-authenticated-destination-design-20260907` (2026-09-07)
 
 Meet route tests now execute both real entry dispatches but inject the authenticated StudioApp host. Root inspection of destination screenshot shows artificial blank host space and missing full-shell visual context. The test proves scoped routing, focus and gate behavior; it is not evidence of a polished full authenticated destination. Preserve this limitation and verify the actual shell separately before calling the complete product UX accepted.
+
+
+## `setup-host-fixture-missed-real-router-css-and-selection-20260907` (2026-09-07)
+
+Agent actual full-shell audit reproduced requested-second-owned-replica routing to the first replica. It then rejected two preliminary visual batches because fixture read-method/CSS seams were incomplete. Comparing actual frozen dist confirmed the setup branch mounts creator code while the bundled preload receives personalMain CSS dependencies only; header/tabbar computed block at390/1440. Repairs remain isolated/pending. These failures were not disproved by release19's passing layout and performance checks, which exercise different entry paths. Root recorder fixture also reproduced no recording after actual StrictMode effect replay; its first Vite dev-server harness was interrupted without a result, then built development-React fixture reached the failing assertion. Neither is real microphone/voice evidence.
+
+
+## `persisted-logs-did-not-restore-private-meet-session-20260907` (2026-09-07)
+
+The actual private Meet component kept session_id only in mounted exchanges. Leaving Meet removed that state, and returning sent no prior session, while the prompt reads only the selected session's last ten turns. Existing relationship tables did not supply all missing message facts. Agent executed an exact 68283658 component negative control before repair. A redundant second old-only Chromium launch crashed before page creation; it is not another regression proof. Generating dialogue rows have no discovered expiry sweeper; restored pending state remains visible and cannot be invented terminal or silently release usage.
+
+
+## `recorder-fixture-ordering-and-unavailable-bundler-20260907` (2026-09-07)
+
+First Vite development fixture did not complete and was interrupted, without acceptance. An attempted esbuild harness failed because esbuild is not installed; switched to the existing Vite build with development React. Exact original recorder then failed to enter recording after StrictMode effect replay. The first old-effect mutant was masked by the new start guard, so the negative now restores both original behaviors. An unmount test initially queued React state without waiting for actual cleanup and falsely observed a started capture; fixture now uses React flushSync for a committed unmount. Final nine groups passed. These fixture failures did not justify changing application timing or lowering a gate.
+
+
+## `deploy-only-filter-and-pointerdown-concealed-unmet-setup-20260907` (2026-09-07)
+
+The actual lower Deploy model filtered to Deploy-owned blockers, then invited activation when that local list was empty even though identity/liveness/voice checks elsewhere still blocked the real runtime. Preserve all runtime blockers and require explicit server can_activate before inviting activation; unknown permission stays a platform state. Mirrored prerequisite links must change to the owning step before focusing its mounted target. Full-shell pointerdown execution added tabindex to the target but native button focus subsequently overwrote it. A one-frame workaround was tested then removed; native onClick gives correct pointer, Enter and Space behavior. This specific measured navigation exception supersedes the old pointerdown comment without changing the broad design law. Existing waiting-on-us versus waiting-on-you classification is preserved.

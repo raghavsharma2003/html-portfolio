@@ -4,6 +4,7 @@ import { activateRuntime, readRuntimeStatus } from "./runtimeApi";
 import type { ReplicaRuntimeStatus } from "./types";
 import { useStudioLocale } from "./localeContext";
 import { withCount } from "./copy";
+import "./runtime-setup.css";
 
 export default function RuntimeGate({
   token,
@@ -98,9 +99,8 @@ export default function RuntimeGate({
     <section ref={section} tabIndex={-1} id="runtime-gate" className="runtime-gate" aria-labelledby="runtime-gate-title">
       <div className="runtime-gate-head">
         <div>
-          <p className="eyebrow">{c.eyebrow}</p>
           <h2 id="runtime-gate-title">{c.title}</h2>
-          <p>{c.intro}</p>
+          <p>{runtime?.active ? c.sealSubActive : c.setupIntro}</p>
         </div>
         <div className={`runtime-seal ${runtime?.active ? "active" : ""}`}>
           <span>{runtime?.active ? c.sealActive : c.sealSealed}</span>
@@ -116,12 +116,6 @@ export default function RuntimeGate({
         </div>
       ) : runtime ? (
         <>
-          <div className="runtime-score">
-            <div><strong>{runtime.qualification.passed}/{runtime.qualification.required}</strong><span>{c.qualificationSuitesPassed}</span></div>
-            <div><strong>{runtime.versions.profile ?? "\u2014"}</strong><span>{c.whatWeLearnedVersion}</span></div>
-            <div><strong>{runtime.versions.calibration ?? "\u2014"}</strong><span>{c.calibrationVersion}</span></div>
-            <div><strong>{runtime.versions.voice_genome ?? "\u2014"}</strong><span>{c.voiceVersion}</span></div>
-          </div>
           {blockers.length > 0 && (
             <div className="runtime-blockers">
               <strong>{withCount(blockers.length === 1 ? c.gatesClosedOne : c.gatesClosedMany, blockers.length)}</strong>
@@ -129,7 +123,6 @@ export default function RuntimeGate({
             </div>
           )}
           <div className="runtime-action">
-            <p>{c.actionNote}</p>
             <button
               className="button primary-button"
               type="button"
@@ -139,6 +132,17 @@ export default function RuntimeGate({
               {activating ? c.freezing : runtime.active ? c.runtimeActive : c.activateButton}
             </button>
           </div>
+          <details className="runtime-version-details">
+            <summary>{c.versionDetails}</summary>
+            <div className="runtime-score">
+              <div><strong>{runtime.qualification.passed}/{runtime.qualification.required}</strong><span>{c.qualificationSuitesPassed}</span></div>
+              <div><strong>{runtime.versions.profile ?? "\u2014"}</strong><span>{c.whatWeLearnedVersion}</span></div>
+              <div><strong>{runtime.versions.calibration ?? "\u2014"}</strong><span>{c.calibrationVersion}</span></div>
+              <div><strong>{runtime.versions.voice_genome ?? "\u2014"}</strong><span>{c.voiceVersion}</span></div>
+            </div>
+            <p>{c.intro}</p>
+            <p>{c.actionNote}</p>
+          </details>
         </>
       ) : null}
     </section>
