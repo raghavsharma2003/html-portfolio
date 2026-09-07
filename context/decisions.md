@@ -23275,3 +23275,53 @@ The connected native proof produced a factually unsupported pendulum length in b
 ## `expert-issued-capture28-prerequisite-integration` (2026-09-07)
 
 Integrated the new modern issued-reference contract, Azure audio composer and actual registry caller into candidate28. Missing persisted authority refuses before private access; partial evidence never settles identity. Legacy callers stay on their existing paths. Reversal requires reviewed issuance/lease/settlement, calibrated same-capture composite evidence and real acceptance; configuration and cosine are insufficient.
+
+
+## `expert-grounding28-sixteen-paired-calls` (2026-09-07)
+
+Run one fixed16-call synthetic compiler/adapter comparison:8 cases each baseline27 and candidatec10e63e1, alternating arm order. Existing1USD development ledger only; total conservative reservation must fit current remaining balance before any call. No rerun on existing output or request hashes. Treat raw and common-gated answers separately and grade manually; no native owner/visitor or voice proof is implied. Reversal: stop on source/payload drift, unresolved accounting, or insufficient budget. New model evidence, not static prompt assertions, determines whether this candidate improves the defined cases.
+
+
+## `expert-grounding28-no-superiority-claim` (2026-09-07)
+
+The sixteen-call paired comparison does not establish superiority. Retain both raw and delivered evidence and repair the common gate in a separate worktree while candidate28 stays frozen. Reversal requires preserved mathematical content and new appropriately scoped quality evidence; consumed examples remain regression fixtures.
+
+
+## `expert-candidate29-integrate-observed-repairs` (2026-09-07)
+
+Prepare candidate29 from frozen f027349ac601a8bc393b2038b5c0d0baccfe3514 while release28 continues unchanged. Three specialists own math preservation, journey fixture/native preparation, and computed-style diagnosis. Root owns integration and retained quality evidence. Reversal: source or test failures require correction and new verification before acceptance; starting a candidate is not a release.
+
+## `expert-math-spans-visible-to-gates29-20260908` (2026-09-08)
+
+The expert answer profile recognizes complete explicit LaTeX display and inline spans before line splitting and bracket cleanup. Mathematical bracket contents survive, while actual bytes remain visible to protocol extraction, internal metadata, honesty and Never checks. Companion parsing and ordinary/unclosed brackets retain their existing behavior. This repairs a common delivery defect shared by Room and text publication, without changing either compiler or provider. Reverse if retained controls show a safety bypass or content loss; a different parser must preserve those controls. This is transport retention, not factual acceptance or rendered math UX. Both current UI consumers display literal text. See docs/gurukul/research/EXPERT-MATH-GATE29.md.
+
+
+## `verification-to-knowledge29-20260908` (2026-09-08)
+
+Wire the existing verification exit port to the current knowledge menu, preserving exact candidate and intent instead of trapping a waiting owner behind voice setup. The visible 44px action changes navigation only. Reversal: actual user confusion, inability to find it, or demonstrated unsaved-media loss requiring a specific guard. No identity, consent, publication or voice readiness changes. See docs/gurukul/research/VERIFICATION-KNOWLEDGE-JOURNEY29.md.
+
+Journey29 portability follow-up (2026-09-08): retain the exact historical caller as a hash-pinned tracked fixture; never require full Git history at evaluation time. Reverse if an equally exact portable negative preserves the actual old caller and fails under source mutation. Production unchanged.
+
+
+## `creator-fixture-layer-order29-20260908` (2026-09-08)
+
+Match production Studio by declaring reset/tokens/base/components/responsive inline before built CSS. Preserve palette and real fixture components; the minifier/chunk graph can reorder identical stylesheets. Reverse only if actual built independent ordering proves stable without the declaration or a replacement explicitly preserves cascade under both observed orders.
+
+
+## `expert-math-ui-native-mathml` (2026-09-07)
+
+Use pinned KaTeX0.18.7 as a lazy local dependency in the existing expert conversation and published-answer consumers. Only explicit delimiters render; prose/currency remain literal. Use nativeMathML, no remote assets, per-expression expansion/size limits and64equation cap. Always refuse trust commands and preserve raw source on errors or refusal markers. Reversal: rendered/accessibility/security failures or unsupported target-browser evidence require a reviewed alternative preserving complete text; never silently delete math.
+
+
+## `expert-release28-failed-candidate29-repairs` (2026-09-07)
+
+Keep accepted integration at26. Release28 completed with three failed gates; repair deterministic integration gaps and confirm the fixture order correction covers accessibility before freezing29. Use a fresh final checkout with its own dependency install: automatic approval rejected replacing the assembly worktree dependency junction, which is preserved. Reversal requires all applicable release gates and separately scoped connected quality evidence, not merely a successful build.
+
+## `publication-release-integration29-20260908` (2026-09-08)
+
+Close publication's existing export, visitor inventory, cron observability and probe contracts together. The actual authenticated expiry caller uses withSweepRun; owner export carries only owner publication metadata, never visitor payloads. Source auth discovery reads a literal supported guard without an endpoint exemption. Reverse only with equivalent scoped controls and actual caller coverage. See docs/gurukul/research/PUBLICATION-RELEASE-INTEGRATION29.md.
+
+
+## `expert-candidate29-freeze-combined-source` (2026-09-07)
+
+Assemble math retention, nativeMathML rendering, verification navigation, fixture layer/encoding corrections and the six publication integration repairs in one candidate29 commit. Transfer that commit into the separately installed expert-29-release checkout; compare package/lock hashes before reusing its private install. Full gate and known native regression require this immutable source. Reversal: any new defect or drift requires a reviewed change and new freeze, not mutation under a running gate.

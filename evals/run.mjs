@@ -35,6 +35,9 @@ execSync(
 );
 
 const suites = {
+  "expert-answer-render": "expert-answer-render/run.mjs",
+  "verification-knowledge": "verification-knowledge/run.mjs",
+  "creator-cascade-order": "creator-cascade-order/run.mjs",
   "azure-self-check": "azure-self-check/run.mjs",
   "azure-build-config": "azure-build-config/run.mjs",
   "recorded-listening-pack": "voice-listening-benchmark/recorded-run.mjs",
@@ -112,6 +115,7 @@ const suites = {
   "clone-hydration-resume": "clone-hydration-resume.mjs",
   "room-expert-answer": "room-expert-answer.mjs",
   "room-expert-answer-lists": "room-expert-answer-lists.mjs",
+  "room-expert-answer-math": "room-expert-answer-math.mjs",
   "liveness-intake": "liveness-intake.mjs",
   "liveness-intake-harness": "liveness-intake-harness.mjs",
   "source-erasure-teacher-sheet": "source-erasure/teacher-sheet.mjs",

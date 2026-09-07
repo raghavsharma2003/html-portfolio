@@ -16,18 +16,23 @@ await check('strict cron bearer, minimum length and timing-safe equality reject 
 });
 await check('unauthorized/default-unconfigured and wrong method never execute cleanup',async()=>{
  let calls=0;for(const [input,env] of [[req('Bearer wrong'),{CRON_SECRET:secret}],[req(),{}],[req(undefined,'DELETE'),{CRON_SECRET:secret}]]){
-  const response=res();await createTextPublicationExpiryHandler({db:async()=>{},env,expire:async()=>{calls++;}})(input,response);assert([401,405].includes(response.code));assert.equal(response['Cache-Control'],'no-store');
+  const response=res();await createTextPublicationExpiryHandler({db:async()=>{calls++;},env,expire:async()=>{calls++;}})(input,response);assert([401,405].includes(response.code));assert.equal(response['Cache-Control'],'no-store');
  }assert.equal(calls,0);
 });
 await check('actual caller executes exact expiry store SQL at fixed50 despite client batch override',async()=>{
  const queries=[],ids=['20000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000002'];
- const db=async(sql,args)=>{queries.push({sql,args});if(sql===TEXT_PUBLICATION_EXPIRE_SQL)return[{publications:2,requests:7,publication_ids:ids}];assert.equal(sql,TEXT_PUBLICATION_CLEANUP_SQL);return[{requests:1}];};
+ const db=async(sql,args)=>{queries.push({sql,args});if(sql.includes('vy_sweep_run'))return[];if(sql===TEXT_PUBLICATION_EXPIRE_SQL)return[{publications:2,requests:7,publication_ids:ids}];assert.equal(sql,TEXT_PUBLICATION_CLEANUP_SQL);return[{requests:1}];};
  const response=res();await createTextPublicationExpiryHandler({db,env:{CRON_SECRET:secret}})(req(),response);
- assert.equal(response.code,200);assert.deepEqual(queries,[{sql:TEXT_PUBLICATION_EXPIRE_SQL,args:[50]},{sql:TEXT_PUBLICATION_CLEANUP_SQL,args:[ids,null]}]);assert.deepEqual(response.body,{ok:true,publications:2,requests:8,batches:1,more_possible:false});
+ assert.equal(response.code,200);assert.deepEqual(queries.filter(q=>!q.sql.includes('vy_sweep_run')),[{sql:TEXT_PUBLICATION_EXPIRE_SQL,args:[50]},{sql:TEXT_PUBLICATION_CLEANUP_SQL,args:[ids,null]}]);assert.deepEqual(response.body,{ok:true,publications:2,requests:8,batches:1,more_possible:false});
+ const traces=queries.filter(q=>q.sql.includes('vy_sweep_run'));
+ assert.equal(traces.length,3);assert.equal(traces[0].args[1],'text-publication-expire');assert.equal(traces[1].args[1],'ok');assert.equal(traces[1].args[0],traces[0].args[0]);
+ assert.deepEqual(JSON.parse(traces[1].args[2]),{publications:2,requests:8,batches:1,more_possible:false,halted:false});
+ assert.equal(traces[2].args[0],'text-publication-expire');
 });
 await check('full batches drain at most four and return503 backlog rather than complete retention',async()=>{
- let calls=0;const response=res();await createTextPublicationExpiryHandler({env:{CRON_SECRET:secret},clock:()=>0,expire:async(db,{limit})=>{calls++;assert.equal(limit,50);return{publications:50,requests:100};}})(req(),response);
+ let calls=0;const telemetry=[];const response=res();await createTextPublicationExpiryHandler({db:async(sql,args)=>{telemetry.push({sql,args});return[];},env:{CRON_SECRET:secret},clock:()=>0,expire:async(db,{limit})=>{calls++;assert.equal(limit,50);return{publications:50,requests:100};}})(req(),response);
  assert.equal(calls,4);assert.equal(response.code,503);assert.equal(response.body.error,'text_publication_retention_backlog');assert.equal(response.body.publications,200);
+ assert.equal(telemetry.find(q=>q.sql.startsWith('update vy_sweep_run')).args[1],'partial');
 });
 await check('between-query clock bound stops another full page and preserves backlog signal',async()=>{
  let calls=0;const times=[0,8001];const result=await drainTextPublicationExpiry(async()=>{},{clock:()=>times.shift()??8001,expire:async()=>{calls++;return{publications:50,requests:1};}});assert.equal(calls,1);assert.equal(result.more_possible,true);
@@ -37,7 +42,8 @@ await check('short later page reports cumulative actual scrub counts',async()=>{
 });
 await check('SQL failure and invalid result cannot look like empty successful expiry or expose details',async()=>{
  for(const expire of [async()=>{throw Error('secret source and SQL');},async()=>({}),async()=>({publications:51,requests:0}),async()=>({publications:0,requests:-1})]){
-  const response=res();await createTextPublicationExpiryHandler({env:{CRON_SECRET:secret},expire})(req(),response);assert.equal(response.code,503);assert.deepEqual(response.body,{error:'text_publication_expiry_failed'});
+  const telemetry=[];const response=res();await createTextPublicationExpiryHandler({db:async(sql,args)=>{telemetry.push({sql,args});return[];},env:{CRON_SECRET:secret},expire})(req(),response);assert.equal(response.code,503);assert.deepEqual(response.body,{error:'text_publication_expiry_failed'});
+  assert.equal(telemetry.find(q=>q.sql.startsWith('update vy_sweep_run')).args[1],'failed');assert(!JSON.stringify(telemetry).includes('secret source'));
  }
 });
 await check('store limit validator prevents unbounded direct callers before SQL',async()=>{

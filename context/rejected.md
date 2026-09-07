@@ -17046,3 +17046,53 @@ Root review found mounted fixture invoked git show on c3cae7dd, which a standard
 ## `expert-issued-capture28-partial-evidence-not-verdict` (2026-09-07)
 
 The composer can retain exact derivation/ASR ancestry and speaker cosines, but neither nonce matching nor those values establishes visual continuity, primary-speaker ownership or synthetic-media risk. It returns nonservable incomplete evidence and cannot settle a verdict. Independent review found no current refusal-only blocker. Future activation must also propagate cancellation into active ASR I/O; current boundary checks withhold results but do not abort that in-flight request.
+
+
+## `expert-grounding28-ignored-language-input` (2026-09-07)
+
+Root review found the first comparison input constructed only name/domain and ignored each case.language field. Corrected both arms to carry the same languageTextRule, recomputed all prompt/request/source options and conservative reservation, and retained the old preparation artifacts. Neither corpus nor candidate rule was changed and no provider call had occurred. Reversal requires explicit evidence that the experiment deliberately tests automatic language inference; this comparison does not.
+
+
+## `expert-grounding28-gate-deletes-equations` (2026-09-07)
+
+Candidate GROUND-EN-HYPOTHETICAL-63 raw answer contains four correct display equations. Common-gated text replaces them with bare backslashes while reporting no findings. Final answer remains correct but explanation is lost. Reject transport success as delivery fidelity. Preserve actual-output regression and safety invariants in general repair; do not solve by masking this case.
+
+
+## `expert-journey29-history-dependent-check` (2026-09-07)
+
+Root read Journey29 run.mjs and found git show684441e14dcbb0fac904fea3c8d104412848ab98 as a prerequisite. A shallow checkout need not contain that commit. Integration paused for a pinned historical fixture preserving the actual old-caller negative control. Production navigation changes are not rejected by this finding. Reversal would require a guaranteed fetched-history contract; the chosen fix must instead work in depth-one CI.
+
+## `expert-math-is-not-stage-direction29-20260908` (2026-09-08)
+
+The common parser's unconditional square-bracket stripper turned each of four correct display equations in the retained candidate28 cart answer into a bare backslash. gated:true and findings:[] did not reveal the loss. A no-math-recognition negative control reproduces the exact recorded broken delivery. Reject applying the companion stage-direction assumption to explicitly delimited expert math, and reject masking equation bodies from safety inspection to preserve them. The consumed case is now regression evidence, not a fresh holdout or proof that candidate28 is better. Literal LaTeX still needs a separately reviewed UI presentation path; restored bytes alone cannot close that gap.
+
+
+## `verification-knowledge-disabled-is-not-readiness29-20260908` (2026-09-08)
+
+The first mounted fixture checked only disabled Ask against a wrong private-test route/shape and could pass after a read error. A strengthened valid Waiting on us/no-alert assertion failed. Exact endpoint plus statement-set/grant-scope/three-statements fixed the fixture, after which14final groups passed. Runtime code and timeouts were not loosened. Never count a plausible disabled state as successful readiness integration.
+
+Journey29 V2 rejection (2026-09-08): runtime git show of684441e was a shallow-CI dependency even though local source-only passed. Actual depth1 cat-file returns128; using retained exact bytes permits the same old-caller negative without history. Do not replace that negative with a source substring-only approximation.
+
+
+## `creator-identical-css-does-not-fix-order29-20260908` (2026-09-08)
+
+Release28 reported151 contrast findings. The creator fixture lacked production inline layer order; shared tokens moved after component CSS and reset inherited dark ink over primary foreground. Do not dismiss as timing or change palette/contrast floor. Initial isolated Vite closeBundle failed solely on missing ignored config; retained log, generated empty stub, then build and24 controls passed. No secrets copied or frozen source changed.
+
+
+## `expert-math-ui-refusal-content-loss` (2026-09-07)
+
+Independent installed-source review found KaTeX trustfalse may format only a refused href command after consuming its label/arguments, even with throwOnError. Some malformed protocols refuse before the trust callback. Root retained original source when either an always-denying callback fires or controlled errorColor appears in producedMathML. Final browser tests must assert complete raw fallback for both paths and macro aliases. Also bounded equation instance count and preserved multiline fallback whitespace; neither is a claim of completed browser verification.
+
+
+## `expert-release28-six-unconnected-invariants` (2026-09-07)
+
+Actual eval gate assertions identify missing person-table enum coverage, owner export inventory, publication-expiry cron mapping/heartbeat, and authorization probe recognition; day-one inherits probe failures. Agent is checking and repairing real integrations in isolation. Reject classifying these deterministic assertions as environmental merely because individual feature tests passed. No SQL/provider or deployment acceptance is inferred from these offline failures.
+
+## `publication-registry-is-not-operational-integration29-20260908` (2026-09-08)
+
+Adding publication's cron and erasure entries without adapting sweep-name discovery, auth-source extraction, creator export and the mirrored visitor enum broke six deterministic release suites. A scheduled route alone did not produce a heartbeat, and retained metadata did not appear in the owner's export. These failures are not environment or pool contention. Reject blanket auth exceptions, generic person-ID deletion for authenticated visitor IDs and successful-empty export on query failure. The earlier visitor negative-control draft also failed because replacing one repeated predicate left another intact; removing all relevant occurrences makes the control causal without weakening the real predicate.
+
+
+## `expert-publication-fixture-encoding` (2026-09-07)
+
+Identical retained bundle served by the incumbent fixture withoutcharset produced document.characterSet windows-1252, SyntaxError, empty Reactroot and0APIrequests. Adding only UTF-8 meta produced UTF-8, no parseerror, profile selector and1readinessrequest. Production studio/index HTML already declared UTF-8. Fix fixture encoding, preserve same-bundle negative and positive controls; do not alter product code or call a timeout an answer-rendering failure. Full30publicationcontrols then passed.

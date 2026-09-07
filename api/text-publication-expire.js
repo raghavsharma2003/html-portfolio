@@ -1,6 +1,7 @@
 import {timingSafeEqual} from 'node:crypto';
 import {q} from './_db.js';
 import {expireTextPublications} from './_text-publication-store.js';
+import {withSweepRun} from './_sweep-run.js';
 
 export function authorizedTextPublicationExpiry(req,env=process.env){
  const header=req?.headers?.authorization;
@@ -28,7 +29,12 @@ export function createTextPublicationExpiryHandler({db=q,expire=expireTextPublic
   if(req.method!=='GET'&&req.method!=='POST')return res.status(405).json({error:'text_publication_method_not_allowed'});
   if(!authorizedTextPublicationExpiry(req,env))return res.status(401).json({error:'unauthorized'});
   try{
-   const result=await drainTextPublicationExpiry(db,{expire,clock});
+   // The actual authorized caller records start/final state. A bounded full
+   // page is partial work, not a successful retention completion heartbeat.
+   const {halted,...result}=await withSweepRun(db,'text-publication-expire',async()=>{
+    const summary=await drainTextPublicationExpiry(db,{expire,clock});
+    return {...summary,halted:summary.more_possible};
+   });
    if(result.more_possible)return res.status(503).json({error:'text_publication_retention_backlog',...result});
    return res.status(200).json({ok:true,...result});
   }catch{return res.status(503).json({error:'text_publication_expiry_failed'});}

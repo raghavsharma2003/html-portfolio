@@ -15195,6 +15195,198 @@
       "kind": "rejection",
       "title": "Do not turn shared-byte metrics into liveness",
       "at": "2026-09-07"
+    },
+    {
+      "id": "expert-grounding28-sixteen-paired-calls",
+      "kind": "decision",
+      "title": "Compare fixed source-grounding rules against the retained baseline",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-grounding28-paired-preparation-v2",
+      "kind": "measurement",
+      "title": "Language-corrected paired preparation and independent review",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-grounding28-ignored-language-input",
+      "kind": "rejection",
+      "title": "Do not silently omit the preregistered language preference",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-grounding28-no-superiority-claim",
+      "kind": "decision",
+      "title": "Repair observed delivery loss before acceptance",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-grounding28-sixteen-settled-results",
+      "kind": "measurement",
+      "title": "Sixteen Azure calls completed and independently reviewed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-grounding28-gate-deletes-equations",
+      "kind": "rejection",
+      "title": "Successful delivery can silently remove correct reasoning",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-candidate29-integrate-observed-repairs",
+      "kind": "decision",
+      "title": "Combine observed journey and answer delivery repairs",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-candidate29-preparation",
+      "kind": "measurement",
+      "title": "New isolated candidate and six retained grounding context entries",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-journey29-history-dependent-check",
+      "kind": "rejection",
+      "title": "Do not repeat a shallow-checkout fixture dependency",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-math-spans-visible-to-gates29-20260908",
+      "kind": "decision",
+      "title": "Explicit expert math remains visible to content gates",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "expert-math-captured-replay29-20260908",
+      "kind": "measurement",
+      "title": "Captured display math replay and incumbent offline controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "expert-math-is-not-stage-direction29-20260908",
+      "kind": "rejection",
+      "title": "Stage-direction cleanup deletes mathematical derivations",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "verification-to-knowledge29-20260908",
+      "kind": "decision",
+      "title": "verification-to-knowledge29-20260908",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "verification-knowledge-mounted14-20260908",
+      "kind": "measurement",
+      "title": "verification-knowledge-mounted14-20260908",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "verification-knowledge-disabled-is-not-readiness29-20260908",
+      "kind": "rejection",
+      "title": "verification-knowledge-disabled-is-not-readiness29-20260908",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "creator-fixture-layer-order29-20260908",
+      "kind": "decision",
+      "title": "Pin creator fixture layer order before shared CSS",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "creator-fixture-contrast24-20260908",
+      "kind": "measurement",
+      "title": "Actual creator contrast24 after layer-order repair",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "creator-identical-css-does-not-fix-order29-20260908",
+      "kind": "rejection",
+      "title": "Identical stylesheet bytes do not imply identical cascade",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "expert-math-ui-native-mathml",
+      "kind": "decision",
+      "title": "Render explicit expert equations with bounded local MathML",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-candidate29-integrated-repairs",
+      "kind": "measurement",
+      "title": "Integrated three frozen repairs and checked actual common gate",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-math-ui-refusal-content-loss",
+      "kind": "rejection",
+      "title": "A safe parser refusal can still lose answer content",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-release28-failed-candidate29-repairs",
+      "kind": "decision",
+      "title": "Do not promote the failed release28 snapshot",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-release28-terminal-failure",
+      "kind": "measurement",
+      "title": "Full release28 completed with source and dependencies unchanged",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-math-render29-final-mounted",
+      "kind": "measurement",
+      "title": "Real local math rendering passed44 mounted checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-release28-six-unconnected-invariants",
+      "kind": "rejection",
+      "title": "New publication tables and cron must reach existing inventories",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-release-integration29-20260908",
+      "kind": "decision",
+      "title": "publication-release-integration29-20260908",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "publication-six-release-suites29-20260908",
+      "kind": "measurement",
+      "title": "publication-six-release-suites29-20260908",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "publication-registry-is-not-operational-integration29-20260908",
+      "kind": "rejection",
+      "title": "publication-registry-is-not-operational-integration29-20260908",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "expert-candidate29-freeze-combined-source",
+      "kind": "decision",
+      "title": "Freeze combined fixes before the next full release",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-candidate29-consumer-and-preparation",
+      "kind": "measurement",
+      "title": "Consumer regressions and private install completed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-publication-fixture-encoding",
+      "kind": "rejection",
+      "title": "Unicode bundle failure was a fixture encoding mismatch",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-publication29-four-real-sql-shapes",
+      "kind": "measurement",
+      "title": "Four actual SQL shapes parsed against development Postgres",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -27250,6 +27442,46 @@
       "src": "personality-review-scopes28-20260908",
       "rel": "caused_by",
       "dst": "review-old-response-and-generic-hold-20260908"
+    },
+    {
+      "src": "expert-math-spans-visible-to-gates29-20260908",
+      "rel": "measured_by",
+      "dst": "expert-math-captured-replay29-20260908"
+    },
+    {
+      "src": "expert-math-spans-visible-to-gates29-20260908",
+      "rel": "caused_by",
+      "dst": "expert-math-is-not-stage-direction29-20260908"
+    },
+    {
+      "src": "verification-to-knowledge29-20260908",
+      "rel": "measured_by",
+      "dst": "verification-knowledge-mounted14-20260908"
+    },
+    {
+      "src": "verification-to-knowledge29-20260908",
+      "rel": "caused_by",
+      "dst": "verification-knowledge-disabled-is-not-readiness29-20260908"
+    },
+    {
+      "src": "creator-fixture-layer-order29-20260908",
+      "rel": "measured_by",
+      "dst": "creator-fixture-contrast24-20260908"
+    },
+    {
+      "src": "creator-fixture-layer-order29-20260908",
+      "rel": "caused_by",
+      "dst": "creator-identical-css-does-not-fix-order29-20260908"
+    },
+    {
+      "src": "publication-release-integration29-20260908",
+      "rel": "measured_by",
+      "dst": "publication-six-release-suites29-20260908"
+    },
+    {
+      "src": "publication-release-integration29-20260908",
+      "rel": "caused_by",
+      "dst": "publication-registry-is-not-operational-integration29-20260908"
     }
   ]
 }

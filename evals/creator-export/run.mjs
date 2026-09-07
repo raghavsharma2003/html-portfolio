@@ -261,6 +261,11 @@ function fakeDb(state) {
       const [replicaIds, ownerUserId] = params;
       return rows.filter((r) => replicaIds.includes(r.replica_id) && r.owner_user_id === ownerUserId);
     }
+    // Negative-control SQL: omitting the authenticated owner admits a foreign
+    // replica when its ID is present in the supplied set.
+    if (/^replica_id = any\(\$1::uuid\[\]\)$/.test(clause)) {
+      return rows.filter(r => params[0].includes(r.replica_id));
+    }
     if (/^owner_user_id = \$1::uuid$/.test(clause)) {
       return rows.filter((r) => r.owner_user_id === params[0]);
     }
@@ -315,6 +320,13 @@ function seedWorld() {
       { card_id: "rc-b", replica_id: REPLICA_B, owner_user_id: OWNER_B, prompt_text: "q" },
     ],
     // ── owner scope ──
+    vy_text_publication: [
+      { publication_id:'publication-a',replica_id:REPLICA_A,owner_user_id:OWNER_A,state:'active',projection:{name:'Owner A'},receipt:{marker:'own-publication-consent'} },
+      { publication_id:'publication-a-revoked',replica_id:REPLICA_A,owner_user_id:OWNER_A,state:'revoked',projection:null,receipt:null },
+      { publication_id:'publication-b',replica_id:REPLICA_B,owner_user_id:OWNER_B,projection:{marker:'FOREIGN_PUBLICATION'} },
+    ],
+    vy_text_publication_visitor:[{publication_id:'publication-a',replica_id:REPLICA_A,owner_user_id:OWNER_A,visitor_user_id:'visitor-a',admission:{marker:FOLLOWER_TOKEN}}],
+    vy_text_publication_request:[{request_id:'request-a',publication_id:'publication-a',replica_id:REPLICA_A,owner_user_id:OWNER_A,visitor_user_id:'visitor-a',question_envelope:{ciphertext:FOLLOWER_TOKEN}}],
     vy_creator_payout: [
       { payout_id: "p-a", owner_user_id: OWNER_A, gross_inr: 1000 },
       { payout_id: "p-b", owner_user_id: OWNER_B, gross_inr: 2000 },
@@ -384,6 +396,24 @@ ok("storage pointers are derived from vy_replica_source and carry a size, never 
   dump.storage[0].byte_size === 4096 && !("body" in dump.storage[0]));
 
 const dumpJson = JSON.stringify(dump);
+ok('owner export includes exact own active and revoked publication records',
+  JSON.stringify(dump.tables.vy_text_publication) === JSON.stringify(world.vy_text_publication.slice(0,2)));
+ok('publication export excludes foreign owner and visitor admission/request records',
+  !dumpJson.includes('FOREIGN_PUBLICATION') && !dumpJson.includes(FOLLOWER_TOKEN)
+  && !('vy_text_publication_visitor' in dump.tables) && !('vy_text_publication_request' in dump.tables));
+ok('publication manifest reports the actual own count',dump.manifest.find(m=>m.table==='vy_text_publication')?.rows===2);
+{
+  const query=scopedQuery({table:'vy_text_publication',scope:'replica'},{replicaIds:[REPLICA_A,REPLICA_B],ownerUserId:OWNER_A});
+  const rows=await db(query.sql,query.params);
+  ok('publication query requires owner even when replica set includes a foreign replica',rows.length===2&&!rows.some(r=>r.owner_user_id===OWNER_B));
+  const mutant=await db(query.sql.replace(' and owner_user_id = $2::uuid',''),query.params);
+  ok('negative control: removing the publication owner predicate leaks the foreign publication',mutant.some(r=>r.owner_user_id===OWNER_B));
+  await assert.rejects(creatorExport(async(sql,args)=>{
+    if(sql.startsWith('select * from vy_text_publication '))throw Error('synthetic SQL failure');
+    return db(sql,args);
+  },OWNER_A,{tableApplied:async()=>true}),{code:'creator_export_text_publication_unavailable',status:503});
+  ok('publication SQL failure cannot become a successful empty export',true);
+}
 ok("Owner B's payout amount never appears anywhere in Owner A's export", !dumpJson.includes("2000"));
 ok("Owner B's replica id never appears anywhere in Owner A's export", !dumpJson.includes(REPLICA_B));
 ok("Owner B's own source row id never appears anywhere in Owner A's export", !dumpJson.includes("s-b"));

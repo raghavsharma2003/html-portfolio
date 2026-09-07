@@ -3,6 +3,7 @@ import { readStoredSession, writeStoredSession } from "../../creatorStudio/sessi
 import { ensureStudioSession } from "../studioAuth";
 import type { StudioSession } from "../types";
 import PublicationSignIn from "./PublicationSignIn";
+import ExpertAnswer from "../ExpertAnswer";
 import { askPublication, forgetPublication, joinPublication, openPublication, readPublicationAnswer,
   type Publication, type PublicationAdmission, type PublicationRequest } from "./publicationApi";
 import "./publication.css";
@@ -126,7 +127,7 @@ export default function PublicationApp({ publicId }: { publicId: string }) {
           <button className="vp-primary" disabled={busy || !agreed} onClick={() => void run("join")}>{busy ? "Opening" : "Start conversation"}</button>
         </section> : <>
           <section className="vp-answer" aria-live="polite" aria-busy={busy}>
-            {request?.state === "complete" && request.answer ? <div className="vp-answer-text">{request.answer}</div>
+            {request?.state === "complete" && request.answer ? <div className="vp-answer-text"><ExpertAnswer text={request.answer} /></div>
               : request?.state === "withdrawn" ? <p>This answer is no longer available.</p>
               : request?.state === "blocked" ? <p>An answer couldn't be delivered for this question.</p>
               : unresolved ? <p>{busy ? "Working on your question" : "Your question is awaiting confirmation."}</p>

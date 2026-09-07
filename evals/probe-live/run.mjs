@@ -27,6 +27,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { startFakeServer, CREATOR_FIXTURE_SLUG } from "./fakeServer.mjs";
+import { cronAuthExpectation, cronAuthExpectationFromSource } from '../../scripts/probeLiveExpectations.mjs';
 
 // `execFile` (async), NOT `execFileSync`: the fixture server below runs IN
 // THIS SAME PROCESS, and a synchronous child-process call blocks this
@@ -69,6 +70,22 @@ async function runProbe(baseUrl, extraArgs = []) {
 }
 
 async function main() {
+  const expirySource=readFileSync(join(ROOT,'api/text-publication-expire.js'),'utf8');
+  check('actual expiry auth refusal is derived without a per-path exemption',
+    JSON.stringify(cronAuthExpectation('/api/text-publication-expire'))===JSON.stringify({status:401,body:{error:'unauthorized'}}));
+  const oldParser=/if\s*\(!\s*authorized\w*\(req\)\)\s*return\s+res\.status\((\d{3})\)\.json\(\{\s*error:\s*"([^"]+)"\s*\}\)/;
+  check('negative control: prior extractor cannot read actual injected expiry guard',!oldParser.test(expirySource));
+  for(const source of [
+    'if (!authorized(req)) return res.status(403).json({ error: "no" });',
+    "if (!authorizedExpiry(req, env)) return res.status(401).json({error:'unauthorized'});",
+  ]) check('literal auth guard retains status and body across supported formatting',cronAuthExpectationFromSource(source)!==null);
+  for(const source of [
+    "if (!authorizedExpiry(req, req.query)) return res.status(401).json({error:'unauthorized'});",
+    "if (!authorizedExpiry(req, env)) return res.status(code).json({error:'unauthorized'});",
+    "if (!authorizedExpiry(req, env)) return res.status(401).json({error:reason});",
+    "if (authorizedExpiry(req, env)) return res.status(401).json({error:'unauthorized'});",
+    "return res.status(401).json({error:'unauthorized'});",
+  ]) check('unsupported or absent auth predicate remains unknown',cronAuthExpectationFromSource(source)===null);
   // ── 1. the well-behaved server: zero findings ──────────────────────────
   {
     const { server, url, stop } = await startFakeServer(PORT, {});

@@ -361,7 +361,14 @@ export function cronAuthExpectation(apiPath) {
   const rel = `api${apiPath.replace(/^\/api/, "")}.js`;
   if (!existsSync(join(ROOT, rel))) return null;
   const src = read(rel);
-  const m = /if\s*\(!\s*authorized\w*\(req\)\)\s*return\s+res\.status\((\d{3})\)\.json\(\{\s*error:\s*"([^"]+)"\s*\}\)/.exec(src);
+  return cronAuthExpectationFromSource(src);
+}
+
+// Read only a literal early refusal using the actual handler's named auth
+// helper. Dependency-injected handlers may pass their closed-over `env`.
+// Unknown arguments, computed status/bodies or absent guards remain unknown.
+export function cronAuthExpectationFromSource(src) {
+  const m = /if\s*\(!\s*authorized\w*\(\s*req\s*(?:,\s*env\s*)?\)\)\s*return\s+res\.status\((\d{3})\)\.json\(\{\s*error:\s*(["'])([^"']+)\2\s*\}\)/.exec(src);
   if (!m) return null;
-  return { status: Number(m[1]), body: { error: m[2] } };
+  return { status: Number(m[1]), body: { error: m[3] } };
 }

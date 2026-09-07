@@ -20,3 +20,6 @@ evals/source-erasure/fixtures/legacy-teacher-sheet-erasure.sql -text whitespace=
 
 # This full historical caller is authenticated by its original byte hash.
 evals/text-publication-ui/early-share-old-clone.tsx.txt -text
+
+# Exact historical navigation caller for shallow-checkout negative control.
+evals/verification-knowledge/fixtures/CloneExperience.before.tsx.txt -text

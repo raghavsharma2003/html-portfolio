@@ -17040,3 +17040,65 @@ Native exec91371 completed exit0 at2026-09-07T21:03:01.109Z after164330ms. Artif
 ## `expert-candidate28-focused-integration` (2026-09-07)
 
 Candidate28 staging from c3cae7dd includes reviewed capture five-file freeze, grounding c10e63e source/engine and personality684441e plus fixture-only6a9905a9. Root reran52capture controls,9grounding-contract controls,14actual compiler/caller controls and the full44mounted owner-review groups at390/1440. Mounted exec41360 exit0 receipt scratchpad/personality-scope28/1788815604447/result.json. ForcedTypeScript exec7526 exit0. Four new suites registered. No new live quality calls yet; baseline27 actual grounding failure remains uncorrected by evidence until comparison.
+
+
+## `expert-grounding28-paired-preparation-v2` (2026-09-07)
+
+Prepared8 cases×2 frozen compilers at c3cae7dd/c10e63e1,16 calls, conservative reservation50534microUSD.14 offline helper groups and6 launcher groups reported passed with0 SQL/modelcalls. Root and independent checkpoint reviewer inspected reserve/begin/in-flight/settle/raw capture and no-retry paths. Root separately reviewed Pythonc8e95be200b73a16d337c14224fd597cee5092fa1f603d086c3843f39ffa2642 and Nodee96dfdb1acbabbf488b83fdbf4e7a0d41f828d497afdf5132183a282de9b1ef8. Real provider/SQL acceptance remains pending. Candidate28 fullrelease started separately on exec19235 at21:18:08.160Z, sourcef027349a unchanged.
+
+
+## `expert-grounding28-sixteen-settled-results` (2026-09-07)
+
+On 2026-09-07T21:22:31.330Z, n=16 actual Azure calls completed and settled for11659microUSD; ledger141531microUSD spent,0reserved. Eight cases per arm, one sample each. All numerical results and requested languages passed independent descriptive review; baseline median uncertainty omission and candidate median/provenance errors remain. Candidate delivery lost four correct equation lines. Review: GROUNDING28-INDEPENDENT-REVIEW-20260908.md. No broad quality, native owner, voice or statistical superiority claim.
+
+
+## `expert-candidate29-preparation` (2026-09-07)
+
+On 2026-09-07, created codex/expert-29-combined at f027349a in a separate worktree. Copied only the hash-verified empty config stub, linked existing dependencies without modifying them, retained independent grounding review artifacts, and appended six grounding context entries. Graph check passed with2520nodes/2410edges. No production change integrated or live call performed by this preparation. Release28 exec19235 remains live; layout reported151findings over108loads while performance passed117106ms.
+
+## `expert-math-captured-replay29-20260908` (2026-09-08)
+
+Offline actual-source and generated-engine replay passed 11 new groups. The pinned consumed candidate GROUND-EN-HYPOTHETICAL-63 reply has four display equations; the old-code control reproduces its exact historical delivery, losing all four, while the corrected common gate preserves all four and surrounding claims. Supplemental controls cover Hindi/Hinglish/English, inline/nested/multiline math, protocols, metadata, links, relationship claims, Never rules, length bounds and companion parity. Incumbents passed 15 expert-list groups,18 expert-answer checks,43 publication runtime/expiry/authority groups,38 parser checks and613 honesty checks. Engine freshness passed. These are local offline checks with a credential-free ignored config; no model, cloud or SQL calls and no UI rendering were measured. Retained artifact SHA256 eb1dcecec04cac4a7f7e7969140bd9c383b10d80d614b06612ac734ae5027076; exact selected-cell equality was independently checked before freezing the fixture. See docs/gurukul/research/EXPERT-MATH-GATE29.md.
+
+
+## `verification-knowledge-mounted14-20260908` (2026-09-08)
+
+Final 2026-09-08 mounted receipt scratchpad/verification-knowledge/1788815964784/result.json passed14 groups at396/1440 with actual old/current callers, pending/unavailable stage, same candidate/intent, keyboard focus, locale/replica route, blocked private test/share and same-stage return/reload.31 incumbent verification checks, forced TypeScript, copy7scopes/21negatives, source delta/diff and detector passed. No real DB/provider/auth calls; not user research or a full release.
+
+Journey29 V2 (2026-09-08): one actual depth1 local clone, one commit, absent historical base, no node_modules; source-only passed and deliberate fixture tamper refused. Receipt ROOT scratchpad/expert-tools/verification-knowledge29-depth1-proof.json. Existing14 mounted production proof remains scoped to unchanged hashes; no new browser/model/DB calls.
+
+
+## `creator-fixture-contrast24-20260908` (2026-09-08)
+
+At 2026-09-07T21:36:12.051Z, one isolated Vite build and24 actual Chromium groups passed:390/1440,20 EN/HI Feed/Meet/Deploy target loads,2 removed-declaration negatives and2 former-order positives. Actual check-layout contrast audit unchanged. Original26→28 two-page probe measured foreground off-white→dark ink on identical forest, opacity1. Final receipt scratchpad/creator-cascade-order/1788816937075/result.json; no browser errors/external calls. No full release or production palette change.
+
+
+## `expert-candidate29-integrated-repairs` (2026-09-07)
+
+On2026-09-07 integrated JourneyV2 3b0d3e73, mathgate aeecc546 and creatorfixture f005c974 into candidate29 basedf027. Root graph2532nodes/2416edges passed, source-only old/new journey caller check passed, and all11 actual common-gate math regression groups passed against integrated source/generated engine. Agent fixture repair passed24 rendered groups. Root math-render isolate installed158packages in3minutes with its own node_modules; shared dependencies unchanged. ForcedTypeScript4498 passed before final small refusal/bounds/fallback edits. Final mounted rendering acceptance and complete release29 remain pending.
+
+
+## `expert-release28-terminal-failure` (2026-09-07)
+
+Actual exec19235 exited1 at2026-09-07T21:46:16.836Z after28m08.676s.24checks ran:21passed, layout/readability, eval suite and accessibility failed. Six failing suites:persontables,ops,probe-live,creator-export,self-check,day-one. Accessibility reports two ops language buttons with1.73contrast. Guard receipt release28-1788815888159-completion.json verifies HEAD/source/clean-tree/config/dependencies unchanged; its process_completed:false denotes nonsuccessful exit, not a running process. Two relational gates were skipped, not passed.
+
+
+## `expert-math-render29-final-mounted` (2026-09-07)
+
+Renderer frozen3c8db8120bf66eb280540d3c742bbea6f299f89d. Root final TypeScript/copy7scopes21negatives/diff passed exec31660. Independent realKaTeX Chromium44controls at320/390/1440 passed unchanged7source/package hashes, zero external/unexpected routes/errors, rawfallback on denied/malformed/macrocommands,64equation cap, keyboard local scrolling and held-import replacement/unmount. Receipt155eac9b33e9e7976924af0f030ee5c093d25feeb73e7dc2cf09f92712f6b1ff; root separately inspected retained320image. Thirteen noncontext files integrated into29 via math-render29-merged.json. Actual full consumer incumbent checks and full release remain pending; no Safari/screenreader/model/voice acceptance.
+
+Follow-up to creator-fixture-contrast24-20260908: at 2026-09-07T21:48:50.027Z,8 actual Ops EN/HI old/current cases at390/1440 passed both the unchanged layout contrast audit and actual axe-core color-contrast rule. Removed declaration reproduces language-button1.73; repaired declaration has zero violations. HTML/product bytes unchanged. Receipt creator-cascade-order/1788817721559/result.json; final default32 is24+8 separate measured batches, not rerun together.
+
+## `publication-six-release-suites29-20260908` (2026-09-08)
+
+On an isolate based exactly on frozen f027349a, all six release28-failing suites passed after bounded integration changes: persontables with4 negative controls, creator-export57, ops155, self-check85, probe-live and day-one with0 failures. Expiry10 controls passed actual caller heartbeat and strict bearer cases alongside exact cleanup SQL fixture calls. Accepted26 logs show the same six suites passed; source comparison attributes new dependencies to publication commit c3cae7dd. No real SQL/provider/deployment/full release ran. Methods and exact old log lines are in docs/gurukul/research/PUBLICATION-RELEASE-INTEGRATION29.md.
+
+
+## `expert-candidate29-consumer-and-preparation` (2026-09-07)
+
+2026-09-07: agent incumbent actual consumer suites passed24dialogue-history,12feedback-dataset,34conversation-setup and30publication (28prior plus2encoding controls). Ops extension passed8 real layout/axe controls in addition to prior24, not yet one combined32run. Six release suites passed on frozen42a01d025148ceec85a2b64a858266d4528bbd1c and13files integrated. Encoding2file delta8571dd408e53ad75027042e020f0b34f43a1fe58 integrated. Fresh detached expert-29-release at renderer3c8db812 installed158packages with npm ci in36seconds; its exact package and lock hashes equal candidateassembly. Separate realSQL EXPLAIN preparation is pending, no new DB outcome claimed here.
+
+
+## `expert-publication29-four-real-sql-shapes` (2026-09-07)
+
+At2026-09-07T21:54:13.482Z, n=4 actual export/heartbeat shapes passed EXPLAIN in BEGIN READ ONLY on vyakti_expert_integration_20260906. Negative invalid-column control returned42703. No ANALYZE, writes, private rows, real export or expiry executed. Source42a01d02 and2811tracked hashes unchanged; root verified3sourcepins equal merged29 and retained receiptSHA5f32d096fcd158f8f4b189c5e8fc35d9cc8aaafc68782c8e8e3ad276048f1334. This proves parser/type acceptance for these query bytes, not whole-product execution.

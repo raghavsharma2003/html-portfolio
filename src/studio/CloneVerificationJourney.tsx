@@ -146,6 +146,7 @@ export interface CloneVerificationJourneyProps {
   onResetLegacyClone: () => Promise<boolean>;
   onReturnToVoice: () => void;
   onExit?: () => void;
+  exitLabel?: string;
   onContinue: () => void;
   onCreateSourceUpload: (input: SourceUploadInput) => Promise<{ source: ReplicaSource; upload: SignedUpload | null; finalized: boolean }>;
   onRetryUpload: (sourceId: string) => Promise<{ source: ReplicaSource; upload: SignedUpload | null; finalized: boolean }>;
@@ -223,10 +224,10 @@ function VerificationProgress({ stage }: { stage: CloneVerificationStage }) {
   );
 }
 
-function JourneyHeader({ replica, stage, onExit }: { replica: Replica; stage: CloneVerificationStage; onExit?: () => void }) {
+function JourneyHeader({ replica, stage, onExit, exitLabel }: { replica: Replica; stage: CloneVerificationStage; onExit?: () => void; exitLabel?: string }) {
   return (
-    <header className="cvj-header">
-      {onExit ? <button className="cvj-icon-button" type="button" aria-label="Leave verification" onClick={onExit}><Icon name="back" /></button> : <span />}
+    <header className={`cvj-header${onExit && exitLabel ? " cvj-header--labelled-exit" : ""}`}>
+      {onExit ? exitLabel ? <button className="cvj-exit-link" type="button" onClick={onExit}><Icon name="back" /><span>{exitLabel}</span></button> : <button className="cvj-icon-button" type="button" aria-label="Leave verification" onClick={onExit}><Icon name="back" /></button> : <span />}
       <div className="cvj-header__identity"><strong>Make {replica.display_name} yours</strong><span>Private verification</span></div>
       <VerificationProgress stage={stage} />
     </header>
@@ -475,6 +476,7 @@ export default function CloneVerificationJourney(props: CloneVerificationJourney
     onResetLegacyClone,
     onReturnToVoice,
     onExit,
+    exitLabel,
     onContinue,
     onCreateSourceUpload,
     onRetryUpload,
@@ -519,7 +521,7 @@ export default function CloneVerificationJourney(props: CloneVerificationJourney
 
   return (
     <div className="cvj-shell" data-stage={stage}>
-      <JourneyHeader replica={replica} stage={stage} onExit={onExit} />
+      <JourneyHeader replica={replica} stage={stage} onExit={onExit} exitLabel={exitLabel} />
       <main className={`cvj-stage cvj-stage--${stage}`} aria-label="Clone verification">
         {stage === "stopped" ? <FocusedMessage icon="lock" tone="blocked" title="This clone is no longer active." body="Generation is blocked while verified erasure finishes." /> : null}
         {stage === "self_test_blocked" ? <LegacySelfTestReset onReset={onResetLegacyClone} /> : null}

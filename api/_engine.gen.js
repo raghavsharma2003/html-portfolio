@@ -6074,6 +6074,24 @@ function parseExpertAnswer(raw) {
   }
   return parseTextReply(raw, true);
 }
+var EXPERT_MATH_SPAN = /(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g;
+function splitExpertTextParts(raw) {
+  const parts = [""];
+  for (const [i, span] of raw.split(EXPERT_MATH_SPAN).entries()) {
+    if (i % 2) {
+      parts[parts.length - 1] += span;
+    } else {
+      const lines = span.split(/\n?-{3,}\n?|\n+/);
+      parts[parts.length - 1] += lines[0];
+      parts.push(...lines.slice(1));
+    }
+  }
+  return parts;
+}
+function stripReplyBrackets(text3, expertAnswer) {
+  const strip = (part) => part.replace(/\[[^\]]*\]/g, " ").replace(/\[[^\]]*$/, " ").replace(/[\[\]]+/g, " ");
+  return expertAnswer ? text3.split(EXPERT_MATH_SPAN).map((part, i) => i % 2 ? part : strip(part)).join("") : strip(text3);
+}
 function parseTextReply(raw, expertAnswer) {
   const out = { bubbles: [] };
   raw = raw.replace(/\[\s*tone\s*:\s*([^\]\n]*)\]?/gi, (_m, mood) => {
@@ -6146,7 +6164,7 @@ function parseTextReply(raw, expertAnswer) {
     return "";
   });
   raw = raw.replace(/\[\s*(?:tone|followup|photo|voicenote|gif|search|forget)\s*:[^\]]*\]?/gi, "").replace(/\[\s*(?:voice note|they sent a photo|replying to|a voice call starts|the call ended)[^\]]*\]?/gi, "").replace(/\[\d{1,2}:\d{2}\s*(?:am|pm)?\]/gi, "");
-  for (const part of raw.split(/\n?-{3,}\n?|\n+/)) {
+  for (const part of expertAnswer ? splitExpertTextParts(raw) : raw.split(/\n?-{3,}\n?|\n+/)) {
     let p = part.trim();
     if (!p) continue;
     if (p === "PHOTO") {
@@ -6172,7 +6190,7 @@ function parseTextReply(raw, expertAnswer) {
       continue;
     }
     if (/\]\s*$/.test(p) && !p.includes("[") && p.length < 60) continue;
-    p = p.replace(/\[[^\]]*\]/g, " ").replace(/\[[^\]]*$/, " ").replace(/[\[\]]+/g, " ").replace(/\s+/g, " ").trim();
+    p = stripReplyBrackets(p, expertAnswer).replace(/\s+/g, " ").trim();
     if (!p) continue;
     out.bubbles.push(...splitLong(p.replace(/^["']|["']$/g, "")));
   }

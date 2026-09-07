@@ -554,6 +554,35 @@ export function parseExpertAnswer(raw: string): ParsedReply {
   return parseTextReply(raw, true);
 }
 
+// Explicit LaTeX spans are answer content on the expert lane. Keep multiline
+// spans together, without hiding their bytes from protocol or safety checks.
+// Unmatched delimiters and ordinary brackets retain the legacy cleanup.
+const EXPERT_MATH_SPAN = /(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g;
+
+function splitExpertTextParts(raw: string): string[] {
+  const parts = [""];
+  for (const [i, span] of raw.split(EXPERT_MATH_SPAN).entries()) {
+    if (i % 2) {
+      parts[parts.length - 1] += span;
+    } else {
+      const lines = span.split(/\n?-{3,}\n?|\n+/);
+      parts[parts.length - 1] += lines[0];
+      parts.push(...lines.slice(1));
+    }
+  }
+  return parts;
+}
+
+function stripReplyBrackets(text: string, expertAnswer: boolean): string {
+  const strip = (part: string) => part
+    .replace(/\[[^\]]*\]/g, " ")
+    .replace(/\[[^\]]*$/, " ")
+    .replace(/[\[\]]+/g, " ");
+  return expertAnswer
+    ? text.split(EXPERT_MATH_SPAN).map((part, i) => i % 2 ? part : strip(part)).join("")
+    : strip(text);
+}
+
 function parseTextReply(raw: string, expertAnswer: boolean): ParsedReply {
   const out: ParsedReply = { bubbles: [] };
   // ── protocol extraction, GLOBAL and lenient: markers are honored wherever
@@ -710,7 +739,7 @@ function parseTextReply(raw: string, expertAnswer: boolean): ParsedReply {
 
   // Consume the whole separator run: matching only three of four hyphens
   // leaves a bare "-" bubble that wastes one of the existing four slots.
-  for (const part of raw.split(/\n?-{3,}\n?|\n+/)) {
+  for (const part of expertAnswer ? splitExpertTextParts(raw) : raw.split(/\n?-{3,}\n?|\n+/)) {
     let p = part.trim();
     if (!p) continue;
     // the photo's own slot: record how many bubbles preceded it and drop it,
@@ -756,13 +785,10 @@ function parseTextReply(raw: string, expertAnswer: boolean): ParsedReply {
     // tail of a mangled marker ("ide eye cat]"): a short line ending with a
     // bracket it never opened is protocol shrapnel, not conversation
     if (/\]\s*$/.test(p) && !p.includes("[") && p.length < 60) continue;
-    // brackets simply do not exist in real texting. Anything bracketed that
+    // Outside explicit expert math, anything bracketed that
     // survived marker extraction is a stage direction ("[slightly out of
     // breath...]") or shrapnel — remove the content and the stray brackets.
-    p = p
-      .replace(/\[[^\]]*\]/g, " ")
-      .replace(/\[[^\]]*$/, " ")
-      .replace(/[\[\]]+/g, " ")
+    p = stripReplyBrackets(p, expertAnswer)
       .replace(/\s+/g, " ")
       .trim();
     if (!p) continue;

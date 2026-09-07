@@ -3,6 +3,7 @@ import { createDialogueTurn, fetchProtectedTurnVoice, readDialogueHistory, openD
 import { readRuntimeStatus } from "./runtimeApi";
 import { ReplicaApiError } from "./replicaApi";
 import TurnFeedback from "./TurnFeedback";
+import ExpertAnswer from "./ExpertAnswer";
 import FeedbackDatasetPanel from "./FeedbackDatasetPanel";
 import { conversationSetupUrl } from "./conversationSetupNavigation";
 import type { ReplicaDialogueTurn, ReplicaLifecycle, ReplicaRuntimeStatus } from "./types";
@@ -233,7 +234,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
       {!scopedExchanges.length && active && <div className="expert-conversation__empty"><h2>Try a real question.</h2><p>Ask something a client would ask you. Listen, then show your AI what you would change.</p><button type="button" onClick={() => { setDraft("What is the first step you would recommend to someone new to my work?"); input.current?.focus(); }}>Help someone get started</button></div>}
       {scopedExchanges.map(({ question, answer }) => <div className="expert-exchange" key={answer.turn_id}>
         <div className="expert-exchange__question"><span>You</span><p>{question}</p></div>
-        <article className="expert-exchange__answer"><span>Your AI</span><p>{answer.reply}</p>
+        <article className="expert-exchange__answer"><span>Your AI</span><ExpertAnswer text={answer.reply} />
           <div className="expert-conversation__actions"><button type="button" disabled={!answer.can_voice || stopped} onClick={() => void speak(answer)}>{speaking === answer.turn_id ? "Stop audio" : "Listen"}</button><button type="button" aria-expanded={feedbackTurn === answer.turn_id} onClick={() => setFeedbackTurn(feedbackTurn === answer.turn_id ? "" : answer.turn_id)}>Teach a correction</button></div>
           {feedbackTurn === answer.turn_id && <TurnFeedback token={token} replicaId={replicaId} turnId={answer.turn_id} voiceHeard={heard.has(answer.turn_id)} onAuthError={onAuthError} onSaved={() => setFeedbackRevision(current => current + 1)} />}
         </article>

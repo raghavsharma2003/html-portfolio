@@ -64,6 +64,7 @@ const PERSON_COLUMNS = [
   // vy_creator_invite's redeemed_by_user_id IS the replica owner's id once a
   // code is spent, the owner-lane fact that keeps it off PERSON_TABLES.
   "redeemed_by_user_id",
+  "visitor_user_id",
 ];
 
 // The owner lane. `owner_user_id` is the replica owner's Supabase auth id — a
@@ -141,14 +142,33 @@ const EXEMPT = {
 };
 
 const listed = new Set(PERSON_TABLES.map((t) => t.table));
+// These IDs are authenticated account IDs, not vy_person IDs. Their explicit
+// account forget scrubs private payloads while preserving quota counters.
+// Never add them to the generic person DELETE loop to satisfy this scan.
+const publicationStore = await import('node:fs').then(fs => fs.readFileSync(path.join(ROOT,'api/_text-publication-store.js'),'utf8'));
+const publicationAccount = await import('node:fs').then(fs => fs.readFileSync(path.join(ROOT,'api/account.js'),'utf8'));
+const accountVisitorTables = new Set(['vy_text_publication_visitor','vy_text_publication_request']);
+const accountVisitorReach = (store, account) =>
+  store.includes('where v.visitor_user_id=$1::uuid and v.publication_id in(select publication_id from locked)')
+  && store.includes('cleanupTextPublicationPayloads(db,rows.map(r=>r.publication_id),visitor)')
+  && account.includes('await forgetTextPublicationAccount(q, user.id)');
 
 let checked = 0;
 let owner = 0;
+let accountVisitors = 0;
 const missing = [];
 for (const [table, cols] of Object.entries(schema)) {
   if (!inScope(table)) continue;
   if (!PERSON_COLUMNS.some((c) => c in cols)) continue;
   checked++;
+  if ('visitor_user_id' in cols) {
+    accountVisitors++;
+    if (!accountVisitorTables.has(table) || !accountVisitorReach(publicationStore,publicationAccount)) {
+      problem(`${table} has an authenticated visitor ID without the reviewed account payload-forget caller.`);
+    }
+    if (listed.has(table)) problem(`${table} must not treat authenticated visitor IDs as generic person IDs.`);
+    continue;
+  }
   if (ownerLane(cols)) {
     owner++;
     if (listed.has(table)) {
@@ -173,7 +193,7 @@ for (const t of missing) {
 }
 console.log(
   `  ${checked} person-keyed tables in the DDL (${owner} owner lane, ` +
-    `${Object.keys(EXEMPT).length} exempt in writing, ${checked - owner - Object.keys(EXEMPT).length} listed)`,
+    `${accountVisitors} explicit account visitor lane, ${Object.keys(EXEMPT).length} exempt in writing, ${checked - owner - accountVisitors - Object.keys(EXEMPT).length} listed)`,
 );
 
 // ── the manifest may not name a table the DDL does not have ────────────────
@@ -257,6 +277,15 @@ if (!block) {
 
 // ── negative controls: watch the check fail before trusting it ─────────────
 const NEG = [
+  {
+    name: 'visitor account column must be recognized and unknown tables cannot borrow its exception',
+    run: () => PERSON_COLUMNS.includes('visitor_user_id') && !accountVisitorTables.has('vy_probe_visitor'),
+  },
+  {
+    name: 'missing visitor account caller or exact visitor predicate is caught',
+    run: () => !accountVisitorReach(publicationStore,publicationAccount.replaceAll('await forgetTextPublicationAccount(q, user.id)',''))
+      && !accountVisitorReach(publicationStore.replaceAll('where v.visitor_user_id=$1::uuid','where true'),publicationAccount),
+  },
   {
     name: "a person-keyed table absent from the manifest",
     run: () => {

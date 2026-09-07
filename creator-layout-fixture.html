@@ -1,1 +1,15 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Creator layout fixture</title></head><body><div id="studio-root"></div><script type="module" src="/src/creatorStudio/layoutFixture.tsx"></script></body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Match studio.html before any extracted stylesheet can establish layer
+         order. Shared CSS chunk order may change after unrelated imports. -->
+    <style>@layer reset, tokens, base, components, responsive;</style>
+    <title>Creator layout fixture</title>
+  </head>
+  <body>
+    <div id="studio-root"></div>
+    <script type="module" src="/src/creatorStudio/layoutFixture.tsx"></script>
+  </body>
+</html>

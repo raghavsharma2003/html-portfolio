@@ -23,6 +23,7 @@ export function sweepNameFromPath(path) {
   if (p === "/api/self-check") return "self-check";
   if (p === "/api/replica-pipeline-watchdog") return "replica-pipeline-watchdog";
   if (p === "/api/voice-preview-result-cleanup") return "voice-preview-result-cleanup";
+  if (p === "/api/text-publication-expire") return "text-publication-expire";
   const m = p.match(/^\/api\/(.+)-sweep$/);
   return m ? m[1] : null;
 }

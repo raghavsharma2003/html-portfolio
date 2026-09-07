@@ -81,6 +81,30 @@
     cursor: pointer;
   }
 
+  .cvj-header.cvj-header--labelled-exit {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .cvj-exit-link {
+    grid-column: 1 / -1;
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 4px 0;
+    border: 0;
+    color: var(--cvj-ink);
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .cvj-exit-link svg {
+    width: 20px;
+    height: 20px;
+  }
+
   .cvj-icon-button:hover {
     background: var(--cvj-green-soft);
   }

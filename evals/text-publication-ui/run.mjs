@@ -25,7 +25,7 @@ const server=createServer(async(req,res)=>{
   const url=new URL(req.url,'http://fixture');
   if(url.pathname==='/fixture.js'){res.setHeader('Content-Type','text/javascript');res.end(js);return;}
   if(url.pathname==='/fixture.css'){res.setHeader('Content-Type','text/css');res.end(css);return;}
-  if(!url.pathname.startsWith('/api/')){res.setHeader('Content-Type','text/html');res.end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/fixture.css"><style>body{margin:0}body:has(.vp-owner){max-width:780px;margin:24px auto;padding:0 12px}</style><div id="root"></div><script src="/fixture.js"></script>');return;}
+  if(!url.pathname.startsWith('/api/')){res.setHeader('Content-Type','text/html');res.end('<!doctype html>'+(url.searchParams.has('__fixture_legacy_charset')?'':'<meta charset="UTF-8">')+'<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/fixture.css"><style>body{margin:0}body:has(.vp-owner){max-width:780px;margin:24px auto;padding:0 12px}</style><div id="root"></div><script src="/fixture.js"></script>');return;}
   let body='';for await(const chunk of req)body+=chunk;const input=body?JSON.parse(body):Object.fromEntries(url.searchParams),op=input.op;
   requests.push({path:url.pathname,op,body:input,auth:req.headers.authorization||''});
   const send=(value,status=200)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
@@ -61,6 +61,17 @@ const server=createServer(async(req,res)=>{
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`,browser=await chromium.launch({headless:true});
 let groups=0;const results=[];const check=(name)=>{groups++;results.push(name);console.log('ok '+groups+' - '+name);};
 try{
+ // Same compiled classic-script bytes in both controls. Only the document's
+ // encoding declaration differs; real studio.html declares UTF-8 too.
+ for(const legacy of [true,false]){
+  const page=await browser.newPage({viewport:{width:390,height:900}}),errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
+  await page.goto(origin+'/?view=owner'+(legacy?'&__fixture_legacy_charset=1':''));
+  if(legacy){assert.equal(await page.evaluate(()=>document.characterSet),'windows-1252');assert(errors.some(e=>e.includes('Invalid or unexpected token')));assert.equal(await page.locator('#root').innerHTML(),'');assert.equal(requests.length,0);check('same Unicode bundle without charset fails before React and requests');}
+  else{await page.getByLabel('Teaching profile').waitFor();assert.equal(await page.evaluate(()=>document.characterSet),'UTF-8');assert.deepEqual(errors,[]);check('same Unicode bundle with production UTF-8 declaration mounts owner readiness');}
+  await page.close();
+ }
  for(const width of [390,1440]){
   publication=null;requests=[];asked.clear();heldQuestion=null;
   const context=await browser.newContext({viewport:{width,height:900}});let page=await context.newPage();const ownerPage=page;
