@@ -16427,3 +16427,13 @@ Read-only source audit across 36 local refs found no document-review or composit
 ## `unused-deployment-guard-does-not-enforce-constraint-20260907` (2026-09-07)
 
 Simply replacing assert declarations with unused variables would not prove deployment constraints are evaluated. Both checked variables are consumed by the corresponding Container App environment values; negative controls replacing those references with raw flags admit forbidden creation or cleanup combinations. Default creation, cleanup, approval and dedicated-resource flags remain false. Compiler success is not cloud readiness.
+
+
+## `localhost-cache-error-does-not-justify-component-rewrite-20260907` (2026-09-07)
+
+IAB127.0.0.1:5177 retained SyntaxError pointing at ExpertEntryVisual, even with a fresh tab/document query. Root fetched its actual transformed module and node--check passed. Agent fresh localhost:5177/studio rendered complete sign-in DOM with zero browser errors using unchanged source; built mobile/desktop visuals also passed. This supports origin-specific stale state, not a reproduced component syntax defect. No component rewrite or user browser-cache purge. Local server restarted as exec5611 and targets isolated development.
+
+
+## `public-knowledge-is-not-shared-past-20260907` (2026-09-07)
+
+Placing public expert answers in follower memories or gatedReply record would authorize fabricated shared-past statements. Reading all accepted claims or importing owner-person recall would expose private material. Importing _room-publish back into _room-surface creates a module cycle. Use a dependency-light scoped reader and a distinct compiler data input. Implementation begins next; no grounded-answer acceptance yet.

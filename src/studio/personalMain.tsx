@@ -25,10 +25,8 @@ import "./studio.css";
 // merge. See each file's header for what it owns and why.
 import "./design/honesty.css";
 import "./design/mobile.css";
-import "./clone-experience.css";
-import "./voice-field.css";
+import "./auth-entry.css";
 import "./vyakti-mark.css";
-import "./clone-verification-journey.css";
 import { restoreStudioMode } from "./studioAuth";
 
 // BEFORE render, never after. `StudioApp.readStudioMode()` reads `?mode=` once

@@ -22683,3 +22683,13 @@ Keep identity unavailable until the real service and caller contracts can finish
 ## `liveness-redesign-keeps-evidence-authorities-separate-20260907` (2026-09-07)
 
 Retain the proposed liveness-composite v3 design as a nonimplemented plan. An earlier Face quicklink proof does not bind the later phrase video; no current calibrated producer supplies all required ownership facets. Do not implement a success-shaped endpoint with fabricated continuity/risk scores. Reversal condition: a measured Azure-hosted capture authority or verified single-ceremony provider contract establishes the exact later recording and subject bindings. Continue independent product usefulness work while this acceptance prerequisite remains open.
+
+
+## `defer-signed-in-studio-css-20260907` (2026-09-07)
+
+Keep entry tokens and sign-in styles eager; load signed-in scene, voice and verification styles with CloneExperience. Preserve old direct CSS consumers through an auth import. No asset replacement, font removal, preload or performance-budget relaxation. Reversal condition: verified cascade/visual regression or representative paired measurements show no meaningful benefit.
+
+
+## `public-showcase-is-first-room-knowledge-slice-20260907` (2026-09-07)
+
+Connect the existing up-to-five public showcase answers to roomSay as separate expert knowledge, never follower shared-past memories. Keep exact Room/owner/replica/agent authority, live removal checks, bounded prompt data and honest provided-to-model source metadata. Do not read private Mirror claims or mined locker titles as publication. Reversal condition: measured launch coverage requires a broader independently reviewed publication scope; that evidence can justify a new corpus rather than automatic exposure.

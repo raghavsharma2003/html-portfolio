@@ -12849,6 +12849,42 @@
       "kind": "decision",
       "title": "Separate Face identity from later audiovisual ownership",
       "at": "2026-09-07"
+    },
+    {
+      "id": "defer-signed-in-studio-css-20260907",
+      "kind": "decision",
+      "title": "Load signed-in scene styles with the lazy experience",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "studio-css-paired-browser-and-layout-20260907",
+      "kind": "measurement",
+      "title": "Studio CSS drops 16.8 percent in paired mobile measurement",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "localhost-cache-error-does-not-justify-component-rewrite-20260907",
+      "kind": "rejection",
+      "title": "Preserve valid source when a fresh local origin renders",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "public-showcase-is-first-room-knowledge-slice-20260907",
+      "kind": "decision",
+      "title": "Use explicitly published expert Q&A in ordinary Room replies",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "published-qa-room-path-source-audit-20260907",
+      "kind": "measurement",
+      "title": "Source audit finds an unused public knowledge path",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "public-knowledge-is-not-shared-past-20260907",
+      "kind": "rejection",
+      "title": "Keep published expertise separate from personal memory",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

@@ -6,7 +6,8 @@ const root = resolve(import.meta.dirname, "../..");
 const experience = readFileSync(resolve(root, "src/studio/CloneExperience.tsx"), "utf8");
 const verification = readFileSync(resolve(root, "src/studio/CloneVerificationJourney.tsx"), "utf8");
 const css = readFileSync(resolve(root, "src/studio/clone-verification-journey.css"), "utf8");
-const experienceCss = readFileSync(resolve(root, "src/studio/clone-experience.css"), "utf8");
+const experienceCss = readFileSync(resolve(root, "src/studio/clone-experience.css"), "utf8")
+  + readFileSync(resolve(root, "src/studio/auth-entry.css"), "utf8");
 const voiceField = readFileSync(resolve(root, "src/studio/VoiceField.tsx"), "utf8");
 const voiceFieldCss = readFileSync(resolve(root, "src/studio/voice-field.css"), "utf8");
 const mark = readFileSync(resolve(root, "src/studio/VyaktiMark.tsx"), "utf8");

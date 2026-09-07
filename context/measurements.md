@@ -16273,3 +16273,13 @@ Root ran Bicep CLI 0.46.1 (545b338e2c) against the untouched identity template. 
 ## `identity-template-compiles-with-preserved-guards-20260907` (2026-09-07)
 
 Root compiled the changed actual services/azure-verifier/infra/main.bicep with Bicep0.46.1 on 2026-09-07: exit0, standard ARM schema, no experimental feature metadata. Compiled JSON contains both short-circuit fail branches and actual environment references to their checked variables; Azure container parameter reaches the exact runtime env. Root registered azureverify passed93 checks,11 new deployment-source controls including eight boolean combinations, two unguarded-reference mutants and actual loadConfig refusal when container mapping is removed. Source boolean evaluation is not ARM execution. No Azure deployment validation or resource mutation. Logs scratchpad/identity-deployment-root.log and identity-bicep-checked.json.
+
+
+## `studio-css-paired-browser-and-layout-20260907` (2026-09-07)
+
+Agent ran three cold studio-hi contexts before and after on 2026-09-07. Initial CSS 45211 to37620 bytes; median LCP2968 to2264 ms, after runs2948/2264/2188 ms. Median image discovery1860 to1625 ms; image/font bytes unchanged. One after outlier remains above2500 ms; no statistical robustness claim. Agent verified253 selector/declaration/ancestor records preserved,38 eager and215 deferred. Forced TypeScript/build,20 QA,copy and13 signed-in prose blocks at390/834/1355 passed. Root independently ran20 QA and inspected mobile screenshot; it reviewed the retained timing report rather than rerunning browser timing. Logs scratchpad/studio-css-lcp-before.json,studio-css-lcp-after.json,studio-css-lcp-layout.log,studio-css-qa-root.log.
+
+
+## `published-qa-room-path-source-audit-20260907` (2026-09-07)
+
+One Astra source audit identified authenticated showcase_set/remove and public page display, while ordinary roomSay uses the published TeacherSheet and follower-only recall without showcase retrieval. Private owner context therefore exists but is not a public knowledge grant. Current roomCitations lists mined/routed locker titles rather than actual per-reply sources. No DB/model/quality test ran in this audit. Report docs/gurukul/research/EXPERT-KNOWLEDGE-ROOM-PATH-20260907.md.
