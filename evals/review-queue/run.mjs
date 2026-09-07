@@ -505,13 +505,54 @@ eq(N.replyViolatesNeverRule("", RULES), "", "an empty reply matches nothing");
   const surface = read("api/_surface.js");
   const callSites = surface.split("\n").filter((line) => /await ctx\.reply\(/.test(line));
   eq(callSites.length, 1, "ctx.reply still has exactly one call site in api/_surface.js");
-  ok(/gateReply\(ctx\.engine, raw, \{ trustedText: \[\], openItems: \[\] \}, label, neverRules\)/.test(surface),
+  const noGateCall = /gateReply\(ctx\.engine, raw, \{ trustedText: \[\], openItems: \[\] \}, label, neverRules, opts\.textProfile\)/;
+  const ordinaryCall = /honestyContextFor\(ctx\.engine, compiled, turns, opts\), label, neverRules, opts\.textProfile\)/;
+  ok(noGateCall.test(surface),
     "the no-gate branch still applies the never-rules");
-  ok(/honestyContextFor\(ctx\.engine, compiled, turns, opts\), label, neverRules\)/.test(surface),
+  ok(ordinaryCall.test(surface),
     "...and so does the ordinary branch");
+  const withoutRules = surface.replaceAll("label, neverRules, opts.textProfile", "label, [], opts.textProfile");
+  ok(!noGateCall.test(withoutRules) && !ordinaryCall.test(withoutRules),
+    "negative control: removing forwarded never-rules fails both branch guards");
   ok(/replyViolatesNeverRule/.test(surface), "the predicate is imported into the one door");
   ok(!/never.?rule/i.test(read("src/engine/persona.ts").slice(0, 4_000)),
     "the persona's opening carries no never-rule text (rules are rows, not lines)");
+}
+
+{
+  // Exercise the real asynchronous door, including its explicit parser profile.
+  // Source shape alone cannot prove that a forwarded rule suppresses the bytes.
+  let legacyParses = 0, expertParses = 0, calls = 0;
+  const engine = {
+    parseBubbles: text => { legacyParses++; return { bubbles: [text] }; },
+    parseExpertAnswer: text => { expertParses++; return { bubbles: [text] }; },
+    stripTextingDashes: text => text,
+    guardReply: parsed => ({ reply: parsed, findings: [] }),
+    openCommitments: () => [], hisVocabulary: () => [], sharedVocabulary: () => [],
+  };
+  const forbidden = "I guarantee you will clear the exam.";
+  for (const textProfile of [undefined, "expert_answer"]) {
+    const ctx = { engine, reply: async () => { calls++; return forbidden; } };
+    const blocked = await S.gatedReply(ctx, {}, [], { label: "review-eval", neverRules: RULES, textProfile });
+    eq(blocked.text, "", `real gatedReply suppresses forbidden text with profile ${textProfile ?? "default"}`);
+    eq(blocked.neverRule, "r1", "the asynchronous door retains the matched rule identifier");
+    const unguarded = await S.gatedReply(ctx, {}, [], { label: "review-eval", neverRules: [], textProfile });
+    eq(unguarded.text, forbidden, "negative control: removing the same rules lets these bytes pass");
+  }
+  eq(legacyParses, 2, "default text profile uses only the legacy parser");
+  eq(expertParses, 2, "expert text profile uses its own parser without bypassing never-rules");
+  const unavailable = await S.gatedReply({ engine: {}, reply: async () => forbidden }, {}, [], { neverRules: RULES });
+  eq(unavailable.text, "", "the missing-gate branch suppresses bytes before building unavailable honesty context");
+  eq(unavailable.gated, false, "missing safety capability remains an explicit refusal");
+  const before = calls;
+  let rejected = null;
+  try {
+    await S.gatedReply({ engine: { ...engine, parseExpertAnswer: undefined }, reply: async () => { calls++; return forbidden; } }, {}, [], {
+      neverRules: RULES, textProfile: "expert_answer",
+    });
+  } catch (error) { rejected = error; }
+  eq(rejected?.code, "expert_answer_parser_unavailable", "an explicit expert profile refuses an unavailable parser");
+  eq(calls, before, "an unavailable requested parser refuses before the model call");
 }
 
 {

@@ -17,7 +17,7 @@
 // English, the disclosure, the referral link) -> a SECOND browser context
 // opens the referral link and joins (the referral row lands, self-referral
 // is refused) -> export -> forget.
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createHmac } from "node:crypto";
 import { startHarness, setNetworkRemap } from "./harness.mjs";
@@ -1036,6 +1036,6 @@ export async function main() {
   return fail === 0 ? 0 : 1;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main().then((code) => process.exit(code));
 }

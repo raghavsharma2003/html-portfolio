@@ -62,11 +62,11 @@ does not fall back to Sarvam when that lane is absent or fails.
 
 Older generic memory helpers have their own Azure configuration:
 
-| name | consumed at | required in strict mode | missing behavior |
-|---|---|---|---|
-| `AZURE_ENDPOINT`, `AZURE_API_KEY` | `api/memory.js`, `api/consolidate.js` | valid Azure endpoint and key for extraction/consolidation; existing config-file values remain supported | named unavailability, no OpenRouter fallback |
-| `AZURE_PHOTO_MODEL` | `api/memory.js` | explicit Azure deployment/model for photo description | `memory_azure_photo_model_unconfigured` |
-| `AZURE_AUDIT_MODEL` | `api/consolidate.js` | explicit audit model identifier different from the extraction identifier | `consolidate_azure_audit_model_unconfigured` before consolidation writes |
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `AZURE_ENDPOINT`, `AZURE_API_KEY` | `api/memory.js`, `api/consolidate.js` | conditional: Azure-only generic memory extraction/consolidation | existing config-file endpoint and `AZURE_KEY`; no foreign provider in strict mode | named unavailability when neither environment nor config provides a valid Azure endpoint/key |
+| `AZURE_PHOTO_MODEL` | `api/memory.js` | conditional: Azure-only photo description | none | `memory_azure_photo_model_unconfigured` |
+| `AZURE_AUDIT_MODEL` | `api/consolidate.js` | conditional: Azure-only consolidation; explicit audit model identifier different from extraction | none | `consolidate_azure_audit_model_unconfigured` before consolidation writes |
 
 A configured identifier does not prove vision support or independent model-family
 auditing. Verify the deployed model before enabling these capabilities. Strict

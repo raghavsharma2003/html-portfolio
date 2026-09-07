@@ -16497,3 +16497,23 @@ Strictfallback closure alone wouldstillhideunsupportedphoto configuration orinva
 ## `deferred-producer-test-missed-overlapping-snapshot-20260907` (2026-09-07)
 
 Initial11real erasuregroups proved delayedINSERT aftercompleteddelete wasrefused, but directremoval had inverted source/itemlockorder and an old READCOMMITTEDsnapshot couldmiss a concurrentlycommitted proposal. Realinteractive oldUPDATEnegativecontrol retained syntheticquotation afterdeletion, confirmingthebug. NewUPSERT plusorderedlocks passedbothsource-backed/source-less cases. Canonicalcompletion hasseparatelycommitteddeleting statefence; do notconflate itsauthority withdirectremove.
+
+
+## `unchanged-resources-do-not-prove-host-contention-20260907` (2026-09-07)
+
+Room fixture and Hindi asset hashes match release13 and displayed resource sizes are unchanged; static pages also slowed. These facts do not prove contention because no host sample was captured during the failing performance window. A laterCPU sample taken during eval cannot explain that window. Source inspection also disproves a locale-click explanation: locale comes from URL initialization. MissingLCP must fail as an invalid observation, never count as zero. Retain controlled diagnostics before another acceptance attempt.
+
+
+## `windows-follower-green-exit-skipped-journey-20260907` (2026-09-07)
+
+After fixing the missing real roomReplyTextProfile export in the rehearsal stub, direct Windows follower runs exited0 with zero output. file:// plus a Windows path did not equal import.meta.url, so the main guard never ran. Replaced it with pathToFileURL(resolve(argv1)). Creator executes directly and has no duplicate guard. Earlier green gate exits do not prove this follower journey ran. Current retained full run actually emitted102passing assertions.
+
+
+## `fresh-manifest-can-silently-omit-new-table-shape-20260907` (2026-09-07)
+
+Root found Azure generic memory fields in a four-column table ignored by the intentionally closed manifest parser. Regenerating alone would report fresh while missing those fields. Changed documentation to the recognized five-column shape, preserving conditional capability requirements and config fallback; added required-name assertions. Generated checklist now has131vercel-app entries of182total, including4Azure memory settings and2experimental Room flags; no setting was activated.
+
+
+## `fixed-dwell-can-end-before-first-contentful-paint-20260907` (2026-09-07)
+
+Retained diagnostic saw visible/focused document and no input, yet first-contentful-paint3388ms arrived after the earlier performance snapshot(wall3096ms). MissingLCP was not0 or proved fast rendering. New collector waits at most2500ms only for missing supported LCP, retains navigation-relative startTime and unchanged2500ms budget. Its full-run longtask window extends in that case; late observations can now fail the actual speed budget. All prior failed batches remain retained.

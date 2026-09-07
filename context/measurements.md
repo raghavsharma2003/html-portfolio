@@ -16373,3 +16373,33 @@ Root repeated9actualprivateproposalreview SQL groups at2026-09-07T08:17:05.885Z 
 ## `canonical-source-proposals-eleven-sql-checks-20260907` (2026-09-07)
 
 At2026-09-07T08:18:32.834Z root repeated11actualdevelopmentSQLgroups on finalsource/removalcode: exactcompletion/producerEXPLAIN,ready-sourceidempotence,sixstates scrub+receipt/wronglease/retry,pausedproducer aftercanonical/directremoval refusal andunrelatedownercontrol.0fixture rows. Interactive16group overlap proof is separate. No objectstorage/provider execution; synthetic manifests only.
+
+
+## `frozen-fourteen-completed-twenty-two-of-twenty-four-20260907` (2026-09-07)
+
+On2026-09-07 release14 ran08:21:26.786Z to08:40:33.686Z on a93ae825fa6ceb0d3f29513b2ffe10a927cb4686, exit1, changedDuringRun=false.22/24software gates passed, including layout and accessibility. Eval failures: reviewqueue, creator-export, rehearsal-follower, rehearsal-creator, env-manifest. Performance n=3cold runs per target under unchanged4xCPU/1.6Mbps/750Kbps/150ms profile: RoomEN TBT333ms, Hindi637ms, StudioEN LCP2644ms; HindiRoom run3 and HindiStudio run1 lacked valid observedLCP. The2relational gates skipped for absentNEON_URL; separate real development proofs retain their own scope. Logs scratchpad/expert-integrated-release-14.log and scratchpad/release-logs/2026-09-07T08-21-26-948Z-25480/. No current release acceptance.
+
+
+## `private-sheet-export-six-live-groups-20260907` (2026-09-07)
+
+At2026-09-07T08:47:16.475Z root ran6actual isolateddevelopment SQL groups: exact CREATOR_TEACHER_SHEETS_SQL EXPLAIN, actual creatorExport for two generated owners including bound/unbound/legacy/revoked sheets, explicit ownership precedence over unrelated sheet agent metadata, wrong/empty scopes, bound and unbound erasure cascades.0fixture rows remained. The runtime export table selection was narrowed to TeacherSheets for this proof; it does not prove every export table or production behavior. Agent offline creator-export51checks passed separately.
+
+
+## `full-rehearsals-and-reviewqueue-after-fourteen-20260907` (2026-09-07)
+
+On2026-09-07 agent ran reviewqueue189/189, follower --full102/102 (English browser20.928s,Hindi17.760s,total58.268s) and creator REHEARSAL_FULL=1 78/78(total60.4s). Follower includes WhatsApp/Telegram fake transports. Creator seeds4/5Readiness dimensions. These are actual browser fixture journeys, not real identity/voice enrollment or owner quality acceptance. Production never-rule enforcement was intact; two obsolete source regexes now include textProfile forwarding, supplemented with actual gatedReply negative controls.
+
+
+## `manifest-freshness-and-azure-memory-presence-20260907` (2026-09-07)
+
+On2026-09-07 root executed evals/env-manifest/run.mjs on recognized conditionalAzure table and regenerated131entryartifact:0failures, including4new checks for AZURE_ENDPOINT,AZURE_API_KEY,AZURE_PHOTO_MODEL,AZURE_AUDIT_MODEL. Names and target/conditional metadata only; no credential values were read into the artifact.
+
+
+## `room-date-native-attribution-and-render-proof-20260907` (2026-09-07)
+
+On2026-09-07 opt-in profiler n3 measured native toLocaleDateString135/315/302ms inside first-mount RoomApp longtasks284/516/488ms. Profiling adds overhead and other-worktree checkout activity overlapped attribution; these are direct call durations, not release timing or a contention diagnosis. Source was changed only after this mechanism was demonstrated. Agent12checks execute8actual bundled English/Hindi SSR cases with byte-identical markup versus original-placement mutant, plus4actual memo-callback/dependency controls.31measurement checks include missing/late observation and actual reset-clock negativecontrol; typecheck/build passed.
+
+
+## `room-entry-performance-all-targets-after-fix-20260907` (2026-09-07)
+
+At2026-09-07T09:02:15Z agent completed one full standard --json performance gate:9targets x3coldruns,27/27positive supportedLCPobservations, exit0, no findings orinstallfailures, unchanged4xCPU/1.6Mbps/750Kbps/150ms andbudgets. Median RoomEN LCP1576ms/TBT122ms,RoomHI1896/162,StudioEN2372/123,StudioHI2280/127. All287source/build fingerprints unchanged duringtiming;57fullprocess countersnapshots retained withoutcommands/credentials. Artifacts scratchpad/room-entry-after-performance-20260907.{json,identity.json,cpu.json,stderr.log}. This focused fullperformance result is not the fullrelease result.

@@ -1551,6 +1551,14 @@ export function doorsDb(state) {
   const db = async (sql, params = []) => {
     calls.push(sql);
     const has = (s) => sql.includes(s);
+    if (has("select s.* from vy_teacher_sheet s") && has("where exists (") &&
+        has("r.replica_id = any($1::uuid[]) and r.owner_user_id = $2::uuid")) {
+      const [replicaIds, owner] = params;
+      const owned = state.replicas.filter(r => replicaIds.includes(r.replica_id) && r.owner_user_id === owner);
+      return (state.teacherSheets || []).filter(s => owned.some(r =>
+        (s.replica_id === r.replica_id && s.owner_user_id === r.owner_user_id) ||
+        (s.replica_id == null && s.owner_user_id == null && s.agent_id != null && s.agent_id === r.agent_id)));
+    }
     const hit = match(sql, params, has);
     if (hit !== undefined) return hit;
     return base(sql, params);

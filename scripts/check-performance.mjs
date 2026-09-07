@@ -358,7 +358,24 @@ function median(nums) {
   return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
 }
 
-async function measureOnce(browser, target, diagnostics = false) {
+// A fixed post-network dwell can end before first contentful paint under
+// throttling. Wait only for a missing observation, never rewrite its clock.
+// This extends the longtask window by at most 2500ms in that case; TBT remains
+// the whole-observed-run approximation described above, not a fixed window.
+export async function readSettledPerformance(page) {
+  let perf = await page.evaluate(() => window.__PERF__);
+  if (perf?.lcpObserverSupported === true &&
+      !(perf.lcpObserved === true && Number.isFinite(perf.lcp) && perf.lcp > 0)) {
+    await page.waitForFunction(() => {
+      const value = window.__PERF__;
+      return value?.lcpObserved === true && Number.isFinite(value.lcp) && value.lcp > 0;
+    }, null, { timeout: 2500 }).catch(() => {});
+    perf = await page.evaluate(() => window.__PERF__);
+  }
+  return perf;
+}
+
+async function measureOnce(browser, target, diagnostics = false, profile = false) {
   const context = await browser.newContext({ viewport: VIEWPORT });
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
@@ -421,7 +438,7 @@ async function measureOnce(browser, target, diagnostics = false) {
     bytes.total += n;
   });
 
-  await page.addInitScript(({ chunkPath, diagnostics }) => {
+  await page.addInitScript(({ chunkPath, diagnostics, profile }) => {
     // Public fixture diagnostics only: never retain text, query strings or credentials.
     const resourceName = (value) => {
       if (!value) return null;
@@ -431,8 +448,34 @@ async function measureOnce(browser, target, diagnostics = false) {
       lcp: null, lcpObserved: false, lcpObserverSupported: false,
       cls: 0, longtasks: [], firstPaintMs: null, hindiChunkWaitMs: null,
       firstHindiPaintMs: null,
-      ...(diagnostics ? { diagnostic: { lcpEntries: [], longtasks: [] } } : {}),
+      ...(diagnostics ? { diagnostic: {
+        lcpEntries: [], longtasks: [], paintEntries: [], visibility: [], firstInputs: [], dateFormats: [],
+      } } : {}),
     };
+    if (diagnostics) {
+      const markVisibility = () => window.__PERF__.diagnostic.visibility.push({
+        startTime: performance.now(), state: document.visibilityState, focused: document.hasFocus(),
+      });
+      markVisibility();
+      document.addEventListener("visibilitychange", markVisibility);
+      for (const type of ["paint", "first-input"]) {
+        if (!PerformanceObserver.supportedEntryTypes.includes(type)) continue;
+        new PerformanceObserver((list) => {
+          const entries = list.getEntries().map(e => ({ name: e.name, startTime: e.startTime, duration: e.duration }));
+          window.__PERF__.diagnostic[type === "paint" ? "paintEntries" : "firstInputs"].push(...entries);
+        }).observe({ type, buffered: true });
+      }
+    }
+    if (profile) {
+      // Native Intl work is otherwise charged to the calling component in a
+      // JS CPU profile. Retain durations only, never dates or formatted text.
+      const formatDate = Date.prototype.toLocaleDateString;
+      Date.prototype.toLocaleDateString = function (...args) {
+        const startTime = performance.now();
+        try { return Reflect.apply(formatDate, this, args); }
+        finally { window.__PERF__.diagnostic.dateFormats.push({ startTime, duration: performance.now() - startTime }); }
+      };
+    }
     try {
       if (!PerformanceObserver.supportedEntryTypes.includes("largest-contentful-paint")) {
         throw new Error("LCP observer unsupported");
@@ -519,11 +562,17 @@ async function measureOnce(browser, target, diagnostics = false) {
         }
       } catch {}
     }
-  }, { chunkPath: hiChunkPath, diagnostics });
+  }, { chunkPath: hiChunkPath, diagnostics, profile });
 
   let crashed = null;
   page.on("pageerror", (e) => { crashed = String(e.message || e).slice(0, 200); });
 
+  // Opt-in attribution only. Profiling adds overhead, so its timings must not
+  // be substituted for the ordinary release measurement.
+  if (profile) {
+    await cdp.send("Profiler.enable");
+    await cdp.send("Profiler.start");
+  }
   const t0 = Date.now();
   await page.goto(`http://127.0.0.1:${PORT}${target.path}`, { waitUntil: "load", timeout: 45000 });
   // Under throttling, "load" fires well before the observers above have
@@ -533,9 +582,20 @@ async function measureOnce(browser, target, diagnostics = false) {
   // produces).
   await page.waitForLoadState("networkidle", { timeout: 12000 }).catch(() => {});
   await page.waitForTimeout(1500);
+  const perf = await readSettledPerformance(page);
   const wallMs = Date.now() - t0;
-
-  const perf = await page.evaluate(() => window.__PERF__);
+  const cpuProfile = profile ? (await cdp.send("Profiler.stop")).profile : null;
+  if (cpuProfile) {
+    // Public fixture source locations only; never retain URL query strings.
+    for (const node of cpuProfile.nodes) {
+      const value = node.callFrame.url;
+      if (!value) continue;
+      try {
+        const url = new URL(value);
+        node.callFrame.url = `${url.origin}${url.pathname.startsWith("/api/") ? "/api/[redacted]" : url.pathname}`;
+      } catch { node.callFrame.url = ""; }
+    }
+  }
   const renderBlocking = await page.evaluate(() => {
     const entries = performance.getEntriesByType("resource");
     const blocking = entries.filter((e) => e.renderBlockingStatus === "blocking");
@@ -562,6 +622,7 @@ async function measureOnce(browser, target, diagnostics = false) {
       resources: performance.getEntriesByType("resource").map(timing),
     };
   }) : null;
+  if (diagnostic && cpuProfile) diagnostic.cpuProfile = cpuProfile;
   await context.close();
 
   return {
@@ -590,9 +651,9 @@ async function measureOnce(browser, target, diagnostics = false) {
   };
 }
 
-async function measureTarget(browser, target, diagnostics = false) {
+async function measureTarget(browser, target, diagnostics = false, profile = false) {
   const runs = [];
-  for (let i = 0; i < RUNS; i++) runs.push(await measureOnce(browser, target, diagnostics));
+  for (let i = 0; i < RUNS; i++) runs.push(await measureOnce(browser, target, diagnostics, profile));
   const crashes = runs.filter((r) => r.crashed);
   // WS-R82. Only the `studio-hi` target sets this at all (`hiChunkPath` is
   // null everywhere else, so `hindiChunkWaitMs` stays `null` on every run);
@@ -802,7 +863,8 @@ export function performanceGateResult({ budgetFindings = [], install = null, sta
 
 async function main() {
   const args = process.argv.slice(2);
-  const diagnostics = args.includes("--diagnostics");
+  const profile = args.includes("--profile");
+  const diagnostics = args.includes("--diagnostics") || profile;
   const asJson = args.includes("--json") || diagnostics;
   const targetArg = args.includes("--target") ? args[args.indexOf("--target") + 1] : null;
   const prerequisiteFailure = detail => {
@@ -862,7 +924,7 @@ async function main() {
 
   const results = [];
   for (const target of targets) {
-    results.push(await measureTarget(browser, target, diagnostics));
+    results.push(await measureTarget(browser, target, diagnostics, profile));
   }
 
   await browser.close();
@@ -887,6 +949,7 @@ async function main() {
       throttle: THROTTLE,
       budgets: { ...BUDGETS, hindiChunkWaitMs: HINDI_CHUNK_WAIT_BUDGET_MS, firstHindiPaintMs: FIRST_HINDI_PAINT_BUDGET_MS },
       viewport: VIEWPORT, runs: RUNS, results, install,
+      ...(profile ? { profiling: "CPU sampling enabled; attribution diagnostic, not an ordinary release measurement" } : {}),
       staticFindings: hindiPreloadFindings,
     }, null, 2));
   } else {

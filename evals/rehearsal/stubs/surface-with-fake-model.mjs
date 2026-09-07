@@ -29,7 +29,7 @@ const REAL_URL = pathToFileURL(join(HERE, "..", "..", "..", "api", "_surface.js"
 const REAL = await import(REAL_URL);
 
 export const {
-  ROOM_CARD, withdrawReceipt, NOTICED_EMOJI, loadEngine, honestyContextFor, hasGate, gateReply,
+  ROOM_CARD, withdrawReceipt, NOTICED_EMOJI, loadEngine, honestyContextFor, hasGate, gateReply, roomReplyTextProfile,
   gatedReply, deliver, splitForLimit, resolveIdentity, linkIdentity, legacyChatId, legacyUserId,
   roomForChat, ensureRoomForSurfaceChat, upsertRoomMember, dispatch, onBotMembership, onMemberChange,
   onJoin, onLeave, onDirectMessage, logDmTurn, dmHistory, onGroupMessage, sinceHerLast, roomHistory,

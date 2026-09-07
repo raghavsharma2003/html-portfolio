@@ -1,7 +1,8 @@
 // Actual gate decision functions with observed-run fixtures. No browser launched.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { evaluateBudgets, performanceGateResult } from "../scripts/check-performance.mjs";
+import { runInNewContext } from "node:vm";
+import { evaluateBudgets, performanceGateResult, readSettledPerformance } from "../scripts/check-performance.mjs";
 
 let checks = 0;
 function check(name, fn) { fn(); console.log(`ok ${++checks} - ${name}`); }
@@ -102,5 +103,57 @@ check("actual-source missing-guard mutant falsely admits every malformed-run fix
 check("actual-source mutant preserves ordinary budget failures", () => {
   const value = result(); value.median.tbtMs = 301;
   assert.equal(outcome(value, mutated.evaluateBudgets).exitCode, 1);
+});
+async function collect(initial, afterWait, read = readSettledPerformance) {
+  let state = structuredClone(initial);
+  const waits = [];
+  const page = {
+    evaluate: async fn => structuredClone(runInNewContext(`(${fn.toString()})()`, { window: { __PERF__: state } })),
+    waitForFunction: async (fn, arg, options) => {
+      waits.push(options);
+      if (afterWait) state = structuredClone(afterWait);
+      const ready = runInNewContext(`(${fn.toString()})()`, { window: { __PERF__: state } });
+      if (!ready) throw new Error("bounded timeout");
+    },
+  };
+  return { perf: await read(page), waits };
+}
+const initial = { lcp: null, lcpObserved: false, lcpObserverSupported: true, longtasks: [] };
+const late = { ...initial, lcp: 3388, lcpObserved: true, longtasks: [100, 200] };
+const settled = await collect(initial, late);
+check("late paint waits once with a bound and preserves the navigation-relative clock", () => {
+  assert.deepEqual(settled.waits, [{ timeout: 2500 }]);
+  assert.deepEqual(settled.perf, late);
+  // Zeroing the timestamp or starting a fresh clock must fail this same proof.
+  for (const lcp of [0, 888]) assert.throws(() => assert.equal(lcp, settled.perf.lcp), assert.AssertionError);
+});
+check("successful late observation still fails the unchanged LCP budget", () => {
+  const value = result(Array.from({ length: 3 }, () => measured({ lcpMs: settled.perf.lcp })));
+  value.median.lcpMs = settled.perf.lcp;
+  assert.equal(outcome(value).exitCode, 1);
+  assert.deepEqual(outcome(value).findings.map(f => f.metric), ["LCP"]);
+});
+const missing = await collect(initial, null);
+check("bounded timeout remains missing observation, never zero or a manufactured value", () => {
+  assert.deepEqual(missing.waits, [{ timeout: 2500 }]);
+  assert.deepEqual(missing.perf, initial);
+  refuses(result(Array.from({ length: 3 }, () => measured({ lcpMs: missing.perf.lcp, lcpObserved: false }))));
+});
+const ready = await collect(late, null);
+const unsupported = await collect({ ...initial, lcpObserverSupported: false }, null);
+check("observed and unsupported observers do not extend the existing measurement window", () => {
+  assert.deepEqual(ready.waits, []);
+  assert.deepEqual(unsupported.waits, []);
+});
+const returnPerf = /  return perf;\r?\n\}/;
+assert.ok(returnPerf.test(code), "actual settlement return is reachable by the negative control");
+const resetClockCode = code.replace(returnPerf, "  return { ...perf, lcp: Math.max(0, (perf.lcp ?? 0) - 2500) };\n}");
+const resetClock = await import(`data:text/javascript;base64,${Buffer.from(resetClockCode).toString("base64")}`);
+const reset = await collect(initial, late, resetClock.readSettledPerformance);
+check("actual-source reset-clock mutant falsifies the late-paint budget", () => {
+  assert.throws(() => assert.equal(reset.perf.lcp, late.lcp), assert.AssertionError);
+  const value = result(Array.from({ length: 3 }, () => measured({ lcpMs: reset.perf.lcp })));
+  value.median.lcpMs = reset.perf.lcp;
+  assert.equal(outcome(value).exitCode, 0, "mutant incorrectly admits the real 3388ms paint");
 });
 console.log(`${checks} performance measurement checks passed; no browser or timing benchmark run.`);

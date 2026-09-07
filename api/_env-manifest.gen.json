@@ -36,6 +36,15 @@
     "required": false
   },
   {
+    "name": "AZURE_API_KEY",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
     "name": "AZURE_AUDIO_PROTECTION_HMAC_SECRET",
     "section": "6",
     "sectionTitle": "Provenance / protection — watermark + C2PA, app side (`vercel-app`)",
@@ -53,6 +62,15 @@
       "vercel-app"
     ],
     "required": true
+  },
+  {
+    "name": "AZURE_AUDIT_MODEL",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
   },
   {
     "name": "AZURE_CLIENT_ID",
@@ -144,6 +162,15 @@
       "vercel-app"
     ],
     "required": true
+  },
+  {
+    "name": "AZURE_ENDPOINT",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
   },
   {
     "name": "AZURE_FACE_DEDICATED_RESOURCE",
@@ -444,6 +471,15 @@
       "vercel-app"
     ],
     "required": true
+  },
+  {
+    "name": "AZURE_PHOTO_MODEL",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
   },
   {
     "name": "AZURE_REPLICA_APP_BUDGET_USD",
@@ -973,6 +1009,24 @@
     "name": "ROOM_HANDOFF_KERNEL",
     "section": "31",
     "sectionTitle": "Handoff v1 on the relational kernel (`vercel-app`, WS-R87, 2026-09-05)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "ROOM_REPLY_LANGUAGE_POLICY",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "ROOM_REPLY_TEXT_PROFILE",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
     "target": [
       "vercel-app"
     ],

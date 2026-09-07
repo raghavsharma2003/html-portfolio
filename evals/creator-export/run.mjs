@@ -21,6 +21,7 @@
 //
 // Offline, deterministic, $0, no DB, no network, no model call.
 import { readFileSync } from "node:fs";
+import assert from "node:assert/strict";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadSchema } from "../sqlcast/schema.mjs";
@@ -41,6 +42,7 @@ const CE = await import(pathToFileURL(join(REPO, "api/_creator-export.js")).href
 const {
   OWNER_LANE_TABLES, OWNER_LANE_DELIBERATE_GAPS, MIXED_LANE_TABLES, creatorExport, creatorExportTableNames,
   followerLaneTableNames, scopedQuery,
+  CREATOR_TEACHER_SHEETS_SQL,
 } = CE;
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -235,6 +237,16 @@ const OWNER_TOKEN = "OWNER_SOURCE_zzzzzzzz";
  *  stand-in that could silently diverge from what it actually sends). */
 function fakeDb(state) {
   return async function db(sql, params) {
+    if (sql.startsWith("select s.* from vy_teacher_sheet s")) {
+      const [replicaIds, owner] = params;
+      const owned = (state.vy_replica || []).filter(r => replicaIds.includes(r.replica_id) && r.owner_user_id === owner);
+      const requireNullReplica = sql.includes("s.replica_id is null");
+      const requireNullOwner = sql.includes("s.owner_user_id is null");
+      return (state.vy_teacher_sheet || []).filter(s => owned.some(r =>
+        (s.replica_id === r.replica_id && s.owner_user_id === r.owner_user_id) ||
+        ((!requireNullReplica || s.replica_id == null) && (!requireNullOwner || s.owner_user_id == null) &&
+          s.agent_id != null && s.agent_id === r.agent_id)));
+    }
     if (/select replica_id, agent_id from vy_replica where owner_user_id = \$1::uuid/.test(sql)) {
       return (state.vy_replica || []).filter((r) => r.owner_user_id === params[0]);
     }
@@ -392,6 +404,48 @@ ok("the manifest's row count for vy_replica_source matches the real row count",
   manifestByTable.vy_replica_source === 1);
 ok("the manifest's row count for a table with zero rows for this owner is honestly zero",
   manifestByTable.vy_replica_audit === 0);
+
+// Exact current SQL with historical, explicit bound and unbound rows. No
+// production shared-replica-agent relation is fabricated: the hostile explicit
+// sheet merely carries an unrelated agent_id, which is not its ownership key.
+{
+  const sheets = seedWorld();
+  const unboundReplica = "a0000000-0000-4000-a000-00000000004a";
+  sheets.vy_replica.push({ replica_id: unboundReplica, owner_user_id: OWNER_A, agent_id: null });
+  sheets.vy_teacher_sheet = [
+    { sheet_id: "legacy-a", replica_id: null, owner_user_id: null, agent_id: AGENT_A, status: "validated", sheet: { marker: "own-legacy" } },
+    { sheet_id: "bound-a", replica_id: REPLICA_A, owner_user_id: OWNER_A, agent_id: AGENT_A, status: "draft", sheet: { marker: "own-bound" } },
+    { sheet_id: "unbound-a", replica_id: unboundReplica, owner_user_id: OWNER_A, agent_id: null, status: "draft", sheet: { marker: "own-unbound" } },
+    { sheet_id: "revoked-a", replica_id: unboundReplica, owner_user_id: OWNER_A, agent_id: null, status: "revoked", sheet: { marker: "own-revoked" } },
+    { sheet_id: "legacy-b", replica_id: null, owner_user_id: null, agent_id: AGENT_B, status: "draft", sheet: { marker: "other-legacy" } },
+    { sheet_id: "bound-b", replica_id: REPLICA_B, owner_user_id: OWNER_B, agent_id: AGENT_B, status: "draft", sheet: { marker: "other-bound" } },
+    { sheet_id: "explicit-b-unrelated-agent", replica_id: REPLICA_B, owner_user_id: OWNER_B, agent_id: AGENT_A, status: "validated", sheet: { marker: "other-explicit" } },
+  ];
+  const teacherDb = fakeDb(sheets);
+  const exported = await creatorExport(teacherDb, OWNER_A, { tableApplied: async () => true });
+  const exportedIds = exported.tables.vy_teacher_sheet.map(s => s.sheet_id).sort();
+  ok("creator export includes legacy, bound, unbound and revoked own sheets", JSON.stringify(exportedIds) === JSON.stringify(["bound-a", "legacy-a", "revoked-a", "unbound-a"]));
+  ok("teacher-sheet manifest count equals the actual exported rows", exported.manifest.find(x => x.table === "vy_teacher_sheet")?.rows === 4);
+  ok("teacher-sheet bodies are exported intact", exported.tables.vy_teacher_sheet.find(s => s.sheet_id === "unbound-a")?.sheet.marker === "own-unbound");
+  ok("teacher-sheet export never contains another owner's or follower's payload", !/other-legacy|other-bound|other-explicit|FOLLOWER_SECRET_ASK/.test(JSON.stringify(exported)));
+  const exportedB = await creatorExport(teacherDb, OWNER_B, { tableApplied: async () => true });
+  ok("other owner gets their own explicit sheets regardless of unrelated agent metadata", exportedB.tables.vy_teacher_sheet.some(s => s.sheet_id === "explicit-b-unrelated-agent") && !exportedB.tables.vy_teacher_sheet.some(s => /-a$/.test(s.sheet_id)));
+  const actual = scopedQuery({ table: "vy_teacher_sheet", scope: "teacher_sheet" }, { replicaIds: [REPLICA_A, unboundReplica], ownerUserId: OWNER_A });
+  ok("manifest query uses the exported exact SQL and owner/replica UUID parameters", actual.sql === CREATOR_TEACHER_SHEETS_SQL && actual.params[1] === OWNER_A && actual.sql.includes("r.replica_id = any($1::uuid[]) and r.owner_user_id = $2::uuid"));
+  const foreignScope = await teacherDb(actual.sql, [[REPLICA_B], OWNER_A]);
+  ok("another owner's replica id cannot replace the ownership predicate", foreignScope.length === 0);
+  const mutant = actual.sql.replace("s.replica_id is null and s.owner_user_id is null and ", "");
+  const leaked = await teacherDb(mutant, actual.params);
+  ok("negative control: dropping explicit-ownership precedence leaks the unrelated-agent sheet", leaked.some(s => s.sheet_id === "explicit-b-unrelated-agent"));
+  await assert.rejects(creatorExport(async (sql, params) => {
+    if (sql === CREATOR_TEACHER_SHEETS_SQL) throw new Error("synthetic SQL failure");
+    return teacherDb(sql, params);
+  }, OWNER_A, { tableApplied: async () => true }), { code: "creator_export_teacher_sheet_unavailable", status: 503 });
+  ok("teacher-sheet SQL failure cannot be reported as a successful empty export", true);
+  const migration = readFileSync(join(REPO, "db/migrations/139_private_teacher_sheet_draft.sql"), "utf8");
+  ok("explicit bound/unbound drafts share the owner+replica erasure cascade", /foreign key \(replica_id,owner_user_id\)[\s\S]*?references vy_replica\(replica_id,owner_user_id\) on delete cascade/.test(migration));
+  ok("historical sheets remain explicitly reached by the existing erasure agent delete", /teacher_sheets as \(delete from vy_teacher_sheet[\s\S]*?x\.agent_id=t\.agent_id/.test(erasureSrc));
+}
 
 // ═════════════════════════════════════════════════════════════════════════
 // LAYER 3 — an owner with NO replica yet gets an honest, empty export, not

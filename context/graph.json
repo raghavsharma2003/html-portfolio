@@ -13149,6 +13149,90 @@
       "kind": "measurement",
       "title": "Canonical source proposal cleanup passes final SQL rerun",
       "at": "2026-09-07"
+    },
+    {
+      "id": "diagnose-frozen-fourteen-before-new-release-20260907",
+      "kind": "decision",
+      "title": "Diagnose frozen release failures before acceptance",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "frozen-fourteen-completed-twenty-two-of-twenty-four-20260907",
+      "kind": "measurement",
+      "title": "Frozen release14 completed22 of24 software gates",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "unchanged-resources-do-not-prove-host-contention-20260907",
+      "kind": "rejection",
+      "title": "Unchanged resources do not establish host contention",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-sheet-export-follows-explicit-ownership-20260907",
+      "kind": "decision",
+      "title": "Export private sheets under explicit ownership",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-sheet-export-six-live-groups-20260907",
+      "kind": "measurement",
+      "title": "Private sheet export passes six real development SQL groups",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "windows-follower-green-exit-skipped-journey-20260907",
+      "kind": "rejection",
+      "title": "Windows follower entry guard silently skipped its journey",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "full-rehearsals-and-reviewqueue-after-fourteen-20260907",
+      "kind": "measurement",
+      "title": "Full bilingual rehearsals execute after guard repair",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "fresh-manifest-can-silently-omit-new-table-shape-20260907",
+      "kind": "rejection",
+      "title": "Freshness alone can miss undocumented parser shapes",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "manifest-freshness-and-azure-memory-presence-20260907",
+      "kind": "measurement",
+      "title": "Manifest regeneration and Azure field presence pass",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "defer-and-memoize-visible-reminder-format-20260907",
+      "kind": "decision",
+      "title": "Format reminder dates only for visible due reminders",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "room-date-native-attribution-and-render-proof-20260907",
+      "kind": "measurement",
+      "title": "Native date work measured then removed from unused screens",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "fixed-dwell-can-end-before-first-contentful-paint-20260907",
+      "kind": "rejection",
+      "title": "Fixed dwell ended before first text paint",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "room-entry-performance-all-targets-after-fix-20260907",
+      "kind": "measurement",
+      "title": "All entry performance targets pass after demonstrated fix",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "retain-every-release-performance-run-20260907",
+      "kind": "decision",
+      "title": "Retain per-run performance data in full release logs",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

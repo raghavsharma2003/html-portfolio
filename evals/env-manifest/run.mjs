@@ -57,6 +57,14 @@ console.log("── §1: parseEnvManifest against the real document ──");
   check("AZURE_FOUNDRY_ENDPOINT present, section 1, target vercel-app",
     foundry && foundry.section === "1" && foundry.target.includes("vercel-app"), JSON.stringify(foundry));
 
+  // A nonstandard four-column table previously hid these settings from
+  // generation while the freshness check still passed on that omission.
+  for (const name of ["AZURE_ENDPOINT", "AZURE_API_KEY", "AZURE_PHOTO_MODEL", "AZURE_AUDIT_MODEL"]) {
+    const entry = entries.find((e) => e.name === name);
+    check(`${name} is a conditional Azure memory setting on vercel-app`,
+      entry?.target.includes("vercel-app") && entry.required === false, JSON.stringify(entry));
+  }
+
   const roomWa = entries.find((e) => e.name === "ROOM_WHATSAPP_CHAT");
   check("ROOM_WHATSAPP_CHAT present, section 34 (Rooms-era)", roomWa && roomWa.section === "34", JSON.stringify(roomWa));
 

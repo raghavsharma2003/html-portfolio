@@ -204,7 +204,9 @@ await gate("layout readability", NODE, ["scripts/check-layout.mjs"]);
 // font transfer bytes, no render-blocking third-party request). A miss names
 // the target and the metric. See context/decisions.md#ws-r49-performance-
 // budgets-are-a-throttled-simulation-not-a-device for the reversal condition.
-await gate("performance budgets", NODE, ["scripts/check-performance.mjs"]);
+// Keep every cold run in the gate's retained stdout log. JSON output does not
+// enable profiling or diagnostics and leaves the measurement workload intact.
+await gate("performance budgets", NODE, ["scripts/check-performance.mjs", "--json"]);
 // The eval suite: parser cases, the persona invariants (crisis helplines,
 // never-deny-AI, NEVER MANIPULATE, spoken register), and the D0 fixture
 // integrity checks. run.mjs re-bundles from the REAL source on every run, so

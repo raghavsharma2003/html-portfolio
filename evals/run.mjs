@@ -45,6 +45,7 @@ const suites = {
   "identity-speech-v2": "identity-speech-v2.mjs",
   "voice-revision-lineage": "voice-evidence/revision-lineage.mjs",
   "performance-measurements": "performance-measurements.mjs",
+  "room-entry-work": "room-entry-work.mjs",
   "room-knowledge": "room-knowledge.mjs",
   "room-knowledge-integration": "room-knowledge-integration.mjs",
   "room-knowledge-ui": "room-knowledge-ui.mjs",

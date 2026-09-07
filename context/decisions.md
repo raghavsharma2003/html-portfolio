@@ -22763,3 +22763,23 @@ Direct removal locks canonical source before item and upserts a content-free rej
 ## `freeze-fourteen-after-owned-review-20260907` (2026-09-07)
 
 After agent source freezes, rootreviews/registered focusedtests and actualdevelopmentSQL, commit exactreviewedfiles andrunfullverify-release withunchangedbudgets. Recordhead, outputlogs,exitstatus andwhethertrackedtreechangedduringrun. No editsduringacceptance. Reversal condition: a failure requiresanexplicitfix followedbyanewfrozenrun; neverreinterpretanoldfailedrun aspassing.
+
+
+## `diagnose-frozen-fourteen-before-new-release-20260907` (2026-09-07)
+
+Retain release14 as failed and fix its five eval-suite failures without weakening assertions. Capture one unchanged-dist Hindi Room diagnostic with contemporaneous host sampling before attributing broad timing increases to a UI change. Keep all existing performance budgets. Reversal condition: retained diagnostic evidence identifies a different concrete cause or an explicit product change requires a new, justified measurement contract.
+
+
+## `private-sheet-export-follows-explicit-ownership-20260907` (2026-09-07)
+
+Creator export now includes TeacherSheets by current replica+owner, preserving historical agent-only rows only when both explicit ownership columns are null. Missing query support raises a named503 rather than an apparently complete empty export. Keep the existing overall export limits. Reversal condition: a migrated ownership model removes legacy rows or a stronger complete-export contract supersedes this scope with equivalent isolation and real SQL evidence.
+
+
+## `defer-and-memoize-visible-reminder-format-20260907` (2026-09-07)
+
+Use a fixed-position React useMemo with phase,due,baseline,locale dependencies. The callback formats only the visible due conversation reminder; join/loading/current reminders do no native date formatting, and unrelated typing renders reuse the value. Reversal condition: a real user flow requires the date earlier or a measured alternative preserves locale/output and removes the demonstrated cold native work.
+
+
+## `retain-every-release-performance-run-20260907` (2026-09-07)
+
+verify-release invokes check-performance with --json so retained stdout contains every cold run, without enabling profiler/diagnostic work. Freeze reviewed checkpoint and run fullrelease15 with originalbudgets. Reversal condition: an equally complete structured artifact is retained by the runner through a different output path; terse aggregate text alone lost evidence needed to diagnose14.

@@ -136,11 +136,14 @@ import { PERSON_TABLES, tableApplied as realTableApplied } from "./memory.js";
  *              of its own at all; reached by joining through this owner's
  *              own replica rows' `agent_id`, the identical join
  *              `completeReplicaErasure`'s own `removed_agent` CTE uses.
+ * `teacher_sheet` — explicit replica+owner ownership, or the historical
+ *              agent join only when BOTH explicit ownership columns are null.
  */
 export const OWNER_LANE_TABLES = Object.freeze([
   // ── the replica and its own identity companion ────────────────────────
   { table: "vy_replica", scope: "replica" },
   { table: "vy_agent", scope: "agent" },
+  { table: "vy_teacher_sheet", scope: "teacher_sheet" },
 
   // ── archive material: pointers and metadata, never bytes ──────────────
   { table: "vy_replica_source", scope: "replica" },
@@ -301,9 +304,22 @@ export function creatorExportTableNames() {
  *  rebuilt, never sliced back out of someone else's string). `ctx` carries
  *  the four id sets every scope draws from, computed once per call by
  *  `creatorExport` below. */
+// Exported so the real development SQL parser can check the exact query.
+// Explicit ownership is authoritative even before an agent exists. Historical
+// agent-only sheets cannot pull another replica's explicit draft into export.
+export const CREATOR_TEACHER_SHEETS_SQL = `select s.* from vy_teacher_sheet s
+  where exists (
+    select 1 from vy_replica r
+    where r.replica_id = any($1::uuid[]) and r.owner_user_id = $2::uuid
+      and ((s.replica_id = r.replica_id and s.owner_user_id = r.owner_user_id)
+        or (s.replica_id is null and s.owner_user_id is null and s.agent_id = r.agent_id))
+  ) limit 20000`;
+
 export function scopedQuery(entry, ctx) {
   const { replicaIds, ownerUserId, roomIds, agentIds } = ctx;
   switch (entry.scope) {
+    case "teacher_sheet":
+      return { sql: CREATOR_TEACHER_SHEETS_SQL, params: [replicaIds, ownerUserId] };
     case "replica":
       return {
         sql: `select * from ${entry.table} where replica_id = any($1::uuid[]) and owner_user_id = $2::uuid limit 20000`,
@@ -392,7 +408,14 @@ export async function creatorExport(db, ownerUserId, options = {}) {
   for (const entry of OWNER_LANE_TABLES) {
     if (!(await isApplied(entry.table))) continue;
     const { sql, params } = scopedQuery(entry, ctx);
-    const rows = await db(sql, params).catch(() => []);
+    const rows = await db(sql, params).catch(() => {
+      if (entry.scope === "teacher_sheet") {
+        throw Object.assign(new Error("creator_export_teacher_sheet_unavailable"), {
+          code: "creator_export_teacher_sheet_unavailable", status: 503,
+        });
+      }
+      return [];
+    });
     manifest.push({ table: entry.table, rows: rows.length });
     if (rows.length) tables[entry.table] = rows;
   }

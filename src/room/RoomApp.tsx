@@ -400,13 +400,15 @@ export default function RoomApp({
   const settingsBaseline = room?.follower?.settings_reviewed_at ?? room?.follower?.joined_at ?? null;
   const settingsReminderDue =
     !!settingsBaseline && Date.now() - new Date(settingsBaseline).getTime() >= 90 * 24 * 60 * 60 * 1000;
-  const settingsReminderDate = settingsBaseline
+  // Native locale formatting is costly on a cold device. Only a visible,
+  // overdue reminder needs this date; typing must not format it again.
+  const settingsReminderDate = useMemo(() => phase === "talking" && settingsReminderDue && settingsBaseline
     ? new Date(settingsBaseline).toLocaleDateString(locale === "hi" ? "hi-IN" : "en-IN", {
         day: "numeric",
         month: "short",
         year: "numeric",
       })
-    : "";
+    : "", [phase, settingsReminderDue, settingsBaseline, locale]);
 
   // WS-R59: the install card's own derived state — `isIOS` and
   // `alreadyInstalled` are read straight off the platform once, `showInstall`
