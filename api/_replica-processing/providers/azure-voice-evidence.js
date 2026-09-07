@@ -176,9 +176,8 @@ async function awaitReady(config, fetchImpl, signal) {
   fail(last === "none" ? "voice_evidence_unreachable" : "voice_evidence_not_ready", true);
 }
 
-async function remote(config, operation, inputs, fetchImpl, signal, extra = {}) {
+async function remote(config, operation, inputs, fetchImpl, signal, extra = {}, billing = null) {
   const path = "/v1/analyze";
-  await awaitReady(config, fetchImpl, signal);
   const payload = {
     operation,
     ...extra,
@@ -192,6 +191,8 @@ async function remote(config, operation, inputs, fetchImpl, signal, extra = {}) 
   };
   const body = Buffer.from(canonicalJson(payload));
   const bodyHash = sha256Hex(body);
+  await billing?.beforeProviderRequest?.({operation,requestSha256:bodyHash});
+  await awaitReady(config, fetchImpl, signal);
   const timestamp = new Date().toISOString();
   const nonce = randomBytes(18).toString("base64url");
   let response;
@@ -223,6 +224,7 @@ async function remote(config, operation, inputs, fetchImpl, signal, extra = {}) 
   let value;
   try { value = JSON.parse(responseBytes); }
   catch { fail("voice_evidence_response_invalid"); }
+  await billing?.afterProviderResponse?.({request_sha256:bodyHash,response_sha256:responseHash,http_status:response.status});
   if (!response.ok) fail(String(value?.error || "voice_evidence_failed"), response.status === 429 || response.status >= 500, response.status);
   return value;
 }
@@ -347,8 +349,9 @@ export function createAzureVoiceEvidenceAdapters(options = {}) {
   if (typeof fetchImpl !== "function") fail("voice_evidence_fetch_unavailable");
   const config = azureVoiceEvidenceConfig(options.env || process.env);
   const invoke = async (operation, request) => {
+    await request.billing?.beforePrivateRead?.();
     const inputs = await privateInputs(options.resolveInput, request.source, request.inputs, config, request.signal);
-    return { value: await remote(config, operation, inputs, fetchImpl, request.signal), inputs };
+    return { value: await remote(config, operation, inputs, fetchImpl, request.signal,{},request.billing), inputs };
   };
   const meta = (family, name) => Object.freeze({ family, name, version: "vyakti-voice-evidence-v1" });
   return Object.freeze({

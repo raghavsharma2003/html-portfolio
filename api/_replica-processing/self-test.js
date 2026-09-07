@@ -124,7 +124,7 @@ async function pickUnselectedEnhanceCandidate(db, ownerUserId, replicaId) {
        left join vy_replica_voice_reference vr on vr.replica_id=s.replica_id
         and vr.owner_user_id=s.owner_user_id and vr.source_id=s.source_id
       where a.replica_id=$1::uuid and a.owner_user_id=$2::uuid and a.stage='enhance'
-        and a.mime in ('audio/wav','audio/x-wav') and s.state='ready' and s.contains_third_parties=false
+        and a.mime in ('audio/wav','audio/x-wav') and s.state='ready' and s.purpose<>'comparison_reference' and s.contains_third_parties=false
         and lower(a.adapter_family||' '||a.adapter_name||' '||a.adapter_version) !~ '(fake|fixture|test|mock)'
         -- Reconciliation is level-triggered and can run every few minutes. If
         -- a usable enhance artifact is already the current selection, preserve
@@ -227,7 +227,7 @@ export async function reconcileSelfTestVoiceGenomes(db, options = {}) {
         and exists (
           select 1 from vy_replica_source s
            where s.replica_id=r.replica_id and s.owner_user_id=r.owner_user_id
-             and s.state='ready' and s.contains_third_parties=false
+             and s.state='ready' and s.purpose<>'comparison_reference' and s.contains_third_parties=false
         )
         and not exists (
           select 1 from vy_replica_voice_genome g

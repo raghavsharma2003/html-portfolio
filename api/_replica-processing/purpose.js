@@ -1,9 +1,11 @@
 // Narrow verification consent never authorizes the ordinary enrollment DAG.
 import { REPLICA_POLICY_VERSION } from "../_replica.js";
+import {assertComparisonPurpose,comparisonAuthoritySql} from './comparison.js';
 export const LIVE_INTAKE_PURPOSE = "live-challenge-intake/v1";
 export const LIVE_INTAKE_STEPS = Object.freeze(["integrity", "malware_scan"]);
 
 export function assertProcessingPurpose(source, step) {
+  assertComparisonPurpose(source,step);
   if (source?.capture_mode === "live_challenge" &&
       (source.state !== "quarantined" || source.kind !== "video" || !LIVE_INTAKE_STEPS.includes(step))) {
     throw Object.assign(new Error("live challenge permits only quarantined integrity and malware intake"), {
@@ -21,7 +23,7 @@ function alias(value) {
 // or leased jobs cannot bypass a new planner by executing their previous DAG.
 export function processingPurposeSql(source = "s", job = "j") {
   alias(source); alias(job);
-  return `(${source}.capture_mode <> 'live_challenge' or (
+  return `((${source}.purpose<>'comparison_reference' or ${comparisonAuthoritySql(source,job)}) and (${source}.capture_mode <> 'live_challenge' or (
     ${source}.state='quarantined' and ${source}.kind='video'
     and ${job}.step in ('integrity','malware_scan')
     and exists (
@@ -45,7 +47,7 @@ export function processingPurposeSql(source = "s", job = "j") {
             and intake_storage.scope='storage' and intake_storage.policy_version=intake_r.policy_version
             and intake_storage.revoked_at is null and (intake_storage.expires_at is null or intake_storage.expires_at>now()))
     )
-  ))`;
+  )))`;
 }
 
 // The result and current completed attempt must agree. A legacy complete flag,

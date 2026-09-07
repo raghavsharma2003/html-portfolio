@@ -329,6 +329,10 @@ export async function revokeOwnedConsent(db, ownerUserId, id, value) {
          gate_sidecar='{}'::jsonb,failure_code='rehearsal_account_consent_revoked',updated_at=now()
        where h.replica_id=$1::uuid and h.owner_user_id=$2::uuid and exists(select 1 from revoked)
          and ('capture'=any($3::text[]) or 'storage'=any($3::text[]))
+     ), comparison_preparations_revoked as (
+       update vy_replica_comparison_preparation cp set state='revoked',completed_receipt=null,completed_receipt_sha256=null,updated_at=now()
+       where cp.replica_id=$1::uuid and cp.owner_user_id=$2::uuid and exists(select 1 from revoked)
+         and ('capture'=any($3::text[]) or 'storage'=any($3::text[]))
      ), text_publications_revoked as (
        update vy_text_publication p set state='revoked',epoch=p.epoch+1,projection=null,receipt=null,revoked_at=coalesce(p.revoked_at,now())
        where p.replica_id=$1::uuid and p.owner_user_id=$2::uuid and exists(select 1 from revoked)

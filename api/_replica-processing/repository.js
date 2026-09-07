@@ -103,7 +103,15 @@ export async function commitProcessingOutput(db, input) {
   const adapter = input.output.adapter;
   if (!adapter?.family || !adapter?.name || !adapter?.version) throw new Error("completion adapter provenance required");
   const rows = await db(
-    `with eligible_job as materialized (
+    `with comparison_source_guard as materialized (
+       select s.source_id from vy_replica_source s join vy_replica_processing_job j using(source_id,replica_id,owner_user_id)
+       where j.job_id=$1::uuid and s.purpose='comparison_reference' for update of s nowait
+     ), comparison_replica_guard as materialized (
+       select r.replica_id from vy_replica r join vy_replica_processing_job j using(replica_id,owner_user_id)
+       join vy_replica_comparison_preparation cp on cp.preparation_id=j.comparison_preparation_id
+       where j.job_id=$1::uuid and r.private_text_epoch=(cp.receipt->>'authority_epoch')::bigint
+       and exists(select 1 from comparison_source_guard) for update of r nowait
+     ), eligible_job as materialized (
        select j.* from vy_replica_processing_job j
        join vy_replica_source s on s.source_id=j.source_id and s.replica_id=j.replica_id
         and s.owner_user_id=j.owner_user_id
@@ -111,6 +119,19 @@ export async function commitProcessingOutput(db, input) {
           and j.lease_expires_at>now() and j.step=$10
           and s.state in ('quarantined','processing')
           and ${processingPurposeSql()}
+          and (s.purpose<>'comparison_reference' or exists(select 1 from comparison_replica_guard))
+          and (s.purpose<>'comparison_reference' or (
+            $5::jsonb->>'purpose'='private-comparison-preparation/v1'
+            and ($5::jsonb->>'preparation_id')::uuid=j.comparison_preparation_id
+            and $5::jsonb->>'preparation_receipt_sha256'=(select cp.receipt_sha256 from vy_replica_comparison_preparation cp where cp.preparation_id=j.comparison_preparation_id)
+            and $5::jsonb->>'verified_input_sha256'=s.sha256
+            and $5::jsonb->'next_steps'=case j.step
+             when 'integrity' then '["malware_scan"]'::jsonb when 'malware_scan' then '["media_probe"]'::jsonb
+             when 'media_probe' then '["diarize"]'::jsonb when 'diarize' then '["separate"]'::jsonb
+             when 'separate' then '["enhance"]'::jsonb when 'enhance' then '["voice_quality"]'::jsonb else '[]'::jsonb end
+            and (j.step not in ('diarize','enhance','voice_quality') or exists(select 1 from vy_replica_comparison_dispatch cd
+             where cd.preparation_id=j.comparison_preparation_id and cd.job_id=j.job_id and cd.state='settled'))
+          ))
           and (s.capture_mode<>'live_challenge' or (
             $5::jsonb->>'purpose'='${LIVE_INTAKE_PURPOSE}'
             and $5::jsonb->>'verified_input_sha256'=s.sha256
@@ -247,10 +268,15 @@ export async function commitProcessingOutput(db, input) {
          from settled s where source.source_id=s.source_id and source.replica_id=s.replica_id
           and source.owner_user_id=s.owner_user_id and source.state in ('quarantined','processing')
      ), enqueued as (
-       insert into vy_replica_processing_job(replica_id,owner_user_id,source_id,step,revision,state)
-       select s.replica_id,s.owner_user_id,s.source_id,wanted.step,s.revision,'queued'
+       insert into vy_replica_processing_job(replica_id,owner_user_id,source_id,step,revision,state,comparison_preparation_id)
+       select s.replica_id,s.owner_user_id,s.source_id,wanted.step,s.revision,'queued',s.comparison_preparation_id
          from settled s cross join jsonb_array_elements_text($5::jsonb->'next_steps') wanted(step)
        on conflict (source_id,step,revision) do nothing returning step
+     ), comparison_completed as (
+       update vy_replica_comparison_preparation cp set state=case when s.step='voice_quality' then 'prepared' else 'running' end,
+        completed_receipt=case when s.step='voice_quality' then $5::jsonb else null end,
+        completed_receipt_sha256=case when s.step='voice_quality' then $6 else null end,updated_at=now()
+       from settled s where cp.preparation_id=s.comparison_preparation_id and cp.replica_id=s.replica_id and cp.owner_user_id=s.owner_user_id
      )
      select * from settled`,
     [input.jobId, leaseTokenHash(input.leaseToken), JSON.stringify(input.output.artifacts),

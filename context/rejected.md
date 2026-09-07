@@ -17101,3 +17101,8 @@ Identical retained bundle served by the incumbent fixture withoutcharset produce
 ## `modern-issued-authority30-snapshot-and-bootstrap-20260908` (2026-09-08)
 
 Rejected try-advisory/NOWAIT as sufficient freshness: a competing decision append can commit after statement snapshot but before lock acquisition, leaving old accepted evidence visible without an epoch mutation. Also rejected insert-before-expire replacement because migration016 has a partial unique live-challenge index; failed insertion must roll back prior expiry rather than swallow a conflict. Reusing private_text_epoch for voice review would invalidate completed publication answer readback. Signed VAD revisions were discarded by normalizedMeasurements, so historical reference compatibility cannot be inferred. Finally, legacy selected artifacts require prior liveness plus training/biometric consent; this is not a brand-new-owner comparison producer. The handoff preserves these walls and specifies a distinct purpose-limited reference preparation caller without training/inference grants.
+
+
+## `comparison-preparation31-ordinary-primary` (2026-09-08)
+
+Rejected routing comparison-only uploads through the ordinary primary selector: actual setter admitted purpose comparison_reference and could rotate its primary_selection_id, despite ordinary build/review refusing that material. Added actual target predicate and ordinary-list exclusion. Captured SQL control preserves synthetic pointer/epoch; removing that predicate reproduces mutation. Real SQL pointer CAS remains unrun. Also rejected treating unmetered GPU request duration or retail-window estimates as settled Azure spend; actual meter remains unavailable.

@@ -172,6 +172,8 @@ export const OWNER_LANE_TABLES = Object.freeze([
   { table: "vy_replica_consent", scope: "replica" },
   // Exact owner-scoped encrypted archive; withdrawal removes its payloads.
   { table: "vy_private_text_rehearsal", scope: "replica" },
+  { table: "vy_replica_comparison_preparation", scope: "replica" },
+  { table: "vy_replica_comparison_dispatch", scope: "replica" },
   // Owner projection/receipt only. Visitor sessions and encrypted questions
   // belong to the authenticated visitor, never this owner's export.
   { table: "vy_text_publication", scope: "replica" },
@@ -414,6 +416,9 @@ export async function creatorExport(db, ownerUserId, options = {}) {
     if (!(await isApplied(entry.table))) continue;
     const { sql, params } = scopedQuery(entry, ctx);
     let rows = await db(sql, params).catch(() => {
+      if (entry.table === "vy_replica_comparison_preparation" || entry.table === "vy_replica_comparison_dispatch") {
+        throw Object.assign(new Error("creator_export_comparison_preparation_unavailable"), {code:"creator_export_comparison_preparation_unavailable",status:503});
+      }
       if (entry.scope === "teacher_sheet" || entry.table === "vy_private_text_rehearsal" || entry.table === "vy_text_publication") {
         const code=entry.scope === "teacher_sheet"?"creator_export_teacher_sheet_unavailable":entry.table === "vy_text_publication"?"creator_export_text_publication_unavailable":"creator_export_private_rehearsal_unavailable";
         throw Object.assign(new Error(code), {

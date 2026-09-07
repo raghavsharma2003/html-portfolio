@@ -22,6 +22,8 @@ import {
 } from "./_replica-storage.js";
 import { applySelfTestAutoGrant, bootstrapSelfTestReplica } from "./_replica-processing/self-test.js";
 import { requireModernCaptureReadiness } from "./_liveness/capture-readiness.js";
+import {authorizeOwnedComparisonPreparation,requireCurrentComparisonPreparation,comparisonPreparationInput} from './_comparison-preparation.js';
+import {isComparisonSource} from './_replica-processing/comparison.js';
 
 const cors = (res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -54,14 +56,19 @@ const finalizedSourceResponse = (row, replayed = true) => ({
   finalized: ["quarantined", "processing", "ready"].includes(row.state),
 });
 
-async function sourceIdFromRequest(userId, body) {
+async function sourceIdFromRequest(userId, body, db = q) {
   if (body.source_id) return body.source_id;
   if (!body.upload_intent_id) return null;
-  const source = await getOwnedSourceByUploadIntent(q, userId, body.replica_id, body.upload_intent_id);
+  const source = await getOwnedSourceByUploadIntent(db, userId, body.replica_id, body.upload_intent_id);
   return source?.source_id || null;
 }
 
-export default async function handler(req, res) {
+export function createReplicaSourceHandler(options={}) {
+ const db=options.db||q,auth=options.auth||requireUser,rate=options.rate||allow;
+ const storage={ensurePrivateReplicaBucket,createSignedReplicaUpload,replicaObjectInfo,...options.storage};
+ return async function handler(req, res) {
+  const q=db,requireUser=auth,allow=rate;
+  const {ensurePrivateReplicaBucket,createSignedReplicaUpload,replicaObjectInfo}=storage;
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
@@ -73,17 +80,19 @@ export default async function handler(req, res) {
     const body = req.body || {};
 
     if (body.op === "create_upload") {
+      const comparison=body.purpose==='comparison_reference';
+      if(comparison){comparisonPreparationInput({...body,source_id:body.preparation_id});if(body.upload_intent_id!==body.preparation_id)throw Object.assign(Error('comparison_upload_intent_mismatch'),{status:400});}
       // Internal testing skips only the ceremony: the environment and access
       // mode are exact, and SQL independently requires an authenticated,
       // owned self-mode replica. The
       // upload, quarantine, scanner, evidence and model-build gates below are
       // unchanged.
-      const bootstrap = await bootstrapSelfTestReplica(q, {
+      const bootstrap = comparison?{applied:false}:await bootstrapSelfTestReplica(q, {
         ownerUserId: user.id,
         replicaId: body.replica_id,
         env: process.env,
       });
-      let source = await createPendingSource(q, user.id, body.replica_id, body);
+      let source = await createPendingSource(q, user.id, body.replica_id, body,{comparisonPreparation:comparison});
       if (!source) {
         return res.status(409).json({
           error: bootstrap.applied
@@ -92,6 +101,7 @@ export default async function handler(req, res) {
         });
       }
       const replayed = Boolean(source.intent_replayed);
+      if(comparison)await authorizeOwnedComparisonPreparation(q,user.id,body.replica_id,{...body,source_id:source.source_id});
       if (source.state !== "pending_upload") {
         if (["quarantined", "processing", "ready"].includes(source.state)) {
           return res.status(200).json(finalizedSourceResponse(source, replayed));
@@ -106,6 +116,7 @@ export default async function handler(req, res) {
       // the same intent and recover this exact pending source instead of
       // creating a duplicate.
       await ensurePrivateReplicaBucket(source.storage_bucket);
+      if(isComparisonSource(source))await requireCurrentComparisonPreparation(q,source);
       source = await reserveOwnedSourceUploadAuthorization(q, user.id, body.replica_id, source.source_id);
       if (!source) return res.status(409).json({ error: "pending_source_state_changed" });
       const upload = assertUploadWithinSourceFence(source,
@@ -117,9 +128,10 @@ export default async function handler(req, res) {
       });
     }
     if (body.op === "retry_upload") {
-      const sourceId = await sourceIdFromRequest(user.id, body);
+      const sourceId = await sourceIdFromRequest(user.id, body,q);
       if (!sourceId) return res.status(404).json({ error: "source_not_found" });
       let source = await getPendingSource(q, user.id, body.replica_id, sourceId);
+      if(source&&isComparisonSource(source))await requireCurrentComparisonPreparation(q,source);
       if (!source) {
         const existing = await getOwnedSource(q, user.id, body.replica_id, sourceId);
         if (!existing) return res.status(404).json({ error: "source_not_found" });
@@ -141,7 +153,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ...uploadResponse(source, upload), replayed: true, finalized: false });
     }
     if (body.op === "finalize") {
-      const sourceId = await sourceIdFromRequest(user.id, body);
+      const sourceId = await sourceIdFromRequest(user.id, body,q);
       if (!sourceId) return res.status(404).json({ error: "source_not_found" });
       const pending = await getPendingSource(q, user.id, body.replica_id, sourceId);
       if (!pending) {
@@ -192,7 +204,7 @@ export default async function handler(req, res) {
     if (body.op === "set_primary_voice") {
       const source = await setOwnedPrimaryVoiceSource(q, user.id, body.replica_id, body.source_id);
       if (!source) return res.status(409).json({ error: "primary_voice_source_ineligible" });
-      const auto = source.state === "ready"
+      const auto = source.state === "ready" && !isComparisonSource(source)
         ? await applySelfTestAutoGrant(q, { ownerUserId: user.id, replicaId: body.replica_id, env: process.env })
         : null;
       return res.status(200).json({
@@ -223,3 +235,5 @@ export default async function handler(req, res) {
       ...(error?.waiting_on === "us" ? { waiting_on: "us" } : {}) });
   }
 }
+}
+export default createReplicaSourceHandler();

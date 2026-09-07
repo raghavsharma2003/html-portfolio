@@ -1,5 +1,6 @@
 import { assertProcessingPurpose } from "./purpose.js";
 import { ProcessingAdapterError, sha256Hex } from "./contracts.js";
+import {isComparisonSource,COMPARISON_STEPS} from './comparison.js';
 
 // The first shipped worker is deliberately audio-first. Other source kinds stay
 // quarantined until their own reviewed DAG exists; silently treating them as
@@ -35,6 +36,7 @@ export function initialProcessingSteps(source) {
 export function nextProcessingSteps(step, completedSteps = [], source = null) {
   assertProcessingPurpose(source, step);
   if (source?.capture_mode === "live_challenge") return step === "integrity" ? ["malware_scan"] : [];
+  if(isComparisonSource(source)){const i=COMPARISON_STEPS.indexOf(step);return i>=0&&i<COMPARISON_STEPS.length-1?[COMPARISON_STEPS[i+1]]:[];}
   if (!(step in NEXT)) throw new Error(`unsupported audio pipeline step: ${step}`);
   const complete = new Set(completedSteps);
   complete.add(step);
@@ -44,8 +46,8 @@ export function nextProcessingSteps(step, completedSteps = [], source = null) {
   return [next];
 }
 
-export function assertDependencies(step, completedSteps = []) {
-  const dependencies = AUDIO_PROCESSING_DAG[step];
+export function assertDependencies(step, completedSteps = [], source = null) {
+  const dependencies = isComparisonSource(source)?(COMPARISON_STEPS.includes(step)?COMPARISON_STEPS.slice(0,COMPARISON_STEPS.indexOf(step)):null):AUDIO_PROCESSING_DAG[step];
   if (!dependencies) throw new Error(`unsupported audio pipeline step: ${step}`);
   const complete = new Set(completedSteps);
   const missing = dependencies.filter((dependency) => !complete.has(dependency));

@@ -1,6 +1,7 @@
 import { processingPurposeSql, LIVE_INTAKE_PURPOSE } from "./purpose.js";
 import { randomBytes } from "node:crypto";
 import { PROCESSING_SCHEMA_VERSION, PROCESSING_STAGES, assertSha256, sha256Hex } from "./contracts.js";
+import {COMPARISON_PREPARATION_PURPOSE,COMPARISON_STEPS} from './comparison.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -20,6 +21,7 @@ function publicJob(row) {
     state: row.state,
     attempt: Number(row.attempt),
     lease_expires_at: row.lease_expires_at,
+    comparison_preparation_id: row.comparison_preparation_id || null,
   };
 }
 
@@ -95,7 +97,7 @@ export async function renewProcessingLease(db, input) {
         and exists (
           select 1 from vy_replica_source s
            where s.source_id=j.source_id and s.replica_id=j.replica_id
-             and s.owner_user_id=j.owner_user_id and s.state in ('quarantined','processing')
+             and s.owner_user_id=j.owner_user_id and s.state in ('quarantined','processing') and ${processingPurposeSql()}
         )
       returning j.*`,
     [input.jobId, leaseTokenHash(input.leaseToken), leaseMs],
@@ -118,7 +120,12 @@ export function processingCompletionReceipt(result) {
     next_steps: nextSteps,
     verified_input_sha256: assertSha256(result.verified_input_sha256, "verified input sha256"),
   };
-  if (result.purpose != null) {
+  if(result.purpose===COMPARISON_PREPARATION_PURPOSE){
+    if(!COMPARISON_STEPS.includes(result.step)||!UUID.test(result.preparation_id||'')||!/^[0-9a-f]{64}$/.test(result.preparation_receipt_sha256||''))throw Error('invalid_comparison_preparation_receipt');
+    const index=COMPARISON_STEPS.indexOf(result.step),wanted=index<COMPARISON_STEPS.length-1?[COMPARISON_STEPS[index+1]]:[];
+    if(JSON.stringify(nextSteps)!==JSON.stringify(wanted))throw Error('invalid_comparison_preparation_steps');
+    basis.purpose=COMPARISON_PREPARATION_PURPOSE;basis.preparation_id=result.preparation_id;basis.preparation_receipt_sha256=result.preparation_receipt_sha256;
+  } else if (result.purpose != null) {
     if (result.purpose !== LIVE_INTAKE_PURPOSE || !["integrity", "malware_scan"].includes(result.step) ||
         artifactIds.length || evidenceIds.length ||
         JSON.stringify(nextSteps) !== JSON.stringify(result.step === "integrity" ? ["malware_scan"] : [])) {

@@ -89,7 +89,7 @@ async function createOwnedVoiceBuildIntent(db, ownerUserId, value) {
          from source_lock s join owned o on o.replica_id=s.replica_id
           and o.owner_user_id=s.owner_user_id
         where s.source_id=$4::uuid and s.kind in ('audio','video')
-          and s.capture_mode in ('upload','import','derived')
+          and s.capture_mode in ('upload','import','derived') and s.purpose<>'comparison_reference'
           and s.state in ('quarantined','processing','ready') and s.contains_third_parties=false
           and not (s.capture_mode='derived' and s.provenance->>'purpose'='mirror_window')
      ), inserted as (
@@ -243,7 +243,7 @@ async function promoteCandidate(db, ownerUserId, row) {
           and g.status in ('draft','approved')
           and (g.definition#>'{references,source_ids}') ? i.candidate_source_id::text
           and s.state='ready' and s.kind in ('audio','video')
-          and s.capture_mode in ('upload','import','derived') and s.contains_third_parties=false
+          and s.capture_mode in ('upload','import','derived') and s.purpose<>'comparison_reference' and s.contains_third_parties=false
           and not (s.capture_mode='derived' and s.provenance->>'purpose'='mirror_window')
           and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
           and i.expected_primary_selection_id=r.primary_selection_id

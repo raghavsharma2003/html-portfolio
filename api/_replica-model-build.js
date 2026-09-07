@@ -117,7 +117,7 @@ export async function completeVoiceGenomeBuild(db, lease, draft, input) {
      ), locked_sources as materialized (
        select s.source_id from vy_replica_source s cross join review_lock
         where review_lock.acquired and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid and s.source_id=any($12::uuid[])
-          and s.state='ready' and s.contains_third_parties=false
+          and s.state='ready' and s.purpose<>'comparison_reference' and s.contains_third_parties=false
         for update of s
      ), latest as (
        select distinct on (d.evidence_id) d.evidence_id,d.decision
@@ -156,7 +156,7 @@ export async function completeVoiceGenomeBuild(db, lease, draft, input) {
                select 1 from vy_replica_processing_evidence e
                join latest l on l.evidence_id=e.evidence_id and l.decision='accepted'
                join vy_replica_source s on s.source_id=e.source_id and s.replica_id=e.replica_id
-                and s.owner_user_id=e.owner_user_id and s.state='ready' and s.contains_third_parties=false
+                and s.owner_user_id=e.owner_user_id and s.state='ready' and s.purpose<>'comparison_reference' and s.contains_third_parties=false
                 where e.evidence_id=required.evidence_id and e.replica_id=$2::uuid and e.owner_user_id=$3::uuid
                   and lower(e.adapter_family||' '||e.adapter_name||' '||e.adapter_version)
                     !~ '(fake|fixture|test|mock)'
@@ -173,7 +173,7 @@ export async function completeVoiceGenomeBuild(db, lease, draft, input) {
             select count(*) from vy_replica_processing_evidence e
             join latest l on l.evidence_id=e.evidence_id and l.decision='accepted'
             join vy_replica_source s on s.source_id=e.source_id and s.replica_id=e.replica_id
-              and s.owner_user_id=e.owner_user_id and s.state='ready' and s.contains_third_parties=false
+              and s.owner_user_id=e.owner_user_id and s.state='ready' and s.purpose<>'comparison_reference' and s.contains_third_parties=false
             where e.replica_id=$2::uuid and e.owner_user_id=$3::uuid and e.evidence_type=any($13::text[])
               and e.source_id=any($12::uuid[])
               and lower(e.adapter_family||' '||e.adapter_name||' '||e.adapter_version)
@@ -191,7 +191,7 @@ export async function completeVoiceGenomeBuild(db, lease, draft, input) {
              where not exists (
                select 1 from vy_replica_processing_artifact a
                join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id
-                and s.owner_user_id=a.owner_user_id and s.state='ready' and s.contains_third_parties=false
+                and s.owner_user_id=a.owner_user_id and s.state='ready' and s.purpose<>'comparison_reference' and s.contains_third_parties=false
                 where a.artifact_id=required.artifact_id and a.replica_id=$2::uuid and a.owner_user_id=$3::uuid
                   and lower(a.adapter_family||' '||a.adapter_name||' '||a.adapter_version)
                     !~ '(fake|fixture|test|mock)'

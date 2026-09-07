@@ -17107,3 +17107,8 @@ At2026-09-07T21:54:13.482Z, n=4 actual export/heartbeat shapes passed EXPLAIN in
 ## `modern-issued-authority30-offline-20260908` (2026-09-08)
 
 On 2026-09-08 in isolated source based f4235c68: new41 offline actual issuer/registry/loader/SQL-capture controls passed; revision-lineage56 passed including10 new signed VAD retention and retained-old-expression controls. Impacted incumbent groups passed modern-capture52, readiness16, liveness22, composite13, evidence25, identity-audio39, replica-review38 and self-test31. Synthetic transport/DB callbacks only; no real SQL, model, browser, deployment, identity or likeness acceptance. Eight actual query shapes and one proposed unapplied migration are prepared for root parser/CAS proof. Copy7scopes21negatives passed.
+
+
+## `comparison-preparation31-offline` (2026-09-08)
+
+2026-09-08:26 focused offline groups passed using actual handlers/store/runtime/worker and synthetic SQL/storage/meter/signed transport; one complete seven-stage chain made3 fixture POSTs and zero real provider calls. Incumbent processing, voice-evidence25, processing-worker45, processing-sweep44, replica-review38, self-test31 and storage-writer22, model-build17, primary-voice17, source-erasure59 and creator-export57 passed. No PostgreSQL/browser/full-release/provider/owner-likeness proof. See COMPARISON-PREPARATION31-HANDOFF-20260908.md for limits.
