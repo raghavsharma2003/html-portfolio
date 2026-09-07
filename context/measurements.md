@@ -17003,3 +17003,40 @@ Actual final npx tsc-b exec34622 exit0 after owner availability implementation. 
 ## `publication-real-race13-quota5-cleanup-20260908` (2026-09-07)
 
 Inspect actual receipts, not wrapper exit alone. text-publication-sql-races-1788813428653-result.json: passtrue,13checks,13lockwitnesses,SQLerrors[],failure null,14cleanupscopes private0,27retiredIDs. text-publication-sql-quota-1788813801408-result.json: passtrue,5checks,5lockwitnesses,SQLerrors[],failure null,5cleanupscopes private0,11retiredIDs. Both retained complete receipts before wrapper shutdown warning. Prior sequential18/17EXPLAIN remains separately passed. No paidprovider/auth/storagecalls in these SQLfixtures. Real connection close-check1788813980198 exit0 confirmed fixed idempotent shutdown on repeated close without rerunning accepted SQL scenarios. Offline native36 controls and independent review ready, modelnotcalled.
+
+
+## `published-grounding-offline28-20260908` (2026-09-08)
+
+On 2026-09-08, nine offline source/artifact/adapter groups, nineteen incumbent compiler groups including eighty-three default byte fixtures, seventeen private compiler groups, forced TypeScript and engine freshness passed. New policy adds 1407 UTF-16 units. Zero live calls by this lane. Six fresh varied cases were preregistered before production edits; no live improvement measured.
+
+
+## `personality-review-mounted36-flow14-20260908` (2026-09-08)
+
+2026-09-07T21:04:26.202Z:36 actual mounted controls at390/1440 across both review components passed; retained old full sources reproduce A review then B version7 approval. Receipt scratchpad/personality-scope28/1788815052631/result.json.14 separate real compiler/dialogue-orchestrator controls passed with injected two-replica/two-person rows and non-model generator, not SQL proof. Incumbents43 person/31 calibration/50 runtime/31 dialogue/12 history independently exit0; forced types and copy7/21 passed. No provider, SQL, real auth, identity, training-effectiveness or full Studio journey acceptance.
+
+Additional focused mounted8 passed on unchanged production hashes: uncertain current-scope approval recovers via explicit GET without a repeated POST, and pending actual claim-review/calibration-choice writes ignore old-token readback after a same-owner token refresh, at390/1440. Receipt scratchpad/personality-scope28/1788815319667/result.json. Final registered fixture combines these with prior36; its combined44 has not been rerun in this isolate. Root final gate must run the combined44.
+
+
+## `expert-publication27-freeze-receipt` (2026-09-07)
+
+At 2026-09-07T20:50:10.262Z, the guarded freeze produced commit c3cae7ddbb6992ed9311d46f88d89b31f3fee8b0 covering n=60 files. Receipt: scratchpad/expert-tools/publication27-native-candidate-freeze.json. Before freezing, n=5 new JS/MJS files had only trailing blank lines normalized; TypeScript emitted output was byte-identical before and after for all five, and the store suite passed n=26 controls afterward. Corresponding live-acceptance source hashes were updated. No native provider call or full release acceptance is implied.
+
+
+## `expert-publication27-preparation-and-access` (2026-09-07)
+
+Release preparation receipt release27-preparation-1788814589583.json inspected 2796 tracked files, 24 gates and 348 registered suites; no full gate ran. Native prepared options pin 520 source files,25 query expectations and7 helper files. Root separately inspected n=2 mobile screenshots (early-share and visitor at390px): functional control evidence does not establish target clone UX; publication permission review remains tall and visitor view is a simple single-answer surface. Targeted Vercel replica-lab project read returned403 again; git ls-remote succeeded, handover61385c57 present and codex/expert-unified absent. No push/deploy or model call is claimed in this entry.
+
+
+## `expert-publication27-one-real-azure-answer` (2026-09-07)
+
+One actual Azure gpt-4.1-mini call returned925input/310outputtokens and settled866microUSD. The existing ledger moved129006→129872microUSD with0reserved. Actual owner create/account attestations/upload/draft/review/publication and visitor join/answer/replay/forget/unpublish completed the helper's10flow checks. T2.5seconds and f0.4Hz were correct; the answer then asserted lengthabout1.55metres despite missing measurement/model assumptions. Root preregistered rubric therefore fails grounding. Native artifact native-text-publication-run-checkpoint27.json and separate QUALITY-REVIEW retain the evidence. At this entry physical blob deletion returned202 followedbyHEAD404; final private-row/auth cleanup was still running on exec91371 and is not claimed complete.
+
+
+## `expert-publication27-connected-cleanup-final` (2026-09-07)
+
+Native exec91371 completed exit0 at2026-09-07T21:03:01.109Z after164330ms. Artifact SHA2564b891bb8ad9e2f86215ddae2c87eb556f31024952d0c8a6c5403dfee728b0430. Ten actual owner/visitor flow checks passed with exactly1Azure call. Physical erasure has1source receipt;145private count scopes all0;2synthetic auth accounts absent;2content-free retired IDs retained; cleanup_required=false; ledger preserved; cleanup errors0. Settled text cost866microUSD. The separate preregistered semantic review FAILED unsupported length inference, so this is not full release or product acceptance. Result: scratchpad/expert-tools/publication27-connected-result.json. Subsequent work remains isolated, candidate27 unchanged.
+
+
+## `expert-candidate28-focused-integration` (2026-09-07)
+
+Candidate28 staging from c3cae7dd includes reviewed capture five-file freeze, grounding c10e63e source/engine and personality684441e plus fixture-only6a9905a9. Root reran52capture controls,9grounding-contract controls,14actual compiler/caller controls and the full44mounted owner-review groups at390/1440. Mounted exec41360 exit0 receipt scratchpad/personality-scope28/1788815604447/result.json. ForcedTypeScript exec7526 exit0. Four new suites registered. No new live quality calls yet; baseline27 actual grounding failure remains uncorrected by evidence until comparison.

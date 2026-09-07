@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ReplicaApiError } from "./replicaApi";
 import { approveCalibration, buildCalibration, chooseCalibration, readCalibration } from "./calibrationApi";
 import type { CalibrationChoice, CalibrationScenario, CalibrationStatus } from "./types";
@@ -49,18 +49,7 @@ function Option({
     </button>
   );
 }
-type CalibrationProps = { token: string; replicaId: string; onAuthError: (cause: unknown) => void };
-
-export default function CalibrationStudio(props: CalibrationProps) {
-  return <ScopedCalibrationStudio key={`${props.replicaId}:${props.token}`} {...props} />;
-}
-
-function ScopedCalibrationStudio({ token, replicaId, onAuthError }: CalibrationProps) {
-  const mounted = useRef(false), readRevision = useRef(0), mutation = useRef(false);
-  useEffect(() => {
-    mounted.current = true;
-    return () => { mounted.current = false; readRevision.current++; };
-  }, []);
+export default function CalibrationStudio({ token, replicaId, onAuthError }: { token: string; replicaId: string; onAuthError: (cause: unknown) => void }) {
   const [status, setStatus] = useState<CalibrationStatus | null>(null);
   const [active, setActive] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -68,20 +57,15 @@ function ScopedCalibrationStudio({ token, replicaId, onAuthError }: CalibrationP
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const revision = ++readRevision.current, current = () => mounted.current && revision === readRevision.current;
     setLoading(true);
     setError("");
     try {
-      const next = await readCalibration(token, replicaId);
-      if (!current()) return;
-      if (next?.replica_id !== replicaId) throw new Error("The reviewed calibration could not be confirmed. Retry.");
-      setStatus(next);
+      setStatus(await readCalibration(token, replicaId));
     } catch (cause) {
-      if (!current()) return;
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
       setError(cause instanceof Error ? cause.message : "Calibration could not be loaded");
     } finally {
-      if (current()) setLoading(false);
+      setLoading(false);
     }
   }, [onAuthError, replicaId, token]);
 
@@ -93,62 +77,48 @@ function ScopedCalibrationStudio({ token, replicaId, onAuthError }: CalibrationP
   const approved = useMemo(() => status?.versions.find((version) => version.status === "approved") ?? null, [status]);
 
   async function choose(choice: CalibrationChoice) {
-    if (!current || !mounted.current || mutation.current || status?.replica_id !== replicaId) return;
-    mutation.current = true; readRevision.current++;
+    if (!current) return;
     setBusy(true);
     setError("");
     try {
       await chooseCalibration(token, replicaId, current.scenario_id, choice);
-      if (!mounted.current) return;
-      const revision = ++readRevision.current;
       const next = await readCalibration(token, replicaId);
-      if (!mounted.current || revision !== readRevision.current) return;
-      if (next?.replica_id !== replicaId) throw new Error("The reviewed calibration could not be confirmed. Retry.");
       setStatus(next);
       const nextUnanswered = next.scenarios.findIndex((scenario, index) => index > active && !scenario.preference);
       if (nextUnanswered >= 0) setActive(nextUnanswered);
     } catch (cause) {
-      if (!mounted.current) return;
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
       setError(cause instanceof Error ? cause.message : "Your calibration choice was not saved");
     } finally {
-      if (mounted.current) { mutation.current = false; setBusy(false); }
+      setBusy(false);
     }
   }
 
   async function build() {
-    if (!mounted.current || mutation.current || status?.replica_id !== replicaId || !status.readiness.ready) return;
-    mutation.current = true; readRevision.current++;
     setBusy(true);
     setError("");
     try {
       await buildCalibration(token, replicaId);
-      if (!mounted.current) return;
       await load();
     } catch (cause) {
-      if (!mounted.current) return;
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
       setError(cause instanceof Error ? cause.message : "Calibration build was refused");
     } finally {
-      if (mounted.current) { mutation.current = false; setBusy(false); }
+      setBusy(false);
     }
   }
 
   async function approve(version: number) {
-    if (!mounted.current || mutation.current || status?.replica_id !== replicaId || draft?.version !== version || !status.readiness.ready) return;
-    mutation.current = true; readRevision.current++;
     setBusy(true);
     setError("");
     try {
       await approveCalibration(token, replicaId, version);
-      if (!mounted.current) return;
       await load();
     } catch (cause) {
-      if (!mounted.current) return;
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
       setError(cause instanceof Error ? cause.message : "Calibration changed and could not be approved");
     } finally {
-      if (mounted.current) { mutation.current = false; setBusy(false); }
+      setBusy(false);
     }
   }
 

@@ -23245,3 +23245,33 @@ Published metadata remains Published link. A bounded canonical public-open GET w
 ## `publication27-pin-before-native-proof-20260908` (2026-09-07)
 
 Freeze a clean27 candidate only after current typed/UI/store/runtime and realSQL evidence is logged. Native proof must pin full API/migration/query/helper closure and root-authored Hindi corpus, use actual two synthetic auth accounts and HTTP create/consent/upload/publish, and cap real Azure dispatch at one under existing USD1 ledger. No identity/voice authority or provider superiority follows from this example. Reverse release readiness if native proof, cleanup or full release gate fails.
+
+
+## `published-grounding-claim-basis28-20260908` (2026-09-08)
+
+Isolate a static source claim-basis policy in the publication compiler; supported derivation and explicitly requested hypothetical estimates remain distinct from measured facts. Rationale: one actual Azure answer filled an unmeasured property using unstated assumptions despite the existing general evidence rule. Reversal: fresh heldout failure, excess refusal, language/fact loss or authority regression prevents promotion. See docs/gurukul/research/PUBLISHED-GROUNDING28.md.
+
+
+## `personality-review-scopes28-20260908` (2026-09-08)
+
+Person Model and calibration now own a separate mounted scope per token/replica; stale read, mutation readback and401 effects cannot alter another review. Responses must name the requested replica, approvals use the displayed current draft version, and one synchronous mutation lock prevents overlapping explicit writes. No automatic POST retries or authority changes. Reverse only with an equally strict authenticated request-generation contract measured under the retained delayed success/error schedules. See docs/gurukul/research/PERSONALITY-REVIEW-SCOPE28.md.
+
+
+## `expert-publication27-clean-native-proof-freeze` (2026-09-07)
+
+Candidate27 is frozen at c3cae7ddbb6992ed9311d46f88d89b31f3fee8b0 for the next isolated synthetic Azure proof. Keep its tracked files unchanged while preparing source, query and helper closure pins; accepted integration and local preview remain release26. Rationale: a connected result must identify exactly which source ran. Reversal condition: any source defect requires a new candidate and new pins before execution. The full product goal remains active, with three specialist lanes plus root under the four-slot runtime limit.
+
+
+## `expert-publication27-sequential-native-release` (2026-09-07)
+
+Prepare and execute the real synthetic owner/visitor Azure proof before full release27 on the same frozen source. The release gate creates transient api/_engine.gen.check.js and STRUCK fixtures that the native full API snapshot includes. Reversal condition: separately pinned source roots and demonstrated timing independence may allow concurrency. Three specialist lanes remain occupied with proof preparation, actual modern capture implementation and personality/relationship caller work in independent worktrees.
+
+
+## `expert-publication27-reject-unsupported-assumption-answer` (2026-09-07)
+
+The connected native proof produced a factually unsupported pendulum length in both raw and delivered output. Treat the engineering flow and semantic acceptance separately; do not release based solely on successful HTTP and billing. A new isolated grounding28 repair must address general missing data and unstated physical/model assumptions, with no pendulum-specific answer template or masking regex. Reversal requires actual independent Azure cases, including supported derivations, rather than offline prompt assertions.
+
+
+## `expert-issued-capture28-prerequisite-integration` (2026-09-07)
+
+Integrated the new modern issued-reference contract, Azure audio composer and actual registry caller into candidate28. Missing persisted authority refuses before private access; partial evidence never settles identity. Legacy callers stay on their existing paths. Reversal requires reviewed issuance/lease/settlement, calibrated same-capture composite evidence and real acceptance; configuration and cosine are insufficient.

@@ -17011,3 +17011,38 @@ Public open validates current publication authority; provider/budget checks occu
 ## `publication-wrapper-double-close-and-env-shape-20260908` (2026-09-07)
 
 The SQL runners correctly closed their dedicated sessions, but rootwrapper then awaited Client.end again, leaving unresolved top-level await after saving successful full receipts. Commands exited1; no claim of clean commandexit. Root made closeClient idempotent and tested actual repeatedclose in read-onlyclose-check exit0. No active transaction was observed afterward; pooled idle backend labels are not proof of live application clients. New environment docs initially used an unrecognized table header, so env-manifest tests passed while ignoring newsettings. Corrected to numbered37/vercel-app and exact supported header, regenerated135server entries including newpublication settings, and actual manifest suitepassed. Conditional publication settings remain optional globally and enforced by feature readiness.
+
+
+## `published-grounding-unsupported-model28-20260908` (2026-09-08)
+
+The retained native27 Azure reply correctly derives 2.5 s and 0.4 Hz but supplies an unqualified approximately 1.55 m length through an unstated simple-pendulum model and g=9.8 despite unmeasured source length. Raw already contains the error; delivery is not its origin. Reject operational success or a grounded delivery enum as factual acceptance. Also retain the initial offline harness import failure: esbuild was not locally importable; use existing rolldown without installing dependencies.
+
+
+## `review-old-response-and-generic-hold-20260908` (2026-09-08)
+
+The old actual components let A status overwrite loaded B, then sent B with the stale displayed version7; server scope alone cannot establish owner review intent. Old401 could also affect the next account. Initial new mounted fixture retained this negative then failed because the preceding B approval readback captured a generic next-case GET hold. Scope the hold to A and await prior action settlement; no production change or increased timeout was used for that fixture repair. Missing ignoredconfig was an offline import prerequisite, resolved through the normal writer under cleared env. Keep text phrase candidates distinct from verified speaker Person Model evidence.
+
+
+## `expert-publication27-freeze-gate-rejections` (2026-09-07)
+
+The first freeze allowlist omitted vercel.json and correctly stopped before staging. The corrected allowlist then exposed trailing blank lines in five new files through cached diff checking. The gate was not bypassed: only terminal blank lines were removed, emitted-code equality was verified, source pins were updated, and store controls reran before the clean commit. Reversal condition: a behavior-changing edit must receive applicable verification and a new source freeze; whitespace equivalence cannot stand in for that evidence.
+
+
+## `expert-material-proof-is-not-clone-completion` (2026-09-07)
+
+The publication compiler explicitly returns privateMemoryRecord:[] and grants no voice or stored relationship memory. Treating this lane as the completed expert clone would contradict the requested final product. The inspected existing clone callers already connect Person Model/calibration to scoped dialogue and protected speech; next implementation must complete that path. Reverse this rejection only on actual supported owner enrollment, approved personality, scoped persistent relationships and measured voice/interaction evidence, never a relabelled material assistant.
+
+
+## `expert-publication27-green-transport-not-grounding` (2026-09-07)
+
+Tried the actual generic account-material compiler with the original18oscillations/45seconds note and Hindi question. Although the source explicitly said length/amplitude unmeasured and not to infer them, the model inserted ideal-pendulumT=2pi sqrt(L/g) and g9.8 without qualifying assumptions, then presented1.55metres as the length. The output gate preserved it. This concrete case is now development regression evidence, not fresh holdout. Arithmetic correctness and settled usage cannot reverse this semantic rejection.
+
+
+## `expert-candidate28-history-dependent-fixture` (2026-09-07)
+
+Root review found mounted fixture invoked git show on c3cae7dd, which a standard depth-one CI checkout may lack. The agent replaced it with already-authenticated canonicalLF historical hashes and ran six controls in an actual depth-one checkout without that old commit, config or dependencies. Production unchanged. Root then ran all44mounted cases on the updated fixture. Reversal would require an explicit guaranteed history-fetch contract; fixtures should remain self-contained.
+
+
+## `expert-issued-capture28-partial-evidence-not-verdict` (2026-09-07)
+
+The composer can retain exact derivation/ASR ancestry and speaker cosines, but neither nonce matching nor those values establishes visual continuity, primary-speaker ownership or synthetic-media risk. It returns nonservable incomplete evidence and cannot settle a verdict. Independent review found no current refusal-only blocker. Future activation must also propagate cancellation into active ASR I/O; current boundary checks withhold results but do not abort that in-flight request.

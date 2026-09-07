@@ -15075,6 +15075,126 @@
       "kind": "rejection",
       "title": "Driver shutdown and ignored documentation cannot be treated as acceptance",
       "at": "2026-09-07"
+    },
+    {
+      "id": "published-grounding-claim-basis28-20260908",
+      "kind": "decision",
+      "title": "published-grounding-claim-basis28-20260908",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "published-grounding-offline28-20260908",
+      "kind": "measurement",
+      "title": "published-grounding-offline28-20260908",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "published-grounding-unsupported-model28-20260908",
+      "kind": "rejection",
+      "title": "published-grounding-unsupported-model28-20260908",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "personality-review-scopes28-20260908",
+      "kind": "decision",
+      "title": "Bind owner review to current token and replica",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "personality-review-mounted36-flow14-20260908",
+      "kind": "measurement",
+      "title": "Mounted review36 and actual compiler caller14",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "review-old-response-and-generic-hold-20260908",
+      "kind": "rejection",
+      "title": "A correct POST scope does not rescue a stale displayed review",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "expert-publication27-clean-native-proof-freeze",
+      "kind": "decision",
+      "title": "Freeze candidate27 before connected proof",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-publication27-freeze-receipt",
+      "kind": "measurement",
+      "title": "Candidate27 freeze and EOF normalization evidence",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-publication27-freeze-gate-rejections",
+      "kind": "rejection",
+      "title": "Retain freeze gate failures instead of bypassing them",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-publication27-sequential-native-release",
+      "kind": "decision",
+      "title": "Run native proof before the same-tree release gate",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-publication27-preparation-and-access",
+      "kind": "measurement",
+      "title": "Prepared release, visual review and access readback",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-material-proof-is-not-clone-completion",
+      "kind": "rejection",
+      "title": "Do not substitute material publication for the complete clone",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-publication27-reject-unsupported-assumption-answer",
+      "kind": "decision",
+      "title": "Repair actual source grounding before release",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-publication27-one-real-azure-answer",
+      "kind": "measurement",
+      "title": "One connected Azure answer exposes grounding failure",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-publication27-green-transport-not-grounding",
+      "kind": "rejection",
+      "title": "Reject unqualified ideal-pendulum inference",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-publication27-connected-cleanup-final",
+      "kind": "measurement",
+      "title": "Connected native flow and cleanup completed; quality still failed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-issued-capture28-prerequisite-integration",
+      "kind": "decision",
+      "title": "Connect shared capture without manufacturing identity",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-candidate28-focused-integration",
+      "kind": "measurement",
+      "title": "Integrated source checks and mounted owner review",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-candidate28-history-dependent-fixture",
+      "kind": "rejection",
+      "title": "Remove test dependency on unavailable Git history",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-issued-capture28-partial-evidence-not-verdict",
+      "kind": "rejection",
+      "title": "Do not turn shared-byte metrics into liveness",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -27110,6 +27230,26 @@
       "src": "account-material-publication-connected-stage-20260908",
       "rel": "caused_by",
       "dst": "publication-fresh-epoch-and-reused-id-are-not-authority-20260908"
+    },
+    {
+      "src": "published-grounding-claim-basis28-20260908",
+      "rel": "measured_by",
+      "dst": "published-grounding-offline28-20260908"
+    },
+    {
+      "src": "published-grounding-claim-basis28-20260908",
+      "rel": "caused_by",
+      "dst": "published-grounding-unsupported-model28-20260908"
+    },
+    {
+      "src": "personality-review-scopes28-20260908",
+      "rel": "measured_by",
+      "dst": "personality-review-mounted36-flow14-20260908"
+    },
+    {
+      "src": "personality-review-scopes28-20260908",
+      "rel": "caused_by",
+      "dst": "review-old-response-and-generic-hold-20260908"
     }
   ]
 }
