@@ -40,6 +40,8 @@ import {
   publishOwnedTeacherSheet,
   validateSheetBody,
   statsForEvidence,
+  reviewOwnedTeacherSheetPublication,
+  requireTeacherSheetPublicationReview,
 } from "./_teacher-sheet-draft.js";
 
 function cors(res) {
@@ -72,6 +74,10 @@ export default async function handler(req, res) {
       }
       if (req.query?.op === "ingest_review") {
         return res.status(200).json(await readContextProposalReview(q, user.id, req.query?.replica_id, req.query?.item_id));
+      }
+      if (req.query?.op === "publication_review") {
+        const review = await reviewOwnedTeacherSheetPublication(q, user.id, req.query?.replica_id);
+        return review ? res.status(200).json(review) : notFound(res);
       }
       const sheet = await readOwnedTeacherSheet(q, user.id, req.query?.replica_id);
       return sheet ? res.status(200).json({ sheet }) : notFound(res);
@@ -107,8 +113,10 @@ export default async function handler(req, res) {
     }
 
     if (op === "publish") {
+      const review = requireTeacherSheetPublicationReview(body.review);
       const result = await publishOwnedTeacherSheet(q, user.id, body.replica_id, {
         evidence: body.evidence,
+        review,
       });
       if (!result) return notFound(res);
       obsBestEffort("teacher_sheet.publish", {

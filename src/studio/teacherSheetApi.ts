@@ -16,6 +16,38 @@ import type { SheetValidationError } from "../engine/agents/fromSheet";
 export interface TeacherSheetDraftStatus {
   draft: TeacherSheet | null;
   updated_at: string | null;
+  sheet_id?: string | null;
+  status?: "draft" | "validated" | "published" | "revoked";
+  version?: string;
+  published_at?: string | null;
+  consent_artifact_id?: "present" | null;
+}
+
+export interface TeacherSheetPublicationKey { sheet_id: string; version: string; snapshot_hash: string }
+export interface TeacherSheetPublicationReview extends TeacherSheetPublishResult {
+  replica_id: string;
+  review: TeacherSheetPublicationKey | null;
+  consent_basis: "persisted_sheet_column";
+}
+
+export async function readTeacherSheetPublicationReview(token: string, replicaId: string): Promise<TeacherSheetPublicationReview> {
+  const data = await replicaRequest<TeacherSheetPublicationReview>(token,
+    `/api/teacher-sheet?op=publication_review&replica_id=${encodeURIComponent(replicaId)}`);
+  if (!data || data.replica_id !== replicaId || typeof data.ok !== "boolean" ||
+      !Array.isArray(data.errors) || !data.errors.every(value => value && typeof value.field === "string" && typeof value.code === "string") || !Array.isArray(data.blockers) ||
+      !data.blockers.every(value => typeof value === "string") ||
+      data.consent_basis !== "persisted_sheet_column" || !data.sheet ||
+      (data.sheet.draft !== null && (!data.sheet.draft || typeof data.sheet.draft !== "object" || Array.isArray(data.sheet.draft))) ||
+      !["draft","validated","published","revoked"].includes(data.sheet.status || "") ||
+      (data.review !== null && (!data.review || typeof data.review.sheet_id !== "string" ||
+        data.review.sheet_id.length !== 36 || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.review.sheet_id) ||
+        typeof data.review.version !== "string" || typeof data.review.snapshot_hash !== "string" ||
+        data.review.snapshot_hash.length !== 64 || !/^[0-9a-f]{64}$/.test(data.review.snapshot_hash) ||
+        data.review.sheet_id !== data.sheet.sheet_id || data.review.version !== data.sheet.version)) ||
+      (data.ok && (!data.review || !data.sheet.draft || data.sheet.consent_artifact_id !== "present" || data.errors.length || data.blockers.length))) {
+    throw new Error("teacher_sheet_publication_response_invalid");
+  }
+  return data;
 }
 
 export async function readTeacherSheetDraft(token: string, replicaId: string): Promise<TeacherSheetDraftStatus> {
@@ -72,9 +104,15 @@ export async function publishTeacherSheet(
   token: string,
   replicaId: string,
   evidence?: { transcript?: { speaker: string; text: string }[]; teacherSpeaker?: string },
+  review?: TeacherSheetPublicationKey,
 ): Promise<TeacherSheetPublishResult> {
   return replicaRequest<TeacherSheetPublishResult>(token, "/api/teacher-sheet", {
     method: "POST",
-    body: JSON.stringify({ op: "publish", replica_id: replicaId, evidence }),
+    body: JSON.stringify({ op: "publish", replica_id: replicaId, evidence, review }),
   });
 }
+
+export const teacherSheetPublicationClient = {
+  read: readTeacherSheetPublicationReview,
+  publish: (token: string, replicaId: string, review: TeacherSheetPublicationKey) => publishTeacherSheet(token,replicaId,undefined,review),
+};

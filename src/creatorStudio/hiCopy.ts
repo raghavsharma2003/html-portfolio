@@ -1072,6 +1072,12 @@ export const HI: StudioRestCopy = {
   },
 
   teacherSheetStudio: {
+    invalidSavedFieldsNotice: "सेव किए गए कुछ फ़ील्ड दिखाए नहीं जा सकते। जब तक आप उन्हें बदलकर सेव नहीं करते, वे वैसे ही रहेंगे।",
+    invalidSavedValue: "सेव की गई जानकारी जाँचें।",
+    invalidSavedName: "सेव किया गया नाम जाँचें।",
+    replaceListNote: "सेव की गई यह सूची दिखाई नहीं जा सकती। इसे बदलने पर इस ड्राफ्ट में खाली सूची शुरू होगी। बदलाव लागू करने के लिए सेव करें।",
+    replaceChapterList: "अध्यायों की सूची बदलें",
+    replaceDoubtSteps: "शंका के चरण बदलें",
     eyebrow: "शीट रिव्यू",
     title: "पुष्टि करें कि {name} कैसे पढ़ाते हैं",
     titleFallbackName: "यह टीचर",

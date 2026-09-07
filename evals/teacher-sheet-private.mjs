@@ -180,12 +180,23 @@ await check('actual write predicates have adversarial control-flow consequences'
     await saveOwnedTeacherSheetDraft(db,owner,replica,{});assert.equal(state.rows.length,1,'mutant must expose a refused write');
   }
 });
+const mirrorIncludes = (schema,migration) => schema.replaceAll('\r\n','\n').includes(migration.replaceAll('\r\n','\n').trim());
 await check('migration is mirrored and closes public, owner and first-save boundaries',async()=>{
   const migration=readFileSync(new URL('../db/migrations/139_private_teacher_sheet_draft.sql',import.meta.url),'utf8');
-  const schema=readFileSync(new URL('../db/schema.sql',import.meta.url),'utf8');assert(schema.includes(migration.trim()));
+  const schema=readFileSync(new URL('../db/schema.sql',import.meta.url),'utf8');assert(mirrorIncludes(schema,migration));
   assert(migration.includes("status in ('draft','revoked')"));assert(migration.includes('references vy_replica(replica_id,owner_user_id) on delete cascade'));
   assert(migration.includes("where replica_id is not null and status='draft'"));
   assert(PRIVATE_TEACHER_SHEET_SAVE_SQL.includes("on conflict (replica_id) where replica_id is not null and status = 'draft'"));
   assert(!migration.includes('insert into vy_agent'));
+});
+await check('mirror ignores CRLF encoding only; old raw comparison and SQL-content mutants remain negative',()=>{
+  const migration=readFileSync(new URL('../db/migrations/139_private_teacher_sheet_draft.sql',import.meta.url),'utf8').replaceAll('\r\n','\n');
+  const schema=readFileSync(new URL('../db/schema.sql',import.meta.url),'utf8').replaceAll('\r\n','\n');
+  const mixedSchema=schema.replaceAll('\n','\r\n');
+  assert.equal(mixedSchema.includes(migration.trim()),false,'retained old raw comparison fails solely on line endings');
+  for(const [s,m]of [[schema,migration],[mixedSchema,migration],[schema,migration.replaceAll('\n','\r\n')]])assert(mirrorIncludes(s,m));
+  for(const [from,to]of [["status in ('draft','revoked')","status in ('draft','published')"],['on delete cascade','on delete restrict'],["status='draft'","status='validated'"],["'draft','revoked'","'draft ','revoked'"]]){
+    assert(migration.includes(from));assert.equal(mirrorIncludes(mixedSchema,migration.replace(from,to)),false,'actual SQL content must not normalize away: '+from);
+  }
 });
 console.log(`${passed} private TeacherSheet fixture groups passed; no SQL proof.`);

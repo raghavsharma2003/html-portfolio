@@ -36,6 +36,7 @@ import {
   splitHeldOut,
 } from "./_engine.gen.js";
 import { checkPublishable } from "./_teachersheet.js";
+import { createHash } from "node:crypto";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -239,6 +240,68 @@ async function currentRow(db, ownerUserId, replicaId) {
   return rows[0] || null;
 }
 
+function ordered(value) {
+  if (Array.isArray(value)) return value.map(ordered);
+  if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])]));
+  return value;
+}
+
+function publicationReviewKey(ownerUserId, replicaId, row) {
+  if (!row) return null;
+  return {
+    sheet_id: row.sheet_id,
+    version: row.version ?? "",
+    snapshot_hash: createHash("sha256").update(JSON.stringify(ordered({
+      ownerUserId, replicaId, sheetId: row.sheet_id, agentId: row.agent_id,
+      version: row.version ?? "", sheet: row.sheet,
+      consentArtifactId: row.consent_artifact_id ?? null,
+    }))).digest("hex"),
+  };
+}
+
+export function requireTeacherSheetPublicationReview(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value) ||
+      typeof value.sheet_id !== "string" || value.sheet_id.length !== 36 || !UUID.test(value.sheet_id) ||
+      typeof value.version !== "string" || value.version.length > 256 ||
+      typeof value.snapshot_hash !== "string" || value.snapshot_hash.length !== 64 || !/^[0-9a-f]{64}$/.test(value.snapshot_hash)) {
+    fail("teacher_sheet_publication_review_required", 409);
+  }
+  return value;
+}
+
+async function publicationSnapshot(db, ownerUserId, replicaId, evidence) {
+  const owned = await ownedReplica(db, ownerUserId, replicaId);
+  if (!owned) return null;
+  // The editor's latest saved row is the subject, never a different older
+  // bound row selected only because it could pass publication.
+  const rows = await db(PRIVATE_TEACHER_SHEET_READ_SQL, [replicaId, ownerUserId]);
+  const row = rows[0] || null;
+  const bound = row && owned.agent_id ? await currentRow(db, ownerUserId, replicaId) : null;
+  const blockers = [];
+  if (!row) blockers.push("sheet_not_saved");
+  if (!owned.agent_id) blockers.push("publication_binding_unavailable");
+  if (row && (!row.agent_id || row.agent_id !== owned.agent_id || !bound || bound.sheet_id !== row.sheet_id)) blockers.push("saved_sheet_binding_unavailable");
+  if (row && !row.consent_artifact_id) blockers.push("publication_consent_unavailable");
+  if (row?.status === "revoked") blockers.push("saved_sheet_revoked");
+  const verdict = row ? checkPublishable(typeof row.sheet === "string" ? sheetBodyOf(row.sheet) : row.sheet, row, evidenceOf(evidence)) : {errors:[],blockers:[],phraseBank:undefined};
+  const output = {
+    replica_id: replicaId,
+    ok: !!row && blockers.length === 0 && verdict.errors.length === 0 && verdict.blockers.length === 0,
+    errors: verdict.errors,
+    blockers: [...new Set([...blockers,...verdict.blockers])],
+    phraseBank: verdict.phraseBank,
+    sheet: clientSheet(row),
+    review: publicationReviewKey(ownerUserId, replicaId, row),
+    consent_basis: "persisted_sheet_column",
+  };
+  return {row,output};
+}
+
+export async function reviewOwnedTeacherSheetPublication(db, ownerUserId, replicaIdValue) {
+  const snapshot = await publicationSnapshot(db, ownerUserId, replicaIdOf(replicaIdValue));
+  return snapshot?.output ?? null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // GET — read the owner's own sheet
 // ─────────────────────────────────────────────────────────────────────────
@@ -316,10 +379,21 @@ export async function saveOwnedTeacherSheetDraft(db, ownerUserId, replicaIdValue
 
 export async function publishOwnedTeacherSheet(db, ownerUserId, replicaIdValue, options = {}) {
   const replicaId = replicaIdOf(replicaIdValue);
+  let reviewed;
+  if (options.review !== undefined) {
+    const expected = requireTeacherSheetPublicationReview(options.review);
+    reviewed = await publicationSnapshot(db, ownerUserId, replicaId, options.evidence);
+    if (!reviewed) return null;
+    const actual = reviewed.output.review;
+    if (!actual || actual.sheet_id !== expected.sheet_id || actual.version !== expected.version || actual.snapshot_hash !== expected.snapshot_hash) {
+      fail("teacher_sheet_publication_review_changed",409);
+    }
+    if (!reviewed.output.ok) return reviewed.output;
+  }
   const owned = await ownedReplica(db, ownerUserId, replicaId);
   if (!owned) return null;
 
-  const row = await currentRow(db, ownerUserId, replicaId);
+  const row = reviewed?.row ?? await currentRow(db, ownerUserId, replicaId);
   if (!row) fail("teacher_sheet_not_found", 404, { replica_id: replicaId });
 
   const sheet = typeof row.sheet === "string" ? sheetBodyOf(row.sheet) : row.sheet;
@@ -345,6 +419,12 @@ export async function publishOwnedTeacherSheet(db, ownerUserId, replicaIdValue, 
     // gives ("publishing is the one moment where 'not yet' is a normal answer
     // rather than an error"), and the studio needs every row at once.
     return { ok: false, errors: verdict.errors, blockers, phraseBank: verdict.phraseBank, sheet: clientSheet(row) };
+  }
+
+  // Replaying the same reviewed publication is a readback, not another write.
+  // This also covers browser transport replay after a lost HTTP response.
+  if (reviewed && row.status === "published" && row.published_at) {
+    return { ok: true, errors: [], blockers: [], phraseBank: verdict.phraseBank, sheet: clientSheet(row) };
   }
 
   const rows = await db(

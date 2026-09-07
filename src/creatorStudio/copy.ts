@@ -1219,6 +1219,12 @@ interface ChannelsStudioCopy {
 //    full, matching `ws-r61-roomstudio-money-and-tds-copy-translated-
 //    meaning-preserved`'s own "translate meaning, not just chrome" law. ────
 interface TeacherSheetStudioCopy {
+  invalidSavedFieldsNotice: string;
+  invalidSavedValue: string;
+  invalidSavedName: string;
+  replaceListNote: string;
+  replaceChapterList: string;
+  replaceDoubtSteps: string;
   eyebrow: string;
   title: string; // "Review and confirm how {name} teaches"
   titleFallbackName: string;
@@ -3319,6 +3325,12 @@ const EN: StudioCopy = {
   },
 
   teacherSheetStudio: {
+    invalidSavedFieldsNotice: "Some saved fields cannot be displayed. They stay unchanged until you explicitly edit or replace them and save.",
+    invalidSavedValue: "Saved value needs review.",
+    invalidSavedName: "The saved name needs review.",
+    replaceListNote: "This saved list cannot be displayed. Replacing it starts an empty list in this draft. Save to apply your changes.",
+    replaceChapterList: "Replace chapter list",
+    replaceDoubtSteps: "Replace doubt steps",
     eyebrow: "Sheet review",
     title: "Review and confirm how {name} teaches",
     titleFallbackName: "this teacher",

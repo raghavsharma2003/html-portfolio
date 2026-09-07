@@ -506,7 +506,7 @@ export async function finalizeOwnedContextSource(db, ownerUserId, id, source, ob
         where s.source_id=$3::uuid and s.replica_id=o.replica_id and s.owner_user_id=$2::uuid
           and s.state='pending_upload' and s.provenance->>'purpose'='context_item'
           and s.sha256=$7
-       returning ${SOURCE_RETURNING}
+       returning ${SOURCE_SELECT}
      ), audit as (
        insert into vy_replica_audit
          (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)

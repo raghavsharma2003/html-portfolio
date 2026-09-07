@@ -1,16 +1,20 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 const source = readFileSync(new URL("../src/creatorStudio/StudioApp.tsx", import.meta.url), "utf8");
-const ast = ts.createSourceFile("StudioApp.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-const names = new Set(["loadReplicas", "signOut"]), declarations = [];
-function visit(node) {
-  if (ts.isVariableStatement(node) && node.declarationList.declarations.some(d => ts.isIdentifier(d.name) && names.has(d.name.text))) declarations.push(node.getText(ast));
-  ts.forEachChild(node, visit);
+function callbacks(source) {
+  const ast = ts.createSourceFile("StudioApp.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const names = new Set(["loadReplicas", "signOut"]), declarations = [];
+  function visit(node) {
+    if (ts.isVariableStatement(node) && node.declarationList.declarations.some(d => ts.isIdentifier(d.name) && names.has(d.name.text))) declarations.push(node.getText(ast));
+    ts.forEachChild(node, visit);
+  }
+  visit(ast); assert.equal(declarations.length, 2);
+  return ts.transpileModule(declarations.join("\n") + "\nglobalThis.callbacks={loadReplicas,signOut};", { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText;
 }
-visit(ast); assert.equal(declarations.length, 2);
-const actual = ts.transpileModule(declarations.join("\n") + "\nglobalThis.callbacks={loadReplicas,signOut};", { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText;
+const actual=callbacks(source);
 const A = { replica_id: "10000000-0000-4000-8000-000000000001" }, B = { replica_id: "10000000-0000-4000-8000-000000000002" };
 const session = { accessToken: "fixture-session", userId: "fixture-owner" };
 function deferred() { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
@@ -30,14 +34,20 @@ let count = 0;
 async function check(name, test) { await test(); console.log(`ok ${++count} - ${name}`); }
 await check("actual load callback selects requested second owned workspace", async () => { const h = harness(); await h.loadReplicas(session); assert.equal(h.state.selected, B); });
 await check("explicit user selection survives list refresh", async () => { const h = harness({ selected: A }); await h.loadReplicas(session); assert.equal(h.state.selected, A); });
-await check("absent setup replica and ordinary entry retain first-owned default", async () => {
-  for (const search of ["?mode=setup", "", `?mode=teacher&replica=${B.replica_id}`, `?mode=replica&replica=${B.replica_id}`]) {
+await check("entry without any explicit replica retains first-owned default", async () => {
+  for (const search of ["?mode=setup", "", "?mode=teacher", "?mode=replica", "?mode=teacher&step=deploy&view=share"]) {
     const h = harness({ search }); await h.loadReplicas(session); assert.equal(h.state.selected, A);
   }
 });
+await check("teacher, replica, share and mode-free links select the exact owned requested workspace", async () => {
+  for(const prefix of ["?mode=teacher&", "?mode=replica&", "?mode=teacher&step=deploy&view=share&lang=hi&", "?"]) {
+    const h=harness({search:`${prefix}replica=${B.replica_id}`});await h.loadReplicas(session);assert.equal(h.state.selected,B);
+    const selected=harness({search:`${prefix}replica=${B.replica_id}`,selected:A});await selected.loadReplicas(session);assert.equal(selected.state.selected,A);
+  }
+});
 await check("empty, malformed and unowned specified IDs never select fallback", async () => {
-  for (const id of ["", "not-a-uuid", "10000000-0000-4000-8000-000000000099", B.replica_id + "\n"]) {
-    const h = harness({ search: `?mode=setup&replica=${encodeURIComponent(id)}` }); await h.loadReplicas(session);
+  for (const mode of ["setup","teacher","replica"]) for (const id of ["", "not-a-uuid", "10000000-0000-4000-8000-000000000099", B.replica_id + "\n"]) {
+    const h = harness({ search: `?mode=${mode}&replica=${encodeURIComponent(id)}` }); await h.loadReplicas(session);
     assert.equal(h.state.selected, null); assert.equal(h.state.replicas.length, 0); assert.equal(h.state.loadState, "error"); assert.match(h.state.error, /unavailable/);
   }
 });
@@ -68,5 +78,11 @@ await check("negative control removing scope guards allows old auth resurrection
   const mutant = actual.replaceAll("if (!current())", "if (false)"); assert.notEqual(mutant, actual);
   const d = deferred(), h = harness({ code: mutant, refresh: () => d.promise }); const old = h.loadReplicas(session); h.signOut();
   d.resolve({ ...session, accessToken: "refreshed-old-token" }); await old; assert.throws(() => assert.equal(h.state.session, null), assert.AssertionError);
+});
+await check("exact checkpoint22 setup-only query guard loses teacher/replica/share selection",async()=>{
+  const oldSource=execFileSync('git',['show','43230e5e:src/creatorStudio/StudioApp.tsx'],{cwd:new URL('../',import.meta.url),encoding:'utf8',windowsHide:true});
+  assert(oldSource.includes('query.get("mode") === "setup" ? query.get("replica") : null'));const old=callbacks(oldSource);
+  for(const prefix of ["?mode=teacher&", "?mode=replica&", "?mode=teacher&step=deploy&view=share&"]){const h=harness({code:old,search:`${prefix}replica=${B.replica_id}`});await h.loadReplicas(session);assert.equal(h.state.selected,A);assert.throws(()=>assert.equal(h.state.selected,B),assert.AssertionError);}
+  const setup=harness({code:old});await setup.loadReplicas(session);assert.equal(setup.state.selected,B);
 });
 console.log(`${count} actual selection/scope groups passed; synthetic callbacks, no network.`);

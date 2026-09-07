@@ -14067,6 +14067,216 @@
       "kind": "rejection",
       "title": "Complete-only result action cannot recover an applied save after reload",
       "at": "2026-09-07"
+    },
+    {
+      "id": "expert-twenty-four-fix-observed-adaptation-20260907",
+      "kind": "decision",
+      "title": "Prioritize actual adaptation over persistence-only success",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-refinement-native-three-operational-not-adherence-20260907",
+      "kind": "measurement",
+      "title": "Native23 three actual Azure replies: transport passed, adaptation failed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "saved-refinement-does-not-prove-adaptation-20260907",
+      "kind": "rejection",
+      "title": "Correctly saved guidance ignored by real model",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-root-nine-real-sql-20260907",
+      "kind": "measurement",
+      "title": "Root publication nine actual SQL groups",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "teacher-publication-reviews-exact-saved-subject-20260907",
+      "kind": "decision",
+      "title": "Publish the exact saved subject after explicit review",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "latest-bound-publish-can-target-unreviewed-sheet-20260907",
+      "kind": "rejection",
+      "title": "An unreviewed latest-bound target can differ from the editor",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-agent-nine-source-twenty-four-mounted-20260907",
+      "kind": "measurement",
+      "title": "Publication source9 and mounted24 candidate evidence",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "presentation-tail-candidate-withheld-after-native-failure-20260907",
+      "kind": "decision",
+      "title": "Withhold ineffective presentation-tail candidate",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "presentation-native-three-facts-correct-order-ignored-20260907",
+      "kind": "measurement",
+      "title": "Three actual Azure calls expose unchanged correction behavior",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "static-presentation-tail-does-not-establish-adaptation-20260907",
+      "kind": "rejection",
+      "title": "Prompt tail reached the provider but did not change answers",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release-twenty-three-completed-two-stale-fixtures-20260907",
+      "kind": "measurement",
+      "title": "Release23 completed23 of24 with unchanged sources",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release23-line-endings-and-obsolete-selection-fixtures-20260907",
+      "kind": "rejection",
+      "title": "Two stale fixture assumptions preserved and narrowed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-draft-invalid-display-preserve-raw-20260907",
+      "kind": "decision",
+      "title": "Display malformed private fields without rewriting saved JSON",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-draft-invalid-native-render13-20260907",
+      "kind": "measurement",
+      "title": "Thirteen native actual-save and React rendering controls",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-draft-nullish-default-is-not-shape-check-20260907",
+      "kind": "rejection",
+      "title": "Nullish display defaults do not handle saveable malformed field shapes",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "native-feed-writer-expiry-preserves-cleanup-authority-20260907",
+      "kind": "decision",
+      "title": "Keep failed Feed fixture until real writer expiry",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "native-feed-actual-storage-readback-not-readiness-20260907",
+      "kind": "measurement",
+      "title": "Real Feed upload reached Azure but failed before readiness",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "upload-http200-does-not-prove-file-ready-20260907",
+      "kind": "rejection",
+      "title": "Per-file upload result failed despite successful storage transport",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "combined-editor-native-test-needs-css-loader-20260907",
+      "kind": "rejection",
+      "title": "Publication stylesheet exposed a native test-loader gap",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "native-feed-finalize-real-sql-42702-20260907",
+      "kind": "measurement",
+      "title": "Actual upload finalize statement fails PostgreSQL parsing",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "qualify-context-finalize-target-columns-20260907",
+      "kind": "decision",
+      "title": "Repair exact ambiguous context source finalize projection",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "combined24-root-publication24-invalid13-types-20260907",
+      "kind": "measurement",
+      "title": "Combined editor and publication focused checks passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "same-json-load-does-not-identify-saved-publication-20260907",
+      "kind": "rejection",
+      "title": "Explicit reload can keep stale publication state for same JSON",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "context-finalize-qualified-real-explain-20260907",
+      "kind": "measurement",
+      "title": "Qualified context finalization passes actual PostgreSQL EXPLAIN",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "immutable-checkpoint23-for-pending-feed-cleanup-20260907",
+      "kind": "decision",
+      "title": "Preserve original source bytes for later exact cleanup",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "feed-cleanup-wrapper-prepared-not-executed-20260907",
+      "kind": "measurement",
+      "title": "Cleanup-only resume prepared with real expiry guard",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "editor24-visual-inspection-keeps-density-gap-open-20260907",
+      "kind": "measurement",
+      "title": "Desktop and mobile editor inspected without a design superiority claim",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "byte-restored-snapshot-stat-cache-is-not-source-drift-20260907",
+      "kind": "rejection",
+      "title": "Verify content before refreshing Git snapshot index stats",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-review-invalidates-on-saved-load-20260907",
+      "kind": "decision",
+      "title": "Saved loads invalidate publication review independently of draft JSON",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-saved-load-mounted16-20260907",
+      "kind": "measurement",
+      "title": "Sixteen mounted saved-load publication controls",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "publication-same-json-load-is-not-same-authority-20260907",
+      "kind": "rejection",
+      "title": "Matching JSON cannot preserve publication across a saved-row load",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "structured-evidence-hypothesis-after-finite-diagnostic-20260907",
+      "kind": "decision",
+      "title": "Investigate structured evidence without accepting the failed prompt tail",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "factorial12-real-azure-manual-rubric-20260907",
+      "kind": "measurement",
+      "title": "Twelve actual calls show a bounded representation contrast",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "mention-order-success-can-reverse-event-meaning-20260907",
+      "kind": "rejection",
+      "title": "An answer can obey presentation and still suggest wrong chronology",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "final-combined24-type-copy-graph-20260907",
+      "kind": "measurement",
+      "title": "Final merged checkpoint24 source checks passed",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -25942,6 +26152,26 @@
       "src": "private-result-refinement-explicit-draft-only-20260907",
       "rel": "caused_by",
       "dst": "private-refinement-replaced-opener-lost-focus-20260907"
+    },
+    {
+      "src": "private-draft-invalid-display-preserve-raw-20260907",
+      "rel": "measured_by",
+      "dst": "private-draft-invalid-native-render13-20260907"
+    },
+    {
+      "src": "private-draft-invalid-display-preserve-raw-20260907",
+      "rel": "caused_by",
+      "dst": "private-draft-nullish-default-is-not-shape-check-20260907"
+    },
+    {
+      "src": "publication-review-invalidates-on-saved-load-20260907",
+      "rel": "measured_by",
+      "dst": "publication-saved-load-mounted16-20260907"
+    },
+    {
+      "src": "publication-review-invalidates-on-saved-load-20260907",
+      "rel": "caused_by",
+      "dst": "publication-same-json-load-is-not-same-authority-20260907"
     }
   ]
 }

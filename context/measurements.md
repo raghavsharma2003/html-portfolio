@@ -16680,3 +16680,80 @@ Root on2026-09-07 independently passed context-proposal-erasure9, contextlocker9
 ## `private-refinement-reload-mounted40-store7-20260907` (2026-09-07)
 
 2026-09-07, isolated private-refinement-recovery from43230e5e with exact combined refinement prerequisites. Focused mounted14 groups passed, then full mounted40 (all29 incumbent plus11 new groups) at390/1440, artifacts scratchpad/private-teaching-refinement/1788795641702/result.json. Executed old complete-only conditional loses recovery while current code restores it. Lost-save and explicit-clear reload, no automatic POST/model request, read-only malformed response refusal, ineligible states and delayed token/replica/request replacement passed. Actual store7 new and16 incumbent groups passed using synthetic injected SQL rows with real canonical evidence/crypto; tsc -b --force and git diff --check passed. No SQL statements changed, no database/auth/model/external-network calls and no full release run. Parent prior11 real SQL groups prove the earlier CAS implementation separately, not this mounted recovery path.
+
+
+## `private-refinement-native-three-operational-not-adherence-20260907` (2026-09-07)
+
+Root native HTTP proof on0a3b2d2608d64a4f9aebdafc690caf445f6b5889 finished2026-09-07T15:47:38.486Z. Three actual Azure calls, explicit GET/save/readback/new readiness, old result/replay blocked, withdraw/readback no extra calls. Tokens903/74,945/68,950/68; receipts480/487/489microUSD,total1456,newledger120735,reserved0. Nine synthetic content tablecounts0,authabsent,spendretained. Actual facts solve31/review16/total47 and English/Roman Hinglish correct on root inspection. Both corrected outputs retained solving-before-review presentation despite the saved review-before-solving presentation preference. No chronology change. Baseline total was correct despite conservative checker failing its distance heuristic; that diagnostic miss is not a factual error. Artifact ROOT scratchpad/expert-tools/private-refinement-native-checkpoint23.json. No actual upload, owner/voice/quality acceptance.
+
+
+## `publication-root-nine-real-sql-20260907` (2026-09-07)
+
+Root isolated-development SQL proof passed9 groups, including four exact EXPLAIN statements, exact reviewed publication/readback/replay, old latest-bound negative, owner/snapshot/column-consent changes and interposed-write CAS refusal. Receipt ROOT scratchpad/expert-tools/teacher-publication-sql-1788796278572.json; one durable prewrite manifest, remaining0/errors[]. Only synthetic sheet column markers and agent rows, no genuine grant, customer publication, model, auth or concurrent-overlap acceptance. Candidate16-file manifest verified before merging with23private refinement route retained. Agent source9 and mounted24 scopes remain separate from this real SQL proof.
+
+
+## `publication-agent-nine-source-twenty-four-mounted-20260907` (2026-09-07)
+
+Agent on2026-09-07 passed9 source/actual-handler groups and24 mounted groups at390/1440, with both editors/API wrappers, exact old no-caller negative, explicit review/publish/readback, scope/local-edit changes and lost-response recovery. Artifact teacher-sheet-publication/scratchpad/teacher-sheet-publication-mounted/1788795746030/result.json. This is synthetic HTTP, not full Studio or real auth. Root separately passed actual developmentSQL9 with zero remaining fixtures, and preserved the original dropped-socket failure. Original three changed UI files scanned clean; final combined TypeScript/release and new editor integration remain pending.
+
+
+## `presentation-native-three-facts-correct-order-ignored-20260907` (2026-09-07)
+
+Root diagnostic finished2026-09-07T16:04:18.364Z on frozen f2fdcd0712836a15248bddd1f4de1af8db44a9d2. Artifact ROOT scratchpad/expert-tools/private-refinement-native-presentation24.json retains three actual Azure outputs and outbound synthetic model messages. Baseline and corrected English are identical; corrected Hinglish also presents solving31 before review16 then total47 instead of requested presentation review/solve/total. Facts and language passed root inspection; both corrected ordering checks failed. Conditional presentation tail is present in the corrected outbound messages and absent from baseline. New spend1580microUSD, total ledger122315microUSD, reserved0. Nine synthetic content tables0, auth user absent, spend retained. This is a diagnostic on known cases, not held-out causal proof, owner quality or voice acceptance.
+
+
+## `release-twenty-three-completed-two-stale-fixtures-20260907` (2026-09-07)
+
+Frozen0a3b2d2608d64a4f9aebdafc690caf445f6b5889 release23 ran2026-09-07T15:46:17.007Z to16:05:38.519Z, exit1, changedDuringRun:false.23 of24 software checks passed; eval suite failed teacher-sheet-private and studio-setup-selection only. Real portable chrome copy executed and passed. Relational gates explicitly skipped because this runner had no NEON_URL; separate real SQL evidence is not part of this runner. Original log expert-integration/scratchpad/expert-integrated-release-23.log retained. Not full-release accepted.
+
+
+## `private-draft-invalid-native-render13-20260907` (2026-09-07)
+
+2026-09-07 in private-draft-invalid-display from checkpoint23 0a3b2d26. Thirteen source controls passed with actual saveOwnedTeacherSheetDraft, generated validation and React renderToString, injected scoped SQL only. Five exact-saveable malformed bodies fail both old editors (ten retained old source negatives), while current editors display honest review states; malformed scalar and read-only values, missing/valid fields and exact raw preservation also pass. Fetch and default database call counters are zero. A repeat after synchronous explicit-replacement focus code also passed13. After parent release23 heavy-hold clearance, one full mounted48 batch passed at390/1440, retaining all26 previous controls and22 new malformed-data controls; artifact scratchpad/private-draft-editor/1788797334954/result.json. Forced tsc -b --force passed. The actual copy gate passed7 scopes/21 negative controls. No full release, DB/auth/model call or SQL modification belongs to this slice.
+
+
+## `native-feed-actual-storage-readback-not-readiness-20260907` (2026-09-07)
+
+Root actual protected probe on0a3b2d26 started2026-09-07T16:11:52.327Z. Actual lease EXPLAIN passed before writes; unauthenticated GET401, authenticated empty context/draft/readiness200, add_files HTTP200 but per-file success assertion ACTUAL_UPLOAD_REQUIRED failed. Azure container privacy200, block201, blocklist201 and object read200.127SQL transports,6auth,2blocked including1deliberately refused unscoped diagnostic. No context item/evidence was committed in the retained manifest. Cleanup leased0 while writer308f540a-b744-4c8a-80dd-8e171d0e261e remained active through17:42:22.929748Z. Source20645761-f134-4493-b140-5199419d4eb6 retained; model0, ledger unchanged122315microUSD/reserved0. Artifact ROOT scratchpad/expert-tools/native-feed-readiness-checkpoint23.json and sibling manifest. No readiness or completed cleanup acceptance.
+
+
+## `native-feed-finalize-real-sql-42702-20260907` (2026-09-07)
+
+Root read-only exact helper-generated finalizeOwnedContextSource EXPLAIN against vyakti_expert_integration_20260906 finished2026-09-07T16:17:24.605Z with PostgreSQL42702. Query SHA256 f83f7c553c84b945f7732abb5ab3b483d3cc162d344d6015b3044b9253c69f15 matches the last forwarded upload statement; frozen source and existing synthetic manifest checked. No ANALYZE, writes, upload retry, model or new fixture. Artifact ROOT scratchpad/expert-tools/native-feed-finalize-explain-checkpoint23.json. This establishes a real parser defect, unlike an offline callback acceptance.
+
+
+## `combined24-root-publication24-invalid13-types-20260907` (2026-09-07)
+
+Root combined24 passed13 native actual-save/React controls after the narrowly scoped stylesheet-loader repair,24 publication mounted groups at390/1440 in scratchpad/teacher-sheet-publication-mounted/1788797717788, forced TypeScript and actual copy7scopes/21negative controls. Teacherprivate18 and requested-workspace12 passed independently. Full release24 and final same-body load invalidation repair remain pending. These mounted HTTP results are synthetic; real publication SQL9 is separately logged.
+
+
+## `context-finalize-qualified-real-explain-20260907` (2026-09-07)
+
+Root candidate exact actual-helper EXPLAIN passed2026-09-07T16:20:58.820Z, query SHA4763535f960c998307b98d2e1ec088b7624967a5c0029e20a950fffe035fa111, source db4df57eba8ef01eb768995f54a10adeec09a868e867b429f22d5132216fcc5e. Original f83f7 query remains a real42702 negative. Artifact ROOT scratchpad/expert-tools/native-feed-finalize-explain-candidate24.json. Root8 actual-helper offline controls also pass, preserving every original SQL byte and parameter except RETURNING qualification and keeping output names/order. One production-line repair and registered suite merged into24; no schema or fixture writes, no actual new upload/readiness yet.
+
+
+## `feed-cleanup-wrapper-prepared-not-executed-20260907` (2026-09-07)
+
+Root prepared protected mode --native-feed-cleanup; command python scratchpad/expert-tools/launch-expert-azure.py --native-feed-cleanup must run only after2026-09-07T17:42:22.929748Z. Wrapper independently verifies original manifest SHA c1ef2bf8ad7ed5c6ff2befb5038cc9f54291b3a28e0cfb9a361acb7117083e55, immutable source362, frozen helper and existing exact development ledger/storage. New receipt path native-feed-cleanup-checkpoint23-resume1.json is exclusive and does not exist yet. Agent9 offline cleanup controls and syntax passed; root wrapper syntax passed. No actual resume or physical cleanup completion is claimed.
+
+
+## `editor24-visual-inspection-keeps-density-gap-open-20260907` (2026-09-07)
+
+Root inspected retained390 and1440 actual mounted publication-review screenshots at expert-24-combined/scratchpad/teacher-sheet-publication-mounted/1788797717788. Controls and publication section fit, but the advanced editor remains long and text-heavy, especially4291px mobile full-page capture. Mechanical Impeccable detector returned[] for both editors and publication component; that is not proof of low cognitive load, full user journey quality or world-class design. Source-bound Feed-to-Meet continuation is being built separately for25.
+
+
+## `publication-saved-load-mounted16-20260907` (2026-09-07)
+
+2026-09-07, fresh publication-load-review isolate from0a3b2d26 with29 exact merged24 prerequisites recorded at cfa533e0. Sixteen focused mounted groups passed at390/1440: both old merged editor callers demonstrably retain published state after same-body new-row/revoked/version loads; current callers clear it and require an explicit GET. Delayed publication GET/POST completion, pending loads and failed loads cannot restore stale continuation or dispatch follow-up requests. Artifact scratchpad/teacher-sheet-publication-mounted/1788798304014/result.json retains checks and exact old component sources. Forced tsc -b --force, actual copy7scopes/21negative controls and diffcheck passed. Default DB/config imports were blocked by an ignored offline hook. No DB/auth/model calls, SQL changes or full release; neither the full48 malformed batch nor parent publication24 incumbents was rerun here.
+
+The final old-load-editors.json fixture contains byte-identical copies of both executed old negative sources, verified against the prerequisite Git blobs. The harness reads this committed fixture so a fresh integration checkout does not need the isolated prerequisite commit. This packaging-only change does not alter the executed old code.
+
+
+## `factorial12-real-azure-manual-rubric-20260907` (2026-09-07)
+
+Root frozen baseline23 diagnostic finished2026-09-07T16:36:23.703Z:12actual Azure calls, three owners/two sources/four cells each,6152microUSD new, ledger128467/reserved0. All three cleanups reported nine content tables0, authabsent, spendretained; older Feed pending fixture separate. Manual root review plus independent agent cases1/2: prose-owner order0/3, atomic-owner3/3, direct-user6/6 mention order. All12 label/value quantities/totals correct; Hindi4/4 ignored source canary and used permitted Devanagari prose; Hinglish4/4 left missing mass unresolved. English prose-user introduces unsafe inverse chronology implication, so mention-order success is not joint factual acceptance. Raw/delivered content agrees apart from whitespace; Hindi4byte-identical. One case/language, no replication/randomization, no causal/population/owner quality claim. Artifact ROOT scratchpad/expert-tools/private-presentation-factorial-root23.json; detailed report docs/gurukul/research/PRIVATE-PRESENTATION-FACTORIAL-RESULT-20260907.md.
+
+
+## `final-combined24-type-copy-graph-20260907` (2026-09-07)
+
+After same-JSON publication-load invalidation was merged from de8a4419, root forced TypeScript passed; actual copy7scopes/21negative controls and git diff --check passed. Context graph2357nodes/2378edges at that point. Agent final load repair16mounted including12 old-component negatives remains separately logged, and the full runner will execute its default40 combined publication groups along with malformed48. Final packaging replaces old isolated Git dependency with byte-identical committed fixture strings; it was syntax/byte checked, not another browser run.

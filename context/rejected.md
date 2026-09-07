@@ -16734,3 +16734,58 @@ Frozen43230e5e release22 finished2026-09-07T15:18:34.373Z with23/24 runner check
 ## `private-refinement-complete-only-hides-reload-recovery-20260907` (2026-09-07)
 
 The exact combined caller mounted refinement only for result.state complete. A committed save rotates the epoch; when its response is lost, reloading the persisted request returns blocked with rehearsal_inputs_changed. The dedicated current-guidance GET still supports that stored-complete request, but its only caller disappeared. The retained executed old conditional reproduces absent recovery at both390/1440. Broadly allowing every blocked request was rejected because dispatched requests also become input-stale; use the validated stored-complete marker and a GET-only recovery mode. Initial new store fixture expected every invalid evidence/account branch to return blocked, but incumbent code honestly returns named503 for some; the assertion now checks the actual blocked-or-named503 refusal without changing that policy.
+
+
+## `saved-refinement-does-not-prove-adaptation-20260907` (2026-09-07)
+
+Actual23 saved explanationOrder changed sheet hash and epoch and entered fresh next requests, but neither of the two corrected real Azure outputs followed it. The baseline and both corrected answers all presented solving31 before review16 and total47. Do not call persistence/SQL/compiler-field tests evidence of improvement. Frozen original probe/results retained; no blind paid retries. A source/adapter diagnosis and preregistered paired experiment are required. Separately the automatic baseline checker missed the correct total because its label-distance rule was conservative; root read the retained answer, so report manual correctness separately from automated diagnostics.
+
+
+## `latest-bound-publish-can-target-unreviewed-sheet-20260907` (2026-09-07)
+
+The retained old bound caller published an older bound row while the editor selected a newer unbound private draft in the root actual SQL negative. A separate publish button without saved-subject binding is rejected. Agent dropped-socket testing observed transport replay from one application fetch; application action count is not wire-dispatch count. Root merge first stopped before writes on adjacent minimal-editor/publication imports; using the exact frozen minimal-editor prerequisite resolves the correct three-way ancestor. After merge the publication handler fixture failed following6passes because it transformed only double-quoted imports and left the actual single-quoted private refinement import in a data URL. The fixture now resolves both actual domain modules by file URL, preserving the private route. Original failure log retained; no runtime import or gate changed.
+
+
+## `static-presentation-tail-does-not-establish-adaptation-20260907` (2026-09-07)
+
+Rejected promoting the static presentation mapping as a working improvement merely because its source and offline controls passed. Real corrected English repeated the baseline and Roman Hinglish retained the same undesired presentation order. There is no disconnected-tail explanation: actual outbound messages contain it. No further same-case paid tuning; preserve unsuccessful evidence and distinguish operational state passed from quality failure.
+
+
+## `release23-line-endings-and-obsolete-selection-fixtures-20260907` (2026-09-07)
+
+Teacher-sheet-private raw schema mirror failed with migration LF and schema CRLF even though SQL content matched; normalize CRLF only and execute SQL drift mutants. Studio fixture still expected the first workspace outside setup mode despite checkpoint23 deliberately honoring the explicit owned teacher/replica link. Preserve the original failed runner and executed historical callback negative; do not change production routing to satisfy that obsolete assumption.
+
+
+## `private-draft-nullish-default-is-not-shape-check-20260907` (2026-09-07)
+
+The checkpoint23 missing-field fix correctly handles absent arrays, but a present subjectStrands string still throws map, a null row throws toLowerCase, analogyBank null rows throw topic, boardVerbalisms string throws join, and object doubt steps become invalid React children. The actual private save accepts these exact objects and returns validation errors as data. All ten failures were reproduced in native React across both editor lanes; ROOT expert-tools/private-draft-malformed-render-probe-20260907.json retains initial source hashes. Coercing or filtering raw saved data during display was rejected because untouched/unrelated saves must not erase it. The repair projects safe display data and reserves replacement for an explicit owner action.
+
+
+## `upload-http200-does-not-prove-file-ready-20260907` (2026-09-07)
+
+Actual add_files returned200 while its per-file success assertion failed after real Azure readback. The probe did not retain that per-file error detail, so the exact origin is not yet established. Source analysis suggests an ambiguous unqualified replica_id in finalizeOwnedContextSource RETURNING; this requires a real read-only EXPLAIN before calling it the root cause. An active storage writer is expected to block erasure even after the process exits. Do not retry upload or bypass erasure fencing to obtain a green artifact.
+
+
+## `combined-editor-native-test-needs-css-loader-20260907` (2026-09-07)
+
+After the exact malformed-editor three-way merge, root native React suite stopped before controls on ERR_UNKNOWN_FILE_EXTENSION for teacherSheetPublication.css. The native markup-only loader now accepts only that exact stylesheet as an empty module; actual CSS stays loaded in browser-mounted tests. Runtime imports were preserved. The adjacent React useRef/flushSync and publication import conflict was combined explicitly, with original source hashes retained. This harness repair does not establish mounted acceptance.
+
+
+## `same-json-load-does-not-identify-saved-publication-20260907` (2026-09-07)
+
+Independent combined-source review found both editors load a fresh saved row by setting draft JSON only. Publication state keyed by stable JSON does not invalidate when the latest row, version or consent changes but JSON is identical. A stale published receipt and Room link could remain visible after an explicit Load saved draft. Add an explicit load revision boundary that invalidates current and pending review without automatic publication or inference; preserve source-derived finding until mounted reproduction verifies the repair.
+
+
+## `byte-restored-snapshot-stat-cache-is-not-source-drift-20260907` (2026-09-07)
+
+The immutable23 snapshot initially reported21 modified paths after restoring exact original mixed-line-ending bytes. Git content diff was empty and all362 hashes matched original expectations. Root refreshed only those explicit hash-verified paths into the index, required an empty cached diff and clean status, then rechecked all362 hashes. No source delta was committed or hidden; snapshot preparation failure and repair are retained. Do not replace exact runtime byte commitments with normalized hashes merely to silence Git status.
+
+
+## `publication-same-json-load-is-not-same-authority-20260907` (2026-09-07)
+
+The reviewed publication panel keyed invalidation only by stable draft JSON and actor/save state. Actual Load saved draft handlers discarded row identity/status metadata and set the same JSON, so an old published continuation survived a new latest row without consent, revocation or version change. The retained old merged24 components reproduce all three cases in both lanes and widths. A monotonically changing saved-load revision fixes the caller seam without inventing authority. The first focused run stopped after one group because networkidle was already satisfied before a fresh GET dispatched (read count2 vs3); its retained failure is fixture timing, not a product defect. The corrected control waits for the exact publication-review HTTP response before asserting the new read count.
+
+
+## `mention-order-success-can-reverse-event-meaning-20260907` (2026-09-07)
+
+English prose-user placed observation17 before calibration24 using followed by, despite source calibration-before-observation. Both root and independent agent rejected this as a joint success: the quantity relationships are correct but wording strongly implies reversed event order. This text is present in raw Azure output. Do not mechanically reorder chronological phrases, equate order scores with factual quality or promote a representation change from three unreplicated synthetic cases.

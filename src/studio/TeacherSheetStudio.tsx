@@ -18,10 +18,12 @@
 // rest of the FLOOR fields are not rendered at all — they are not this
 // teacher's to see as an editable control, and DisclosurePreview is the
 // dedicated, non-editable step for what a student sees of them.
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import TeacherSheetPublication from "./TeacherSheetPublication";
 import { teacherSheetEditorView, type TeacherSheetEditorView } from "./teacherSheetEditorView";
 import { ReplicaApiError } from "./replicaApi";
-import { readTeacherSheetDraft, saveTeacherSheetDraft } from "./teacherSheetApi";
+import { readTeacherSheetDraft, saveTeacherSheetDraft, teacherSheetPublicationClient } from "./teacherSheetApi";
 import { SYLLABUS } from "../engine/practice/syllabus";
 import type { SubjectId } from "../engine/practice/syllabus";
 import type { TeacherSheet, TeacherStrictness, TeacherWarmth } from "../engine/agents/teacherTypes";
@@ -89,9 +91,12 @@ export default function TeacherSheetStudio({
   onAuthError: (cause: unknown) => void;
 }) {
   const [draft, setDraft] = useState<Partial<TeacherSheet>>(sheetDraft);
+  const editor = useRef<HTMLElement>(null);
   const sheet = useMemo(() => teacherSheetEditorView(draft), [draft]);
   const [ladderDraft, setLadderDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [savedLoadRevision, setSavedLoadRevision] = useState(0);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [serviceUnavailable, setServiceUnavailable] = useState(false);
@@ -103,6 +108,8 @@ export default function TeacherSheetStudio({
   );
 
   const load = useCallback(async () => {
+    setSavedLoadRevision(value => value + 1);
+    setLoading(true);
     setError("");
     try {
       const status = await readTeacherSheetDraft(token, replicaId);
@@ -113,35 +120,51 @@ export default function TeacherSheetStudio({
       // Fail soft — the endpoint doesn't exist yet (WS-F). Keep editing the
       // local draft rather than blocking the screen.
       setServiceUnavailable(true);
+    } finally {
+      // Even identical JSON can belong to a new row or changed permission.
+      setSavedLoadRevision(value => value + 1);
+      setLoading(false);
     }
   }, [onAuthError, replicaId, token]);
 
   function toggleChapter(name: string) {
     const key = name.toLowerCase();
-    setDraft((current) => ({
-      ...current,
-      subjectStrands: coveredChapters.has(key)
-        ? (current.subjectStrands ?? []).filter((strand) => strand.toLowerCase() !== key)
-        : [...(current.subjectStrands ?? []), name],
-    }));
+    setDraft(current => {
+      const view = teacherSheetEditorView(current);
+      if (view.invalidFields.has("subjectStrands")) return current;
+      return {...current, subjectStrands: view.subjectStrands.some(strand => strand.toLowerCase() === key)
+        ? view.subjectStrands.filter(strand => strand.toLowerCase() !== key) : [...view.subjectStrands, name]};
+    });
   }
 
   function setSubject(subjectDomain: TeacherSheet["subjectDomain"]) {
-    setDraft((current) => ({ ...current, subjectDomain, subjectStrands: [] }));
+    setDraft(current => ({...current, subjectDomain,
+      ...(teacherSheetEditorView(current).invalidFields.has("subjectStrands") ? {} : {subjectStrands: []})}));
   }
 
   function addLadderRung() {
     const rung = ladderDraft.trim();
-    if (!rung) return;
-    setDraft((current) => ({ ...current, doubtEscalationLadder: [...(current.doubtEscalationLadder ?? []), rung] }));
+    if (!rung || sheet.invalidFields.has("doubtEscalationLadder")) return;
+    setDraft(current => {
+      const view = teacherSheetEditorView(current);
+      return view.invalidFields.has("doubtEscalationLadder") ? current : {...current, doubtEscalationLadder: [...view.doubtEscalationLadder, rung]};
+    });
     setLadderDraft("");
   }
 
   function removeLadderRung(index: number) {
-    setDraft((current) => ({
-      ...current,
-      doubtEscalationLadder: (current.doubtEscalationLadder ?? []).filter((_, i) => i !== index),
-    }));
+    setDraft(current => {
+      const view = teacherSheetEditorView(current);
+      return view.invalidFields.has("doubtEscalationLadder") ? current : {...current, doubtEscalationLadder: view.doubtEscalationLadder.filter((_, i) => i !== index)};
+    });
+  }
+
+  function replaceList(field: "subjectStrands" | "doubtEscalationLadder") {
+    // This explicit action replaces only the local field. Focus synchronously
+    // after its controls become usable, before any later user interaction.
+    flushSync(() => setDraft(current => ({...current, [field]: []})));
+    const target = field === "subjectStrands" ? editor.current?.querySelector<HTMLInputElement>(".syllabus-chapters input:not(:disabled)") || editor.current?.querySelector<HTMLSelectElement>("#subject-domain") : editor.current?.querySelector<HTMLInputElement>(".create-row input");
+    target?.focus();
   }
 
   async function save() {
@@ -163,7 +186,7 @@ export default function TeacherSheetStudio({
   }
 
   return (
-    <section id="teacher-sheet-studio" className="teacher-sheet-studio" aria-labelledby="teacher-sheet-title">
+    <section ref={editor} id="teacher-sheet-studio" className="teacher-sheet-studio" aria-labelledby="teacher-sheet-title">
       <div className="section-heading">
         <div>
           <p className="eyebrow">Sheet review</p>
@@ -173,7 +196,7 @@ export default function TeacherSheetStudio({
             correct it in the claims step.
           </p>
         </div>
-        <button className="text-button" type="button" onClick={() => void load()}>
+        <button className="text-button" type="button" disabled={loading} onClick={() => void load()}>
           Load saved draft
         </button>
       </div>
@@ -195,6 +218,8 @@ export default function TeacherSheetStudio({
         </p>
       )}
 
+      {sheet.invalidFields.size > 0 ? <p className="field-note draft-invalid-notice" role="status">{"Some saved fields cannot be displayed. They stay unchanged until you explicitly edit or replace them and save."}</p> : null}
+      {sheet.invalidFields.has("name") ? <p className="field-note">{"The saved name needs review."}</p> : null}
       <div className="teacher-sheet-grid">
         <article className="teacher-sheet-card">
           <h3>Subject &amp; syllabus coverage</h3>
@@ -203,9 +228,10 @@ export default function TeacherSheetStudio({
             id="subject-domain"
             className="field"
             value={sheet.subjectDomain ?? ""}
+            aria-invalid={sheet.invalidFields.has("subjectDomain")}
             onChange={(event) => setSubject(event.target.value as TeacherSheet["subjectDomain"])}
           >
-            <option value="" disabled>Not set</option>
+            <option value="" disabled>{sheet.invalidFields.has("subjectDomain") ? "Saved value needs review." : "Not set"}</option>
             <option value="physics">Physics</option>
             <option value="chemistry">Chemistry</option>
             <option value="maths">Maths</option>
@@ -217,13 +243,16 @@ export default function TeacherSheetStudio({
             className="field"
             rows={2}
             value={sheet.syllabusScope}
+            aria-invalid={sheet.invalidFields.has("syllabusScope")}
             onChange={(event) => setDraft((current) => ({ ...current, syllabusScope: event.target.value }))}
           />
+          {sheet.invalidFields.has("syllabusScope") ? <p className="field-note">{"Saved value needs review."}</p> : null}
 
           <p className="field-note">
             Check every chapter this clone should teach. A physics teacher's clone answering
             organic chemistry is a misrepresentation of them.
           </p>
+          {sheet.invalidFields.has("subjectStrands") ? <div className="draft-invalid-list"><p className="field-note">{"This saved list cannot be displayed. Replacing it starts an empty list in this draft. Save to apply your changes."}</p><button type="button" className="text-button" onClick={() => replaceList("subjectStrands")}>{"Replace chapter list"}</button></div> : null}
           <div className="syllabus-coverage" role="group" aria-label="Chapter coverage">
             {units.map((unit) => (
               <div key={unit.unit} className="syllabus-unit">
@@ -234,6 +263,7 @@ export default function TeacherSheetStudio({
                       <input
                         type="checkbox"
                         checked={coveredChapters.has(chapter.toLowerCase())}
+                        disabled={sheet.invalidFields.has("subjectStrands")}
                         onChange={() => toggleChapter(chapter)}
                       />
                       <span>{chapter}</span>
@@ -256,9 +286,10 @@ export default function TeacherSheetStudio({
             id="strictness"
             className="field"
             value={sheet.strictness ?? ""}
+            aria-invalid={sheet.invalidFields.has("strictness")}
             onChange={(event) => setDraft((current) => ({ ...current, strictness: Number(event.target.value) as TeacherStrictness }))}
           >
-            <option value="" disabled>Not set</option>
+            <option value="" disabled>{sheet.invalidFields.has("strictness") ? "Saved value needs review." : "Not set"}</option>
             {[0, 1, 2, 3, 4].map((value) => (
               <option key={value} value={value}>{value}. {STRICTNESS_LABELS[value as TeacherStrictness]}</option>
             ))}
@@ -269,9 +300,10 @@ export default function TeacherSheetStudio({
             id="warmth"
             className="field"
             value={sheet.warmth ?? ""}
+            aria-invalid={sheet.invalidFields.has("warmth")}
             onChange={(event) => setDraft((current) => ({ ...current, warmth: Number(event.target.value) as TeacherWarmth }))}
           >
-            <option value="" disabled>Not set</option>
+            <option value="" disabled>{sheet.invalidFields.has("warmth") ? "Saved value needs review." : "Not set"}</option>
             {[0, 1, 2, 3, 4].map((value) => (
               <option key={value} value={value}>{value}. {WARMTH_LABELS[value as TeacherWarmth]}</option>
             ))}
@@ -284,6 +316,7 @@ export default function TeacherSheetStudio({
             The ordered hint rungs given before any full solution. This is the academic integrity spine. A full
             solution is never the first response.
           </p>
+          {sheet.invalidFields.has("doubtEscalationLadder") ? <div className="draft-invalid-list"><p className="field-note">{"This saved list cannot be displayed. Replacing it starts an empty list in this draft. Save to apply your changes."}</p><button type="button" className="text-button" onClick={() => replaceList("doubtEscalationLadder")}>{"Replace doubt steps"}</button></div> : null}
           <ol className="ladder-list">
             {sheet.doubtEscalationLadder.map((rung, index) => (
               <li key={`${rung}-${index}`}>
@@ -304,10 +337,11 @@ export default function TeacherSheetStudio({
               className="field"
               placeholder="Add the next rung"
               value={ladderDraft}
+              disabled={sheet.invalidFields.has("doubtEscalationLadder")}
               onChange={(event) => setLadderDraft(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addLadderRung(); } }}
             />
-            <button className="button secondary-button" type="button" onClick={addLadderRung}>Add rung</button>
+            <button className="button secondary-button" type="button" disabled={sheet.invalidFields.has("doubtEscalationLadder")} onClick={addLadderRung}>Add rung</button>
           </div>
         </article>
 
@@ -323,11 +357,13 @@ export default function TeacherSheetStudio({
             className="field"
             rows={2}
             value={sheet.identityLife}
+            aria-invalid={sheet.invalidFields.has("identityLife")}
             onChange={(event) => setDraft((current) => ({ ...current, identityLife: event.target.value }))}
           />
+          {sheet.invalidFields.has("identityLife") ? <p className="field-note">{"Saved value needs review."}</p> : null}
           <div className="teacher-sheet-readonly">
             <span className="claim-meta">Mentor boundary · not editable here</span>
-            <p>{sheet.boundaryParagraph}</p>
+            <p>{sheet.invalidFields.has("boundaryParagraph") ? "Saved value needs review." : sheet.boundaryParagraph}</p>
           </div>
         </article>
       </div>
@@ -345,10 +381,10 @@ export default function TeacherSheetStudio({
           {INGESTED_PREVIEW.map((item) => (
             <div key={String(item.key)} className="teacher-sheet-readonly">
               <span className="claim-meta">{item.label}</span>
-              <p>{item.render(sheet)}</p>
-              <small>
+              <p>{sheet.invalidFields.has(item.key) ? "Saved value needs review." : item.render(sheet)}</p>
+              {!sheet.invalidFields.has(item.key) ? <small>
                 {sheetProvenance === "draft" ? "Drafted from your uploads" : "Not learned yet"}
-              </small>
+              </small> : null}
             </div>
           ))}
         </div>
@@ -362,6 +398,7 @@ export default function TeacherSheetStudio({
           {saving ? "Saving…" : "Save sheet draft"}
         </button>
       </div>
+      <TeacherSheetPublication token={token} replicaId={replicaId} draft={draft} api={teacherSheetPublicationClient} onAuthError={onAuthError} disabled={saving || loading} savedLoadRevision={savedLoadRevision} />
     </section>
   );
 }

@@ -34,6 +34,7 @@ execSync(
 );
 
 const suites = {
+  "context-source-finalize": "context-source-finalize.mjs",
   "performance-prerequisites": "performance-prerequisites.mjs",
   "azure-only-fetch": "azure-only-fetch.mjs",
   "azure-only-asr": "azure-only-asr.mjs",
@@ -64,6 +65,7 @@ const suites = {
   "private-text-rehearsal-ui": "private-text-rehearsal/run.mjs",
   "context-attribution-ui": "context-attribution/run.mjs",
   "private-draft-editor": "private-draft-editor/run.mjs",
+  "private-draft-invalid-display": "private-draft-invalid-display.mjs",
   "private-draft-full-shell": "private-draft-full-shell.mjs",
   "copy-gate-portable": "copy-gate-portable/run.mjs",
   "copy-room-scope": "copy-gate-portable/scope.mjs",
@@ -75,6 +77,8 @@ const suites = {
   "room-reply-language": "room-reply-language.mjs",
   "context-proposal-review": "context-proposal-review.mjs",
   "teacher-sheet-private": "teacher-sheet-private.mjs",
+  "teacher-sheet-publication": "teacher-sheet-publication/run.mjs",
+  "teacher-sheet-publication-ui": "teacher-sheet-publication/mounted.mjs",
   "teacher-sheet-adoption": "teacher-sheet-adoption.mjs",
   "teacher-sheet-adoption-harness": "teacher-sheet-adoption-harness.mjs",
   "parse-separator-runs": "parse-separator-runs.mjs",

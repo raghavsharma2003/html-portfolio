@@ -22990,3 +22990,48 @@ Combine only hash-frozen partial-draft rendering, explicit correction, portable 
 ## `private-refinement-stale-complete-readback-only-20260907` (2026-09-07)
 
 A successfully saved teaching correction changes the private epoch, so its old completed rehearsal becomes input-stale. Emit can_review_teaching only when the stored row was complete, the current receipt and selected source validate, and the authority failure is exactly rehearsal_inputs_changed. The client accepts only that combination and offers an explicit current-guidance GET in a recovery-only component; even an editable malformed GET cannot expose a form or save. Do not replay inference or infer a unique save receipt from current-state readback. Reverse if any pending, withdrawn, revoked, foreign or source-blocked request gains recovery authority, or if recovery can write without a fresh completed test.
+
+
+## `expert-twenty-four-fix-observed-adaptation-20260907` (2026-09-07)
+
+Keep release23 frozen while repairing the measured failure to follow saved explanation order in a separate24candidate. Preserve source facts, requested language, shared generation gates and actual cost accounting; do not promote context text into system instructions. Reverse the proposed compiler change if matched-source actual responses show no improvement or any factual/authority regression. Publication and malformed historical draft recovery remain separate frozen slices.
+
+
+## `teacher-publication-reviews-exact-saved-subject-20260907` (2026-09-07)
+
+The owner explicitly reviews the same saved sheet ID/version/content/consent-column snapshot shown in the editor. HTTP publish requires this key; matching published replay is readback. Ordinary missing binding/column permission remains waiting on us, no fabricated consent. Reversal: any owner/snapshot/refusal or actual SQL proof failure disables this caller while preserving private editing and existing voice/runtime gates.
+
+
+## `presentation-tail-candidate-withheld-after-native-failure-20260907` (2026-09-07)
+
+Do not merge f2fdcd0712836a15248bddd1f4de1af8db44a9d2 into checkpoint24. Its bounded actual Azure diagnostic failed the predefined correction criterion despite the tail appearing in the outbound messages. Preserve the source and failed artifact; stop retries on these known cases. Reverse only with a distinct falsifiable mechanism, fresh held-out cases, factual/language/authority controls and actual improvement evidence.
+
+
+## `private-draft-invalid-display-preserve-raw-20260907` (2026-09-07)
+
+Private saves intentionally retain incomplete or invalid JSON fields with validation data. The editor must shape-check each field it renders, show a review state for present malformed values, and keep the original draft as save state. Invalid chapter/doubt collections require explicit local replacement before normal list editing; unrelated edits preserve their raw values. Replacement changes only its selected field and still requires an explicit save. Read-only fields stay read-only. Reverse if an untouched or unrelated save drops malformed/unknown values, if malformed content is presented as a confirmed empty value, or if review changes any server, consent, epoch or publication authority.
+
+
+## `native-feed-writer-expiry-preserves-cleanup-authority-20260907` (2026-09-07)
+
+The actual Feed test uploaded and read back one synthetic file, then failed before canonical readiness. Keep the exact source, owner auth and durable manifest while its active writer remains authoritative until2026-09-07T17:42:22.929748Z. Never force lease timestamps or infer physical deletion from logical removal. Reverse only after the actual source-scoped eraser produces confirmed storage absence and completed SQL receipt. Preserve immutable23 source bytes for later cleanup while development continues separately.
+
+
+## `qualify-context-finalize-target-columns-20260907` (2026-09-07)
+
+Qualify the UPDATE target columns in context-source finalization RETURNING, preserving every owner, consent, source, writer, state and snapshot predicate. Test the original query as a real42702 negative and repaired query using actual EXPLAIN before another upload. Reverse if the change alters returned field names, authority, audit semantics or any previously valid non-context source path.
+
+
+## `immutable-checkpoint23-for-pending-feed-cleanup-20260907` (2026-09-07)
+
+Retain ROOT scratchpad/expert-checkpoint23-frozen at0a3b2d26 with exact362 original API/schema hashes and clean tracked/index state. The reviewed cleanup-only derivative pins that one root, original expectation hash and original pending manifest hash; it cannot upload, sign in, save or ask. This allows integration to advance without changing the code/authority used to finish the existing source erasure. Reverse if any source hash/manifest/owner/container binding changes; stop rather than regenerate expectations.
+
+
+## `publication-review-invalidates-on-saved-load-20260907` (2026-09-07)
+
+Both actual editors increment a saved-load revision when an explicit load starts and settles. The publication component includes this revision in its synchronous generation guard and state reset, so identical text belonging to another selected row, permission state or version cannot retain cached publication. Publication actions and continuation pause while loading; no automatic publication read/write follows. Raw draft editing and explicit saves remain unchanged. Reverse if a load can resurrect a stale review or dispatch an automatic request, or if the signal discards unrelated raw draft values.
+
+
+## `structured-evidence-hypothesis-after-finite-diagnostic-20260907` (2026-09-07)
+
+Keep conditional f2fdcd07 withheld. The fresh baseline23 factorial suggests representation affects saved-order adherence on three synthetic examples. Next inspect existing cited owner-reviewed structured knowledge paths and propose a fresh-holdout slice preserving factual relations, chronology and erasure. Reverse this hypothesis if larger matched fresh cases or owner tasks do not reproduce the contrast, or if transformation changes source meaning/authority. No automatic source rewriting, model switch or product quality acceptance follows.
