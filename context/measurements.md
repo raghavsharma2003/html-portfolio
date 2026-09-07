@@ -16191,3 +16191,10 @@ Astra read-only source audit on2026-09-07 inspected _replica-full-erasure.js, _c
 ## `issued-contract-plan-source-findings-20260907` (2026-09-07)
 
 One Astra source audit on2026-09-07 produced the issued-contract plan; root read its schema, caller changes, legacy behavior and acceptance gates. Top-level migration inventory ends136; no137 created. Current lease/sweep lack issued policy/profile routing, and older reference builder/adapter do not reliably retain speaker model revisions. No runtime/schema/cloud operations or model tests ran. Plan is explicitly not implemented.
+
+
+## `issued-contract-63-controls-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Root ran node evals/run.mjs identity-issued-contract:63checks passed through the real registry and source module. Both locale banks contain6draft items; all12 build/validate. Controls cover canonical ordering, deep freeze, changed challenge/replica/owner/locale/item/nonce/reference against original commitment, strict types/keys/prototypes/accessors, missing expected hash and registry-field tampering. Two in-memory actual-source mutants demonstrate unsupported profile acceptance without field binding and a rebuilt foreign nonce contract acceptance without expected-hash equality. Root separately ran registry-runner14pass and git diff --check. No schema, SQL, cloud, audio, owner review or identity acceptance occurred. Full release9 predates this additive module/registry change.
+
+Agent added UUID/hash trailing-newline controls after the root63check run. Root reran the registered final suite:65passed; evidence scratchpad/identity-issued-contract-root-final.log. This is the final focused revision.

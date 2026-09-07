@@ -16367,3 +16367,8 @@ Do not call the full sweep or maxJobs4 finalizer merely because the isolated sou
 ## `speaker-family-name-is-not-model-compatibility-20260907` (2026-09-07)
 
 Reference vectors retain family/evidence/vector/confidence but older builders and adapters omit explicit model revisions. A matching family name and candidate revision claim cannot establish reference/candidate model compatibility. Do not fabricate historical provenance or enable accepted identity from that comparison; obtain compatible reference evidence and verify the complete path.
+
+
+## `self-consistent-contract-is-not-issued-authority-20260907` (2026-09-07)
+
+Initial proposed validator allowed omission of expectedContractSha256 for offline consistency checks. Review removed that optional path before completion: a fully rebuilt changed contract has a valid hash but is not the originally issued challenge. Offline callers also supply their retained commitment. Profile remains servable:false; a passing hash test cannot establish approved banks, model compatibility or implemented v2 decision semantics.

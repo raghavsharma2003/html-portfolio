@@ -12597,6 +12597,24 @@
       "kind": "rejection",
       "title": "Do not compare unproven reference and candidate revisions as accepted identity",
       "at": "2026-09-07"
+    },
+    {
+      "id": "issued-contract-requires-persisted-commitment-20260907",
+      "kind": "decision",
+      "title": "Require independently persisted hash when validating issued contract",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "issued-contract-63-controls-20260907",
+      "kind": "measurement",
+      "title": "63 pure contract controls and14registry controls pass",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "self-consistent-contract-is-not-issued-authority-20260907",
+      "kind": "rejection",
+      "title": "Optional expected commitment permits internally valid substitution",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

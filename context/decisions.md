@@ -22613,3 +22613,8 @@ Keep four synthetic replica receipts pending until preflight verifies exact data
 ## `issued-contract-plan-precedes-azure-verifier-20260907` (2026-09-07)
 
 Implement the reviewed plan in docs/gurukul/research/IDENTITY-ISSUED-CONTRACT-PLAN-20260907.md in phases: pure versioned contract, additive schema, caller/lease/settlement integration and runtime acceptance. Proposed137 must be rechecked before creation. Reversal condition: a simpler design proves equivalent issue-time locale/profile/reference authority, same-recording ancestry and lifecycle semantics. Keep strict verification disabled meanwhile.
+
+
+## `issued-contract-requires-persisted-commitment-20260907` (2026-09-07)
+
+The pure issued-contract validator requires an expected SHA256 rather than offering an optional internal-consistency mode. Server-owned IDs, explicit locale/item, exact six spaced digits and positive int4 reference version build a canonical frozen document. Banks and profile are immutable unreviewed/nonservable prerequisites. Reversal condition: a separately authenticated persisted envelope supplies equivalent independent issue authority; self-consistency alone never does. New semantics or approval status require a new retained bank/profile version.

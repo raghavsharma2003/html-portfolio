@@ -39,6 +39,7 @@ const suites = {
   "azure-only-asr": "azure-only-asr.mjs",
   "azure-asr-duration": "azure-asr-duration.mjs",
   "azure-asr-bytes": "azure-asr-bytes.mjs",
+  "identity-issued-contract": "identity-issued-contract.mjs",
   "azure-only-serving": "azure-only-serving.mjs",
   parse: "parse.mjs",
   // WS-BURST. The multi-message wait policy — pure, offline, no model call,
