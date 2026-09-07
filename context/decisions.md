@@ -22643,3 +22643,13 @@ Authenticated HTTP issue/create_upload now require configuredVoiceChallengeVerif
 ## `nonce-v2-uses-conservative-token-grammar-20260907` (2026-09-07)
 
 New detached matchesIssuedNonceV2 accepts exactly six total normalized digits as one token or six single-digit tokens separated only UnicodeWhite_Space/single commas. NFKC and Devanagari folding, explicit outer boundaries,4000codeunit pre/post limits. Danda allowed only after run. Extra numbers or unsupported number words refuse. No v1/profile/decision routing change. Reversal condition: measured locale-specific recognition evidence supports a different versioned grammar without substring or cross-word digit assembly.
+
+
+## `speech-v2-receipt-is-not-an-identity-verdict-20260907` (2026-09-07)
+
+Detached speech-v2 validates the retained issued commitment, applies strict nonce-v2 before script outcome, reuses existing F1 at0.60 and returns speech_matched/reject/inconclusive only. Mixed/unsupported/no-script output stays inconclusive after nonce. No verified field or profile/settlement routing. Reversal condition: measured locale-specific evidence justifies a new versioned script/scorer policy without weakening nonce or identity separation.
+
+
+## `retain-forward-speaker-revision-claims-20260907` (2026-09-07)
+
+Signed voice_quality response maps each embedding family to its named speaker model revision. Present metadata must contain both valid40hex revisions; absent map remains absent. Worker and builder independently validate any supplied optional model_revision. Only voice_quality adapter metadata becomesv2; evidence/source-set/manifest hashes commit changed revisions. No historical row rewrite, builder queue-version rewrite or comparison approval. Reversal condition: a stronger executed-model attestation replaces signed claims while preserving historical absence and exact family/input bindings.

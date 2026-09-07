@@ -16223,3 +16223,13 @@ Root inspected completed release10 on2026-09-07, started2026-09-07T02:20:51.525Z
 ## `nonce91-readiness7-and-regressions-20260907` (2026-09-07)
 
 Measured2026-09-07 India. Root independently ran registered identity-nonce-v2:91passed, including five actual-legacy-parser witnesses for forbidden longer-number/word/date/version/identifier constructions. Four Hindi danda positives and two between-digit negatives added after review. Root actualHTTPbody with explicit dependency stubs:7passed; unavailable issue/upload stops before DB/storage, status/cancel preserved, auth precedes readiness, compatible fixture allows issue, removed actualguard wrongly admits issue. No real auth/SQL/storage/model calls. Existing101identity tests, forcedTSbuild andcopygate passed. Logs scratchpad/identity-nonce-v2-root.log,identity-readiness-root.log,identity-readiness-regression.log,identity-readiness-typecheck.log. Full release10 predates these changes.
+
+
+## `speech34-and-revision46-controls-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Agent and root independently passed registered speech-v2 suite34checks. Actual issued builder/validator+nonce+existing F1 used; Hindi/English matches, nonce-firstrefusal, mixed/script-specific marks, changedcontract, bounds and frozen<1KiBcontent-free receipts covered. Root independently ran registered voice-revision-lineage46checks: signedfixture transport through actualadapter/worker/builder, raw/derivedinput lineage, presentinvalidvsabsentmetadata, signatures, immutablehashing, revision-onlychangedhashes atfixedadapterversion, and actualsource mutants droppingworker/builder fields or mappingwrongfamily. Historical absent-field records/manifests match prepropagation source mutants atsameversions. No model/SQL/cloud/identity acceptance. Logs scratchpad/identity-speech-v2-root.log and voice-revision-lineage-root.log.
+
+
+## `revision-affected-regressions-20260907` (2026-09-07)
+
+Agent reported completed voice-evidence25,replica-processing80,model-build17checks andclean diff on finalfrozenfiles. Root reviewed source and focusedtest and independentlyran46lineagechecks; it did not independentlyrerun these3affected suites. No edits followed. Full release10 predates this speech/revision work; next frozen runner is11.

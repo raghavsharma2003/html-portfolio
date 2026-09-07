@@ -422,6 +422,11 @@ async function runStage({ job, source, adapter, artifactStore, inputArtifacts, d
             embedding.vector.some((number) => !Number.isFinite(number))) {
           throw new ProcessingContractError("voice embedding is invalid");
         }
+        const hasRevision = Object.hasOwn(embedding, "model_revision");
+        if (hasRevision && (typeof embedding.model_revision !== "string" || embedding.model_revision.length !== 40 ||
+            !/^[0-9a-f]{40}$/.test(embedding.model_revision))) {
+          throw new ProcessingContractError("voice embedding model revision is invalid", { code: "voice_model_revision_invalid" });
+        }
         const measuredInput = embedding.artifact_id
           ? references.find((entry) => entry.artifact_id === embedding.artifact_id)
           : null;
@@ -433,7 +438,10 @@ async function runStage({ job, source, adapter, artifactStore, inputArtifacts, d
           job, source, adapter, type: "voice_embedding", artifactId: inputRef.artifact_id,
           inputSha256: inputRef.sha256,
           confidence: embedding.confidence,
-          value: { family: embedding.family, vector: embedding.vector },
+          value: {
+            family: embedding.family, vector: embedding.vector,
+            ...(hasRevision ? { model_revision: embedding.model_revision } : {}),
+          },
         }));
       }
       const inputSet = references.map((entry) => ({ artifact_id: entry.artifact_id, sha256: entry.sha256 }))

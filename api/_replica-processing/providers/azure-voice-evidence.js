@@ -288,6 +288,19 @@ function normalizedCandidates(value, inputs, maxBytes, requireParent) {
 
 function normalizedMeasurements(value, inputs) {
   if (!Array.isArray(value?.embeddings) || value.embeddings.length < 2 || value.embeddings.length > 16) fail("voice_evidence_embeddings_invalid");
+  // The signed service map is provenance, not an assertion that a revision is
+  // approved. Historical responses without the map remain explicitly unversioned.
+  const revisionKeys = {
+    "speechbrain-ecapa-voxceleb": "speechbrain-ecapa",
+    "speechbrain-xvector-voxceleb": "speechbrain-xvector",
+  };
+  const hasRevisions = Object.hasOwn(value, "model_revisions");
+  if (hasRevisions && (!value.model_revisions || typeof value.model_revisions !== "object" ||
+      Array.isArray(value.model_revisions) || Object.values(revisionKeys).some((key) =>
+        !Object.hasOwn(value.model_revisions, key) || typeof value.model_revisions[key] !== "string" ||
+        !/^[0-9a-f]{40}$/.test(value.model_revisions[key]) || value.model_revisions[key].length !== 40))) {
+    fail("voice_evidence_model_revisions_invalid");
+  }
   const embeddings = value.embeddings.map((embedding) => {
     if (!EMBEDDING_FAMILIES.has(embedding.family) || !SAFE.test(String(embedding.input_key || "")) ||
         !Array.isArray(embedding.vector) || embedding.vector.length < 64 || embedding.vector.length > 2048) {
@@ -298,6 +311,7 @@ function normalizedMeasurements(value, inputs) {
     return Object.freeze({
       ...(input.artifact_id ? { artifact_id: input.artifact_id } : { input: "raw" }),
       family: embedding.family,
+      ...(hasRevisions ? { model_revision: value.model_revisions[revisionKeys[embedding.family]] } : {}),
       vector: Object.freeze(embedding.vector.map(Number)),
       confidence: finite(embedding.confidence, 0, 1),
     });
@@ -362,6 +376,7 @@ export function createAzureVoiceEvidenceAdapters(options = {}) {
     }),
     voice_quality: Object.freeze({
       ...meta("voice-analysis", "speechbrain-independent-speaker-evidence"),
+      version: "vyakti-voice-evidence-v2",
       async measure(request) {
         const { value, inputs } = await invoke("voice_quality", request);
         return normalizedMeasurements(value, inputs);

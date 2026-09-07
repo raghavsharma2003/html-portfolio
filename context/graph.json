@@ -12699,6 +12699,36 @@
       "kind": "rejection",
       "title": "Reject cross-word digit assembly and preserve Hindi punctuation",
       "at": "2026-09-07"
+    },
+    {
+      "id": "speech-v2-receipt-is-not-an-identity-verdict-20260907",
+      "kind": "decision",
+      "title": "Assess issued speech independently from speaker acceptance",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "retain-forward-speaker-revision-claims-20260907",
+      "kind": "decision",
+      "title": "Preserve signed speaker revision claims without historical backfill",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "speech34-and-revision46-controls-20260907",
+      "kind": "measurement",
+      "title": "34speech and46revision lineage checks pass",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "revision-affected-regressions-20260907",
+      "kind": "measurement",
+      "title": "Affected evidence processing and builder regressions pass",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "current-model-revision-cannot-fill-historical-absence-20260907",
+      "kind": "rejection",
+      "title": "Do not invent revisions or mutate existing contract versions globally",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

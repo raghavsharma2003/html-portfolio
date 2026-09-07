@@ -16392,3 +16392,8 @@ The new issued contract and schema pass software and bounded development SQL che
 ## `six-digits-do-not-mean-any-digit-substring-20260907` (2026-09-07)
 
 Legacy nonceSpoken strips nondigits then substring-matches, admitting longer numbers and digits distributed across words or dates; actual source witnesses demonstrate this, without changing v1 semantics. First detached parser omitted Hindi final danda, so review added trailing-only danda support. Exactly six isolated digits cannot distinguish a semantic date/identifier from a nonce; grammar tests are not liveness, ASR accuracy or false-accept calibration.
+
+
+## `current-model-revision-cannot-fill-historical-absence-20260907` (2026-09-07)
+
+Historical evidence had no retained per-family model revision; today's service constants cannot fill that absence. Updated adapter preserves only signedresponseclaims andrejectspresentmalformedmaps. Root also found exported VOICE_GENOME_BUILDER_VERSION is not the queue writer, which uses a literal in _replica-review.js; blindlybumping only that constant would misdescribe behavior. Kept optionalbuilderfield backwardcompatible andversioned voice_quality output only. Neither storedrevision nor speechmatch proves compatible executedweights or identity.

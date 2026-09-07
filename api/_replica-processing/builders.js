@@ -85,10 +85,16 @@ export function buildVoiceGenomeDraft(input) {
   const families = {};
   for (const row of embeddings.sort((a, b) => a.record_hash.localeCompare(b.record_hash))) {
     const family = String(row.value.family);
+    const hasRevision = Object.hasOwn(row.value, "model_revision");
+    if (hasRevision && (typeof row.value.model_revision !== "string" || row.value.model_revision.length !== 40 ||
+        !/^[0-9a-f]{40}$/.test(row.value.model_revision))) {
+      throw new Error("voice embedding model revision is invalid");
+    }
     (families[family] ||= []).push({
       evidence_id: row.evidence_id,
       vector: row.value.vector,
       confidence: row.confidence,
+      ...(hasRevision ? { model_revision: row.value.model_revision } : {}),
     });
   }
   const definition = {
