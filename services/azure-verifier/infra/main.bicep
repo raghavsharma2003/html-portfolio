@@ -14,8 +14,11 @@ param image string
 @description('Existing user-assigned managed identity resource ID with Key Vault secret get permission only.')
 param userAssignedIdentityResourceId string
 
-@description('Exact private Supabase project origin, without a path.')
+@description('Exact private Supabase project or Azure Blob account origin, without a path.')
 param privateSourceOrigin string
+
+@description('Exact private Azure Blob container. Required with an Azure Blob origin; leave empty for Supabase.')
+param privateSourceAzureContainer string = ''
 
 @description('Public application origin used only for the fixed, state-free quick-link return URL.')
 param publicAppOrigin string
@@ -40,8 +43,10 @@ param faceLivenessLimitedAccessApproved bool = false
 @description('Explicit operator assertion that faceEndpoint belongs only to this Vyakti verifier. Required before resource-wide cleanup can be enabled.')
 param faceResourceDedicated bool = false
 
-assert livenessRequiresErasurePlane = !faceLivenessEnabled || faceLivenessErasureEnabled
-assert livenessRequiresDedicatedFaceResource = (!faceLivenessEnabled && !faceLivenessErasureEnabled) || faceResourceDedicated
+// Consume these values in resource properties so validation cannot be unused.
+// sys.fail preserves the constraints without experimental ARM assertions.
+var checkedFaceLivenessEnabled = (!faceLivenessEnabled || faceLivenessErasureEnabled) ? faceLivenessEnabled : fail('liveness_requires_erasure_plane')
+var checkedFaceResourceDedicated = ((!faceLivenessEnabled && !faceLivenessErasureEnabled) || faceResourceDedicated) ? faceResourceDedicated : fail('liveness_requires_dedicated_face_resource')
 
 @description('Pinned Azure Face liveness model version, never latest.')
 param faceLivenessModelVersion string = '2025-05-20'
@@ -127,6 +132,7 @@ resource verifier 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'PORT', value: '8080' }
             { name: 'VERIFIER_VERSION', value: verifierVersion }
             { name: 'VYAKTI_PRIVATE_SOURCE_ORIGIN', value: privateSourceOrigin }
+            { name: 'VYAKTI_PRIVATE_SOURCE_AZURE_CONTAINER', value: privateSourceAzureContainer }
             { name: 'VYAKTI_PUBLIC_APP_ORIGIN', value: publicAppOrigin }
             { name: 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', value: documentIntelligenceEndpoint }
             { name: 'AZURE_FACE_ENDPOINT', value: faceEndpoint }
@@ -135,10 +141,10 @@ resource verifier 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'DOCUMENT_POLL_MS', value: '500' }
             { name: 'DOCUMENT_MAX_POLLS', value: '24' }
             { name: 'MAX_CONCURRENCY', value: '2' }
-            { name: 'AZURE_FACE_LIVENESS_ENABLED', value: string(faceLivenessEnabled) }
+            { name: 'AZURE_FACE_LIVENESS_ENABLED', value: string(checkedFaceLivenessEnabled) }
             { name: 'AZURE_FACE_LIVENESS_ERASURE_ENABLED', value: string(faceLivenessErasureEnabled) }
             { name: 'AZURE_FACE_LIVENESS_LIMITED_ACCESS_APPROVED', value: string(faceLivenessLimitedAccessApproved) }
-            { name: 'AZURE_FACE_DEDICATED_RESOURCE', value: string(faceResourceDedicated) }
+            { name: 'AZURE_FACE_DEDICATED_RESOURCE', value: string(checkedFaceResourceDedicated) }
             { name: 'AZURE_FACE_LIVENESS_MODEL_VERSION', value: faceLivenessModelVersion }
             { name: 'AZURE_FACE_VERIFY_CONFIDENCE_THRESHOLD', value: faceVerifyConfidenceThreshold }
             { name: 'AZURE_FACE_LIVENESS_SESSION_TTL_SECONDS', value: '300' }

@@ -73,6 +73,12 @@ This transport support does not enable identity or liveness. Deployment
 configuration must supply the container explicitly; no infrastructure was
 deployed or approval flags enabled by this change.
 
+The template accepts this as `privateSourceAzureContainer` (empty by default
+for Supabase). Compile with `bicep build infra/main.bicep`; its creation and
+cleanup constraints use supported short-circuit `fail` expressions consumed
+by the environment properties, without experimental assertion settings.
+Compilation proves template syntax, not Azure provider readiness or access.
+
 The Bicep parameters `faceResourceDedicated` and
 `faceLivenessErasureEnabled` default to `false`. Enabling new sessions fails
 deployment unless the erasure plane is also enabled and an operator explicitly

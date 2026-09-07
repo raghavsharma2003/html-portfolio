@@ -16258,3 +16258,18 @@ Root ran the registered performance-measurements suite: 26 checks passed, includ
 ## `azure-document-transport-82-service-checks-20260907` (2026-09-07)
 
 On 2026-09-07 agent passed 50 focused Azure document tests and 82 total verifier tests; root independently ran registered azureverify and all 82 passed. Actual createSignedReplicaRead source ran with isolated synthetic config and injected HEAD, then actual descriptor validator and bounded byte fetch ran with injected responses. Negative controls cover account/container/path/SAS/expiry/newline/redirect/MIME/size/hash changes; actual-source mutants remove container, expiry binding and hash checks. No network, provider, model, identity documents or cloud mutations. Root env-manifest suite also passed after documenting the conditional variable. Log scratchpad/azure-document-transport-root.log. No deployment template wiring or enabled review/Face path is implied.
+
+
+## `release-twelve-incomplete-and-arm-identity-inventory-20260907` (2026-09-07)
+
+On 2026-09-07 root found release12 exec67192 unavailable and no matching release/eval Node processes. Retained log has no aggregate completion; last modification 11:31:36 IST. It records one performance finding: studio-hi LCP 2856 ms against 2500 ms, with other listed performance targets within budget. Do not claim 23/24 or final eval/accessibility results for this incomplete run. Separate actual ARM GET inventory returned 33 resources, 17 Container Apps/jobs, zero Web/sites, and two AIServices accounts. No identity-related environment names were present in those application templates. No named verifier/review app or Face grant was established. Scope is this subscription, not external services. No keys listing, inference or mutation.
+
+
+## `identity-template-baseline-compiler-failure-20260907` (2026-09-07)
+
+Root ran Bicep CLI 0.46.1 (545b338e2c) against the untouched identity template. Compilation exited 1 with BCP349 at lines43/44: assert declarations require experimental Assertions. No infra/bicepconfig.json exists. This baseline failure predates Azure container wiring. Microsoft documents sys.fail in short-circuit expressions as the supported constraint mechanism; compile and test its actual resource references before claiming a repair.
+
+
+## `identity-template-compiles-with-preserved-guards-20260907` (2026-09-07)
+
+Root compiled the changed actual services/azure-verifier/infra/main.bicep with Bicep0.46.1 on 2026-09-07: exit0, standard ARM schema, no experimental feature metadata. Compiled JSON contains both short-circuit fail branches and actual environment references to their checked variables; Azure container parameter reaches the exact runtime env. Root registered azureverify passed93 checks,11 new deployment-source controls including eight boolean combinations, two unguarded-reference mutants and actual loadConfig refusal when container mapping is removed. Source boolean evaluation is not ARM execution. No Azure deployment validation or resource mutation. Logs scratchpad/identity-deployment-root.log and identity-bicep-checked.json.

@@ -22673,3 +22673,13 @@ Each of the three performance runs must have a supported observer and finite pos
 ## `azure-document-transport-binds-exact-container-20260907` (2026-09-07)
 
 Add conditional VYAKTI_PRIVATE_SOURCE_AZURE_CONTAINER with exact Azure account origin, container and existing three-UUID original-document path. Require current signer SAS keys, read-only blob/HTTPS permissions and matching short expiry. Preserve Supabase behavior, byte/hash/MIME verification and no redirects. Keep readiness flags disabled; source transport is not authenticity or Face acceptance. Reversal condition: a newly versioned storage signer contract proves equivalent exact source and capability bounds; do not broaden to arbitrary Azure URLs.
+
+
+## `close-deployment-contract-before-provider-flags-20260907` (2026-09-07)
+
+Keep identity unavailable until the real service and caller contracts can finish. Add Azure container deployment wiring and replace unsupported experimental Bicep assertions with equivalent supported short-circuit fail expressions consumed by resource properties. Preserve enable, erasure and dedicated-resource constraints. Reversal condition: a supported deployment mechanism proves equivalent constraints without experimental template requirements.
+
+
+## `liveness-redesign-keeps-evidence-authorities-separate-20260907` (2026-09-07)
+
+Retain the proposed liveness-composite v3 design as a nonimplemented plan. An earlier Face quicklink proof does not bind the later phrase video; no current calibrated producer supplies all required ownership facets. Do not implement a success-shaped endpoint with fabricated continuity/risk scores. Reversal condition: a measured Azure-hosted capture authority or verified single-ceremony provider contract establishes the exact later recording and subject bindings. Continue independent product usefulness work while this acceptance prerequisite remains open.

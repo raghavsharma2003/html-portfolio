@@ -16417,3 +16417,13 @@ Source audit shows voice settlement requires preexisting age_verified_at. A sepa
 ## `transport-pass-is-not-operational-enrollment-20260907` (2026-09-07)
 
 The Azure transport previously rejected the actual development storage origin and path; that concrete source incompatibility is now fixed. Injected byte tests cannot establish independent document-review service availability, Azure Face access, provider deletion or fresh-user identity settlement. Those remain next runtime prerequisites, and strict voice verification stays unavailable.
+
+
+## `existing-face-route-is-not-a-complete-broker-20260907` (2026-09-07)
+
+Read-only source audit across 36 local refs found no document-review or composite-liveness service implementation. Existing app calls /v1/liveness/verify, absent from broker routes; expected speech/continuity/synthetic-risk measurements have no implemented calibrated producer. Broker health/ready lists configured dependencies without probing them. Generic AIServices provisioning and local byte fixtures do not establish that path. Retained deployment report explicitly corrects the earlier optimistic bootstrap assessment.
+
+
+## `unused-deployment-guard-does-not-enforce-constraint-20260907` (2026-09-07)
+
+Simply replacing assert declarations with unused variables would not prove deployment constraints are evaluated. Both checked variables are consumed by the corresponding Container App environment values; negative controls replacing those references with raw flags admit forbidden creation or cleanup combinations. Default creation, cleanup, approval and dedicated-resource flags remain false. Compiler success is not cloud readiness.

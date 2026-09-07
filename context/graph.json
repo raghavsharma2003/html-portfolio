@@ -12807,6 +12807,48 @@
       "kind": "rejection",
       "title": "Keep the remaining enrollment blockers explicit",
       "at": "2026-09-07"
+    },
+    {
+      "id": "close-deployment-contract-before-provider-flags-20260907",
+      "kind": "decision",
+      "title": "Repair concrete deployment contracts before enabling providers",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release-twelve-incomplete-and-arm-identity-inventory-20260907",
+      "kind": "measurement",
+      "title": "Release12 incomplete; read-only Azure inventory establishes current scope",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "identity-template-baseline-compiler-failure-20260907",
+      "kind": "measurement",
+      "title": "Existing identity Bicep fails installed compiler before edits",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "existing-face-route-is-not-a-complete-broker-20260907",
+      "kind": "rejection",
+      "title": "Do not equate Face session support with composite liveness",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "identity-template-compiles-with-preserved-guards-20260907",
+      "kind": "measurement",
+      "title": "Identity template compiles and 93 service checks pass",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "unused-deployment-guard-does-not-enforce-constraint-20260907",
+      "kind": "rejection",
+      "title": "Bind deployment guard outputs to actual resource properties",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "liveness-redesign-keeps-evidence-authorities-separate-20260907",
+      "kind": "decision",
+      "title": "Separate Face identity from later audiovisual ownership",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
