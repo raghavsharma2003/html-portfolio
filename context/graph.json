@@ -12657,6 +12657,48 @@
       "kind": "rejection",
       "title": "Eligibility precheck cannot substitute for actual insertion",
       "at": "2026-09-07"
+    },
+    {
+      "id": "after-release-ten-versioned-recognition-policy-20260907",
+      "kind": "decision",
+      "title": "Continue contract integration after frozen release10",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "frozen-release-ten-passes-20260907",
+      "kind": "measurement",
+      "title": "Frozen a3dcdead passes all24software checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release-ten-does-not-enable-unconnected-identity-20260907",
+      "kind": "rejection",
+      "title": "Do not enable pending profile after software pass",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "voice-intake-requires-configured-verifier-20260907",
+      "kind": "decision",
+      "title": "Refuse new ceremonies when no compatible verifier exists",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "nonce-v2-uses-conservative-token-grammar-20260907",
+      "kind": "decision",
+      "title": "Keep strict lexical nonce parsing separate from v1 decisions",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "nonce91-readiness7-and-regressions-20260907",
+      "kind": "measurement",
+      "title": "91nonce and7HTTP readiness controls pass",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "six-digits-do-not-mean-any-digit-substring-20260907",
+      "kind": "rejection",
+      "title": "Reject cross-word digit assembly and preserve Hindi punctuation",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

@@ -22628,3 +22628,18 @@ Migration137 adds five nullable columns to existing challenge table. AllNULL is 
 ## `challenge-supersession-follows-successful-insert-20260907` (2026-09-07)
 
 Move issue INSERT ahead of expired/source-cleanup CTEs and require its actual RETURNING row before supersession. Keep ownership, consent, daily cap and latest-genome eligibility predicates unchanged; do not select an older genome. Explicitly exclude replacement ID. Reversal condition: a transaction/locking design proves equivalent no-loss replacement semantics and preserves upload/source fences. Distinct concurrent issue IDs and concurrent retirement remain snapshot-scoped; this patch adds no serialization claim.
+
+
+## `after-release-ten-versioned-recognition-policy-20260907` (2026-09-07)
+
+Frozen release10 permits the next bounded implementation phase; keep Azure-only identity closed until every issued-contract caller and acceptance prerequisite is connected. Preserve existing thresholds and do not reinterpret historical v1 decisions. Reversal condition: an alternative measured path proves equivalent issue/recording/nonce/reference authority with fewer components.
+
+
+## `voice-intake-requires-configured-verifier-20260907` (2026-09-07)
+
+Authenticated HTTP issue/create_upload now require configuredVoiceChallengeVerifier; strict Azure mode currently returns null. Return503 before challenge/storage work, retaining status/cancel and existing finalize access. UI maps refusal to platform-not-ready copy. Reversal condition: a verified compatible v2 profile is configured with complete callers and acceptance evidence; a flag alone cannot authorize an unfinishable ceremony.
+
+
+## `nonce-v2-uses-conservative-token-grammar-20260907` (2026-09-07)
+
+New detached matchesIssuedNonceV2 accepts exactly six total normalized digits as one token or six single-digit tokens separated only UnicodeWhite_Space/single commas. NFKC and Devanagari folding, explicit outer boundaries,4000codeunit pre/post limits. Danda allowed only after run. Extra numbers or unsupported number words refuse. No v1/profile/decision routing change. Reversal condition: measured locale-specific recognition evidence supports a different versioned grammar without substring or cross-word digit assembly.

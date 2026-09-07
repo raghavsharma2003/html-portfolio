@@ -15,6 +15,7 @@ import {
   voiceIdentityChallengeEnabled,
 } from "./_replica-voice-identity.js";
 import { getPendingSource } from "./_replica-source.js";
+import { configuredVoiceChallengeVerifier } from "./_voice-identity/verifier.js";
 import {
   ReplicaStorageError,
   REPLICA_STORAGE_WRITE_BUCKET,
@@ -64,6 +65,12 @@ export default async function handler(req, res) {
     const user = await requireUser(req);
     if (!allow(user.id, "replica_voice_identity_user", 20)) return res.status(429).json({ error: "slow_down" });
     const body = req.body || {};
+
+    // Keep status/cancellation available, but do not ask for a recording when
+    // this deployment has no compatible verifier to process it.
+    if ((body.op === "issue" || body.op === "create_upload") && !configuredVoiceChallengeVerifier()) {
+      return res.status(503).json({ error: "voice_challenge_verifier_unavailable" });
+    }
 
     if (body.op === "issue") {
       const challenge = await issueOwnedVoiceChallenge(q, user.id, body.replica_id);

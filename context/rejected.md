@@ -16382,3 +16382,13 @@ Initial oversized fixture also used an invalid bank item, so a rejection did not
 ## `owned-row-alone-does-not-authorize-supersession-20260907` (2026-09-07)
 
 Old expired CTE depended only on owned, so a missing/retired genome or daily cap could prevent replacement while expiring prior work. A duplicated eligibility condition would still miss ON CONFLICT refusal. Gate on actual inserted RETURNING instead. Sequential real SQL proves those tested states; it does not prove mutual exclusion between simultaneous distinct-ID requests.
+
+
+## `release-ten-does-not-enable-unconnected-identity-20260907` (2026-09-07)
+
+The new issued contract and schema pass software and bounded development SQL checks, but live issue/capture/lease/verifier/settlement language contracts remain unconnected. A release pass does not make unreviewed banks or missing reference revision provenance accepted. Keep servable:false and strict verifier disabled rather than displaying an unfinishable ceremony as ready.
+
+
+## `six-digits-do-not-mean-any-digit-substring-20260907` (2026-09-07)
+
+Legacy nonceSpoken strips nondigits then substring-matches, admitting longer numbers and digits distributed across words or dates; actual source witnesses demonstrate this, without changing v1 semantics. First detached parser omitted Hindi final danda, so review added trailing-only danda support. Exactly six isolated digits cannot distinguish a semantic date/identifier from a nonce; grammar tests are not liveness, ASR accuracy or false-accept calibration.

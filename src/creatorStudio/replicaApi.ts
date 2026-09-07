@@ -28,7 +28,10 @@ export async function replicaRequest<T>(token: string, path: string, init?: Requ
       : typeof data?.source?.rejection_code === "string" && data.source.rejection_code
         ? `Source rejected: ${data.source.rejection_code}`
         : `request failed (${response.status})`;
-    throw new ReplicaApiError(raw.replaceAll("_", " "), response.status, data);
+    const message = raw === "voice_challenge_verifier_unavailable"
+      ? "Voice setup is not ready yet. Please try again later."
+      : raw.replaceAll("_", " ");
+    throw new ReplicaApiError(message, response.status, data);
   }
   return data as T;
 }

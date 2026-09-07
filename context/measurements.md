@@ -16213,3 +16213,13 @@ After development migration137, root ran guarded real-development relcheck:34pas
 ## `supersession-101-fixtures-six-real-scenarios-20260907` (2026-09-07)
 
 Measured2026-09-07 India. Agent and root ran101identity checks,12new including4negative controls. Root actual issueOwnedVoiceChallenge executed against exact isolated development DB in6scenarios: eligible,retired-latest,missing-genome,daily-limit,duplicate-id,missing-consent. Eligible replacement expired prior challenge and marked both synthetic source manifests deleting; every refusal kept prior challenge issued and both sources pending_upload. Fixtures used newly generated owner/replica/challenge IDs and SQL-only source manifests; no files,SAS,uploads,provider calls or identity writes. Exact cleanup removed challenge/attempt/audit rows and replica with cascaded source/consent/genome, verifying0remaining. Result2026-09-07T02:19:42.960Z at ROOT scratchpad/expert-tools/supersession-dev-result.json; offline root log scratchpad/identity-supersession-root.log. Real3identityEXPLAIN checks passed afterward. Agent SQLcast1028/553passed; root read reported result, not a separate execution this phase.
+
+
+## `frozen-release-ten-passes-20260907` (2026-09-07)
+
+Root inspected completed release10 on2026-09-07, started2026-09-07T02:20:51.525Z on frozen a3dcdead. All24software checks passed; typecheck17480ms,layout250610ms,performance108884ms,eval353934ms,accessibility67731ms. No implementation edit overlapped. Log scratchpad/expert-integrated-release-10.log and release-logs/2026-09-07T02-20-51-525Z-12764/. Runner skipped relational gates without NEON_URL; prior exact-dev63constraint/6supersession/34relcheck/3EXPLAIN evidence stays separate. No deployment, owner listening or identity acceptance.
+
+
+## `nonce91-readiness7-and-regressions-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Root independently ran registered identity-nonce-v2:91passed, including five actual-legacy-parser witnesses for forbidden longer-number/word/date/version/identifier constructions. Four Hindi danda positives and two between-digit negatives added after review. Root actualHTTPbody with explicit dependency stubs:7passed; unavailable issue/upload stops before DB/storage, status/cancel preserved, auth precedes readiness, compatible fixture allows issue, removed actualguard wrongly admits issue. No real auth/SQL/storage/model calls. Existing101identity tests, forcedTSbuild andcopygate passed. Logs scratchpad/identity-nonce-v2-root.log,identity-readiness-root.log,identity-readiness-regression.log,identity-readiness-typecheck.log. Full release10 predates these changes.
