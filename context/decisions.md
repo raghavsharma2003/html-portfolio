@@ -22848,3 +22848,33 @@ Integrate exact source-supported fragment removal from owned teacher sheets, inc
 ## `private-dialogue-requires-measured-usage-20260907` (2026-09-07)
 
 Integrate explicit nonnegative safe-integer usage with positive combined total, pre-dispatch abort refusal, bounded512000byte streamed response, cancellation propagation and redirect refusal. Preserve schema, model, temperature and700token ceiling. Missing usage becomes named error and uncertain ledger state rather than zero-cost success. Reversal requires documented and measured Azure transport behavior plus an equally bounded accountable replacement, not coercion or a permissive fallback.
+
+
+## `one-call-private-dialogue-smoke-keeps-accounting-20260907` (2026-09-07)
+
+Use actual compiler, hash-pinned adapter/contracts and ordinary spend reserve/begin/settle against existing isolated active USD1 ledger. No budget bootstrap, provider retry, identity fixture or activation. Persist fresh request and prompt before writes; require exactly one Azure POST with no redirects. Settle measured usage before independent schema/fact review, and retain uncertainty on ambiguous failure. Reversal condition: changed source/deployment/rates, missing existing ledger, malformed measured usage or unsupported output; stop without paid retry.
+
+
+## `preserve-captured-sql-literal-whitespace-20260907` (2026-09-07)
+
+Captured original source-erasure SQL includes actual tab/newline/carriage-return characters inside PostgreSQL E-string literals. git diff --cached --check flagged trailing whitespace in those values. Added one exact-path .gitattributes -text whitespace=-blank-at-eol rule, preserving the measured original SHA instead of trimming meaningful SQL or weakening global whitespace checks. Reversal condition: fixture encoded losslessly with equal decoded bytes and provenance tests; retain original failing execution control.
+
+
+## `prove-runner-overlap-with-child-handshake-20260907` (2026-09-07)
+
+Replace only registry-runner self-test fixtures with loopback port0 handshake: hold childA, observe both actual child requests, releaseB, and releaseA only from B's actual runPool completion callback. Preserve registry result order, whole output, exit aggregation and serial control. A15second deadline can fail the proof but never produce positive overlap. Scheduler and release budgets unchanged. Reversal condition: handshake fails under valid concurrent scheduling or masks a serialized/incorrect runPool; retain actual child-process mutant control.
+
+
+## `modern-capture-refuses-unsupported-operation-20260907` (2026-09-07)
+
+Integrate dependency-free unsupported modern composite capability, not an env or health-based ready flag. Actual modern issue/start_face/create_upload and owner-fetched live_challenge retry refuse with503/waiting_on_us before side effects. Status/cancel/poll/deletion/finalize stay usable. Thread authenticated readiness through both actual LivenessCapture mounts and require fresh server plus current local challenge/consent/scope before devices and recorder start. Reversal requires implemented exact operation/protocol and measured caller/provider acceptance; face-only or config presence is insufficient.
+
+
+## `meet-links-to-explicit-private-setup-20260907` (2026-09-07)
+
+Use explicit mode=setup through both actual entry routers into existing generic creator StudioApp, preserving replica/locale and runtime-gate hash. Skip remembered teacher-mode restoration only for explicit setup. Keep loading/read error/reconciliation/stopped states distinct; unfinished lifecycle uses setup copy while existing stopped generation lock remains unchanged. Exact selected lifecycle prop merged with independent capture wiring. Bounded asynchronous anchor focus requires current read/scope and body focus; no backend activation behavior changes. Reversal: a tested unified Studio replaces duplicate routing or real owner observation shows this transition obstructs use.
+
+
+## `composite-v2-binds-each-signed-dispatch-20260907` (2026-09-07)
+
+Integrate modern composite protocolv2 with broker_nonce/time after private-read signing. Successful signed response must match protocol,operation,configuredverifierversion,freshnonce,rawrequestSHA,challengeattemptID andcaptureSHA. Native streamed timeout is normalized regardless of which abort rejection wins. Azure origin/redirect and65536byte limits remain. No composite service route or measurements added;404/501 stays unavailable. Reversal requires equally strong replay protection with documented actual service protocol; old signed replies cannot count as new evidence.

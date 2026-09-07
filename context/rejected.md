@@ -16592,3 +16592,33 @@ The local Azure launcher supplied Room reply settings, while modern private dial
 ## `blind-packet-omission-is-not-model-hallucination-20260907` (2026-09-07)
 
 Do not count Anjali or Physics as hallucinations when actual fixture and TeacherSheet supplied them. Preserve the original blind assessment and reconciliation rather than silently relabeling it. Repeatedly tuning the six evaluation questions would remove holdout value; fresh expert questions and independent native-language judgment are still needed.
+
+
+## `synthetic-erasure-needs-types-and-copy-evidence-20260907` (2026-09-07)
+
+Helper review found catalog-discovered legacy owner columns cannot all be compared to UUID literals. Cast literals by actual uuid/text/varchar/bpchar UDT and refuse unknown types; actual98-scope preflight now executes. Historical September2 production retention does not prove current development branch/copy state. Fresh ARM at11:12:54.392710Z confirmed exact development Azure Blob private, no soft deletion/versioning/restore/legal hold/immutability. Neon published backup policy says30days, but current branch/copy inventory is unavailable. Do not start a completed-erasure receipt clock from those incomplete observations. Source: https://neon.com/docs/security/security-overview; ROOT development-recovery-readback-20260907.json.
+
+
+## `timer-gap-is-not-deterministic-process-overlap-20260907` (2026-09-07)
+
+The old registry-runner comment asserted250ms versus20ms could not invert on any machine. Release18 disproved this: process startup/scheduling can exceed that difference. No evidence points to broken runPool scheduling. New forced-serial harness first hit its30second wrapper timeout because the late second request arrived after the parent deadline and was left waiting; corrected server rejects every post-deadline request immediately. Retained first-timeout log; final positive15checks and actual serialized refusal passed. Do not merely increase sleeps or retry full releases until green.
+
+
+## `fresh-read-without-scope-still-opens-stale-devices-20260907` (2026-09-07)
+
+Root review of the first15-group capture candidate found the awaited callback could return after unmount or same-ID local cancellation. Browser permission could resolve after cleanup and leave a new stream running. Added synchronous generation/current-scope eligibility checks, finite expiry, stopped late streams and recorder callback guards; final agent29groups cover those races. Root also isolates this new Vite suite's optimizer cache per invocation because shared default cache would introduce the runner's documented shared-write hazard; this is prevention, not an observed cache race.
+
+
+## `nested-router-and-stopped-prop-obscured-meet-flow-20260907` (2026-09-07)
+
+Initial agent audit stopped at StudioApp's mode reader and misidentified mode=ops as generic. Actual creator main intercepts it into OpsBoard; first fixture replaced that entry and missed the error. Added explicit setup dispatch and actual two-entry test. Root then found stopped is also passed for draft/consent_pending/enrolling/calibrating; using it for stopped copy hides first-use setup. Added exact lifecycle presentation without changing generation lock. Retain earlier anchor/type/fixture failures in handoff; they are not full-route acceptance or repeated visual polish.
+
+
+## `custom-stalled-stream-missed-native-fetch-error-20260907` (2026-09-07)
+
+The initial transport suite used a custom stalled ReadableStream; its abort race did not model Node nativeFetch rejecting reader.read first. That exposed a rawTimeoutError/code23 to callers. Normalize signal.aborted around actual body-read await and test native localhostheaders/read with controlledabort, no sleep-based success. Independent reviewer also found deadline cleanup could writeheaders twice on already-ended registry childA response; now bothAandBguardwritableEnded. Native error behavior reproduced, fullcleanup scheduling race was not induced.
+
+
+## `mounted-gate-fixture-is-not-authenticated-destination-design-20260907` (2026-09-07)
+
+Meet route tests now execute both real entry dispatches but inject the authenticated StudioApp host. Root inspection of destination screenshot shows artificial blank host space and missing full-shell visual context. The test proves scoped routing, focus and gate behavior; it is not evidence of a polished full authenticated destination. Preserve this limitation and verify the actual shell separately before calling the complete product UX accepted.

@@ -95,7 +95,9 @@ if (opsMode) {
   // replica lab. See `restoreStudioMode`'s own comment for why the fix is
   // here and not in the OAuth redirect. The hash is preserved, so the OAuth
   // token still reaches `consumeStudioOAuthCallback()` afterwards.
-  restoreStudioMode();
+  // Explicit private setup keeps the generic workspace even when this
+  // browser last used teacher mode. It does not change any runtime gate.
+  if (new URLSearchParams(window.location.search).get("mode") !== "setup") restoreStudioMode();
   // WS-R48. site/suites.html's "Start a Suite" button lands here with
   // `?start_suite=1&...`; capture it into localStorage and strip it from the
   // URL BEFORE render, restoreStudioMode()'s own contract one line up, for

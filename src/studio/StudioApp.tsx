@@ -85,6 +85,8 @@ import {
 } from "./enrollmentApi";
 import {
   type BiometricVerificationAttestations,
+  type LivenessCaptureReadiness,
+  livenessCaptureReadiness,
   cancelLivenessChallenge,
   createLivenessUpload,
   finalizeLivenessUpload,
@@ -859,6 +861,7 @@ function ReplicaWorkspace({
   onFinalizeUpload,
   onSetPrimaryVoice,
   onDeleteSource,
+  onCheckCaptureReadiness,
   onIssueChallenge,
   onStartFaceSession,
   onPollFaceSession,
@@ -910,6 +913,7 @@ function ReplicaWorkspace({
   onFinalizeUpload: (sourceId: string) => Promise<ReplicaSource>;
   onSetPrimaryVoice: (sourceId: string) => Promise<ReplicaSource>;
   onDeleteSource: (sourceId: string) => Promise<"complete" | "pending">;
+  onCheckCaptureReadiness: () => Promise<LivenessCaptureReadiness>;
   onIssueChallenge: (attestations: BiometricVerificationAttestations) => Promise<LivenessChallenge>;
   onStartFaceSession: (challengeId: string) => Promise<{ challenge: LivenessChallenge; quick_link_url: string }>;
   onPollFaceSession: (challengeId: string) => Promise<LivenessChallenge>;
@@ -1382,6 +1386,7 @@ function ReplicaWorkspace({
                   consentActive={hasSourceConsent(consents) && replica.age_verified}
                   challenge={challenge}
                   loading={livenessLoading}
+                  onCheckReadiness={onCheckCaptureReadiness}
                   onIssue={onIssueChallenge}
                   onStartFace={onStartFaceSession}
                   onPollFace={onPollFaceSession}
@@ -2396,6 +2401,12 @@ export default function StudioApp() {
     return () => window.removeEventListener("popstate", onPop);
   }, [loadReplicas, session]);
 
+  const handleCheckCaptureReadiness = useCallback(async () => {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    const fresh = await refreshForRequest(session);
+    return livenessCaptureReadiness(fresh.accessToken, selected.replica_id);
+  }, [session, selected, refreshForRequest]);
+
   async function handleIssueChallenge(attestations: BiometricVerificationAttestations) {
     if (!session || !selected) throw new Error("Your session is no longer available");
     try {
@@ -2429,7 +2440,7 @@ export default function StudioApp() {
       const updated = await pollOfficialFaceSession(fresh.accessToken, selected.replica_id, challengeId);
       setChallenge(updated);
       if (updated.face_session_state === "passed_deleted") {
-        setNotice("Official live-face and ID match passed. The Azure session was deleted; voice challenge capture is now unlocked.");
+        setNotice("Official live-face and ID match passed. The Azure session was deleted. Complete verifier availability is still required before recording.");
       }
       return updated;
     } catch (cause) {
@@ -2623,6 +2634,7 @@ export default function StudioApp() {
         onDeleteSource={handleDeleteSource}
         onRefreshEnrollment={handleIdentityChanged}
         onRefreshReview={refreshVerificationReview}
+        onCheckCaptureReadiness={handleCheckCaptureReadiness}
         onIssueChallenge={handleIssueChallenge}
         onStartFaceSession={handleStartFaceSession}
         onPollFaceSession={handlePollFaceSession}
@@ -2745,6 +2757,7 @@ export default function StudioApp() {
                 onFinalizeUpload={handleFinalizeUpload}
                 onSetPrimaryVoice={handleSetPrimaryVoice}
                 onDeleteSource={handleDeleteSource}
+                onCheckCaptureReadiness={handleCheckCaptureReadiness}
                 onIssueChallenge={handleIssueChallenge}
                 onStartFaceSession={handleStartFaceSession}
                 onPollFaceSession={handlePollFaceSession}

@@ -12,6 +12,7 @@ import {
 import { assertUploadWithinSourceFence, getPendingSource, reserveOwnedSourceUploadAuthorization } from "./_replica-source.js";
 import { configuredFaceSessionBroker, configuredFaceSessionErasureBroker } from "./_face-session/registry.js";
 import { deleteOwnedFaceSessionNow, pollOwnedFaceSession, startOwnedFaceSession } from "./_replica-face-session.js";
+import { modernCaptureReadiness, requireModernCaptureReadiness } from "./_liveness/capture-readiness.js";
 import {
   ReplicaStorageError,
   REPLICA_STORAGE_WRITE_BUCKET,
@@ -57,6 +58,13 @@ export default async function handler(req, res) {
     const user = await requireUser(req);
     if (!allow(user.id, "replica_liveness_user", 20)) return res.status(429).json({ error: "slow_down" });
     const body = req.body || {};
+
+    if (["issue", "start_face", "create_upload"].includes(body.op)) requireModernCaptureReadiness();
+
+    if (body.op === "capture_readiness") {
+      const challenge = await latestOwnedChallenge(q, user.id, body.replica_id);
+      return res.status(200).json({ challenge, readiness: modernCaptureReadiness() });
+    }
 
     if (body.op === "issue") {
       const challenge = await issueOwnedChallenge(q, user.id, body.replica_id, { attestations: body.attestations });
@@ -148,6 +156,7 @@ export default async function handler(req, res) {
     if (error instanceof AuthError) return res.status(error.status).json({ error: error.code });
     if (error instanceof ReplicaStorageError) return res.status(error.status).json({ error: error.code });
     const status = Number.isInteger(error?.status) ? error.status : 500;
-    return res.status(status).json({ error: status === 500 ? "liveness_failure" : error.message });
+    return res.status(status).json({ error: status === 500 ? "liveness_failure" : error.message,
+      ...(error?.waiting_on === "us" ? { waiting_on: "us" } : {}) });
   }
 }

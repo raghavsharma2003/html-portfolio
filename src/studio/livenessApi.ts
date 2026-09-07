@@ -10,6 +10,17 @@ export type BiometricVerificationAttestations = {
 };
 
 const DEVICE_KEY = "meera.device.v1";
+export type LivenessCaptureReadiness = {
+  challenge: LivenessChallenge | null;
+  readiness: { ready: boolean; waiting_on: "us" | null; code: string };
+};
+
+export async function livenessCaptureReadiness(token: string, replicaId: string) {
+  return replicaRequest<LivenessCaptureReadiness>(token, "/api/replica-liveness", {
+    method: "POST",
+    body: JSON.stringify({ op: "capture_readiness", replica_id: replicaId }),
+  });
+}
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function stableFaceDeviceId() {

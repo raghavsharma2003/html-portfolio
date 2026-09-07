@@ -28,6 +28,7 @@ createRoot(document.getElementById("root")!).render(
         consentActive
         challenge={challenge}
         loading={false}
+        onCheckReadiness={async () => ({ challenge, readiness: { ready: true, waiting_on: null, code: "" } })}
         onIssue={async () => challenge}
         onCreateUpload={async () => { throw new Error("visual harness does not upload"); }}
         onRetryUpload={async () => { throw new Error("visual harness does not upload"); }}

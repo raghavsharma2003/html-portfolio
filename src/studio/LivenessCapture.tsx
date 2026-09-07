@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { putSignedUpload, sha256File } from "./enrollmentApi";
-import type { BiometricVerificationAttestations } from "./livenessApi";
+import type { BiometricVerificationAttestations, LivenessCaptureReadiness } from "./livenessApi";
 import type { LivenessChallenge, ReplicaSource, SignedUpload } from "./types";
 
 type CaptureMode = "audio" | "video";
@@ -54,6 +54,7 @@ interface Props {
   consentActive: boolean;
   challenge: LivenessChallenge | null;
   loading: boolean;
+  onCheckReadiness: () => Promise<LivenessCaptureReadiness>;
   onIssue: (attestations: BiometricVerificationAttestations) => Promise<LivenessChallenge>;
   onStartFace: (challengeId: string) => Promise<{ challenge: LivenessChallenge; quick_link_url: string }>;
   onPollFace: (challengeId: string) => Promise<LivenessChallenge>;
@@ -76,6 +77,7 @@ export default function LivenessCapture({
   consentActive,
   challenge,
   loading,
+  onCheckReadiness,
   onIssue,
   onStartFace,
   onPollFace,
@@ -94,6 +96,7 @@ export default function LivenessCapture({
   const [pendingSourceId, setPendingSourceId] = useState<string | null>(null);
   const [objectUploaded, setObjectUploaded] = useState(false);
   const [faceBusy, setFaceBusy] = useState(false);
+  const [captureReadiness, setCaptureReadiness] = useState<LivenessCaptureReadiness["readiness"] | null>(null);
   const [verificationConsent, setVerificationConsent] = useState<Record<keyof BiometricVerificationAttestations, boolean>>({
     live_face_and_voice_processing: false,
     compare_face_to_my_id: false,
@@ -108,6 +111,17 @@ export default function LivenessCapture({
   const previewRef = useRef<HTMLVideoElement>(null);
   const autoStopRef = useRef<number | null>(null);
   const facePopupRef = useRef<Window | null>(null);
+  const mountedRef = useRef(false);
+  const captureGenerationRef = useRef(0);
+  const captureScopeKey = [consentActive, challenge?.replica_id, challenge?.challenge_id,
+    challenge?.state, challenge?.expires_at, challenge?.face_session_state].join("|");
+  const captureScopeRef = useRef({ key: captureScopeKey, callback: onCheckReadiness, consentActive, challenge });
+  // Invalidate synchronously on render, before a pending promise can resume
+  // between the new props and passive-effect cleanup.
+  if (captureScopeRef.current.key !== captureScopeKey || captureScopeRef.current.callback !== onCheckReadiness) {
+    captureGenerationRef.current++;
+  }
+  captureScopeRef.current = { key: captureScopeKey, callback: onCheckReadiness, consentActive, challenge };
 
   const videoMime = useMemo(() => supportedType("video"), []);
   const selectedMime = videoMime;
@@ -121,6 +135,79 @@ export default function LivenessCapture({
   const faceFailed = challenge?.face_session_state === "failed_deleted" || challenge?.face_session_state === "expired_deleted";
   const allVerificationConsent = Object.values(verificationConsent).every(Boolean);
   const busy = ["requesting", "recording", "hashing", "authorizing", "uploading", "finalizing"].includes(stage);
+  const captureAvailable = captureReadiness?.ready === true;
+
+  function captureOperationCurrent(operation: number) {
+    return mountedRef.current && captureGenerationRef.current === operation;
+  }
+
+  function captureEligible(value: LivenessChallenge | null) {
+    const expiry = value ? new Date(value.expires_at).getTime() : NaN;
+    return value?.state === "issued" && value.face_session_state === "passed_deleted" &&
+      Number.isFinite(expiry) && expiry > Date.now();
+  }
+
+  function assertCaptureOperation(operation: number) {
+    const scope = captureScopeRef.current;
+    if (!captureOperationCurrent(operation) || !scope.consentActive || !captureEligible(scope.challenge)) {
+      throw new Error("This capture is no longer authorized. Refresh the live challenge status.");
+    }
+  }
+
+  function discardLiveCapture() {
+    captureGenerationRef.current++;
+    const recorder = recorderRef.current;
+    if (recorder) {
+      recorder.onstop = null;
+      recorder.ondataavailable = null;
+      recorder.onerror = null;
+      if (recorder.state === "recording") recorder.stop();
+    }
+    recorderRef.current = null;
+    chunksRef.current = [];
+    if (autoStopRef.current) window.clearTimeout(autoStopRef.current);
+    autoStopRef.current = null;
+    stopTracks();
+  }
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; discardLiveCapture(); };
+  }, []);
+
+  useEffect(() => {
+    setStage((current) => ["requesting", "ready", "recording"].includes(current) ? "idle" : current);
+    return () => { discardLiveCapture(); };
+  }, [captureScopeKey, onCheckReadiness]);
+
+  useEffect(() => {
+    let active = true;
+    setCaptureReadiness(null);
+    onCheckReadiness().then((result) => {
+      if (active) setCaptureReadiness(result.readiness);
+    }).catch(() => {
+      if (active) setCaptureReadiness({ ready: false, waiting_on: "us", code: "liveness_readiness_unavailable" });
+    });
+    return () => { active = false; };
+  }, [onCheckReadiness]);
+
+  async function requireFreshCaptureReadiness(operation: number) {
+    assertCaptureOperation(operation);
+    let result: LivenessCaptureReadiness;
+    try { result = await onCheckReadiness(); }
+    catch (cause) {
+      if (captureOperationCurrent(operation)) setCaptureReadiness({ ready: false, waiting_on: "us", code: "liveness_readiness_unavailable" });
+      throw cause;
+    }
+    assertCaptureOperation(operation);
+    setCaptureReadiness(result.readiness);
+    if (result.readiness?.ready !== true) throw new Error("Live verification is unavailable. The complete verifier must be available before you record.");
+    const fresh = result.challenge;
+    if (!fresh || fresh.challenge_id !== captureScopeRef.current.challenge?.challenge_id ||
+        fresh.replica_id !== captureScopeRef.current.challenge?.replica_id || !captureEligible(fresh)) {
+      throw new Error("This capture is no longer authorized. Refresh the live challenge status.");
+    }
+  }
 
   function stopTracks() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -181,6 +268,7 @@ export default function LivenessCapture({
   }, [challengeState, remaining, stage]);
 
   async function issue() {
+    if (!captureAvailable) return;
     if (!allVerificationConsent) {
       setError("Confirm every narrow biometric verification statement before requesting a challenge.");
       return;
@@ -206,6 +294,7 @@ export default function LivenessCapture({
 
   async function cancelChallenge() {
     if (!cancellableChallenge || !challenge) return;
+    discardLiveCapture();
     setFaceBusy(true);
     setError("");
     facePopupRef.current?.close();
@@ -228,7 +317,7 @@ export default function LivenessCapture({
   }
 
   async function startFaceSession() {
-    if (!challengeIssued || !challenge) return;
+    if (!captureAvailable || !challengeIssued || !challenge) return;
     const popup = window.open("about:blank", "vyakti-official-face-check", "popup,width=520,height=760");
     if (!popup) {
       setError("The official face-check window was blocked. Allow pop-ups for this site, then try again.");
@@ -267,6 +356,7 @@ export default function LivenessCapture({
   }
 
   async function requestMedia() {
+    const operation = ++captureGenerationRef.current;
     if (!selectedMime || !navigator.mediaDevices?.getUserMedia) {
       setError(`${mode === "video" ? "Video" : "Audio"} recording is not supported in this browser.`);
       return;
@@ -274,36 +364,61 @@ export default function LivenessCapture({
     setError("");
     setStage("requesting");
     try {
+      await requireFreshCaptureReadiness(operation);
+      assertCaptureOperation(operation);
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
         video: mode === "video" ? { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } } : false,
       });
+      try { assertCaptureOperation(operation); }
+      catch (cause) {
+        stream.getTracks().forEach((track) => track.stop());
+        throw cause;
+      }
       streamRef.current = stream;
       setStage("ready");
     } catch (cause) {
-      setError(permissionMessage(cause, mode));
+      if (!captureOperationCurrent(operation)) return;
+      stopTracks();
+      setError(cause instanceof Error && !(cause instanceof DOMException) ? cause.message : permissionMessage(cause, mode));
       setStage("idle");
     }
   }
 
-  function startRecording() {
+  async function startRecording() {
+    const operation = ++captureGenerationRef.current;
     const stream = streamRef.current;
     if (!stream || !selectedMime) return;
+    setStage("requesting");
+    try {
+      await requireFreshCaptureReadiness(operation);
+      assertCaptureOperation(operation);
+    } catch (cause) {
+      if (!captureOperationCurrent(operation)) return;
+      stopTracks();
+      setError(cause instanceof Error ? cause.message : "Live verification readiness could not be checked.");
+      setStage("idle");
+      return;
+    }
+    if (streamRef.current !== stream) return;
     setError("");
     clearRecording();
     chunksRef.current = [];
     const recorder = new MediaRecorder(stream, { mimeType: selectedMime });
     recorderRef.current = recorder;
     recorder.ondataavailable = (event) => {
+      if (!captureOperationCurrent(operation)) return;
       if (event.data.size) chunksRef.current.push(event.data);
     };
     recorder.onerror = () => {
+      if (!captureOperationCurrent(operation)) return;
       recorder.onstop = null;
       stopTracks();
       setError("The browser recording stopped unexpectedly. Request device access and record again.");
       setStage("idle");
     };
     recorder.onstop = () => {
+      if (!captureOperationCurrent(operation)) return;
       const durationMs = Date.now() - startedAtRef.current;
       const blob = new Blob(chunksRef.current, { type: selectedMime });
       stopTracks();
@@ -331,6 +446,7 @@ export default function LivenessCapture({
   }
 
   function retake() {
+    discardLiveCapture();
     clearRecording();
     stopTracks();
     setError("");
@@ -401,6 +517,12 @@ export default function LivenessCapture({
           </span>
         </div>
 
+        {!captureAvailable && <div className="evidence-gate" role="status" data-waiting-on="us">
+          <div><strong>{captureReadiness ? "Live verification is unavailable" : "Checking live verification"}</strong>
+            <p>We need to make the complete verifier available before you start a new face check or recording. You can still check or withdraw an existing attempt.</p>
+          </div>
+        </div>}
+
         {!consentActive ? (
           <div className="evidence-gate">
             <span className="large-lock" aria-hidden="true" />
@@ -458,7 +580,7 @@ export default function LivenessCapture({
                 ))}
               </fieldset>
             </div>
-            <button className="button primary-button" type="button" disabled={stage === "requesting" || !allVerificationConsent} onClick={() => void issue()}>
+            <button className="button primary-button" type="button" disabled={!captureAvailable || stage === "requesting" || !allVerificationConsent} onClick={() => void issue()}>
               {stage === "requesting" ? "Issuing phrase" : "Request live phrase"}
             </button>
           </div>
@@ -489,7 +611,7 @@ export default function LivenessCapture({
                     must complete before capture unlocks.
                   </p>
                   {challenge.face_session_state === "not_started" ? (
-                    <button className="button primary-button" type="button" disabled={faceBusy} onClick={() => void startFaceSession()}>
+                    <button className="button primary-button" type="button" disabled={!captureAvailable || faceBusy} onClick={() => void startFaceSession()}>
                       {faceBusy ? "Creating protected session" : "Open official face check"}
                     </button>
                   ) : faceFailed ? (
@@ -518,7 +640,7 @@ export default function LivenessCapture({
                     <span><strong>Voice + live face</strong><small>{videoMime ? "Camera and microphone required" : "Not supported"}</small></span>
                   </label>
                 </fieldset>
-                <button className="button primary-button permission-button" type="button" disabled={!selectedMime} onClick={() => void requestMedia()}>
+                <button className="button primary-button permission-button" type="button" disabled={!captureAvailable || !selectedMime} onClick={() => void requestMedia()}>
                   Allow {mode === "video" ? "camera and microphone" : "microphone"}
                 </button>
                 <p className="permission-note">Your browser will show its own permission prompt. Vyakti cannot bypass a denial.</p>
@@ -530,7 +652,7 @@ export default function LivenessCapture({
             {stage === "ready" && (
               <div className={`capture-live capture-${mode}`}>
                 {mode === "video" ? <video ref={previewRef} muted playsInline aria-label="Private camera preview" /> : <div className="audio-ready"><span className="mic-symbol">●</span><div><strong>Microphone ready</strong><small>Recording has not started</small></div></div>}
-                <button className="record-button" type="button" onClick={startRecording}><i />Start recording</button>
+                <button className="record-button" type="button" disabled={!captureAvailable} onClick={() => void startRecording()}><i />Start recording</button>
               </div>
             )}
 

@@ -4,18 +4,22 @@ import { readRuntimeStatus } from "./runtimeApi";
 import { ReplicaApiError } from "./replicaApi";
 import TurnFeedback from "./TurnFeedback";
 import FeedbackDatasetPanel from "./FeedbackDatasetPanel";
-import type { ReplicaDialogueTurn, ReplicaRuntimeStatus } from "./types";
+import { conversationSetupUrl } from "./conversationSetupNavigation";
+import type { ReplicaDialogueTurn, ReplicaLifecycle, ReplicaRuntimeStatus } from "./types";
 import "./expert-experience.css";
+import "./conversation-setup.css";
 
 type Exchange = { question: string; answer: ReplicaDialogueTurn };
 type Props = {
   token: string; replicaId: string; runtimeStatus?: ReplicaRuntimeStatus | null;
   stopped: boolean; onAuthError: (cause: unknown) => void; onReview?: () => void;
+  lifecycle?: ReplicaLifecycle;
 };
 
-export default function ExpertConversation({ token, replicaId, runtimeStatus, stopped, onAuthError, onReview }: Props) {
-  const [runtime, setRuntime] = useState(runtimeStatus ?? null);
+export default function ExpertConversation({ token, replicaId, runtimeStatus, stopped, lifecycle, onAuthError }: Props) {
+  const [runtime, setRuntime] = useState(runtimeStatus?.replica_id === replicaId ? runtimeStatus : null);
   const [checking, setChecking] = useState(true);
+  const [readUnavailable, setReadUnavailable] = useState(false);
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -25,6 +29,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
   const [feedbackTurn, setFeedbackTurn] = useState("");
   const [feedbackRevision, setFeedbackRevision] = useState(0);
   const epoch = useRef(0);
+  const readinessRequest = useRef(0);
   const sendLock = useRef(false);
   const voiceEpoch = useRef(0);
   const audio = useRef<HTMLAudioElement | null>(null);
@@ -41,16 +46,21 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
   }, []);
   const checkReadiness = useCallback(async () => {
     const requestEpoch = epoch.current;
+    const request = ++readinessRequest.current;
+    const current = () => requestEpoch === epoch.current && request === readinessRequest.current;
     setChecking(true);
+    setReadUnavailable(false);
     try {
       const result = await readRuntimeStatus(token, replicaId);
-      if (requestEpoch === epoch.current) setRuntime(result);
+      if (!current()) return;
+      if (result?.replica_id !== replicaId || typeof result.active !== "boolean") throw new Error("conversation_readiness_unavailable");
+      setRuntime(result);
     } catch (cause) {
-      if (requestEpoch !== epoch.current) return;
+      if (!current()) return;
       setRuntime(null);
+      setReadUnavailable(true);
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
-      else setError("We could not check conversation readiness. Try checking again.");
-    } finally { if (requestEpoch === epoch.current) setChecking(false); }
+    } finally { if (current()) setChecking(false); }
   }, [token, replicaId, onAuthError]);
 
   useEffect(() => {
@@ -65,7 +75,10 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
   useEffect(() => { latest.current?.scrollIntoView({ block: "nearest", behavior: "instant" }); }, [exchanges.length, sending]);
 
   const unsettled = exchanges.at(-1)?.answer.billing_state === "reconcile_required";
-  const active = runtime?.active === true && !stopped && !checking && !unsettled;
+  const active = runtime?.replica_id === replicaId && runtime.active === true && !stopped && !checking && !readUnavailable && !unsettled;
+  const lifecycleStopped = lifecycle === undefined ? stopped : ["paused", "revoked", "purging"].includes(lifecycle);
+  const readiness = lifecycleStopped ? "stopped" : unsettled ? "reconciling" : checking ? "checking"
+    : readUnavailable || runtime?.replica_id !== replicaId ? "unavailable" : "setup";
   async function send() {
     const question = draft.trim();
     if (!question || sendLock.current || !active) return;
@@ -109,9 +122,16 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
   return <section className="expert-conversation" aria-label="Private expert conversation">
     <div className="expert-conversation__status"><span>{active ? "Private conversation" : "Private workspace"}</span><span>AI, reviewed by you</span></div>
     {!active && <div className="expert-conversation__readiness" role="status">
-      <h2>{checking ? "Checking your AI" : unsettled ? "Reply saved" : "Prepare your first conversation"}</h2>
-      <p>{checking ? "Checking the current server state." : unsettled ? "We are checking usage before another reply can begin." : "Review your knowledge and activate your AI in Share. Voice playback has its own readiness checks."}</p>
-      {!checking && <div className="expert-conversation__actions"><button type="button" onClick={() => { setError(""); void checkReadiness(); }}>Check again</button>{onReview && <button type="button" onClick={onReview}>Review my AI</button>}</div>}
+      <h2>{readiness === "stopped" ? "This AI is stopped" : readiness === "reconciling" ? "Reply saved" : readiness === "checking" ? "Checking your AI" : readiness === "unavailable" ? "Readiness is unavailable" : "Set up your first conversation"}</h2>
+      <p>{readiness === "stopped" ? "Private replies are unavailable for this AI."
+        : readiness === "reconciling" ? "We are checking usage before another reply can begin."
+          : readiness === "checking" ? "Checking the current server state."
+            : readiness === "unavailable" ? "We could not check conversation readiness. Try again."
+              : "Check what is still needed before private replies can begin."}</p>
+      {(readiness === "setup" || readiness === "unavailable") && <div className="expert-conversation__actions">
+        {readiness === "setup" && <a className="expert-conversation__setup" href={conversationSetupUrl(replicaId, window.location.search)}>Open conversation setup</a>}
+        <button type="button" onClick={() => { setError(""); void checkReadiness(); }}>Check again</button>
+      </div>}
     </div>}
     <div className="expert-conversation__thread" aria-label="Conversation">
       {!exchanges.length && active && <div className="expert-conversation__empty"><h2>Try a real question.</h2><p>Ask something a client would ask you. Listen, then show your AI what you would change.</p><button type="button" onClick={() => { setDraft("What is the first step you would recommend to someone new to my work?"); input.current?.focus(); }}>Help someone get started</button></div>}

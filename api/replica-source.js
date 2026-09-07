@@ -21,6 +21,7 @@ import {
   replicaObjectInfo,
 } from "./_replica-storage.js";
 import { applySelfTestAutoGrant, bootstrapSelfTestReplica } from "./_replica-processing/self-test.js";
+import { requireModernCaptureReadiness } from "./_liveness/capture-readiness.js";
 
 const cors = (res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -130,6 +131,8 @@ export default async function handler(req, res) {
           ...finalizedSourceResponse(existing, true),
         });
       }
+      // Use the fetched owner-scoped row, never a request-supplied purpose.
+      if (source.capture_mode === "live_challenge") requireModernCaptureReadiness();
       await ensurePrivateReplicaBucket(source.storage_bucket);
       source = await reserveOwnedSourceUploadAuthorization(q, user.id, body.replica_id, source.source_id);
       if (!source) return res.status(409).json({ error: "pending_source_state_changed" });
@@ -216,6 +219,7 @@ export default async function handler(req, res) {
       return res.status(error.status).json({ error: error.code });
     }
     const status = Number.isInteger(error?.status) ? error.status : 500;
-    return res.status(status).json({ error: status === 500 ? "source_failure" : error.message });
+    return res.status(status).json({ error: status === 500 ? "source_failure" : error.message,
+      ...(error?.waiting_on === "us" ? { waiting_on: "us" } : {}) });
   }
 }

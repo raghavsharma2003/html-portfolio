@@ -16498,3 +16498,43 @@ On2026-09-07 agent and root independently ran54actual adapter/service controls w
 ## `paired-model-review-reconciled-persona-scope-20260907` (2026-09-07)
 
 Model-assisted blind review plus root reconciliation of12actual retained Azure answers found all requested core facts and unknown-policy relations present. Two Mistral answers additionally overextended source scope: no private coaching became no individual help, and absence from supplied material became absence across the whole platform. Persona fields were absent from the blind packet; actual synthetic teacher name Anjali and Physics expertise were supplied, so those tentative hallucination flags are invalid. Six GPT samples are not a population ranking; presentation errors remain. See EXPERT-MODEL-PAIR-REVIEW-20260907.md. No native panel or default model/flag change.
+
+
+## `private-dialogue-one-real-structured-reply-20260907` (2026-09-07)
+
+At2026-09-07T11:08:25.660Z root completed one actual Azure gpt-4.1-mini structured call through the frozen private adapter and exact development ledger.342input/50outputtokens,217microUSD estimated at0.40/1.60USD perM, one dispatch, settled receipt verified, source hashes unchanged. Actual output assigns23minutes solving first and13minutes review second, one English sentence, requested grounded/natural/0.2/English/no-nonverbal delivery. Root source relation review passed separately. Agent26dry controls passed. This is adapter/schema/accounting connectivity, not authenticated owner/session/private-memory/voice or native quality acceptance. ROOT artifacts private-dialogue-smoke-result-20260907.json and private-dialogue-smoke-review-20260907.json.
+
+
+## `four-old-synthetic-erasure-readonly-preflight-20260907` (2026-09-07)
+
+On2026-09-07 root executed helper preflight against exact development DB with default_transaction_read_only=on.98actual catalog-derived table scopes were counted for each of4pinned targets. Each has one revoked replica and pending erasure job, no source/voice/channel or unrelated owner effects; audit/consent rows and one source-erasure attempt remain. No prepare/lease/storage/delete call ran. Missing durable receipt key and fresh branch/copy inventory keep completion pending. Retained old-erasure-readonly-preflight-20260907.json; original audit SHA unchanged.
+
+
+## `release-eighteen-failed-timing-order-assumption-20260907` (2026-09-07)
+
+Frozen2c2e5b2ccce6e3ef101b7251e83efdb09d554376 ran2026-09-07T11:05:47.554Z to11:25:59.513Z, exit1, changedDuringRun=false. Layout254184ms andperformance114416ms passed; security/accessibility/remaining software gates passed. Entire eval registry had one failing suite:registry-runner, whose250ms/20ms child completion assumption observed slow-first before fast-second. Two relational gates skipped absentNEON_URL. This is the actual failed release, not overwritten by a later focused pass. Retained release18 logs and completion JSON.
+
+
+## `runner-handshake-fifteen-checks-and-serial-mutant-20260907` (2026-09-07)
+
+On2026-09-07 root ran15child-process handshake checks, allpassed. Separate executed control changes only the handshake invocation concurrency2to1; it exits1, explicitly fails observed-overlap and reversed-completion checks. Retained ROOT registry-runner-repair-proof-20260907.json and serialized-control.log. No application/provider/DB behavior changed; integration fullrelease still required.
+
+
+## `modern-capture-sixteen-handler-twenty-nine-ui-20260907` (2026-09-07)
+
+On2026-09-07 agent passed16actual handler groups with injected auth/SQL/storage/face seams and29mounted React browser groups with synthetic device APIs. Existing22liveness+26Face+59source-erasure andTypeScript/copy/diff passed. Tests include unavailable/unknown/failed readiness, owner-fetched retry mode, old guard removal, pending read unmount, same-ID cancelled/expired/invalid-expiry/Face changes, consent/callback changes, late permission stream cleanup and recorder-read unmount. Two actual lifecycle-guard mutations admit stale device use or leave streams running. No real auth/DB/provider/camera/upload/identity evidence. Root integrated exact frozen files before its own focused checks.
+
+
+## `meet-seven-caller-thirty-four-mounted-groups-20260907` (2026-09-07)
+
+On2026-09-07 agent passed7executed navigation/nested-entry/actual CloneExperience JSX controls,34mounted groups at390/1440,12incumbent correction UI groups,TypeScript/copy/diff. Actual two-entry routing, ExpertConversation/RuntimeGate/API callers/CSS ran with synthetic loopbackHTTP and an injected delayed authenticated StudioApp host, not real sign-in. Old ops URL reaches OpsBoard marker without RuntimeGate. Exact scoped link,9lifecyclepropvalues, generation locks, late replica/token replies, focus and nooverflow passed. Finalreceipt expert-meet-readiness/scratchpad/meet-setup-ui/1788780997157/result.json. No owner/fullproduct/voice acceptance.
+
+
+## `composite-thirteen-controls-native-timeout-review-20260907` (2026-09-07)
+
+Agent12transport/22incumbent/93service groups passed; root independently ran12+22 after integration. Astra review then reproduced3native localhostbody timeouts yieldingDOMException TimeoutError/code23 instead of named503. Deterministic controlledAbortSignal/native-reader test reproduced old isolated source and corrected integrated source with exactly1native read each. Root registered this actual native-body case plus actual normalization-removal mutant, then13transport groups and15registry groups passed. No provider/SQL/biometric evidence. Retained ROOT liveness-body-timeout-review andliveness-native-body-abort-review artifacts withsourcehashes.
+
+
+## `nineteen-independent-integrated-ui-checks-20260907` (2026-09-07)
+
+On2026-09-07 root integrated capture frozen12files and Meet8files plus exact lifecycle JSX prop, preserving both independent CloneExperience changes. Root ran16handler/7actualnavigation-caller/29mountedcapture/34mountedMeet groups, allpassed, after using a unique optimizer cache for the capture suite. TypeScript/copy/graph/diff checks passed; graph2252nodes2361edges before this entry. Root visually inspected390pxMeet and destination fixtures. Meet primary action is readable and fits; destination screenshot has a deliberately delayed injectedhost and lacks full authenticated shell context, so it cannot establish shipping destination appearance. Actual fullrelease19 remains required. Receipt integration scratchpad/meet-setup-ui/1788781239984/result.json.

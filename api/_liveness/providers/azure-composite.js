@@ -1,8 +1,13 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { canonicalJson } from "../../_provenance/contracts.js";
 import { createSignedReplicaRead } from "../../_replica-storage.js";
 
-const PROTOCOL = "vyakti-azure-liveness-broker/v1";
+// This transport is intentionally incompatible with the old unbound response.
+// The repository broker has no composite route yet; this does not enable one.
+export const AZURE_COMPOSITE_LIVENESS_PROTOCOL = "vyakti-azure-liveness-broker/v2";
+export const AZURE_COMPOSITE_LIVENESS_OPERATION = "liveness.verify";
+const PROTOCOL = AZURE_COMPOSITE_LIVENESS_PROTOCOL;
+const OPERATION = AZURE_COMPOSITE_LIVENESS_OPERATION;
 const MAX_RESPONSE_BYTES = 65_536;
 
 function fail(code, status = 503) {
@@ -56,28 +61,41 @@ function safeSignature(value) {
   return /^[0-9a-f]{64}$/.test(raw) ? Buffer.from(raw, "hex") : Buffer.alloc(0);
 }
 
-async function boundedResponseText(response) {
+async function boundedResponseText(response, signal) {
   if (!response.body) return "";
   const reader = response.body.getReader();
   const chunks = [];
   let size = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > MAX_RESPONSE_BYTES) {
-      await reader.cancel().catch(() => {});
-      fail("azure_liveness_response_too_large");
+  let onAbort;
+  const aborted = new Promise((_, reject) => {
+    onAbort = () => reject(Object.assign(new Error("azure_liveness_timeout"), { code: "azure_liveness_timeout", status: 503 }));
+    signal.addEventListener("abort", onAbort, { once: true });
+    if (signal.aborted) onAbort();
+  });
+  try {
+    while (true) {
+      const { done, value } = await Promise.race([reader.read(), aborted]);
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_RESPONSE_BYTES) fail("azure_liveness_response_too_large");
+      chunks.push(Buffer.from(value));
     }
-    chunks.push(Buffer.from(value));
+    return Buffer.concat(chunks, size).toString("utf8");
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+    // Cancellation must not itself turn an over-limit/timeout refusal into an
+    // unbounded wait on a malicious or broken response stream.
+    void reader.cancel().catch(() => {});
   }
-  return Buffer.concat(chunks, size).toString("utf8");
 }
 
 export function createAzureCompositeLivenessVerifier(options = {}) {
   const config = azureCompositeLivenessConfig(options.env || process.env);
   const fetchImpl = options.fetchImpl || fetch;
   const signRead = options.signRead || ((locator) => createSignedReplicaRead(locator, { expiresIn: 120 }));
+  const timeoutMs = options.timeoutMs ?? 120_000;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000)
+    fail("azure_liveness_timeout_invalid");
   const descriptor = Object.freeze({
     name: "azure_face_speech_composite",
     version: config.version,
@@ -90,8 +108,14 @@ export function createAzureCompositeLivenessVerifier(options = {}) {
         signRead(claim.source),
         signRead(claim.identityReference),
       ]);
+      // Issue freshness only after private capabilities are ready. Each dispatch
+      // gets new randomness even when a DB attempt is retried unchanged.
+      const nonce = randomBytes(16).toString("hex");
       const payload = canonicalJson({
         protocol: PROTOCOL,
+        operation: OPERATION,
+        broker_nonce: nonce,
+        broker_issued_at: new Date().toISOString(),
         request_id: `${claim.challengeId}:${claim.attempt}`,
         challenge_id: claim.challengeId,
         replica_id: claim.replicaId,
@@ -115,6 +139,8 @@ export function createAzureCompositeLivenessVerifier(options = {}) {
         },
         verifier_version: config.version,
       });
+      const requestSha256 = createHash("sha256").update(payload).digest("hex");
+      const signal = AbortSignal.timeout(timeoutMs);
       let response;
       try {
         response = await fetchImpl(config.endpoint, {
@@ -126,20 +152,40 @@ export function createAzureCompositeLivenessVerifier(options = {}) {
             "X-Vyakti-Signature": `sha256=${signature(config.hmacKey, payload)}`,
           },
           body: payload,
-          signal: AbortSignal.timeout(120_000),
+          signal,
         });
-      } catch { fail("azure_liveness_unreachable"); }
+      } catch { fail(signal.aborted ? "azure_liveness_timeout" : "azure_liveness_unreachable"); }
+      if (response.redirected || (response.status >= 300 && response.status < 400) ||
+          (response.url && response.url !== config.endpoint)) {
+        void response.body?.cancel().catch(() => {});
+        fail("azure_liveness_redirect_refused");
+      }
       const declared = Number(response.headers.get("content-length") || 0);
-      if (declared > MAX_RESPONSE_BYTES) fail("azure_liveness_response_too_large");
-      const body = await boundedResponseText(response);
+      if (declared > MAX_RESPONSE_BYTES) {
+        void response.body?.cancel().catch(() => {});
+        fail("azure_liveness_response_too_large");
+      }
+      let body;
+      try { body = await boundedResponseText(response, signal); }
+      catch (error) {
+        // Native fetch may reject its reader before our abort listener wins
+        // the race. Preserve the same public timeout contract in either order.
+        if (signal.aborted) fail("azure_liveness_timeout");
+        throw error;
+      }
+      if (response.status === 404 || response.status === 501) fail("azure_liveness_operation_unavailable");
       if (!response.ok) fail(`azure_liveness_http_${response.status}`, response.status >= 500 ? 503 : 409);
       const expected = Buffer.from(signature(config.hmacKey, body), "hex");
       const actual = safeSignature(response.headers.get("x-vyakti-response-signature"));
       if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) fail("azure_liveness_response_signature_invalid");
       let result;
       try { result = JSON.parse(body); } catch { fail("azure_liveness_response_invalid"); }
-      if (result?.request_id !== `${claim.challengeId}:${claim.attempt}` ||
-          String(result?.input_sha256 || "").toLowerCase() !== claim.source.sha256) {
+      if (!result || typeof result !== "object" || Array.isArray(result) ||
+          result.protocol !== PROTOCOL || result.operation !== OPERATION ||
+          result.verifier_version !== config.version ||
+          result.request_nonce !== nonce || result.request_sha256 !== requestSha256 ||
+          result.request_id !== `${claim.challengeId}:${claim.attempt}` ||
+          result.input_sha256 !== claim.source.sha256) {
         fail("azure_liveness_response_binding_invalid");
       }
       return Object.freeze({

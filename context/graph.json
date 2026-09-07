@@ -13515,6 +13515,126 @@
       "kind": "rejection",
       "title": "Blind reviewer lacked the actual persona fields",
       "at": "2026-09-07"
+    },
+    {
+      "id": "one-call-private-dialogue-smoke-keeps-accounting-20260907",
+      "kind": "decision",
+      "title": "Verify the separate structured dialogue adapter with one real call",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-dialogue-one-real-structured-reply-20260907",
+      "kind": "measurement",
+      "title": "One structured Azure dialogue call and ledger settlement passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "four-old-synthetic-erasure-readonly-preflight-20260907",
+      "kind": "measurement",
+      "title": "Four old synthetic erasure targets passed read-only scope checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "synthetic-erasure-needs-types-and-copy-evidence-20260907",
+      "kind": "rejection",
+      "title": "A UUID-only audit and historical retention evidence were insufficient",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "preserve-captured-sql-literal-whitespace-20260907",
+      "kind": "decision",
+      "title": "Keep original SQL fixture bytes across platforms",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release-eighteen-failed-timing-order-assumption-20260907",
+      "kind": "measurement",
+      "title": "Release eighteen passed23of24 with one runner self-test failure",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "prove-runner-overlap-with-child-handshake-20260907",
+      "kind": "decision",
+      "title": "Observe real child overlap instead of assuming sleep order",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "runner-handshake-fifteen-checks-and-serial-mutant-20260907",
+      "kind": "measurement",
+      "title": "Fifteen actual runner checks and forced serial refusal",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "timer-gap-is-not-deterministic-process-overlap-20260907",
+      "kind": "rejection",
+      "title": "Sleep duration did not determine process completion order",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "modern-capture-refuses-unsupported-operation-20260907",
+      "kind": "decision",
+      "title": "Stop new capture when the supported verifier operation is absent",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "modern-capture-sixteen-handler-twenty-nine-ui-20260907",
+      "kind": "measurement",
+      "title": "Modern capture handler and lifecycle tests passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "fresh-read-without-scope-still-opens-stale-devices-20260907",
+      "kind": "rejection",
+      "title": "An awaited readiness check was insufficient after navigation",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "meet-links-to-explicit-private-setup-20260907",
+      "kind": "decision",
+      "title": "Send inactive Meet to the actual private activation workspace",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "meet-seven-caller-thirty-four-mounted-groups-20260907",
+      "kind": "measurement",
+      "title": "Meet setup passed caller and mobile/desktop checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "nested-router-and-stopped-prop-obscured-meet-flow-20260907",
+      "kind": "rejection",
+      "title": "Operator routing and overloaded stopped were wrong setup authority",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "composite-v2-binds-each-signed-dispatch-20260907",
+      "kind": "decision",
+      "title": "Bind modern composite replies to fresh exact request bytes",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "composite-thirteen-controls-native-timeout-review-20260907",
+      "kind": "measurement",
+      "title": "Composite replay and native Fetch abort tests passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "custom-stalled-stream-missed-native-fetch-error-20260907",
+      "kind": "rejection",
+      "title": "Native Fetch can win the body abort race",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "nineteen-independent-integrated-ui-checks-20260907",
+      "kind": "measurement",
+      "title": "Root independently verified the merged capture and setup slices",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "mounted-gate-fixture-is-not-authenticated-destination-design-20260907",
+      "kind": "rejection",
+      "title": "Do not infer the full setup design from a delayed host fixture",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

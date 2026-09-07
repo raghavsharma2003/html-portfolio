@@ -106,13 +106,17 @@ const brokerResult = {
   synthetic_risk_score: 0.005, capture_binding: true, single_speaker: true, provider_accepted: true,
 };
 const brokerBody = JSON.stringify(brokerResult);
-const brokerSignature = createHmac("sha256", brokerKey).update(brokerBody).digest("hex");
 const adapter = createAzureCompositeLivenessVerifier({
   env: brokerEnv,
   signRead: async () => ({ url: "https://private.example/signed?token=opaque", expires_at: "2026-08-24T00:02:00.000Z" }),
   fetchImpl: async (_url, init) => {
     brokerRequest = init;
-    return new Response(brokerBody, { status: 200, headers: { "x-vyakti-response-signature": `sha256=${brokerSignature}` } });
+    const request = JSON.parse(init.body);
+    const boundBody = JSON.stringify({ ...brokerResult, protocol: request.protocol, operation: request.operation,
+      verifier_version: request.verifier_version, request_nonce: request.broker_nonce,
+      request_sha256: createHash("sha256").update(init.body).digest("hex") });
+    const boundSignature = createHmac("sha256", brokerKey).update(boundBody).digest("hex");
+    return new Response(boundBody, { status: 200, headers: { "x-vyakti-response-signature": `sha256=${boundSignature}` } });
   },
 });
 const brokerOutput = await adapter.verify({ ...claim, attempt: 2,

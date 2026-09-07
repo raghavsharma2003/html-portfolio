@@ -1,5 +1,50 @@
 # Azure identity verifier
 
+## Modern composite transport prerequisite
+
+The application adapter for `/v1/liveness/verify` now speaks
+`vyakti-azure-liveness-broker/v2`, operation `liveness.verify`. This service
+still has **no composite verification route**. Its existing identity and Face
+session routes keep their current protocols. Neither this transport change nor
+an enabled environment flag establishes a visual verifier or identity acceptance.
+
+Every composite dispatch includes fresh `broker_nonce` (32 lowercase hex
+characters) and `broker_issued_at` (UTC ISO timestamp), generated after the
+private read capabilities are available. They fit the broker's existing
+120-second freshness admission rule. The request HMAC authenticates the exact
+canonical JSON body, including operation, nonce, capture, identity reference
+and configured verifier version. A transport nonce is separate from the
+spoken challenge code.
+
+A future v2 composite implementation must return a bounded HMAC-signed JSON
+body containing these exact bindings in addition to its real evidence:
+
+```text
+protocol        = vyakti-azure-liveness-broker/v2
+operation       = liveness.verify
+verifier_version = the requested pinned verifier version
+request_id      = the requested challenge:attempt
+request_nonce   = the current broker_nonce
+request_sha256  = SHA256 of the exact received request-body bytes
+input_sha256    = the requested capture SHA256
+```
+
+Hash the received bytes, not parsed/re-serialized JSON. The adapter rejects
+v1, missing/wrong binding fields and signed responses replayed across fresh
+dispatches of the same attempt. It retains Azure endpoint restrictions and
+`redirect:error`, refuses observed redirects/origin changes, and bounds both
+declared and streamed response size to 65536 bytes. The 120-second transport
+deadline includes response-body consumption; an aborted/over-limit stream is
+cancelled without waiting indefinitely for cancellation. HTTP 404/501 reports
+`azure_liveness_operation_unavailable`; no HTTP error becomes evidence.
+
+`node evals/liveness-composite-transport.mjs` from the repository root tests
+the actual adapter and existing broker authentication over loopback. Its
+authentication-only seam uses an injected rejected handler on the existing
+identity route; it does not implement or simulate a production composite route.
+The actual missing composite route is separately required to return unavailable.
+No new measurements, thresholds, passed settlement or identity grants are added.
+
 This is the deployable, content-minimizing broker behind the platform's
 `azure_identity_composite` adapter. It verifies the exact private source bytes,
 uses pinned Azure APIs, and returns only bounded proof facts. It never returns
