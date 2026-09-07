@@ -458,12 +458,26 @@ export async function issueOwnedVoiceChallenge(db, ownerUserId, id, options = {}
      ), attempts as (
        select count(*)::integer as n from vy_replica_voice_challenge
         where replica_id=$1::uuid and owner_user_id=$2::uuid and issued_at>now()-interval '24 hours'
+     ), inserted as (
+       insert into vy_replica_voice_challenge
+         (challenge_id,replica_id,owner_user_id,sentence,sentence_hash,nonce,
+          policy_version,challenge_policy,attempt,reference_genome_version,expires_at)
+       select $3::uuid,owned.replica_id,$2::uuid,$4,$6,$7,owned.policy_version,$8,
+              attempts.n+1,genome.version,now()+($9::integer*interval '1 minute')
+         from owned cross join attempts cross join genome
+        where attempts.n < $10::integer and genome.status in ('draft','approved')
+       on conflict do nothing
+       returning ${CHALLENGE_RETURNING}
      ), expired as (
        update vy_replica_voice_challenge ch set state='expired',failure_code='challenge_superseded',
               verification_lease_token_hash='',verification_leased_at=null,
               verification_lease_expires_at=null,updated_at=now()
         where ch.replica_id=$1::uuid and ch.owner_user_id=$2::uuid and ch.state='issued'
-          and exists (select 1 from owned)
+          and ch.challenge_id<>$3::uuid
+          -- Actual insertion is authority to supersede, including after an
+          -- ON CONFLICT refusal. Sibling CTEs share a snapshot, so the newly
+          -- inserted row is not a base-table candidate for this update.
+          and exists (select 1 from inserted)
         returning ch.challenge_id,ch.captured_source_id,ch.transcript_source_id
      ), expired_sources as (
        update vy_replica_source s set state='deleting',updated_at=now()
@@ -476,18 +490,6 @@ export async function issueOwnedVoiceChallenge(db, ownerUserId, id, options = {}
        -- one. 0A000, at execution time, every time. Caught offline by
        -- evals/sqlcast.mjs before it ever reached a database.
        returning s.source_id
-     ), inserted as (
-       insert into vy_replica_voice_challenge
-         (challenge_id,replica_id,owner_user_id,sentence,sentence_hash,nonce,
-          policy_version,challenge_policy,attempt,reference_genome_version,expires_at)
-       select $3::uuid,owned.replica_id,$2::uuid,$4,$6,$7,owned.policy_version,$8,
-              attempts.n+1,genome.version,now()+($9::integer*interval '1 minute')
-         from owned cross join attempts cross join genome
-         cross join (select count(*) from expired) cleared
-         cross join (select count(*) from expired_sources) sources_cleared
-        where attempts.n < $10::integer and genome.status in ('draft','approved')
-       on conflict do nothing
-       returning ${CHALLENGE_RETURNING}
      ), audit as (
        insert into vy_replica_audit
          (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
@@ -495,7 +497,9 @@ export async function issueOwnedVoiceChallenge(db, ownerUserId, id, options = {}
               challenge_id::text,$5,'allowed',jsonb_build_object('attempt',attempt)
          from inserted
      )
-     select * from inserted`,
+     select inserted.* from inserted
+       cross join (select count(*) from expired) cleared
+       cross join (select count(*) from expired_sources) sources_cleared`,
     [rid, ownerUserId, challengeId, issued.sentence, REPLICA_POLICY_VERSION, hash, issued.nonce,
       VOICE_CHALLENGE_POLICY_VERSION, VOICE_CHALLENGE_POLICY.challengeTtlMinutes,
       VOICE_CHALLENGE_POLICY.maxAttemptsPerDay],

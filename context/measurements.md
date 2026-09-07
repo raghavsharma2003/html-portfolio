@@ -16208,3 +16208,8 @@ Measured2026-09-07 India, final result2026-09-07T01:20:46.714Z. Root bound curre
 ## `issued-schema-existing-sql-gates-20260907` (2026-09-07)
 
 After development migration137, root ran guarded real-development relcheck:34passed, owner erasure reach included. Existing actual issue/lease/settlement3EXPLAIN checks passed, no ANALYZE or identity writes. Final sqlcast scanned1028statements/553strict with0conflicts,0uncast sites,0unparseable shapes. Agent confirmed2split migration statements and exact appended schema mirror. These do not constitute a new frozen full release; release9 predates issued contract code/schema work.
+
+
+## `supersession-101-fixtures-six-real-scenarios-20260907` (2026-09-07)
+
+Measured2026-09-07 India. Agent and root ran101identity checks,12new including4negative controls. Root actual issueOwnedVoiceChallenge executed against exact isolated development DB in6scenarios: eligible,retired-latest,missing-genome,daily-limit,duplicate-id,missing-consent. Eligible replacement expired prior challenge and marked both synthetic source manifests deleting; every refusal kept prior challenge issued and both sources pending_upload. Fixtures used newly generated owner/replica/challenge IDs and SQL-only source manifests; no files,SAS,uploads,provider calls or identity writes. Exact cleanup removed challenge/attempt/audit rows and replica with cascaded source/consent/genome, verifying0remaining. Result2026-09-07T02:19:42.960Z at ROOT scratchpad/expert-tools/supersession-dev-result.json; offline root log scratchpad/identity-supersession-root.log. Real3identityEXPLAIN checks passed afterward. Agent SQLcast1028/553passed; root read reported result, not a separate execution this phase.

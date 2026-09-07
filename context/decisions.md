@@ -22623,3 +22623,8 @@ The pure issued-contract validator requires an expected SHA256 rather than offer
 ## `issued-contract-schema-preserves-legacy-without-backfill-20260907` (2026-09-07)
 
 Migration137 adds five nullable columns to existing challenge table. AllNULL is allowed only for non-v2 historical policies; populated rows require exact v2 contract shape, known locale/bank/profile and row bindings. Entire CHECK uses IS TRUE with explicit JSON types and object CASE, so missing/null values cannot pass via UNKNOWN. SQL validates shape, not application canonical hash authority. Reversal condition: a differently versioned schema proves equivalent legacy preservation, strict bindings and bounded content without guessed backfill.
+
+
+## `challenge-supersession-follows-successful-insert-20260907` (2026-09-07)
+
+Move issue INSERT ahead of expired/source-cleanup CTEs and require its actual RETURNING row before supersession. Keep ownership, consent, daily cap and latest-genome eligibility predicates unchanged; do not select an older genome. Explicitly exclude replacement ID. Reversal condition: a transaction/locking design proves equivalent no-loss replacement semantics and preserves upload/source fences. Distinct concurrent issue IDs and concurrent retirement remain snapshot-scoped; this patch adds no serialization claim.

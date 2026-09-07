@@ -517,6 +517,67 @@ for (const [name, genomes, expected] of [
   ok(`issuance fixture: ${name}`, Boolean(result) === expected);
 }
 
+// Actual issue function with a source-driven relational control-flow model.
+// This is not a PostgreSQL interpreter: root's real development fixture must
+// prove statement parsing, snapshot behavior and resulting persisted states.
+function supersessionStore({ genomes = [genome(2)], daily = 1, owned = true, collision = false } = {}, mutate = sql => sql) {
+  const state = { previous: "issued", sources: ["pending_upload", "quarantined"], inserted: 0, audited: 0 };
+  const db = async (original, params) => {
+    const sql = mutate(original);
+    assert.equal(params[0], RID); assert.equal(params[1], OWNER);
+    const insertClause = sql.slice(sql.indexOf("), inserted as ("), sql.indexOf("), expired as ("));
+    const expireClause = sql.slice(sql.indexOf("), expired as ("), sql.indexOf("), expired_sources as ("));
+    assert.ok(insertClause.includes("on conflict do nothing"));
+    assert.ok(insertClause.includes("attempts.n < $10::integer"));
+    assert.ok(insertClause.includes("genome.status in ('draft','approved')"));
+    assert.ok(!insertClause.includes("from expired"), "insert must not depend on its own supersession consumer");
+    const latest = genomes.slice().sort((a, b) => b.version - a.version)[0];
+    const inserted = owned && latest && eligibleStatuses.has(latest.status) && daily < params[9] && !collision;
+    state.inserted = inserted ? 1 : 0;
+    state.audited = state.inserted;
+    const expire = expireClause.includes("exists (select 1 from inserted)") ? inserted :
+      expireClause.includes("exists (select 1 from owned)") ? owned : false;
+    if (expire) {
+      state.previous = "expired";
+      state.sources = state.sources.map(() => "deleting");
+    }
+    return inserted ? [{ ...issuedRow, challenge_id: params[2], attempt: daily + 1 }] : [];
+  };
+  return { state, db };
+}
+const issueReplacement = (store) => issueOwnedVoiceChallenge(store.db, OWNER, RID,
+  { sentence: SENTENCE, nonce: ISSUED.nonce, challengeId: CHALLENGE });
+for (const status of ["draft", "approved"]) {
+  const store = supersessionStore({ genomes: [genome(2, status)] });
+  const replacement = await issueReplacement(store);
+  ok(`supersession fixture: eligible ${status} replacement alone authorizes prior source cleanup`,
+    replacement?.state === "issued" && replacement.attempt === 2 && store.state.inserted === 1 &&
+    store.state.audited === 1 && store.state.previous === "expired" && store.state.sources.every(s => s === "deleting"));
+}
+const supersessionRefusals = [
+  ["retired latest despite older approved", { genomes: [genome(1, "approved"), genome(2, "retired")] }],
+  ["missing latest reference", { genomes: [] }],
+  ["daily limit", { daily: VOICE_CHALLENGE_POLICY.maxAttemptsPerDay }],
+  ["challenge ID collision", { collision: true }],
+  ["missing owner or consent authority", { owned: false }],
+];
+for (const [name, conditions] of supersessionRefusals) {
+  const store = supersessionStore(conditions);
+  const before = JSON.stringify(store.state);
+  const result = await issueReplacement(store);
+  ok(`supersession fixture: ${name} leaves prior challenge and sources unchanged`, result === null && JSON.stringify(store.state) === before);
+}
+ok("supersession explicitly excludes the replacement ID and consumes actual INSERT RETURNING",
+  issueSql.includes("ch.challenge_id<>$3::uuid") && issueSql.includes("exists (select 1 from inserted)") &&
+  issueSql.indexOf("), inserted as (") < issueSql.indexOf("), expired as ("));
+for (const [name, conditions] of supersessionRefusals.slice(0, 4)) {
+  const withoutInsertedAuthority = supersessionStore(conditions, sql =>
+    sql.replace("exists (select 1 from inserted)", "exists (select 1 from owned)"));
+  assert.equal(await issueReplacement(withoutInsertedAuthority), null);
+  ok(`NEGATIVE CONTROL: owner-only supersession destroys prior evidence after ${name}`,
+    withoutInsertedAuthority.state.previous === "expired" && withoutInsertedAuthority.state.sources.every(s => s === "deleting"));
+}
+
 // The gate itself, unchanged, reading the row.
 function gateRow(extra = {}) {
   return {

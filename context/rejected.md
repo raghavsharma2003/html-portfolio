@@ -16377,3 +16377,8 @@ Initial proposed validator allowed omission of expectedContractSha256 for offlin
 ## `multiply-invalid-json-fixture-does-not-isolate-guard-20260907` (2026-09-07)
 
 Initial oversized fixture also used an invalid bank item, so a rejection did not independently establish size enforcement. Numeric locale likewise failed equality before proving string-type enforcement. Added real PostgreSQL probes and three numeric SHA cases plus numerically equal oversized reference to isolate those boundaries. No passing schema result implies a reviewed challenge bank, valid canonical commitment, provider provenance or accepted identity.
+
+
+## `owned-row-alone-does-not-authorize-supersession-20260907` (2026-09-07)
+
+Old expired CTE depended only on owned, so a missing/retired genome or daily cap could prevent replacement while expiring prior work. A duplicated eligibility condition would still miss ON CONFLICT refusal. Gate on actual inserted RETURNING instead. Sequential real SQL proves those tested states; it does not prove mutual exclusion between simultaneous distinct-ID requests.

@@ -12639,6 +12639,24 @@
       "kind": "rejection",
       "title": "Strengthen fixtures to isolate JSON type and size checks",
       "at": "2026-09-07"
+    },
+    {
+      "id": "challenge-supersession-follows-successful-insert-20260907",
+      "kind": "decision",
+      "title": "Expire prior challenges only after a replacement exists",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "supersession-101-fixtures-six-real-scenarios-20260907",
+      "kind": "measurement",
+      "title": "101identity checks and6real sequential SQL scenarios pass",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "owned-row-alone-does-not-authorize-supersession-20260907",
+      "kind": "rejection",
+      "title": "Eligibility precheck cannot substitute for actual insertion",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
