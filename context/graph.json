@@ -13443,6 +13443,78 @@
       "kind": "measurement",
       "title": "Twelve fresh paired Azure deliveries with settled receipts",
       "at": "2026-09-07"
+    },
+    {
+      "id": "release-seventeen-all-software-gates-20260907",
+      "kind": "measurement",
+      "title": "Release seventeen passed all 24 software gates",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "live-challenge-intake-remains-quarantined-20260907",
+      "kind": "decision",
+      "title": "Keep verification video in its narrow intake pipeline",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "modern-intake-thirteen-development-groups-20260907",
+      "kind": "measurement",
+      "title": "Modern intake passed thirteen actual SQL groups",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "grant-expiry-is-not-challenge-expiry-20260907",
+      "kind": "rejection",
+      "title": "An active grant and equal policy strings were insufficient",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "source-erasure-retires-historical-sheets-20260907",
+      "kind": "decision",
+      "title": "Revoke affected historical sheets without creating a second private draft",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "teacher-sheet-erasure-seventeen-development-groups-20260907",
+      "kind": "measurement",
+      "title": "Teacher sheet erasure passed seventeen actual SQL groups",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "erasure-demotion-collides-with-private-draft-20260907",
+      "kind": "rejection",
+      "title": "Demoting a historical sheet rolled back source deletion",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-dialogue-requires-measured-usage-20260907",
+      "kind": "decision",
+      "title": "Bound private dialogue transport and account only measured units",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "private-dialogue-adapter-fifty-four-controls-20260907",
+      "kind": "measurement",
+      "title": "Private dialogue adapter passed fifty-four controls",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "public-room-success-is-not-private-dialogue-proof-20260907",
+      "kind": "rejection",
+      "title": "Public Room calls did not configure the separate Studio adapter",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "paired-model-review-reconciled-persona-scope-20260907",
+      "kind": "measurement",
+      "title": "Fresh paired text review found two additional source overextensions",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "blind-packet-omission-is-not-model-hallucination-20260907",
+      "kind": "rejection",
+      "title": "Blind reviewer lacked the actual persona fields",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

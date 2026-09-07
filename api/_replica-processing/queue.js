@@ -1,3 +1,4 @@
+import { processingPurposeSql, LIVE_INTAKE_PURPOSE } from "./purpose.js";
 import { randomBytes } from "node:crypto";
 import { PROCESSING_SCHEMA_VERSION, PROCESSING_STAGES, assertSha256, sha256Hex } from "./contracts.js";
 
@@ -35,7 +36,7 @@ export async function leaseNextProcessingJob(db, options = {}) {
        join vy_replica_source s
          on s.source_id = j.source_id and s.replica_id = j.replica_id
         and s.owner_user_id = j.owner_user_id
-        where s.state in ('quarantined','processing') and (
+        where s.state in ('quarantined','processing') and ${processingPurposeSql()} and (
               (j.state in ('queued','retry') and j.next_attempt_at <= now())
            or (j.state = 'leased' and j.lease_expires_at <= now())
         )
@@ -117,6 +118,14 @@ export function processingCompletionReceipt(result) {
     next_steps: nextSteps,
     verified_input_sha256: assertSha256(result.verified_input_sha256, "verified input sha256"),
   };
+  if (result.purpose != null) {
+    if (result.purpose !== LIVE_INTAKE_PURPOSE || !["integrity", "malware_scan"].includes(result.step) ||
+        artifactIds.length || evidenceIds.length ||
+        JSON.stringify(nextSteps) !== JSON.stringify(result.step === "integrity" ? ["malware_scan"] : [])) {
+      throw new Error("invalid live challenge intake receipt");
+    }
+    basis.purpose = LIVE_INTAKE_PURPOSE;
+  }
   if (result.provider_transport != null) {
     if (!Array.isArray(result.provider_transport) || !result.provider_transport.length || result.provider_transport.length > 4) {
       throw new Error("valid provider transport required");
@@ -163,6 +172,7 @@ export async function completeProcessingJob(db, input) {
             select 1 from vy_replica_source s
              where s.source_id=j.source_id and s.replica_id=j.replica_id
                and s.owner_user_id=j.owner_user_id and s.state in ('quarantined','processing')
+               and s.capture_mode<>'live_challenge'
           )
           and not exists (
             select 1 from jsonb_array_elements_text($3::jsonb -> 'artifact_ids') wanted(id)

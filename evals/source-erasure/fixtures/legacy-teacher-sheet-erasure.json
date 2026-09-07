@@ -1,0 +1,6 @@
+{
+  "source": "api/_replica-source-erasure.js::completeSourceErasure",
+  "commit": "a93ae825fa6ceb0d3f29513b2ffe10a927cb4686",
+  "sha256": "86fd09baf0e56142cc4cc93988a3dec65a8e0d8990cbeac212ce0d1e6fd238cc",
+  "purpose": "Exact pre-fix SQL captured from original caller; expected real23505 negative control with migration139 and published plus private draft"
+}

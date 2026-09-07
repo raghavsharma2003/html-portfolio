@@ -1,206 +1,4 @@
-import { randomBytes } from "node:crypto";
-import { REPLICA_POLICY_VERSION } from "./_replica.js";
-import { sha256Hex } from "./_replica-processing/contracts.js";
-import { deleteReplicaSourceObjects, replicaStorageBucketDescriptor } from "./_replica-storage.js";
-
-const MAX_RETRY_MS = 6 * 60 * 60 * 1000;
-const DEFAULT_PENDING_UPLOAD_STALE_MS = 24 * 60 * 60 * 1000;
-const MIN_PENDING_UPLOAD_STALE_MS = 60 * 60 * 1000;
-const MAX_PENDING_UPLOAD_STALE_MS = 7 * 24 * 60 * 60 * 1000;
-const DEFAULT_PENDING_UPLOAD_CLEANUP_BATCH = 25;
-
-export function sourceErasureLeaseTokenHash(token) {
-  if (typeof token !== "string" || token.length < 32) throw new Error("strong source erasure lease token required");
-  return sha256Hex(`replica-source-erasure-lease:v1:${token}`);
-}
-
-function objectPaths(row) {
-  const prefix = `${row.owner_user_id}/${row.replica_id}/${row.source_id}/`;
-  const objects = [{ bucket: row.storage_bucket, path: row.object_path }, ...(Array.isArray(row.artifacts) ? row.artifacts : [])];
-  const locators = [];
-  for (const object of objects) {
-    const path = String(object?.path || "");
-    try { replicaStorageBucketDescriptor(object?.bucket); }
-    catch { throw Object.assign(new Error("source erasure storage lineage invalid"), { code: "storage_lineage_invalid" }); }
-    if (!path.startsWith(prefix) || path.includes("://") ||
-        (path !== `${prefix}original` && !path.startsWith(`${prefix}derived/`))) {
-      throw Object.assign(new Error("source erasure storage lineage invalid"), { code: "storage_lineage_invalid" });
-    }
-    locators.push(Object.freeze({ storageBucket: object.bucket, objectPath: path }));
-  }
-  const unique = new Map(locators.map((locator) => [`${locator.storageBucket}\n${locator.objectPath}`, locator]));
-  return Object.freeze([...unique.values()].sort((left, right) =>
-    left.storageBucket.localeCompare(right.storageBucket) || left.objectPath.localeCompare(right.objectPath)));
-}
-
-export async function markAbandonedPendingSourceUploads(db, options = {}) {
-  const staleAfterMs = Math.max(MIN_PENDING_UPLOAD_STALE_MS, Math.min(MAX_PENDING_UPLOAD_STALE_MS,
-    Number(options.staleAfterMs || DEFAULT_PENDING_UPLOAD_STALE_MS)));
-  const batchSize = Math.max(1, Math.min(100, Number(options.batchSize || DEFAULT_PENDING_UPLOAD_CLEANUP_BATCH)));
-  const rows = await db(
-    `with stale as (
-       select s.source_id
-         from vy_replica_source s
-        where s.state='pending_upload'
-          and s.updated_at<=now()-($1::bigint*interval '1 millisecond')
-        order by s.updated_at,s.source_id
-        for update skip locked limit $2::integer
-     ), marked as (
-       update vy_replica_source s
-          set state='deleting',erasure_next_attempt_at=now(),updated_at=now()
-         from stale where s.source_id=stale.source_id and s.state='pending_upload'
-       returning s.source_id,s.storage_bucket,s.object_path
-     ) select * from marked`,
-    [staleAfterMs, batchSize],
-  );
-  return Object.freeze(rows.map((row) => Object.freeze({
-    sourceId: row.source_id,
-    storageBucket: row.storage_bucket,
-    objectPath: row.object_path,
-  })));
-}
-
-export async function leaseNextSourceErasure(db, options = {}) {
-  const token = options.token || randomBytes(32).toString("base64url");
-  const leaseMs = Math.max(60_000, Math.min(300_000, Number(options.leaseMs || 240_000)));
-  const rows = await db(
-    `with candidate as (
-       select s.source_id,s.erasure_attempts previous_attempt,s.erasure_lease_token_hash previous_lease
-         from vy_replica_source s where s.state='deleting' and (
-          (s.erasure_lease_token_hash='' and s.erasure_next_attempt_at<=now()) or
-          (s.erasure_lease_token_hash<>'' and s.erasure_lease_expires_at<=now())
-          )
-          -- A direct browser capability can recreate the exact original even
-          -- after it was observed absent. It is not revocable at either
-          -- provider, so physical erasure waits for the durable not-after.
-          and coalesce(s.upload_authorization_expires_at,'-infinity'::timestamptz)<=now()
-          -- A DB job/intent can settle before a provider finishes a request.
-          -- The per-writer authority is the durable provider quiescence gate;
-          -- released or expired rows do not block, active future rows do.
-          and not exists (
-            select 1 from vy_replica_source_storage_writer sw
-             where sw.source_id=s.source_id and sw.replica_id=s.replica_id
-               and sw.owner_user_id=s.owner_user_id and sw.state='active'
-               and sw.storage_write_not_after>now()
-          )
-          -- A worker that loaded context before deletion may still be inside
-          -- a provider call. Source state stops renewal/commit; this fence
-          -- waits for its last owned lease before prefix enumeration begins.
-          and not exists (
-            select 1 from vy_replica_processing_job pj
-             where pj.source_id=s.source_id and pj.replica_id=s.replica_id
-               and pj.owner_user_id=s.owner_user_id and pj.state='leased'
-               and pj.lease_expires_at+interval '60 minutes'>now()
-          ) and not exists (
-            select 1 from vy_replica_voice_preview_intent pi
-            join vy_replica_processing_artifact pa
-              on pa.artifact_id=pi.preview_artifact_id and pa.replica_id=pi.replica_id
-             and pa.owner_user_id=pi.owner_user_id
-             where pa.source_id=s.source_id and pi.replica_id=s.replica_id
-               and pi.owner_user_id=s.owner_user_id and pi.state='synthesizing'
-               and pi.lease_expires_at>now()
-          ) and not exists (
-            select 1 from vy_replica_liveness_challenge ch where ch.replica_id=s.replica_id
-              and ch.owner_user_id=s.owner_user_id and ch.face_session_state in (
-                'issuing','ready','polling','passed_deleting','failed_deleting','expired_deleting'
-              )
-          ) order by s.erasure_next_attempt_at,s.updated_at for update skip locked limit 1
-     ), expired as (
-       update vy_replica_source_erasure_attempt a
-          set outcome='retry',failure_code='lease_expired',finished_at=now()
-         from candidate c where c.previous_lease<>'' and a.source_id=c.source_id
-          and a.attempt=c.previous_attempt and a.outcome='running'
-     ), leased as (
-       update vy_replica_source s set erasure_attempts=s.erasure_attempts+1,
-              erasure_lease_token_hash=$1,erasure_leased_at=now(),
-              erasure_lease_expires_at=now()+($2::integer*interval '1 millisecond'),
-              erasure_last_error_code='',updated_at=now()
-         from candidate c where s.source_id=c.source_id
-       returning s.source_id,s.replica_id,s.owner_user_id,s.storage_bucket,s.object_path,
-                 s.erasure_attempts,s.erasure_lease_expires_at,
-                 coalesce((select jsonb_agg(jsonb_build_object('bucket',stored.bucket,'path',stored.path)
-                   order by stored.path) from (
-                     select a.storage_bucket bucket,a.object_path path
-                       from vy_replica_processing_artifact a
-                      where a.source_id=s.source_id and a.replica_id=s.replica_id
-                        and a.owner_user_id=s.owner_user_id
-                     union all
-                     select i.result_storage_bucket bucket,i.result_object_path path
-                       from vy_replica_voice_preview_intent i
-                       join vy_replica_processing_artifact a on a.artifact_id=i.preview_artifact_id
-                        and a.replica_id=i.replica_id and a.owner_user_id=i.owner_user_id
-                      where a.source_id=s.source_id and i.replica_id=s.replica_id
-                        and i.owner_user_id=s.owner_user_id and i.result_object_path is not null
-                     union all
-                     select g.preview_result_storage_bucket bucket,g.preview_result_object_path path
-                       from vy_replica_generation g
-                       join vy_replica_processing_artifact a on a.artifact_id=g.preview_artifact_id
-                        and a.replica_id=g.replica_id and a.owner_user_id=g.owner_user_id
-                      where a.source_id=s.source_id and g.replica_id=s.replica_id
-                        and g.owner_user_id=s.owner_user_id and g.preview_result_object_path<>''
-                        and g.preview_result_deleted_at is null
-                   ) stored),'[]'::jsonb) artifacts
-     ), attempted as (
-       insert into vy_replica_source_erasure_attempt
-         (source_id,replica_id,owner_user_id,attempt,object_count,outcome)
-       select source_id,replica_id,owner_user_id,erasure_attempts,
-              1+jsonb_array_length(artifacts),'running' from leased
-       on conflict (source_id,attempt) do nothing
-     ) select * from leased`,
-    [sourceErasureLeaseTokenHash(token), leaseMs],
-  );
-  if (!rows[0]) return null;
-  const row = rows[0];
-  const claimed = Object.freeze({
-    source: Object.freeze({
-      sourceId: row.source_id,
-      replicaId: row.replica_id,
-      ownerUserId: row.owner_user_id,
-      paths: Object.freeze([]),
-      attempt: Number(row.erasure_attempts),
-    }),
-    leaseToken: token,
-  });
-  try {
-    return Object.freeze({
-      ...claimed,
-      source: Object.freeze({ ...claimed.source, paths: objectPaths(row) }),
-    });
-  } catch (error) {
-    await retrySourceErasure(db, claimed, { error, retryAfterMs: MAX_RETRY_MS });
-    return null;
-  }
-}
-
-export async function renewSourceErasureLease(db, lease, options = {}) {
-  const leaseMs = Math.max(60_000, Math.min(300_000, Number(options.leaseMs || 240_000)));
-  const rows = await db(
-    `update vy_replica_source s
-        set erasure_lease_expires_at=now()+($5::integer*interval '1 millisecond'),updated_at=now()
-      where s.source_id=$1::uuid and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid
-        and s.state='deleting' and s.erasure_lease_token_hash=$4
-           and s.erasure_lease_expires_at>now()
-           and not exists (
-             select 1 from vy_replica_source_storage_writer sw
-              where sw.source_id=s.source_id and sw.replica_id=s.replica_id
-                and sw.owner_user_id=s.owner_user_id and sw.state='active'
-                and sw.storage_write_not_after>now()
-           )
-      returning s.source_id`,
-    [lease.source.sourceId, lease.source.replicaId, lease.source.ownerUserId,
-      sourceErasureLeaseTokenHash(lease.leaseToken), leaseMs],
-  );
-  return requireSettlement(rows, "lost_source_erasure_lease");
-}
-
-function requireSettlement(rows, code) {
-  if (!rows[0]) throw Object.assign(new Error(code), { code });
-  return true;
-}
-
-export async function completeSourceErasure(db, lease) {
-  const rows = await db(
-    `with review_lock as materialized (
+with review_lock as materialized (
        select pg_try_advisory_xact_lock(hashtextextended($2::text || ':voice_genome_review',0)) acquired
      ), candidate as materialized (
        select s.source_id,s.replica_id,s.owner_user_id,s.erasure_attempts,
@@ -324,28 +122,22 @@ export async function completeSourceErasure(db, lease) {
                )
           )
      ), sheet_candidates as materialized (
-       select s.sheet_id,s.agent_id,s.sheet,s.status,
+       select s.sheet_id,s.sheet,s.status,
               exists (select 1 from reversible_delta_fragments f
                        where f.replica_id=t.replica_id and f.owner_user_id=t.owner_user_id
                          and f.target_field='boardVerbalisms'
-                         and (f.applied_sheet_id=s.sheet_id or (f.applied_sheet_id is null and s.agent_id is not null))) remove_board,
+                         and (f.applied_sheet_id=s.sheet_id or f.applied_sheet_id is null)) remove_board,
               exists (select 1 from reversible_delta_fragments f
                        where f.replica_id=t.replica_id and f.owner_user_id=t.owner_user_id
                          and f.target_field='exSlangRepeat'
-                         and (f.applied_sheet_id=s.sheet_id or (f.applied_sheet_id is null and s.agent_id is not null))) remove_slang,
+                         and (f.applied_sheet_id=s.sheet_id or f.applied_sheet_id is null)) remove_slang,
               t.replica_id,t.owner_user_id
          from target t join vy_replica r
            on r.replica_id=t.replica_id and r.owner_user_id=t.owner_user_id
-        -- Explicit ownership wins. Exact materialization IDs can also name
-        -- an unbound private sheet; legacy null IDs keep their bound-only reach.
-        -- Revoked rows are nonservable, but still hold source-derived content.
-        join vy_teacher_sheet s on
-          (s.replica_id=r.replica_id and s.owner_user_id=r.owner_user_id
-            and (s.agent_id is null or s.agent_id=r.agent_id))
-          or (s.replica_id is null and s.owner_user_id is null and s.agent_id=r.agent_id)
+        join vy_teacher_sheet s on s.agent_id=r.agent_id and s.status<>'revoked'
         where exists (select 1 from reversible_delta_fragments f
                        where f.replica_id=t.replica_id and f.owner_user_id=t.owner_user_id
-                         and (f.applied_sheet_id=s.sheet_id or (f.applied_sheet_id is null and s.agent_id is not null)))
+                         and (f.applied_sheet_id=s.sheet_id or f.applied_sheet_id is null))
      ), sheet_board_rewritten as materialized (
        select c.*,
               case when not c.remove_board then c.sheet else
@@ -359,7 +151,7 @@ export async function completeSourceErasure(db, lease) {
                      select 1 from reversible_delta_fragments f
                       where f.replica_id=c.replica_id and f.owner_user_id=c.owner_user_id
                         and f.target_field='boardVerbalisms'
-                        and (f.applied_sheet_id=c.sheet_id or (f.applied_sheet_id is null and c.agent_id is not null))
+                        and (f.applied_sheet_id=c.sheet_id or f.applied_sheet_id is null)
                         and f.fragment=btrim(item.value#>>'{}')
                    )
                 ),'[]'::jsonb),true) end sheet_after_board
@@ -371,16 +163,18 @@ export async function completeSourceErasure(db, lease) {
                   select '('||coalesce(string_agg(to_jsonb(existing.fragment)::text,', '
                                                order by existing.ordinality),'')||')'
                     from (
-                      select btrim(part,E' \t\n\r\"') fragment,ordinality
+                      select btrim(part,E' 	
+"') fragment,ordinality
                         from regexp_split_to_table(
-                          btrim(coalesce(b.sheet_after_board->>'exSlangRepeat',''),E' \t\n\r()'),
+                          btrim(coalesce(b.sheet_after_board->>'exSlangRepeat',''),E' 	
+()'),
                           E'[[:space:]]*,[[:space:]]*') with ordinality pieces(part,ordinality)
                     ) existing
                    where existing.fragment<>'' and not exists (
                      select 1 from reversible_delta_fragments f
                       where f.replica_id=b.replica_id and f.owner_user_id=b.owner_user_id
                         and f.target_field='exSlangRepeat'
-                        and (f.applied_sheet_id=b.sheet_id or (f.applied_sheet_id is null and b.agent_id is not null))
+                        and (f.applied_sheet_id=b.sheet_id or f.applied_sheet_id is null)
                         and f.fragment=existing.fragment
                    )
                 )),true) end rewritten_sheet
@@ -388,11 +182,9 @@ export async function completeSourceErasure(db, lease) {
      ), teacher_sheet_effects as (
        update vy_teacher_sheet s
           set sheet=x.rewritten_sheet,
-              -- Historical sheets cannot become a second explicit private
-              -- draft (migration139). Retire their serving authority instead.
-              status=case when s.status in ('published','validated') then 'revoked' else s.status end,
-              published_at=case when s.status in ('published','validated','revoked') then null else s.published_at end,
-              consent_artifact_id=case when s.status in ('published','validated','revoked') then null else s.consent_artifact_id end,
+              status=case when s.status in ('published','validated') then 'draft' else s.status end,
+              published_at=case when s.status='published' then null else s.published_at end,
+              consent_artifact_id=case when s.status='published' then null else s.consent_artifact_id end,
               updated_at=now()
          from sheet_rewritten x where s.sheet_id=x.sheet_id
        returning s.sheet_id
@@ -625,120 +417,4 @@ export async function completeSourceErasure(db, lease) {
                 'context_ingest_runs_scrubbed',(select count(*) from context_ingest_runs),
                 'teacher_sheets_rewritten',(select count(*) from teacher_sheet_effects)
               ) from removed
-     ) select source_id from removed`,
-    [lease.source.sourceId, lease.source.replicaId, lease.source.ownerUserId,
-      sourceErasureLeaseTokenHash(lease.leaseToken), REPLICA_POLICY_VERSION],
-  );
-  return requireSettlement(rows, "source_erasure_waiting_for_provider");
-}
-
-export function normalizeSourceErasureFailure(error) {
-  const code = String(error?.code || error || "");
-  if (code === "source_erasure_waiting_for_provider") return "provider_voice_erasure_pending";
-  if (code === "storage_lineage_invalid") return "storage_lineage_invalid";
-  if (code.includes("unreachable")) return "private_storage_unreachable";
-  if (code.includes("storage")) return "private_storage_delete_failed";
-  return "source_erasure_failed";
-}
-
-export async function retrySourceErasure(db, lease, input = {}) {
-  const retryAfterMs = Math.max(30_000, Math.min(MAX_RETRY_MS, Number(input.retryAfterMs || 30_000)));
-  const failureCode = normalizeSourceErasureFailure(input.error || input.failureCode);
-  const rows = await db(
-    `with retried as (
-       update vy_replica_source s set erasure_next_attempt_at=now()+($5::integer*interval '1 millisecond'),
-              erasure_lease_token_hash='',erasure_leased_at=null,erasure_lease_expires_at=null,
-              erasure_last_error_code=$6,updated_at=now()
-        where s.source_id=$1::uuid and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid and s.state='deleting'
-          and s.erasure_lease_token_hash=$4 and s.erasure_lease_expires_at>now()
-       returning s.source_id,s.erasure_attempts
-     ), attempted as (
-       update vy_replica_source_erasure_attempt a set outcome='retry',failure_code=$6,finished_at=now()
-         from retried r where a.source_id=r.source_id and a.attempt=r.erasure_attempts and a.outcome='running'
-     ) select source_id from retried`,
-    [lease.source.sourceId, lease.source.replicaId, lease.source.ownerUserId,
-      sourceErasureLeaseTokenHash(lease.leaseToken), retryAfterMs, failureCode],
-  );
-  return requireSettlement(rows, "lost_source_erasure_lease");
-}
-
-export function sourceErasureRetryDelayMs(attempt) {
-  const safeAttempt = Math.max(1, Math.min(30, Number(attempt) || 1));
-  return Math.min(MAX_RETRY_MS, 30_000 * (2 ** (safeAttempt - 1)));
-}
-
-async function withSourceErasureLeaseHeartbeat(db, lease, renew, task, options = {}) {
-  const heartbeatMs = Math.max(100, Math.min(120_000, Number(options.heartbeatMs || 60_000)));
-  let stop = false;
-  let wake;
-  let leaseError = null;
-  const heartbeatAborter = new AbortController();
-  const stopped = new Promise((resolve) => { wake = resolve; });
-  const heartbeat = (async () => {
-    while (!stop) {
-      let timer;
-      try {
-        await Promise.race([
-          new Promise((resolve) => {
-            timer = setTimeout(resolve, heartbeatMs);
-          }),
-          stopped,
-        ]);
-      } finally {
-        if (timer) clearTimeout(timer);
-      }
-      if (stop) break;
-      try { await renew(db, lease, { leaseMs: 240_000 }); }
-      catch (error) {
-        leaseError = error;
-        heartbeatAborter.abort(error);
-        break;
-      }
-    }
-  })();
-  try {
-    const result = await task(heartbeatAborter.signal);
-    if (leaseError) throw leaseError;
-    return result;
-  } finally {
-    stop = true;
-    wake();
-    await heartbeat;
-  }
-}
-
-export async function runSourceErasureSweep(options) {
-  const db = options?.db;
-  if (typeof db !== "function") throw new Error("source erasure database required");
-  const cleanup = options.cleanup || markAbandonedPendingSourceUploads;
-  const lease = options.lease || leaseNextSourceErasure;
-  const removeObjects = options.removeObjects || ((paths, source, signal) =>
-    deleteReplicaSourceObjects(source, paths, undefined, { signal }));
-  const renew = options.renew || renewSourceErasureLease;
-  const complete = options.complete || completeSourceErasure;
-  const retry = options.retry || retrySourceErasure;
-  const maxJobs = Math.max(1, Math.min(4, Number(options.maxJobs || 2)));
-  const timeBudgetMs = Math.max(10_000, Math.min(240_000, Number(options.timeBudgetMs || 120_000)));
-  const started = Date.now();
-  const abandoned = await cleanup(db, {
-    staleAfterMs: options.staleUploadAfterMs,
-    batchSize: options.cleanupBatchSize,
-  });
-  const summary = { abandoned: abandoned.length, leased: 0, completed: 0, retried: 0 };
-  while (summary.leased < maxJobs && Date.now() - started < timeBudgetMs) {
-    const claimed = await lease(db, { leaseMs: 240_000 });
-    if (!claimed) break;
-    summary.leased += 1;
-    try {
-      await withSourceErasureLeaseHeartbeat(db, claimed, renew,
-        (signal) => removeObjects(claimed.source.paths, claimed.source, signal),
-        { heartbeatMs: options.heartbeatMs });
-      await complete(db, claimed);
-      summary.completed += 1;
-    } catch (error) {
-      await retry(db, claimed, { error, retryAfterMs: sourceErasureRetryDelayMs(claimed.source.attempt) });
-      summary.retried += 1;
-    }
-  }
-  return Object.freeze(summary);
-}
+     ) select source_id from removed

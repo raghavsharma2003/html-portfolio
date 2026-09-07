@@ -1,3 +1,4 @@
+import { liveIntakeReceiptsSql } from "./_replica-processing/purpose.js";
 import { createHash, randomBytes } from "node:crypto";
 import { REPLICA_POLICY_VERSION } from "./_replica.js";
 import { canonicalJson } from "./_provenance/contracts.js";
@@ -198,6 +199,7 @@ export async function leaseNextLivenessVerification(db, verifier, options = {}) 
           and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
           and r.age_verified_at is not null
           and s.state='quarantined' and s.capture_mode='live_challenge' and s.kind='video'
+          and ${liveIntakeReceiptsSql()}
           and s.contains_third_parties=false
           and ic.state='evidence_ready' and ic.adult_evidence=true and ic.document_authentic=true
           and ic.document_current=true and ic.face_reference_ready=true and ic.credential_expires_at>now()
@@ -349,6 +351,7 @@ export async function completeLivenessVerification(db, lease, verdict, options =
           and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
           and r.age_verified_at is not null
           and s.state='quarantined' and s.capture_mode='live_challenge' and s.kind='video'
+          and ${liveIntakeReceiptsSql()}
           and s.contains_third_parties=false and s.sha256=$16
           and ch.verifier=$17 and a.verifier=$17 and a.verifier_version=$18
           and ic.state='evidence_ready' and ic.adult_evidence=true and ic.document_authentic=true

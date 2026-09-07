@@ -1,3 +1,4 @@
+import { assertProcessingPurpose, LIVE_INTAKE_PURPOSE } from "./purpose.js";
 import {
   ProcessingAdapterError,
   ProcessingContractError,
@@ -470,6 +471,7 @@ export async function executeProcessingJob(input) {
   if (!sameIdentity(job, source)) {
     throw new ProcessingContractError("job and source ownership tuple mismatch", { code: "cross_replica_job" });
   }
+  assertProcessingPurpose(source, job.step);
   assertDependencies(job.step, input.completedSteps || []);
   const adapter = assertAdapter(input.adapters?.[job.step], job.step);
   let reservation = null;
@@ -525,7 +527,8 @@ export async function executeProcessingJob(input) {
         step: job.step,
         artifact_ids: output.artifacts.map((entry) => entry.artifact_id),
         evidence_ids: output.evidence.map((entry) => entry.evidence_id),
-        next_steps: nextProcessingSteps(job.step, [...(input.completedSteps || []), job.step]),
+        next_steps: nextProcessingSteps(job.step, [...(input.completedSteps || []), job.step], source),
+        ...(source.capture_mode === "live_challenge" ? { purpose: LIVE_INTAKE_PURPOSE } : {}),
         verified_input_sha256: output.verifiedSha256,
         billing_state: billingState,
         ...(output.providerTransport ? { provider_transport: output.providerTransport } : {}),

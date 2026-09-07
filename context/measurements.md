@@ -16473,3 +16473,28 @@ On2026-09-07 isolated agent passed50backend/control-flow,18actual bundled client
 ## `paired-azure-twelve-deliveries-cost-and-scope-20260907` (2026-09-07)
 
 From2026-09-07T10:28:55.612Z to10:30:55.205Z root ran12real Azure calls, six new C92cases paired across gpt-4.1-mini and Mistral-Large-3 with alternating first arm and matching prompt hashes. All12transport/source/output/receipt checks passed with one attempt each; no retries and reservedspend0 afterward. Estimated ledgerdelta13731microUSD (USD0.013731), GPT5777 andMistral7954. Per-case elapsed including Room/gates/ledger: GPT6784/5660/4457/2534/3362/3074ms, Mistral8463/11704/10893/4681/18012/8777ms. ActualRoom/compiler/think/guards plus realdevelopmentledger; Room/publication/empty-memoryauthority were synthetic, noHTTPauth/private-memory/voice/owner evidence. Model-assisted blind review and root semantic review remain separate;12delivered answers do not mean12correct answers. No servingflag/modeldefault changed.
+
+
+## `release-seventeen-all-software-gates-20260907` (2026-09-07)
+
+Frozen HEAD 7486450b347d262bd7048b52cc0a601bf25a5c4d ran from 2026-09-07T10:37:27.975Z to10:52:53.637Z, exit0, changedDuringRun=false. All24 software gates passed, including complete evals, layout, performance and accessibility. Two relational gates skipped absentNEON_URL; separately recorded development SQL proofs retain their limited scope. Completion artifact scratchpad/release-17-completion.json. Local Azure development server subsequently restarted and localhost5177/studio returned HTTP200. This does not establish live owner enrollment, likeness or current uncommitted additions.
+
+
+## `modern-intake-thirteen-development-groups-20260907` (2026-09-07)
+
+At2026-09-07T10:47:33.856Z root ran13actual PostgreSQL groups against vyakti_expert_integration_20260906; all14 fixture-table recounts0. Actual queue/commit/liveness execution, expiry and equal-stale-policy predicate-removal controls, old quarantine escape, corrected/original source-deletion overlap with observed blocking PIDs, uncommitted-scan visibility with write-lock witness, and receipt binding mutants passed. Root then independently reran7intake and4harness offline groups after integration. Scanner, document and Face prerequisites were synthetic SQL fixtures; no actual ClamAV/model/identity evidence. Cancellation and consent-withdrawal overlaps remain unproven. Receipt ROOT scratchpad/expert-tools/development-concurrency-liveness-intake-20260907.json.
+
+
+## `teacher-sheet-erasure-seventeen-development-groups-20260907` (2026-09-07)
+
+At2026-09-07T10:52:55.988Z root ran17actual isolated-development SQL groups; cleanupremaining0/errors[]. Exact original SQL reproduced23505 on private-draft uniqueness and whole-statement rollback in published/validated/direct-context cases. Corrected canonical/direct scrubbing, revoked/unbound owned copies, legacy bound reach, foreign ownership exclusion, preserved draft and retry refusal passed. Original SQL SHA25686fd09baf0e56142cc4cc93988a3dec65a8e0d8990cbeac212ce0d1e6fd238cc; corrected7b23dcea2551951c0ed86f39ea36cd035c6ee82fb0056cf210f79f1be009d273. Root integrated8offline groups passed; agent59incumbent and9context-erasure passed. Synthetic storage state only, not object deletion. Receipt ROOT scratchpad/expert-tools/development-concurrency-teacher-sheet-erasure-20260907.json.
+
+
+## `private-dialogue-adapter-fifty-four-controls-20260907` (2026-09-07)
+
+On2026-09-07 agent and root independently ran54actual adapter/service controls with synthetic transport/DB, including executed old-code regression mutants. Agent31incumbent dialogue and41budget checks passed. Old missing-prompt usage settled as0input in the real service control; new code reaches reconcile_required and never persists successful reply. Stream cap/UTF8/abort/redirect/schema controls passed. Existing caller can still conservatively retain uncertainty for pre-aborted requests; no ledger law changed. Real structured Azure transport remains a separately planned one-call smoke.
+
+
+## `paired-model-review-reconciled-persona-scope-20260907` (2026-09-07)
+
+Model-assisted blind review plus root reconciliation of12actual retained Azure answers found all requested core facts and unknown-policy relations present. Two Mistral answers additionally overextended source scope: no private coaching became no individual help, and absence from supplied material became absence across the whole platform. Persona fields were absent from the blind packet; actual synthetic teacher name Anjali and Physics expertise were supplied, so those tentative hallucination flags are invalid. Six GPT samples are not a population ranking; presentation errors remain. See EXPERT-MODEL-PAIR-REVIEW-20260907.md. No native panel or default model/flag change.

@@ -16572,3 +16572,23 @@ A six-page official competitor sweep found Delphi's Matthew Hussey case explicit
 ## `disabled-action-does-not-retain-keyboard-focus-20260907` (2026-09-07)
 
 First synthetic socket-destruction test timed out and did not establish deterministic transport-loss behavior. Replaced by a committed201with undecodable JSON to test uncertain receipt recovery with honest scope. Second browser batch exposed actual focus loss when native-disabled Prepare remained mounted. Fixed guarded current-request/current-replica connected-element focus restoration only when focus is body; functional confirmation then passed. Both failure artifacts retained; no claimed transport-loss or extra visual-polish acceptance. Integration guard initially stopped on types.ts CRLF-only difference; verified no Git content difference and normalized line endings for baseline comparison before copy.
+
+
+## `grant-expiry-is-not-challenge-expiry-20260907` (2026-09-07)
+
+Root review found the initial live-purpose predicate relied on verification-grant expiry and equality among policy strings. The challenge can expire while its grant remains active, and all stored policies can agree on a stale version. Added exact challenge expiry and exported current policy requirements; real predicate-removal controls prove the earlier variants admit those fixtures. Receipt metadata and a non-test scanner version do not prove a real scanner ran or signatures are current.
+
+
+## `erasure-demotion-collides-with-private-draft-20260907` (2026-09-07)
+
+The old source erasure demoted affected historical sheets to draft, conflicting with migration139 when an explicit private draft already existed. Real23505 rolled back the entire deletion. Its status and agent join also excluded revoked and unbound source-derived material. Revoking historical serving authority plus exact owned lineage scrub repairs these cases without deleting unrelated sheets or pretending revoked means erased.
+
+
+## `public-room-success-is-not-private-dialogue-proof-20260907` (2026-09-07)
+
+The local Azure launcher supplied Room reply settings, while modern private dialogue consumes separate AZURE_FOUNDRY_ENDPOINT/DIALOGUE_MODEL/API_KEY and rate names. Added those names only in the ignored protected launcher against the already verified existing deployment. Twelve successful Room calls do not prove private structured output or authenticated activation. No keys copied to tracked files and no bypass introduced.
+
+
+## `blind-packet-omission-is-not-model-hallucination-20260907` (2026-09-07)
+
+Do not count Anjali or Physics as hallucinations when actual fixture and TeacherSheet supplied them. Preserve the original blind assessment and reconciliation rather than silently relabeling it. Repeatedly tuning the six evaluation questions would remove holdout value; fresh expert questions and independent native-language judgment are still needed.

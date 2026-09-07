@@ -1,3 +1,4 @@
+import { assertProcessingPurpose } from "./purpose.js";
 import { ProcessingAdapterError, sha256Hex } from "./contracts.js";
 
 // The first shipped worker is deliberately audio-first. Other source kinds stay
@@ -31,7 +32,9 @@ export function initialProcessingSteps(source) {
   return ["integrity"];
 }
 
-export function nextProcessingSteps(step, completedSteps = []) {
+export function nextProcessingSteps(step, completedSteps = [], source = null) {
+  assertProcessingPurpose(source, step);
+  if (source?.capture_mode === "live_challenge") return step === "integrity" ? ["malware_scan"] : [];
   if (!(step in NEXT)) throw new Error(`unsupported audio pipeline step: ${step}`);
   const complete = new Set(completedSteps);
   complete.add(step);

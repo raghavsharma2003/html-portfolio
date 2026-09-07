@@ -22833,3 +22833,18 @@ Prepare at most12calls, six fresh C92 English/Hindi/Roman Hinglish cases paired 
 ## `owner-reviews-correction-snapshot-before-preparation-20260907` (2026-09-07)
 
 Integrate owner-only correction review and preparation in existing ExpertConversation. GET recomputes counts/readiness from one SQL snapshot. POST requires reviewed source_set_hash and rechecks current replica/capability/profile/calibration plus evidence fingerprints. An explicit Prepare action stores a draft manifest only; no training, activation or persona update. Persisted feedback callback invalidates review. Uncertain success reads a receipt once without automatic POST retry; guarded focus restoration applies only to the current connected action if focus fell to body. Reversal condition: actual owner testing shows wrong placement, source authority/CAS fails or keyboard focus is stolen. Overlapped transaction guarantees remain separate from tested independent pre-insert changes.
+
+
+## `live-challenge-intake-remains-quarantined-20260907` (2026-09-07)
+
+Integrate integrity then malware_scan only for live_challenge video; preserve quarantine and refuse enrollment stages before adapter/budget/artifact work. Recheck exact source SHA, uploaded unexpired challenge, current replica policy and capture/storage/verification authority in actual queue/context/commit callers; require matching completed current scan attempts before liveness leasing or settlement. Reversal requires a separately specified verification-purpose operation with explicit authority, lineage and measured acceptance; ordinary enrollment progress is insufficient. No identity grant, scanner installation or composite verification is introduced.
+
+
+## `source-erasure-retires-historical-sheets-20260907` (2026-09-07)
+
+Integrate exact source-supported fragment removal from owned teacher sheets, including revoked and unbound materializations when applied_sheet_id identifies them. Published/validated rows become revoked with serving receipts removed. Explicit owner/replica fields take precedence; legacy both-null ownership and null materialization IDs retain bound-agent scope. Preserve independent support and current private draft. Reverse only if actual lineage or ownership evidence shows a missed materialization or inappropriate removal, with a tested replacement preserving the one-private-draft invariant.
+
+
+## `private-dialogue-requires-measured-usage-20260907` (2026-09-07)
+
+Integrate explicit nonnegative safe-integer usage with positive combined total, pre-dispatch abort refusal, bounded512000byte streamed response, cancellation propagation and redirect refusal. Preserve schema, model, temperature and700token ceiling. Missing usage becomes named error and uncertain ledger state rather than zero-cost success. Reversal requires documented and measured Azure transport behavior plus an equally bounded accountable replacement, not coercion or a permissive fallback.

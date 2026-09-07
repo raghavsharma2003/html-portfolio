@@ -30,7 +30,8 @@ function deadline(signal, timeoutMs) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(new Error("dialogue-timeout")), timeoutMs);
   const abort = () => controller.abort(signal.reason || new Error("dialogue-aborted"));
-  signal?.addEventListener?.("abort", abort, { once: true });
+  if (signal?.aborted) abort();
+  else signal?.addEventListener?.("abort", abort, { once: true });
   return {
     signal: controller.signal,
     timedOut: () => controller.signal.aborted && !signal?.aborted,
@@ -38,12 +39,51 @@ function deadline(signal, timeoutMs) {
   };
 }
 
-async function responseJson(response, maxBytes = 512_000) {
+function cancelBody(body) {
+  // Cleanup must not replace the refusal or wait on an unbounded transport.
+  try { Promise.resolve(body?.cancel()).catch(() => {}); } catch { /* best effort */ }
+}
+
+async function responseJson(response, signal, maxBytes = 512_000) {
   const declared = Number(response.headers?.get?.("content-length"));
-  if (Number.isFinite(declared) && declared > maxBytes) fail("dialogue_azure_response_too_large", { retryable: true });
-  const text = await response.text();
-  if (Buffer.byteLength(text) > maxBytes) fail("dialogue_azure_response_too_large", { retryable: true });
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    cancelBody(response.body);
+    fail("dialogue_azure_response_too_large", { retryable: true });
+  }
+  const reader = response.body?.getReader?.();
+  if (!reader) fail("dialogue_azure_response_invalid");
+  const chunks = [];
+  let bytes = 0;
+  const abort = () => cancelBody(reader);
+  signal.addEventListener("abort", abort, { once: true });
+  try {
+    if (signal.aborted) { abort(); signal.throwIfAborted(); }
+    while (true) {
+      signal.throwIfAborted();
+      const { done, value } = await reader.read();
+      signal.throwIfAborted();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        cancelBody(reader);
+        fail("dialogue_azure_response_too_large", { retryable: true });
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    signal.removeEventListener("abort", abort);
+    reader.releaseLock();
+  }
+  const text = Buffer.concat(chunks, bytes).toString("utf8");
   try { return JSON.parse(text); } catch { fail("dialogue_azure_response_invalid"); }
+}
+
+function measuredUsage(usage) {
+  if (!Number.isSafeInteger(usage?.prompt_tokens) || usage.prompt_tokens < 0
+    || !Number.isSafeInteger(usage?.completion_tokens) || usage.completion_tokens < 0
+    || usage.prompt_tokens + usage.completion_tokens <= 0)
+    fail("dialogue_azure_usage_invalid");
+  return { input_tokens: usage.prompt_tokens, output_tokens: usage.completion_tokens };
 }
 
 export function createAzureFoundryDialogueGenerator(options = {}) {
@@ -62,10 +102,12 @@ export function createAzureFoundryDialogueGenerator(options = {}) {
     model,
     billing: Object.freeze({ meter: "azure_foundry_tokens", max_output_tokens: 700 }),
     async generate({ prompt, signal }) {
+      if (signal?.aborted) fail("dialogue_aborted");
       const timer = deadline(signal, timeoutMs);
       try {
         const response = await fetchImpl(url, {
           method: "POST",
+          redirect: "error",
           headers: { "Content-Type": "application/json", "api-key": apiKey },
           body: JSON.stringify({
             model,
@@ -84,20 +126,25 @@ export function createAzureFoundryDialogueGenerator(options = {}) {
           }),
           signal: timer.signal,
         });
-        if (!response.ok) fail(`dialogue_azure_http_${Number(response.status) || "unknown"}`, {
-          status: Number(response.status) || 0,
-          retryable: [408, 409, 429].includes(Number(response.status)) || Number(response.status) >= 500,
-        });
-        const payload = await responseJson(response);
+        if (timer.signal.aborted) { cancelBody(response.body); timer.signal.throwIfAborted(); }
+        if (response.redirected || (Number(response.status) >= 300 && Number(response.status) < 400)) {
+          cancelBody(response.body);
+          fail("dialogue_azure_redirect_refused", { status: Number(response.status) || 0 });
+        }
+        if (!response.ok) {
+          cancelBody(response.body);
+          fail(`dialogue_azure_http_${Number(response.status) || "unknown"}`, {
+            status: Number(response.status) || 0,
+            retryable: [408, 409, 429].includes(Number(response.status)) || Number(response.status) >= 500,
+          });
+        }
+        const payload = await responseJson(response, timer.signal);
         const choice = payload?.choices?.[0];
         if (!choice || choice.finish_reason !== "stop" || typeof choice.message?.content !== "string")
           fail("dialogue_azure_response_incomplete", { retryable: choice?.finish_reason === "length" });
         return {
           output: choice.message.content,
-          usage: {
-            input_tokens: Math.max(0, Number(payload?.usage?.prompt_tokens) || 0),
-            output_tokens: Math.max(0, Number(payload?.usage?.completion_tokens) || 0),
-          },
+          usage: measuredUsage(payload?.usage),
         };
       } catch (error) {
         if (error instanceof DialogueAdapterError) throw error;

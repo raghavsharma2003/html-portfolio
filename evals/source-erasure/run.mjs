@@ -209,12 +209,11 @@ ok("source-bound delta excerpts are found from same-session cited window sequenc
   /source_deltas as materialized/.test(completeSql) &&
   /w\.session_id=d\.session_id[\s\S]*w\.replica_id=d\.replica_id[\s\S]*w\.owner_user_id=d\.owner_user_id[\s\S]*w\.seq=any\(d\.cited_windows\)/.test(completeSql) &&
   /delete from vy_mirror_delta d using source_deltas doomed/.test(completeSql));
-ok("accepted sheet effects reverse only the exact appended fragment and never delete or revoke a sheet",
+ok("accepted sheet effects reverse only the exact appended fragment and never delete a sheet",
   /reversible_delta_fragments as materialized/.test(completeSql) &&
   /d\.state='accepted' and d\.applied_at is not null/.test(completeSql) &&
   /f\.target_field='boardVerbalisms'/.test(completeSql) && /f\.target_field='exSlangRepeat'/.test(completeSql) &&
-  /update vy_teacher_sheet s/.test(completeSql) && !/delete from vy_teacher_sheet/.test(completeSql) &&
-  !/set[\s\S]{0,120}status=.*'revoked'/.test(completeSql));
+  /update vy_teacher_sheet s/.test(completeSql) && !/delete from vy_teacher_sheet/.test(completeSql));
 ok("an independently applied surviving source preserves the same accepted phrase",
   /support\.state='accepted'[\s\S]*support\.applied_at is not null/.test(completeSql) &&
   /support\.target_field=d\.target_field and support\.fragment=d\.fragment/.test(completeSql) &&
@@ -330,13 +329,11 @@ ok("an accepted Mirror delta records the exact sheet row that actually landed",
   /applied_sheet_id = case when exists \(select 1 from landed\)[\s\S]*select sheet_id from landed limit 1/.test(mirrorStore) &&
   /applied_at, applied_sheet_id, decided_at/.test(mirrorStore));
 ok("source reversal uses exact applied sheet lineage and a bounded legacy-null fallback",
-  /f\.applied_sheet_id=s\.sheet_id or f\.applied_sheet_id is null/.test(completeSql) &&
-  /f\.applied_sheet_id=c\.sheet_id or f\.applied_sheet_id is null/.test(completeSql) &&
-  /f\.applied_sheet_id=b\.sheet_id or f\.applied_sheet_id is null/.test(completeSql));
+  ['s','c','b'].every(alias => completeSql.includes(`f.applied_sheet_id=${alias}.sheet_id or (f.applied_sheet_id is null and ${alias}.agent_id is not null)`)));
 ok("a changed published or validated sheet is forced back through review",
-  /status=case when s\.status in \('published','validated'\) then 'draft'/.test(completeSql) &&
-  /published_at=case when s\.status='published' then null/.test(completeSql) &&
-  /consent_artifact_id=case when s\.status='published' then null/.test(completeSql));
+  /status=case when s\.status in \('published','validated'\) then 'revoked' else s.status end/.test(completeSql) &&
+  /published_at=case when s\.status in \('published','validated','revoked'\) then null/.test(completeSql) &&
+  /consent_artifact_id=case when s\.status in \('published','validated','revoked'\) then null/.test(completeSql));
 ok("historical orphan cleanup is owner-scoped bounded and dry-run by default",
   /valid --owner-user-id is required/.test(cleanupTool) && /Math\.min\(25/.test(cleanupTool) &&
   /if \(!apply\)/.test(cleanupTool) && /args\.includes\("--apply"\)/.test(cleanupTool) &&

@@ -1,3 +1,4 @@
+import { processingPurposeSql, assertProcessingPurpose } from "./purpose.js";
 import { leaseNextProcessingJob, leaseTokenHash, renewProcessingLease, retryProcessingJob, stopProcessingJob } from "./queue.js";
 import { commitProcessingOutput } from "./repository.js";
 import { applySelfTestAutoGrant, selfTestModeEnabled } from "./self-test.js";
@@ -40,7 +41,8 @@ export async function loadLeasedProcessingContext(db, job) {
        join vy_replica r on r.replica_id=s.replica_id and r.owner_user_id=s.owner_user_id
        left join vy_replica_voice_reference vr
          on vr.source_id=s.source_id and vr.replica_id=s.replica_id and vr.owner_user_id=s.owner_user_id
-      where j.job_id=$1::uuid and j.state='leased' and s.state in ('quarantined','processing')`,
+      where j.job_id=$1::uuid and j.state='leased' and s.state in ('quarantined','processing')
+        and ${processingPurposeSql()}`,
     [job.job_id],
   );
   if (!sources[0]) throw Object.assign(new Error("leased processing source unavailable"), { code: "processing_source_unavailable" });
@@ -274,6 +276,7 @@ export async function runNextProcessingJob(options) {
   let output;
   try {
     const context = await loadLeasedProcessingContext(options.db, leased.job);
+    assertProcessingPurpose(context.source, leased.job.step);
     output = await executeWithLeaseHeartbeat(options, leased, (signal) => executeProcessingJob({
       job: leased.job,
       source: context.source,

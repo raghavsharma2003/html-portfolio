@@ -114,6 +114,7 @@ export async function acquireProcessingSourceStorageWriter(db, input, options = 
         where j.job_id=$1::uuid and j.source_id=$2::uuid and j.replica_id=$3::uuid
           and j.owner_user_id=$4::uuid and j.state='leased' and j.lease_token_hash=$5
           and j.lease_expires_at>now() and s.state in ('quarantined','processing')
+          and s.capture_mode<>'live_challenge'
           and r.lifecycle not in ('revoked','purging')
         for update of j,s,r
      ), inserted as (
@@ -188,7 +189,7 @@ export async function renewSourceStorageWriter(db, value, options = {}) {
           and s.state<>'deleting' and r.lifecycle not in ('revoked','purging')
           and (
             (w.purpose='context_source' and s.state='pending_upload' and w.guard_id=s.source_id)
-            or (w.purpose='processing_artifact' and s.state in ('quarantined','processing') and exists (
+            or (w.purpose='processing_artifact' and s.capture_mode<>'live_challenge' and s.state in ('quarantined','processing') and exists (
               select 1 from vy_replica_processing_job j
                where j.job_id=w.guard_id and j.source_id=w.source_id and j.replica_id=w.replica_id
                  and j.owner_user_id=w.owner_user_id and j.state='leased'
