@@ -17323,3 +17323,8 @@ Source references without deletion propagation can retain derived raw replies af
 2026-09-08: Generic removal of empty values would conceal required manual trigger/command/identity changes; explicit negative controls preserve refusal. Independent review found the captured receipt has138CRLF but globalJSONattributes normalizeLF, breaking raw-hash proof after checkout. Added exactpath -text and verified stagedblob originalSHA. Existing scheduled config is nonempty, not evidence for normalizing future manualjob schedule defaults.
 
 Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-whitespace reports on138captured lines. The exact fixture attribute now recognizes CR-at-EOL while retaining blank-at-EOL/EOF and space-before-tab checks. Original captured bytes remain unchanged; no global whitespace rule changed.
+
+
+## `integration33-utf8-schema-reader` (2026-09-08)
+
+2026-09-08: Final Python inspection used implicit cp1252 and failed decoding schema at byte11924. ExplicitUTF8 completed149/150 mirror checks. No source was changed by failed mirror read; active state header had already been written and was not duplicated.

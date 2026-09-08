@@ -17320,3 +17320,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `gpu-arm-defaults34-get-and-controls` (2026-09-08)
 
 2026-09-08: One exact existing job GET completed through approved MSAL/DPAPI helper; safe projection contains no env/secret values, zero ARM writes/key reads/models. Receipt SHA5ef543bfe1e73281bef54e875202a4c34ac4d9191b6596f9f76c8c6f02ab3825.25 synthetic ARM/DB groups passed and staged blob preserves original receipt hash. Earlier deferred c7b457 graph check passed2564nodes/2422edges. No candidate deployment, SQL or GPU execution.
+
+
+## `integration33-gpu-union-proof` (2026-09-08)
+
+2026-09-08: n14 actual exported GPU SQL strings match frozenc7b457 exactly. Frozen GPU Git manifest verified. Updated budget17/controller25/preparation28 controls pass, final forced semantic TypeScript terminal0, copy7scopes21negatives. Deploy verifier11 positive/negative fixtures passed28localrequests. All145to150 migration mirrors present. No SQL/provider/cloud execution.

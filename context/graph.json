@@ -16116,6 +16116,24 @@
       "kind": "rejection",
       "title": "Reject generic empty filtering and normalized evidence bytes",
       "at": "2026-09-08"
+    },
+    {
+      "id": "integration33-gpu-union",
+      "kind": "decision",
+      "title": "Preserve GPU recovery in product union",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "integration33-gpu-union-proof",
+      "kind": "measurement",
+      "title": "Exact SQL and integrated controller proof",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "integration33-utf8-schema-reader",
+      "kind": "rejection",
+      "title": "Windows implicit encoding cannot inspect schema",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

@@ -23548,3 +23548,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `gpu-arm-defaults34-five-observed-forms` (2026-09-08)
 
 2026-09-08: Strip only observed response dapr/eventTriggerConfig null, identitySettings[], template initContainers/volumes null. Keep request plan unchanged and reuse narrow template comparison for inspect/observe/recovery. Unknown/nonempty/mistyped fields and per-window marker changes refuse. Reverse only with actual metadata establishing a changed semantic/default and retained positive/negative controls. See GPU-ARM-DEFAULTS34-20260908.md.
+
+
+## `integration33-gpu-union` (2026-09-08)
+
+2026-09-08: Integrated fe86c578 after the first three source slices passed scoped checks. Preserve existing seam comparison paths and union149/150 after148. Reversal: source or SQL mismatch, failed erasure reach or application integration control reopens this source freeze; no release acceptance.

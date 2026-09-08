@@ -1,5 +1,11 @@
 # STATE — read this first, then the graph
 
+## START HERE: INTEGRATION33 SOURCE CANDIDATE (2026-09-08)
+
+This block supersedes every older isolate note below. Source only, not accepted or deployed. Base frozen31 01a7b6f2; reviewed comparison c4130b83, private continuity b5dc0e2f, Azure web2a4e5dfe and GPU controller/defaults fe86c578 are now unioned here. Schema145to150, erasure/export reach, eval registry and context all retained. Release31 fixture repairs remain.
+
+Forced semantic TypeScript and scoped offline checks pass; one incidental mounted reference suite passed24groups. Actual GPU SQL strings14 match frozen controllerc7b457. Real SQL proof, complete UI browser coverage, runtime cloud setup and full release remain separate root work. Private continuity is text only; modern capture readiness and voice likeness remain unproven. Accepted release26/local5177 unchanged, goal active and separate automation paused. See docs/gurukul/research/INTEGRATION33-HANDOFF-20260908.md.
+
 ## START HERE: PRIVATE CONTINUITY32 ISOLATE (2026-09-08)
 
 Unaccepted source candidate from frozen31 01a7b6f2. Opt-in bounded prior private-session recall and authenticated sources implemented;148column/trigger/index notapplied.21offline+33dialoguefixture+12historycontrols pass. SemanticTS/browser/fullrelease/realSQL/modelquality unrun. Root ownsreview/integration/deployment; acceptedpreviewunchanged. Read docs/gurukul/research/PRIVATE-CONTINUITY32-HANDOFF-20260908.md before continuing this isolate.
