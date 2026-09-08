@@ -35,6 +35,9 @@ execSync(
 );
 
 const suites = {
+  // Native HTTP fixture and positive packaging controls; no cloud/browser calls.
+  azureweb: "azure-web/run.mjs",
+  azurewebpack: "azure-web/package-run.mjs",
   "expert-answer-render": "expert-answer-render/run.mjs",
   "verification-knowledge": "verification-knowledge/run.mjs",
   "creator-cascade-order": "creator-cascade-order/run.mjs",

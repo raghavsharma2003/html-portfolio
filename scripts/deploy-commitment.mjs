@@ -45,6 +45,20 @@ const FILE_INPUTS = Object.freeze([
   "scripts/vercel-product.mjs",
   "scripts/write-deploy-marker.mjs",
   "scripts/write-config.mjs",
+  "scripts/check-copy.mjs",
+  "scripts/roomsVocabAllowlist.mjs",
+  "scripts/copy-room-scope.mjs",
+  "scripts/azure-only-fetch.mjs",
+  "services/azure-web/routing.mjs",
+  "services/azure-web/server.mjs",
+  "services/azure-web/package.mjs",
+  "services/azure-web/build.mjs",
+  "services/azure-web/entrypoint.mjs",
+  "services/azure-web/cron-runner.mjs",
+  "services/azure-web/prepare.mjs",
+  "services/azure-web/Dockerfile",
+  "services/azure-web/infra/main.bicep",
+  "evals/dbattery/prosody-baseline-log.json",
 ]);
 
 const NEVER_HASH = new Set([

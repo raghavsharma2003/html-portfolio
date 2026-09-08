@@ -16026,6 +16026,24 @@
       "kind": "rejection",
       "title": "JSON references alone do not erase derived replies",
       "at": "2026-09-08"
+    },
+    {
+      "id": "azure-web33-production-adapter",
+      "kind": "decision",
+      "title": "Azure CPU web artifact reuses existing API and declarative routes",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "azure-web33-offline-readiness",
+      "kind": "measurement",
+      "title": "Azure adapter native controls and local infrastructure compilation",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "azure-web33-rejected-packaging-shortcuts",
+      "kind": "rejection",
+      "title": "Reject dev bridge publication and broad private-name filtering",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

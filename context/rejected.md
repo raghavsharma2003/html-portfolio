@@ -17292,3 +17292,8 @@ Initial uploader fixture1788849012056 passed6groups, but actual390image showed p
 ## `private-continuity32-reference-only-erasure` (2026-09-08)
 
 Source references without deletion propagation can retain derived raw replies after individual sourceerasure. Added reviewedcandidate triggerlocking sameparent and deleting onlymatching derivedassistantlogs plusGINlookup. Actualtrigger/race/cascadeproof stillrequired. Firstdialoguetest attemptmissingblank_config importfailed, corrected withverifiedinertstub then33pass. Textonlyuntilactualprotectedstream sourcebinding isverified.
+
+
+## `azure-web33-rejected-packaging-shortcuts` (2026-09-08)
+
+2026-09-08: Existing Vite development bridge lacks production headers and conditional crawler routing, so publishing it was rejected. A broad substring private asset exclusion also rejects the legitimate PrivateTextRehearsal JavaScript chunk; replaced with path-segment/private-file matching and added a regression. Initial Bicep compilation rejected conditional-list syntax (BCP100) and nested for-expression placement (BCP138); explicit filtered variables compiled successfully. Do not interpret a manifest-only health response, local compiler success, or synthetic package as native image boot, target readiness or deployment acceptance. The web image must retain one exact private historical prosody JSON because _drift-watch.js reads it; excluding all eval paths indiscriminately would break that runtime caller. No voice-quality conclusion follows from that old file.
