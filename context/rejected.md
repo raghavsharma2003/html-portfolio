@@ -17297,3 +17297,8 @@ Source references without deletion propagation can retain derived raw replies af
 ## `azure-web33-rejected-packaging-shortcuts` (2026-09-08)
 
 2026-09-08: Existing Vite development bridge lacks production headers and conditional crawler routing, so publishing it was rejected. A broad substring private asset exclusion also rejects the legitimate PrivateTextRehearsal JavaScript chunk; replaced with path-segment/private-file matching and added a regression. Initial Bicep compilation rejected conditional-list syntax (BCP100) and nested for-expression placement (BCP138); explicit filtered variables compiled successfully. Do not interpret a manifest-only health response, local compiler success, or synthetic package as native image boot, target readiness or deployment acceptance. The web image must retain one exact private historical prosody JSON because _drift-watch.js reads it; excluding all eval paths indiscriminately would break that runtime caller. No voice-quality conclusion follows from that old file.
+
+
+## `integration33-suite-name-not-offline` (2026-09-08)
+
+2026-09-08: selected-reference-comparison/run.mjs is a mounted browser suite despite its plain filename; it was inadvertently included in the offline list. Root notified, browser lane held until terminal then released. Wrong replica-dialogue-history path failed module lookup; actual registered dialogue-history.mjs passed12. Do not infer execution kind or suite path from naming.

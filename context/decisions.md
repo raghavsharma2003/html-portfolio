@@ -23524,3 +23524,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `azure-web33-production-adapter` (2026-09-08)
 
 2026-09-08: Added a production Node HTTP adapter and positive-list remote ACR build context in isolated codex/azure-web33 from frozen31 01a7b6f2. STUDIO_ROOT=1 is mandatory; the current 18 rewrites, 15 header rules and 22 schedules remain sourced from vercel.json. Runtime generates private config from environment, checks actual database identity, verifies source/static hashes and preserves API business handlers. CPU Container App and optional schedule templates use managed identity and Key Vault references; schedules default off. Reversal: replace this adapter only if an approved Azure runtime offers tested equivalent route/raw-body/streaming parity with less maintenance, or actual canary reveals incompatible handler behavior. No public cutover or cloud write was performed.
+
+
+## `integration33-source-union` (2026-09-08)
+
+2026-09-08: New worktree based frozen31 integrates comparison c4130b83, private continuity b5dc0e2f and Azure packaging2a4e5dfe. Resolve code conflict regions with reviewed seam additions; union context by node/section and retain existing eval entries and all145to148 schema mirrors. Reverse on a lost invariant, source-pin mismatch or failed scoped control; this is not release acceptance.

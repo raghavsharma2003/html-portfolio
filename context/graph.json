@@ -16044,6 +16044,24 @@
       "kind": "rejection",
       "title": "Reject dev bridge publication and broad private-name filtering",
       "at": "2026-09-08"
+    },
+    {
+      "id": "integration33-source-union",
+      "kind": "decision",
+      "title": "Union reviewed source families",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "integration33-focused-proof",
+      "kind": "measurement",
+      "title": "Scoped integration proof",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "integration33-suite-name-not-offline",
+      "kind": "rejection",
+      "title": "Inspect suite implementation before assigning lane",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
