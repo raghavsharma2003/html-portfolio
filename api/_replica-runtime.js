@@ -10,6 +10,8 @@ import { FIDELITY_BLOCKER, FIDELITY_POLICY_VERSION } from "./_fidelity.js";
 import { READINESS_BLOCKER, READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR } from "./_readiness.js";
 import { personProfileValiditySql } from "./_person-model.js";
 import { adoptActivatedPrivateTeacherSheet } from "./_teacher-sheet-adoption.js";
+import {loadOwnedCandidateBinding,CANDIDATE_RUNTIME_BINDING_SQL} from './_replica-candidate-binding-store.js';
+import {candidateRuntimeAuthoritySql,ownerPrivateCapabilityAuthoritySql} from './_replica-candidate-activation-authority.js';
 
 export const RUNTIME_POLICY_VERSION = "replica-runtime-v1";
 export const REPLICA_CORE_CAP = 12_000;
@@ -88,6 +90,7 @@ export function runtimeBlockers(row) {
   // reason: the gate must not be probeable for the difference. The creator is
   // told the difference, in full, on their own readiness screen.
   if (!truth(row.readiness_qualified)) blockers.push(READINESS_BLOCKER);
+  if(truth(row.candidate_binding_required)&&!truth(row.candidate_runtime_authorized))blockers.push('candidate_private_authority_changed');
   return blockers;
 }
 
@@ -108,7 +111,9 @@ export function clientRuntimeStatus(row) {
     replica_id: row.replica_id,
     lifecycle: row.lifecycle,
     active: row.capability_state === "active" && blockers.length === 0,
-    can_activate: blockers.length === 0,
+    can_activate: blockers.length === 0 && !truth(row.candidate_binding_required),
+    private_candidate: truth(row.candidate_binding_required),
+    exposure: truth(row.candidate_binding_required)?'owner_private_text':null,
     blockers,
     qualification: {
       passed: Number(row.qualification_passed || 0),
@@ -198,11 +203,12 @@ export const RUNTIME_STATUS_SQL = `select r.replica_id,r.subject_mode,r.lifecycl
     as readiness_qualified,
   rdy.overall as readiness_overall,rdy.min_part as readiness_min_part,
   rdy.unmeasured_count as readiness_unmeasured,rdy.computed_at as readiness_computed_at,
-  cap.state as capability_state,cap.activated_at as capability_activated_at
+  cap.state as capability_state,cap.activated_at as capability_activated_at,cap.candidate_binding_required,
+  (case when cap.candidate_binding_required then ${candidateRuntimeAuthoritySql('cap','r')} else true end) as candidate_runtime_authorized
 from vy_replica r
 left join vy_person p on p.person_id=r.subject_person_id
 left join lateral (
-  select c.state,c.activated_at,c.profile_version,c.calibration_version,c.genome_version,c.voice_profile_id
+  select c.*
     from vy_replica_runtime_capability c
    where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id and c.state='active'
    order by c.activated_at desc limit 1
@@ -369,6 +375,9 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
             order by e.suite,e.created_at desc
          ) latest on true
         where r.subject_mode='self' and r.lifecycle in ('ready','active')
+          and not exists(select 1 from vy_replica_runtime_capability private_cap
+            where private_cap.replica_id=r.replica_id and private_cap.owner_user_id=r.owner_user_id
+              and private_cap.state='active' and private_cap.candidate_binding_required)
           and r.age_verified_at is not null and r.identity_verified_at is not null
           and r.liveness_verified_at is not null and r.identity_expires_at>now()
           and exists(select 1 from vy_replica_consent c
@@ -451,7 +460,7 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
 
 export const OWNED_RUNTIME_CONTEXT_SQL = `select r.replica_id,r.owner_user_id,r.subject_person_id,r.agent_id,r.subject_mode,r.lifecycle,
             r.policy_version,r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,r.identity_expires_at,
-            a.status as agent_status,c.capability_id,c.state as capability_state,c.policy_version as runtime_policy,
+            a.status as agent_status,c.capability_id,c.state as capability_state,c.policy_version as runtime_policy,c.candidate_binding_required,
             c.voice_profile_id,c.genome_version,c.profile_version,c.calibration_version,c.qualification_hash,
             vp.provider,vp.provider_ref,vp.model,vp.status as voice_status,vp.capabilities,
             vg.status as genome_status,pp.status as profile_status,pp.definition as profile_definition,
@@ -497,7 +506,7 @@ export async function loadOwnedRuntimeContext(db, ownerUserId, id) {
   );
   const row = rows[0];
   if (!row) return null;
-  return {
+  const runtime = {
     replica: {
       replica_id: row.replica_id,
       owner_user_id: row.owner_user_id,
@@ -515,6 +524,9 @@ export async function loadOwnedRuntimeContext(db, ownerUserId, id) {
       capability_id: row.capability_id,
       policy_version: row.runtime_policy,
       qualification_hash: row.qualification_hash,
+      candidate_binding_required: row.candidate_binding_required === true,
+      state: row.capability_state,
+      private_selection: row.capability_state === 'private',
     },
     voiceProfile: {
       voice_profile_id: row.voice_profile_id,
@@ -550,6 +562,40 @@ export async function loadOwnedRuntimeContext(db, ownerUserId, id) {
       revoked_at: null,
     },
   };
+  runtime.candidateBinding = runtime.capability.candidate_binding_required
+    ? await loadOwnedCandidateBinding(db, ownerUserId, runtime) : null;
+  if(runtime.capability.candidate_binding_required && !runtime.candidateBinding)return null;
+  return runtime;
+}
+
+// Explicit rollback inspects one prior immutable identity. It never opens a
+// session or makes that identity active, and revoked/paused rows are refused.
+export const OWNED_RUNTIME_REVISION_SQL=OWNED_RUNTIME_CONTEXT_SQL.replace("c.state='active'","c.capability_id=$4::uuid and c.state in ('active','private','superseded')");
+export const CANDIDATE_RUNTIME_REVISION_BINDING_SQL=CANDIDATE_RUNTIME_BINDING_SQL.replace("c.state='private'","c.state in ('private','superseded')");
+export async function loadOwnedRuntimeRevision(db,owner,id,capabilityId){
+  return loadOwnedRuntimeContext((sql,params)=>{
+    if(sql===OWNED_RUNTIME_CONTEXT_SQL)return db(OWNED_RUNTIME_REVISION_SQL,[...params,replicaId(capabilityId)]);
+    if(sql===CANDIDATE_RUNTIME_BINDING_SQL)return db(CANDIDATE_RUNTIME_REVISION_BINDING_SQL,params);
+    throw runtimeError('runtime_revision_query_unexpected');
+  },owner,id);
+}
+
+if(OWNED_RUNTIME_CONTEXT_SQL.split("c.state='active'").length!==2)throw Error('private_runtime_query_shape_changed');
+export const OWNED_PRIVATE_RUNTIME_CONTEXT_SQL=OWNED_RUNTIME_CONTEXT_SQL.replace("c.state='active'",ownerPrivateCapabilityAuthoritySql('c','r'));
+export async function loadOwnedPrivateRuntimeContext(db,owner,id){
+ return loadOwnedRuntimeContext((sql,params)=>db(sql===OWNED_RUNTIME_CONTEXT_SQL?OWNED_PRIVATE_RUNTIME_CONTEXT_SQL:sql,params),owner,id);
+}
+export const OWNER_PRIVATE_SELECTION_STATUS_SQL=`select capability_id from vy_replica_owner_private_selection
+ where replica_id=$1::uuid and owner_user_id=$2::uuid`;
+export async function ownedPrivateRuntimeStatus(db,owner,id){
+ const status=await ownedRuntimeStatus(db,owner,id);if(!status)return null;
+ const [selection]=await db(OWNER_PRIVATE_SELECTION_STATUS_SQL,[replicaId(id),owner]);
+ if(!selection)return status;
+ const runtime=await loadOwnedPrivateRuntimeContext(db,owner,id);
+ const valid=runtime?.capability.private_selection===true&&runtime.capability.capability_id===selection.capability_id;
+ return {...status,active:valid,can_activate:false,private_selection:true,private_candidate:!!runtime?.candidateBinding,
+  capability_id:valid?runtime.capability.capability_id:null,exposure:'owner_private_text',
+  blockers:valid?[]:['private_selection_unavailable']};
 }
 
 export async function openOwnedRuntimeSession(db, ownerUserId, input) {
@@ -564,7 +610,8 @@ export async function openOwnedRuntimeSession(db, ownerUserId, input) {
      select c.capability_id,r.replica_id,r.owner_user_id,r.agent_id,r.subject_person_id,$3,$4,'active'
        from vy_replica r join vy_replica_runtime_capability c
          on c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
-        and c.agent_id=r.agent_id and c.subject_person_id=r.subject_person_id and c.state='active'
+        and c.agent_id=r.agent_id and c.subject_person_id=r.subject_person_id
+        and ${ownerPrivateCapabilityAuthoritySql('c','r')}
        join vy_agent a on a.agent_id=r.agent_id and a.status='active'
        join vy_replica_calibration cal
          on cal.replica_id=c.replica_id and cal.owner_user_id=c.owner_user_id
@@ -573,6 +620,7 @@ export async function openOwnedRuntimeSession(db, ownerUserId, input) {
          on pp.replica_id=c.replica_id and pp.version=c.profile_version and pp.status='approved'
         and (${personProfileValiditySql("pp", "r")})
       where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.lifecycle='active'
+        and (c.state<>'private' or $3='private_chat')
         and exists(select 1 from vy_replica_consent x
           where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
             and x.scope='inference' and x.policy_version=$5 and x.revoked_at is null

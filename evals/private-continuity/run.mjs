@@ -6,6 +6,9 @@ import {continuityTokens,continuityReferences,continuityPrompt,readPrivateContin
 import {compileDialoguePrompt} from '../../api/_dialogue/contracts.js';
 import {splitSql} from '../../db/migrations/apply.mjs';
 import {DIALOGUE_AUTHORITY_SQL} from '../../api/_replica-dialogue-authority.js';
+import {textPublicationTerms} from '../../api/_text-publication-store.js';
+import {PUBLICATION_MEMORY_MODE,publicationHasMemory,publicationMemorySettings,decodePublicationContinuity} from '../../api/_text-publication-memory.js';
+import {encryptPublicationText,publicationTextBinding} from '../../api/_text-publication-crypto.js';
 const id=n=>`${n}0000000-0000-4000-8000-00000000000${n}`;
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const [owner,replica,session,prior,turn]=[1,2,3,4,5].map(id);
@@ -69,5 +72,31 @@ await test('real dialogue caller opts in and fences admission completion history
  assert(read('api/_replica-dialogue-history.js').includes("continuityPredicate('t.continuity_refs','r','c','t.session_id')"));
  assert(read('src/studio/ExpertConversation.tsx').includes('traceId, recallPrevious)'));
 });
-await test('public publication remains explicitly without memory',()=>{assert(read('api/_text-publication-store.js').includes('memory:false,voice:false'));assert(!read('api/_text-publication-runtime.js').includes('readPrivateContinuity'));});
+await test('publication defaults and explicit opt-out preserve no memory and no voice',()=>{
+ const env={TEXT_PUBLICATION_BUDGET_USD:'1'},off=terms=>{assert.equal(terms.memory,false);assert.equal(terms.voice,false);assert.equal(terms.memory_policy,undefined);};
+ off(textPublicationTerms(env));off(textPublicationTerms(env,false));
+ assert.throws(()=>off({...textPublicationTerms(env),memory:PUBLICATION_MEMORY_MODE}));
+ assert.throws(()=>off({...textPublicationTerms(env),voice:true}));
+});
+await test('explicit publication memory requires exact v2 policy and separate visitor permission',()=>{
+ const terms=textPublicationTerms({TEXT_PUBLICATION_BUDGET_USD:'1'},true),publication={version:2,terms};
+ assert.equal(terms.memory,PUBLICATION_MEMORY_MODE);assert.equal(terms.voice,false);assert(publicationHasMemory(publication));
+ assert.equal(publicationHasMemory({...publication,version:1}),false);
+ assert.equal(publicationHasMemory({...publication,terms:{...terms,memory_policy_hash:'bad'}}),false);
+ assert.equal(publicationMemorySettings(publication,{memory_enabled:false}).enabled,false);
+ assert.equal(publicationMemorySettings(publication,{memory_enabled:true}).enabled,true);
+ for(const file of ['api/_text-publication-store.js','api/_text-publication-runtime.js','api/_text-publication-memory.js']){
+  assert(!read(file).includes('readPrivateContinuity'));assert(!read(file).includes('_private-dialogue-continuity'));
+ }
+});
+await test('real encrypted publication recall cannot cross visitor publication owner or epoch',()=>{
+ const env={PRIVATE_TEXT_REHEARSAL_KEK_ID:'continuity-boundary-test',PRIVATE_TEXT_REHEARSAL_KEK_B64:Buffer.alloc(32,11).toString('base64')};
+ const row={request_id:turn,publication_id:session,owner_user_id:owner,replica_id:replica,visitor_user_id:prior,memory_epoch:'1',state:'complete',gate_sidecar:{gated:true},question_hash:hash(question),answer_hash:hash(reply)};
+ row.question_envelope=encryptPublicationText(question,publicationTextBinding(row,'question',row.question_hash),env);
+ row.answer_envelope=encryptPublicationText(reply,publicationTextBinding(row,'answer',row.answer_hash),env);
+ const scope={publication:{publication_id:session,owner_user_id:owner,replica_id:replica},visitor:prior,epoch:'1',env};
+ assert.equal(decodePublicationContinuity([row],scope).exchanges[0].question,question);
+ for(const patch of [{visitor:owner},{epoch:'2'},{publication:{...scope.publication,publication_id:prior}},{publication:{...scope.publication,owner_user_id:prior}}])
+  assert.throws(()=>decodePublicationContinuity([row],{...scope,...patch}),{code:'text_publication_memory_invalid'});
+});
 console.log(`${checks} offline controls; SQL parsing, erasure execution, browser and model quality not run`);

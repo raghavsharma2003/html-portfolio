@@ -91,6 +91,9 @@ async function publishedRow(slug, timeoutMs) {
       where a.slug = $1
         and s.status = 'published'
         and s.consent_artifact_id is not null
+        and not exists(select 1 from vy_replica_runtime_capability candidate_cap
+          where candidate_cap.agent_id=s.agent_id and candidate_cap.state='active'
+            and candidate_cap.candidate_binding_required)
       order by s.published_at desc
       limit 1`,
     [slug],

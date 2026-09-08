@@ -1,4 +1,22 @@
 /* Entry tokens and sign-in styles stay eager; signed-in scenes load with CloneExperience. */
+/* A standalone loading card spans the entry grid instead of the short brand row. */
+.auth-page.auth-loading .auth-card {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  align-self: center;
+  justify-self: center;
+  margin: 0;
+}
+/* General loading uses its eventual entry face, avoiding a temporary Geist request.
+   Keep the test entry's existing type choice and all final-screen rules unchanged. */
+.auth-page.auth-loading[data-auth-theme="general"] {
+  font-family: "Instrument Sans Variable", sans-serif;
+  background: #f8f8f5;
+}
+.auth-page.auth-loading[data-auth-theme="general"]::before,
+.auth-page.auth-loading[data-auth-theme="general"]::after,
+.auth-page.auth-loading[data-auth-theme="general"] .ambient { display: none; }
+
 /* The no-image entry must not inherit the older dark backdrop and overlapping card. */
 .auth-page[data-auth-theme="test"] { background: var(--vx-paper); }
 .auth-page[data-auth-theme="test"]::before,

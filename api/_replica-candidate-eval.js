@@ -428,7 +428,7 @@ export async function recordOwnedCandidateJudgment(db, ownerUserId, input) {
          on r.eval_run_id=a.eval_run_id and r.candidate_id=a.candidate_id
         and r.replica_id=a.replica_id and r.owner_user_id=a.owner_user_id
       where a.assignment_id=$1::uuid and a.replica_id=$2::uuid and a.owner_user_id=$3::uuid
-        and a.assignment_hash=$4 and a.state in ('pending','submitted') and r.state='collecting' limit 1`,
+        and a.assignment_hash=$4 and a.state in ('pending','submitted') and r.state in ('collecting','complete') limit 1`,
     [assignmentId, rid, ownerUserId, assignmentHash],
   );
   const dimensionRow = dimensionsRows[0];
@@ -447,7 +447,7 @@ export async function recordOwnedCandidateJudgment(db, ownerUserId, input) {
            on r.eval_run_id=a.eval_run_id and r.candidate_id=a.candidate_id
           and r.replica_id=a.replica_id and r.owner_user_id=a.owner_user_id
         where a.assignment_id=$1::uuid and a.replica_id=$2::uuid and a.owner_user_id=$3::uuid
-          and a.assignment_hash=$4 and a.state in ('pending','submitted') and r.state='collecting'
+          and a.assignment_hash=$4 and a.state in ('pending','submitted') and r.state in ('collecting','complete')
      ), wanted as (
        select * from jsonb_to_recordset($5::jsonb) as x(judgment_id uuid,dimension text,position_winner text)
      ), inserted as (
@@ -479,23 +479,37 @@ export async function recordOwnedCandidateJudgment(db, ownerUserId, input) {
      ), submitted as (
        update vy_replica_candidate_eval_assignment a set state='submitted',submitted_at=coalesce(submitted_at,now())
          from exact e where a.assignment_id=e.assignment_id returning a.eval_run_id
-     ), finished as (
-       update vy_replica_candidate_eval_run r set state='complete',completed_at=now()
-         from submitted s where r.eval_run_id=s.eval_run_id and r.state='collecting'
-          and not exists(select 1 from vy_replica_candidate_eval_assignment a where a.eval_run_id=r.eval_run_id and a.state='pending')
-       returning r.eval_run_id
-     )
-     select count(*) filter (where a.state='submitted')::integer as completed,count(*)::integer as total,
-            exists(select 1 from finished) as complete
-       from vy_replica_candidate_eval_assignment a join submitted s on s.eval_run_id=a.eval_run_id
-      group by s.eval_run_id`,
+     ) select eval_run_id from submitted`,
     [assignmentId, rid, ownerUserId, assignmentHash, JSON.stringify(wanted)],
   );
   if (!rows[0]) fail("candidate_eval_judgment_conflict");
+  // q commits each statement. A fresh snapshot sees the assignment just written,
+  // including the final vote; sibling CTE table reads cannot see that UPDATE.
+  // A replay after interruption also reaches this reconciliation without changing
+  // an existing vote. The later concurrent submit reconciles both committed votes.
+  const reconciled = await db(
+    `with progress as (
+       select r.eval_run_id,count(*)::integer as total,
+              count(*) filter (where a.state='submitted')::integer as completed
+         from vy_replica_candidate_eval_run r join vy_replica_candidate_eval_assignment a
+           on a.eval_run_id=r.eval_run_id and a.candidate_id=r.candidate_id
+          and a.replica_id=r.replica_id and a.owner_user_id=r.owner_user_id
+        where r.eval_run_id=$1::uuid and r.replica_id=$2::uuid and r.owner_user_id=$3::uuid
+          and r.state in ('collecting','complete')
+        group by r.eval_run_id
+     ), finished as (
+       update vy_replica_candidate_eval_run r set state='complete',completed_at=coalesce(r.completed_at,now())
+         from progress p where r.eval_run_id=p.eval_run_id and p.total=r.assignment_count
+          and p.completed=p.total and p.total>0
+       returning r.eval_run_id
+     ) select p.completed,p.total,exists(select 1 from finished) as complete from progress p`,
+    [rows[0].eval_run_id, rid, ownerUserId],
+  );
+  if (!reconciled[0]) fail("candidate_eval_reconciliation_unavailable");
   return {
     accepted: true,
-    progress: { completed: Number(rows[0].completed), total: Number(rows[0].total) },
-    complete: Boolean(rows[0].complete),
+    progress: { completed: Number(reconciled[0].completed), total: Number(reconciled[0].total) },
+    complete: Boolean(reconciled[0].complete),
   };
 }
 

@@ -845,6 +845,7 @@ const PROVIDER_CALLER_MAPPED = {
 // this incident board observes its provider failures. Keep dormant adapters
 // in the inventory as long as their executable transport remains in source.
 const INJECTED_PROVIDER_EXCLUSIONS = {
+  "_correction/providers/azure-foundry.js": "Authenticated private owner candidate construction via replica-correction-candidate.js; checked below for exact budget, timeout and request-key wiring, outside Room delivery.",
   "_auth.js": "Supabase authentication; session errors use the auth API contract, outside Room provider delivery.",
   "_asr/providers/azure-speech-short.js": "Replica ASR input/result lifecycle; not a Room text delivery transport.",
   "_asr/providers/sarvam-saaras.js": "Legacy Replica batch ASR lifecycle; retained transport is inventoried even when policy disables it.",
@@ -870,6 +871,30 @@ const INJECTED_PROVIDER_EXCLUSIONS = {
   "_voice/providers/sarvam-bulbul.js": "Legacy Replica voice artifact lifecycle; retained transport even when serving policy disables it.",
   "_voice/warmup.js": "Voice runtime readiness/warmup lifecycle, separate from follower text delivery.",
 };
+// A named private lifecycle is not evidence of Room incident recording.
+// Its actual admission, cost accounting and bounded transport must remain wired.
+const correctionRoute = fs.readFileSync(join(REPO, "api/replica-correction-candidate.js"), "utf8");
+const correctionWorker = fs.readFileSync(join(REPO, "api/_replica-correction-candidate.js"), "utf8");
+const correctionTransport = fs.readFileSync(join(REPO, "api/_correction/providers/azure-foundry.js"), "utf8");
+const correctionContract = (route, worker, transport) =>
+  /authenticate\(req\)/.test(route) && /runOwnedCorrectionCandidate\(db,user.id,input/.test(route)
+  && /createAzureCorrectionStrategyAdapter\(/.test(route)
+  && /AZURE_FOUNDRY_ENDPOINT/.test(route) && /AZURE_FOUNDRY_API_KEY/.test(route)
+  && /reserveFoundrySpend\(db,\{operation:'claim_extraction',requestKey:`correction:\$\{job.job_id\}:\$\{plan.request_hash\}`/.test(worker)
+  && worker.indexOf('beginFoundrySpend(db,reservation)') < worker.indexOf('adapter.generate({plan,signal})')
+  && worker.includes('beginFoundrySpend(db,reservation)')
+  && /settleFoundrySpend\(db,reservation,response.usage\)/.test(worker)
+  && /markFoundrySpendUncertain\(db,reservation/.test(worker)
+  && /Math.min\(45_000, Math.max\(1, Number\(options.timeoutMs\)/.test(transport)
+  && /Promise.race\(\[operation, aborted\]\)/.test(transport)
+  && /redirect: 'error'/.test(transport) && /'api-key': apiKey/.test(transport);
+ok("private correction inventory has actual owner, exact job/hash budget key, settlement, uncertain-spend and bounded authenticated transport wiring", correctionContract(correctionRoute, correctionWorker, correctionTransport));
+for (const needle of ['beginFoundrySpend(db,reservation)', 'settleFoundrySpend(db,reservation,response.usage)', 'markFoundrySpendUncertain(db,reservation', 'requestKey:`correction:${job.job_id}:${plan.request_hash}`']) {
+  ok('negative control: correction inventory refuses missing ' + needle, !correctionContract(correctionRoute, correctionWorker.replaceAll(needle, 'REMOVED_CONTROL'), correctionTransport));
+}
+ok('negative control: correction inventory refuses missing transport deadline', !correctionContract(correctionRoute, correctionWorker, correctionTransport.replace('Math.min(45_000', 'Math.min(REMOVED_CONTROL')));
+ok('negative control: correction inventory refuses missing provider key', !correctionContract(correctionRoute, correctionWorker, correctionTransport.replace("'api-key': apiKey", 'REMOVED_CONTROL')));
+
 const PROVIDER_EXCLUDED = [
   "_azure.js", "_channel-secrets.js", "_db.js", "_embed.js", "_gcache.js", "_push.js", "_room-embed.js",
   "account.js", "chat.js", "consolidate.js", "culture.js", "discord.js", "embed.js", "gif.js",

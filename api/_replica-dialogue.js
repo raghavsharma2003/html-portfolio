@@ -1,4 +1,4 @@
-import {readPrivateContinuity, continuityReferences, continuityPrompt, continuityPredicate, readPrivateContinuitySources} from "./_private-dialogue-continuity.js";
+import {readPrivateContinuity, continuityReferences, continuityPrompt, privateContinuityPredicate as continuityPredicate, readPrivateContinuitySources} from "./_private-dialogue-continuity.js";
 import { randomUUID } from "node:crypto";
 import {
   DIALOGUE_SCHEMA,
@@ -10,14 +10,15 @@ import {
 } from "./_dialogue/contracts.js";
 import {
   compileRelationshipTail,
-  compileReplicaRuntimeCore,
-  loadOwnedRuntimeContext,
+  loadOwnedPrivateRuntimeContext as loadOwnedRuntimeContext,
   loadPrivateRelationshipSnapshot,
   openOwnedRuntimeSession,
 } from "./_replica-runtime.js";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
 import { beginFoundrySpend, markFoundrySpendUncertain, releaseFoundrySpendBeforeCall, reserveFoundrySpend, settleFoundrySpend } from "./_provider-budget.js";
 import { readOwnedDialogueHistory, openOwnedDialogueSession } from "./_replica-dialogue-history.js";
+import {ownerPrivateCapabilityAuthoritySql} from './_replica-candidate-activation-authority.js';
+import {candidateRuntimeCore,assertCandidateGenerator,assertCandidateResponse,assertCandidateRuntimeUnchanged} from './_replica-candidate-runtime.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TRACE = /^[A-Za-z0-9_-]{8,96}$/;
@@ -58,8 +59,9 @@ async function ensureSession(db, ownerUserId, runtime, input) {
       where s.session_id=$1::uuid and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid and s.channel=$4
         and s.capability_id=$5::uuid and s.state='active' and s.last_active_at>now()-interval '12 hours'
         and c.capability_id=s.capability_id and c.replica_id=s.replica_id and c.owner_user_id=s.owner_user_id
-        and c.agent_id=s.agent_id and c.subject_person_id=s.person_id and c.state='active'
+        and c.agent_id=s.agent_id and c.subject_person_id=s.person_id
         and r.replica_id=s.replica_id and r.owner_user_id=s.owner_user_id and r.lifecycle='active'
+        and ${ownerPrivateCapabilityAuthoritySql('c','r')} and (c.state<>'private' or s.channel='private_chat')
         and exists(select 1 from vy_replica_consent x
           where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
             and x.scope='inference' and x.policy_version=$6 and x.revoked_at is null
@@ -102,7 +104,7 @@ export const PRIVATE_DIALOGUE_BEGIN_SQL = `with authorized as materialized (
          from vy_replica_runtime_session s
          join vy_replica_runtime_capability c
            on c.capability_id=s.capability_id and c.replica_id=s.replica_id and c.owner_user_id=s.owner_user_id
-          and c.agent_id=s.agent_id and c.subject_person_id=s.person_id and c.state='active'
+          and c.agent_id=s.agent_id and c.subject_person_id=s.person_id
          join vy_replica r on r.replica_id=s.replica_id and r.owner_user_id=s.owner_user_id
          join lateral (
            select d.device_id from vy_person_device d where d.person_id=s.person_id order by d.linked_at desc limit 1
@@ -110,6 +112,7 @@ export const PRIVATE_DIALOGUE_BEGIN_SQL = `with authorized as materialized (
         where s.session_id=$1::uuid and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid and s.capability_id=$4::uuid
           and s.state='active' and s.last_active_at>now()-interval '12 hours'
           and r.lifecycle='active' and r.subject_mode='self'
+          and ${ownerPrivateCapabilityAuthoritySql('c','r')} and (c.state<>'private' or s.channel='private_chat')
           and exists(select 1 from vy_replica_consent x
             where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
               and x.scope='inference' and x.policy_version=$13 and x.revoked_at is null
@@ -158,9 +161,10 @@ export const PRIVATE_DIALOGUE_FINISH_SQL = `with authorized as materialized (
          join vy_replica_runtime_capability c
            on c.capability_id=t.capability_id and c.replica_id=t.replica_id and c.owner_user_id=t.owner_user_id
           and c.agent_id=t.agent_id and c.subject_person_id=t.person_id and c.profile_version=t.profile_version
-          and c.calibration_version=t.calibration_version and c.state='active'
+          and c.calibration_version=t.calibration_version
          join vy_replica r on r.replica_id=t.replica_id and r.owner_user_id=t.owner_user_id and r.lifecycle='active'
         where t.turn_id=$1::uuid and t.replica_id=$2::uuid and t.owner_user_id=$3::uuid and t.state='generating'
+          and ${ownerPrivateCapabilityAuthoritySql('c','r')} and (c.state<>'private' or s.channel='private_chat')
           and exists(select 1 from vy_replica_consent x
             where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
               and x.scope='inference' and x.policy_version=$7 and x.revoked_at is null
@@ -200,7 +204,7 @@ async function failDialogueTurn(db, ownerUserId, turnId, code) {
   ).catch(() => []);
 }
 
-export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator, signal) {
+export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator, signal, {resolveCandidateGenerator} = {}) {
   if (!generator || typeof generator.generate !== "function" || !generator.family || !generator.name || !generator.version || !generator.model)
     fail("dialogue_generator_unavailable", 503);
   // Reject the current question whole before normalization or any scoped IO.
@@ -218,6 +222,9 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
   if (!input.message) fail("dialogue_message_required", 400);
   const runtime = await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id);
   if (!runtime) fail("dialogue_runtime_not_active");
+  if (runtime.capability.private_selection && input.channel !== "private_chat") fail("candidate_runtime_text_only");
+  if (runtime.candidateBinding && resolveCandidateGenerator) generator = await resolveCandidateGenerator();
+  assertCandidateGenerator(runtime, generator);
   const session = await ensureSession(db, ownerUserId, runtime, input);
   const [snapshot, history, evidence] = await Promise.all([
     loadPrivateRelationshipSnapshot(db, runtime, { strict: true }),
@@ -226,7 +233,7 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
       ? readPrivateContinuity(db, ownerUserId, input.replica_id, session.session_id, input.message) : [],
   ]);
   const prompt = compileDialoguePrompt({
-    core: compileReplicaRuntimeCore(runtime.personProfile.definition, runtime.calibration.definition),
+    core: candidateRuntimeCore(runtime),
     relationship: compileRelationshipTail(snapshot),
     evidence: continuityPrompt(evidence),
     history,
@@ -235,6 +242,8 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
   const turn = await beginDialogueTurn(db, ownerUserId, runtime, session, generator, input, prompt, evidence);
   let reservation = null;
   let providerStarted = false;
+  let settled = false;
+  let billingState = "not_metered";
   try {
     reservation = await reserveFoundrySpend(db, {
       operation: "dialogue",
@@ -248,17 +257,28 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
         await releaseFoundrySpendBeforeCall(db, reservation, error).catch(() => null);
         throw error;
       }
-      providerStarted = true;
     }
+    assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id));
+    assertCandidateGenerator(runtime, generator);
+    signal?.throwIfAborted();
+    providerStarted = true;
     const generated = await generator.generate({ prompt, signal });
+    // Candidate refusals still incurred measured provider usage. Settle before
+    // revision/authority validation without ever returning the refused answer.
+    if (runtime.candidateBinding && reservation) {
+      try { await settleFoundrySpend(db, reservation, generated.usage); settled = true; billingState = "settled"; }
+      catch (error) { await markFoundrySpendUncertain(db, reservation, error); billingState = "reconcile_required"; }
+    }
+    assertCandidateResponse(runtime, generator, generated);
+    assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id));
     const output = validateDialogueOutput(generated?.output);
     const finished = await finishDialogueTurn(db, ownerUserId, runtime, turn, output);
     if (!finished) fail("dialogue_authorization_changed");
-    let billingState = "not_metered";
-    if (reservation) {
+    if (reservation && !runtime.candidateBinding) {
       try {
         await settleFoundrySpend(db, reservation, generated.usage);
         billingState = "settled";
+        settled = true;
       } catch (error) {
         await markFoundrySpendUncertain(db, reservation, error);
         billingState = "reconcile_required";
@@ -270,12 +290,19 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
       session_id: finished.session_id,
       reply: output.reply,
       delivery: output.delivery,
-      can_voice: evidence.length === 0,
+      can_voice: evidence.length === 0 && !runtime.capability.private_selection && !runtime.candidateBinding,
       billing_state: billingState,
       created_at: finished.created_at,
     };
   } catch (error) {
-    if (providerStarted) await markFoundrySpendUncertain(db, reservation, error);
+    if (runtime.candidateBinding && reservation && providerStarted && !settled && error?.measured_usage) {
+      try { await settleFoundrySpend(db, reservation, error.measured_usage); settled = true; }
+      catch { /* Preserve an unresolved reservation for reconciliation. */ }
+    }
+    if (reservation && !settled) {
+      if (providerStarted) await markFoundrySpendUncertain(db, reservation, error);
+      else await releaseFoundrySpendBeforeCall(db, reservation, error).catch(() => null);
+    }
     await failDialogueTurn(db, ownerUserId, turn.turn_id, error);
     throw error;
   }
@@ -290,6 +317,8 @@ export const PRIVATE_DIALOGUE_SPEECH_SQL = `select t.turn_id,a.content,t.deliver
         and c.calibration_version=t.calibration_version and c.state='active'
        join vy_replica r on r.replica_id=t.replica_id and r.owner_user_id=t.owner_user_id and r.lifecycle='active'
       where coalesce(t.continuity_refs,'[]'::jsonb)='[]'::jsonb and t.turn_id=$1::uuid and t.replica_id=$2::uuid and t.owner_user_id=$3::uuid and t.state='complete'
+        and not c.candidate_binding_required
+        and ${ownerPrivateCapabilityAuthoritySql('c','r')}
         and exists(select 1 from vy_replica_consent x
           where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
             and x.scope='inference' and x.policy_version=$4 and x.revoked_at is null
@@ -308,7 +337,7 @@ export async function loadOwnedDialogueSpeech(db, ownerUserId, input) {
   return { dialogue_turn_id: rows[0].turn_id, text: output.reply, style: dialogueSpeechStyle(output.delivery) };
 }
 
-export function createReplicaDialogueHandler({ db, requireUser, resolveGenerator }) {
+export function createReplicaDialogueHandler({ db, requireUser, resolveGenerator, resolveCandidateGenerator }) {
   if (![db, requireUser, resolveGenerator].every((dependency) => typeof dependency === "function"))
     throw new Error("replica dialogue dependencies required");
   return async function replicaDialogue(req, res) {
@@ -330,7 +359,7 @@ export function createReplicaDialogueHandler({ db, requireUser, resolveGenerator
       }
       if (req.body?.op) fail("unknown_op", 400);
       const generator = await resolveGenerator();
-      const turn = await generateOwnedDialogue(db, user.id, req.body || {}, generator, aborter.signal);
+      const turn = await generateOwnedDialogue(db, user.id, req.body || {}, generator, aborter.signal, {resolveCandidateGenerator});
       return res.status(200).json({ turn });
     } catch (error) {
       const status = Number.isInteger(error?.status) ? error.status : 500;

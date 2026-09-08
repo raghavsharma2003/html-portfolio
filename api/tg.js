@@ -146,7 +146,7 @@ import { allow, ipOf } from "./_ratelimit.js";
 import { TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_BOT_USERNAME } from "./_config.js";
 import { dispatch, loadEngine, makeCtx, splitForLimit, ROOM_CARD, withdrawReceipt } from "./_surface.js";
 import { q } from "./_db.js";
-import { resolveInboundClone } from "./_clonechannel.js";
+import { resolveInboundClone, createClonePublicAuthorityGuard } from "./_clonechannel.js";
 import { getChannelSecret } from "./_channel-secrets.js";
 import { withDoor } from "./_incidents.js";
 
@@ -460,6 +460,7 @@ export async function handleUpdate(update, deps = {}) {
     engine,
     agent: bound?.agent ?? deps.agent,
     agentId: bound?.agentId ?? deps.agentId,
+    assertPublicAuthority: bound?.assertPublicAuthority ?? deps.assertPublicAuthority,
     send: bound?.send ?? sendVia(deps.send || defaultClient),
     botHandle: bound?.botHandle || BOT_USERNAME,
     // `/start` with or without a room token is the linking tap. Without a
@@ -511,6 +512,7 @@ export async function bindTelegramClone(channelRef, deps = {}) {
   return {
     agent: resolved.module,
     agentId: resolved.agentId,
+    assertPublicAuthority: createClonePublicAuthorityGuard(db,resolved),
     botHandle: resolved.module?.displayName || BOT_USERNAME,
     send: sendVia(clientFor(token)),
   };

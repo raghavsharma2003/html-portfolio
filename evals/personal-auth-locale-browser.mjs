@@ -33,12 +33,17 @@ try {
   const imports = ["@fontsource-variable/geist", "@fontsource-variable/instrument-sans", "@fontsource/noto-sans-devanagari/devanagari-600.css", "./src/studio/design/tokens.css", "./src/studio/studio-entry.css", "./src/studio/auth-entry.css", "./src/studio/vyakti-mark.css"];
   const entry = `import React from 'react'; import {createRoot} from 'react-dom/client';
     import { AuthGate } from './src/studio/StudioApp';
+    import { PersonalAuthLoading } from './src/studio/personalAuthLocale';
     import { loadStudioCopyAuth, STUDIO_COPY_TABLE } from './src/creatorStudio/copy';
     ${imports.map(path => `import ${JSON.stringify(path)};`).join("\n")}
     const params = new URLSearchParams(location.search); const lang = params.get('lang') === 'hi' ? 'hi' : 'en';
     await loadStudioCopyAuth(lang); window.fixtureCopy = STUDIO_COPY_TABLE[lang].personalAuth;
     window.acceptedSessions = []; window.fixtureReady = true;
-    createRoot(document.getElementById('studio-root')).render(<AuthGate testEnvironment={params.get('theme') === 'test'} resumeIntent={null} onAuthed={session => window.acceptedSessions.push(session)} />);`;
+    const root = createRoot(document.getElementById('studio-root'));
+    window.fixtureRetries = 0; window.fixtureRecovery = null;
+    window.showLoading = failed => root.render(<PersonalAuthLoading locale={lang} failed={failed} retry={() => window.fixtureRetries++} switchLocale={value => window.fixtureRecovery=value} testEnvironment={params.get('theme') === 'test'} />);
+    window.showAuth = () => root.render(<AuthGate testEnvironment={params.get('theme') === 'test'} resumeIntent={null} onAuthed={session => window.acceptedSessions.push(session)} />);
+    window.showLoading(false);`;
   await build({ stdin: { contents: entry, resolveDir: root, sourcefile: "auth-fixture.tsx", loader: "tsx" }, absWorkingDir: root,
     outdir: temp, entryNames: "fixture", bundle: true, format: "esm", splitting: true, platform: "browser", jsx: "automatic", logLevel: "silent",
     define: { "import.meta.env": "{}", "process.env.NODE_ENV": '"production"' },
@@ -97,8 +102,41 @@ try {
       const page = await context.newPage(); page.setDefaultTimeout(8000); page.setDefaultNavigationTimeout(15000);
       page.on("pageerror", error => errors.push(error.message));
       await page.goto(`${origin}/studio?lang=${lang}&theme=${theme}&step=meet&replica=fixture`);
-      await page.locator(`[data-studio-auth-locale="${lang}"]`).waitFor();
+      await page.locator('.auth-loading[aria-busy="true"]').waitFor();
       await page.evaluate(() => document.fonts.ready);
+      // Separate functionality evidence; never injected into the paired performance run.
+      await page.evaluate(() => window.showLoading(false));
+      await page.locator('.auth-loading[aria-busy="true"]').waitFor();
+      const loadingStyle = await page.locator('.auth-loading').evaluate(node => ({family:getComputedStyle(node).fontFamily,background:getComputedStyle(node).backgroundColor,backdrop:getComputedStyle(node,'::before').display,locale:node.lang,mode:node.dataset.authTheme}));
+      assert.equal(loadingStyle.locale,lang);assert.equal(loadingStyle.mode,theme);
+      assert.match(loadingStyle.family,theme === 'general' ? /Instrument Sans Variable/ : /Geist Variable/);
+      assert.equal(loadingStyle.background,'rgb(248, 248, 245)');assert.equal(loadingStyle.backdrop,'none');
+      assert.ok(await page.getByRole('status').isVisible());
+      const statusBounds=await page.getByRole('status').boundingBox();
+      assert.ok(statusBounds && statusBounds.y>=0 && statusBounds.x>=0 && statusBounds.x+statusBounds.width<=width+1 && statusBounds.y+statusBounds.height<=1000,`Loading status is inside viewport, not merely CSS-visible: ${JSON.stringify(statusBounds)}`);
+      await page.evaluate(() => window.showLoading(true));
+      await page.getByRole('alert').waitFor();
+      const alertBounds=await page.getByRole('alert').boundingBox();
+      assert.ok(alertBounds && alertBounds.y>=0 && alertBounds.x>=0 && alertBounds.x+alertBounds.width<=width+1 && alertBounds.y+alertBounds.height<=1000,'Loading error is inside viewport');
+      assert.equal(await page.locator('.auth-loading').getAttribute('aria-busy'),'false');
+      const retry=page.getByRole('button',{name:lang==='hi'?'फिर कोशिश करें':'Try again',exact:true});
+      for(const control of await page.locator('.auth-loading button').all()) {
+        await control.scrollIntoViewIfNeeded();
+        const bounds=await control.boundingBox();
+        assert.ok(bounds&&bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=width+1&&bounds.y+bounds.height<=1000,'Loading recovery control is reachable within viewport');
+      }
+      // Negative control models the observed first-row placement defect.
+      await page.addStyleTag({content:'.auth-page.auth-loading .auth-card { grid-row: 1 / 2 !important; margin-top: -70px !important; }'}).then(async tag=>{
+        const broken=await page.getByRole('alert').boundingBox();
+        assert.ok(broken && (broken.y<0 || broken.y+broken.height>1000),'Old short-row placement fails real viewport bounds');
+        await tag.evaluate(node=>node.remove());
+      });
+      await retry.focus();await page.keyboard.press('Enter');
+      assert.equal(await page.evaluate(()=>window.fixtureRetries),1);
+      if(lang==='hi'){await page.getByRole('button',{name:'Use English',exact:true}).focus();await page.keyboard.press('Enter');assert.equal(await page.evaluate(()=>window.fixtureRecovery),'en');}
+      await page.screenshot({path:join(receipts,`${lang}-${width}-${theme}-loading-error.png`),fullPage:true});
+      await page.evaluate(() => window.showAuth());
+      await page.locator(`[data-studio-auth-locale="${lang}"]`).waitFor();
       const copy = await page.evaluate(() => window.fixtureCopy);
       assert.equal(await page.locator("#studio-title").innerText(), copy.variant[theme === "test" ? "test" : "generic"].introTitle);
       assert.equal(await page.locator('label[for="studio-email"]').innerText(), copy.emailLabel);
@@ -179,7 +217,7 @@ try {
       assert.ok(accepted.every(session => session.userId === "fresh-owner" && session.accessToken === "f".repeat(32)), "Only freshly refreshed sessions authenticate");
       assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("meera.state.v1")).auth.userId), "fresh-owner");
       assert.deepEqual(errors, []); assert.deepEqual(blocked, []);
-      rows.push({ lang, width, theme, geometry, sceneGeometry, operations: calls, acceptedCount: accepted.length, screenshot: `${lang}-${width}-${theme}.png`, passed: true });
+      rows.push({ lang, width, theme, loadingStyle, geometry, sceneGeometry, operations: calls, acceptedCount: accepted.length, screenshot: `${lang}-${width}-${theme}.png`, passed: true });
       await writeFile(join(receipts, "progress.json"), JSON.stringify(rows, null, 2));
     } finally { await context.close(); }
   }

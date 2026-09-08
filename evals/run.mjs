@@ -35,6 +35,9 @@ execSync(
 );
 
 const suites = {
+  "panel-copy-inventory": "lib/panel-copy.test.mjs",
+  "install-script-inventory": "install-script-inventory.mjs",
+  "loading-font-collector": "loading-font-collector.mjs",
   // Native HTTP fixture and positive packaging controls; no cloud/browser calls.
   azureweb: "azure-web/run.mjs",
   azurewebpack: "azure-web/package-run.mjs",
@@ -1011,6 +1014,17 @@ const suites = {
   "candidate-materializer-ui": "candidate-materializer-ui.mjs",
   "candidate-provider-revision": "candidate-provider-revision.mjs",
   "candidate-materializer-route": "candidate-materializer-route.mjs",
+  "candidate-qualification-service": "candidate-qualification-service/run.mjs",
+  "candidate-activation": "candidate-activation/run.mjs",
+  "candidate-activation-route": "candidate-activation-route.mjs",
+  "candidate-activation-runtime": "candidate-activation-runtime/run.mjs",
+  "candidate-activation-denied-callers": "candidate-activation-runtime/denied-callers.mjs",
+  "candidate-activation-public-inflight": "candidate-activation-runtime/public-inflight.mjs",
+  "candidate-activation-private-pointer": "candidate-activation-runtime/private-pointer.mjs",
+  "private-runtime-status-ui-contract": "private-runtime-status-ui-contract.mjs",
+  "candidate-activation-ui": "candidate-activation-ui.mjs",
+  "candidate-qualification-ui-contract": "candidate-qualification-ui-contract.mjs",
+  "candidate-qualification-ui": "candidate-qualification-ui.mjs",
   // Blinded paired target-improvement plus cross-layer noninferiority and
   // zero-tolerance safety gates; qualification never activates a candidate.
   candidatequal: "candidate-qualification/run.mjs",

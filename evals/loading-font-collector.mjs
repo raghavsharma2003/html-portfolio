@@ -1,0 +1,24 @@
+// Source-prepared light controls. No browser; do not execute before lane approval.
+import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { startLoadingFontCollector } from '../scripts/loading-font-collector.mjs';
+let count=0;const check=(name,fn)=>{fn();console.log(`ok ${++count} - ${name}`);};
+const cdp=new EventEmitter(),collector=startLoadingFontCollector(cdp,'http://127.0.0.1:8932');
+const request=(id,url,initiator={type:'parser',url:'http://127.0.0.1:8932/assets/style.css?private=hidden'})=>cdp.emit('Network.requestWillBeSent',{requestId:id,request:{url},timestamp:10,initiator});
+request('font','http://127.0.0.1:8932/assets/geist.woff2?secret=hidden');
+request('external','https://external.example/assets/a.woff2');request('api','http://127.0.0.1:8932/api/private.woff2');
+let snapshot=collector.snapshot(123);
+check('only bounded local asset font retained',()=>assert.equal(snapshot.requests.length,1));
+check('query strings omitted from request and initiator paths',()=>{assert.equal(snapshot.requests[0].path,'/assets/geist.woff2');assert.equal(snapshot.requests[0].initiator.path,'/assets/style.css');assert.doesNotMatch(JSON.stringify(snapshot),/secret|private=|hidden/);});
+check('pending request is not marked complete',()=>assert.equal(snapshot.requests[0].pending,true));
+cdp.emit('Network.responseReceived',{requestId:'font',timestamp:11,response:{status:200,fromDiskCache:true}});
+cdp.emit('Network.loadingFinished',{requestId:'font',timestamp:12,encodedDataLength:29570});
+check('later event cannot mutate prior boundary snapshot',()=>assert.equal(snapshot.requests[0].encodedBytes,null));
+check('later separate snapshot shows status/cache/finish',()=>{const r=collector.snapshot(124).requests[0];assert.deepEqual([r.status,r.cache,r.pending,r.encodedBytes],[200,true,false,29570]);});
+request('script','http://127.0.0.1:8932/assets/noto.woff2',{type:'script',stack:{callFrames:Array.from({length:9},()=>({url:'http://127.0.0.1:8932/assets/app.js?token=secret',functionName:'PRIVATE_TEXT',lineNumber:7}))}});
+check('initiator stack bounded and strips names/queries',()=>{const r=collector.snapshot(125).requests[1];assert.equal(r.initiator.frames.length,4);assert.doesNotMatch(JSON.stringify(r),/PRIVATE_TEXT|token|secret/);});
+for(let i=0;i<18;i++)request(`cap${i}`,`http://127.0.0.1:8932/assets/font${i}.woff2`);
+check('overcap reports incomplete with bounded rows',()=>{const s=collector.snapshot(126);assert.equal(s.requests.length,16);assert.equal(s.complete,false);assert.equal(s.dropped,4);});
+collector.stop();collector.stop();
+check('idempotent stop removes every owned listener',()=>assert.deepEqual(cdp.eventNames(),[]));
+console.log(`loading-font-collector: ${count} controls passed`);

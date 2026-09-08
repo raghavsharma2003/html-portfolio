@@ -1,7 +1,12 @@
 // Exact prior private exchanges, never inferred memory or public publication.
 import {createHash} from 'node:crypto';
 import {REPLICA_POLICY_VERSION} from './_replica.js';
-import {DIALOGUE_AUTHORITY_SQL} from './_replica-dialogue-authority.js';
+import {DIALOGUE_AUTHORITY_SQL as GLOBAL_DIALOGUE_AUTHORITY_SQL} from './_replica-dialogue-authority.js';
+import {ownerPrivateCapabilityAuthoritySql} from './_replica-candidate-activation-authority.js';
+if(GLOBAL_DIALOGUE_AUTHORITY_SQL.split("c.state='active'").length!==2)throw Error('continuity_authority_shape_changed');
+const DIALOGUE_AUTHORITY_SQL=GLOBAL_DIALOGUE_AUTHORITY_SQL.replace("c.state='active'",ownerPrivateCapabilityAuthoritySql('c','r'))
+ .replace('c.capability_id,c.profile_version,c.calibration_version',
+  'c.capability_id,c.profile_version,c.calibration_version,r.lifecycle,r.subject_mode,r.policy_version,r.identity_expires_at,r.age_verified_at,r.identity_verified_at,r.liveness_verified_at');
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HASH=/^[0-9a-f]{64}$/;
@@ -11,6 +16,12 @@ const COMMON=new Set('the and are was were this that with from have what when wh
 export function continuityTokens(message){
  return [...new Set(String(message).normalize('NFC').toLocaleLowerCase('en-IN').match(/[\p{L}\p{M}\p{N}]+/gu)||[])]
   .filter(t=>Array.from(t).length>=2&&t.length<=48&&!COMMON.has(t)).slice(0,8);
+}
+
+export function privateContinuityPredicate(refs,r='r',c='c',currentSession='s.session_id'){
+ const source=continuityPredicate(refs,r,c,currentSession),needle=`${c}.state='active'`;
+ if(source.split(needle).length!==2)throw Error('private_continuity_predicate_shape_changed');
+ return source.replace(needle,ownerPrivateCapabilityAuthoritySql(c,r));
 }
 // The same predicate runs while admitting/completing a derived answer and
 // when reading it back. Identifiers alone never constitute retained authority.
@@ -106,7 +117,7 @@ export const PRIVATE_CONTINUITY_SOURCES_SQL=`with authorized as materialized (${
  join vy_replica_runtime_session s on s.session_id=t.session_id and s.capability_id=t.capability_id
  and s.replica_id=t.replica_id and s.owner_user_id=t.owner_user_id and s.agent_id=t.agent_id and s.person_id=t.person_id
  where t.turn_id=$3::uuid and t.state='complete' and s.state='active' and s.channel='private_chat'
- and s.last_active_at>now()-interval '12 hours' and ${continuityPredicate('t.continuity_refs')}),
+ and s.last_active_at>now()-interval '12 hours' and ${privateContinuityPredicate('t.continuity_refs')}),
  sources as(select ct.turn_id,ct.created_at,left(u.content,200) as question,left(a.content,200) as reply
  from selected t cross join lateral jsonb_to_recordset(coalesce(t.continuity_refs,'[]'::jsonb)) as ref(turn_id uuid)
  join vy_replica_dialogue_turn ct on ct.turn_id=ref.turn_id

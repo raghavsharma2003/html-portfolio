@@ -45,6 +45,9 @@ export function materializationModel(adapter,env){
 }
 async function loadBasis(db,owner,input,adapter,env){
  const s=scope(input),model=materializationModel(adapter,env),b=await basis(db,owner,input);
+ // A second comparison needs a protocol that treats the active candidate as
+ // its baseline. Never silently compare against the older approved profile.
+ if(b.runtime.capability.candidate_binding_required)fail('materialization_active_candidate_baseline_unsupported');
  const candidate=(await db(`select c.*,d.source_set_hash as dataset_source_set_hash from vy_replica_candidate c
   join vy_replica_feedback_dataset d on d.dataset_id=c.dataset_id and d.replica_id=c.replica_id and d.owner_user_id=c.owner_user_id
   where c.candidate_id=$1::uuid and c.dataset_id=$2::uuid and c.replica_id=$3::uuid and c.owner_user_id=$4::uuid`,
@@ -92,7 +95,7 @@ function open(asset,job,item,role,env){asset=parse(asset);const text=decryptEval
 function promptFor(b,role,context){return compileDialoguePrompt({core:role==='baseline'?b.baseline:b.candidateCore,
  relationship:'',history:[],message:context});}
 
-export const MATERIALIZATION_STATUS_SQL=`select j.job_id,j.replica_id,j.owner_user_id,j.dataset_id,j.candidate_id,j.state,j.total,
+export const MATERIALIZATION_STATUS_SQL=`select j.job_id,j.replica_id,j.owner_user_id,j.dataset_id,j.candidate_id,j.state,j.total,j.candidate_core_hash,
  count(i.item_id) filter (where i.state='complete')::int4 as completed,
  count(i.item_id)::int4 as present from vy_replica_candidate_materialization j
  left join vy_replica_candidate_materialization_item i on i.job_id=j.job_id
@@ -101,7 +104,7 @@ export const MATERIALIZATION_STATUS_SQL=`select j.job_id,j.replica_id,j.owner_us
 export async function readOwnedMaterialization(db,owner,input){
  const s=scope(input),row=(await db(MATERIALIZATION_STATUS_SQL,[s.replica_id,owner,s.dataset_id,s.candidate_id]))[0];
  if(!row)return null;
- const intact=Number(row.present)===Number(row.total);
+ const intact=Number(row.present)===Number(row.total)&&typeof row.candidate_core_hash==='string'&&/^[a-f0-9]{64}$/.test(row.candidate_core_hash);
  return {job_id:row.job_id,replica_id:row.replica_id,dataset_id:row.dataset_id,candidate_id:row.candidate_id,
  state:!intact||['working','packing'].includes(row.state)?'held':row.state,completed:Number(row.completed),total:Number(row.total),
  active_changed:false,can_advance:intact&&row.state==='preparing'};
@@ -128,15 +131,15 @@ export async function startOwnedMaterialization(db,owner,input,{adapter,env=proc
  }
  await gated(db,b,` , inserted as (insert into vy_replica_candidate_materialization
   (job_id,correction_job_id,candidate_id,dataset_id,replica_id,owner_user_id,protocol,model_commitment,source_set_hash,
-   baseline_hash,artifact_sha256,manifest_hash,blind_seed,total,state)
-  select $16::uuid,$15::uuid,$11::uuid,$4::uuid,$1::uuid,$2::uuid,$17,$18,$5,$19,$12,$13,$20,$21::int4,'preparing'
+   baseline_hash,artifact_sha256,manifest_hash,blind_seed,total,state,candidate_core_hash)
+  select $16::uuid,$15::uuid,$11::uuid,$4::uuid,$1::uuid,$2::uuid,$17,$18,$5,$19,$12,$13,$20,$21::int4,'preparing',$23
   from authority on conflict (candidate_id) do nothing returning *)
  insert into vy_replica_candidate_materialization_item
   (item_id,job_id,replica_id,owner_user_id,feedback_id,sequence,role,session_commitment,prompt_hash,context_asset,state)
  select x.item_id,j.job_id,j.replica_id,j.owner_user_id,x.feedback_id,x.sequence,x.role,x.session_commitment,x.prompt_hash,x.context_asset,'pending'
  from inserted j cross join jsonb_to_recordset($22::jsonb) as x(item_id uuid,feedback_id uuid,sequence integer,role text,
  session_commitment text,prompt_hash text,context_asset jsonb) returning item_id`,
- [job.job_id,MATERIALIZATION_PROTOCOL,b.model.commitment,b.baselineHash,randomBytes(32).toString('hex'),items.length,JSON.stringify(items)]);
+ [job.job_id,MATERIALIZATION_PROTOCOL,b.model.commitment,b.baselineHash,randomBytes(32).toString('hex'),items.length,JSON.stringify(items),hash(b.candidateCore)]);
  const saved=await readOwnedMaterialization(db,owner,input);if(!saved)fail('materialization_admission_changed');return saved;
 }
 
@@ -149,6 +152,7 @@ export function blindPicker(seed){let counter=0;return max=>{
 };}
 
 async function finishPackage(db,b,job,env){
+ if(job.candidate_core_hash!==hash(b.candidateCore))fail('materialization_candidate_core_changed');
  const rows=await db(`select * from vy_replica_candidate_materialization_item where job_id=$1::uuid
   and replica_id=$2::uuid and owner_user_id=$3::uuid order by sequence`,[job.job_id,b.replica_id,b.owner]);
  if(rows.length!==job.total||rows.some(r=>r.state!=='complete'))fail('materialization_outputs_incomplete');
@@ -163,13 +167,14 @@ async function finishPackage(db,b,job,env){
  });
  const pack=buildCandidateEvaluationPackage({candidate:b.candidate,dataset:{...b.definition,dataset_id:b.dataset_id,source_set_hash:b.dataset.source_set_hash},examples},env,{pick:blindPicker(job.blind_seed)});
  const held=await gated(db,b,`update vy_replica_candidate_materialization j set state='packing',package=$17::jsonb,updated_at=now()
-  from authority where j.job_id=$16::uuid and j.replica_id=$1::uuid and j.owner_user_id=$2::uuid and j.state='working' returning j.job_id`,
- [job.job_id,JSON.stringify({eval_run_id:pack.eval_run_id,run_commitment:pack.run_commitment})]);
+  from authority where j.job_id=$16::uuid and j.replica_id=$1::uuid and j.owner_user_id=$2::uuid and j.state='working'
+  and j.candidate_core_hash=$18 returning j.job_id`,
+ [job.job_id,JSON.stringify({eval_run_id:pack.eval_run_id,run_commitment:pack.run_commitment}),hash(b.candidateCore)]);
  if(!held[0])fail('materialization_package_authority_changed');
  const result=await persistCandidateEvaluationPackage(db,b.owner,pack,{sql:MATERIALIZATION_AUTHORITY_SQL,params:authority(b)});
  const saved=await gated(db,b,`update vy_replica_candidate_materialization j set state='ready',eval_run_id=$17::uuid,updated_at=now()
   from authority where j.job_id=$16::uuid and j.replica_id=$1::uuid and j.owner_user_id=$2::uuid and j.state='packing'
-  and j.package->>'eval_run_id'=$17::text returning j.job_id`,[job.job_id,result.eval_run_id]);
+  and j.package->>'eval_run_id'=$17::text and j.candidate_core_hash=$18 returning j.job_id`,[job.job_id,result.eval_run_id,hash(b.candidateCore)]);
  if(!saved[0])fail('materialization_package_completion_unknown');
 }
 
@@ -178,11 +183,15 @@ export async function advanceOwnedMaterialization(db,owner,input,{adapter,env=pr
  const claimed=await gated(db,b,`update vy_replica_candidate_materialization j set state='working',updated_at=now()
   from authority where j.candidate_id=$11::uuid and j.replica_id=$1::uuid and j.owner_user_id=$2::uuid
   and j.dataset_id=$4::uuid and j.state='preparing' and j.protocol=$16 and j.model_commitment=$17
-  and j.source_set_hash=$5 and j.baseline_hash=$18 and j.artifact_sha256=$12 and j.manifest_hash=$13
+  and j.source_set_hash=$5 and j.baseline_hash=$18 and j.candidate_core_hash=$19 and j.artifact_sha256=$12 and j.manifest_hash=$13
   and (select count(*) from vy_replica_candidate_materialization_item intact where intact.job_id=j.job_id
    and intact.replica_id=j.replica_id and intact.owner_user_id=j.owner_user_id)=j.total returning j.*`,
- [MATERIALIZATION_PROTOCOL,b.model.commitment,b.baselineHash]);
- if(!claimed[0])return readOwnedMaterialization(db,owner,input);
+ [MATERIALIZATION_PROTOCOL,b.model.commitment,b.baselineHash,hash(b.candidateCore)]);
+ if(!claimed[0]){
+  const status=await readOwnedMaterialization(db,owner,input);
+  if(status?.can_advance)fail('materialization_resume_authority_changed');
+  return status;
+ }
  const job=claimed[0];let item=null,reservation=null,started=false,settled=false;
  try{
   item=(await db(`update vy_replica_candidate_materialization_item set state='claimed',updated_at=now()

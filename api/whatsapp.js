@@ -66,7 +66,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { allow, ipOf } from "./_ratelimit.js";
 import { dispatch, loadEngine, makeCtx, splitForLimit } from "./_surface.js";
 import { q } from "./_db.js";
-import { resolveInboundClone } from "./_clonechannel.js";
+import { resolveInboundClone, createClonePublicAuthorityGuard } from "./_clonechannel.js";
 import { getChannelSecret } from "./_channel-secrets.js";
 import { withDoor } from "./_incidents.js";
 
@@ -381,6 +381,7 @@ export async function handleEvents(payload, deps = {}) {
       botHandle: bound?.botHandle || BOT_NAME,
       agent: bound?.agent ?? deps.agent,
       agentId: bound?.agentId ?? deps.agentId,
+      assertPublicAuthority: bound?.assertPublicAuthority ?? deps.assertPublicAuthority,
       send: bound?.send ?? deps.send,
     });
     results.push(await dispatch(ev, ctx));
@@ -425,6 +426,7 @@ export async function bindWhatsappClone(ev, deps = {}) {
   return {
     agent: resolved.module,
     agentId: resolved.agentId,
+    assertPublicAuthority: createClonePublicAuthorityGuard(db,resolved),
     botHandle: resolved.module?.displayName || BOT_NAME,
     send: sendWith({ accessToken, phoneId: ref }),
   };

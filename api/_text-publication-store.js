@@ -63,6 +63,8 @@ export const TEXT_PUBLICATION_SOURCE_FENCE=`source_gate as materialized (
  update vy_replica r set updated_at=r.updated_at where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
  and r.private_text_epoch=($4::jsonb->>'fence_epoch')::bigint
  and r.subject_mode='self' and r.policy_version=$7 and r.lifecycle in ('draft','consent_pending','enrolling','calibrating','ready','active')
+ and not exists(select 1 from vy_replica_runtime_capability candidate_cap where candidate_cap.replica_id=r.replica_id
+  and candidate_cap.owner_user_id=r.owner_user_id and candidate_cap.state='active' and candidate_cap.candidate_binding_required)
  and exists(select 1 from source_gate)
  and exists(select 1 from vy_context_item i join vy_context_item_text t on t.item_id=i.item_id and t.replica_id=i.replica_id and t.owner_user_id=i.owner_user_id
  where i.item_id=($4::jsonb->>'context_item_id')::uuid and i.replica_id=r.replica_id and i.owner_user_id=r.owner_user_id and i.source_id=$3::uuid

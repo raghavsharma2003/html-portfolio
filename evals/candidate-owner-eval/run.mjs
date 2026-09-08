@@ -161,8 +161,10 @@ const exactRatings = Object.fromEntries(DIMENSIONS.map((dimension, index) => [di
 const judgmentCalls = [];
 const judged = await recordOwnedCandidateJudgment(async (sql, params) => {
   judgmentCalls.push({ sql, params });
-  if (judgmentCalls.length === 1) return [{ required_dimensions: DIMENSIONS }];
-  return [{ completed: 1, total: 30, complete: false }];
+  if (judgmentCalls.length === 1 && sql.startsWith('select r.required_dimensions')) return [{ required_dimensions: DIMENSIONS }];
+  if (judgmentCalls.length === 2 && sql.startsWith('with eligible as (')) return [{ eval_run_id: pack.eval_run_id }];
+  if (judgmentCalls.length === 3 && sql.startsWith('with progress as (')) return [{ completed: 1, total: 30, complete: false }];
+  throw new Error('unrecognized judgment fixture SQL');
 }, OWNER, {
   replica_id: RID,
   assignment_id: firstAssignment.assignment_id,
@@ -170,7 +172,8 @@ const judged = await recordOwnedCandidateJudgment(async (sql, params) => {
   ratings: exactRatings,
 });
 ok("one submission records every layer and advances one assignment atomically", judged.accepted && judged.progress.completed === 1 && /jsonb_to_recordset/.test(judgmentCalls[1].sql));
-ok("judgment mutation rechecks owner replica assignment and opaque hash", judgmentCalls.every((call) => call.params[1] === RID && call.params[2] === OWNER && call.params[3] === firstAssignment.assignment_hash));
+ok("judgment mutation rechecks owner replica assignment and opaque hash", judgmentCalls.slice(0,2).every((call) => call.params[1] === RID && call.params[2] === OWNER && call.params[3] === firstAssignment.assignment_hash));
+ok("fresh reconciliation rechecks exact run replica and owner", judgmentCalls.length === 3 && judgmentCalls[2].params.length === 3 && judgmentCalls[2].params[0] === pack.eval_run_id && judgmentCalls[2].params[1] === RID && judgmentCalls[2].params[2] === OWNER);
 ok("first write and retry use one PostgreSQL-visible judgment relation",
   /active_judgments as/.test(judgmentCalls[1].sql) && /select \* from inserted\s+union all/.test(judgmentCalls[1].sql));
 ok("retry is idempotent only when every stored positional judgment matches", /j\.position_winner=w\.position_winner/.test(judgmentCalls[1].sql) && /candidate_eval_judgment_conflict/.test(readFileSync(join(ROOT, "api/_replica-candidate-eval.js"), "utf8")));
@@ -210,6 +213,9 @@ ok("database binds assets to exact examples and judgments to exact assignment ha
 ok("run and judgment ledgers have no prompt reply transcript or note columns", !/^\s*(prompt|reply|transcript|note|context|candidate_output|baseline_output)\s+/im.test(migration));
 
 const route = readFileSync(join(ROOT, "api/replica-candidate-eval.js"), "utf8");
-ok("public evaluation route derives ownership only from bearer auth", /requireUser\(req\)/.test(route) && /user\.id/.test(route) && !/body\.(?:owner|owner_user_id|user_id)/.test(route));
+ok("public evaluation route defaults to bearer auth and derives ownership only from that result",
+  /auth\s*=\s*requireUser/.test(route) && /const user\s*=\s*await auth\(req\)/.test(route)
+  && /export default createCandidateEvaluationHandler\(\)/.test(route)
+  && /user\.id/.test(route) && !/body\.(?:owner|owner_user_id|user_id)/.test(route));
 
 console.log(`\n${checks} candidate owner evaluation checks passed`);

@@ -243,6 +243,10 @@ export interface ReplicaRuntimeStatus {
   lifecycle: ReplicaLifecycle;
   active: boolean;
   can_activate: boolean;
+  private_selection?: boolean;
+  private_candidate?: boolean;
+  capability_id?: string | null;
+  exposure?: 'owner_private_text';
   blockers: string[];
   qualification: { passed: number; required: number };
   /** `voice_genome` is the newest genome that EXISTS, any status (WS-AP: a

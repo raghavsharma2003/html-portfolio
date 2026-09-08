@@ -41,12 +41,21 @@ try{
   await summary.focus();await page.keyboard.press('Enter');await page.getByText(source.question,{exact:false}).waitFor();assert.equal(reads,1);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);checks.push(`${width}: private sources fetched only on keyboard-open, no overflow`);
   await page.screenshot({path:join(dir,`${width}.png`),fullPage:true});
-  await summary.click();assert.equal(await page.getByText(source.question,{exact:false}).count(),0);
+  await summary.click();
+  // Native details toggle and React cleanup are asynchronous. Require actual
+  // detachment within the existing Playwright action deadline, not just hidden text.
+  await page.getByText(source.question,{exact:false}).waitFor({state:'detached'});
+  assert.equal(await page.getByText(source.question,{exact:false}).count(),0);
   mode='error';await summary.click();await page.getByRole('button',{name:'Check again'}).waitFor();assert.equal(await page.getByText(source.question,{exact:false}).count(),0);checks.push(`${width}: failed refresh clears old evidence`);
   mode='ready';await page.getByRole('button',{name:'Check again'}).click();await page.getByText(source.question,{exact:false}).waitFor();
   await summary.click();mode='held';const waiting=new Promise(resolve=>{heldReady=resolve;});await summary.click();await waiting;await page.getByText('Checking private sources').waitFor();
   await page.evaluate(()=>window.fixture.setToken('synthetic-other'));mode='ready';held();await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   assert.equal(await page.getByText(source.question,{exact:false}).count(),0);checks.push(`${width}: former-account pending evidence is not displayed`);
+  // A closed/hidden excerpt that remains in the DOM must still fail this gate.
+  await page.evaluate(()=>{const stale=document.createElement('p');stale.hidden=true;stale.dataset.detachmentNegative='true';stale.textContent='retained private excerpt';document.body.append(stale);});
+  await assert.rejects(()=>page.locator('[data-detachment-negative]').waitFor({state:'detached',timeout:100}),/Timeout/);
+  await page.locator('[data-detachment-negative]').evaluate(node=>node.remove());
+  checks.push(`${width}: hidden retained excerpt fails detachment negative control`);
   await page.close();page=null;
  }
  assert.deepEqual(errors,[]);

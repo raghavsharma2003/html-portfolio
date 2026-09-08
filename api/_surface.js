@@ -572,7 +572,9 @@ export async function gatedReply(ctx, compiled, turns, opts = {}) {
   // knows the replica loads them (api/_review-queue.js::loadNeverRules) and
   // hands them down, and a lane that does not passes none and is unchanged.
   const neverRules = Array.isArray(opts.neverRules) ? opts.neverRules : [];
+  await ctx.assertPublicAuthority?.();
   const raw = await ctx.reply(compiled, turns);
+  await ctx.assertPublicAuthority?.();
   // The availability check comes BEFORE the context is built, and that order
   // is load-bearing rather than tidy: a bundle without the gate is also a
   // bundle without the vocabulary builders `honestyContextFor` calls, so
@@ -598,11 +600,12 @@ export async function gatedReply(ctx, compiled, turns, opts = {}) {
  * they are decided here rather than in three adapters.
  */
 export async function deliver(ctx, chatKey, msg) {
-  if (msg.kind === "reaction") return await ctx.send(chatKey, msg);
+  if (msg.kind === "reaction") { await ctx.assertPublicAuthority?.(); return await ctx.send(chatKey, msg); }
   const parts = ctx.adapter.render(String(msg.text ?? ""));
   if (!parts.length) return { ok: false, error: "empty render" };
   let last = null;
   for (let i = 0; i < parts.length; i++) {
+    await ctx.assertPublicAuthority?.();
     last = await ctx.send(chatKey, {
       ...msg,
       kind: "text",
@@ -1541,6 +1544,7 @@ export function makeCtx(adapter, deps = {}) {
     // Meera's, so a caller that passes neither gets today's behaviour exactly.
     agent: deps.agent ?? null,
     agentId: deps.agentId || MEERA_AGENT_ID,
+    assertPublicAuthority: deps.assertPublicAuthority,
     linkIntent: deps.linkIntent || null,
     linkFor: deps.linkFor || null,
   };

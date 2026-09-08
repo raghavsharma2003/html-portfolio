@@ -23695,3 +23695,28 @@ Import only the conditional localized explanation, minimal typography and real m
 ## `release45-final-source-freeze` (2026-09-08)
 
 2026-09-08: Freeze45 after reviewed materializer155, a11y42, Hindi/visual42, audio40, performanceaccounting46, strictcorrection47 andregistry48 source plus final21checks. Preserve156qualification/activation exclusion. Root mustreview guard/source and own explicit fullgate launch. Reverse on any fullgate, actual155runtime/erasure or deploymentcanary failure; privatecomparison is not fulllearningloop approval.
+
+
+## `auth-loading47-keep-readability-reject-speed-claim` (2026-09-08)
+
+2026-09-08: Root-approved cardgridspan/margin0 repairs actualclippedloadingalert; finalAuthGate unchanged. Combinedfont/background/layout candidate comparedoncefixed12. Resource savings demonstrated but Hindi mediansworse; no timingsuccessclaim, no rerun. Reversalforspeedclaim requires attributable current-source evidence and unchangedbudgets; retain loading accessibilityrepair forreview.
+
+
+## `copy-inventory46-caller-scoped-locales` (2026-09-08)
+
+Three panel suites retain forbidden literal checks while selecting EN and HI sections referenced by actual t.* callers. AST extraction refuses changed section inventory, absent tables and nonliteral sections. Auth legal language remains unchanged. The correction transport inventory names the exact private owner adapter and checks authentication, job/hash budget key, begin-before-generate, settlement, uncertainty, timeout and API-key wiring. Reverse if dynamic locale access or provider lifecycle changes require broader measured coverage.
+
+
+## `esbuild-inventory48-install-discovery` (2026-09-08)
+
+2026-09-08 root source review approved the exact esbuild hook exception and explicitly required the npm query selector to include install in addition to preinstall/postinstall. Implemented in actual check-headers, not only test fixtures. Reverse only if equivalent complete lifecycle discovery replaces this selector; do not restore the omission to make inventory pass.
+
+
+## `activation156-private-pointer` (2026-09-08)
+
+2026-09-08: root chose dedicated owner-private selection after review of experiment behavior. Existing public/Room/voice baseline remains authoritative while an owner tries an explicitly experimental text candidate. Private routing and rollback must bind the correct scope and fence stale delivery/cache reads; no private evidence can imply public qualification. Reverse only with explicit owner-directed global runtime change and independently verified intended effect, never by accidentally reusing the active-capability pointer.
+
+
+## `release56-additive-source-union` (2026-09-08)
+
+2026-09-08: Root reviewed shared diff and authorized isolated release56 prechecks. Import exact continuity48, copy46, activation51, loading47 and inventory48 source. Preserve45 provider47, infrastructure48, audio note, visitor153 fences and all388 incumbent suite mappings. Add14 suites, total402. Reverse if integrated source or actual tests expose incompatible authority or regression; no deployment or quality acceptance follows source assembly.

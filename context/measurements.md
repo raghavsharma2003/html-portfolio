@@ -17479,3 +17479,33 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `release45-final-integrated-checks` (2026-09-08)
 
 2026-09-08: sourcea3bf16af0b873b7897bb7d51178189c87c5b5594 unchanged across21commands,10:20:52.843to10:22:24.651Z, exec35294terminal0. Actual Bicep compilerexit0;6compiledARMbinding/negativecontrols;AzureHTTP26/package12/deployfixture11,strictcorrectionadapter10/worker10,network12,forcedTS/copy/Vitebuild,materializer/sharedAzureadapter/ownerqual/authoffline suites. Receipt release45-finalchecks-1788862852842/result.json. No browser/ARMwrites/SQL/model/fullrelease. Root155V2 rollback4DDL29EXPLAIN passed but155uncommitted/runtimeunproved;152153committed,145readbackpassed.
+
+
+## `auth-loading47-pair-complete-failed` (2026-09-08)
+
+2026-09-08: exec62351 child33656 started11:17:55.655Z terminal1 11:19:18.489Z,noexpiry/kill. n3 eachrevision/lang counterbalanced coldcontexts actualgate. English baselineLCP2456/TBT100 vs candidate2240/166; Hindi baseline3792/1341/DOM2286.1 vs candidate3976/1791/2404.3,bothHindi fail3limits. Candidate6of6noGeist,84148font; baseline5of6Geist29570,median113718 (oneHindi2pendingfonts). Actualsanitizedinitiators parser CSSdevanagari-600 forGeist/Noto andstudioAuth forInstrument. Immutableboundary/source/dist/package/config hashesstable. Sourceaf625abc, rawexpert-tools/loading47-pair-20260908-once. No releaseacceptance.
+
+
+## `copy-inventory46-offline-results` (2026-09-08)
+
+2026-09-08 lightweight offline checks only during another agent's browser reservation: readiness130, driftwatch93, incidents120, reviewqueue195 passed. Seven additional locale extraction controls passed, including forbidden literal mutations in EN and HI, added caller, absent/dynamic section and unrelated Auth isolation. Reviewqueue's first new invocation failed because helper used ROOT instead of existing REPO; corrected and rerun once, logs retained. Initial readiness import refused absent ignored config; generated empty-value config, no provider/DB calls. No browser/full gate or creator timeout fix claimed.
+
+
+## `esbuild-inventory48-controls-passed` (2026-09-08)
+
+2026-09-08 n=17 Node-only synthetic controls, one run, exit0; no failures/retries. Exact identity, command/hook alterations, path/manifest/readability and incomplete-review controls passed. Copy gate7scopes/21negative controls passed; pre-final-log context check2754nodes/2432edges passed. No dependency hook, actual npm query/audit, browser, build or dependency copy executed in inventory48. Final context check follows these logs.
+
+
+## `qualification44-recovery-offline` (2026-09-08)
+
+2026-09-08: n13 service groups passed, including collecting/allvotes status availablefalse with0writes, one explicit owner qualify reconciliation, repeat without second repair, lost authority and pending/missing assignment refusal. API/UI source unchanged from28mountedgroups. Additive SQL not executed yet; requires156. This is control flow evidence, not concurrent PostgreSQL proof.
+
+
+## `candidate-vote44-actual` (2026-09-08)
+
+2026-09-08: root exec25337terminal0, candidate-vote44-v2-aa272e89b9c4f26eeabf457e-result.json passed_actual_vote_rollback_concurrency_unproved. Exact baselinea4bf870 reports29of30/incomplete after storing30votes; frozenrepairf84b763fae4ade1474d084ca77201659ce34359b immediately reports30of30complete. Actual identical/conflicting replay, foreign-owner refusal and unchanged runtime assertions passed. Confirmed rollback, cleanupUncertainfalse, no session/cleanup errors, externalprovider0. Separate actual transaction concurrency and later305recoverySQL are not proved by this receipt.
+
+
+## `release56-source-inventory` (2026-09-08)
+
+2026-09-08 n=1 Git3way assembly in new expert-release56-candidate based71663c5d;85 product/eval/doc paths,402 unique registry names, no incumbent mapping changed. One ExpertConversation conflict resolved with retained localized audio note plus privateTextOnly guard. Schema preserves exact45 prefix and appends156. Tests/build/SQL/provider0 at checkpoint. Loading47 paired Hindi performance worsened;156 actualSQL remains pending.

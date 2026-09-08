@@ -530,6 +530,9 @@ export async function roomBySlug(db, slug) {
       where lower(r.slug) = $1
         and r.published_at is not null
         and r.paused_at is null
+        and not exists(select 1 from vy_replica_runtime_capability candidate_cap
+          where candidate_cap.replica_id=r.replica_id and candidate_cap.owner_user_id=r.owner_user_id
+            and candidate_cap.state='active' and candidate_cap.candidate_binding_required)
       limit 1`,
     [s],
   );

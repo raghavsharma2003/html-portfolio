@@ -38,7 +38,7 @@ export async function beginOwnedPrivateGeneration(db, ownerUserId, input) {
        join vy_replica_runtime_capability c
          on c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
         and c.agent_id=r.agent_id and c.subject_person_id=r.subject_person_id
-        and c.state='active'
+        and c.state='active' and not c.candidate_binding_required
        join vy_agent a on a.agent_id=c.agent_id and a.status='active'
        join vy_person p on p.person_id=c.subject_person_id and p.age_tier='adult_verified'
        join vy_replica_voice_profile vp
@@ -60,7 +60,9 @@ export async function beginOwnedPrivateGeneration(db, ownerUserId, input) {
             and x.scope='inference' and x.policy_version=$7 and x.revoked_at is null
             and (x.expires_at is null or x.expires_at>now()))
         and (($4='calibration' and $8::uuid is null) or
-             ($4='private_conversation' and dialogue.turn_id is not null))
+             ($4='private_conversation' and dialogue.turn_id is not null
+              and not exists(select 1 from vy_replica_owner_private_selection selected_private
+               where selected_private.replica_id=r.replica_id and selected_private.owner_user_id=r.owner_user_id)))
      returning generation_id,replica_id,owner_user_id,voice_profile_id,genome_version,
                profile_version,calibration_version,dialogue_turn_id,channel,purpose,policy_version,trace_id,state`,
     [rid, ownerUserId, channel, purpose, PROVENANCE_POLICY, traceId, REPLICA_POLICY_VERSION, dialogueTurnId],
@@ -68,7 +70,7 @@ export async function beginOwnedPrivateGeneration(db, ownerUserId, input) {
   const generation = rows[0];
   if (!generation) fail("generation_not_authorized");
   const runtime = await loadOwnedRuntimeContext(db, ownerUserId, rid);
-  if (!runtime || runtime.voiceProfile.voice_profile_id !== generation.voice_profile_id ||
+  if (!runtime || runtime.capability.candidate_binding_required || runtime.candidateBinding || runtime.voiceProfile.voice_profile_id !== generation.voice_profile_id ||
       runtime.voiceGenome.version !== Number(generation.genome_version) ||
       runtime.personProfile.version !== Number(generation.profile_version) ||
       runtime.calibration.version !== Number(generation.calibration_version)) {

@@ -1,3 +1,4 @@
+import { panelCopy } from '../lib/panel-copy.mjs';
 // WS-R3 — READINESS: one number, five parts, one action, and the publish lock.
 //
 //   node evals/readiness/run.mjs
@@ -563,8 +564,9 @@ const app = readFileSync(join(ROOT, "src/creatorStudio/StudioApp.tsx"), "utf8");
 // scan) now read `panel + copy` together, so they keep checking what a
 // creator actually sees rather than a snapshot of where the string used to
 // live.
-const copyTs = readFileSync(join(ROOT, "src/creatorStudio/copy.ts"), "utf8");
-const panelWithCopy = `${panel}\n${copyTs}`;
+
+const scopedCopy = panelCopy(ROOT, panel, ['readiness', 'recallRun']);
+const panelWithCopy = `${panel}\n${scopedCopy}`;
 
 ok("the panel renders words, not a zero, when a part is unmeasured",
   /Not measured yet/.test(panel));
@@ -616,6 +618,9 @@ const renderedText = [
 ].join(" ");
 ok("no banned product word enters the text this panel renders",
   !/\b(clone|replica|fine-?tune)s?\b/i.test(renderedText));
+for (const injected of ['your clone', 'your replica', 'fine-tune']) {
+  ok('negative control: forbidden panel literal ' + injected, /\b(clone|replica|fine-?tune)s?\b/i.test(renderedText + ': "' + injected + '"'));
+}
 ok("the readiness copy also carries no banned product word from the server",
   !/\b(clone|replica|fine-?tune)s?\b/i.test(
     (scanned(readFileSync(join(ROOT, "api/_readiness.js"), "utf8"))

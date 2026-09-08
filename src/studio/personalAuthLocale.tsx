@@ -31,8 +31,8 @@ export function usePersonalAuthLocale() {
 }
 
 // This small bootstrap stays available when the lazy locale chunk cannot load.
-export function PersonalAuthLoading({ locale, failed, retry, switchLocale }: { locale: StudioLocale; failed: boolean; retry: () => void; switchLocale?: (locale: StudioLocale) => void }) {
-  return <main className="auth-page" lang={locale} aria-busy={!failed}>
+export function PersonalAuthLoading({ locale, failed, retry, switchLocale, testEnvironment = false }: { locale: StudioLocale; failed: boolean; retry: () => void; switchLocale?: (locale: StudioLocale) => void; testEnvironment?: boolean }) {
+  return <main className="auth-page auth-loading" data-auth-theme={testEnvironment ? "test" : "general"} lang={locale} aria-busy={!failed}>
     <section className="auth-card">
       <p role={failed ? "alert" : "status"}>{locale === "hi"
         ? failed ? "भाषा लोड नहीं हुई। फिर कोशिश करें।" : "साइन-इन खुल रहा है।"

@@ -7,6 +7,7 @@ import {
   loadOwnedCandidateEvaluation,
   recordOwnedCandidateJudgment,
 } from "./_replica-candidate-eval.js";
+import {loadOwnedCandidateQualificationReceipt,publicQualification,qualifyOwnedCandidate} from "./_replica-candidate-qualification-service.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -15,20 +16,27 @@ function cors(res) {
   res.setHeader("Cache-Control", "no-store");
 }
 
-export default async function handler(req, res) {
+export function createCandidateEvaluationHandler({db=q,auth=requireUser,rate=allow}={}) {
+return async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-  if (!allow(ipOf(req), "replica_candidate_eval", 90)) return res.status(429).json({ error: "slow_down" });
+  if (!rate(ipOf(req), "replica_candidate_eval", 90)) return res.status(429).json({ error: "slow_down" });
   try {
-    const user = await requireUser(req);
-    if (!allow(user.id, "replica_candidate_eval_user", 180)) return res.status(429).json({ error: "slow_down" });
+    const user = await auth(req);
+    if (!rate(user.id, "replica_candidate_eval_user", 180)) return res.status(429).json({ error: "slow_down" });
     const body = req.body || {};
+    if (body.op === "qualification_status") {
+      return res.status(200).json({qualification: publicQualification(await loadOwnedCandidateQualificationReceipt(db,user.id,body))});
+    }
+    if (body.op === "qualify") {
+      return res.status(200).json({qualification: await qualifyOwnedCandidate(db,user.id,body)});
+    }
     if (body.op === "status") {
-      return res.status(200).json({ evaluation: await loadOwnedCandidateEvaluation(q, user.id, body.replica_id, process.env, body.candidate_id ?? null) });
+      return res.status(200).json({ evaluation: await loadOwnedCandidateEvaluation(db, user.id, body.replica_id, process.env, body.candidate_id ?? null) });
     }
     if (body.op === "judge") {
-      const result = await recordOwnedCandidateJudgment(q, user.id, body);
+      const result = await recordOwnedCandidateJudgment(db, user.id, body);
       return res.status(201).json({ result });
     }
     return res.status(400).json({ error: "unknown_op" });
@@ -39,4 +47,6 @@ export default async function handler(req, res) {
       error: status === 500 ? "candidate_eval_failed" : String(error.code || error.message),
     });
   }
+};
 }
+export default createCandidateEvaluationHandler();

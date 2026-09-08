@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useId, useState } from "react";
-import { getCandidateEvaluation, judgeCandidateAssignment } from "./candidateEvalApi";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { getCandidateEvaluation, judgeCandidateAssignment, requestCandidateQualification, type CandidateQualification } from "./candidateEvalApi";
 import { ReplicaApiError } from "./replicaApi";
+import CandidateActivationAction from './CandidateActivationAction';
 import {readRememberedStudioLocale,resolveStudioLocale} from '../creatorStudio/studioLocalePreference';
 import type {
   CandidateEvalChoice,
@@ -32,6 +33,50 @@ function loadError(cause: unknown) {
   return cause instanceof Error ? cause.message.replaceAll("_", " ") : "The comparison could not be loaded";
 }
 
+function QualificationAction({token,replicaId,candidateId,language,onAuthError,onResultsChecked}:{
+  token:string;replicaId:string;candidateId:string;language:'en'|'hi';onAuthError:(cause:unknown)=>void;onResultsChecked:()=>void;
+}) {
+  const [result,setResult]=useState<CandidateQualification|null>(null),[checked,setChecked]=useState(false);
+  const [busy,setBusy]=useState(false),[error,setError]=useState('');
+  const pending=useRef<AbortController|null>(null),epoch=useRef(0),auth=useRef(onAuthError);auth.current=onAuthError;
+  const resultsChecked=useRef(onResultsChecked);resultsChecked.current=onResultsChecked;
+  const scope=JSON.stringify([token,replicaId,candidateId]),latest=useRef(scope);latest.current=scope;
+  const hi=language==='hi';
+  async function request(op:'qualification_status'|'qualify',explicit=false) {
+    if(pending.current||(op==='qualify'&&!checked))return;
+    const controller=new AbortController(),run=++epoch.current,currentScope=scope;
+    pending.current=controller;setBusy(true);setError('');
+    const timer=setTimeout(()=>controller.abort(),30_000);
+    const current=()=>run===epoch.current&&latest.current===currentScope;
+    try {
+      const next=await requestCandidateQualification(token,replicaId,candidateId,op,controller.signal);
+      if(!current()||controller.signal.aborted)return;
+      setResult(next);setChecked(true);
+      if(explicit)resultsChecked.current();
+    }catch(cause){
+      if(!current())return;setChecked(false);
+      setError(hi?'नतीजे की पुष्टि नहीं हुई। पहले स्थिति देखें।':'Results are unconfirmed. Read the status before continuing.');
+      if(cause instanceof ReplicaApiError&&cause.status===401)auth.current(cause);
+    }finally{clearTimeout(timer);if(current()){pending.current=null;setBusy(false);}}
+  }
+  useEffect(()=>{
+    epoch.current++;pending.current?.abort();pending.current=null;setResult(null);setChecked(false);setBusy(false);setError('');
+    void request('qualification_status');
+    return()=>{epoch.current++;pending.current?.abort();pending.current=null;};
+    // Explicit scope owns the read. Callback and locale changes must not start qualification.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[scope]);
+  return <div className="candidate-eval-results" aria-busy={busy}>
+    <p role="status" aria-live="polite">{!checked?(busy?(hi?'नतीजे की स्थिति देख रहे हैं':'Reading result status'):(hi?'नतीजे की स्थिति जांचनी है':'Result status needs checking'))
+      :result?.verdict==='pass'?(hi?'जांच पास हुई। आपका मौजूदा AI नहीं बदला है।':'Checks passed. Your current AI is unchanged.')
+      :result?.verdict==='fail'?(hi?'यह बदलाव जांच पास नहीं कर पाया। आपका मौजूदा AI नहीं बदला है।':'This change did not pass. Your current AI is unchanged.')
+      :hi?'अभी और जांच चाहिए। आपका मौजूदा AI नहीं बदला है।':'More checks are needed. Your current AI is unchanged.'}</p>
+    {checked&&<button type="button" disabled={busy} onClick={()=>void request('qualify',true)}>{hi?'नतीजे जांचें':'Check results'}</button>}
+    {!checked&&<button type="button" disabled={busy} onClick={()=>void request('qualification_status',true)}>{hi?'नतीजे की स्थिति देखें':'Read result status'}</button>}
+    {error&&<p role="alert">{error}</p>}
+  </div>;
+}
+
 export default function CandidateEvaluationLab({
   token,
   replicaId,
@@ -56,29 +101,46 @@ export default function CandidateEvaluationLab({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [activationRevision,setActivationRevision]=useState(0);
+  const refreshActivation=useCallback(()=>setActivationRevision(value=>value+1),[]);
+  const identity=JSON.stringify([token,replicaId,candidateId,stopped]),latestIdentity=useRef(identity);latestIdentity.current=identity;
+  const [evaluationIdentity,setEvaluationIdentity]=useState(identity);
+  const loadController=useRef<AbortController|null>(null),voteController=useRef<AbortController|null>(null);
+  const requestEpoch=useRef(0),auth=useRef(onAuthError);auth.current=onAuthError;
 
   const load = useCallback(async () => {
     if (stopped) return;
+    loadController.current?.abort();
+    const controller=new AbortController(),run=++requestEpoch.current,requestIdentity=identity;
+    loadController.current=controller;
+    const current=()=>requestEpoch.current===run&&latestIdentity.current===requestIdentity;
+    const timer=setTimeout(()=>controller.abort(),20_000);
     setLoading(true);
     setError("");
     try {
-      const next = await getCandidateEvaluation(token, replicaId, candidateId);
+      const next = await getCandidateEvaluation(token, replicaId, candidateId,controller.signal);
+      if(!current()||controller.signal.aborted)return;
       setEvaluation(next);
+      setEvaluationIdentity(requestIdentity);
       setRatings({});
     } catch (cause) {
-      if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
+      if(!current())return;
+      if (cause instanceof ReplicaApiError && cause.status === 401) return auth.current(cause);
       setError(loadError(cause));
     } finally {
-      setLoading(false);
+      clearTimeout(timer);if(current()){loadController.current=null;setLoading(false);}
     }
-  }, [onAuthError, replicaId, candidateId, stopped, token]);
+  }, [identity, replicaId, candidateId, stopped, token]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { setBusy(false);void load();return()=>{requestEpoch.current++;loadController.current?.abort();voteController.current?.abort();voteController.current=null;}; }, [load]);
 
   async function submit() {
     const assignment = evaluation?.assignment;
     const dimensions = evaluation?.dimensions || [];
-    if (!assignment || dimensions.some((dimension) => !ratings[dimension]) || busy) return;
+    if (stopped||evaluationIdentity!==identity||!assignment || dimensions.some((dimension) => !ratings[dimension]) || busy||voteController.current) return;
+    const controller=new AbortController(),requestIdentity=identity;voteController.current=controller;
+    const timer=setTimeout(()=>controller.abort(),20_000);
+    const current=()=>latestIdentity.current===requestIdentity&&voteController.current===controller;
     setBusy(true);
     setError("");
     try {
@@ -88,13 +150,15 @@ export default function CandidateEvaluationLab({
         assignment.assignment_id,
         assignment.assignment_hash,
         Object.fromEntries(dimensions.map((dimension) => [dimension, ratings[dimension]])) as Record<CandidateEvalDimension, CandidateEvalChoice>,
+        controller.signal,
       );
-      await load();
+      if(current()&&!controller.signal.aborted)await load();
     } catch (cause) {
-      if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
+      if(!current())return;
+      if (cause instanceof ReplicaApiError && cause.status === 401) return auth.current(cause);
       setError(loadError(cause));
     } finally {
-      setBusy(false);
+      clearTimeout(timer);if(current()){voteController.current=null;setBusy(false);}
     }
   }
 
@@ -116,7 +180,7 @@ export default function CandidateEvaluationLab({
         </div>
       </div>
 
-      {loading ? (
+      {loading||evaluationIdentity!==identity||stopped ? (
         <div className="candidate-eval-loading" role="status" aria-label="Loading blind evaluation">
           <span /><span /><span />
         </div>
@@ -139,6 +203,9 @@ export default function CandidateEvaluationLab({
           <div>
             <strong>Blind review complete</strong>
             <p>{textCopy.complete(progress.completed)}</p>
+            {candidateId&&evaluation.state==='complete'&&progress.total>0&&progress.completed===progress.total&&<QualificationAction
+              key={identity} token={token} replicaId={replicaId} candidateId={candidateId} language={language} onAuthError={onAuthError}
+              onResultsChecked={refreshActivation}/>}
           </div>
         </div>
       ) : (
@@ -202,6 +269,10 @@ export default function CandidateEvaluationLab({
           </form>
         </>
       )}
+      {candidateId && !loading && !error && !stopped && evaluationIdentity === identity && evaluation?.available
+        && evaluation.state === 'complete' && progress.total > 0 && progress.completed === progress.total &&
+        <CandidateActivationAction key={identity} token={token} replicaId={replicaId}
+          candidateId={candidateId} stopped={stopped} statusRevision={activationRevision} locale={language} onAuthError={onAuthError}/>}
     </section>
   );
 }

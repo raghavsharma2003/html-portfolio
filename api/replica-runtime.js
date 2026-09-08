@@ -8,7 +8,7 @@ import { allow, ipOf } from "./_ratelimit.js";
 import {
   activateOwnedRuntime,
   openOwnedRuntimeSession,
-  ownedRuntimeStatus,
+  ownedPrivateRuntimeStatus as ownedRuntimeStatus,
 } from "./_replica-runtime.js";
 
 function cors(res) {

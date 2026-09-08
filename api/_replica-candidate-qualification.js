@@ -88,6 +88,7 @@ export function evaluateCandidateQualification(datasetDefinition, config, rawObs
     const judgeKind = String(raw?.judge_kind || "");
     const example = testExamples.get(exampleId);
     if (!example || !requiredLayers.includes(dimension) || !WINNERS.has(winner) || !ORDERS.has(order) || judgeKind !== "owner") fail("qualification_observation_invalid", 400);
+    if (raw.session_commitment !== example.session_commitment) fail("qualification_observation_session_changed", 400);
     if (raw.assignment_hash !== blindAssignmentHash(runCommitment, exampleId, order)) fail("qualification_blinding_invalid", 400);
     if (dimension === "voice_identity" && !example.voice_generation_bound) fail("qualification_voice_evidence_missing", 400);
     const key = `${exampleId}|${dimension}|${judgeKind}`;
@@ -206,13 +207,15 @@ export async function registerOwnedCandidate(db, ownerUserId, input, admission =
   return rows[0];
 }
 
-export async function recordOwnedCandidateQualification(db, ownerUserId, candidateId, evaluation) {
+export async function recordOwnedCandidateQualification(db, ownerUserId, candidateId, evaluation, admission = null) {
   if (typeof db !== "function") fail("qualification_db_required", 503);
   if (!evaluation || evaluation.protocol_version !== CANDIDATE_QUALIFICATION_PROTOCOL || !["pass", "fail", "inconclusive"].includes(evaluation.verdict)) fail("qualification_result_invalid", 400);
   const candidate = safeUuid(candidateId, "candidate_id_invalid");
   const qualificationId = randomUUID();
+  if (admission !== null && (typeof admission.sql !== "string" || !Array.isArray(admission.params))) fail("qualification_admission_invalid", 500);
+  const gate = admission ? admission.sql.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 10}`) : null;
   const rows = await db(
-    `with inserted as (
+    `with ${gate ? `qualification_admission as (${gate}), ` : ""}inserted as (
        insert into vy_replica_candidate_qualification
          (qualification_id,candidate_id,replica_id,owner_user_id,protocol_version,test_set_hash,
           observation_hash,observation_count,metrics,verdict)
@@ -221,6 +224,7 @@ export async function recordOwnedCandidateQualification(db, ownerUserId, candida
            on d.dataset_id=c.dataset_id and d.replica_id=c.replica_id and d.owner_user_id=c.owner_user_id
         where c.candidate_id=$1::uuid and c.owner_user_id=$2::uuid and c.status in ('draft','evaluating')
           and d.status='draft' and d.source_set_hash=$10
+          ${gate ? "and exists(select 1 from qualification_admission a where a.candidate_id=c.candidate_id)" : ""}
        on conflict (candidate_id,protocol_version,test_set_hash,observation_hash)
        do update set observation_hash=excluded.observation_hash
        returning *
@@ -231,7 +235,7 @@ export async function recordOwnedCandidateQualification(db, ownerUserId, candida
      ) select i.*,a.status as candidate_status from inserted i,advanced a`,
     [candidate, ownerUserId, qualificationId, evaluation.protocol_version, evaluation.test_set_hash,
       evaluation.observation_hash, evaluation.observation_count, JSON.stringify(evaluation.metrics), evaluation.verdict,
-      evaluation.dataset_source_set_hash],
+      evaluation.dataset_source_set_hash, ...(admission?.params || [])],
   );
   if (!rows[0]) fail("candidate_qualification_not_recorded");
   return rows[0];

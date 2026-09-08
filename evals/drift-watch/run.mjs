@@ -1,3 +1,4 @@
+import { panelCopy } from '../lib/panel-copy.mjs';
 // WS-R9 — DRIFT WATCH: "it notices drift." Five states a report can honestly
 // be in, the two independent signals that decide them, the 0.02 threshold's
 // own citations held to the numbers that justify it, and the negative
@@ -459,8 +460,9 @@ const app = readFileSync(join(ROOT, "src/creatorStudio/StudioApp.tsx"), "utf8");
 // rendered English text, only `t.driftWatch.<key>` references. `cardWithCopy`
 // is what the two rendered-text checks below actually read, matching
 // `evals/readiness/run.mjs`'s own fix for the identical shape one card over.
-const copyTs = readFileSync(join(ROOT, "src/creatorStudio/copy.ts"), "utf8");
-const cardWithCopy = `${card}\n${copyTs}`;
+
+const scopedCopy = panelCopy(ROOT, card, ['driftWatch']);
+const cardWithCopy = `${card}\n${scopedCopy}`;
 
 ok('the card renders "Not measured yet" rather than a zero', /Not measured yet/.test(cardWithCopy));
 ok("the card computes no score of its own", !/reduce\(/.test(card) && !/Math\.round/.test(card));
@@ -483,6 +485,10 @@ const renderedText = [
 ok("no em-dash or en-dash in anything this card renders", !/[–—]/.test(renderedText));
 ok('no banned product word reaches the screen - "model" included, on the brief\'s own instruction',
   !/\b(clone|replica|fine-?tune|model)s?\b/i.test(renderedText));
+for (const injected of ['your clone', 'your replica', 'fine-tune']) {
+  ok('negative control: forbidden panel literal ' + injected, /\b(clone|replica|fine-?tune)s?\b/i.test(renderedText + ': "' + injected + '"'));
+}
+ok('negative control: forbidden panel model literal', /\bmodel\b/i.test(renderedText + ': "your model"'));
 ok("...and the server-side strings this card can render carry none either",
   !/\b(clone|replica|fine-?tune|model)s?\b/i.test(
     moduleSrc.split("\n").filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join("\n")

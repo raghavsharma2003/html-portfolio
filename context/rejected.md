@@ -17474,3 +17474,38 @@ Source review caught a Bicep declaration-shape error before compilation: a mappe
 ## `release45-local-pass-not-deployed-learning` (2026-09-08)
 
 2026-09-08: Localintegratedbuild andscopedfixtures do notreplace original failed39, finalfullrelease, actual155materialization/races, liveAzurepairedresponses, ownerjudgments or156experimentalactivation. The compiledregistrytemplate is not a deployed application. Buildpackage mustpin finalsourceHEAD rather than prior39. Preserve accepted26 until rootacceptance.
+
+
+## `auth-loading47-visibility-only-false-confidence` (2026-09-08)
+
+2026-09-08: First8viewpass1788865817917 missedoffscreenloadingalert. Boundsfailed1788865975151; truefirstloadingstill y-50 in1788866036328. Sourcegridrow+mobilemargin-70 fixedonlyloading;8views1788866094004 passedwithstatus/alert/controlbounds andoldrowmarginnegative, screenshotinspected. Collector8controlspass,buildsemanticTS+Vitepass45579. ImpeccableoncewarnedexistingInstrumentfontstyleheuristic, retainedwithoutunrelatedredesign. PairdoesnotvalidatefontasTBTfix; nohost754MiBattribution. Currentnativeproposalonly,HINDI-NATIVE49-PROPOSAL-20260908.md.
+
+
+## `copy-inventory46-do-not-hide-release-failures` (2026-09-08)
+
+Original45 failures are retained. Shared copy table expansion caused three panel assertions to include unrelated auth language; exact correction transport was absent from inventory. Do not delete valid Auth legal words, ignore unknown transports or relax creator15s selectors. Creator45 failure DOM is populated after timeout but lacks precise shell visibility/mount timing; memory pressure and historical root cause remain unproven.
+
+
+## `esbuild-inventory48-discovery-gap` (2026-09-08)
+
+2026-09-08 source review found initial candidate validator covered install commands but retained prior npm query discovering only preinstall/postinstall. An install-only package would never reach the stronger validator. Root required and candidate added the third actual query selector before freeze. This is a source-derived discovery defect, not a simulated exploit or executed hook.
+
+
+## `activation156-global-experiment` (2026-09-08)
+
+2026-09-08: independent source review of uncommitted expert-candidate-activation44 found owner_private_text experiment superseded the replica's single active global capability, while Room/public/voice reads rejected candidate-bound capabilities. Existing public service would therefore stop during the private trial until rollback. Root required a separate owner-private pointer; author is revising. No activation SQL or serving test ran under the rejected source.
+
+
+## `activation156-resume-core` (2026-09-08)
+
+2026-09-08: source review found156 start persisted candidate_core_hash, but advance still gated only baseline/source/artifact/manifest. Per-item prompt hash would catch candidate drift only later, after a baseline item could already dispatch; package resume skipped that item check. Root required saved candidate core equality before any provider dispatch and package sealing. Author owns repair; source-only review, no new execution.
+
+
+## `qualification44-stranded-votes` (2026-09-08)
+
+2026-09-08: source audit after initial mounted success found interruption between final assignment write and reconciliation leaves reader reporting all votes saved but run collecting. No pending assignment remains to replay from UI.305e2bc539a96b67db76ac8e416c3effc15ee756 adds explicit qualify reconciliation, with exact current source/artifact/run authority and expected submitted assignment count. Status stays read-only. No automatic provider or mutation retries.
+
+
+## `release56-overlapping-git-index` (2026-09-08)
+
+2026-09-08 initial patch attempt refused index.lock while new worktree checkout still running. No patch applied. Waited for actual checkout exit0, preserved lock, then serialized patch application. Do not run dependent Git mutation before terminal checkout. Whole historical graph replacement rejected; selected context tuples imported instead.

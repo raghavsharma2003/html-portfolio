@@ -187,6 +187,9 @@ export async function resolveChannelBinding(db, kind, externalRef) {
       where c.kind = $1
         and c.external_ref = $2
         and c.status = 'connected'
+        and not exists(select 1 from vy_replica_runtime_capability candidate_cap
+          where candidate_cap.replica_id=c.replica_id and candidate_cap.owner_user_id=c.owner_user_id
+            and candidate_cap.state='active' and candidate_cap.candidate_binding_required)
       limit 1`,
     [k, ref],
   );
@@ -227,6 +230,26 @@ export async function resolveInboundClone(db, kind, externalRef, { loadAgent = l
     module: loaded.module,
     sheet: loaded.sheet,
   };
+}
+
+// Re-read the exact resolved public module before model dispatch and delivery.
+// A private candidate activation never authorizes this public clone surface.
+export const CLONE_PUBLIC_AUTHORITY_SQL = `select c.channel_id from vy_clone_channel c
+ join vy_agent a on a.agent_id=c.agent_id
+ join vy_teacher_sheet s on s.agent_id=c.agent_id and s.status='published' and s.consent_artifact_id is not null
+ where c.channel_id=$1::uuid and c.replica_id=$2::uuid and c.owner_user_id=$3::uuid and c.agent_id=$4::uuid
+ and c.kind=$5 and c.external_ref=$6 and c.status='connected' and a.slug=$7 and s.sheet=$8::jsonb
+ and not exists(select 1 from vy_replica_runtime_capability candidate_cap
+  where candidate_cap.agent_id=c.agent_id and candidate_cap.state='active' and candidate_cap.candidate_binding_required)
+ limit 1`;
+export function createClonePublicAuthorityGuard(db,resolved){
+ const c=resolved?.channel;
+ if(typeof db!=='function'||!c?.channel_id||!c.replica_id||!c.owner_user_id||!c.agent_id||!resolved.sheet)throw cloneUnavailable();
+ const params=[c.channel_id,c.replica_id,c.owner_user_id,c.agent_id,c.kind,c.external_ref,resolved.slug,JSON.stringify(resolved.sheet)];
+ return async()=>{
+  const rows=await db(CLONE_PUBLIC_AUTHORITY_SQL,params);
+  if(rows[0]?.channel_id!==c.channel_id)throw cloneUnavailable();
+ };
 }
 
 /** The display name the disclosure card names, taken from the SHEET rather

@@ -59,7 +59,7 @@ import { createHmac, timingSafeEqual, createHash } from "node:crypto";
 import { gatedReply, makeCtx, splitForLimit, loadEngine, think, deliver } from "./_surface.js";
 import { compileNeverRules } from "./_never-rules.js";
 import { loadNeverRules } from "./_review-queue.js";
-import { resolveInboundClone, cloneDisclosureCard, disclosureNameFor } from "./_clonechannel.js";
+import { resolveInboundClone, cloneDisclosureCard, disclosureNameFor, createClonePublicAuthorityGuard } from "./_clonechannel.js";
 
 /** Web bubbles have no hard platform limit; this is a product one. Long enough
  *  for a worked step, short enough that a wall of text is a bug and not a
@@ -269,6 +269,7 @@ export async function cloneChatTurn(db, { session, message, transcript = [] }, d
     engine,
     agent: resolved.module,
     agentId: resolved.agentId,
+    assertPublicAuthority: createClonePublicAuthorityGuard(db,resolved),
     reply: deps.reply || ((compiled, turns) => think(engine, compiled, turns)),
   });
 

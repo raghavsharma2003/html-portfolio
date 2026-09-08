@@ -433,6 +433,9 @@ const erasureSrc = await readFile(
   "utf8",
 );
 const unreachable = [...ownerOnly]
+  // 156 activation snapshots cascade from their owner replica, candidate and
+  // qualification. Erasing snapshots must retain the capability's required
+  // binding marker; candidate runtime then refuses instead of falling back.
   // 155's private text materialization jobs/items must be reached through
   // owned candidate/dataset/correction-job and feedback FKs; no exemption.
   // 152's correction candidate jobs cascade through their owned dataset and

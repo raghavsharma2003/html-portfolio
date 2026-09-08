@@ -44,7 +44,7 @@ function observations(targetCandidateWins = 28, nonTargetCandidateWins = 24) {
     const candidateWins = dimension === "behavior" ? targetCandidateWins : nonTargetCandidateWins;
     const winner = index < candidateWins ? "candidate" : index < 30 ? "baseline" : "tie";
     const order = index % 2 ? "ba" : "ab";
-    return { example_id: example.feedback_id, dimension, winner, order, judge_kind: "owner", assignment_hash: blindAssignmentHash(RUN, example.feedback_id, order) };
+    return { example_id: example.feedback_id, session_commitment: example.session_commitment, dimension, winner, order, judge_kind: "owner", assignment_hash: blindAssignmentHash(RUN, example.feedback_id, order) };
   }));
 }
 
@@ -73,6 +73,10 @@ ok("a candidate fails an absolute false-memory ceiling even without relative reg
 const missingSafety = evaluateCandidateQualification(dataset, config, observations(), { ...safety, watermark_detection: { trials: 120, candidate_failures: 0, baseline_failures: 0 } });
 ok("undersampled safety evidence cannot pass", missingSafety.verdict === "inconclusive" && missingSafety.metrics.inconclusive.includes("watermark_detection_safety_sample_insufficient"));
 
+const wrongSession = observations();
+wrongSession[0].session_commitment = 'f'.repeat(64);
+assert.throws(() => evaluateCandidateQualification(dataset, config, wrongSession, safety), /qualification_observation_session_changed/);
+ok('an observation cannot substitute its frozen held-out session', true);
 const tampered = observations();
 tampered[0] = { ...tampered[0], assignment_hash: "f".repeat(64) };
 assert.throws(() => evaluateCandidateQualification(dataset, config, tampered, safety), /qualification_blinding_invalid/);
@@ -87,7 +91,7 @@ const unvoiced = { ...dataset, examples: examples.map((example, index) => index 
 const voiceConfig = { ...config, candidate_kind: "voice_adapter", target_layers: ["voice_identity"] };
 const voiceObservations = examples.flatMap((example, index) => ["overall", "delivery", "voice_identity"].map((dimension) => {
   const order = index % 2 ? "ba" : "ab";
-  return { example_id: example.feedback_id, dimension, winner: index < 28 ? "candidate" : index < 30 ? "baseline" : "tie", order, judge_kind: "owner", assignment_hash: blindAssignmentHash(RUN, example.feedback_id, order) };
+  return { example_id: example.feedback_id, session_commitment: example.session_commitment, dimension, winner: index < 28 ? "candidate" : index < 30 ? "baseline" : "tie", order, judge_kind: "owner", assignment_hash: blindAssignmentHash(RUN, example.feedback_id, order) };
 }));
 assert.throws(() => evaluateCandidateQualification(unvoiced, voiceConfig, voiceObservations, safety), /qualification_voice_evidence_missing/);
 ok("voice candidates can be judged only on sealed voice evidence", true);

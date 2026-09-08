@@ -468,6 +468,7 @@ const runtimeActive = (owner, replica) => `exists (
        where c.replica_id = (${replica})::uuid
          and c.owner_user_id = (${owner})::uuid
          and c.state = 'active'
+         and not c.candidate_binding_required
     )`;
 
 /** An APPROVED DISCLOSURE — `api/_teachersheet.js`'s own publish gate,

@@ -63,7 +63,7 @@ async function fixture(options={}){
  const budget={budget_id:ENV.AZURE_REPLICA_BUDGET_ID,limit_microusd:1_000_000,spent_microusd:0,reserved_microusd:0,state:'active'};
  const dataset={dataset_id:DATASET,replica_id:RID,owner_user_id:OWNER,status:'draft',source_set_hash:built.source_set_hash,definition:built.definition,readiness:built.readiness};
  const owned=p=>p[0]===RID&&p[1]===OWNER;
- let candidate,correction;
+ let candidate,correction,candidateCoreHash;
  function authority(p){
   authorityReads++;assert.deepEqual(p.slice(0,6),[RID,OWNER,REPLICA_POLICY_VERSION,DATASET,built.source_set_hash,CAP]);
   assert.deepEqual(JSON.parse(p[6]),runtime.profile_definition);assert.deepEqual(JSON.parse(p[7]),runtime.calibration_definition);
@@ -104,12 +104,22 @@ async function fixture(options={}){
    if(sql.startsWith('with authority as (')){
     if(!authority(p.slice(0,15)))return[];
     if(sql.includes('insert into vy_replica_candidate_materialization\n')){
+     assert.equal(p.length,23);assert.equal(p[22],candidateCoreHash);
      if(jobs.length)return[];
-     const j={job_id:p[15],replica_id:RID,owner_user_id:OWNER,dataset_id:DATASET,candidate_id:CANDIDATE,protocol:p[16],model_commitment:p[17],source_set_hash:built.source_set_hash,baseline_hash:p[18],artifact_sha256:candidate.artifact_sha256,manifest_hash:candidate.build_manifest_hash,blind_seed:p[19],total:p[20],state:'preparing'};jobs.push(j);
+     const j={job_id:p[15],replica_id:RID,owner_user_id:OWNER,dataset_id:DATASET,candidate_id:CANDIDATE,protocol:p[16],model_commitment:p[17],source_set_hash:built.source_set_hash,baseline_hash:p[18],artifact_sha256:candidate.artifact_sha256,manifest_hash:candidate.build_manifest_hash,blind_seed:p[19],total:p[20],state:'preparing',candidate_core_hash:p[22]};jobs.push(j);
      items.push(...JSON.parse(p[21]).map(i=>({...i,job_id:j.job_id,replica_id:RID,owner_user_id:OWNER,state:'pending'})));return items.map(i=>({item_id:i.item_id}));
     }
     const j=jobs[0];assert.ok(j);
-    if(sql.includes("j set state='working'")){assert.deepEqual(p.slice(15),[j.protocol,j.model_commitment,j.baseline_hash]);if(j.state!=='preparing')return[];if(sql.includes('intact where intact.job_id=j.job_id')){assert.ok(sql.includes('intact.replica_id=j.replica_id and intact.owner_user_id=j.owner_user_id)=j.total'));if(items.filter(i=>i.job_id===j.job_id&&i.replica_id===j.replica_id&&i.owner_user_id===j.owner_user_id).length!==j.total)return[];}j.state='working';return[{...j}];}
+    if(sql.includes("j set state='working'")){
+     assert.deepEqual(p.slice(15),[j.protocol,j.model_commitment,j.baseline_hash,candidateCoreHash]);
+     // Emulate the persisted-row equality, including SQL NULL refusing equality.
+     // The supplied hash is independently rendered, never copied from this row.
+     assert.ok(sql.includes('j.candidate_core_hash=$19'));
+     if(j.state!=='preparing'||j.candidate_core_hash!==p[18])return[];
+     assert.ok(sql.includes('intact.replica_id=j.replica_id and intact.owner_user_id=j.owner_user_id)=j.total'));
+     if(items.filter(i=>i.job_id===j.job_id&&i.replica_id===j.replica_id&&i.owner_user_id===j.owner_user_id).length!==j.total)return[];
+     j.state='working';return[{...j}];
+    }
     if(sql.includes('update vy_replica_candidate_materialization_item i')){
      const i=items.find(i=>i.item_id===p[15]&&i.job_id===p[16]);assert.ok(i);
      if(sql.includes("set state='running'")){assert.equal(i.state,'claimed');i.state='running';i.reservation_id=p[17];return[{item_id:i.item_id}];}
@@ -117,8 +127,8 @@ async function fixture(options={}){
     }
     assert.equal(p[15],j.job_id);
     if(sql.includes("set state='preparing'")){assert.equal(j.state,'working');j.state='preparing';return[];}
-    if(sql.includes("set state='packing'")){assert.equal(j.state,'working');j.state='packing';j.package=JSON.parse(p[16]);return[{job_id:j.job_id}];}
-    if(sql.includes("set state='ready'")){assert.equal(j.state,'packing');assert.equal(j.package.eval_run_id,p[16]);j.state='ready';return[{job_id:j.job_id}];}
+    if(sql.includes("set state='packing'")){assert.equal(p.length,18);assert.equal(p[17],candidateCoreHash);assert.ok(sql.includes('j.candidate_core_hash=$18'));if(j.state!=='working'||j.candidate_core_hash!==p[17])return[];j.state='packing';j.package=JSON.parse(p[16]);return[{job_id:j.job_id}];}
+    if(sql.includes("set state='ready'")){assert.equal(p.length,18);assert.equal(p[17],candidateCoreHash);assert.ok(sql.includes('j.candidate_core_hash=$18'));if(j.state!=='packing'||j.candidate_core_hash!==p[17]||j.package.eval_run_id!==p[16])return[];j.state='ready';return[{job_id:j.job_id}];}
    }
    if(sql.startsWith('select * from vy_replica_candidate_materialization_item')){assert.deepEqual(p,[jobs[0].job_id,RID,OWNER]);return structuredClone(items);}
    if(sql.startsWith('select provider_identity from vy_replica_candidate_materialization_item')){assert.deepEqual(p,[jobs[0].job_id,RID,OWNER]);return items.filter(i=>i.state==='complete').slice(0,1);}
@@ -136,6 +146,7 @@ async function fixture(options={}){
  const loaded=await loadOwnedRuntimeContext(db,OWNER,RID),scenario=CALIBRATION_SCENARIOS.find(s=>[s.left.id,s.right.id].includes('compact_observation'));
  assert.ok(scenario);
  const art=buildPrivateCorrectionArtifact(loaded,{status:'proposed',owner_approved:false,runtime_eligible:false,source_set_hash:built.source_set_hash,selections:[{scenario_id:scenario.scenario_id,strategy_id:'compact_observation'}]});
+ candidateCoreHash=hash(renderPrivateCorrectionCandidate(loaded,art.artifact).core);
  const manifest={artifact_sha256:art.artifact_sha256,base_model_commitment:ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT,source_set_hash:built.source_set_hash};
  candidate={candidate_id:CANDIDATE,dataset_id:DATASET,replica_id:RID,owner_user_id:OWNER,kind:'prompt_policy',status:'draft',artifact_sha256:art.artifact_sha256,build_manifest_hash:hash(manifest),base_model_commitment:ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT,dataset_source_set_hash:built.source_set_hash};
  correction={job_id:CORRECTION,candidate_id:CANDIDATE,artifact:art.artifact,build_manifest:manifest,state:'draft'};
@@ -198,8 +209,33 @@ await test('missing question refuses before persistence; missing item cannot bec
  // Invoke the worker: UI status alone must not be the dispatch barrier.
  assert.equal((await f.advance()).state,'held');assert.equal(f.calls,0);assert.equal(f.spends.length,0);assert.equal(f.packs.length,0);assert.equal(f.jobs[0].state,'preparing');f.unchanged();
 });
+for(const [label,savedHash] of [['legacy null',null],['tampered digest','f'.repeat(64)]]){
+ await test(`${label} candidate core refuses resume before even the baseline item`,async()=>{
+  const f=await fixture();await f.start();
+  assert.match(f.jobs[0].candidate_core_hash,/^[a-f0-9]{64}$/);
+  assert.notEqual(f.jobs[0].candidate_core_hash,savedHash);
+  assert.equal(f.items[0].role,'baseline');assert.ok(f.items.every(i=>i.state==='pending'));
+  f.jobs[0].candidate_core_hash=savedHash;
+  const before=structuredClone(f.items),budgetBefore=structuredClone(f.budget);
+  // Exercise the actual worker and repeat its saved-job path. A baseline prompt
+  // alone does not contain the candidate delta, so prompt-hash checking alone
+  // would miss this stale candidate core and spend on the first baseline item.
+  if(savedHash===null){
+   const heldStatus=await f.advance();assert.equal(heldStatus.state,'held');assert.equal(heldStatus.can_advance,false);
+   assert.equal((await f.start()).state,'held');assert.equal((await f.advance()).state,'held');
+  }else{
+   await assert.rejects(()=>f.advance(),{code:'materialization_resume_authority_changed'});
+   assert.equal((await f.start()).job_id,f.jobs[0].job_id);
+   await assert.rejects(()=>f.advance(),{code:'materialization_resume_authority_changed'});
+  }
+  assert.equal(f.calls,0);assert.equal(f.spends.length,0);assert.equal(f.packs.length,0);
+  assert.equal(f.jobs.length,1);assert.equal(f.jobs[0].state,'preparing');
+  assert.equal(f.jobs[0].candidate_core_hash,savedHash);
+  assert.deepEqual(f.items,before);assert.deepEqual(f.budget,budgetBefore);f.unchanged();
+ });
+}
 await test('source erasure blocks further dispatch and package admission guard is authoritative',async()=>{
- const f=await fixture();await f.start();f.options.erased=true;await f.advance();assert.equal(f.calls,0);assert.equal(f.packs.length,0);f.unchanged();
+ const f=await fixture();await f.start();f.options.erased=true;await assert.rejects(()=>f.advance(),{code:'materialization_resume_authority_changed'});assert.equal(f.calls,0);assert.equal(f.packs.length,0);f.unchanged();
  const p=await fixture({refusePackage:true});await p.start();for(let n=0;n<p.items.length;n++)await p.advance();await assert.rejects(()=>p.advance(),{code:'candidate_eval_package_not_persisted'});assert.equal(p.packs.length,0);assert.equal((await p.read()).state,'failed');p.unchanged();
 });
 await test('baseline revision binding cannot be replaced by deployment alias',async()=>{

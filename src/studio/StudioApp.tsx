@@ -433,7 +433,7 @@ function AuthGate({
     }
   }
 
-  if (!ready) return <PersonalAuthLoading locale={locale} failed={failed} retry={retry} switchLocale={switchLocale} />;
+  if (!ready) return <PersonalAuthLoading locale={locale} failed={failed} retry={retry} switchLocale={switchLocale} testEnvironment={testEnvironment} />;
 
   return (
     <main className="auth-page" lang={locale} data-studio-auth-locale={locale} data-auth-theme={testEnvironment ? "test" : "general"}>
@@ -2710,7 +2710,7 @@ export default function StudioApp() {
 
   if (!authChecked) {
     return (
-      <PersonalAuthLoading locale={readPersonalAuthLocale()} failed={false} retry={() => {}} />
+      <PersonalAuthLoading locale={readPersonalAuthLocale()} failed={false} retry={() => {}} testEnvironment={STUDIO_SELF_TEST_UI} />
     );
   }
 

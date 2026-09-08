@@ -16614,6 +16614,114 @@
       "kind": "rejection",
       "title": "Retain real release and activation gaps",
       "at": "2026-09-08"
+    },
+    {
+      "id": "auth-loading47-keep-readability-reject-speed-claim",
+      "kind": "decision",
+      "title": "Separate loading correctness from unproven Hindi speed improvement",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "auth-loading47-pair-complete-failed",
+      "kind": "measurement",
+      "title": "Twelve-navigation pair completed with actual Hindi budget failures",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "auth-loading47-visibility-only-false-confidence",
+      "kind": "rejection",
+      "title": "Preserve clipped-alert fixture failures and worsening Hindi result",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "copy-inventory46-caller-scoped-locales",
+      "kind": "decision",
+      "title": "Scope panel copy checks to actual caller locale sections",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "copy-inventory46-offline-results",
+      "kind": "measurement",
+      "title": "Four repaired suites and locale extraction controls passed",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "copy-inventory46-do-not-hide-release-failures",
+      "kind": "rejection",
+      "title": "Do not classify deterministic source assertions as host pressure",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "esbuild-inventory48-install-discovery",
+      "kind": "decision",
+      "title": "Include install-only hooks in the actual npm inventory",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "esbuild-inventory48-controls-passed",
+      "kind": "measurement",
+      "title": "Seventeen read-only inventory controls passed once",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "esbuild-inventory48-discovery-gap",
+      "kind": "rejection",
+      "title": "Reject validating install hooks only after incomplete discovery",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "activation156-global-experiment",
+      "kind": "rejection",
+      "title": "Reject private experimentation that replaces the public runtime",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "activation156-resume-core",
+      "kind": "rejection",
+      "title": "Require persisted candidate core before every comparison dispatch and package sealing",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "activation156-private-pointer",
+      "kind": "decision",
+      "title": "Keep private candidate selection separate from published baseline serving",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "qualification44-stranded-votes",
+      "kind": "rejection",
+      "title": "Reject a result-checking flow that strands votes after a committed final assignment",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "qualification44-recovery-offline",
+      "kind": "measurement",
+      "title": "Explicit sealed-vote recovery passes strict service controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "candidate-vote44-actual",
+      "kind": "measurement",
+      "title": "PostgreSQL reproduces original final-vote bug and validates frozen repair",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release56-additive-source-union",
+      "kind": "decision",
+      "title": "Preserve release45 while integrating reviewed correction paths",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release56-source-inventory",
+      "kind": "measurement",
+      "title": "Source inventory before integrated checks",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release56-overlapping-git-index",
+      "kind": "rejection",
+      "title": "Preserve active checkout lock rather than deleting it",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

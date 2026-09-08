@@ -1,3 +1,4 @@
+import { panelCopy } from '../lib/panel-copy.mjs';
 // WS-R4. The review queue's offline gate.
 //
 // Contract: the brief's own five properties, each with a NEGATIVE CONTROL,
@@ -786,8 +787,9 @@ console.log("\n── 7. migration 074, erasure reach, and the copy ──");
   // rendered-text check below actually reads, matching
   // `evals/readiness/run.mjs`'s own fix for the identical shape.
   const component = read("src/creatorStudio/ReviewQueue.tsx");
-  const copyTs = read("src/creatorStudio/copy.ts");
-  const componentWithCopy = `${component}\n${copyTs}`;
+
+  const scopedCopy = panelCopy(REPO, component, ['reviewQueue', 'reviewQueueFlags']);
+const componentWithCopy = `${component}\n${scopedCopy}`;
   ok(componentWithCopy.includes("Nothing to review yet."), "the empty state is honest about being empty");
   ok(componentWithCopy.includes("It fills itself from real conversations once your Room is open."),
     "...and says what will fill it");
@@ -808,6 +810,7 @@ console.log("\n── 7. migration 074, erasure reach, and the copy ──");
   // `evals/drift-watch/run.mjs`'s own comment-stripping precedent, applied
   // here for the same reason.
   ok(!/\bclone\b/i.test(componentWithCopyNoComments), "the word 'clone' appears in no user-visible string");
+  ok(/\bclone\b/i.test(componentWithCopyNoComments + '<p>Your clone</p>'), "negative control: forbidden literal panel text is detected");
 }
 
 // ═════════════════════════════════════════════════════════════════════════

@@ -17,6 +17,7 @@ const LABELS: Record<string, string> = {
   voice_not_ready: "Production voice mapping",
   production_voice_required: "Non-test voice provider",
   qualification_incomplete: "Seven-suite qualification",
+  private_selection_unavailable: "Waiting on us: your private selection is unavailable. Try checking again.",
 };
 
 export default function RuntimeGate({

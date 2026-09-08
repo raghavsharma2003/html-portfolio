@@ -2,7 +2,7 @@
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
-import { createProductionDialogueGenerator } from "./_dialogue/registry.js";
+import { createProductionDialogueGenerator, createProductionComparisonGenerator } from "./_dialogue/registry.js";
 import { createReplicaDialogueHandler } from "./_replica-dialogue.js";
 
 async function requireLimitedUser(req) {
@@ -17,6 +17,7 @@ const serve = createReplicaDialogueHandler({
   db: q,
   requireUser: requireLimitedUser,
   resolveGenerator: async () => createProductionDialogueGenerator(),
+  resolveCandidateGenerator: async () => createProductionComparisonGenerator(),
 });
 
 function cors(res) {

@@ -11,7 +11,7 @@ export const PRIVATE_TEACHER_SHEET_ADOPTION_SQL = `with owned as materialized (
     from vy_replica_runtime_capability c join owned o
       on c.replica_id=o.replica_id and c.owner_user_id=o.owner_user_id
      and c.agent_id=o.agent_id and c.subject_person_id=o.subject_person_id
-   where c.capability_id=$3::uuid and c.state='active' and c.policy_version=$5
+   where c.capability_id=$3::uuid and c.state='active' and c.policy_version=$5 and not c.candidate_binding_required
    for update of c
 ), drafts as materialized (
   select s.sheet_id,s.agent_id from vy_teacher_sheet s join capability c

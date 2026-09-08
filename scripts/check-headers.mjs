@@ -92,7 +92,7 @@
 //       fails, named. Anything under the `--audit-level` floor is reported,
 //       not blocking, same posture as `check-accessibility.mjs`'s moderate/
 //       minor split.
-//   (c) `npm query ':attr(scripts, [preinstall]), :attr(scripts, [postinstall])'`
+//   (c) `npm query ':attr(scripts, [preinstall]), :attr(scripts, [install]), :attr(scripts, [postinstall])'`
 //       -- every installed package that runs code during `npm install`,
 //       matched by exact `name@version` against `scripts/
 //       installScriptAllowlist.mjs`. An unlisted hit fails, named; the
@@ -108,7 +108,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { INSTALL_SCRIPT_ALLOWLIST } from "./installScriptAllowlist.mjs";
+import { verifyInstalledHook } from "./installScriptInventory.mjs";
 
 const run = promisify(execFile);
 
@@ -631,7 +631,7 @@ async function runSupplyChainChecks() {
   let queryOut = "";
   try {
     const r = await runNpm(
-      ["query", ":attr(scripts, [preinstall]), :attr(scripts, [postinstall])"],
+      ["query", ":attr(scripts, [preinstall]), :attr(scripts, [install]), :attr(scripts, [postinstall])"],
       { cwd: ROOT, maxBuffer: 32 * 1024 * 1024 },
     );
     queryOut = r.stdout;
@@ -646,13 +646,10 @@ async function runSupplyChainChecks() {
     fail("supply-chain", "npm query", "query-unparseable", queryOut.slice(0, 500));
     return;
   }
-  const allowedKeys = new Set(INSTALL_SCRIPT_ALLOWLIST.map((e) => `${e.name}@${e.version}`));
   for (const pkg of hits) {
     const key = `${pkg.name}@${pkg.version}`;
-    if (!allowedKeys.has(key)) {
-      const which = pkg.scripts && pkg.scripts.preinstall ? "preinstall" : "postinstall";
-      fail("supply-chain", key, "unallowlisted-install-script", `${which}: ${pkg.scripts?.[which] || "(script)"} -- add to scripts/installScriptAllowlist.mjs with a reason, or remove the dependency`);
-    }
+    const review = await verifyInstalledHook(pkg, { root: ROOT });
+    if (!review.ok) fail("supply-chain", key, review.code, review.detail);
   }
 }
 
