@@ -29,7 +29,7 @@ const result = await build({ root, configFile: false, logLevel: "silent", build:
   plugins: [{ name: "synthetic-correction-fixture", resolveId(id) { if (id === entry) return entry; }, load(id) { if (id === entry) return contents; } }] });
 const assets = new Map(result.output.map(item => ["/" + item.fileName, item.type === "chunk" ? item.code : item.source]));
 const css = result.output.filter(item => item.fileName.endsWith(".css")).map(item => `<link rel="stylesheet" href="/${item.fileName}">`).join("");
-let count = 0, saved = null, readCount = 0, posts = [], feedbackPending = null, heldRead = null;
+let count = 0, saved = null, readCount = 0, posts = [], feedbackPosts = [], feedbackPending = null, heldRead = null;
 let holdFeedback = false, holdRead = false, mode = "normal";
 const rows = (n = count) => Array.from({ length: n }, (_, index) => ({ feedback_id: `30000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
   turn_id: `40000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, session_id: TURN, revision: 1,
@@ -60,6 +60,7 @@ const server = createServer(async (req, res) => {
     if (url.pathname === "/api/replica-dialogue") return json(200, { turn: { turn_id: TURN, session_id: data.session_id, reply: "Synthetic answer for the correction workflow.", can_voice: false } });
     if (url.pathname === "/api/replica-feedback" && req.method === "GET") return json(200, { current: { replica_id: url.searchParams.get("replica_id"), turn_id: url.searchParams.get("turn_id"), feedback: null, correction: "" } });
     if (url.pathname === "/api/replica-feedback") {
+      feedbackPosts.push(data);
       const finish = () => { count++; json(200, { feedback: { feedback_id: TURN, turn_id: TURN, revision: count, ratings: data.ratings, reason_codes: [], has_correction: false, voice_generation_bound: false, created_at: now } }); };
       if (holdFeedback) { feedbackPending = finish; return; } return finish();
     }
@@ -98,7 +99,7 @@ try {
   // Same isolated headless test infrastructure as other repository UI evals.
   const { chromium } = await import("playwright"); browser = await chromium.launch({ headless: true });
   for (const width of [390, 1440]) {
-    count = 0; saved = null; posts = []; readCount = 0; mode = "normal"; holdRead = false; heldRead = null;
+    count = 0; saved = null; posts = []; feedbackPosts = []; readCount = 0; mode = "normal"; holdRead = false; heldRead = null;
     const page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: "reduce" });
     const errors = []; page.on("pageerror", e => errors.push(e.message));
     await page.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
@@ -112,11 +113,20 @@ try {
     await page.getByRole("button", { name: "Send", exact: true }).click();
     await page.getByRole("button", { name: "Teach a correction", exact: true }).click();
     assert.equal(await page.getByRole("button", { name: "Tune this", exact: true }).count(), 0);
-    await page.locator("fieldset").filter({ has: page.getByText("Wording", { exact: true }) }).getByRole("button", { name: "Exact", exact: true }).click();
+    const correction = "I would begin with one clear example.";
+    await page.getByPlaceholder("Write the version that sounds like you.", { exact: true }).fill(correction);
+    await page.locator(".feedback-aspects").getByRole("button", { name: "Wording", exact: true }).click();
+    assert.equal(await page.locator(".feedback-details").getAttribute("open"), null);
+    assert.equal(await page.getByRole("button", { name: "Off", exact: true }).count(), 0);
+    await page.screenshot({ path: join(artifactDir, `focused-correction-open-${width}.png`), fullPage: true });
     holdFeedback = true; const beforeFeedback = readCount;
-    await page.getByRole("button", { name: "Save evidence", exact: true }).click();
+    await page.getByRole("button", { name: "Save correction", exact: true }).click();
     await page.waitForFunction(() => document.querySelector(".feedback-actions .primary-button")?.disabled === true);
     assert.equal(readCount, beforeFeedback, "pending feedback does not refresh or claim saved evidence");
+    assert.deepEqual(feedbackPosts.at(-1)?.ratings, { wording: "off" });
+    assert.equal(feedbackPosts.at(-1)?.correction, correction);
+    assert.equal(feedbackPosts.at(-1)?.expected_revision, 0);
+    assert.equal(Object.hasOwn(feedbackPosts.at(-1)?.ratings || {}, "voice_identity"), false);
     assert(feedbackPending); feedbackPending(); feedbackPending = null; holdFeedback = false;
     await page.getByText("1 saved example across 1 conversation.", { exact: true }).waitFor();
     assert.equal(readCount, beforeFeedback + 1); checks.push(`${width}: correction intent opens the editor directly and persisted feedback refreshes current counts`);

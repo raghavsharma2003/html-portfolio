@@ -17286,6 +17286,24 @@
       "kind": "rejection",
       "title": "Taxonomy correction scope constrained",
       "at": "2026-09-09"
+    },
+    {
+      "id": "product175-correction-editor-polish",
+      "kind": "decision",
+      "title": "Correction editor polish",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "product175-correction-editor-controls",
+      "kind": "measurement",
+      "title": "Correction editor focused controls",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "product175-correction-editor-scope",
+      "kind": "rejection",
+      "title": "Correction editor scope constrained",
+      "at": "2026-09-09"
     }
   ],
   "edges": [
@@ -29716,6 +29734,16 @@
       "src": "caller-lease165-taxonomy-correction-intent",
       "rel": "caused_by",
       "dst": "caller-lease165-taxonomy-correction-scope"
+    },
+    {
+      "src": "product175-correction-editor-polish",
+      "rel": "measured_by",
+      "dst": "product175-correction-editor-controls"
+    },
+    {
+      "src": "product175-correction-editor-polish",
+      "rel": "caused_by",
+      "dst": "product175-correction-editor-scope"
     }
   ]
 }

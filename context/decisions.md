@@ -23849,3 +23849,7 @@ Integrate the approved final dialogue Unicode parity fixture and incidents calle
 ## caller-lease165-taxonomy-correction-intent (2026-09-09)
 
 Integrate the reviewed Room memory name taxonomy correction and Meet correction intent editor entry. Taxonomy wording remains telegraphic and grounded; correction intent opens the existing editor while preserving persisted feedback authority. Import only reviewed product and eval paths; exclude experimental combined auth. Root tuples: 09914e41 to api/_room-memory-authority.js and evals/room-memory-authority/run.mjs; 27afc8ac to src/studio/ExpertConversation.tsx, src/studio/TurnFeedback.tsx and evals/feedback-dataset-ui.mjs.
+
+## product175-correction-editor-polish (2026-09-09)
+
+Integrate the reviewed correction editor polish: correction intent opens the existing editor, persisted feedback remains authoritative, blank edits require explicit owner clear, and the focused layout remains usable at mobile and desktop widths. Import only the six reviewed product and eval files from e14ced1e; exclude experimental auth and author context graphs.

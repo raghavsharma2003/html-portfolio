@@ -17641,3 +17641,7 @@ Only the final two eval bytes were imported. Rejected transient parity fixtures 
 ## caller-lease165-taxonomy-correction-scope (2026-09-09)
 
 Only the reviewed taxonomy and correction intent product and eval files were imported. Experimental combined auth and foreign context graph edits remain excluded.
+
+## product175-correction-editor-scope (2026-09-09)
+
+Only reviewed correction product, CSS and eval paths were imported. Experimental combined auth and foreign context graph changes remain excluded.

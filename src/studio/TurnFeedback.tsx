@@ -17,6 +17,8 @@ const RATINGS: Array<{ value: TurnFeedbackRating; label: string }> = [
   { value: "off", label: "Off" },
 ];
 
+const CORRECTION_ASPECTS = ["wording", "behavior", "relationship", "memory"] as const;
+
 const REASONS = [
   ["too_generic", "Too generic", ["overall", "wording", "behavior", "relationship"]],
   ["wrong_fact", "Wrong fact", ["overall", "memory"]],
@@ -43,6 +45,7 @@ export default function TurnFeedback({
   onAuthError,
   onSaved,
   initialOpen = false,
+  focusedCorrection = false,
 }: {
   token: string;
   replicaId: string;
@@ -51,6 +54,7 @@ export default function TurnFeedback({
   onAuthError: (cause: unknown) => void;
   onSaved?: (feedback: ReplicaTurnFeedback) => void;
   initialOpen?: boolean;
+  focusedCorrection?: boolean;
 }) {
   const [open, setOpen] = useState(initialOpen);
   const editor = useTurnFeedbackEditor(token, replicaId, turnId, onAuthError, onSaved);
@@ -77,9 +81,39 @@ export default function TurnFeedback({
     setReasons((current) => current.includes(reason) ? current.filter((item) => item !== reason) : [...current, reason]);
   }
 
+  function toggleCorrectionAspect(dimension: (typeof CORRECTION_ASPECTS)[number]) {
+    setRatings((current) => {
+      if (["close", "off", "unsafe"].includes(current[dimension])) {
+        const next = { ...current };
+        delete next[dimension];
+        return next;
+      }
+      return { ...current, [dimension]: "off" };
+    });
+  }
+
   const hasMismatch = Object.values(ratings).some((rating) => rating === "close" || rating === "off" || rating === "unsafe");
   const correctionEligible = ["wording", "behavior", "relationship", "memory"].some((dimension) => ratings[dimension] === "close" || ratings[dimension] === "off" || ratings[dimension] === "unsafe");
   const visibleReasons = REASONS.filter((reason) => reasonApplies(reason, ratings));
+
+  const dimensionEditor = <div className="feedback-dimensions">
+    {DIMENSIONS.map(([dimension, label, description]) => {
+      const disabled = busy || (dimension === "voice_identity" && !voiceHeard);
+      return (
+        <fieldset key={dimension} disabled={disabled}>
+          <legend><span>{label}</span><small>{dimension === "voice_identity" && !voiceHeard ? "Play protected voice first" : description}</small></legend>
+          <div>{RATINGS.map((rating) => <button className={ratings[dimension] === rating.value ? "selected" : ""} type="button" key={rating.value} onClick={() => rate(dimension, rating.value)}>{rating.label}</button>)}</div>
+        </fieldset>
+      );
+    })}
+  </div>;
+
+  const reasonEditor = hasMismatch ? (
+    <div className="feedback-reasons">
+      <span>What missed?</span>
+      <div>{visibleReasons.map(([value, label]) => <button className={reasons.includes(value) ? "selected" : ""} type="button" key={value} onClick={() => toggleReason(value)}>{label}</button>)}</div>
+    </div>
+  ) : null;
 
   if (!ready) return <div className="turn-feedback" aria-busy={loading}>
     <p role={error ? "alert" : "status"}>{error || "Reading your saved correction..."}</p>
@@ -94,36 +128,43 @@ export default function TurnFeedback({
           <button type="button" disabled={busy || !ready} onClick={() => { setOpen(true); }}>Tune this</button>
         </div>
       ) : (
-        <form onSubmit={(event) => { event.preventDefault(); void persist(ratings); }}>
+        <form className={focusedCorrection ? "turn-feedback-focused" : undefined} onSubmit={(event) => { event.preventDefault(); void persist(ratings); }}>
           <div className="turn-feedback-title"><strong>Teach the difference</strong><button type="button" onClick={() => setOpen(false)}>Close</button></div>
-          <p>Grade only what you noticed. Unrated layers remain unknown.</p>
-          <div className="feedback-dimensions">
-            {DIMENSIONS.map(([dimension, label, description]) => {
-              const disabled = busy || (dimension === "voice_identity" && !voiceHeard);
-              return (
-                <fieldset key={dimension} disabled={disabled}>
-                  <legend><span>{label}</span><small>{dimension === "voice_identity" && !voiceHeard ? "Play protected voice first" : description}</small></legend>
-                  <div>{RATINGS.map((rating) => <button className={ratings[dimension] === rating.value ? "selected" : ""} type="button" key={rating.value} onClick={() => rate(dimension, rating.value)}>{rating.label}</button>)}</div>
-                </fieldset>
-              );
-            })}
-          </div>
-          {hasMismatch ? (
-            <div className="feedback-reasons">
-              <span>What missed?</span>
-              <div>{visibleReasons.map(([value, label]) => <button className={reasons.includes(value) ? "selected" : ""} type="button" key={value} onClick={() => toggleReason(value)}>{label}</button>)}</div>
-            </div>
-          ) : null}
-          {correctionEligible || saved?.has_correction ? (
+          {focusedCorrection ? <>
             <label className="feedback-correction">
-              <span>What would you actually say? <small>optional, encrypted before storage</small></span>
+              <span>What would you actually say? <small>Encrypted before storage</small></span>
               <textarea disabled={busy || clearCorrection} rows={2} maxLength={2_000} value={correction} onChange={(event) => setCorrection(event.target.value)} placeholder="Write the version that sounds like you." />
             </label>
-          ) : null}
+            <fieldset className="feedback-aspects">
+              <legend>What should change?</legend>
+              <p>Choose each part that feels off.</p>
+              <div>{CORRECTION_ASPECTS.map((dimension) => {
+                const selected = ["close", "off", "unsafe"].includes(ratings[dimension]);
+                const label = DIMENSIONS.find(([value]) => value === dimension)![1];
+                return <button key={dimension} type="button" aria-pressed={selected} className={selected ? "selected" : ""} disabled={busy} onClick={() => toggleCorrectionAspect(dimension)}>{label}</button>;
+              })}</div>
+            </fieldset>
+            <details className="feedback-details">
+              <summary>More feedback</summary>
+              <p>Grade only what you noticed. Unrated layers remain unknown.</p>
+              {dimensionEditor}
+              {reasonEditor}
+            </details>
+          </> : <>
+            <p>Grade only what you noticed. Unrated layers remain unknown.</p>
+            {dimensionEditor}
+            {reasonEditor}
+            {correctionEligible || saved?.has_correction ? (
+              <label className="feedback-correction">
+                <span>What would you actually say? <small>optional, encrypted before storage</small></span>
+                <textarea disabled={busy || clearCorrection} rows={2} maxLength={2_000} value={correction} onChange={(event) => setCorrection(event.target.value)} placeholder="Write the version that sounds like you." />
+              </label>
+            ) : null}
+          </>}
           {saved?.has_correction ? <label className="feedback-clear"><input type="checkbox" checked={clearCorrection} disabled={busy} onChange={event => setClearCorrection(event.target.checked)} />{"Remove saved wording from this revision"}</label> : null}
           <div className="feedback-actions">
-            <span>{Object.keys(ratings).length ? `${Object.keys(ratings).length} layer${Object.keys(ratings).length === 1 ? "" : "s"} rated` : "Choose at least one layer"}</span>
-            <button className="button primary-button" type="submit" disabled={busy || !Object.keys(ratings).length}>{busy ? "Securing..." : "Save evidence"}</button>
+            <span>{Object.keys(ratings).length ? focusedCorrection ? `${Object.keys(ratings).length} part${Object.keys(ratings).length === 1 ? "" : "s"} selected` : `${Object.keys(ratings).length} layer${Object.keys(ratings).length === 1 ? "" : "s"} rated` : focusedCorrection ? "Choose what should change" : "Choose at least one layer"}</span>
+            <button className="button primary-button" type="submit" disabled={busy || !Object.keys(ratings).length}>{busy ? "Securing..." : focusedCorrection ? "Save correction" : "Save evidence"}</button>
           </div>
         </form>
       )}

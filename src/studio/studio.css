@@ -2183,6 +2183,97 @@
   .feedback-correction { display: grid; gap: 7px; color: #536860; font-size: 9px; font-weight: 750; }
   .feedback-correction small { color: #85918b; font-weight: 500; }
   .feedback-correction textarea { width: 100%; resize: vertical; padding: 9px 10px; border: 1px solid rgba(50, 71, 63, 0.16); border-radius: 9px; color: #30473f; background: #fff; font: inherit; font-size: 11px; line-height: 1.5; }
+  .turn-feedback-focused .feedback-correction {
+    gap: 8px;
+    color: #304d43;
+    font-size: 13px;
+  }
+
+  .turn-feedback-focused .feedback-correction textarea {
+    min-height: 112px;
+    padding: 12px 13px;
+    font-size: 14px;
+  }
+
+  .feedback-aspects {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .feedback-aspects legend {
+    color: #304d43;
+    font-size: 13px;
+    font-weight: 750;
+  }
+
+  .feedback-aspects p,
+  .feedback-details > p {
+    margin: 4px 0 10px;
+    color: #65756e;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .feedback-aspects > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .feedback-aspects button {
+    min-height: 44px;
+    padding: 9px 12px;
+    border: 1px solid rgba(50, 79, 68, 0.18);
+    border-radius: 10px;
+    color: #3c554c;
+    background: #fff;
+    font: inherit;
+    font-size: 13px;
+  }
+
+  .feedback-aspects button.selected {
+    border-color: #285e4b;
+    color: #fff;
+    background: #285e4b;
+  }
+
+  .feedback-details {
+    border-top: 1px solid rgba(50, 79, 68, 0.12);
+  }
+
+  .feedback-details summary {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    color: #3f6859;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .feedback-details[open] summary {
+    margin-bottom: 2px;
+  }
+
+  .feedback-details .feedback-dimensions,
+  .feedback-details .feedback-reasons {
+    margin-top: 10px;
+  }
+
+  .turn-feedback-focused .feedback-actions {
+    font-size: 13px;
+  }
+
+  .expert-conversation .turn-feedback-focused .feedback-actions .button {
+    min-height: 44px;
+    border-color: #285e4b;
+    color: #fff;
+    background: #285e4b;
+    font-size: 13px;
+  }
+
   .feedback-actions { display: flex; justify-content: space-between; gap: 12px; align-items: center; color: #7e8983; font-size: 9px; }
   .dialogue-replica .feedback-actions .button { min-height: 34px; padding: 8px 12px; border: 1px solid #285e4b; color: #fff; background: #285e4b; font-size: 9px; }
   .dialogue-replica .feedback-actions .button:disabled { border-color: #aeb8b3; color: #f4f5f4; background: #aeb8b3; cursor: not-allowed; }
