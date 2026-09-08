@@ -704,6 +704,15 @@ export function compileReplicaRuntimeCore(profileDefinition, calibrationDefiniti
     addLine("Values:");
     for (const value of values) addLine(`- ${value}`);
   }
+  const knowledge = Array.isArray(d.knowledge) ? d.knowledge.slice(0, 12) : [];
+  if (knowledge.length) {
+    addLine("Approved subject knowledge (owner-reviewed and evidence-backed; do not extend beyond it):");
+    for (const item of knowledge) {
+      const record = parsed(item);
+      const statement = cleanText(record.statement, 501);
+      if (statement && statement.length <= 500) addLine(`knowledge.${cleanText(record.key || "fact", 80)}: ${statement}`);
+    }
+  }
   const autobiography = Array.isArray(d.autobiography) ? d.autobiography.slice(0, 12) : [];
   if (autobiography.length) {
     addLine("Approved autobiography (evidence-backed summaries; never extend beyond them):");

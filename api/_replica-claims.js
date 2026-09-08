@@ -30,7 +30,7 @@ select e.evidence_id,e.source_id,e.span_start_ms,e.span_end_ms,e.confidence,
      join vy_replica_claim_extraction xr
        on xr.run_id=xi.run_id and xr.replica_id=xi.replica_id and xr.owner_user_id=xi.owner_user_id
       where xi.evidence_id=e.evidence_id and xi.replica_id=e.replica_id
-        and xi.owner_user_id=e.owner_user_id and xr.state='complete'
+        and xi.owner_user_id=e.owner_user_id and xr.schema_version=$3 and xr.state='complete'
    )
    and exists (
      select 1 from vy_replica_processing_evidence speaker
@@ -95,7 +95,7 @@ async function extractionState(db, ownerUserId, id) {
   const rid = replicaId(id);
   const [ownedRows, transcripts, runs, queueRows] = await Promise.all([
     db(OWNED_EXTRACTION_SQL, [rid, ownerUserId, REPLICA_POLICY_VERSION]),
-    db(ELIGIBLE_TRANSCRIPTS_SQL, [rid, ownerUserId]),
+    db(ELIGIBLE_TRANSCRIPTS_SQL, [rid, ownerUserId, CLAIM_EXTRACTION_SCHEMA]),
     db(`select x.run_id,x.state,x.proposed_count,x.rejected_count,x.attempt,x.failure_code,x.created_at,x.completed_at
           from vy_replica_claim_extraction x join vy_replica r on r.replica_id=x.replica_id and r.owner_user_id=$2::uuid
          where x.replica_id=$1::uuid and x.owner_user_id=$2::uuid order by x.created_at desc limit 20`, [rid, ownerUserId]),

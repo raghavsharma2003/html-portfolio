@@ -55,12 +55,13 @@ const claims = [
   claim(12, "biography", "childhood_city", "Grew up in Pune"),
   claim(13, "identity", "home", "Pune"),
   claim(14, "identity", "culture", "Maharashtrian"),
+  claim(15, "knowledge", "chemistry_sn1_rate_law", "For an SN1 reaction, rate depends only on substrate concentration."),
 ];
 
 const ready = personModelReadiness(claims);
 ok("typed identity, language, behavior and boundary evidence is build-ready", ready.ready && ready.accepted_claims === claims.length);
 ok("a missing boundary fails closed", personModelReadiness(claims.filter((row) => row.domain !== "boundary")).blockers.includes("boundary_evidence_required"));
-const conflict = [...claims, claim(15, "identity", "self_name", "Someone else", { confidence: 0.99 })];
+const conflict = [...claims, claim(16, "identity", "self_name", "Someone else", { confidence: 0.99 })];
 ok("critical identity disagreement is preserved as a blocker", personModelReadiness(conflict).conflicts.includes("identity:self_name"));
 
 const definition = buildPersonModelDefinition(claims);
@@ -69,6 +70,17 @@ ok("language and behavioral style remain separate layers", definition.speech.lan
 ok("values, boundaries and autobiography remain separate", definition.values.length === 1 && definition.boundaries.length === 1 && definition.autobiography[0].kind === "biography");
 const runtimeCore = compileReplicaRuntimeCore(definition, {});
 ok("accepted home and culture identity claims reach the private reply core", /Home: Pune/.test(runtimeCore) && /Culture: Maharashtrian/.test(runtimeCore));
+ok("accepted cited subject knowledge reaches the private reply core without becoming autobiography", definition.knowledge[0].key === "chemistry_sn1_rate_law" && /knowledge\.chemistry_sn1_rate_law: For an SN1 reaction/.test(runtimeCore) && !definition.autobiography.some((item) => item.claim_id === "15"));
+const qualifiedKnowledge = "The reaction-rate comparison uses substrate concentration, solvent composition, temperature and the measured rate constant; the comparison assumes the same apparatus, sampling procedure, substrate purity and mixing method across both experimental runs, with all observations recorded before interpreting the result, but only while the mechanism remains SN1.";
+assert.ok(qualifiedKnowledge.length > 300 && qualifiedKnowledge.length <= 500);
+const qualifiedDefinition = buildPersonModelDefinition([...claims, claim(17, "knowledge", "rate_comparison", qualifiedKnowledge)]);
+ok("reviewed knowledge retains its complete trailing condition through profile and runtime", qualifiedDefinition.knowledge.find(item => item.key === "rate_comparison").statement === qualifiedKnowledge && compileReplicaRuntimeCore(qualifiedDefinition, {}).includes(qualifiedKnowledge));
+const oversizedKnowledge = qualifiedKnowledge + " Further conditions apply.".repeat(10);
+const oversizedDefinition = buildPersonModelDefinition([...claims, claim(18, "knowledge", "oversized_condition", oversizedKnowledge)]);
+ok("over-budget knowledge is omitted whole instead of presenting an approved prefix", !oversizedDefinition.knowledge.some(item => item.key === "oversized_condition") && !compileReplicaRuntimeCore({ knowledge: [{ key: "oversized_condition", statement: oversizedKnowledge }] }, {}).includes("knowledge.oversized_condition:"));
+ok("knowledge still requires accepted current claims", !buildPersonModelDefinition([...claims.filter(item => item.domain !== "knowledge"), claim(19, "knowledge", "pending_fact", "Pending chemistry statement", { decision: null, status: "proposed" }), claim(20, "knowledge", "expired_fact", "Expired chemistry statement", { t_valid_to: "2020-01-01T00:00:00Z" })]).knowledge.length);
+const cappedCore = compileReplicaRuntimeCore({ knowledge: Array.from({ length: 13 }, (_, i) => ({ key: `item_${i}`, statement: `Complete fact ${i}.` })) }, {});
+ok("static private knowledge remains capped at twelve whole statements", (cappedCore.match(/knowledge\.item_/g) || []).length === 12 && !cappedCore.includes("knowledge.item_12:"));
 ok("definition provenance carries claim ids but no source ids", definition.provenance.claims.length === claims.length && !/source_ids|provider_ref|object_path|raw_transcript/.test(JSON.stringify(definition)));
 ok("same accepted evidence has a stable source commitment", personModelSourceHash(claims) === personModelSourceHash([...claims].reverse()));
 ok("changing claim content changes the source commitment", personModelSourceHash(claims) !== personModelSourceHash(claims.map((row) => row.claim_id === "8" ? { ...row, body: "Different humor" } : row)));

@@ -23816,3 +23816,7 @@ Integrate the reviewed Room memory authority implementation, consolidation fenci
 ## memory-authority159-identity-context-successor (2026-09-08)
 
 Integrate the bounded identity context successor so approved Home and Culture claims reach the compiled private reply core, with 160-character scalar limits and existing provenance. Import only the runtime source and two focused evals from ddc56dd; exclude its context records. Reverse if the bounded fields leak source identifiers or bypass approval.
+
+## knowledge160-owner-reviewed-subject-knowledge (2026-09-08)
+
+Integrate the reviewed subject-knowledge path so accepted owner-reviewed claims flow through the Person Model into the private prompt, retaining each complete statement under the 500-character whole-statement budget and omitting oversized statements whole. Keep the static first-twelve cap and no RAG path. Migration 160 is source-only and required before deployment. Root import tuples: 181c8f -> api/_claim-extraction/contracts.js, api/_person-model.js, api/_replica-claims.js, api/_replica-runtime.js, db/migrations/160_replica_knowledge_domain.sql, db/schema.sql, evals/person-model/run.mjs, evals/replica-claim-extraction/run.mjs, evals/replica-dialogue/run.mjs; 6564084 -> api/_person-model.js, api/_replica-runtime.js, evals/person-model/run.mjs.

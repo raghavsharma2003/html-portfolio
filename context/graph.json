@@ -17142,6 +17142,24 @@
       "kind": "rejection",
       "title": "Identity context scope constrained",
       "at": "2026-09-08"
+    },
+    {
+      "id": "knowledge160-owner-reviewed-subject-knowledge",
+      "kind": "decision",
+      "title": "Owner-reviewed subject knowledge integration",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "knowledge160-focused-controls",
+      "kind": "measurement",
+      "title": "Subject knowledge focused controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "knowledge160-context-excluded",
+      "kind": "rejection",
+      "title": "Knowledge foreign context excluded",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29502,6 +29520,16 @@
       "src": "memory-authority159-identity-context-successor",
       "rel": "caused_by",
       "dst": "memory-authority159-identity-context-scope"
+    },
+    {
+      "src": "knowledge160-owner-reviewed-subject-knowledge",
+      "rel": "measured_by",
+      "dst": "knowledge160-focused-controls"
+    },
+    {
+      "src": "knowledge160-owner-reviewed-subject-knowledge",
+      "rel": "caused_by",
+      "dst": "knowledge160-context-excluded"
     }
   ]
 }

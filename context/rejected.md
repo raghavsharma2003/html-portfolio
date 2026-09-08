@@ -17608,3 +17608,7 @@ The three reviewed memory commits' context graph and narrative records were excl
 ## memory-authority159-identity-context-scope (2026-09-08)
 
 The identity successor was limited to pi/_replica-runtime.js and its two existing eval paths. Foreign context graph and narrative edits were excluded, and no broader runtime rewrite was attempted.
+
+## knowledge160-context-excluded (2026-09-08)
+
+The reviewed knowledge commits' context graphs and narrative records were excluded. Only product, eval and migration/schema paths were imported. Deployment remains dependent on applying migration 160; the memory writer remains disabled pending its separate proof.

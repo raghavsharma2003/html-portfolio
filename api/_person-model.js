@@ -223,6 +223,14 @@ export function buildPersonModelDefinition(claims, now = Date.now(), options = {
     valid_from: row.t_valid_from || null,
     valid_to: row.t_valid_to || null,
   }));
+  const knowledge = accepted.filter((row) => row.domain === "knowledge").map((row) => ({
+    claim_id: String(row.claim_id),
+    key: clean(row.key, 80),
+    // Extraction accepts 500 characters. Never remove an approved qualifier
+    // to fit a shorter prompt field; over-budget records are omitted whole.
+    statement: clean(row.body, 501),
+    confidence: number(row.confidence),
+  })).filter((row) => row.statement && row.statement.length <= 500);
   const definition = {
     schema: PERSON_MODEL_SCHEMA,
     identity: {
@@ -251,6 +259,7 @@ export function buildPersonModelDefinition(claims, now = Date.now(), options = {
     values: [...new Set(values)].slice(0, 24),
     boundaries: [...new Set(boundaries)].slice(0, 24),
     autobiography: autobiography.slice(0, 200),
+    knowledge: knowledge.slice(0, 24),
     relationship_modes: accepted.filter((row) => row.domain === "relationship" && row.key !== "repair").map((row) => ({
       claim_id: String(row.claim_id), key: row.key, description: clean(row.body, 300), confidence: number(row.confidence),
     })).slice(0, 60),

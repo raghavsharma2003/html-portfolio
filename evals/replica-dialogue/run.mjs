@@ -85,7 +85,7 @@ function contextRow() {
     agent_status: "active", capability_id: CAP, capability_state: "active", runtime_policy: "replica-runtime-v1", qualification_hash: "a".repeat(64),
     voice_profile_id: VOICE, genome_version: 3, profile_version: 7, calibration_version: 2,
     provider: "real-voice", provider_ref: "private-provider-ref", model: "voice-v1", voice_status: "ready", capabilities: {}, genome_status: "approved",
-    profile_status: "approved", profile_definition: { identity: { self_name: "Asha", home: "Pune", culture: "Maharashtrian" }, speech: { languages: ["Hinglish"] }, behavior: { turn_shape: "brief" } },
+    profile_status: "approved", profile_definition: { identity: { self_name: "Asha", home: "Pune", culture: "Maharashtrian" }, speech: { languages: ["Hinglish"] }, behavior: { turn_shape: "brief" }, knowledge: [{ claim_id: "15", key: "chemistry_sn1_rate_law", statement: "For an SN1 reaction, rate depends only on substrate concentration.", confidence: 0.96 }] },
     calibration_status: "approved", calibration_definition: { schema: "vyakti.calibration.v1", builder: "calibration-builder/v1", strategies: [] },
     consent_id: CONSENT, consent_scope: "inference", consent_policy: REPLICA_POLICY_VERSION, consent_expires_at: "2027-08-24T00:00:00.000Z",
   };
@@ -118,7 +118,7 @@ const db = async (sql, params) => {
 };
 const turn = await generateOwnedDialogue(db, OWNER, { replica_id: RID, channel: "private_chat", message: "Aaj plan badal gaya", trace_id: "trace_dialogue_001" }, fakeGenerator);
 ok("active self replica produces an owner-visible reply and opaque turn handles", turn.turn_id === TURN && turn.session_id === SESSION && turn.reply === output.reply && turn.can_voice === true);
-ok("provider sees compiled Person Model identity context and isolated relationship context but no tenancy or voice secrets", /Self-name: Asha/.test(generatorPrompt.messages[0].content) && /Home: Pune/.test(generatorPrompt.messages[0].content) && /Culture: Maharashtrian/.test(generatorPrompt.messages[0].content) && /trust: 0.8/.test(generatorPrompt.messages[0].content) && !JSON.stringify(generatorPrompt).includes(OWNER) && !JSON.stringify(generatorPrompt).includes("private-provider-ref"));
+ok("provider sees approved identity and subject knowledge with relationship context but no tenancy or voice secrets", /Self-name: Asha/.test(generatorPrompt.messages[0].content) && /Home: Pune/.test(generatorPrompt.messages[0].content) && /Culture: Maharashtrian/.test(generatorPrompt.messages[0].content) && /knowledge\.chemistry_sn1_rate_law: For an SN1 reaction/.test(generatorPrompt.messages[0].content) && /trust: 0.8/.test(generatorPrompt.messages[0].content) && !JSON.stringify(generatorPrompt).includes(OWNER) && !JSON.stringify(generatorPrompt).includes("private-provider-ref"));
 const firstGeneratorPrompt=generatorPrompt;
 const priorQuestion="My pendulum lesson uses a string example",priorReply="We discussed that lesson";
 const sha=value=>createHash('sha256').update(value).digest('hex');

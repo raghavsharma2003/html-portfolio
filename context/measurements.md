@@ -17605,3 +17605,7 @@ Focused measurement: Room authority n=20 controls passed; raw isolation n=52 che
 ## memory-authority159-identity-context-controls (2026-09-08)
 
 Focused measurement: Person Model n=44 checks passed; replica dialogue n=33 checks passed; TypeScript build passed. No DB, provider, cloud or full release checks.
+
+## knowledge160-focused-controls (2026-09-08)
+
+Focused measurement: claim extraction n=43 checks passed; Person Model n=49 checks passed; replica dialogue n=33 checks passed; copy gate passed; TypeScript build passed. Blank ignored config contained no values. No DB, provider, cloud or full-release checks.

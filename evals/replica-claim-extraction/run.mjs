@@ -25,7 +25,7 @@ const OWNER = "20000000-0000-4000-8000-000000000002";
 const EVIDENCE = "30000000-0000-4000-8000-000000000003";
 const SOURCE = "40000000-0000-4000-8000-000000000004";
 const RUN = "50000000-0000-4000-8000-000000000005";
-const text = "My name is Asha. I prefer short answers. Email asha@example.com and call +91 98765 43210.";
+const text = "My name is Asha. I prefer short answers. In an SN1 reaction, the rate depends only on substrate concentration. Email asha@example.com and call +91 98765 43210.";
 let checks = 0;
 
 function ok(name, value) {
@@ -61,6 +61,7 @@ ok("strict output schema refuses extra top-level properties", CLAIM_EXTRACTION_J
 
 const quote = "My name is Asha";
 const shortQuote = "I prefer short answers";
+const knowledgeQuote = "In an SN1 reaction, the rate depends only on substrate concentration";
 const rawOutput = {
   claims: [
     {
@@ -72,6 +73,11 @@ const rawOutput = {
       domain: "delivery", key: "turn_shape", body: "Prefers short answers", origin: "observed", confidence: 0.94, sensitive: false,
       valid_from: null, valid_to: null,
       citations: [{ evidence_id: EVIDENCE, start_char: redacted.text.indexOf(shortQuote), end_char: redacted.text.indexOf(shortQuote) + shortQuote.length, quote: shortQuote, entailment: 0.92 }],
+    },
+    {
+      domain: "knowledge", key: "chemistry_sn1_rate_law", body: "For an SN1 reaction, rate depends only on substrate concentration.", origin: "observed", confidence: 0.94, sensitive: false,
+      valid_from: null, valid_to: null,
+      citations: [{ evidence_id: EVIDENCE, start_char: redacted.text.indexOf(knowledgeQuote), end_char: redacted.text.indexOf(knowledgeQuote) + knowledgeQuote.length, quote: knowledgeQuote, entailment: 0.96 }],
     },
     {
       domain: "identity", key: "email", body: "asha@example.com", origin: "inferred", confidence: 0.9, sensitive: true,
@@ -86,7 +92,7 @@ const rawOutput = {
   ],
 };
 const validated = validateExtractionOutput(rawOutput, batch);
-ok("only safe evidence-entailed proposals survive validation", validated.proposals.length === 2 && validated.rejected.includes("direct_identifier_claim_blocked") && validated.rejected.includes("protected_trait_inference_blocked"));
+ok("safe identity, style and subject-knowledge proposals survive validation", validated.proposals.length === 3 && validated.proposals.some((proposal) => proposal.domain === "knowledge") && validated.rejected.includes("direct_identifier_claim_blocked") && validated.rejected.includes("protected_trait_inference_blocked"));
 ok("unique exact quote repairs model offsets without weakening citation", validated.proposals.some((proposal) => proposal.citations[0].start_char === redacted.text.indexOf(quote)));
 ok("claim confidence cannot exceed evidence or citation confidence", validated.proposals.every((proposal) => proposal.confidence <= 0.91));
 ok("citation persistence carries hashes and source ids but no quote", validated.proposals.every((proposal) => proposal.citations.every((citation) => citation.quote_hash && !Object.hasOwn(citation, "quote"))));
@@ -196,6 +202,7 @@ const status = await ownedClaimExtractionStatus(async (sql, params) => {
 }, OWNER, RID);
 ok("status exposes counts and blockers without transcript content", status.readiness.ready && status.readiness.eligible_spans === 1 && status.nearline.state === "ready_for_manual_extraction" && !JSON.stringify(status).includes("Asha"));
 ok("eligible transcripts require accepted target-speaker overlap and reject declared third parties or test adapters", /d\.decision='accepted'/i.test(ELIGIBLE_TRANSCRIPTS_SQL) && /s\.contains_third_parties=false/i.test(ELIGIBLE_TRANSCRIPTS_SQL) && /!~ '\(fake\|fixture\|test\|mock\)'/i.test(ELIGIBLE_TRANSCRIPTS_SQL));
+ok("completed older extraction schemas remain eligible for the knowledge-capable extractor", /xr\.schema_version=\$3/i.test(ELIGIBLE_TRANSCRIPTS_SQL) && CLAIM_EXTRACTION_SCHEMA === "vyakti.claim-extraction.v2");
 ok("all extraction status reads remain owner-bound", statusCalls.every((call) => call.params[0] === RID && call.params[1] === OWNER));
 
 const serviceCalls = [];
@@ -206,7 +213,7 @@ const fakeExtractor = {
 };
 const completed = await extractOwnedClaims(async (sql, params) => {
   serviceCalls.push({ sql, params });
-  if (/jsonb_to_recordset/i.test(sql)) return [{ run_id: RUN, state: "complete", proposed_count: 2, rejected_count: 2, attempt: 1, created_at: "2026-08-24T00:00:00.000Z", completed_at: "2026-08-24T00:00:01.000Z" }];
+  if (/jsonb_to_recordset/i.test(sql)) return [{ run_id: RUN, state: "complete", proposed_count: 3, rejected_count: 2, attempt: 1, created_at: "2026-08-24T00:00:00.000Z", completed_at: "2026-08-24T00:00:01.000Z" }];
   if (/insert into vy_replica_claim_extraction/i.test(sql)) return [{ run_id: RUN, state: "extracting", acquired: true, proposed_count: 0, rejected_count: 0, attempt: 1, created_at: "2026-08-24T00:00:00.000Z", completed_at: null }];
   if (/select r\.replica_id,r\.lifecycle/i.test(sql)) return [owned()];
   if (/latest_speaker_decision/i.test(sql)) return [transcript()];
@@ -214,7 +221,7 @@ const completed = await extractOwnedClaims(async (sql, params) => {
   if (/from vy_replica_claim_extraction_queue q/i.test(sql)) return [];
   throw new Error(`unexpected extraction SQL ${sql.slice(0, 80)}`);
 }, OWNER, RID, fakeExtractor);
-ok("extraction completes with proposals still pending owner review", completed.state === "complete" && completed.proposed_count === 2);
+ok("extraction completes with subject knowledge still pending owner review", completed.state === "complete" && completed.proposed_count === 3);
 ok("provider receives redacted spans and no owner or source id", providerBatch.spans[0].redactions === 2 && !providerBatch.spans[0].text.includes("example.com") && !JSON.stringify(providerBatch.spans.map(({ source_id: _, ...span }) => span)).includes(OWNER));
 const persistCall = serviceCalls.find((call) => /jsonb_to_recordset/i.test(call.sql));
 ok("persistence inserts proposed claims and exact citation lineage atomically", /'proposed'/.test(persistCall.sql) && /insert into vy_replica_claim_citation/i.test(persistCall.sql) && /state='complete'/i.test(persistCall.sql));
@@ -270,6 +277,8 @@ ok("missing training consent prevents any provider call", providerCalled === fal
 const migration = readFileSync(join(ROOT, "db/migrations/026_claim_extraction.sql"), "utf8");
 ok("claim extraction migration remains one-statement-runner safe", splitSql(migration).length === 9);
 ok("citation lineage is composite owner claim evidence and source bound", /foreign key \(claim_id,replica_id,owner_user_id\)/i.test(migration) && /foreign key \(evidence_id,replica_id,owner_user_id\)/i.test(migration) && /foreign key \(source_id,replica_id,owner_user_id\)/i.test(migration));
+const knowledgeMigration = readFileSync(join(ROOT, "db/migrations/160_replica_knowledge_domain.sql"), "utf8");
+ok("knowledge domain migration is one statement and preserves every prior claim domain", splitSql(knowledgeMigration).length === 1 && /'preference','knowledge',[\s\r\n]*'value'/.test(knowledgeMigration) && /'delivery','visual'/.test(knowledgeMigration));
 const route = readFileSync(join(ROOT, "api/replica-claims.js"), "utf8");
 ok("production route derives bearer ownership and has no fake override", /const user = await requireUser\(req\)/.test(route) && /createProductionClaimExtractor\(\)/.test(route) && !/allowFake|testOnly/.test(route));
 

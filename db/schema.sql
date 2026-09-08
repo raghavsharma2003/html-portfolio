@@ -2138,7 +2138,7 @@ create table if not exists vy_replica_claim (
   domain         text not null
                  check (domain in (
                    'identity','biography','event','relationship','preference',
-                   'value','boundary','habit','language','delivery','visual'
+                   'knowledge','value','boundary','habit','language','delivery','visual'
                  )),
   key            text not null,
   body           text not null,
