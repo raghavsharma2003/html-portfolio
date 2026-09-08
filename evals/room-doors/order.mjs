@@ -356,6 +356,19 @@ function makeOrderDb(state) {
     }
 
     // ── roomForgetForFollower / roomForgetCore. ───────────────────────────
+    // Migration 159 revokes Room memory before the destructive pass and its
+    // trigger advances memory_epoch. Keep this order battery's tiny store
+    // faithful to that authority step so the real forget core can proceed.
+    if (has("update vy_room_follower set memory_consent_at=null")) {
+      const [roomId, personId, agentId] = params.map(String);
+      const follower = state.followers.find((f) => f.room_id === roomId && f.person_id === personId && f.agent_id === agentId);
+      if (!follower) return [];
+      follower.memory_epoch = Number(follower.memory_epoch ?? 0) + 1;
+      return [{ follower_id: follower.follower_id }];
+    }
+    if (has("with target as materialized") && has("as vy_episode")) {
+      return [{ vy_fact: 0, vy_observation: 0, vy_episode: 0 }];
+    }
     if (has("select t.thread_id from vy_room_thread")) {
       const [roomId, personId, agentId] = params.map(String);
       return state.threads
@@ -532,7 +545,7 @@ function seedRoom(state) {
 }
 
 function seedFollower(state, { followerId, personId, tier = "free", locale = "en" }) {
-  state.followers.push({ follower_id: followerId, room_id: ROOM_ID, person_id: personId, agent_id: AGENT_ID, tier, locale });
+  state.followers.push({ follower_id: followerId, room_id: ROOM_ID, person_id: personId, agent_id: AGENT_ID, tier, locale, memory_epoch: 0, memory_consent_at: "2026-09-01T00:00:00.000Z" });
 }
 
 function seedSubscription(state, {
@@ -880,7 +893,11 @@ async function scenarioForgetVsCharge() {
   // assumed-fixed-at-two`) — the scheduler's own "skip once an actor
   // finishes" design (see `makeConductor` above) makes the padding free
   // when the shorter branch is the one that actually runs.
-  const orders = enumerateMerges({ FORGET: 6, CHARGE: 3 });
+  // Migration 159 adds two real authority statements before the existing
+  // child-before-parent pass: consent withdrawal and scoped memory forget.
+  // Keep the padding at the actual maximum call count so the conductor can
+  // enumerate every meaningful interleaving without timing out a valid run.
+  const orders = enumerateMerges({ FORGET: 8, CHARGE: 3 });
   ordersEnumerated += orders.length;
   let allClean = true;
   let sampleFail = null;

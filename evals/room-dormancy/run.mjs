@@ -36,6 +36,7 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isQuietHoursOk } from "../../api/_quiet-hours.js";
+import { ROOM_MEMORY_REVOKE_SQL } from "../../api/_room-memory-authority.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -84,27 +85,27 @@ function freshState() {
     followers: [
       {
         follower_id: "f0000000-0000-4000-8000-000000000001", room_id: ROOM_A, person_id: PERSON_DUE_NOTICE,
-        agent_id: AGENT_ID, locale: "en", age_attested_at: isoBefore(500),
+        agent_id: AGENT_ID, locale: "en", memory_epoch: 0, memory_consent_at: isoBefore(1), age_attested_at: isoBefore(500),
         last_seen_at: isoBefore(340), dormancy_notice_at: null,
       },
       {
         follower_id: "f0000000-0000-4000-8000-000000000002", room_id: ROOM_A, person_id: PERSON_NOT_YET,
-        agent_id: AGENT_ID, locale: "en", age_attested_at: isoBefore(500),
+        agent_id: AGENT_ID, locale: "en", memory_epoch: 0, memory_consent_at: isoBefore(1), age_attested_at: isoBefore(500),
         last_seen_at: isoBefore(300), dormancy_notice_at: null,
       },
       {
         follower_id: "f0000000-0000-4000-8000-000000000003", room_id: ROOM_B, person_id: PERSON_OFF_ROOM,
-        agent_id: AGENT_ID, locale: "en", age_attested_at: isoBefore(500),
+        agent_id: AGENT_ID, locale: "en", memory_epoch: 0, memory_consent_at: isoBefore(1), age_attested_at: isoBefore(500),
         last_seen_at: isoBefore(999), dormancy_notice_at: null,
       },
       {
         follower_id: "f0000000-0000-4000-8000-000000000004", room_id: ROOM_A, person_id: PERSON_DUE_FORGET,
-        agent_id: AGENT_ID, locale: "hi", age_attested_at: isoBefore(600),
+        agent_id: AGENT_ID, locale: "hi", memory_epoch: 0, memory_consent_at: isoBefore(1), age_attested_at: isoBefore(600),
         last_seen_at: isoBefore(400), dormancy_notice_at: isoBefore(31),
       },
       {
         follower_id: "f0000000-0000-4000-8000-000000000005", room_id: ROOM_A, person_id: PERSON_VISITED_SINCE,
-        agent_id: AGENT_ID, locale: "en", age_attested_at: isoBefore(600),
+        agent_id: AGENT_ID, locale: "en", memory_epoch: 0, memory_consent_at: isoBefore(1), age_attested_at: isoBefore(600),
         // noticed 31 days ago, but visited (last_seen_at advanced) 10 days ago -
         // AFTER the notice. Negative control (b)'s own fixture row.
         last_seen_at: isoBefore(10), dormancy_notice_at: isoBefore(31),
@@ -118,7 +119,7 @@ function freshState() {
         // section 1 (ROOM_B has no policy, so it is never noticed either,
         // the identical reason PERSON_OFF_ROOM above is never noticed).
         follower_id: "f0000000-0000-4000-8000-000000000006", room_id: ROOM_B, person_id: PERSON_NO_NOTICE_YET,
-        agent_id: AGENT_ID, locale: "en", age_attested_at: isoBefore(500),
+        agent_id: AGENT_ID, locale: "en", memory_epoch: 0, memory_consent_at: isoBefore(1), age_attested_at: isoBefore(500),
         last_seen_at: isoBefore(400), dormancy_notice_at: null,
       },
     ],
@@ -194,6 +195,17 @@ function fakeDb(state) {
     if (has("select t.thread_id from vy_room_thread")) return [];
     if (has("delete from vy_room_thread")) return [];
     if (has("insert into meera_consent")) return [];
+    if (has("update vy_room_follower set memory_consent_at=null")) {
+      const [roomId, personId, agentId] = p;
+      const follower = state.followers.find((f) => f.room_id === roomId && f.person_id === personId && f.agent_id === agentId);
+      if (!follower) return [];
+      follower.memory_consent_at = null;
+      follower.memory_epoch = Number(follower.memory_epoch ?? 0) + 1;
+      return [{ follower_id: follower.follower_id }];
+    }
+    if (has("with target as materialized") && has("as vy_episode")) {
+      return [{ vy_fact: 0, vy_observation: 0, vy_episode: 0 }];
+    }
 
     // ── the notice loop's own channel lookups (api/_dormancy.js) — no
     //    push subscription and no Telegram pointer seeded, so neither
@@ -220,6 +232,21 @@ function fakeDb(state) {
 }
 
 const DEPS = { tableApplied: async (name) => name === "vy_room_forget_receipt", personTables: async () => [] };
+
+// Migration 159's BEFORE UPDATE OF trigger increments memory_epoch even when
+// the stored consent value is already null; the SQL still performs an UPDATE.
+{
+  const state = freshState();
+  const target = state.followers.find((f) => f.person_id === PERSON_DUE_FORGET);
+  const before = target.memory_epoch;
+  const revoke = fakeDb(state);
+  const rows = await revoke(ROOM_MEMORY_REVOKE_SQL, [target.room_id, target.person_id, target.agent_id]);
+  const after = target.memory_epoch;
+  const repeated = await revoke(ROOM_MEMORY_REVOKE_SQL, [target.room_id, target.person_id, target.agent_id]);
+  ok("consent withdrawal clears consent and advances the follower epoch", rows.length === 1 && after === before + 1 && target.memory_consent_at === null);
+  ok("a stale pre-withdrawal epoch is no longer current", after !== before);
+  ok("repeated consent withdrawal follows the trigger", repeated.length === 1 && target.memory_epoch === after + 1 && target.memory_consent_at === null);
+}
 
 // ═════════════════════════════════════════════════════════════════════════
 console.log("── §1: dormancyNoticeDue — the window, the null-notice gate ──");

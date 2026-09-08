@@ -370,6 +370,12 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   const ALLOWED = new Set([
     "_room-surface.js", "_room.js", "_replica-full-erasure.js", "memory.js", "_checkins.js", "_room-whatsapp.js",
     "_renewals.js", "_dormancy.js", "_room-whatsapp-chat.js", "_room-export-readable.js", "_room-month-note.js",
+    // WS-R159: the memory authority and its cron caller read follower rows
+    // only through the epoch, replica, Room, consent and lifecycle predicates
+    // in _room-memory-authority.js. They are private follower-memory lanes,
+    // not creator-facing readers; keeping both in this explicit set prevents
+    // the scanner from treating the new authority wire as an accidental leak.
+    "_room-memory-authority.js", "consolidate-sweep.js",
   ]);
   // WS-R7's creator lane reads `vy_room_follower` for the owner's stats, and
   // WS-R12's reads it and `vy_room_follower_day` for the week-six retention
@@ -2012,10 +2018,10 @@ console.log("\n── layer 12: dormancy (a forget in one Room touches no other)
     followers: [
       // Room A: noticed 40 days ago, no visit since - due to be forgotten.
       { follower_id: "aa110000-0000-4000-8000-000000000001", room_id: ROOM_A11, person_id: PERSON_A11,
-        agent_id: AGENT_A11, locale: "en", age_attested_at: iso(500), last_seen_at: iso(500), dormancy_notice_at: iso(40) },
+        agent_id: AGENT_A11, locale: "en", memory_epoch: 0, memory_consent_at: iso(1), age_attested_at: iso(500), last_seen_at: iso(500), dormancy_notice_at: iso(40) },
       // Room B: also has a policy, but visited YESTERDAY - nowhere near due.
       { follower_id: "bb220000-0000-4000-8000-000000000001", room_id: ROOM_B11, person_id: PERSON_B11,
-        agent_id: AGENT_B11, locale: "en", age_attested_at: iso(500), last_seen_at: iso(1), dormancy_notice_at: null },
+        agent_id: AGENT_B11, locale: "en", memory_epoch: 0, memory_consent_at: iso(1), age_attested_at: iso(500), last_seen_at: iso(1), dormancy_notice_at: null },
     ],
     receipts: [],
   };
@@ -2045,6 +2051,19 @@ console.log("\n── layer 12: dormancy (a forget in one Room touches no other)
           && new Date(f.last_seen_at).getTime() <= new Date(f.dormancy_notice_at).getTime())
         .map((f) => ({ follower_id: f.follower_id, room_id: f.room_id, person_id: f.person_id, agent_id: f.agent_id, locale: f.locale,
           slug: state11.rooms.find((r) => r.room_id === f.room_id)?.slug }));
+    }
+    // Migration 159's authority preflight runs before the shared forget
+    // sequence. The sweep fixture models the trigger's epoch transition and
+    // the scoped derivative CTE rather than treating either as a no-op.
+    if (has("update vy_room_follower set memory_consent_at=null")) {
+      const [roomId, personId, agentId] = p;
+      const f = state11.followers.find((x) => x.room_id === roomId && x.person_id === personId && x.agent_id === agentId);
+      if (!f) return [];
+      f.memory_epoch = Number(f.memory_epoch ?? 0) + 1;
+      return [{ follower_id: f.follower_id }];
+    }
+    if (has("with target as materialized") && has("as vy_episode")) {
+      return [{ vy_fact: 0, vy_observation: 0, vy_episode: 0 }];
     }
     if (has("select t.thread_id from vy_room_thread")) return [];
     if (has("delete from vy_room_thread")) return [];

@@ -177,7 +177,10 @@ export function fakeDb(state) {
     }
     if (has('update vy_room_follower set memory_consent_at=null')) {
       const found=state.followers.filter(f=>f.room_id===params[0] && f.person_id===params[1] && f.agent_id===params[2]);
-      for (const f of found) { f.memory_consent_at=null;f.memory_epoch=Number(f.memory_epoch||0)+1; }
+      for (const f of found) {
+        f.memory_consent_at = null;
+        f.memory_epoch = Number(f.memory_epoch || 0) + 1;
+      }
       return found.map(f=>({follower_id:f.follower_id}));
     }
 
@@ -324,7 +327,8 @@ export function fakeDb(state) {
       );
       if (found) {
         found.age_attested_at = found.age_attested_at ?? ageAt;
-        found.memory_consent_at = memAt;
+      found.memory_epoch = Number(found.memory_epoch ?? 0) + 1;
+      found.memory_consent_at = memAt;
         found.last_seen_at = new Date().toISOString();
         // `locale` is deliberately UNTOUCHED here, mirroring the real
         // statement's own ON CONFLICT SET list (`api/_room-surface.js`'s
@@ -344,6 +348,7 @@ export function fakeDb(state) {
         joined_at: new Date().toISOString(),
         age_attested_at: ageAt,
         memory_consent_at: memAt,
+        memory_epoch: 0,
         tier: "free",
         month_key: String(monthKey),
         month_message_count: 0,
@@ -584,6 +589,10 @@ export function fakeDb(state) {
       return [{ ...row }];
     }
 
+    if (has("with target as materialized") && has("as vy_episode")) {
+      return [{ vy_fact: 0, vy_observation: 0, vy_episode: 0 }];
+    }
+
     // THE THREAD SCOPE PREDICATE, and the reason this fake reads the SQL text.
     // `ownedThread` selects two columns; `listThreads` selects four. Both are
     // filtered by exactly the clauses that are PRESENT in the string.
@@ -641,6 +650,25 @@ export function fakeDb(state) {
       // reaches for real, rather than silently under-modelling it.
       const goneIds = new Set(gone.map((f) => f.follower_id));
       state.channelMap = state.channelMap.filter((c) => !goneIds.has(c.follower_id));
+      // The live schema cascades follower -> room subscription -> payment
+      // event -> receipt. Door fixtures add those owner-side tables to this
+      // shared state; mirror the FK cascade when they are present so a
+      // forget race cannot leave a synthetic dangling billing row.
+      if (Array.isArray(state.subscriptions)) {
+        const subscriptionIds = new Set(state.subscriptions
+          .filter((s) => goneIds.has(s.follower_id))
+          .map((s) => s.subscription_id));
+        state.subscriptions = state.subscriptions.filter((s) => !subscriptionIds.has(s.subscription_id));
+        if (Array.isArray(state.events)) {
+          const eventIds = new Set(state.events
+            .filter((e) => subscriptionIds.has(e.subscription_id))
+            .map((e) => e.event_id));
+          state.events = state.events.filter((e) => !subscriptionIds.has(e.subscription_id));
+          if (Array.isArray(state.receipts)) {
+            state.receipts = state.receipts.filter((r) => !eventIds.has(r.payment_event_id));
+          }
+        }
+      }
       return gone.map(() => ({ gone: 1 }));
     }
 
