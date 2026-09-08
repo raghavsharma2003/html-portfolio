@@ -17529,3 +17529,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `hindi-observer53-fixed-six-comparison` (2026-09-08)
 
 2026-09-08T12:03:31.221Z to12:04:13.770Z: exactly6 cold contexts AB/BA/AB,n3 each, exec55281 terminal1, no timeout/kill. Baseline LCP3360/TBT1034/Hindi1861.5; candidate2732/99/1710.9ms. Candidate TBTpasses300, LCP/Hindifail2500/800. Product/dist and measurement helpers/collectors before/after unchanged. Candidate all3 renderer observed. Raw expert-tools/observer53-pair-20260908-once. No rerun or acceptance claim.
+
+
+## `release62-schema-controls-source-only` (2026-09-08)
+
+2026-09-08: n=3 bounded controls on the isolated `codex/release62-candidate` worktree at frozen60: candidate mirror `sourceOnly=true`, 15 mirrored files, 42 tables, 151 statements, 3 negative controls; legacy mirror `sourceOnly=true`, 8 restored files, 74 restored statements, 35 legacy files, 449 legacy statements, 156 ALTER statements, 1267 schema statements, 214 tables, 1304 lexical targets, 4 negative controls, and `sqlExecuted=0`; `git diff --check HEAD` passed. `evals/run.mjs` hash stayed `7194a8e8018169a5f32a4c6b571aa68d81cc2546` and the frozen schema tail from migration153 stayed byte identical. No dependency install, build, browser, SQL, database, provider, or network run.

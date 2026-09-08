@@ -564,6 +564,17 @@ export async function completeSourceErasure(db, lease) {
        delete from vy_replica_correction_candidate_job j using target t,affected_datasets affected
         where j.replica_id=t.replica_id and j.owner_user_id=t.owner_user_id
           and j.dataset_id=affected.dataset_id
+     ), candidate_evaluations as (
+       delete from vy_replica_candidate_eval_run r using target t,affected_datasets affected
+        where r.replica_id=t.replica_id and r.owner_user_id=t.owner_user_id
+          and r.dataset_id=affected.dataset_id
+     ), candidate_qualifications as (
+       delete from vy_replica_candidate_qualification q
+        using target t,affected_datasets affected,vy_replica_candidate c
+        where c.replica_id=t.replica_id and c.owner_user_id=t.owner_user_id
+          and c.dataset_id=affected.dataset_id
+          and q.candidate_id=c.candidate_id and q.replica_id=c.replica_id
+          and q.owner_user_id=c.owner_user_id
      ), candidates as (
        update vy_replica_candidate c set status='retired',updated_at=now()
          from target t,affected_datasets affected

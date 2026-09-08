@@ -17529,3 +17529,8 @@ Original45 failures are retained. Shared copy table expansion caused three panel
 ## `hindi-observer53-not-performance-pass` (2026-09-08)
 
 2026-09-08: Candidate LCP2732ms and Hindi1710.9ms still fail unchanged2500/800 budgets despite99ms TBT. One baseline font pending at immutable network boundary remains pending in receipt. Do not turn probe repair into claimed frontend optimization, backdate callback, raise budget, silently update bytes, or retry until green. All6 rows and old failures retained.
+
+
+## `release62-schema-source-is-not-bootstrap-proof` (2026-09-08)
+
+2026-09-08: Treating the reviewed schema mirror controls as a fresh-database proof was rejected. Both controls are source-only and report `sqlExecuted=0`; they prove lexical restoration, source ordering and negative controls, not PostgreSQL parsing, catalog types, constraints, or runtime erasure. Keep the bootstrap and actual156/155 SQL proof as separate future work under explicit database authorization.

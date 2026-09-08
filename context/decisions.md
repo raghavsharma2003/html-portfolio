@@ -23740,3 +23740,8 @@ Three panel suites retain forbidden literal checks while selecting EN and HI sec
 ## `release60-scoped-successor` (2026-09-08)
 
 2026-09-08: Root authorized isolated successor of56, importing continuity58 eval repair and observer53 exactsource. No product assets, schema or source-erasure changes. Registry remains402; resume failed continuity plus10 unrun suites. Reverse if checks reveal semantic regression; no full performance or release acceptance inferred.
+
+
+## `release62-scoped-schema-erasure-union` (2026-09-08)
+
+2026-09-08: Candidate62 starts at frozen60 and imports only the reviewed schema mirror source (`8fe09246` and `5e6c4453`: `db/schema.sql`, the two mirror controls, and their research artifacts) plus the reviewed three-way source-erasure patch (`59d16116`). The frozen156 schema tail and `candidate_activations` CTE remain byte/source present, and the 402-entry release registry is unchanged. Reverse if the exact source files, registry identity, 156 tail, or erasure CTE drift; this source checkpoint does not authorize a fresh database bootstrap or runtime acceptance.

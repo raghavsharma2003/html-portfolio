@@ -16794,6 +16794,24 @@
       "kind": "decision",
       "title": "Preserve product while repairing continuity and observer controls",
       "at": "2026-09-08"
+    },
+    {
+      "id": "release62-scoped-schema-erasure-union",
+      "kind": "decision",
+      "title": "Keep schema mirrors and source erasure bounded to the reviewed release slice",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release62-schema-controls-source-only",
+      "kind": "measurement",
+      "title": "Schema mirror controls pass with no SQL execution",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release62-schema-source-is-not-bootstrap-proof",
+      "kind": "rejection",
+      "title": "Source checks cannot establish fresh database bootstrap parity",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -28959,6 +28977,16 @@
       "src": "comparison-preparation31-ordinary-primary",
       "rel": "constrains",
       "dst": "comparison-preparation31-purpose"
+    },
+    {
+      "src": "release62-scoped-schema-erasure-union",
+      "rel": "measured_by",
+      "dst": "release62-schema-controls-source-only"
+    },
+    {
+      "src": "release62-scoped-schema-erasure-union",
+      "rel": "caused_by",
+      "dst": "release62-schema-source-is-not-bootstrap-proof"
     }
   ]
 }

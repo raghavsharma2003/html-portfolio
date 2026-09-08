@@ -7,7 +7,9 @@
 -- transcribed from the live database rather than from memory, so it matches
 -- what is actually running.
 --
--- It is idempotent — safe to run against the live database or an empty one.
+-- Historical intent was an idempotent live/empty rebuild. Source mirrors and
+-- table ordering are checked; PostgreSQL bootstrap/catalog proof is pending.
+-- See docs/gurukul/research/LEGACY-SCHEMA58-BOOTSTRAP-PROPOSAL-20260908.md before use.
 --
 --   node -e "const {q}=await import('./api/_db.js'); ..."  (see scratchpad)
 --
@@ -1066,6 +1068,882 @@ alter table vy_india_profile drop constraint if exists vy_india_profile_pkey;
 alter table vy_india_profile add constraint vy_india_profile_pkey primary key (agent_id, person_id);
 create unique index if not exists vy_india_profile_person_compat_ix on vy_india_profile (person_id);
 
+-- BEGIN historical legacy mirror: 010_agent_strict.sql
+-- Migration 010 — remove the training wheels. Contract: SPEC-AGENT-LAYER §2
+-- (Law E1), §6 ("the default is removed in migration 010, after the agent-scope
+-- predicate is proven"), and 009's own header, which ties the compat indexes'
+-- removal to this file by name.
+--
+-- ██ NOT APPLIED. DO NOT APPLY UNTIL THE PRECONDITION BELOW HOLDS. ██
+--
+-- Written by WS-AGENTSCOPE alongside the predicate so that the exit from the
+-- transitional state is a reviewed artifact rather than a thing someone
+-- reconstructs later from a comment. It has been validated — applied twice, in
+-- order, against a full-shape FIXTURE namespace by evals/agent/isolation.mjs,
+-- which then proves both halves of what it buys (see "what this buys" below).
+-- It has never been run against production.
+--
+-- Idempotent, one statement per request (see 001/008/009 headers). Neon's
+-- SQL-over-HTTP endpoint accepts exactly ONE statement per body and
+-- db/migrations/apply.mjs runs them individually with no transaction, so EVERY
+-- statement below is independently re-runnable: `alter column ... drop default`
+-- on a column that has no default is a no-op, not an error, and `drop index if
+-- exists` is the same. An apply interrupted halfway is recovered by running
+-- this same file again. No DO blocks and no functions.
+--
+-- ── what this migration does, and what it buys ─────────────────────────────
+--
+--   1. Drops the `agent_id` column DEFAULT on all twenty agent-scoped tables.
+--      Today a writer that never heard of agents files rows under Meera and
+--      nothing complains. After this, an INSERT that does not name agent_id
+--      fails the NOT NULL constraint LOUDLY. That is the entire point: the
+--      alternative to a loud failure is not "no failure", it is another
+--      agent's memory silently filed under Meera, which is unrecoverable
+--      because nothing recorded that it happened.
+--
+--   2. Drops the four `*_person_compat_ix` transitional UNIQUE indexes on the
+--      old person-only keys.
+--
+--      These are not merely redundant after (1) — they make a second agent
+--      IMPOSSIBLE. Measured, not reasoned: with 009's shape in place, inserting
+--      a vy_rel_state row for agent A2 and a person agent A1 already knows
+--      fails with
+--
+--        23505 duplicate key value violates unique constraint
+--              "vy_rel_state_person_compat_ix"
+--
+--      even though the primary key is (agent_id, person_id) and the two rows
+--      differ in it. Same for vy_ritual, vy_currency, vy_india_profile.
+--      evals/agent/isolation.mjs asserts this failure BEFORE applying 010 and
+--      asserts it is gone after, so the gate proves this file is necessary
+--      rather than asserting it. 009's header states the same conclusion in
+--      advance ("It must NOT survive into a two-agent world").
+--
+-- ── THE PRECONDITION ───────────────────────────────────────────────────────
+--
+-- Every ON CONFLICT site that names a PERSON-ONLY key on one of the four
+-- re-keyed tables must first be migrated to name the composite key, and every
+-- INSERT into an agent-scoped table must name agent_id explicitly. Dropping the
+-- compat index while a site still names `(person_id)` does not raise a type
+-- error — it raises `42P10 there is no unique or exclusion constraint matching
+-- the ON CONFLICT specification` at RUNTIME, and seven of the ten sites 009
+-- enumerated are `.catch()`-swallowed. The failure mode is therefore not an
+-- error anyone sees: it is `relstate-zero-rows` a second time, writers silently
+-- not writing, discovered months later.
+--
+-- The ten sites from 009's header, with their current state:
+--
+--   MIGRATED (WS-AGENTSCOPE, this wave — now name the composite key):
+--     api/memory.js       rebuildRelState        on conflict (agent_id, person_id)
+--                         opSeedCurrency         on conflict (agent_id, person_id, topic)
+--     api/consolidate.js  refreshDerivedDims     on conflict (agent_id, person_id)
+--                         deriveRelEventsForPerson
+--                                                on conflict (agent_id, person_id)
+--                         deriveTrustRepairForPerson (rupture/repair)
+--                                                on conflict (agent_id, person_id)
+--                         deriveTrustRepairForPerson (trust)
+--                                                on conflict (agent_id, person_id)
+--
+--   MIGRATED after the original readiness note (all now name agent_id):
+--     src/engine/relstate.ts       vy_rel_state      on conflict (agent_id, person_id)
+--     src/engine/india.ts          vy_ritual         on conflict (agent_id, person_id, key)
+--     src/engine/india.ts          vy_currency       on conflict (agent_id, person_id, topic)
+--     src/engine/india.ts          vy_india_profile  on conflict (agent_id, person_id)
+--
+--   These QueryFn-injected client-bundle writers always name agent_id in SQL;
+--   trusted production call chains pass the active agent explicitly. The
+--   offline `agentstrict` gate protects this precondition before live apply.
+--
+--   NOT blockers, listed so nobody re-derives them as such:
+--     api/clock.js:166             vy_person         — person-INTRINSIC (§2);
+--                                                     no agent_id, never gains one
+--     api/consolidate.js:1403      vy_phrase         — arbiter is vy_phrase's own
+--                                                     (person_id, lower(phrase))
+--                                                     unique index, untouched by
+--                                                     009 and not dropped here
+--     src/engine/india.ts:82       vy_kin            — arbiter is vy_kin_ix
+--                                                     (person_id, lower(name)),
+--                                                     untouched by 009
+--     api/consolidate-sweep.js:196 vy_consolidate_lease — not agent-scoped
+--     db/migrations/backfill_001_person.mjs:54  vy_person — person-intrinsic
+--
+--   Note that vy_phrase's and vy_kin's person-only unique indexes are a SECOND
+--   AGENT CORRECTNESS question of their own (two agents may legitimately coin
+--   the same phrase, or record the same aunt, with the same person) — but they
+--   are not 010's business, because 010 does not touch them and nothing breaks
+--   the day it runs. Ticketed, not folded in.
+--
+-- ── VERIFY THE PRECONDITION BEFORE APPLYING ────────────────────────────────
+--
+-- (a) The code half. From the repo root — this must print NOTHING:
+--
+--       grep -rn "on conflict (person_id)" \
+--            --include=*.js --include=*.ts --include=*.mjs . \
+--            --exclude-dir=node_modules --exclude-dir=dist \
+--         | grep -v "vy_person\|vy_consolidate_lease"
+--       grep -rn "on conflict (person_id, key)\|on conflict (person_id, topic)" \
+--            --include=*.js --include=*.ts --include=*.mjs . \
+--            --exclude-dir=node_modules --exclude-dir=dist
+--
+--     and `node evals/agent/isolation.mjs` must pass, whose call-site arm
+--     asserts that every statement over an agent-scoped table in
+--     api/memory.js and api/consolidate.js is either scoped by
+--     api/_agentscope.js's predicate, an INSERT naming agent_id, or a declared
+--     forget-lane exception.
+--
+-- (b) The schema half. Dropping a unique index is only safe if the composite
+--     primary key it shadows actually exists to take over as the arbiter. This
+--     must return exactly four rows, all with pk_cols = the composite key:
+--
+--       select c.relname as tbl,
+--              (select string_agg(a.attname, ',' order by k.ord)
+--                 from unnest(i.indkey) with ordinality k(attnum, ord)
+--                 join pg_attribute a
+--                   on a.attrelid = c.oid and a.attnum = k.attnum) as pk_cols
+--         from pg_class c
+--         join pg_index i on i.indrelid = c.oid and i.indisprimary
+--        where c.relname in ('vy_rel_state','vy_ritual','vy_currency',
+--                            'vy_india_profile')
+--        order by 1;
+--
+--       expected:
+--         vy_currency       agent_id,person_id,topic
+--         vy_india_profile  agent_id,person_id
+--         vy_rel_state      agent_id,person_id
+--         vy_ritual         agent_id,person_id,key
+--
+-- (c) The data half. 009's PK swap was safe because these four tables held zero
+--     rows. That is no longer the relevant question here — what matters is that
+--     dropping the person-only unique index cannot orphan an arbiter, which (b)
+--     settles. No row count is required.
+--
+-- ── after this migration ───────────────────────────────────────────────────
+--
+-- One known follow-on, named rather than left to be discovered:
+-- api/memory.js's rebuildRelState rebuilds ONE agent's snapshot after a forget,
+-- while the forget cascade itself deletes the person's rows across ALL agents
+-- (§6, and G-E5 depends on it staying that way). With one agent those agree;
+-- with two, a partial forget leaves the other agent's snapshot stale. The fix
+-- is a loop over the agents holding rows for that person and it belongs with
+-- whoever ships agent two.
+
+-- ── 1. drop the agent_id column DEFAULT on all twenty agent-scoped tables ──
+--
+-- Order matches 009's, so the two files diff against each other cleanly.
+
+alter table vy_episode alter column agent_id drop default;
+alter table vy_fact alter column agent_id drop default;
+alter table vy_rel_state alter column agent_id drop default;
+alter table vy_rel_event alter column agent_id drop default;
+alter table vy_pattern alter column agent_id drop default;
+alter table vy_phrase alter column agent_id drop default;
+alter table vy_ritual alter column agent_id drop default;
+alter table vy_currency alter column agent_id drop default;
+alter table vy_kin alter column agent_id drop default;
+alter table vy_india_profile alter column agent_id drop default;
+alter table vy_taste_candidate alter column agent_id drop default;
+alter table vy_shared_moment alter column agent_id drop default;
+alter table vy_visual_assertion alter column agent_id drop default;
+alter table vy_embedding alter column agent_id drop default;
+alter table vy_derivation alter column agent_id drop default;
+alter table vy_session alter column agent_id drop default;
+alter table vy_group_member alter column agent_id drop default;
+alter table vy_group alter column agent_id drop default;
+alter table vy_group_turn alter column agent_id drop default;
+alter table vy_disclosure_grant alter column agent_id drop default;
+
+-- ── 2. drop the four transitional person-only unique indexes ───────────────
+--
+-- 009 created these to keep the ten ON CONFLICT arbiters resolving while the
+-- call sites were migrated, and said in its own header that they must not
+-- survive into a two-agent world. They are the reason a second agent cannot
+-- currently hold rel_state, a ritual, a currency row or an india profile for a
+-- person Meera already knows — see the measured 23505 above.
+
+drop index if exists vy_rel_state_person_compat_ix;
+drop index if exists vy_ritual_person_compat_ix;
+drop index if exists vy_currency_person_compat_ix;
+drop index if exists vy_india_profile_person_compat_ix;
+
+-- ── 3. widen the two person-only unique indexes that are NOT PKs ───────────
+--
+-- Added by the coordinator after WS-AGENTSCOPE named them as an interface
+-- ticket rather than a blocker. They were right that these do not block 010;
+-- they are, however, the same class of defect one level down, and leaving
+-- them would make 010 a half-fix.
+--
+--   vy_kin_ix    unique (person_id, lower(name))
+--   vy_phrase_ix unique (person_id, lower(phrase))
+--
+-- Neither is a primary key, so neither shows up in a PK audit — but both are
+-- ON CONFLICT arbiters (src/engine/india.ts writeKin, api/consolidate.js
+-- capturePhrasesForPerson), and both are person-only. The consequence is
+-- exactly the one `pk-is-an-arbiter` describes: two agents cannot record the
+-- same kin name or coin the same phrase with the same person, and the second
+-- one fails 23505 rather than doing anything visible.
+--
+-- Two agents legitimately CAN know that this person's chachi is called Bua,
+-- and can each coin the same phrase with them independently — those are
+-- separate relationships and separate rows. The index has to say so.
+--
+-- Both call sites are migrated in the same change that applies this.
+-- Idempotent: drop-then-create, and both tables hold zero rows.
+
+drop index if exists vy_kin_ix;
+create unique index if not exists vy_kin_ix on vy_kin (agent_id, person_id, lower(name));
+drop index if exists vy_phrase_ix;
+create unique index if not exists vy_phrase_ix on vy_phrase (agent_id, person_id, lower(phrase));
+-- END historical legacy mirror: 010_agent_strict.sql
+
+-- BEGIN historical legacy mirror: 011_self_layer.sql
+-- Migration 011 — the self layer (docs/SPEC-SELF-LAYER.md).
+--
+-- Five tables for the four dimensions the audit found genuinely absent, plus
+-- the told-ledger that makes the third one worth having:
+--
+--   vy_self_arc         growth — a biography, NOT a mood (§2)
+--   vy_agent_life       her life, agent-scoped so she has ONE (§3)
+--   vy_agent_life_told  who she has told what, per relationship (§3)
+--   vy_rel_texture      how she talks to THIS person specifically (§6)
+--   vy_observation      noticing, at one citation (§7)
+--
+-- STRICT FROM BIRTH. Migration 010 dropped the transitional agent_id defaults
+-- that 009 introduced, after they exposed thirteen writers that named no
+-- agent (five of them inside .catch() swallows — see measurements
+-- `strict-exposed-13`). These tables therefore ship with agent_id NOT NULL and
+-- NO DEFAULT from the first statement: a writer that forgets it fails loudly
+-- on day one rather than filing another agent's memory under Meera and being
+-- discovered a migration later.
+--
+-- Every statement is independently idempotent and independently re-runnable —
+-- Neon SQL-HTTP takes exactly one statement per request and db/migrations/
+-- apply.mjs runs them one at a time with no transaction, so an apply
+-- interrupted halfway is recovered by running the file again.
+
+-- ── vy_self_arc — growth (§2) ─────────────────────────────────────────────
+--
+-- The two CHECK constraints ARE the design, and they are what makes this not
+-- a mood. inner.ts's G5 forbids accumulating a sad period: a drifting
+-- affective baseline, a counter of bad days, a feeling whose cause has fallen
+-- out of context so a cause gets invented for it two turns later.
+--
+-- An arc row cannot become that, structurally: >=3 citations spanning >=42
+-- days means it cannot exist without a six-week evidence trail, and `note` is
+-- required to be non-affective (a claim about how she has changed, never how
+-- she feels). Compare vy_pattern's "one instance is an anecdote" constraint —
+-- same mechanism, one order of magnitude slower.
+--
+-- agent_id is NOT person-scoped on purpose. She is one person across all her
+-- relationships; how she EXPRESSES that varies per relationship, and that is
+-- vy_rel_texture's job, not this one's.
+
+create table if not exists vy_self_arc (
+  id            bigint generated always as identity primary key,
+  agent_id      uuid not null,
+  dim           text not null,
+                -- directness|patience|humour|boundaries|confidence
+  note          text not null,      -- telegraphic, shape-linted, NON-affective
+  from_note     text not null default '',
+  citations     bigint[] not null,  -- episodes evidencing the change
+  span_days     real not null default 0,
+  superseded_by bigint,             -- bare bigint, no FK (forget law)
+  created_at    timestamptz not null default now(),
+  constraint vy_self_arc_cited check (cardinality(citations) >= 3),
+  constraint vy_self_arc_slow  check (span_days >= 42)
+);
+
+create index if not exists vy_self_arc_agent_ix on vy_self_arc (agent_id, dim);
+
+-- ── vy_agent_life — she has ONE life (§3) ─────────────────────────────────
+--
+-- Fixes `life-per-person` (rejected.md): her improvised self-facts are locked
+-- against contradiction per LISTENER, because vy_fact.person_id scopes them —
+-- so two users can be told two different versions of her flatmate and nothing
+-- can notice. The repo already states the opposite principle in the taste
+-- table's own header: "Meera is one person, not one person per install."
+--
+-- Beats are AUTHORED or owner-approved, never model-generated. G7's reasoning
+-- for taste applies here one step worse: a life she improvises has dates to
+-- contradict. storyCatalog.ts's STORIES becomes a seed for this table rather
+-- than a parallel source of truth — two places holding her life is the
+-- relstate-zero-rows shape of bug waiting to happen.
+
+create table if not exists vy_agent_life (
+  id         bigint generated always as identity primary key,
+  agent_id   uuid not null,
+  at         timestamptz not null,
+  beat       text not null,          -- telegraphic, shape-linted
+  kind       text not null default 'small'
+             check (kind in ('work','family','health','social','place','small')),
+  arc_key    text not null default '',   -- ties beats into a thread over weeks
+  media      jsonb not null default '[]'::jsonb,
+  status     text not null default 'approved'
+             check (status in ('pending','approved','retired')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists vy_agent_life_agent_ix on vy_agent_life (agent_id, at desc);
+
+-- ── vy_agent_life_told — the half that makes it feel human (§3) ───────────
+--
+-- A friend has told you about the promotion and has NOT yet told you about
+-- the fight with her sister, and she knows which is which. That asymmetry is
+-- the whole feature: rendered as an ANTI-JOIN (life LEFT JOIN told), untold
+-- beats only, so she never re-narrates something you already heard and can
+-- say "arre I didn't tell you na" to someone who hasn't.
+--
+-- `error-marked-done` applies: told is an OUTCOME, never an intent. A row
+-- exists only when she actually told them, in a cited episode.
+
+create table if not exists vy_agent_life_told (
+  agent_id   uuid   not null,
+  life_id    bigint not null,
+  person_id  uuid   not null,
+  at         timestamptz not null default now(),
+  episode_id bigint,                 -- where she told them (edge, no FK)
+  primary key (agent_id, life_id, person_id)
+);
+
+create index if not exists vy_agent_life_told_person_ix
+  on vy_agent_life_told (agent_id, person_id);
+
+-- ── vy_rel_texture — same person, different rapport (§6) ──────────────────
+--
+-- Derived by COUNTING turns that already exist. No LLM call, no judgment.
+--
+-- Rendered as coarse bands only, never numbers — vy_rel_state's existing
+-- state-leak guard (§12.5) applies unchanged: a model handed teasing 0.34
+-- starts reasoning about the number; handed "high" it just talks that way.
+--
+-- n_turns is a GATE, not a statistic: texture is not rendered below a floor,
+-- because a ratio over six turns is noise, and noise rendered as "she teases
+-- him a lot" is a personality assigned at random.
+--
+-- `avoid` is the column with teeth — topics that went badly, cited, that she
+-- does not walk into again. It must fail CLOSED: over-avoiding is a mild
+-- flatness, under-avoiding re-opens a wound. Same asymmetry that decided
+-- `speaker-id`.
+
+create table if not exists vy_rel_texture (
+  agent_id     uuid not null,
+  person_id    uuid not null,
+  teasing      real not null default 0,
+  humour       real not null default 0,
+  media_rate   real not null default 0,
+  words_median real not null default 0,
+  emoji_rate   real not null default 0,
+  profanity    real not null default 0,
+  nickname     text not null default '',
+  avoid        text[] not null default '{}',
+  avoid_cites  bigint[] not null default '{}',
+  n_turns      integer not null default 0,
+  updated_at   timestamptz not null default now(),
+  primary key (agent_id, person_id)
+);
+
+-- ── vy_observation — noticing, at one citation (§7) ───────────────────────
+--
+-- Distinct from vy_pattern and the distinction is the point. A pattern
+-- GENERALIZES ("when X, he does Y") and needs >=2 citations to write plus
+-- support_count >= 3 across >= 2 days to become prompt_eligible — measured,
+-- that is three calendar days and three nightly passes minimum. An
+-- observation RECALLS ("he said X") and needs one citation, because the risk
+-- of being wrong is misremembering a detail rather than assigning someone a
+-- trait they do not have.
+--
+-- An observation that repeats is PROMOTED into vy_pattern by the existing
+-- extractor rather than duplicated — one promotion path, so the two stores
+-- cannot disagree. Rendered inside T5's existing pull-only budget: memory
+-- stays reactive, and "never raise unprompted" is not being relaxed to make
+-- this feel more impressive.
+
+create table if not exists vy_observation (
+  id          bigint generated always as identity primary key,
+  agent_id    uuid not null,
+  person_id   uuid not null,
+  note        text not null,          -- telegraphic, shape-linted
+  citations   bigint[] not null,
+  salience    real not null default 0.5,
+  times_seen  integer not null default 1,
+  last_seen   timestamptz not null default now(),
+  promoted_to bigint,                 -- vy_pattern id, once it generalizes
+  t_invalid   timestamptz,
+  created_at  timestamptz not null default now(),
+  constraint vy_observation_cited check (cardinality(citations) >= 1)
+);
+
+create index if not exists vy_observation_person_ix
+  on vy_observation (agent_id, person_id, last_seen desc);
+-- END historical legacy mirror: 011_self_layer.sql
+
+-- BEGIN historical legacy mirror: 012_turn_trace.sql
+-- Migration 012 — the turn trace (docs/TRACE.md).
+--
+-- Two tables that make one conversational turn reconstructible after the fact:
+--
+--   meera_turn      the SPINE — one row per turn, upserted by whichever leg
+--                   arrives first, converging regardless of arrival order
+--   meera_turn_leg  the DETAIL — append-only, one row per layer of the funnel
+--                   (ingress / retrieval / interior / assembly / model /
+--                   egress / consolidation, and anything a future layer names)
+--
+-- WHY TWO TABLES AND NOT ONE. api/_db.js q() runs exactly ONE statement per
+-- request and there are no transactions spanning calls, so the legs of a single
+-- turn are written by different processes, out of order, and sometimes twice
+-- (a client retry, an offline drain landing after the live traffic it
+-- preceded). A denormalised spine that is UPSERT-ed with coalesce/least/
+-- greatest converges under all three; a single wide table written by whoever
+-- got there last would not. This is the same arrangement meera_tel_session
+-- already uses over meera_tel, for the same measured reason.
+--
+-- STRICT FROM BIRTH, like migration 011. agent_id is NOT NULL with NO DEFAULT:
+-- migration 010 dropped 009's transitional defaults after they exposed thirteen
+-- writers that named no agent (`strict-exposed-13`), five of them inside
+-- .catch() swallows. A trace writer that forgets the agent fails on day one
+-- rather than filing one agent's turns under another and being found a
+-- migration later.
+--
+-- CONTENT LAW. Neither table has a column that can hold what anybody said.
+-- There is no `text`, no `prompt`, no `reply`, no `query`. Content lives in
+-- meera_log and is referenced by id (in_log_id / out_log_ids); everything else
+-- is a count, a byte length, a hash, a timing or an enum. See docs/TRACE.md §4
+-- for the line-by-line boundary and for what this design does and does not
+-- expose.
+--
+-- RETENTION WITHOUT A SCHEDULER. `never-scheduled` is load-bearing: no
+-- scheduled job has ever run in this repo, so a retention cron is a retention
+-- policy that does not exist. Pruning happens at WRITE time, in the writing
+-- statement, bounded to a few hundred rows per batch — which is what
+-- meera_turn_leg_at_ix and meera_turn_started_ix below exist to make cheap.
+--
+-- Every statement is independently idempotent and independently re-runnable:
+-- Neon SQL-HTTP takes one statement per request and db/migrations/apply.mjs
+-- runs them one at a time with no transaction, so an apply interrupted halfway
+-- is recovered by running the file again.
+
+-- ── meera_turn — the spine ────────────────────────────────────────────────
+--
+-- turn_id is TEXT and client-minted, not a generated identity. Three reasons,
+-- all of them arrival-order: the client is the only party present at every leg
+-- of a turn; the id must exist BEFORE the first server call so the retrieval
+-- leg and the model leg can both name it; and a generated key would force a
+-- read-then-write to correlate, which q()'s one-statement rule cannot do
+-- atomically. Validated at the writer (api/_trace.js TURN_ID_RE) rather than by
+-- a CHECK, so a malformed id is dropped with a count instead of failing a batch
+-- that also carries good rows.
+create table if not exists meera_turn (
+  turn_id       text primary key,
+  agent_id      uuid not null,
+  device_id     text not null,
+  person_id     uuid,
+  session_id    text,
+  -- NULLABLE, deliberately. "which surface" is a fact a leg either knows or
+  -- does not, and a NOT NULL with a default turns "we never found out" into a
+  -- confident 'web' — which is exactly the shape of `voice-v0-was-never-written`
+  -- (a declared source no writer ever produced, discovered a migration later).
+  -- The upsert coalesces, so the first leg that knows wins and no later,
+  -- less-informed leg can erase it.
+  surface       text,
+  channel       text,
+  lane          text,
+  started_at    timestamptz not null default now(),
+  ended_at      timestamptz,
+
+  -- ── references, never copies (docs/TRACE.md L2) ──
+  in_msg_id     text,
+  in_log_id     bigint,
+  out_msg_id    text,
+  out_log_ids   bigint[] not null default '{}',
+
+  -- ── shape of the turn ──
+  in_kind       text,
+  in_chars      integer,
+  out_bubbles   integer,
+  out_chars     integer,
+
+  -- ── assembly: the highest-value half of the record ──
+  core_hash     text,
+  manifest_hash text,
+  core_bytes    integer,
+  tail_bytes    integer,
+  -- per-slot BYTE map, keyed by TAIL_MANIFEST id: {"T1":210,...,"T13":0}.
+  -- compiler.ts computes these as tail.length deltas around each append, so
+  -- they cannot disagree with what was actually assembled. A slot that
+  -- declares itself wired and renders 0 bytes is `manifest-sourcestatus`, and
+  -- this column is the only thing that can say so.
+  sections      jsonb not null default '{}'::jsonb,
+  dropped       jsonb not null default '[]'::jsonb,
+
+  -- ── retrieval ──
+  recall_bytes  integer,
+  retrieval     jsonb not null default '{}'::jsonb,
+
+  -- ── model ──
+  model         text,
+  served_by     text,
+  latency_ms    integer,
+  tokens_in     integer,
+  tokens_out    integer,
+  tokens_cached integer,
+  retries       integer not null default 0,
+  fallbacks     jsonb not null default '[]'::jsonb,
+
+  -- ── derived alarms (docs/TRACE.md §5) ──
+  flags         jsonb not null default '{}'::jsonb,
+  legs          integer not null default 0,
+  created_at    timestamptz not null default now()
+);
+
+-- Re-runnable repair for a database that took an earlier revision of this file,
+-- where surface/channel shipped NOT NULL DEFAULT and an explicit NULL in a
+-- multi-row upsert bypassed the default and failed the batch. `drop not null`
+-- on a column that is already nullable is a no-op, so this is idempotent like
+-- everything else here.
+alter table meera_turn alter column surface drop not null;
+alter table meera_turn alter column channel drop not null;
+alter table meera_turn alter column surface drop default;
+alter table meera_turn alter column channel drop default;
+
+create index if not exists meera_turn_agent_ix   on meera_turn (agent_id, started_at desc);
+create index if not exists meera_turn_device_ix  on meera_turn (device_id, started_at desc);
+create index if not exists meera_turn_person_ix  on meera_turn (person_id, started_at desc);
+create index if not exists meera_turn_started_ix on meera_turn (started_at);
+create index if not exists meera_turn_session_ix on meera_turn (session_id, started_at);
+-- PARTIAL, deliberately. "show me every turn that tripped an invariant" is the
+-- query this table exists to answer quickly, and a full index on a jsonb column
+-- that is empty on the overwhelming majority of rows would be most of the table
+-- for none of the benefit.
+create index if not exists meera_turn_flagged_ix on meera_turn (started_at desc)
+  where flags <> '{}'::jsonb;
+
+-- ── meera_turn_leg — append-only detail ───────────────────────────────────
+--
+-- `leg` is FREE TEXT and unknown legs are stored, not rejected. A schema that
+-- can refuse a leg name decides which future questions are answerable and it
+-- always decides wrong — the leg nobody allowlisted is the one the incident
+-- turns out to be about. api/telemetry.js learned this for event names; same
+-- rule, same reason, one layer up.
+--
+-- device_id is here for exactly ONE consumer: the forget manifest in
+-- api/memory.js wipes by device_id, and a detail table that could not be wiped
+-- by the same key as its spine would leave a person's rows standing after their
+-- own whole-wipe. Nothing reads legs by device.
+create table if not exists meera_turn_leg (
+  id        bigint generated always as identity primary key,
+  turn_id   text not null,
+  agent_id  uuid not null,
+  device_id text not null,
+  leg       text not null,
+  seq       integer,
+  t_ms      integer,
+  payload   jsonb not null default '{}'::jsonb,
+  at        timestamptz not null default now()
+);
+
+create index if not exists meera_turn_leg_turn_ix   on meera_turn_leg (turn_id, seq);
+create index if not exists meera_turn_leg_at_ix     on meera_turn_leg (at);
+create index if not exists meera_turn_leg_leg_ix    on meera_turn_leg (leg, at desc);
+create index if not exists meera_turn_leg_device_ix on meera_turn_leg (device_id, at desc);
+-- END historical legacy mirror: 012_turn_trace.sql
+
+-- BEGIN historical legacy mirror: 013_surface_room_binding.sql
+-- Migration 013 — the room binding stops being Telegram-shaped.
+-- Task #78. Contract: docs/SURFACES.md §0 and §4, SPEC-AGENT-LAYER §4 (Law E3).
+--
+-- APPLIED to production 2026-08-22 (see "the live verification" below).
+-- Promoted from db/migrations/drafts/DRAFT-013-surface-room-binding.sql, which
+-- is where it was parked precisely because `db/migrations/apply.mjs` applies
+-- EVERY `*.sql` in its own directory (`readdirSync(DIR)`, non-recursive, no
+-- allowlist) — a draft beside its siblings is a draft that gets applied.
+--
+-- The number was checked rather than trusted: the ticket says "migration 010",
+-- and 010/011/012 have all shipped, so 013 was the free slot on the day this
+-- landed. Renumbering a migration that has already run is the one thing this
+-- directory cannot survive.
+--
+-- ── the debt this pays ────────────────────────────────────────────────────
+--
+-- `vy_group.tg_chat_id` is a bigint with a unique index, so:
+--   - a non-numeric chat key CANNOT be stored. `roomByChatKey()` returned null
+--     for one and the room lane refused fail-closed with a named reason. That
+--     is correct behaviour for a wrong schema, not a working feature.
+--   - two surfaces whose numeric id ranges overlap would COLLIDE on a column
+--     whose name says Telegram: Discord channel 9001 and Telegram chat 9001
+--     are one room. Exactly the collision `surfaceDeviceId(surface, key)`
+--     already refuses to make for devices.
+--
+-- `vy_surface_identity` (migration 009) already made this move for people. The
+-- shape below is deliberately the same one, for the same reason.
+--
+-- ── the rule every statement here obeys ───────────────────────────────────
+--
+-- Neon's SQL-over-HTTP endpoint takes ONE statement per request and
+-- db/migrations/apply.mjs runs them individually with no transaction. So every
+-- statement is independently re-runnable, an interrupted apply is recovered by
+-- re-running this file, and there are no DO blocks or functions (apply.mjs's
+-- splitter is deliberately small). Nothing here drops a column and nothing
+-- here is destructive.
+--
+-- ── the live verification, recorded because a backfill is a decision ──────
+--
+-- The draft held the backfill back on purpose: it asserts a FACT about
+-- existing rows — that every room carrying a tg_chat_id really is a Telegram
+-- room — and that assertion belongs to whoever applies the file, not to
+-- whoever drafted it. Checked against production immediately before applying,
+-- 2026-08-22:
+--
+--   select (select count(*)::int from vy_group)        as groups,          -- 0
+--          (select count(*)::int from vy_group_member) as members,         -- 0
+--          (select count(*)::int from vy_group
+--             where tg_chat_id is null)                as groups_null_tg,  -- 0
+--          (select count(*)::int from vy_group_member
+--             where tg_user_id is null)                as members_null_tg; -- 0
+--
+-- Both tables hold ZERO rows (the Telegram bot has never run against
+-- production — TELEGRAM_BOT_TOKEN is deliberately empty). So the assumption
+-- holds vacuously, and the backfill below is a verified no-op TODAY: it
+-- matched 0 rows on the apply. It is included rather than left as a follow-up
+-- because it is the statement that makes this file complete for a replay — a
+-- namespace built from these migrations, or a row written by an older code
+-- path before the new one deploys, is repaired by re-running this file. It
+-- cannot ever misfire on a row the new code wrote: the new writer always sets
+-- `surface`, and every backfill statement is guarded by `surface is null`.
+--
+-- What is still NOT here, and why each is deliberate:
+--   NOT NULL on the new columns — belongs to the follow-up, after the read
+--     path has been on the new columns long enough to be believed. A NOT NULL
+--     added before the writer is deployed turns the next room creation into an
+--     error.
+--   DROP COLUMN tg_chat_id / tg_user_id — same follow-up, later. A drop before
+--     the read path moves turns every existing room into "unknown room" and
+--     she goes silent in all of them. The retirement condition is written down
+--     in docs/SURFACES.md §4 rather than left to be re-derived.
+--   A `check (surface in (...))` — refused on purpose: the surface list is
+--     `api/*.js` adapters, and a CHECK here would mean adding a fifth surface
+--     requires a migration, which is precisely "do not teach the engine your
+--     surface" one layer down. The set of surfaces is not a database fact.
+
+-- ── vy_group: the room's address becomes (surface, surface_chat_id) ────────
+
+-- text, not bigint: a chat key is an OPAQUE ADDRESS. The contract already says
+-- so (`chatKey` is "the ONLY thing handed to send()", never parsed), and the
+-- moment it is numeric someone will do arithmetic on it or drop a leading
+-- zero. Telegram's negative supergroup ids survive as text unchanged.
+alter table vy_group add column if not exists surface text;
+alter table vy_group add column if not exists surface_chat_id text;
+
+-- No default and no NOT NULL in this file. A default of 'telegram' would make
+-- every future row silently Telegram if the writer forgets to pass a surface,
+-- which is the failure this column exists to prevent; NOT NULL comes AFTER the
+-- read path has moved, as its own statement, in the follow-up.
+
+-- The uniqueness that replaces vy_group_tg_chat_ix. Partial, so rows that have
+-- not been adopted yet do not collide on (null, null).
+create unique index if not exists vy_group_surface_chat_ix
+  on vy_group (surface, surface_chat_id)
+  where surface is not null and surface_chat_id is not null;
+
+-- The old index STAYS until tg_chat_id is dropped. Two unique indexes during
+-- the transition is correct: a Telegram room must not gain a second row under
+-- the new key while the old one still points at it.
+
+-- ── vy_group_member: the member's address becomes (surface, user id) ───────
+--
+-- Today a non-Telegram member was written with a NULL tg_user_id and
+-- identified through vy_surface_identity — which is where identity belongs, so
+-- this pair is NOT an identity key. It is the surface-local address of a
+-- member, used for roster display and for the one thing identity cannot
+-- answer: "which account in THIS room is this person". person_id stays the
+-- primary key half.
+alter table vy_group_member add column if not exists surface text;
+alter table vy_group_member add column if not exists surface_user_id text;
+
+-- Not unique. The same human may legitimately appear once per surface in one
+-- room (linked on Telegram, present on Discord), and the primary key
+-- (group_id, person_id) is what makes them one member. An index for the lookup
+-- direction, nothing more.
+create index if not exists vy_group_member_surface_ix
+  on vy_group_member (surface, surface_user_id)
+  where surface is not null and surface_user_id is not null;
+
+-- ── the backfill, verified above and idempotent by construction ────────────
+--
+-- `and surface is null` is what makes each of these safe to re-run and
+-- impossible to misfire on a row the new writer created. On the production
+-- apply both matched 0 rows.
+
+update vy_group
+   set surface = 'telegram',
+       surface_chat_id = tg_chat_id::text
+ where tg_chat_id is not null and surface is null;
+
+update vy_group_member
+   set surface = 'telegram',
+       surface_user_id = tg_user_id::text
+ where tg_user_id is not null and surface is null;
+-- END historical legacy mirror: 013_surface_room_binding.sql
+
+-- BEGIN historical legacy mirror: 014_kin_provisional_texture_drift.sql
+-- Migration 014 — two columns the consolidation spine needs (WS-SPINE).
+--
+-- NOT YET APPLIED to production. This file is additive-only and every
+-- statement is independently idempotent (`add column if not exists`, all with
+-- defaults), so `node db/migrations/apply.mjs 014` is safe to run at any
+-- time, including against a live database serving traffic — no rewrite, no
+-- lock beyond the catalogue update, no backfill.
+--
+-- It MUST be applied BEFORE `CONSOLIDATE_SWEEP_LIVE` is turned on. Without it
+-- the kin writer throws on every row (loudly — see api/consolidate.js's
+-- `kin_errors`, which is deliberately not a `.catch(() => {})` swallow), and
+-- the texture writer's drift columns silently do not exist.
+--
+-- ── 1. vy_kin.provisional ────────────────────────────────────────────────
+--
+-- Until now nothing had ever written a vy_kin row (measurements
+-- `never-scheduled`: vy_kin 0 rows) because nothing ever CALLED
+-- src/engine/india.ts's `writeKin` — `dead-writers`, exactly. The
+-- consolidation pass is now that caller, which changes what this table is:
+-- every row in it from here on is DERIVED from conversation by a model,
+-- rather than entered by a human who knew the answer.
+--
+-- That distinction has to be in the data, not in a comment, because the
+-- failure it guards against is asymmetric and permanent:
+--
+--   A WRONG MOTHER'S NAME IS WORSE THAN NO MOTHER'S NAME.
+--
+-- She will use a kin row. She will use it by name, in the wrong relation, for
+-- months, and the person on the other end has no way to correct a belief they
+-- were never told she held. `provisional = true` means "derived, never
+-- confirmed by him", and it is what lets the T3 reader hedge instead of
+-- asserting, and lets a later contradiction supersede without anyone ever
+-- having been told a wrong thing as a certainty.
+--
+-- DEFAULT true, not false, and that is the whole point of the column: the
+-- direction of the default decides what happens to a row written by a future
+-- caller that forgets to set it. Defaulting to `false` would mean a forgotten
+-- flag PROMOTES a guess to a certainty, silently. Defaulting to `true` means
+-- a forgotten flag under-claims, which costs a hedge nobody notices. The
+-- existing rows this could mislabel number exactly zero.
+alter table vy_kin add column if not exists provisional boolean not null default true;
+
+-- ── 2. vy_rel_texture drift — CHANGE OVER TIME, not another snapshot ─────
+--
+-- vy_rel_texture is upserted in place on every pass, so it holds the CURRENT
+-- rapport and no memory of any other. Every other self/relational store in
+-- this schema can answer "what changed": vy_rel_event carries from_v -> to_v
+-- per dim so rel-state history is queryable, vy_self_arc carries from_note ->
+-- note with a >=42-day span floor, both supersede rather than overwrite.
+-- Texture alone could only ever say what today looks like — and "how you two
+-- talk NOW" with no "compared to when" is exactly the memory-junk shape the
+-- owner's directive names: a fact about the present pretending to be a story.
+--
+-- Rather than a history table (a row per pass per pair, which is a lot of
+-- storage to answer one question), this is a single compact DERIVED line:
+-- the deriver splits its existing trailing scan window into an EARLIER and a
+-- RECENT half and writes a note only when a rendered band actually MOVED a
+-- full bucket. No new scan, no model call, no new query — the same rows the
+-- deriver already reads, counted twice instead of once.
+--
+-- `drift_cites` is what keeps it honest and is the reason this is two columns
+-- and not one: the note may only render when it carries episode citations,
+-- the same fail-closed discipline `avoid`/`avoid_cites` already use in this
+-- table. An uncited claim about how someone has changed is the single easiest
+-- thing in this system to hallucinate and the hardest for a user to dispute.
+alter table vy_rel_texture add column if not exists drift text not null default '';
+alter table vy_rel_texture add column if not exists drift_cites bigint[] not null default '{}';
+-- END historical legacy mirror: 014_kin_provisional_texture_drift.sql
+
+-- BEGIN historical legacy mirror: 015_push_tokens.sql
+-- Migration 015 — push registrations (WS-NOTIFY, the FCM slot).
+--
+-- NOT NEEDED UNTIL PUSH IS CONFIGURED. api/push-token.js refuses every request
+-- before it reads the body when the FCM_* keys are empty, and api/_push.js
+-- returns before any query, so with the shipping config no statement in this
+-- file is ever executed. Apply it as step 5 of src/notify/config.ts's list, at
+-- the same time as the keys.
+--
+-- ── WHAT A ROW IS ────────────────────────────────────────────────────────
+--
+-- One handle that can put text on one person's lock screen. That is closer to
+-- a phone number than to a session id, and the schema is shaped accordingly.
+--
+-- STRICT FROM BIRTH, like migrations 011 and 012: `agent_id` is NOT NULL with
+-- NO DEFAULT. 010 removed 009's transitional defaults after they exposed
+-- thirteen writers that named no agent (`strict-exposed-13`). Reachability is
+-- the worst possible table to discover that on — a token filed under the wrong
+-- agent is another agent able to contact this person.
+--
+-- ── ONE ROW PER (AGENT, DEVICE), NEVER A HISTORY ─────────────────────────
+--
+-- The unique constraint IS the policy. A device that re-registers replaces its
+-- token; there is no `created_at` chain of superseded tokens, because an old
+-- token that still resolves is an old phone still buzzing, and a table that
+-- accumulates them is a table whose oldest rows are its most dangerous.
+--
+-- ── THE FORGET PATH, AND THE GATE THAT ENFORCES IT ───────────────────────
+--
+-- Two independent doors, deliberately, because reachability is the one thing
+-- that must not survive either:
+--
+--   1. the client's own teardown posts `{ revoke: true }` (src/notify/index.ts
+--      `clearReachability`, called on clear-chat, on "make her forget you" and
+--      on an account switch). This is the door that works while the phone is
+--      in the user's hand;
+--   2. api/memory.js's forget cascade, via a row in its PERSON_TABLES
+--      manifest, for the case the client never comes back online to make the
+--      call in (1) — a user who uninstalls and then asks for deletion.
+--
+-- ⚠ APPLYING THIS MIGRATION WITHOUT (2) FAILS THE ZERO-ORPHAN SWEEP, BY
+-- DESIGN. scripts/relcheck.mjs enumerates every table in the schema carrying a
+-- person/device/user column and fails any that is in neither PERSON_TABLES nor
+-- its own EXEMPT map, because "a table that is in neither is invisible to BOTH
+-- forget and export". So this table cannot exist in a database without a
+-- written decision about its deletion — which is exactly the property a
+-- reachability table should have. The manifest row is:
+--
+--     { table: "vy_push_token", key: "device_id", lane: "relational",
+--       agent: true },
+--
+-- filed "relational" and not "person" for the reason vy_surface_identity's own
+-- note in that file gives: lane "person" members are SKIPPED by the manifest
+-- wipe loop and taken by explicit guarded code, and no such code exists here.
+--
+-- There is NO foreign key to vy_person_device, and that is a correctness
+-- decision rather than an omission: "an unmapped device IS its person" (§2.1),
+-- so most devices have no mapping row at all and an FK would reject the
+-- registration of exactly the anonymous users this product mostly has.
+--
+-- A soft-delete column is deliberately absent. A flagged-inactive token is
+-- still a token; the row is the artefact.
+--
+-- CONTENT LAW (migration 012's, restated because it binds here too): there is
+-- no column in this table that can hold anything anybody said. A notification's
+-- text is built at send time from src/notify/copy.ts and is never stored.
+
+create table if not exists vy_push_token (
+  agent_id    uuid not null,
+  device_id   uuid not null,          -- same type as vy_person_device.device_id
+  token       text not null,
+  platform    text not null default 'web'
+                check (platform in ('web', 'android', 'ios')),
+  updated_at  timestamptz not null default now(),
+  created_at  timestamptz not null default now(),
+  primary key (agent_id, device_id)
+);
+
+-- The send path's only read: "the tokens for these devices, for this agent".
+-- Agent first, matching every other index migration 009 added, because the
+-- agent predicate is evaluated in the WHERE before rank on every scoped table.
+create index if not exists vy_push_token_agent_ix
+  on vy_push_token (agent_id, device_id);
+
+-- Stale-token cleanup deletes BY TOKEN (FCM answers 404 UNREGISTERED with the
+-- token, not the device), so that lookup gets its own index rather than a scan
+-- on a table whose whole point is to be small and correct.
+create index if not exists vy_push_token_token_ix
+  on vy_push_token (token);
+-- END historical legacy mirror: 015_push_tokens.sql
+
 -- Migration 018 -- hard agent ownership for the raw RelationalOS substrate.
 -- Existing rows belong to Meera. Defaults preserve rolling-deploy compatibility
 -- for historical utilities; production writers name agent_id explicitly.
@@ -1113,6 +1991,1694 @@ alter table meera_consolidate_lease alter column agent_id set not null;
 alter table meera_consolidate_lease drop constraint if exists meera_consolidate_lease_pkey;
 alter table meera_consolidate_lease add constraint meera_consolidate_lease_pkey primary key (agent_id, person_id);
 create index if not exists meera_consolidate_lease_expiry_ix on meera_consolidate_lease (leased_at);
+
+-- BEGIN historical replica mirror: 015_replica_core.sql
+-- Migration 015 — the consented human-replica core.
+-- Contract: docs/SPEC-REPLICA-PLATFORM.md.
+--
+-- This migration stores ownership, consent capabilities, private source
+-- manifests, cited claims, versioned VoiceGenomes/person profiles, calibration
+-- preferences, provider handles, eval verdicts and content-free audit/deletion
+-- receipts. It stores NO audio/video/image bytes and NO durable public URLs.
+--
+-- Every statement is independently idempotent. Neon SQL-over-HTTP accepts one
+-- statement per request and db/migrations/apply.mjs has no cross-call
+-- transaction, so a half-applied run is recovered by running this file again.
+
+-- Supabase auth identities are not rows in Neon. This is the one explicit,
+-- server-written bridge to the person layer. Ownership is always derived from
+-- a verified auth token; request-supplied user ids are never authoritative.
+create table if not exists vy_account_person (
+  auth_user_id uuid primary key,
+  person_id    uuid not null unique references vy_person(person_id) on delete cascade,
+  created_at   timestamptz not null default now()
+);
+
+create table if not exists vy_replica (
+  replica_id            uuid primary key default gen_random_uuid(),
+  owner_user_id         uuid not null,
+  subject_person_id     uuid references vy_person(person_id) on delete set null,
+  agent_id              uuid unique references vy_agent(agent_id) on delete set null,
+  display_name          text not null,
+  subject_mode          text not null default 'self'
+                        check (subject_mode in ('self')),
+  lifecycle             text not null default 'draft'
+                        check (lifecycle in (
+                          'draft','consent_pending','enrolling','calibrating',
+                          'ready','active','paused','revoked','purging'
+                        )),
+  policy_version        text not null,
+  age_verified_at       timestamptz,
+  identity_verified_at  timestamptz,
+  liveness_verified_at  timestamptz,
+  activated_at          timestamptz,
+  revoked_at            timestamptz,
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now(),
+  constraint vy_replica_owner_pair unique (replica_id, owner_user_id)
+);
+
+create index if not exists vy_replica_owner_ix
+  on vy_replica (owner_user_id, created_at desc);
+
+create index if not exists vy_replica_agent_ix
+  on vy_replica (agent_id) where agent_id is not null;
+
+-- Consent is an append-only capability receipt. A scope is active only when
+-- the server finds an unrevoked, unexpired row under the current policy. The
+-- receipt stores hashes and method metadata, never an identity document.
+create table if not exists vy_replica_consent (
+  consent_id         uuid primary key default gen_random_uuid(),
+  replica_id         uuid not null,
+  owner_user_id      uuid not null,
+  scope              text not null
+                     check (scope in (
+                       'capture','transcription','biometric','training',
+                       'inference','storage','sharing','api','telephony',
+                       'model_improvement'
+                     )),
+  method             text not null
+                     check (method in ('account_attestation','live_challenge','manual_review')),
+  policy_version     text not null,
+  evidence_source_id uuid,
+  receipt_hash       text not null,
+  granted_at         timestamptz not null default now(),
+  expires_at         timestamptz,
+  revoked_at         timestamptz,
+  metadata           jsonb not null default '{}'::jsonb,
+  constraint vy_replica_consent_receipt_hash check (length(receipt_hash) >= 32),
+  constraint vy_replica_consent_owner_pair unique (consent_id, replica_id, owner_user_id),
+  constraint vy_replica_consent_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade
+);
+
+create index if not exists vy_replica_consent_active_ix
+  on vy_replica_consent (replica_id, scope, granted_at desc)
+  where revoked_at is null;
+
+create index if not exists vy_replica_consent_owner_ix
+  on vy_replica_consent (owner_user_id, granted_at desc);
+
+-- Original and derived artifacts share one manifest so lineage is queryable.
+-- The private bucket/path is server-chosen; no public URL is persisted.
+create table if not exists vy_replica_source (
+  source_id              uuid primary key default gen_random_uuid(),
+  replica_id             uuid not null,
+  owner_user_id          uuid not null,
+  consent_id             uuid,
+  parent_source_id       uuid,
+  kind                   text not null
+                         check (kind in ('audio','video','text','image','document','chat_archive')),
+  capture_mode           text not null
+                         check (capture_mode in ('live_challenge','upload','import','derived')),
+  storage_bucket         text not null,
+  object_path            text not null,
+  mime                   text not null,
+  byte_size              bigint not null default 0 check (byte_size >= 0),
+  duration_ms            bigint check (duration_ms is null or duration_ms >= 0),
+  sha256                 text not null,
+  state                  text not null default 'pending_upload'
+                         check (state in (
+                           'pending_upload','uploaded','quarantined','processing',
+                           'ready','rejected','deleting'
+                         )),
+  contains_third_parties boolean not null default false,
+  transform              jsonb not null default '{}'::jsonb,
+  quality                jsonb not null default '{}'::jsonb,
+  provenance             jsonb not null default '{}'::jsonb,
+  rejection_code         text not null default '',
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now(),
+  constraint vy_replica_source_hash check (sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_source_private_path check (object_path !~* '^(https?|data):'),
+  constraint vy_replica_source_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_source_consent_fk
+    foreign key (consent_id, replica_id, owner_user_id)
+    references vy_replica_consent(consent_id, replica_id, owner_user_id)
+);
+
+create unique index if not exists vy_replica_source_object_ix
+  on vy_replica_source (storage_bucket, object_path);
+
+create index if not exists vy_replica_source_owner_ix
+  on vy_replica_source (owner_user_id, replica_id, created_at desc);
+
+create index if not exists vy_replica_source_parent_ix
+  on vy_replica_source (parent_source_id) where parent_source_id is not null;
+
+-- A claim is never writable without evidence. `source_ids` point to immutable
+-- original/derived manifests; no FK is used because source deletion must be
+-- able to invalidate/rebuild claims without FK ordering or partial failure.
+create table if not exists vy_replica_claim (
+  claim_id       bigint generated always as identity primary key,
+  replica_id     uuid not null references vy_replica(replica_id) on delete cascade,
+  domain         text not null
+                 check (domain in (
+                   'identity','biography','event','relationship','preference',
+                   'value','boundary','habit','language','delivery','visual'
+                 )),
+  key            text not null,
+  body           text not null,
+  origin         text not null
+                 check (origin in ('self_declared','observed','imported','inferred')),
+  confidence     real not null check (confidence >= 0 and confidence <= 1),
+  status         text not null default 'proposed'
+                 check (status in ('proposed','approved','rejected','superseded')),
+  source_ids     uuid[] not null,
+  sensitive      boolean not null default false,
+  t_valid_from   timestamptz,
+  t_valid_to     timestamptz,
+  superseded_by  bigint,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+  constraint vy_replica_claim_cited check (cardinality(source_ids) >= 1)
+);
+
+create index if not exists vy_replica_claim_active_ix
+  on vy_replica_claim (replica_id, domain, key)
+  where status in ('proposed','approved');
+
+create index if not exists vy_replica_claim_source_ix
+  on vy_replica_claim using gin (source_ids);
+
+-- Provider-neutral voice identity. `definition` contains distributions and
+-- accepted private source ids; it never contains provider credentials/ids.
+create table if not exists vy_replica_voice_genome (
+  replica_id       uuid not null references vy_replica(replica_id) on delete cascade,
+  version          integer not null check (version > 0),
+  source_set_hash  text not null,
+  definition       jsonb not null,
+  status           text not null default 'draft'
+                   check (status in ('draft','approved','retired')),
+  created_at       timestamptz not null default now(),
+  primary key (replica_id, version),
+  constraint vy_replica_genome_hash check (length(source_set_hash) >= 32)
+);
+
+-- A disposable mapping from one VoiceGenome version to an external/local
+-- provider. provider_ref is server-only and never returned to clients.
+create table if not exists vy_replica_voice_profile (
+  voice_profile_id uuid primary key default gen_random_uuid(),
+  replica_id       uuid not null references vy_replica(replica_id) on delete cascade,
+  genome_version   integer not null check (genome_version > 0),
+  provider         text not null,
+  model            text not null,
+  provider_ref     text not null,
+  capabilities     jsonb not null default '{}'::jsonb,
+  status           text not null default 'creating'
+                   check (status in ('creating','ready','failed','deleting')),
+  failure_code     text not null default '',
+  deletion_receipt jsonb,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now()
+);
+
+create unique index if not exists vy_replica_voice_provider_ix
+  on vy_replica_voice_profile (provider, provider_ref);
+
+create index if not exists vy_replica_voice_ready_ix
+  on vy_replica_voice_profile (replica_id, genome_version, provider)
+  where status = 'ready';
+
+-- Versioned structured person model. The runtime compiler renders bounded
+-- views from this record; this JSON is not itself a system prompt.
+create table if not exists vy_replica_profile (
+  replica_id       uuid not null references vy_replica(replica_id) on delete cascade,
+  version          integer not null check (version > 0),
+  source_set_hash  text not null,
+  definition       jsonb not null,
+  status           text not null default 'draft'
+                   check (status in ('draft','approved','retired')),
+  created_at       timestamptz not null default now(),
+  primary key (replica_id, version),
+  constraint vy_replica_profile_hash check (length(source_set_hash) >= 32)
+);
+
+-- Human calibration is stored as layer-labelled preference evidence, never as
+-- another sentence appended to the persona prompt.
+create table if not exists vy_replica_preference (
+  preference_id uuid primary key default gen_random_uuid(),
+  replica_id    uuid not null references vy_replica(replica_id) on delete cascade,
+  layer         text not null
+                check (layer in ('voice','delivery','language','behaviour','memory','relationship','visual')),
+  scenario_id   text not null,
+  left_ref      jsonb not null,
+  right_ref     jsonb not null,
+  choice        text not null check (choice in ('left','right','tie','neither')),
+  note          text not null default '',
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists vy_replica_preference_layer_ix
+  on vy_replica_preference (replica_id, layer, created_at desc);
+
+create table if not exists vy_replica_eval_run (
+  eval_id          uuid primary key default gen_random_uuid(),
+  replica_id       uuid not null references vy_replica(replica_id) on delete cascade,
+  profile_version  integer,
+  genome_version   integer,
+  suite            text not null,
+  candidate        text not null,
+  corpus_hash      text not null,
+  metrics          jsonb not null,
+  verdict          text not null check (verdict in ('pass','fail','inconclusive')),
+  created_at       timestamptz not null default now(),
+  constraint vy_replica_eval_corpus_hash check (length(corpus_hash) >= 32)
+);
+
+create index if not exists vy_replica_eval_latest_ix
+  on vy_replica_eval_run (replica_id, suite, created_at desc);
+
+-- Content-free operational ledger. Never copy prompt, memory, transcript,
+-- source URL, provider secret or generated audio into this table.
+create table if not exists vy_replica_audit (
+  id            bigint generated always as identity primary key,
+  replica_id    uuid,
+  owner_user_id uuid not null,
+  action        text not null,
+  object_kind   text not null,
+  object_id     text not null default '',
+  trace_id      text not null default '',
+  policy        text not null,
+  outcome       text not null check (outcome in ('allowed','denied','failed')),
+  facts         jsonb not null default '{}'::jsonb,
+  at            timestamptz not null default now()
+);
+
+create index if not exists vy_replica_audit_owner_ix
+  on vy_replica_audit (owner_user_id, at desc);
+
+create index if not exists vy_replica_audit_replica_ix
+  on vy_replica_audit (replica_id, at desc) where replica_id is not null;
+
+-- Revocation is synchronous; physical erasure is a retryable job. The unique
+-- replica key makes enqueue idempotent and lets a sweeper recover a replica
+-- that was disabled just before a serverless invocation stopped.
+create table if not exists vy_replica_erasure_job (
+  job_id           uuid primary key default gen_random_uuid(),
+  replica_id       uuid not null unique references vy_replica(replica_id) on delete cascade,
+  owner_user_id    uuid not null,
+  state            text not null default 'pending'
+                   check (state in ('pending','running','blocked','complete')),
+  attempts         integer not null default 0 check (attempts >= 0),
+  provider_status  jsonb not null default '{}'::jsonb,
+  storage_status   jsonb not null default '{}'::jsonb,
+  last_error_code  text not null default '',
+  requested_at     timestamptz not null default now(),
+  started_at       timestamptz,
+  completed_at     timestamptz,
+  updated_at       timestamptz not null default now(),
+  constraint vy_replica_erasure_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade
+);
+
+create index if not exists vy_replica_erasure_pending_ix
+  on vy_replica_erasure_job (state, requested_at)
+  where state in ('pending','blocked');
+
+-- Survives content deletion only as a non-reconstructive compliance receipt.
+create table if not exists vy_replica_deletion_receipt (
+  receipt_id       uuid primary key default gen_random_uuid(),
+  replica_id_hash  text not null,
+  owner_user_hash  text not null,
+  policy_version   text not null,
+  reason           text not null,
+  deleted_classes  text[] not null,
+  processor_status jsonb not null default '{}'::jsonb,
+  backup_expires_at timestamptz,
+  completed_at     timestamptz not null default now(),
+  constraint vy_replica_delete_replica_hash check (length(replica_id_hash) >= 32),
+  constraint vy_replica_delete_owner_hash check (length(owner_user_hash) >= 32)
+);
+-- END historical replica mirror: 015_replica_core.sql
+
+-- BEGIN historical replica mirror: 016_replica_enrollment.sql
+-- Migration 016 — live enrollment challenges and retryable evidence jobs.
+-- One statement per apply call, every statement independently idempotent.
+
+create table if not exists vy_replica_liveness_challenge (
+  challenge_id      uuid primary key default gen_random_uuid(),
+  replica_id         uuid not null,
+  owner_user_id      uuid not null,
+  phrase             text not null,
+  phrase_hash        text not null,
+  policy_version     text not null,
+  state              text not null default 'issued'
+                     check (state in ('issued','uploaded','verifying','passed','failed','expired')),
+  source_id          uuid references vy_replica_source(source_id) on delete set null,
+  attempt            integer not null default 1 check (attempt > 0 and attempt <= 10),
+  verifier           text not null default '',
+  verifier_result    jsonb not null default '{}'::jsonb,
+  failure_code       text not null default '',
+  issued_at          timestamptz not null default now(),
+  expires_at         timestamptz not null,
+  consumed_at        timestamptz,
+  updated_at         timestamptz not null default now(),
+  constraint vy_replica_challenge_phrase_hash check (phrase_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_challenge_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade
+);
+
+create index if not exists vy_replica_challenge_owner_ix
+  on vy_replica_liveness_challenge (owner_user_id, replica_id, issued_at desc);
+
+create unique index if not exists vy_replica_challenge_live_ix
+  on vy_replica_liveness_challenge (replica_id)
+  where state in ('issued','uploaded','verifying');
+
+create table if not exists vy_replica_processing_job (
+  job_id             uuid primary key default gen_random_uuid(),
+  replica_id         uuid not null,
+  owner_user_id      uuid not null,
+  source_id          uuid not null references vy_replica_source(source_id) on delete cascade,
+  step               text not null
+                     check (step in (
+                       'integrity','malware_scan','media_probe','diarize',
+                       'separate','enhance','transcribe','pii_scan',
+                       'third_party_scan','extract','voice_quality','visual_quality'
+                     )),
+  revision           integer not null default 1 check (revision > 0),
+  state              text not null default 'queued'
+                     check (state in ('queued','leased','retry','blocked','complete','failed')),
+  attempt            integer not null default 0 check (attempt >= 0),
+  lease_token_hash   text not null default '',
+  leased_at          timestamptz,
+  lease_expires_at   timestamptz,
+  next_attempt_at    timestamptz not null default now(),
+  result             jsonb not null default '{}'::jsonb,
+  failure_code       text not null default '',
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now(),
+  constraint vy_replica_processing_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_processing_unique unique (source_id, step, revision)
+);
+
+create index if not exists vy_replica_processing_queue_ix
+  on vy_replica_processing_job (state, next_attempt_at, created_at)
+  where state in ('queued','retry');
+
+create index if not exists vy_replica_processing_source_ix
+  on vy_replica_processing_job (replica_id, source_id, created_at);
+-- END historical replica mirror: 016_replica_enrollment.sql
+
+-- BEGIN historical replica mirror: 017_replica_processing_manifests.sql
+-- Migration 017 -- immutable preprocessing manifests, append-only evidence and
+-- versioned model builds. One statement per apply call; every statement is
+-- independently idempotent. Raw objects remain in vy_replica_source and are
+-- never represented as preprocessing artifacts.
+
+create table if not exists vy_replica_processing_attempt (
+  job_id               uuid not null references vy_replica_processing_job(job_id) on delete cascade,
+  attempt              integer not null check (attempt > 0),
+  outcome              text not null
+                       check (outcome in ('running','retry','blocked','complete','failed')),
+  adapter_family       text not null default '',
+  adapter_name         text not null default '',
+  adapter_version      text not null default '',
+  result_manifest_hash text not null default '',
+  failure_code         text not null default '',
+  facts                jsonb not null default '{}'::jsonb,
+  started_at           timestamptz not null default now(),
+  finished_at          timestamptz,
+  primary key (job_id, attempt),
+  constraint vy_replica_attempt_result_hash
+    check (result_manifest_hash = '' or result_manifest_hash ~ '^[0-9a-f]{64}$')
+);
+
+create index if not exists vy_replica_processing_attempt_outcome_ix
+  on vy_replica_processing_attempt (outcome, started_at);
+
+-- Composite parent keys make tenant/source ownership part of every child FK;
+-- UUID equality alone is not an ownership boundary.
+create unique index if not exists vy_replica_source_owner_tuple_ix
+  on vy_replica_source (source_id, replica_id, owner_user_id);
+
+do $replica_job_source_fk$
+begin
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'vy_replica_processing_source_owner_fk'
+       and conrelid = 'vy_replica_processing_job'::regclass
+  ) then
+    alter table vy_replica_processing_job
+      add constraint vy_replica_processing_source_owner_fk
+      foreign key (source_id, replica_id, owner_user_id)
+      references vy_replica_source(source_id, replica_id, owner_user_id) on delete cascade;
+  end if;
+end;
+$replica_job_source_fk$;
+
+create unique index if not exists vy_replica_processing_job_owner_tuple_ix
+  on vy_replica_processing_job (job_id, source_id, replica_id, owner_user_id);
+
+create table if not exists vy_replica_processing_artifact (
+  artifact_id          uuid primary key,
+  replica_id           uuid not null,
+  owner_user_id        uuid not null,
+  source_id            uuid not null references vy_replica_source(source_id) on delete cascade,
+  parent_artifact_id   uuid references vy_replica_processing_artifact(artifact_id) on delete restrict,
+  created_by_job_id    uuid references vy_replica_processing_job(job_id) on delete set null,
+  stage                text not null
+                       check (stage in ('separate','enhance','transcribe','voice_quality')),
+  variant_key          text not null,
+  storage_bucket       text not null,
+  object_path          text not null,
+  mime                 text not null,
+  byte_size            bigint not null check (byte_size > 0),
+  duration_ms          integer check (duration_ms is null or duration_ms >= 0),
+  sha256               text not null,
+  input_sha256         text not null,
+  transform_name       text not null,
+  transform_version    text not null,
+  parameter_hash       text not null,
+  adapter_family       text not null,
+  adapter_name         text not null,
+  adapter_version      text not null,
+  manifest             jsonb not null,
+  manifest_hash        text not null,
+  created_at           timestamptz not null default now(),
+  constraint vy_replica_artifact_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_artifact_source_owner_fk
+    foreign key (source_id, replica_id, owner_user_id)
+    references vy_replica_source(source_id, replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_artifact_job_owner_fk
+    foreign key (created_by_job_id, source_id, replica_id, owner_user_id)
+    references vy_replica_processing_job(job_id, source_id, replica_id, owner_user_id),
+  constraint vy_replica_artifact_sha check (sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_artifact_input_sha check (input_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_artifact_parameter_hash check (parameter_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_artifact_manifest_hash check (manifest_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_artifact_derived_path
+    check (object_path like owner_user_id::text || '/' || replica_id::text || '/' || source_id::text || '/derived/%'
+           and object_path !~ '://'),
+  constraint vy_replica_artifact_owner_tuple
+    unique (artifact_id, source_id, replica_id, owner_user_id),
+  constraint vy_replica_artifact_parent_owner_fk
+    foreign key (parent_artifact_id, source_id, replica_id, owner_user_id)
+    references vy_replica_processing_artifact(artifact_id, source_id, replica_id, owner_user_id) on delete restrict,
+  constraint vy_replica_artifact_variant_unique
+    unique (source_id, stage, transform_version, variant_key, input_sha256)
+);
+
+create index if not exists vy_replica_processing_artifact_source_ix
+  on vy_replica_processing_artifact (replica_id, source_id, stage, created_at);
+
+create table if not exists vy_replica_processing_evidence (
+  evidence_id          uuid primary key,
+  replica_id           uuid not null,
+  owner_user_id        uuid not null,
+  source_id            uuid not null references vy_replica_source(source_id) on delete cascade,
+  artifact_id          uuid references vy_replica_processing_artifact(artifact_id) on delete cascade,
+  created_by_job_id    uuid references vy_replica_processing_job(job_id) on delete set null,
+  evidence_type        text not null
+                       check (evidence_type in (
+                         'media_probe','speaker_segment','transcript_span','language_span',
+                         'voice_embedding','voice_measurement','quality_measurement'
+                       )),
+  span_start_ms        integer check (span_start_ms is null or span_start_ms >= 0),
+  span_end_ms          integer check (span_end_ms is null or span_end_ms >= 0),
+  confidence           double precision check (confidence is null or (confidence >= 0 and confidence <= 1)),
+  value                jsonb not null,
+  input_sha256         text not null,
+  adapter_family       text not null,
+  adapter_name         text not null,
+  adapter_version      text not null,
+  record_hash          text not null unique,
+  created_at           timestamptz not null default now(),
+  constraint vy_replica_evidence_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_evidence_source_owner_fk
+    foreign key (source_id, replica_id, owner_user_id)
+    references vy_replica_source(source_id, replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_evidence_artifact_owner_fk
+    foreign key (artifact_id, source_id, replica_id, owner_user_id)
+    references vy_replica_processing_artifact(artifact_id, source_id, replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_evidence_job_owner_fk
+    foreign key (created_by_job_id, source_id, replica_id, owner_user_id)
+    references vy_replica_processing_job(job_id, source_id, replica_id, owner_user_id),
+  constraint vy_replica_evidence_span
+    check (span_end_ms is null or span_start_ms is not null and span_end_ms > span_start_ms),
+  constraint vy_replica_evidence_input_sha check (input_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_evidence_record_hash check (record_hash ~ '^[0-9a-f]{64}$')
+);
+
+create index if not exists vy_replica_processing_evidence_source_ix
+  on vy_replica_processing_evidence (replica_id, source_id, evidence_type, created_at);
+
+create table if not exists vy_replica_processing_evidence_decision (
+  decision_id          uuid primary key default gen_random_uuid(),
+  evidence_id          uuid not null references vy_replica_processing_evidence(evidence_id) on delete cascade,
+  decision             text not null check (decision in ('accepted','rejected','superseded')),
+  reason_code          text not null,
+  reviewer_user_id     uuid not null,
+  created_at           timestamptz not null default now()
+);
+
+create index if not exists vy_replica_evidence_decision_ix
+  on vy_replica_processing_evidence_decision (evidence_id, created_at desc);
+
+create table if not exists vy_replica_model_build (
+  build_id             uuid primary key default gen_random_uuid(),
+  replica_id           uuid not null,
+  owner_user_id        uuid not null,
+  build_kind           text not null check (build_kind in ('voice_genome','person_profile')),
+  target_version       integer not null check (target_version > 0),
+  builder_version      text not null,
+  source_set_hash      text not null,
+  state                text not null default 'queued'
+                       check (state in ('queued','leased','building','retry','review','approved','failed','retired')),
+  attempt              integer not null default 0 check (attempt >= 0),
+  manifest_hash        text not null default '',
+  failure_code         text not null default '',
+  next_attempt_at      timestamptz not null default now(),
+  created_at           timestamptz not null default now(),
+  updated_at           timestamptz not null default now(),
+  constraint vy_replica_model_build_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_model_build_source_hash check (source_set_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_model_build_manifest_hash
+    check (manifest_hash = '' or manifest_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_model_build_unique unique (replica_id, build_kind, target_version)
+);
+
+create index if not exists vy_replica_model_build_queue_ix
+  on vy_replica_model_build (state, next_attempt_at, created_at)
+  where state in ('queued','retry');
+-- END historical replica mirror: 017_replica_processing_manifests.sql
+
+-- BEGIN historical replica mirror: 019_replica_generation_provenance.sql
+-- Migration 019 - protected replica generation and public verification.
+--
+-- The operational row is tenant-bound and is erased with the replica. The
+-- public receipt deliberately survives erasure, but contains only random ids,
+-- commitments, hashes, algorithms and signatures. It contains no owner id,
+-- replica id, prompt, transcript, memory, audio bytes, provider reference or
+-- private object path.
+
+create unique index if not exists vy_replica_voice_profile_replica_ix
+  on vy_replica_voice_profile (voice_profile_id, replica_id, genome_version);
+
+create table if not exists vy_replica_generation (
+  generation_id         uuid primary key default gen_random_uuid(),
+  replica_id            uuid not null,
+  owner_user_id         uuid not null,
+  voice_profile_id      uuid not null,
+  genome_version        integer not null check (genome_version > 0),
+  profile_version       integer not null check (profile_version > 0),
+  channel               text not null
+                        check (channel in ('studio_preview','private_chat','private_call')),
+  purpose               text not null
+                        check (purpose in ('calibration','private_conversation')),
+  policy_version        text not null,
+  trace_id              text not null,
+  state                 text not null default 'authorized'
+                        check (state in ('authorized','streaming','sealed','aborted','failed')),
+  disclosure_scheme     text not null,
+  watermark_algorithm   text not null,
+  provenance_standard   text not null,
+  audio_sha256          text,
+  watermark_token_hash  text,
+  manifest_sha256       text,
+  ledger_envelope_hash  text,
+  segment_count         integer not null default 0 check (segment_count >= 0),
+  final_chain_sha256    text,
+  failure_code          text not null default '',
+  authorized_at         timestamptz not null default now(),
+  streaming_at          timestamptz,
+  sealed_at             timestamptz,
+  updated_at            timestamptz not null default now(),
+  constraint vy_replica_generation_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_generation_voice_fk
+    foreign key (voice_profile_id, replica_id, genome_version)
+    references vy_replica_voice_profile(voice_profile_id, replica_id, genome_version),
+  constraint vy_replica_generation_genome_fk
+    foreign key (replica_id, genome_version)
+    references vy_replica_voice_genome(replica_id, version),
+  constraint vy_replica_generation_profile_fk
+    foreign key (replica_id, profile_version)
+    references vy_replica_profile(replica_id, version),
+  constraint vy_replica_generation_audio_hash
+    check (audio_sha256 is null or audio_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_generation_watermark_hash
+    check (watermark_token_hash is null or watermark_token_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_generation_manifest_hash
+    check (manifest_sha256 is null or manifest_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_generation_envelope_hash
+    check (ledger_envelope_hash is null or ledger_envelope_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_generation_chain_hash
+    check (final_chain_sha256 is null or final_chain_sha256 ~ '^[0-9a-f]{64}$')
+);
+
+create index if not exists vy_replica_generation_owner_ix
+  on vy_replica_generation (owner_user_id, replica_id, authorized_at desc);
+
+create index if not exists vy_replica_generation_open_ix
+  on vy_replica_generation (state, authorized_at)
+  where state in ('authorized','streaming');
+
+-- An immutable, content-free public verification receipt. There is no FK to
+-- vy_replica_generation so replica erasure cannot destroy authenticity proof
+-- for media that already left the service.
+create table if not exists vy_replica_generation_receipt (
+  generation_id          uuid primary key,
+  replica_commitment     text not null,
+  policy_version         text not null,
+  channel                text not null
+                         check (channel in ('studio_preview','private_chat','private_call')),
+  disclosure_scheme      text not null,
+  disclosure_text_hash   text not null,
+  watermark_algorithm    text not null,
+  watermark_token_hash   text not null,
+  detector_policy_hash   text not null,
+  provenance_standard    text not null,
+  manifest_location      text not null check (manifest_location in ('embedded','external')),
+  manifest_sha256        text not null,
+  audio_sha256           text not null,
+  segment_count          integer not null check (segment_count > 0),
+  final_chain_sha256     text not null,
+  envelope_sha256        text not null,
+  signature_algorithm    text not null,
+  signer_key_id          text not null,
+  envelope_signature     text not null,
+  issued_at              timestamptz not null default now(),
+  constraint vy_replica_receipt_replica_hash check (replica_commitment ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_receipt_disclosure_hash check (disclosure_text_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_receipt_watermark_hash check (watermark_token_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_receipt_detector_hash check (detector_policy_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_receipt_manifest_hash check (manifest_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_receipt_audio_hash check (audio_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_receipt_chain_hash check (final_chain_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_receipt_envelope_hash check (envelope_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_receipt_signature check (length(envelope_signature) >= 32)
+);
+
+create index if not exists vy_replica_generation_receipt_issued_ix
+  on vy_replica_generation_receipt (issued_at desc);
+
+-- Each protected PCM segment is committed and signed before that segment is
+-- released to a real-time consumer. These receipts remain verifiable after an
+-- abort or final-manifest failure and deliberately carry no replica/owner FK.
+create table if not exists vy_replica_generation_segment_receipt (
+  generation_id       uuid not null,
+  sequence            integer not null check (sequence >= 0),
+  byte_offset         bigint not null check (byte_offset >= 0),
+  byte_length         integer not null check (byte_length > 0),
+  segment_sha256      text not null,
+  previous_chain_sha256 text not null,
+  chain_sha256        text not null,
+  signature_algorithm text not null,
+  signer_key_id       text not null,
+  chain_signature     text not null,
+  issued_at           timestamptz not null default now(),
+  primary key (generation_id, sequence),
+  constraint vy_replica_segment_hash check (segment_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_segment_previous_hash check (previous_chain_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_segment_chain_hash check (chain_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_segment_signature check (length(chain_signature) >= 32)
+);
+
+create index if not exists vy_replica_generation_segment_issued_ix
+  on vy_replica_generation_segment_receipt (issued_at desc);
+-- END historical replica mirror: 019_replica_generation_provenance.sql
+
+-- BEGIN historical replica mirror: 020_replica_review_isolation.sql
+-- Migration 020 - make owner evidence decisions tenant-bound and VoiceGenome
+-- queueing idempotent. Existing 017 rows are backfilled from immutable
+-- evidence before the new columns become mandatory.
+
+alter table vy_replica_processing_evidence_decision add column if not exists replica_id uuid;
+alter table vy_replica_processing_evidence_decision add column if not exists owner_user_id uuid;
+
+update vy_replica_processing_evidence_decision d
+   set replica_id = e.replica_id,
+       owner_user_id = e.owner_user_id
+  from vy_replica_processing_evidence e
+ where e.evidence_id = d.evidence_id
+   and (d.replica_id is null or d.owner_user_id is null);
+
+alter table vy_replica_processing_evidence_decision alter column replica_id set not null;
+alter table vy_replica_processing_evidence_decision alter column owner_user_id set not null;
+
+create unique index if not exists vy_replica_evidence_owner_tuple_ix
+  on vy_replica_processing_evidence (evidence_id, replica_id, owner_user_id);
+
+do $replica_evidence_decision_owner_fk$
+begin
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'vy_replica_evidence_decision_owner_fk'
+       and conrelid = 'vy_replica_processing_evidence_decision'::regclass
+  ) then
+    alter table vy_replica_processing_evidence_decision
+      add constraint vy_replica_evidence_decision_owner_fk
+      foreign key (evidence_id, replica_id, owner_user_id)
+      references vy_replica_processing_evidence(evidence_id, replica_id, owner_user_id)
+      on delete cascade;
+  end if;
+end;
+$replica_evidence_decision_owner_fk$;
+
+do $replica_evidence_decision_reviewer_check$
+begin
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'vy_replica_evidence_decision_reviewer_check'
+       and conrelid = 'vy_replica_processing_evidence_decision'::regclass
+  ) then
+    alter table vy_replica_processing_evidence_decision
+      add constraint vy_replica_evidence_decision_reviewer_check
+      check (reviewer_user_id = owner_user_id);
+  end if;
+end;
+$replica_evidence_decision_reviewer_check$;
+
+create index if not exists vy_replica_evidence_decision_owner_ix
+  on vy_replica_processing_evidence_decision
+    (replica_id, owner_user_id, evidence_id, created_at desc);
+
+create unique index if not exists vy_replica_model_build_source_set_ix
+  on vy_replica_model_build (replica_id, build_kind, source_set_hash);
+-- END historical replica mirror: 020_replica_review_isolation.sql
+
+-- BEGIN historical legacy mirror: 021_raw_agent_strict.sql
+-- Migration 021 - remove the raw RelationalOS compatibility defaults left by
+-- migration 018. After this point a writer that omits agent_id fails loudly
+-- instead of silently filing a replica conversation under Meera.
+--
+-- Apply only after `node evals/run.mjs agentstrict` passes and the live 010
+-- agent-isolation fixture has passed against the target database.
+
+alter table meera_log alter column agent_id drop default;
+alter table meera_nodes alter column agent_id drop default;
+alter table meera_edges alter column agent_id drop default;
+alter table meera_forget alter column agent_id drop default;
+alter table meera_consolidate_lease alter column agent_id drop default;
+-- END historical legacy mirror: 021_raw_agent_strict.sql
+
+-- BEGIN historical legacy mirror: 022_remaining_agent_keys.sql
+-- Migration 022 - remove the last person-only uniqueness arbiters in the
+-- derived agent layer. A client clock id and an inferred taste source are
+-- relationship data, so two agents must be able to carry the same natural key.
+
+do $replica_session_agent_key$
+begin
+  if exists (
+    select 1 from pg_constraint
+     where conname = 'vy_session_pkey'
+       and conrelid = 'vy_session'::regclass
+       and pg_get_constraintdef(oid) !~* 'PRIMARY KEY \(agent_id, session_id\)'
+  ) then
+    alter table vy_session drop constraint vy_session_pkey;
+  end if;
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'vy_session_pkey'
+       and conrelid = 'vy_session'::regclass
+  ) then
+    alter table vy_session add constraint vy_session_pkey primary key (agent_id, session_id);
+  end if;
+end;
+$replica_session_agent_key$;
+
+do $replica_taste_agent_key$
+begin
+  if exists (
+    select 1 from pg_constraint
+     where conname = 'vy_taste_candidate_source_once'
+       and conrelid = 'vy_taste_candidate'::regclass
+       and pg_get_constraintdef(oid) !~* 'UNIQUE \(agent_id, source, source_id\)'
+  ) then
+    alter table vy_taste_candidate drop constraint vy_taste_candidate_source_once;
+  end if;
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'vy_taste_candidate_source_once'
+       and conrelid = 'vy_taste_candidate'::regclass
+  ) then
+    alter table vy_taste_candidate
+      add constraint vy_taste_candidate_source_once unique (agent_id, source, source_id);
+  end if;
+end;
+$replica_taste_agent_key$;
+-- END historical legacy mirror: 022_remaining_agent_keys.sql
+
+-- BEGIN historical replica mirror: 023_replica_runtime.sql
+-- Migration 023 - immutable private-replica runtime capabilities.
+--
+-- A runtime capability freezes the exact agent, person profile, VoiceGenome,
+-- provider voice and qualification corpus that earned activation. Runtime
+-- requests bind to this row instead of asking for "latest", so a later draft,
+-- failed retrain or provider swap cannot silently change a live replica.
+
+create unique index if not exists vy_replica_agent_pair_ix
+  on vy_replica (replica_id, agent_id);
+
+create table if not exists vy_replica_runtime_capability (
+  capability_id       uuid primary key default gen_random_uuid(),
+  replica_id          uuid not null,
+  owner_user_id       uuid not null,
+  agent_id            uuid not null,
+  subject_person_id   uuid not null references vy_person(person_id),
+  voice_profile_id    uuid not null,
+  genome_version      integer not null check (genome_version > 0),
+  profile_version     integer not null check (profile_version > 0),
+  qualification_hash text not null,
+  policy_version      text not null,
+  state               text not null default 'active'
+                      check (state in ('active','paused','revoked','superseded')),
+  activated_at        timestamptz not null default now(),
+  revoked_at          timestamptz,
+  constraint vy_replica_runtime_capability_hash
+    check (qualification_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_runtime_capability_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica(replica_id, owner_user_id) on delete cascade,
+  constraint vy_replica_runtime_capability_agent_fk
+    foreign key (replica_id, agent_id)
+    references vy_replica(replica_id, agent_id) on delete cascade,
+  constraint vy_replica_runtime_capability_genome_fk
+    foreign key (replica_id, genome_version)
+    references vy_replica_voice_genome(replica_id, version),
+  constraint vy_replica_runtime_capability_voice_fk
+    foreign key (voice_profile_id, replica_id, genome_version)
+    references vy_replica_voice_profile(voice_profile_id, replica_id, genome_version),
+  constraint vy_replica_runtime_capability_profile_fk
+    foreign key (replica_id, profile_version)
+    references vy_replica_profile(replica_id, version),
+  constraint vy_replica_runtime_capability_identity
+    unique (capability_id, replica_id, owner_user_id, agent_id, subject_person_id)
+);
+
+create unique index if not exists vy_replica_runtime_one_active_ix
+  on vy_replica_runtime_capability (replica_id)
+  where state = 'active';
+
+create index if not exists vy_replica_runtime_owner_ix
+  on vy_replica_runtime_capability (owner_user_id, replica_id, activated_at desc);
+
+create table if not exists vy_replica_runtime_session (
+  session_id        uuid primary key default gen_random_uuid(),
+  capability_id     uuid not null,
+  replica_id        uuid not null,
+  owner_user_id     uuid not null,
+  agent_id          uuid not null,
+  person_id         uuid not null,
+  channel           text not null check (channel in ('private_chat','private_call')),
+  state             text not null default 'active'
+                    check (state in ('active','ended','revoked','expired')),
+  trace_id          text not null,
+  started_at        timestamptz not null default now(),
+  last_active_at    timestamptz not null default now(),
+  ended_at          timestamptz,
+  updated_at        timestamptz not null default now(),
+  constraint vy_replica_runtime_session_trace check (length(trace_id) between 8 and 96),
+  constraint vy_replica_runtime_session_capability_fk
+    foreign key (capability_id, replica_id, owner_user_id, agent_id, person_id)
+    references vy_replica_runtime_capability(
+      capability_id, replica_id, owner_user_id, agent_id, subject_person_id
+    ) on delete cascade
+);
+
+create index if not exists vy_replica_runtime_session_owner_ix
+  on vy_replica_runtime_session (owner_user_id, replica_id, started_at desc);
+
+create index if not exists vy_replica_runtime_session_active_ix
+  on vy_replica_runtime_session (capability_id, last_active_at)
+  where state = 'active';
+-- END historical replica mirror: 023_replica_runtime.sql
+
+-- BEGIN historical replica mirror: 024_person_model.sql
+-- Migration 024 - owner-reviewed claims and deterministic Person Models.
+
+alter table vy_replica_claim
+  add column if not exists owner_user_id uuid;
+
+update vy_replica_claim c
+   set owner_user_id=r.owner_user_id
+  from vy_replica r
+ where c.replica_id=r.replica_id and c.owner_user_id is null;
+
+alter table vy_replica_claim
+  alter column owner_user_id set not null;
+
+create unique index if not exists vy_replica_claim_owner_pair_ix
+  on vy_replica_claim (claim_id, replica_id, owner_user_id);
+
+do $person_model_claim_owner_fk$
+begin
+  if not exists (select 1 from pg_constraint where conname='vy_replica_claim_owner_fk') then
+    alter table vy_replica_claim add constraint vy_replica_claim_owner_fk
+      foreign key (replica_id,owner_user_id)
+      references vy_replica(replica_id,owner_user_id) on delete cascade;
+  end if;
+end;
+$person_model_claim_owner_fk$;
+
+create table if not exists vy_replica_claim_decision (
+  decision_id      uuid primary key default gen_random_uuid(),
+  claim_id         bigint not null,
+  replica_id       uuid not null,
+  owner_user_id    uuid not null,
+  decision         text not null check (decision in ('accepted','rejected','superseded')),
+  reason_code      text not null,
+  policy_version   text not null,
+  created_at       timestamptz not null default now(),
+  constraint vy_replica_claim_decision_owner_check
+    check (owner_user_id is not null),
+  constraint vy_replica_claim_decision_claim_fk
+    foreign key (claim_id,replica_id,owner_user_id)
+    references vy_replica_claim(claim_id,replica_id,owner_user_id) on delete cascade
+);
+
+create index if not exists vy_replica_claim_decision_latest_ix
+  on vy_replica_claim_decision (replica_id,owner_user_id,claim_id,created_at desc);
+
+create unique index if not exists vy_replica_profile_source_set_ix
+  on vy_replica_profile (replica_id,source_set_hash);
+
+alter table vy_replica_preference
+  add column if not exists owner_user_id uuid;
+
+update vy_replica_preference p
+   set owner_user_id=r.owner_user_id
+  from vy_replica r
+ where p.replica_id=r.replica_id and p.owner_user_id is null;
+
+alter table vy_replica_preference
+  alter column owner_user_id set not null;
+
+do $person_model_preference_owner_fk$
+begin
+  if not exists (select 1 from pg_constraint where conname='vy_replica_preference_owner_fk') then
+    alter table vy_replica_preference add constraint vy_replica_preference_owner_fk
+      foreign key (replica_id,owner_user_id)
+      references vy_replica(replica_id,owner_user_id) on delete cascade;
+  end if;
+end;
+$person_model_preference_owner_fk$;
+
+create index if not exists vy_replica_preference_owner_layer_ix
+  on vy_replica_preference (owner_user_id,replica_id,layer,created_at desc);
+-- END historical replica mirror: 024_person_model.sql
+
+-- BEGIN historical replica mirror: 025_replica_calibration.sql
+-- Migration 025 - typed, versioned behavioral calibration.
+--
+-- Preferences are append-only answers to server-owned contrast pairs. A
+-- calibration policy is a deterministic projection of the latest answers,
+-- not a growing collection of prose appended to a prompt.
+
+alter table vy_replica_preference add column if not exists profile_version integer;
+alter table vy_replica_preference add column if not exists scenario_revision integer not null default 1;
+alter table vy_replica_preference add column if not exists pair_hash text;
+alter table vy_replica_preference add column if not exists revision integer not null default 1;
+alter table vy_replica_preference add column if not exists supersedes_id uuid;
+alter table vy_replica_preference add column if not exists confidence numeric(4,3) not null default 1.000;
+alter table vy_replica_preference add column if not exists policy_version text;
+
+create unique index if not exists vy_replica_preference_owner_identity_ix
+  on vy_replica_preference (preference_id,replica_id,owner_user_id);
+
+create unique index if not exists vy_replica_preference_pair_revision_ix
+  on vy_replica_preference (replica_id,owner_user_id,pair_hash,revision)
+  where pair_hash is not null;
+
+do $replica_preference_constraints$
+begin
+  if not exists (select 1 from pg_constraint where conname='vy_replica_preference_profile_fk') then
+    alter table vy_replica_preference add constraint vy_replica_preference_profile_fk
+      foreign key (replica_id,profile_version)
+      references vy_replica_profile(replica_id,version);
+  end if;
+  if not exists (select 1 from pg_constraint where conname='vy_replica_preference_supersedes_fk') then
+    alter table vy_replica_preference add constraint vy_replica_preference_supersedes_fk
+      foreign key (supersedes_id,replica_id,owner_user_id)
+      references vy_replica_preference(preference_id,replica_id,owner_user_id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname='vy_replica_preference_pair_hash_check') then
+    alter table vy_replica_preference add constraint vy_replica_preference_pair_hash_check
+      check (pair_hash is null or pair_hash ~ '^[0-9a-f]{64}$');
+  end if;
+  if not exists (select 1 from pg_constraint where conname='vy_replica_preference_revision_check') then
+    alter table vy_replica_preference add constraint vy_replica_preference_revision_check
+      check (revision > 0 and scenario_revision > 0 and confidence between 0 and 1 and length(note) <= 280);
+  end if;
+end;
+$replica_preference_constraints$;
+
+create table if not exists vy_replica_calibration (
+  replica_id       uuid not null,
+  owner_user_id    uuid not null,
+  version          integer not null check (version > 0),
+  profile_version  integer not null check (profile_version > 0),
+  source_set_hash  text not null,
+  definition       jsonb not null,
+  status           text not null default 'draft'
+                   check (status in ('draft','approved','retired')),
+  created_at       timestamptz not null default now(),
+  primary key (replica_id,version),
+  constraint vy_replica_calibration_owner_fk
+    foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_calibration_profile_fk
+    foreign key (replica_id,profile_version)
+    references vy_replica_profile(replica_id,version),
+  constraint vy_replica_calibration_source_hash
+    check (source_set_hash ~ '^[0-9a-f]{64}$')
+);
+
+create unique index if not exists vy_replica_calibration_source_set_ix
+  on vy_replica_calibration (replica_id,owner_user_id,profile_version,source_set_hash);
+
+create index if not exists vy_replica_calibration_owner_ix
+  on vy_replica_calibration (owner_user_id,replica_id,created_at desc);
+
+alter table vy_replica_runtime_capability add column if not exists calibration_version integer;
+alter table vy_replica_eval_run add column if not exists calibration_version integer;
+alter table vy_replica_generation add column if not exists calibration_version integer;
+
+do $replica_calibration_runtime_constraints$
+begin
+  if not exists (select 1 from pg_constraint where conname='vy_replica_runtime_calibration_fk') then
+    alter table vy_replica_runtime_capability add constraint vy_replica_runtime_calibration_fk
+      foreign key (replica_id,calibration_version)
+      references vy_replica_calibration(replica_id,version);
+  end if;
+  if not exists (select 1 from pg_constraint where conname='vy_replica_eval_calibration_fk') then
+    alter table vy_replica_eval_run add constraint vy_replica_eval_calibration_fk
+      foreign key (replica_id,calibration_version)
+      references vy_replica_calibration(replica_id,version);
+  end if;
+  if not exists (select 1 from pg_constraint where conname='vy_replica_generation_calibration_fk') then
+    alter table vy_replica_generation add constraint vy_replica_generation_calibration_fk
+      foreign key (replica_id,calibration_version)
+      references vy_replica_calibration(replica_id,version);
+  end if;
+end;
+$replica_calibration_runtime_constraints$;
+-- END historical replica mirror: 025_replica_calibration.sql
+
+-- BEGIN historical replica mirror: 026_claim_extraction.sql
+-- Migration 026 - cited, privacy-bounded claim extraction.
+--
+-- Extraction runs are content-free operational records. Proposed claims cite
+-- immutable transcript evidence through exact character spans and quote
+-- hashes; raw quotes remain in the private evidence row and never enter this
+-- lineage table.
+
+create table if not exists vy_replica_claim_extraction (
+  run_id             uuid primary key default gen_random_uuid(),
+  replica_id         uuid not null,
+  owner_user_id      uuid not null,
+  schema_version     text not null,
+  provider_family    text not null,
+  provider_name      text not null,
+  provider_version   text not null,
+  model              text not null,
+  input_set_hash     text not null,
+  consent_ids        uuid[] not null,
+  state              text not null default 'extracting'
+                     check (state in ('extracting','complete','failed','superseded')),
+  proposed_count     integer not null default 0 check (proposed_count >= 0),
+  rejected_count     integer not null default 0 check (rejected_count >= 0),
+  attempt            integer not null default 1 check (attempt > 0),
+  failure_code       text not null default '',
+  created_at         timestamptz not null default now(),
+  completed_at       timestamptz,
+  updated_at         timestamptz not null default now(),
+  constraint vy_replica_claim_extraction_owner_fk
+    foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_claim_extraction_input_hash
+    check (input_set_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_claim_extraction_consent_check
+    check (cardinality(consent_ids) >= 2),
+  constraint vy_replica_claim_extraction_owner_tuple
+    unique (run_id,replica_id,owner_user_id)
+);
+
+create unique index if not exists vy_replica_claim_extraction_input_ix
+  on vy_replica_claim_extraction (replica_id,owner_user_id,schema_version,provider_name,provider_version,model,input_set_hash);
+
+create index if not exists vy_replica_claim_extraction_owner_ix
+  on vy_replica_claim_extraction (owner_user_id,replica_id,created_at desc);
+
+alter table vy_replica_claim add column if not exists proposal_hash text;
+alter table vy_replica_claim add column if not exists extractor_run_id uuid;
+
+create unique index if not exists vy_replica_claim_proposal_ix
+  on vy_replica_claim (replica_id,owner_user_id,proposal_hash)
+  where proposal_hash is not null;
+
+do $replica_claim_extractor_constraints$
+begin
+  if not exists (select 1 from pg_constraint where conname='vy_replica_claim_proposal_hash_check') then
+    alter table vy_replica_claim add constraint vy_replica_claim_proposal_hash_check
+      check (proposal_hash is null or proposal_hash ~ '^[0-9a-f]{64}$');
+  end if;
+  if not exists (select 1 from pg_constraint where conname='vy_replica_claim_extractor_run_fk') then
+    alter table vy_replica_claim add constraint vy_replica_claim_extractor_run_fk
+      foreign key (extractor_run_id,replica_id,owner_user_id)
+      references vy_replica_claim_extraction(run_id,replica_id,owner_user_id) on delete restrict;
+  end if;
+end;
+$replica_claim_extractor_constraints$;
+
+create table if not exists vy_replica_claim_citation (
+  claim_id          bigint not null,
+  replica_id        uuid not null,
+  owner_user_id     uuid not null,
+  evidence_id       uuid not null,
+  source_id         uuid not null,
+  start_char        integer not null check (start_char >= 0),
+  end_char          integer not null check (end_char > start_char),
+  quote_hash        text not null,
+  entailment        double precision not null check (entailment >= 0 and entailment <= 1),
+  created_at        timestamptz not null default now(),
+  primary key (claim_id,evidence_id,start_char,end_char),
+  constraint vy_replica_claim_citation_quote_hash check (quote_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_claim_citation_claim_fk
+    foreign key (claim_id,replica_id,owner_user_id)
+    references vy_replica_claim(claim_id,replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_claim_citation_evidence_fk
+    foreign key (evidence_id,replica_id,owner_user_id)
+    references vy_replica_processing_evidence(evidence_id,replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_claim_citation_source_fk
+    foreign key (source_id,replica_id,owner_user_id)
+    references vy_replica_source(source_id,replica_id,owner_user_id) on delete cascade
+);
+
+create index if not exists vy_replica_claim_citation_source_ix
+  on vy_replica_claim_citation (owner_user_id,replica_id,source_id,evidence_id);
+-- END historical replica mirror: 026_claim_extraction.sql
+
+-- BEGIN historical replica mirror: 027_replica_dialogue.sql
+-- Migration 027 - private, version-bound replica dialogue.
+--
+-- Conversation text continues to live in the erasable raw RelationalOS log.
+-- Dialogue rows bind exact runtime/model versions to those log ids and hashes;
+-- they do not duplicate prompts or replies.
+
+create unique index if not exists vy_person_device_pair_ix
+  on vy_person_device (device_id,person_id);
+
+create unique index if not exists meera_log_agent_device_tuple_ix
+  on meera_log (id,agent_id,device_id);
+
+create unique index if not exists vy_replica_runtime_session_identity_ix
+  on vy_replica_runtime_session
+    (session_id,capability_id,replica_id,owner_user_id,agent_id,person_id);
+
+alter table vy_replica_runtime_session
+  add column if not exists next_turn_ordinal integer not null default 1;
+
+create table if not exists vy_replica_dialogue_turn (
+  turn_id             uuid primary key default gen_random_uuid(),
+  session_id          uuid not null,
+  capability_id       uuid not null,
+  replica_id          uuid not null,
+  owner_user_id       uuid not null,
+  agent_id            uuid not null,
+  person_id           uuid not null,
+  device_id           uuid not null,
+  ordinal             integer not null check (ordinal > 0),
+  profile_version     integer not null check (profile_version > 0),
+  calibration_version integer not null check (calibration_version > 0),
+  schema_version      text not null,
+  provider_family     text not null,
+  provider_name       text not null,
+  provider_version    text not null,
+  model               text not null,
+  trace_id            text not null,
+  user_log_id         bigint not null,
+  assistant_log_id    bigint,
+  prompt_hash         text not null,
+  response_hash       text,
+  delivery_plan       jsonb,
+  state               text not null default 'generating'
+                      check (state in ('generating','complete','failed','blocked')),
+  failure_code        text not null default '',
+  created_at          timestamptz not null default now(),
+  completed_at        timestamptz,
+  updated_at          timestamptz not null default now(),
+  constraint vy_replica_dialogue_prompt_hash check (prompt_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_dialogue_response_hash check (response_hash is null or response_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_dialogue_trace check (length(trace_id) between 8 and 96),
+  constraint vy_replica_dialogue_owner_tuple unique (turn_id,replica_id,owner_user_id),
+  constraint vy_replica_dialogue_session_ordinal unique (session_id,ordinal),
+  constraint vy_replica_dialogue_session_fk
+    foreign key (session_id,capability_id,replica_id,owner_user_id,agent_id,person_id)
+    references vy_replica_runtime_session(
+      session_id,capability_id,replica_id,owner_user_id,agent_id,person_id
+    ) on delete cascade,
+  constraint vy_replica_dialogue_device_fk
+    foreign key (device_id,person_id)
+    references vy_person_device(device_id,person_id) on delete cascade,
+  constraint vy_replica_dialogue_user_log_fk
+    foreign key (user_log_id,agent_id,device_id)
+    references meera_log(id,agent_id,device_id) on delete cascade,
+  constraint vy_replica_dialogue_assistant_log_fk
+    foreign key (assistant_log_id,agent_id,device_id)
+    references meera_log(id,agent_id,device_id) on delete cascade
+);
+
+create index if not exists vy_replica_dialogue_owner_ix
+  on vy_replica_dialogue_turn (owner_user_id,replica_id,created_at desc);
+
+create index if not exists vy_replica_dialogue_session_ix
+  on vy_replica_dialogue_turn (session_id,ordinal desc);
+
+alter table vy_replica_generation add column if not exists dialogue_turn_id uuid;
+
+do $replica_generation_dialogue_fk$
+begin
+  if not exists (select 1 from pg_constraint where conname='vy_replica_generation_dialogue_fk') then
+    alter table vy_replica_generation add constraint vy_replica_generation_dialogue_fk
+      foreign key (dialogue_turn_id,replica_id,owner_user_id)
+      references vy_replica_dialogue_turn(turn_id,replica_id,owner_user_id) on delete cascade;
+  end if;
+end;
+$replica_generation_dialogue_fk$;
+
+create index if not exists vy_replica_generation_dialogue_ix
+  on vy_replica_generation (dialogue_turn_id)
+  where dialogue_turn_id is not null;
+-- END historical replica mirror: 027_replica_dialogue.sql
+
+-- BEGIN historical replica mirror: 028_provider_budget.sql
+-- Migration 028 - content-free, atomic paid-provider budget control.
+--
+-- The Azure sponsorship is finite. Reservations are charged against one
+-- server-configured ceiling before a provider call; actual usage settles the
+-- reservation afterwards. No prompt, transcript, reply, owner id or replica id
+-- is stored in this ledger.
+
+create table if not exists vy_provider_budget (
+  budget_id           text primary key,
+  currency            text not null default 'USD' check (currency='USD'),
+  limit_microusd      bigint not null check (limit_microusd > 0),
+  reserved_microusd   bigint not null default 0 check (reserved_microusd >= 0),
+  spent_microusd      bigint not null default 0 check (spent_microusd >= 0),
+  state               text not null default 'active' check (state in ('active','paused','exhausted')),
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now(),
+  constraint vy_provider_budget_total_check check (spent_microusd + reserved_microusd <= limit_microusd)
+);
+
+create table if not exists vy_provider_spend (
+  reservation_id       uuid primary key default gen_random_uuid(),
+  budget_id             text not null references vy_provider_budget(budget_id) on delete restrict,
+  operation             text not null check (operation in ('claim_extraction','dialogue','transcription','voice_training','synthesis','liveness','watermarking')),
+  provider_family       text not null,
+  provider_name         text not null,
+  provider_version      text not null,
+  model                  text not null,
+  request_hash           text not null,
+  unit_kind              text not null check (unit_kind in ('tokens','characters','audio_ms','requests')),
+  reserved_input_units   bigint not null default 0 check (reserved_input_units >= 0),
+  reserved_output_units  bigint not null default 0 check (reserved_output_units >= 0),
+  actual_input_units     bigint check (actual_input_units is null or actual_input_units >= 0),
+  actual_output_units    bigint check (actual_output_units is null or actual_output_units >= 0),
+  reserved_microusd      bigint not null check (reserved_microusd > 0),
+  actual_microusd        bigint check (actual_microusd is null or actual_microusd >= 0),
+  state                  text not null default 'pending'
+                         check (state in ('pending','reserved','in_flight','settled','released','reconcile_required')),
+  failure_code           text not null default '',
+  created_at             timestamptz not null default now(),
+  settled_at             timestamptz,
+  updated_at             timestamptz not null default now(),
+  constraint vy_provider_spend_request_hash check (request_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_provider_spend_request_unique unique (budget_id,operation,request_hash)
+);
+
+create index if not exists vy_provider_spend_state_ix
+  on vy_provider_spend (budget_id,state,created_at);
+
+create index if not exists vy_provider_spend_provider_ix
+  on vy_provider_spend (provider_name,model,created_at desc);
+-- END historical replica mirror: 028_provider_budget.sql
+
+-- BEGIN historical replica mirror: 029_replica_turn_feedback.sql
+-- Migration 029 - exact-version owner feedback and encrypted correction exemplars.
+--
+-- Ratings remain typed and content-free. Optional owner wording is encrypted
+-- before persistence and is never copied into the feedback ledger.
+
+create unique index if not exists vy_replica_dialogue_feedback_identity_ix
+  on vy_replica_dialogue_turn
+    (turn_id,replica_id,owner_user_id,capability_id,profile_version,calibration_version,response_hash);
+
+create unique index if not exists vy_replica_generation_feedback_identity_ix
+  on vy_replica_generation (generation_id,replica_id,owner_user_id,dialogue_turn_id);
+
+create table if not exists vy_replica_turn_feedback (
+  feedback_id          uuid primary key,
+  turn_id              uuid not null,
+  replica_id           uuid not null,
+  owner_user_id        uuid not null,
+  capability_id        uuid not null,
+  profile_version      integer not null check (profile_version > 0),
+  calibration_version  integer not null check (calibration_version > 0),
+  response_hash        text not null,
+  source_generation_id uuid,
+  revision             integer not null check (revision > 0),
+  supersedes_id        uuid,
+  ratings              jsonb not null check (jsonb_typeof(ratings)='object'),
+  ratings_hash         text not null,
+  reason_codes         text[] not null default '{}',
+  correction_hash      text,
+  policy_version       text not null,
+  created_at           timestamptz not null default now(),
+  constraint vy_replica_turn_feedback_hash check (response_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_turn_feedback_ratings_hash check (ratings_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_turn_feedback_correction_hash check (correction_hash is null or correction_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_turn_feedback_reason_count check (cardinality(reason_codes) <= 8),
+  constraint vy_replica_turn_feedback_revision unique (turn_id,revision),
+  constraint vy_replica_turn_feedback_owner_identity unique (feedback_id,replica_id,owner_user_id),
+  constraint vy_replica_turn_feedback_supersedes_fk
+    foreign key (supersedes_id,replica_id,owner_user_id)
+    references vy_replica_turn_feedback(feedback_id,replica_id,owner_user_id),
+  constraint vy_replica_turn_feedback_turn_fk
+    foreign key (turn_id,replica_id,owner_user_id,capability_id,profile_version,calibration_version,response_hash)
+    references vy_replica_dialogue_turn(
+      turn_id,replica_id,owner_user_id,capability_id,profile_version,calibration_version,response_hash
+    ) on delete cascade,
+  constraint vy_replica_turn_feedback_generation_fk
+    foreign key (source_generation_id,replica_id,owner_user_id,turn_id)
+    references vy_replica_generation(generation_id,replica_id,owner_user_id,dialogue_turn_id)
+);
+
+create index if not exists vy_replica_turn_feedback_owner_ix
+  on vy_replica_turn_feedback (owner_user_id,replica_id,created_at desc);
+
+create table if not exists vy_replica_turn_exemplar (
+  feedback_id       uuid primary key,
+  replica_id        uuid not null,
+  owner_user_id     uuid not null,
+  algorithm         text not null check (algorithm='AES-256-GCM'),
+  key_id            text not null,
+  nonce             bytea not null,
+  ciphertext        bytea not null,
+  auth_tag          bytea not null,
+  wrapped_dek       bytea not null,
+  wrap_nonce        bytea not null,
+  wrap_auth_tag     bytea not null,
+  aad_sha256        text not null,
+  text_sha256       text not null,
+  created_at        timestamptz not null default now(),
+  constraint vy_replica_turn_exemplar_aad_hash check (aad_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_turn_exemplar_text_hash check (text_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_turn_exemplar_crypto_shape check (
+    octet_length(nonce)=12 and octet_length(auth_tag)=16 and octet_length(ciphertext)>0
+    and octet_length(wrapped_dek)=32 and octet_length(wrap_nonce)=12 and octet_length(wrap_auth_tag)=16
+  ),
+  constraint vy_replica_turn_exemplar_feedback_fk
+    foreign key (feedback_id,replica_id,owner_user_id)
+    references vy_replica_turn_feedback(feedback_id,replica_id,owner_user_id) on delete cascade
+);
+
+create index if not exists vy_replica_turn_exemplar_owner_ix
+  on vy_replica_turn_exemplar (owner_user_id,replica_id,created_at desc);
+-- END historical replica mirror: 029_replica_turn_feedback.sql
+
+-- BEGIN historical replica mirror: 030_replica_feedback_dataset.sql
+-- Migration 030 - leakage-safe, content-free feedback dataset manifests.
+--
+-- Conversation split assignments are immutable across dataset versions so a
+-- turn from one private session can never appear in both train and evaluation.
+
+create table if not exists vy_replica_feedback_dataset (
+  dataset_id          uuid primary key,
+  replica_id          uuid not null,
+  owner_user_id       uuid not null,
+  version             integer not null check (version > 0),
+  profile_version     integer not null check (profile_version > 0),
+  calibration_version integer not null check (calibration_version > 0),
+  schema_version      text not null,
+  source_set_hash     text not null,
+  definition          jsonb not null,
+  readiness           jsonb not null,
+  status              text not null default 'draft' check (status in ('draft','approved','retired','rejected')),
+  created_at          timestamptz not null default now(),
+  constraint vy_replica_feedback_dataset_hash check (source_set_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_feedback_dataset_owner_identity unique (dataset_id,replica_id,owner_user_id),
+  constraint vy_replica_feedback_dataset_version unique (replica_id,version),
+  constraint vy_replica_feedback_dataset_source unique (replica_id,owner_user_id,profile_version,calibration_version,source_set_hash),
+  constraint vy_replica_feedback_dataset_owner_fk
+    foreign key (replica_id,owner_user_id) references vy_replica(replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_feedback_dataset_profile_fk
+    foreign key (replica_id,profile_version) references vy_replica_profile(replica_id,version),
+  constraint vy_replica_feedback_dataset_calibration_fk
+    foreign key (replica_id,calibration_version) references vy_replica_calibration(replica_id,version)
+);
+
+create index if not exists vy_replica_feedback_dataset_owner_ix
+  on vy_replica_feedback_dataset (owner_user_id,replica_id,created_at desc);
+
+create table if not exists vy_replica_feedback_split (
+  replica_id          uuid not null,
+  owner_user_id       uuid not null,
+  session_commitment  text not null,
+  split               text not null check (split in ('train','development','test')),
+  first_dataset_id    uuid not null,
+  created_at          timestamptz not null default now(),
+  primary key (replica_id,owner_user_id,session_commitment),
+  constraint vy_replica_feedback_split_hash check (session_commitment ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_feedback_split_owner_fk
+    foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_feedback_split_dataset_fk
+    foreign key (first_dataset_id,replica_id,owner_user_id)
+    references vy_replica_feedback_dataset(dataset_id,replica_id,owner_user_id) on delete cascade
+);
+
+create index if not exists vy_replica_feedback_split_dataset_ix
+  on vy_replica_feedback_split (first_dataset_id,split);
+-- END historical replica mirror: 030_replica_feedback_dataset.sql
+
+-- BEGIN historical replica mirror: 031_replica_candidate_qualification.sql
+-- Migration 031 - immutable candidate artifacts and paired qualification.
+--
+-- Qualified means eligible for explicit promotion review, never automatically
+-- active. Raw prompts, replies, audio and judge notes stay outside this ledger.
+
+create unique index if not exists vy_replica_runtime_candidate_identity_ix
+  on vy_replica_runtime_capability
+    (capability_id,replica_id,owner_user_id,profile_version,calibration_version);
+
+create unique index if not exists vy_replica_feedback_dataset_candidate_identity_ix
+  on vy_replica_feedback_dataset
+    (dataset_id,replica_id,owner_user_id,profile_version,calibration_version);
+
+create table if not exists vy_replica_candidate (
+  candidate_id         uuid primary key,
+  dataset_id           uuid not null,
+  replica_id           uuid not null,
+  owner_user_id        uuid not null,
+  base_capability_id   uuid not null,
+  profile_version      integer not null check (profile_version > 0),
+  calibration_version  integer not null check (calibration_version > 0),
+  kind                 text not null check (kind in ('dialogue_adapter','voice_adapter','joint_adapter','prompt_policy')),
+  target_layers        text[] not null,
+  artifact_sha256      text not null,
+  base_model_commitment text not null,
+  build_manifest_hash  text not null,
+  status               text not null default 'draft'
+                       check (status in ('draft','evaluating','qualified','rejected','retired')),
+  created_at           timestamptz not null default now(),
+  updated_at           timestamptz not null default now(),
+  constraint vy_replica_candidate_artifact_hash check (artifact_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_candidate_base_hash check (base_model_commitment ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_candidate_manifest_hash check (build_manifest_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_candidate_layers check (
+    cardinality(target_layers) between 1 and 7 and
+    target_layers <@ array['overall','wording','behavior','relationship','memory','delivery','voice_identity']::text[]
+  ),
+  constraint vy_replica_candidate_owner_identity unique (candidate_id,replica_id,owner_user_id),
+  constraint vy_replica_candidate_artifact_unique unique (replica_id,dataset_id,artifact_sha256),
+  constraint vy_replica_candidate_dataset_fk
+    foreign key (dataset_id,replica_id,owner_user_id,profile_version,calibration_version)
+    references vy_replica_feedback_dataset(dataset_id,replica_id,owner_user_id,profile_version,calibration_version) on delete cascade,
+  constraint vy_replica_candidate_capability_fk
+    foreign key (base_capability_id,replica_id,owner_user_id,profile_version,calibration_version)
+    references vy_replica_runtime_capability(capability_id,replica_id,owner_user_id,profile_version,calibration_version)
+);
+
+create index if not exists vy_replica_candidate_owner_ix
+  on vy_replica_candidate (owner_user_id,replica_id,created_at desc);
+
+create table if not exists vy_replica_candidate_qualification (
+  qualification_id  uuid primary key,
+  candidate_id      uuid not null,
+  replica_id        uuid not null,
+  owner_user_id     uuid not null,
+  protocol_version  text not null,
+  test_set_hash     text not null,
+  observation_hash  text not null,
+  observation_count integer not null check (observation_count > 0),
+  metrics           jsonb not null,
+  verdict           text not null check (verdict in ('pass','fail','inconclusive')),
+  created_at        timestamptz not null default now(),
+  constraint vy_replica_candidate_qualification_test_hash check (test_set_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_candidate_qualification_observation_hash check (observation_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_candidate_qualification_unique unique (candidate_id,protocol_version,test_set_hash,observation_hash),
+  constraint vy_replica_candidate_qualification_candidate_fk
+    foreign key (candidate_id,replica_id,owner_user_id)
+    references vy_replica_candidate(candidate_id,replica_id,owner_user_id) on delete cascade
+);
+
+create index if not exists vy_replica_candidate_qualification_owner_ix
+  on vy_replica_candidate_qualification (owner_user_id,replica_id,created_at desc);
+-- END historical replica mirror: 031_replica_candidate_qualification.sql
+
+-- BEGIN historical replica mirror: 032_replica_candidate_owner_eval.sql
+-- Migration 032 - private blinded owner evaluation assignments.
+--
+-- Run and judgment ledgers are content-free. Context and both outputs are
+-- envelope-encrypted in a separately erasable asset table. The owner sees A/B
+-- positions only; candidate identity is resolved server-side after judgment.
+
+create unique index if not exists vy_replica_candidate_eval_identity_ix
+  on vy_replica_candidate (candidate_id,dataset_id,replica_id,owner_user_id);
+
+create table if not exists vy_replica_candidate_eval_run (
+  eval_run_id          uuid primary key,
+  candidate_id         uuid not null,
+  dataset_id           uuid not null,
+  replica_id           uuid not null,
+  owner_user_id        uuid not null,
+  protocol_version     text not null,
+  run_commitment       text not null,
+  dataset_source_set_hash text not null,
+  required_dimensions text[] not null,
+  assignment_count     integer not null check (assignment_count >= 30),
+  state                text not null default 'preparing'
+                       check (state in ('preparing','collecting','complete','aborted')),
+  created_at           timestamptz not null default now(),
+  completed_at         timestamptz,
+  constraint vy_replica_candidate_eval_run_hash check (run_commitment ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_candidate_eval_dataset_hash check (dataset_source_set_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_candidate_eval_dimensions check (
+    cardinality(required_dimensions) between 1 and 7 and
+    required_dimensions <@ array['overall','wording','behavior','relationship','memory','delivery','voice_identity']::text[]
+  ),
+  constraint vy_replica_candidate_eval_run_owner_identity
+    unique (eval_run_id,candidate_id,replica_id,owner_user_id),
+  constraint vy_replica_candidate_eval_run_commitment
+    unique (candidate_id,run_commitment),
+  constraint vy_replica_candidate_eval_candidate_fk
+    foreign key (candidate_id,dataset_id,replica_id,owner_user_id)
+    references vy_replica_candidate(candidate_id,dataset_id,replica_id,owner_user_id) on delete cascade
+);
+
+create index if not exists vy_replica_candidate_eval_run_owner_ix
+  on vy_replica_candidate_eval_run (owner_user_id,replica_id,state,created_at desc);
+
+create table if not exists vy_replica_candidate_eval_assignment (
+  assignment_id       uuid primary key,
+  eval_run_id         uuid not null,
+  candidate_id        uuid not null,
+  replica_id          uuid not null,
+  owner_user_id       uuid not null,
+  example_id          uuid not null,
+  session_commitment  text not null,
+  sequence            integer not null check (sequence > 0),
+  presentation_order  text not null check (presentation_order in ('ab','ba')),
+  assignment_hash     text not null,
+  state               text not null default 'pending' check (state in ('pending','submitted','void')),
+  created_at          timestamptz not null default now(),
+  submitted_at        timestamptz,
+  constraint vy_replica_candidate_eval_assignment_session check (session_commitment ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_candidate_eval_assignment_hash check (assignment_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_candidate_eval_assignment_owner_identity
+    unique (assignment_id,eval_run_id,candidate_id,replica_id,owner_user_id),
+  constraint vy_replica_candidate_eval_assignment_asset_binding
+    unique (assignment_id,eval_run_id,candidate_id,replica_id,owner_user_id,example_id),
+  constraint vy_replica_candidate_eval_assignment_judgment_binding
+    unique (assignment_id,eval_run_id,candidate_id,replica_id,owner_user_id,assignment_hash),
+  constraint vy_replica_candidate_eval_assignment_sequence unique (eval_run_id,sequence),
+  constraint vy_replica_candidate_eval_assignment_example unique (eval_run_id,example_id),
+  constraint vy_replica_candidate_eval_assignment_hash_unique unique (eval_run_id,assignment_hash),
+  constraint vy_replica_candidate_eval_assignment_run_fk
+    foreign key (eval_run_id,candidate_id,replica_id,owner_user_id)
+    references vy_replica_candidate_eval_run(eval_run_id,candidate_id,replica_id,owner_user_id) on delete cascade,
+  constraint vy_replica_candidate_eval_assignment_feedback_fk
+    foreign key (example_id,replica_id,owner_user_id)
+    references vy_replica_turn_feedback(feedback_id,replica_id,owner_user_id) on delete cascade
+);
+
+create index if not exists vy_replica_candidate_eval_assignment_next_ix
+  on vy_replica_candidate_eval_assignment (eval_run_id,state,sequence);
+
+create table if not exists vy_replica_candidate_eval_asset (
+  asset_id            uuid primary key,
+  assignment_id       uuid not null,
+  eval_run_id         uuid not null,
+  candidate_id        uuid not null,
+  replica_id          uuid not null,
+  owner_user_id       uuid not null,
+  example_id          uuid not null,
+  role                text not null check (role in ('context','a','b')),
+  output_sha256       text not null,
+  algorithm           text not null check (algorithm='AES-256-GCM'),
+  key_id              text not null,
+  nonce               bytea not null,
+  ciphertext          bytea not null,
+  auth_tag             bytea not null,
+  wrapped_dek         bytea not null,
+  wrap_nonce          bytea not null,
+  wrap_auth_tag       bytea not null,
+  aad_sha256          text not null,
+  created_at          timestamptz not null default now(),
+  constraint vy_replica_candidate_eval_asset_output_hash check (output_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_candidate_eval_asset_aad_hash check (aad_sha256 ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_candidate_eval_asset_crypto_shape check (
+    octet_length(nonce)=12 and octet_length(auth_tag)=16 and octet_length(ciphertext)>0
+    and octet_length(wrapped_dek)=32 and octet_length(wrap_nonce)=12 and octet_length(wrap_auth_tag)=16
+  ),
+  constraint vy_replica_candidate_eval_asset_role unique (assignment_id,role),
+  constraint vy_replica_candidate_eval_asset_assignment_fk
+    foreign key (assignment_id,eval_run_id,candidate_id,replica_id,owner_user_id,example_id)
+    references vy_replica_candidate_eval_assignment(assignment_id,eval_run_id,candidate_id,replica_id,owner_user_id,example_id) on delete cascade
+);
+
+create index if not exists vy_replica_candidate_eval_asset_owner_ix
+  on vy_replica_candidate_eval_asset (owner_user_id,replica_id,eval_run_id);
+
+create table if not exists vy_replica_candidate_eval_judgment (
+  judgment_id         uuid primary key,
+  assignment_id       uuid not null,
+  eval_run_id         uuid not null,
+  candidate_id        uuid not null,
+  replica_id          uuid not null,
+  owner_user_id       uuid not null,
+  dimension           text not null check (dimension in ('overall','wording','behavior','relationship','memory','delivery','voice_identity')),
+  position_winner     text not null check (position_winner in ('a','b','tie')),
+  assignment_hash     text not null,
+  created_at          timestamptz not null default now(),
+  constraint vy_replica_candidate_eval_judgment_hash check (assignment_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_candidate_eval_judgment_once unique (assignment_id,dimension),
+  constraint vy_replica_candidate_eval_judgment_assignment_fk
+    foreign key (assignment_id,eval_run_id,candidate_id,replica_id,owner_user_id,assignment_hash)
+    references vy_replica_candidate_eval_assignment(assignment_id,eval_run_id,candidate_id,replica_id,owner_user_id,assignment_hash) on delete cascade
+);
+
+create index if not exists vy_replica_candidate_eval_judgment_owner_ix
+  on vy_replica_candidate_eval_judgment (owner_user_id,replica_id,eval_run_id,created_at);
+-- END historical replica mirror: 032_replica_candidate_owner_eval.sql
 
 -- Migration 033 - provider-specific voice-talent consent evidence.
 alter table vy_replica_source
@@ -2762,11 +5328,11 @@ alter table vy_replica_voice_challenge
 alter table vy_replica_voice_challenge
   drop constraint if exists vy_replica_voice_challenge_lease_check,
   add constraint vy_replica_voice_challenge_lease_check
-    check (verification_lease_token_hash='' or verification_lease_token_hash ~ '^[0-9a-f]{64});
+    check (verification_lease_token_hash='' or verification_lease_token_hash ~ '^[0-9a-f]{64}$');
 alter table vy_replica_voice_challenge
   drop constraint if exists vy_replica_voice_challenge_hash_check,
   add constraint vy_replica_voice_challenge_hash_check
-    check (sentence_hash ~ '^[0-9a-f]{64});
+    check (sentence_hash ~ '^[0-9a-f]{64}$');
 alter table vy_replica_voice_challenge
   drop constraint if exists vy_replica_voice_challenge_decision_check,
   add constraint vy_replica_voice_challenge_decision_check
@@ -2890,7 +5456,7 @@ create table if not exists vy_review_card (
   -- The DEDUPE key: sha256 over (kind, normalised prompt). A unique index on
   -- (replica_id, dedupe_hash) is what makes "deduplicated" a property of the
   -- database rather than of whichever generator ran last.
-  dedupe_hash          text not null check (dedupe_hash ~ '^[0-9a-f]{64}),
+  dedupe_hash          text not null check (dedupe_hash ~ '^[0-9a-f]{64}$'),
   state                text not null default 'open'
                        check (state in ('open','sounds_right','fixed','never')),
   decided_at           timestamptz,
@@ -3011,7 +5577,7 @@ create table if not exists vy_replica_readiness (
     check ((unmeasured_count > 0 and overall is null) or (unmeasured_count = 0 and overall is not null)),
   constraint vy_replica_readiness_min_part_pairs
     check ((overall is null and min_part is null) or (overall is not null and min_part is not null)),
-  constraint vy_replica_readiness_inputs_hash check (inputs_hash ~ '^[0-9a-f]{64}),
+  constraint vy_replica_readiness_inputs_hash check (inputs_hash ~ '^[0-9a-f]{64}$'),
   constraint vy_replica_readiness_parts_object
     check (jsonb_typeof(parts) = 'object' and jsonb_typeof(suggested_action) = 'object'
            and jsonb_typeof(blockers) = 'array')
@@ -3056,7 +5622,7 @@ create table if not exists vy_interview_answer (
   owner_user_id      uuid not null,
   gap_kind           text not null check (gap_kind in ('contradiction','sheet_field','thin_topic','readiness')),
   topic              text not null check (topic <> '' and length(topic) <= 120),
-  question_shape_hash text not null check (question_shape_hash ~ '^[0-9a-f]{64}),
+  question_shape_hash text not null check (question_shape_hash ~ '^[0-9a-f]{64}$'),
   source_id          uuid references vy_replica_source(source_id) on delete set null,
   window_id          uuid references vy_mirror_window(window_id) on delete set null,
   created_at         timestamptz not null default now(),
@@ -3233,6 +5799,63 @@ create unique index if not exists vy_room_subscription_follower_live_ix
   on vy_room_subscription (follower_id)
   where state in ('created','authenticated','active','paused');
 create index if not exists vy_room_subscription_follower_ix on vy_room_subscription (follower_id, created_at desc);
+
+-- Migration 091 - Suites v0, the B2B unit (WS-R28). See
+-- db/migrations/091_org_suites.sql for the full argument; mirrored here per
+-- this file's own convention. `vy_org.created_by_user_id` is deliberately
+-- NOT named `owner_user_id` - the org survives a creator's own erasure even
+-- as its last admin, so it must never be a table scripts/relcheck.mjs's
+-- owner-lane walk asks api/_replica-full-erasure.js to justify deleting.
+-- `vy_room.org_id` is ON DELETE SET NULL, not CASCADE, so a Suite going away
+-- never silently deletes a Room, its followers or its revenue.
+create table if not exists vy_org (
+  org_id             uuid primary key default gen_random_uuid(),
+  name               text not null check (length(name) > 0 and length(name) <= 120),
+  slug               text not null check (slug ~ '^[a-z0-9][a-z0-9-]{2,39}$'),
+  created_by_user_id uuid not null,
+  plan               text not null default 'starter' check (plan in ('starter', 'institute')),
+  seat_limit         integer not null default 1 check (seat_limit >= 1 and seat_limit <= 500),
+  created_at         timestamptz not null default now()
+);
+create unique index if not exists vy_org_slug_ix on vy_org (lower(slug));
+create index if not exists vy_org_created_by_ix on vy_org (created_by_user_id);
+
+create table if not exists vy_org_member (
+  org_id        uuid not null references vy_org(org_id) on delete cascade,
+  owner_user_id uuid not null,
+  role          text not null check (role in ('admin', 'creator')),
+  added_at      timestamptz not null default now(),
+  primary key (org_id, owner_user_id)
+);
+create index if not exists vy_org_member_owner_ix on vy_org_member (owner_user_id);
+create index if not exists vy_org_member_org_role_ix on vy_org_member (org_id, role);
+
+alter table vy_room add column if not exists org_id uuid references vy_org(org_id) on delete set null;
+create index if not exists vy_room_org_ix on vy_room (org_id) where org_id is not null;
+
+create table if not exists vy_org_subscription (
+  subscription_id            uuid primary key default gen_random_uuid(),
+  org_id                     uuid not null references vy_org(org_id) on delete cascade,
+  plan                       text not null check (plan in ('starter', 'institute')),
+  seats                      integer not null check (seats >= 1 and seats <= 500),
+  price_per_seat_inr         integer not null check (price_per_seat_inr > 0),
+  currency                   text not null default 'INR' check (currency = 'INR'),
+  state                      text not null default 'created'
+                             check (state in ('created', 'authenticated', 'active', 'paused', 'cancelled', 'expired')),
+  provider                   text not null check (provider in ('razorpay', 'fake')),
+  provider_subscription_ref  text,
+  current_period_start       timestamptz,
+  current_period_end         timestamptz,
+  created_at                 timestamptz not null default now(),
+  updated_at                 timestamptz not null default now()
+);
+create unique index if not exists vy_org_subscription_org_live_ix
+  on vy_org_subscription (org_id)
+  where state in ('created', 'authenticated', 'active', 'paused');
+create unique index if not exists vy_org_subscription_provider_ref_ix
+  on vy_org_subscription (provider, provider_subscription_ref)
+  where provider_subscription_ref is not null;
+create index if not exists vy_org_subscription_org_ix on vy_org_subscription (org_id, created_at desc);
 
 -- Migration 095 (WS-R33) widened this table with a Suite lane: room_id and
 -- subscription_id (the follower lane) are now NULLABLE, and org_id/
@@ -3748,63 +6371,6 @@ create table if not exists vy_room_forget_receipt (
 );
 create index if not exists vy_room_forget_receipt_room_issued_ix
   on vy_room_forget_receipt (room_id, issued_at desc);
--- Migration 091 - Suites v0, the B2B unit (WS-R28). See
--- db/migrations/091_org_suites.sql for the full argument; mirrored here per
--- this file's own convention. `vy_org.created_by_user_id` is deliberately
--- NOT named `owner_user_id` - the org survives a creator's own erasure even
--- as its last admin, so it must never be a table scripts/relcheck.mjs's
--- owner-lane walk asks api/_replica-full-erasure.js to justify deleting.
--- `vy_room.org_id` is ON DELETE SET NULL, not CASCADE, so a Suite going away
--- never silently deletes a Room, its followers or its revenue.
-create table if not exists vy_org (
-  org_id             uuid primary key default gen_random_uuid(),
-  name               text not null check (length(name) > 0 and length(name) <= 120),
-  slug               text not null check (slug ~ '^[a-z0-9][a-z0-9-]{2,39}$'),
-  created_by_user_id uuid not null,
-  plan               text not null default 'starter' check (plan in ('starter', 'institute')),
-  seat_limit         integer not null default 1 check (seat_limit >= 1 and seat_limit <= 500),
-  created_at         timestamptz not null default now()
-);
-create unique index if not exists vy_org_slug_ix on vy_org (lower(slug));
-create index if not exists vy_org_created_by_ix on vy_org (created_by_user_id);
-
-create table if not exists vy_org_member (
-  org_id        uuid not null references vy_org(org_id) on delete cascade,
-  owner_user_id uuid not null,
-  role          text not null check (role in ('admin', 'creator')),
-  added_at      timestamptz not null default now(),
-  primary key (org_id, owner_user_id)
-);
-create index if not exists vy_org_member_owner_ix on vy_org_member (owner_user_id);
-create index if not exists vy_org_member_org_role_ix on vy_org_member (org_id, role);
-
-alter table vy_room add column if not exists org_id uuid references vy_org(org_id) on delete set null;
-create index if not exists vy_room_org_ix on vy_room (org_id) where org_id is not null;
-
-create table if not exists vy_org_subscription (
-  subscription_id            uuid primary key default gen_random_uuid(),
-  org_id                     uuid not null references vy_org(org_id) on delete cascade,
-  plan                       text not null check (plan in ('starter', 'institute')),
-  seats                      integer not null check (seats >= 1 and seats <= 500),
-  price_per_seat_inr         integer not null check (price_per_seat_inr > 0),
-  currency                   text not null default 'INR' check (currency = 'INR'),
-  state                      text not null default 'created'
-                             check (state in ('created', 'authenticated', 'active', 'paused', 'cancelled', 'expired')),
-  provider                   text not null check (provider in ('razorpay', 'fake')),
-  provider_subscription_ref  text,
-  current_period_start       timestamptz,
-  current_period_end         timestamptz,
-  created_at                 timestamptz not null default now(),
-  updated_at                 timestamptz not null default now()
-);
-create unique index if not exists vy_org_subscription_org_live_ix
-  on vy_org_subscription (org_id)
-  where state in ('created', 'authenticated', 'active', 'paused');
-create unique index if not exists vy_org_subscription_provider_ref_ix
-  on vy_org_subscription (provider, provider_subscription_ref)
-  where provider_subscription_ref is not null;
-create index if not exists vy_org_subscription_org_ix on vy_org_subscription (org_id, created_at desc);
-
 -- Migration 095 (WS-R33). The creator tier subscription - what a creator
 -- pays for capacity, owner lane (deleted by name in
 -- api/_replica-full-erasure.js, never in api/memory.js's PERSON_TABLES).
