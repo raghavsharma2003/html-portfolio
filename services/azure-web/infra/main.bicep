@@ -5,9 +5,12 @@ param appName string = 'vyakti-expert-web-preview'
 param location string = 'centralindia'
 @description('Existing Container Apps environment resource ID; no GPU resources are changed.')
 param environmentId string
-@description('Existing identity with verified ACR pull and Key Vault read access. No role assignments are created.')
+@description('Existing preview identity with verified Key Vault get access. Registry uses its existing password; no role assignments are created.')
 param identityId string
 param registryServer string
+param registryUsername string
+@description('Exact versioned Key Vault URI of the existing registry password. Never a password value.')
+param registryKeyVaultUrl string
 @description('Immutable ACR repository@sha256 digest of the reviewed web package.')
 param imageDigest string
 @description('Exact HTTPS preview ingress origin, read from environment metadata before deployment.')
@@ -41,6 +44,16 @@ var secretEnv = [
     secretRef: secret.name
   }
 ]
+var registrySecret = {
+  name: 'web-registry-password'
+  keyVaultUrl: registryKeyVaultUrl
+  identity: identityId
+}
+var registryBinding = {
+  server: registryServer
+  username: registryUsername
+  passwordSecretRef: registrySecret.name
+}
 
 resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName
@@ -54,8 +67,8 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
     managedEnvironmentId: environmentId
     configuration: {
       activeRevisionsMode: 'Multiple'
-      secrets: secrets
-      registries: [{ server: registryServer, identity: identityId }]
+      secrets: concat(secrets, [registrySecret])
+      registries: [registryBinding]
       ingress: { external: true, targetPort: 8080, transport: 'http', allowInsecure: false }
     }
     template: {
@@ -102,14 +115,14 @@ resource jobs 'Microsoft.App/jobs@2024-03-01' = [
         triggerType: 'Schedule'
         replicaTimeout: 330
         replicaRetryLimit: 0
-        secrets: [
+        secrets: concat([
           for secret in cronSecrets: {
             name: secret.name
             keyVaultUrl: secret.keyVaultUrl
             identity: identityId
           }
-        ]
-        registries: [{ server: registryServer, identity: identityId }]
+        ], [registrySecret])
+        registries: [registryBinding]
         scheduleTriggerConfig: { cronExpression: schedule.schedule, parallelism: 1, replicaCompletionCount: 1 }
       }
       template: {

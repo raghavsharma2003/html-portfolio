@@ -22,7 +22,7 @@ az bicep build --file services/azure-web/infra/main.bicep
 az deployment group validate --resource-group <reviewed-group> --template-file services/azure-web/infra/main.bicep --parameters <reviewed-parameters-file>
 ```
 
-Resolve the returned ACR image to its immutable digest before supplying `imageDigest`; a tag is not the release identity. Use a separate CPU app name, existing environment/identity/registry, reviewed non-secret runtime settings and Key Vault reference entries. No role assignment or GPU configuration is created by the template. Existing identity permissions and target capacity require real readback. The image uses the already-repository-pinned Node24 Alpine digest; native module boot is still a required remote-build test.
+Resolve the returned ACR image to its immutable digest before supplying `imageDigest`; a tag is not the release identity. Use a separate CPU app name, existing environment/identity/registry, reviewed non-secret runtime settings and Key Vault reference entries. Registry pull uses the existing `registryUsername` and exact versioned `registryKeyVaultUrl`, referenced as `web-registry-password`. The managed identity reads that reference from Key Vault; this path does not require a new AcrPull role. The registry password is never a container environment variable. No role assignment or GPU configuration is created by the template. Existing identity permissions and target capacity require real readback. The image uses the already-repository-pinned Node24 Alpine digest; native module boot is still a required remote-build test.
 
 Build inputs have no runtime secrets. Build-only `_config.js` is inert and never copied to the final image. Runtime startup recreates the file from secret environment, validates explicit Azure configuration and exact database identity, then imports API handlers. Only the API directory permits this runtime file write; static files remain owned by root. Never expose the application source root as a static directory.
 
@@ -33,7 +33,7 @@ Build inputs have no runtime secrets. Build-only `_config.js` is inert and never
 - `VYAKTI_DATABASE_NAME` must equal the database part of `NEON_URL` and actual `current_database()`.
 - Supabase URL/key, Azure reply fields and budget/pricing must satisfy their current validators. Private rehearsal encryption keys, upload/storage, erasure and other features retain their existing requirements. No disabled provider is advertised as available.
 - `AZURE_WEB_TRUST_INGRESS=1` is only for the configured Azure ingress. It consumes the last appended valid forwarded IP and discards caller-supplied Vercel/real-IP headers. Direct local adapter tests leave this off. Ingress forwarding semantics still need target verification before public use.
-- Register the exact new `/studio` OAuth redirect in Supabase before ordinary sign-in. Same-origin frontend/API needs no new cross-origin auth bridge.
+- Verify the exact new `/studio` OAuth redirect in Supabase before claiming Google or magic-link return acceptance. Inline email-code verification has its own `/api/account` path and requires a separately reviewed real inbox canary; missing Management API credentials do not by themselves establish that this path is unavailable. Same-origin frontend/API needs no new cross-origin auth bridge.
 
 ## Routing and boundaries
 

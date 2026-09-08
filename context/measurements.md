@@ -17454,3 +17454,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `continuity-audio40-mounted-result` (2026-09-08)
 
 2026-09-08 one real mounted synthetic-HTTP browser invocation exec95828 passed46 groups:34 original controls plus12 locale/width/state cases. Hindi and English at390/1440, continuity-disabled, unrelated-disabled and ordinary voice states preserve authorization and exact described-by binding. Receipt scratchpad/meet-setup-ui/1788861717206. Hindi390 and English1440 screenshots visually inspected: note readable without clipping. Semantic TypeScript emitted no diagnostics and copy passed7 scopes/21 negative controls in exec87253 terminal0. No model/voice generation, cloud calls or full gate run; this verifies explanation only, not continuity audio capability.
+
+
+## `azure-web48-source-review-only` (2026-09-08)
+
+2026-09-08: n=1 source comparison of candidate45 Bicep with prepared web37 ARM app registry binding, plus source diff check. No Bicep compilation, runtime tests, image build, resource writes, auth messages, SQL or model calls. Generated-template validation and actual registry/image/KeyVault readback remain required before deployment. Existing eight secret versions are prior evidence, not newly read or written here.

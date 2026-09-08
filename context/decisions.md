@@ -23670,3 +23670,8 @@ Use has_continuity=true and can_voice=false together for a short localized adjac
 ## `continuity-audio40-tested-import` (2026-09-08)
 
 Import only the conditional localized explanation, minimal typography and real mounted controls plus context. Existing reply voice authorization and speak guard remain unchanged. Reverse if the server reason contract changes or supported continuity speech makes this explanation inaccurate.
+
+
+## `azure-web48-registry-versioned-reference` (2026-09-08)
+
+2026-09-08: Azure preview Bicep now matches the reviewed existing registryUsername and exact versioned registryKeyVaultUrl strategy. The preview identity reads Key Vault; no new AcrPull role is requested. Registry secret is used only for image pull, not exposed as application environment. Apply the same binding to disabled-by-default schedule jobs. Reverse only on verified replacement registry authority and a separately reviewed source/template change.

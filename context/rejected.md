@@ -17447,3 +17447,8 @@ Disabled Listen alone does not establish continuity as its cause. A generic note
 ## `continuity-audio40-not-complete-localization` (2026-09-08)
 
 The inspected Hindi fixture still contains incumbent English conversation controls. This patch localizes only its new explanation and must not be advertised as full Hindi journey completion or generated voice support.
+
+
+## `azure-web48-identity-pull-assumption` (2026-09-08)
+
+2026-09-08: Candidate45 Bicep still selected registry managed-identity pull while actual preview bindings held a versioned registry password and no newly granted AcrPull authority. Reject passing password parameters to the old identity-only template, reusing credential-resource provision receipts as app deployment evidence, or relabeling an old source/image commitment. Inline OTP and OAuth callback verification are separate paths; missing management credentials do not alone disprove OTP.
