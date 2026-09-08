@@ -58,6 +58,11 @@ await test('migration has one-statement runner shapes mirrored into schema, no D
  const migration=read('db/migrations/148_private_dialogue_continuity.sql');assert.equal(splitSql(migration).length,4);assert(!/\bdo\s+\$/i.test(migration));assert(read('db/schema.sql').replaceAll('\r\n','\n').includes(migration.replaceAll('\r\n','\n')));
  assert.match(migration,/using gin\(continuity_refs jsonb_path_ops\)/);assert.match(migration,/derived.owner_user_id=old.owner_user_id/);assert.match(migration,/derived.person_id=old.person_id/);
 });
+await test('cascade repair keeps source erasure and binds OLD derived reply after deletion',()=>{
+ const m=read('db/migrations/154_private_continuity_cascade_order.sql');assert.equal(splitSql(m).length,2);assert(!/\bdo\s+\$/i.test(m));assert(read('db/schema.sql').replaceAll('\r\n','\n').includes(m.replaceAll('\r\n','\n')));
+ const required=['after delete on vy_replica_dialogue_turn',"coalesce(old.continuity_refs,'[]'::jsonb)<>'[]'::jsonb",'l.id=old.assistant_log_id','l.agent_id=old.agent_id','l.device_id=old.device_id','derived.owner_user_id=old.owner_user_id','derived.replica_id=old.replica_id','derived.agent_id=old.agent_id','derived.person_id=old.person_id'];
+ const valid=s=>required.every(p=>s.includes(p));assert(valid(m));for(const p of required)assert(!valid(m.replace(p,'true')));
+});
 await test('real dialogue caller opts in and fences admission completion history and voice',()=>{
  const dialogue=read('api/_replica-dialogue.js');assert.match(dialogue,/rawInput.recall_previous === true/);assert.match(dialogue,/readPrivateContinuity\(db, ownerUserId/);
  assert(dialogue.includes("continuityPredicate('$14::jsonb')"));assert(dialogue.includes("continuityPredicate('t.continuity_refs')"));assert.match(dialogue,/can_voice: evidence.length === 0/);

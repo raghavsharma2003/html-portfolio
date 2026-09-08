@@ -17348,3 +17348,8 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `release39-whole-branch-import` (2026-09-08)
 
 2026-09-08: Branch histories contain more work than approved fixes; whole branch merging would risk importing unfinished capabilities. Use exact8path restore and explicit source manifest. Continuity38 repair remains excluded until frozen and actualSQL-proven; no acceptance inferred from offline fixtures.
+
+
+## `release39-checkout-sql-byte-assumption` (2026-09-08)
+
+2026-09-08: Raw workingSQLbytes differed from frozen Gitblobs because Windows checkout changed LFtoCRLF in145and154. Initial exactcomparison refused. Explicit EOL-only normalization verifies content; manifest records distinct Gitblob andworking hashes. No SQL literals or predicates changed to satisfy the check. Migrations152153 remainexcluded.

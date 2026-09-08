@@ -16224,6 +16224,24 @@
       "kind": "measurement",
       "title": "Private setup and local continuity controls",
       "at": "2026-09-08"
+    },
+    {
+      "id": "release39-accepted-continuity-source",
+      "kind": "decision",
+      "title": "Freeze only after actual rollback evidence",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release39-final-scoped-proof",
+      "kind": "measurement",
+      "title": "Integrated regressions and accepted rollback scope",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release39-checkout-sql-byte-assumption",
+      "kind": "rejection",
+      "title": "Preserve Git and checkout hashes separately",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

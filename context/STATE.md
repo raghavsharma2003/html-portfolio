@@ -1,5 +1,11 @@
 # STATE — read this first, then the graph
 
+## START HERE: RELEASE39 REGRESSION CANDIDATE (2026-09-08)
+
+This block supersedes older release notes below. Base frozen34 5ade4ea9. Candidate39 includes only five repaired evals, measured GPU target35 defaults, private continuity seven-column authority projection and migration154 AFTER DELETE erasure correction. Eleven source paths plus additive schema/context;152153/new product families excluded.372distinct eval registrations retained. Root actual148+154V4 rollback proof passed53runtimechecks/7SQLshapes with clean rollback; migrations not committed. Sequential erasure only, concurrency and representative GIN performance remain unmeasured.
+
+Pure regression checks, copy and forced TypeScript pass; own independent dependencies and emptyconfig ready. Fullrelease39 has not started. Root owns final source/guard review and launch. Accepted26/local5177 unchanged; previous34 remains failed23/24. Goal active, separate automation paused. No owner voice superiority or new deployment claim.
+
 ## START HERE: RELEASE34 CANDIDATE (2026-09-08)
 
 This block supersedes older isolate notes below. Candidate based integration33df83790a adds the reviewed three-section landing containment27d67bef, catalog constraint correction151894f17f1 and removal of one duplicate eval registration. All359 prior suites remain plus13new,372total and38browser suites across24gates. GPU149/150 bytes unchanged,151 mirrored. Full release not started; root owns launch after final freeze/guard review. Independent private dependencies and AST-verified inert config are prepared. GPU18offline, copy7scopes21negatives, forced semantic TypeScript and guard11selfchecks pass. Root is separately proving real SQL; no actual schema/voice/deployment proof follows from this candidate.

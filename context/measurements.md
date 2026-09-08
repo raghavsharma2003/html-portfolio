@@ -17355,3 +17355,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `release39-private-copy-and-projection` (2026-09-08)
 
 2026-09-08: independentcopyexec48833 terminal0,07:57:41.415to08:01:06.337Z,204.922seconds.18emptyASTverifiedconfigexports,0network/cloud. Ten approved filepaths now match frozen Git blobs;372registry unchanged. Localcontinuity22 andguard11selfchecks pass. Actual SQL proof pending; no build/fulltest/browser/model.
+
+
+## `release39-final-scoped-proof` (2026-09-08)
+
+2026-09-08: Localcontinuity23/dialogue13/rehearsal8/saga30/readiness16/GPU26, copy7scopes21negatives and forcedsemanticTS allpassed, exec89752terminal0. Root actualV4 receipt continuity148-v4-1725ecb32ec6834e7acd0515-result.json inspected:53runtimechecks allpass,7EXPLAINshapes, rollbackconfirmed, replicas/persons/agents/logs0,session/cleanup0,provider0. Sequentialtransactional proof only, not concurrent delete/complete or GINperformance. Source72b7db22 matches incorporated repair; no fullrelease run here.

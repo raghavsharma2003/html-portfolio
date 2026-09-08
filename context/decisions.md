@@ -23578,3 +23578,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `release39-pending-continuity-projection` (2026-09-08)
 
 2026-09-08: Root reviewed fa221c22 and authorized its two exact paths into mutable39 before real SQL proof. Add only seven projected replica fields and the consumed-field negative control; predicates unchanged. Final freeze/fullgate held until root actualSQLacceptance. Reverse on unexpected SQL/runtime failure or diff beyond projection.
+
+
+## `release39-accepted-continuity-source` (2026-09-08)
+
+2026-09-08: Root accepted actualV4 rollback proof for72b7db22, so candidate39 adds154 AFTER DELETE function/trigger and preserves148history. OLD retains derived rawlog binding after parentcascade. Shared authority projection adds7fields only; no predicate removal. Reverse if integrated SQL/sourcepins mismatch, concurrent erasure proof fails or fullrelease finds regression. Actual migrations148154 remain uncommitted.
