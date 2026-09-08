@@ -436,7 +436,7 @@ function AuthGate({
   if (!ready) return <PersonalAuthLoading locale={locale} failed={failed} retry={retry} switchLocale={switchLocale} />;
 
   return (
-    <main className="auth-page" lang={locale} data-studio-auth-locale={locale}>
+    <main className="auth-page" lang={locale} data-studio-auth-locale={locale} data-auth-theme={testEnvironment ? "test" : "general"}>
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
       <header className="auth-brand">

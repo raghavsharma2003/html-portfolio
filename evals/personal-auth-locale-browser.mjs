@@ -114,6 +114,36 @@ try {
       assert.ok(geometry.width >= 44 && geometry.height >= 44, "Actual language target is at least 44 by 44 CSS pixels");
       assert.ok(geometry.headerScroll <= geometry.headerWidth + 1 && geometry.headerLeft >= 0 && geometry.headerRight <= width + 1 && geometry.left >= 0 && geometry.right <= width, "Header and selector fit viewport");
       assert.ok(geometry.ratio >= 4.5, "Language selector text contrast meets 4.5:1");
+      let sceneGeometry;
+      if (theme === "test") {
+        sceneGeometry = await page.evaluate(() => {
+          const main = document.querySelector('.auth-page');
+          const intro = document.querySelector('.auth-intro').getBoundingClientRect();
+          const card = document.querySelector('.auth-card').getBoundingClientRect();
+          const rgb = value => value.match(/[\d.]+/g).map(Number);
+          const luminance = color => color.slice(0, 3).map(n => { const v = n / 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }).reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
+          const contrasts = [];
+          for (const node of main.querySelectorAll('.auth-intro h1, .auth-intro p, .auth-card h2, .auth-card p, .auth-card label, .auth-card button, .auth-card .or')) {
+            if (!node.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}) || node.disabled || !node.textContent.trim()) continue;
+            const style = getComputedStyle(node);
+            let parent = node, background;
+            while (parent) {
+              const candidate = rgb(getComputedStyle(parent).backgroundColor);
+              if (candidate.length === 3 || candidate[3] === 1) { background = candidate; break; }
+              parent = parent.parentElement;
+            }
+            if (!background) throw new Error('Missing opaque contrast background');
+            const fg = luminance(rgb(style.color)), bg = luminance(background);
+            contrasts.push({tag:node.tagName, text:node.textContent.slice(0,60), ratio:(Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05)});
+          }
+          return { intro: intro.toJSON(), card: card.toJSON(), contrasts, width: main.scrollWidth, viewport: innerWidth, backdrop: getComputedStyle(main,'::before').display };
+        });
+        assert.equal(sceneGeometry.backdrop, 'none', 'No dark pseudo backdrop behind dark text');
+        assert.ok(sceneGeometry.width <= width + 1, 'Whole scene fits viewport');
+        assert.ok(sceneGeometry.intro.bottom <= sceneGeometry.card.top || sceneGeometry.intro.right <= sceneGeometry.card.left || sceneGeometry.card.right <= sceneGeometry.intro.left, 'Hero and form never overlap');
+        assert.ok(sceneGeometry.contrasts.length >= 5, 'Actual hero and form text measured');
+        for (const item of sceneGeometry.contrasts) assert.ok(item.ratio >= 4.5, `Hero/form contrast ${item.tag}: ${item.ratio}`);
+      }
       await page.locator(".auth-brand a").focus(); await page.keyboard.press("Tab");
       assert.equal(await page.evaluate(() => document.activeElement.id), "studio-auth-language");
       assert.ok(await page.locator("#studio-auth-language").evaluate(node => node.matches(":focus-visible") && parseFloat(getComputedStyle(node).outlineWidth) >= 2));
@@ -149,7 +179,7 @@ try {
       assert.ok(accepted.every(session => session.userId === "fresh-owner" && session.accessToken === "f".repeat(32)), "Only freshly refreshed sessions authenticate");
       assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("meera.state.v1")).auth.userId), "fresh-owner");
       assert.deepEqual(errors, []); assert.deepEqual(blocked, []);
-      rows.push({ lang, width, theme, geometry, operations: calls, acceptedCount: accepted.length, screenshot: `${lang}-${width}-${theme}.png`, passed: true });
+      rows.push({ lang, width, theme, geometry, sceneGeometry, operations: calls, acceptedCount: accepted.length, screenshot: `${lang}-${width}-${theme}.png`, passed: true });
       await writeFile(join(receipts, "progress.json"), JSON.stringify(rows, null, 2));
     } finally { await context.close(); }
   }

@@ -16278,6 +16278,24 @@
       "kind": "rejection",
       "title": "Reject empty solution typecheck and selector-only visual acceptance",
       "at": "2026-09-08"
+    },
+    {
+      "id": "personal-auth-visual42-eager-cascade",
+      "kind": "decision",
+      "title": "Remove conflicting legacy test-entry backdrop and overlap",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "personal-auth-visual42-eight-views",
+      "kind": "measurement",
+      "title": "Test-entry readability repair passes one mounted batch",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "personal-auth-visual42-selector-only-insufficient",
+      "kind": "rejection",
+      "title": "Selector-only contrast cannot establish full page readability",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

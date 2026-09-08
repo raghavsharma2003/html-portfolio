@@ -17363,3 +17363,8 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `personal-auth-hindi41-test-limitations` (2026-09-08)
 
 2026-09-08: Initial no-esbuild tests never ran; private39 dependency copy also lacked it. Offline pinned install failedENOTCACHED then registry exactdev install succeeded. Existing stale resume-copy assertion repaired; first locale result94pass1fail bannedHindi jargon repaired and95passed. Root tsc --noEmit empty solution is notsemantic evidence; tsc -b --force used. Screenshot inspection found incumbent test theme dark-on-dark hero and intro/card overlap despite8 focusedflow passes; fulltheme polish notclaimed. Parent authorized separate bounded repair after41freeze, preserving screenshots. Original39perf failures and diagnostic40 remain unchanged; no browser/performance retry.
+
+
+## `personal-auth-visual42-selector-only-insufficient` (2026-09-08)
+
+2026-09-08: Hindi41 eight focused flow views passed but actualtest screenshot showed dark-on-dark hero and subtitle behind card. Preserve original personal-auth-locale-browser-1788861065537. Source proves legacy dark pseudo background plus dark auth-entry text and mobile margin-70px. Added explicit real hero/form contrast and non-overlap assertions; one repair batch passed. Disabled controls excluded explicitly; no blanket full-product quality claim.

@@ -23593,3 +23593,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `personal-auth-hindi41-strict-refresh` (2026-09-08)
 
 2026-09-08: Independent review required optional reportTransientFailure session mode because default restoreSession swallowed refresh outages. Opt-in rethrows transient failures without granting stale authority; terminal auth failure clears and existing default callers remain unchanged. Pin esbuild0.28.2 as a direct dev dependency for actual-source fixtures. Reverse if auth/logout invariants or dependency/build compatibility regress.
+
+
+## `personal-auth-visual42-eager-cascade` (2026-09-08)
+
+2026-09-08: Actual product testEnvironment now sets data-auth-theme. Narrow CSS removes obsolete dark pseudo/ambient layers, uses existing paper and sets card margin0/opaque white. General image mode unchanged. Reverse if real mode selection, readability, layout or release tests regress.

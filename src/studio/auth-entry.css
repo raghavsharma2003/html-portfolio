@@ -1,4 +1,11 @@
 /* Entry tokens and sign-in styles stay eager; signed-in scenes load with CloneExperience. */
+/* The no-image entry must not inherit the older dark backdrop and overlapping card. */
+.auth-page[data-auth-theme="test"] { background: var(--vx-paper); }
+.auth-page[data-auth-theme="test"]::before,
+.auth-page[data-auth-theme="test"]::after,
+.auth-page[data-auth-theme="test"] .ambient { display: none; }
+.auth-page[data-auth-theme="test"] .auth-card { margin: 0; background: #fff; }
+
 @layer components {
   .auth-language-select {
     flex: 0 0 auto;
