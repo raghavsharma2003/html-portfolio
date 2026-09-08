@@ -17462,3 +17462,10 @@ The inspected Hindi fixture still contains incumbent English conversation contro
 ## `correction47-unbound-correction-and-missing-config` (2026-09-08)
 
 2026-09-08: Frozen41 correction adapter/caller discarded provider identity despite strict comparison. Initial new-worktree worker run failed before tests on absent ignored config; copying tracked example config enabled offline controls without real secrets. Context append first failed on default Windows decoding before writing context; explicit UTF-8 fixed it. One pair cannot replace30-heldout qualification.
+
+
+## `azure-web48-identity-pull-assumption` (2026-09-08)
+
+2026-09-08: Candidate45 Bicep still selected registry managed-identity pull while actual preview bindings held a versioned registry password and no newly granted AcrPull authority. Reject passing password parameters to the old identity-only template, reusing credential-resource provision receipts as app deployment evidence, or relabeling an old source/image commitment. Inline OTP and OAuth callback verification are separate paths; missing management credentials do not alone disprove OTP.
+
+Source review caught a Bicep declaration-shape error before compilation: a mapped for-expression had been placed inside concat arguments for scheduled secrets. It is now hoisted to cronSecretReferences and concatenated by name, matching the already-hoisted app secret array. This was a source-review finding, not an observed compiler run; compilation is still held for the shared CPU lane.

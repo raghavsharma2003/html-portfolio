@@ -23685,3 +23685,8 @@ Import only the conditional localized explanation, minimal typography and real m
 ## `correction47-strict-revision-lane` (2026-09-08)
 
 2026-09-08: Optional strict correction binding is enabled by expected-model configuration or a bound adapter, participates in the job model commitment and persists in the candidate build manifest. Legacy unbound calls retain their contract. Reverse if actual provider revision fields stop working, by refusing the lane until a reviewed replacement exists.
+
+
+## `azure-web48-registry-versioned-reference` (2026-09-08)
+
+2026-09-08: Azure preview Bicep now matches the reviewed existing registryUsername and exact versioned registryKeyVaultUrl strategy. The preview identity reads Key Vault; no new AcrPull role is requested. Registry secret is used only for image pull, not exposed as application environment. Apply the same binding to disabled-by-default schedule jobs. Reverse only on verified replacement registry authority and a separately reviewed source/template change.

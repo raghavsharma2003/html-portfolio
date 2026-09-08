@@ -17469,3 +17469,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `correction47-offline-source-controls` (2026-09-08)
 
 2026-09-08: n=10 adapter groups and10 worker groups passed with synthetic transport/SQL fixtures. Strict admission, missing/mismatched revision measured usage, hash-bound manifest and unknown transport replay hold covered. No SQL parser, Azure inference, live billing or release acceptance ran.
+
+
+## `azure-web48-source-review-only` (2026-09-08)
+
+2026-09-08: n=1 source comparison of candidate45 Bicep with prepared web37 ARM app registry binding, plus source diff check. No Bicep compilation, runtime tests, image build, resource writes, auth messages, SQL or model calls. Generated-template validation and actual registry/image/KeyVault readback remain required before deployment. Existing eight secret versions are prior evidence, not newly read or written here.
