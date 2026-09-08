@@ -193,6 +193,23 @@ await test('actual target35 defaults retain CPU memory identity and marker bound
  delete one.properties.template.containers[0].env;
  assert.throws(()=>executionObservation(plan,'probe-one',[one],wid),/template_mismatch/);
 });
+await test('36 actual execution-only defaults preserve marker and reject active alternatives',async()=>{
+ const receipt=JSON.parse(await readFile(new URL('./fixtures/arm-execution36.json',import.meta.url),'utf8'));
+ assert.equal(receipt.status,'Failed');assert.deepEqual(receipt.template_defaults.initContainers.value,[]);
+ assert.equal(receipt.containers[0].image_type,'ContainerImage');assert.equal(receipt.containers[0].env_entries[0].marker_value_matches,true);
+ const wid='d78bb973-8fc7-49e7-b464-21ab7b46c079',one=execution('Failed');
+ one.properties.template=windowExecutionTemplate(plan,wid);one.properties.template.initContainers=[];
+ one.properties.template.containers[0].imageType='ContainerImage';
+ const result=executionObservation(plan,'probe-one',[one],wid);assert.equal(result.terminal,true);assert.equal(result.provider_end_time_present,false);assert.equal(result.accounted,false);
+ for(const endTime of [null,'invalid','2020-01-01T00:00:00Z']){const bad=clone(one);bad.properties.endTime=endTime;assert.equal(executionObservation(plan,'probe-one',[bad],wid).terminal,false);}
+ for(const mutate of [e=>e.properties.template.initContainers=[{name:'init'}],e=>e.properties.template.containers[0].imageType='CloudBuild',
+  e=>e.properties.template.containers[0].imageType=null,e=>delete e.properties.template.containers[0].env,
+  e=>e.properties.template.containers[0].resources.cpu=4,e=>e.properties.template.containers[0].future=null]){
+  const bad=clone(one);mutate(bad);assert.throws(()=>executionObservation(plan,'probe-one',[bad],wid),/template_mismatch/);
+ }
+ const job=clone(resource);job.properties.template.initContainers=[];assert.throws(()=>inspectJobSnapshot(plan,job,environment));
+ delete job.properties.template.initContainers;job.properties.template.containers[0].imageType='ContainerImage';assert.throws(()=>inspectJobSnapshot(plan,job,environment));
+});
 await test('server deadline supervision stops named execution then observes terminal',async()=>{
  const f=fixture(),r=await f.supervisor.start(hash('c')),v=await f.supervisor.supervise(r.window_id);
  assert.equal(f.state().stops,1);assert.equal(v.terminal,true);assert.equal(v.accounting_state,'accounting_pending');assert.equal(f.state().reserved,138600);

@@ -23370,3 +23370,8 @@ Implement a separate explicit private processing receipt and seven-stage worker 
 ## `gpu-target35-observed-defaults` (2026-09-08)
 
 2026-09-08: Actual dedicated target GET confirms null scheduleTriggerConfig, empty-string registry identity/ephemeralStorage and omitted empty env. Normalize these four exact forms only, preserving nonempty/null alternatives, unknown execution fields and required per-window envmarker. CPU8 and memory56Gi matches independently confirmed. Reverse any form if actual API evidence shows it carries execution semantics. This extends34, retains151 and changes noSQL.
+
+
+## `gpu-execution36-terminal-without-invoice` (2026-09-08)
+
+2026-09-08: Root approved operational terminal from exact bound Failed/Succeeded/Stopped without fabricated endTime. Actual execution GET omitted endTime and added initContainers[] plus imageType ContainerImage.36 normalizes these two forms only for execution paths, retaining job snapshot strictness and per-window envmarker. Present endTime remains validated. Accounting stays pending; no allocation_terminated, invoice duration or fund release. Reverse if provider terminal status ceases to be authoritative for control; never infer billing closure.

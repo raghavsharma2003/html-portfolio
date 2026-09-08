@@ -78,14 +78,16 @@ export function normalizeObservedJobConfiguration(configuration) {
   return value;
 }
 
-export function normalizeObservedJobTemplate(template) {
+export function normalizeObservedJobTemplate(template,{execution=false}={}) {
   const value=structuredClone(template);
   if(!value||typeof value!=='object'||Array.isArray(value))return value;
   for(const key of ['initContainers','volumes'])if(value[key]===null)delete value[key];
+  if(execution&&Array.isArray(value.initContainers)&&value.initContainers.length===0)delete value.initContainers;
   // Exact defaults from the deployed dedicated GPU target GET. Never erase
   // nonempty identity/storage or restore a missing per-execution env marker.
   if(Array.isArray(value.containers))for(const container of value.containers){
     if(!container||typeof container!=='object'||Array.isArray(container))continue;
+    if(execution&&container.imageType==='ContainerImage')delete container.imageType;
     if(!Object.hasOwn(container,'env'))container.env=[];
     if(container.resources?.ephemeralStorage==='')delete container.resources.ephemeralStorage;
   }
@@ -137,14 +139,17 @@ export function executionObservation(plan, name, executions, windowId) {
   if (rows.length !== 1) return {execution_id: id, state: 'unknown', terminal: false, accounting_state: 'accounting_pending'};
   const row = rows[0], p = row.properties || {};
   const expectedHash=windowId?commitment(windowExecutionTemplate(plan,windowId)):plan.template_sha256;
-  if (commitment(normalizeObservedJobTemplate(p.template)) !== expectedHash) fail('gpu_execution_template_mismatch');
+  if (commitment(normalizeObservedJobTemplate(p.template,{execution:true})) !== expectedHash) fail('gpu_execution_template_mismatch');
   const terminal = ['Succeeded', 'Failed', 'Stopped'].includes(p.status)
-    && Number.isFinite(Date.parse(p.startTime)) && Number.isFinite(Date.parse(p.endTime))
-    && Date.parse(p.endTime) >= Date.parse(p.startTime);
+    && Number.isFinite(Date.parse(p.startTime))
+    && (p.endTime===undefined || (Number.isFinite(Date.parse(p.endTime)) && Date.parse(p.endTime)>=Date.parse(p.startTime)));
+  // ARM may omit endTime on a terminal failed execution. This establishes
+  // operational status only; it never supplies an invoice duration or release.
   // Execution status is not a meter receipt. Even terminal status never sets
   // allocation_terminated or accounted for the 147 settlement interface.
   return {execution_id: id, state: p.status || 'Unknown', terminal,
     configuration_sha256: plan.configuration_sha256, template_sha256: expectedHash,
+    provider_end_time_present: Object.hasOwn(p,'endTime'),
     accounting_state: 'accounting_pending', accounted: false};
 }
 
@@ -189,7 +194,7 @@ export function recoverStartedExecution(plan, window, executions) {
   // ARM timestamps can have second precision. The lower edge is the same
   // UTC second as the persisted request, not an arbitrary clock-skew grace.
   if(!Number.isFinite(started)||started<Math.floor(requested/1000)*1000||started>last)fail('gpu_recovery_outside_window');
-  if(commitment(normalizeObservedJobTemplate(p.template))!==expectedHash)fail('gpu_execution_template_mismatch');
+  if(commitment(normalizeObservedJobTemplate(p.template,{execution:true}))!==expectedHash)fail('gpu_execution_template_mismatch');
   return {execution_name:name,execution_id:candidate.id,recovery_sha256:commitment({
     window_id:window.window_id,requested_at:window.job_start_requested_at,
     inventory,execution_id:candidate.id,start_time:p.startTime,template_sha256:expectedHash,

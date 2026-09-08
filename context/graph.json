@@ -15546,6 +15546,24 @@
       "kind": "rejection",
       "title": "Whole resource equality hid default-only mismatch",
       "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-execution36-terminal-without-invoice",
+      "kind": "decision",
+      "title": "Respect actual execution defaults and terminal status",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-execution36-actual-failed-and27-controls",
+      "kind": "measurement",
+      "title": "Actual failed execution diagnosis and27 focused groups",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-execution36-job-shape-not-execution",
+      "kind": "rejection",
+      "title": "Job GET shape and mandatory endTime failed live",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

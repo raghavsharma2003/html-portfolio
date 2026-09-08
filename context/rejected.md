@@ -17143,3 +17143,8 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `gpu-target35-whole-resources-equality` (2026-09-08)
 
 2026-09-08: Actual deployment target reached Succeeded and exact image/command matched, but resources_match=false. Target diagnostic separated CPU/memory matches from the additional empty ephemeralStorage field. Reject treating the mismatch as permission to omit resources comparison; retain CPU/memory exactness and all unknownfields, normalize only measured empty default. Negative controls reject CPU4/memory32Gi/nullstorage/nonemptyidentity/nullenv and absent execution marker.
+
+
+## `gpu-execution36-job-shape-not-execution` (2026-09-08)
+
+2026-09-08: Actual watchdog refused execution_template_mismatch because job GET defaults differ from execution GET: initContainersnull vs[], imageType absent vsContainerImage. First new control then failed because existing terminal check demanded endTime, which actual Failed response omits. Reject treating deployed-job inspection as execution-shape proof and requiring billing-like timestamp data for operationalterminal. Fixes are execution-only normalization plus optional valid endTime, with pendingfunds unchanged.
