@@ -5734,3 +5734,154 @@ create index if not exists vy_text_request_user_ix on vy_text_publication_reques
 -- Migration 144 - private comparison authority, independent of text.
 alter table vy_replica
   add column if not exists reference_authority_epoch bigint not null default 0;
+
+
+-- Migration145: private comparison selection authority.
+-- Comparison USE only. This table grants no processing, training or inference.
+create table if not exists vy_replica_comparison_reference (
+  reference_id uuid primary key,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  source_id uuid,
+  artifact_id uuid,
+  state text not null check (state in ('review','selected','revoked')),
+  receipt_payload jsonb,
+  receipt_hash text,
+  observed_epoch bigint,
+  selected_epoch bigint,
+  audition_response_at timestamptz,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz,
+  confirmed_at timestamptz,
+  revoked_at timestamptz,
+  active_replica_id uuid generated always as
+    (case when state='selected' then replica_id else null end) stored,
+  unique (active_replica_id),
+  constraint vy_comparison_reference_owner_fk foreign key (replica_id,owner_user_id)
+    references vy_replica(replica_id,owner_user_id) on delete cascade,
+  constraint vy_comparison_reference_source_fk foreign key (source_id,replica_id,owner_user_id)
+    references vy_replica_source(source_id,replica_id,owner_user_id) on delete cascade,
+  constraint vy_comparison_reference_artifact_fk foreign key (artifact_id,source_id,replica_id,owner_user_id)
+    references vy_replica_processing_artifact(artifact_id,source_id,replica_id,owner_user_id) on delete cascade,
+  constraint vy_comparison_reference_payload_check check (
+    state='revoked' or (source_id is not null and artifact_id is not null
+      and jsonb_typeof(receipt_payload)='object' and receipt_payload is not null
+      and receipt_hash is not null and length(receipt_hash)=64 and receipt_hash ~ '^[0-9a-f]{64}$'
+      and observed_epoch is not null and observed_epoch>=0
+      and expires_at is not null and expires_at>created_at
+      and expires_at<=created_at+interval '24 hours')),
+  constraint vy_comparison_reference_selected_check check (
+    state<>'selected' or (selected_epoch is not null and selected_epoch>observed_epoch
+      and audition_response_at is not null and confirmed_at is not null)),
+  constraint vy_comparison_reference_revoked_check check (
+    state<>'revoked' or (revoked_at is not null and receipt_payload is null and receipt_hash is null))
+);
+
+-- Purpose-limited preparation; never enrollment, training or serving authority.
+create table if not exists vy_comparison_preparation_id (
+  preparation_id uuid primary key,
+  retired_at timestamptz not null default now()
+);
+
+create table if not exists vy_replica_comparison_preparation (
+  preparation_id uuid primary key references vy_comparison_preparation_id(preparation_id),
+  replica_id uuid not null references vy_replica(replica_id) on delete cascade,
+  owner_user_id uuid not null,
+  source_id uuid references vy_replica_source(source_id) on delete cascade,
+  policy_version text not null,
+  statement_set text not null check (statement_set='private-comparison-preparation/v1'),
+  receipt jsonb,
+  receipt_sha256 text,
+  state text not null check (state in ('authorized','queued','running','prepared','revoked','expired','failed','reconciliation_required')),
+  max_duration_ms integer not null default 60000 check (max_duration_ms=60000),
+  max_evidence_dispatches integer not null default 4 check (max_evidence_dispatches=4),
+  completed_receipt jsonb,
+  completed_receipt_sha256 text,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check ((state='revoked' and source_id is null and receipt is null and receipt_sha256 is null)
+    or (source_id is not null and receipt is not null and receipt_sha256 is not null and jsonb_typeof(receipt)='object' and receipt_sha256 ~ '^[0-9a-f]{64}$')),
+  check (state<>'prepared' or (completed_receipt is not null and completed_receipt_sha256 is not null and jsonb_typeof(completed_receipt)='object' and completed_receipt_sha256 ~ '^[0-9a-f]{64}$')),
+  unique (source_id),
+  foreign key(replica_id,owner_user_id) references vy_replica(replica_id,owner_user_id) on delete cascade,
+  foreign key(source_id,replica_id,owner_user_id) references vy_replica_source(source_id,replica_id,owner_user_id) on delete cascade,
+  unique (preparation_id,source_id,replica_id,owner_user_id)
+);
+
+alter table vy_replica_processing_job add column if not exists comparison_preparation_id uuid
+  references vy_replica_comparison_preparation(preparation_id) on delete cascade;
+
+alter table vy_replica_processing_job drop constraint if exists vy_comparison_job_preparation_owner_fk;
+
+alter table vy_replica_processing_job add constraint vy_comparison_job_preparation_owner_fk
+  foreign key(comparison_preparation_id,source_id,replica_id,owner_user_id)
+  references vy_replica_comparison_preparation(preparation_id,source_id,replica_id,owner_user_id) on delete cascade;
+
+create table if not exists vy_replica_comparison_dispatch (
+  preparation_id uuid not null,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  source_id uuid not null,
+  job_id uuid not null references vy_replica_processing_job(job_id) on delete cascade,
+  step text not null check (step in ('diarize','separate','enhance','voice_quality')),
+  request_sha256 text not null check (request_sha256 ~ '^[0-9a-f]{64}$'),
+  meter_receipt_sha256 text not null check (meter_receipt_sha256 ~ '^[0-9a-f]{64}$'),
+  state text not null check (state in ('started','settled','reconciliation_required')),
+  result_sha256 text,
+  created_at timestamptz not null default now(),
+  settled_at timestamptz,
+  primary key(preparation_id,step),
+  foreign key(preparation_id,source_id,replica_id,owner_user_id)
+    references vy_replica_comparison_preparation(preparation_id,source_id,replica_id,owner_user_id) on delete cascade,
+  foreign key(job_id,source_id,replica_id,owner_user_id)
+    references vy_replica_processing_job(job_id,source_id,replica_id,owner_user_id) on delete cascade,
+  check (state<>'settled' or (result_sha256 is not null and result_sha256 ~ '^[0-9a-f]{64}$' and settled_at is not null))
+);
+
+alter table vy_replica_source drop constraint if exists vy_replica_source_purpose_check;
+
+alter table vy_replica_source add constraint vy_replica_source_purpose_check
+  check (purpose in ('memory','identity_document','identity_challenge','correction','interview','mirror_window','context_item','comparison_reference'));
+
+-- Content-free infrastructure accounting. No owner, source, audio or prompt.
+-- A held row is an exclusive resource lease even after its proposed deadline.
+create table if not exists vy_gpu_allocation_window (
+  window_id uuid primary key default gen_random_uuid(),
+  budget_id text not null references vy_provider_budget(budget_id) on delete restrict,
+  resource_sha256 text not null check (resource_sha256 ~ '^[0-9a-f]{64}$'),
+  revision_sha256 text not null check (revision_sha256 ~ '^[0-9a-f]{64}$'),
+  request_sha256 text not null check (request_sha256 ~ '^[0-9a-f]{64}$'),
+  provider_request_sha256 text not null check (provider_request_sha256 ~ '^[0-9a-f]{64}$'),
+  contract_sha256 text not null check (contract_sha256 ~ '^[0-9a-f]{64}$'),
+  reserved_microusd bigint not null check (reserved_microusd > 0),
+  max_allocation_seconds integer not null check (max_allocation_seconds between 1 and 3600),
+  state text not null check (state in ('reserved','in_flight','accounting_pending','uncertain','settled','released')),
+  response_sha256 text check (response_sha256 is null or response_sha256 ~ '^[0-9a-f]{64}$'),
+  usage_sha256 text check (usage_sha256 is null or usage_sha256 ~ '^[0-9a-f]{64}$'),
+  actual_microusd bigint check (actual_microusd >= 0 and actual_microusd <= reserved_microusd),
+  created_at timestamptz not null default now(),
+  begun_at timestamptz,
+  finished_at timestamptz,
+  unique (budget_id,request_sha256),
+  check (state <> 'settled' or (usage_sha256 is not null and actual_microusd is not null and finished_at is not null)),
+  check (state <> 'accounting_pending' or response_sha256 is not null)
+);
+
+-- All revisions and all budgets share the same resource exclusion.
+create unique index if not exists vy_gpu_allocation_window_exclusive
+  on vy_gpu_allocation_window(resource_sha256)
+  where state not in ('settled','released');
+
+alter table vy_replica_comparison_dispatch add column if not exists response_recorded_at timestamptz;
+
+-- A provider response is not a settled Azure invoice. Preserve historical rows.
+alter table vy_replica_comparison_dispatch drop constraint if exists vy_replica_comparison_dispatch_state_check;
+
+alter table vy_replica_comparison_dispatch add constraint vy_replica_comparison_dispatch_state_check
+  check (state in ('started','settled','response_recorded','reconciliation_required'));
+
+alter table vy_replica_comparison_dispatch drop constraint if exists vy_comparison_response_receipt_check;
+
+alter table vy_replica_comparison_dispatch add constraint vy_comparison_response_receipt_check
+  check (state<>'response_recorded' or (result_sha256 is not null and result_sha256 ~ '^[0-9a-f]{64}$' and response_recorded_at is not null));

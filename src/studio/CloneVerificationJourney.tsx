@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { putSignedUpload, sha256File } from "./enrollmentApi";
 import VoiceField from "./VoiceField";
 import type { LivenessIssueInput, LivenessCaptureReadiness } from "./livenessApi";
@@ -16,6 +16,7 @@ import type {
 // Each ceremony is reached only after the previous gate has passed. Loading
 // its implementation at that point keeps the first mobile recording journey
 // small without changing which checks run or what can unlock the clone.
+const ComparisonReferenceReview = lazy(() => import("./ComparisonReferenceReview"));
 const IdentityProofing = lazy(() => import("./IdentityProofing"));
 const LivenessCapture = lazy(() => import("./LivenessCapture"));
 const ModelConsentGate = lazy(() => import("./ModelConsentGate"));
@@ -42,6 +43,7 @@ export interface CloneVerificationFacts {
   sources: ReplicaSource[];
   review: ReplicaReview | null;
   candidateSourceId?: string | null;
+  comparisonSourceId?: string | null;
   buildIntent?: VoiceBuildIntent | null;
 }
 
@@ -67,22 +69,22 @@ function newestBuild(review: ReplicaReview | null) {
 // browser journey and its executable safety matrix cannot drift apart.
 // oxlint-disable-next-line react/only-export-components
 export function deriveCloneVerificationStage(
-  { replica, consents, sources, review, candidateSourceId, buildIntent }: CloneVerificationFacts,
+  { replica, consents, sources, review, candidateSourceId, comparisonSourceId, buildIntent }: CloneVerificationFacts,
   now = Date.now(),
 ): CloneVerificationStage {
   if (replica.lifecycle === "revoked" || replica.lifecycle === "purging") return "stopped";
   if (review?.self_test_mode) return "self_test_blocked";
 
   const scopes = activeConsentScopes(consents, now);
-  if (!["capture", "transcription", "storage"].every((scope) => scopes.has(scope as ConsentReceipt["scope"]))) {
+  if (!(comparisonSourceId ? ["capture", "storage"] : ["capture", "transcription", "storage"]).every((scope) => scopes.has(scope as ConsentReceipt["scope"]))) {
     return "source_permission";
   }
 
   const primary = candidateSourceId
     ? sources.find((source) => source.source_id === candidateSourceId && source.state !== "rejected" && source.state !== "deleting") ?? null
     : sources.find((source) => source.voice_role === "primary" && source.state !== "rejected" && source.state !== "deleting") ?? null;
-  if (!primary) return "primary_source";
-  if (primary.state !== "ready") return "source_processing";
+  if (!primary && !comparisonSourceId) return "primary_source";
+  if (primary && primary.state !== "ready" && !comparisonSourceId) return "source_processing";
 
   const identityDocument = newestIdentityDocument(sources);
   if (!replica.age_verified) {
@@ -92,6 +94,11 @@ export function deriveCloneVerificationStage(
 
   const liveIdentityReady = replica.identity_verified && replica.liveness_verified && scopes.has("biometric");
   if (!liveIdentityReady) return "liveness";
+  // Private comparison can establish identity but never substitutes for the
+  // ordinary recording and permissions required by a voice build.
+  if (!primary) return "primary_source";
+  if (primary.state !== "ready") return "source_processing";
+  if (!scopes.has("transcription")) return "source_permission";
   if (!scopes.has("training") || !scopes.has("inference")) return "model_consent";
 
   const exactDraftReady = review?.voice_genomes.some((genome) => (genome.status === "draft" || genome.status === "approved") && genome.source_ids.includes(primary.source_id));
@@ -132,6 +139,7 @@ type LivenessUploadInput = {
 };
 
 export interface CloneVerificationJourneyProps {
+  ownerUserId?: string;
   token: string;
   replica: Replica;
   consents: ConsentReceipt[];
@@ -495,7 +503,23 @@ export default function CloneVerificationJourney(props: CloneVerificationJourney
     onRefreshReview,
     onAuthError,
   } = props;
-  const stage = useMemo(() => deriveCloneVerificationStage({ replica, consents, sources, review, candidateSourceId, buildIntent }), [buildIntent, candidateSourceId, consents, replica, review, sources]);
+  const [comparisonOpen,setComparisonOpen]=useState(false);
+  const comparisonSource=candidateSourceId||sources.find(source=>source.voice_role==="primary")?.source_id;
+  const comparisonScope=JSON.stringify([props.ownerUserId,token,replica.replica_id,comparisonSource,consents.map(c=>[c.consent_id,c.revoked_at,c.expires_at]),sources.filter(s=>s.source_id===comparisonSource).map(s=>[s.updated_at,s.state])]);
+  const [privateSelection,setPrivateSelection]=useState<{scope:string;sourceId:string}|null>(null);
+  const selectionRead=useRef<AbortController|null>(null);
+  useEffect(()=>()=>{selectionRead.current?.abort();},[comparisonScope]);
+  const refreshPrivateSelection=useCallback(()=>{
+    selectionRead.current?.abort();const controller=new AbortController();selectionRead.current=controller;
+    void onCheckCaptureReadiness(controller.signal).then(value=>{
+      if(controller.signal.aborted)return;
+      const selected=value.comparison;
+      setPrivateSelection(selected?.selection_kind==="private_comparison_reference"?{scope:comparisonScope,sourceId:selected.primary_source_id}:null);
+    }).catch(error=>{if(!controller.signal.aborted){setPrivateSelection(null);onAuthError(error);}});
+  },[comparisonScope,onAuthError,onCheckCaptureReadiness]);
+  const comparisonSourceId=privateSelection?.scope===comparisonScope?privateSelection.sourceId:null;
+  const stage = useMemo(() => deriveCloneVerificationStage({ replica, consents, sources, review, candidateSourceId, comparisonSourceId, buildIntent }), [buildIntent, candidateSourceId, comparisonSourceId, consents, replica, review, sources]);
+  const privateConsentActive=useMemo(()=>{const scopes=activeConsentScopes(consents,Date.now());return scopes.has("capture")&&scopes.has("storage");},[consents]);
   const sourceConsentActive = useMemo(() => {
     const scopes = activeConsentScopes(consents, Date.now());
     return ["capture", "transcription", "storage"].every((scope) => scopes.has(scope as ConsentReceipt["scope"]));
@@ -530,11 +554,12 @@ export default function CloneVerificationJourney(props: CloneVerificationJourney
         {stage === "source_processing" ? <section className="cvj-build" aria-labelledby="cvj-source-title"><span className="cvj-build__signal"><VoiceField calm /></span><div><h1 id="cvj-source-title">Preparing your recording.</h1><p>The private worker is checking the exact source you selected. Recent recordings took about 5 to 15 minutes after worker pickup; long files can take longer.</p></div><dl><div><dt>Automatic check</dt><dd>Every 10 seconds while this page is open</dd></div><div><dt>You can return</dt><dd>This continues on the server</dd></div></dl><button className="cvj-quiet" type="button" onClick={() => void onSourcesChanged().catch(onAuthError)}>Check now</button></section> : null}
         {stage === "identity_document" ? <IdentityDocumentUpload source={latestIdentitySource(sources)} onCreateUpload={onCreateSourceUpload} onRetryUpload={onRetryUpload} onFinalizeUpload={onFinalizeSourceUpload} onDeleteSource={onDeleteSource} onChanged={onSourcesChanged} /> : null}
         {stage === "identity_proof" ? <Suspense fallback={<DeferredVerificationStage stage={stage} />}><IdentityProofing token={token} replicaId={replica.replica_id} sources={sources} onChanged={onIdentityChanged} onAuthError={onAuthError} /></Suspense> : null}
-        {stage === "liveness" ? <Suspense fallback={<DeferredVerificationStage stage={stage} />}><LivenessCapture scopeKey={JSON.stringify([token, replica.replica_id, consents.filter(receipt => receipt.scope === "capture" || receipt.scope === "storage").map(receipt => [receipt.consent_id, receipt.revoked_at, receipt.expires_at]), sources.filter(source => source.voice_role === "primary").map(source => [source.source_id, source.updated_at, source.state])])} expectedSourceId={candidateSourceId || sources.find(source => source.voice_role === "primary")?.source_id} consentActive={sourceConsentActive && replica.age_verified} challenge={challenge} loading={livenessLoading} onCheckReadiness={onCheckCaptureReadiness} onIssue={onIssueChallenge} onStartFace={onStartFaceSession} onPollFace={onPollFaceSession} onCancel={onCancelChallenge} onCreateUpload={onCreateLivenessUpload} onRetryUpload={onRetryUpload} onFinalize={onFinalizeLiveness} /></Suspense> : null}
+        {stage === "liveness" ? <Suspense fallback={<DeferredVerificationStage stage={stage} />}><LivenessCapture scopeKey={JSON.stringify([token, replica.replica_id, consents.filter(receipt => receipt.scope === "capture" || receipt.scope === "storage").map(receipt => [receipt.consent_id, receipt.revoked_at, receipt.expires_at]), sources.filter(source => source.voice_role === "primary").map(source => [source.source_id, source.updated_at, source.state])])} expectedSourceId={candidateSourceId || sources.find(source => source.voice_role === "primary")?.source_id} consentActive={(comparisonSourceId ? privateConsentActive : sourceConsentActive) && replica.age_verified} challenge={challenge} loading={livenessLoading} onCheckReadiness={onCheckCaptureReadiness} onIssue={onIssueChallenge} onStartFace={onStartFaceSession} onPollFace={onPollFaceSession} onCancel={onCancelChallenge} onCreateUpload={onCreateLivenessUpload} onRetryUpload={onRetryUpload} onFinalize={onFinalizeLiveness} /></Suspense> : null}
+        {!["stopped","self_test_blocked","complete","building"].includes(stage) && privateConsentActive && props.ownerUserId ? <details className="cvj-comparison-disclosure" onToggle={event=>setComparisonOpen(event.currentTarget.open)}><summary>Review a prepared comparison recording</summary>{comparisonOpen?<Suspense fallback={<p>Opening private comparison review</p>}><ComparisonReferenceReview key={comparisonScope} token={token} ownerUserId={props.ownerUserId} replicaId={replica.replica_id} expectedSourceId={comparisonSource || ""} onAuthError={onAuthError} onSelectionChanged={refreshPrivateSelection}/></Suspense>:null}</details>:null}
         {stage === "model_consent" ? <Suspense fallback={<DeferredVerificationStage stage={stage} />}><ModelConsentGate token={token} replica={replica} consents={consents} onChanged={onVerifiedConsentChanged} onAuthError={onAuthError} /></Suspense> : null}
-        {stage === "review" ? <section className="cvj-review-stage" aria-label="Review voice evidence">{buildIntent?.state === "failed" || latestBuild?.state === "failed" ? <p className="cvj-platform-stop" role="alert"><strong>The exact build stopped on our side.</strong><span>Review the receipts below. Start with a fresh recording only if the source itself was rejected.</span></p> : null}{reviewLoading && !review ? <p className="cvj-wait" role="status">Loading private review receipts.</p> : null}<Suspense fallback={<DeferredVerificationStage stage={stage} />}><ProcessingReview token={token} replicaId={replica.replica_id} sourceCount={sources.length} onAuthError={onAuthError} /></Suspense></section> : null}
-        {stage === "building" ? <section className="cvj-build" aria-labelledby="cvj-build-title"><span className="cvj-build__signal"><VoiceField calm /></span><div><h1 id="cvj-build-title">Building your private voice.</h1><p>The server has the reviewed evidence. It checks this exact recording every 10 seconds, and you can safely leave this page.</p></div><dl><div><dt>Current state</dt><dd>{displayedBuildState === "retry" ? "Waiting for an automatic retry" : displayedBuildState === "leased" ? "Build worker assigned" : displayedBuildState === "building" ? "Creating the draft" : "Queued"}</dd></div><div><dt>Completion</dt><dd>No guessed countdown</dd></div></dl>{onRefreshReview ? <button className="cvj-quiet" type="button" onClick={() => void onRefreshReview().catch(onAuthError)}>Check now</button> : null}</section> : null}
-        {stage === "complete" ? <FocusedMessage icon="check" tone="ready" title="Your draft voice is ready." body="The draft is bound to your reviewed evidence. Continue to listen before you approve or deploy it." label="Meet your clone" onAction={onContinue} /> : null}
+        {stage === "review" ? <section className="cvj-review-stage" aria-label="Review voice evidence">{buildIntent?.state === "failed" || latestBuild?.state === "failed" ? <p className="cvj-platform-stop" role="alert"><strong>We could not finish building your voice.</strong><span>Check the results below. You only need a new recording if this one was rejected.</span></p> : null}{reviewLoading && !review ? <p className="cvj-wait" role="status">Loading your recording checks.</p> : null}<Suspense fallback={<DeferredVerificationStage stage={stage} />}><ProcessingReview token={token} replicaId={replica.replica_id} sourceCount={sources.length} onAuthError={onAuthError} /></Suspense></section> : null}
+        {stage === "building" ? <section className="cvj-build" aria-labelledby="cvj-build-title"><span className="cvj-build__signal"><VoiceField calm /></span><div><h1 id="cvj-build-title">Building your private voice.</h1><p>Your voice is building from your reviewed recording. This page checks progress every 10 seconds while open. You can leave and return.</p></div><dl><div><dt>Current state</dt><dd>{displayedBuildState === "retry" ? "Waiting for an automatic retry" : displayedBuildState === "leased" ? "Preparing to build" : displayedBuildState === "building" ? "Creating the draft" : "Queued"}</dd></div><div><dt>Completion</dt><dd>An estimate is not available yet</dd></div></dl>{onRefreshReview ? <button className="cvj-quiet" type="button" onClick={() => void onRefreshReview().catch(onAuthError)}>Check now</button> : null}</section> : null}
+        {stage === "complete" ? <FocusedMessage icon="check" tone="ready" title="Your draft voice is ready." body="This draft uses your reviewed recording. Listen before you approve or share it." label="Meet your clone" onAction={onContinue} /> : null}
       </main>
     </div>
   );

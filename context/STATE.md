@@ -1451,3 +1451,10 @@ run.mjs`'s own RFC 8291 round-trip, reused unchanged, not re-measured here);
 **Isolated dev database, 2026-09-06.** Same-compute vyakti_expert_integration_20260906 now has198tables from1391ordered statements, including archived local voice fences and the seven-purpose union. Relcheck34checks passes on this fresh dev store; source-erasure EXPLAIN passes. Full erasure parser42601 near taste_turns and a person-model fixture mismatch are still open. Production remains untouched and its20dangling episode references are not repaired. The integrated full release gate has not passed. See measurements isolated-expert-schema-bootstrap-and-parser-gates-20260906 and integrated-release-first-pass-and-layout-readback-20260906.
 
 **Development parser follow-up, 2026-09-06.** The prior full-erasure SQL42601 is fixed: owner/room-scoped room_org_attachments CTE and separator restored, real devEXPLAIN passes. Person-model fixture now classifies interview reads correctly and all12parser cases pass. Actual synthetic dmRecall/roomRecall isolation passes8checks, with all2people/2agents/3facts removed via exact-ID cleanup and fact cascade. Fifteen API suite groups pass individually. Server5177/rates are logged in azure-rate-and-devserver-route-evidence-20260906. Full release is still not declared green.
+
+
+## Integrated comparison source notes (2026-09-08)
+## START HERE: ISOLATED FRESH COMPARISON SEAM32 (2026-09-08)
+
+This worktree is an unaccepted integration candidate over frozen145 plus preparation146 and allocation147/followup. Fresh upload, completed-evidence selection and dedicated modern descriptor/issuer/Journey wiring are implemented; offline tests and final mounted34parent/6uploader groups at390/1440 pass with synthetic transport; receipts1788849093326/1788849077454. No real SQL, migration, provider, deployment, identity or voice-quality acceptance. Production remains dormant without finite GPU allocation authority and calibrated same-capture verification. Read docs/gurukul/research/COMPARISON-SEAM32-HANDOFF-20260908.md. Root accepted integration/local5177 remains release26; historical statements below are superseded for this worktree.
+

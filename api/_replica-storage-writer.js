@@ -115,6 +115,7 @@ export async function acquireProcessingSourceStorageWriter(db, input, options = 
           and j.owner_user_id=$4::uuid and j.state='leased' and j.lease_token_hash=$5
           and j.lease_expires_at>now() and s.state in ('quarantined','processing')
           and s.capture_mode<>'live_challenge'
+          and (s.purpose<>'comparison_reference' or ${comparisonAuthoritySql('s','j')})
           and r.lifecycle not in ('revoked','purging')
         for update of j,s,r
      ), inserted as (
@@ -194,6 +195,7 @@ export async function renewSourceStorageWriter(db, value, options = {}) {
                where j.job_id=w.guard_id and j.source_id=w.source_id and j.replica_id=w.replica_id
                  and j.owner_user_id=w.owner_user_id and j.state='leased'
                  and j.lease_token_hash=w.guard_token_hash and j.lease_expires_at>now()
+                 and (s.purpose<>'comparison_reference' or ${comparisonAuthoritySql('s','j')})
             ))
             or (w.purpose='voice_preview_result' and s.state='ready' and exists (
               select 1 from vy_replica_voice_preview_intent i
@@ -231,3 +233,4 @@ export async function releaseSourceStorageWriter(db, value) {
   );
   return rows.length === 1;
 }
+import {comparisonAuthoritySql} from './_replica-processing/comparison.js';

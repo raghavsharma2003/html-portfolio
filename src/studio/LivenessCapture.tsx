@@ -150,7 +150,7 @@ export default function LivenessCapture({
   const allVerificationConsent = Object.values(verificationConsent).every(Boolean);
   const allComparisonConsent = Object.values(comparisonConsent).every(Boolean);
   const busy = ["requesting", "recording", "hashing", "authorizing", "uploading", "finalizing"].includes(stage);
-  const comparisonMatches = Boolean(comparison && (!expectedSourceId || comparison.primary_source_id === expectedSourceId));
+  const comparisonMatches = Boolean(comparison && (comparison.selection_kind === "private_comparison_reference" || !expectedSourceId || comparison.primary_source_id === expectedSourceId));
   const captureAvailable = captureReadiness?.ready === true && comparisonMatches;
 
   function resetChoices() {
@@ -236,7 +236,7 @@ export default function LivenessCapture({
     }
     assertCaptureOperation(operation);
     setCaptureReadiness(result.readiness);
-    if (result.readiness?.ready !== true) throw new Error("Live verification is unavailable. The complete verifier must be available before you record.");
+    if (result.readiness?.ready !== true) throw new Error("Live verification is unavailable on our side. Check availability before recording.");
     const fresh = result.challenge;
     if (!fresh || fresh.challenge_id !== captureScopeRef.current.challenge?.challenge_id ||
         fresh.replica_id !== captureScopeRef.current.challenge?.replica_id || !captureEligible(fresh)) {
@@ -593,13 +593,13 @@ export default function LivenessCapture({
             <h3 id="liveness-title">Prove this recording was made now</h3>
           </div>
           <span className={`permission-badge ${pendingVerification ? "permission-pending" : ""}`}>
-            <i />{pendingVerification ? "Verification pending" : "Biometric gate locked"}
+            <i />{pendingVerification ? "Verification pending" : "Private verification"}
           </span>
         </div>
 
         {!captureAvailable && <div className="evidence-gate" role="status" data-waiting-on="us">
           <div><strong>{captureReadiness ? captureReadiness.ready ? "The selected recording needs checking" : "Live verification is unavailable" : "Checking live verification"}</strong>
-            <p>We need the complete verifier and your current recording before a new attempt. You can still check or withdraw a saved attempt.</p>
+            <p>We cannot start a new attempt until our verification checks and your selected recording are available. You can still check or withdraw a saved attempt.</p>
             <button className="text-button" type="button" disabled={stage === "requesting"} onClick={() => void checkSavedAttempt()}>Check availability</button>
           </div>
         </div>}
@@ -607,19 +607,19 @@ export default function LivenessCapture({
         {!consentActive ? (
           <div className="evidence-gate">
             <span className="large-lock" aria-hidden="true" />
-            <div><strong>Source permission and adult ID evidence are required first</strong><p>Record capture and private storage permission, then complete the independent ID evidence step above.</p></div>
+            <div><strong>Review your recording permission and ID first</strong><p>Allow recording and private storage, then complete the ID check above.</p></div>
           </div>
         ) : loading ? (
-          <div className="liveness-wait" role="status"><span className="spinner" />Loading live challenge status</div>
+          <div className="liveness-wait" role="status"><span className="spinner" />Checking your saved attempt</div>
         ) : pendingVerification ? (
           <div className="verification-pending" role="status">
             <span className="verification-orbit"><i /><i /><i /></span>
             <div>
               <p className="eyebrow">Evidence secured</p>
-              <h4>Waiting for an independent verifier</h4>
+              <h4>Your recording is waiting for verification</h4>
               <p>
-                The challenge recording is isolated in private quarantine. It has not granted biometric, training, inference,
-                or generation permission. The gate stays locked until the independent composite verifier settles every check.
+                Your recording is stored privately while verification is pending. It has not granted biometric, training, inference,
+                or generation permission. All verification checks must pass before you can continue.
               </p>
               <button className="text-button" type="button" disabled={faceBusy} onClick={() => void cancelChallenge()}>
                 Withdraw verification and erase evidence
@@ -629,10 +629,10 @@ export default function LivenessCapture({
         ) : challenge?.state === "passed" ? (
           <div className="verification-pending verification-passed" role="status">
             <span className="verification-check">✓</span>
-            <div><p className="eyebrow">Verifier result</p><h4>Live challenge passed</h4><p>Biometric comparison permission is bound to this evidence. Training and inference permission remain separate.</p></div>
+            <div><p className="eyebrow">Verifier result</p><h4>Live challenge passed</h4><p>Biometric comparison permission applies only to this verified recording. Training and inference permission remain separate.</p></div>
           </div>
         ) : !challengeIssued ? (
-          <div className="challenge-empty">
+          (captureAvailable || comparison || issueUncertain || challenge?.state === "failed" || challenge?.state === "expired") ? <div className={`challenge-empty${captureAvailable ? "" : " challenge-empty--blocked"}`}>
             <div>
               {comparison && <div className="comparison-recording" aria-label="Selected voice recording">
                 <strong>Selected recording</strong>
@@ -676,7 +676,7 @@ export default function LivenessCapture({
             {captureAvailable && <button className="button primary-button" type="button" disabled={issueUncertain || stage === "requesting" || !allVerificationConsent || !allComparisonConsent} onClick={() => void issue()}>
               {stage === "requesting" ? "Issuing phrase" : "Request live phrase"}
             </button>}
-          </div>
+          </div> : null
         ) : (
           <>
             <div className="challenge-card">

@@ -1,0 +1,26 @@
+[
+  [
+    "decision",
+    "comparison-preparation-ui32",
+    "Fresh comparison uses a dedicated recoverable upload flow",
+    "2026-09-08: Reuse authenticated source create_upload/finalize with comparison_reference purpose, explicit three unchecked statements and owner+replica scoped opaque preparation ID. No capture/storage grant is added here. The existing Azure signed PUT contract is sent in one abortable request capped at32MiB, avoiding a detached resumable helper that has no cancellation signal. Reverse if the bounded native upload contract or erasure fences fail actual Azure acceptance."
+  ],
+  [
+    "measurement",
+    "comparison-preparation-ui32-client",
+    "Fresh comparison client passed15 synthetic transport controls",
+    "2026-09-08: n=15 groups, node evals/comparison-preparation-ui/client.mjs against transpiled actual client with synthetic fetch. Includes actual create/PUT/finalize/status sequence,3 unchecked negatives, invalid file, pre-abort, abort during PUT with zero finalize, non-Azure/cross-replica refusal, finalized replay, bad ID/receipt/voice state, unknown withdrawal. Forced TypeScript passed before latest small UI edits, subsequent check tracked separately; copy21 negatives passed; detector returned empty array. Mounted --prepare ran without launching browser. Browser run intentionally held until root release terminal. No SQL/provider/voice result follows."
+  ],
+  [
+    "rejection",
+    "comparison-preparation-ui32-detached-upload",
+    "Do not reuse the uncancellable resumable helper for this flow",
+    "2026-09-08 source inspection: putSignedUpload and putAzureBlockUpload accept no AbortSignal, so aborting the component cannot stop their queued blocks/retries. This conflicts with request cancellation. New bounded one-request client uses existing signed PUT capability plus actual fetch abort and does not continue to finalize after abort, proven by the synthetic transport negative. Real storage cancellation and deletion horizons remain to verify."
+  ],
+  [
+    "decision",
+    "comparison-preparation-ui32-disclosure",
+    "Fresh upload permissions open only on explicit add-recording action",
+    "2026-09-08: ComparisonReferenceReview mounts the new uploader only inside a collapsed Add a comparison recording disclosure. Its key includes owner, token and replica; the existing parent scope remount resets disclosure state. Existing prepared evidence review retains only its own three permissions. Reverse if account/scope changes preserve an old live uploader or ordinary review initiates a preparation request. Mounted parent fixture now includes fresh/no-primary selection, actual descriptor callback with unavailable capture, and withdrawal tests; only syntax, prepare and21asset bundle compilation ran, with no browser interaction claim."
+  ]
+]

@@ -17232,3 +17232,57 @@ n=1 V5run2026-09-07T23:05:29.258Z to23:07:43.131Z;500queries,17sessions,80checks
 ## `release31-focused-regression-results` (2026-09-07)
 
 2026-09-08: Store runner passes26 controls with changed-DDL negative. Mounted capture final run exec15698 terminal0 passes30 groups including old-media, old-start and old-lifecycle negatives; synthetic media only. Unchanged conversation suite terminal0 passes34 controls at390/1440, receipt1788844435205, SHA da61d48743054a8ae771291e335c5f55db452a614eadff30b9fb1d07376554cc. No provider or real SQL in these checks. Full release31 pending.
+
+
+## `comparison-reference31-offline-mounted` (2026-09-08)
+
+2026-09-08: 19 backend/HTTP synthetic controls, 8 inert SQL preparation guards, 41 incumbent authority controls, 28 actual Chromium groups at390/1440, 57 creator-export controls, TypeScript and copy7scopes21negatives passed. Mounted receipt1788844457582. Existing shared dependency junction used. No real SQL, provider, migration, deployment, identity or voice quality acceptance.
+
+
+
+
+## `comparison-preparation31-offline` (2026-09-08)
+
+2026-09-08:26 focused offline groups passed using actual handlers/store/runtime/worker and synthetic SQL/storage/meter/signed transport; one complete seven-stage chain made3 fixture POSTs and zero real provider calls. Incumbent processing, voice-evidence25, processing-worker45, processing-sweep44, replica-review38, self-test31 and storage-writer22, model-build17, primary-voice17, source-erasure59 and creator-export57 passed. No PostgreSQL/browser/full-release/provider/owner-likeness proof. See COMPARISON-PREPARATION31-HANDOFF-20260908.md for limits.
+
+
+
+
+## `gpu-allocation147-offline-controls` (2026-09-07)
+
+2026-09-08: n=14 offline groups using actual budget functions with synthetic DB state model passed; 28 comparison preparation groups passed including 3 fixture POSTs and no network. Provider budget, processing worker and creator-export57 passed. Independent source review found two repaired defects. No real SQL, cloud, migration, full release, finite termination or GPU accounting proof.
+
+
+
+
+## `gpu147-discovery-reader-control` (2026-09-08)
+
+2026-09-08:15 offline groups passed, including actual exported completed-reader query capture, expected parameters and old-state negative. Real PostgreSQL not run.
+
+
+
+
+## `comparison-preparation-ui32-client` (2026-09-08)
+
+2026-09-08: n=15 groups, node evals/comparison-preparation-ui/client.mjs against transpiled actual client with synthetic fetch. Includes actual create/PUT/finalize/status sequence,3 unchecked negatives, invalid file, pre-abort, abort during PUT with zero finalize, non-Azure/cross-replica refusal, finalized replay, bad ID/receipt/voice state, unknown withdrawal. Forced TypeScript passed before latest small UI edits, subsequent check tracked separately; copy21 negatives passed; detector returned empty array. Mounted --prepare ran without launching browser. Browser run intentionally held until root release terminal. No SQL/provider/voice result follows.
+
+
+
+
+## `comparison-seam32-focused-source` (2026-09-08)
+
+2026-09-08: 21 synthetic backend/state controls,31 incumbentJourney,15 client,41 authority,19 comparison passed. Private npmci158packages39s. Combined147+followup6dbb6d2a canonical15files verified;15budget and28preparation groups passed. No realSQL/cloud/identity/voice proof. Browser deferred during rootrelease31.
+
+
+
+
+## `comparison-seam32-source-freeze` (2026-09-08)
+
+Final source-only phase:23seam,15client,31Journey,57creator-export controls, forced TypeScript, copy7scopes21negatives, graph2569/2422 and4suite resource classifications passed. Exact6671d632 copy replacements integrated into5files preserving the seam. Browser runs remain explicitly pending behind rootrelease31; root authorized preliminary source freeze.
+
+
+
+
+## `comparison-seam32-mounted-terminal` (2026-09-08)
+
+2026-09-08: Actual Chromium parent Journey/component/HTTP-store fixture passed34groups at390/1440, finalreceipt1788849093326 SHA71a6151eba5ef74585228fe5eae102db091e67b15185e97a25d2d206e158a52d, terminal0 at06:32:10.306Z, errors[]. Standalone actual uploader/client fixture passed6groups, finalreceipt1788849077454 SHAbbc2297a88881ad0c00d8be99b5fbfa291c65d8959d460d7d5c67e8e0af75db1, exec terminal0. Synthetic SQL/HTTP/AzurePUT/PCM only. Both390/1440 prepared screenshots inspected; copy7scopes21negatives passed after visibility fix. No realSQL/provider/voice/identity/fullrelease acceptance.

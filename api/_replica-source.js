@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { clientIntentId, replicaId } from "./_replica.js";
 import { REPLICA_STORAGE_WRITE_BUCKET } from "./_replica-storage.js";
 import { primarySelectionQuery } from "./_replica-primary-selection.js";
+import {comparisonAuthoritySql} from './_replica-processing/comparison.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -48,7 +49,7 @@ function fail(message, status = 400) {
   throw Object.assign(new Error(message), { status });
 }
 
-export function sourceUploadInput(value) {
+export function sourceUploadInput(value, options = {}) {
   const input = value && typeof value === "object" ? value : {};
   const kind = String(input.kind || "").trim();
   const policy = SOURCE_POLICY[kind];
@@ -63,7 +64,8 @@ export function sourceUploadInput(value) {
   if (!SHA256.test(sha256)) fail("lowercase SHA-256 is required");
   if (typeof input.contains_third_parties !== "boolean") fail("contains_third_parties declaration required");
   const purpose = String(input.purpose || "memory").trim();
-  if (!new Set(["memory", "identity_document", "mirror_window", "context_item", "identity_challenge", "correction", "interview"]).has(purpose)) fail("unsupported source purpose");
+  if (!new Set(["memory", "identity_document", "mirror_window", "context_item", "identity_challenge", "correction", "interview",...(options.comparisonPreparation===true?['comparison_reference']:[])]).has(purpose)) fail("unsupported source purpose");
+  if(purpose==='comparison_reference'&&(!['audio','video'].includes(kind)||input.contains_third_parties||byteSize>33554432||!input.upload_intent_id))fail('comparison_source_ineligible');
   const uploadIntentId = input.upload_intent_id == null || input.upload_intent_id === ""
     ? null
     : clientIntentId(input.upload_intent_id, "valid_upload_intent_id_required");
@@ -203,7 +205,7 @@ export function assertUploadWithinSourceFence(source, upload) {
 
 export async function createPendingSource(db, ownerUserId, id, value, options = {}) {
   const rid = replicaId(id);
-  const input = sourceUploadInput(value);
+  const input = sourceUploadInput(value, options);
   const sourceId = options.sourceId || randomUUID();
   if (!UUID.test(sourceId)) fail("source id generator returned an invalid UUID", 500);
   const path = privateObjectPath(ownerUserId, rid, sourceId);
@@ -369,6 +371,7 @@ export async function listOwnedSources(db, ownerUserId, id) {
       where s.replica_id = $1::uuid and s.owner_user_id = $2::uuid
         and not (s.capture_mode = 'derived' and s.provenance->>'purpose' = 'mirror_window')
         and not (s.provenance->>'purpose' = 'context_item')
+        and s.purpose<>'comparison_reference'
       order by s.created_at desc limit 200`,
     [replicaId(id), ownerUserId],
   );
@@ -383,6 +386,7 @@ export async function setOwnedPrimaryVoiceSource(db, ownerUserId, id, source) {
        select s.* from vy_replica_source s
         where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.source_id=$3::uuid
           and s.kind in ('audio','video') and s.capture_mode in ('upload','import','derived')
+          and s.purpose<>'comparison_reference'
           and s.state in ('quarantined','processing','ready') and s.contains_third_parties=false
           and not (s.capture_mode='derived' and s.provenance->>'purpose'='mirror_window')
         limit 1
@@ -439,11 +443,12 @@ export async function finalizeOwnedSource(db, ownerUserId, id, source, objectInf
   });
   const rows = await db(
     `with updated as (
-       update vy_replica_source
+       update vy_replica_source s
           set state = $4, rejection_code = $5, updated_at = now(),
               provenance = provenance || $6::jsonb
         where replica_id = $1::uuid and owner_user_id = $2::uuid and source_id = $3::uuid
           and state = 'pending_upload'
+          and (s.purpose<>'comparison_reference' or ${comparisonAuthoritySql('s')})
        returning ${SOURCE_RETURNING}
      ), audit as (
        insert into vy_replica_audit
@@ -455,8 +460,10 @@ export async function finalizeOwnedSource(db, ownerUserId, id, source, objectInf
          from updated
      ), queued as (
        insert into vy_replica_processing_job
-         (replica_id, owner_user_id, source_id, step, state)
-       select replica_id, owner_user_id, source_id, 'integrity', 'queued'
+         (replica_id, owner_user_id, source_id, step, state, comparison_preparation_id)
+       select replica_id, owner_user_id, source_id, 'integrity', 'queued',
+         case when purpose='comparison_reference' then (select cp.preparation_id from vy_replica_comparison_preparation cp
+          where cp.source_id=updated.source_id and cp.replica_id=updated.replica_id and cp.owner_user_id=updated.owner_user_id) else null end
          from updated where state = 'quarantined' and capture_mode = 'upload'
        on conflict (source_id, step, revision) do nothing
      )
@@ -574,6 +581,9 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
      ), private_text_erased as (
        delete from vy_private_text_rehearsal h using target t
        where h.replica_id=t.replica_id and h.owner_user_id=$2::uuid and h.source_id=t.source_id
+     ), comparison_preparations_revoked as (
+       update vy_replica_comparison_preparation cp set state='revoked',completed_receipt=null,completed_receipt_sha256=null,updated_at=now()
+       where cp.replica_id=$1::uuid and cp.owner_user_id=$2::uuid and cp.source_id=$3::uuid and exists(select 1 from target)
      ), processing_jobs as (
        update vy_replica_processing_job j
           set state='failed',failure_code='source_erased',lease_token_hash='',

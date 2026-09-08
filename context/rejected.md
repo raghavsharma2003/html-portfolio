@@ -17226,3 +17226,64 @@ Selection145 remains dirtyunfrozen despite agentreported19backend/28mounted; pre
 ## `release31-retry-not-crash-repair` (2026-09-07)
 
 2026-09-08: Original release30 Chromium launch died with3221225477 before checks. One unchanged diagnostic run succeeded; no matching Application event established a root cause. Keep original failure, no automatic retry or speculative browser replacement. Initial capture fixture correction still omitted comparison_code and mishandled empty deferred snapshots; independent review caught both and final30-group rerun passed after correction.
+
+
+## `comparison-reference31-no-preparation-assumption` (2026-09-08)
+
+Do not declare fresh comparison upload end-to-end from 145 selection alone: its binding uses existing primary_selection_id and ordinary completed evidence, while frozen146 purpose uploads are deliberately excluded from ordinary primary selection. A dedicated discovery and selection identity is required. The prior pinned Journey has no comparison selection caller; the retained mounted negative reproduces that omission.
+
+
+
+
+## `comparison-preparation31-ordinary-primary` (2026-09-08)
+
+Rejected routing comparison-only uploads through the ordinary primary selector: actual setter admitted purpose comparison_reference and could rotate its primary_selection_id, despite ordinary build/review refusing that material. Added actual target predicate and ordinary-list exclusion. Captured SQL control preserves synthetic pointer/epoch; removing that predicate reproduces mutation. Real SQL pointer CAS remains unrun. Also rejected treating unmetered GPU request duration or retail-window estimates as settled Azure spend; actual meter remains unavailable.
+
+
+
+
+## `gpu-allocation147-retry-release-and-response` (2026-09-07)
+
+2026-09-08: Independent review found a recovered retry could release the original reserved window before its begin, stranding its durable claim. Recovered reservations now cannot claim/begin/release, with a negative schedule control. Response receipt initially omitted actual response hash/status; now validated and bound with different-response and missing-fields controls. HTTP elapsed time remains rejected as a GPU invoice. Initial comparison suite import failed without ignored config; blank generated config allowed offline completion.
+
+
+
+
+## `gpu147-forgotten-discovery-caller` (2026-09-08)
+
+2026-09-08: comparison seam agent found COMPARISON_COMPLETED_AUTHORITY_SQL still required settled after147 wrote response_recorded. This permanently refused prepared candidate discovery. Both required-stage and no-other-state predicates repaired; historical settled deliberately remains ineligible.
+
+
+
+
+## `comparison-preparation-ui32-detached-upload` (2026-09-08)
+
+2026-09-08 source inspection: putSignedUpload and putAzureBlockUpload accept no AbortSignal, so aborting the component cannot stop their queued blocks/retries. This conflicts with request cancellation. New bounded one-request client uses existing signed PUT capability plus actual fetch abort and does not continue to finalize after abort, proven by the synthetic transport negative. Real storage cancellation and deletion horizons remain to verify.
+
+
+
+
+## `comparison-seam32-frozen-manifest-mismatch` (2026-09-08)
+
+2026-09-08: Original147 manifest declared3ed92b37 but GPU test bytes mismatched commit underLF/CRLF. Import aborted before writes; later missingmodule followed abortedimport. Combined6dbb6d2a V2 canonical15file manifest then passed.
+
+
+
+
+## `comparison-seam32-consent-tie` (2026-09-08)
+
+2026-09-08: Independent source reviewer found preparation146 storage timestamptie uses descendingUUID while145 usedascendingUUID. Valid prepared material could disappear. Fresh candidates now match exact still-active bound consentIDs; ordinary candidates retain priorlatest selection. Equality remains. Tied-row realSQL proof still pending.
+
+
+
+
+## `comparison-seam32-copy-merge-cardinality` (2026-09-08)
+
+Copy replacement script expected each old phrase once, but modern capture fixture contained it twice. It stopped after two product files; the immediately run old Journey copy assertion failed. Applying the exact remaining fixture replacements restored31Journey controls. No production logic or negative-control intent was changed.
+
+
+
+
+## `comparison-seam32-prepared-unavailable-copy` (2026-09-08)
+
+Initial uploader fixture1788849012056 passed6groups, but actual390image showed preparation unavailable alongside recording prepared. Original retained; conditional visibility now suppresses new-upload instructions after saved state. Final uploader6groups adds assertion of absent unavailable notice; parent34groups rerun after shared component changed. Initial parent1788848949548 also retained.

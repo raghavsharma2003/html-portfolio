@@ -15861,6 +15861,153 @@
       "kind": "decision",
       "title": "Pause redundant scheduled continuation while retaining active product goal",
       "at": "2026-09-07"
+    },
+    {
+      "id": "comparison-reference31-purpose-choice",
+      "kind": "decision",
+      "title": "Explicit private comparison choice",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-reference31-offline-mounted",
+      "kind": "measurement",
+      "title": "Private comparison bounded tests",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-reference31-no-preparation-assumption",
+      "kind": "rejection",
+      "title": "Existing evidence is not fresh preparation",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-preparation31-purpose",
+      "kind": "decision",
+      "title": "comparison preparation31 purpose"
+    },
+    {
+      "id": "comparison-preparation31-offline",
+      "kind": "measurement",
+      "title": "comparison preparation31 offline"
+    },
+    {
+      "id": "comparison-preparation31-ordinary-primary",
+      "kind": "rejection",
+      "title": "comparison preparation31 ordinary primary"
+    },
+    {
+      "id": "gpu-allocation147-pending-accounting",
+      "kind": "decision",
+      "title": "Hold whole allocation funds until verified closure",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "gpu-allocation147-offline-controls",
+      "kind": "measurement",
+      "title": "Fourteen synthetic allocation controls",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "gpu-allocation147-retry-release-and-response",
+      "kind": "rejection",
+      "title": "Reject shared retry release and unbound response receipt",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "gpu147-discovery-response-state",
+      "kind": "decision",
+      "title": "Keep completed reader in response contract",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu147-discovery-reader-control",
+      "kind": "measurement",
+      "title": "Fifteen budget controls with completed reader",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu147-forgotten-discovery-caller",
+      "kind": "rejection",
+      "title": "Do not stop at the writer and first caller",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-preparation-ui32",
+      "kind": "decision",
+      "title": "Fresh comparison uses a dedicated recoverable upload flow",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-preparation-ui32-client",
+      "kind": "measurement",
+      "title": "Fresh comparison client passed15 synthetic transport controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-preparation-ui32-detached-upload",
+      "kind": "rejection",
+      "title": "Do not reuse the uncancellable resumable helper for this flow",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-preparation-ui32-disclosure",
+      "kind": "decision",
+      "title": "Fresh upload permissions open only on explicit add-recording action",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-seam32-dedicated-selection",
+      "kind": "decision",
+      "title": "Dedicated completed-purpose selection identity",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-seam32-focused-source",
+      "kind": "measurement",
+      "title": "Bounded fresh selection controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-seam32-frozen-manifest-mismatch",
+      "kind": "rejection",
+      "title": "Reject inconsistent147 manifest before writes",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-seam32-consent-tie",
+      "kind": "rejection",
+      "title": "Fresh consent is exact authority, not latest sorting",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-seam32-source-freeze",
+      "kind": "measurement",
+      "title": "Preliminary source freeze; browser pending",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-seam32-copy-merge-cardinality",
+      "kind": "rejection",
+      "title": "Do not assume copy occurrence cardinality",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-seam32-saved-recording-copy",
+      "kind": "decision",
+      "title": "Saved recording replaces upload instructions",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-seam32-mounted-terminal",
+      "kind": "measurement",
+      "title": "Final mounted private preparation and selection",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-seam32-prepared-unavailable-copy",
+      "kind": "rejection",
+      "title": "Do not present new-work unavailability beside prepared status",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -28016,6 +28163,16 @@
       "src": "modern-authority-exact-review-guard30-20260908",
       "rel": "caused_by",
       "dst": "modern-authority-explain-not-runtime-guard30-20260908"
+    },
+    {
+      "src": "comparison-preparation31-purpose",
+      "rel": "measured_by",
+      "dst": "comparison-preparation31-offline"
+    },
+    {
+      "src": "comparison-preparation31-ordinary-primary",
+      "rel": "constrains",
+      "dst": "comparison-preparation31-purpose"
     }
   ]
 }

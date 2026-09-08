@@ -1,0 +1,98 @@
+import assert from 'node:assert/strict';
+import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {createServer} from 'node:http';
+import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {uid,memoryFixture,authorize} from './fixtures.mjs';
+import {freshFixture} from '../comparison-seam/fixtures.mjs';
+import {getOwnedModernComparisonDescriptor} from '../../api/_liveness/issued-authority.js';
+import {createComparisonReferenceHandler} from '../../api/replica-comparison-reference.js';
+const root=fileURLToPath(new URL('../../',import.meta.url)),sha=b=>createHash('sha256').update(b).digest('hex');
+const pins=JSON.parse(readFileSync(new URL('old-pins.json',import.meta.url),'utf8'));
+assert.equal(sha(readFileSync(new URL('old-Journey.tsx.txt',import.meta.url),'utf8').replaceAll('\r\n','\n')),pins.canonical_lf_sha256);
+const files=['src/studio/ComparisonPreparation.tsx','src/studio/comparisonPreparationApi.ts','evals/comparison-seam/fixtures.mjs','src/studio/ComparisonReferenceReview.tsx','src/studio/comparisonReferenceApi.ts','src/studio/CloneVerificationJourney.tsx','src/studio/CloneExperience.tsx','src/studio/StudioApp.tsx','src/studio/clone-verification-journey.css','src/studio/LivenessCapture.tsx','api/_comparison-reference.js','api/replica-comparison-reference.js'];
+assert(readFileSync(join(root,'src/studio/StudioApp.tsx'),'utf8').includes('ownerUserId={session.userId}'));
+assert(readFileSync(join(root,'src/studio/CloneExperience.tsx'),'utf8').includes('<CloneVerificationJourney ownerUserId={ownerUserId}'));
+if(process.argv.includes('--prepare')){console.log(JSON.stringify({no_browser:true,old:pins,files:files.length}));process.exit(0);}
+const {build}=await import('vite'),{chromium}=await import('playwright');
+const out=join(root,'scratchpad/comparison-reference-mounted',String(Date.now()));mkdirSync(out,{recursive:true});
+const result={started_at:new Date().toISOString(),source_hashes:Object.fromEntries(files.map(f=>[f,sha(readFileSync(join(root,f)))])),old:pins,checks:[],errors:[],scope:'Actual Journey and reference component/client + actual HTTP handler/store with explicit synthetic SQL dispatcher. No real SQL, storage, provider, biometric or listening acceptance.'};
+let server,browser,page,f,requests,held,holdOp,holdStatus,skipAuthorize;const assets=new Map();
+function reset(fresh=false){f=fresh?freshFixture():memoryFixture();requests=[];held=[];holdOp=null;holdStatus=null;skipAuthorize=false;}
+const until=async pred=>{const end=Date.now()+10000;while(!pred()){assert(Date.now()<end,'exact HTTP barrier');await new Promise(r=>setTimeout(r,10));}};
+try{
+ const bundle=await build({root,configFile:false,logLevel:'silent',define:{'process.env.NODE_ENV':'"development"'},build:{write:false,minify:false,rolldownOptions:{input:join(root,'evals/comparison-reference/host.tsx'),output:{entryFileNames:'host.js'}}},plugins:[{name:'pinned-old-journey-and-synthetic-scope',enforce:'pre',
+  resolveId(id,importer){if(id==='comparison-reference-old-journey')return'\0comparison-old';if(importer==='\0comparison-old'&&id.startsWith('./')){const base=join(root,'src/studio',id.slice(2));for(const ext of ['','.ts','.tsx','.js'])if(existsSync(base+ext))return base+ext;}},
+  load(id){if(id==='\0comparison-old')return{code:readFileSync(new URL('old-Journey.tsx.txt',import.meta.url),'utf8'),moduleType:'tsx'};},
+  transform(code,id){if(id.replaceAll('\\','/').endsWith('/comparison-reference/host.tsx'))return{code:code.replace('/* SYNTHETIC_IDS */{}',JSON.stringify(Object.fromEntries([1,2,3,4,11,12,13].map(n=>[String(n),uid(n)]))))
+   .replace('sources:[{source_id:source','sources:new URLSearchParams(location.search).has("fresh")?[]:[{source_id:source')
+   .replace('onCheckCaptureReadiness:async()=>({challenge:null,', 'onCheckCaptureReadiness:async()=>{fixture.__reference.readinessReads=(fixture.__reference.readinessReads||0)+1;if(new URLSearchParams(location.search).has("fresh")){const response=await fetch("/api/fixture-readiness");const data=await response.json();fixture.__reference.lastReadiness=data;return data;}return({challenge:null,')
+   .replace("comparison_code:'selected_reference_not_available'}),","comparison_code:'selected_reference_not_available'});},"),map:null};},
+ }]});
+ if(process.argv.includes('--bundle-only')){console.log(JSON.stringify({no_browser:true,bundle_assets:bundle.output.length,scope:'Built actual mounted fixture including fresh descriptor callback; no interaction acceptance.'}));process.exit(0);}
+ for(const a of bundle.output)assets.set('/'+a.fileName,a.type==='chunk'?a.code:a.source);
+ server=createServer(async(req,res)=>{
+  const url=new URL(req.url,'http://localhost');if(assets.has(url.pathname)){res.setHeader('Content-Type',url.pathname.endsWith('.js')?'text/javascript':url.pathname.endsWith('.woff2')?'font/woff2':'text/css');res.end(assets.get(url.pathname));return;}
+  if(url.pathname==='/api/fixture-readiness'){
+   try{const c=f.state.candidate,h=[...f.state.rows.values()].find(r=>r.state==='selected');let comparison=null;
+    if(h){const b=c.binding;const row={binding:b,reference_rows:c.reference_rows,comparison_receipt:h,preparation:c.preparation,...b,reference_authority_epoch:c.observed_epoch,source_id:c.source_id,primary_selection_id:h.reference_id,sha256:b.primary_source_sha256,created_at:c.source_created_at,private_text_epoch:b.authority_epoch};comparison=await getOwnedModernComparisonDescriptor(async()=>[row],uid(2),uid(1));}
+    res.setHeader('Content-Type','application/json');res.end(JSON.stringify({challenge:null,readiness:{ready:false,waiting_on:'us',code:'liveness_verifier_unavailable'},comparison,comparison_code:comparison?'':'selected_reference_not_available'}));
+   }catch(e){result.errors.push('fixture_descriptor_'+e.name);res.writeHead(500,{'Content-Type':'application/json'});res.end('{}');}return;
+  }
+  if(url.pathname!=='/api/replica-comparison-reference'){res.setHeader('Content-Type','text/html');res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><style>@layer reset,tokens,base,components,responsive;</style>'+[...assets.keys()].filter(p=>p.endsWith('.css')).map(p=>`<link rel="stylesheet" href="${p}">`).join('')+'<div id="root"></div><script type="module" src="/host.js"></script>');return;}
+  try{
+   req.query=Object.fromEntries(url.searchParams);if(req.method==='POST'){let raw='';for await(const p of req)raw+=p;req.body=JSON.parse(raw);}
+   const input=req.method==='GET'?req.query:req.body;requests.push({op:input.op,id:input.reference_id,replica_id:input.replica_id,token:req.headers.authorization});
+   const hold=holdOp===input.op,forced=hold?holdStatus:null;if(hold)holdOp=null;
+   const end=res.end.bind(res);res.status=n=>{res.statusCode=forced||n;return res;};res.json=d=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify(d));};
+   if(hold)res.end=(body)=>{held.push({res,send:()=>{if(!res.destroyed)end(body);},body});return res;};
+   if(skipAuthorize&&input.op==='authorize'){res.status(503).json({error:'comparison_unavailable'});return;}
+   const handler=createComparisonReferenceHandler({...f,requireUser:async()=>({id:req.headers.authorization==='Bearer synthetic-other'?uid(12):uid(2)})});
+   await handler(req,res);
+  }catch(e){result.errors.push(`fixture_server_${e.code||e.name}`);if(!res.headersSent)res.writeHead(500,{'Content-Type':'application/json'});res.end('{"error":"fixture_error"}');}
+ });await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
+ const chrome='C:/Program Files/Google/Chrome/Application/chrome.exe';browser=await chromium.launch({headless:true,...(existsSync(chrome)?{executablePath:chrome}:{})});
+ const mutations=()=>requests.filter(r=>['authorize','confirm','withdraw'].includes(r.op));
+ const allChecks=async()=>{const boxes=page.locator('.cvj-comparison-reference input[type=checkbox]');for(let i=0;i<await boxes.count();i++)await boxes.nth(i).check();};
+ const open=async(old=false,fresh=false)=>{await page.goto(origin+(old?'/?old=1':fresh?'/?fresh=1':'/'));await page.waitForFunction(()=>window.__reference?.ready);};
+ const review=async()=>{await page.getByText('Review a prepared comparison recording',{exact:true}).click();await page.getByRole('heading',{name:'Your comparison recording',exact:true}).waitFor();};
+ const prepare=async()=>{await review();await page.getByLabel('Prepared version').selectOption(uid(4));await allChecks();};
+ const grant=async()=>{await prepare();await page.getByRole('button',{name:'Allow and review recording',exact:true}).click();await page.getByRole('button',{name:'Open private recording',exact:true}).waitFor();};
+ const release=async()=>{assert.equal(held.length,1);held.shift().send();await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));};
+ const loseBody=async()=>{assert.equal(held.length,1);const h=held.shift();const before=await page.evaluate(()=>window.__referenceHeaders);h.res.writeHead(h.res.statusCode,{'Content-Type':'application/json'});h.res.write('{');await page.waitForFunction(before=>window.__referenceHeaders>before,before);h.res.destroy();};
+ for(const width of [390,1440]){
+  const context=await browser.newContext({viewport:{width,height:900}});page=await context.newPage();page.setDefaultTimeout(10000);page.on('pageerror',e=>result.errors.push(e.message));
+  await page.addInitScript(()=>{window.__referenceHeaders=0;const fetch=window.fetch;window.fetch=async(...args)=>{const r=await fetch(...args);window.__referenceHeaders++;return r;};});
+  await page.route('**/*',route=>new URL(route.request().url()).origin===origin||route.request().url().startsWith('blob:')?route.continue():route.abort());
+  const clean=async()=>{await page.goto(origin);await page.evaluate(()=>sessionStorage.clear());reset();};
+  const pass=async name=>{assert.deepEqual(result.errors,[]);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);result.checks.push({width,name,posts:mutations().length});console.log(`ok ${result.checks.length} - ${width} ${name}`);};
+  await clean();await open(true);await page.getByText('Live verification is unavailable',{exact:true}).waitFor();assert.equal(await page.getByText('Review a prepared comparison recording',{exact:true}).count(),0);assert.equal(requests.length,0);await pass('pinned old actual Journey has no private comparison selection caller');
+  await clean();f.state.available=false;await open();await review();await page.getByText('No compatible prepared recording is available yet.',{exact:true}).waitFor();assert.equal(await page.getByRole('checkbox').count(),0);assert.equal(mutations().length,0);await pass('missing compatible evidence makes no consent demand and never enables capture');assert.equal(await page.locator('.challenge-empty').count(),0);await page.evaluate(()=>document.fonts.ready);assert.equal(await page.evaluate(()=>document.fonts.check('14px \"Geist Variable\"')),true);await pass('unavailable capture has no empty frame and actual personal Studio font loads');
+  await clean();await open();await prepare();assert.equal(await page.locator('.cvj-comparison-reference input:checked').count(),3);await page.getByLabel('Prepared version').selectOption('');assert.equal(await page.locator('.cvj-comparison-reference input:checked').count(),0);assert.equal(mutations().length,0);await pass('changing reviewed version clears all explicit permissions');
+  await clean();await open();await grant();await page.getByRole('button',{name:'Open private recording',exact:true}).click();await page.locator('audio[aria-label="Private comparison recording"]').waitFor();assert.equal(await page.getByRole('button',{name:'Use for private comparison',exact:true}).isDisabled(),true);await page.screenshot({path:join(out,`audition-${width}.png`),fullPage:true});await page.getByText(/^Recording from /).waitFor();await page.getByLabel('I listened to this version and confirm this is my voice.',{exact:true}).check();await page.getByRole('button',{name:'Use for private comparison',exact:true}).click();await page.getByText('Your comparison choice is saved. Live verification stays separate.',{exact:true}).waitFor();assert.equal(mutations().filter(r=>r.op==='confirm').length,1);assert.equal(await page.locator('audio').count(),0);await page.getByRole('button',{name:'Withdraw this choice',exact:true}).click();await page.getByText('This comparison permission is withdrawn.',{exact:true}).waitFor();await page.getByRole('button',{name:'Review a new choice',exact:true}).click();await page.getByLabel('Prepared version').waitFor();assert.equal(await page.locator('input:checked').count(),0);await pass('actual HTTP grant, private delivery, explicit assertion, selection and withdrawal flow');
+  await clean();holdOp='options';await open();await review();await until(()=>held.length===1);await page.getByRole('button',{name:'Switch replica',exact:true}).click();await page.getByText('No compatible prepared recording is available yet.',{exact:true}).waitFor();await release();assert.equal(await page.getByLabel('Prepared version').count(),0);assert.equal(mutations().length,0);await pass('late A evidence cannot become visible B options');
+  for(const action of ['Refresh token','Switch account','Leave verification']){
+   await clean();await open();await prepare();holdOp='authorize';holdStatus=401;await page.getByRole('button',{name:'Allow and review recording',exact:true}).click();await until(()=>held.length===1);await page.getByRole('button',{name:action,exact:true}).click();await release();assert.equal(await page.evaluate(()=>window.__reference.authErrors),0);assert.equal(mutations().filter(r=>r.op==='authorize').length,1);await pass(`late authorization401 cannot affect ${action}`);
+  }
+  await clean();await open();await prepare();holdOp='authorize';await page.getByRole('button',{name:'Allow and review recording',exact:true}).click();await until(()=>held.length===1);await loseBody();await page.getByText('The change is unconfirmed. Check its saved status before continuing.',{exact:true}).waitFor();const count=mutations().length;await page.reload();await review();await page.getByRole('button',{name:'Open private recording',exact:true}).waitFor();assert.equal(mutations().length,count);await pass('lost authorization body restores durable handle by GET with no automatic POST');
+  await clean();await open();await grant();holdOp='withdraw';await page.getByRole('button',{name:'Withdraw this choice',exact:true}).click();await until(()=>held.length===1);assert.equal(await page.locator('audio').count(),0);await loseBody();await page.getByText('The change is unconfirmed. Check its saved status before continuing.',{exact:true}).waitFor();const cancelled=mutations().length;await page.reload();await review();await page.getByText('This comparison permission is withdrawn.',{exact:true}).waitFor();assert.equal(mutations().length,cancelled);await pass('lost withdrawal stays private on reload and recovers exact terminal status');
+  await clean();skipAuthorize=true;await open();await prepare();await page.getByRole('button',{name:'Allow and review recording',exact:true}).click();await page.getByText('The change is unconfirmed. Check its saved status before continuing.',{exact:true}).waitFor();await page.reload();await review();await page.getByText('This could not be checked. Try again.',{exact:true}).waitFor();skipAuthorize=false;await page.getByRole('button',{name:'Withdraw this choice',exact:true}).click();await page.getByText('This comparison permission is withdrawn.',{exact:true}).waitFor();assert.equal(f.state.rows.size,1);assert.equal([...f.state.rows.values()][0].receipt_payload,null);await pass('never-admitted request can be explicitly cancelled without a fake grant');
+  await clean();await open();await grant();holdOp='audition';await page.getByRole('button',{name:'Open private recording',exact:true}).click();await until(()=>held.length===1);await page.getByRole('button',{name:'Replace recording',exact:true}).click();await release();assert.equal(await page.locator('audio').count(),0);assert.equal(await page.getByRole('button',{name:'Use for private comparison',exact:true}).count(),0);await pass('pending audition cannot expose audio or confirmation after selection replacement');
+  await clean();await open();await page.getByRole('button',{name:'Stop clone',exact:true}).click();await page.getByText('This clone is no longer active.',{exact:true}).waitFor();assert.equal(await page.getByText('Review a prepared comparison recording',{exact:true}).count(),0);assert.equal(requests.length,0);await pass('stopped lifecycle has no comparison caller or permission request');
+  await page.screenshot({path:join(out,`stopped-${width}.png`),fullPage:true});
+  await clean();reset(true);await open(false,true);await review();await page.getByLabel('Prepared version').selectOption(uid(4));
+  assert.equal(f.state.candidate.binding.primary_selection_id,null);assert.equal(await page.locator('select option').count(),2);assert.equal(await page.getByRole('checkbox').count(),3);
+  assert.equal(await page.getByRole('heading',{name:'Add a comparison recording',exact:true}).count(),0);await pass('fresh evidence selectable with no ordinary source and uploader stays collapsed');
+  await allChecks();await page.getByRole('button',{name:'Allow and review recording',exact:true}).click();await page.getByRole('button',{name:'Open private recording',exact:true}).click();await page.locator('audio[aria-label="Private comparison recording"]').waitFor();
+  await page.getByLabel('I listened to this version and confirm this is my voice.',{exact:true}).check();const reads=await page.evaluate(()=>window.__reference.readinessReads||0);
+  await page.getByRole('button',{name:'Use for private comparison',exact:true}).click();await page.getByText('Your comparison choice is saved. Live verification stays separate.',{exact:true}).waitFor();
+  await page.waitForFunction(reads=>window.__reference.readinessReads>reads&&window.__reference.lastReadiness?.comparison?.selection_kind==='private_comparison_reference',reads);
+  const actual=await page.evaluate(()=>window.__reference.lastReadiness);assert.equal(actual.comparison.primary_source_id,uid(3));assert.equal(actual.readiness.ready,false);assert.equal(f.state.candidate.binding.primary_selection_id,null);assert.equal(await page.getByRole('button',{name:'Request live phrase',exact:true}).count(),0);
+  await pass('fresh private delivery and explicit confirmation refresh actual descriptor without ordinary-primary mutation or capture readiness');
+  await page.getByRole('button',{name:'Withdraw this choice',exact:true}).click();await page.getByText('This comparison permission is withdrawn.',{exact:true}).waitFor();await page.waitForFunction(()=>window.__reference.lastReadiness?.comparison===null);await pass('fresh withdrawal clears selected descriptor and keeps capture unavailable');
+  await context.close();
+ }
+ result.passed=true;
+}catch(error){result.passed=false;result.failure=String(error.stack||error);result.requests=requests;try{result.failure_dom=await page?.locator('body').innerText();await page?.screenshot({path:join(out,'failure.png'),fullPage:true});}catch{}throw error;}
+finally{if(browser)await browser.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}result.finished_at=new Date().toISOString();writeFileSync(join(out,'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify({artifact:join(out,'result.json'),passed:result.passed,checks:result.checks.length}));}

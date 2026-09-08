@@ -61,12 +61,12 @@ try{
  });
  for(const state of ['blocked','error'])await check(`fresh ${state} before media prevents collection`,async()=>{
   await open('mode=ready');await camera().waitFor();await page.waitForFunction(()=>!document.querySelector('.permission-button').disabled);
-  await mode(state);await camera().click();await page.getByText(state==='error'?'Fixture readiness read failed':'Live verification is unavailable. The complete verifier must be available before you record.',{exact:true}).waitFor();
+  await mode(state);await camera().click();await page.getByText(state==='error'?'Fixture readiness read failed':'Live verification is unavailable on our side. Check availability before recording.',{exact:true}).waitFor();
   assert.equal((await getCalls()).media,0);
  });
  await check('fresh refusal after permission stops tracks and never starts recorder',async()=>{
   await open('mode=ready');await page.waitForFunction(()=>!document.querySelector('.permission-button').disabled);await camera().click();await start().waitFor();
-  await mode('blocked');await start().click();await page.getByText('Live verification is unavailable. The complete verifier must be available before you record.',{exact:true}).waitFor();
+  await mode('blocked');await start().click();await page.getByText('Live verification is unavailable on our side. Check availability before recording.',{exact:true}).waitFor();
   const c=await getCalls();assert.equal(c.media,1);assert.equal(c.start,0);assert(c.stopped>0);
  });
  for(const mutation of [{state:'expired'},{challenge_id:'foreign'},{expires_at:'2000-01-01T00:00:00Z'},{expires_at:'not-a-date'},{face_session_state:'not_started'}])await check('fresh challenge authority change refuses devices '+JSON.stringify(mutation),async()=>{

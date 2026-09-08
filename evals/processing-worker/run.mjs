@@ -197,7 +197,7 @@ const separatedInput = {
 const raceDeletes = [];
 const raceDb = async (sql) => {
   if (/with candidate as/i.test(sql)) return [enhanceJob];
-  if (/select s\.source_id/i.test(sql)) return [{ ...source, state: "processing" }];
+  if (/select s\.source_id/i.test(sql) && !/eligible_job as materialized/i.test(sql)) return [{ ...source, state: "processing" }];
   if (/select step from vy_replica_processing_job/i.test(sql)) return [{ step: "separate" }];
   if (/from vy_replica_processing_artifact/i.test(sql) && !/eligible_job as materialized/i.test(sql)) return [separatedInput];
   if (/eligible_job as materialized/i.test(sql)) return [];
@@ -223,7 +223,7 @@ let processingLateObjectVisible = false;
 let finishProcessingLateCommit = null;
 const timeoutDb = async (sql) => {
   if (/with candidate as/i.test(sql)) return [enhanceJob];
-  if (/select s\.source_id/i.test(sql)) return [{ ...source, state: "processing" }];
+  if (/select s\.source_id/i.test(sql) && !/eligible_job as materialized/i.test(sql)) return [{ ...source, state: "processing" }];
   if (/select step from vy_replica_processing_job/i.test(sql)) return [{ step: "separate" }];
   if (/from vy_replica_processing_artifact/i.test(sql) && !/eligible_job as materialized/i.test(sql)) return [separatedInput];
   if (/with settled as/i.test(sql) && /set state = 'retry'/i.test(sql)) return [enhanceJob];

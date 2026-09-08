@@ -1,0 +1,12 @@
+import "@fontsource-variable/geist";
+import "@fontsource-variable/instrument-sans";
+import "../../src/studio/design/tokens.css";
+import "../../src/studio/studio.css";
+import "../../src/studio/clone-experience.css";
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import ComparisonPreparation from '../../src/studio/ComparisonPreparation';
+import '../../src/studio/clone-verification-journey.css';
+const calls={prepared:[] as string[],auth:0};
+Object.assign(window,{preparationFixture:calls});
+createRoot(document.getElementById('root')!).render(<main className="cvj-shell"><ComparisonPreparation token="synthetic-token" ownerUserId="synthetic-owner" replicaId="10000000-0000-4000-8000-000000000001" onAuthError={()=>{calls.auth++;}} onPrepared={sid=>{calls.prepared.push(sid);}}/></main>);

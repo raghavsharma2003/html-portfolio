@@ -15,6 +15,7 @@ import {
 } from "./contracts.js";
 import { assertDependencies, classifyProcessingFailure, nextProcessingSteps } from "./pipeline.js";
 import { selectOwnerReferenceWindow } from "./reference-window.js";
+import {isComparisonSource,COMPARISON_PREPARATION_PURPOSE} from './comparison.js';
 import {
   beginProviderSpend,
   markProviderSpendUncertain,
@@ -472,12 +473,14 @@ export async function executeProcessingJob(input) {
     throw new ProcessingContractError("job and source ownership tuple mismatch", { code: "cross_replica_job" });
   }
   assertProcessingPurpose(source, job.step);
-  assertDependencies(job.step, input.completedSteps || []);
+  assertDependencies(job.step, input.completedSteps || [],source);
   const adapter = assertAdapter(input.adapters?.[job.step], job.step);
   let reservation = null;
   let providerStarted = false;
   try {
-    let billing;
+    let billing=input.comparison?.billing;
+    if(isComparisonSource(source)&&!input.comparison)throw Object.assign(Error('comparison_execution_authority_required'),{code:'comparison_execution_authority_required'});
+    if(input.comparison)await input.comparison.beforeStage();
     if (adapter.billing?.meter === "azure_speech_audio_ms") {
       const references = inputReferences(source, input.inputArtifacts || []);
       reservation = await reserveAzureSpeechSpend(input.spendDb, {
@@ -504,6 +507,7 @@ export async function executeProcessingJob(input) {
       withMaterializedAudio: input.withMaterializedAudio,
       signal: input.signal, billing,
     });
+    if(input.comparison)await input.comparison.completeStage(output);
     let billingState = "not_metered";
     if (reservation) {
       if (!providerStarted) {
@@ -529,6 +533,7 @@ export async function executeProcessingJob(input) {
         evidence_ids: output.evidence.map((entry) => entry.evidence_id),
         next_steps: nextProcessingSteps(job.step, [...(input.completedSteps || []), job.step], source),
         ...(source.capture_mode === "live_challenge" ? { purpose: LIVE_INTAKE_PURPOSE } : {}),
+        ...(input.comparison?{purpose:COMPARISON_PREPARATION_PURPOSE,preparation_id:input.comparison.preparationId,preparation_receipt_sha256:input.comparison.receiptSha256}:{}),
         verified_input_sha256: output.verifiedSha256,
         billing_state: billingState,
         ...(output.providerTransport ? { provider_transport: output.providerTransport } : {}),
@@ -536,6 +541,7 @@ export async function executeProcessingJob(input) {
     });
   } catch (caught) {
     let error = caught;
+    if(input.comparison)error=await input.comparison.failStage(error);
     if (reservation && providerStarted) {
       await markProviderSpendUncertain(input.spendDb, reservation, error);
       if (error?.code !== "provider_spend_reconciliation_required") {
