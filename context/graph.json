@@ -17232,6 +17232,24 @@
       "kind": "rejection",
       "title": "Room caller foreign context excluded",
       "at": "2026-09-08"
+    },
+    {
+      "id": "core91-dialogue-parser-release-gate",
+      "kind": "decision",
+      "title": "Parse actual composed dialogue SQL in every database-enabled release",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "core91-parser-repair-and-integrated-source",
+      "kind": "measurement",
+      "title": "Original parser refusal and corrected production query parsing verified",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "core91-readonly-command-whitespace",
+      "kind": "rejection",
+      "title": "Reject space-only SQL command detection",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

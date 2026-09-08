@@ -309,6 +309,7 @@ if (hasDb) {
   console.log("\n── relational db gates ──");
   await gate("zero-orphan sweep", NODE, ["scripts/relcheck.mjs"]);
   await gate("citation discipline", NODE, ["scripts/check-citations.mjs"]);
+  await gate("dialogue SQL parser", NODE, ["scripts/check-dialogue-sql.mjs"]);
   // Multiparty v1's two gates (G2 Gate 0, G3 withdraw) are OPT-IN because they
   // are the only gates in this file that WRITE: each builds migration 008 into
   // a wsmpb_test_* fixture namespace, asserts against it, drops it, and proves

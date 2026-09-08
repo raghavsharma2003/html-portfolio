@@ -17628,3 +17628,8 @@ The reviewed source-erasure and strict-schema context records were excluded. The
 ## caller-lease165-context-excluded (2026-09-08)
 
 The reviewed caller commit's context records were excluded. Only its product, existing focused eval and proof contract paths were imported; memory writer remains disabled pending actual lease SQL proof.
+
+
+## `core91-readonly-command-whitespace` (2026-09-08)
+
+First diagnostic knowledge86-readonly-df2ea76a74a091fbb701e0f7-result.json stopped after6readonly control queries before absence because command guard required literal SELECT-space but actual absence SQL begins SELECT-newline. It rolled back and closed with0writes/provider. Preserve v1 claim/receipt. Root separatev2 accepts whitespace after SELECT, keeps PostgreSQL READ ONLY, original SQL hashes and all assertions, and passed actual original/corrected parser comparison. No replay of consumed86claims and no inferred cleanup without the successful independent readback.

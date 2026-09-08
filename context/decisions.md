@@ -23836,3 +23836,8 @@ Integrate the reviewed source-erasure lineage guard and strict Room extraction s
 ## caller-lease165-opt-in-room-consolidation (2026-09-08)
 
 Integrate the approved incumbent caller that meters opt-in Room consolidation with strict schema, exact Room lease scope, and unknown-outcome reconciliation. Preserve legacy lease statements and keep the shipping flag disabled pending actual SQL admission. Root import tuple: 4efd08da -> api/_consolidation-config.js, api/_room-memory-consolidation.js, api/consolidate-sweep.js, evals/agent/raw-isolation.mjs, evals/consolidation/room-caller.mjs, evals/run.mjs, scripts/room-memory-caller80-proof-contract.mjs.
+
+
+## `core91-dialogue-parser-release-gate` (2026-09-08)
+
+2026-09-08: Add scripts/check-dialogue-sql.mjs to the existing NEON-enabled verify-release block. It EXPLAINs actual exported session history, dialogue admission and completion without ANALYZE, with synthetic parameters and sanitized errors. Offline mocks failed to detect a literal trailing brace that broke the real history query. No schema change or ledger write. Reverse only if equivalent always-run database parser coverage replaces this gate, not because a mocked suite is green.
