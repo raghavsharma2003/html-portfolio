@@ -1,4 +1,5 @@
 import { DIALOGUE_OUTPUT_SCHEMA, DIALOGUE_PROMPT } from "../contracts.js";
+import { prepareProviderRevisionBinding, verifyProviderRevision } from "../provider-revision.js";
 
 export const AZURE_DIALOGUE_API_VERSION = "2024-05-01-preview";
 
@@ -95,12 +96,18 @@ export function createAzureFoundryDialogueGenerator(options = {}) {
   const fetchImpl = options.fetchImpl || fetch;
   if (typeof fetchImpl !== "function") fail("dialogue_azure_fetch_required");
   const timeoutMs = Math.max(5_000, Math.min(55_000, Number(options.timeoutMs) || 45_000));
+  const revisionBinding = options.revisionBinding ? prepareProviderRevisionBinding({
+    expectedResponseModel:options.revisionBinding.expected_response_model,
+    endpoint:options.endpoint,deployment:model,
+    baselineSnapshotHash:options.revisionBinding.baseline_snapshot_hash,
+  }) : null;
   return Object.freeze({
     family: "dialogue",
     name: "azure-foundry-structured-output",
     version: `${AZURE_DIALOGUE_API_VERSION}:${DIALOGUE_PROMPT}`,
     model,
     billing: Object.freeze({ meter: "azure_foundry_tokens", max_output_tokens: 700 }),
+    ...(revisionBinding ? {revision_binding:revisionBinding} : {}),
     async generate({ prompt, signal }) {
       if (signal?.aborted) fail("dialogue_aborted");
       const timer = deadline(signal, timeoutMs);
@@ -139,14 +146,21 @@ export function createAzureFoundryDialogueGenerator(options = {}) {
           });
         }
         const payload = await responseJson(response, timer.signal);
+        const usage = revisionBinding ? measuredUsage(payload?.usage) : null;
+        const providerIdentity = revisionBinding ? verifyProviderRevision(payload, revisionBinding, usage) : null;
         const choice = payload?.choices?.[0];
-        if (!choice || choice.finish_reason !== "stop" || typeof choice.message?.content !== "string")
-          fail("dialogue_azure_response_incomplete", { retryable: choice?.finish_reason === "length" });
+        if (!choice || choice.finish_reason !== "stop" || typeof choice.message?.content !== "string") {
+          const error = new DialogueAdapterError("dialogue_azure_response_incomplete", { retryable: choice?.finish_reason === "length" });
+          if(usage)error.measured_usage=usage;
+          throw error;
+        }
         return {
           output: choice.message.content,
-          usage: measuredUsage(payload?.usage),
+          usage: usage || measuredUsage(payload?.usage),
+          ...(providerIdentity ? {provider_identity:providerIdentity} : {}),
         };
       } catch (error) {
+        if(error?.measured_usage)throw error;
         if (error instanceof DialogueAdapterError) throw error;
         if (signal?.aborted) fail("dialogue_aborted");
         if (timer.timedOut()) fail("dialogue_azure_timeout", { retryable: true });

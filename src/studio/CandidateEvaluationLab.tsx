@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { getCandidateEvaluation, judgeCandidateAssignment } from "./candidateEvalApi";
 import { ReplicaApiError } from "./replicaApi";
+import {readRememberedStudioLocale,resolveStudioLocale} from '../creatorStudio/studioLocalePreference';
 import type {
   CandidateEvalChoice,
   CandidateEvalDimension,
@@ -22,6 +23,11 @@ const CHOICES: Array<{ value: CandidateEvalChoice; label: string }> = [
   { value: "b", label: "B is closer" },
 ];
 
+const TEXT_COMPARISON_COPY={
+  en:{title:'Which reply is more like you?',intro:'Compare the written replies. Your choices are saved for review.',seal:'Names stay hidden',empty:'No comparison is ready yet.',complete:(n:number)=>`${n} comparisons saved. Your current AI has not changed.`},
+  hi:{title:'कौन सा जवाब आपके जैसा है?',intro:'लिखे हुए जवाबों की तुलना करें। आपकी पसंद समीक्षा के लिए सहेजी जाएगी।',seal:'नाम छिपे रहेंगे',empty:'अभी तुलना तैयार नहीं है।',complete:(n:number)=>`${n} तुलनाएं सहेजी गईं। आपका मौजूदा AI नहीं बदला है।`},
+};
+
 function loadError(cause: unknown) {
   return cause instanceof Error ? cause.message.replaceAll("_", " ") : "The comparison could not be loaded";
 }
@@ -29,14 +35,22 @@ function loadError(cause: unknown) {
 export default function CandidateEvaluationLab({
   token,
   replicaId,
+  candidateId,
+  locale,
   stopped,
   onAuthError,
 }: {
   token: string;
   replicaId: string;
+  candidateId?: string;
+  locale?: 'en' | 'hi';
   stopped: boolean;
   onAuthError: (cause: unknown) => void;
 }) {
+  const urlLanguage=typeof window==='undefined'?null:new URLSearchParams(window.location.search).get('lang');
+  const language=locale??resolveStudioLocale({urlLocale:urlLanguage==='hi'||urlLanguage==='en'?urlLanguage:null,replica:null,rememberedLocale:readRememberedStudioLocale()});
+  const textCopy=TEXT_COMPARISON_COPY[language];
+  const titleId = useId();
   const [evaluation, setEvaluation] = useState<CandidateEvaluation | null>(null);
   const [ratings, setRatings] = useState<Partial<Record<CandidateEvalDimension, CandidateEvalChoice>>>({});
   const [loading, setLoading] = useState(true);
@@ -48,7 +62,7 @@ export default function CandidateEvaluationLab({
     setLoading(true);
     setError("");
     try {
-      const next = await getCandidateEvaluation(token, replicaId);
+      const next = await getCandidateEvaluation(token, replicaId, candidateId);
       setEvaluation(next);
       setRatings({});
     } catch (cause) {
@@ -57,7 +71,7 @@ export default function CandidateEvaluationLab({
     } finally {
       setLoading(false);
     }
-  }, [onAuthError, replicaId, stopped, token]);
+  }, [onAuthError, replicaId, candidateId, stopped, token]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -89,16 +103,16 @@ export default function CandidateEvaluationLab({
   const progress = evaluation?.progress || { completed: 0, total: 0 };
 
   return (
-    <section className="candidate-eval-lab" aria-labelledby="candidate-eval-title">
+    <section className="candidate-eval-lab" aria-labelledby={titleId}>
       <div className="candidate-eval-head">
         <div>
           <p className="eyebrow">Blind comparison</p>
-          <h2 id="candidate-eval-title">Pick the closer voice, without being told which is which</h2>
-          <p>Compare two hidden outputs layer by layer. Their identity stays sealed until the full evaluation is complete.</p>
+          <h2 id={titleId}>{textCopy.title}</h2>
+          <p>{textCopy.intro}</p>
         </div>
         <div className="candidate-eval-seal" aria-label="Evaluation blinding status">
           <strong>BLINDED</strong>
-          <span>A/B mapping stays server-side</span>
+          <span>{textCopy.seal}</span>
         </div>
       </div>
 
@@ -115,7 +129,7 @@ export default function CandidateEvaluationLab({
         <div className="candidate-eval-empty">
           <div className="candidate-eval-empty-mark" aria-hidden="true">A/B</div>
           <div>
-            <strong>No qualified candidate is waiting for review.</strong>
+            <strong>{textCopy.empty}</strong>
             <p>This opens only after a frozen test set and two encrypted model outputs exist for at least 30 comparisons.</p>
           </div>
         </div>
@@ -124,7 +138,7 @@ export default function CandidateEvaluationLab({
           <span aria-hidden="true">✓</span>
           <div>
             <strong>Blind review complete</strong>
-            <p>{progress.completed} comparisons are sealed. Safety, privacy, and statistical gates decide whether this candidate can advance.</p>
+            <p>{textCopy.complete(progress.completed)}</p>
           </div>
         </div>
       ) : (

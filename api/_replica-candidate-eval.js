@@ -197,10 +197,15 @@ export function buildCandidateEvaluationPackage(input, env = process.env, option
   });
 }
 
-export async function persistCandidateEvaluationPackage(db, ownerUserId, pack) {
+export async function persistCandidateEvaluationPackage(db, ownerUserId, pack, admission = null) {
   if (typeof db !== "function") fail("candidate_eval_db_required", 503);
   if (safeUuid(pack?.owner_user_id, "candidate_owner_id_invalid") !== String(ownerUserId).toLowerCase())
     fail("candidate_eval_owner_mismatch", 403);
+  // Server-owned fixed SQL only, never accepted from the HTTP body. The
+  // materializer supplies the same current authority used before generation.
+  if (admission !== null && (typeof admission.sql !== 'string' || !Array.isArray(admission.params)))
+    fail('candidate_eval_admission_invalid', 500);
+  const gate = admission ? admission.sql.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + 12}`) : null;
   const assignments = pack.assignments.map((row) => ({
     assignment_id: row.assignment_id,
     example_id: row.example_id,
@@ -226,12 +231,13 @@ export async function persistCandidateEvaluationPackage(db, ownerUserId, pack) {
     aad_sha256: row.aad_sha256,
   }));
   const rows = await db(
-    `with eligible as (
+    `with ${gate ? `materializer_admission as (${gate}),` : ''} eligible as (
        select c.candidate_id,c.dataset_id,c.replica_id,c.owner_user_id
          from vy_replica_candidate c join vy_replica_feedback_dataset d
            on d.dataset_id=c.dataset_id and d.replica_id=c.replica_id and d.owner_user_id=c.owner_user_id
         where c.candidate_id=$2::uuid and c.dataset_id=$3::uuid and c.replica_id=$4::uuid and c.owner_user_id=$1::uuid
           and c.status in ('draft','evaluating') and d.status='draft' and d.source_set_hash=$7
+          ${gate ? 'and exists (select 1 from materializer_admission ma where ma.candidate_id=c.candidate_id and ma.dataset_id=d.dataset_id)' : ''}
      ), inserted_run as (
        insert into vy_replica_candidate_eval_run
          (eval_run_id,candidate_id,dataset_id,replica_id,owner_user_id,protocol_version,run_commitment,
@@ -245,6 +251,7 @@ export async function persistCandidateEvaluationPackage(db, ownerUserId, pack) {
         where r.eval_run_id=$5 and r.candidate_id=$2 and r.dataset_id=$3 and r.replica_id=$4
           and r.owner_user_id=$1 and r.protocol_version=$6 and r.run_commitment=$8
           and r.dataset_source_set_hash=$7 and r.required_dimensions=$9::text[] and r.assignment_count=$10
+          ${gate ? 'and exists (select 1 from materializer_admission ma where ma.candidate_id=r.candidate_id and ma.dataset_id=r.dataset_id)' : ''}
        limit 1
      ), wanted_assignments as (
        select * from jsonb_to_recordset($11::jsonb) as x(
@@ -299,7 +306,7 @@ export async function persistCandidateEvaluationPackage(db, ownerUserId, pack) {
           and (select count(*) from active_assets)=$10*3`,
     [ownerUserId, pack.candidate_id, pack.dataset_id, pack.replica_id, pack.eval_run_id,
       pack.protocol_version, pack.dataset_source_set_hash, pack.run_commitment,
-      pack.required_dimensions, pack.assignment_count, JSON.stringify(assignments), JSON.stringify(assets)],
+      pack.required_dimensions, pack.assignment_count, JSON.stringify(assignments), JSON.stringify(assets), ...(admission?.params || [])],
   );
   if (!rows[0]) fail("candidate_eval_package_not_persisted");
   return rows[0];
@@ -330,15 +337,17 @@ function decryptAsset(row, role, env) {
   return text;
 }
 
-export async function loadOwnedCandidateEvaluation(db, ownerUserId, replica, env = process.env) {
+export async function loadOwnedCandidateEvaluation(db, ownerUserId, replica, env = process.env, expectedCandidateId = null) {
   if (typeof db !== "function") fail("candidate_eval_db_required", 503);
   const rid = replicaId(replica);
+  const candidateFilter = expectedCandidateId === null ? null : safeUuid(expectedCandidateId, 'candidate_id_invalid');
   const rows = await db(
     `with active as (
        select r.* from vy_replica_candidate_eval_run r join vy_replica_candidate c
          on c.candidate_id=r.candidate_id and c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
         where r.replica_id=$1 and r.owner_user_id=$2 and r.state in ('collecting','complete')
           and c.status in ('draft','evaluating','qualified')
+          ${candidateFilter ? 'and c.candidate_id=$3::uuid' : ''}
         order by case r.state when 'collecting' then 0 else 1 end,r.created_at desc limit 1
      ), next_assignment as (
        select a.* from vy_replica_candidate_eval_assignment a join active r on r.eval_run_id=a.eval_run_id
@@ -361,7 +370,7 @@ export async function loadOwnedCandidateEvaluation(db, ownerUserId, replica, env
             p.total,p.completed,a.assignment_id,a.example_id,a.sequence,a.assignment_hash,x.assets
        from active r cross join progress p
        left join next_assignment a on true left join packed_assets x on x.assignment_id=a.assignment_id`,
-    [rid, ownerUserId],
+    [rid, ownerUserId, ...(candidateFilter ? [candidateFilter] : [])],
   );
   const row = rows[0];
   if (!row) return { available: false, replica_id: rid };

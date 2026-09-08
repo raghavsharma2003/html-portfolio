@@ -1003,6 +1003,11 @@ const suites = {
   "correction-strategy-adapter": "correction-strategy-adapter/run.mjs",
   "correction-candidate-worker": "correction-candidate-worker/run.mjs",
   "correction-candidate-ui": "correction-candidate-ui.mjs",
+  "candidate-materializer-worker": "candidate-materializer-worker/run.mjs",
+  "candidate-materializer-ui-contract": "candidate-materializer-ui-contract.mjs",
+  "candidate-materializer-ui": "candidate-materializer-ui.mjs",
+  "candidate-provider-revision": "candidate-provider-revision.mjs",
+  "candidate-materializer-route": "candidate-materializer-route.mjs",
   // Blinded paired target-improvement plus cross-layer noninferiority and
   // zero-tolerance safety gates; qualification never activates a candidate.
   candidatequal: "candidate-qualification/run.mjs",

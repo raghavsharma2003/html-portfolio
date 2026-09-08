@@ -1,5 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 import {ReplicaApiError,replicaRequest} from './replicaApi';
+import CandidateMaterializeAction from './CandidateMaterializeAction';
 type Job={job_id:string;replica_id:string;dataset_id:string;state:string;candidate_id:string|null;active_changed:false};
 const states:Record<string,string>={
  preparing:'Preparing your private candidate',running:'Learning from the corrections you saved',
@@ -60,5 +61,8 @@ export default function CorrectionCandidateAction({token,replicaId,datasetId,sou
    <button type="button" disabled={Boolean(busy)} onClick={()=>void action()}>Check candidate status</button>
   </div>
   {error&&<p className="feedback-dataset__error" role="alert">{error}</p>}
+  {checked&&visible?.state==='draft'&&visible.candidate_id&&<CandidateMaterializeAction
+   key={`${scope}:${visible.candidate_id}`} token={token} replicaId={replicaId} datasetId={datasetId}
+   candidateId={visible.candidate_id} sourceSetHash={sourceSetHash} onAuthError={onAuthError}/>} 
  </div>;
 }
