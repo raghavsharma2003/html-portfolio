@@ -16488,6 +16488,42 @@
       "kind": "rejection",
       "title": "Retain two independent copy changes",
       "at": "2026-09-08"
+    },
+    {
+      "id": "continuity-audio40-specific-explanation",
+      "kind": "decision",
+      "title": "Explain only server-confirmed continuity audio unavailability",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "continuity-audio40-source-preparation",
+      "kind": "measurement",
+      "title": "Audio explanation and mounted controls authored, not run",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "continuity-audio40-no-availability-bypass",
+      "kind": "rejection",
+      "title": "Do not turn on Listen or blame the owner to hide the gap",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "continuity-audio40-mounted-result",
+      "kind": "measurement",
+      "title": "Localized audio explanation passed mounted controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "continuity-audio40-tested-import",
+      "kind": "decision",
+      "title": "Freeze the bounded audio clarity patch for reviewed integration",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "continuity-audio40-not-complete-localization",
+      "kind": "rejection",
+      "title": "Do not call a localized note a fully translated product",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

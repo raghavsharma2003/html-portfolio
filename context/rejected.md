@@ -17435,3 +17435,15 @@ A deliberately delayed real entry proves the old1200ms one-shot snapshot can rej
 ## `integration45-dictionary-wholesale-replacement` (2026-09-08)
 
 2026-09-08: Hindi andmaterializer both modify src/creatorStudio/copy.ts in differentsections. Wholesale file replacement would lose either personalAuth types/table or accurate written-comparison wording. Threeway merge preserved both and staticchecks confirmed them. Source consistency is not semanticTypeScript/browserproof; finalchecks remainpending.
+
+
+## `continuity-audio40-no-availability-bypass` (2026-09-08)
+
+Disabled Listen alone does not establish continuity as its cause. A generic note would mislabel billing/stopped states. Do not alter can_voice, suggest re-recording or promise a timeline; attach the note only to server-confirmed recalled-source replies.
+
+
+
+
+## `continuity-audio40-not-complete-localization` (2026-09-08)
+
+The inspected Hindi fixture still contains incumbent English conversation controls. This patch localizes only its new explanation and must not be advertised as full Hindi journey completion or generated voice support.

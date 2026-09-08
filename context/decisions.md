@@ -23658,3 +23658,15 @@ Accessibility coverage now awaits its actual mounted selector, state attached, w
 ## `integration45-reviewed-source-boundary` (2026-09-08)
 
 2026-09-08: New45based40 unions materializer41a4bf870, accessibility421028d86 and Hindi41/visual42f61a384e. Keep156 qualification/activation outside until frozen/proven. Audio40 remains excluded until focusedterminal/freeze. Reverse on sharedadapter, erasure, source/runtime or UI proof failure. No fulllearningloop claim.
+
+
+## `continuity-audio40-specific-explanation` (2026-09-08)
+
+Use has_continuity=true and can_voice=false together for a short localized adjacent note. Keep voice authorization and stopped guards untouched. Reverse only when current-evidence voice is supported or the server exposes a more precise reason contract.
+
+
+
+
+## `continuity-audio40-tested-import` (2026-09-08)
+
+Import only the conditional localized explanation, minimal typography and real mounted controls plus context. Existing reply voice authorization and speak guard remain unchanged. Reverse if the server reason contract changes or supported continuity speech makes this explanation inaccurate.

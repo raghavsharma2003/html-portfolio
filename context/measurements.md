@@ -17442,3 +17442,15 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `integration45-source-preservation` (2026-09-08)
 
 2026-09-08: n54changedpaths,387unique literalregistry entries preserve all380prior name/pathpairs plus7new. All oldgraphnodes/edges retained; graph2727/2432 beforethislog.145to155migrationmirrors present,156absent. GPU36/39authority/fiveregressionfiles unchanged. SharedAzureadapter matches a4bf870 exactly. Englishdictionary has both PersonalAuth and writtencomparison wording. esbuild0.28.2 manifest/lock agree. Source inspection only; no dependencies/build/tests/browser/SQL/provider.
+
+
+## `continuity-audio40-source-preparation` (2026-09-08)
+
+2026-09-08 source-only under release39 reservation: one component, minimal CSS and12 mounted locale/width/state cases authored from39. No browser, tests or build run; no visual or runtime acceptance claimed. Publication153 author notified that recall differs from transcript restoration.
+
+
+
+
+## `continuity-audio40-mounted-result` (2026-09-08)
+
+2026-09-08 one real mounted synthetic-HTTP browser invocation exec95828 passed46 groups:34 original controls plus12 locale/width/state cases. Hindi and English at390/1440, continuity-disabled, unrelated-disabled and ordinary voice states preserve authorization and exact described-by binding. Receipt scratchpad/meet-setup-ui/1788861717206. Hindi390 and English1440 screenshots visually inspected: note readable without clipping. Semantic TypeScript emitted no diagnostics and copy passed7 scopes/21 negative controls in exec87253 terminal0. No model/voice generation, cloud calls or full gate run; this verifies explanation only, not continuity audio capability.
