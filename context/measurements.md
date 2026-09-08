@@ -17613,3 +17613,7 @@ Focused measurement: claim extraction n=43 checks passed; Person Model n=49 chec
 ## consolidation-config161-focused-controls (2026-09-08)
 
 Focused measurement: consolidation config n=7 controls passed; Room authority n=20 controls passed; consolidation n=145 checks passed; TypeScript build passed. Blank ignored config was generated with no values. No DB, provider, cloud or full release checks.
+
+## question-selection163-focused-controls (2026-09-08)
+
+Focused measurement: replica dialogue n=42 checks passed; Person Model n=49 checks passed; candidate runtime n=17 groups passed; copy gate passed; TypeScript build passed. The four known C0 context corruptions were repaired with literal-safe Node replacements and the changed context scan found no unexpected control characters.

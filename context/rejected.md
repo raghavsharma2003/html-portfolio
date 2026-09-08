@@ -17591,7 +17591,7 @@ Customer private words were excluded from fixtures and context records. The sele
 
 ## clone-learning74-release-eval-contract-drift (2026-09-08)
 
-The candidate materializer fixture expects status while the current request emits qualification_status; room knowledge exposes y_replica_runtime_capability while its incumbent expected list omits it, and clonechannel reaches a clone_unavailable refusal after its controls. These failures are recorded without weakening either the reviewed eval contract or product source.
+The candidate materializer fixture expects status while the current request emits qualification_status; room knowledge exposes vy_replica_runtime_capability while its incumbent expected list omits it, and clonechannel reaches a clone_unavailable refusal after its controls. These failures are recorded without weakening either the reviewed eval contract or product source.
 
 ## clone-learning74-candidate-worker-fixture-gap (2026-09-08)
 
@@ -17607,7 +17607,7 @@ The three reviewed memory commits' context graph and narrative records were excl
 
 ## memory-authority159-identity-context-scope (2026-09-08)
 
-The identity successor was limited to pi/_replica-runtime.js and its two existing eval paths. Foreign context graph and narrative edits were excluded, and no broader runtime rewrite was attempted.
+The identity successor was limited to api/_replica-runtime.js and its two existing eval paths. Foreign context graph and narrative edits were excluded, and no broader runtime rewrite was attempted.
 
 ## knowledge160-context-excluded (2026-09-08)
 
@@ -17616,3 +17616,7 @@ The reviewed knowledge commits' context graphs and narrative records were exclud
 ## consolidation-config161-context-excluded (2026-09-08)
 
 The reviewed config commit's context graph and narrative records were excluded. Only helper, product and focused eval paths were imported; enablement remains pending a real serving endpoint, key and model mapping.
+
+## question-selection163-context-control-repair (2026-09-08)
+
+Prior context prose contained four known PowerShell escape corruptions: BEL+pi/, ESC+ddc56dd, FF+181c8f, and VT+y_replica. Only those exact replacements were made in this new worktree; no frozen checkout or foreign graph history was changed.

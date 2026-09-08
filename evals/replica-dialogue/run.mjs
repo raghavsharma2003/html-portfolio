@@ -14,6 +14,7 @@ import { createAzureFoundryDialogueGenerator } from "../../api/_dialogue/provide
 import { generateOwnedDialogue, loadOwnedDialogueSpeech } from "../../api/_replica-dialogue.js";
 import { loadPrivateRelationshipSnapshot } from "../../api/_replica-runtime.js";
 import { REPLICA_POLICY_VERSION } from "../../api/_replica.js";
+import { buildPersonModelDefinition } from "../../api/_person-model.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -120,6 +121,70 @@ const turn = await generateOwnedDialogue(db, OWNER, { replica_id: RID, channel: 
 ok("active self replica produces an owner-visible reply and opaque turn handles", turn.turn_id === TURN && turn.session_id === SESSION && turn.reply === output.reply && turn.can_voice === true);
 ok("provider sees approved identity and subject knowledge with relationship context but no tenancy or voice secrets", /Self-name: Asha/.test(generatorPrompt.messages[0].content) && /Home: Pune/.test(generatorPrompt.messages[0].content) && /Culture: Maharashtrian/.test(generatorPrompt.messages[0].content) && /knowledge\.chemistry_sn1_rate_law: For an SN1 reaction/.test(generatorPrompt.messages[0].content) && /trust: 0.8/.test(generatorPrompt.messages[0].content) && !JSON.stringify(generatorPrompt).includes(OWNER) && !JSON.stringify(generatorPrompt).includes("private-provider-ref"));
 const firstGeneratorPrompt=generatorPrompt;
+{
+  const reviewed = (id, domain, key, body, extra = {}) => ({ claim_id: String(id), domain, key, body, status: "approved", decision: "accepted", origin: "observed", confidence: 0.96, ...extra });
+  const sn1 = "For an SN1 reaction, rate depends only on substrate concentration.";
+  const pendulum = "सरल लोलक का आवर्तकाल छोटे कोणों पर उसकी लंबाई और गुरुत्वीय त्वरण पर निर्भर करता है।";
+  const profile = buildPersonModelDefinition([
+    reviewed(1, "identity", "self_name", "Asha"), reviewed(2, "language", "languages", "Hindi, English"),
+    reviewed(3, "delivery", "turn_shape", "brief"), reviewed(4, "boundary", "scope", "Keep uncertainty explicit"),
+    ...Array.from({ length: 12 }, (_, i) => reviewed(100 + i, "knowledge", `geometry_${i}`, `Geometry lesson ${i} concerns triangles and angles.`)),
+    reviewed(200, "knowledge", "chemistry_sn1_rate_law", sn1), reviewed(201, "knowledge", "pendulum_period", pendulum),
+    reviewed(202, "knowledge", "unapproved_injection", "UNAPPROVED_KNOWLEDGE", { decision: null, status: "proposed" }),
+  ]);
+  const knowledgeDb = async (sql, params) => /select r\.replica_id,r\.owner_user_id/i.test(sql)
+    ? [{ ...contextRow(), profile_definition: profile }] : db(sql, params);
+  const askKnowledge = (message, extra = {}, database = knowledgeDb, generator = fakeGenerator) => generateOwnedDialogue(database, OWNER,
+    { replica_id: RID, channel: "private_chat", message, trace_id: "trace_knowledge_001", ...extra }, generator);
+  await askKnowledge("Explain SN1 kinetics", { knowledge: [{ statement: "CLIENT_KNOWLEDGE_INJECTION" }], context_item_id: CONSENT });
+  const sn1System = generatorPrompt.messages[0].content;
+  ok("actual question promotes an approved fact beyond the first twelve into private Meet", sn1System.includes(sn1) && sn1System.indexOf("knowledge.chemistry_sn1_rate_law:") < sn1System.indexOf("knowledge.geometry_0:") && (sn1System.match(/knowledge\./g) || []).length === 12);
+  ok("question selection does not import client knowledge or document authority", !sn1System.includes("CLIENT_KNOWLEDGE_INJECTION") && !sn1System.includes("UNAPPROVED_KNOWLEDGE"));
+  await askKnowledge("लोलक का आवर्तकाल कैसे बदलता है?");
+  const hindiSystem = generatorPrompt.messages[0].content;
+  ok("a Hindi question selects complete matching approved Hindi knowledge", hindiSystem.includes(pendulum) && !hindiSystem.includes(sn1));
+  await askKnowledge("Explain SN1 kinetics");
+  ok("same current question and approved profile select deterministic prompt bytes", generatorPrompt.messages[0].content === sn1System);
+  await askKnowledge("unmatchedword");
+  ok("no lexical match preserves the bounded incumbent selection", !generatorPrompt.messages[0].content.includes(sn1) && !generatorPrompt.messages[0].content.includes(pendulum));
+  for (const changed of ["withdrawn", "selected_statement"]) {
+    let runtimeReads = 0, generated = 0;
+    const deniedDb = async (sql, params) => {
+      if (/select r\.replica_id,r\.owner_user_id/i.test(sql)) {
+        runtimeReads++;
+        if (runtimeReads > 1 && changed === "withdrawn") return [];
+        const current = structuredClone(profile);
+        if (runtimeReads > 1) current.knowledge[12].statement = "Changed after question admission.";
+        return [{ ...contextRow(), profile_definition: current }];
+      }
+      return db(sql, params);
+    };
+    await assert.rejects(askKnowledge("Explain SN1 kinetics", {}, deniedDb, { ...fakeGenerator, async generate() { generated++; return { output }; } }), /candidate_runtime_authority_changed/);
+    ok(`current ${changed} knowledge authority refuses before generation`, generated === 0);
+  }
+  let providerReturned = false, completed = false;
+  await assert.rejects(askKnowledge("Explain SN1 kinetics", {}, async (sql, params) => {
+    if (/select r\.replica_id,r\.owner_user_id/i.test(sql)) {
+      const current = structuredClone(profile);
+      if (providerReturned) current.knowledge[12].statement = "Changed while the provider was answering.";
+      return [{ ...contextRow(), profile_definition: current }];
+    }
+    if (/assistant_log as/i.test(sql)) completed = true;
+    return db(sql, params);
+  }, { ...fakeGenerator, async generate() { providerReturned = true; return { output }; } }), /candidate_runtime_authority_changed/);
+  ok("selected knowledge changed during generation withholds completion", providerReturned && !completed);
+  const denseStatements = Array.from({ length: 14 }, (_, i) => `Reaction ${i}: ${"The comparison requires the same controlled conditions. ".repeat(8)}Valid only for mechanism_${i}.`);
+  assert.ok(denseStatements.every(statement => statement.length <= 500));
+  const denseProfile = buildPersonModelDefinition([
+    reviewed(1, "identity", "self_name", "Asha"), reviewed(2, "language", "languages", "Hindi, English"),
+    reviewed(3, "delivery", "turn_shape", "brief"), reviewed(4, "boundary", "scope", "Keep uncertainty explicit"),
+    ...denseStatements.map((statement, i) => reviewed(300 + i, "knowledge", `reaction_${i}`, statement)),
+  ]);
+  await askKnowledge("Explain reaction conditions", {}, async (sql, params) => /select r\.replica_id,r\.owner_user_id/i.test(sql)
+    ? [{ ...contextRow(), profile_definition: denseProfile }] : db(sql, params));
+  const denseLines = generatorPrompt.messages[0].content.split("\n").filter(line => line.startsWith("knowledge.reaction_"));
+  ok("actual dialogue core budget never cuts a selected approved statement", denseLines.length > 1 && denseLines.every(line => denseStatements.some(statement => line.endsWith(statement))));
+}
 const priorQuestion="My pendulum lesson uses a string example",priorReply="We discussed that lesson";
 const sha=value=>createHash('sha256').update(value).digest('hex');
 let continuityReads=0;

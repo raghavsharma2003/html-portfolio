@@ -17178,6 +17178,24 @@
       "kind": "rejection",
       "title": "Consolidation config foreign context excluded",
       "at": "2026-09-08"
+    },
+    {
+      "id": "question-selection163-approved-knowledge-ranking",
+      "kind": "decision",
+      "title": "Approved knowledge question ranking",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "question-selection163-focused-controls",
+      "kind": "measurement",
+      "title": "Question selection focused controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "question-selection163-context-control-repair",
+      "kind": "rejection",
+      "title": "Known context control corruption repaired",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29558,6 +29576,16 @@
       "src": "consolidation-config161-shared-preflight",
       "rel": "caused_by",
       "dst": "consolidation-config161-context-excluded"
+    },
+    {
+      "src": "question-selection163-approved-knowledge-ranking",
+      "rel": "measured_by",
+      "dst": "question-selection163-focused-controls"
+    },
+    {
+      "src": "question-selection163-approved-knowledge-ranking",
+      "rel": "caused_by",
+      "dst": "question-selection163-context-control-repair"
     }
   ]
 }

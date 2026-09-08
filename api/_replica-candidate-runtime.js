@@ -9,11 +9,11 @@ const digest=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
 
 // Activation is an external owner attestation. Never relabel or modify the
 // experimental artifact that was actually compared.
-export function candidateRuntimeCore(runtime){
+export function candidateRuntimeCore(runtime,question=""){
  const b=runtime?.candidateBinding;
  if(!b){
   if(runtime?.capability?.candidate_binding_required)fail('candidate_runtime_binding_unavailable');
-  return compileReplicaRuntimeCore(runtime.personProfile.definition,runtime.calibration.definition);
+  return compileReplicaRuntimeCore(runtime.personProfile.definition,runtime.calibration.definition,question);
  }
  if(b.exposure!=='owner_private_text')fail('candidate_runtime_exposure_not_authorized');
  if(!['qualified','experimental'].includes(b.selection_kind))fail('candidate_runtime_selection_not_authorized');
@@ -47,8 +47,8 @@ export function assertCandidateResponse(runtime,generator,generated){
  assertSameReportedRevision(runtime.candidateBinding.provider_identity,receipt);
 }
 
-export function assertCandidateRuntimeUnchanged(before,after){
+export function assertCandidateRuntimeUnchanged(before,after,question=""){
  if(!after||after.capability.capability_id!==before.capability.capability_id
   ||hash(after.candidateBinding)!==hash(before.candidateBinding)
-  ||candidateRuntimeCore(after)!==candidateRuntimeCore(before))fail('candidate_runtime_authority_changed');
+  ||candidateRuntimeCore(after,question)!==candidateRuntimeCore(before,question))fail('candidate_runtime_authority_changed');
 }

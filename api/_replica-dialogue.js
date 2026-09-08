@@ -235,7 +235,7 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
       ? readPrivateContinuity(db, ownerUserId, input.replica_id, session.session_id, input.message) : [],
   ]);
   const prompt = compileDialoguePrompt({
-    core: candidateRuntimeCore(runtime),
+    core: candidateRuntimeCore(runtime, input.message),
     relationship: compileRelationshipTail(snapshot),
     evidence: continuityPrompt(evidence),
     history,
@@ -260,7 +260,7 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
         throw error;
       }
     }
-    assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id));
+    assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id), input.message);
     assertCandidateGenerator(runtime, generator);
     signal?.throwIfAborted();
     providerStarted = true;
@@ -272,7 +272,7 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
       catch (error) { await markFoundrySpendUncertain(db, reservation, error); billingState = "reconcile_required"; }
     }
     assertCandidateResponse(runtime, generator, generated);
-    assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id));
+    assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id), input.message);
     const output = validateDialogueOutput(generated?.output);
     const finished = await finishDialogueTurn(db, ownerUserId, runtime, turn, output);
     if (!finished) fail("dialogue_authorization_changed");

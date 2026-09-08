@@ -7,7 +7,10 @@ import {prepareProviderRevisionBinding,verifyProviderRevision} from '../../api/_
 import {compileDialoguePrompt} from '../../api/_dialogue/contracts.js';
 const hash=v=>sha256Hex(canonicalJson(v));
 const base={replica:{replica_id:'10000000-0000-4000-8000-000000000001'},capability:{capability_id:'20000000-0000-4000-8000-000000000001'},
- personProfile:{definition:{identity:{self_name:'Synthetic expert'}}},calibration:{definition:{strategies:[]}},candidateBinding:null};
+ personProfile:{definition:{identity:{self_name:'Synthetic expert'},knowledge:[
+  ...Array.from({length:12},(_,i)=>({key:`geometry_${i}`,statement:`Geometry lesson ${i} concerns angles.`})),
+  {key:'chemistry_sn1',statement:'SN1 kinetics depend only on substrate concentration.'}
+ ]}},calibration:{definition:{strategies:[]}},candidateBinding:null};
 const artifact=buildPrivateCorrectionArtifact(base,{status:'proposed',owner_approved:false,runtime_eligible:false,source_set_hash:'a'.repeat(64),
  selections:[{scenario_id:'delivery.turn_shape',strategy_id:'compact_observation'}]}).artifact;
 const revision=prepareProviderRevisionBinding({expectedResponseModel:'gpt-4.1-mini-2025-04-14',
@@ -31,6 +34,24 @@ test('private baseline keeps baseline bytes with a distinct immutable capability
  assert.throws(()=>assertCandidateRuntimeUnchanged(privateBase,base),/authority_changed/);});
 test('activated artifact renders exactly the compared experimental bytes',()=>{assert.equal(candidateRuntimeCore(active),core);assertCandidateGenerator(active,adapter);
  assert.deepEqual(compileDialoguePrompt({core:candidateRuntimeCore(active),message:'Hello'}),compileDialoguePrompt({core,message:'Hello'}));});
+test('question selection changes only ordinary profile knowledge, never the compared candidate core',()=>{
+ assert.match(candidateRuntimeCore(base,'Explain SN1 kinetics'),/knowledge\.chemistry_sn1:/);
+ assert.doesNotMatch(candidateRuntimeCore(base),/knowledge\.chemistry_sn1:/);
+ assert.equal(candidateRuntimeCore(active,'Explain SN1 kinetics'),core);
+ assert.throws(()=>candidateRuntimeCore(change(r=>r.candidateBinding=null),'Explain SN1 kinetics'),/binding_unavailable/);
+});
+test('dense selected candidate refuses before downstream dialogue can cut a reviewed condition',()=>{
+ const denseBase=structuredClone(base);
+ denseBase.personProfile.definition.knowledge=Array.from({length:12},(_,i)=>({key:`dense_${i}`,
+  statement:'Reviewed constraint. '.repeat(22)+'Valid only for this stated condition.'}));
+ const denseArtifact=buildPrivateCorrectionArtifact(denseBase,{status:'proposed',owner_approved:false,runtime_eligible:false,source_set_hash:'a'.repeat(64),
+  selections:[{scenario_id:'delivery.turn_shape',strategy_id:'compact_observation'}]}).artifact;
+ const denseCore=renderPrivateCorrectionCandidate(denseBase,denseArtifact).core;
+ assert.ok(denseCore.length>6000);
+ const denseActive={...active,personProfile:denseBase.personProfile,candidateBinding:{...active.candidateBinding,
+  artifact:denseArtifact,artifact_sha256:hash(denseArtifact),core_hash:hash(denseCore)}};
+ assert.throws(()=>candidateRuntimeCore(denseActive,'Explain the constraints'),/candidate_runtime_core_changed/);
+});
 test('capability marker refuses missing binding instead of baseline fallback',()=>assert.throws(()=>candidateRuntimeCore(change(r=>r.candidateBinding=null)),/binding_unavailable/));
 test('missing exposure refuses activation at the actual renderer guard',()=>assert.throws(()=>candidateRuntimeCore(change(r=>delete r.candidateBinding.exposure)),/exposure_not_authorized/));
 test('qualified and explicitly experimental selections preserve exact compared core',()=>{for(const selection_kind of ['qualified','experimental'])
