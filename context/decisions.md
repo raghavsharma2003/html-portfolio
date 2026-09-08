@@ -23841,3 +23841,7 @@ Integrate the approved incumbent caller that meters opt-in Room consolidation wi
 ## `core91-dialogue-parser-release-gate` (2026-09-08)
 
 2026-09-08: Add scripts/check-dialogue-sql.mjs to the existing NEON-enabled verify-release block. It EXPLAINs actual exported session history, dialogue admission and completion without ANALYZE, with synthetic parameters and sanitized errors. Offline mocks failed to detect a literal trailing brace that broke the real history query. No schema change or ledger write. Reverse only if equivalent always-run database parser coverage replaces this gate, not because a mocked suite is green.
+
+## caller-lease165-final-eval-parity (2026-09-09)
+
+Integrate the approved final dialogue Unicode parity fixture and incidents caller admission negative control, preserving the current API/source and billing repair. Import only the two reviewed eval files; transient rejected parity changes remain excluded. Root import tuples: 910e9e91 -> evals/dialogue-unicode.mjs; 3650e76 -> evals/incidents/run.mjs.

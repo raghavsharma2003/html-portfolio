@@ -17630,3 +17630,7 @@ Focused measurement: config n=7 controls passed; Room authority n=22 controls pa
 ## `core91-parser-repair-and-integrated-source` (2026-09-08)
 
 2026-09-08: Actual readonly successor knowledge86-readonly-v2-b63b44c153184ce32a298f9a-result.json SHA1828be353df750e01256847a60b50534e94e692ac459e25ecf878b47ce3ea237 independently verified prior fixture absence and unchanged149482/0 budget plus88spend fingerprint. Original history EXPLAIN42601 atposition25684 literalclosingbrace; one-character-fixed query accepted with identical synthetic parameters; rollback/closeconfirmed,0COMMIT/provider/KV. Fixfcc integrated as03f5c5aef56b2d641022ea9a6774e747c08be471 after reviewed billing and candidate-grounding source. Root then executed new release parser script against development:3/3 actual history/admission/completion EXPLAINs passed,0underlyingDML. Frozen knowledge87 uses03f5; new gate changes only scripts.
+
+## caller-lease165-final-eval-parity-controls (2026-09-09)
+
+Focused measurement: dialogue Unicode n=13 groups passed; incidents n=129 checks passed; diff check passed. No API/source, DB, provider, browser or full release changes.

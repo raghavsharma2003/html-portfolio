@@ -860,6 +860,7 @@ const INJECTED_PROVIDER_EXCLUSIONS = {
   "_identity/providers/azure-composite.js": "Owner identity verification evidence lifecycle, not follower delivery.",
   "_liveness/providers/azure-composite.js": "Owner liveness verification evidence lifecycle, not follower delivery.",
   "_provenance/providers/azure-protection.js": "Protected artifact sealing/provenance lifecycle; not the Room incident provider taxonomy.",
+  "_room-memory-consolidation.js": "Opt-in Room memory consolidation via consolidate-sweep.js; checked below for exact caller, lease/budget, bounded Azure transport and sweep-failure observation wiring.",
   "_replica-processing/providers/azure-fast-transcription.js": "Enrollment processing job transcription lifecycle.",
   "_replica-processing/providers/azure-voice-evidence.js": "Enrollment processing voice-evidence job lifecycle.",
   "_replica-storage.js": "Private storage upload/read/erasure lifecycle; not a Room provider delivery seam.",
@@ -894,6 +895,52 @@ for (const needle of ['beginFoundrySpend(db,reservation)', 'settleFoundrySpend(d
 }
 ok('negative control: correction inventory refuses missing transport deadline', !correctionContract(correctionRoute, correctionWorker, correctionTransport.replace('Math.min(45_000', 'Math.min(REMOVED_CONTROL')));
 ok('negative control: correction inventory refuses missing provider key', !correctionContract(correctionRoute, correctionWorker, correctionTransport.replace("'api-key': apiKey", 'REMOVED_CONTROL')));
+
+// Room consolidation is an opt-in private lifecycle. It reports provider work
+// through the consolidate sweep heartbeat/result rather than vy_incident, so
+// inventory it only while its real caller, spend rails, bounded Azure request
+// and content-free failure observation remain connected.
+const roomMemorySweep = fs.readFileSync(join(REPO, "api/consolidate-sweep.js"), "utf8");
+const roomMemoryWorker = fs.readFileSync(join(REPO, "api/_room-memory-consolidation.js"), "utf8");
+const consolidationConfig = fs.readFileSync(join(REPO, "api/_consolidation-config.js"), "utf8");
+const consolidationTransport = fs.readFileSync(join(REPO, "api/consolidate.js"), "utf8");
+const sweepRun = fs.readFileSync(join(REPO, "api/_sweep-run.js"), "utf8");
+const roomMemoryContract = (sweep, worker, config, transport, heartbeat) =>
+  /roomMemorySweepEnabled\(\)/.test(sweep)
+  && /runMeteredRoomMemoryConsolidation\(c, \{queryFn:q,llm,runId\}\)/.test(sweep)
+  && /withSweepRun\(q, "consolidate"/.test(sweep)
+  && /results\.push\(\{ agent: candidateAgentId, person, error:/.test(sweep)
+  && /errored: results\.filter\(\(r\) => r\.error\)\.length/.test(sweep)
+  && /for \(const key of \["errors", "errored", "failed"\]\)/.test(heartbeat)
+  && /finish\(db, runId, classifyOutcome\(counts\)/.test(heartbeat)
+  && /strictRoomConsolidationConfig\(env\)/.test(worker)
+  && /await queryFn\(ROOM_MEMORY_ADMIT_SQL,/.test(worker)
+  && /reserveFoundrySpend\(queryFn,\{operation:'claim_extraction',requestKey,adapter,messages,env:config\.env\}\)/.test(worker)
+  && worker.indexOf('await queryFn(ROOM_MEMORY_ADMIT_SQL,') < worker.indexOf('reserveFoundrySpend(queryFn')
+  && worker.includes('beginFoundrySpend(queryFn,reservation)')
+  && worker.indexOf('beginFoundrySpend(queryFn,reservation)') < worker.indexOf('output=await llm(messages')
+  && /settleFoundrySpend\(queryFn,reservation,\{input_tokens:input,output_tokens:out\}\)/.test(worker)
+  && /markFoundrySpendUncertain\(queryFn,reservation/.test(worker)
+  && /String\(url\)!==config\.url/.test(worker) && /fetchImpl\(config\.requestUrl,init\)/.test(worker)
+  && /isAzureOnlyServing\(env\)/.test(config) && /assertAzureServingOrigin\(env\.AZURE_FOUNDRY_ENDPOINT, env\)/.test(config)
+  && /redirect: "error"/.test(transport) && /"api-key": key/.test(transport)
+  && /signal: AbortSignal\.timeout\(45_000\)/.test(transport);
+ok("private Room memory inventory has actual sweep caller, lease/budget rails, bounded Azure transport and partial-failure observation", roomMemoryContract(roomMemorySweep, roomMemoryWorker, consolidationConfig, consolidationTransport, sweepRun));
+for (const [name, source, changed] of [
+  ['caller', roomMemorySweep, roomMemorySweep.replace('runMeteredRoomMemoryConsolidation(c, {queryFn:q,llm,runId})', 'REMOVED_CONTROL')],
+  ['error observation', roomMemorySweep, roomMemorySweep.replace('errored: results.filter((r) => r.error).length', 'REMOVED_CONTROL')],
+  ['admission caller', roomMemoryWorker, roomMemoryWorker.replace('await queryFn(ROOM_MEMORY_ADMIT_SQL,', 'await queryFn(REMOVED_CONTROL,')],
+  ['begin-before-dispatch', roomMemoryWorker, roomMemoryWorker.replaceAll('beginFoundrySpend(queryFn,reservation)', 'REMOVED_CONTROL')],
+  ['settlement', roomMemoryWorker, roomMemoryWorker.replace('settleFoundrySpend(queryFn,reservation,{input_tokens:input,output_tokens:out})', 'REMOVED_CONTROL')],
+  ['uncertain spend hold', roomMemoryWorker, roomMemoryWorker.replaceAll('markFoundrySpendUncertain(queryFn,reservation', 'REMOVED_CONTROL')],
+]) {
+  const args = name === 'caller' || name === 'error observation'
+    ? [changed, roomMemoryWorker, consolidationConfig, consolidationTransport, sweepRun]
+    : [roomMemorySweep, changed, consolidationConfig, consolidationTransport, sweepRun];
+  ok(`negative control: Room memory inventory refuses missing ${name}`, !roomMemoryContract(...args));
+}
+ok('negative control: Room memory inventory refuses missing transport deadline', !roomMemoryContract(roomMemorySweep, roomMemoryWorker, consolidationConfig, consolidationTransport.replaceAll('AbortSignal.timeout(45_000)', 'REMOVED_CONTROL'), sweepRun));
+ok('negative control: Room memory inventory refuses missing heartbeat classification', !roomMemoryContract(roomMemorySweep, roomMemoryWorker, consolidationConfig, consolidationTransport, sweepRun.replace('"errors", "errored", "failed"', 'REMOVED_CONTROL')));
 
 const PROVIDER_EXCLUDED = [
   "_azure.js", "_channel-secrets.js", "_db.js", "_embed.js", "_gcache.js", "_push.js", "_room-embed.js",

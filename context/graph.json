@@ -17250,6 +17250,24 @@
       "kind": "rejection",
       "title": "Reject space-only SQL command detection",
       "at": "2026-09-08"
+    },
+    {
+      "id": "caller-lease165-final-eval-parity",
+      "kind": "decision",
+      "title": "Final dialogue and incidents eval parity",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "caller-lease165-final-eval-parity-controls",
+      "kind": "measurement",
+      "title": "Final eval parity controls",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "caller-lease165-final-eval-parity-scope",
+      "kind": "rejection",
+      "title": "Final eval parity scope constrained",
+      "at": "2026-09-09"
     }
   ],
   "edges": [
@@ -29660,6 +29678,16 @@
       "src": "caller-lease165-opt-in-room-consolidation",
       "rel": "caused_by",
       "dst": "caller-lease165-context-excluded"
+    },
+    {
+      "src": "caller-lease165-final-eval-parity",
+      "rel": "measured_by",
+      "dst": "caller-lease165-final-eval-parity-controls"
+    },
+    {
+      "src": "caller-lease165-final-eval-parity",
+      "rel": "caused_by",
+      "dst": "caller-lease165-final-eval-parity-scope"
     }
   ]
 }

@@ -13,7 +13,7 @@ const baseline = 'c56cadfe72a20ee02781485752d8d67fcfc6fb21';
 const id = '11111111-1111-4111-8111-111111111111';
 const delivery = { mode: 'warm', pace: 'natural', intensity: 0.3, language_hint: 'hi', nonverbals: [] };
 const answer = (reply, hint = 'hi') => ({ reply, delivery: { ...delivery, language_hint: hint } });
-let events = [], generated = answer('ठीक है 🙂'), captured, written;
+let events = [], generated = answer('ठीक है 🙂'), captured, written, usageMeasured = true;
 const turn = { turn_id: id, session_id: id, ordinal: 1, created_at: '2026-09-07T00:00:00Z' };
 const runtime = { replica: { replica_id: id, agent_id: id, subject_person_id: id }, capability: { capability_id: id }, personProfile: { definition: {} }, calibration: { definition: {} }, candidateBinding: null };
 globalThis.__dialogueUnicode = {
@@ -107,7 +107,7 @@ try {
     if (sql.includes('update vy_replica_dialogue_turn set state=case')) {events.push('fail'); return [];}
     throw new Error('unexpected SQL in offline fixture');
   };
-  const generator={ family:'azure', name:'synthetic-offline', version:'1', model:'none', generate:async ({prompt})=>{events.push('generate');captured=prompt;return {output:generated,usage:{input_tokens:1,output_tokens:1}};} };
+  const generator={ family:'azure', name:'synthetic-offline', version:'1', model:'none', generate:async ({prompt})=>{events.push('generate');captured=prompt;return {output:generated,usage:usageMeasured?{input_tokens:1,output_tokens:1}:undefined};} };
   const generate = message => service.generateOwnedDialogue(db,id,{replica_id:id,message,trace_id:'unicode_test'},generator);
   await check('actual service rejects malformed/oversized question before any scoped IO', async () => {
     for (const [message,code,status] of [['x'.repeat(3999)+'🙂','dialogue_message_too_large',413],['x'.repeat(4001),'dialogue_message_too_large',413],['bad\ud800','dialogue_message_invalid',400],['\udc00','dialogue_message_invalid',400]]) {
@@ -119,11 +119,14 @@ try {
     const result=await generate(message); assert.equal(captured.messages.at(-1).content,message);assert.equal(written,message);assert.equal(result.reply,generated.reply);assert.equal(result.billing_state,'settled');
     assert.deepEqual(events,['runtime','session','snapshot','history','turn','reserve','begin','runtime','generate','runtime','finish','settle']);
   });
-  await check('actual service invalid output keeps uncertain spend and no completed answer', async () => {
+  await check('actual service invalid output settles measured usage and keeps unknown usage uncertain', async () => {
     for (const [output,code] of [[answer(boundaryReply),'dialogue_reply_too_large'],[answer('bad\ud800'),'dialogue_reply_invalid'],[answer('ok','x'.repeat(31)+'🙂'),'dialogue_delivery_invalid']]) {
-      events=[]; generated=output; await rejectsCode(()=>generate('hello'),code);
+      events=[]; generated=output; usageMeasured=true; await rejectsCode(()=>generate('hello'),code);
+      assert.deepEqual(events,['runtime','session','snapshot','history','turn','reserve','begin','runtime','generate','runtime','settle','fail']);
+      events=[]; usageMeasured=false; await rejectsCode(()=>generate('hello'),code);
       assert.deepEqual(events,['runtime','session','snapshot','history','turn','reserve','begin','runtime','generate','runtime','uncertain','fail']);
     }
+    usageMeasured=true;
   });
   await check('actual stored speech reader refuses corrupt answers and hints', async () => {
     for (const [output,code] of [[answer(boundaryReply),'dialogue_reply_too_large'],[answer('bad\ud800'),'dialogue_reply_invalid'],[answer('ok','\udc00'),'dialogue_delivery_invalid']]) await rejectsCode(()=>service.loadOwnedDialogueSpeech(async()=>[{turn_id:id,content:output.reply,delivery_plan:output.delivery}],id,{replica_id:id,dialogue_turn_id:id}),code);
@@ -150,7 +153,8 @@ try {
       'generator, input, prompt, evidence',
       'await beginFoundrySpend(db, reservation);',
       'assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id), input.message);',
-      'if (providerStarted) await markFoundrySpendUncertain(db, reservation, error);',
+      'try { await settleFoundrySpend(db, reservation, error?.measured_usage || measuredUsage); settled = true;',
+      'if (providerStarted || spendBeginState === "attempted_unknown") await markFoundrySpendUncertain(db, reservation, error);',
       'can_voice: evidence.length === 0 && !runtime.capability.private_selection && !runtime.candidateBinding,',
     ]) assert.ok(current.includes(required), `missing dialogue authority contract: ${required}`);
     const order = [
@@ -172,7 +176,7 @@ try {
     }
     for(const [before,after] of [
       ['await beginFoundrySpend(db, reservation);','await settleFoundrySpend(db, reservation);'],
-      ['if (providerStarted) await markFoundrySpendUncertain','if (false) await markFoundrySpendUncertain'],
+      ['if (providerStarted || spendBeginState === "attempted_unknown") await markFoundrySpendUncertain','if (false) await markFoundrySpendUncertain'],
       ['can_voice: evidence.length === 0 && !runtime.capability.private_selection && !runtime.candidateBinding,','can_voice: true,'],
       ['generator, input, prompt, evidence);','generator, input, prompt);'],
     ]) { assert.ok(next.includes(before)); assert.throws(()=>verify(next.replace(before,after))); }
