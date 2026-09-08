@@ -176,11 +176,15 @@ ok("source erasure resolves current private profile provenance through its cited
   currentProfile.provenance.claims.length===4
   && !/source_ids/.test(JSON.stringify(currentProfile))
   && /definition#>'\{provenance,claims\}'/.test(completeSql)
-  && /jsonb_array_elements\(p\.definition#>'\{provenance,claims\}'\) claim_ref/.test(completeSql)
-  && /profile_claim\.claim_id=case[\s\S]*claim_ref->>'claim_id'[\s\S]*::int8/.test(completeSql)
+  && /jsonb_array_elements\(case[\s\S]*jsonb_typeof\(p\.definition#>'\{provenance,claims\}'\)='array'[\s\S]*else '\[\]'::jsonb end\) claim_ref/.test(completeSql)
+  && /profile_claim\.claim_id::text=claim_ref->>'claim_id'/.test(completeSql)
   && /profile_claim\.replica_id=c\.replica_id/.test(completeSql)
   && /profile_claim\.owner_user_id=c\.owner_user_id/.test(completeSql)
   && /c\.source_id=any\(profile_claim\.source_ids\)/.test(completeSql));
+ok("malformed and oversized profile claim references cannot abort source erasure",
+  /else '\[\]'::jsonb end/.test(completeSql)
+  && !/\(claim_ref->>'claim_id'\)::int8/.test(completeSql)
+  && !/claim_ref->>'claim_id' ~/.test(completeSql));
 ok("source erasure retains the legacy embedded-source profile shape",
   /jsonb_path_exists\([\s\S]*\$\.domains\.\*\[\*\]\.source_ids\[\*\]/.test(completeSql));
 ok("a replacement build created after delete request survives old-source completion",

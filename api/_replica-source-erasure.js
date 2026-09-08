@@ -254,12 +254,11 @@ export async function completeSourceErasure(db, lease) {
          from vy_replica_profile p join candidate c on c.replica_id=p.replica_id
         where (
           (jsonb_typeof(p.definition#>'{provenance,claims}')='array' and exists (
-            select 1 from jsonb_array_elements(p.definition#>'{provenance,claims}') claim_ref
+            select 1 from jsonb_array_elements(case
+              when jsonb_typeof(p.definition#>'{provenance,claims}')='array'
+              then p.definition#>'{provenance,claims}' else '[]'::jsonb end) claim_ref
             join vy_replica_claim profile_claim
-              on profile_claim.claim_id=case
-                   when claim_ref->>'claim_id' ~ '^[1-9][0-9]{0,18}$'
-                   then (claim_ref->>'claim_id')::int8
-                 end
+              on profile_claim.claim_id::text=claim_ref->>'claim_id'
              and profile_claim.replica_id=c.replica_id
              and profile_claim.owner_user_id=c.owner_user_id
             where c.source_id=any(profile_claim.source_ids)
