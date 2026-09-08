@@ -1,5 +1,11 @@
 # STATE — read this first, then the graph
 
+## START HERE: RELEASE45 FINAL SOURCE FREEZE (2026-09-08)
+
+This block wins over earlier candidate notes. Integrated40 plus materializer155, a11y42, Hindi/visual42, audio40, accounting46, strict correction47 and registry48.388distinct registrations retain380from40.156 qualification/activation excluded. Own private dependencies match reviewed esbuild0.28.2 lock;18ASTverified emptyconfigexports. Actual Bicepcompile and21serialized localchecks including semanticTS/build/package/adapter/fixtures passed on a3bf16af with all sourcebytes unchanged. Final context commit follows, no product edits after checks.
+
+Fullrelease45 not started. Root owns finalguardreview/launch and deployment. Root reports152153committed/145readbackpass;155V2 rollback4DDL29EXPLAINpassed but155notcommitted andruntimeunproved. Actual model/owner quality, fullbrowser journey and qualification/activation remain separate. No app deployment from this sourcefreeze. Accepted26/local5177unchanged, goalactive andhourlyautomationpaused. Evidence: expert-tools/release45-finalchecks-1788862852842/result.json and final RELEASE45-FREEZE-20260908.json.
+
 ## START HERE: INTEGRATION45 SOURCE CANDIDATE (2026-09-08)
 
 This block supersedes older candidate notes below. Source assembly only, not frozen or accepted. Base40 9797b16d plus materializer155 a4bf870, accessibility42 1028d86 and Hindi41/visual42 f61a384e.388literal registrations retain all380incumbents plus8new afteraccounting46. Shared Englishcopy preserves both auth and written-comparison sections.145to155 mirrors retained;156 qualification/activation excluded. Audio40 frozenpass integrated; existingvoicepermission unchanged.

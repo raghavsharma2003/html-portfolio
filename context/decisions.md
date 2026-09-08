@@ -23690,3 +23690,8 @@ Import only the conditional localized explanation, minimal typography and real m
 ## `azure-web48-registry-versioned-reference` (2026-09-08)
 
 2026-09-08: Azure preview Bicep now matches the reviewed existing registryUsername and exact versioned registryKeyVaultUrl strategy. The preview identity reads Key Vault; no new AcrPull role is requested. Registry secret is used only for image pull, not exposed as application environment. Apply the same binding to disabled-by-default schedule jobs. Reverse only on verified replacement registry authority and a separately reviewed source/template change.
+
+
+## `release45-final-source-freeze` (2026-09-08)
+
+2026-09-08: Freeze45 after reviewed materializer155, a11y42, Hindi/visual42, audio40, performanceaccounting46, strictcorrection47 andregistry48 source plus final21checks. Preserve156qualification/activation exclusion. Root mustreview guard/source and own explicit fullgate launch. Reverse on any fullgate, actual155runtime/erasure or deploymentcanary failure; privatecomparison is not fulllearningloop approval.

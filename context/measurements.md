@@ -17474,3 +17474,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `azure-web48-source-review-only` (2026-09-08)
 
 2026-09-08: n=1 source comparison of candidate45 Bicep with prepared web37 ARM app registry binding, plus source diff check. No Bicep compilation, runtime tests, image build, resource writes, auth messages, SQL or model calls. Generated-template validation and actual registry/image/KeyVault readback remain required before deployment. Existing eight secret versions are prior evidence, not newly read or written here.
+
+
+## `release45-final-integrated-checks` (2026-09-08)
+
+2026-09-08: sourcea3bf16af0b873b7897bb7d51178189c87c5b5594 unchanged across21commands,10:20:52.843to10:22:24.651Z, exec35294terminal0. Actual Bicep compilerexit0;6compiledARMbinding/negativecontrols;AzureHTTP26/package12/deployfixture11,strictcorrectionadapter10/worker10,network12,forcedTS/copy/Vitebuild,materializer/sharedAzureadapter/ownerqual/authoffline suites. Receipt release45-finalchecks-1788862852842/result.json. No browser/ARMwrites/SQL/model/fullrelease. Root155V2 rollback4DDL29EXPLAIN passed but155uncommitted/runtimeunproved;152153committed,145readbackpassed.

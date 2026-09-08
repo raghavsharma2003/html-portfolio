@@ -16596,6 +16596,24 @@
       "kind": "rejection",
       "title": "Credential provisioning is not a web deployment",
       "at": "2026-09-08"
+    },
+    {
+      "id": "release45-final-source-freeze",
+      "kind": "decision",
+      "title": "Freeze integrated scope before root full release",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release45-final-integrated-checks",
+      "kind": "measurement",
+      "title": "Final source passes serialized local validation",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release45-local-pass-not-deployed-learning",
+      "kind": "rejection",
+      "title": "Retain real release and activation gaps",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

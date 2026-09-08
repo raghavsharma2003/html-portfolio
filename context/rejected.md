@@ -17469,3 +17469,8 @@ The inspected Hindi fixture still contains incumbent English conversation contro
 2026-09-08: Candidate45 Bicep still selected registry managed-identity pull while actual preview bindings held a versioned registry password and no newly granted AcrPull authority. Reject passing password parameters to the old identity-only template, reusing credential-resource provision receipts as app deployment evidence, or relabeling an old source/image commitment. Inline OTP and OAuth callback verification are separate paths; missing management credentials do not alone disprove OTP.
 
 Source review caught a Bicep declaration-shape error before compilation: a mapped for-expression had been placed inside concat arguments for scheduled secrets. It is now hoisted to cronSecretReferences and concatenated by name, matching the already-hoisted app secret array. This was a source-review finding, not an observed compiler run; compilation is still held for the shared CPU lane.
+
+
+## `release45-local-pass-not-deployed-learning` (2026-09-08)
+
+2026-09-08: Localintegratedbuild andscopedfixtures do notreplace original failed39, finalfullrelease, actual155materialization/races, liveAzurepairedresponses, ownerjudgments or156experimentalactivation. The compiledregistrytemplate is not a deployed application. Buildpackage mustpin finalsourceHEAD rather than prior39. Preserve accepted26 until rootacceptance.
