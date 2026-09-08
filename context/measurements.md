@@ -17345,3 +17345,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `release34-private-preparation-pass` (2026-09-08)
 
 2026-09-08: Independent dependency bytecopy07:04:44.065Zto07:07:20.393Z,156.328seconds, no junctions/hardlinks/network. Ignored config18AST-verified empty exports SHA728dc5821336bed9c5ad851b3e837a54d342674923de81454ce11b0a2d48a432. GPU18offlinecontrols, copy7scopes21negatives, forcedsemanticTypeScript and guard11selfchecks terminal0exec26314. No productionbuild/fullrelease/SQL/provider/cloud. Final source freeze and prepare follows; rootexplicitrun remainsrequired.
+
+
+## `release39-eight-source-paths` (2026-09-08)
+
+2026-09-08: n8 approved file paths compare byte-identical to their frozen Git blobs. evals/run.mjs unchanged from34, preserving372unique registrations. Private dependency bytecopy started from immutable34 with emptyconfigvalidation. No build/fulltest/browser/SQL/cloud/model run in this assembly phase.

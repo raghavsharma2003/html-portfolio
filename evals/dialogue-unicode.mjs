@@ -5,6 +5,7 @@ import { registerHooks } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 const root = new URL('../', import.meta.url);
 const api = new URL('api/', root);
@@ -133,12 +134,32 @@ try {
     for (const output of [answer(boundaryReply),answer('bad\ud800'),answer('ok','\udc00')]) await rejectsCode(()=>read(output),'dialogue_history_invalid');
     assert.equal((await read(answer('ठीक 🙂'))).exchanges[0].answer.reply,'ठीक 🙂');
   });
-  await check('production spend block byte unchanged from incumbent', () => {
+  await check('production spend block preserves incumbent with exact continuity wiring', () => {
     const path='api/_replica-dialogue.js';
     const prior=execFileSync('git',['show',`${baseline}:${path}`],{cwd:fileURLToPath(root),encoding:'utf8'}).replaceAll('\r\n','\n');
     const next=readFileSync(new URL(path,root),'utf8').replaceAll('\r\n','\n');
-    const block=text=>text.slice(text.indexOf('  const turn = await beginDialogueTurn'),text.indexOf('export async function loadOwnedDialogueSpeech'));
-    assert.ok(block(next).includes('settleFoundrySpend')); assert.equal(block(next),block(prior));
+    // Bound the assertion to the function, not unrelated following SQL exports.
+    const block=text=>{
+      const tree=ts.createSourceFile(path,text,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
+      const fn=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='generateOwnedDialogue');
+      assert.ok(fn?.body,'dialogue generator body exists');
+      const body=fn.body.getText(tree),start=body.indexOf('  const turn = await beginDialogueTurn');
+      assert.ok(start>=0,'turn creation precedes spend'); return body.slice(start);
+    };
+    const expected=block(prior)
+      .replace('generator, input, prompt);','generator, input, prompt, evidence);')
+      .replace('    return {\n','    return {\n      has_continuity: evidence.length > 0,\n')
+      .replace('can_voice: true,','can_voice: evidence.length === 0,');
+    const verify=text=>assert.equal(block(text),expected);
+    verify(next);
+    // The assertion still rejects changes to spend order, uncertain debt, and
+    // the text-only boundary for answers that carry continuity evidence.
+    for(const [before,after] of [
+      ['await beginFoundrySpend(db, reservation);','await settleFoundrySpend(db, reservation);'],
+      ['if (providerStarted) await markFoundrySpendUncertain','if (false) await markFoundrySpendUncertain'],
+      ['can_voice: evidence.length === 0,','can_voice: true,'],
+      ['generator, input, prompt, evidence);','generator, input, prompt);'],
+    ]) { assert.ok(next.includes(before)); assert.throws(()=>verify(next.replace(before,after))); }
   });
   console.log(`${groups} dialogue Unicode groups passed. Offline seams; no SQL/model calls.`);
 } finally { hooks.deregister(); delete globalThis.__dialogueUnicode; }

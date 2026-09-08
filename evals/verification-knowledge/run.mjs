@@ -15,8 +15,17 @@ const hashes=Object.fromEntries(names.map(p=>[p,sha(readFileSync(join(root,p)))]
 const current=readFileSync(join(root,names[0]),'utf8');
 assert(!old.includes('exitLabel="Back to knowledge"'));assert(current.includes('onExit={() => { setEnrichView("menu"); chooseRoom("enrich"); }} exitLabel="Back to knowledge"'));
 const normalize=s=>s.replaceAll('\r\n','\n');
-assert.equal(normalize(current).replace(' onExit={() => { setEnrichView("menu"); chooseRoom("enrich"); }} exitLabel="Back to knowledge"',''),normalize(old),'actual caller has only navigation wiring delta');
-if(process.argv.includes('--source-only')){console.log(JSON.stringify({sourceOnly:true,hashes,oldHash:sha(old),callerDeltaOnly:true}));process.exit(0);}
+// The historical caller remains immutable. Permit only the separately reviewed
+// owner identity plumbing added for comparison preparation, not arbitrary drift.
+const ownerPlumbing=[
+ ['  ownerUserId?: string;\n',''],
+ ['    accountScope, ownerUserId, workspaceReadState','    accountScope, workspaceReadState'],
+ ['<CloneVerificationJourney ownerUserId={ownerUserId} token=','<CloneVerificationJourney token='],
+];
+let navigationBaseline=normalize(current);
+for(const [before,after]of ownerPlumbing){assert.equal(navigationBaseline.split(before).length-1,1,'exact reviewed owner plumbing occurs once');navigationBaseline=navigationBaseline.replace(before,after);}
+assert.equal(navigationBaseline.replace(' onExit={() => { setEnrichView("menu"); chooseRoom("enrich"); }} exitLabel="Back to knowledge"',''),normalize(old),'actual caller has only navigation and reviewed owner plumbing deltas');
+if(process.argv.includes('--source-only')){console.log(JSON.stringify({sourceOnly:true,hashes,oldHash:sha(old),callerDeltas:['knowledge-navigation','reviewed-owner-identity-plumbing']}));process.exit(0);}
 const {build}=await import('vite');
 const {chromium}=await import('playwright');
 const {statements}=await import('../first-use-private-flow/fixture.mjs');

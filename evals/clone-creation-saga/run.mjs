@@ -322,8 +322,22 @@ const sourceRoute = readFileSync(join(ROOT, "api/replica-source.js"), "utf8");
 const reviewRoute = readFileSync(join(ROOT, "api/replica-review.js"), "utf8");
 ok("HTTP contracts derive every idempotent mutation from the authenticated owner",
   /requireUser\(req\)/.test(replicaRoute) && /creation_intent_id/.test(replicaRoute)
-  && /sourceIdFromRequest\(user\.id, body\)/.test(sourceRoute)
+  && /sourceIdFromRequest\(user\.id,\s*body,\s*q\)/.test(sourceRoute)
   && /requestOwnedVoiceGenomeBuild\(q, user\.id, body\)/.test(reviewRoute));
+const sourceIdHelper = sourceRoute.match(/async function sourceIdFromRequest\(userId, body, db = q\) \{[\s\S]*?\n\}/)?.[0];
+assert(sourceIdHelper, "actual source intent helper is available for call-level checks");
+const injectedDb = () => { throw Error("SQL is outside this control-flow check"); };
+const sourceIdCalls = [];
+const actualSourceId = new Function("q", "getOwnedSourceByUploadIntent", `${sourceIdHelper}; return sourceIdFromRequest;`)(
+  () => { throw Error("unexpected default database"); },
+  async (...args) => { sourceIdCalls.push(args); return { source_id: SOURCE }; },
+);
+assert.equal(await actualSourceId(OWNER, { replica_id: REPLICA, upload_intent_id: UPLOAD_INTENT, owner_user_id: "foreign", db: "foreign" }, injectedDb), SOURCE);
+assert.deepEqual(sourceIdCalls, [[injectedDb, OWNER, REPLICA, UPLOAD_INTENT]]);
+assert.equal(await actualSourceId(OWNER, { source_id: SOURCE }, injectedDb), SOURCE);
+assert.equal(sourceIdCalls.length, 1);
+ok("actual intent helper passes the injected database and authenticated owner, ignoring body authority",
+  [...sourceRoute.matchAll(/sourceIdFromRequest\(user\.id,\s*body,\s*q\)/g)].length === 2);
 ok("source create and finalize expose exact replay states including post-finalize recovery",
   /replayed: true, finalized: false/.test(sourceRoute)
   && /const finalizedSourceResponse[\s\S]*upload: null[\s\S]*replayed[\s\S]*finalized:/i.test(sourceRoute)

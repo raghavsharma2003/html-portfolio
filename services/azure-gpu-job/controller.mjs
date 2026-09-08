@@ -70,8 +70,11 @@ function validatePlan(plan) {
 export function normalizeObservedJobConfiguration(configuration) {
   const value=structuredClone(configuration);
   if(!value||typeof value!=='object'||Array.isArray(value))return value;
-  for(const key of ['dapr','eventTriggerConfig'])if(value[key]===null)delete value[key];
+  for(const key of ['dapr','eventTriggerConfig','scheduleTriggerConfig'])if(value[key]===null)delete value[key];
   if(Array.isArray(value.identitySettings)&&value.identitySettings.length===0)delete value.identitySettings;
+  if(Array.isArray(value.registries))for(const registry of value.registries){
+    if(registry&&typeof registry==='object'&&registry.identity==='')delete registry.identity;
+  }
   return value;
 }
 
@@ -79,6 +82,13 @@ export function normalizeObservedJobTemplate(template) {
   const value=structuredClone(template);
   if(!value||typeof value!=='object'||Array.isArray(value))return value;
   for(const key of ['initContainers','volumes'])if(value[key]===null)delete value[key];
+  // Exact defaults from the deployed dedicated GPU target GET. Never erase
+  // nonempty identity/storage or restore a missing per-execution env marker.
+  if(Array.isArray(value.containers))for(const container of value.containers){
+    if(!container||typeof container!=='object'||Array.isArray(container))continue;
+    if(!Object.hasOwn(container,'env'))container.env=[];
+    if(container.resources?.ephemeralStorage==='')delete container.resources.ephemeralStorage;
+  }
   return value;
 }
 

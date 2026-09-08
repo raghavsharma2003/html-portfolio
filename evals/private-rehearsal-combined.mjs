@@ -43,8 +43,25 @@ for(const name of ['ResonanceRecorder','voiceSagaKey','readVoiceSaga','storeVoic
  assert.ok(get(oldAst),name);assert.equal(get(nextAst),get(oldAst),name);
 }
 pass('actual recorder and persisted voice saga functions byte-identical to21');
-for(const file of ['api/_replica-primary-selection.js','api/_replica-build-intent.js','src/studio/wavCapture.ts','src/creatorStudio/wavCapture.ts','src/studio/QuickVoiceCapture.tsx','src/studio/VoiceEnrollmentLab.tsx'])assert.equal(read(file),prior(file),file);
-pass('primary intent and physical capture leaves unchanged');
+for(const file of ['api/_replica-primary-selection.js','src/studio/wavCapture.ts','src/creatorStudio/wavCapture.ts','src/studio/QuickVoiceCapture.tsx','src/studio/VoiceEnrollmentLab.tsx'])assert.equal(read(file),prior(file),file);
+pass('primary selection and physical capture leaves unchanged');
+const intentPath='api/_replica-build-intent.js';
+const eligible="s.capture_mode in ('upload','import','derived')";
+const excluded=" and s.purpose<>'comparison_reference'";
+const incumbentIntent=prior(intentPath);
+assert.equal(incumbentIntent.split(eligible).length-1,2);
+const verifyIntent=text=>assert.equal(text,incumbentIntent.replaceAll(eligible,eligible+excluded));
+const currentIntent=read(intentPath);verifyIntent(currentIntent);
+for(const name of ['create','promote']) {
+ assert.ok(sql[name]?.sql,`${name} production query captured`);
+ assert.ok(sql[name].sql.includes(eligible+excluded),`${name} excludes comparison-only references`);
+}
+// Reject omission at either entry point independently, retaining every other
+// byte of the incumbent build-intent implementation.
+for(const offset of [currentIntent.indexOf(excluded),currentIntent.lastIndexOf(excluded)]) {
+ assert.ok(offset>=0);assert.throws(()=>verifyIntent(currentIntent.slice(0,offset)+currentIntent.slice(offset+excluded.length)));
+}
+pass('build intent only adds comparison-reference exclusions at creation and promotion; both omission mutants rejected');
 let mirrorSql='';
 await decideMirrorDelta(async text=>{if(text.includes('), decided as ('))mirrorSql=text;return[];},
  '10000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001',

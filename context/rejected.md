@@ -17343,3 +17343,8 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `release34-no-performance-causality` (2026-09-08)
 
 2026-09-08: One bounded A/B improvement does not prove eliminated host noise or full-release acceptance. Importing all performancebranch files would mix diagnostics with product; only reviewed site/vyakti.html was restored. Original release31 and diagnostic failures retained.
+
+
+## `release39-whole-branch-import` (2026-09-08)
+
+2026-09-08: Branch histories contain more work than approved fixes; whole branch merging would risk importing unfinished capabilities. Use exact8path restore and explicit source manifest. Continuity38 repair remains excluded until frozen and actualSQL-proven; no acceptance inferred from offline fixtures.

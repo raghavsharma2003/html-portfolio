@@ -144,9 +144,9 @@ await test('every observed optional default rejects nonmatching or active altern
  }
 });
 await test('required trigger and execution fields are never normalized away',()=>{
- for(const mutate of [r=>r.properties.configuration.manualTriggerConfig=null,r=>r.properties.configuration.scheduleTriggerConfig=null,
+ for(const mutate of [r=>r.properties.configuration.manualTriggerConfig=null,r=>r.properties.configuration.scheduleTriggerConfig={},
   r=>r.properties.template.containers[0].command=null,r=>r.properties.template.containers[0].args=[],
-  r=>r.properties.template.containers[0].resources.ephemeralStorage='',r=>r.properties.configuration.identitySettings=[{}]]){
+  r=>r.properties.template.containers[0].resources.ephemeralStorage='1Gi',r=>r.properties.configuration.identitySettings=[{}]]){
   const r=clone(resource);mutate(r);assert.throws(()=>inspectJobSnapshot(plan,r,environment));
  }
 });
@@ -163,6 +163,35 @@ await test('marked execution observation and recovery share narrow template norm
 await test('unknown null fields remain visible in both normalization shapes',()=>{
  assert.deepEqual(normalizeObservedJobTemplate({containers:[],future:null}),{containers:[],future:null});
  assert.deepEqual(normalizeObservedJobConfiguration({future:null}),{future:null});
+});
+await test('actual target35 defaults retain CPU memory identity and marker boundaries',async()=>{
+ const evidence=JSON.parse(await readFile(new URL('./fixtures/arm-target35.json',import.meta.url),'utf8'));
+ const observed=evidence.events.find(e=>e.event==='target_resource_details');
+ assert.equal(observed.containers[0].cpu_matches,true);assert.equal(observed.containers[0].memory_matches,true);
+ assert.equal(observed.containers[0].env_present,false);
+ assert.equal(observed.target.defaults['configuration.scheduleTriggerConfig'].value,null);
+ assert.equal(observed.target.registries[0].identity.value,'');
+ assert.equal(observed.target.containers[0].optional.ephemeralStorage.value,'');
+ const r=clone(resource);r.properties.configuration.scheduleTriggerConfig=null;
+ r.properties.configuration.registries[0].identity='';
+ const c=r.properties.template.containers[0];c.resources.ephemeralStorage='';delete c.env;
+ assert(inspectJobSnapshot(plan,r,environment));assert(!Object.hasOwn(c,'env'));
+ for(const mutate of [r=>r.properties.template.containers[0].resources.cpu=4,
+  r=>r.properties.template.containers[0].resources.memory='32Gi',
+  r=>r.properties.template.containers[0].resources.ephemeralStorage=null,
+  r=>r.properties.template.containers[0].resources.future=null,
+  r=>r.properties.template.containers[0].env=null,
+  r=>r.properties.configuration.registries[0].identity=null,
+  r=>r.properties.configuration.registries[0].identity='system',
+  r=>r.properties.configuration.scheduleTriggerConfig={cronExpression:'* * * * *'}]){
+  const bad=clone(r);mutate(bad);assert.throws(()=>inspectJobSnapshot(plan,bad,environment));
+ }
+ const one=execution('Running'),wid='12345678-1234-4234-8234-123456789012';
+ one.properties.template=windowExecutionTemplate(plan,wid);
+ one.properties.template.containers[0].resources.ephemeralStorage='';
+ assert.equal(executionObservation(plan,'probe-one',[one],wid).terminal,false);
+ delete one.properties.template.containers[0].env;
+ assert.throws(()=>executionObservation(plan,'probe-one',[one],wid),/template_mismatch/);
 });
 await test('server deadline supervision stops named execution then observes terminal',async()=>{
  const f=fixture(),r=await f.supervisor.start(hash('c')),v=await f.supervisor.supervise(r.window_id);

@@ -1,0 +1,160 @@
+{
+  "source": "gpu-target-defaults35-95e23e4b-95fc-4f92-a571-45425fe40631.jsonl",
+  "source_sha256": "ee6c02130a4407b7fb71b2a8d8a3b6e813296968da1c40e6ef46c8eeb0f79a2f",
+  "events": [
+    {
+      "event": "diagnostic_opened",
+      "at": "2026-09-08T07:53:45.389746+00:00",
+      "source_sha256": "fe7ab4a96a1217bea8f5530af21db53934347052da928fd1e5615d00f618c728",
+      "arm_writes": 0,
+      "key_reads": 0,
+      "starts": 0
+    },
+    {
+      "event": "target_resource_details",
+      "at": "2026-09-08T07:53:47.723964+00:00",
+      "target": {
+        "id": "/subscriptions/c60a32f6-c812-4c0e-bc42-b6431ee90b8f/resourceGroups/vyakti-voice/providers/Microsoft.App/jobs/vyakti-gpu-control-20260908",
+        "property_keys": [
+          "configuration",
+          "environmentId",
+          "eventStreamEndpoint",
+          "outboundIpAddresses",
+          "provisioningState",
+          "template",
+          "workloadProfileName"
+        ],
+        "configuration_keys": [
+          "dapr",
+          "eventTriggerConfig",
+          "identitySettings",
+          "manualTriggerConfig",
+          "registries",
+          "replicaRetryLimit",
+          "replicaTimeout",
+          "scheduleTriggerConfig",
+          "secrets",
+          "triggerType"
+        ],
+        "template_keys": [
+          "containers",
+          "initContainers",
+          "volumes"
+        ],
+        "environment_matches": true,
+        "workload_profile_matches": true,
+        "provisioning_state": "Succeeded",
+        "trigger_matches": true,
+        "timeout_matches": true,
+        "retry_limit_matches": true,
+        "manual_trigger_matches": true,
+        "defaults": {
+          "configuration.dapr": {
+            "kind": "empty",
+            "value": null
+          },
+          "configuration.eventTriggerConfig": {
+            "kind": "empty",
+            "value": null
+          },
+          "configuration.scheduleTriggerConfig": {
+            "kind": "empty",
+            "value": null
+          },
+          "configuration.identitySettings": {
+            "kind": "empty",
+            "value": []
+          },
+          "template.initContainers": {
+            "kind": "empty",
+            "value": null
+          },
+          "template.volumes": {
+            "kind": "empty",
+            "value": null
+          }
+        },
+        "container_count": 1,
+        "containers": [
+          {
+            "keys": [
+              "command",
+              "image",
+              "name",
+              "resources"
+            ],
+            "name_matches": true,
+            "image_matches": true,
+            "command_matches": true,
+            "resources_match": false,
+            "env": {
+              "kind": "empty",
+              "value": null
+            },
+            "optional": {
+              "args": {
+                "kind": "absent"
+              },
+              "probes": {
+                "kind": "absent"
+              },
+              "volumeMounts": {
+                "kind": "absent"
+              },
+              "ephemeralStorage": {
+                "kind": "empty",
+                "value": ""
+              }
+            }
+          }
+        ],
+        "registry_count": 1,
+        "registries": [
+          {
+            "keys": [
+              "identity",
+              "passwordSecretRef",
+              "server",
+              "username"
+            ],
+            "server_matches": true,
+            "username_matches": true,
+            "secret_ref_matches": true,
+            "identity": {
+              "kind": "empty",
+              "value": ""
+            }
+          }
+        ],
+        "secret_count": 1,
+        "secrets": [
+          {
+            "keys": [
+              "name"
+            ],
+            "name_matches": true,
+            "keyVaultUrl": {
+              "kind": "absent"
+            },
+            "identity": {
+              "kind": "absent"
+            }
+          }
+        ]
+      },
+      "containers": [
+        {
+          "resource_keys": [
+            "cpu",
+            "ephemeralStorage",
+            "memory"
+          ],
+          "cpu_matches": true,
+          "memory_matches": true,
+          "env_present": false,
+          "env_empty_array": false
+        }
+      ]
+    }
+  ]
+}

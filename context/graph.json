@@ -16194,6 +16194,24 @@
       "kind": "measurement",
       "title": "Private dependencies and scoped checks passed",
       "at": "2026-09-08"
+    },
+    {
+      "id": "release39-bounded-regression-assembly",
+      "kind": "decision",
+      "title": "Assemble only proven release regressions",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release39-eight-source-paths",
+      "kind": "measurement",
+      "title": "Exact source assembly inventory",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release39-whole-branch-import",
+      "kind": "rejection",
+      "title": "Exclude unrelated source ancestors",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

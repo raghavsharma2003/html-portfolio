@@ -23568,3 +23568,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `release34-scoped-last-additions` (2026-09-08)
 
 2026-09-08: Root authorized only site/vyakti.html from27d67bef and151894f17f1, not performance experiment harness files. Three prose sections use content-visibility with measured fallback sizes and print restoration. Exact catalog correction removes remaining auto-named147 upper-cost check;149/150 unchanged. Reversal: integrated browser/accessibility/regression failure or mismatched real catalog reopens this candidate.
+
+
+## `release39-bounded-regression-assembly` (2026-09-08)
+
+2026-09-08: New candidate from frozen34 restores only dialogue0d4ac01a twoevals, regression758f8018 threeevals and GPUtarget19fb3c2f controller/eval/fixture. No ancestor productfamilies,152/153 or pending continuity repair imported. Reverse if exactdiff changes protected predicates, weakens negatives or fails independent review. Root owns fullgate after actual privateSQL proof.

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import {modernCaptureReadiness,requireModernCaptureReadiness} from '../api/_liveness/capture-readiness.js';
+import {isComparisonSource} from '../api/_replica-processing/comparison.js';
 const route = readFileSync(new URL('../api/replica-liveness.js',import.meta.url),'utf8');
 const sourceRoute = readFileSync(new URL('../api/replica-source.js',import.meta.url),'utf8');
 let checks=0;
@@ -34,6 +35,7 @@ async function run(op,{text=route,ready=false,auth=true,mode='live_challenge',ow
   ReplicaStorageError,REPLICA_STORAGE_WRITE_BUCKET:'fixture',ensurePrivateReplicaBucket:hit('bucket'),createSignedReplicaUpload:hit('sign',{headers:{}}),replicaObjectInfo:hit('info',{}),
   createPendingSource:no,getOwnedSource:hit('owned',null),getOwnedSourceByUploadIntent:no,listOwnedSources:no,finalizeOwnedSource:no,markOwnedSourceDeleting:no,setOwnedPrimaryVoiceSource:no,
   applySelfTestAutoGrant:no,bootstrapSelfTestReplica:no,
+  authorizeOwnedComparisonPreparation:no,requireCurrentComparisonPreparation:no,comparisonPreparationInput:no,isComparisonSource,
  };
  const handler=await load(text,d);const res={statusCode:0,setHeader(){},status(n){this.statusCode=n;return this;},json(body){this.body=body;return this;}};
  await handler({method:'POST',headers:{},body:{op,replica_id:'replica',source_id:'source',purpose:'memory'}},res);return{...res,calls};
