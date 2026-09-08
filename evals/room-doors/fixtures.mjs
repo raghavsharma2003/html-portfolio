@@ -1559,6 +1559,26 @@ export function doorsDb(state) {
         (s.replica_id === r.replica_id && s.owner_user_id === r.owner_user_id) ||
         (s.replica_id == null && s.owner_user_id == null && s.agent_id != null && s.agent_id === r.agent_id)));
     }
+    // Keep the authority-first Room insert out of the legacy five-argument DM matcher.
+    if (has("insert into meera_log") && has("room_memory_follower_id")) {
+      const { ROOM_MEMORY_LOG_SQL } = await import("../../api/_room-memory-authority.js");
+      const normalize = value => value.replace(/\s+/g, " ").trim();
+      if (normalize(sql) !== normalize(ROOM_MEMORY_LOG_SQL) || params.length !== 7) throw new Error("fixture_room_memory_log_shape_mismatch");
+      const [followerId, epoch, agentId, personId, deviceId, role, content] = params;
+      const follower = state.followers.find(f => f.follower_id === followerId
+        && String(f.memory_epoch) === String(epoch) && f.agent_id === agentId && f.person_id === personId);
+      const room = follower && state.rooms.find(r => r.room_id === follower.room_id && r.agent_id === agentId);
+      const replica = room && state.replicas.find(p => p.replica_id === room.replica_id
+        && p.owner_user_id === room.owner_user_id && p.agent_id === room.agent_id);
+      if (!follower?.memory_consent_at || !follower.age_attested_at || !room?.published_at || room.paused_at
+        || !replica || replica.lifecycle == null || ["revoked", "purging"].includes(replica.lifecycle) || replica.revoked_at
+        || !["me", "her"].includes(role) || typeof content !== "string" || [...content].length < 1 || [...content].length > 4000) return [];
+      const id = Math.max(0, ...state.meeraLog.map(row => Number(row.id) || 0)) + 1;
+      state.meeraLog.push({ id, agent_id: agentId, device_id: deviceId, speaker_person_id: personId,
+        role, channel: "chat", kind: "text", content, group_id: null, at: new Date().toISOString(),
+        room_memory_follower_id: followerId, room_memory_epoch: follower.memory_epoch });
+      return [{ id }];
+    }
     const hit = match(sql, params, has);
     if (hit !== undefined) return hit;
     return base(sql, params);

@@ -22,6 +22,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createHmac } from "node:crypto";
 import { startHarness, setNetworkRemap } from "./harness.mjs";
 import { launchRehearsalBrowser } from "./browser.mjs";
+import { checkRoomMemoryFixture } from "./room-memory-fixture-controls.mjs";
 import { startFakeWaCloudApiServer } from "./stubs/fake-wa-cloud-api-server.mjs";
 import { startFakeTgBotApiServer } from "./stubs/fake-tg-bot-api-server.mjs";
 
@@ -1037,5 +1038,5 @@ export async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main().then((code) => process.exit(code));
+  checkRoomMemoryFixture().then(() => main()).then((code) => process.exit(code));
 }
