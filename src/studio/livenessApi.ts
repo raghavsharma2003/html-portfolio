@@ -10,6 +10,7 @@ export type BiometricVerificationAttestations = {
 };
 
 export type SelectedReferenceComparison = {
+  selection_kind?: "private_comparison_reference";
   statement_set: "selected-voice-comparison/v1";
   primary_source_id: string;
   primary_selection_id: string;
@@ -48,7 +49,7 @@ const invalidComparison = () => new Error("The selected recording could not be c
 function validComparison(value: unknown): value is SelectedReferenceComparison {
   if (!value || typeof value !== "object") return false;
   const c = value as SelectedReferenceComparison;
-  return c.statement_set === "selected-voice-comparison/v1" && validUuid(c.primary_source_id) &&
+  return (c.selection_kind === undefined || c.selection_kind === "private_comparison_reference") && c.statement_set === "selected-voice-comparison/v1" && validUuid(c.primary_source_id) &&
     validUuid(c.primary_selection_id) && validHash(c.source_sha256) && validHash(c.comparison_snapshot_sha256) &&
     c.source_label === null && typeof c.source_created_at === "string" && Number.isFinite(Date.parse(c.source_created_at)) &&
     Array.isArray(c.locales) && c.locales.length === 2 && c.locales[0] === "en-IN" && c.locales[1] === "hi-IN" &&

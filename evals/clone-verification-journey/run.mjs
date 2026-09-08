@@ -116,6 +116,6 @@ ok("responsive and reduced-motion rules are explicit",
 ok("the hidden ID input paints focus on its visible file picker",
   /\.cvj-file-input:focus-visible\s*\+\s*\.cvj-file-picker/.test(css));
 ok("build waiting names its polling boundary and refuses a guessed countdown",
-  /checks this (?:draft|exact recording) every 10 seconds/.test(source) && /No guessed countdown/.test(source));
+  /This page checks progress every 10 seconds while open/.test(source) && /An estimate is not available yet/.test(source));
 
 console.log(`\n${checks} clone verification journey checks passed`);

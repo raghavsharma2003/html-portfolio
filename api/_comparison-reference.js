@@ -2,6 +2,8 @@ import {createHash} from 'node:crypto';
 import {REPLICA_POLICY_VERSION} from './_replica.js';
 import {canonicalJson,sha256Hex} from './_replica-processing/contracts.js';
 import {referenceFromAuthority} from './_liveness/reference-evidence.js';
+import {COMPARISON_COMPLETED_AUTHORITY_SQL} from './_comparison-preparation.js';
+import {processingCompletionReceipt} from './_replica-processing/queue.js';
 
 export const COMPARISON_REFERENCE_STATEMENT_SET='private-comparison-reference/v1';
 export const COMPARISON_REFERENCE_STATEMENTS=Object.freeze([
@@ -40,14 +42,16 @@ export const COMPARISON_CANDIDATE_CTES=`comparison_source_rows as materialized (
 ), capture as (
  select c.* from vy_replica_consent c join owned r using(replica_id,owner_user_id)
  where c.scope='capture' and c.policy_version=r.policy_version and c.revoked_at is null
- and (c.expires_at is null or c.expires_at>now()) order by c.granted_at desc,c.consent_id limit 1
+ and (c.expires_at is null or c.expires_at>now()) order by c.granted_at desc,c.consent_id
 ), storage as (
  select c.* from vy_replica_consent c join owned r using(replica_id,owner_user_id)
  where c.scope='storage' and c.policy_version=r.policy_version and c.revoked_at is null
- and (c.expires_at is null or c.expires_at>now()) order by c.granted_at desc,c.consent_id limit 1
+ and (c.expires_at is null or c.expires_at>now()) order by c.granted_at desc,c.consent_id
 ), primary_source as (
- select s.* from comparison_source_rows s join vy_replica_voice_reference v using(source_id,replica_id,owner_user_id)
- where s.state='ready' and s.kind in ('audio','video') and not s.contains_third_parties
+ select s.* from comparison_source_rows s
+ where (s.purpose='comparison_reference' or exists(select 1 from vy_replica_voice_reference v
+ where v.source_id=s.source_id and v.replica_id=s.replica_id and v.owner_user_id=s.owner_user_id))
+ and s.state='ready' and s.kind in ('audio','video') and not s.contains_third_parties
  and s.capture_mode in ('upload','import','derived')
  and not(s.capture_mode='derived' and s.provenance->>'purpose'='mirror_window')
  and not exists(select 1 from unnest(array['integrity','malware_scan']::text[]) required(step)
@@ -59,11 +63,13 @@ export const COMPARISON_CANDIDATE_CTES=`comparison_source_rows as materialized (
    and j.result->>'verified_input_sha256'=s.sha256 and j.result->>'manifest_hash'=a.result_manifest_hash
    and a.adapter_version<>'' and a.adapter_family||' '||a.adapter_name||' '||a.adapter_version !~* '(fake|fixture|mock|test)'))
 ), current_job as (
- select j.* from vy_replica_processing_job j join primary_source s using(source_id,replica_id,owner_user_id)
- join vy_replica_processing_attempt a on a.job_id=j.job_id and a.attempt=j.attempt and a.outcome='complete'
- where j.step='voice_quality' and j.state='complete' and j.result->>'verified_input_sha256'=s.sha256
- and j.result->>'manifest_hash'=a.result_manifest_hash
- and j.revision=(select max(j2.revision) from vy_replica_processing_job j2 where j2.source_id=j.source_id and j2.step=j.step)
+ select outer_job.*,to_jsonb(prepared) comparison_preparation from vy_replica_processing_job outer_job join primary_source outer_source using(source_id,replica_id,owner_user_id)
+ left join lateral (${COMPARISON_COMPLETED_AUTHORITY_SQL.replaceAll('$1::uuid','outer_source.source_id').replaceAll('$2::uuid','outer_source.replica_id').replaceAll('$3::uuid','outer_source.owner_user_id').replaceAll('$4::uuid','outer_job.job_id')}) prepared on outer_source.purpose='comparison_reference'
+ join vy_replica_processing_attempt a on a.job_id=outer_job.job_id and a.attempt=outer_job.attempt and a.outcome='complete'
+ where outer_job.step='voice_quality' and outer_job.state='complete' and outer_job.result->>'verified_input_sha256'=outer_source.sha256
+ and (outer_source.purpose<>'comparison_reference' or prepared.preparation_id is not null)
+ and outer_job.result->>'manifest_hash'=a.result_manifest_hash
+ and outer_job.revision=(select max(j2.revision) from vy_replica_processing_job j2 where j2.source_id=outer_job.source_id and j2.step=outer_job.step)
  and a.adapter_family='voice-analysis' and a.adapter_name='speechbrain-independent-speaker-evidence'
  and a.adapter_version='vyakti-voice-evidence-v2'
 ), artifacts as (
@@ -74,20 +80,28 @@ export const COMPARISON_CANDIDATE_CTES=`comparison_source_rows as materialized (
 ), candidates as (
  select a.*,r.reference_authority_epoch observed_epoch,
  jsonb_build_object('replica_id',r.replica_id,'owner_user_id',r.owner_user_id,'primary_source_id',s.source_id,
-  'policy_version',r.policy_version,'primary_source_sha256',s.sha256,'primary_selection_id',r.primary_selection_id,'authority_epoch',r.private_text_epoch,
+  'policy_version',r.policy_version,'primary_source_sha256',s.sha256,'primary_selection_id',case when s.purpose='comparison_reference' then null else r.primary_selection_id end,'authority_epoch',r.private_text_epoch,
   'capture_consent_id',c.consent_id,'storage_consent_id',st.consent_id,'artifact_id',a.artifact_id,'artifact_sha256',a.sha256,
   'artifact_byte_size',a.byte_size,'artifact_mime',a.mime,'job_id',j.job_id,'job_revision',j.revision,
   'evidence_pins',(select jsonb_agg(jsonb_build_object('evidence_id',e.evidence_id,'record_hash',e.record_hash,'decision_id',null) order by e.evidence_id)
     from vy_replica_processing_evidence e where e.created_by_job_id=j.job_id and e.source_id=s.source_id and e.replica_id=r.replica_id and e.owner_user_id=r.owner_user_id
     and ((e.evidence_type='voice_embedding' and e.artifact_id=a.artifact_id and e.input_sha256=a.sha256)
-      or(e.evidence_type='voice_measurement' and e.value->'input_set' @> jsonb_build_array(jsonb_build_object('artifact_id',a.artifact_id,'sha256',a.sha256)))))) binding,
+      or(e.evidence_type='voice_measurement' and e.value->'input_set' @> jsonb_build_array(jsonb_build_object('artifact_id',a.artifact_id,'sha256',a.sha256)))))) || case when s.purpose='comparison_reference' then jsonb_build_object(
+  'comparison_preparation_id',j.comparison_preparation->>'preparation_id',
+  'comparison_preparation_receipt_hash',j.comparison_preparation->>'receipt_sha256',
+  'comparison_completed_receipt_hash',j.comparison_preparation->>'completed_receipt_sha256') else '{}'::jsonb end binding,
+ j.comparison_preparation preparation,
  (select jsonb_agg(to_jsonb(e)||jsonb_build_object('decision_id',null) order by e.evidence_id)
     from vy_replica_processing_evidence e where e.created_by_job_id=j.job_id and e.source_id=s.source_id and e.replica_id=r.replica_id and e.owner_user_id=r.owner_user_id
     and ((e.evidence_type='voice_embedding' and e.artifact_id=a.artifact_id and e.input_sha256=a.sha256)
       or(e.evidence_type='voice_measurement' and e.value->'input_set' @> jsonb_build_array(jsonb_build_object('artifact_id',a.artifact_id,'sha256',a.sha256))))) reference_rows,
- s.created_at source_created_at,least(now()+interval '23 hours',coalesce(c.expires_at,'infinity'::timestamptz),coalesce(st.expires_at,'infinity'::timestamptz)) expires_at
+ s.created_at source_created_at,least(now()+interval '23 hours',coalesce(c.expires_at,'infinity'::timestamptz),coalesce(st.expires_at,'infinity'::timestamptz),coalesce((j.comparison_preparation->>'expires_at')::timestamptz,'infinity'::timestamptz)) expires_at
  from artifacts a join primary_source s using(source_id,replica_id,owner_user_id) join owned r using(replica_id,owner_user_id)
- cross join capture c cross join storage st cross join current_job j
+ cross join capture c cross join storage st join current_job j on j.source_id=s.source_id
+ where (s.purpose='comparison_reference' or (c.consent_id=(select consent_id from capture order by granted_at desc,consent_id limit 1)
+ and st.consent_id=(select consent_id from storage order by granted_at desc,consent_id limit 1)))
+ and (s.purpose<>'comparison_reference' or (j.comparison_preparation->'receipt'->>'capture_consent_id'=c.consent_id::text
+ and j.comparison_preparation->'receipt'->>'storage_consent_id'=st.consent_id::text))
 )`;
 export const COMPARISON_OPTIONS_SQL=`with ${COMPARISON_CANDIDATE_CTES} select * from candidates where ($4::uuid is null or artifact_id>$4::uuid) order by artifact_id limit 16`;
 export const COMPARISON_READ_SQL=`select h.* from vy_replica_comparison_reference h
@@ -143,15 +157,40 @@ export const COMPARISON_WITHDRAW_SQL=`with comparison_source_rows as materialize
  and exists(select 1 from cancelled where selected_epoch is not null) returning r.replica_id
 ) select cancelled.* from cancelled where (select count(*) from advanced)>=0`;
 
+
+// Validate the completion body independently of SQL filtering. A database
+// wrapper returning a stale/tampered row cannot manufacture prepared evidence.
+export function validateCompletedComparisonCandidate(row) {
+ const b=row?.binding,p=row?.preparation;
+ if(!b?.comparison_preparation_id){if(p)fail('comparison_preparation_binding_invalid');return null;}
+ if(b.primary_selection_id!==null||!p||p.state!=='prepared'||Date.parse(p.expires_at)<=Date.now()||p.preparation_id!==b.comparison_preparation_id||
+  p.replica_id!==b.replica_id||p.owner_user_id!==b.owner_user_id||p.source_id!==b.primary_source_id||
+  p.receipt_sha256!==b.comparison_preparation_receipt_hash||p.completed_receipt_sha256!==b.comparison_completed_receipt_hash||
+  sha256Hex(p.receipt)!==p.receipt_sha256||p.receipt?.preparation_id!==p.preparation_id||
+  p.receipt?.replica_id!==b.replica_id||p.receipt?.owner_user_id!==b.owner_user_id||p.receipt?.source_id!==b.primary_source_id||
+  p.receipt?.policy_version!==b.policy_version||p.receipt?.statement_set!=='private-comparison-preparation/v1'||
+  !p.receipt.attestations||Object.keys(p.receipt.attestations).length!==3||
+  ['recording_is_only_me','process_for_private_comparison','no_training_or_public_voice_permission'].some(k=>p.receipt.attestations[k]!==true)||
+  p.receipt?.source_sha256!==b.primary_source_sha256||
+  p.receipt?.capture_consent_id!==b.capture_consent_id||p.receipt?.storage_consent_id!==b.storage_consent_id||
+  Number(p.receipt?.authority_epoch)!==Number(b.authority_epoch))fail('comparison_preparation_changed');
+ let c;try{c=processingCompletionReceipt(p.completed_receipt);}catch{fail('comparison_completed_receipt_invalid',503);}
+ if(c.purpose!=='private-comparison-preparation/v1'||c.step!=='voice_quality'||c.preparation_id!==p.preparation_id||
+  c.preparation_receipt_sha256!==p.receipt_sha256||c.manifest_hash!==p.completed_receipt_sha256||
+  json(c)!==json(p.completed_receipt)||c.verified_input_sha256!==b.primary_source_sha256||
+  b.evidence_pins.some(e=>!c.evidence_ids.includes(e.evidence_id)))fail('comparison_completed_receipt_invalid',503);
+ return p;
+}
+
 function attest(value){if(!value||Object.getPrototypeOf(value)!==Object.prototype||Reflect.ownKeys(value).length!==3||COMPARISON_REFERENCE_STATEMENTS.some(s=>!Object.hasOwn(Object.getOwnPropertyDescriptor(value,s.id)||{},'value')||value[s.id]!==true))fail('comparison_explicit_consent_required',400);return Object.fromEntries(COMPARISON_REFERENCE_STATEMENTS.map(s=>[s.id,true]));}
-function candidate(row){referenceFromAuthority(row);const epoch=Number(row.observed_epoch);if(!Number.isSafeInteger(epoch)||epoch<0)fail('comparison_epoch_invalid',503);return {...row,observed_epoch:epoch,snapshot_hash:sha256Hex({binding:row.binding,observed_epoch:epoch})};}
-function publicReference(h){return {reference_id:h.reference_id,replica_id:h.replica_id,state:h.state==='revoked'?'revoked':Date.parse(h.expires_at)<=Date.now()?'expired':h.state,created_at:new Date(h.created_at).toISOString(),expires_at:h.expires_at?new Date(h.expires_at).toISOString():null};}
+function candidate(row){validateCompletedComparisonCandidate(row);referenceFromAuthority(row);const epoch=Number(row.observed_epoch);if(!Number.isSafeInteger(epoch)||epoch<0)fail('comparison_epoch_invalid',503);return {...row,observed_epoch:epoch,snapshot_hash:sha256Hex({binding:row.binding,observed_epoch:epoch})};}
+function publicReference(h){return {...(h.receipt_payload?.binding?.comparison_preparation_id?{purpose:'comparison_reference',preparation_id:h.receipt_payload.binding.comparison_preparation_id,source_id:h.source_id}:{}),reference_id:h.reference_id,replica_id:h.replica_id,state:h.state==='revoked'?'revoked':Date.parse(h.expires_at)<=Date.now()?'expired':h.state,created_at:new Date(h.created_at).toISOString(),expires_at:h.expires_at?new Date(h.expires_at).toISOString():null};}
 export function validateComparisonReferenceReceipt(h){const p=h?.receipt_payload;if(!p||p.binding?.policy_version!==REPLICA_POLICY_VERSION||h.receipt_hash!==sha256Hex(p)||p.statement_set!==COMPARISON_REFERENCE_STATEMENT_SET||p.reference_id!==h.reference_id||p.binding?.replica_id!==h.replica_id||p.binding?.owner_user_id!==h.owner_user_id||p.binding?.primary_source_id!==h.source_id||p.binding?.artifact_id!==h.artifact_id)fail('comparison_receipt_invalid');attest(p.attestations);return p;}
 async function currentCandidate(db,owner,rid,artifact){const rows=await query(db,COMPARISON_OPTIONS_SQL,[id(rid),id(owner),id(artifact),null]);if(rows.length!==1)fail('comparison_reference_unavailable');return candidate(rows[0]);}
 async function readRow(db,owner,rid,reference){const rows=await query(db,COMPARISON_READ_SQL,[id(rid),id(owner),id(reference)]);if(rows.length!==1)fail('comparison_reference_not_found',404);return rows[0];}
 async function authorized(db,owner,rid,reference){const h=await readRow(db,owner,rid,reference);const p=validateComparisonReferenceReceipt(h);if(!['review','selected'].includes(h.state)||Date.parse(h.expires_at)<=Date.now())fail('comparison_reference_withdrawn');const c=await currentCandidate(db,owner,rid,h.artifact_id);if(json(p.binding)!==json(c.binding)||(h.state==='review'&&Number(h.observed_epoch)!==c.observed_epoch))fail('comparison_reference_changed');return {h,c};}
 
-export async function comparisonReferenceOptions(db,owner,rid,cursor=null){const rows=await query(db,COMPARISON_OPTIONS_SQL,[id(rid),id(owner),null,cursor===null?null:id(cursor)]);const options=[];for(const row of rows){try{const c=candidate(row);options.push({artifact_id:c.artifact_id,source_id:c.source_id,source_created_at:new Date(c.source_created_at).toISOString(),duration_ms:c.duration_ms==null?null:Number(c.duration_ms),mime:c.mime,snapshot_hash:c.snapshot_hash});}catch(e){if(!['reference_unavailable','reference_revision_unavailable','reference_record_mismatch','reference_input_mismatch'].some(code=>e.code===`liveness_issued_capture_${code}`))throw e;}}
+export async function comparisonReferenceOptions(db,owner,rid,cursor=null){const rows=await query(db,COMPARISON_OPTIONS_SQL,[id(rid),id(owner),null,cursor===null?null:id(cursor)]);const options=[];for(const row of rows){try{const c=candidate(row);options.push({purpose:c.binding.comparison_preparation_id?'comparison_reference':'ordinary',...(c.binding.comparison_preparation_id?{preparation_id:c.binding.comparison_preparation_id}:{}),artifact_id:c.artifact_id,source_id:c.source_id,source_created_at:new Date(c.source_created_at).toISOString(),duration_ms:c.duration_ms==null?null:Number(c.duration_ms),mime:c.mime,snapshot_hash:c.snapshot_hash});}catch(e){if(!['reference_unavailable','reference_revision_unavailable','reference_record_mismatch','reference_input_mismatch'].some(code=>e.code===`liveness_issued_capture_${code}`))throw e;}}
  const current=await query(db,COMPARISON_CURRENT_SQL,[id(rid),id(owner)]);if(current.length>1)fail('comparison_current_ambiguous',503);return {replica_id:rid,state:options.length?'available':'unavailable',options,current_reference:current[0]?publicReference(current[0]):null,next_cursor:rows.length===16?id(rows[15].artifact_id):null,statement_set:COMPARISON_REFERENCE_STATEMENT_SET,statements:COMPARISON_REFERENCE_STATEMENTS,capture_ready:false};}
 export async function readComparisonReference(db,owner,rid,reference){const h=await readRow(db,owner,rid,reference);const pub=publicReference(h);if(['revoked','expired'].includes(pub.state))return {...pub,can_audition:false,can_confirm:false};try{const {c}=await authorized(db,owner,rid,reference);return {...pub,artifact_id:h.artifact_id,source_id:h.source_id,source_created_at:new Date(c.source_created_at).toISOString(),duration_ms:c.duration_ms==null?null:Number(c.duration_ms),snapshot_hash:c.snapshot_hash,can_audition:true,can_confirm:h.state==='review'&&!!h.audition_response_at};}catch(e){if(e.status===409)return {...pub,can_audition:false,can_confirm:false,changed:true};throw e;}}
 export async function authorizeComparisonReference(db,owner,input){const rid=id(input.replica_id),reference=id(input.reference_id),artifact=id(input.artifact_id);const choices=attest(input.attestations);hash(input.expected_snapshot_hash);

@@ -26,7 +26,7 @@ try {
   await page.screenshot({ path: desktop, fullPage: true });
 
   await page.goto(`${base}/evals/liveness-verification/harness.html?state=uploaded`, { waitUntil: "networkidle" });
-  await page.getByRole("heading", { name: "Waiting for an independent verifier" }).waitFor();
+  await page.getByRole("heading", { name: "Your recording is waiting for verification" }).waitFor();
   assert.match(await page.locator(".verification-pending").innerText(), /has not granted biometric, training, inference/i);
 
   await page.goto(`${base}/evals/liveness-verification/harness.html?state=passed`, { waitUntil: "networkidle" });

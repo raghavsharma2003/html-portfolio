@@ -97,8 +97,8 @@ export const COMPARISON_COMPLETED_AUTHORITY_SQL=`select cp.* from vy_replica_sou
  and j.result=cp.completed_receipt and j.result->>'manifest_hash'=cp.completed_receipt_sha256
  and ${comparisonAuthoritySql('s','j',{completed:true})}
  and not exists(select 1 from unnest(array['diarize','enhance','voice_quality']::text[]) required(step)
- where not exists(select 1 from vy_replica_comparison_dispatch d where d.preparation_id=cp.preparation_id and d.step=required.step and d.state='settled'))
- and not exists(select 1 from vy_replica_comparison_dispatch d where d.preparation_id=cp.preparation_id and d.state<>'settled')`;
+ where not exists(select 1 from vy_replica_comparison_dispatch d where d.preparation_id=cp.preparation_id and d.step=required.step and d.state='response_recorded'))
+ and not exists(select 1 from vy_replica_comparison_dispatch d where d.preparation_id=cp.preparation_id and d.state<>'response_recorded')`;
 export async function readOwnedCompletedComparisonPreparation(db,owner,rid,sourceId,jobId){
  const row=(await db(COMPARISON_COMPLETED_AUTHORITY_SQL,[replicaId(sourceId),replicaId(rid),owner,replicaId(jobId)]))[0];
  if(!row)return null;const receipt=processingCompletionReceipt(row.completed_receipt);

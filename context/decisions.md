@@ -23340,3 +23340,28 @@ Use a separately withdrawable, immutable private comparison receipt over existin
 ## `comparison-preparation31-purpose` (2026-09-08)
 
 Implement a separate explicit private processing receipt and seven-stage worker branch. Preserve ordinary capture/training/genome gates and refuse missing GPU accounting before model work. Fresh dedicated selection remains a coordinated145 seam; no readiness activation. Reverse if real SQL admits stale authority, comparison-only material reaches ordinary selection/builds, or uncertain dispatch retries. See docs/gurukul/research/COMPARISON-PREPARATION31-HANDOFF-20260908.md.
+
+
+## `gpu-allocation147-pending-accounting` (2026-09-07)
+
+2026-09-08: Add dormant content-free allocation accounting sharing the provider budget, exclusive resource lease across revisions, one-shot begin and separately recorded response. No timeout auto-release. Production refuses without an implemented finite controller. Reverse only with real SQL races and an execution capability proving bounded allocation and attributable reconciliation. See GPU-ALLOCATION-BUDGET32-HANDOFF-20260908.md.
+
+
+## `gpu147-discovery-response-state` (2026-09-08)
+
+2026-09-08: completed preparation discovery must require response_recorded just like the actual writer and completion caller. Reverse only with equivalent typed funded-response binding; never relabel historical settled rows.
+
+
+## `comparison-preparation-ui32` (2026-09-08)
+
+2026-09-08: Reuse authenticated source create_upload/finalize with comparison_reference purpose, explicit three unchecked statements and owner+replica scoped opaque preparation ID. No capture/storage grant is added here. The existing Azure signed PUT contract is sent in one abortable request capped at32MiB, avoiding a detached resumable helper that has no cancellation signal. Reverse if the bounded native upload contract or erasure fences fail actual Azure acceptance.
+
+
+## `comparison-preparation-ui32-disclosure` (2026-09-08)
+
+2026-09-08: ComparisonReferenceReview mounts the new uploader only inside a collapsed Add a comparison recording disclosure. Its key includes owner, token and replica; the existing parent scope remount resets disclosure state. Existing prepared evidence review retains only its own three permissions. Reverse if account/scope changes preserve an old live uploader or ordinary review initiates a preparation request. Mounted parent fixture now includes fresh/no-primary selection, actual descriptor callback with unavailable capture, and withdrawal tests; only syntax, prepare and21asset bundle compilation ran, with no browser interaction claim.
+
+
+## `comparison-seam32-dedicated-selection` (2026-09-08)
+
+2026-09-08: Combine145/146 with selected145 reference UUID as fresh comparison selection identity; immutable receipt keeps null ordinary selection. Private identity requires capture/storage; ordinary recording/transcription/training gates still apply before build. Reverse on real SQL or mounted stale authority, training bypass, or private leakage.
