@@ -16194,6 +16194,24 @@
       "kind": "measurement",
       "title": "Private dependencies and scoped checks passed",
       "at": "2026-09-08"
+    },
+    {
+      "id": "correction37-catalog-proposal-before-candidate",
+      "kind": "decision",
+      "title": "Prepare held catalog strategy request without forged owner votes",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "correction37-five-uncalled-bridges",
+      "kind": "measurement",
+      "title": "Source-only five bridge caller audit",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "correction37-response-text-is-not-response-commitment",
+      "kind": "rejection",
+      "title": "Do not hash reply text as structured dialogue response",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

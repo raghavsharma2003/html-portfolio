@@ -23568,3 +23568,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `release34-scoped-last-additions` (2026-09-08)
 
 2026-09-08: Root authorized only site/vyakti.html from27d67bef and151894f17f1, not performance experiment harness files. Three prose sections use content-visibility with measured fallback sizes and print restoration. Exact catalog correction removes remaining auto-named147 upper-cost check;149/150 unchanged. Reversal: integrated browser/accessibility/regression failure or mismatched real catalog reopens this candidate.
+
+
+## `correction37-catalog-proposal-before-candidate` (2026-09-08)
+
+2026-09-08 source-only audit at release34 base5ade4ea95209b15b0268338128514401be41b710: correction feedback and dataset preparation have real UI callers; candidate construction is missing. Reuse existing calibration strategy catalog, learning-example reader, candidate registration, blind package and qualification components. Added a pure held Azure request preparer; no dispatch, registration or activation. Inferred strategy IDs remain proposals, never fabricated owner calibration. Reversal requires an alternative representation improving fresh owner-held-out behavior while retaining revision/source authority, privacy, budget and explicit promotion.

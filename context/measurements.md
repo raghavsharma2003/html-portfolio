@@ -17345,3 +17345,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `release34-private-preparation-pass` (2026-09-08)
 
 2026-09-08: Independent dependency bytecopy07:04:44.065Zto07:07:20.393Z,156.328seconds, no junctions/hardlinks/network. Ignored config18AST-verified empty exports SHA728dc5821336bed9c5ad851b3e837a54d342674923de81454ce11b0a2d48a432. GPU18offlinecontrols, copy7scopes21negatives, forcedsemanticTypeScript and guard11selfchecks terminal0exec26314. No productionbuild/fullrelease/SQL/provider/cloud. Final source freeze and prepare follows; rootexplicitrun remainsrequired.
+
+
+## `correction37-five-uncalled-bridges` (2026-09-08)
+
+2026-09-08 n=5 bridge functions inspected using rg over api/src/scripts and repository references: loadOwnedFeedbackLearningExample, registerOwnedCandidate, persistCandidateEvaluationPackage, loadCandidateOwnerObservations, recordOwnedCandidateQualification. No production invocation found; definitions/eval references exist. Existing Studio owner evaluation caller does exist. New request and synthetic eval are source-only, not executed during root release34 reservation. No SQL, model, browser, build or quality measurement.

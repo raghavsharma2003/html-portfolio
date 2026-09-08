@@ -17343,3 +17343,8 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `release34-no-performance-causality` (2026-09-08)
 
 2026-09-08: One bounded A/B improvement does not prove eliminated host noise or full-release acceptance. Importing all performancebranch files would mix diagnostics with product; only reviewed site/vyakti.html was restored. Original release31 and diagnostic failures retained.
+
+
+## `correction37-response-text-is-not-response-commitment` (2026-09-08)
+
+2026-09-08 source review rejected the initial request pair check comparing sha256(rejected_output) to response_hash: actual _dialogue/contracts.js hashes canonical structured output including delivery. Removed that invalid comparison before any execution. The existing owned learning-example SQL join binds original reply to its turn/response commitment; preparation verifies preferred-text hash and pair/version binding, and commits exact outbound text in request_hash. This does not replace a fresh authenticated worker authority check. Also rejected forging inferred strategy IDs into buildCalibrationDefinition as owner votes or appending raw correction prose to the runtime prompt.
