@@ -5,11 +5,14 @@ import { runInNewContext } from "node:vm";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { buildFeedbackDatasetDefinition } from "../api/_replica-feedback-dataset.js";
+import { createHash } from "node:crypto";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const rid = "10000000-0000-4000-8000-000000000001", cap = "20000000-0000-4000-8000-000000000001";
 const dataset = "30000000-0000-4000-8000-000000000001", time = "2026-09-07T00:00:00Z";
 const row = { feedback_id: dataset, turn_id: dataset, session_id: dataset, revision: 1, profile_version: 1, calibration_version: 1,
+  prompt_hash: createHash('sha256').update('Synthetic approved prompt for correction client').digest('hex'),
+  learner_input_sha256: createHash('sha256').update('Synthetic owner question for correction client').digest('hex'),
   ratings: { wording: "exact" }, ratings_hash: "a".repeat(64), response_hash: "b".repeat(64) };
 const definition = buildFeedbackDatasetDefinition([row], [], { replica_id: rid, capability_id: cap, profile_version: 1, calibration_version: 1 });
 const review = { replica_id: rid, state: "collecting", can_build: true, binding: { capability_id: cap, profile_version: 1, calibration_version: 1 },
@@ -26,6 +29,12 @@ runInNewContext(code, { module, exports: module.exports, require: createRequire(
   fetch: async (url, options) => { calls.push({ url, options }); return { ok: true, json: async () => structuredClone(response) }; } });
 const api = module.exports;
 function ok(name, test) { test(); console.log(`ok ${++checks} - ${name}`); }
+for (const field of ['prompt_hash', 'learner_input_sha256']) ok('missing '+field+' remains ineligible', () => {
+  const missing = { ...row }; delete missing[field];
+  const rejected = buildFeedbackDatasetDefinition([missing], [], { replica_id: rid, capability_id: cap, profile_version: 1, calibration_version: 1 });
+  assert.equal(rejected.definition.examples.length, 0);
+  assert.equal(rejected.readiness.ready_for_candidate_dataset, false);
+});
 ok("actual built parser accepts current non-ready evidence", () => assert.equal(api.parseFeedbackDatasetReview(review, rid).readiness.ready_for_candidate_dataset, false));
 for (const [name, mutate] of [
   ["wrong replica", r => { r.replica_id = cap; }],

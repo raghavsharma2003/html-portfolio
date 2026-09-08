@@ -149,19 +149,27 @@ try {
     for (const required of [
       'generator, input, prompt, evidence',
       'await beginFoundrySpend(db, reservation);',
-      'assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id));',
+      'assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id), input.message);',
       'if (providerStarted) await markFoundrySpendUncertain(db, reservation, error);',
       'can_voice: evidence.length === 0 && !runtime.capability.private_selection && !runtime.candidateBinding,',
     ]) assert.ok(current.includes(required), `missing dialogue authority contract: ${required}`);
     const order = [
       'await beginFoundrySpend(db, reservation);',
-      'assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id));',
+      'assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id), input.message);',
       'const generated = await generator.generate({ prompt, signal });',
       'const finished = await finishDialogueTurn(db, ownerUserId, runtime, turn, output);',
     ].map(value => current.indexOf(value));
     assert.ok(order.every((value, index) => index === 0 || value > order[index - 1]), 'dialogue spend, authority, provider and finish order changed');
+    const authority='assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id), input.message);';
+    assert.equal(current.split(authority).length-1,2,'question-bound authority is rechecked before and after the provider');
+    assert.ok(current.lastIndexOf(authority)>current.indexOf('const generated = await generator.generate({ prompt, signal });'));
+    assert.ok(current.lastIndexOf(authority)<current.indexOf('const finished = await finishDialogueTurn(db, ownerUserId, runtime, turn, output);'));
     };
     verify(next);
+    const authority='assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id), input.message);';
+    for(const offset of [next.indexOf(authority),next.lastIndexOf(authority)]) {
+      assert.ok(offset>=0);assert.throws(()=>verify(next.slice(0,offset)+authority.replace(', input.message);',');')+next.slice(offset+authority.length)));
+    }
     for(const [before,after] of [
       ['await beginFoundrySpend(db, reservation);','await settleFoundrySpend(db, reservation);'],
       ['if (providerStarted) await markFoundrySpendUncertain','if (false) await markFoundrySpendUncertain'],

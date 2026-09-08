@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { join, extname } from "node:path";
 import { build } from "vite";
 import { buildFeedbackDatasetDefinition } from "../api/_replica-feedback-dataset.js";
+import { createHash } from "node:crypto";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const RID = "10000000-0000-4000-8000-000000000001", OTHER = "10000000-0000-4000-8000-000000000002";
@@ -32,6 +33,8 @@ let count = 0, saved = null, readCount = 0, posts = [], feedbackPending = null, 
 let holdFeedback = false, holdRead = false, mode = "normal";
 const rows = (n = count) => Array.from({ length: n }, (_, index) => ({ feedback_id: `30000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
   turn_id: `40000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, session_id: TURN, revision: 1,
+  prompt_hash: createHash('sha256').update(`Synthetic UI prompt ${index}`).digest('hex'),
+  learner_input_sha256: createHash('sha256').update(`Synthetic correction question ${index}`).digest('hex'),
   profile_version: 1, calibration_version: 1, ratings: { wording: "exact" }, ratings_hash: "a".repeat(64), response_hash: "b".repeat(64) }));
 function review(rid = RID) {
   const built = buildFeedbackDatasetDefinition(rows(rid === OTHER ? 7 : count), [], { replica_id: rid, capability_id: CAP, profile_version: 1, calibration_version: 1 });
