@@ -362,7 +362,10 @@ export interface ReplicaDialogueDelivery {
   nonverbals: Array<"breath" | "soft_laugh" | "pause" | "sigh">;
 }
 
+export interface PrivateConversationSource { turn_id: string; created_at: string; question: string; reply: string; }
+
 export interface ReplicaDialogueTurn {
+  has_continuity?: boolean;
   turn_id: string;
   session_id: string;
   reply: string;

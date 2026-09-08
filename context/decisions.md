@@ -23514,3 +23514,8 @@ Implement a separate explicit private processing receipt and seven-stage worker 
 ## `comparison-seam32-saved-recording-copy` (2026-09-08)
 
 After actual visual inspection, hide new-upload instructions and unavailable preparation notice once a recording status is saved; show the exact saved state and recovery/withdrawal actions. Reverse if actual owner testing loses the ability to understand or recover an incomplete upload. No backend or permission change.
+
+
+## `private-continuity32-evidence-boundary` (2026-09-08)
+
+2026-09-08: Add opt-in private-session continuity using existing dialogue/log tables, max3prior active12h samecap exchanges and2048UTF8byte conservative token cap. Source IDs/hashes persist in148; owner corrections/publicpublication untouched. Reversal: actualscope/erase/parser or heldoutrecall failure invalidates acceptance; no semanticmemory quality inferred.

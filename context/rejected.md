@@ -17287,3 +17287,8 @@ Copy replacement script expected each old phrase once, but modern capture fixtur
 ## `comparison-seam32-prepared-unavailable-copy` (2026-09-08)
 
 Initial uploader fixture1788849012056 passed6groups, but actual390image showed preparation unavailable alongside recording prepared. Original retained; conditional visibility now suppresses new-upload instructions after saved state. Final uploader6groups adds assertion of absent unavailable notice; parent34groups rerun after shared component changed. Initial parent1788848949548 also retained.
+
+
+## `private-continuity32-reference-only-erasure` (2026-09-08)
+
+Source references without deletion propagation can retain derived raw replies after individual sourceerasure. Added reviewedcandidate triggerlocking sameparent and deleting onlymatching derivedassistantlogs plusGINlookup. Actualtrigger/race/cascadeproof stillrequired. Firstdialoguetest attemptmissingblank_config importfailed, corrected withverifiedinertstub then33pass. Textonlyuntilactualprotectedstream sourcebinding isverified.

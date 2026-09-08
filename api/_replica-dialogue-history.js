@@ -1,7 +1,8 @@
+import {continuityPredicate} from "./_private-dialogue-continuity.js";
 // Resume the existing owner-only private conversation. No inferred memory,
 // transcript copy, session extension on read, or model call belongs here.
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
-import { personProfileValiditySql } from "./_person-model.js";
+import {DIALOGUE_AUTHORITY_SQL as runtime} from "./_replica-dialogue-authority.js";
 import { canonicalJson, sha256Hex } from "./_provenance/contracts.js";
 import { validateDialogueOutput } from "./_dialogue/contracts.js";
 
@@ -16,28 +17,7 @@ function sessionId(value, optional = false) {
 
 // Mirrors loadOwnedRuntimeContext's current live prerequisites, at the actual
 // history/open statement, rather than trusting a previous readiness read.
-const runtime = `select r.replica_id,r.owner_user_id,r.agent_id,r.subject_person_id,
-      c.capability_id,c.profile_version,c.calibration_version
-    from vy_replica r
-    join vy_replica_runtime_capability c on c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
-      and c.agent_id=r.agent_id and c.subject_person_id=r.subject_person_id and c.state='active'
-    join vy_agent a on a.agent_id=c.agent_id and a.status='active'
-    join vy_person person on person.person_id=c.subject_person_id and person.age_tier='adult_verified'
-    join vy_account_person ap on ap.auth_user_id=r.owner_user_id and ap.person_id=c.subject_person_id
-    join vy_replica_voice_profile vp on vp.voice_profile_id=c.voice_profile_id and vp.replica_id=c.replica_id
-      and vp.genome_version=c.genome_version and vp.status='ready'
-    join vy_replica_voice_genome vg on vg.replica_id=c.replica_id and vg.version=c.genome_version and vg.status='approved'
-    join vy_replica_profile pp on pp.replica_id=c.replica_id and pp.version=c.profile_version and pp.status='approved'
-      and (${personProfileValiditySql("pp", "r")})
-    join vy_replica_calibration cal on cal.replica_id=c.replica_id and cal.owner_user_id=c.owner_user_id
-      and cal.version=c.calibration_version and cal.profile_version=c.profile_version and cal.status='approved'
-   where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
-     and r.lifecycle='active' and r.policy_version=$4
-     and r.age_verified_at is not null and r.identity_verified_at is not null
-     and r.liveness_verified_at is not null and r.identity_expires_at>now()
-     and exists(select 1 from vy_replica_consent x where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
-       and x.scope='inference' and x.policy_version=$4 and x.revoked_at is null
-       and (x.expires_at is null or x.expires_at>now()))`;
+
 
 export const DIALOGUE_HISTORY_SQL = `with authorized as materialized (${runtime}),
   selected as materialized (
@@ -56,11 +36,14 @@ export const DIALOGUE_HISTORY_SQL = `with authorized as materialized (${runtime}
     select t.*,u.content as question,a.content as reply from turns t
     join meera_log u on u.id=t.user_log_id and u.agent_id=t.agent_id and u.device_id=t.device_id and u.role='me'
     join meera_log a on a.id=t.assistant_log_id and a.agent_id=t.agent_id and a.device_id=t.device_id and a.role='her'
-    where t.state='complete' order by t.ordinal desc limit 10
+    join authorized r on r.replica_id=t.replica_id
+    join vy_replica_runtime_capability c on c.capability_id=t.capability_id
+    where t.state='complete' and ${continuityPredicate('t.continuity_refs','r','c','t.session_id')} order by t.ordinal desc limit 10
   ), latest as (select * from turns order by ordinal desc limit 1)
   select exists(select 1 from authorized) as runtime_active,s.session_id,
     coalesce((select jsonb_agg(jsonb_build_object('turn_id',t.turn_id,'ordinal',t.ordinal,'trace_id',t.trace_id,
-      'question',t.question,'reply',t.reply,'delivery',t.delivery_plan,'created_at',t.created_at)
+      'question',t.question,'reply',t.reply,'delivery',t.delivery_plan,'created_at',t.created_at,
+      'has_continuity',jsonb_array_length(coalesce(t.continuity_refs,'[]'::jsonb))>0)
       order by t.ordinal asc) from recent t),'[]'::jsonb) as exchanges,
     exists(select 1 from turns where state='generating') as pending,
     (select jsonb_build_object('trace_id',t.trace_id,'state',t.state) from latest t) as latest_request,
@@ -117,8 +100,8 @@ export async function readOwnedDialogueHistory(db, ownerUserId, input) {
     try { output = validateDialogueOutput({ reply: turn.reply, delivery: turn.delivery }); }
     catch { fail("dialogue_history_invalid", 503); }
     return { question: turn.question, trace_id: turn.trace_id, answer: {
-      turn_id: turn.turn_id, session_id: row.session_id, reply: output.reply, delivery: output.delivery,
-      can_voice: true, billing_state: billing(turn.turn_id), created_at: turn.created_at,
+      has_continuity: turn.has_continuity === true, turn_id: turn.turn_id, session_id: row.session_id, reply: output.reply, delivery: output.delivery,
+      can_voice: turn.has_continuity !== true, billing_state: billing(turn.turn_id), created_at: turn.created_at,
     } };
   });
   return { replica_id: rid, session_id: row.session_id || null, exchanges, latest_request: row.latest_request || null,

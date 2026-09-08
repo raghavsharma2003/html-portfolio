@@ -1,5 +1,10 @@
 # STATE — read this first, then the graph
 
+## START HERE: PRIVATE CONTINUITY32 ISOLATE (2026-09-08)
+
+Unaccepted source candidate from frozen31 01a7b6f2. Opt-in bounded prior private-session recall and authenticated sources implemented;148column/trigger/index notapplied.21offline+33dialoguefixture+12historycontrols pass. SemanticTS/browser/fullrelease/realSQL/modelquality unrun. Root ownsreview/integration/deployment; acceptedpreviewunchanged. Read docs/gurukul/research/PRIVATE-CONTINUITY32-HANDOFF-20260908.md before continuing this isolate.
+
+
 ## START HERE: RELEASE31 REGRESSION CANDIDATE (2026-09-08)
 
 This isolated candidate contains release30 plus narrow migration-line-ending and capture-fixture repairs. Store26, capture30 mounted groups and unchanged conversation34 controls passed. The prior Chromium launch crash remains unexplained. Fullrelease31 pending; real relational gates still required. No deployment or owner likeness accepted. Accepted integration/local5177 remain release26. Comparison145 frozen97d02fec and preparation146 frozen c5385f85 are separate work, not integrated here. Root goal remains active; redundant hourly follow-up is paused at user request.

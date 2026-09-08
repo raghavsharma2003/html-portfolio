@@ -1,5 +1,5 @@
 import { replicaRequest, ReplicaApiError } from "./replicaApi";
-import type { ReplicaDialogueTurn, ReplicaDialogueHistory } from "./types";
+import type { ReplicaDialogueTurn, ReplicaDialogueHistory, PrivateConversationSource } from "./types";
 
 const uuid = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 function invalidHistory(): never { throw new ReplicaApiError("Conversation history could not be verified", 502, {}); }
@@ -20,6 +20,7 @@ export async function readDialogueHistory(token: string, replicaId: string, sess
     if (!item || typeof item.question !== "string" || typeof item.trace_id !== "string" || !answer || !uuid(answer.turn_id)
       || answer.session_id !== h.session_id || typeof answer.reply !== "string" || typeof answer.can_voice !== "boolean"
       || !["settled", "not_metered", "reconcile_required"].includes(String(answer.billing_state)) || typeof answer.created_at !== "string"
+      || (answer.has_continuity !== undefined && typeof answer.has_continuity !== "boolean")
       || ids.has(answer.turn_id)) invalidHistory();
     ids.add(answer.turn_id);
   }
@@ -41,6 +42,7 @@ export async function createDialogueTurn(
   message: string,
   sessionId?: string,
   traceId?: string,
+  recallPrevious = false,
 ): Promise<ReplicaDialogueTurn> {
   const data = await replicaRequest<{ turn: ReplicaDialogueTurn }>(token, "/api/replica-dialogue", {
     method: "POST",
@@ -48,10 +50,12 @@ export async function createDialogueTurn(
       replica_id: replicaId,
       channel: "private_chat",
       message,
+      recall_previous: recallPrevious,
       ...(sessionId ? { session_id: sessionId } : {}),
       ...(traceId ? { trace_id: traceId } : {}),
     }),
   });
+  if(data.turn?.has_continuity !== undefined && typeof data.turn.has_continuity !== "boolean") invalidHistory();
   return data.turn;
 }
 
@@ -73,4 +77,19 @@ export async function fetchProtectedTurnVoice(token: string, replicaId: string, 
     throw new Error(String(data?.error || `protected voice failed (${response.status})`).replaceAll("_", " "));
   }
   return response.blob();
+}
+
+export async function readPrivateConversationSources(token:string, replicaId:string, turnId:string, signal?:AbortSignal):Promise<PrivateConversationSource[]> {
+  const data=await replicaRequest<{sources:PrivateConversationSource[]}>(token,"/api/replica-dialogue",{
+    method:"POST",signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20_000)]):AbortSignal.timeout(20_000),
+    body:JSON.stringify({op:"continuity_sources",replica_id:replicaId,turn_id:turnId}),
+  });
+  if(!Array.isArray(data.sources)||data.sources.length>3)invalidHistory();
+  const ids=new Set<string>();
+  for(const item of data.sources){
+    if(!item||!uuid(item.turn_id)||ids.has(item.turn_id)||typeof item.question!=="string"||item.question.length>400
+      ||typeof item.reply!=="string"||item.reply.length>400||!Number.isFinite(Date.parse(item.created_at)))invalidHistory();
+    ids.add(item.turn_id);
+  }
+  return data.sources;
 }
