@@ -23893,3 +23893,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `product175-claims-final-release-scope` (2026-09-08)
 
 2026-09-09 local rootaccepted final87cd after6actualcomposedEXPLAINs,4missingmetadata negatives andtwo clear/accept orderings withblockingwitnesses. Integrate claims plus current175 only; no voice/retention/share successors. Root owns finaldispatch. Reverse freeze on integrated regression or sourcechange, nevermergeunprovedsuccessors forscopegrowth.
+
+
+## `postrelease188-isolated-import` (2026-09-08)
+
+2026-09-09: Imported exact955 source delta from938 into separate6201 successor. Default disabled retained; release175/product175/local174 unchanged. Reverse integration on bounded functional failure; no enablement.

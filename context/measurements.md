@@ -17682,3 +17682,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `product175-claims-root-sql-evidence` (2026-09-08)
 
 2026-09-09 local rootreported context-claims179-clear-accept-race-v4-1788905151464-result.json SHAa8e33d8dd7b7f8124f7c13961c619e23213ca11cf341c2f6fecc6d5de317afdf: bothorderingsPASS,pg_blocking_pidswitness,superseded,evidence/citations0,currentprofilefalse,26absencecounts0,fourclosesconfirmed. This integrationagent didnotrunSQL/provider. v3failurewaswrong audit-history assertion, no productchange.
+
+
+## `postrelease188-targeted-results` (2026-09-08)
+
+2026-09-09 n=1 four disabled/config controls passed. Exact955 shutdown test failed before shutdown: owned child must start at2s. No PID observed; subsequent process inspection found no postrelease188 node command. Preserve POSTRELEASE188-SHUTDOWN-CONTROLS.json. Root says full412suite release evaluation active; contention possible, not established. No browser/build/tsc/provider/SQL/deploy.

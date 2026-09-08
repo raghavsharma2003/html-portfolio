@@ -17448,6 +17448,24 @@
       "kind": "rejection",
       "title": "Keep unrelated successor work outside release checkpoint",
       "at": "2026-09-08"
+    },
+    {
+      "id": "postrelease188-isolated-import",
+      "kind": "decision",
+      "title": "Keep retention caller separate",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "postrelease188-targeted-results",
+      "kind": "measurement",
+      "title": "Disabled controls pass; child admission test failed",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "postrelease188-no-shutdown-inference",
+      "kind": "rejection",
+      "title": "Do not change deadlines or infer shutdown result",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
