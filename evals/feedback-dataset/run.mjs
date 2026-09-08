@@ -28,7 +28,7 @@ for (let session = 1; session <= 12; session++) {
       feedback_id: uuid(id), turn_id: uuid(20_000 + id), session_id: sessionId, revision: 1,
       profile_version: 7, calibration_version: 3,
       ratings: { wording: "off", behavior: "close", relationship: "close", memory: "close", delivery: "close" },
-      ratings_hash: (id % 15).toString(16).repeat(64), response_hash: ((id + 1) % 15).toString(16).repeat(64),
+      ratings_hash: (id % 15).toString(16).repeat(64), prompt_hash: ((id + 3) % 15).toString(16).repeat(64), learner_input_sha256: ((id + 4) % 15).toString(16).repeat(64), response_hash: ((id + 1) % 15).toString(16).repeat(64),
       correction_hash: ((id + 2) % 15).toString(16).repeat(64), source_generation_id: null,
     });
     id += 1;
@@ -38,7 +38,7 @@ for (let session = 1; session <= 12; session++) {
       feedback_id: uuid(id), turn_id: uuid(20_000 + id), session_id: sessionId, revision: 1,
       profile_version: 7, calibration_version: 3,
       ratings: { wording: "exact", behavior: "exact", relationship: "exact", memory: "exact", delivery: "exact" },
-      ratings_hash: (id % 15).toString(16).repeat(64), response_hash: ((id + 1) % 15).toString(16).repeat(64),
+      ratings_hash: (id % 15).toString(16).repeat(64), prompt_hash: ((id + 3) % 15).toString(16).repeat(64), learner_input_sha256: ((id + 4) % 15).toString(16).repeat(64), response_hash: ((id + 1) % 15).toString(16).repeat(64),
       correction_hash: null, source_generation_id: null,
     });
     id += 1;
@@ -58,6 +58,8 @@ ok("development and test contain enough independent examples for paired statisti
 ok("adequate multi-layer evidence is structurally ready for a candidate dataset", built.readiness.ready_for_candidate_dataset === true && built.readiness.blockers.length === 0);
 ok("manifest is content-free and uses session commitments rather than session ids", !JSON.stringify(built.definition).includes(uuid(10_001)) && built.definition.examples.every((example) => /^[0-9a-f]{64}$/.test(example.session_commitment)));
 ok("source-set commitment is deterministic across input order", built.source_set_hash === buildFeedbackDatasetDefinition([...rows].reverse(), [], { replica_id: RID, profile_version: 7, calibration_version: 3 }).source_set_hash);
+ok("learner prompt commitment changes the reviewed source set", built.source_set_hash !== buildFeedbackDatasetDefinition(rows.map((row,index) => index === 1 ? { ...row, prompt_hash: "f".repeat(64) } : row), [], { replica_id: RID, profile_version: 7, calibration_version: 3 }).source_set_hash);
+ok("current learner bytes commitment changes the reviewed source set", built.source_set_hash !== buildFeedbackDatasetDefinition(rows.map((row,index) => index === 1 ? { ...row, learner_input_sha256: "f".repeat(64) } : row), [], { replica_id: RID, profile_version: 7, calibration_version: 3 }).source_set_hash);
 
 const frozen = built.assignments[0];
 const rebuilt = buildFeedbackDatasetDefinition(rows, [{ ...frozen, split: "development" }], { replica_id: RID, profile_version: 7, calibration_version: 3 });
@@ -195,9 +197,10 @@ const staleBuild = await buildFailure(rows, true, "a".repeat(64));
 ok("a stale reviewed source set refuses before any mutation", staleBuild.failure?.code === "feedback_dataset_review_changed" && staleBuild.writes === 0);
 ok("actual SQL binds current capability and locks both authority rows", /c\.capability_id=\$13::uuid/.test(mutation.sql) && /for update of r,c/.test(mutation.sql) && mutation.params[12] === CAP);
 ok("race guard rechecks all classification and source commitment inputs", /l\.fingerprint is distinct from e\.fingerprint/.test(mutation.sql)
-  && Object.keys(JSON.parse(mutation.params[8])[0].fingerprint).sort().join() === ["turn_id", "ratings", "ratings_hash", "response_hash", "correction_hash", "source_generation_id", "session_id"].sort().join());
-ok("read authority does not traverse shared agent metadata or infer full activation readiness", !/agent_id|vy_replica_readiness|vy_replica_consent/.test(FEEDBACK_DATASET_REVIEW_SQL)
+  && Object.keys(JSON.parse(mutation.params[8])[0].fingerprint).sort().join() === ["turn_id", "ratings", "ratings_hash", "prompt_hash", "learner_input_sha256", "response_hash", "correction_hash", "source_generation_id", "session_id"].sort().join());
+ok("read authority does not traverse shared agent tables or infer full activation readiness", !/join vy_agent|vy_replica_readiness|vy_replica_consent/.test(FEEDBACK_DATASET_REVIEW_SQL)
   && /r\.subject_mode='self'/.test(FEEDBACK_DATASET_REVIEW_SQL) && /r\.policy_version=\$3/.test(FEEDBACK_DATASET_REVIEW_SQL));
+ok("candidate evidence admits only the owner's own learner turns", /p\.auth_user_id=f\.owner_user_id/.test(FEEDBACK_DATASET_REVIEW_SQL) && /p\.person_id=t\.person_id/.test(FEEDBACK_DATASET_REVIEW_SQL) && /p\.auth_user_id=f\.owner_user_id/.test(FEEDBACK_DATASET_BUILD_SQL));
 
 const migration = readFileSync(join(ROOT, "db/migrations/030_replica_feedback_dataset.sql"), "utf8");
 ok("feedback dataset migration remains one-statement-runner safe", splitSql(migration).length === 4);

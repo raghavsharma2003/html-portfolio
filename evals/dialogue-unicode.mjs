@@ -15,7 +15,7 @@ const delivery = { mode: 'warm', pace: 'natural', intensity: 0.3, language_hint:
 const answer = (reply, hint = 'hi') => ({ reply, delivery: { ...delivery, language_hint: hint } });
 let events = [], generated = answer('ठीक है 🙂'), captured, written;
 const turn = { turn_id: id, session_id: id, ordinal: 1, created_at: '2026-09-07T00:00:00Z' };
-const runtime = { replica: { replica_id: id, agent_id: id, subject_person_id: id }, capability: { capability_id: id }, personProfile: { definition: {} }, calibration: { definition: {} } };
+const runtime = { replica: { replica_id: id, agent_id: id, subject_person_id: id }, capability: { capability_id: id }, personProfile: { definition: {} }, calibration: { definition: {} }, candidateBinding: null };
 globalThis.__dialogueUnicode = {
   runtime: () => { events.push('runtime'); return runtime; },
   session: () => { events.push('session'); return { session_id: id, channel: 'private_chat' }; },
@@ -25,8 +25,8 @@ globalThis.__dialogueUnicode = {
 const stubs = new Map([
   ['_replica.js', `export const replicaId=x=>x; export const REPLICA_POLICY_VERSION='offline-test';`],
   ['_person-model.js', `export const personProfileValiditySql=()=> 'true';`],
-  ['_replica-runtime.js', `export const compileReplicaRuntimeCore=()=> 'Synthetic approved persona'; export const compileRelationshipTail=()=> ''; export const loadOwnedRuntimeContext=(...a)=>globalThis.__dialogueUnicode.runtime(...a); export const openOwnedRuntimeSession=(...a)=>globalThis.__dialogueUnicode.session(...a); export const loadPrivateRelationshipSnapshot=(...a)=>globalThis.__dialogueUnicode.snapshot(...a);`],
-  ['_provider-budget.js', ['reserveFoundrySpend:reserve','beginFoundrySpend:begin','settleFoundrySpend:settle','markFoundrySpendUncertain:uncertain','releaseFoundrySpendBeforeCall:release'].map(pair => { const [name,event]=pair.split(':'); return `export const ${name}=(...a)=>globalThis.__dialogueUnicode.budget('${event}',...a);`; }).join('\n')],
+  ['_replica-runtime.js', `export const REPLICA_CORE_CAP=12000; export const OWNED_RUNTIME_CONTEXT_SQL='select 1'; export const compileReplicaRuntimeCore=()=> 'Synthetic approved persona'; export const compileRelationshipTail=()=> ''; export const loadOwnedRuntimeContext=(...a)=>globalThis.__dialogueUnicode.runtime(...a); export const loadOwnedPrivateRuntimeContext=loadOwnedRuntimeContext; export const openOwnedRuntimeSession=(...a)=>globalThis.__dialogueUnicode.session(...a); export const loadPrivateRelationshipSnapshot=(...a)=>globalThis.__dialogueUnicode.snapshot(...a);`],
+  ['_provider-budget.js', `export const conservativeTokenEstimate=()=>1; export const tokenReservationMicrousd=()=>1; export const foundryBudgetConfig=()=>({});\n` + ['reserveFoundrySpend:reserve','beginFoundrySpend:begin','settleFoundrySpend:settle','markFoundrySpendUncertain:uncertain','releaseFoundrySpendBeforeCall:release'].map(pair => { const [name,event]=pair.split(':'); return `export const ${name}=async(...a)=>globalThis.__dialogueUnicode.budget('${event}',...a);`; }).join('\n')],
 ].map(([path, source]) => [new URL(path, api).href, source]));
 const hooks = registerHooks({ load(url, context, nextLoad) {
   if (stubs.has(url)) return { format: 'module', source: stubs.get(url), shortCircuit: true };
@@ -117,12 +117,12 @@ try {
   await check('actual service preserves accepted question/output and spend order', async () => {
     events=[]; generated=answer('🙂'.repeat(800)); const message='x'.repeat(3998)+'🙂';
     const result=await generate(message); assert.equal(captured.messages.at(-1).content,message);assert.equal(written,message);assert.equal(result.reply,generated.reply);assert.equal(result.billing_state,'settled');
-    assert.deepEqual(events,['runtime','session','snapshot','history','turn','reserve','begin','generate','finish','settle']);
+    assert.deepEqual(events,['runtime','session','snapshot','history','turn','reserve','begin','runtime','generate','runtime','finish','settle']);
   });
   await check('actual service invalid output keeps uncertain spend and no completed answer', async () => {
     for (const [output,code] of [[answer(boundaryReply),'dialogue_reply_too_large'],[answer('bad\ud800'),'dialogue_reply_invalid'],[answer('ok','x'.repeat(31)+'🙂'),'dialogue_delivery_invalid']]) {
       events=[]; generated=output; await rejectsCode(()=>generate('hello'),code);
-      assert.deepEqual(events,['runtime','session','snapshot','history','turn','reserve','begin','generate','uncertain','fail']);
+      assert.deepEqual(events,['runtime','session','snapshot','history','turn','reserve','begin','runtime','generate','runtime','uncertain','fail']);
     }
   });
   await check('actual stored speech reader refuses corrupt answers and hints', async () => {
@@ -134,11 +134,9 @@ try {
     for (const output of [answer(boundaryReply),answer('bad\ud800'),answer('ok','\udc00')]) await rejectsCode(()=>read(output),'dialogue_history_invalid');
     assert.equal((await read(answer('ठीक 🙂'))).exchanges[0].answer.reply,'ठीक 🙂');
   });
-  await check('production spend block preserves incumbent with exact continuity wiring', () => {
+  await check('production spend and continuity authority controls stay wired', () => {
     const path='api/_replica-dialogue.js';
-    const prior=execFileSync('git',['show',`${baseline}:${path}`],{cwd:fileURLToPath(root),encoding:'utf8'}).replaceAll('\r\n','\n');
     const next=readFileSync(new URL(path,root),'utf8').replaceAll('\r\n','\n');
-    // Bound the assertion to the function, not unrelated following SQL exports.
     const block=text=>{
       const tree=ts.createSourceFile(path,text,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
       const fn=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='generateOwnedDialogue');
@@ -146,18 +144,28 @@ try {
       const body=fn.body.getText(tree),start=body.indexOf('  const turn = await beginDialogueTurn');
       assert.ok(start>=0,'turn creation precedes spend'); return body.slice(start);
     };
-    const expected=block(prior)
-      .replace('generator, input, prompt);','generator, input, prompt, evidence);')
-      .replace('    return {\n','    return {\n      has_continuity: evidence.length > 0,\n')
-      .replace('can_voice: true,','can_voice: evidence.length === 0,');
-    const verify=text=>assert.equal(block(text),expected);
+    const verify = text => {
+    const current=block(text);
+    for (const required of [
+      'generator, input, prompt, evidence',
+      'await beginFoundrySpend(db, reservation);',
+      'assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id));',
+      'if (providerStarted) await markFoundrySpendUncertain(db, reservation, error);',
+      'can_voice: evidence.length === 0 && !runtime.capability.private_selection && !runtime.candidateBinding,',
+    ]) assert.ok(current.includes(required), `missing dialogue authority contract: ${required}`);
+    const order = [
+      'await beginFoundrySpend(db, reservation);',
+      'assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id));',
+      'const generated = await generator.generate({ prompt, signal });',
+      'const finished = await finishDialogueTurn(db, ownerUserId, runtime, turn, output);',
+    ].map(value => current.indexOf(value));
+    assert.ok(order.every((value, index) => index === 0 || value > order[index - 1]), 'dialogue spend, authority, provider and finish order changed');
+    };
     verify(next);
-    // The assertion still rejects changes to spend order, uncertain debt, and
-    // the text-only boundary for answers that carry continuity evidence.
     for(const [before,after] of [
       ['await beginFoundrySpend(db, reservation);','await settleFoundrySpend(db, reservation);'],
       ['if (providerStarted) await markFoundrySpendUncertain','if (false) await markFoundrySpendUncertain'],
-      ['can_voice: evidence.length === 0,','can_voice: true,'],
+      ['can_voice: evidence.length === 0 && !runtime.capability.private_selection && !runtime.candidateBinding,','can_voice: true,'],
       ['generator, input, prompt, evidence);','generator, input, prompt);'],
     ]) { assert.ok(next.includes(before)); assert.throws(()=>verify(next.replace(before,after))); }
   });

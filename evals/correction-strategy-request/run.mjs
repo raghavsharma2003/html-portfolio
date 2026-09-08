@@ -8,14 +8,15 @@ const hash = value => sha256Hex(canonicalJson(value));
 const definition = { schema: FEEDBACK_DATASET_SCHEMA, capability_id: 'capability-fixture',
   profile_version: 1, calibration_version: 2, examples: [] };
 const pairs = Array.from({length:30}, (_, i) => {
-  const feedback_id = `feedback-${i}`, turn_id = `turn-${i}`, preferred_output = `पहले समझो ${i}`;
-  const response_hash = hash({reply:`Original ${i}`, delivery:{shape:'fixture'}});
+  const feedback_id = `feedback-${i}`, turn_id = `turn-${i}`, preferred_output = i < 2 ? 'पहले coefficient और subscript का फर्क देखो।' : `पहले समझो ${i}`;
+  const learner_input = i === 0 ? 'Coefficient और subscript same होते हैं?' : i === 1 ? 'Equation balance करते समय नीचे वाला number बदल दूँ?' : `Learner context ${i}`;
+  const prompt_hash = hash({learner_input}), learner_input_sha256=sha256Hex(learner_input), response_hash = i < 2 ? hash({reply:'Generic answer',delivery:{shape:'fixture'}}) : hash({reply:`Original ${i}`, delivery:{shape:'fixture'}});
   const correction_hash = sha256Hex(preferred_output);
   definition.examples.push({ feedback_id, turn_id, revision:1, split:'train',kind:'preference',
-    session_commitment:hash(`session-${i%6}`), response_hash, correction_hash });
-  return {feedback_id,turn_id, preferred_output,rejected_output:`Original ${i}`,
-    version_binding:{capability_id:definition.capability_id,profile_version:1,calibration_version:2,response_hash},
-    pair_hash:hash({response_hash,correction_hash})};
+    session_commitment:hash(`session-${i%6}`), prompt_hash, learner_input_sha256, response_hash, correction_hash });
+  return {feedback_id,turn_id,learner_input,preferred_output,rejected_output:i<2?'Generic answer':`Original ${i}`,
+    version_binding:{capability_id:definition.capability_id,profile_version:1,calibration_version:2,prompt_hash,learner_input_sha256,response_hash},
+    pair_hash:hash({prompt_hash,learner_input_sha256,response_hash,correction_hash})};
 });
 definition.examples.push({feedback_id:'sealed-test',split:'test',kind:'preference',preferred_output:'DO NOT SEND'});
 const snapshot = {definition,source_set_hash:hash(definition),readiness:{ready_for_candidate_dataset:true}};
@@ -29,11 +30,15 @@ assert.ok(!JSON.stringify(plan.request).includes('sealed-test'));
 assert.ok(!JSON.stringify(plan.request.response_format).includes('minItems'));
 assert.ok(!JSON.stringify(plan.request.response_format).includes('maxItems'));
 assert.ok(JSON.parse(plan.request.messages[1].content).evidence.every(row=>typeof row.conversation_group==='string'));
+const contextualEvidence=JSON.parse(plan.request.messages[1].content).evidence.filter(row=>row.feedback_id==='feedback-0'||row.feedback_id==='feedback-1');
+assert.equal(contextualEvidence.length,2);assert.equal(contextualEvidence[0].rejected,contextualEvidence[1].rejected);assert.equal(contextualEvidence[0].preferred,contextualEvidence[1].preferred);assert.notEqual(contextualEvidence[0].learner,contextualEvidence[1].learner);
+assert.notEqual(pairs[0].pair_hash,pairs[1].pair_hash);
 assert.deepEqual(plan,prepareCorrectionStrategyRequest(snapshot,[...pairs].reverse(),model));
 assert.throws(()=>prepareCorrectionStrategyRequest({...snapshot,source_set_hash:'a'.repeat(64)},pairs,model));
 assert.throws(()=>prepareCorrectionStrategyRequest(snapshot,pairs.slice(1),model));
 assert.throws(()=>prepareCorrectionStrategyRequest(snapshot,[pairs[1],...pairs.slice(1)],model));
 assert.throws(()=>prepareCorrectionStrategyRequest(snapshot,[{...pairs[0],preferred_output:'changed'},...pairs.slice(1)],model));
+assert.throws(()=>prepareCorrectionStrategyRequest(snapshot,[{...pairs[0],learner_input:'changed'},...pairs.slice(1)],model));
 assert.throws(()=>prepareCorrectionStrategyRequest(snapshot,[{...pairs[0],version_binding:{...pairs[0].version_binding,calibration_version:3}},...pairs.slice(1)],model));
 assert.throws(()=>prepareCorrectionStrategyRequest(snapshot,pairs,{...model,output_usd_per_million:0}));
 const scenario = CALIBRATION_SCENARIOS[0];

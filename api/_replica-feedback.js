@@ -204,12 +204,10 @@ export async function recordOwnedTurnFeedback(db, ownerUserId, rawInput, env = p
   return clientFeedback(rows[0]);
 }
 
-export async function loadOwnedFeedbackLearningExample(db, ownerUserId, feedbackId, env = process.env) {
-  const id = safeUuid(feedbackId, "valid_feedback_id_required");
-  const rows = await db(
-    `select f.feedback_id,f.turn_id,f.replica_id,f.owner_user_id,f.capability_id,f.profile_version,
+export const OWNED_FEEDBACK_LEARNING_EXAMPLE_SQL = `select f.feedback_id,f.turn_id,f.replica_id,f.owner_user_id,f.capability_id,f.profile_version,
             f.calibration_version,f.response_hash,f.source_generation_id,f.revision,f.ratings,f.ratings_hash,
-            f.reason_codes,f.correction_hash,f.created_at,a.content as original_reply,
+            f.reason_codes,f.correction_hash,f.created_at,t.prompt_hash,u.content as learner_input,
+            encode(digest(convert_to(u.content,'UTF8'),'sha256'),'hex') as learner_input_sha256,a.content as original_reply,
             e.algorithm,e.key_id,encode(e.nonce,'base64') as nonce_b64,
             encode(e.ciphertext,'base64') as ciphertext_b64,encode(e.auth_tag,'base64') as auth_tag_b64,
             encode(e.wrapped_dek,'base64') as wrapped_dek_b64,encode(e.wrap_nonce,'base64') as wrap_nonce_b64,
@@ -220,11 +218,15 @@ export async function loadOwnedFeedbackLearningExample(db, ownerUserId, feedback
         and t.capability_id=f.capability_id and t.profile_version=f.profile_version
         and t.calibration_version=f.calibration_version and t.response_hash=f.response_hash
        join meera_log a on a.id=t.assistant_log_id and a.agent_id=t.agent_id and a.device_id=t.device_id and a.role='her'
+       join meera_log u on u.id=t.user_log_id and u.agent_id=t.agent_id and u.device_id=t.device_id and u.role='me'
+       join vy_account_person p on p.auth_user_id=f.owner_user_id and p.person_id=t.person_id
        left join vy_replica_turn_exemplar e
          on e.feedback_id=f.feedback_id and e.replica_id=f.replica_id and e.owner_user_id=f.owner_user_id
-      where f.feedback_id=$1::uuid and f.owner_user_id=$2::uuid limit 1`,
-    [id, ownerUserId],
-  );
+      where f.feedback_id=$1::uuid and f.owner_user_id=$2::uuid limit 1`;
+
+export async function loadOwnedFeedbackLearningExample(db, ownerUserId, feedbackId, env = process.env) {
+  const id = safeUuid(feedbackId, "valid_feedback_id_required");
+  const rows = await db(OWNED_FEEDBACK_LEARNING_EXAMPLE_SQL, [id, ownerUserId]);
   const row = rows[0];
   if (!row) return null;
   const correction = row.correction_hash ? decryptTurnExemplar(row, {
@@ -234,6 +236,7 @@ export async function loadOwnedFeedbackLearningExample(db, ownerUserId, feedback
     text_sha256: row.correction_hash,
   }, env) : "";
   if (correction && exemplarTextHash(correction) !== row.correction_hash) fail("feedback_exemplar_hash_mismatch", 409);
+  if (sha256Hex(row.learner_input) !== row.learner_input_sha256) fail("feedback_learner_input_hash_mismatch", 409);
   return {
     schema: TURN_FEEDBACK_SCHEMA,
     feedback_id: String(row.feedback_id),
@@ -242,13 +245,18 @@ export async function loadOwnedFeedbackLearningExample(db, ownerUserId, feedback
       capability_id: String(row.capability_id),
       profile_version: Number(row.profile_version),
       calibration_version: Number(row.calibration_version),
+      prompt_hash: row.prompt_hash,
+      learner_input_sha256: row.learner_input_sha256,
       response_hash: row.response_hash,
       source_generation_id: row.source_generation_id ? String(row.source_generation_id) : null,
     },
     ratings: typeof row.ratings === "string" ? JSON.parse(row.ratings) : row.ratings,
     reason_codes: row.reason_codes,
+    learner_input: row.learner_input,
     rejected_output: row.original_reply,
     preferred_output: correction || null,
-    pair_hash: correction ? sha256Hex(canonicalJson({ response_hash: row.response_hash, correction_hash: row.correction_hash })) : null,
+    pair_hash: correction ? sha256Hex(canonicalJson({ prompt_hash: row.prompt_hash,
+      learner_input_sha256: row.learner_input_sha256, response_hash: row.response_hash,
+      correction_hash: row.correction_hash })) : null,
   };
 }

@@ -17582,3 +17582,10 @@ Source integration measurement: n=4 paths, 8 focused modern-capture controls add
 ## `clone-fidelity73-feedback-recall-controls` (2026-09-08)
 
 Source integration measurement: n=4 memory product/test paths, latest feedback revision and seven-field scope fence covered by focused offline controls, 0 SQL/cloud/provider calls. Runtime SQL validation remains separate.
+## `clone-learning74-owner-learner-context-controls` (2026-09-08)
+
+Source integration measurement: n=7 selected product, test and SQL-prep paths, learner prompt and byte commitments bound, 0 foreign context files imported, 0 SQL/cloud/provider calls in this lane.
+
+## clone-learning74-reviewed-release-eval-controls (2026-09-08)
+
+Focused measurement: n=4 reviewed eval files imported; dialogue Unicode passed 13 groups. Candidate materializer and room knowledge exposed incumbent contract drift, and clonechannel exposed a runtime refusal during its focused run. No product source, SQL, cloud, provider, browser or install calls were made.

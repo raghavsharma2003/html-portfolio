@@ -83,7 +83,14 @@ try {
       } finally { inFlight--; markSettled?.(); }
     });
     await page.route('**/api/replica-candidate-eval', async route => {
-      const body = route.request().postDataJSON(); blind.push(body);
+      const body = route.request().postDataJSON();
+      if (body.op === 'qualification_status') {
+        assert.deepEqual(body, { op: 'qualification_status', replica_id: RID, candidate_id: CANDIDATE });
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ qualification: {
+          available: false, active_changed: false,
+        } }) });
+      }
+      blind.push(body);
       assert.deepEqual(body, { op: 'status', replica_id: RID, candidate_id: CANDIDATE });
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ evaluation: {
         available: true, replica_id: RID, state: 'complete', progress: { completed: 30, total: 30 }, assignment: null, dimensions: [],

@@ -142,7 +142,7 @@ const currentMutant = await mutant('if (current.setSha256 !== retained.setSha256
 assert.equal((await currentMutant.assertPublicRoomKnowledgeCurrent(async () => [{ ...row(), answer: "changed" }], scope, base)).sources[0].answer, "changed");
 pass("actual-source negative control: current-set comparison is necessary");
 
-assert.deepEqual([...PUBLIC_ROOM_KNOWLEDGE_SQL.matchAll(/\b(?:from|join)\s+(vy_\w+)/g)].map(x => x[1]).sort(), ["vy_room", "vy_room_showcase"]);
+assert.deepEqual([...PUBLIC_ROOM_KNOWLEDGE_SQL.matchAll(/\b(?:from|join)\s+(vy_\w+)/g)].map(x => x[1]).sort(), ["vy_replica_runtime_capability", "vy_room", "vy_room_showcase"]);
 assert.ok(!/\b(?:insert|update|delete)\b/i.test(PUBLIC_ROOM_KNOWLEDGE_SQL));
-pass("reader SQL names only Room and public showcase and performs no writes");
+pass("reader SQL names Room, public showcase and the active-candidate fence and performs no writes");
 console.log(`room knowledge: ${checks} checks passed; offline fixtures only, no SQL/provider proof`);

@@ -17585,3 +17585,10 @@ The first local modern-capture run reached the new assessor but failed because t
 ## `clone-fidelity73-memory-context-excluded` (2026-09-08)
 
 The memory successor's context graph and narrative records were excluded. Only its two product modules and two existing continuity test paths were imported; local provenance is recorded in this lane.
+## `clone-learning74-customer-private-words-excluded` (2026-09-08)
+
+Customer private words were excluded from fixtures and context records. The selected learner examples are owner-authored rehearsal context only; the pending `5943` test fix remains excluded because root rejected its hardcoded Git baseline.
+
+## clone-learning74-release-eval-contract-drift (2026-09-08)
+
+The candidate materializer fixture expects status while the current request emits qualification_status; room knowledge exposes y_replica_runtime_capability while its incumbent expected list omits it, and clonechannel reaches a clone_unavailable refusal after its controls. These failures are recorded without weakening either the reviewed eval contract or product source.

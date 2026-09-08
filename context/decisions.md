@@ -23793,3 +23793,10 @@ Bind modern ASR evidence to the independently issued phrase and contract before 
 ## `clone-fidelity73-feedback-rejected-recall` (2026-09-08)
 
 Exclude prior AI replies from private continuity when the latest owner feedback revision marks correction, unsafe or text-relevant mismatch, scoped to the exact turn, response, capability and runtime versions. Close-only, voice-only and delivery-only feedback remains inert. Root import tuple: `01ce63f6 -> api/_private-dialogue-continuity.js, api/_replica-dialogue.js, evals/private-continuity/prepare-sql.mjs, evals/private-continuity/run.mjs`.
+## `clone-learning74-owner-learner-context-binding` (2026-09-08)
+
+Bind correction evidence to the owner's current learner input bytes and prompt commitment, with person ownership and exact response/runtime bindings in every dataset and learning read. The context is owner-authored rehearsal material only; no customer private words are admitted. Root import tuples: `e13da97 -> api/_replica-correction-request.js, api/_replica-feedback-dataset.js, api/_replica-feedback.js, evals/correction-strategy-request/run.mjs, evals/feedback-dataset/run.mjs, evals/replica-feedback/run.mjs`; `039c333b -> same six paths plus evals/correction-learner-context/sql-explain-inputs.mjs`.
+
+## clone-learning74-reviewed-release-eval-repairs (2026-09-08)
+
+Integrate the four reviewed release-contract eval repairs from 98e53af1 plus its dialogue refusal assertion follow-up 2d6494fc, limited to existing eval files. Reverse if these controls contradict the current authority contracts after a source review. Root import tuples: 98e53af1, 2d6494fc -> evals/candidate-materializer-ui.mjs, evals/clonechannel.mjs, evals/dialogue-unicode.mjs, evals/room-knowledge.mjs.

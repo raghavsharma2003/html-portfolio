@@ -97,10 +97,12 @@ export function buildFeedbackDatasetDefinition(rows, existingAssignments, option
     const feedbackId = String(row.feedback_id || "");
     const turnId = String(row.turn_id || "");
     const sessionId = String(row.session_id || "");
+    const promptHash = String(row.prompt_hash || "");
+    const learnerInputHash = String(row.learner_input_sha256 || "");
     const responseHash = String(row.response_hash || "");
     const ratingsHash = String(row.ratings_hash || "");
     const correctionHash = row.correction_hash ? String(row.correction_hash) : null;
-    if (!feedbackId || !turnId || !sessionId || !/^[0-9a-f]{64}$/.test(responseHash) || !/^[0-9a-f]{64}$/.test(ratingsHash) || (correctionHash && !/^[0-9a-f]{64}$/.test(correctionHash))) continue;
+    if (!feedbackId || !turnId || !sessionId || !/^[0-9a-f]{64}$/.test(promptHash) || !/^[0-9a-f]{64}$/.test(learnerInputHash) || !/^[0-9a-f]{64}$/.test(responseHash) || !/^[0-9a-f]{64}$/.test(ratingsHash) || (correctionHash && !/^[0-9a-f]{64}$/.test(correctionHash))) continue;
     const commitment = sessionCommitment(rid, sessionId);
     examples.push({
       feedback_id: feedbackId,
@@ -110,6 +112,8 @@ export function buildFeedbackDatasetDefinition(rows, existingAssignments, option
       kind: classify(ratings, correctionHash),
       dimensions: Object.keys(ratings).sort(),
       ratings_hash: ratingsHash,
+      prompt_hash: promptHash,
+      learner_input_sha256: learnerInputHash,
       response_hash: responseHash,
       correction_hash: correctionHash,
       voice_generation_bound: Boolean(row.source_generation_id),
@@ -180,10 +184,14 @@ export const FEEDBACK_DATASET_REVIEW_SQL = `with owned as (
    where f.profile_version=a.profile_version and f.calibration_version=a.calibration_version
    order by f.turn_id,f.revision desc
 ), eligible as (
-  select f.*,t.session_id from latest f join vy_replica_dialogue_turn t
+  select f.*,t.session_id,t.prompt_hash,
+    encode(digest(convert_to(u.content,'UTF8'),'sha256'),'hex') as learner_input_sha256
+  from latest f join vy_replica_dialogue_turn t
     on t.turn_id=f.turn_id and t.replica_id=f.replica_id and t.owner_user_id=f.owner_user_id
    and t.capability_id=f.capability_id and t.profile_version=f.profile_version
    and t.calibration_version=f.calibration_version and t.response_hash=f.response_hash and t.state='complete'
+   join vy_account_person p on p.auth_user_id=f.owner_user_id and p.person_id=t.person_id
+   join meera_log u on u.id=t.user_log_id and u.agent_id=t.agent_id and u.device_id=t.device_id and u.role='me'
 ) select o.replica_id,a.capability_id,a.profile_version,a.calibration_version,now() as checked_at,
   coalesce((select jsonb_agg(to_jsonb(e)) from eligible e),'[]'::jsonb) as feedback_rows,
   coalesce((select jsonb_agg(jsonb_build_object('session_commitment',s.session_commitment,'split',s.split))
@@ -212,11 +220,14 @@ export const FEEDBACK_DATASET_BUILD_SQL = `with authorized as (
      ), latest as (
        select f.feedback_id,f.revision,jsonb_build_object('turn_id',f.turn_id,'ratings',f.ratings,
          'ratings_hash',f.ratings_hash,'response_hash',f.response_hash,'correction_hash',f.correction_hash,
-         'source_generation_id',f.source_generation_id,'session_id',t.session_id) as fingerprint
+         'source_generation_id',f.source_generation_id,'session_id',t.session_id,'prompt_hash',t.prompt_hash,
+         'learner_input_sha256',encode(digest(convert_to(u.content,'UTF8'),'sha256'),'hex')) as fingerprint
          from latest_feedback f join vy_replica_dialogue_turn t
            on t.turn_id=f.turn_id and t.replica_id=f.replica_id and t.owner_user_id=f.owner_user_id
           and t.capability_id=f.capability_id and t.profile_version=f.profile_version
           and t.calibration_version=f.calibration_version and t.response_hash=f.response_hash and t.state='complete'
+          join vy_account_person p on p.auth_user_id=f.owner_user_id and p.person_id=t.person_id
+          join meera_log u on u.id=t.user_log_id and u.agent_id=t.agent_id and u.device_id=t.device_id and u.role='me'
      ), expected as (
        select * from jsonb_to_recordset($9::jsonb) as x(feedback_id uuid,revision integer,fingerprint jsonb)
      ), unchanged as (
@@ -319,6 +330,7 @@ export async function buildOwnedFeedbackDataset(db, ownerUserId, rawReplicaId, e
     const feedback = byId.get(example.feedback_id);
     return { feedback_id: example.feedback_id, revision: example.revision, fingerprint: {
       turn_id: feedback.turn_id, ratings: asRatings(feedback.ratings), ratings_hash: feedback.ratings_hash,
+      prompt_hash: feedback.prompt_hash, learner_input_sha256: feedback.learner_input_sha256,
       response_hash: feedback.response_hash, correction_hash: feedback.correction_hash || null,
       source_generation_id: feedback.source_generation_id || null, session_id: feedback.session_id,
     } };

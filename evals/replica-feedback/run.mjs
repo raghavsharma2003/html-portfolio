@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { decryptTurnExemplar, encryptTurnExemplar, exemplarTextHash } from "../../api/_replica-feedback-crypto.js";
 import { CURRENT_TURN_FEEDBACK_SQL, loadOwnedFeedbackLearningExample, recordOwnedTurnFeedback, TURN_FEEDBACK_SCHEMA, validateTurnFeedback } from "../../api/_replica-feedback.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
+import { sha256Hex } from "../../api/_provenance/contracts.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const RID = "10000000-0000-4000-8000-000000000001";
@@ -80,18 +81,23 @@ await assert.rejects(recordOwnedTurnFeedback(async () => [], OWNER, { replica_id
 ok("cross-owner stale or inactive turns resolve to the same denial", true);
 
 const loadedEncrypted = encryptTurnExemplar(correction, binding, ENV);
+const learnerInput = "Ma'am, coefficient aur subscript same hote hain?";
+const learnerInputSha256 = sha256Hex(learnerInput);
+let learningSql = "";
 const example = await loadOwnedFeedbackLearningExample(async (sql, params) => {
+  learningSql = sql;
   assert.match(sql, /f\.owner_user_id=\$2/);
   assert.deepEqual(params, [FEEDBACK, OWNER]);
   return [{
     feedback_id: FEEDBACK, turn_id: TURN, replica_id: RID, owner_user_id: OWNER, capability_id: CAPABILITY,
-    profile_version: 7, calibration_version: 3, response_hash: "a".repeat(64), source_generation_id: null,
+    profile_version: 7, calibration_version: 3, prompt_hash: "c".repeat(64), response_hash: "a".repeat(64), source_generation_id: null,
     revision: 1, ratings: { wording: "off" }, ratings_hash: "b".repeat(64), reason_codes: ["wrong_wording"],
-    correction_hash: textHash, original_reply: "Generic answer", ...loadedEncrypted,
+    correction_hash: textHash, learner_input: learnerInput, learner_input_sha256: learnerInputSha256, original_reply: "Generic answer", ...loadedEncrypted,
   }];
 }, OWNER, FEEDBACK, ENV);
-ok("learning example reconstructs an owner-authored preference pair only on an internal owner-bound read", example.schema === TURN_FEEDBACK_SCHEMA && example.rejected_output === "Generic answer" && example.preferred_output === correction);
-ok("learning pair keeps exact runtime versions and a content commitment", example.version_binding.profile_version === 7 && example.version_binding.calibration_version === 3 && /^[0-9a-f]{64}$/.test(example.pair_hash));
+ok("learning example reconstructs learner context and the owner-authored preference pair only on an internal owner-bound read", example.schema === TURN_FEEDBACK_SCHEMA && /coefficient/.test(example.learner_input) && example.rejected_output === "Generic answer" && example.preferred_output === correction);
+ok("learning pair keeps exact learner prompt response and runtime commitments", example.version_binding.profile_version === 7 && example.version_binding.calibration_version === 3 && example.version_binding.prompt_hash === "c".repeat(64) && example.version_binding.learner_input_sha256 === learnerInputSha256 && /^[0-9a-f]{64}$/.test(example.pair_hash));
+ok("learning read binds owner-authored context and both sides through exact turn log references", /p\.auth_user_id=f\.owner_user_id/.test(learningSql) && /p\.person_id=t\.person_id/.test(learningSql) && /u\.id=t\.user_log_id/.test(learningSql) && /a\.id=t\.assistant_log_id/.test(learningSql));
 ok("learning example contains no provider voice or tenant routing metadata", !/(provider|model|agent_id|device_id)/i.test(JSON.stringify(example)));
 
 const migration = readFileSync(join(ROOT, "db/migrations/029_replica_turn_feedback.sql"), "utf8");

@@ -164,6 +164,24 @@ function fakeDb(state) {
   const db = async (sql, params) => {
     calls.push(sql);
 
+    // The public widget re-checks the exact resolved channel, published
+    // consent sheet, and candidate-binding fence immediately before and after
+    // generation. Keep this fixture current with that production authority
+    // query so the positive widget path reaches the real gate while all
+    // revoked/unpublished/withdrawn resolution controls remain unchanged.
+    if (sql.includes("select c.channel_id from vy_clone_channel c")) {
+      const [channelId, replicaId, ownerId, agentId, kind, externalRef, slug, sheetJson] = params;
+      const row = state.channels.find((c) => c.channel_id === channelId && c.replica_id === replicaId &&
+        c.owner_user_id === ownerId && c.agent_id === agentId && c.kind === kind &&
+        c.external_ref === externalRef && c.status === "connected");
+      const agent = state.agents.find((a) => a.agent_id === agentId && a.slug === slug);
+      const expectedSheet = agent ? SHEETS[agent.slug] : null;
+      const candidateActive = (state.candidateBindings || []).some((c) => c.agent_id === agentId &&
+        c.state === "active" && c.candidate_binding_required);
+      return row && agent && expectedSheet && JSON.stringify(expectedSheet) === sheetJson && !candidateActive
+        ? [{ channel_id: channelId }] : [];
+    }
+
     if (sql.includes("from vy_clone_channel c")) {
       const [kind, ref] = params;
       // The predicate under test. Read off the SQL TEXT rather than
@@ -303,6 +321,7 @@ const freshState = () => ({
     { replica_id: REPLICA_A, owner_user_id: OWNER, overall: 82, min_part: 71, unmeasured_count: 0 },
     { replica_id: REPLICA_B, owner_user_id: OTHER_OWNER, overall: 82, min_part: 71, unmeasured_count: 0 },
   ],
+  candidateBindings: [],
   agents: [
     { agent_id: AGENT_A, slug: "arjun-sir-physics" },
     { agent_id: AGENT_B, slug: "meena-maam-chem" },
@@ -388,7 +407,8 @@ const loadAgentWithdrawn = makeLoadAgent(new Set(["meena-maam-chem"]));
 console.log("── 1. the right clone answers ──");
 // ─────────────────────────────────────────────────────────────────────────
 {
-  const db = fakeDb(freshState());
+  const state = freshState();
+  const db = fakeDb(state);
   const a = await resolveInboundClone(db, "telegram", "111111", { loadAgent });
   const b = await resolveInboundClone(db, "telegram", "222222", { loadAgent });
   ok("bot 111111 -> clone A", a.agentId === AGENT_A && a.slug === "arjun-sir-physics");
@@ -491,7 +511,8 @@ console.log("\n── 3. THE NEGATIVE CONTROL: strike the resolution predicate �
 console.log("\n── 4. the widget: disclosure on session open ──");
 // ─────────────────────────────────────────────────────────────────────────
 {
-  const db = fakeDb(freshState());
+  const state = freshState();
+  const db = fakeDb(state);
   const deps = { loadAgent, engine, reply: async () => "haan bolo, kya doubt hai" };
   const opened = await openCloneSession(db, { slug: "arjun-sir-physics", visitorId: "v1" }, deps);
   const card = cloneDisclosureCard("Arjun Sir");
@@ -520,6 +541,12 @@ console.log("\n── 4. the widget: disclosure on session open ──");
   ok("a properly opened session produces a reply", turn.bubbles.length > 0 && Boolean(turn.reply));
   ok("the reply went through the engine's gate", turn.gate.applied === true);
   ok("the turn mints a NEW session token", turn.session !== opened.session);
+
+  state.candidateBindings.push({ agent_id: AGENT_A, state: "active", candidate_binding_required: true });
+  let candidateCode = "ANSWERED";
+  try { await cloneChatTurn(db, { session: opened.session, message: "candidate fence", transcript: [] }, deps); }
+  catch (e) { candidateCode = e.code; }
+  ok("an active private candidate binding blocks the public widget", candidateCode === "clone_unavailable");
 }
 
 // ─────────────────────────────────────────────────────────────────────────

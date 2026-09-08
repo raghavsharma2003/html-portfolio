@@ -17034,6 +17034,42 @@
       "kind": "rejection",
       "title": "Foreign memory context excluded",
       "at": "2026-09-08"
+    },
+    {
+      "id": "clone-learning74-owner-learner-context-binding",
+      "kind": "decision",
+      "title": "Bind correction evidence to owner learner context",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-learning74-owner-learner-context-controls",
+      "kind": "measurement",
+      "title": "Owner learner context controls staged",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-learning74-customer-private-words-excluded",
+      "kind": "rejection",
+      "title": "Customer private words excluded",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-learning74-reviewed-release-eval-repairs",
+      "kind": "decision",
+      "title": "Reviewed release eval repairs integrated",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-learning74-reviewed-release-eval-controls",
+      "kind": "measurement",
+      "title": "Reviewed release eval controls measured",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-learning74-release-eval-contract-drift",
+      "kind": "rejection",
+      "title": "Release eval contract drift recorded",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29334,6 +29370,26 @@
       "src": "clone-fidelity73-feedback-rejected-recall",
       "rel": "caused_by",
       "dst": "clone-fidelity73-memory-context-excluded"
+    },
+    {
+      "src": "clone-learning74-owner-learner-context-binding",
+      "rel": "measured_by",
+      "dst": "clone-learning74-owner-learner-context-controls"
+    },
+    {
+      "src": "clone-learning74-owner-learner-context-binding",
+      "rel": "caused_by",
+      "dst": "clone-learning74-customer-private-words-excluded"
+    },
+    {
+      "src": "clone-learning74-reviewed-release-eval-repairs",
+      "rel": "measured_by",
+      "dst": "clone-learning74-reviewed-release-eval-controls"
+    },
+    {
+      "src": "clone-learning74-reviewed-release-eval-repairs",
+      "rel": "caused_by",
+      "dst": "clone-learning74-release-eval-contract-drift"
     }
   ]
 }
