@@ -5,7 +5,48 @@ import {
   validateExtractionOutput,
 } from "../contracts.js";
 
-export const AZURE_FOUNDRY_INFERENCE_API_VERSION = "2024-05-01-preview";
+export const AZURE_FOUNDRY_OPENAI_API_VERSION = "openai-v1";
+
+// Azure's wire subset excludes these constraints from our canonical schema:
+// https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs
+// Keep the canonical contract and validateExtractionOutput unchanged. The
+// provider shape is never authority for citation, key, count or confidence checks.
+const UNSUPPORTED_WIRE_KEYWORDS = new Set([
+  "minLength", "maxLength", "pattern", "minimum", "maximum", "minItems", "maxItems",
+]);
+function azureWireSchema(value) {
+  if (Array.isArray(value)) return Object.freeze(value.map(azureWireSchema));
+  if (!value || typeof value !== "object") return value;
+  return Object.freeze(Object.fromEntries(Object.entries(value)
+    .filter(([key]) => !UNSUPPORTED_WIRE_KEYWORDS.has(key))
+    .map(([key, child]) => [key, key === "properties"
+      ? Object.freeze(Object.fromEntries(Object.entries(child).map(([name, schema]) => [name, azureWireSchema(schema)])))
+      : azureWireSchema(child)])));
+}
+export const AZURE_FOUNDRY_CLAIM_WIRE_SCHEMA = azureWireSchema(CLAIM_EXTRACTION_JSON_SCHEMA);
+
+function validateAzureOutput(value, batch) {
+  const raw = JSON.parse(value);
+  // Let the canonical validator refuse the original top-level/count shape;
+  // filtering must not turn an excessive batch into an admissible one.
+  if (!Array.isArray(raw?.claims) || raw.claims.length > CLAIM_EXTRACTION_JSON_SCHEMA.properties.claims.maxItems)
+    return validateExtractionOutput(raw, batch);
+  let overlong = 0;
+  const claims = raw.claims.filter((claim) => {
+    // The local cleaner slices UTF-16 at 500. Reject before that slice can
+    // remove a condition. This is deliberately stricter than JSON Schema's
+    // Unicode code-point maxLength for astral characters. Keep valid siblings.
+    if (typeof claim?.body === "string" && claim.body.length > 500) {
+      overlong++;
+      return false;
+    }
+    return true;
+  });
+  const output = validateExtractionOutput({ ...raw, claims }, batch);
+  return overlong ? Object.freeze({ ...output,
+    rejected: Object.freeze([...output.rejected, ...Array(overlong).fill("claim_body_too_long")].sort()),
+  }) : output;
+}
 
 export class ClaimExtractionAdapterError extends Error {
   constructor(code, { retryable = false, status = 0 } = {}) {
@@ -26,8 +67,9 @@ function endpoint(value) {
   try { url = new URL(String(value || "")); } catch { throw error("azure_foundry_config_missing"); }
   if (url.protocol !== "https:" || !/\.services\.ai\.azure\.com$/i.test(url.hostname) || url.username || url.password)
     throw error("azure_foundry_endpoint_invalid");
-  url.pathname = `${url.pathname.replace(/\/+$/, "")}/models/chat/completions`.replace(/\/+/g, "/");
-  url.search = new URLSearchParams({ "api-version": AZURE_FOUNDRY_INFERENCE_API_VERSION }).toString();
+  url.pathname = "/openai/v1/chat/completions";
+  url.search = "";
+  url.hash = "";
   return url;
 }
 
@@ -76,7 +118,7 @@ export function createAzureFoundryClaimExtractor(options = {}) {
   return Object.freeze({
     family: "claim-extraction",
     name: "azure-foundry-structured-output",
-    version: `${AZURE_FOUNDRY_INFERENCE_API_VERSION}:${CLAIM_EXTRACTION_PROMPT}`,
+    version: `${AZURE_FOUNDRY_OPENAI_API_VERSION}:${CLAIM_EXTRACTION_PROMPT}:raw-body/v1`,
     model,
     billing: Object.freeze({ meter: "azure_foundry_tokens", max_output_tokens: 4_000 }),
     async extract({ batch, signal }) {
@@ -85,6 +127,7 @@ export function createAzureFoundryClaimExtractor(options = {}) {
       try {
         const response = await fetchImpl(url, {
           method: "POST",
+          redirect: "error",
           headers: { "Content-Type": "application/json", ...auth },
           body: JSON.stringify({
             model,
@@ -97,7 +140,7 @@ export function createAzureFoundryClaimExtractor(options = {}) {
                 name: "vyakti_claim_extraction",
                 description: "Evidence-cited proposed claims about the verified speaker",
                 strict: true,
-                schema: CLAIM_EXTRACTION_JSON_SCHEMA,
+                schema: AZURE_FOUNDRY_CLAIM_WIRE_SCHEMA,
               },
             },
           }),
@@ -111,7 +154,7 @@ export function createAzureFoundryClaimExtractor(options = {}) {
         if (!choice || choice.finish_reason !== "stop" || typeof choice.message?.content !== "string")
           throw error("azure_foundry_response_incomplete", { retryable: choice?.finish_reason === "length" });
         return {
-          output: validateExtractionOutput(choice.message.content, batch),
+          output: validateAzureOutput(choice.message.content, batch),
           usage: {
             input_tokens: Math.max(0, Number(payload?.usage?.prompt_tokens) || 0),
             output_tokens: Math.max(0, Number(payload?.usage?.completion_tokens) || 0),

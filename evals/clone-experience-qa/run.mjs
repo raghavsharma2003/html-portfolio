@@ -19,8 +19,9 @@ const ok = (label, value) => { assert.ok(value, label); console.log(`ok ${++chec
 ok("an active replacement saga suppresses old-primary rooms",
   /voiceWorkspaceReady = Boolean\(selected && consentActive && !voiceSaga && currentVoiceReady/.test(experience));
 ok("knowledge can open independently while voice workspace authority stays unchanged",
-  /knowledgeOpen = Boolean\(selected && consentActive && room === "enrich" && !upload && !reveal\)/.test(experience)
-  && /showRooms = voiceWorkspaceReady \|\| knowledgeOpen/.test(experience)
+  /knowledgeOpen = Boolean\(selected && consentActive && room === "enrich" && !upload\)/.test(experience)
+  && /textWorkspaceOpen = knowledgeOpen \|\| textShareOpen \|\| textReviewOpen/.test(experience)
+  && /showRooms = voiceWorkspaceReady \|\| textWorkspaceOpen/.test(experience)
   && /voiceWorkspaceReady && <RoomNav/.test(experience)
   && /captureState === "idle" && !sample && onKnowledge/.test(experience));
 ok("the replacement candidate resolves only by its exact source or upload intent",
@@ -45,10 +46,9 @@ ok("the premium voice field is driven by microphone history rather than a canned
   /history\?\.\[sourceIndex\]/.test(voiceField)
   && /setLevelHistory\(\(current\) => \[\.\.\.current\.slice\(-95\), nextLevel\]\)/.test(experience)
   && !/animation:/.test(voiceFieldCss));
-ok("the same voice field carries recording, upload, reveal, and build states",
+ok("the same voice field carries recording, upload, and build states",
   /<VoiceField level=\{level\} history=\{levelHistory\}/.test(experience)
   && /<VoiceField level=\{upload\.phase/.test(experience)
-  && /<VoiceField level=\{0\.26\}/.test(experience)
   && /cvj-build__signal"><VoiceField calm/.test(verification));
 ok("the app uses the verified Vyakti wordmark and official neutral brand palette",
   /\\u0935\\u094d\\u092f/.test(mark)

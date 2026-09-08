@@ -17705,3 +17705,8 @@ Only reviewed correction product, CSS and eval paths were imported. Experimental
 ## `postrelease188-roomleak-no-data-bypass` (2026-09-08)
 
 2026-09-09 approvednegativecontrols retaincrossRoom andownerfiltered read rejection. No productionmemorypermission change, no newRoom scopewhitelist, no fullgate or testexecutedthisphase.
+
+
+## `combined193-no-unreviewed-expansion` (2026-09-08)
+
+2026-09-09 exactapprovedsource boundaries retained. No foreigncontextgraph/no dependencyjunction/no npm. Actualv4 proof predates transportonlyclaims changes; maintain explicit sourceparity evidence instead of claiming rerunSQL.

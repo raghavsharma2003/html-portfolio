@@ -23913,3 +23913,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease188-roomleak-catalog` (2026-09-08)
 
 2026-09-09 rootapprovedff27e504 exactoneevalfile. Catalogclassifier only, no broadreaderallowlist; crossRoom/ownerfiltered actualreads remain negativecontrols. Reverse on a realread accepted by classifier.
+
+
+## `combined193-narrow-linux-candidate` (2026-09-08)
+
+2026-09-09: Root requested newisolated ab50 successor with43d92596 and31f3af94+96fee2c0 only. Sevenproduct/evalfiles cleanlymerged. Keepdependenciesabsent; exclude737bodypendingreview,markerbc4c andHindiwrap610123. Conditional sourceadmission awaits77. Reverse on proofscope/source mismatch; no cloud/browser/build execution.

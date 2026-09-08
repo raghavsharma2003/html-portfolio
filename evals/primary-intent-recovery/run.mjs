@@ -9,10 +9,12 @@ import {chromium} from 'playwright';
 import ts from 'typescript';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const base='da3ac2aeac29571ae45a4507d947b1cf603cf9c1';
+const sourceBase='ab50c782303c9a6f8825ee9ce25e505b7421795e';
 const current=readFileSync(join(root,'src/studio/CloneExperience.tsx'),'utf8').replaceAll('\r\n','\n');
 const old=execFileSync('git',['show',`${base}:src/studio/CloneExperience.tsx`],{cwd:root,encoding:'utf8'});
+const incumbent=execFileSync('git',['show',`${sourceBase}:src/studio/CloneExperience.tsx`],{cwd:root,encoding:'utf8'});
 // The fixture mounts both actual full components, including the real saga poll effect.
-if(process.argv.includes('--verify-base-recorder')) assert.equal(current.slice(current.indexOf('function ResonanceRecorder('),current.indexOf('function BrandReveal(')),old.slice(old.indexOf('function ResonanceRecorder('),old.indexOf('function BrandReveal(')),'recorder bytes stay unchanged');
+if(process.argv.includes('--verify-base-recorder')) assert.equal(current.slice(current.indexOf('function ResonanceRecorder('),current.indexOf('function Agreement(')),incumbent.slice(incumbent.indexOf('function ResonanceRecorder('),incumbent.indexOf('function Agreement(')),'recorder bytes stay unchanged from the candidate base');
 const caller=readFileSync(join(root,'src/studio/StudioApp.tsx'),'utf8').replaceAll('\r\n','\n');
 const actualCaller=caller.slice(caller.indexOf('const handleReadVoiceReissue'),caller.indexOf('async function handleRequestVoiceBuild'));
 for(const name of ['refreshForRequest(session)','readReplica(fresh.accessToken, selectedId)','listSources(fresh.accessToken, selectedId)','listEnrollmentConsent(fresh.accessToken, selectedId)','selectedIdRef.current !== selectedId'])assert(actualCaller.includes(name),name);

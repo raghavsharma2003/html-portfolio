@@ -21,12 +21,6 @@ import { openPrivateWavCapture, type PrivateWavCapture } from "./wavCapture";
 import { presentCloneProgress } from "./activityPresentation";
 import VoiceField from "./VoiceField";
 import VyaktiMark from "./VyaktiMark";
-import {
-  createBrandRevealSoundSession,
-  persistBrandRevealMuted,
-  readBrandRevealMuted,
-  type BrandRevealSoundSession,
-} from "./brandRevealSound";
 import type { ActivityJob, ActivityView } from "./activityApi";
 import type {
   ConsentReceipt,
@@ -51,7 +45,6 @@ const REQUIRED_SCOPES = ["capture", "transcription", "storage"] as const;
 const MINIMUM_RECORDING_MS = 12_000;
 const RECOMMENDED_RECORDING_MS = 30_000;
 const MAXIMUM_RECORDING_MS = 60_000;
-const REVEAL_KEY = "vyakti:experience:reveal";
 const VOICE_SAGA_KEY = "vyakti:experience:voice-saga:v1";
 
 export type VoiceReissueSnapshot = { replica: Replica; sources: ReplicaSource[]; consents: ConsentReceipt[] };
@@ -160,7 +153,7 @@ function signalSummary(sample: VoiceSample) {
   return "The audio level looks usable and no clipping was detected on this device.";
 }
 
-function Icon({ name }: { name: "menu" | "voice" | "add" | "spark" | "call" | "close" | "chevron" | "lock" | "check" | "sound" | "soundOff" }) {
+function Icon({ name }: { name: "menu" | "voice" | "add" | "spark" | "call" | "close" | "chevron" | "lock" | "check" }) {
   const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
@@ -169,7 +162,6 @@ function Icon({ name }: { name: "menu" | "voice" | "add" | "spark" | "call" | "c
       {name === "chevron" && <path {...common} d="m9 6 6 6-6 6" />}
       {name === "lock" && <><rect {...common} x="5" y="10" width="14" height="10" rx="3" /><path {...common} d="M8 10V7a4 4 0 0 1 8 0v3" /></>}
       {name === "check" && <path {...common} d="m5 12 4.2 4.2L19 6.5" />}
-      {(name === "sound" || name === "soundOff") && <><path {...common} d="M5 10v4h3l4 3V7l-4 3H5Z" /><path {...common} d="M15 9.5a4 4 0 0 1 0 5" />{name === "soundOff" && <path {...common} d="m4 4 16 16" />}</>}
       {name === "voice" && <><path {...common} d="M4 13v-2m4 6V7m4 13V4m4 13V7m4 6v-2" /></>}
       {name === "add" && <><path {...common} d="M12 5v14M5 12h14" /></>}
       {name === "spark" && <><path {...common} d="M12 3c.8 4.3 3.1 6.7 7 7.5-3.9.8-6.2 3.2-7 7.5-.8-4.3-3.1-6.7-7-7.5C8.9 9.7 11.2 7.3 12 3Z" /></>}
@@ -490,7 +482,7 @@ function ResonanceRecorder({ disabled, onProceed, onKnowledge }: { disabled?: bo
   );
 }
 
-function Agreement({ busy, error, revealMuted, reduceMotion, onRevealMutedChange, onContinue }: { busy: boolean; error: string; revealMuted: boolean; reduceMotion: boolean; onRevealMutedChange: (muted: boolean) => void; onContinue: () => void }) {
+function Agreement({ busy, error, onContinue }: { busy: boolean; error: string; onContinue: () => void }) {
   const [checks, setChecks] = useState([false, false, false]);
   const all = checks.every(Boolean);
   const labels = [
@@ -518,50 +510,11 @@ function Agreement({ busy, error, revealMuted, reduceMotion, onRevealMutedChange
           ))}
         </div>
         <p className="vx-agreement__legal">Read the <a href="/privacy" target="_blank" rel="noreferrer">privacy policy and terms</a>. Model authorization is separate, identity-bound, and shown before a voice model is built. You can erase a source or the whole clone later.</p>
-        <button
-          className="vx-reveal-sound"
-          type="button"
-          aria-pressed={!revealMuted && !reduceMotion}
-          aria-disabled={reduceMotion || undefined}
-          aria-label={reduceMotion ? "Reveal sound is off while Reduce Motion is on" : revealMuted ? "Turn reveal sound on" : "Turn reveal sound off"}
-          disabled={busy}
-          onClick={() => { if (!reduceMotion) onRevealMutedChange(!revealMuted); }}
-        >
-          <Icon name={revealMuted || reduceMotion ? "soundOff" : "sound"} />
-          <span>Reveal sound</span>
-          <strong>{revealMuted || reduceMotion ? "Off" : "On"}</strong>
-        </button>
         <button className="vx-button vx-button--primary vx-agreement__continue" type="button" disabled={!all || busy} onClick={onContinue}>
           {busy ? "Opening your private space" : "Agree and continue"}
         </button>
         {error && <p className="vx-error" role="alert">{error}</p>}
       </div>
-    </section>
-  );
-}
-
-function BrandReveal({ onDone, soundSession }: { onDone: () => void; soundSession: BrandRevealSoundSession | null }) {
-  const reduceMotion = useReducedMotion();
-  const onDoneRef = useRef(onDone);
-  onDoneRef.current = onDone;
-  useEffect(() => {
-    if (reduceMotion) soundSession?.stop();
-    else soundSession?.play();
-    return () => soundSession?.stop();
-  }, [reduceMotion, soundSession]);
-  useEffect(() => {
-    const timer = window.setTimeout(() => onDoneRef.current(), reduceMotion ? 500 : 2200);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [reduceMotion]);
-  return (
-    <section className="vx-reveal" role="status" aria-live="polite" aria-label="Opening Vyakti">
-      <motion.div initial={reduceMotion ? false : { opacity: 0, filter: "blur(18px)", scale: 0.96 }} animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }} transition={{ duration: reduceMotion ? 0 : 0.9, ease: [0.16, 1, 0.3, 1] }}>
-        <VoiceField level={0.26} active={!reduceMotion} />
-        <motion.strong initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: reduceMotion ? 0 : 0.8, delay: 0.22 }}><VyaktiMark /></motion.strong>
-        <p>Your voice. Your context. Your control.</p>
-      </motion.div>
     </section>
   );
 }
@@ -780,9 +733,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const [enrichView, setEnrichView] = useState<EnrichView>("menu");
   const [agreementBusy, setAgreementBusy] = useState(false);
   const [agreementError, setAgreementError] = useState("");
-  const [revealMuted, setRevealMuted] = useState(readBrandRevealMuted);
   const [recoveryBusy, setRecoveryBusy] = useState(false);
-  const [reveal, setReveal] = useState(() => Boolean(selected && window.sessionStorage.getItem(REVEAL_KEY) === selected.replica_id));
   const [replacePrimary, setReplacePrimary] = useState(false);
   const [upload, setUpload] = useState<UploadState | null>(null);
   const retryRef = useRef<{ sample: VoiceSample; language: EnrollmentLanguage; sourceId: string | null; uploaded: boolean; finalized: boolean; intentBound: boolean; uploadIntentId: string; buildIntentId: string } | null>(null);
@@ -790,7 +741,6 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const uploadLockedRef = useRef(false);
   const activeReplicaRef = useRef<string | null>(selected?.replica_id ?? null);
   const accountWrapRef = useRef<HTMLDivElement | null>(null);
-  const revealSoundRef = useRef<BrandRevealSoundSession | null>(null);
   const agreementLockedRef = useRef(false);
   const firstSourceAgreement = useRef<string | null>(null);
   const routeFocus = useRef<Element | null>(null);
@@ -902,11 +852,6 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const needsAgreement = agreementBusy || creatingNew || !selected || !consentActive;
   const reduceMotion = Boolean(useReducedMotion());
 
-  useEffect(() => () => {
-    revealSoundRef.current?.stop();
-    revealSoundRef.current = null;
-  }, []);
-
   useEffect(() => {
     const nextReplicaId = selected?.replica_id ?? null;
     if (activeReplicaRef.current === nextReplicaId) return;
@@ -992,7 +937,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
   }, []);
 
   useEffect(() => {
-    if (!routeFocus.current || reveal) return;
+    if (!routeFocus.current) return;
     const main = mainRef.current;
     const selector = room === "rehearsal" ? "#ptr-title" : room === "share" ? ".vx-expert-share h1" : room === "enrich" && enrichView === "files" ? "#context-locker-title" : room === "enrich" && enrichView === "menu" ? "#knowledge-menu-title" : null;
     if (!main || !selector) { routeFocus.current = null; return; }
@@ -1009,7 +954,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
     const observer = new MutationObserver(() => { if (moveFocus()) observer.disconnect(); });
     observer.observe(main, { childList: true, subtree: true });
     return () => observer.disconnect();
-  }, [room, enrichView, reveal]);
+  }, [room, enrichView]);
 
   function chooseRoom(next: MainRoom) {
     routeFocus.current = document.activeElement;
@@ -1024,9 +969,6 @@ export default function CloneExperience(props: CloneExperienceProps) {
   async function continueAgreement() {
     if (agreementLockedRef.current) return;
     agreementLockedRef.current = true;
-    revealSoundRef.current?.stop();
-    // This context is opened before the first await so the Agree tap owns it.
-    revealSoundRef.current = createBrandRevealSoundSession({ muted: revealMuted, reduceMotion });
     setAgreementBusy(true);
     setAgreementError("");
     const previousReplicaId = selected?.replica_id;
@@ -1035,7 +977,6 @@ export default function CloneExperience(props: CloneExperienceProps) {
       const replica = creatingNew || !selected ? await onBeginClone() : selected;
       if (!(creatingNew || !selected)) await onGrantConsent();
       if (!sameAccount() || reissueCurrent.current.selected?.replica_id !== replica.replica_id) return;
-      window.sessionStorage.setItem(REVEAL_KEY, replica.replica_id);
       if (creatingNew || !selected || firstSourceAgreement.current === replica.replica_id) {
         firstSourceAgreement.current = null;
         routeFocus.current = document.activeElement;
@@ -1045,13 +986,10 @@ export default function CloneExperience(props: CloneExperienceProps) {
         params.set("view", "enrich");
         window.history.replaceState(null, "", `?${params.toString()}`);
       }
-      setReveal(true);
     } catch (cause) {
       if (!sameAccount()) return;
       if (!creatingNew && previousReplicaId && reissueCurrent.current.selected?.replica_id !== previousReplicaId) return;
       if ((creatingNew || !selected) && reissueCurrent.current.selected?.replica_id !== previousReplicaId) firstSourceAgreement.current = reissueCurrent.current.selected?.replica_id || null;
-      revealSoundRef.current?.stop();
-      revealSoundRef.current = null;
       setAgreementError(cause instanceof Error ? cause.message : "We could not record the agreement. Nothing was uploaded.");
     } finally {
       agreementLockedRef.current = false;
@@ -1212,21 +1150,9 @@ export default function CloneExperience(props: CloneExperienceProps) {
     chooseRoom("voice");
   }
 
-  function finishReveal() {
-    revealSoundRef.current?.stop();
-    revealSoundRef.current = null;
-    if (selected) window.sessionStorage.removeItem(REVEAL_KEY);
-    setReveal(false);
-  }
-
-  function changeRevealMuted(muted: boolean) {
-    setRevealMuted(muted);
-    persistBrandRevealMuted(muted);
-  }
-
-  const knowledgeOpen = Boolean(selected && consentActive && room === "enrich" && !upload && !reveal);
-  const textShareOpen = Boolean(selected && consentActive && room === "share" && !upload && !reveal);
-  const textReviewOpen = Boolean(selected && consentActive && room === "evolve" && !upload && !reveal);
+  const knowledgeOpen = Boolean(selected && consentActive && room === "enrich" && !upload);
+  const textShareOpen = Boolean(selected && consentActive && room === "share" && !upload);
+  const textReviewOpen = Boolean(selected && consentActive && room === "evolve" && !upload);
   const textWorkspaceOpen = knowledgeOpen || textShareOpen || textReviewOpen;
   const showSagaRecovery = Boolean(selected && consentActive && voiceSaga && !activeCandidate && !upload);
   const showRecorder = Boolean(selected && consentActive && !voiceSaga && !activeCandidate && (!currentPrimary || replacePrimary) && !upload);
@@ -1259,9 +1185,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
           ) : selected && !creatingNew && !agreementBusy && consentReadState !== "ready" ? (
             <section className="vx-scene vx-read-state" key="consent-read" aria-live="polite"><div className="vx-stage-title"><h1>{consentReadState === "error" ? "We could not confirm your permissions." : "Checking your permissions."}</h1></div>{consentReadState === "error" ? <button className="vx-button vx-button--primary" type="button" onClick={onRetryConsent}>Check again</button> : <p role="status">Loading your saved agreement.</p>}</section>
           ) : needsAgreement ? (
-            <motion.div className="vx-scene" key="agreement" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><Agreement busy={agreementBusy || creating} error={agreementError} revealMuted={revealMuted} reduceMotion={reduceMotion} onRevealMutedChange={changeRevealMuted} onContinue={() => void continueAgreement()} /></motion.div>
-          ) : reveal ? (
-            <motion.div className="vx-scene" key="reveal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><BrandReveal onDone={finishReveal} soundSession={revealSoundRef.current} /></motion.div>
+            <motion.div className="vx-scene" key="agreement" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><Agreement busy={agreementBusy || creating} error={agreementError} onContinue={() => void continueAgreement()} /></motion.div>
           ) : upload ? (
             <motion.section className="vx-scene vx-upload" key="upload" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} aria-labelledby="vx-upload-title">
               <div className="vx-stage-title"><h1 id="vx-upload-title">{upload.phase === "failed" ? "Upload paused." : "Securing your recording."}</h1><p>{upload.message}</p></div>

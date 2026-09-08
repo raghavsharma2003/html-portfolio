@@ -96,12 +96,13 @@ assert.equal(createBrandRevealSoundSession({ muted: false, reduceMotion: false, 
 
 const componentSource = readFileSync(fileURLToPath(new URL("../../src/studio/CloneExperience.tsx", import.meta.url)), "utf8");
 const agreeHandler = componentSource.slice(componentSource.indexOf("async function continueAgreement()"), componentSource.indexOf("const submitRecording"));
-assert.ok(agreeHandler.indexOf("createBrandRevealSoundSession") >= 0);
-assert.ok(agreeHandler.indexOf("createBrandRevealSoundSession") < agreeHandler.indexOf("await onBeginClone"), "the Agree gesture must own AudioContext creation");
-assert.match(componentSource, /revealMuted=\{revealMuted\}/u);
-assert.match(componentSource, /soundSession=\{revealSoundRef\.current\}/u);
+assert.doesNotMatch(componentSource, /from "\.\/brandRevealSound"/u, "the consent path must not load the retired reveal sound");
+assert.doesNotMatch(componentSource, /function BrandReveal|key="reveal"|REVEAL_KEY/u, "the persisted agreement must not open a blocking reveal scene");
+assert.doesNotMatch(agreeHandler, /sessionStorage|setTimeout|setReveal|createBrandRevealSoundSession/u);
+assert.ok(agreeHandler.indexOf('setEnrichView("files")') > agreeHandler.indexOf("await onBeginClone"));
+assert.ok(agreeHandler.indexOf('setRoom("enrich")') > agreeHandler.indexOf("await onBeginClone"));
 
 const soundSource = readFileSync(fileURLToPath(new URL("../../src/studio/brandRevealSound.ts", import.meta.url)), "utf8");
 assert.doesNotMatch(soundSource, /\bfetch\s*\(|new Audio\s*\(|setTimeout\s*\(/u, "the sonic mark cannot fetch an asset or retry later");
 
-console.log("brand reveal: deterministic checks passed");
+console.log("post-consent entry and retired brand reveal: deterministic checks passed");

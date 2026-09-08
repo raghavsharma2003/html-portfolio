@@ -17520,6 +17520,24 @@
       "kind": "rejection",
       "title": "Reject actual data reads masquerading as catalog checks",
       "at": "2026-09-08"
+    },
+    {
+      "id": "combined193-narrow-linux-candidate",
+      "kind": "decision",
+      "title": "Assemble only consent Feed and approved claims transport deltas",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "combined193-sql-source-parity",
+      "kind": "measurement",
+      "title": "SQL source scopes match actual v4 baseline",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "combined193-no-unreviewed-expansion",
+      "kind": "rejection",
+      "title": "Do not mix pending transport limits or rejected rendering experiments",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

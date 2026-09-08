@@ -12,7 +12,7 @@ import {
   redactTranscript,
   validateExtractionOutput,
 } from "../../api/_claim-extraction/contracts.js";
-import { createAzureFoundryClaimExtractor } from "../../api/_claim-extraction/providers/azure-foundry.js";
+import { createAzureFoundryClaimExtractor, AZURE_FOUNDRY_CLAIM_WIRE_SCHEMA } from "../../api/_claim-extraction/providers/azure-foundry.js";
 import { createOpenRouterClaimExtractor } from "../../api/_claim-extraction/providers/openrouter.js";
 import { createProductionClaimExtractor } from "../../api/_claim-extraction/registry.js";
 import { ELIGIBLE_TRANSCRIPTS_SQL, extractOwnedClaims, ownedClaimExtractionStatus } from "../../api/_replica-claims.js";
@@ -109,7 +109,75 @@ const azure = createAzureFoundryClaimExtractor({
   },
 });
 const azureResult = await azure.extract({ batch });
-ok("Azure adapter uses Foundry model inference endpoint and strict JSON schema", /services\.ai\.azure\.com\/models\/chat\/completions\?api-version=2024-05-01-preview/.test(azureRequest.url) && azureRequest.body.response_format.type === "json_schema" && azureRequest.body.response_format.json_schema.strict === true);
+ok("Azure adapter uses exact OpenAI v1 route without query or redirect and strict JSON schema",
+  azureRequest.url === "https://vyakti.services.ai.azure.com/openai/v1/chat/completions"
+  && azureRequest.init.redirect === "error" && azure.version === "openai-v1:claim-extractor/v2:raw-body/v1"
+  && azureRequest.body.response_format.type === "json_schema" && azureRequest.body.response_format.json_schema.strict === true);
+assert.deepEqual(azureRequest.body.response_format.json_schema.schema, AZURE_FOUNDRY_CLAIM_WIRE_SCHEMA);
+const wireRemoved=[];
+function compareWire(canonical,wire,path='schema') {
+  if(!canonical || typeof canonical!=='object'){assert.deepEqual(wire,canonical);return;}
+  if(Array.isArray(canonical)){assert.equal(wire.length,canonical.length);canonical.forEach((value,i)=>compareWire(value,wire[i],`${path}[${i}]`));return;}
+  const unsupported=new Set(['minLength','maxLength','pattern','minimum','maximum','minItems','maxItems']);
+  assert.deepEqual(Object.keys(wire),Object.keys(canonical).filter(key=>!unsupported.has(key)));
+  for(const [key,value] of Object.entries(canonical)) {
+    if(unsupported.has(key)){assert(!Object.hasOwn(wire,key));wireRemoved.push(`${path}.${key}`);}
+    else compareWire(value,wire[key],`${path}.${key}`);
+  }
+}
+compareWire(CLAIM_EXTRACTION_JSON_SCHEMA,azureRequest.body.response_format.json_schema.schema);
+ok("wire projection removes only documented unsupported keywords and retains every other shape",
+  wireRemoved.length === 14 && CLAIM_EXTRACTION_JSON_SCHEMA.properties.claims.maxItems === 50
+  && CLAIM_EXTRACTION_JSON_SCHEMA.properties.claims.items.properties.key.pattern === '^[a-z][a-z0-9_]{1,63}$');
+async function extractAzureFixture(claims, extractionBatch=batch) {
+  const adapter=createAzureFoundryClaimExtractor({endpoint:'https://vyakti.services.ai.azure.com',model:'gpt-4.1-mini',apiKey:'synthetic-key-only-123456',
+    fetchImpl:async()=>new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify({claims})}}],usage:{prompt_tokens:100,completion_tokens:40}}))});
+  return adapter.extract({batch:extractionBatch});
+}
+const validWireClaim=structuredClone(rawOutput.claims[1]);
+const invalidWireClaims=[
+  {...validWireClaim,key:'INVALID KEY'},
+  {...validWireClaim,citations:Array.from({length:6},()=>validWireClaim.citations[0])},
+  {...validWireClaim,citations:[]},
+  {...validWireClaim,body:'x'},
+  {...validWireClaim,citations:[{...validWireClaim.citations[0],entailment:0.54}]},
+  {...validWireClaim,citations:[{...validWireClaim.citations[0],entailment:1.01}]},
+  {...validWireClaim,citations:[{...validWireClaim.citations[0],start_char:0.5}]},
+  {...validWireClaim,citations:[{...validWireClaim.citations[0],quote:'not present in this source',start_char:-2,end_char:999}]},
+  {...validWireClaim,citations:[{...validWireClaim.citations[0],quote:'x'.repeat(501)}]},
+];
+const invalidWireResult=await extractAzureFixture(invalidWireClaims);
+ok("actual Azure output still rejects invalid keys, counts, quote bounds, coordinates and entailment",
+  invalidWireResult.output.proposals.length===0 && invalidWireResult.output.rejected.length===9);
+await assert.rejects(()=>extractAzureFixture(Array.from({length:51},()=>validWireClaim)));
+ok("actual Azure output refuses more than fifty claims despite omitted wire count bound",true);
+const repairedWire=await extractAzureFixture([{...validWireClaim,confidence:99,
+  citations:[{...validWireClaim.citations[0],start_char:-2,end_char:999}]}]);
+ok("actual Azure output preserves unique exact quote repair and evidence confidence cap",
+  repairedWire.output.proposals.length===1 && repairedWire.output.proposals[0].confidence===0.91
+  && repairedWire.output.proposals[0].citations[0].start_char===redacted.text.indexOf(shortQuote));
+const trailingCondition='Only when temperature and solvent remain constant.';
+const conditionalBody='I prefer short answers. '+'The rate depends only on substrate concentration. '.repeat(11)+trailingCondition;
+const conditionalBatch=createExtractionBatch([transcript({text:conditionalBody})]);
+const oversizedClaim={...validWireClaim,domain:'knowledge',key:'conditional_rate_law',body:conditionalBody,
+  citations:[{...validWireClaim.citations[0],start_char:0,end_char:shortQuote.length},
+    {evidence_id:EVIDENCE,start_char:conditionalBody.indexOf(trailingCondition),end_char:conditionalBody.length,quote:trailingCondition,entailment:0.92}]};
+const priorTruncation=validateExtractionOutput({claims:[oversizedClaim]},conditionalBatch);
+assert(conditionalBody.length>500 && priorTruncation.proposals[0].body.length===500 && !priorTruncation.proposals[0].body.includes(trailingCondition));
+const guardedBody=await extractAzureFixture([oversizedClaim,validWireClaim],conditionalBatch);
+ok("Azure guard rejects the condition-losing raw body while preserving valid sibling and measured usage",
+  guardedBody.output.proposals.length===1 && guardedBody.output.proposals[0].key===validWireClaim.key
+  && guardedBody.output.rejected.includes('claim_body_too_long')
+  && guardedBody.usage.input_tokens===100 && guardedBody.usage.output_tokens===40);
+const bodyBoundary=await extractAzureFixture([
+  {...validWireClaim,body:'x'.repeat(500)}, {...validWireClaim,body:'x'.repeat(501)},
+  {...validWireClaim,body:'😀'.repeat(251)},
+]);
+ok("Azure raw body bound is 500 UTF-16 units including astral characters",
+  bodyBoundary.output.proposals.length===1 && bodyBoundary.output.proposals[0].body.length===500
+  && bodyBoundary.output.rejected.filter(code=>code==='claim_body_too_long').length===2);
+await assert.rejects(()=>extractAzureFixture(Array.from({length:51},()=>oversizedClaim),conditionalBatch));
+ok("overlong body filtering cannot bypass original fifty-claim limit",true);
 ok("Azure adapter returns validated proposals and bounded usage", azureResult.output.proposals.length === 2 && azureResult.usage.input_tokens === 100);
 assert.throws(() => createAzureFoundryClaimExtractor({ endpoint: "https://evil.example.com", model: "x", apiKey: "x".repeat(20) }), /azure_foundry_endpoint_invalid/);
 ok("Azure adapter refuses non-Azure endpoints", true);

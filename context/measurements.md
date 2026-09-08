@@ -17702,3 +17702,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease188-roomleak-source-cut` (2026-09-08)
 
 2026-09-09 sourceonly onefile importedcleanly. Root reports author341/341 with336323retrieval+586boundary; not rerunhere. Allsevenfailurefix sources nowincluded. Combinedfreshdependencyinstall/browser/tsc/build pendingauthlane release.
+
+
+## `combined193-sql-source-parity` (2026-09-08)
+
+2026-09-09 n=1 sixscope byte comparison against87cd actualv4 source. Personmodel,contextauthority,contextlocker,contextevidence,citationcoordinates identicalLFbytes; replica-claims entireprefix before extractionorchestrator (all SQLdeclarations) identical. COMBINED193-SQL-SOURCE-PARITY.json recordsSHA256; this is sourceparity, not new SQL execution or yet an independentlycomputedcomposedSQLhash.
