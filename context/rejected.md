@@ -17343,3 +17343,8 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `release34-no-performance-causality` (2026-09-08)
 
 2026-09-08: One bounded A/B improvement does not prove eliminated host noise or full-release acceptance. Importing all performancebranch files would mix diagnostics with product; only reviewed site/vyakti.html was restored. Original release31 and diagnostic failures retained.
+
+
+## `room-memory-write37-no-postcharge-throw` (2026-09-08)
+
+Source audit found swallowed writer errors return undefined on success/failure. remembers=true records preference, not acknowledgement. Throwing after assistant write failure would hide an already generated charged answer and invite replay. Initial transport fixtures returned undefined for success, causing legitimate uncertainty notices and failing exact message-count expectations. Fixtures now explicitly acknowledge successful writes; dedicated failure cases retain exact ordering and prove no automatic retry.

@@ -100,6 +100,7 @@ export const HI_TALK: RoomTalkCopy = {
   },
 
   conversation: {
+    saveUnconfirmed: "इस बातचीत के सेव होने की पुष्टि नहीं हो सकी। ज़रूरत हो तो इसकी कॉपी रख लें।",
     placeholder: "कुछ भी पूछें",
     send: "भेजें",
     thinking: "लिख रहे हैं",

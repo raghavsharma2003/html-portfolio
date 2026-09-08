@@ -1161,11 +1161,18 @@ export async function logDmTurn(
   { device, person, role, content, agentId = MEERA_AGENT_ID },
   t = ident,
 ) {
-  await q(
-    `insert into ${t("meera_log")} (agent_id, device_id, role, channel, kind, content, at, speaker_person_id)
+  // An ambiguous INSERT is not a confirmed save. Do not retry here: the first
+  // write may have committed. Existing callers may ignore this explicit result.
+  try {
+    await q(
+      `insert into ${t("meera_log")} (agent_id, device_id, role, channel, kind, content, at, speaker_person_id)
      values ($5,$1,$2,'chat','text',$3, now(), $4)`,
-    [device, role === "her" ? "her" : "me", String(content || "").slice(0, 4000), person, agentId],
-  ).catch(() => {});
+      [device, role === "her" ? "her" : "me", String(content || "").slice(0, 4000), person, agentId],
+    );
+    return { persisted: true };
+  } catch {
+    return { persisted: false };
+  }
 }
 
 /**

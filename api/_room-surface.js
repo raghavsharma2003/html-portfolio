@@ -1946,6 +1946,9 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
 
   let history = [];
   let facts = [];
+  // This reports only this exchange's raw turn writes, not derived memory.
+  let memoryWriteState = remembers ? "unconfirmed" : "not_requested";
+  let userTurnPersisted = false;
   if (remembers) {
     // Before the first write on this device, every time. A thread named after
     // the join has a device the join never registered, and an unregistered
@@ -1959,7 +1962,8 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
       try { history = await memory.historyStrict(device, resolved.agentId, ROOM_RECALL_TURNS); }
       catch { throw new RoomError("room_expert_history_unavailable", 503); }
     }
-    await memory.logTurn({ device, person: payload.p, role: "me", content: text, agentId: resolved.agentId });
+    userTurnPersisted = (await memory.logTurn({ device, person: payload.p, role: "me", content: text, agentId: resolved.agentId }))?.persisted === true;
+    if (userTurnPersisted) memoryWriteState = "confirmed";
     if (!expertProfile) history = await memory.history(device, resolved.agentId, ROOM_RECALL_TURNS);
     // The disclosure predicate with one recipient and no room: their own facts
     // under this agent, and nobody else's, because nobody else was there.
@@ -2079,7 +2083,8 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     await assertExpertAuthorityCurrent();
     await deliver(ctx, "room", { kind: "text", text: said, replyTo: null, buttons: [] });
     if (remembers) {
-      await memory.logTurn({ device, person: payload.p, role: "her", content: said, agentId: resolved.agentId });
+      const answerPersisted = (await memory.logTurn({ device, person: payload.p, role: "her", content: said, agentId: resolved.agentId }))?.persisted === true;
+      memoryWriteState = userTurnPersisted && answerPersisted ? "confirmed" : "unconfirmed";
       if (thread) await touchThread(db, thread.thread_id, resolved.agentId, payload.p);
     }
   } else if (gatedOut.parsed === undefined) {
@@ -2154,6 +2159,7 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     bubbles: sent,
     reply: said,
     remembers,
+    memory_write_state: memoryWriteState,
     thread_id: thread?.thread_id ?? null,
     knowledge: said && knowledge.sources.length ? {
       scope: "public_room_qa", relation: "provided_to_model", exact: false,

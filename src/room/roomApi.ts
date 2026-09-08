@@ -129,6 +129,8 @@ export interface RoomTurn {
   bubbles: string[];
   reply: string;
   remembers: boolean;
+  /** Current raw exchange only. Absence on older servers is not confirmation. */
+  memory_write_state?: "confirmed" | "unconfirmed" | "not_requested";
   thread_id: string | null;
   quota: RoomQuota;
   upgrade_prompt: boolean;
