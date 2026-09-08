@@ -23595,3 +23595,15 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `correction37-connected-private-candidate-worker` (2026-09-08)
 
 2026-09-08: Add existing Saved corrections panel action to authenticated correction candidate route and one-shot durable worker, Azure catalog extraction, accurately labelled private renderer and existing draft registration. Reuse full runtime and feedback SQL in same-statement admission instead of duplicating consent gates. Register's optional fourth admission argument is fixed server SQL, never request input. Migration152 source only, mirrored schema/source-erasure/catalog-walk path. No activation or owner-vote fabrication. Reverse on real authority/SQL/erasure failure or fresh held-out evidence that this representation worsens fidelity.
+
+
+## `publication-continuity37-scoped-v2` (2026-09-08)
+
+2026-09-08: New v2 owner review permits optional authenticated visitor continuity on the existing account-material text endpoint. Existing v1 remains memory-free. Durable memory epoch, explicit choice and prior-request hash lineage reuse encrypted request rows; no Rooms runtime/identity gate is bypassed and no competing memory engine is added. Settings changes invalidate admission and old memory-derived readback becomes content-free withdrawn with accurate billing. Reversal: actual SQL/race proof finds the same-publication lineage cannot be fenced atomically, or product policy requires verified identity for this capability.
+
+
+
+
+## `publication-continuity37-durable-memory-block` (2026-09-08)
+
+2026-09-08: Invalid, undecryptable or over-budget prior memory is admitted as an explicit blocked operation before provider reservation; no guessed empty memory or stranded result polling. Existing admission counting remains. Oversized history opens existing settings; only explicit visitor opt-out followed by rejoin permits a fresh ask. Reversal: actual SQL or production evidence shows this durable error representation cannot preserve request idempotency or accurate quota semantics.

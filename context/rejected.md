@@ -17372,3 +17372,15 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `correction37-parsed-refusal-is-not-unknown-usage` (2026-09-08)
 
 2026-09-08 source review identified that adapter-level parsed refusal or invalid JSON content could discard otherwise validated payload usage. It now attaches measured_usage to those errors; worker validates units again and persists/settles before a failed candidate state. New executed worker negative confirms no candidate and no duplicate provider call. Truly unknown transport, missing usage and failed settlement retain held accounting; no invoice or model-success claim follows.
+
+
+## `publication-continuity37-canonical-boundaries` (2026-09-08)
+
+Independent source review found numeric/newline memory epochs accepted by regex/BigInt coercion and an answer ciphertext ceiling too small for valid Hindi text under the decoded contract. Fixed exact canonical decimal string validation and UTF-8-aware12000base64 bound before aggregate decoded3000-unit validation. Added negatives and Hindi boundary fixtures. Also rejected direct Room routing because it would substitute stronger identity/runtime authority and broader agent/person recall for explicit account-publication scope. Initial backend test missing-brace syntax and compiler TS18048 failure were fixed and rerun; no mock result is a SQL proof.
+
+
+
+
+## `publication-continuity37-switch-and-recovery` (2026-09-08)
+
+Final mounted review caught settings using new publicId with stale previous publication v2 state. Effect and action now require matching ids. A decode failure before admission could strand the UI with a nonexistent result; blocked durable receipts now let the user explicitly disable memory and rejoin without replaying the failed operation. Both widths verified one dispatch of the blocked request. Browser fixture fixes preserved expectations: await recovery state rather than missing composer, flush headers before simulating truncated response, and scope incumbent consent selectors to their original fieldset.

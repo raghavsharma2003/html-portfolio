@@ -5,10 +5,11 @@ export type PublicationTerms = {
   publication_days: 30; retention_days: 30;
   visitor_question_limit: 20; total_question_limit: 200;
   budget_microusd: number; quota_policy: "admission_counts";
-  memory: false; voice: false;
+  memory: false | "optional_visitor_continuity_v1"; voice: false;
+  memory_policy_hash?: string; memory_policy?: string; memory_max_exchanges?: 3; memory_max_units?: 3000;
 };
 export type Publication = {
-  public_id: string; replica_id?: string; version: 1;
+  public_id: string; replica_id?: string; version: 1 | 2;
   state: "active" | "revoked" | "expired" | "unavailable";
   title: string; subject_domain: string; disclosure: string; disclosure_hash: string;
   terms: PublicationTerms; created_at: string; expires_at: string;
@@ -43,7 +44,10 @@ export type PublicationRequest = {
 };
 export type PublicationAdmission = {
   publication: Publication; session_token: string; expires_at: string; remaining_questions: number;
+  memory?: PublicationMemory;
 };
+export type PublicationMemory = { available: boolean; enabled: boolean; epoch: string; policy_hash: string | null; policy: string | null };
+export type PublicationMemoryChoice = { remember: boolean; expected_memory_epoch: string; expected_memory_policy_hash: string };
 const OWNER = "/api/replica-text-publication";
 const VISITOR = "/api/text-publication";
 const invalid = (): never => { throw new Error("publication_response_invalid"); };
@@ -51,15 +55,25 @@ const record = (value: unknown): value is Record<string, unknown> => !!value && 
 export function validatePublication(value: unknown, publicId?: string): Publication {
   if (!record(value)) return invalid();
   if (typeof value.public_id !== "string" || publicId && value.public_id !== publicId ||
-      value.version !== 1 || !["active", "revoked", "expired", "unavailable"].includes(String(value.state)) ||
+      ![1, 2].includes(Number(value.version)) || typeof value.version !== "number" || !["active", "revoked", "expired", "unavailable"].includes(String(value.state)) ||
       typeof value.title !== "string" || typeof value.disclosure !== "string" || typeof value.disclosure_hash !== "string" ||
       value.can_voice !== false || typeof value.can_text !== "boolean" || !record(value.terms)) invalid();
   const terms = value.terms as Record<string, unknown>;
-  if (terms.audience !== "signed_in_adult_attestation" || terms.memory !== false || terms.voice !== false ||
+  if (terms.audience !== "signed_in_adult_attestation" || terms.voice !== false ||
       terms.quota_policy !== "admission_counts" || terms.publication_days !== 30 || terms.retention_days !== 30 ||
       terms.visitor_question_limit !== 20 || terms.total_question_limit !== 200 ||
       typeof terms.budget_microusd !== "number" || !Number.isSafeInteger(terms.budget_microusd) || terms.budget_microusd <= 0) invalid();
+  if (value.version === 1 ? terms.memory !== false : terms.memory !== "optional_visitor_continuity_v1" ||
+      typeof terms.memory_policy_hash !== "string" || !/^[a-f0-9]{64}$/.test(terms.memory_policy_hash) ||
+      typeof terms.memory_policy !== "string" || !terms.memory_policy.trim() || terms.memory_max_exchanges !== 3 || terms.memory_max_units !== 3000) invalid();
   return value as unknown as Publication;
+}
+export function validatePublicationMemory(value: unknown): PublicationMemory {
+  if (!record(value) || typeof value.available !== "boolean" || typeof value.enabled !== "boolean" ||
+      typeof value.epoch !== "string" || !/^(0|[1-9][0-9]*)$/.test(value.epoch) ||
+      (value.available ? typeof value.policy_hash !== "string" || !/^[a-f0-9]{64}$/.test(value.policy_hash) ||
+        typeof value.policy !== "string" || !value.policy.trim() : value.enabled || value.policy_hash !== null || value.policy !== null)) invalid();
+  return value as PublicationMemory;
 }
 export function validatePublicationRequest(value: unknown, publicId: string, requestId: string): PublicationRequest {
   if (!record(value) || value.public_id !== publicId || value.request_id !== requestId || value.can_voice !== false ||
@@ -78,10 +92,11 @@ export function validateOwnedPublication(value: unknown, publicId: string): Publ
 const post = <T>(token: string, path: string, body: unknown, signal?: AbortSignal) =>
   replicaRequest<T>(token, path, { method: "POST", body: JSON.stringify(body), signal });
 
-export async function publicationReadiness(token: string, replicaId: string, sheetId = "", itemId = "", signal?: AbortSignal) {
+export async function publicationReadiness(token: string, replicaId: string, sheetId = "", itemId = "", signal?: AbortSignal, allowMemory = false) {
   const query = new URLSearchParams({ op: "readiness", replica_id: replicaId });
   if (sheetId) query.set("sheet_id", sheetId);
   if (itemId) query.set("context_item_id", itemId);
+  if (allowMemory) query.set("allow_memory", "true");
   const data = await replicaRequest<{ readiness: PublicationReadiness }>(token, `${OWNER}?${query}`, { signal });
   if (!data.readiness || !Array.isArray(data.readiness.drafts) || !Array.isArray(data.readiness.context_items) ||
       !Array.isArray(data.readiness.statements) || !Array.isArray(data.readiness.publications) || !Array.isArray(data.readiness.blockers))
@@ -110,12 +125,25 @@ export async function openPublication(publicId: string, signal?: AbortSignal): P
   if (!response.ok || !data?.publication || typeof data.publication.title !== "string") throw new Error("publication_unavailable");
   return validatePublication(data.publication, publicId);
 }
-export const joinPublication = (token: string, publicId: string, disclosureHash: string) =>
+export const joinPublication = (token: string, publicId: string, disclosureHash: string, memory?: PublicationMemoryChoice) =>
   post<PublicationAdmission>(token, VISITOR, { op: "join", public_id: publicId, expected_disclosure_hash: disclosureHash,
-    is_adult: true, accept_ai_disclosure: true, accept_retention: true }).then(data => {
+    is_adult: true, accept_ai_disclosure: true, accept_retention: true, ...memory }).then(data => {
       validatePublication(data.publication, publicId);
       if (typeof data.session_token !== "string" || data.session_token.length < 16 || !Number.isSafeInteger(data.remaining_questions) || data.remaining_questions < 0) invalid();
+      if (data.publication.version === 2 || data.memory !== undefined) validatePublicationMemory(data.memory);
+      if (data.publication.version === 2 && (!memory || !data.memory?.available || data.memory.enabled !== memory.remember ||
+          data.memory.policy_hash !== memory.expected_memory_policy_hash || data.memory.policy_hash !== data.publication.terms.memory_policy_hash)) invalid();
       return data;
+    });
+export const publicationMemorySettings = (token: string, publicId: string, signal?: AbortSignal) =>
+  post<{ memory: PublicationMemory }>(token, VISITOR, { op: "memory_settings", public_id: publicId }, signal)
+    .then(data => validatePublicationMemory(data.memory));
+export const setPublicationMemory = (token: string, publicId: string, sessionToken: string, choice: PublicationMemoryChoice) =>
+  post<{ memory: PublicationMemory; rejoin_required: true }>(token, VISITOR, { op: "set_memory", public_id: publicId, session_token: sessionToken, ...choice })
+    .then(data => {
+      const memory = validatePublicationMemory(data.memory);
+      if (data.rejoin_required !== true || !memory.available || memory.enabled !== choice.remember || memory.policy_hash !== choice.expected_memory_policy_hash) invalid();
+      return { memory, rejoin_required: true as const };
     });
 export const askPublication = (token: string, publicId: string, sessionToken: string, requestId: string, question: string) =>
   post<{ request: PublicationRequest }>(token, VISITOR, { op: "ask", public_id: publicId, session_token: sessionToken, request_id: requestId, question }, AbortSignal.timeout(90_000)).then(data => ({ request: validatePublicationRequest(data.request, publicId, requestId) }));

@@ -7,6 +7,7 @@ export default function MaterialSharePanel({ token, replicaId }: { token: string
   const [sheet, setSheet] = useState("");
   const [item, setItem] = useState("");
   const [checks, setChecks] = useState<Record<string, boolean>>({});
+  const [allowMemory, setAllowMemory] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState<string | null>(null);
@@ -20,17 +21,18 @@ export default function MaterialSharePanel({ token, replicaId }: { token: string
   const scope = useRef(0), lock = useRef(false);
   const key = `vyakti.publication.intent.${replicaId}`;
   const remember = (id: string | null) => { setPending(id); try { if (id) sessionStorage.setItem(key, id); else sessionStorage.removeItem(key); } catch { /* In-memory recovery remains available. */ } };
+  useEffect(() => { setAllowMemory(false); setChecks({}); }, [token, replicaId]);
   useEffect(() => {
     const revision = ++scope.current;
     const controller = new AbortController();
     lock.current = false; setBusy(false); setData(null); setPublished(null); setChecks({}); setMessage("");
     try { const id = sessionStorage.getItem(key); setPending(id && /^[a-f0-9-]{36}$/.test(id) ? id : null); } catch { setPending(null); }
-    publicationReadiness(token, replicaId, sheet, item, controller.signal).then(result => {
+    publicationReadiness(token, replicaId, sheet, item, controller.signal, allowMemory).then(result => {
       if (scope.current !== revision) return;
       setData(result); setPublished(result.publications.find(p => p.state === "active") || null);
     }).catch(error => { if (scope.current === revision && error?.name !== "AbortError") setMessage("We couldn't load sharing. Try again."); });
     return () => { scope.current++; controller.abort(); };
-  }, [token, replicaId, sheet, item, key]);
+  }, [token, replicaId, sheet, item, key, allowMemory]);
 
   useEffect(() => {
     const revision = ++availabilityRevision.current;
@@ -53,7 +55,7 @@ export default function MaterialSharePanel({ token, replicaId }: { token: string
   async function reload() {
     if (lock.current) return; lock.current = true; setBusy(true); setChecks({});
     const revision = scope.current;
-    try { const result = await publicationReadiness(token, replicaId, sheet, item); if (scope.current === revision) { setData(result); setPublished(result.publications.find(p => p.state === "active") || null); setMessage(""); } }
+    try { const result = await publicationReadiness(token, replicaId, sheet, item, undefined, allowMemory); if (scope.current === revision) { setData(result); setPublished(result.publications.find(p => p.state === "active") || null); setMessage(""); } }
     catch { if (scope.current === revision) setMessage("We couldn't load sharing. Try again."); }
     finally { if (scope.current === revision) { lock.current = false; setBusy(false); } }
   }
@@ -104,6 +106,7 @@ export default function MaterialSharePanel({ token, replicaId }: { token: string
         <label>Teaching profile<select value={sheet} disabled={busy || stopped} onChange={event => { setChecks({}); setSheet(event.target.value); }}>
           <option value="">Choose a profile</option>{data.drafts.map(draft => <option key={draft.sheet_id} value={draft.sheet_id}>{draft.name}</option>)}
         </select></label>
+        <label><input type="checkbox" checked={allowMemory} disabled={busy || stopped} onChange={event => { scope.current++; setChecks({}); setData(null); setAllowMemory(event.target.checked); }} />Let visitors choose conversation memory</label>
         <label>Material<select value={item} disabled={busy || stopped} onChange={event => { setChecks({}); setItem(event.target.value); }}>
           <option value="">Choose your material</option>{data.context_items.map(source => <option key={source.item_id} value={source.item_id} disabled={!source.eligible}>{source.source_name}{source.eligible ? "" : " (not ready)"}</option>)}
         </select></label>
@@ -123,7 +126,8 @@ export default function MaterialSharePanel({ token, replicaId }: { token: string
           <details><summary>Access and limits</summary>
             <p>Signed-in adults. {data.selected.terms.visitor_question_limit} questions per person. This link expires in {data.selected.terms.publication_days} days.</p>
             <p>Questions are kept for up to {data.selected.terms.retention_days} days. Each submitted question uses one of the {data.selected.terms.total_question_limit} available questions, even if an answer cannot be delivered.</p>
-            <p>Usage budget: up to ${(data.selected.terms.budget_microusd / 1_000_000).toFixed(2)}. Voice and relationship memory are not enabled.</p>
+            <p>Usage budget: up to ${(data.selected.terms.budget_microusd / 1_000_000).toFixed(2)}. Voice is not enabled.</p>
+            <p>{data.selected.terms.memory === false ? "Conversation memory is off." : data.selected.terms.memory_policy}</p>
           </details>
           <fieldset disabled={busy || stopped}><legend>Permission to publish</legend>{data.statements.map(statement => <label key={statement.id}>
             <input type="checkbox" checked={!!checks[statement.id]} onChange={event => setChecks(previous => ({ ...previous, [statement.id]: event.target.checked }))} />{statement.text}

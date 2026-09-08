@@ -16290,6 +16290,42 @@
       "kind": "rejection",
       "title": "Preserve available usage on malformed model content",
       "at": "2026-09-08"
+    },
+    {
+      "id": "publication-continuity37-scoped-v2",
+      "kind": "decision",
+      "title": "Optional visitor continuity keeps account publication authority separate",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "publication-continuity37-focused-source",
+      "kind": "measurement",
+      "title": "Visitor continuity focused verification before actual SQL",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "publication-continuity37-canonical-boundaries",
+      "kind": "rejection",
+      "title": "Loose epoch coercion and ASCII-sized envelopes reject or admit the wrong records",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "publication-continuity37-durable-memory-block",
+      "kind": "decision",
+      "title": "Memory decode failures have durable recoverable receipts",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "publication-continuity37-final-focused",
+      "kind": "measurement",
+      "title": "Final bounded continuity source and mounted verification",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "publication-continuity37-switch-and-recovery",
+      "kind": "rejection",
+      "title": "Reject cross-publication settings and undurable memory errors",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

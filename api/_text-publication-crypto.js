@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { canonicalJson, sha256Hex } from './_provenance/contracts.js';
 const fail=code=>{throw Object.assign(new Error(code),{code,status:503});};
+export const publicationTextBinding=(r,role,content_hash)=>({owner_user_id:r.owner_user_id,replica_id:r.replica_id,publication_id:r.publication_id,visitor_user_id:r.visitor_user_id,request_id:r.request_id,role,content_hash});
 export function textPublicationKey(env=process.env){
  const id=String(env.PRIVATE_TEXT_REHEARSAL_KEK_ID||'').trim(),encoded=String(env.PRIVATE_TEXT_REHEARSAL_KEK_B64||'').trim();
  const key=Buffer.from(encoded,'base64');

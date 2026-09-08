@@ -17379,3 +17379,15 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `correction37-final-refusal-accounting-proof` (2026-09-08)
 
 2026-09-08 final scoped follow-up: adapter9groups and worker8groups passed after preserving validated usage on parsed provider refusal/invalid-content errors, recording usage before failure, and exact successful/abstained job receipt lookup. Worker controls use actual service/crypto/rendering with SQL fixtures;21 exact production SQL strings and synthetic parameters captured in scratchpad/correction37-proof/sql-inventory.json. No actualSQL/provider dispatch or quality proof.
+
+
+## `publication-continuity37-focused-source` (2026-09-08)
+
+2026-09-08, n=1 candidate based on release34 5ade4ea9. Executed 11 new backend/crypto/runtime groups with explicit fake SQL and synthetic generator;16 compiler groups incl historical v1 bytes;25 client/source groups;26 incumbent v1 store;43 incumbent runtime/expiry/held-authority; copy7scopes21negativecontrols;forced semantic TypeScript passed. No real SQL, model, provider, deployment or customer memory quality measurement. Mounted UI receipts tracked separately. SQL inventory22shapes prepared, not parsed by PostgreSQL.
+
+
+
+
+## `publication-continuity37-final-focused` (2026-09-08)
+
+2026-09-08, n=1 final candidate from release34. Executed12 backend crypto/runtime groups,16 compiler groups,25 client/source groups,20 mounted groups across390/1440,26 incumbent store,43 incumbent runtime/expiry/authority,30 incumbent mounted groups; forced semantic TypeScript and copy7scopes21negativecontrols passed. Mounted final receipt scratchpad/publication-continuity-mounted/1788855746916/receipt.json. Browser tests use synthetic service fixtures; no SQL, Azure model, real customer memory quality or competitor comparison executed. Prepared22 SQL shapes with0 SQL calls; migration153 still requires protected live proof.
