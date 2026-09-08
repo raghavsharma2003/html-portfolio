@@ -17418,3 +17418,22 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `a11y-readiness42-delayed-entry-controls` (2026-09-08)
 
 2026-09-08 one focused browser invocation exec61001 using frozen39 built room fixture. Delayed-entry old1200ms snapshot false; new shared readiness mounted438ms after scheduling entry250ms later, actual axe zero violations and injected image-alt negative detected. Never-mount timed out30017ms, critical coverage, no axe scan. Non-timeout errors propagated. Root152V2SQL72400 was concurrent network-only activity. No full accessibility or release rerun; original39 failure preserved. Receipt scratchpad/a11y-readiness/1788859621123/result.json.
+
+
+## `personal-auth-hindi41-source-only` (2026-09-08)
+
+2026-09-08: Source inspection: old personal AuthGate has English GENERIC_COPY and no lang handling; VyaktiMark renders aria-hidden Devanagari logo that old body.textContent marker accepts. New probe requires Hindi sign-in heading and email/code label with CSS visibility, excludes hidden/inert/logo. Offline suites authored and registered, existing locale/link/preflight fixtures updated. No tests/build/browser/provider execution this phase.
+
+
+
+
+## `personal-auth-hindi41-focused-pass` (2026-09-08)
+
+2026-09-08: Sequential offline checks passed46 personal-auth,16 Hindi probe,10 magic-link,95 locale,31 performance-measurement and9 prerequisites controls. tsc -b --force passed26.231s at09:50:33.103Z–09:50:59.335Z. Mounted exec63993 passed8 en/hi x390/1440 xgeneral/test actualAuthGate views in21.493s at09:51:05.080Z–09:51:26.575Z and11 realDOM probe controls in1.856s. Selector88–89x44px,contrast18.203:1,focus/headeroverflow checked. Actual source/CSS with mock account responses; dictionary preload and font wait are fixture-only, not live-provider/performance proof. Copy7scopes/21negatives pass; scoped Impeccable detector once returned[]. Raw scratchpad/focused-1788861065078 and personal-auth-locale-browser-1788861065537. No production build or full release.
+
+
+
+
+## `personal-auth-visual42-eight-views` (2026-09-08)
+
+2026-09-08: exec6562 terminal0,09:59:12.827Z–09:59:33.815Z,20.986s. Eight en/hi x390/1440 xgeneral/test actualAuthGate views; four test views add hero/form non-overlap, whole scene overflow and visible active text contrast>=4.5. Selector44px/focus and email/code/cross-tab failure flows still pass. Actual eager CSS/mocked account responses; no liveprovider or performance claim. Screenshots/metrics scratchpad/personal-auth-locale-browser-1788861553569, correctedHindi390/1440 visually inspected. Scoped Impeccable once returned[].

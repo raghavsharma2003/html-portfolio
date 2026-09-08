@@ -91,6 +91,7 @@ import { gzipSync } from "node:zlib";
 // its own port (8935, never 8931 or 8932), so it neither shares nor
 // conflicts with anything below.
 import { runInstallCheck } from "./check-install.mjs";
+import { installHindiInterfaceProbe } from "./performance-hindi-interface.mjs";
 
 function rootFromModuleUrl(moduleUrl) {
   return fileURLToPath(new URL("..", moduleUrl));
@@ -438,6 +439,7 @@ async function measureOnce(browser, target, diagnostics = false, profile = false
     bytes.total += n;
   });
 
+  if (hiChunkPath) await page.addInitScript(installHindiInterfaceProbe);
   await page.addInitScript(({ chunkPath, diagnostics, profile }) => {
     // Public fixture diagnostics only: never retain text, query strings or credentials.
     const resourceName = (value) => {
@@ -522,21 +524,14 @@ async function measureOnce(browser, target, diagnostics = false, profile = false
           }
         }).observe({ type: "paint", buffered: true });
       } catch {}
-      // WS-R91. A DOM-text marker, not a visibility or paint assertion.
-      // The historical firstHindiPaintMs key is retained for compatibility.
-      // This watches `document.body`'s own
-      // text for the first Devanagari character to appear (U+0900-U+097F,
-      // `copy.ts#detectStudioTextLang`'s own range) and records the
-      // timestamp — `textContent`, never `innerText`, so the check itself
-      // never forces a layout the throttled run would otherwise not have
-      // paid for. A `MutationObserver` rather than polling: it fires
-      // exactly when React commits new text, not on some arbitrary tick
-      // that could itself add latency to the number being measured.
+      // Localized sign-in heading AND field label must be rendered. Hidden
+      // logo glyphs and loading messages cannot satisfy this interface metric.
+      // A bounded CSS visibility query replaces the old whole-body scan;
+      // it can flush style. No budgets or waits change. Not a glyph/font test.
       try {
-        const devanagari = /[ऀ-ॿ]/;
         const markIfHindi = () => {
           if (window.__PERF__.firstHindiPaintMs !== null) return true;
-          if (document.body && devanagari.test(document.body.textContent || "")) {
+          if (window.__VYAKTI_HINDI_INTERFACE__?.()) {
             window.__PERF__.firstHindiPaintMs = performance.now();
             return true;
           }
@@ -558,7 +553,7 @@ async function measureOnce(browser, target, diagnostics = false, profile = false
           // Node from the first tick, and observing it with `subtree: true`
           // catches `<html>` itself being inserted along with everything
           // under it.
-          mo.observe(document, { childList: true, subtree: true, characterData: true });
+          mo.observe(document, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["lang", "hidden", "aria-hidden", "inert", "class", "style"] });
         }
       } catch {}
     }
@@ -768,7 +763,7 @@ export function evaluateBudgets(result) {
     // for the identical reason (an environmental "chunk not found" must
     // never read as a regression this gate should fail the build over).
     if (result.median.firstHindiPaintMs === null) {
-      findings.push({ metric: "Hindi DOM text", detail: "no Devanagari DOM text was observed; see runs[].firstHindiPaintMs with --json" });
+      findings.push({ metric: "Hindi DOM text", detail: "no Devanagari DOM text in a visible localized sign-in heading and field label; see runs[].firstHindiPaintMs with --json" });
     } else if (result.median.firstHindiPaintMs > FIRST_HINDI_PAINT_BUDGET_MS) {
       findings.push({
         metric: "Hindi DOM text",

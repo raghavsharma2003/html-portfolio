@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  StudioAuthError,
   ensureStudioSession,
   googleSignIn,
   isStudioAuthDead,
@@ -35,6 +36,7 @@ const CloneExperience = lazy(() => import("./CloneExperience"));
 const StudioWorkspaceStyles = lazy(() => import("./StudioWorkspaceStyles"));
 import ExpertEntryVisual from "./ExpertEntryVisual";
 import VyaktiMark from "./VyaktiMark";
+import { PersonalAuthLoading, readPersonalAuthLocale, usePersonalAuthLocale } from "./personalAuthLocale";
 const VoicePreviewPanel = lazy(() => import("./VoicePreviewPanel"));
 const IngestChannelStudio = lazy(() => import("./IngestChannelStudio"));
 const ContextLockerPanel = lazy(() => import("./ContextLockerPanel"));
@@ -342,38 +344,40 @@ function TestSourceGuide() {
 
 function AuthGate({
   onAuthed,
-  copy,
   testEnvironment,
   resumeIntent,
 }: {
   onAuthed: (session: StudioSession) => void;
-  copy: StudioCopy;
   testEnvironment: boolean;
   resumeIntent: AuthResumeIntent | null;
 }) {
+  const { locale, ready, failed, retry, switchLocale, t } = usePersonalAuthLocale();
+  const intro = t.variant[testEnvironment ? "test" : "generic"];
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState(resumeIntent?.email || "");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [checkingLink, setCheckingLink] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<"linkNotReadyError" | "sendError" | "networkError" | "rateLimitError" | "serviceUnavailableError" | "codeMismatchError" | "googleError" | "">("");
   const codeRef = useRef<HTMLInputElement>(null);
   const linkButtonRef = useRef<HTMLButtonElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (resumeIntent && step === "email") emailRef.current?.focus();
-  }, [resumeIntent, step]);
+  }, [resumeIntent, step, ready]);
 
   const acceptLinkedSession = useCallback(async (showNotReady = false) => {
     setCheckingLink(true);
     try {
-      const linked = await restoreSession();
+      const linked = await restoreSession({ reportTransientFailure: true });
       if (linked) {
         onAuthed(linked);
         return;
       }
-      if (showNotReady) setError("Sign-in has not reached this tab yet. Open the email link, or enter a code if your email shows one.");
+      if (showNotReady) setError("linkNotReadyError");
+    } catch (cause) {
+      if (showNotReady) setError(cause instanceof StudioAuthError ? cause.status === 429 ? "rateLimitError" : "serviceUnavailableError" : "networkError");
     } finally {
       setCheckingLink(false);
     }
@@ -381,7 +385,7 @@ function AuthGate({
 
   useEffect(() => {
     if (step === "code") linkButtonRef.current?.focus();
-  }, [step]);
+  }, [step, ready]);
 
   useEffect(() => {
     if (step !== "code") return;
@@ -406,7 +410,7 @@ function AuthGate({
       await sendEmailOtp(email.trim());
       setStep("code");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message.replaceAll("_", " ") : "Could not send a sign-in email");
+      setError(cause instanceof StudioAuthError ? cause.status === 429 ? "rateLimitError" : cause.status >= 500 ? "serviceUnavailableError" : "sendError" : "networkError");
     } finally {
       setBusy(false);
     }
@@ -419,57 +423,63 @@ function AuthGate({
       const session = await verifyEmailOtp(email.trim(), code.trim());
       writeStoredSession(session);
       onAuthed(session);
-    } catch {
-      setError("That code did not match. Check it and try again.");
-      setCode("");
+    } catch (cause) {
+      const rejectedCode = cause instanceof StudioAuthError && (cause.status === 400 || cause.status === 401);
+      setError(cause instanceof StudioAuthError ? cause.status === 429 ? "rateLimitError" : rejectedCode ? "codeMismatchError" : "serviceUnavailableError" : "networkError");
+      if (rejectedCode) setCode("");
       requestAnimationFrame(() => codeRef.current?.focus());
     } finally {
       setBusy(false);
     }
   }
 
+  if (!ready) return <PersonalAuthLoading locale={locale} failed={failed} retry={retry} switchLocale={switchLocale} />;
+
   return (
-    <main className="auth-page">
+    <main className="auth-page" lang={locale} data-studio-auth-locale={locale} data-auth-theme={testEnvironment ? "test" : "general"}>
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
       <header className="auth-brand">
-        <a href="/" aria-label="Vyakti home"><VyaktiMark /></a>
+        <a href="/" aria-label={t.homeAriaLabel}><VyaktiMark /></a>
+        <label className="visually-hidden" htmlFor="studio-auth-language">{locale === "hi" ? "भाषा" : "Language"}</label>
+        <select id="studio-auth-language" className="auth-language-select" value={locale} onChange={event => switchLocale(event.target.value === "hi" ? "hi" : "en")}>
+          <option value="en" lang="en">English</option><option value="hi" lang="hi">हिन्दी</option>
+        </select>
         <span className="brand-rule" />
-        <span>{copy.brandTag}</span>
+        <span>{intro.brandTag}</span>
       </header>
 
       <section className="auth-intro" aria-labelledby="studio-title">
-        {copy.introEyebrow && <p className="eyebrow">{copy.introEyebrow}</p>}
-        <h1 id="studio-title">{copy.introTitle}</h1>
-        <p>{copy.introBody}</p>
-        {!testEnvironment && <ExpertEntryVisual />}
-        {!testEnvironment && <div className="trust-strip" aria-label="Studio safeguards">
-          <span><i />Private by default</span>
-          <span><i />Every clip disclosed</span>
-          <span><i />Delete anytime</span>
+        {intro.introEyebrow && <p className="eyebrow">{intro.introEyebrow}</p>}
+        <h1 id="studio-title">{intro.introTitle}</h1>
+        <p>{intro.introBody}</p>
+        {!testEnvironment && <ExpertEntryVisual copy={{alt: t.visualAlt, ...t.visualCaptions}} />}
+        {!testEnvironment && <div className="trust-strip" aria-label={t.safeguardsAriaLabel}>
+          <span><i />{t.privateByDefault}</span>
+          <span><i />{t.everyClipDisclosed}</span>
+          <span><i />{t.deleteAnytime}</span>
         </div>}
       </section>
 
       <section className="auth-card" aria-labelledby="signin-title">
-        <h2 id="signin-title">{step === "email" ? (resumeIntent ? "Welcome back" : "Start with your email") : "Check your inbox"}</h2>
+        <h2 id="signin-title">{step === "email" ? (resumeIntent ? t.welcomeBackTitle : t.emailTitle) : t.inboxTitle}</h2>
         {resumeIntent && step === "email" ? (
           <div className="auth-resume-note" role="status">
-            <strong>Sign in again to continue where you were.</strong>
+            <strong>{t.resumeTitle}</strong>
             <p>
-              We will return you to {resumeIntent.replicaName || "the same clone"} on the {resumeIntent.step === "feed" ? "Add sources" : resumeIntent.step === "meet" ? "Test your clone" : "Deploy"} step.
-              Private uploads and server work continue. For safety, an unsent recording or form field is not stored.
+              {t.resumeBodyTemplate.replace("{name}", resumeIntent.replicaName || t.sameClone).replace("{step}", t.stepTitle[resumeIntent.step])}
             </p>
           </div>
         ) : null}
         <p className="card-copy">
           {step === "email"
-            ? "Get a secure sign-in link in your inbox."
-            : `We sent a sign-in email to ${email}. Open its link. If the email also shows a six-digit code, you can enter it below.`}
+            ? t.emailBody
+            : t.inboxBodyTemplate.replace("{email}", email)}
         </p>
 
         {step === "email" ? (
           <>
-            <label className="field-label" htmlFor="studio-email">Email address</label>
+            <label className="field-label" htmlFor="studio-email">{t.emailLabel}</label>
             <input
               ref={emailRef}
               id="studio-email"
@@ -477,7 +487,7 @@ function AuthGate({
               type="email"
               inputMode="email"
               autoComplete="email"
-              placeholder="you@example.com"
+              placeholder={t.emailPlaceholder} lang="en"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               onKeyDown={(event) => {
@@ -490,9 +500,9 @@ function AuthGate({
               disabled={busy || !email.includes("@")}
               onClick={() => void sendCode()}
             >
-              {busy ? <><Spinner label="Sending sign-in email" />Sending email</> : "Email me a sign-in link"}
+              {busy ? <><Spinner label={t.sendingAriaLabel} />{t.sending}</> : t.sendLink}
             </button>
-            <div className="or"><span>or</span></div>
+            <div className="or"><span>{t.or}</span></div>
             <button
               className="button google-button"
               type="button"
@@ -501,19 +511,19 @@ function AuthGate({
                 setError("");
                 setBusy(true);
                 googleSignIn().catch(() => {
-                  setError("Google sign-in is unavailable. Use your email instead.");
+                  setError("googleError");
                   setBusy(false);
                 });
               }}
             >
               <span className="google-g" aria-hidden="true">G</span>
-              Continue with Google
+              {t.google}
             </button>
           </>
         ) : (
           <>
             <p className="inbox-status" id="studio-inbox-help" role="status">
-              The email link opens the studio directly. This tab will also continue when sign-in finishes in another tab.
+              {t.inboxHelp}
             </p>
             <button
               ref={linkButtonRef}
@@ -522,10 +532,10 @@ function AuthGate({
               disabled={busy || checkingLink}
               onClick={() => void acceptLinkedSession(true)}
             >
-              {checkingLink ? "Checking sign-in" : "I opened the email link"}
+              {checkingLink ? t.checkingLink : t.openedLink}
             </button>
-            <div className="or"><span>or enter a code if shown</span></div>
-            <label className="field-label" htmlFor="studio-code">Six-digit code (optional)</label>
+            <div className="or"><span>{t.optionalCodeDivider}</span></div>
+            <label className="field-label" htmlFor="studio-code">{t.codeLabel}</label>
             <input
               ref={codeRef}
               id="studio-code"
@@ -534,7 +544,7 @@ function AuthGate({
               autoComplete="one-time-code"
               aria-describedby="studio-inbox-help"
               maxLength={6}
-              placeholder="000000"
+              placeholder={t.codePlaceholder}
               value={code}
               onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
               onKeyDown={(event) => {
@@ -547,7 +557,7 @@ function AuthGate({
               disabled={busy || code.length !== 6}
               onClick={() => void verifyCode()}
             >
-              {busy ? <><Spinner label="Verifying code" />Verifying</> : "Verify and enter"}
+              {busy ? <><Spinner label={t.verifyingAriaLabel} />{t.verifying}</> : t.verify}
             </button>
             <button
               className="text-button"
@@ -559,13 +569,13 @@ function AuthGate({
                 setError("");
               }}
             >
-              Use a different email
+              {t.differentEmail}
             </button>
           </>
         )}
-        {error && <p className="inline-error" role="alert">{error}</p>}
+        {error && <p className="inline-error" role="alert">{String(t[error])}</p>}
         {!testEnvironment && <p className="legal-copy">
-          Your source-use agreement appears after sign-in. Identity and model authorization are shown before any cloned speech is created.
+          {t.legalNotice}
         </p>}
       </section>
     </main>
@@ -2700,18 +2710,13 @@ export default function StudioApp() {
 
   if (!authChecked) {
     return (
-      <main className="boot-page">
-        <Mark />
-        <Spinner label="Opening private studio" />
-        <p>Opening your private studio</p>
-      </main>
+      <PersonalAuthLoading locale={readPersonalAuthLocale()} failed={false} retry={() => {}} />
     );
   }
 
   if (!session) {
     return (
       <AuthGate
-        copy={copy}
         testEnvironment={STUDIO_SELF_TEST_UI}
         resumeIntent={authResumeIntent}
         onAuthed={acceptAuthenticatedSession}

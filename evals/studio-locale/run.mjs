@@ -124,7 +124,13 @@ await installStudioCopy("hi");
   // type has no eyebrow field for "test" at all; here the shared
   // `CreateReplicaVariantCopy` interface names the field for all three
   // variants, so "test" carries it deliberately empty instead).
-  const KNOWN_BLANK_KEYS = new Set(["studioApp.createReplica.test.firstEyebrow"]);
+  const KNOWN_BLANK_KEYS = new Set([
+    "studioApp.createReplica.test.firstEyebrow",
+    // The personal studio omits decorative eyebrows in every entry variant.
+    "personalAuth.variant.generic.introEyebrow",
+    "personalAuth.variant.teacher.introEyebrow",
+    "personalAuth.variant.test.introEyebrow",
+  ]);
 
   const blankHi = hiPaths.filter((p) => {
     if (KNOWN_BLANK_KEYS.has(p)) return false;
@@ -145,6 +151,10 @@ await installStudioCopy("hi");
   ok("the one deliberate blank is blank in BOTH locales (not an accidental Hindi-only or English-only gap)",
     STUDIO_COPY_TABLE.en.studioApp.createReplica.test.firstEyebrow === "" &&
     STUDIO_COPY_TABLE.hi.studioApp.createReplica.test.firstEyebrow === "");
+
+  ok("all named blank exceptions remain intentionally blank in both locales",
+    [...KNOWN_BLANK_KEYS].every(path => [STUDIO_COPY_TABLE.en, STUDIO_COPY_TABLE.hi].every(table =>
+      path.split(".").reduce((value, key) => value?.[key], table) === "")));
 
   ok("normalizeStudioLocale falls back to en for anything unrecognised",
     normalizeStudioLocale("fr") === "en" && normalizeStudioLocale(undefined) === "en" && normalizeStudioLocale("hi") === "hi");
@@ -182,10 +192,10 @@ await installStudioCopy("hi");
   const restTop = Object.keys(HI_REST).sort();
   const fullTop = Object.keys(STUDIO_COPY_TABLE.en).sort(); // the full StudioCopy shape, already loaded by section 1
 
-  ok("hiAuthCopy.ts's HI_AUTH carries exactly {authGate, shell}, nothing else",
-    JSON.stringify(authTop) === JSON.stringify(["authGate", "shell"]), authTop.join(", "));
-  ok("hiCopy.ts's HI carries neither authGate nor shell any more",
-    !restTop.includes("authGate") && !restTop.includes("shell"), restTop.join(", "));
+  ok("hiAuthCopy.ts's HI_AUTH carries exactly the three auth sections",
+    JSON.stringify(authTop) === JSON.stringify(["authGate", "personalAuth", "shell"]), authTop.join(", "));
+  ok("hiCopy.ts's HI carries no auth section",
+    !restTop.includes("authGate") && !restTop.includes("shell") && !restTop.includes("personalAuth"), restTop.join(", "));
   ok("hiAuthCopy.ts and hiCopy.ts partition StudioCopy's top-level keys with no overlap and no gap",
     JSON.stringify([...authTop, ...restTop].sort()) === JSON.stringify(fullTop),
     `auth+rest: ${JSON.stringify([...authTop, ...restTop].sort())}  vs en: ${JSON.stringify(fullTop)}`);

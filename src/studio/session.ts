@@ -1,5 +1,5 @@
 import type { StudioSession } from "./types";
-import { consumeStudioOAuthCallback, ensureStudioSession } from "./studioAuth";
+import { consumeStudioOAuthCallback, ensureStudioSession, isStudioAuthDead } from "./studioAuth";
 
 const STATE_KEY = "meera.state.v1";
 
@@ -39,7 +39,7 @@ export function writeStoredSession(session: StudioSession | null) {
   }
 }
 
-export async function restoreSession(): Promise<StudioSession | null> {
+export async function restoreSession({ reportTransientFailure = false }: { reportTransientFailure?: boolean } = {}): Promise<StudioSession | null> {
   const callback = consumeStudioOAuthCallback();
   const candidate = callback ?? readStoredSession();
   if (!candidate) return null;
@@ -47,7 +47,14 @@ export async function restoreSession(): Promise<StudioSession | null> {
     const fresh = await ensureStudioSession(candidate);
     writeStoredSession(fresh);
     return fresh;
-  } catch {
+  } catch (cause) {
+    // The explicit link check must distinguish an outage from no sign-in.
+    // Preserve only retry material; never return an unrefreshed candidate as
+    // an authenticated session. Existing callers keep their default behavior.
+    if (reportTransientFailure && !isStudioAuthDead(cause)) {
+      if (callback) writeStoredSession(candidate);
+      throw cause;
+    }
     writeStoredSession(null);
     return null;
   }

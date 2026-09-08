@@ -23634,3 +23634,22 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `a11y-readiness42-mounted-coverage` (2026-09-08)
 
 Accessibility coverage now awaits its actual mounted selector, state attached, with the installed Playwright action deadline of30000ms. Timeout still records critical coverage and skips axe; other errors propagate. Performance and creator gates remain unchanged. Reverse if target presence proves insufficient for stable meaningful axe coverage or an independently specified accessibility readiness contract requires another predicate.
+
+
+## `personal-auth-hindi41-real-interface` (2026-09-08)
+
+2026-09-08: Source candidate from39 adds personalAuth en/hi section for email-link-first flow, locale preference/query preservation, explicit load recovery and localized errors without raw backend text. Separate creator OTP copy unchanged. No font/layout experiment. Reverse if auth, consent, access, entry weight or mobile behavior regresses. Root source review before tests.
+
+
+
+
+## `personal-auth-hindi41-strict-refresh` (2026-09-08)
+
+2026-09-08: Independent review required optional reportTransientFailure session mode because default restoreSession swallowed refresh outages. Opt-in rethrows transient failures without granting stale authority; terminal auth failure clears and existing default callers remain unchanged. Pin esbuild0.28.2 as a direct dev dependency for actual-source fixtures. Reverse if auth/logout invariants or dependency/build compatibility regress.
+
+
+
+
+## `personal-auth-visual42-eager-cascade` (2026-09-08)
+
+2026-09-08: Actual product testEnvironment now sets data-auth-theme. Narrow CSS removes obsolete dark pseudo/ambient layers, uses existing paper and sets card margin0/opaque white. General image mode unchanged. Reverse if real mode selection, readability, layout or release tests regress.

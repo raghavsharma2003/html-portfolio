@@ -1,4 +1,44 @@
 /* Entry tokens and sign-in styles stay eager; signed-in scenes load with CloneExperience. */
+/* The no-image entry must not inherit the older dark backdrop and overlapping card. */
+.auth-page[data-auth-theme="test"] { background: var(--vx-paper); }
+.auth-page[data-auth-theme="test"]::before,
+.auth-page[data-auth-theme="test"]::after,
+.auth-page[data-auth-theme="test"] .ambient { display: none; }
+.auth-page[data-auth-theme="test"] .auth-card { margin: 0; background: #fff; }
+
+@layer components {
+  .auth-language-select {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    width: auto;
+    min-width: 88px;
+    max-width: 112px;
+    min-height: 44px;
+    margin: 0;
+    padding: 8px;
+    border: 1px solid #68716b;
+    border-radius: 8px;
+    background: #f8f8f5;
+    color: #0c0e0d;
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.4;
+    letter-spacing: normal;
+    cursor: pointer;
+  }
+
+  .auth-language-select:focus-visible {
+    outline: 2px solid #1f6b54;
+    outline-offset: 3px;
+  }
+
+  .auth-brand:has(.auth-language-select) > a { flex: 0 0 auto; }
+  .auth-brand:has(.auth-language-select) > span:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
 @layer components {
   :root {
     --vx-paper: #f8f8f5;

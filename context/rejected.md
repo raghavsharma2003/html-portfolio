@@ -17411,3 +17411,22 @@ Source audit found swallowed writer errors return undefined on success/failure. 
 ## `a11y-readiness42-snapshot-is-not-readiness` (2026-09-08)
 
 A deliberately delayed real entry proves the old1200ms one-shot snapshot can reject a valid subsequently mounted target without scanning it. This demonstrates the structural coverage defect, not the cause of historical39 failure. Do not raise performance budgets, bypass creator selectors, cancel critical never-mount failures, or relabel isolated successes as release acceptance.
+
+
+## `personal-auth-hindi41-logo-and-error-shortcuts` (2026-09-08)
+
+2026-09-08: Old marker can pass English AuthGate through hidden logo; retain historical metrics but do not claim localization. New negative detects legacy false pass. API429/5xx/network/other platform verification failures preserve typed code and do not label it wrong; only400/401 rejection clears. Initial source edit script default Windows decoding failed after partial script edit; duplicate helper import/init removed by source inspection before any test.
+
+
+
+
+## `personal-auth-hindi41-test-limitations` (2026-09-08)
+
+2026-09-08: Initial no-esbuild tests never ran; private39 dependency copy also lacked it. Offline pinned install failedENOTCACHED then registry exactdev install succeeded. Existing stale resume-copy assertion repaired; first locale result94pass1fail bannedHindi jargon repaired and95passed. Root tsc --noEmit empty solution is notsemantic evidence; tsc -b --force used. Screenshot inspection found incumbent test theme dark-on-dark hero and intro/card overlap despite8 focusedflow passes; fulltheme polish notclaimed. Parent authorized separate bounded repair after41freeze, preserving screenshots. Original39perf failures and diagnostic40 remain unchanged; no browser/performance retry.
+
+
+
+
+## `personal-auth-visual42-selector-only-insufficient` (2026-09-08)
+
+2026-09-08: Hindi41 eight focused flow views passed but actualtest screenshot showed dark-on-dark hero and subtitle behind card. Preserve original personal-auth-locale-browser-1788861065537. Source proves legacy dark pseudo background plus dark auth-entry text and mobile margin-70px. Added explicit real hero/form contrast and non-overlap assertions; one repair batch passed. Disabled controls excluded explicitly; no blanket full-product quality claim.
