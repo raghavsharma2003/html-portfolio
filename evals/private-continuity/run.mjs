@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {continuityTokens,continuityReferences,continuityPrompt,readPrivateContinuity,readPrivateContinuitySources,
- PRIVATE_CONTINUITY_SQL,PRIVATE_CONTINUITY_SOURCES_SQL,continuityPredicate,privateContinuityPredicate} from '../../api/_private-dialogue-continuity.js';
+ PRIVATE_CONTINUITY_SQL,PRIVATE_CONTINUITY_SOURCES_SQL,continuityPredicate,privateContinuityPredicate,
+ continuityFeedbackEligibilitySql} from '../../api/_private-dialogue-continuity.js';
 import {compileDialoguePrompt} from '../../api/_dialogue/contracts.js';
 import {splitSql} from '../../db/migrations/apply.mjs';
 import {DIALOGUE_AUTHORITY_SQL} from '../../api/_replica-dialogue-authority.js';
@@ -73,9 +74,27 @@ await test('source peek rechecks authority and returns only bounded display fiel
 // These are SQL mutation controls, not a database parser or isolation proof.
 const required=['ct.replica_id=r.replica_id','ct.owner_user_id=r.owner_user_id','ct.agent_id=r.agent_id','ct.person_id=r.subject_person_id',
  'ct.capability_id=c.capability_id',"cs.state='active'","cs.last_active_at>now()-interval '12 hours'",'ct.session_id<>s.session_id',
- "ct.state='complete'","cu.group_id is null","ca.group_id is null",'e.question_sha256','e.reply_sha256'];
+ "ct.state='complete'","cu.group_id is null","ca.group_id is null",'e.question_sha256','e.reply_sha256',
+ "f.turn_id=ct.turn_id","f.replica_id=ct.replica_id","f.owner_user_id=ct.owner_user_id","f.capability_id=ct.capability_id",
+ "f.profile_version=ct.profile_version","f.calibration_version=ct.calibration_version","f.response_hash=ct.response_hash",
+ 'order by f.revision desc limit 1'];
 function guarded(sql){return required.every(part=>sql.includes(part));}
 await test('predicate contains every scope and source lifecycle guard with deletion negatives',()=>{const sql=continuityPredicate('refs');assert(guarded(sql));for(const part of required)assert(!guarded(sql.replace(part,'true')));});
+await test('latest owner correction or text-relevant mismatch makes a prior reply ineligible everywhere',()=>{
+ const source=continuityFeedbackEligibilitySql('ct');
+ for(const part of ["latest_feedback.correction_hash is not null","'wrong_fact'","'wrong_relationship'","'wrong_wording'","'unsafe_or_boundary'",
+  "rating.dimension in ('overall','wording','behavior','relationship','memory')","rating.value in ('off','unsafe')"]) assert(source.includes(part));
+ assert(PRIVATE_CONTINUITY_SQL.includes(continuityFeedbackEligibilitySql('t')));
+ const dialogue=readFileSync(new URL('../../api/_replica-dialogue.js',import.meta.url),'utf8');assert(dialogue.includes("continuityFeedbackEligibilitySql('recent')"));
+});
+await test('feedback cannot cross owner response or runtime version and only its latest revision decides',()=>{
+ const source=continuityFeedbackEligibilitySql('ct');
+ const scope=["f.turn_id=ct.turn_id","f.replica_id=ct.replica_id","f.owner_user_id=ct.owner_user_id","f.capability_id=ct.capability_id",
+  "f.profile_version=ct.profile_version","f.calibration_version=ct.calibration_version","f.response_hash=ct.response_hash"];
+ const scoped=value=>scope.every(part=>value.includes(part));assert(scoped(source));for(const part of scope)assert(!scoped(source.replace(part,'true')));
+ const latest=source.indexOf(') latest_feedback where');assert(source.indexOf('order by f.revision desc limit 1')<latest);assert(source.indexOf('latest_feedback.correction_hash is not null')>latest);
+});
+await test('voice or delivery review alone does not suppress text continuity',()=>{const source=continuityFeedbackEligibilitySql('ct');assert(!source.includes("'delivery'"));assert(!source.includes("'voice_identity'"));assert(!source.includes("'close'"));});
 await test('legacy null refs have no source access and derived replies cannot recursively seed recall',()=>{
  assert.match(continuityPredicate('refs'),/coalesce\(refs,'\[\]'::jsonb\)/);assert(PRIVATE_CONTINUITY_SQL.includes("coalesce(t.continuity_refs,'[]'::jsonb)='[]'::jsonb"));
 });

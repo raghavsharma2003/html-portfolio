@@ -8,6 +8,8 @@ import {modernCaptureReadiness} from '../../api/_liveness/capture-readiness.js';
 import {runLivenessVerificationSweep} from '../../api/_replica-liveness-verification.js';
 import {getIssuedVoiceProfile} from '../../api/_voice-identity/issued-contract.js';
 import {createAzureSpeechShortProvider} from '../../api/_asr/providers/azure-speech-short.js';
+import {assessModernCaptureSpeech} from '../../api/_liveness/speech-evidence.js';
+import {matchesIssuedNonceV2} from '../../api/_voice-identity/nonce-v2.js';
 import {canonicalJson,sha256Hex} from '../../api/_replica-processing/contracts.js';
 
 // Synthetic fixtures only. Actual production adapters, request signatures,
@@ -103,6 +105,40 @@ for(const locale of ['hi-IN','en-IN'])await test(`real signed derivation and Azu
 });
 await test('wrong nonce stays rejected with real measured embeddings, never passes identity',async()=>{
  const h=harness({recognized:'Code 6 5 4 3 2 1'}),r=await h.composer.compose(h.lease);assert.equal(r.status,'rejected');assert.equal(r.nonceMatched,false);
+});
+for(const locale of ['hi-IN','en-IN'])await test(`modern phrase assessment binds the issued sentence and retains unreviewed bank: ${locale}`,async()=>{
+ const h=harness({locale}),r=await h.composer.compose(h.lease),s=r.speechEvidence;
+ assert.equal(s.outcome,'speech_matched');assert.equal(s.wordOverlap,1);assert.equal(s.wordOverlapMinimum,.60);
+ assert.equal(s.contractSha256,h.envelope.contractSha256);assert.equal(s.bankSha256,h.envelope.contract.bankSha256);
+ assert.equal(s.bankReviewStatus,'unreviewed-draft');assert.equal(s.servable,false);assert.ok(Object.isFrozen(s));
+ assert.equal(s.normalizerVersion,getIssuedVoiceProfile().decision.normalizer_version);
+ assert.equal(s.thresholdStatus,'provisional-not-identity-calibrated');
+ assert.equal(r.status,'incomplete');assert.equal(r.missing.includes('reviewed_phrase_acceptance'),true);
+ assert.equal(r.missing.length,5);assert.equal(r.servable,false);
+ assert.equal(JSON.stringify(s).includes(h.envelope.phrase),false);assert.equal(JSON.stringify(s).includes(h.envelope.nonce),false);
+});
+for(const [locale,recognized] of [['hi-IN','कुत्ता बिल्ली लाल हरा पीला कोड 1 2 3 4 5 6'],['en-IN','purple dog cheese red orange Code 1 2 3 4 5 6']])await test(`correct nonce cannot disguise an unread sentence: ${locale}`,async()=>{
+ const h=harness({locale,recognized});assert.equal(matchesIssuedNonceV2(h.envelope.nonce,recognized),true);
+ const r=await h.composer.compose(h.lease);assert.equal(r.nonceMatched,true);assert.equal(r.status,'rejected');
+ assert.equal(r.reason,'sentence_not_read');assert.ok(r.speechEvidence.wordOverlap<.60);assert.equal(h.calls.asr,1);
+});
+await test('modern mixed-script recognition stays inconclusive with a valid nonce',async()=>{
+ const f=setup(),h=harness({recognized:f.envelope.phrase.replace('कोड','Code')}),r=await h.composer.compose(h.lease);
+ assert.equal(r.nonceMatched,true);assert.equal(r.speechEvidence.observedScript,'mixed');
+ assert.equal(r.speechEvidence.outcome,'inconclusive');assert.equal(r.reason,'speech_script_mismatch');assert.equal(r.servable,false);
+});
+await test('modern exact nonce without language-bearing speech is inconclusive',async()=>{
+ const h=harness({recognized:'1 2 3 4 5 6'}),r=await h.composer.compose(h.lease);
+ assert.equal(r.nonceMatched,true);assert.equal(r.speechEvidence.outcome,'inconclusive');
+ assert.equal(r.reason,'speech_script_unrecognized');assert.equal(r.servable,false);
+});
+await test('modern speech assessor rejects foreign, changed, legacy and absent issuance authority',()=>{
+ const f=setup(),foreign=buildModernCaptureContract({...input,primarySelectionId:id(90)}),changed=structuredClone(f.envelope);changed.phrase='replacement phrase';
+ for(const envelope of [foreign,changed,{schema:'legacy'}])assert.throws(()=>assessModernCaptureSpeech(envelope,f.envelope.contractSha256,f.envelope.phrase,now));
+ assert.throws(()=>assessModernCaptureSpeech(f.envelope,null,f.envelope.phrase,now),/unavailable/);assert.throws(()=>assessModernCaptureSpeech(f.envelope,f.envelope.contractSha256,f.envelope.phrase,now+600000),/expired/);
+});
+await test('modern speech refuses unsupported recognized input without returning content',()=>{
+ const f=setup();for(const text of [null,{},'x'.repeat(4001)])assert.throws(()=>assessModernCaptureSpeech(f.envelope,f.envelope.contractSha256,text,now),/identity_speech_text_invalid/);
 });
 for(const [name,mutate] of [
  ['capture parent',p=>p.parent_sha256='f'.repeat(64)],['issued contract',p=>p.challenge_contract_sha256='f'.repeat(64)],

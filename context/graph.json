@@ -16992,6 +16992,48 @@
       "kind": "rejection",
       "title": "Broad Hindi typography scope excluded",
       "at": "2026-09-08"
+    },
+    {
+      "id": "clone-fidelity73-issued-speech-binding",
+      "kind": "decision",
+      "title": "Bind modern speech evidence to issued phrase",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-fidelity73-issued-speech-controls",
+      "kind": "measurement",
+      "title": "Modern issued speech controls staged",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-fidelity73-foreign-context-excluded",
+      "kind": "rejection",
+      "title": "Foreign voice context excluded",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-fidelity73-speech-v2-wrapper-leak",
+      "kind": "rejection",
+      "title": "Shared speech scorer retained wrapper-only field",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-fidelity73-feedback-rejected-recall",
+      "kind": "decision",
+      "title": "Exclude owner-rejected replies from recall",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-fidelity73-feedback-recall-controls",
+      "kind": "measurement",
+      "title": "Feedback recall scope controls staged",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-fidelity73-memory-context-excluded",
+      "kind": "rejection",
+      "title": "Foreign memory context excluded",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29267,6 +29309,31 @@
       "src": "pilot71-hindi-entry-typography",
       "rel": "caused_by",
       "dst": "pilot71-hindi-typography-scope"
+    },
+    {
+      "src": "clone-fidelity73-issued-speech-binding",
+      "rel": "measured_by",
+      "dst": "clone-fidelity73-issued-speech-controls"
+    },
+    {
+      "src": "clone-fidelity73-issued-speech-binding",
+      "rel": "caused_by",
+      "dst": "clone-fidelity73-foreign-context-excluded"
+    },
+    {
+      "src": "clone-fidelity73-issued-speech-binding",
+      "rel": "caused_by",
+      "dst": "clone-fidelity73-speech-v2-wrapper-leak"
+    },
+    {
+      "src": "clone-fidelity73-feedback-rejected-recall",
+      "rel": "measured_by",
+      "dst": "clone-fidelity73-feedback-recall-controls"
+    },
+    {
+      "src": "clone-fidelity73-feedback-rejected-recall",
+      "rel": "caused_by",
+      "dst": "clone-fidelity73-memory-context-excluded"
     }
   ]
 }

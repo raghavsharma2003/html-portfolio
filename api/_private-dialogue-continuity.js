@@ -16,6 +16,22 @@ export function continuityTokens(message){
   .filter(t=>Array.from(t).length>=2&&t.length<=48&&!COMMON.has(t)).slice(0,8);
 }
 
+// A prior AI reply stops being continuity evidence when the owner's latest
+// text-relevant review says it missed or supplies replacement wording.
+export function continuityFeedbackEligibilitySql(turn='t'){
+ return `not exists(select 1 from lateral (
+  select f.ratings,f.reason_codes,f.correction_hash from vy_replica_turn_feedback f
+   where f.turn_id=${turn}.turn_id and f.replica_id=${turn}.replica_id and f.owner_user_id=${turn}.owner_user_id
+    and f.capability_id=${turn}.capability_id and f.profile_version=${turn}.profile_version
+    and f.calibration_version=${turn}.calibration_version and f.response_hash=${turn}.response_hash
+   order by f.revision desc limit 1
+ ) latest_feedback where latest_feedback.correction_hash is not null
+  or coalesce(latest_feedback.reason_codes,'{}'::text[]) && array['wrong_fact','wrong_relationship','wrong_wording','unsafe_or_boundary']::text[]
+  or exists(select 1 from jsonb_each_text(coalesce(latest_feedback.ratings,'{}'::jsonb)) rating(dimension,value)
+   where rating.dimension in ('overall','wording','behavior','relationship','memory')
+    and rating.value in ('off','unsafe')))}`;
+}
+
 export function privateContinuityPredicate(refs,r='r',c='c',currentSession='s.session_id'){
  const source=continuityPredicate(refs,r,c,currentSession),needle=`${c}.state='active'`;
  if(source.split(needle).length!==2)throw Error('private_continuity_predicate_shape_changed');
@@ -39,6 +55,7 @@ export function continuityPredicate(refs, r='r', c='c', currentSession='s.sessio
   and ct.agent_id=${r}.agent_id and ct.person_id=${r}.subject_person_id and ct.capability_id=${c}.capability_id
   and ct.profile_version=${c}.profile_version and ct.calibration_version=${c}.calibration_version
   and ct.session_id<>${currentSession} and ct.state='complete' and coalesce(ct.continuity_refs,'[]'::jsonb)='[]'::jsonb
+  and ${continuityFeedbackEligibilitySql('ct')}
   and cs.channel='private_chat' and cs.state='active' and cs.last_active_at>now()-interval '12 hours'
   and encode(sha256(convert_to(cu.content,'UTF8')),'hex')=e.question_sha256
   and encode(sha256(convert_to(ca.content,'UTF8')),'hex')=e.reply_sha256))))`;
@@ -62,6 +79,7 @@ export const PRIVATE_CONTINUITY_SQL=`with authorized as materialized (${DIALOGUE
  join meera_log a on a.id=t.assistant_log_id and a.agent_id=t.agent_id and a.device_id=t.device_id and a.role='her' and a.group_id is null
  where s.session_id<>active_session.session_id and s.channel='private_chat' and s.state='active'
  and s.last_active_at>now()-interval '12 hours' and t.state='complete' and coalesce(t.continuity_refs,'[]'::jsonb)='[]'::jsonb
+ and ${continuityFeedbackEligibilitySql('t')}
  and length(u.content)<=4000 and length(a.content)<=1600
  and exists(select 1 from unnest($5::text[]) word where strpos(lower(u.content),word)>0)
  order by t.created_at desc,t.turn_id desc limit 3)

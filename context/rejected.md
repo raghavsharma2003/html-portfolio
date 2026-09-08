@@ -17576,3 +17576,12 @@ The correction successor's context graph, decision and measurement edits were ex
 ## `pilot71-hindi-typography-scope` (2026-09-08)
 
 No Vite or browser run was performed in this batch because root owns the required build and browser verification; broad CSS changes were excluded from the narrow reviewed source path.
+## `clone-fidelity73-foreign-context-excluded` (2026-09-08)
+
+The reviewed voice commit's context graph and narrative records were excluded. This lane carries only actual liveness source and the existing modern-capture eval, with local provenance tuples.
+## `clone-fidelity73-speech-v2-wrapper-leak` (2026-09-08)
+
+The first local modern-capture run reached the new assessor but failed because the extracted shared scorer still referenced the old `issued` wrapper while returning `normalizer_version`. Removed that wrapper-only field from the shared measurement return; the public wrapper retains the version. The failed run was local and made no external calls.
+## `clone-fidelity73-memory-context-excluded` (2026-09-08)
+
+The memory successor's context graph and narrative records were excluded. Only its two product modules and two existing continuity test paths were imported; local provenance is recorded in this lane.

@@ -1,4 +1,5 @@
-import {readPrivateContinuity, continuityReferences, continuityPrompt, privateContinuityPredicate as continuityPredicate, readPrivateContinuitySources} from "./_private-dialogue-continuity.js";
+import {readPrivateContinuity, continuityReferences, continuityPrompt, privateContinuityPredicate as continuityPredicate,
+  continuityFeedbackEligibilitySql, readPrivateContinuitySources} from "./_private-dialogue-continuity.js";
 import { randomUUID } from "node:crypto";
 import {
   DIALOGUE_SCHEMA,
@@ -85,6 +86,7 @@ export const PRIVATE_SESSION_HISTORY_SQL = `select recent.ordinal,u.content as u
       join vy_replica r on r.replica_id=recent.replica_id and r.owner_user_id=recent.owner_user_id
       join vy_replica_runtime_capability c on c.capability_id=recent.capability_id
       where ${continuityPredicate('recent.continuity_refs','r','c','recent.session_id')}
+        and ${continuityFeedbackEligibilitySql('recent')}
       order by recent.ordinal asc`;
 
 async function loadSessionHistory(db, ownerUserId, runtime, sessionId) {

@@ -17576,3 +17576,9 @@ Source integration measurement: n=2 paths, 9 named validator refusal controls re
 ## `pilot71-hindi-entry-typography-check` (2026-09-08)
 
 Source integration measurement: n=2 Hindi-only CSS selectors added, 0 Vite/browser runs, 0 cloud/SQL/provider calls. TypeScript and copy checks are the final local verification for this freeze.
+## `clone-fidelity73-issued-speech-controls` (2026-09-08)
+
+Source integration measurement: n=4 paths, 8 focused modern-capture controls added or retained, 0 foreign context files imported, 0 SQL/cloud/provider calls. Three focused tests remain for this isolated lane.
+## `clone-fidelity73-feedback-recall-controls` (2026-09-08)
+
+Source integration measurement: n=4 memory product/test paths, latest feedback revision and seven-field scope fence covered by focused offline controls, 0 SQL/cloud/provider calls. Runtime SQL validation remains separate.

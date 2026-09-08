@@ -3,7 +3,7 @@ import { createAzureVoiceEvidenceAdapters } from '../_replica-processing/provide
 import { createAzureSpeechShortProvider, resample24kPcm16To16kWav } from '../_asr/providers/azure-speech-short.js';
 import { readPrivateReplicaObject } from '../_replica-storage.js';
 import { getIssuedVoiceProfile } from '../_voice-identity/issued-contract.js';
-import { matchesIssuedNonceV2 } from '../_voice-identity/nonce-v2.js';
+import { assessModernCaptureSpeech } from './speech-evidence.js';
 import { fidelityScore } from '../_fidelity.js';
 import { validateModernCaptureContract, bindModernCaptureLease, captureContractError } from './issued-contract.js';
 
@@ -96,11 +96,12 @@ export function createAzureSharedCaptureComposer(options = {}) {
         !Array.isArray(asr.turns) || asr.turns.some(turn=>typeof turn.text!=='string'))fail('asr_binding_mismatch');
     const text=asr.turns.map(turn=>turn.text).join(' ');
     if(!text || text.length>4000)fail('asr_binding_mismatch');
-    const nonceMatched=matchesIssuedNonceV2(issued.nonce,text);
-    return Object.freeze({schema:'vyakti.modern-capture-measurements.v1',status:nonceMatched?'incomplete':'rejected',
-      reason:nonceMatched?'composite_evidence_unavailable':'spoken_code_mismatch',servable:false,
+    const speechEvidence=assessModernCaptureSpeech(issued,issued.contractSha256,text,now());
+    const nonceMatched=speechEvidence.nonceMatched;
+    return Object.freeze({schema:'vyakti.modern-capture-measurements.v1',status:speechEvidence.outcome==='reject'?'rejected':'incomplete',
+      reason:!nonceMatched?'spoken_code_mismatch':speechEvidence.outcome==='speech_matched'?'composite_evidence_unavailable':speechEvidence.reason,servable:false,
       contractSha256:issued.contractSha256,captureSha256:capture.sha256,canonicalSha256:audio.canonical.sha256,
-      asrCommitment:Object.freeze(expected),nonceMatched,speakerSimilarities:Object.freeze(similarities.map(Object.freeze)),
+      asrCommitment:Object.freeze(expected),nonceMatched,speechEvidence,speakerSimilarities:Object.freeze(similarities.map(Object.freeze)),
       missing:Object.freeze(['calibrated_visual_audio_continuity','synthetic_media_risk','same_capture_face_binding',
         'source_ownership_decision','reviewed_phrase_acceptance'])});
   }});

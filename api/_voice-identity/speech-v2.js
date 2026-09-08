@@ -31,16 +31,30 @@ function scriptOf(normalized) {
 // or claim the legacy word-overlap scorer understands Hindi/Hinglish meaning.
 export function assessIssuedChallengeSpeechV2(envelope, expectedContractSha256, recognizedText) {
   const issued = validateIssuedVoiceContract(envelope, expectedContractSha256);
+  return Object.freeze({
+    schema: SCHEMA,
+    contract_sha256: issued.contractSha256,
+    issued_locale: issued.contract.issued_locale,
+    normalizer_version: issued.contract.normalizer_version,
+    ...measureChallengeSpeech({ nonce: issued.nonce, sentence: issued.sentence,
+      locale: issued.contract.issued_locale }, recognizedText),
+  });
+}
+
+export function measureChallengeSpeech({ nonce, sentence, locale }, recognizedText) {
+  if (!['hi-IN', 'en-IN'].includes(locale) || typeof sentence !== 'string' || !sentence) {
+    throw Object.assign(new Error('identity_speech_binding_invalid'), { code: 'identity_speech_binding_invalid' });
+  }
   if (typeof recognizedText !== "string" || recognizedText.length > IDENTITY_NONCE_V2.max_recognized_code_units) {
     const code = "identity_speech_text_invalid";
     throw Object.assign(new Error(code), { code });
   }
-  const nonceMatch = matchesIssuedNonceV2(issued.nonce, recognizedText);
+  const nonceMatch = matchesIssuedNonceV2(nonce, recognizedText);
   // Actual existing scorer output is retained even on a failed nonce; it can
   // never override that failure. Do not replace an unmeasured score with zero.
   const normalized = normalizeChallengeSpeech(recognizedText);
-  const { overlap, tokens } = transcriptOverlap(issued.sentence, recognizedText);
-  const expectedScript = issued.contract.issued_locale === "hi-IN" ? "Deva" : "Latn";
+  const { overlap, tokens } = transcriptOverlap(sentence, recognizedText);
+  const expectedScript = locale === "hi-IN" ? "Deva" : "Latn";
   const observedScript = scriptOf(normalized);
   let outcome, reason;
   if (!nonceMatch) {
@@ -54,11 +68,7 @@ export function assessIssuedChallengeSpeechV2(envelope, expectedContractSha256, 
     outcome = "speech_matched"; reason = "speech_matched";
   }
   return Object.freeze({
-    schema: SCHEMA,
-    contract_sha256: issued.contractSha256,
-    issued_locale: issued.contract.issued_locale,
     nonce_parser_version: IDENTITY_NONCE_V2.version,
-    normalizer_version: issued.contract.normalizer_version,
     scorer_version: SCORER_VERSION,
     transcript_overlap_min: OVERLAP_MIN,
     transcript_overlap: overlap,

@@ -23787,3 +23787,9 @@ Integrate only the correction validator source and its existing request controls
 ## `pilot71-hindi-entry-typography` (2026-09-08)
 
 Apply the reviewed Hindi entry typography correction only in `expert-experience.css`, selecting the existing Devanagari face for the Hindi heading and auth title while preserving English styling. Reverse if the intended font is unavailable or the Hindi entry layout regresses. Root import tuple: `d75b5ae8 -> src/studio/expert-experience.css`.
+## `clone-fidelity73-issued-speech-binding` (2026-09-08)
+
+Bind modern ASR evidence to the independently issued phrase and contract before scoring; retain explicit inconclusive or reject outcomes and keep `servable` false until the separate readiness gates pass. Import only the reviewed product and existing eval paths from `b7c6239c`; reverse if nonce-only or mixed-script recognition can pass sentence evidence. Root import tuple: `b7c6239c -> api/_liveness/azure-shared-audio.js, api/_liveness/speech-evidence.js, api/_voice-identity/speech-v2.js, evals/modern-issued-capture/run.mjs`.
+## `clone-fidelity73-feedback-rejected-recall` (2026-09-08)
+
+Exclude prior AI replies from private continuity when the latest owner feedback revision marks correction, unsafe or text-relevant mismatch, scoped to the exact turn, response, capability and runtime versions. Close-only, voice-only and delivery-only feedback remains inert. Root import tuple: `01ce63f6 -> api/_private-dialogue-continuity.js, api/_replica-dialogue.js, evals/private-continuity/prepare-sql.mjs, evals/private-continuity/run.mjs`.
