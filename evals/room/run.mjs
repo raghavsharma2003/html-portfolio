@@ -35,6 +35,8 @@
 //    it leaves the room standing for everyone else. The suite asserts both.
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import {
   SLUG, ROOM_ID, AGENT_ID, REPLICA_ID, OWNER, USER_A, USER_B, PERSON_A, PERSON_B,
   loadFixtureAgent, freshState, fakeDb, fakeMemory,
@@ -267,6 +269,7 @@ const deps = (extra = {}) => ({ loadAgent, engine, reply, personTables, ...extra
   ok("a follower who declined memory still gets an answer", Boolean(turn.reply));
   ok("declining memory writes NOTHING: no episode, no log, no recall",
     memlog.length === 0 && turn.remembers === false);
+  ok("memory-free turn reports no save requested", turn.memory_write_state === "not_requested");
 
   // The memory-free path carries the transcript, bound by the SAME digest the
   // anonymous widget lane uses. A forged assistant turn puts words in a real
@@ -426,6 +429,36 @@ const deps = (extra = {}) => ({ loadAgent, engine, reply, personTables, ...extra
   ok("an unconfigured deployment cannot mint a session",
     dead?.code === "room_unconfigured" && dead?.status === 503);
   process.env.ROOM_SESSION_SECRET = saved;
+}
+
+// Raw INSERT acknowledgement, not database parsing or derived-memory proof.
+{
+  const source = readFileSync(join(REPO, "api/_surface.js"), "utf8");
+  const start = source.indexOf("export async function logDmTurn(");
+  const end = source.indexOf("\n/**", start);
+  const fn = source.slice(start, end).replace("export ", "");
+  for (const fails of [false, true]) {
+    let calls = 0;
+    const write = runInNewContext(`(${fn})`, {
+      ident: value => value, MEERA_AGENT_ID: AGENT_ID,
+      q: async () => { calls++; if (fails) throw Error("ambiguous database failure"); return []; },
+    });
+    const result = await write({ device: "fixture", person: PERSON_A, role: "me", content: "hello" });
+    ok(`raw save ${fails ? "failure is unconfirmed" : "acknowledgement is confirmed"}`, result.persisted === !fails && calls === 1);
+  }
+}
+for (const outcomes of [[true, true], [false, true], [true, false], [false, false], [undefined, undefined]]) {
+  const state = freshState(), db = fakeDb(state), memlog = [];
+  const joined = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, deps());
+  let writes = 0, modelCalls = 0;
+  const memory = fakeMemory(memlog), originalWrite = memory.logTurn;
+  memory.logTurn = async args => { await originalWrite(args); const value = outcomes[writes++]; return value === undefined ? undefined : { persisted: value }; };
+  const turn = await roomSay(db, { session: joined.session, message: "hello" }, deps({ memory,
+    reply: async (...args) => { modelCalls++; return reply(...args); },
+  }));
+  const expected = outcomes.every(value => value === true) ? "confirmed" : "unconfirmed";
+  ok(`exchange writes ${JSON.stringify(outcomes)} report ${expected}`, turn.memory_write_state === expected);
+  ok("save uncertainty preserves answer, preference and single model call", Boolean(turn.reply) && turn.remembers === true && Boolean(turn.session) && modelCalls === 1 && writes === 2);
 }
 
 console.log(`\nroom: ${pass} passed, ${fail} failed`);

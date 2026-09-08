@@ -231,6 +231,7 @@ const EN = {
   },
 
   conversation: {
+    saveUnconfirmed: "We could not confirm this conversation was saved. Keep a copy if you need it.",
     placeholder: "Ask anything",
     send: "Send",
     thinking: "Typing",

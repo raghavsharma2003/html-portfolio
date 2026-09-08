@@ -131,6 +131,7 @@ import {
   joinedCard,
   joinFirstCard,
   roomUnavailableCard,
+  memoryWriteUnconfirmedCard,
   cappedCard,
   forgottenCard,
   stoppedCard,
@@ -885,6 +886,9 @@ async function handleOrdinaryMessage(db, wa, now, env, phone, text, ctx) {
     const result = await wa.sendText(phone, bubble);
     if (result?.skipped === "outside_window") skippedOutsideWindow++;
     else if (result?.ok !== false) sent++;
+  }
+  if (turn.memory_write_state === "unconfirmed") {
+    await wa.sendText(phone, memoryWriteUnconfirmedCard(scope.locale)).catch(() => {});
   }
   return { ok: true, said: sent > 0, skippedOutsideWindow, gate: turn.gate };
 }

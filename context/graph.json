@@ -16326,6 +16326,24 @@
       "kind": "rejection",
       "title": "Reject cross-publication settings and undurable memory errors",
       "at": "2026-09-08"
+    },
+    {
+      "id": "room-memory-write37-honest-ack",
+      "kind": "decision",
+      "title": "Expose raw turn persistence without replaying the answer",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "room-memory-write37-focused",
+      "kind": "measurement",
+      "title": "Raw Room memory acknowledgement focused verification",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "room-memory-write37-no-postcharge-throw",
+      "kind": "rejection",
+      "title": "Reject pretending preference proves persistence or throwing after spend",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

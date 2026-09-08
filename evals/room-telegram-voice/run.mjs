@@ -148,7 +148,7 @@ function fakePersonBridge(state) {
 }
 
 const personTables = async () => [];
-const memory = { openEpisode: async () => ({}), logTurn: async () => {}, history: async () => [], recall: async () => [] };
+const memory = { openEpisode: async () => ({}), logTurn: async () => ({ persisted: true }), history: async () => [], recall: async () => [] };
 
 function depsFor(state, db, tgClient, extra = {}) {
   const bridge = fakePersonBridge(state);
@@ -487,6 +487,24 @@ console.log("\n── §10: WS-R114 — the codec requirement, pinned from the d
     "the shipping sendVoice call sends the container constant's own mime type, never a second hardcoded literal",
     /tg\.sendVoice\(ev\.chatId, wav, ROOM_TELEGRAM_VOICE_CONTAINER\.mimeType\)/.test(src),
   );
+}
+
+// Explicit legacy/uncertain acknowledgement cases are separate from the
+// confirmed-write voice fixtures above; message-count assertions stay exact.
+for (const locale of ['en','hi']) for (const noticeFails of [false,true]) {
+  const state=freshState(),db=extendedDb(state),sent={},client=fakeTgClient(sent),chat='9037';
+  await fullJoin(state,db,client,chat);
+  if(locale==='hi')await handleRoomTelegramUpdate(textUpdate(chat,'/hindi'),depsFor(state,db,client));
+  sent[chat]=[];
+  const notice=tg.memoryWriteUnconfirmedCard(locale),send=client.sendMessage;
+  let modelCalls=0,writes=0,noticeAttempts=0;
+  client.sendMessage=async(id,text)=>{if(text===notice){noticeAttempts++;if(noticeFails)throw Error('notice delivery failed');}return send(id,text);};
+  const out=await handleRoomTelegramUpdate(textUpdate(chat,'hello'),depsFor(state,db,client,{
+    memory:{...memory,logTurn:async()=>{writes++;return undefined;}},
+    reply:async()=>{modelCalls++;return 'The answer remains available.';},
+  }));
+  ok(`uncertain save ${locale}/${noticeFails}: answer and one model call survive`,out.ok===true&&texts(sent,chat)[0]==='The answer remains available.'&&modelCalls===1&&writes===2);
+  ok(`uncertain save ${locale}/${noticeFails}: one localized notice attempt`,noticeAttempts===1&&texts(sent,chat).length===(noticeFails?1:2)&&(!noticeFails?texts(sent,chat)[1]===notice:true));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -210,7 +210,7 @@ function depsFor(state, sent, extra = {}) {
     consume: async () => ({ ok: true }),
     memory: {
       openEpisode: async () => ({ id: 1, extended: false }),
-      logTurn: async () => {},
+      logTurn: async () => ({ persisted: true }),
       history: async () => [],
       recall: async () => [],
     },
@@ -583,7 +583,7 @@ console.log("\n── the 24-hour session window, over the REAL sender path (a f
     db, loadAgent, personTables, tableApplied: async () => true,
     personForSurfaceUser: bridge.findPerson, linkSurfacePerson: bridge.linkPerson,
     consume: async () => ({ ok: true }),
-    memory: { openEpisode: async () => ({ id: 1 }), logTurn: async () => {}, history: async () => [], recall: async () => [] },
+    memory: { openEpisode: async () => ({ id: 1 }), logTurn: async () => ({ persisted: true }), history: async () => [], recall: async () => [] },
     fetch: fakeFetch, accessToken: "test-token", phoneId: "test-phone-id",
     reply,
   };
@@ -846,5 +846,20 @@ console.log("\n── WS-R115: the REAL 24h ledger (api/whatsapp.js's own noteIn
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+for (const noticeFails of [false,true]) {
+  const state=freshWaState(),sent={},phone='+919000037001';
+  await fullJoin(state,sent,phone,SLUG);
+  sent[phone]=[];
+  const deps=depsFor(state,sent),send=deps.wa.sendText;
+  let modelCalls=0,writes=0,noticeAttempts=0;
+  const notice='We could not confirm this conversation was saved. Keep a copy if you need it.';
+  deps.wa.sendText=async(p,text)=>{if(text===notice){noticeAttempts++;if(noticeFails)throw Error('notice delivery failed');}return send(p,text);};
+  deps.memory.logTurn=async()=>{writes++;return {persisted:false};};
+  deps.reply=async()=>{modelCalls++;return 'The answer remains available.';};
+  const out=await handleRoomWhatsappChatWebhook(textPayload(phone,'hello',`${phone}-uncertain-${noticeFails}`),deps);
+  ok(`uncertain save ${noticeFails}: WhatsApp answer survives without retry`,out.ok===true&&texts(sent,phone)[0]==='The answer remains available.'&&modelCalls===1&&writes===2);
+  ok(`uncertain save ${noticeFails}: notice sent once after answer`,noticeAttempts===1&&texts(sent,phone).length===(noticeFails?1:2)&&(!noticeFails?texts(sent,phone)[1]===notice:true));
+}
+
 console.log(`\nroom-whatsapp-chat: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

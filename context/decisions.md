@@ -23607,3 +23607,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `publication-continuity37-durable-memory-block` (2026-09-08)
 
 2026-09-08: Invalid, undecryptable or over-budget prior memory is admitted as an explicit blocked operation before provider reservation; no guessed empty memory or stranded result polling. Existing admission counting remains. Oversized history opens existing settings; only explicit visitor opt-out followed by rejoin permits a fresh ask. Reversal: actual SQL or production evidence shows this durable error representation cannot preserve request idempotency or accurate quota semantics.
+
+
+## `room-memory-write37-honest-ack` (2026-09-08)
+
+2026-09-08: logDmTurn returns explicit persisted acknowledgement and roomSay exposes confirmed/unconfirmed/not_requested independently from remembers preference. Web and transports report uncertainty after retaining the answer. No retry or throw after paid generation. This confirms raw current turn writes only, never consolidation success. Reversal: a durable atomic Room operation receipt enables safe replay, or actual caller evidence finds the additive response incompatible.

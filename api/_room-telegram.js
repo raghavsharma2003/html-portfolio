@@ -156,6 +156,12 @@ export function joinedCard(follower, locale = "en") {
   return lines.join("\n");
 }
 
+export function memoryWriteUnconfirmedCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "इस बातचीत के सेव होने की पुष्टि नहीं हो सकी। ज़रूरत हो तो इसकी कॉपी रख लें।"
+    : "We could not confirm this conversation was saved. Keep a copy if you need it.";
+}
+
 export function joinFirstCard(locale = "en") {
   return normalizeLocale(locale) === "hi"
     ? "पहले एक रूम खोलें। किसी क्रिएटर का भेजा लिंक इस्तेमाल करें, फिर यहां दो सवालों के जवाब दें।"
@@ -905,6 +911,11 @@ async function handleOrdinaryMessage(db, tg, now, env, ev, ctx) {
   }
   for (const bubble of turn.bubbles) {
     if (bubble) await tg.sendMessage(ev.chatId, bubble);
+  }
+  if (turn.memory_write_state === "unconfirmed") {
+    // A status-delivery failure must not turn the already delivered answer into
+    // a failed webhook that invites a duplicate answer/provider call.
+    await tg.sendMessage(ev.chatId, memoryWriteUnconfirmedCard(scope.locale)).catch(() => {});
   }
   // WS-R110: attempted only AFTER the text reply above has already left -
   // a voice failure of any kind must cost this follower nothing they

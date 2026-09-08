@@ -17391,3 +17391,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `publication-continuity37-final-focused` (2026-09-08)
 
 2026-09-08, n=1 final candidate from release34. Executed12 backend crypto/runtime groups,16 compiler groups,25 client/source groups,20 mounted groups across390/1440,26 incumbent store,43 incumbent runtime/expiry/authority,30 incumbent mounted groups; forced semantic TypeScript and copy7scopes21negativecontrols passed. Mounted final receipt scratchpad/publication-continuity-mounted/1788855746916/receipt.json. Browser tests use synthetic service fixtures; no SQL, Azure model, real customer memory quality or competitor comparison executed. Prepared22 SQL shapes with0 SQL calls; migration153 still requires protected live proof.
+
+
+## `room-memory-write37-focused` (2026-09-08)
+
+2026-09-08, n=1 isolate from release34 5ade4ea9. Room67, Telegram68, WhatsApp121 and Telegram-voice70 checks passed; forced semantic TypeScript and copy7scopes21negativecontrols passed. Actual writer body exercised with fake SQL and one attempted insert, not PostgreSQL. Transport fixtures preserve answer and one generation when localized status delivery fails. No mounted web browser, real SQL, provider or deployment proof; these remain separate integration gates.

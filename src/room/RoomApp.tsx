@@ -106,7 +106,7 @@ import {
 import { RoomPayApiError, startSubscription, type RoomPaymentStatus } from "./roomPayApi";
 import { noteInstallVisit, markInstallDismissed, shouldShowInstallCard } from "./installPrompt";
 
-type Turn = { role: "user" | "assistant"; content: string; fresh?: boolean; knowledge?: RoomTurn["knowledge"] };
+type Turn = { role: "user" | "assistant"; content: string; fresh?: boolean; knowledge?: RoomTurn["knowledge"]; memoryWriteState?: RoomTurn["memory_write_state"] };
 /** The one shape this file needs off a captured `beforeinstallprompt` event
  *  (WS-R59) — typed loosely rather than importing a DOM lib type, since none
  *  ships with this project's `lib` and every browser that fires the real
@@ -918,7 +918,7 @@ export default function RoomApp({
       setQuota(turn.quota);
       setUpgrade(turn.upgrade_prompt);
       if (turn.offer) setOfferCard(turn.offer);
-      setTurns((prev) => [...prev, { role: "assistant", content: turn.reply, fresh: true, knowledge: turn.knowledge }]);
+      setTurns((prev) => [...prev, { role: "assistant", content: turn.reply, fresh: true, knowledge: turn.knowledge, memoryWriteState: turn.memory_write_state }]);
       if (turn.thread_id && !threads.some((t) => t.thread_id === turn.thread_id)) {
         setThreads((prev) => prev);
       }
@@ -1362,6 +1362,9 @@ export default function RoomApp({
             }`}
           >
             {turn.content}
+            {turn.memoryWriteState === "unconfirmed" && (
+              <p className="room-fine" role="status">{copy.conversation.saveUnconfirmed}</p>
+            )}
             {/* WS-R19: paid only, flag only. A free follower's bubble never
                 grows this control - law 3 restated at the render, not just
                 at the door: `roomSpeak` refuses a free follower's request

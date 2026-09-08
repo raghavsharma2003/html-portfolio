@@ -17384,3 +17384,8 @@ Independent source review found numeric/newline memory epochs accepted by regex/
 ## `publication-continuity37-switch-and-recovery` (2026-09-08)
 
 Final mounted review caught settings using new publicId with stale previous publication v2 state. Effect and action now require matching ids. A decode failure before admission could strand the UI with a nonexistent result; blocked durable receipts now let the user explicitly disable memory and rejoin without replaying the failed operation. Both widths verified one dispatch of the blocked request. Browser fixture fixes preserved expectations: await recovery state rather than missing composer, flush headers before simulating truncated response, and scope incumbent consent selectors to their original fieldset.
+
+
+## `room-memory-write37-no-postcharge-throw` (2026-09-08)
+
+Source audit found swallowed writer errors return undefined on success/failure. remembers=true records preference, not acknowledgement. Throwing after assistant write failure would hide an already generated charged answer and invite replay. Initial transport fixtures returned undefined for success, causing legitimate uncertainty notices and failing exact message-count expectations. Fixtures now explicitly acknowledge successful writes; dedicated failure cases retain exact ordering and prove no automatic retry.
