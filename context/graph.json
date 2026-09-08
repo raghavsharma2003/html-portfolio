@@ -16242,6 +16242,42 @@
       "kind": "rejection",
       "title": "Preserve Git and checkout hashes separately",
       "at": "2026-09-08"
+    },
+    {
+      "id": "personal-auth-hindi41-real-interface",
+      "kind": "decision",
+      "title": "Localize actual personal sign-in through existing lazy auth locale infrastructure",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "personal-auth-hindi41-source-only",
+      "kind": "measurement",
+      "title": "Prepared localized sign-in and interface-marker controls, unrun",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "personal-auth-hindi41-logo-and-error-shortcuts",
+      "kind": "rejection",
+      "title": "Reject logo as Hindi interface and platform error as bad code",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "personal-auth-hindi41-strict-refresh",
+      "kind": "decision",
+      "title": "Explicit link checks retain retry material on transient failure",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "personal-auth-hindi41-focused-pass",
+      "kind": "measurement",
+      "title": "Focused localized auth checks pass; release still pending",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "personal-auth-hindi41-test-limitations",
+      "kind": "rejection",
+      "title": "Reject empty solution typecheck and selector-only visual acceptance",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

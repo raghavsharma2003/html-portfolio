@@ -17353,3 +17353,13 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `release39-checkout-sql-byte-assumption` (2026-09-08)
 
 2026-09-08: Raw workingSQLbytes differed from frozen Gitblobs because Windows checkout changed LFtoCRLF in145and154. Initial exactcomparison refused. Explicit EOL-only normalization verifies content; manifest records distinct Gitblob andworking hashes. No SQL literals or predicates changed to satisfy the check. Migrations152153 remainexcluded.
+
+
+## `personal-auth-hindi41-logo-and-error-shortcuts` (2026-09-08)
+
+2026-09-08: Old marker can pass English AuthGate through hidden logo; retain historical metrics but do not claim localization. New negative detects legacy false pass. API429/5xx/network/other platform verification failures preserve typed code and do not label it wrong; only400/401 rejection clears. Initial source edit script default Windows decoding failed after partial script edit; duplicate helper import/init removed by source inspection before any test.
+
+
+## `personal-auth-hindi41-test-limitations` (2026-09-08)
+
+2026-09-08: Initial no-esbuild tests never ran; private39 dependency copy also lacked it. Offline pinned install failedENOTCACHED then registry exactdev install succeeded. Existing stale resume-copy assertion repaired; first locale result94pass1fail bannedHindi jargon repaired and95passed. Root tsc --noEmit empty solution is notsemantic evidence; tsc -b --force used. Screenshot inspection found incumbent test theme dark-on-dark hero and intro/card overlap despite8 focusedflow passes; fulltheme polish notclaimed. Parent authorized separate bounded repair after41freeze, preserving screenshots. Original39perf failures and diagnostic40 remain unchanged; no browser/performance retry.

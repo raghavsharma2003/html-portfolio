@@ -90,6 +90,8 @@ const suites = {
   "identity-speech-v2": "identity-speech-v2.mjs",
   "voice-revision-lineage": "voice-evidence/revision-lineage.mjs",
   "performance-measurements": "performance-measurements.mjs",
+  "performance-hindi-interface": "performance-hindi-interface.mjs",
+  "personal-auth-locale": "personal-auth-locale.mjs",
   "room-entry-work": "room-entry-work.mjs",
   "expert-text-compiler": "expert-text-compiler.mjs",
   // Private rehearsal: offline compiler/bundle, handler and encryption/store

@@ -1,3 +1,5 @@
+import type { PersonalAuthCopy } from "../studio/personalAuthCopy";
+export type { PersonalAuthCopy } from "../studio/personalAuthCopy";
 // EVERY WORD THE STUDIO'S CHROME SAYS, IN ONE PLACE, IN EVERY LANGUAGE IT
 // SAYS IT (WS-R52, migration 112).
 //
@@ -2245,6 +2247,7 @@ interface StudioCopy {
   mirrorCallStudio: MirrorCallStudioCopy;
   voiceEnrollmentLab: VoiceEnrollmentLabCopy;
   authGate: AuthGateCopy;
+  personalAuth: PersonalAuthCopy;
   recallRun: RecallRunCopy;
   studioApp: StudioAppCopy;
   suiteWeeklyNote: SuiteWeeklyNoteCopy;
@@ -2261,10 +2264,59 @@ interface StudioCopy {
 // only the HINDI table is loaded as two independent chunks, `hiAuthCopy.ts`
 // for this Pick and `hiCopy.ts` for everything this Omit leaves out. See
 // context/decisions.md#ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section.
-export type StudioAuthCopy = Pick<StudioCopy, "authGate" | "shell">;
-export type StudioRestCopy = Omit<StudioCopy, "authGate" | "shell">;
+export type StudioAuthCopy = Pick<StudioCopy, "authGate" | "shell" | "personalAuth">;
+export type StudioRestCopy = Omit<StudioCopy, "authGate" | "shell" | "personalAuth">;
 
 const EN: StudioCopy = {
+  personalAuth: {
+    homeAriaLabel: "Vyakti home",
+    safeguardsAriaLabel: "Studio safeguards",
+    privateByDefault: "Private by default",
+    everyClipDisclosed: "Every clip disclosed",
+    deleteAnytime: "Delete anytime",
+    welcomeBackTitle: "Welcome back",
+    emailTitle: "Start with your email",
+    inboxTitle: "Check your inbox",
+    resumeTitle: "Sign in again to continue where you were.",
+    resumeBodyTemplate: "We will return you to {name} on the {step} step. Private uploads and server work continue. For safety, an unsent recording or form field is not stored.",
+    sameClone: "the same clone",
+    stepTitle: { feed: "Add sources", meet: "Test your clone", deploy: "Deploy" },
+    emailBody: "Get a secure sign-in link in your inbox.",
+    inboxBodyTemplate: "We sent a sign-in email to {email}. Open its link. If the email also shows a six-digit code, you can enter it below.",
+    emailLabel: "Email address",
+    emailPlaceholder: "you@example.com",
+    sendingAriaLabel: "Sending sign-in email",
+    sending: "Sending email",
+    sendLink: "Email me a sign-in link",
+    or: "or",
+    google: "Continue with Google",
+    inboxHelp: "The email link opens the studio directly. This tab will also continue when sign-in finishes in another tab.",
+    checkingLink: "Checking sign-in",
+    openedLink: "I opened the email link",
+    optionalCodeDivider: "or enter a code if shown",
+    codeLabel: "Six-digit code (optional)",
+    codePlaceholder: "000000",
+    verifyingAriaLabel: "Verifying code",
+    verifying: "Verifying",
+    verify: "Verify and enter",
+    differentEmail: "Use a different email",
+    linkNotReadyError: "Sign-in has not reached this tab yet. Open the email link, or enter a code if your email shows one.",
+    sendError: "Could not send a sign-in email. Try again shortly.",
+    networkError: "Could not connect. Check your connection and try again.",
+    rateLimitError: "Too many sign-in attempts. Wait a moment and try again.",
+    serviceUnavailableError: "Sign-in is temporarily unavailable. Please try again shortly.",
+    invalidEmailError: "Enter a valid email address.",
+    codeMismatchError: "That code did not match. Check it and try again.",
+    googleError: "Google sign-in is unavailable. Use your email instead.",
+    legalNotice: "Your source-use agreement appears after sign-in. Identity and model authorization are shown before any cloned speech is created.",
+    visualAlt: "Illustration of an educator explaining an idea in her studio",
+    visualCaptions: { knowledge: "Your knowledge.", voice: "Your voice.", people: "Your people." },
+    variant: {
+      generic: { brandTag: "PERSONAL AI", introEyebrow: "", introTitle: "Your expertise. More personal.", introBody: "Create an AI with your knowledge, your voice, and a memory for each person." },
+      teacher: { brandTag: "PERSONAL AI", introEyebrow: "", introTitle: "Your expertise. More personal.", introBody: "Create an AI with your knowledge, your voice, and a memory for each person." },
+      test: { brandTag: "INTERNAL TEST STUDIO", introEyebrow: "", introTitle: "Add your sources. Then test your clone.", introBody: "Upload useful examples of your voice, writing, videos, and context. Then hear the draft, talk to it, and correct it." },
+    },
+  },
   classLabels: { you: "Waiting on you", us: "Waiting on us" },
 
   shell: {
@@ -4429,7 +4481,7 @@ const EN: StudioCopy = {
 // before this split -- see this function's own comment for why it now
 // does strictly more than before, never less. See
 // context/decisions.md#ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section.
-const AUTH_SECTIONS = new Set<keyof StudioCopy>(["authGate", "shell"]);
+const AUTH_SECTIONS = new Set<keyof StudioCopy>(["authGate", "shell", "personalAuth"]);
 
 const hiInstalled: Partial<StudioCopy> = {};
 
@@ -4505,13 +4557,16 @@ export function studioCopyReady(locale: StudioLocale): boolean {
 export function loadStudioCopyAuth(locale: StudioLocale): Promise<StudioAuthCopy> {
   const safe = normalizeStudioLocale(locale);
   if (AUTH_LOADED[safe]) {
-    return Promise.resolve({ authGate: STUDIO_COPY_TABLE[safe].authGate, shell: STUDIO_COPY_TABLE[safe].shell });
+    return Promise.resolve({ authGate: STUDIO_COPY_TABLE[safe].authGate, shell: STUDIO_COPY_TABLE[safe].shell, personalAuth: STUDIO_COPY_TABLE[safe].personalAuth });
   }
   if (!hiAuthLoading) {
     hiAuthLoading = import("./hiAuthCopy").then((mod) => {
       Object.assign(hiInstalled, mod.HI_AUTH);
       AUTH_LOADED.hi = true;
       return mod.HI_AUTH;
+    }).catch((cause) => {
+      hiAuthLoading = null;
+      throw cause;
     });
   }
   return hiAuthLoading;

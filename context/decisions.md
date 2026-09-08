@@ -23583,3 +23583,13 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `release39-accepted-continuity-source` (2026-09-08)
 
 2026-09-08: Root accepted actualV4 rollback proof for72b7db22, so candidate39 adds154 AFTER DELETE function/trigger and preserves148history. OLD retains derived rawlog binding after parentcascade. Shared authority projection adds7fields only; no predicate removal. Reverse if integrated SQL/sourcepins mismatch, concurrent erasure proof fails or fullrelease finds regression. Actual migrations148154 remain uncommitted.
+
+
+## `personal-auth-hindi41-real-interface` (2026-09-08)
+
+2026-09-08: Source candidate from39 adds personalAuth en/hi section for email-link-first flow, locale preference/query preservation, explicit load recovery and localized errors without raw backend text. Separate creator OTP copy unchanged. No font/layout experiment. Reverse if auth, consent, access, entry weight or mobile behavior regresses. Root source review before tests.
+
+
+## `personal-auth-hindi41-strict-refresh` (2026-09-08)
+
+2026-09-08: Independent review required optional reportTransientFailure session mode because default restoreSession swallowed refresh outages. Opt-in rethrows transient failures without granting stale authority; terminal auth failure clears and existing default callers remain unchanged. Pin esbuild0.28.2 as a direct dev dependency for actual-source fixtures. Reverse if auth/logout invariants or dependency/build compatibility regress.

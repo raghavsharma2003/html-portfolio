@@ -17360,3 +17360,13 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `release39-final-scoped-proof` (2026-09-08)
 
 2026-09-08: Localcontinuity23/dialogue13/rehearsal8/saga30/readiness16/GPU26, copy7scopes21negatives and forcedsemanticTS allpassed, exec89752terminal0. Root actualV4 receipt continuity148-v4-1725ecb32ec6834e7acd0515-result.json inspected:53runtimechecks allpass,7EXPLAINshapes, rollbackconfirmed, replicas/persons/agents/logs0,session/cleanup0,provider0. Sequentialtransactional proof only, not concurrent delete/complete or GINperformance. Source72b7db22 matches incorporated repair; no fullrelease run here.
+
+
+## `personal-auth-hindi41-source-only` (2026-09-08)
+
+2026-09-08: Source inspection: old personal AuthGate has English GENERIC_COPY and no lang handling; VyaktiMark renders aria-hidden Devanagari logo that old body.textContent marker accepts. New probe requires Hindi sign-in heading and email/code label with CSS visibility, excludes hidden/inert/logo. Offline suites authored and registered, existing locale/link/preflight fixtures updated. No tests/build/browser/provider execution this phase.
+
+
+## `personal-auth-hindi41-focused-pass` (2026-09-08)
+
+2026-09-08: Sequential offline checks passed46 personal-auth,16 Hindi probe,10 magic-link,95 locale,31 performance-measurement and9 prerequisites controls. tsc -b --force passed26.231s at09:50:33.103Z–09:50:59.335Z. Mounted exec63993 passed8 en/hi x390/1440 xgeneral/test actualAuthGate views in21.493s at09:51:05.080Z–09:51:26.575Z and11 realDOM probe controls in1.856s. Selector88–89x44px,contrast18.203:1,focus/headeroverflow checked. Actual source/CSS with mock account responses; dictionary preload and font wait are fixture-only, not live-provider/performance proof. Copy7scopes/21negatives pass; scoped Impeccable detector once returned[]. Raw scratchpad/focused-1788861065078 and personal-auth-locale-browser-1788861065537. No production build or full release.
