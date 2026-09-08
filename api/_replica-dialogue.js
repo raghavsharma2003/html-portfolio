@@ -243,8 +243,11 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
   });
   const turn = await beginDialogueTurn(db, ownerUserId, runtime, session, generator, input, prompt, evidence);
   let reservation = null;
+  let spendBeginState = "not_attempted";
   let providerStarted = false;
   let settled = false;
+  let settlementAttempted = false;
+  let measuredUsage = null;
   let billingState = "not_metered";
   try {
     reservation = await reserveFoundrySpend(db, {
@@ -254,20 +257,20 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
       messages: prompt.messages,
     });
     if (reservation) {
-      try { await beginFoundrySpend(db, reservation); }
-      catch (error) {
-        await releaseFoundrySpendBeforeCall(db, reservation, error).catch(() => null);
-        throw error;
-      }
+      spendBeginState = "attempted_unknown";
+      await beginFoundrySpend(db, reservation);
+      spendBeginState = "acknowledged";
     }
     assertCandidateRuntimeUnchanged(runtime, await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id), input.message);
     assertCandidateGenerator(runtime, generator);
     signal?.throwIfAborted();
     providerStarted = true;
     const generated = await generator.generate({ prompt, signal });
+    measuredUsage = generated?.usage || null;
     // Candidate refusals still incurred measured provider usage. Settle before
     // revision/authority validation without ever returning the refused answer.
     if (runtime.candidateBinding && reservation) {
+      settlementAttempted = true;
       try { await settleFoundrySpend(db, reservation, generated.usage); settled = true; billingState = "settled"; }
       catch (error) { await markFoundrySpendUncertain(db, reservation, error); billingState = "reconcile_required"; }
     }
@@ -277,6 +280,7 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
     const finished = await finishDialogueTurn(db, ownerUserId, runtime, turn, output);
     if (!finished) fail("dialogue_authorization_changed");
     if (reservation && !runtime.candidateBinding) {
+      settlementAttempted = true;
       try {
         await settleFoundrySpend(db, reservation, generated.usage);
         billingState = "settled";
@@ -297,12 +301,13 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
       created_at: finished.created_at,
     };
   } catch (error) {
-    if (runtime.candidateBinding && reservation && providerStarted && !settled && error?.measured_usage) {
-      try { await settleFoundrySpend(db, reservation, error.measured_usage); settled = true; }
+    if (reservation && providerStarted && !settled && !settlementAttempted && (error?.measured_usage || measuredUsage)) {
+      settlementAttempted = true;
+      try { await settleFoundrySpend(db, reservation, error?.measured_usage || measuredUsage); settled = true; }
       catch { /* Preserve an unresolved reservation for reconciliation. */ }
     }
     if (reservation && !settled) {
-      if (providerStarted) await markFoundrySpendUncertain(db, reservation, error);
+      if (providerStarted || spendBeginState === "attempted_unknown") await markFoundrySpendUncertain(db, reservation, error);
       else await releaseFoundrySpendBeforeCall(db, reservation, error).catch(() => null);
     }
     await failDialogueTurn(db, ownerUserId, turn.turn_id, error);

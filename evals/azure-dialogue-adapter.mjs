@@ -6,6 +6,10 @@ import { registerHooks } from "node:module";
 import { createAzureFoundryDialogueGenerator as create } from "../api/_dialogue/providers/azure-foundry.js";
 import { DIALOGUE_OUTPUT_SCHEMA, compileDialoguePrompt } from "../api/_dialogue/contracts.js";
 import { REPLICA_POLICY_VERSION } from "../api/_replica.js";
+import { canonicalJson, sha256Hex } from "../api/_provenance/contracts.js";
+import { buildPrivateCorrectionArtifact, renderPrivateCorrectionCandidate } from "../api/_replica-correction-artifact.js";
+import { materializationModel } from "../api/_replica-candidate-materializer.js";
+import { prepareProviderRevisionBinding, verifyProviderRevision } from "../api/_dialogue/provider-revision.js";
 
 const sourceUrl = new URL("../api/_dialogue/providers/azure-foundry.js", import.meta.url);
 const source = readFileSync(sourceUrl, "utf8").replace(/\r\n/g, "\n");
@@ -164,26 +168,51 @@ const row = { replica_id: id(1), owner_user_id: id(2), subject_person_id: id(3),
   profile_status: "approved", profile_definition: { identity: { self_name: "Synthetic fixture" }, speech: { languages: ["English"] }, behavior: { turn_shape: "brief" } },
   calibration_status: "approved", calibration_definition: { schema: "vyakti.calibration.v1", builder: "calibration-builder/v1", strategies: [] },
   consent_id: id(9), consent_scope: "inference", consent_policy: REPLICA_POLICY_VERSION, consent_expires_at: "2031-08-24T00:00:00Z" };
-async function service(factory, usage) {
+const bindingHash = value => sha256Hex(canonicalJson(value));
+const candidateRevision = prepareProviderRevisionBinding({ expectedResponseModel: "gpt-4.1-mini-2025-04-14",
+  endpoint: "https://raghavsharma1729-compan-resource.services.ai.azure.com", deployment: "gpt-4.1-mini", baselineSnapshotHash: "b".repeat(64) });
+const candidateAdapter = { family: "dialogue", name: "azure-foundry-structured-output", version: "synthetic-candidate-v1", model: "gpt-4.1-mini",
+  billing: { meter: "azure_foundry_tokens", max_output_tokens: 700 }, revision_binding: candidateRevision, async generate() {} };
+const candidateBase = { replica: { replica_id: row.replica_id }, capability: { capability_id: "a0000000-0000-4000-8000-000000000001" },
+  personProfile: { definition: row.profile_definition }, calibration: { definition: row.calibration_definition }, candidateBinding: null };
+const candidateArtifact = buildPrivateCorrectionArtifact(candidateBase, { status: "proposed", owner_approved: false, runtime_eligible: false,
+  source_set_hash: "a".repeat(64), selections: [{ scenario_id: "delivery.turn_shape", strategy_id: "compact_observation" }] }).artifact;
+const candidateIdentity = verifyProviderRevision({ model: candidateRevision.expected_response_model, system_fingerprint: "fp_fixture47" }, candidateRevision);
+const candidateBindingRow = { activation_id: "b0000000-0000-4000-8000-000000000001", exposure: "owner_private_text", selection_kind: "qualified",
+  candidate_id: "c0000000-0000-4000-8000-000000000001", qualification_binding: { base_capability_id: candidateBase.capability.capability_id,
+    artifact_sha256: bindingHash(candidateArtifact), build_manifest_hash: "c".repeat(64) }, artifact_snapshot: candidateArtifact,
+  core_hash: bindingHash(renderPrivateCorrectionCandidate(candidateBase, candidateArtifact).core),
+  model_commitment: materializationModel(candidateAdapter, { AZURE_CORRECTION_BASE_MODEL_COMMITMENT: "b".repeat(64) }).commitment,
+  base_model_commitment: "b".repeat(64), provider_revision_binding: candidateRevision, provider_identity: candidateIdentity };
+async function service(factory, usage, options = {}) {
   const calls = [];
+  let providerCalls = 0;
   const db = async (sql, params) => {
     calls.push({ sql, params });
-    if (/select r\.replica_id,r\.owner_user_id/i.test(sql)) return [row];
+    if (/select r\.replica_id,r\.owner_user_id/i.test(sql)) return [{ ...row, ...(options.candidate ? { capability_state: "private", candidate_binding_required: true } : {}) }];
+    if (/^select h\.\* from vy_replica_candidate_activation/i.test(sql)) return options.candidate ? [candidateBindingRow] : [];
     if (/insert into vy_replica_runtime_session/i.test(sql)) return [{ session_id: id(7), replica_id: id(1), channel: "private_chat", state: "active" }];
     if (/from vy_rel_state|from vy_phrase|from vy_(?:pattern|ritual|currency|kin)|select recent\.ordinal/i.test(sql)) return [];
     if (/insert into vy_replica_dialogue_turn/i.test(sql)) return [{ turn_id: id(8), session_id: id(7), ordinal: 1 }];
-    if (/assistant_log as/i.test(sql)) return [{ turn_id: id(8), session_id: id(7), ordinal: 1 }];
+    if (/assistant_log as/i.test(sql)) return options.finishDenied ? [] : [{ turn_id: id(8), session_id: id(7), ordinal: 1 }];
     if (/insert into vy_provider_budget/i.test(sql)) return [];
     if (/insert into vy_provider_spend/i.test(sql)) return [{ reservation_id: id(9), budget_id: params[0], request_hash: params[7], state: "reserved", reserved_microusd: params[10] }];
-    if (/set state='in_flight'/i.test(sql)) return [{ reservation_id: id(9), state: "in_flight" }];
-    if (/with settled as/i.test(sql)) return [{ budget_id: "synthetic-dialogue-budget", state: "active" }];
-    if (/set state='reconcile_required'|update vy_replica_dialogue_turn set state/i.test(sql)) return [];
+    if (/set state='in_flight'/i.test(sql)) {
+      if (options.beginLostAcknowledgement) throw Object.assign(new Error("synthetic begin acknowledgement lost"), { code: "provider_start_ack_lost" });
+      if (options.beginDenied) return [];
+      return [{ reservation_id: id(9), state: "in_flight" }];
+    }
+    if (/with settled as/i.test(sql)) {
+      if (options.settleLostAcknowledgement) throw Object.assign(new Error("synthetic settlement acknowledgement lost"), { code: "provider_settlement_ack_lost" });
+      return [{ budget_id: "synthetic-dialogue-budget", state: "active" }];
+    }
+    if (/set state='released'|set state='reconcile_required'|update vy_replica_dialogue_turn set state/i.test(sql)) return [];
     throw new Error("unexpected synthetic service query");
   };
   let result, error;
   try { result = await generateOwnedDialogue(db, id(2), { replica_id: id(1), channel: "private_chat", message: "Synthetic question", trace_id: "synthetic-adapter-test" },
-    factory({ ...settings, fetchImpl: async () => response(usage) })); } catch (cause) { error = cause; }
-  return { calls, result, error };
+    factory({ ...settings, fetchImpl: async () => { providerCalls++; return response(usage); } })); } catch (cause) { error = cause; }
+  return { calls, result, error, providerCalls };
 }
 const budgetEnv = { AZURE_REPLICA_BUDGET_ID: "synthetic-dialogue-budget", AZURE_REPLICA_APP_BUDGET_USD: "1", AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "1", AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: "1" };
 const previousEnv = Object.fromEntries(Object.keys(budgetEnv).map(key => [key, process.env[key]]));
@@ -198,5 +227,49 @@ try {
   const good = await service(create, { prompt_tokens: 101, completion_tokens: 23 });
   ok("real service still persists and settles valid structured transport output", !good.error && good.result?.billing_state === "settled"
     && good.calls.find(call => /with settled as/.test(call.sql))?.params[3] === 101);
+  const lostBegin = await service(create, { prompt_tokens: 101, completion_tokens: 23 }, { beginLostAcknowledgement: true });
+  ok("lost begin acknowledgement retains the reservation for reconciliation and never releases or dispatches",
+    lostBegin.error?.code === "provider_start_ack_lost" && lostBegin.providerCalls === 0
+    && lostBegin.calls.some(call => /set state='reconcile_required'/.test(call.sql))
+    && !lostBegin.calls.some(call => /set state='released'/.test(call.sql)));
+  const concurrentBegin = await service(create, { prompt_tokens: 101, completion_tokens: 23 }, { beginDenied: true });
+  ok("concurrent denied begin cannot release a reservation another attempt may own",
+    concurrentBegin.error?.code === "provider_spend_start_failed" && concurrentBegin.providerCalls === 0
+    && concurrentBegin.calls.some(call => /set state='reconcile_required'/.test(call.sql))
+    && !concurrentBegin.calls.some(call => /set state='released'/.test(call.sql)));
+  const refusedUsage = { input_tokens: 37, output_tokens: 11 };
+  const ordinaryRevisionRefusal = await service(() => ({
+    family: "dialogue", name: "synthetic-ordinary-revision-refusal", version: "1", model: settings.model,
+    billing: { meter: "azure_foundry_tokens", max_output_tokens: 700 },
+    async generate() { throw Object.assign(new Error("synthetic wrong revision"), { code: "provider_revision_response_model_mismatch", measured_usage: refusedUsage }); },
+  }));
+  const ordinarySettlements = ordinaryRevisionRefusal.calls.filter(call => /with settled as/.test(call.sql));
+  ok("ordinary dialogue refusal settles its trusted measured usage once without returning the refused answer",
+    ordinaryRevisionRefusal.error?.code === "provider_revision_response_model_mismatch" && !ordinaryRevisionRefusal.result
+    && ordinarySettlements.length === 1 && ordinarySettlements[0].params[3] === 37 && ordinarySettlements[0].params[4] === 11
+    && !ordinaryRevisionRefusal.calls.some(call => /set state='released'|set state='reconcile_required'/.test(call.sql)));
+  const invalidOutput = await service(() => ({
+    family: "dialogue", name: "synthetic-ordinary-invalid-output", version: "1", model: settings.model,
+    billing: { meter: "azure_foundry_tokens", max_output_tokens: 700 },
+    async generate() { return { output: "not-json", usage: { input_tokens: 41, output_tokens: 13 } }; },
+  }));
+  const invalidOutputSettlements = invalidOutput.calls.filter(call => /with settled as/.test(call.sql));
+  ok("ordinary post-response validation failure settles returned measured usage once and withholds output",
+    !!invalidOutput.error && !invalidOutput.result && invalidOutputSettlements.length === 1
+    && invalidOutputSettlements[0].params[3] === 41 && invalidOutputSettlements[0].params[4] === 13);
+  const changedAuthority = await service(create, { prompt_tokens: 43, completion_tokens: 17 }, { finishDenied: true });
+  const changedAuthoritySettlements = changedAuthority.calls.filter(call => /with settled as/.test(call.sql));
+  ok("ordinary post-response authority loss settles returned measured usage once and withholds output",
+    changedAuthority.error?.code === "dialogue_authorization_changed" && !changedAuthority.result
+    && changedAuthoritySettlements.length === 1 && changedAuthoritySettlements[0].params[3] === 43 && changedAuthoritySettlements[0].params[4] === 17);
+  const candidateSettlementUnknown = await service(() => ({ ...candidateAdapter,
+    async generate() { return { output, usage: { input_tokens: 47, output_tokens: 19 }, provider_identity: candidateIdentity }; },
+  }), undefined, { candidate: true, settleLostAcknowledgement: true, finishDenied: true });
+  const candidateSettlementAttempts = candidateSettlementUnknown.calls.filter(call => /with settled as/.test(call.sql));
+  ok("candidate settlement acknowledgement loss is never retried when later authority validation refuses",
+    candidateSettlementUnknown.error?.code === "dialogue_authorization_changed" && !candidateSettlementUnknown.result
+    && candidateSettlementAttempts.length === 1
+    && candidateSettlementUnknown.calls.some(call => /set state='reconcile_required'/.test(call.sql))
+    && !candidateSettlementUnknown.calls.some(call => /set state='released'/.test(call.sql)));
 } finally { for (const [key, value] of Object.entries(previousEnv)) if (value === undefined) delete process.env[key]; else process.env[key] = value; }
 console.log(`\n${checks} Azure dialogue adapter checks passed; synthetic HTTP/DB only`);
