@@ -16,6 +16,7 @@ import { deleteReplicaObjects } from "../../api/_replica-storage.js";
 import { assertUploadWithinSourceFence, reserveOwnedSourceUploadAuthorization } from "../../api/_replica-source.js";
 import { cleanupOrphanMirrorWindows } from "../../scripts/cleanup-orphan-mirror-windows.mjs";
 import { splitSql } from "../../db/migrations/apply.mjs";
+import { buildPersonModelDefinition } from "../../api/_person-model.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const SOURCE = "10000000-0000-4000-8000-000000000001";
@@ -146,6 +147,7 @@ ok("an HTTP-successful delete cannot erase the SQL manifest while the exact Supa
 let completeSql = "";
 await completeSourceErasure(async (sql, params) => {
   completeSql = sql;
+  assert.deepEqual(params.slice(0, 3), [SOURCE, RID, OWNER]);
   assert.equal(params[3], hash);
   return [{ source_id: SOURCE }];
 }, claimed);
@@ -160,6 +162,27 @@ ok("physical erasure selects derived models through exact source citations inste
   /@ == \$source/.test(completeSql) &&
   /affected_genomes affected where affected\.version=g\.version/.test(completeSql) &&
   /affected_profiles affected where affected\.version=p\.version/.test(completeSql));
+const profileClaim = (claim_id, domain, key, body, source_id) => ({
+  claim_id:String(claim_id),domain,key,body,source_ids:[source_id],origin:'self_declared',confidence:.99,
+  decision:'accepted',status:'approved',t_valid_to:null,updated_at:'2026-09-08T00:00:00Z',
+});
+const currentProfile = buildPersonModelDefinition([
+  profileClaim(1,'identity','self_name','Asha',SOURCE),
+  profileClaim(2,'language','languages','Hindi, English',SOURCE),
+  profileClaim(3,'delivery','turn_shape','Explain, then ask one question',SOURCE),
+  profileClaim(4,'boundary','privacy','Keep private conversations private',SOURCE),
+]);
+ok("source erasure resolves current private profile provenance through its cited claims",
+  currentProfile.provenance.claims.length===4
+  && !/source_ids/.test(JSON.stringify(currentProfile))
+  && /definition#>'\{provenance,claims\}'/.test(completeSql)
+  && /jsonb_array_elements\(p\.definition#>'\{provenance,claims\}'\) claim_ref/.test(completeSql)
+  && /profile_claim\.claim_id=case[\s\S]*claim_ref->>'claim_id'[\s\S]*::int8/.test(completeSql)
+  && /profile_claim\.replica_id=c\.replica_id/.test(completeSql)
+  && /profile_claim\.owner_user_id=c\.owner_user_id/.test(completeSql)
+  && /c\.source_id=any\(profile_claim\.source_ids\)/.test(completeSql));
+ok("source erasure retains the legacy embedded-source profile shape",
+  /jsonb_path_exists\([\s\S]*\$\.domains\.\*\[\*\]\.source_ids\[\*\]/.test(completeSql));
 ok("a replacement build created after delete request survives old-source completion",
   /erasure_requested_at/.test(completeSql) &&
   /a\.action='source\.delete\.request'[\s\S]*a\.object_id=s\.source_id::text/.test(completeSql) &&

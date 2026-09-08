@@ -252,9 +252,22 @@ export async function completeSourceErasure(db, lease) {
      ), affected_profiles as materialized (
        select p.version,p.source_set_hash
          from vy_replica_profile p join candidate c on c.replica_id=p.replica_id
-        where jsonb_path_exists(
-          p.definition,'$.domains.*[*].source_ids[*] ? (@ == $source)',
-          jsonb_build_object('source',to_jsonb(c.source_id::text))
+        where (
+          (jsonb_typeof(p.definition#>'{provenance,claims}')='array' and exists (
+            select 1 from jsonb_array_elements(p.definition#>'{provenance,claims}') claim_ref
+            join vy_replica_claim profile_claim
+              on profile_claim.claim_id=case
+                   when claim_ref->>'claim_id' ~ '^[1-9][0-9]{0,18}$'
+                   then (claim_ref->>'claim_id')::int8
+                 end
+             and profile_claim.replica_id=c.replica_id
+             and profile_claim.owner_user_id=c.owner_user_id
+            where c.source_id=any(profile_claim.source_ids)
+          ))
+          or jsonb_path_exists(
+            p.definition,'$.domains.*[*].source_ids[*] ? (@ == $source)',
+            jsonb_build_object('source',to_jsonb(c.source_id::text))
+          )
         )
      ), target as materialized (
        select c.* from candidate c
