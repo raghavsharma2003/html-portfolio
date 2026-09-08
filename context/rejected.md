@@ -17559,3 +17559,8 @@ ACR run `cu3e` failed in `RUN node services/azure-web/build.mjs`: the first conc
 ## `azure-web68-undefined-only-success-sentinel` (2026-09-08)
 
 The first closeBundle guard treated only undefined as success, so a null success sentinel would silently skip required asset postprocessing. Root review caught it before another build. One shared gate now accepts both undefined and null, with a successful missing-assets negative control; do not weaken the asset check itself.
+
+
+## `azure-web69-untyped-build-outcome-import` (2026-09-08)
+
+Frozen source `de84da66` passed remote runtime build but failed the real strict TypeScript build with TS7016 because `vite.config.ts` imported `build-outcome.mjs` without a declaration. Do not treat successful bundling as type acceptance or weaken strictness. The adjacent exact declaration replaces the missing contract.

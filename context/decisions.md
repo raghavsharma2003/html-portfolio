@@ -23770,3 +23770,8 @@ Commit every static HTML path named by Vite `rollupOptions.input`, including the
 ## `azure-web69-null-safe-build-outcome` (2026-09-08)
 
 Both preload plugins use one source-committed build-outcome gate. `undefined` and `null` mean successful `buildEnd`; only a non-null error skips postprocessing. Successful builds still execute asset checks. Reverse if Rollup documents and tests a different success sentinel contract.
+
+
+## `azure-web70-adjacent-hook-declaration` (2026-09-08)
+
+Keep the build-outcome implementation JavaScript and provide its exact adjacent `.d.mts` contract, including optional undefined or null error input and readonly returned methods. Source commitment includes both files. Reverse if the implementation moves to TypeScript or exports change.

@@ -16902,6 +16902,24 @@
       "kind": "rejection",
       "title": "Undefined-only success handling could skip postprocessing",
       "at": "2026-09-08"
+    },
+    {
+      "id": "azure-web70-adjacent-hook-declaration",
+      "kind": "decision",
+      "title": "Declare the JavaScript build hook contract adjacently",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "azure-web70-strict-types-and-packaging",
+      "kind": "measurement",
+      "title": "Strict types and focused packaging pass",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "azure-web69-untyped-build-outcome-import",
+      "kind": "rejection",
+      "title": "Remote bundling did not expose a missing strict declaration",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29127,6 +29145,16 @@
       "src": "azure-web69-null-safe-build-outcome",
       "rel": "caused_by",
       "dst": "azure-web68-undefined-only-success-sentinel"
+    },
+    {
+      "src": "azure-web70-adjacent-hook-declaration",
+      "rel": "measured_by",
+      "dst": "azure-web70-strict-types-and-packaging"
+    },
+    {
+      "src": "azure-web70-adjacent-hook-declaration",
+      "rel": "caused_by",
+      "dst": "azure-web69-untyped-build-outcome-import"
     }
   ]
 }
