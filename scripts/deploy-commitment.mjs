@@ -49,6 +49,8 @@ const FILE_INPUTS = Object.freeze([
   "scripts/roomsVocabAllowlist.mjs",
   "scripts/copy-room-scope.mjs",
   "scripts/azure-only-fetch.mjs",
+  "scripts/build-creator-page-fixture.mjs",
+  "scripts/build-room-about-fixture.mjs",
   "services/azure-web/routing.mjs",
   "services/azure-web/server.mjs",
   "services/azure-web/package.mjs",

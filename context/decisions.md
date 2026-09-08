@@ -23755,3 +23755,8 @@ Use function replacements at all five dynamic private SQL assembly sites. SQL re
 ## `candidate64-single-authority-projection` (2026-09-08)
 
 The shared dialogue authority already projects lifecycle, subject mode, policy, identity expiry and verification fields. Remove two redundant projection expansions in history and continuity; retain every shared field and all private scope predicates. Reverse only if the shared projection changes, with explicit unique required-field tests.
+
+
+## `azure-web67-vite-config-closure` (2026-09-08)
+
+Put both fixture builders imported by `vite.config.ts` in central `deploymentInputs`, so source commitment and every positive build context cover the code Vite executes while loading configuration. Context verification binds both exact import expressions to manifest membership. Reverse if Vite no longer imports either module or a reviewed build path proves it does not execute the config.

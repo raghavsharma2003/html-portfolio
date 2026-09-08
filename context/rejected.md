@@ -17544,3 +17544,8 @@ The failed156V3 derived query hash was b563a9eda463ac64aced0b3be35a22a1b7ee8e057
 ## `candidate64-duplicate-authority-columns` (2026-09-08)
 
 Actual receipt candidate156v4-6ea6d026b9a36b382f2ef829-result.json retains the42702 failure. Appending fields already present in the shared SELECT created duplicate names in the authorized CTE. Literal-byte preservation fixed corruption but did not prove unique projection. Tests now inspect only the bounded simple top-level field list and reject duplicate injection; they are not a SQL parser.
+
+
+## `azure-web-cu3d-incomplete-vite-config-closure` (2026-09-08)
+
+ACR run `cu3d` failed in `RUN node services/azure-web/build.mjs` before application compilation. The positive context included `vite.config.ts` but omitted its two unconditionally imported fixture builders, producing two `UNRESOLVED_IMPORT` errors at lines25 and44. Bounded read-only log receipt `azure-web65-cu3d-diagnosis-1788873609706297700.json` covers8508 decoded bytes, SHA256 `37d24f92cb517e3d88e10b77b9442b0207a2e1562ffa453ebcae9af342c4b0d6`; no raw log or SAS was retained. Do not reschedule that packet. Central source commitment plus an explicit config-closure negative control replaces the incomplete allowlist.

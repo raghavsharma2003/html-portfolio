@@ -17544,3 +17544,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `candidate64-projection-regression` (2026-09-08)
 
 2026-09-08: root actual156V4 failed42702 on DIALOGUE_HISTORY_SQL after additional activation/reset/rollback controls, with rollback/restoration/close confirmed and no uncertainty. Local focused regression passes on five top-level projections, each with duplicate-field negative control;26 continuity and12 history controls pass. No SQL, provider or browser executed by this source slice.
+
+
+## `azure-web67-context-closure-controls` (2026-09-08)
+
+2026-09-08: n=14 focused Azure web packaging groups passed on successor of `7af59b30`; n=1 negative removed the room-about builder from both context and manifest and received `azure_web_vite_config_dependency_missing`. Both exact Vite fixture builders are source-committed and packaged; three generated fixture HTML files remain excluded from runtime assembly. No Docker, cloud, provider, GPU, database or full release run.

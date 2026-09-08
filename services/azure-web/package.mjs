@@ -15,6 +15,7 @@ export function walk(root, prefix = '') {
   return out;
 }
 const privatePath = p => /(?:^|\/)(?:\.env[^/]*|_config(?:\.js|\.env)|keyring\.json|google-keys\.env|scratchpad|first-clone-out)(?:\/|$)/i.test(p) || /\.(?:pem|key|wav|mp3|m4a|pt|safetensors)$/i.test(p);
+const viteConfigDependencies = ['scripts/build-creator-page-fixture.mjs','scripts/build-room-about-fixture.mjs'];
 export function prepareContext(root, destination) {
   root = resolve(root); destination = resolve(destination);
   if (existsSync(destination)) throw new Error('azure_web_context_must_be_new');
@@ -34,6 +35,8 @@ export function verifyContext(root) {
   if (m.contract !== 'vyakti-azure-build-context/v1' || m.nodeImage !== NODE_IMAGE || !Array.isArray(m.files)) throw new Error('azure_web_context_invalid');
   const paths = m.files.map(f=>f.path);
   if (new Set(paths).size !== paths.length || paths.some(p=>privatePath(p)||p.includes('..')||p.startsWith('/')||p.includes('\\'))) throw new Error('azure_web_context_invalid');
+  const viteConfig = readFileSync(join(root,'vite.config.ts'),'utf8');
+  for (const dependency of viteConfigDependencies) if (!viteConfig.includes(`import('./${dependency}')`) || !paths.includes(dependency)) throw new Error('azure_web_vite_config_dependency_missing');
   const actual = walk(root).filter(p=>p!=='azure-build-context.json');
   if (JSON.stringify(actual.sort()) !== JSON.stringify([...paths].sort())) throw new Error('azure_web_context_extra_or_missing');
   for (const f of m.files) if (sha(readFileSync(join(root,f.path))) !== f.sha256) throw new Error('azure_web_context_changed');
