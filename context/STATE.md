@@ -1,5 +1,11 @@
 # STATE — read this first, then the graph
 
+## START HERE: INTEGRATION40 SOURCE ASSEMBLY (2026-09-08)
+
+This block supersedes older candidate notes below. SOURCE ONLY, not frozen or accepted. Based immutable39 b534fa9, while root runs its full gate separately. Four bounded families now unioned: correction candidate152, opt-in publication visitor continuity153, honest Room memory-write state and measured GPUexecution36 defaults.380registry entries retain all372incumbents plus8new. Preserve39projection/154 and regression repairs.
+
+No dependency install/copy, build, tests, browser, SQL or model execution in this phase. Actual152153 proof, independent source review, integrated browser/TypeScript/fullrelease and model quality remain pending. Candidate approval workflow, restored visitor conversation UI and private continuity voice explanation remain gaps. Do not publish or call this source union ready. Accepted26/local5177 unchanged; goal active and hourly automation paused. Root owns host reservation and acceptance. See expert-tools/RELEASE40-SOURCE-ASSEMBLY-PLAN.json and FEED-MEET-DEPLOY40-GAP-MAP.md.
+
 ## START HERE: RELEASE39 REGRESSION CANDIDATE (2026-09-08)
 
 This block supersedes older release notes below. Base frozen34 5ade4ea9. Candidate39 includes only five repaired evals, measured GPU target35 defaults, private continuity seven-column authority projection and migration154 AFTER DELETE erasure correction. Eleven source paths plus additive schema/context;152153/new product families excluded.372distinct eval registrations retained. Root actual148+154V4 rollback proof passed53runtimechecks/7SQLshapes with clean rollback; migrations not committed. Sequential erasure only, concurrency and representative GIN performance remain unmeasured.

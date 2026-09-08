@@ -17401,3 +17401,8 @@ Source audit found swallowed writer errors return undefined on success/failure. 
 ## `gpu-execution36-job-shape-not-execution` (2026-09-08)
 
 2026-09-08: Actual watchdog refused execution_template_mismatch because job GET defaults differ from execution GET: initContainersnull vs[], imageType absent vsContainerImage. First new control then failed because existing terminal check demanded endTime, which actual Failed response omits. Reject treating deployed-job inspection as execution-shape proof and requiring billing-like timestamp data for operationalterminal. Fixes are execution-only normalization plus optional valid endTime, with pendingfunds unchanged.
+
+
+## `integration40-cross-family-ready-claim` (2026-09-08)
+
+2026-09-08: Source families have no textual UI overlap but owner correction lacks candidate comparison/approval route; publication return restores auth rather than chat; continuity voice disablement lacks specific explanation. Do not call the union complete from clean merge or static registry. Initial source helper failed Windows implicitcp1252 decoding evalregistry; explicitUTF8 corrected inspection without product edits.

@@ -17408,3 +17408,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `gpu-execution36-actual-failed-and27-controls` (2026-09-08)
 
 2026-09-08: This agent performed2 exact read-only execution-list GETs, retained safe projections9b0a859f and7346cc20 in gpu-probe33-protected-receipts. Same executionqnhua6w/windowd78bb973 matched marker, image, command, CPU8/memory56Gi and reportedFailed without endTime. Root separately issued exact stopHTTP200.27 synthetic controls passed after36 including missingendTime terminal, bad presentendTime/nonemptyinit/CloudBuild/markerloss negatives. No CUDA marker or actual invoice established. No start/stop/SQL by this agent.
+
+
+## `integration40-static-inventory` (2026-09-08)
+
+2026-09-08: n62changedpaths across four bounded families. Literal registry source scan finds380unique entries, all372incumbent name/path pairs unchanged plus8new.39private authority/154/fiveevalrepairs unchanged; finalGPUcontroller exactlyc06b8d3. Schema152153154 mirrors present. Source inspection only, no dependencycopy/build/test/browser/SQL/provider. Journeyreview FEED-MEET-DEPLOY40-GAP-MAP.md records missingcandidateapproval flow, no restoredpublicationtranscript and private recalledvoice explanation gap.

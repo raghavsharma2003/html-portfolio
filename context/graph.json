@@ -16380,6 +16380,24 @@
       "kind": "rejection",
       "title": "Job GET shape and mandatory endTime failed live",
       "at": "2026-09-08"
+    },
+    {
+      "id": "integration40-source-only-union",
+      "kind": "decision",
+      "title": "Preserve bounded new product families without acceptance",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "integration40-static-inventory",
+      "kind": "measurement",
+      "title": "Four source families assembled without running tests",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "integration40-cross-family-ready-claim",
+      "kind": "rejection",
+      "title": "Connected callers are not accepted product quality",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

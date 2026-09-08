@@ -23624,3 +23624,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `gpu-execution36-terminal-without-invoice` (2026-09-08)
 
 2026-09-08: Root approved operational terminal from exact bound Failed/Succeeded/Stopped without fabricated endTime. Actual execution GET omitted endTime and added initContainers[] plus imageType ContainerImage.36 normalizes these two forms only for execution paths, retaining job snapshot strictness and per-window envmarker. Present endTime remains validated. Accounting stays pending; no allocation_terminated, invoice duration or fund release. Reverse if provider terminal status ceases to be authoritative for control; never infer billing closure.
+
+
+## `integration40-source-only-union` (2026-09-08)
+
+2026-09-08: Root authorized source-only40 from frozen39. Integrate correction1a4f34fc plus requiredb992f16d request ancestor, publication33079be0, Room97186d7b and GPUc06b8d3c. Union complete context sections/graph nodes and schema; retain all prior evals and39 fixes. Reverse on source review, actual152153 SQL or integrated quality failures. No freeze or readiness claim before root acceptance.
