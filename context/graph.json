@@ -16398,6 +16398,24 @@
       "kind": "rejection",
       "title": "Connected callers are not accepted product quality",
       "at": "2026-09-08"
+    },
+    {
+      "id": "a11y-readiness42-mounted-coverage",
+      "kind": "decision",
+      "title": "Wait for mounted accessibility target within existing action deadline",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "a11y-readiness42-delayed-entry-controls",
+      "kind": "measurement",
+      "title": "Delayed actual room entry and never-mount controls passed",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "a11y-readiness42-snapshot-is-not-readiness",
+      "kind": "rejection",
+      "title": "Reject one fixed sleep as async accessibility readiness",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

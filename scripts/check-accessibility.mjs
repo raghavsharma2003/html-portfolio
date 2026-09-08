@@ -47,6 +47,7 @@
 // knows is wired.
 
 import { existsSync, readFileSync } from "node:fs";
+import { awaitAccessibilityMount } from "./accessibility-readiness.mjs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join } from "node:path";
@@ -764,9 +765,7 @@ async function main() {
     const crashed = [];
     page.on("pageerror", (e) => crashed.push(e.message.slice(0, 160)));
     await page.goto(url, { waitUntil: "domcontentloaded" });
-    await page.waitForTimeout(1200);
-
-    const mounted = await page.evaluate((sel) => Boolean(document.querySelector(sel)), mountedSelector);
+    const mounted = await awaitAccessibilityMount(page, mountedSelector);
     if (!mounted) {
       axeFindings.push({
         where, impact: "critical", id: "coverage", help: crashed[0] ? `page threw: ${crashed[0]}` : `${where} did not mount at all — the gate is blind here`,

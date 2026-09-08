@@ -17406,3 +17406,8 @@ Source audit found swallowed writer errors return undefined on success/failure. 
 ## `integration40-cross-family-ready-claim` (2026-09-08)
 
 2026-09-08: Source families have no textual UI overlap but owner correction lacks candidate comparison/approval route; publication return restores auth rather than chat; continuity voice disablement lacks specific explanation. Do not call the union complete from clean merge or static registry. Initial source helper failed Windows implicitcp1252 decoding evalregistry; explicitUTF8 corrected inspection without product edits.
+
+
+## `a11y-readiness42-snapshot-is-not-readiness` (2026-09-08)
+
+A deliberately delayed real entry proves the old1200ms one-shot snapshot can reject a valid subsequently mounted target without scanning it. This demonstrates the structural coverage defect, not the cause of historical39 failure. Do not raise performance budgets, bypass creator selectors, cancel critical never-mount failures, or relabel isolated successes as release acceptance.

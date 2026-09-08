@@ -17413,3 +17413,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `integration40-static-inventory` (2026-09-08)
 
 2026-09-08: n62changedpaths across four bounded families. Literal registry source scan finds380unique entries, all372incumbent name/path pairs unchanged plus8new.39private authority/154/fiveevalrepairs unchanged; finalGPUcontroller exactlyc06b8d3. Schema152153154 mirrors present. Source inspection only, no dependencycopy/build/test/browser/SQL/provider. Journeyreview FEED-MEET-DEPLOY40-GAP-MAP.md records missingcandidateapproval flow, no restoredpublicationtranscript and private recalledvoice explanation gap.
+
+
+## `a11y-readiness42-delayed-entry-controls` (2026-09-08)
+
+2026-09-08 one focused browser invocation exec61001 using frozen39 built room fixture. Delayed-entry old1200ms snapshot false; new shared readiness mounted438ms after scheduling entry250ms later, actual axe zero violations and injected image-alt negative detected. Never-mount timed out30017ms, critical coverage, no axe scan. Non-timeout errors propagated. Root152V2SQL72400 was concurrent network-only activity. No full accessibility or release rerun; original39 failure preserved. Receipt scratchpad/a11y-readiness/1788859621123/result.json.

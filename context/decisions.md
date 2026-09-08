@@ -23629,3 +23629,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `integration40-source-only-union` (2026-09-08)
 
 2026-09-08: Root authorized source-only40 from frozen39. Integrate correction1a4f34fc plus requiredb992f16d request ancestor, publication33079be0, Room97186d7b and GPUc06b8d3c. Union complete context sections/graph nodes and schema; retain all prior evals and39 fixes. Reverse on source review, actual152153 SQL or integrated quality failures. No freeze or readiness claim before root acceptance.
+
+
+## `a11y-readiness42-mounted-coverage` (2026-09-08)
+
+Accessibility coverage now awaits its actual mounted selector, state attached, with the installed Playwright action deadline of30000ms. Timeout still records critical coverage and skips axe; other errors propagate. Performance and creator gates remain unchanged. Reverse if target presence proves insufficient for stable meaningful axe coverage or an independently specified accessibility readiness contract requires another predicate.
