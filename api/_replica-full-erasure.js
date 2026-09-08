@@ -555,6 +555,8 @@ export async function completeReplicaErasure(db, lease, receipt) {
      text_publications as (delete from vy_text_publication x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id
          and (select count(*) from retired_text_publication_ids)>=0),
+     comparison_references as (delete from vy_replica_comparison_reference x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      private_text_rehearsals as (delete from vy_private_text_rehearsal x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      context_item_texts as (delete from vy_context_item_text x using target t

@@ -896,3 +896,37 @@
   }
 
 }
+
+/* Private comparison stays within the existing verification step. */
+@layer components {
+  .cvj-comparison-disclosure {
+    width: min(calc(100% - 32px), 668px);
+    margin: 20px auto 0;
+    border: 1px solid var(--cvj-line);
+    border-radius: 18px;
+    background: color-mix(in srgb, #fff 84%, var(--cvj-paper));
+  }
+  .cvj-comparison-disclosure > summary {
+    cursor: pointer;
+    min-height: 52px;
+    padding: 16px 18px;
+    color: var(--cvj-ink);
+    font-size: 15px;
+    font-weight: 650;
+    line-height: 1.45;
+  }
+  .cvj-comparison-disclosure > summary::marker { color: var(--cvj-green); }
+  .cvj-comparison-reference { display: grid; gap: 14px; padding: 4px 18px 18px; overflow-wrap: anywhere; }
+  .cvj-comparison-reference h2 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.025em; line-height: 1.15; }
+  .cvj-comparison-reference p { margin: 0; color: var(--cvj-muted); font-size: 14px; line-height: 1.55; }
+  .cvj-comparison-reference fieldset { display: grid; gap: 0; border: 0; padding: 0; min-width: 0; }
+  .cvj-comparison-reference legend { margin-bottom: 4px; font-size: 14px; font-weight: 650; }
+  .cvj-comparison-reference label { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 10px 0; font-size: 14px; line-height: 1.5; }
+  .cvj-comparison-reference fieldset label + label { border-top: 1px solid var(--cvj-line); }
+  .cvj-comparison-reference > label { display: grid; gap: 6px; }
+  .cvj-comparison-reference input[type="checkbox"] { flex: 0 0 auto; width: 20px; height: 20px; margin-top: 1px; accent-color: var(--cvj-green); }
+  .cvj-comparison-reference select { width: 100%; min-width: 0; min-height: 44px; padding: 8px 10px; color: var(--cvj-ink); background: var(--cvj-paper); border: 1px solid var(--cvj-line); border-radius: 10px; }
+  .cvj-comparison-reference audio { display: block; width: 100%; margin: 0 0 10px; }
+  .cvj-comparison-reference .cvj-primary, .cvj-comparison-reference .cvj-quiet { width: 100%; }
+  .cvj-shell .challenge-empty--blocked { min-height: 0; padding: 16px; }
+}

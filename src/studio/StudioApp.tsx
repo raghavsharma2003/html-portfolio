@@ -2724,6 +2724,7 @@ export default function StudioApp() {
       <Suspense fallback={<DeferredWorkspacePanel />}>
       <StudioWorkspaceStyles />
       <CloneExperience
+        ownerUserId={session.userId}
         accountScope={`${session.userId}:${accountRevision.current}`}
         workspaceReadState={loadState === "ready" ? "ready" : loadState === "error" ? "error" : "loading"}
         consentReadState={!session || !selectedId || consentRead.scope !== consentScope(session, selectedId) ? "loading" : consentRead.state}

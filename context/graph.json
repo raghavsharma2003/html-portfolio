@@ -15405,6 +15405,24 @@
       "kind": "rejection",
       "title": "Rejected try-advisory/NOWAIT as sufficient freshness",
       "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-reference31-purpose-choice",
+      "kind": "decision",
+      "title": "Explicit private comparison choice",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-reference31-offline-mounted",
+      "kind": "measurement",
+      "title": "Private comparison bounded tests",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-reference31-no-preparation-assumption",
+      "kind": "rejection",
+      "title": "Existing evidence is not fresh preparation",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

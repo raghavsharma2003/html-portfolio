@@ -23330,3 +23330,8 @@ Assemble math retention, nativeMathML rendering, verification navigation, fixtur
 ## `modern-issued-authority30-20260908` (2026-09-08)
 
 Persist modern capture authority in the existing biometric grant receipt and use a dedicated reference_authority_epoch (proposed migration144) for successful reference review and issuance. Bind the owner preview pre-state and store the incremented post-state; the actual registry supplies the SQL loader. Keep capture readiness false, preserve legacy voice/training gates and forbid old grant conversion. Existing primary/live-challenge uniqueness and atomic rollback govern replacement. Reverse if real PostgreSQL CAS/rollback proof admits stale authority, owner erasure retains private evidence, or a narrower implementation proves equivalent isolation. Details: docs/gurukul/research/MODERN-ISSUED-AUTHORITY30-HANDOFF-20260908.md.
+
+
+## `comparison-reference31-purpose-choice` (2026-09-08)
+
+Use a separately withdrawable, immutable private comparison receipt over existing completed evidence. Never interpret capture/storage or ordinary training consent as this choice. Reverse only if a reviewed equivalent preserves exact evidence, purpose and authority races. Dedicated preparation 146 remains unconnected; see COMPARISON-REFERENCE31-HANDOFF-20260908.md.

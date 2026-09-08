@@ -167,6 +167,7 @@ export const OWNER_LANE_TABLES = Object.freeze([
   { table: "vy_replica_liveness_challenge", scope: "replica" },
   { table: "vy_replica_liveness_verification_attempt", scope: "replica" },
   { table: "vy_replica_biometric_verification_grant", scope: "replica" },
+  { table: "vy_replica_comparison_reference", scope: "replica" },
 
   // ── consent ─────────────────────────────────────────────────────────────
   { table: "vy_replica_consent", scope: "replica" },

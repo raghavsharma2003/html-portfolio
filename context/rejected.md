@@ -17101,3 +17101,8 @@ Identical retained bundle served by the incumbent fixture withoutcharset produce
 ## `modern-issued-authority30-snapshot-and-bootstrap-20260908` (2026-09-08)
 
 Rejected try-advisory/NOWAIT as sufficient freshness: a competing decision append can commit after statement snapshot but before lock acquisition, leaving old accepted evidence visible without an epoch mutation. Also rejected insert-before-expire replacement because migration016 has a partial unique live-challenge index; failed insertion must roll back prior expiry rather than swallow a conflict. Reusing private_text_epoch for voice review would invalidate completed publication answer readback. Signed VAD revisions were discarded by normalizedMeasurements, so historical reference compatibility cannot be inferred. Finally, legacy selected artifacts require prior liveness plus training/biometric consent; this is not a brand-new-owner comparison producer. The handoff preserves these walls and specifies a distinct purpose-limited reference preparation caller without training/inference grants.
+
+
+## `comparison-reference31-no-preparation-assumption` (2026-09-08)
+
+Do not declare fresh comparison upload end-to-end from 145 selection alone: its binding uses existing primary_selection_id and ordinary completed evidence, while frozen146 purpose uploads are deliberately excluded from ordinary primary selection. A dedicated discovery and selection identity is required. The prior pinned Journey has no comparison selection caller; the retained mounted negative reproduces that omission.

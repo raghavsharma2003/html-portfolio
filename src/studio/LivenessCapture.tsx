@@ -632,7 +632,7 @@ export default function LivenessCapture({
             <div><p className="eyebrow">Verifier result</p><h4>Live challenge passed</h4><p>Biometric comparison permission is bound to this evidence. Training and inference permission remain separate.</p></div>
           </div>
         ) : !challengeIssued ? (
-          <div className="challenge-empty">
+          (captureAvailable || comparison || issueUncertain || challenge?.state === "failed" || challenge?.state === "expired") ? <div className={`challenge-empty${captureAvailable ? "" : " challenge-empty--blocked"}`}>
             <div>
               {comparison && <div className="comparison-recording" aria-label="Selected voice recording">
                 <strong>Selected recording</strong>
@@ -676,7 +676,7 @@ export default function LivenessCapture({
             {captureAvailable && <button className="button primary-button" type="button" disabled={issueUncertain || stage === "requesting" || !allVerificationConsent || !allComparisonConsent} onClick={() => void issue()}>
               {stage === "requesting" ? "Issuing phrase" : "Request live phrase"}
             </button>}
-          </div>
+          </div> : null
         ) : (
           <>
             <div className="challenge-card">

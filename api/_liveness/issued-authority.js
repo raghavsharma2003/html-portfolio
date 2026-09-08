@@ -1,7 +1,10 @@
+import {referenceFromAuthority} from './reference-evidence.js';
+export {referenceFromAuthority} from './reference-evidence.js';
+import {COMPARISON_CANDIDATE_CTES,validateComparisonReferenceReceipt} from '../_comparison-reference.js';
 import { randomInt, randomUUID } from 'node:crypto';
 import { REPLICA_POLICY_VERSION } from '../_replica.js';
 import { BIOMETRIC_VERIFICATION_ATTESTATIONS, clientChallenge } from '../_replica-liveness.js';
-import { canonicalJson, createEvidenceRecord, sha256Hex } from '../_replica-processing/contracts.js';
+import { canonicalJson, sha256Hex } from '../_replica-processing/contracts.js';
 import { liveIntakeReceiptsSql } from '../_replica-processing/purpose.js';
 import { livenessVerificationLeaseHash } from '../_replica-liveness-verification.js';
 import { getIssuedVoiceBank, getIssuedVoiceProfile } from '../_voice-identity/issued-contract.js';
@@ -17,7 +20,7 @@ export const SELECTED_COMPARISON_ATTESTATIONS = Object.freeze([
 ]);
 const fail = (part, status = 409) => { throw captureContractError(part, status); };
 const json = value => canonicalJson(value);
-function id(value) { if (typeof value !== 'string' || !UUID.test(value)) fail('binding_invalid',400); return value; }
+function id(value) { if (typeof value !== 'string' || value.length!==36 || !UUID.test(value)) fail('binding_invalid',400); return value; }
 function attest(value, keys) {
   if (!value || Object.getPrototypeOf(value)!==Object.prototype ||
       Reflect.ownKeys(value).length!==keys.length || keys.some(key=>
@@ -97,7 +100,7 @@ const AUTHORITY_CTES = `source_gate as materialized (
  where e.value->'input_set' @> jsonb_build_array(jsonb_build_object('artifact_id',a.artifact_id,'sha256',a.sha256)))))
  and e.adapter_family='voice-analysis' and e.adapter_name='speechbrain-independent-speaker-evidence'
  and e.adapter_version='vyakti-voice-evidence-v2'
-), authority as (
+), ordinary_authority as (
  select jsonb_build_object('replica_id',r.replica_id,'owner_user_id',r.owner_user_id,'subject_person_id',r.subject_person_id,
  'policy_version',r.policy_version,'authority_epoch',r.private_text_epoch,'reference_authority_epoch',r.reference_authority_epoch,
  'primary_source_id',s.source_id,'primary_source_sha256',s.sha256,'primary_selection_id',r.primary_selection_id,
@@ -111,6 +114,29 @@ const AUTHORITY_CTES = `source_gate as materialized (
  from owned r cross join primary_source s cross join identity_case ic cross join capture_consent cc
  cross join storage_consent sc cross join selected_artifact a
  where (select acquired from review_gate)=true and (select count(*) from reference_evidence)=3
+), comparison_candidate as materialized (
+ with ${COMPARISON_CANDIDATE_CTES.replaceAll('$3::uuid','null::uuid')}
+ select * from candidates
+), purpose_authority as (
+ select c.binding || jsonb_build_object('subject_person_id',r.subject_person_id,
+ 'reference_authority_epoch',r.reference_authority_epoch,
+ 'identity_case_id',ic.identity_case_id,'identity_source_id',ic.source_id,'identity_source_sha256',ic.source_sha256,
+ 'reference_authority_kind','private_comparison_reference','comparison_reference_id',h.reference_id,
+ 'comparison_reference_receipt_hash',h.receipt_hash) binding,c.reference_rows,
+ to_char(clock_timestamp() at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') server_now,
+ to_jsonb(h) comparison_receipt
+ from comparison_candidate c join vy_replica_comparison_reference h
+ on h.artifact_id=c.artifact_id and h.source_id=c.source_id and h.replica_id=$1::uuid and h.owner_user_id=$2::uuid
+ cross join owned r cross join identity_case ic
+ where h.state='selected' and h.expires_at>now() and h.confirmed_at is not null and h.audition_response_at is not null
+ and h.receipt_payload->'binding'=c.binding and c.source_id=$3::uuid
+ and (select acquired from review_gate)=true
+), authority as (
+ select * from purpose_authority
+ union all
+ select ordinary_authority.*,null::jsonb comparison_receipt from ordinary_authority
+ where not exists(select 1 from vy_replica_comparison_reference h where h.replica_id=$1::uuid
+ and h.owner_user_id=$2::uuid and h.state='selected')
 )`;
 
 export const MODERN_AUTHORITY_SNAPSHOT_SQL = `with ${AUTHORITY_CTES} select authority.*,
@@ -264,41 +290,13 @@ export async function getOwnedModernComparisonDescriptor(db,ownerUserId,replicaI
     source_label:null,source_created_at:new Date(row.created_at).toISOString(),locales:['en-IN','hi-IN'],available:true,code:''});
 }
 
-export function referenceFromAuthority(row) {
-  const b=row?.binding, rows=row?.reference_rows;
-  if (!b || !Array.isArray(rows) || rows.length!==3) fail('reference_unavailable',503);
-  const pins=rows.map(e=>({evidence_id:e.evidence_id,record_hash:e.record_hash,decision_id:e.decision_id}))
-    .sort((a,b)=>a.evidence_id.localeCompare(b.evidence_id));
-  if (json(pins)!==json(b.evidence_pins) || new Set(rows.map(e=>e.created_by_job_id)).size!==1)
-    fail('reference_record_mismatch');
-  for (const e of rows) {
-    const rebuilt=createEvidenceRecord({...e,adapter_stage:'voice_quality',
-      span:e.span_start_ms==null?null:{start_ms:e.span_start_ms,end_ms:e.span_end_ms},
-      adapter:{family:e.adapter_family,name:e.adapter_name,version:e.adapter_version,measure() {}}});
-    if (rebuilt.record_hash!==e.record_hash || rebuilt.evidence_id!==e.evidence_id ||
-        e.replica_id!==b.replica_id || e.owner_user_id!==b.owner_user_id || e.source_id!==b.primary_source_id)
-      fail('reference_record_mismatch');
-  }
-  const measurements=rows.filter(e=>e.evidence_type==='voice_measurement');
-  const embeddings=rows.filter(e=>e.evidence_type==='voice_embedding');
-  const revisions=measurements[0]?.value?.measurements?.model_revisions;
-  const expected=getIssuedVoiceProfile().speaker.expected_candidate_revisions;
-  if (measurements.length!==1 || embeddings.length!==2 || !revisions ||
-      Object.entries(expected).some(([name,revision])=>revisions[name]!==revision)) fail('reference_revision_unavailable',503);
-  for (const [family,model] of Object.entries({'speechbrain-ecapa-voxceleb':'speechbrain-ecapa','speechbrain-xvector-voxceleb':'speechbrain-xvector'})) {
-    const matches=embeddings.filter(e=>e.value.family===family);
-    const e=matches[0], vector=e?.value?.vector;
-    if (matches.length!==1 || e.value.model_revision!==expected[model] || e.artifact_id!==b.artifact_id ||
-        e.input_sha256!==b.artifact_sha256 || !Array.isArray(vector) || vector.length<64 || vector.length>2048 ||
-        vector.some(n=>typeof n!=='number'||!Number.isFinite(n)||Math.abs(n)>10) || !vector.some(n=>n!==0))
-      fail('reference_revision_unavailable',503);
-  }
-  if (measurements[0].input_sha256!==sha256Hex({schema_version:'voice-analysis-input-set/v1',inputs:measurements[0].value.input_set}) ||
-      !measurements[0].value.input_set.some(i=>i.artifact_id===b.artifact_id && i.sha256===b.artifact_sha256))
-    fail('reference_input_mismatch');
-  return {source_id:b.primary_source_id,source_sha256:b.primary_source_sha256,
-    model_revisions:Object.fromEntries(Object.keys(expected).map(key=>[key,revisions[key]])),
-    embeddings:embeddings.map(e=>({family:e.value.family,vector:e.value.vector})).sort((a,b)=>a.family.localeCompare(b.family))};
+
+function validatePurposeReference(row) {
+  if (row.binding?.reference_authority_kind!=='private_comparison_reference') return;
+  const h=row.comparison_receipt,p=validateComparisonReferenceReceipt(h);
+  if (h.state!=='selected' || Date.parse(h.expires_at)<=Date.now() ||
+      row.binding.comparison_reference_id!==h.reference_id || row.binding.comparison_reference_receipt_hash!==h.receipt_hash ||
+      Object.entries(p.binding).some(([key,value])=>json(row.binding[key])!==json(value))) fail('reference_receipt_changed');
 }
 
 export async function issueOwnedModernChallenge(db, ownerUserId, replicaId, input={}) {
@@ -311,6 +309,7 @@ export async function issueOwnedModernChallenge(db, ownerUserId, replicaId, inpu
   if (!row) fail('authority_unavailable');
   if (row.binding?.primary_source_sha256!==input.expected_primary_source_sha256) fail('selection_changed');
   if (comparisonSnapshot(row.binding)!==input.expected_comparison_snapshot_sha256) fail('comparison_preview_changed');
+  validatePurposeReference(row);
   const reference=referenceFromAuthority(row),b=row.binding;
   if (!Number.isSafeInteger(b.reference_authority_epoch) || b.reference_authority_epoch<0 ||
       b.reference_authority_epoch>=Number.MAX_SAFE_INTEGER) fail('authority_epoch_invalid',503);
@@ -368,6 +367,7 @@ export function createModernCaptureAuthorityLoader({db,now=Date.now}={}) {
       livenessVerificationLeaseHash(lease.leaseToken),json(lease),row.receipt_hash,json(receipt)]))[0];
     if (!fresh) fail('authority_withdrawn');
     if (json(fresh.binding)!==json(b)) fail('authority_changed');
+    validatePurposeReference(fresh);
     const reference=referenceFromAuthority(fresh);
     if (sha256Hex(reference)!==c.referenceEvidenceSha256) fail('reference_mismatch');
     return Object.freeze({envelope:issued,expectedHash:receipt.expected_contract_sha256,reference});
