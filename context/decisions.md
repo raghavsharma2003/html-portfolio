@@ -23765,3 +23765,8 @@ Put both fixture builders imported by `vite.config.ts` in central `deploymentInp
 ## `azure-web68-static-vite-input-closure` (2026-09-08)
 
 Commit every static HTML path named by Vite `rollupOptions.input`, including the visitor Room and both layout fixtures. Context verification binds all seven exact paths to manifest membership. Asset-scanning closeBundle hooks skip only after `buildEnd` receives an upstream error, preserving the original error; successful builds still fail if expected assets are absent. Reverse if the input map or Rollup hook contract changes.
+
+
+## `azure-web69-null-safe-build-outcome` (2026-09-08)
+
+Both preload plugins use one source-committed build-outcome gate. `undefined` and `null` mean successful `buildEnd`; only a non-null error skips postprocessing. Successful builds still execute asset checks. Reverse if Rollup documents and tests a different success sentinel contract.

@@ -17554,3 +17554,8 @@ ACR run `cu3d` failed in `RUN node services/azure-web/build.mjs` before applicat
 ## `azure-web-cu3e-incomplete-static-input-closure` (2026-09-08)
 
 ACR run `cu3e` failed in `RUN node services/azure-web/build.mjs`: the first concrete log error is ENOENT scanning `/source/dist/assets` from the Hindi preload closeBundle hook after137ms. Source inspection independently proves `room.html`, `creator-layout-fixture.html` and `room-layout-fixture.html` were absent from the context despite being Vite inputs; the log does not prove which upstream Rollup error the closeBundle hook masked. Bounded read covered5306 bytes, SHA256 `a0f854730428165953d60cf57959d5ce45db5bc80cac303d3d0de4ad4e3c8be2`, with no raw log or SAS retained. Do not reschedule that packet.
+
+
+## `azure-web68-undefined-only-success-sentinel` (2026-09-08)
+
+The first closeBundle guard treated only undefined as success, so a null success sentinel would silently skip required asset postprocessing. Root review caught it before another build. One shared gate now accepts both undefined and null, with a successful missing-assets negative control; do not weaken the asset check itself.

@@ -58,6 +58,7 @@ const FILE_INPUTS = Object.freeze([
   "services/azure-web/server.mjs",
   "services/azure-web/package.mjs",
   "services/azure-web/build.mjs",
+  "services/azure-web/build-outcome.mjs",
   "services/azure-web/entrypoint.mjs",
   "services/azure-web/cron-runner.mjs",
   "services/azure-web/prepare.mjs",

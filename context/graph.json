@@ -16882,7 +16882,25 @@
     {
       "id": "azure-web-cu3e-incomplete-static-input-closure",
       "kind": "rejection",
-           "title": "Incomplete static input closure failed ACR cu3e",
+      "title": "Incomplete static input closure failed ACR cu3e",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "azure-web69-null-safe-build-outcome",
+      "kind": "decision",
+      "title": "Treat null and undefined as successful build sentinels",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "azure-web69-build-outcome-controls",
+      "kind": "measurement",
+      "title": "Build outcome hook controls pass",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "azure-web68-undefined-only-success-sentinel",
+      "kind": "rejection",
+      "title": "Undefined-only success handling could skip postprocessing",
       "at": "2026-09-08"
     }
   ],
@@ -29099,6 +29117,16 @@
       "src": "azure-web68-static-vite-input-closure",
       "rel": "caused_by",
       "dst": "azure-web-cu3e-incomplete-static-input-closure"
+    },
+    {
+      "src": "azure-web69-null-safe-build-outcome",
+      "rel": "measured_by",
+      "dst": "azure-web69-build-outcome-controls"
+    },
+    {
+      "src": "azure-web69-null-safe-build-outcome",
+      "rel": "caused_by",
+      "dst": "azure-web68-undefined-only-success-sentinel"
     }
   ]
 }

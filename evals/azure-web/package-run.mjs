@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync,mkdirSync,writeFileSync,readFileSync,existsSync,rmSync } from 'node:fs';
+import { mkdtempSync,mkdirSync,writeFileSync,readFileSync,readdirSync,existsSync,rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve,join } from 'node:path';
 import { prepareContext,verifyContext,assembleRuntime,walk,sha } from '../../services/azure-web/package.mjs';
+import { createBuildOutcomeGate } from '../../services/azure-web/build-outcome.mjs';
 const root=resolve(import.meta.dirname,'../..'),temp=mkdtempSync(join(tmpdir(),'vyakti-package33-'));
 let checks=0;
 const test=(name,fn)=>{fn();checks++;console.log(`ok package ${checks} ${name}`);};
@@ -15,6 +16,8 @@ try{
  test('context includes every static Vite input',()=>{for(const p of ['index.html','studio.html','room.html','studio-layout-fixture.html','creator-layout-fixture.html','room-layout-fixture.html','site/creators.html'])assert(context.files.some(f=>f.path===p),p);});
  test('missing Vite config fixture builder refuses verification',()=>{const manifestPath=join(prepared,'azure-build-context.json'),manifestBefore=readFileSync(manifestPath),dependency='scripts/build-room-about-fixture.mjs',dependencyPath=join(prepared,dependency),dependencyBefore=readFileSync(dependencyPath),manifest=JSON.parse(manifestBefore);manifest.files=manifest.files.filter(f=>f.path!==dependency);rmSync(dependencyPath);writeFileSync(manifestPath,JSON.stringify(manifest));try{assert.throws(()=>verifyContext(prepared),/vite_config_dependency_missing/);}finally{writeFileSync(dependencyPath,dependencyBefore);writeFileSync(manifestPath,manifestBefore);}});
  test('missing static Vite input refuses verification',()=>{const manifestPath=join(prepared,'azure-build-context.json'),manifestBefore=readFileSync(manifestPath),entry='room.html',entryPath=join(prepared,entry),entryBefore=readFileSync(entryPath),manifest=JSON.parse(manifestBefore);manifest.files=manifest.files.filter(f=>f.path!==entry);rmSync(entryPath);writeFileSync(manifestPath,JSON.stringify(manifest));try{assert.throws(()=>verifyContext(prepared),/vite_config_entry_missing/);}finally{writeFileSync(entryPath,entryBefore);writeFileSync(manifestPath,manifestBefore);}});
+ test('actual build outcome gate accepts both success sentinels and skips failure',()=>{for(const value of [undefined,null]){const gate=createBuildOutcomeGate();gate.buildEnd(value);assert.equal(gate.shouldPostprocess(),true);}const gate=createBuildOutcomeGate();gate.buildEnd(new Error('synthetic upstream failure'));assert.equal(gate.shouldPostprocess(),false);});
+ test('successful build does not hide missing postprocess assets',()=>{const gate=createBuildOutcomeGate();gate.buildEnd(null);assert.throws(()=>{if(gate.shouldPostprocess())readdirSync(join(temp,'missing-assets'));},error=>error?.code==='ENOENT');});
  test('local secrets private data and weights absent from context',()=>{assert(!context.files.some(f=>/(?:^|\/)(?:_config\.js|scratchpad|\.env)/.test(f.path)));assert(!context.files.some(f=>/\.(?:wav|mp3|m4a|pem|key|pt|safetensors)$/.test(f.path)));});
  test('existing output never overwritten',()=>assert.throws(()=>prepareContext(root,prepared),/must_be_new/));
  test('extra context secret file refuses verification',()=>{const p=join(prepared,'.env');writeFileSync(p,'synthetic_only');try{assert.throws(()=>verifyContext(prepared),/extra_or_missing/);}finally{rmSync(p);}});

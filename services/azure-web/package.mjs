@@ -15,7 +15,7 @@ export function walk(root, prefix = '') {
   return out;
 }
 const privatePath = p => /(?:^|\/)(?:\.env[^/]*|_config(?:\.js|\.env)|keyring\.json|google-keys\.env|scratchpad|first-clone-out)(?:\/|$)/i.test(p) || /\.(?:pem|key|wav|mp3|m4a|pt|safetensors)$/i.test(p);
-const viteConfigDependencies = ['scripts/build-creator-page-fixture.mjs','scripts/build-room-about-fixture.mjs'];
+const viteConfigDependencies = ['scripts/build-creator-page-fixture.mjs','scripts/build-room-about-fixture.mjs','services/azure-web/build-outcome.mjs'];
 const viteConfigEntries = ['index.html','studio.html','room.html','studio-layout-fixture.html','creator-layout-fixture.html','room-layout-fixture.html','site/creators.html'];
 export function prepareContext(root, destination) {
   root = resolve(root); destination = resolve(destination);
@@ -37,7 +37,7 @@ export function verifyContext(root) {
   const paths = m.files.map(f=>f.path);
   if (new Set(paths).size !== paths.length || paths.some(p=>privatePath(p)||p.includes('..')||p.startsWith('/')||p.includes('\\'))) throw new Error('azure_web_context_invalid');
   const viteConfig = readFileSync(join(root,'vite.config.ts'),'utf8');
-  for (const dependency of viteConfigDependencies) if (!viteConfig.includes(`import('./${dependency}')`) || !paths.includes(dependency)) throw new Error('azure_web_vite_config_dependency_missing');
+  for (const dependency of viteConfigDependencies) if (!(viteConfig.includes(`import('./${dependency}')`) || viteConfig.includes(`from './${dependency}'`)) || !paths.includes(dependency)) throw new Error('azure_web_vite_config_dependency_missing');
   for (const entry of viteConfigEntries) if (!viteConfig.includes(`"${entry}"`) || !paths.includes(entry)) throw new Error('azure_web_vite_config_entry_missing');
   const actual = walk(root).filter(p=>p!=='azure-build-context.json');
   if (JSON.stringify(actual.sort()) !== JSON.stringify([...paths].sort())) throw new Error('azure_web_context_extra_or_missing');

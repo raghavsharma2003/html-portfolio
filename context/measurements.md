@@ -17554,3 +17554,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `azure-web68-static-entry-controls` (2026-09-08)
 
 2026-09-08: n=16 focused Azure web packaging groups passed after adding all seven static Vite inputs; n=1 negative removed `room.html` from both context and manifest and received `azure_web_vite_config_entry_missing`. Runtime assembly still excludes three fixture HTML outputs. No Docker, cloud, provider, GPU, database or full release run.
+
+
+## `azure-web69-build-outcome-controls` (2026-09-08)
+
+2026-09-08: n=18 focused packaging groups passed. The actual shared plugin hook gate ran with undefined, null and Error; both success sentinels enable postprocessing, Error disables it, and a successful missing-assets callback still throws ENOENT. No Docker, cloud, provider, GPU, database or full release run.

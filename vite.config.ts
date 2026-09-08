@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { createBuildOutcomeGate } from './services/azure-web/build-outcome.mjs'
 
 // WS-R66. `/c/<slug>` (the creator's public page) is server-rendered HTML
 // with no client bundle at all — there is nothing for vite to compile the
@@ -135,15 +136,13 @@ const HI_PRELOAD_SCRIPT = `(function () {
 })();`
 
 function studioHindiPreloadPlugin() {
-  let buildFailed = false
+  const outcome = createBuildOutcomeGate()
   return {
     name: 'vyakti-studio-hindi-preload',
     apply: 'build' as const,
-    buildEnd(error?: Error) {
-      buildFailed = error !== undefined
-    },
+    buildEnd: outcome.buildEnd,
     async closeBundle() {
-      if (buildFailed) return
+      if (!outcome.shouldPostprocess()) return
       const distDir = join(process.cwd(), 'dist')
       const assetNames = readdirSync(join(distDir, 'assets'))
       // `hiAuthCopy-<hash>.js`, the same filename shape
@@ -235,15 +234,13 @@ const ROOM_HI_PRELOAD_SCRIPT = `(function () {
 })();`
 
 function roomHindiPreloadPlugin() {
-  let buildFailed = false
+  const outcome = createBuildOutcomeGate()
   return {
     name: 'vyakti-room-hindi-preload',
     apply: 'build' as const,
-    buildEnd(error?: Error) {
-      buildFailed = error !== undefined
-    },
+    buildEnd: outcome.buildEnd,
     async closeBundle() {
-      if (buildFailed) return
+      if (!outcome.shouldPostprocess()) return
       const distDir = join(process.cwd(), 'dist')
       const assetNames = readdirSync(join(distDir, 'assets'))
       const hiTalkChunk = assetNames.find((n) => n.startsWith('hiTalkCopy-') && n.endsWith('.js'))
