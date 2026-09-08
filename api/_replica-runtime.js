@@ -581,7 +581,7 @@ export async function loadOwnedRuntimeRevision(db,owner,id,capabilityId){
 }
 
 if(OWNED_RUNTIME_CONTEXT_SQL.split("c.state='active'").length!==2)throw Error('private_runtime_query_shape_changed');
-export const OWNED_PRIVATE_RUNTIME_CONTEXT_SQL=OWNED_RUNTIME_CONTEXT_SQL.replace("c.state='active'",ownerPrivateCapabilityAuthoritySql('c','r'));
+export const OWNED_PRIVATE_RUNTIME_CONTEXT_SQL=OWNED_RUNTIME_CONTEXT_SQL.replace("c.state='active'",()=>ownerPrivateCapabilityAuthoritySql('c','r'));
 export async function loadOwnedPrivateRuntimeContext(db,owner,id){
  return loadOwnedRuntimeContext((sql,params)=>db(sql===OWNED_RUNTIME_CONTEXT_SQL?OWNED_PRIVATE_RUNTIME_CONTEXT_SQL:sql,params),owner,id);
 }

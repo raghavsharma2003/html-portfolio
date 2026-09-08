@@ -23745,3 +23745,8 @@ Three panel suites retain forbidden literal checks while selecting EN and HI sec
 ## `release62-scoped-schema-erasure-union` (2026-09-08)
 
 2026-09-08: Candidate62 starts at frozen60 and imports only the reviewed schema mirror source (`8fe09246` and `5e6c4453`: `db/schema.sql`, the two mirror controls, and their research artifacts) plus the reviewed three-way source-erasure patch (`59d16116`). The frozen156 schema tail and `candidate_activations` CTE remain byte/source present, and the 402-entry release registry is unchanged. Reverse if the exact source files, registry identity, 156 tail, or erasure CTE drift; this source checkpoint does not authorize a fresh database bootstrap or runtime acceptance.
+
+
+## `candidate63-literal-sql-replacement` (2026-09-08)
+
+Use function replacements at all five dynamic private SQL assembly sites. SQL regex end anchors followed by a quote are JavaScript replacement metacharacters in string replacement. Runtime, history/open and continuity now preserve the actual authority fragment. Reverse only if SQL composition no longer passes dynamic text through String.replace or equivalent literal-byte guarantees are independently proven.

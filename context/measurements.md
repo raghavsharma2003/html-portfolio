@@ -17534,3 +17534,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `release62-schema-controls-source-only` (2026-09-08)
 
 2026-09-08: n=3 bounded controls on the isolated `codex/release62-candidate` worktree at frozen60: candidate mirror `sourceOnly=true`, 15 mirrored files, 42 tables, 151 statements, 3 negative controls; legacy mirror `sourceOnly=true`, 8 restored files, 74 restored statements, 35 legacy files, 449 legacy statements, 156 ALTER statements, 1267 schema statements, 214 tables, 1304 lexical targets, 4 negative controls, and `sqlExecuted=0`; `git diff --check HEAD` passed. `evals/run.mjs` hash stayed `7194a8e8018169a5f32a4c6b571aa68d81cc2546` and the frozen schema tail from migration153 stayed byte identical. No dependency install, build, browser, SQL, database, provider, or network run.
+
+
+## `candidate63-private-sql-regression` (2026-09-08)
+
+2026-09-08: actual156V3 parent receipt candidate156v3-301bde55470c153614a90fd6-result.json failed SQLSTATE42601 on OWNED_PRIVATE_RUNTIME_CONTEXT_SQL after activation positive; rollback/restoration/close confirmed by root. Locally, one focused exported-SQL regression passes across runtime/open/history/two continuity readers/two aliases, with old string replacement detected as negative controls. Existing8 private-pointer,26 continuity and12 history controls pass after repairing two continuity fixture occurrences of the same bad replacement. Initial test launch missed ignored inert config because of a relative path error; fixed without keys. No SQL/provider/browser/build execution by this slice.

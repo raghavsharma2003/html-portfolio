@@ -1021,6 +1021,7 @@ const suites = {
   "candidate-activation-denied-callers": "candidate-activation-runtime/denied-callers.mjs",
   "candidate-activation-public-inflight": "candidate-activation-runtime/public-inflight.mjs",
   "candidate-activation-private-pointer": "candidate-activation-runtime/private-pointer.mjs",
+  "private-sql-literal": "private-sql-literal.mjs",
   "private-runtime-status-ui-contract": "private-runtime-status-ui-contract.mjs",
   "candidate-activation-ui": "candidate-activation-ui.mjs",
   "candidate-qualification-ui-contract": "candidate-qualification-ui-contract.mjs",

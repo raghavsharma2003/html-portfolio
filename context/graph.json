@@ -16812,6 +16812,24 @@
       "kind": "rejection",
       "title": "Source checks cannot establish fresh database bootstrap parity",
       "at": "2026-09-08"
+    },
+    {
+      "id": "candidate63-literal-sql-replacement",
+      "kind": "decision",
+      "title": "Preserve compiled SQL as literal replacement bytes",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "candidate63-private-sql-regression",
+      "kind": "measurement",
+      "title": "Private SQL assembly regression and scoped callers pass",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "candidate63-sql-replacement-metacharacters",
+      "kind": "rejection",
+      "title": "String replacement silently expanded SQL regex anchors",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -28987,6 +29005,16 @@
       "src": "release62-scoped-schema-erasure-union",
       "rel": "caused_by",
       "dst": "release62-schema-source-is-not-bootstrap-proof"
+    },
+    {
+      "src": "candidate63-literal-sql-replacement",
+      "rel": "measured_by",
+      "dst": "candidate63-private-sql-regression"
+    },
+    {
+      "src": "candidate63-literal-sql-replacement",
+      "rel": "caused_by",
+      "dst": "candidate63-sql-replacement-metacharacters"
     }
   ]
 }

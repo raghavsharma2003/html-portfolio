@@ -4,7 +4,7 @@ import {REPLICA_POLICY_VERSION} from './_replica.js';
 import {DIALOGUE_AUTHORITY_SQL as GLOBAL_DIALOGUE_AUTHORITY_SQL} from './_replica-dialogue-authority.js';
 import {ownerPrivateCapabilityAuthoritySql} from './_replica-candidate-activation-authority.js';
 if(GLOBAL_DIALOGUE_AUTHORITY_SQL.split("c.state='active'").length!==2)throw Error('continuity_authority_shape_changed');
-const DIALOGUE_AUTHORITY_SQL=GLOBAL_DIALOGUE_AUTHORITY_SQL.replace("c.state='active'",ownerPrivateCapabilityAuthoritySql('c','r'))
+const DIALOGUE_AUTHORITY_SQL=GLOBAL_DIALOGUE_AUTHORITY_SQL.replace("c.state='active'",()=>ownerPrivateCapabilityAuthoritySql('c','r'))
  .replace('c.capability_id,c.profile_version,c.calibration_version',
   'c.capability_id,c.profile_version,c.calibration_version,r.lifecycle,r.subject_mode,r.policy_version,r.identity_expires_at,r.age_verified_at,r.identity_verified_at,r.liveness_verified_at');
 
@@ -21,7 +21,7 @@ export function continuityTokens(message){
 export function privateContinuityPredicate(refs,r='r',c='c',currentSession='s.session_id'){
  const source=continuityPredicate(refs,r,c,currentSession),needle=`${c}.state='active'`;
  if(source.split(needle).length!==2)throw Error('private_continuity_predicate_shape_changed');
- return source.replace(needle,ownerPrivateCapabilityAuthoritySql(c,r));
+ return source.replace(needle,()=>ownerPrivateCapabilityAuthoritySql(c,r));
 }
 // The same predicate runs while admitting/completing a derived answer and
 // when reading it back. Identifiers alone never constitute retained authority.

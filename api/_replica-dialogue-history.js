@@ -34,7 +34,7 @@ const historicalState = `(${ownerPrivateCapabilityAuthoritySql('c','r')} or (c.s
    and ${ownerPrivateCapabilityAuthoritySql('current_cap','r')})))`;
 if(runtime.split("c.state='active'").length!==2)throw Error('dialogue_history_authority_shape_changed');
 if(runtime.split('c.capability_id,c.profile_version,c.calibration_version').length!==2)throw Error('dialogue_history_projection_shape_changed');
-const historicalRuntime=runtime.replace("c.state='active'",historicalState)
+const historicalRuntime=runtime.replace("c.state='active'",()=>historicalState)
  .replace('c.capability_id,c.profile_version,c.calibration_version',
   'c.capability_id,c.profile_version,c.calibration_version,r.lifecycle,r.subject_mode,r.policy_version,r.identity_expires_at,r.age_verified_at,r.identity_verified_at,r.liveness_verified_at')
  + ` and ${candidateRuntimeAuthoritySql('c','r')}`;
@@ -80,7 +80,7 @@ export const DIALOGUE_HISTORY_SQL = `with authorized as materialized (${historic
 
 // Existing session UUID is the idempotency key. A collision cannot adopt a
 // foreign, revoked, expired or differently-bound session. No new unique index.
-export const DIALOGUE_OPEN_SQL = `with authorized as materialized (${runtime.replace("c.state='active'",ownerPrivateCapabilityAuthoritySql('c','r'))} for update of r)
+export const DIALOGUE_OPEN_SQL = `with authorized as materialized (${runtime.replace("c.state='active'",()=>ownerPrivateCapabilityAuthoritySql('c','r'))} for update of r)
   insert into vy_replica_runtime_session as current
     (session_id,capability_id,replica_id,owner_user_id,agent_id,person_id,channel,trace_id)
   select $3::uuid,a.capability_id,a.replica_id,a.owner_user_id,a.agent_id,a.subject_person_id,

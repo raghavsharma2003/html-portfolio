@@ -19,7 +19,7 @@ const evidence={turn_id:turn,session_id:prior,created_at:'2026-09-08T01:00:00.00
 let checks=0;const test=async(name,fn)=>{await fn();console.log(`ok ${++checks} - ${name}`);};
 const privateAuthority=ownerPrivateCapabilityAuthoritySql('c','r');
 assert.equal(DIALOGUE_AUTHORITY_SQL.split("c.state='active'").length,2);
-const derivedAuthority=DIALOGUE_AUTHORITY_SQL.replace("c.state='active'",privateAuthority)
+const derivedAuthority=DIALOGUE_AUTHORITY_SQL.split("c.state='active'").join(privateAuthority)
  .replace('c.capability_id,c.profile_version,c.calibration_version',
   'c.capability_id,c.profile_version,c.calibration_version,r.lifecycle,r.subject_mode,r.policy_version,r.identity_expires_at,r.age_verified_at,r.identity_verified_at,r.liveness_verified_at');
 await test('derived owner-private authority preserves every shared field and exact global guard',()=>{
@@ -35,7 +35,7 @@ await test('derived owner-private authority preserves every shared field and exa
  }
  assert(!DIALOGUE_AUTHORITY_SQL.includes('vy_replica_owner_private_selection'));
  assert(DIALOGUE_AUTHORITY_SQL.includes("c.state='active'"));
- assert.equal(privateContinuityPredicate('refs'),continuityPredicate('refs').replace("c.state='active'",privateAuthority));
+ assert.equal(privateContinuityPredicate('refs'),continuityPredicate('refs').split("c.state='active'").join(privateAuthority));
  for(const field of required)assert.throws(()=>validate(DIALOGUE_AUTHORITY_SQL.replace(new RegExp('\\br\\.'+field+'\\b'),'NULL')),/missing continuity authority projection/);
 });
 // Scoped fixture responses exercise the actual caller, not SQL authorization semantics.
