@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import {mkdirSync,writeFileSync} from 'node:fs';
 import { runOwnedCorrectionCandidate, CORRECTION_DATASET_SQL, CORRECTION_JOB_READ_SQL, CORRECTION_CURRENT_AUTHORITY_SQL } from '../../api/_replica-correction-candidate.js';
-import { OWNED_RUNTIME_CONTEXT_SQL, loadOwnedRuntimeContext } from '../../api/_replica-runtime.js';
+import { OWNED_RUNTIME_CONTEXT_SQL, loadOwnedRuntimeContext, compileReplicaRuntimeCore } from '../../api/_replica-runtime.js';
 import { FEEDBACK_DATASET_REVIEW_SQL, buildFeedbackDatasetDefinition } from '../../api/_replica-feedback-dataset.js';
 import { encryptTurnExemplar, exemplarTextHash } from '../../api/_replica-feedback-crypto.js';
-import { renderPrivateCorrectionCandidate } from '../../api/_replica-correction-artifact.js';
+import { renderPrivateCorrectionCandidate, buildPrivateCorrectionArtifact } from '../../api/_replica-correction-artifact.js';
 import { CORRECTION_REQUEST_SCHEMA } from '../../api/_replica-correction-request.js';
 import { REPLICA_POLICY_VERSION } from '../../api/_replica.js';
 import { canonicalJson, sha256Hex } from '../../api/_provenance/contracts.js';
@@ -45,15 +45,17 @@ function runtimeRow(){return{replica_id:RID,owner_user_id:OWNER,subject_person_i
   age_verified_at:'2026-08-24T00:00:00Z',identity_verified_at:'2026-08-24T00:00:00Z',liveness_verified_at:'2026-08-24T00:00:00Z',identity_expires_at:'2031-08-24T00:00:00Z',
   capability_id:CAP,capability_state:'active',runtime_policy:REPLICA_POLICY_VERSION,qualification_hash:'b'.repeat(64),
   voice_profile_id:uid(90007),genome_version:3,profile_version:7,calibration_version:3,provider:'fixture',provider_ref:'fixture-private',model:'fixture-voice',voice_status:'ready',capabilities:{},genome_status:'approved',
-  profile_status:'approved',profile_definition:{identity:{self_name:'Asha'},speech:{languages:['Hinglish']},behavior:{turn_shape:'brief'}},
+  profile_status:'approved',profile_definition:{identity:{self_name:'Asha'},speech:{languages:['Hinglish']},behavior:{turn_shape:'brief'},knowledge:[
+   ...Array.from({length:12},(_,i)=>({key:`geometry_${i}`,statement:`Geometry lesson ${i} concerns triangles and angles.`})),
+   {key:'chemistry_sn1_rate_law',statement:'For an SN1 reaction, rate depends only on substrate concentration.'}]},
   calibration_status:'approved',calibration_definition:{schema:'vyakti.calibration.v1',builder:'calibration-builder/v1',strategies:[]},
   consent_id:uid(90008),consent_scope:'inference',consent_policy:REPLICA_POLICY_VERSION,consent_expires_at:'2031-08-24T00:00:00Z'};}
 
-import {startOwnedMaterialization,advanceOwnedMaterialization,readOwnedMaterialization,MATERIALIZATION_AUTHORITY_SQL,MATERIALIZATION_QUESTION_SQL,MATERIALIZATION_STATUS_SQL,heldOutExamples} from '../../api/_replica-candidate-materializer.js';
-import {buildPrivateCorrectionArtifact} from '../../api/_replica-correction-artifact.js';
+import {startOwnedMaterialization,advanceOwnedMaterialization,readOwnedMaterialization,MATERIALIZATION_AUTHORITY_SQL,MATERIALIZATION_QUESTION_SQL,MATERIALIZATION_STATUS_SQL,heldOutExamples,materializationQuestionCores} from '../../api/_replica-candidate-materializer.js';
 import {CALIBRATION_SCENARIOS} from '../../api/_replica-calibration.js';
 import {prepareProviderRevisionBinding,verifyProviderRevision} from '../../api/_dialogue/provider-revision.js';
 import {decryptEvaluationText} from '../../api/_replica-candidate-eval-crypto.js';
+import {compileDialoguePrompt} from '../../api/_dialogue/contracts.js';
 const CANDIDATE=uid(90009),CORRECTION=uid(90010);
 const held=heldOutExamples(built.definition),materialInput={...input,candidate_id:CANDIDATE};
 const revisionBinding=prepareProviderRevisionBinding({expectedResponseModel:'gpt-4.1-mini-2025-04-14',endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com/',deployment:'gpt-4.1-mini',baselineSnapshotHash:ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT});
@@ -78,7 +80,7 @@ async function fixture(options={}){
    if(sql===FEEDBACK_DATASET_REVIEW_SQL)return owned(p)?[{capability_id:CAP,profile_version:7,calibration_version:3,feedback_rows:rows,assignments:[],saved_dataset:{dataset_id:DATASET}}]:[];
    if(sql===CORRECTION_DATASET_SQL)return owned(p)&&p[2]===DATASET?[dataset]:[];
    if(sql===MATERIALIZATION_STATUS_SQL){assert.deepEqual(p,[RID,OWNER,DATASET,CANDIDATE]);return jobs.map(j=>({...j,present:items.length,completed:items.filter(i=>i.state==='complete').length}));}
-   if(sql===MATERIALIZATION_QUESTION_SQL){assert.deepEqual(p.slice(1,3),[RID,OWNER]);const e=held.find(e=>e.feedback_id===p[0]);assert.ok(e);assert.deepEqual(p.slice(3),[e.revision,e.response_hash,e.ratings_hash,e.correction_hash]);const r=rows.find(r=>r.feedback_id===e.feedback_id);return options.missingQuestion?[]:[{content:`Held question ${e.feedback_id}?`,turn_id:e.turn_id,session_id:r.session_id}];}
+   if(sql===MATERIALIZATION_QUESTION_SQL){assert.deepEqual(p.slice(1,3),[RID,OWNER]);const e=held.find(e=>e.feedback_id===p[0]);assert.ok(e);assert.deepEqual(p.slice(3),[e.revision,e.response_hash,e.ratings_hash,e.correction_hash]);const r=rows.find(r=>r.feedback_id===e.feedback_id);return options.missingQuestion?[]:[{content:`Held SN1 question ${e.feedback_id}?`,turn_id:e.turn_id,session_id:r.session_id}];}
    if(sql.startsWith('select c.*,d.source_set_hash')){assert.deepEqual(p,[CANDIDATE,DATASET,RID,OWNER]);return[candidate];}
    if(sql.startsWith('select j.* from vy_replica_correction_candidate_job')){assert.deepEqual(p,[CANDIDATE,DATASET,RID,OWNER]);return[correction];}
    if(sql===MATERIALIZATION_AUTHORITY_SQL)return authority(p)?[{dataset_id:DATASET,capability_id:CAP,candidate_id:CANDIDATE}]:[];
@@ -152,7 +154,9 @@ async function fixture(options={}){
  correction={job_id:CORRECTION,candidate_id:CANDIDATE,artifact:art.artifact,build_manifest:manifest,state:'draft'};
  const adapter={family:'dialogue',name:'azure-foundry-structured-output',version:'fixture-v1',model:'gpt-4.1-mini',revision_binding:revisionBinding,billing:{meter:'azure_foundry_tokens',max_output_tokens:700},async generate({prompt}){
   calls++;const text=JSON.stringify(prompt);assert.ok(!text.includes('Original response'));for(const v of plaintext.values())assert.ok(!text.includes(v));
-  const message=prompt.messages.at(-1).content;assert.ok(held.some(e=>message===`Held question ${e.feedback_id}?`));
+  const message=prompt.messages.at(-1).content;assert.ok(held.some(e=>message===`Held SN1 question ${e.feedback_id}?`));
+  assert.ok(prompt.messages[0].content.includes('knowledge.chemistry_sn1_rate_law: For an SN1 reaction'));
+  assert.ok(!prompt.messages[0].content.includes('knowledge.geometry_11:'));
   if(options.pause)await options.pause;
   if(options.unknown)throw Error('fixture outcome unknown');
   if(options.refusal)throw Object.assign(Error('fixture refusal'),{measured_usage:{input_tokens:100,output_tokens:25}});
@@ -164,6 +168,30 @@ async function fixture(options={}){
 }
 let groups=0;
 async function test(name,run){await run();console.log(`PASS ${++groups}: ${name}`);}
+await test('dense paired prompts receive byte-identical whole knowledge lines under one reserved budget',async()=>{
+ const exact=(prefix,ending,length=480)=>prefix+'x'.repeat(length-prefix.length-ending.length)+ending;
+ const knowledge=[...Array.from({length:12},(_,i)=>({key:`geometry_${i}`,statement:`Geometry fact ${i}.`})),
+  ...Array.from({length:12},(_,i)=>({key:`chemistry_sn1_${i}`,
+   statement:exact(`SN1 condition ${i}. `,` Complete SN1 condition ${i}.`)}))];
+ assert.ok(knowledge.every(({statement})=>statement.length<=500));
+ const runtime={replica:{replica_id:RID},capability:{capability_id:CAP},personProfile:{definition:{identity:{self_name:'Asha'},knowledge}},
+  calibration:{definition:{schema:'vyakti.calibration.v1',builder:'calibration-builder/v1',strategies:[]}}};
+ const scenario=CALIBRATION_SCENARIOS.find(s=>[s.left.id,s.right.id].includes('compact_observation'));
+ const artifact=buildPrivateCorrectionArtifact(runtime,{status:'proposed',owner_approved:false,runtime_eligible:false,
+  source_set_hash:built.source_set_hash,selections:[{scenario_id:scenario.scenario_id,strategy_id:'compact_observation'}]}).artifact;
+ assert.ok(renderPrivateCorrectionCandidate(runtime,artifact).core.length<=6000);
+ const question='Explain the SN1 conditions';
+ const cores=materializationQuestionCores({runtime,artifact},question);
+ const lines=core=>core.split('\n').filter(line=>line.startsWith('knowledge.'));
+ const ordinary=compileReplicaRuntimeCore(runtime.personProfile.definition,runtime.calibration.definition,question);
+ assert.ok(lines(ordinary).length>lines(cores.baseline).length);
+ assert.deepEqual(lines(cores.baseline),lines(cores.candidate));assert.ok(lines(cores.baseline).length>0);
+ for(const line of lines(cores.baseline))assert.match(line,/Complete SN1 condition \d+\.$/);
+ const baselinePrompt=compileDialoguePrompt({core:cores.baseline,message:question});
+ const candidatePrompt=compileDialoguePrompt({core:cores.candidate,message:question});
+ assert.deepEqual(lines(baselinePrompt.messages[0].content),lines(cores.baseline));
+ assert.deepEqual(lines(candidatePrompt.messages[0].content),lines(cores.candidate));
+});
 await test('actual worker completes paired held-out generation, encrypted blind assets and no activation',async()=>{
  const f=await fixture();const started=await f.start();assert.equal(started.total,held.length*2);assert.ok(started.total>=60);assert.equal(f.calls,0);
  assert.equal((await f.start()).job_id,started.job_id);
@@ -175,7 +203,7 @@ await test('actual worker completes paired held-out generation, encrypted blind 
   const outputs={};for(const asset of pack.assets.filter(x=>x.assignment_id===a.assignment_id)){
    outputs[asset.role]=decryptEvaluationText(asset,{run_id:pack.eval_run_id,assignment_id:a.assignment_id,asset_id:asset.asset_id,replica_id:RID,owner_user_id:OWNER,example_id:a.example_id,role:asset.role,output_sha256:asset.output_sha256},ENV);
   }
-  assert.equal(outputs.context,`Held question ${a.example_id}?`);
+  assert.equal(outputs.context,`Held SN1 question ${a.example_id}?`);
   assert.equal(outputs.a,`${a.presentation_order==='ab'?'Baseline':'Candidate'} answer ${outputs.context}`);
   assert.equal(outputs.b,`${a.presentation_order==='ab'?'Candidate':'Baseline'} answer ${outputs.context}`);
  }

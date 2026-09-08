@@ -27,7 +27,7 @@ function fixture({experimental=false,withhold=false,unknownAfterCommit=false,ato
  const core=renderPrivateCorrectionCandidate(runtime,built.artifact).core;
  const revision=prepareProviderRevisionBinding({expectedResponseModel:'gpt-4.1-mini-2025-04-14',endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com/',deployment:'gpt-4.1-mini',baselineSnapshotHash:'c'.repeat(64)});
  const provider=verifyProviderRevision({model:revision.expected_response_model,system_fingerprint:'fp_fixture1'},revision);
- const binding={schema:'vyakti.candidate-qualification-binding.v1',candidate_id:CID,dataset_id:DID,base_capability_id:BASE,
+ const binding={schema:'vyakti.candidate-qualification-binding.v2',candidate_id:CID,dataset_id:DID,base_capability_id:BASE,
   artifact_sha256:built.artifact_sha256,build_manifest_hash:'d'.repeat(64),base_model_commitment:'c'.repeat(64),model_commitment:'e'.repeat(64),
   candidate_core_hash:hash(core),provider_identity:provider};
  const candidate={candidate_id:CID,dataset_id:DID,replica_id:RID,owner_user_id:OWNER,qualification_id:QID,
@@ -117,6 +117,13 @@ await test('known failed candidate is refused for both activation kinds',async()
 await test('stale active capability and qualification receipts cause no write',async()=>{
  const f=fixture();await assert.rejects(()=>f.change({...f.input(),expected_capability_id:id(90)}),{code:'candidate_active_version_changed'});
  await assert.rejects(()=>f.change({...f.input(),qualification_id:id(91)}),{code:'candidate_qualification_changed'});assert.equal(f.commitCalls,0);f.clean();
+});
+await test('legacy qualification bindings remain stored but cannot activate under question-aware semantics',async()=>{
+ const f=fixture();f.candidate.metrics.binding.schema='vyakti.candidate-qualification-binding.v1';
+ await assert.rejects(()=>f.change(),{code:'candidate_comparison_changed'});assert.equal(f.commitCalls,0);f.clean();
+ assert.match(ACTIVATION_CANDIDATE_SQL,/candidate-qualification\.v2/);
+ assert.match(ACTIVATION_COMMIT_SQL,/candidate-qualification-binding\.v2/);
+ assert.match(ACTIVATION_COMMIT_SQL,/private-text-materialization\.v2/);
 });
 await test('changed artifact and compared core are rejected before commit',async()=>{
  const artifact=fixture();artifact.candidate.artifact.profile_hash='f'.repeat(64);

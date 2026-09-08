@@ -19,7 +19,7 @@ export const ACTIVATION_CURRENT_SQL=`select coalesce(pc.capability_id,c.capabili
 export const ACTIVATION_CANDIDATE_SQL=`select c.*,q.qualification_id,q.verdict,q.metrics,j.artifact,m.candidate_core_hash
  from vy_replica_candidate c join lateral (select qa.* from vy_replica_candidate_qualification qa
   where qa.candidate_id=c.candidate_id and qa.replica_id=c.replica_id and qa.owner_user_id=c.owner_user_id
-  and qa.protocol_version='vyakti.candidate-qualification.v1' order by qa.created_at desc,qa.qualification_id desc limit 1) q on true
+  and qa.protocol_version='vyakti.candidate-qualification.v2' order by qa.created_at desc,qa.qualification_id desc limit 1) q on true
  join vy_replica_candidate_materialization m on m.candidate_id=c.candidate_id and m.dataset_id=c.dataset_id and m.replica_id=c.replica_id and m.owner_user_id=c.owner_user_id
  join vy_replica_correction_candidate_job j on j.job_id=m.correction_job_id and j.candidate_id=c.candidate_id and j.replica_id=c.replica_id and j.owner_user_id=c.owner_user_id
  where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.candidate_id=$3::uuid`;
@@ -92,7 +92,7 @@ async function activationProposal(db,owner,input,current,action='activate'){
  if(action==='activate'&&(row.verdict!=='pass'||row.status!=='qualified'))fail('candidate_qualification_not_passed');
  if(action==='experiment'&&(row.verdict!=='inconclusive'||row.status!=='evaluating'))fail('candidate_experiment_not_eligible');
  const metrics=parse(row.metrics),binding=metrics?.binding,artifact=parse(row.artifact);
- if(binding?.schema!=='vyakti.candidate-qualification-binding.v1'||binding.candidate_id!==input.candidate_id
+ if(binding?.schema!=='vyakti.candidate-qualification-binding.v2'||binding.candidate_id!==input.candidate_id
   ||row.base_capability_id!==runtime.capability.capability_id||hash(artifact)!==row.artifact_sha256)fail('candidate_comparison_changed');
  const rendered=renderPrivateCorrectionCandidate(runtime,artifact);
  if(rendered.core.length>6000||hash(rendered.core)!==row.candidate_core_hash||binding.candidate_core_hash!==row.candidate_core_hash)fail('candidate_compared_core_changed');

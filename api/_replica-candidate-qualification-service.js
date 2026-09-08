@@ -6,16 +6,17 @@ import {assertSameReportedRevision,prepareProviderRevisionBinding} from './_dial
 import {compileReplicaRuntimeCore} from './_replica-runtime.js';
 import {AZURE_DIALOGUE_API_VERSION} from './_dialogue/providers/azure-foundry.js';
 import {DIALOGUE_PROMPT} from './_dialogue/contracts.js';
-import {renderPrivateCorrectionCandidate} from './_replica-correction-artifact.js';
+import {renderPrivateCorrectionCandidate,CORRECTION_ARTIFACT_SCHEMA} from './_replica-correction-artifact.js';
+import {MATERIALIZATION_PROTOCOL} from './_replica-candidate-materializer.js';
 
-export const QUALIFICATION_BINDING_SCHEMA='vyakti.candidate-qualification-binding.v1';
+export const QUALIFICATION_BINDING_SCHEMA='vyakti.candidate-qualification-binding.v2';
 const hash=v=>sha256Hex(canonicalJson(v));
 const parse=v=>typeof v==='string'?JSON.parse(v):v;
 const fail=(code,status=409)=>{throw Object.assign(Error(code),{code,status});};
 const uuid=v=>{if(typeof v!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(v))fail('qualification_scope_invalid',400);return v.toLowerCase();};
 
 export const QUALIFICATION_RECEIPT_SQL=`select c.*,r.eval_run_id,r.run_commitment,r.state as run_state,r.dataset_source_set_hash,
- m.job_id as materialization_job_id,m.model_commitment,m.baseline_hash,m.candidate_core_hash,m.total,
+ m.job_id as materialization_job_id,m.protocol as materialization_protocol,m.model_commitment,m.baseline_hash,m.candidate_core_hash,m.total,
  m.artifact_sha256 as materialized_artifact,m.manifest_hash as materialized_manifest,
  j.artifact,j.build_manifest,
  (select jsonb_agg(i.provider_identity order by i.sequence) from vy_replica_candidate_materialization_item i
@@ -65,9 +66,10 @@ async function context(db,owner,input){
  for(const identity of identities)assertSameReportedRevision(identities[0],identity);
  const revision=prepareProviderRevisionBinding({expectedResponseModel:identities[0].response_model,
   endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com/',deployment:'gpt-4.1-mini',baselineSnapshotHash:row.base_model_commitment});
- const expectedModel=hash({protocol:'vyakti.private-text-materialization.v1',name:'azure-foundry-structured-output',
+ const expectedModel=hash({protocol:MATERIALIZATION_PROTOCOL,name:'azure-foundry-structured-output',
   version:`${AZURE_DIALOGUE_API_VERSION}:${DIALOGUE_PROMPT}`,model:'gpt-4.1-mini',base_model_commitment:row.base_model_commitment,revision_binding:revision});
- if(identities[0].binding_hash!==revision.binding_hash||row.model_commitment!==expectedModel
+ if(artifact.schema!==CORRECTION_ARTIFACT_SCHEMA||row.materialization_protocol!==MATERIALIZATION_PROTOCOL
+  ||identities[0].binding_hash!==revision.binding_hash||row.model_commitment!==expectedModel
   ||row.base_capability_id!==b.runtime.capability.capability_id||row.profile_version!==b.runtime.personProfile.version
   ||row.calibration_version!==b.runtime.calibration.version
   ||row.candidate_core_hash!==hash(renderPrivateCorrectionCandidate(b.runtime,artifact).core)

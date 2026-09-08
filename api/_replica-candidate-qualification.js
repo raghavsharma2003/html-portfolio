@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { canonicalJson, sha256Hex } from "./_provenance/contracts.js";
 import { FEEDBACK_DATASET_SCHEMA } from "./_replica-feedback-dataset.js";
 
-export const CANDIDATE_QUALIFICATION_PROTOCOL = "vyakti.candidate-qualification.v1";
+export const CANDIDATE_QUALIFICATION_PROTOCOL = "vyakti.candidate-qualification.v2";
 const DIMENSIONS = ["overall", "wording", "behavior", "relationship", "memory", "delivery", "voice_identity"];
 const WINNERS = new Set(["candidate", "baseline", "tie"]);
 const ORDERS = new Set(["ab", "ba"]);

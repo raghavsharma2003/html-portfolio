@@ -34,7 +34,7 @@ export function candidateActivationProofSql(historyAlias='h',capAlias='c',repAli
   join vy_replica_feedback_dataset ad on ad.dataset_id=ac.dataset_id and ad.replica_id=ac.replica_id and ad.owner_user_id=ac.owner_user_id
   join lateral (select qq.* from vy_replica_candidate_qualification qq
    where qq.candidate_id=ac.candidate_id and qq.replica_id=ac.replica_id and qq.owner_user_id=ac.owner_user_id
-   and qq.protocol_version='vyakti.candidate-qualification.v1'
+   and qq.protocol_version='vyakti.candidate-qualification.v2'
    order by qq.created_at desc,qq.qualification_id desc limit 1) qa on true
   join vy_replica_candidate_materialization am on am.candidate_id=ac.candidate_id and am.dataset_id=ac.dataset_id
    and am.replica_id=ac.replica_id and am.owner_user_id=ac.owner_user_id
@@ -57,7 +57,7 @@ export function candidateActivationProofSql(historyAlias='h',capAlias='c',repAli
     and case when jsonb_typeof(qa.metrics->'inconclusive')='array'
      then jsonb_array_length(qa.metrics->'inconclusive')>0 else false end))
   and qa.metrics->'binding'=${h}.qualification_binding
-  and ${h}.qualification_binding->>'schema'='vyakti.candidate-qualification-binding.v1'
+  and ${h}.qualification_binding->>'schema'='vyakti.candidate-qualification-binding.v2'
   and ${h}.qualification_binding->>'candidate_id'=ac.candidate_id::text
   and ${h}.qualification_binding->>'dataset_id'=ad.dataset_id::text
   and ${h}.qualification_binding->>'dataset_source_set_hash'=ad.source_set_hash
@@ -75,7 +75,7 @@ export function candidateActivationProofSql(historyAlias='h',capAlias='c',repAli
   and ${h}.qualification_binding->>'run_commitment'=ae.run_commitment
   and ${h}.qualification_binding->'provider_identity'=${h}.provider_identity
   and ${h}.base_model_commitment=ac.base_model_commitment and ${h}.model_commitment=am.model_commitment
-  and am.state='ready' and am.protocol='vyakti.private-text-materialization.v1'
+  and am.state='ready' and am.protocol='vyakti.private-text-materialization.v2'
   and am.candidate_core_hash is not null and am.candidate_core_hash=${h}.core_hash
   and am.source_set_hash=ad.source_set_hash and am.artifact_sha256=ac.artifact_sha256 and am.manifest_hash=ac.build_manifest_hash
   and aj.state='draft' and aj.artifact_sha256=ac.artifact_sha256 and aj.build_manifest_hash=ac.build_manifest_hash

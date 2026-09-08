@@ -13,6 +13,7 @@ import { foundryBudgetConfig,reserveFoundrySpend,beginFoundrySpend,settleFoundry
 const hash=value=>sha256Hex(canonicalJson(value));
 const fail=(code,status=409)=>{throw Object.assign(new Error(code),{code,status});};
 const parsed=value=>typeof value==='string'?JSON.parse(value):value;
+export const CORRECTION_CANDIDATE_PROTOCOL='vyakti.correction-candidate.v2';
 const uuid=value=>{if(typeof value!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value))fail('correction_candidate_id_invalid',400);return value.toLowerCase();};
 function scope(input){return{replica_id:uuid(input?.replica_id),dataset_id:uuid(input?.dataset_id)};}
 function receipt(row){return row?{job_id:row.job_id,replica_id:row.replica_id,dataset_id:row.dataset_id,state:row.state,
@@ -44,6 +45,15 @@ export const CORRECTION_CURRENT_AUTHORITY_SQL=`with runtime as (${OWNED_RUNTIME_
  and jsonb_array_length(evidence.feedback_rows)=jsonb_array_length($9::jsonb)
  and evidence.assignments @> $10::jsonb and $10::jsonb @> evidence.assignments
  and jsonb_array_length(evidence.assignments)=jsonb_array_length($10::jsonb)`;
+export const CORRECTION_JOB_INSERT_SQL=`insert into vy_replica_correction_candidate_job
+ (job_id,dataset_id,replica_id,owner_user_id,source_set_hash,protocol,model_commitment,state)
+ select $4::uuid,d.dataset_id,d.replica_id,d.owner_user_id,d.source_set_hash,$5,$6,'preparing'
+ from vy_replica_feedback_dataset d join vy_replica r on r.replica_id=d.replica_id and r.owner_user_id=d.owner_user_id
+ where d.replica_id=$1::uuid and d.owner_user_id=$2::uuid and d.dataset_id=$3::uuid
+ and d.status='draft' and d.source_set_hash=$7 and r.lifecycle='active'
+ on conflict (dataset_id,model_commitment,protocol) do nothing returning *`;
+export const CORRECTION_JOB_VERSION_READ_SQL=`select * from vy_replica_correction_candidate_job
+ where replica_id=$1::uuid and owner_user_id=$2::uuid and dataset_id=$3::uuid and model_commitment=$4 and protocol=$5`;
 export function authorityParams(b,owner){return[b.replica_id,owner,REPLICA_POLICY_VERSION,b.dataset_id,b.dataset.source_set_hash,
  b.runtime.capability.capability_id,JSON.stringify(b.runtime.personProfile.definition),JSON.stringify(b.runtime.calibration.definition),
  JSON.stringify(b.feedbackRows),JSON.stringify(b.assignments)];}
@@ -90,17 +100,10 @@ export async function runOwnedCorrectionCandidate(db,owner,input,{adapter,env=pr
  const b=await basis(db,owner,input);
  const modelCommitment=hash({name:adapter.name,version:adapter.version,model:adapter.model,base_model_commitment:baseModelCommitment,
    ...(revisionBinding?{provider_revision_binding:revisionBinding}:{})});
- const inserted=await db(`insert into vy_replica_correction_candidate_job
- (job_id,dataset_id,replica_id,owner_user_id,source_set_hash,protocol,model_commitment,state)
- select $4::uuid,d.dataset_id,d.replica_id,d.owner_user_id,d.source_set_hash,$5,$6,'preparing'
- from vy_replica_feedback_dataset d join vy_replica r on r.replica_id=d.replica_id and r.owner_user_id=d.owner_user_id
- where d.replica_id=$1::uuid and d.owner_user_id=$2::uuid and d.dataset_id=$3::uuid
- and d.status='draft' and d.source_set_hash=$7 and r.lifecycle='active'
- on conflict (dataset_id,model_commitment,protocol) do nothing returning *`,
- [b.replica_id,owner,b.dataset_id,randomUUID(),CORRECTION_REQUEST_SCHEMA,modelCommitment,b.dataset.source_set_hash]);
- if(!inserted[0])return receipt((await db(`select * from vy_replica_correction_candidate_job
-   where replica_id=$1::uuid and owner_user_id=$2::uuid and dataset_id=$3::uuid and model_commitment=$4 and protocol=$5`,
-   [b.replica_id,owner,b.dataset_id,modelCommitment,CORRECTION_REQUEST_SCHEMA]))[0]);
+ const inserted=await db(CORRECTION_JOB_INSERT_SQL,
+ [b.replica_id,owner,b.dataset_id,randomUUID(),CORRECTION_CANDIDATE_PROTOCOL,modelCommitment,b.dataset.source_set_hash]);
+ if(!inserted[0])return receipt((await db(CORRECTION_JOB_VERSION_READ_SQL,
+   [b.replica_id,owner,b.dataset_id,modelCommitment,CORRECTION_CANDIDATE_PROTOCOL]))[0]);
  const job=inserted[0];let reservation=null,providerStarted=false,settled=false,recorded=false;
  async function state(next,code){await db(`update vy_replica_correction_candidate_job set state=$4,failure_code=$5,updated_at=now()
  where job_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid and state not in ('retired','draft','abstained')`,

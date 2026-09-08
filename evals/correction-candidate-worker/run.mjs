@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {prepareProviderRevisionBinding,verifyProviderRevision} from '../../api/_dialogue/provider-revision.js';
 import {mkdirSync,writeFileSync} from 'node:fs';
-import { runOwnedCorrectionCandidate, CORRECTION_DATASET_SQL, CORRECTION_JOB_READ_SQL, CORRECTION_CURRENT_AUTHORITY_SQL } from '../../api/_replica-correction-candidate.js';
+import { runOwnedCorrectionCandidate, CORRECTION_DATASET_SQL, CORRECTION_JOB_READ_SQL, CORRECTION_CURRENT_AUTHORITY_SQL, CORRECTION_CANDIDATE_PROTOCOL } from '../../api/_replica-correction-candidate.js';
 import { OWNED_RUNTIME_CONTEXT_SQL, loadOwnedRuntimeContext } from '../../api/_replica-runtime.js';
 import { FEEDBACK_DATASET_REVIEW_SQL, buildFeedbackDatasetDefinition } from '../../api/_replica-feedback-dataset.js';
 import { encryptTurnExemplar, exemplarTextHash } from '../../api/_replica-feedback-crypto.js';
@@ -159,6 +159,12 @@ await test('real worker registers a renderable private draft without changing ac
   const runtime=await loadOwnedRuntimeContext(f.db,OWNER,RID),rendered=renderPrivateCorrectionCandidate(runtime,job.artifact);
   assert.equal(rendered.runtime_eligible,false);assert.match(rendered.core,/Experimental candidate behavior shapes/);assert.equal(job.artifact.owner_approved,false);
   assert.equal(new Set(f.pairReads).size,32);f.assertUnchanged();
+});
+await test('a legacy completed job cannot satisfy the v2 artifact request',async()=>{
+  const f=fixture();const legacy=await f.run();assert.equal(legacy.state,'draft');
+  f.jobs[0].protocol=CORRECTION_REQUEST_SCHEMA;
+  const current=await f.run();assert.notEqual(current.job_id,legacy.job_id);assert.equal(f.jobs.length,2);
+  assert.equal(f.jobs[1].protocol,CORRECTION_CANDIDATE_PROTOCOL);assert.equal(f.providerCalls,2);f.assertUnchanged();
 });
 await test('ambiguous model error holds funds and replay does not dispatch again',async()=>{
   const f=fixture({providerError:true});await refused(()=>f.run());assert.equal(f.jobs[0].state,'unknown');assert.equal(f.spends[0].state,'reconcile_required');

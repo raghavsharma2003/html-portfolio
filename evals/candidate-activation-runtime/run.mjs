@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {canonicalJson,sha256Hex} from '../../api/_provenance/contracts.js';
 import {candidateRuntimeCore,assertCandidateGenerator,assertCandidateResponse,assertCandidateRuntimeUnchanged} from '../../api/_replica-candidate-runtime.js';
-import {buildPrivateCorrectionArtifact,renderPrivateCorrectionCandidate} from '../../api/_replica-correction-artifact.js';
+import {buildPrivateCorrectionArtifact,renderPrivateCorrectionCandidate,LEGACY_CORRECTION_ARTIFACT_SCHEMA} from '../../api/_replica-correction-artifact.js';
 import {materializationModel} from '../../api/_replica-candidate-materializer.js';
 import {prepareProviderRevisionBinding,verifyProviderRevision} from '../../api/_dialogue/provider-revision.js';
 import {compileDialoguePrompt} from '../../api/_dialogue/contracts.js';
@@ -34,11 +34,19 @@ test('private baseline keeps baseline bytes with a distinct immutable capability
  assert.throws(()=>assertCandidateRuntimeUnchanged(privateBase,base),/authority_changed/);});
 test('activated artifact renders exactly the compared experimental bytes',()=>{assert.equal(candidateRuntimeCore(active),core);assertCandidateGenerator(active,adapter);
  assert.deepEqual(compileDialoguePrompt({core:candidateRuntimeCore(active),message:'Hello'}),compileDialoguePrompt({core,message:'Hello'}));});
-test('question selection changes only ordinary profile knowledge, never the compared candidate core',()=>{
+test('question selection reaches both ordinary and qualified candidate cores without changing the static commitment',()=>{
  assert.match(candidateRuntimeCore(base,'Explain SN1 kinetics'),/knowledge\.chemistry_sn1:/);
  assert.doesNotMatch(candidateRuntimeCore(base),/knowledge\.chemistry_sn1:/);
- assert.equal(candidateRuntimeCore(active,'Explain SN1 kinetics'),core);
+ const selected=candidateRuntimeCore(active,'Explain SN1 kinetics');
+ assert.match(selected,/knowledge\.chemistry_sn1:/);assert.doesNotMatch(selected,/knowledge\.geometry_11:/);
+ assert.equal(candidateRuntimeCore(active),core);assert.equal(candidateRuntimeCore(active,'Explain SN1 kinetics'),selected);
  assert.throws(()=>candidateRuntimeCore(change(r=>r.candidateBinding=null),'Explain SN1 kinetics'),/binding_unavailable/);
+});
+test('legacy artifacts remain statically readable but require v2 requalification for question-aware serving',()=>{
+ const legacy={...artifact,schema:LEGACY_CORRECTION_ARTIFACT_SCHEMA};
+ assert.match(renderPrivateCorrectionCandidate(base,legacy).core,/Experimental candidate behavior shapes/);
+ const old=change(r=>{r.candidateBinding.artifact=legacy;r.candidateBinding.artifact_sha256=hash(legacy);r.candidateBinding.core_hash=hash(renderPrivateCorrectionCandidate(base,legacy).core);});
+ assert.throws(()=>candidateRuntimeCore(old,'Explain SN1 kinetics'),/requalification_required/);
 });
 test('dense selected candidate refuses before downstream dialogue can cut a reviewed condition',()=>{
  const denseBase=structuredClone(base);

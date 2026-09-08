@@ -671,7 +671,7 @@ function questionKnowledge(items, question) {
   return candidates.sort((a, b) => b.score - a.score || a.index - b.index).slice(0, 12).map(({ item }) => item);
 }
 
-export function compileReplicaRuntimeCore(profileDefinition, calibrationDefinition, question = "") {
+export function compileReplicaRuntimeCore(profileDefinition, calibrationDefinition, question = "", maxLength = REPLICA_CORE_CAP) {
   const d = parsed(profileDefinition);
   const identity = parsed(d.identity);
   const speech = parsed(d.speech);
@@ -684,7 +684,8 @@ export function compileReplicaRuntimeCore(profileDefinition, calibrationDefiniti
   // The actual dialogue caller accepts a 6000-character core. Select whole
   // lines within that budget so its downstream cleaner cannot cut a fact.
   // Static artifact compilation retains the existing commitment and cap.
-  const coreCap = question ? Math.min(REPLICA_CORE_CAP, 6_000) : REPLICA_CORE_CAP;
+  const requestedCap = Number.isInteger(maxLength) && maxLength > 0 ? maxLength : REPLICA_CORE_CAP;
+  const coreCap = Math.min(REPLICA_CORE_CAP, question ? 6_000 : REPLICA_CORE_CAP, requestedCap);
   let used = lines.join("\n").length;
   const addLine = (value) => {
     const line = cleanText(value, 600);

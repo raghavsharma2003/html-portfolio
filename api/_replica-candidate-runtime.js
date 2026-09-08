@@ -21,9 +21,11 @@ export function candidateRuntimeCore(runtime,question=""){
   ||!digest(b.artifact_sha256)||!digest(b.build_manifest_hash)||!digest(b.core_hash)
   ||hash(b.artifact)!==b.artifact_sha256)fail('candidate_runtime_binding_changed');
  const baseline={...runtime,capability:{...runtime.capability,capability_id:b.base_capability_id}};
+ // Verify the exact static core that was materialized and qualified before
+ // deriving the v2 question projection from the same bound artifact.
  const rendered=renderPrivateCorrectionCandidate(baseline,b.artifact);
  if(rendered.core.length>6000||hash(rendered.core)!==b.core_hash)fail('candidate_runtime_core_changed');
- return rendered.core;
+ return question?renderPrivateCorrectionCandidate(baseline,b.artifact,question).core:rendered.core;
 }
 
 export function assertCandidateGenerator(runtime,generator){

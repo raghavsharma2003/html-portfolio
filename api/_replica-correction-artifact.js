@@ -3,7 +3,8 @@ import { CALIBRATION_SCENARIOS } from './_replica-calibration.js';
 import { compileReplicaRuntimeCore, REPLICA_CORE_CAP } from './_replica-runtime.js';
 const hash = value => sha256Hex(canonicalJson(value));
 const fail = code => { throw Object.assign(new Error(code), { code, status:409 }); };
-export const CORRECTION_ARTIFACT_SCHEMA = 'vyakti.private-correction-policy.v1';
+export const LEGACY_CORRECTION_ARTIFACT_SCHEMA = 'vyakti.private-correction-policy.v1';
+export const CORRECTION_ARTIFACT_SCHEMA = 'vyakti.private-correction-policy.v2';
 
 export function buildPrivateCorrectionArtifact(runtime, proposal) {
   if (proposal?.status !== 'proposed' || proposal.owner_approved !== false || proposal.runtime_eligible !== false
@@ -18,8 +19,8 @@ export function buildPrivateCorrectionArtifact(runtime, proposal) {
   return {artifact,artifact_sha256:hash(artifact)};
 }
 
-export function renderPrivateCorrectionCandidate(runtime, artifact) {
-  if (artifact?.schema !== CORRECTION_ARTIFACT_SCHEMA || artifact.purpose !== 'private_candidate_evaluation'
+export function renderPrivateCorrectionCandidate(runtime, artifact, question = '') {
+  if (![LEGACY_CORRECTION_ARTIFACT_SCHEMA,CORRECTION_ARTIFACT_SCHEMA].includes(artifact?.schema) || artifact.purpose !== 'private_candidate_evaluation'
     || artifact.owner_approved !== false || artifact.replica_id !== runtime.replica.replica_id
     || artifact.capability_id !== runtime.capability.capability_id || artifact.profile_hash !== hash(runtime.personProfile.definition)
     || artifact.calibration_hash !== hash(runtime.calibration.definition)) fail('correction_candidate_baseline_changed');
@@ -38,9 +39,11 @@ export function renderPrivateCorrectionCandidate(runtime, artifact) {
   // label. The changed experimental axes are not forged owner preferences.
   const calibration={...runtime.calibration.definition,
     strategies:(runtime.calibration.definition.strategies || []).filter(row=>!axes.has(`${row.layer}.${row.axis}`))};
-  const core=compileReplicaRuntimeCore(runtime.personProfile.definition,calibration)
-    + '\nExperimental candidate behavior shapes (inferred from private corrections, not owner-approved):\n'
-    + directives.join('\n');
-  if(core.length>REPLICA_CORE_CAP) fail('correction_candidate_core_too_large');
-  return {core,artifact_sha256:hash(artifact),purpose:'private_candidate_evaluation',runtime_eligible:false};
+  if(question && artifact.schema !== CORRECTION_ARTIFACT_SCHEMA) fail('correction_candidate_requalification_required');
+  const suffix='Experimental candidate behavior shapes (inferred from private corrections, not owner-approved):\n'+directives.join('\n');
+  const limit=question?6_000:REPLICA_CORE_CAP;
+  const profile_core_limit=limit-suffix.length-1;
+  const core=compileReplicaRuntimeCore(runtime.personProfile.definition,calibration,question,profile_core_limit)+'\n'+suffix;
+  if(core.length>limit) fail('correction_candidate_core_too_large');
+  return {core,profile_core_limit,artifact_sha256:hash(artifact),purpose:'private_candidate_evaluation',runtime_eligible:false};
 }

@@ -10,7 +10,7 @@ import {encryptEvaluationText,decryptEvaluationText,evaluationTextHash} from './
 import {buildCandidateEvaluationPackage,persistCandidateEvaluationPackage} from './_replica-candidate-eval.js';
 import {reserveFoundrySpend,beginFoundrySpend,settleFoundrySpend,markFoundrySpendUncertain,releaseFoundrySpendBeforeCall} from './_provider-budget.js';
 
-export const MATERIALIZATION_PROTOCOL='vyakti.private-text-materialization.v1';
+export const MATERIALIZATION_PROTOCOL='vyakti.private-text-materialization.v2';
 const hash=v=>sha256Hex(canonicalJson(v));
 const parse=v=>typeof v==='string'?JSON.parse(v):v;
 const fail=(code,status=409)=>{throw Object.assign(Error(code),{code,status});};
@@ -69,7 +69,7 @@ async function loadBasis(db,owner,input,adapter,env){
  if(baseline.length>6000||rendered.core.length>6000)fail('materialization_core_exceeds_dialogue_budget');
  if(compileDialoguePrompt({core:baseline,message:'probe'}).messages[0].content===
   compileDialoguePrompt({core:rendered.core,message:'probe'}).messages[0].content)fail('materialization_candidate_has_no_prompt_delta');
- return {...b,...s,owner,candidate,correction,model,baseline,candidateCore:rendered.core,baselineHash:hash(baseline)};
+ return {...b,...s,owner,candidate,correction,artifact,model,baseline,candidateCore:rendered.core,baselineHash:hash(baseline)};
 }
 
 export function heldOutExamples(definition){
@@ -92,7 +92,16 @@ function binding(job,item,role,digest){return{run_id:job.job_id,assignment_id:it
 function seal(text,job,item,role,env){const digest=evaluationTextHash(text);return{hash:digest,...encryptEvaluationText(text,binding(job,item,role,digest),env)};}
 function open(asset,job,item,role,env){asset=parse(asset);const text=decryptEvaluationText(asset,binding(job,item,role,asset.hash),env);
  if(evaluationTextHash(text)!==asset.hash)fail('materialization_asset_hash_mismatch');return text;}
-function promptFor(b,role,context){return compileDialoguePrompt({core:role==='baseline'?b.baseline:b.candidateCore,
+function knowledgeLines(core){return core.split('\n').filter(line=>line.startsWith('knowledge.'));}
+// Use the candidate's reserved profile budget for both arms, then prove the
+// resulting approved knowledge is byte-identical before either prompt exists.
+export function materializationQuestionCores(b,context){
+ const candidate=renderPrivateCorrectionCandidate(b.runtime,b.artifact,context);
+ const baseline=compileReplicaRuntimeCore(b.runtime.personProfile.definition,b.runtime.calibration.definition,context,candidate.profile_core_limit);
+ if(hash(knowledgeLines(baseline))!==hash(knowledgeLines(candidate.core)))fail('materialization_question_knowledge_changed');
+ return{baseline,candidate:candidate.core};
+}
+function promptFor(b,role,context){const cores=materializationQuestionCores(b,context);return compileDialoguePrompt({core:cores[role],
  relationship:'',history:[],message:context});}
 
 export const MATERIALIZATION_STATUS_SQL=`select j.job_id,j.replica_id,j.owner_user_id,j.dataset_id,j.candidate_id,j.state,j.total,j.candidate_core_hash,
