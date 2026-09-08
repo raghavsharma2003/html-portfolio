@@ -17650,3 +17650,38 @@ Only reviewed correction product, CSS and eval paths were imported. Experimental
 ## `product175-missing-config-is-not-contract-failure` (2026-09-08)
 
 2026-09-09 local4API suites initially ERR_MODULE_NOT_FOUND for ignored api/_config.js. No actual assertions executed. Preserve first receipt; create only known SHA728dc5821336bed9c5ad851b3e837a54d342674923de81454ce11b0a2d48a432 blank stub, thenrerun4affected tests. Never copy local174/caller165 live credentials or infer operational Room enablement from offlinepass.
+
+
+## `product175-inline-no-empty-security-claim` (2026-09-08)
+
+2026-09-09 local: imported reviewedb416 tests contain actual img andscript source strings and verify escaped markup plus absence of DOMtags. Earlier absence-only assertion without inputs would not establish escaping. Temporary2file componentbundle inspected and removed by explicitnonrecursive paths after broadcleanup policy refusal; no source removed.
+
+
+## `product175-no-v1-evidence-relabel` (2026-09-08)
+
+2026-09-09 local runtimecontrol uses actualAzurefactory identity, rejects v1 materializationcommitment againstv2 and acceptsfreshv2. Do not interpret provider-version refusal as missing UI or loosenmodel guard for oldcandidates. Policies source-testedonly; current language adherence/diagnosticquality requires actualevaluation.
+
+
+## `product175-header-static-is-not-full-security` (2026-09-08)
+
+2026-09-09 local fullcheck-headers invokes allpagetargets and networknpmaudit. Boundedtask instead checkedactualbuiltHindiasset/metaname plus exactheaderselector; parentrecoverybrowser separatelypassed. Fullheaders and fullrelease remainfuture. Rootrequirescontextclaims179 beforefreeze; no candidatefinalization yet.
+
+
+## `product175-teach-global-count` (2026-09-08)
+
+2026-09-09 local newTeachhelper legitimately shares extracted/mined eligibility. ExistingminedCTA test counted entireContextLocker source. Scope exactpredicate assertion to existing AST-extracted onTestSource conditional; retain15eligibility/rendercontrols and add removedpredicate negative. Productguard unchanged.
+
+
+## `product175-no-core-trimming` (2026-09-08)
+
+2026-09-09 local revieweridentified conditionalwrapper may push near-cap profiles overstrictcorelimit. Retainedboundedcompiler refusal; no silenttruncation/rewritingofapprovedknowledge orlanguage. ActualmodeladherenceandfreshSQLclaimrace proofremainseparate.
+
+
+## `product175-no-borrowed-model-rates` (2026-09-08)
+
+2026-09-09 local importedexplicitoperation pricing propagation andexactrate/modelacknowledgementchecks. Legacymini shape kept; no globaldefaultsflip. MissingexplicitTerra rates refusesserving ratherthanincorrectlychargingunderanothermodel. ClaimsactualSQLrace stillpending beforefreeze.
+
+
+## `product175-no-foreign-graph-freeze` (2026-09-08)
+
+2026-09-09 local only product/eval/doc deltas imported, authored175 tuplesselected instead offoreigngraphs. Claimsnote doesnot infer modelquality, voice readiness or deployment. Private copieddependencies and18emptyconfig required so caller165 junction cannotmutate releaselane.

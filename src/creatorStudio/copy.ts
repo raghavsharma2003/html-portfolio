@@ -956,7 +956,8 @@ interface PersonModelStudioCopy {
     string
   >;
   extractionBlockers: Record<
-    "transcription_consent_required" | "training_consent_required" | "reviewed_subject_transcript_required",
+    "transcription_consent_required" | "training_consent_required" | "reviewed_subject_transcript_required" |
+    "reviewed_confident_subject_evidence_required",
     string
   >;
   confidencePct: string; // "{n}% confidence"
@@ -3135,6 +3136,7 @@ const EN: StudioCopy = {
       transcription_consent_required: "Grant transcription consent",
       training_consent_required: "Grant AI-building consent for assisted claim extraction",
       reviewed_subject_transcript_required: "Accept at least one verified speaker transcript",
+      reviewed_confident_subject_evidence_required: "Accept a confident verified speaker transcript, or mark an uploaded document as your own writing",
     },
     confidencePct: "{n}% confidence",
     citedSourceOne: "{n} cited source",
@@ -3156,9 +3158,9 @@ const EN: StudioCopy = {
     accepted: "accepted",
     criticalConflicts: "critical conflicts",
     citedExtractionEyebrow: "Cited extraction",
-    citedExtractionTitle: "Turn your reviewed recordings into claims you control",
+    citedExtractionTitle: "Turn your reviewed evidence into claims you control",
     citedExtractionIntro:
-      "Only accepted target-speaker transcript spans qualify. Raw transcripts stay server-side, direct " +
+      "Accepted target-speaker transcript spans and canonical text from documents you mark as your own writing qualify. Raw source text stays server-side, direct " +
       "identifiers are masked before the extraction call, and every result remains a proposal until you review " +
       "it below.",
     eligibleSpans: "eligible spans",
@@ -3167,7 +3169,7 @@ const EN: StudioCopy = {
     extractingPrivately: "Extracting privately...",
     extractNewEvidence: "Extract new evidence",
     extractCitedClaims: "Extract cited claims",
-    noClaimsHeadline: "No behavior or memory claims yet.",
+    noClaimsHeadline: "No reviewed claims yet.",
     noClaimsNote: "Processed evidence will appear here for review. Raw transcripts, vectors, and storage paths remain withheld.",
     buildIsDeterministicNote: "A build is deterministic and versioned. Approving it never grants inference or voice generation permission.",
     checkingEvidence: "Checking evidence...",

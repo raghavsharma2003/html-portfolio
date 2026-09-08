@@ -172,12 +172,13 @@ ok("deterministic builder creates only a review draft", draft.version === 1 && d
 const buildCall = buildCalls.find((call) => /insert into vy_replica_profile/i.test(call.sql));
 ok("profile build serializes by replica and is source-set idempotent", /pg_advisory_xact_lock/i.test(buildCall.sql) && /on conflict \(replica_id,source_set_hash\)/i.test(buildCall.sql));
 ok("profile build requires a current policy training grant",
-  /c\.scope='training'/.test(buildCall.sql) && /c\.policy_version=r\.policy_version/.test(buildCall.sql)
-  && /c\.revoked_at is null/.test(buildCall.sql));
+  /profile_consent\.scope='training'/.test(buildCall.sql) && /profile_consent\.policy_version=r\.policy_version/.test(buildCall.sql)
+  && /profile_consent\.revoked_at is null/.test(buildCall.sql));
 ok("profile build revalidates every accepted claim after the pre-build read",
-  /jsonb_array_elements\(\$4::jsonb#>'\{provenance,claims\}'\)/.test(buildCall.sql)
-  && /latest_build_decision\.decision is distinct from 'accepted'/.test(buildCall.sql)
-  && /current_claim\.status<>'approved'/.test(buildCall.sql));
+  /jsonb_array_elements\(candidate_profile\.definition#>'\{provenance,claims\}'\)/.test(buildCall.sql)
+  && /latest_profile_decision\.decision is distinct from 'accepted'/.test(buildCall.sql)
+  && /current_claim\.status<>'approved'/.test(buildCall.sql)
+  && /profile_citation/.test(buildCall.sql) && /profile_evidence/.test(buildCall.sql));
 ok("profile definition is server-built rather than request supplied", JSON.parse(buildCall.params[3]).schema === PERSON_MODEL_SCHEMA);
 
 const approveCalls = [];

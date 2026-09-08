@@ -35,6 +35,8 @@ execSync(
 );
 
 const suites = {
+  "context-claim-grounding": "context-claim-grounding/run.mjs",
+  "citation-coordinates": "citation-coordinates.mjs",
   "feed-meet-teach-cta": "feed-meet-return/teach-cta.mjs",
   "personal-studio-entry-recovery": "personal-studio-entry-recovery.mjs",
   "expert-answer-inline": "expert-answer-inline.mjs",

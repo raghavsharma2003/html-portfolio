@@ -17322,6 +17322,132 @@
       "kind": "rejection",
       "title": "Preserve import failure instead of blaming merged provider or memory code",
       "at": "2026-09-08"
+    },
+    {
+      "id": "product175-reviewed-inline-answer",
+      "kind": "decision",
+      "title": "Integrate bounded inline emphasis and code",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-inline-six-checks",
+      "kind": "measurement",
+      "title": "Inline answer and existing controls pass",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-inline-no-empty-security-claim",
+      "kind": "rejection",
+      "title": "Retain actual malicious-looking text as escape negative evidence",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-meet-v2-union",
+      "kind": "decision",
+      "title": "Shared language and learner diagnosis policies require current comparison evidence",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-meet-combined-ten-pass",
+      "kind": "measurement",
+      "title": "Combined dialogue and comparison controls pass",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-no-v1-evidence-relabel",
+      "kind": "rejection",
+      "title": "Old compared model identity is not valid after prompt version changes",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-startup178-union",
+      "kind": "decision",
+      "title": "Integrate measured auth split while preserving current product work",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-startup-seven-checks",
+      "kind": "measurement",
+      "title": "Combined startup build and recovery checks pass",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-header-static-is-not-full-security",
+      "kind": "rejection",
+      "title": "Do not describe source and generated asset agreement as browser security acceptance",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-teach-consented-navigation",
+      "kind": "decision",
+      "title": "Integrate explicit Teach action without automatic extraction or approval",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-teach-scoped-pass",
+      "kind": "measurement",
+      "title": "Teach build and focused source controls passed with one scoped assertion repair",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-teach-global-count",
+      "kind": "rejection",
+      "title": "Do not constrain unrelated Teach helper through Test-source global occurrence count",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-opt-in-room-language",
+      "kind": "decision",
+      "title": "Integrate conditional language defaults without switching Room mode",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-room186-eight-pass",
+      "kind": "measurement",
+      "title": "Combined Room language checks pass",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-no-core-trimming",
+      "kind": "rejection",
+      "title": "Do not trim approved core to hide v2 wrapper overflow",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-terra-combined-rates",
+      "kind": "decision",
+      "title": "Integrate reviewed Terra protocol and operation-local pricing",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-terra-nine-pass",
+      "kind": "measurement",
+      "title": "Combined adapter and operation guards pass",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-no-borrowed-model-rates",
+      "kind": "rejection",
+      "title": "Do not silently use mini rates for Terra publication or rehearsal",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-claims-final-release-scope",
+      "kind": "decision",
+      "title": "Freeze bounded assembled release after accepted claims SQL proof",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-claims-root-sql-evidence",
+      "kind": "measurement",
+      "title": "Root accepted actual claim authority races",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-no-foreign-graph-freeze",
+      "kind": "rejection",
+      "title": "Keep unrelated successor work outside release checkpoint",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

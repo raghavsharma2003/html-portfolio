@@ -3,8 +3,15 @@ import { createExtractionBatch, extractionMessages, CLAIM_EXTRACTION_SCHEMA } fr
 import { beginFoundrySpend, markFoundrySpendUncertain, releaseFoundrySpendBeforeCall, reserveFoundrySpend, settleFoundrySpend } from "./_provider-budget.js";
 import { sha256Hex } from "./_provenance/contracts.js";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
+import { contextTextEvidenceAuthoritySql } from "./_context-claim-authority.js";
+import { utf16CitationQuoteSql } from "./_claim-extraction/citation-coordinates.js";
 
-const ELIGIBLE_TRANSCRIPTS_SQL = `with latest_speaker_decision as (
+// This is the complete authority for treating Context Locker text as the
+// owner's claim-extraction input. Keep it identical at discovery, run opening,
+// and post-provider persistence so a stale item cannot become a claim.
+export const CONTEXT_TEXT_EVIDENCE_AUTHORITY_SQL = contextTextEvidenceAuthoritySql('e');
+
+export const ELIGIBLE_TRANSCRIPTS_SQL = `with latest_speaker_decision as (
   select distinct on (d.evidence_id) d.evidence_id,d.decision
     from vy_replica_processing_evidence_decision d
    where d.replica_id=$1 and d.owner_user_id=$2
@@ -15,15 +22,8 @@ select e.evidence_id,e.source_id,e.span_start_ms,e.span_end_ms,e.confidence,
   from vy_replica_processing_evidence e
   join vy_replica_source s
     on s.source_id=e.source_id and s.replica_id=e.replica_id and s.owner_user_id=e.owner_user_id
- where e.replica_id=$1::uuid and e.owner_user_id=$2::uuid and e.evidence_type='transcript_span'
+ where e.replica_id=$1::uuid and e.owner_user_id=$2::uuid
    and e.confidence>=0.55 and length(e.value->>'text') between 1 and 8000
-   and s.contains_third_parties=false
-   and (s.state in ('processing','ready') or (
-     s.state='quarantined' and s.capture_mode='derived'
-     and s.provenance->>'purpose'='mirror_window'
-     and e.value#>>'{provenance,origin}'='mirror_call'
-     and e.value#>>'{provenance,source_id}'=s.source_id::text
-   ))
    and lower(e.adapter_family||' '||e.adapter_name||' '||e.adapter_version) !~ '(fake|fixture|test|mock)'
    and not exists (
      select 1 from vy_replica_claim_extraction_input xi
@@ -32,15 +32,23 @@ select e.evidence_id,e.source_id,e.span_start_ms,e.span_end_ms,e.confidence,
       where xi.evidence_id=e.evidence_id and xi.replica_id=e.replica_id
         and xi.owner_user_id=e.owner_user_id and xr.schema_version=$3 and xr.state='complete'
    )
-   and exists (
-     select 1 from vy_replica_processing_evidence speaker
-     join latest_speaker_decision d on d.evidence_id=speaker.evidence_id and d.decision='accepted'
-      where speaker.replica_id=e.replica_id and speaker.owner_user_id=e.owner_user_id
-        and speaker.source_id=e.source_id and speaker.evidence_type='speaker_segment'
-        and coalesce((speaker.value->>'target_likelihood')::double precision,0)>=0.8
-        and speaker.span_start_ms<e.span_end_ms and speaker.span_end_ms>e.span_start_ms
-        and lower(speaker.adapter_family||' '||speaker.adapter_name||' '||speaker.adapter_version) !~ '(fake|fixture|test|mock)'
-   )
+   and ((e.evidence_type='transcript_span'
+     and s.contains_third_parties=false
+     and (s.state in ('processing','ready') or (
+       s.state='quarantined' and s.capture_mode='derived'
+       and s.provenance->>'purpose'='mirror_window'
+       and e.value#>>'{provenance,origin}'='mirror_call'
+       and e.value#>>'{provenance,source_id}'=s.source_id::text
+     ))
+     and exists (
+       select 1 from vy_replica_processing_evidence speaker
+       join latest_speaker_decision d on d.evidence_id=speaker.evidence_id and d.decision='accepted'
+        where speaker.replica_id=e.replica_id and speaker.owner_user_id=e.owner_user_id
+          and speaker.source_id=e.source_id and speaker.evidence_type='speaker_segment'
+          and coalesce((speaker.value->>'target_likelihood')::double precision,0)>=0.8
+          and speaker.span_start_ms<e.span_end_ms and speaker.span_end_ms>e.span_start_ms
+          and lower(speaker.adapter_family||' '||speaker.adapter_name||' '||speaker.adapter_version) !~ '(fake|fixture|test|mock)'
+     )) or ${CONTEXT_TEXT_EVIDENCE_AUTHORITY_SQL})
  order by e.created_at asc,e.evidence_id asc limit 100`;
 
 const OWNED_EXTRACTION_SQL = `select r.replica_id,r.lifecycle,r.subject_mode,r.policy_version,
@@ -75,7 +83,7 @@ function extractionReadiness(owned, rows) {
   const blockers = [];
   if (!truth(owned?.transcription_consent)) blockers.push("transcription_consent_required");
   if (!truth(owned?.training_consent)) blockers.push("training_consent_required");
-  if (!rows.length) blockers.push("reviewed_confident_subject_transcript_required");
+  if (!rows.length) blockers.push("reviewed_confident_subject_evidence_required");
   return { ready: blockers.length === 0, blockers, eligible_spans: rows.length };
 }
 
@@ -144,16 +152,7 @@ export async function ownedClaimExtractionStatus(db, ownerUserId, id) {
   };
 }
 
-async function openRun(db, ownerUserId, state, extractor, batch, leaseToken) {
-  const consentIds = Array.isArray(state.owned.consent_ids) ? state.owned.consent_ids : [];
-  const inputs = state.rows.map((row) => ({
-    evidence_id: row.evidence_id,
-    source_id: row.source_id,
-    input_sha256: row.input_sha256,
-    record_hash: row.record_hash,
-  }));
-  const rows = await db(
-    `with authorized as (${OWNED_EXTRACTION_SQL}), claimed as (
+export const CLAIM_EXTRACTION_OPEN_SQL = `with authorized as (${OWNED_EXTRACTION_SQL}), claimed as (
      insert into vy_replica_claim_extraction
        (replica_id,owner_user_id,schema_version,provider_family,provider_name,provider_version,model,input_set_hash,
         consent_ids,state,lease_token_hash,leased_at,lease_expires_at)
@@ -189,13 +188,18 @@ async function openRun(db, ownerUserId, state, extractor, batch, leaseToken) {
          from selected s cross join desired_inputs d
          join vy_replica_processing_evidence e
            on e.evidence_id=d.evidence_id and e.replica_id=$1::uuid and e.owner_user_id=$2::uuid
-          and e.source_id=d.source_id and e.evidence_type='transcript_span'
+          and e.source_id=d.source_id
           and e.input_sha256=d.input_sha256 and e.record_hash=d.record_hash
+          and (e.evidence_type='transcript_span' or ${CONTEXT_TEXT_EVIDENCE_AUTHORITY_SQL})
        on conflict do nothing returning run_id,evidence_id,source_id
      ), valid_inputs as materialized (
        select count(*)::int total from desired_inputs d cross join selected s
         where exists (
           select 1 from vy_replica_claim_extraction_input i
+          join vy_replica_processing_evidence e
+            on e.evidence_id=i.evidence_id and e.replica_id=i.replica_id and e.owner_user_id=i.owner_user_id
+           and e.source_id=i.source_id and e.input_sha256=d.input_sha256 and e.record_hash=d.record_hash
+           and (e.evidence_type='transcript_span' or ${CONTEXT_TEXT_EVIDENCE_AUTHORITY_SQL})
            where i.run_id=s.run_id and i.replica_id=$1::uuid and i.owner_user_id=$2::uuid
              and i.evidence_id=d.evidence_id and i.source_id=d.source_id
         ) or exists (
@@ -203,7 +207,18 @@ async function openRun(db, ownerUserId, state, extractor, batch, leaseToken) {
            where i.run_id=s.run_id and i.evidence_id=d.evidence_id and i.source_id=d.source_id
         )
      ) select * from selected
-        where (select count(*) from desired_inputs)=(select total from valid_inputs)`,
+        where (select count(*) from desired_inputs)=(select total from valid_inputs)`;
+
+async function openRun(db, ownerUserId, state, extractor, batch, leaseToken) {
+  const consentIds = Array.isArray(state.owned.consent_ids) ? state.owned.consent_ids : [];
+  const inputs = state.rows.map((row) => ({
+    evidence_id: row.evidence_id,
+    source_id: row.source_id,
+    input_sha256: row.input_sha256,
+    record_hash: row.record_hash,
+  }));
+  const rows = await db(
+    CLAIM_EXTRACTION_OPEN_SQL,
     [state.rid, ownerUserId, REPLICA_POLICY_VERSION, CLAIM_EXTRACTION_SCHEMA, extractor.family, extractor.name,
       extractor.version, extractor.model, batch.input_set_hash, consentIds, extractionLeaseHash(leaseToken), 5 * 60_000,
       JSON.stringify(inputs)],
@@ -211,10 +226,7 @@ async function openRun(db, ownerUserId, state, extractor, batch, leaseToken) {
   return rows[0] || null;
 }
 
-async function persistProposals(db, ownerUserId, state, run, batch, result, leaseToken) {
-  const payload = result.proposals.map((proposal) => ({ ...proposal, citations: proposal.citations }));
-  const rows = await db(
-    `with authorized as (${OWNED_EXTRACTION_SQL}), active_run as materialized (
+export const CLAIM_EXTRACTION_PERSIST_SQL = `with authorized as (${OWNED_EXTRACTION_SQL}), active_run as materialized (
        select x.run_id,x.replica_id,x.owner_user_id from vy_replica_claim_extraction x join authorized a
          on a.replica_id=x.replica_id
         where x.run_id=$4::uuid and x.owner_user_id=$2::uuid and x.input_set_hash=$5 and x.state='extracting'
@@ -247,29 +259,34 @@ async function persistProposals(db, ownerUserId, state, run, batch, result, leas
           and i.evidence_id=x.evidence_id and i.source_id=x.source_id
          join vy_replica_processing_evidence e
            on e.evidence_id=x.evidence_id and e.replica_id=r.replica_id and e.owner_user_id=r.owner_user_id
-          and e.source_id=x.source_id and e.evidence_type='transcript_span'
+          and e.source_id=x.source_id
          join vy_replica_source s
            on s.source_id=e.source_id and s.replica_id=e.replica_id and s.owner_user_id=e.owner_user_id
+         cross join lateral (
+           select ${utf16CitationQuoteSql("e.value->>'text'", "x.start_char", "x.end_char")} citation_quote
+         ) resolved
         where x.start_char>=0 and x.end_char>x.start_char
-          and x.end_char<=length(e.value->>'text')
-          and s.contains_third_parties=false
-          and (s.state in ('processing','ready') or (
-            s.state='quarantined' and s.capture_mode='derived'
-            and s.provenance->>'purpose'='mirror_window'
-            and e.value#>>'{provenance,origin}'='mirror_call'
-            and e.value#>>'{provenance,source_id}'=s.source_id::text
-          ))
+          and resolved.citation_quote is not null
+          and encode(digest(convert_to(resolved.citation_quote,'UTF8'),'sha256'),'hex')=x.quote_hash
           and lower(e.adapter_family||' '||e.adapter_name||' '||e.adapter_version) !~ '(fake|fixture|test|mock)'
-          and exists (
-            select 1 from vy_replica_processing_evidence speaker
-            join latest_speaker_decision sd
-              on sd.evidence_id=speaker.evidence_id and sd.decision='accepted'
-             where speaker.replica_id=e.replica_id and speaker.owner_user_id=e.owner_user_id
-               and speaker.source_id=e.source_id and speaker.evidence_type='speaker_segment'
-               and coalesce((speaker.value->>'target_likelihood')::double precision,0)>=0.8
-               and speaker.span_start_ms<e.span_end_ms and speaker.span_end_ms>e.span_start_ms
-               and lower(speaker.adapter_family||' '||speaker.adapter_name||' '||speaker.adapter_version) !~ '(fake|fixture|test|mock)'
-          )
+          and ((e.evidence_type='transcript_span'
+            and s.contains_third_parties=false
+            and (s.state in ('processing','ready') or (
+              s.state='quarantined' and s.capture_mode='derived'
+              and s.provenance->>'purpose'='mirror_window'
+              and e.value#>>'{provenance,origin}'='mirror_call'
+              and e.value#>>'{provenance,source_id}'=s.source_id::text
+            ))
+            and exists (
+              select 1 from vy_replica_processing_evidence speaker
+              join latest_speaker_decision sd
+                on sd.evidence_id=speaker.evidence_id and sd.decision='accepted'
+               where speaker.replica_id=e.replica_id and speaker.owner_user_id=e.owner_user_id
+                 and speaker.source_id=e.source_id and speaker.evidence_type='speaker_segment'
+                 and coalesce((speaker.value->>'target_likelihood')::double precision,0)>=0.8
+                 and speaker.span_start_ms<e.span_end_ms and speaker.span_end_ms>e.span_start_ms
+                 and lower(speaker.adapter_family||' '||speaker.adapter_name||' '||speaker.adapter_version) !~ '(fake|fixture|test|mock)'
+            )) or ${CONTEXT_TEXT_EVIDENCE_AUTHORITY_SQL})
      ), authorization_guard as materialized (
        select 1 ok where
          (select count(*) from proposal_rows)=$8::int4
@@ -354,7 +371,12 @@ async function persistProposals(db, ownerUserId, state, run, batch, result, leas
               last_error_code='',completed_at=case when r.pending then null else now() end,updated_at=now()
          from remaining_queue r where q.job_id=r.job_id and q.state<>'running'
        returning q.job_id
-     ) select * from finished`,
+     ) select * from finished`;
+
+async function persistProposals(db, ownerUserId, state, run, batch, result, leaseToken) {
+  const payload = result.proposals.map((proposal) => ({ ...proposal, citations: proposal.citations }));
+  const rows = await db(
+    CLAIM_EXTRACTION_PERSIST_SQL,
     [state.rid, ownerUserId, REPLICA_POLICY_VERSION, run.run_id, batch.input_set_hash, extractionLeaseHash(leaseToken),
       JSON.stringify(payload), payload.length, result.rejected.length,
       payload.reduce((sum, proposal) => sum + proposal.citations.length, 0)],
@@ -426,4 +448,4 @@ export async function sweepOwnedClaims(db, ownerUserId, id, extractor, signal) {
   return extractOwnedClaims(db, ownerUserId, id, extractor, signal);
 }
 
-export { ELIGIBLE_TRANSCRIPTS_SQL, OWNED_EXTRACTION_SQL };
+export { OWNED_EXTRACTION_SQL };

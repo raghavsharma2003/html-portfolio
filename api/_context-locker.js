@@ -696,6 +696,13 @@ export async function remineContextItem(db, ownerUserId, replicaIdValue, itemIdV
     ? row.owner_speaker
     : String(options.owner_speaker || "").slice(0, 120);
 
+  // Retract claims and remove evidence under the old attribution before the
+  // item changes. A concurrent reviewer therefore cannot approve stale text
+  // in the interval between the attribution write and its invalidation.
+  if (row.source_id) {
+    await clearContextCanonicalTextEvidence(db, { itemId, replicaId, ownerUserId });
+  }
+
   await db(
     `with source_gate as materialized (
        select s.source_id from vy_replica_source s join vy_context_item i on i.source_id=s.source_id
@@ -716,7 +723,6 @@ export async function remineContextItem(db, ownerUserId, replicaIdValue, itemIdV
   // extractor change silently moving every offset in every stored citation.
   const extraction = resegment(row.format, row.body, row.extractor);
   if (row.source_id) {
-    await clearContextCanonicalTextEvidence(db, { itemId, replicaId, ownerUserId });
     const records = createContextTextEvidence({
       replicaId, ownerUserId, sourceId: row.source_id, itemId,
       inputSha256: row.content_sha256, format: row.format, extractor: row.extractor,

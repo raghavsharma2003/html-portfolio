@@ -1,5 +1,7 @@
 import { canonicalJson, sha256Hex } from "./_provenance/contracts.js";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
+import { contextTextEvidenceAuthoritySql } from "./_context-claim-authority.js";
+import { utf16CitationQuoteSql } from "./_claim-extraction/citation-coordinates.js";
 import {
   materializeAcceptedClaimToRelationalOs,
   retractClaimRelationalMaterialization,
@@ -14,6 +16,21 @@ const DECISIONS = Object.freeze({
   superseded: new Set(["outdated", "replaced"]),
 });
 const CRITICAL_IDENTITY_KEYS = new Set(["self_name", "pronouns"]);
+
+export function citedEvidenceAuthoritySql(evidenceAlias = "e", sourceAlias = "s") {
+  const e = String(evidenceAlias);
+  const s = String(sourceAlias);
+  if (!/^[a-z_][a-z0-9_]*$/i.test(e) || !/^[a-z_][a-z0-9_]*$/i.test(s)) throw new Error("sql_alias_invalid");
+  return `((${e}.evidence_type='transcript_span' and (
+    ${s}.state='ready' or (
+      ${s}.state='quarantined' and ${s}.capture_mode='derived'
+      and ${s}.contains_third_parties=false
+      and ${s}.provenance->>'purpose'='mirror_window'
+      and ${e}.value#>>'{provenance,origin}'='mirror_call'
+      and ${e}.value#>>'{provenance,source_id}'=${s}.source_id::text
+    )
+  )) or ${contextTextEvidenceAuthoritySql(e)})`;
+}
 
 // A profile is a compiled projection, not an authority of its own. Runtime
 // consumers and the reconciler both use this predicate so an approved JSON
@@ -53,6 +70,35 @@ export function personProfileValiditySql(profileAlias = "p", replicaAlias = "r")
        where current_claim.claim_id is null
           or current_claim.status<>'approved'
           or latest_profile_decision.decision is distinct from 'accepted'
+          or not exists (
+            select 1 from vy_replica_claim_citation profile_citation
+             where profile_citation.claim_id=current_claim.claim_id
+               and profile_citation.replica_id=current_claim.replica_id
+               and profile_citation.owner_user_id=current_claim.owner_user_id
+          )
+          or exists (
+            select 1 from vy_replica_claim_citation profile_citation
+            left join vy_replica_processing_evidence profile_evidence
+              on profile_evidence.evidence_id=profile_citation.evidence_id
+             and profile_evidence.source_id=profile_citation.source_id
+             and profile_evidence.replica_id=profile_citation.replica_id
+             and profile_evidence.owner_user_id=profile_citation.owner_user_id
+            left join vy_replica_source profile_source
+              on profile_source.source_id=profile_citation.source_id
+             and profile_source.replica_id=profile_citation.replica_id
+             and profile_source.owner_user_id=profile_citation.owner_user_id
+            left join lateral (
+              select ${utf16CitationQuoteSql("profile_evidence.value->>'text'", "profile_citation.start_char", "profile_citation.end_char")} citation_quote
+            ) profile_resolved on true
+             where profile_citation.claim_id=current_claim.claim_id
+               and profile_citation.replica_id=current_claim.replica_id
+               and profile_citation.owner_user_id=current_claim.owner_user_id
+               and (profile_evidence.evidence_id is null or profile_source.source_id is null
+                 or not (profile_citation.source_id=any(current_claim.source_ids))
+                 or (${citedEvidenceAuthoritySql("profile_evidence", "profile_source")}) is not true
+                 or profile_resolved.citation_quote is null
+                 or encode(digest(convert_to(profile_resolved.citation_quote,'UTF8'),'sha256'),'hex')<>profile_citation.quote_hash)
+          )
     )`;
 }
 
@@ -317,7 +363,7 @@ export function clientClaim(row) {
 // block on every real replica while every offline fixture passed — a dead
 // pipeline with a plausible return, which is the defect class this repo has
 // already paid for more than once. `clientClaim` still emits only the count.
-const CLAIMS_SQL = `select c.claim_id,c.domain,c.key,c.body,c.origin,c.confidence,c.status,c.sensitive,
+export const CLAIMS_SQL = `select c.claim_id,c.domain,c.key,c.body,c.origin,c.confidence,c.status,c.sensitive,
   c.source_ids,cardinality(c.source_ids) as source_count,c.t_valid_from,c.t_valid_to,c.created_at,c.updated_at,
   d.decision,d.reason_code,d.created_at as reviewed_at,citation.citation_previews
 from vy_replica_claim c
@@ -332,18 +378,21 @@ left join lateral (
     'excerpt',preview.excerpt,'entailment',preview.entailment
   ) order by preview.created_at,preview.start_char),'[]'::jsonb) citation_previews
   from (
-    select substring(e.value->>'text' from cc.start_char+1 for cc.end_char-cc.start_char) excerpt,
+    select resolved.citation_quote excerpt,
            cc.entailment,cc.created_at,cc.start_char
       from vy_replica_claim_citation cc
       join vy_replica_processing_evidence e
         on e.evidence_id=cc.evidence_id and e.source_id=cc.source_id
        and e.replica_id=cc.replica_id and e.owner_user_id=cc.owner_user_id
+      cross join lateral (
+        select ${utf16CitationQuoteSql("e.value->>'text'", "cc.start_char", "cc.end_char")} citation_quote
+      ) resolved
      where cc.claim_id=c.claim_id and cc.replica_id=c.replica_id and cc.owner_user_id=c.owner_user_id
-       and e.evidence_type='transcript_span' and jsonb_typeof(e.value->'text')='string'
+       and (e.evidence_type='transcript_span' or ${contextTextEvidenceAuthoritySql("e")})
+       and jsonb_typeof(e.value->'text')='string'
        and cc.end_char-cc.start_char between 1 and 500
-       and encode(digest(convert_to(
-         substring(e.value->>'text' from cc.start_char+1 for cc.end_char-cc.start_char),'UTF8'
-       ),'sha256'),'hex')=cc.quote_hash
+       and resolved.citation_quote is not null
+       and encode(digest(convert_to(resolved.citation_quote,'UTF8'),'sha256'),'hex')=cc.quote_hash
      order by cc.created_at,cc.start_char limit 3
   ) preview
 ) citation on true
@@ -382,15 +431,7 @@ export async function ownedPersonModelStatus(db, ownerUserId, id) {
   };
 }
 
-export async function decideOwnedClaim(db, ownerUserId, input) {
-  const rid = replicaId(input?.replica_id);
-  const cid = claimId(input?.claim_id);
-  const decision = String(input?.decision || "");
-  const reason = String(input?.reason_code || "");
-  if (!DECISIONS[decision]?.has(reason)) fail("invalid_claim_decision");
-  const status = decision === "accepted" ? "approved" : decision;
-  const rows = await db(
-    `with owned as materialized (
+export const DECIDE_OWNED_CLAIM_SQL = `with owned as materialized (
        select c.claim_id,c.replica_id,c.owner_user_id,
               pg_advisory_xact_lock(hashtextextended(c.replica_id::text||':'||c.claim_id::text||':claim_review',0)) locked
          from vy_replica_claim c join vy_replica r on r.replica_id=c.replica_id
@@ -409,6 +450,21 @@ export async function decideOwnedClaim(db, ownerUserId, input) {
                where cc.claim_id=c.claim_id and cc.replica_id=c.replica_id
                  and cc.owner_user_id=c.owner_user_id
             )
+            and (select count(*) from (
+              select cc.evidence_id
+                from vy_replica_claim_citation cc
+                join vy_replica_processing_evidence locked_evidence
+                  on locked_evidence.evidence_id=cc.evidence_id and locked_evidence.source_id=cc.source_id
+                 and locked_evidence.replica_id=cc.replica_id and locked_evidence.owner_user_id=cc.owner_user_id
+                join vy_replica_source locked_source
+                  on locked_source.source_id=cc.source_id and locked_source.replica_id=cc.replica_id
+                 and locked_source.owner_user_id=cc.owner_user_id
+               where cc.claim_id=c.claim_id and cc.replica_id=c.replica_id
+                 and cc.owner_user_id=c.owner_user_id
+               for key share of locked_evidence,locked_source
+            ) locked_citations)=(select count(*) from vy_replica_claim_citation cc
+              where cc.claim_id=c.claim_id and cc.replica_id=c.replica_id
+                and cc.owner_user_id=c.owner_user_id)
             and not exists (
               select 1 from unnest(c.source_ids) wanted(source_id)
               left join vy_replica_source s on s.source_id=wanted.source_id
@@ -429,19 +485,19 @@ export async function decideOwnedClaim(db, ownerUserId, input) {
               left join vy_replica_source s
                 on s.source_id=cc.source_id and s.replica_id=cc.replica_id
                and s.owner_user_id=cc.owner_user_id
+              left join lateral (
+                select ${utf16CitationQuoteSql("e.value->>'text'", "cc.start_char", "cc.end_char")} citation_quote
+              ) resolved on true
              where cc.claim_id=c.claim_id and cc.replica_id=c.replica_id
                and cc.owner_user_id=c.owner_user_id
                and (e.evidence_id is null or s.source_id is null
                  or not (cc.source_id=any(c.source_ids))
-                 or not (s.state='ready' or (
-                   s.state='quarantined' and s.capture_mode='derived'
-                   and s.contains_third_parties=false
-                   and s.provenance->>'purpose'='mirror_window'
-                   and e.value#>>'{provenance,origin}'='mirror_call'
-                   and e.value#>>'{provenance,source_id}'=s.source_id::text
-                 )))
+                 or (${citedEvidenceAuthoritySql("e", "s")}) is not true
+                 or resolved.citation_quote is null
+                 or encode(digest(convert_to(resolved.citation_quote,'UTF8'),'sha256'),'hex')<>cc.quote_hash)
             )
           ))
+        for update of c
      ), decision as (
        insert into vy_replica_claim_decision
          (claim_id,replica_id,owner_user_id,decision,reason_code,policy_version,created_at)
@@ -451,6 +507,7 @@ export async function decideOwnedClaim(db, ownerUserId, input) {
        update vy_replica_claim c set status=$7,updated_at=now()
         from owned o,decision d where c.claim_id=o.claim_id and c.replica_id=o.replica_id
           and c.owner_user_id=o.owner_user_id and d.claim_id=o.claim_id
+          and ($4<>'accepted' or c.status<>'superseded')
        returning c.claim_id,c.replica_id,c.owner_user_id
      ), affected_profiles as materialized (
        select p.replica_id,p.version,st.owner_user_id
@@ -490,7 +547,17 @@ export async function decideOwnedClaim(db, ownerUserId, input) {
         from retired_profiles p
        where g.replica_id=p.replica_id and g.owner_user_id=p.owner_user_id
          and g.profile_version=p.version and g.state in ('authorized','streaming')
-     ) select * from decision`,
+     ) select * from decision`;
+
+export async function decideOwnedClaim(db, ownerUserId, input) {
+  const rid = replicaId(input?.replica_id);
+  const cid = claimId(input?.claim_id);
+  const decision = String(input?.decision || "");
+  const reason = String(input?.reason_code || "");
+  if (!DECISIONS[decision]?.has(reason)) fail("invalid_claim_decision");
+  const status = decision === "accepted" ? "approved" : decision;
+  const rows = await db(
+    DECIDE_OWNED_CLAIM_SQL,
     [cid, rid, ownerUserId, decision, reason, REPLICA_POLICY_VERSION, status],
   );
   return rows[0] || null;
@@ -610,37 +677,13 @@ export async function buildOwnedPersonProfile(db, ownerUserId, id) {
   const definition = buildPersonModelDefinition(claims, now, { interviewSourceIds });
   const sourceSetHash = personModelSourceHash(claims, now);
   const rows = await db(
-    `with owned as (
+     `with owned as (
        select r.replica_id,pg_advisory_xact_lock(hashtextextended(r.replica_id::text||':person_profile',0))
-         from vy_replica r where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
+         from vy_replica r
+         cross join lateral (select $4::jsonb definition,r.replica_id) candidate_profile
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
           and r.lifecycle not in ('revoked','purging')
-          and exists (
-            select 1 from vy_replica_consent c where c.replica_id=r.replica_id
-             and c.owner_user_id=r.owner_user_id and c.scope='training'
-             and c.policy_version=r.policy_version and c.revoked_at is null
-             and (c.expires_at is null or c.expires_at>now())
-          )
-          and jsonb_typeof($4::jsonb#>'{provenance,claims}')='array'
-          and jsonb_array_length($4::jsonb#>'{provenance,claims}')>0
-          and not exists (
-            select 1
-              from jsonb_array_elements($4::jsonb#>'{provenance,claims}') claim_ref
-              left join vy_replica_claim current_claim
-                on current_claim.claim_id=case
-                     when claim_ref->>'claim_id' ~ '^[1-9][0-9]{0,18}$'
-                     then (claim_ref->>'claim_id')::int8
-                   end
-               and current_claim.replica_id=r.replica_id
-               and current_claim.owner_user_id=r.owner_user_id
-              left join lateral (
-                select d.decision from vy_replica_claim_decision d
-                 where d.claim_id=current_claim.claim_id and d.replica_id=current_claim.replica_id
-                   and d.owner_user_id=current_claim.owner_user_id
-                 order by d.created_at desc,d.decision_id desc limit 1
-              ) latest_build_decision on true
-             where current_claim.claim_id is null or current_claim.status<>'approved'
-                or latest_build_decision.decision is distinct from 'accepted'
-          )
+          and (${personProfileValiditySql("candidate_profile", "r")})
      ), candidate as (
        select o.replica_id,coalesce((select version from vy_replica_profile
          where replica_id=$1::uuid and source_set_hash=$3 limit 1),

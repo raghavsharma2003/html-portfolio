@@ -23,6 +23,7 @@ const EXTRACTION_BLOCKERS: Record<string, string> = {
   training_consent_required: "Grant training consent for model-assisted claim extraction",
   reviewed_subject_transcript_required: "Accept at least one verified speaker transcript",
   reviewed_confident_subject_transcript_required: "Accept at least one confident, verified speaker transcript",
+  reviewed_confident_subject_evidence_required: "Accept a confident verified speaker transcript, or mark an uploaded document as your own writing",
 };
 
 function confidence(value: number) {
@@ -40,7 +41,7 @@ function ClaimCard({ claim, busy, decide }: { claim: ReplicaClaim; busy: boolean
       {claim.citation_previews.length > 0 && (
         <div className="claim-citations" aria-label="Exact evidence for this claim">
           {claim.citation_previews.map((citation, index) => (
-            <p key={`${claim.claim_id}-${index}`}><strong>From your recording:</strong> {citation.excerpt}</p>
+            <p key={`${claim.claim_id}-${index}`}><strong>From your source:</strong> {citation.excerpt}</p>
           ))}
         </div>
       )}

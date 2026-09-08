@@ -23858,3 +23858,38 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `product175-room-reply-union` (2026-09-08)
 
 2026-09-09 local: Root authorized af5d258d Room-only/strict heartbeat,5a010131 Room env and4d5189ff reply protocol deltas against6ad4 into clean product175df70. All patches applied cleanly; union ENV documentation and regenerate manifest. Preserve focused correction UI exactly, exclude inline3909 and foreign context graphs. Reverse if combined tests reveal contract conflict; operational enablement and provider readiness remain separate.
+
+
+## `product175-reviewed-inline-answer` (2026-09-08)
+
+2026-09-09 local: Root authorized exact4file b4169831 delta relative1229. Appliedcleanly over41bf, preserves Room/env/reply/correctionUI. React text escaping for inlinecontent, existing explicit math path unchanged. Reverse on meaningful rendering or escape regression; no genericHTMLrenderer or new markdown dependency.
+
+
+## `product175-meet-v2-union` (2026-09-08)
+
+2026-09-09 local: Root approved7501218a product/eval delta into175. Runtimeonlysharedcontracts nowreplica-dialogue/v2 with2policies. Oldv1 candidate commitment intentionally refuses; freshv2 comparison required, documented MEET180-INTEGRATION-NOTE.md. Keep all priorroom/reply/inline/correctionUI changes; reversalrequires reviewed semantics/evidence, neverrewriteoldcomparisoncommitment.
+
+
+## `product175-startup178-union` (2026-09-08)
+
+2026-09-09 local: Root approved4acb4180 delta fromdf70 into17548bf. All18 product/eval/script/Vitepaths cleanlymerged; register parent recovery suite. Keep Meetv2,Room,inline and focusedcorrection. Reactreview confirmed lazysignedinworkspace,boundary,retry remount/reload, sessionlivecleanup and locale path. Reverse on combined recovery/auth regression; cloudperformance result not inferred from localbuild.
+
+
+## `product175-teach-consented-navigation` (2026-09-08)
+
+2026-09-09 local: Root approvedb081 delta into6fb. Exact4product/evalfiles matchauthor bytes; registerTeachCTA test. Evolve workspace is consentbound,Teachcallback checksreplica/item scope. No autojump/extraction/approval, no duplicatebrowser because importedfiles identical.
+
+
+## `product175-opt-in-room-language` (2026-09-08)
+
+2026-09-09 local rootapproved4abc delta actualbase6fb appliedto175e418. Opt-in lean_v2 only; legacy lean_v1/privatebytespreserved. Combinedengine regenerated, no donorartifact overwrite. Do nottrim near-capprofile tofit wrapper: failclosed is expected. Reverse onlyifapprovedscope/bytecompatibilitycheckfails; modeladherence remainsunmeasured.
+
+
+## `product175-terra-combined-rates` (2026-09-08)
+
+2026-09-09 local rootauthorized combinedacfd+858delta actualbase6fb into938, preservingRoom186/Teach/Meetv2/inline. Exactmini behavior retained; Terraselects explicitprotocol/rates onlywhenconfigured. Publication/rehearsal use boundoperationrates. No model/configswitch. Reverse on modelidentity/rate/usage mismatch ormini regression; actualproviderclaims belongseparate184proof.
+
+
+## `product175-claims-final-release-scope` (2026-09-08)
+
+2026-09-09 local rootaccepted final87cd after6actualcomposedEXPLAINs,4missingmetadata negatives andtwo clear/accept orderings withblockingwitnesses. Integrate claims plus current175 only; no voice/retention/share successors. Root owns finaldispatch. Reverse freeze on integrated regression or sourcechange, nevermergeunprovedsuccessors forscopegrowth.

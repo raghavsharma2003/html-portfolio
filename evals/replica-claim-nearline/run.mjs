@@ -82,7 +82,7 @@ ok("automatic sweep completes a leased durable item without a turn-path caller",
 let readinessDeferral;
 const waitingError = Object.assign(new Error("claim_extraction_not_ready"), {
   code: "claim_extraction_not_ready",
-  details: { blockers: ["reviewed_confident_subject_transcript_required"] },
+  details: { blockers: ["reviewed_confident_subject_evidence_required"] },
 });
 const waitingSummary = await runClaimExtractionSweep({
   db: async () => [], extractor: { async extract() {} }, maxJobs: 1,
@@ -92,7 +92,7 @@ const waitingSummary = await runClaimExtractionSweep({
 });
 ok("speaker-review absence never reaches a provider and waits with an honest reason",
   waitingSummary.waiting === 1 && readinessDeferral.waiting === true
-    && /reviewed_confident_subject_transcript_required/.test(readinessDeferral.failureCode));
+    && /reviewed_confident_subject_evidence_required/.test(readinessDeferral.failureCode));
 
 let busyDeferral;
 const busySummary = await runClaimExtractionSweep({

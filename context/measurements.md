@@ -17647,3 +17647,38 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `product175-combined-offline-checks` (2026-09-08)
 
 2026-09-09 local n=1 combined10-command batch at20:41:10–20:42:26UTC: TSbuild,copy,manifestfreshness,env andstrictheartbeat/configpassed;4API suites refused missing ignored_config beforeexecution. Hash-pinned18empty-export stub then4affected reruns20:43:18–20:43:21UTC allpassed: Azure reply,Room caller,Room authority,raw isolation. Receipts product175-integrated-1788900070537/result.json and product175-integrated-1788900198462/result.json. Generated140vercel-app/191totalnames. Existing dependency junction read only; no provider/SQL/credential/configenable/deploy/browser/fullrelease.
+
+
+## `product175-inline-six-checks` (2026-09-08)
+
+2026-09-09 local n=1 sixcommands20:46:06–20:46:54UTC passed: inlinecomponent controls with actualimg/script literalinputs, existing Roomanswer/list/math controls,tsc-b,copy. Receipt product175-integrated-1788900366001/result.json. No browser/fullrelease/cloud/provider. Four product/evalpaths only; no caller/env/context import.
+
+
+## `product175-meet-combined-ten-pass` (2026-09-08)
+
+2026-09-09 local n=1 tencommands20:53:31–20:53:44UTC allpassed: dialogue,Unicode,runtime,materializer,qualificationservice+pure,ownereval,revision,Azureadapter,copy. Receipt product175-integrated-1788900811858/result.json. Inline suite newlyregistered; policy suites alreadyregistered, no duplicate names. NoTSchanged so previousTSnotrepeated. NoSQL/provider/browser/fullrelease/deploy.
+
+
+## `product175-startup-seven-checks` (2026-09-08)
+
+2026-09-09 local n=1 sevencommands20:58:12–20:59:23UTC passed tsc-b,Vitebuild,auth51,authlink,studiolocale,parentrecoverybrowser,copy. Receipt product175-integrated-1788901092257/result.json. Staticactualbuiltstudio meta names existing hiPersonalAuthCopy-B-IknRDv.js and matches reviewedheaderselector, product175-startup178-static.json. No repeatperformance/fullheaders/networkaudit/fullrelease/provider/SQL.
+
+
+## `product175-teach-scoped-pass` (2026-09-08)
+
+2026-09-09 local n=1 sixcommandbatch21:32:18–21:33:03UTC: tscbuild,newTeach,callbacks,copy passed; minedCTA globaloccurrenceassert failed3vs2. Boundedtest-onlyscope repair rerunpassed15ReactCTAbranchgroups including exactoldnegative. Receipt product175-integrated-1788903138660/result.json preserved. Product4files exactb081, no browser/SQL/provider/fullrelease.
+
+
+## `product175-room186-eight-pass` (2026-09-08)
+
+2026-09-09 local n=1 eightcommands21:43:00–21:43:41UTC allpassed enginebuild,tsc-b,compiler21,Room21,private17,copy,bundlefreshness,envfreshness. Receipt product175-integrated-1788903780357/result.json. No configflag/provider/SQL/browser/fullrelease/deploy. Teach/Meetv2/reply/inline preserved.
+
+
+## `product175-terra-nine-pass` (2026-09-08)
+
+2026-09-09 local n=1 ninecommands21:57:50–21:58:36UTC allpassed manifestregeneration,adapter74,owned47,candidate19,publication33,rehearsal21,tsc-b,copy,envfreshness. Receipt product175-integrated-1788904670705/result.json. No newtestsuitefile orregistrations;410unique retained. NoSQL/provider/browser/fullrelease/deploy.
+
+
+## `product175-claims-root-sql-evidence` (2026-09-08)
+
+2026-09-09 local rootreported context-claims179-clear-accept-race-v4-1788905151464-result.json SHAa8e33d8dd7b7f8124f7c13961c619e23213ca11cf341c2f6fecc6d5de317afdf: bothorderingsPASS,pg_blocking_pidswitness,superseded,evidence/citations0,currentprofilefalse,26absencecounts0,fourclosesconfirmed. This integrationagent didnotrunSQL/provider. v3failurewaswrong audit-history assertion, no productchange.
