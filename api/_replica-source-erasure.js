@@ -552,6 +552,10 @@ export async function completeSourceErasure(db, lease) {
               readiness=jsonb_build_object('ready',false,'blockers',jsonb_build_array('source_erased'))
          from target t where d.replica_id=t.replica_id and d.owner_user_id=t.owner_user_id
           and exists (select 1 from affected_datasets affected where affected.dataset_id=d.dataset_id)
+     ), correction_candidate_jobs as (
+       delete from vy_replica_correction_candidate_job j using target t,affected_datasets affected
+        where j.replica_id=t.replica_id and j.owner_user_id=t.owner_user_id
+          and j.dataset_id=affected.dataset_id
      ), candidates as (
        update vy_replica_candidate c set status='retired',updated_at=now()
          from target t,affected_datasets affected

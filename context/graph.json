@@ -16242,6 +16242,54 @@
       "kind": "rejection",
       "title": "Preserve Git and checkout hashes separately",
       "at": "2026-09-08"
+    },
+    {
+      "id": "correction37-catalog-proposal-before-candidate",
+      "kind": "decision",
+      "title": "Prepare held catalog strategy request without forged owner votes",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "correction37-five-uncalled-bridges",
+      "kind": "measurement",
+      "title": "Source-only five bridge caller audit",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "correction37-response-text-is-not-response-commitment",
+      "kind": "rejection",
+      "title": "Do not hash reply text as structured dialogue response",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "correction37-connected-private-candidate-worker",
+      "kind": "decision",
+      "title": "Connect owner preparation to a private draft artifact",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "correction37-connected-focused-proof",
+      "kind": "measurement",
+      "title": "Scoped worker and mounted creator proof",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "correction37-independent-worker-gaps",
+      "kind": "rejection",
+      "title": "Reject weak admission and lost measured usage",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "correction37-final-refusal-accounting-proof",
+      "kind": "measurement",
+      "title": "Eight worker groups and final21shape SQL inventory",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "correction37-parsed-refusal-is-not-unknown-usage",
+      "kind": "rejection",
+      "title": "Preserve available usage on malformed model content",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

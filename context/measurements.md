@@ -17360,3 +17360,22 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `release39-final-scoped-proof` (2026-09-08)
 
 2026-09-08: Localcontinuity23/dialogue13/rehearsal8/saga30/readiness16/GPU26, copy7scopes21negatives and forcedsemanticTS allpassed, exec89752terminal0. Root actualV4 receipt continuity148-v4-1725ecb32ec6834e7acd0515-result.json inspected:53runtimechecks allpass,7EXPLAINshapes, rollbackconfirmed, replicas/persons/agents/logs0,session/cleanup0,provider0. Sequentialtransactional proof only, not concurrent delete/complete or GINperformance. Source72b7db22 matches incorporated repair; no fullrelease run here.
+
+
+## `correction37-five-uncalled-bridges` (2026-09-08)
+
+2026-09-08 n=5 bridge functions inspected using rg over api/src/scripts and repository references: loadOwnedFeedbackLearningExample, registerOwnedCandidate, persistCandidateEvaluationPackage, loadCandidateOwnerObservations, recordOwnedCandidateQualification. No production invocation found; definitions/eval references exist. Existing Studio owner evaluation caller does exist. New request and synthetic eval are source-only, not executed during root release34 reservation. No SQL, model, browser, build or quality measurement.
+
+
+
+
+## `correction37-connected-focused-proof` (2026-09-08)
+
+2026-09-08: Request protocol controls passed;9Azure adapter groups,7actual worker/crypto/dataset/meter/renderer/registration fixture groups,27existing candidate qualification,33existing private dialogue,6new mounted action groups and12existing feedback groups at390/1440 passed. Semantic app TypeScript noEmit/incrementalfalse passed, copy7scopes21negatives passed. Captured20 exact SQL shapes with synthetic parameters for separate parser/runtime proof. No actualSQL, Azure/model call, deployment or fidelity measurement. Screenshots/receipts in expert-correction37 scratchpad; purefunction/body fixtures do not prove production auth or DB concurrency.
+
+
+
+
+## `correction37-final-refusal-accounting-proof` (2026-09-08)
+
+2026-09-08 final scoped follow-up: adapter9groups and worker8groups passed after preserving validated usage on parsed provider refusal/invalid-content errors, recording usage before failure, and exact successful/abstained job receipt lookup. Worker controls use actual service/crypto/rendering with SQL fixtures;21 exact production SQL strings and synthetic parameters captured in scratchpad/correction37-proof/sql-inventory.json. No actualSQL/provider dispatch or quality proof.

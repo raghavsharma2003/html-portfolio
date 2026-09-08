@@ -49,6 +49,7 @@ const server = createServer(async (req, res) => {
     if (url.pathname === "/api/replica-runtime") return json(200, { runtime: { replica_id: url.searchParams.get("replica_id"), active: true } });
     let body = ""; for await (const part of req) body += part;
     const data = body ? JSON.parse(body) : {};
+    if (url.pathname === "/api/replica-correction-candidate" && req.method === "GET") return json(200, { job: null });
     if (url.pathname === "/api/replica-dialogue" && req.method === "GET") return json(200, { history: {
       replica_id: url.searchParams.get("replica_id"), session_id: null, exchanges: [], pending: false, billing_pending: false, latest_request: null,
     } });

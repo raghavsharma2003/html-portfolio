@@ -3,6 +3,7 @@ import { prepareFeedbackDataset, readFeedbackDatasetReview } from "./feedbackApi
 import { ReplicaApiError } from "./replicaApi";
 import type { FeedbackDatasetReview } from "./types";
 import "./feedback-dataset.css";
+import CorrectionCandidateAction from "./CorrectionCandidateAction";
 
 const BLOCKERS: Record<string, string> = {
   twelve_independent_sessions_required: "Feedback from 12 separate conversations",
@@ -103,6 +104,10 @@ export default function FeedbackDatasetPanel({ token, replicaId, feedbackRevisio
       <p role="status" aria-live="polite">{notice || description}</p>
       {review?.stats && <p className="feedback-dataset__counts">{review.stats.examples} saved {review.stats.examples === 1 ? "example" : "examples"} across {review.stats.sessions} {review.stats.sessions === 1 ? "conversation" : "conversations"}.</p>}
       {review?.dataset && <p>Set {review.dataset.version}: {STATUS[review.dataset.status]}.{review.changed_since_saved ? " It needs an updated snapshot." : ""}</p>}
+      {review?.dataset && <CorrectionCandidateAction token={token} replicaId={replicaId}
+        datasetId={review.dataset.dataset_id} sourceSetHash={review.dataset.source_set_hash}
+        eligible={!loading && !building && !review.changed_since_saved && review.state === "ready" && review.dataset.status === "draft"}
+        onAuthError={onAuthError} />}
       {review?.can_build && <div className="feedback-dataset__actions">
         <button ref={prepareButton} type="button" disabled={loading || building} onClick={() => void prepare()}>{building ? "Preparing corrections" : "Prepare correction set"}</button>
         <button ref={checkButton} type="button" disabled={loading || building} onClick={() => void load()}>Check again</button>
