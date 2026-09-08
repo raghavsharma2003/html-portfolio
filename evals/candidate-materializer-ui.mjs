@@ -109,10 +109,20 @@ try {
     assert.equal(await page.getByRole('progressbar').getAttribute('value'), String(TOTAL));
     await page.getByRole('button', { name: 'Review blind comparisons', exact: true }).click();
     await page.getByText('Blind review complete', { exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Which reply is more like you?', exact: true }).waitFor();
     assert.equal(blind.length, 1);
     checks.push(`${width}: initial status is read-only; keyboard start serially prepares 60 responses; explicit exact-candidate blind review`);
     await page.screenshot({ path: join(dir, `ready-${width}.png`), fullPage: true });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+
+    await page.goto(origin + '/?lang=hi'); await ready.waitFor();
+    await page.getByRole('button', { name: 'Review blind comparisons', exact: true }).click();
+    await page.getByRole('heading', { name: 'कौन सा जवाब आपके जैसा है?', exact: true }).waitFor();
+    await page.getByText('नाम छिपे रहेंगे', { exact: true }).waitFor();
+    await page.getByText('30 तुलनाएं सहेजी गईं। आपका मौजूदा AI नहीं बदला है।', { exact: true }).waitFor();
+    assert.equal(await page.getByText(/closer voice|identity stays sealed until/).count(), 0);
+    await page.screenshot({ path: join(dir, `ready-hi-${width}.png`), fullPage: true });
+    checks.push(`${width}: Hindi text comparison asks about written replies without voice or approval claims`);
 
     await reset('lost'); await start.click();
     await page.getByText('Completion is unconfirmed. Check status before continuing.', { exact: true }).waitFor();
