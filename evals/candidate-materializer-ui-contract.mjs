@@ -11,15 +11,18 @@ const source = compile('../src/studio/candidateMaterializeApi.ts').replace("'./r
 const { parseMaterializeJob, requestMaterialization } = await import(dataUrl(source));
 const scope = { replicaId: 'replica', datasetId: 'dataset', candidateId: 'candidate', sourceSetHash: 'a'.repeat(64) };
 const row = { job_id: '10000000-0000-4000-8000-000000000003', replica_id: scope.replicaId, dataset_id: scope.datasetId,
-  candidate_id: scope.candidateId, state: 'preparing', completed: 0, total: 2, active_changed: false, can_advance: true };
+  candidate_id: scope.candidateId, state: 'preparing', completed: 0, total: 60, active_changed: false, can_advance: true };
 assert.equal(parseMaterializeJob(null, scope), null);
 assert.deepEqual(parseMaterializeJob(row, scope), row);
 for (const patch of [ { job_id: '' }, { replica_id: 'other' }, { dataset_id: 'other' }, { candidate_id: 'other' },
-  { state: 'running' }, { completed: -1 }, { completed: 0.5 }, { completed: 3 }, { total: 0 }, { total: Infinity },
+  { state: 'running' }, { completed: -1 }, { completed: 0.5 }, { completed: 61 },
+  { total: 0 }, { total: 2 }, { total: 58 }, { total: 59 }, { total: 61 }, { total: 199 }, { total: 201 }, { total: 202 }, { total: Infinity },
   { active_changed: true }, { can_advance: 'yes' }, { state: 'held' }, { state: 'ready', completed: 1, can_advance: false } ]) {
   assert.throws(() => parseMaterializeJob({ ...row, ...patch }, scope));
 }
-assert.equal(parseMaterializeJob({ ...row, state: 'ready', completed: 2, can_advance: false }, scope).state, 'ready');
+assert.equal(parseMaterializeJob({ ...row, state: 'ready', completed: 60, can_advance: false }, scope).state, 'ready');
+assert.equal(parseMaterializeJob({ ...row, total: 200, state: 'ready', completed: 200, can_advance: false }, scope).state, 'ready');
+assert.equal(parseMaterializeJob({ ...row, total: 62, completed: 61 }, scope).completed, 61);
 const originalFetch = globalThis.fetch;
 const calls = [];
 try {

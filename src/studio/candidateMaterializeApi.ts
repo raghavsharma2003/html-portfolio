@@ -12,7 +12,8 @@ export function parseMaterializeJob(value: unknown, scope: MaterializeScope): Ma
   if (!job || typeof job.job_id !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(job.job_id)
     || job.replica_id !== scope.replicaId || job.dataset_id !== scope.datasetId || job.candidate_id !== scope.candidateId
     || !['preparing', 'ready', 'held', 'failed'].includes(job.state) || job.active_changed !== false
-    || !Number.isSafeInteger(job.completed) || !Number.isSafeInteger(job.total) || job.completed < 0 || job.total < 1 || job.completed > job.total
+    || !Number.isSafeInteger(job.completed) || !Number.isSafeInteger(job.total) || job.completed < 0
+    || job.total < 60 || job.total > 200 || job.total % 2 !== 0 || job.completed > job.total
     || typeof job.can_advance !== 'boolean' || (job.can_advance && job.state !== 'preparing')
     || (job.state === 'ready' && job.completed !== job.total)) {
     throw new ReplicaApiError('Comparison status could not be verified', 502, {});
