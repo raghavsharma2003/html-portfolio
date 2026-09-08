@@ -288,6 +288,22 @@
     .foot .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
     .foot p { max-width: 54ch; }
     .foot a { color: var(--ink-soft); }
+
+    /* prose-containment34: measured fallback sizes; hypothesis pending A/B. */
+    @supports (content-visibility: auto) {
+      main > section[aria-labelledby="creator-title"], main > section[aria-labelledby="follower-title"], main > #boundary { content-visibility: auto; }
+      main > section[aria-labelledby="creator-title"] { contain-intrinsic-block-size: auto 882px; }
+      main > section[aria-labelledby="follower-title"] { contain-intrinsic-block-size: auto 722px; }
+      main > #boundary { contain-intrinsic-block-size: auto 635px; }
+      @media (min-width: 768px) {
+      main > section[aria-labelledby="creator-title"] { contain-intrinsic-block-size: auto 643px; }
+      main > section[aria-labelledby="follower-title"] { contain-intrinsic-block-size: auto 509px; }
+      main > #boundary { contain-intrinsic-block-size: auto 463px; }
+      }
+    }
+    @media print {
+      main > section[aria-labelledby="creator-title"], main > section[aria-labelledby="follower-title"], main > #boundary { content-visibility: visible; contain-intrinsic-block-size: none; }
+    }
   </style>
 </head>
 <body>
