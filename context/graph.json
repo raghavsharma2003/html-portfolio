@@ -16956,6 +16956,42 @@
       "kind": "rejection",
       "title": "Foreign memory context history excluded",
       "at": "2026-09-08"
+    },
+    {
+      "id": "pilot71-correction-diagnostic-split",
+      "kind": "decision",
+      "title": "Split correction proposal refusal diagnostics",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "pilot71-correction-diagnostic-controls",
+      "kind": "measurement",
+      "title": "Correction diagnostic controls retained",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "pilot71-correction-foreign-context-excluded",
+      "kind": "rejection",
+      "title": "Foreign correction context excluded",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "pilot71-hindi-entry-typography",
+      "kind": "decision",
+      "title": "Use Devanagari typography for Hindi entry",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "pilot71-hindi-entry-typography-check",
+      "kind": "measurement",
+      "title": "Hindi entry typography source check",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "pilot71-hindi-typography-scope",
+      "kind": "rejection",
+      "title": "Broad Hindi typography scope excluded",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29211,6 +29247,26 @@
       "src": "pilot71-qualification-details-collapse",
       "rel": "caused_by",
       "dst": "pilot71-memory-context-history-excluded"
+    },
+    {
+      "src": "pilot71-correction-diagnostic-split",
+      "rel": "measured_by",
+      "dst": "pilot71-correction-diagnostic-controls"
+    },
+    {
+      "src": "pilot71-correction-diagnostic-split",
+      "rel": "caused_by",
+      "dst": "pilot71-correction-foreign-context-excluded"
+    },
+    {
+      "src": "pilot71-hindi-entry-typography",
+      "rel": "measured_by",
+      "dst": "pilot71-hindi-entry-typography-check"
+    },
+    {
+      "src": "pilot71-hindi-entry-typography",
+      "rel": "caused_by",
+      "dst": "pilot71-hindi-typography-scope"
     }
   ]
 }

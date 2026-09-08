@@ -17570,3 +17570,9 @@ Do not integrate `memory35d96557` in this pilot. Its author is revising reason d
 ## `pilot71-memory-context-history-excluded` (2026-09-08)
 
 The successor commit also rewrites author context records. Those records were excluded because this integration carries only the reviewed product and existing test paths; the local pilot records its own decision, measurement and rejection.
+## `pilot71-correction-foreign-context-excluded` (2026-09-08)
+
+The correction successor's context graph, decision and measurement edits were excluded. This pilot imports only the actual validator source and existing test path, with local tuples recorded here.
+## `pilot71-hindi-typography-scope` (2026-09-08)
+
+No Vite or browser run was performed in this batch because root owns the required build and browser verification; broad CSS changes were excluded from the narrow reviewed source path.

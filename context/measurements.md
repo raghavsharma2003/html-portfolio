@@ -17570,3 +17570,9 @@ Focused source integration measurement: n=2 reviewed commits, 6 product/test/doc
 ## `pilot71-qualification-details-integration` (2026-09-08)
 
 Source integration measurement: n=2 paths from `f0762772`, 0 foreign context files imported, 0 cloud/SQL/browser/provider/install calls before focused verification. The mounted qualification UI control covers both English and Hindi compact disclosure behavior.
+## `pilot71-correction-diagnostic-controls` (2026-09-08)
+
+Source integration measurement: n=2 paths, 9 named validator refusal controls retained or added, 0 credentials read, 0 SQL/cloud/provider calls. Focused request and worker execution remain environment-dependent.
+## `pilot71-hindi-entry-typography-check` (2026-09-08)
+
+Source integration measurement: n=2 Hindi-only CSS selectors added, 0 Vite/browser runs, 0 cloud/SQL/provider calls. TypeScript and copy checks are the final local verification for this freeze.

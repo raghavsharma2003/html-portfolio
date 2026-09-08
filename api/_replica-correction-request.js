@@ -108,9 +108,14 @@ export function validateCorrectionStrategyProposal(plan, definition, output) {
     if (!selection || Object.keys(selection).sort().join(',') !== 'strategy_id,supporting_feedback_ids') fail('correction_proposal_invalid');
     const scenario = catalog.find(item => item.strategies.some(strategy => strategy.id === selection.strategy_id));
     const ids = selection.supporting_feedback_ids;
-    if (!scenario || seen.has(scenario.scenario_id) || !Array.isArray(ids) || ids.length < 3 || ids.length > 12
-      || new Set(ids).size !== ids.length || ids.some(id => !train.has(id))
-      || new Set(ids.map(id => train.get(id).session_commitment)).size < 2) fail('correction_proposal_support_invalid');
+    if (!scenario) fail('correction_proposal_strategy_unknown');
+    if (seen.has(scenario.scenario_id)) fail('correction_proposal_scenario_duplicate');
+    if (!Array.isArray(ids)) fail('correction_proposal_support_shape_invalid');
+    if (ids.length < 3 || ids.length > 12) fail('correction_proposal_support_count_invalid');
+    if (new Set(ids).size !== ids.length) fail('correction_proposal_support_duplicate_id');
+    if (ids.some(id => !train.has(id))) fail('correction_proposal_support_not_train');
+    if (new Set(ids.map(id => train.get(id).session_commitment)).size < 2)
+      fail('correction_proposal_support_conversation_groups_insufficient');
     seen.add(scenario.scenario_id);
     return { scenario_id: scenario.scenario_id, strategy_id: selection.strategy_id, supporting_feedback_ids: [...ids].sort() };
   }).sort((a, b) => a.scenario_id.localeCompare(b.scenario_id));

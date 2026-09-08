@@ -23781,3 +23781,9 @@ Integrate only the reviewed voice-path70 product, focused eval, and next-step do
 ## `pilot71-qualification-details-collapse` (2026-09-08)
 
 Integrate the reviewed memory successor's two product/test paths: qualification safety labels are plain user-facing checks, and inconclusive details stay collapsed until opened with explicit platform-only guidance. Preserve the existing qualification authority and avoid importing the author's context history. Reverse if mounted UI shows hidden results inaccessible by keyboard or implies another upload is required. Root import tuples: `f0762772 -> src/studio/CandidateEvaluationLab.tsx, evals/candidate-qualification-ui.mjs`.
+## `pilot71-correction-diagnostic-split` (2026-09-08)
+
+Integrate only the correction validator source and its existing request controls from `fa45d517`; split generic support refusal into stable diagnostic codes while preserving proposal abstention, owner approval, runtime eligibility, and no-dispatch invariants. Reverse if a diagnostic path permits malformed, duplicate, sealed, or cross-group support. Root import tuple: `fa45d517 -> api/_replica-correction-request.js, evals/correction-strategy-request/run.mjs`.
+## `pilot71-hindi-entry-typography` (2026-09-08)
+
+Apply the reviewed Hindi entry typography correction only in `expert-experience.css`, selecting the existing Devanagari face for the Hindi heading and auth title while preserving English styling. Reverse if the intended font is unavailable or the Hindi entry layout regresses. Root import tuple: `d75b5ae8 -> src/studio/expert-experience.css`.

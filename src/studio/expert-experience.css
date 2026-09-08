@@ -11,6 +11,8 @@
 .auth-page:has(.expert-entry-visual) .trust-strip { color: #42564b; font-size: 12px; gap: 14px; }
 .auth-page:has(.expert-entry-visual) .auth-card { border: 0; box-shadow: none; background: transparent; padding: 28px 0; max-width: 390px; backdrop-filter: none; }
 .auth-page:has(.expert-entry-visual) .auth-card h2 { font-family: "Instrument Sans Variable", sans-serif; font-size: 30px; font-weight: 500; }
+.auth-page:lang(hi):has(.expert-entry-visual) .auth-intro h1 { font-family: "Noto Sans Devanagari", "Instrument Sans Variable", sans-serif; letter-spacing: -.015em; line-height: 1.16; }
+.auth-page:lang(hi):has(.expert-entry-visual) .auth-card h2 { font-family: "Noto Sans Devanagari", "Instrument Sans Variable", sans-serif; letter-spacing: -.015em; line-height: 1.2; }
 .auth-page:has(.expert-entry-visual) .secure-chip { background: none; padding: 0; color: #46594d; }
 .vx-room-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .vx-conversation-switch { display: flex; justify-content: center; gap: 6px; margin: 8px auto 20px; }
