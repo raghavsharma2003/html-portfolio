@@ -1,6 +1,7 @@
 // Room memory is authorized by its source membership, never by another Room
 // that happens to share an agent/person. All writes below are single statements.
-import { isAzureOnlyServing, assertAzureServingOrigin } from "./_model-serving-policy.js";
+import { isAzureOnlyServing } from "./_model-serving-policy.js";
+import { strictConsolidationConfig } from "./_consolidation-config.js";
 
 // Root must admit migration 159 and prove the exact statements before shipping.
 export const ROOM_MEMORY_CONSOLIDATION_ENABLED = false;
@@ -203,8 +204,7 @@ export async function runRoomMemoryConsolidation(candidate, {queryFn,model,env=p
  // Caller injects the existing counted consolidation LLM. Strict policy before
  // reading private content or dispatch; its configured origin is checked twice.
  if (!isAzureOnlyServing(env)) throw new Error('room_memory_azure_only_required');
- assertAzureServingOrigin(`${env.AZURE_ENDPOINT}/chat/completions`,env);
- if (!env.AZURE_API_KEY) throw new Error('consolidate_azure_unconfigured');
+ strictConsolidationConfig(env);
  const rows=await queryFn(ROOM_MEMORY_BATCH_SQL,[candidate.follower_id,candidate.agent_id,candidate.person_id]);
  if (!rows.length) return {skipped:'no_authorized_sources'};
  const authority=roomMemoryAuthority(rows[0]);

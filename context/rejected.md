@@ -17612,3 +17612,7 @@ The identity successor was limited to pi/_replica-runtime.js and its two existi
 ## knowledge160-context-excluded (2026-09-08)
 
 The reviewed knowledge commits' context graphs and narrative records were excluded. Only product, eval and migration/schema paths were imported. Deployment remains dependent on applying migration 160; the memory writer remains disabled pending its separate proof.
+
+## consolidation-config161-context-excluded (2026-09-08)
+
+The reviewed config commit's context graph and narrative records were excluded. Only helper, product and focused eval paths were imported; enablement remains pending a real serving endpoint, key and model mapping.

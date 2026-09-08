@@ -17609,3 +17609,7 @@ Focused measurement: Person Model n=44 checks passed; replica dialogue n=33 chec
 ## knowledge160-focused-controls (2026-09-08)
 
 Focused measurement: claim extraction n=43 checks passed; Person Model n=49 checks passed; replica dialogue n=33 checks passed; copy gate passed; TypeScript build passed. Blank ignored config contained no values. No DB, provider, cloud or full-release checks.
+
+## consolidation-config161-focused-controls (2026-09-08)
+
+Focused measurement: consolidation config n=7 controls passed; Room authority n=20 controls passed; consolidation n=145 checks passed; TypeScript build passed. Blank ignored config was generated with no values. No DB, provider, cloud or full release checks.

@@ -59,7 +59,8 @@
 // active agent before selection or rank. vy_person_device remains
 // person-intrinsic; it resolves the human and never chooses the relationship.
 import { q } from "./_db.js";
-import { isAzureOnlyServing, assertAzureServingOrigin } from "./_model-serving-policy.js";
+import { isAzureOnlyServing } from "./_model-serving-policy.js";
+import { strictConsolidationConfig } from "./_consolidation-config.js";
 import { embedBatch, toHalfvecLiteral } from "./_embed.js";
 import { AZURE_ENDPOINT, AZURE_KEY, OPENROUTER_KEY } from "./_config.js";
 import { agentScopePredicate, agentValue, MEERA_AGENT_ID } from "./_agentscope.js";
@@ -175,15 +176,6 @@ export function costDelta(before, after = costSnapshot()) {
   out.tokens_in = out.azure_tokens_in + out.fallback_tokens_in;
   out.tokens_out = out.azure_tokens_out + out.fallback_tokens_out;
   return out;
-}
-
-function strictConsolidationConfig(env = process.env) {
-  const endpoint = env.AZURE_ENDPOINT || (env === process.env ? AZURE_ENDPOINT : "");
-  const key = env.AZURE_API_KEY || (env === process.env ? AZURE_KEY : "");
-  if (!endpoint || !key) throw Object.assign(new Error("consolidate_azure_unconfigured"), { code: "consolidate_azure_unconfigured", status: 503 });
-  const url = `${endpoint}/chat/completions`;
-  assertAzureServingOrigin(url, env);
-  return { url, key };
 }
 
 function strictAuditModel(env = process.env) {

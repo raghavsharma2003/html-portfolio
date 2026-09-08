@@ -23820,3 +23820,7 @@ Integrate the bounded identity context successor so approved Home and Culture cl
 ## knowledge160-owner-reviewed-subject-knowledge (2026-09-08)
 
 Integrate the reviewed subject-knowledge path so accepted owner-reviewed claims flow through the Person Model into the private prompt, retaining each complete statement under the 500-character whole-statement budget and omitting oversized statements whole. Keep the static first-twelve cap and no RAG path. Migration 160 is source-only and required before deployment. Root import tuples: 181c8f -> api/_claim-extraction/contracts.js, api/_person-model.js, api/_replica-claims.js, api/_replica-runtime.js, db/migrations/160_replica_knowledge_domain.sql, db/schema.sql, evals/person-model/run.mjs, evals/replica-claim-extraction/run.mjs, evals/replica-dialogue/run.mjs; 6564084 -> api/_person-model.js, api/_replica-runtime.js, evals/person-model/run.mjs.
+
+## consolidation-config161-shared-preflight (2026-09-08)
+
+Integrate the reviewed consolidation configuration helper so Room preflight and actual dispatch share one strict Azure binding while preserving config-only fallback and custom environment isolation. Keep all eight memory SQL exports and migration 159/160 DDL byte-identical to the frozen source. Reverse if preflight and dispatch diverge or a custom environment inherits deployed credentials. Root import tuple: 524e8e79 -> api/_consolidation-config.js, api/_room-memory-authority.js, api/consolidate.js, evals/consolidation/config.mjs, evals/run.mjs.

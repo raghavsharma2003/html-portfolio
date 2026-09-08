@@ -1178,6 +1178,7 @@ const suites = {
   // fact about somebody's mother.
   consolidation: "consolidation/run.mjs",
   "room-memory-authority": "room-memory-authority/run.mjs",
+  "consolidation-config": "consolidation/config.mjs",
   // Migration 018 and the raw RelationalOS boundary: schema parity, explicit
   // writers, pre-rank readers, per-agent consolidation cursors/leases and
   // cross-agent negative controls. Offline, deterministic, no DB/network.

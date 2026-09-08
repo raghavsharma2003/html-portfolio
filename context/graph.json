@@ -17160,6 +17160,24 @@
       "kind": "rejection",
       "title": "Knowledge foreign context excluded",
       "at": "2026-09-08"
+    },
+    {
+      "id": "consolidation-config161-shared-preflight",
+      "kind": "decision",
+      "title": "Shared consolidation Azure preflight",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "consolidation-config161-focused-controls",
+      "kind": "measurement",
+      "title": "Consolidation config focused controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "consolidation-config161-context-excluded",
+      "kind": "rejection",
+      "title": "Consolidation config foreign context excluded",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29530,6 +29548,16 @@
       "src": "knowledge160-owner-reviewed-subject-knowledge",
       "rel": "caused_by",
       "dst": "knowledge160-context-excluded"
+    },
+    {
+      "src": "consolidation-config161-shared-preflight",
+      "rel": "measured_by",
+      "dst": "consolidation-config161-focused-controls"
+    },
+    {
+      "src": "consolidation-config161-shared-preflight",
+      "rel": "caused_by",
+      "dst": "consolidation-config161-context-excluded"
     }
   ]
 }
