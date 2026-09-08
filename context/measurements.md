@@ -17396,3 +17396,15 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `room-memory-write37-focused` (2026-09-08)
 
 2026-09-08, n=1 isolate from release34 5ade4ea9. Room67, Telegram68, WhatsApp121 and Telegram-voice70 checks passed; forced semantic TypeScript and copy7scopes21negativecontrols passed. Actual writer body exercised with fake SQL and one attempted insert, not PostgreSQL. Transport fixtures preserve answer and one generation when localized status delivery fails. No mounted web browser, real SQL, provider or deployment proof; these remain separate integration gates.
+
+
+## `gpu-target35-readback-and-controls` (2026-09-08)
+
+2026-09-08: Root actual target GET receipt gpu-target-defaults35-95e23e4b-95fc-4f92-a571-45425fe40631.jsonl at07:53:47Z confirms CPU8/memory56Gi and omitted env alongside exact optional defaults.26 synthetic ARM/DB groups passed in this isolate; these are not real execution orSQL proof. No GPU start orbudget created by this agent.
+
+
+
+
+## `gpu-execution36-actual-failed-and27-controls` (2026-09-08)
+
+2026-09-08: This agent performed2 exact read-only execution-list GETs, retained safe projections9b0a859f and7346cc20 in gpu-probe33-protected-receipts. Same executionqnhua6w/windowd78bb973 matched marker, image, command, CPU8/memory56Gi and reportedFailed without endTime. Root separately issued exact stopHTTP200.27 synthetic controls passed after36 including missingendTime terminal, bad presentendTime/nonemptyinit/CloudBuild/markerloss negatives. No CUDA marker or actual invoice established. No start/stop/SQL by this agent.

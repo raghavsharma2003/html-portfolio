@@ -16344,6 +16344,42 @@
       "kind": "rejection",
       "title": "Reject pretending preference proves persistence or throwing after spend",
       "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-target35-observed-defaults",
+      "kind": "decision",
+      "title": "Normalize actual deployed GPU target defaults",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-target35-readback-and-controls",
+      "kind": "measurement",
+      "title": "Actual target resource evidence and26 focused groups",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-target35-whole-resources-equality",
+      "kind": "rejection",
+      "title": "Whole resource equality hid default-only mismatch",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-execution36-terminal-without-invoice",
+      "kind": "decision",
+      "title": "Respect actual execution defaults and terminal status",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-execution36-actual-failed-and27-controls",
+      "kind": "measurement",
+      "title": "Actual failed execution diagnosis and27 focused groups",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-execution36-job-shape-not-execution",
+      "kind": "rejection",
+      "title": "Job GET shape and mandatory endTime failed live",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
