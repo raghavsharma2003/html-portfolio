@@ -439,6 +439,8 @@ async function measureOnce(browser, target, diagnostics = false, profile = false
       lcp: null, lcpObserved: false, lcpObserverSupported: false,
       cls: 0, longtasks: [], firstPaintMs: null, hindiChunkWaitMs: null,
       firstHindiPaintMs: null,
+      // Retain unavailable/cap/failure reasons even when readiness never fires.
+      hindiVisibilityObservation: window.__VYAKTI_HINDI_INTERFACE_STATE__ ?? null,
       ...(diagnostics ? { diagnostic: {
         lcpEntries: [], longtasks: [], paintEntries: [], visibility: [], firstInputs: [], dateFormats: [],
       } } : {}),
@@ -515,35 +517,22 @@ async function measureOnce(browser, target, diagnostics = false, profile = false
       } catch {}
       // Localized sign-in heading AND field label must be rendered. Hidden
       // logo glyphs and loading messages cannot satisfy this interface metric.
-      // A bounded CSS visibility query replaces the old whole-body scan;
-      // it can flush style. No budgets or waits change. Not a glyph/font test.
+      // Renderer visibility arrives asynchronously (tracking minimum100ms).
+      // Timestamp the callback now, never subtract that floor or backdate to
+      // the entry timestamp. The800ms budget remains. Not a glyph/font test.
       try {
         const markIfHindi = () => {
           if (window.__PERF__.firstHindiPaintMs !== null) return true;
           if (window.__VYAKTI_HINDI_INTERFACE__?.()) {
             window.__PERF__.firstHindiPaintMs = performance.now();
+            window.__PERF__.hindiVisibilityObservation = { ...window.__VYAKTI_HINDI_INTERFACE_STATE__ };
+            window.__VYAKTI_HINDI_INTERFACE_STOP__?.();
             return true;
           }
           return false;
         };
-        if (!markIfHindi()) {
-          const mo = new MutationObserver(() => {
-            if (markIfHindi()) mo.disconnect();
-          });
-          // `document` itself, never `document.documentElement`: this script
-          // runs via `addInitScript` (CDP `Page.addScriptToEvaluateOnNewDocument`),
-          // BEFORE the navigation has produced an `<html>` element at all —
-          // `document.documentElement` is `null` at this exact instant, so
-          // observing it would throw, silently swallowed by this file's own
-          // `try {}` and leaving the observer never actually armed (the real
-          // bug behind this metric's first measured run: every value came
-          // back `null`, not because no Hindi text painted, but because
-          // nothing was ever watching for it). `document` is always a valid
-          // Node from the first tick, and observing it with `subtree: true`
-          // catches `<html>` itself being inserted along with everything
-          // under it.
-          mo.observe(document, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["lang", "hidden", "aria-hidden", "inert", "class", "style"] });
-        }
+        window.__VYAKTI_HINDI_INTERFACE_READY__ = markIfHindi;
+        markIfHindi();
       } catch {}
     }
   }, { chunkPath: hiChunkPath, diagnostics, profile });
@@ -627,6 +616,7 @@ async function measureOnce(browser, target, diagnostics = false, profile = false
     crashed,
     wallMs,
     hindiChunkBytes: networkReceipt.hindiChunkBytes,
+    hindiVisibilityObservation: perf.hindiVisibilityObservation ?? null,
     firstPaintMs: perf.firstPaintMs,
     hindiChunkWaitMs: perf.hindiChunkWaitMs,
     // WS-R91. `null` if no Devanagari DOM text was observed (every target but

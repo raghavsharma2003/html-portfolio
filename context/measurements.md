@@ -17509,3 +17509,23 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `release56-source-inventory` (2026-09-08)
 
 2026-09-08 n=1 Git3way assembly in new expert-release56-candidate based71663c5d;85 product/eval/doc paths,402 unique registry names, no incumbent mapping changed. One ExpertConversation conflict resolved with retained localized audio note plus privateTextOnly guard. Schema preserves exact45 prefix and appends156. Tests/build/SQL/provider0 at checkpoint. Loading47 paired Hindi performance worsened;156 actualSQL remains pending.
+
+
+## `release56-first-scoped-result` (2026-09-08)
+
+2026-09-08 n=1 serialized29-command plan ran19commands11:50:50.671Z to11:51:28.251Z against exactfd6cb49d.18passed: forcedsemanticTS,copy,graph,activation positive/private denial/public in-flight,qualification/materializer and newhelpers.19th private-continuity failed line22 requiring unmodified global authority text after156 privateauthority derivation. Remaining10 notrun. Actual source hashes unchanged, receipt release56-prechecks-1788868250664/result.json. No browser/build/SQL/provider/fullrelease. Private exact45 dependencies copied158.743s with18emptyconfigexports, no junctions or network.
+
+
+## `hindi-observer53-source-controls` (2026-09-08)
+
+2026-09-08: Sourcefrom47,zero productionedits. Initial27controls passed; rootreviewaddedconstructor/observefailurecases,all29passed. Includesoldgeneration/cachedpositive/disabledreadonly/association/offscreen/unsupported/cleanup/cap andforbiddenstyleAPIguards. Actual17DOMcases+4staletransitions preparedunrun; privateprep94542 copyingexact47deps/blankconfig. One6navigation sameproductold/newpairplannedAB/BA/AB,unchangedlimits. No performanceimprovementclaimed.
+
+
+## `hindi-observer53-mounted-real-dom` (2026-09-08)
+
+2026-09-08T11:58:18.412Z start:17 actual DOM cases plus4 opacity/disabled/readonly/replacement transitions passed once using full Chromium151.0.7922.34, SHA256409805a16d6416087e6b2f778df1cf8f7bbb267d6b99f6b5bb0a618eace234f2. Main-world synchronous style/geometry APIs replaced by throws; none called. Log expert-hindi-observer53/scratchpad/observer53-mounted-full.log. This proves fixture visibility behavior, not product performance acceptance.
+
+
+## `hindi-observer53-fixed-six-comparison` (2026-09-08)
+
+2026-09-08T12:03:31.221Z to12:04:13.770Z: exactly6 cold contexts AB/BA/AB,n3 each, exec55281 terminal1, no timeout/kill. Baseline LCP3360/TBT1034/Hindi1861.5; candidate2732/99/1710.9ms. Candidate TBTpasses300, LCP/Hindifail2500/800. Product/dist and measurement helpers/collectors before/after unchanged. Candidate all3 renderer observed. Raw expert-tools/observer53-pair-20260908-once. No rerun or acceptance claim.

@@ -17509,3 +17509,23 @@ Original45 failures are retained. Shared copy table expansion caused three panel
 ## `release56-overlapping-git-index` (2026-09-08)
 
 2026-09-08 initial patch attempt refused index.lock while new worktree checkout still running. No patch applied. Waited for actual checkout exit0, preserved lock, then serialized patch application. Do not run dependent Git mutation before terminal checkout. Whole historical graph replacement rejected; selected context tuples imported instead.
+
+
+## `release56-global-authority-fixture` (2026-09-08)
+
+2026-09-08 merged private continuity test rejects intentional156 owner-private capability authority by requiring exact global SQL substring. Failure itself is observed, compatibility diagnosis source-supported; scoped meaningful replacement assertion and negatives still pending. Preserve original failure and product pointer fences; do not blanketdrop continuity tests.
+
+
+## `hindi-observer53-no-backdating-or-hidden-fallback` (2026-09-08)
+
+2026-09-08: Asyncvisibilitydeliveryhasexplicit100msminimum; donotsubtractit orusetheearlierentrytimestampforfirstHindiwire. No fallbacktocheckVisibility/bodylogo whenIOunsupported. Actualoffscreen/occlusion stricterthanoldprobe mustbefunctionallychecked. Sourcepatchtool initiallyrejected delete+addsamepathwithoutmutation; reappliedsequentially. Keep45/47/49/52 failures intact.
+
+
+## `hindi-observer53-preserve-shell-launch-failure` (2026-09-08)
+
+2026-09-08: Actual initial default headless-shell launch PID24948 failed0xC0000005 before any mounted case; raw observer53-mounted.log retained. Root authorized one explicit full Chromium run after reviewing the failure. Earlier missing scratchpad redirection did not launch a process. Pair draft fingerprint ambiguity corrected before execution: hash and launch must select the same binary. No fallback loop.
+
+
+## `hindi-observer53-not-performance-pass` (2026-09-08)
+
+2026-09-08: Candidate LCP2732ms and Hindi1710.9ms still fail unchanged2500/800 budgets despite99ms TBT. One baseline font pending at immutable network boundary remains pending in receipt. Do not turn probe repair into claimed frontend optimization, backdate callback, raise budget, silently update bytes, or retry until green. All6 rows and old failures retained.

@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {continuityTokens,continuityReferences,continuityPrompt,readPrivateContinuity,readPrivateContinuitySources,
- PRIVATE_CONTINUITY_SQL,PRIVATE_CONTINUITY_SOURCES_SQL,continuityPredicate} from '../../api/_private-dialogue-continuity.js';
+ PRIVATE_CONTINUITY_SQL,PRIVATE_CONTINUITY_SOURCES_SQL,continuityPredicate,privateContinuityPredicate} from '../../api/_private-dialogue-continuity.js';
 import {compileDialoguePrompt} from '../../api/_dialogue/contracts.js';
 import {splitSql} from '../../db/migrations/apply.mjs';
 import {DIALOGUE_AUTHORITY_SQL} from '../../api/_replica-dialogue-authority.js';
+import {ownerPrivateCapabilityAuthoritySql} from '../../api/_replica-candidate-activation-authority.js';
 import {textPublicationTerms} from '../../api/_text-publication-store.js';
 import {PUBLICATION_MEMORY_MODE,publicationHasMemory,publicationMemorySettings,decodePublicationContinuity} from '../../api/_text-publication-memory.js';
 import {encryptPublicationText,publicationTextBinding} from '../../api/_text-publication-crypto.js';
@@ -16,11 +17,35 @@ const question='कल physics lesson में pendulum discuss किया �
 const reply='We discussed its period.';
 const evidence={turn_id:turn,session_id:prior,created_at:'2026-09-08T01:00:00.000Z',question,reply,question_sha256:hash(question),reply_sha256:hash(reply)};
 let checks=0;const test=async(name,fn)=>{await fn();console.log(`ok ${++checks} - ${name}`);};
-await test('shared authority CTE projects every replica field read by continuity callers',()=>{
+const privateAuthority=ownerPrivateCapabilityAuthoritySql('c','r');
+assert.equal(DIALOGUE_AUTHORITY_SQL.split("c.state='active'").length,2);
+const derivedAuthority=DIALOGUE_AUTHORITY_SQL.replace("c.state='active'",privateAuthority)
+ .replace('c.capability_id,c.profile_version,c.calibration_version',
+  'c.capability_id,c.profile_version,c.calibration_version,r.lifecycle,r.subject_mode,r.policy_version,r.identity_expires_at,r.age_verified_at,r.identity_verified_at,r.liveness_verified_at');
+await test('derived owner-private authority preserves every shared field and exact global guard',()=>{
  const required=[...new Set([...continuityPredicate('refs').matchAll(/\br\.([a-z_]+)/g)].map(m=>m[1]))];
  const validate=sql=>{const projection=sql.slice(0,sql.indexOf('from vy_replica r'));for(const field of required)assert(new RegExp('\\br\\.'+field+'\\b').test(projection),'missing continuity authority projection: '+field);};
- validate(DIALOGUE_AUTHORITY_SQL);assert(PRIVATE_CONTINUITY_SOURCES_SQL.includes(DIALOGUE_AUTHORITY_SQL));
+ validate(DIALOGUE_AUTHORITY_SQL);validate(derivedAuthority);
+ const check=sql=>{assert(sql.startsWith(`with authorized as materialized (${derivedAuthority}),`));};
+ for(const sql of [PRIVATE_CONTINUITY_SQL,PRIVATE_CONTINUITY_SOURCES_SQL]){
+  check(sql);
+  assert.throws(()=>check(sql.replace(derivedAuthority,DIALOGUE_AUTHORITY_SQL)));
+  for(const part of ['ops.capability_id=c.capability_id',"gb.state='active'",'gb.owner_user_id=ops.owner_user_id','gb.profile_version=c.profile_version','gb.calibration_version=c.calibration_version'])
+   assert.throws(()=>check(sql.replaceAll(part,'true')));
+ }
+ assert(!DIALOGUE_AUTHORITY_SQL.includes('vy_replica_owner_private_selection'));
+ assert(DIALOGUE_AUTHORITY_SQL.includes("c.state='active'"));
+ assert.equal(privateContinuityPredicate('refs'),continuityPredicate('refs').replace("c.state='active'",privateAuthority));
  for(const field of required)assert.throws(()=>validate(DIALOGUE_AUTHORITY_SQL.replace(new RegExp('\\br\\.'+field+'\\b'),'NULL')),/missing continuity authority projection/);
+});
+// Scoped fixture responses exercise the actual caller, not SQL authorization semantics.
+await test('actual recall caller binds derived authority and refuses unauthorized evidence',async()=>{
+  const result=await readPrivateContinuity(async(sql,args)=>{
+   assert.equal(sql,PRIVATE_CONTINUITY_SQL);assert(sql.includes(derivedAuthority));assert.deepEqual(args.slice(0,3),[replica,owner,session]);
+   return [{authorized:true,evidence:[evidence]}];
+  },owner,replica,session,'pendulum');
+  assert.equal(result[0].turn_id,turn);
+ await assert.rejects(()=>readPrivateContinuity(async(sql)=>{assert(sql.includes(derivedAuthority));return[{authorized:false,evidence:[evidence]}];},owner,replica,session,'pendulum'),/continuity_unavailable/);
 });
 await test('Hindi meaningful words survive while common recall fillers are removed',()=>{assert(continuityTokens('मुझे physics pendulum याद है').includes('pendulum'));assert(!continuityTokens('मुझे याद है').length);});
 await test('Hinglish and English bounded tokens use no provider',()=>{assert.deepEqual(continuityTokens('Pendulum pendulum ka TIME kya hai?'),['pendulum','time']);assert.equal(continuityTokens(Array.from({length:20},(_,i)=>'word'+i).join(' ')).length,8);});

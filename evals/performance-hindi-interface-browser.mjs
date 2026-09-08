@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {installHindiInterfaceProbe} from '../scripts/performance-hindi-interface.mjs';
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 const cases=[
   ['real email interface', '<h2 id="signin-title">ईमेल से शुरू करें</h2><label for="studio-email">ईमेल पता</label><input id="studio-email" type="email">', true],
   ['real optional code interface', '<h2 id="signin-title">इनबॉक्स देखें</h2><label for="studio-code">छह अंकों का कोड</label><input id="studio-code" inputmode="numeric">', true],
@@ -14,15 +16,52 @@ const cases=[
   ['hidden Hindi descendant', '<h2 id="signin-title">Start with email<span hidden>ईमेल से शुरू करें</span></h2><label for="studio-email">ईमेल पता</label><input id="studio-email" type="email">', false],
   ['CSS-hidden Hindi descendant', '<h2 id="signin-title">Start with email<span style="display:none">ईमेल से शुरू करें</span></h2><label for="studio-email">ईमेल पता</label><input id="studio-email" type="email">', false],
   ['aria-hidden Hindi descendant', '<h2 id="signin-title">Start with email<span aria-hidden="true">ईमेल से शुरू करें</span></h2><label for="studio-email">ईमेल पता</label><input id="studio-email" type="email">', false],
+  ['input readonly', '<h2 id="signin-title">ईमेल से शुरू करें</h2><label for="studio-email">ईमेल पता</label><input readonly id="studio-email" type="email">', false],
+  ['input opacity zero', '<h2 id="signin-title">ईमेल से शुरू करें</h2><label for="studio-email">ईमेल पता</label><input style="opacity:0" id="studio-email" type="email">', false],
+  ['input offscreen', '<h2 id="signin-title">ईमेल से शुरू करें</h2><label for="studio-email">ईमेल पता</label><input style="position:absolute;top:2000px" id="studio-email" type="email">', false],
+  ['inert ancestor', '<div inert><h2 id="signin-title">ईमेल से शुरू करें</h2><label for="studio-email">ईमेल पता</label><input id="studio-email" type="email"></div>', false],
+  ['opacity zero Hindi descendant', '<h2 id="signin-title">Start<span style="opacity:0">ईमेल से शुरू करें</span></h2><label for="studio-email">ईमेल पता</label><input id="studio-email" type="email">', false],
+  ['wrong label association', '<h2 id="signin-title">ईमेल से शुरू करें</h2><label for="wrong">ईमेल पता</label><input id="studio-email" type="email">', false],
 ];
-const browser=await chromium.launch({headless:true});
+// Match full Chromium explicitly pinned by paired47/native49/probe52 diagnostics.
+const executablePath=process.env.CHROMIUM_PATH||chromium.executablePath();
+const executableHash=createHash('sha256').update(readFileSync(executablePath)).digest('hex');
+console.log(JSON.stringify({startedAt:new Date().toISOString(),executablePath,executableHash}));
+const browser=await chromium.launch({headless:true,executablePath,timeout:30000});
+console.log(JSON.stringify({browserVersion:browser.version()}));
+const deadline=setTimeout(()=>{void browser.close();},90000);
 try {
   const page=await browser.newPage({viewport:{width:390,height:844}});
+  page.setDefaultTimeout(5000);
+  await page.evaluate(()=>{
+    window.forcedReads=[];
+    for(const key of ['checkVisibility','getBoundingClientRect'])Element.prototype[key]=function(){window.forcedReads.push(key);throw Error('forbidden '+key);};
+    window.getComputedStyle=()=>{window.forcedReads.push('getComputedStyle');throw Error('forbidden computed style');};
+  });
   for(const [name,html,expected]of cases){
+    await page.evaluate(()=>window.__VYAKTI_HINDI_INTERFACE_STOP__?.());
     await page.setContent(`<main data-studio-auth-locale="hi" lang="hi">${html}</main>`);
     await page.evaluate(installHindiInterfaceProbe);
+    assert.notEqual(await page.evaluate(()=>window.__VYAKTI_HINDI_INTERFACE_STATE__.status),'unsupported','Real browser visibility tracking supported');
+    if(expected)await page.waitForFunction(()=>window.__VYAKTI_HINDI_INTERFACE__());
+    else await page.waitForTimeout(300); // Functional negative delivery window, never gate timing.
     assert.equal(await page.evaluate(()=>window.__VYAKTI_HINDI_INTERFACE__()),expected,name);
+    assert.deepEqual(await page.evaluate(()=>window.forcedReads),[],name+' does not force layout');
     console.log('ok '+name);
   }
-  console.log(cases.length+' real DOM cases passed; no product-auth or performance acceptance');
-}finally{await browser.close();}
+  await page.evaluate(()=>window.__VYAKTI_HINDI_INTERFACE_STOP__());
+  await page.setContent(`<main data-studio-auth-locale="hi" lang="hi">${cases[0][1]}</main>`);
+  await page.evaluate(installHindiInterfaceProbe);await page.waitForFunction(()=>window.__VYAKTI_HINDI_INTERFACE__());
+  for(const mutation of ['opacity','disabled','readonly','replace']){
+    assert.equal(await page.evaluate(kind=>{
+      const node=document.querySelector('#studio-email');
+      if(kind==='opacity')node.style.opacity='0';else if(kind==='disabled')node.disabled=true;else if(kind==='readonly')node.readOnly=true;else node.replaceWith(node.cloneNode());
+      return window.__VYAKTI_HINDI_INTERFACE__();
+    },mutation),false,'No cached-positive after '+mutation);
+    if(mutation!=='replace'){await page.waitForTimeout(300);assert.equal(await page.evaluate(()=>window.__VYAKTI_HINDI_INTERFACE__()),false);}
+    await page.evaluate(()=>{const node=document.querySelector('#studio-email');node.style.opacity='1';node.disabled=false;node.readOnly=false;});
+    await page.waitForFunction(()=>window.__VYAKTI_HINDI_INTERFACE__());
+  }
+  assert.deepEqual(await page.evaluate(()=>window.forcedReads),[]);
+  console.log(cases.length+' real DOM cases plus4 stale-generation transitions passed; no product-auth or performance acceptance');
+}finally{clearTimeout(deadline);await browser.close();}

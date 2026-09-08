@@ -16722,6 +16722,78 @@
       "kind": "rejection",
       "title": "Preserve active checkout lock rather than deleting it",
       "at": "2026-09-08"
+    },
+    {
+      "id": "release56-first-scoped-result",
+      "kind": "measurement",
+      "title": "Merged source passes18 commands then continuity assertion fails",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release56-global-authority-fixture",
+      "kind": "rejection",
+      "title": "Do not restore global-only private continuity solely to satisfy old source assertion",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "hindi-observer53-renderer-evidence",
+      "kind": "decision",
+      "title": "Use asynchronous renderer visibility rather than forcing layout in measurement",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "hindi-observer53-source-controls",
+      "kind": "measurement",
+      "title": "Twenty-nine light async-observer controls passed, mountedpending",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "hindi-observer53-no-backdating-or-hidden-fallback",
+      "kind": "rejection",
+      "title": "Reject backdated readiness and unsupported visibility success",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "hindi-observer53-explicit-comparison-browser",
+      "kind": "decision",
+      "title": "Pin the actually launched full Chromium for both probe revisions",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "hindi-observer53-mounted-real-dom",
+      "kind": "measurement",
+      "title": "Seventeen Chromium cases and four stale visibility transitions passed",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "hindi-observer53-preserve-shell-launch-failure",
+      "kind": "rejection",
+      "title": "Preserve failed shell launch rather than presenting a first-run pass",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "hindi-observer53-fixed-six-comparison",
+      "kind": "measurement",
+      "title": "Same-product observer comparison reduced blocking but Hindi remains over budget",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "hindi-observer53-keep-honest-failed-budgets",
+      "kind": "decision",
+      "title": "Keep renderer observation without claiming product completion",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "hindi-observer53-not-performance-pass",
+      "kind": "rejection",
+      "title": "Reject TBT improvement as overall product readiness",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release60-scoped-successor",
+      "kind": "decision",
+      "title": "Preserve product while repairing continuity and observer controls",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
