@@ -23760,3 +23760,8 @@ The shared dialogue authority already projects lifecycle, subject mode, policy, 
 ## `azure-web67-vite-config-closure` (2026-09-08)
 
 Put both fixture builders imported by `vite.config.ts` in central `deploymentInputs`, so source commitment and every positive build context cover the code Vite executes while loading configuration. Context verification binds both exact import expressions to manifest membership. Reverse if Vite no longer imports either module or a reviewed build path proves it does not execute the config.
+
+
+## `azure-web68-static-vite-input-closure` (2026-09-08)
+
+Commit every static HTML path named by Vite `rollupOptions.input`, including the visitor Room and both layout fixtures. Context verification binds all seven exact paths to manifest membership. Asset-scanning closeBundle hooks skip only after `buildEnd` receives an upstream error, preserving the original error; successful builds still fail if expected assets are absent. Reverse if the input map or Rollup hook contract changes.

@@ -135,10 +135,15 @@ const HI_PRELOAD_SCRIPT = `(function () {
 })();`
 
 function studioHindiPreloadPlugin() {
+  let buildFailed = false
   return {
     name: 'vyakti-studio-hindi-preload',
     apply: 'build' as const,
+    buildEnd(error?: Error) {
+      buildFailed = error !== undefined
+    },
     async closeBundle() {
+      if (buildFailed) return
       const distDir = join(process.cwd(), 'dist')
       const assetNames = readdirSync(join(distDir, 'assets'))
       // `hiAuthCopy-<hash>.js`, the same filename shape
@@ -230,10 +235,15 @@ const ROOM_HI_PRELOAD_SCRIPT = `(function () {
 })();`
 
 function roomHindiPreloadPlugin() {
+  let buildFailed = false
   return {
     name: 'vyakti-room-hindi-preload',
     apply: 'build' as const,
+    buildEnd(error?: Error) {
+      buildFailed = error !== undefined
+    },
     async closeBundle() {
+      if (buildFailed) return
       const distDir = join(process.cwd(), 'dist')
       const assetNames = readdirSync(join(distDir, 'assets'))
       const hiTalkChunk = assetNames.find((n) => n.startsWith('hiTalkCopy-') && n.endsWith('.js'))

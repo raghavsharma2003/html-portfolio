@@ -17549,3 +17549,8 @@ Actual receipt candidate156v4-6ea6d026b9a36b382f2ef829-result.json retains the42
 ## `azure-web-cu3d-incomplete-vite-config-closure` (2026-09-08)
 
 ACR run `cu3d` failed in `RUN node services/azure-web/build.mjs` before application compilation. The positive context included `vite.config.ts` but omitted its two unconditionally imported fixture builders, producing two `UNRESOLVED_IMPORT` errors at lines25 and44. Bounded read-only log receipt `azure-web65-cu3d-diagnosis-1788873609706297700.json` covers8508 decoded bytes, SHA256 `37d24f92cb517e3d88e10b77b9442b0207a2e1562ffa453ebcae9af342c4b0d6`; no raw log or SAS was retained. Do not reschedule that packet. Central source commitment plus an explicit config-closure negative control replaces the incomplete allowlist.
+
+
+## `azure-web-cu3e-incomplete-static-input-closure` (2026-09-08)
+
+ACR run `cu3e` failed in `RUN node services/azure-web/build.mjs`: the first concrete log error is ENOENT scanning `/source/dist/assets` from the Hindi preload closeBundle hook after137ms. Source inspection independently proves `room.html`, `creator-layout-fixture.html` and `room-layout-fixture.html` were absent from the context despite being Vite inputs; the log does not prove which upstream Rollup error the closeBundle hook masked. Bounded read covered5306 bytes, SHA256 `a0f854730428165953d60cf57959d5ce45db5bc80cac303d3d0de4ad4e3c8be2`, with no raw log or SAS retained. Do not reschedule that packet.

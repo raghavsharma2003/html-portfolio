@@ -16866,6 +16866,24 @@
       "kind": "rejection",
       "title": "Incomplete Vite configuration closure failed ACR cu3d",
       "at": "2026-09-08"
+    },
+    {
+      "id": "azure-web68-static-vite-input-closure",
+      "kind": "decision",
+      "title": "Commit every static Vite input",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "azure-web68-static-entry-controls",
+      "kind": "measurement",
+      "title": "Azure web static input closure controls pass",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "azure-web-cu3e-incomplete-static-input-closure",
+      "kind": "rejection",
+           "title": "Incomplete static input closure failed ACR cu3e",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29071,6 +29089,16 @@
       "src": "azure-web67-vite-config-closure",
       "rel": "caused_by",
       "dst": "azure-web-cu3d-incomplete-vite-config-closure"
+    },
+    {
+      "src": "azure-web68-static-vite-input-closure",
+      "rel": "measured_by",
+      "dst": "azure-web68-static-entry-controls"
+    },
+    {
+      "src": "azure-web68-static-vite-input-closure",
+      "rel": "caused_by",
+      "dst": "azure-web-cu3e-incomplete-static-input-closure"
     }
   ]
 }

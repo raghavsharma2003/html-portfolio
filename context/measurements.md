@@ -17549,3 +17549,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `azure-web67-context-closure-controls` (2026-09-08)
 
 2026-09-08: n=14 focused Azure web packaging groups passed on successor of `7af59b30`; n=1 negative removed the room-about builder from both context and manifest and received `azure_web_vite_config_dependency_missing`. Both exact Vite fixture builders are source-committed and packaged; three generated fixture HTML files remain excluded from runtime assembly. No Docker, cloud, provider, GPU, database or full release run.
+
+
+## `azure-web68-static-entry-controls` (2026-09-08)
+
+2026-09-08: n=16 focused Azure web packaging groups passed after adding all seven static Vite inputs; n=1 negative removed `room.html` from both context and manifest and received `azure_web_vite_config_entry_missing`. Runtime assembly still excludes three fixture HTML outputs. No Docker, cloud, provider, GPU, database or full release run.
