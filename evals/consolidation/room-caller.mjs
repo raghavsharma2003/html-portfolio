@@ -76,7 +76,7 @@ function fixture(options={}) {
   };
   s.fetch=async(url,init)=>{
     s.events.push('http');s.http++;assert.equal(s.spend.state,'in_flight');
-    assert.equal(url,'https://fixture.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview');
+    assert.equal(url,'https://fixture.services.ai.azure.com/openai/v1/chat/completions');
     const body=JSON.parse(init.body);assert.equal(body.model,env.AZURE_FOUNDRY_ROOM_MEMORY_MODEL);
     assert.deepEqual(body.response_format,R.ROOM_MEMORY_RESPONSE_FORMAT);assert.equal(body.max_tokens,1600);
     assert.equal(init.redirect,'error');
@@ -106,6 +106,9 @@ try {
     assert.throws(()=>strictRoomConsolidationConfig({...env,AZURE_FOUNDRY_ENDPOINT:'https://example.com'}));
     assert.throws(()=>strictRoomConsolidationConfig({...env,VYAKTI_MODEL_SERVING:'other'}));
     assert.equal(W.roomMemorySweepEnabled({}),false);
+    const config=strictRoomConsolidationConfig(env);
+    assert.equal(config.url,'https://fixture.services.ai.azure.com/openai/v1/chat/completions');
+    assert.equal(config.requestUrl,config.url);assert.equal(new URL(config.requestUrl).search,'');
   });
   await check('actual incumbent cron dispatches strict schema with exact production meter order',async()=>{
     const s=fixture();const r=await s.sweep();assert.equal(r.status,200);assert.equal(r.payload.errored,0);

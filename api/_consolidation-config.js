@@ -25,7 +25,9 @@ export function strictRoomConsolidationConfig(env = process.env) {
     throw new Error('room_memory_foundry_binding_required');
   const origin = assertAzureServingOrigin(env.AZURE_FOUNDRY_ENDPOINT, env);
   if (origin.pathname !== '/' || origin.search) throw new Error('room_memory_foundry_origin_required');
-  const mappedEnv = {...env, AZURE_ENDPOINT: `${origin.origin}/models`, AZURE_API_KEY: key};
+  // Match the strict-schema canary80 transport exactly. The legacy Foundry
+  // inference route is not evidence for OpenAI v1 structured-output support.
+  const mappedEnv = {...env, AZURE_ENDPOINT: `${origin.origin}/openai/v1`, AZURE_API_KEY: key};
   const {url} = strictConsolidationConfig(mappedEnv);
-  return {model, expectedModel, env:mappedEnv, url, requestUrl:`${url}?api-version=2024-05-01-preview`};
+  return {model, expectedModel, env:mappedEnv, url, requestUrl:url};
 }
