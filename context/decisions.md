@@ -23583,3 +23583,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `release39-accepted-continuity-source` (2026-09-08)
 
 2026-09-08: Root accepted actualV4 rollback proof for72b7db22, so candidate39 adds154 AFTER DELETE function/trigger and preserves148history. OLD retains derived rawlog binding after parentcascade. Shared authority projection adds7fields only; no predicate removal. Reverse if integrated SQL/sourcepins mismatch, concurrent erasure proof fails or fullrelease finds regression. Actual migrations148154 remain uncommitted.
+
+
+## `a11y-readiness42-mounted-coverage` (2026-09-08)
+
+Accessibility coverage now awaits its actual mounted selector, state attached, with the installed Playwright action deadline of30000ms. Timeout still records critical coverage and skips axe; other errors propagate. Performance and creator gates remain unchanged. Reverse if target presence proves insufficient for stable meaningful axe coverage or an independently specified accessibility readiness contract requires another predicate.

@@ -17360,3 +17360,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `release39-final-scoped-proof` (2026-09-08)
 
 2026-09-08: Localcontinuity23/dialogue13/rehearsal8/saga30/readiness16/GPU26, copy7scopes21negatives and forcedsemanticTS allpassed, exec89752terminal0. Root actualV4 receipt continuity148-v4-1725ecb32ec6834e7acd0515-result.json inspected:53runtimechecks allpass,7EXPLAINshapes, rollbackconfirmed, replicas/persons/agents/logs0,session/cleanup0,provider0. Sequentialtransactional proof only, not concurrent delete/complete or GINperformance. Source72b7db22 matches incorporated repair; no fullrelease run here.
+
+
+## `a11y-readiness42-delayed-entry-controls` (2026-09-08)
+
+2026-09-08 one focused browser invocation exec61001 using frozen39 built room fixture. Delayed-entry old1200ms snapshot false; new shared readiness mounted438ms after scheduling entry250ms later, actual axe zero violations and injected image-alt negative detected. Never-mount timed out30017ms, critical coverage, no axe scan. Non-timeout errors propagated. Root152V2SQL72400 was concurrent network-only activity. No full accessibility or release rerun; original39 failure preserved. Receipt scratchpad/a11y-readiness/1788859621123/result.json.

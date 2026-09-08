@@ -17353,3 +17353,8 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `release39-checkout-sql-byte-assumption` (2026-09-08)
 
 2026-09-08: Raw workingSQLbytes differed from frozen Gitblobs because Windows checkout changed LFtoCRLF in145and154. Initial exactcomparison refused. Explicit EOL-only normalization verifies content; manifest records distinct Gitblob andworking hashes. No SQL literals or predicates changed to satisfy the check. Migrations152153 remainexcluded.
+
+
+## `a11y-readiness42-snapshot-is-not-readiness` (2026-09-08)
+
+A deliberately delayed real entry proves the old1200ms one-shot snapshot can reject a valid subsequently mounted target without scanning it. This demonstrates the structural coverage defect, not the cause of historical39 failure. Do not raise performance budgets, bypass creator selectors, cancel critical never-mount failures, or relabel isolated successes as release acceptance.
