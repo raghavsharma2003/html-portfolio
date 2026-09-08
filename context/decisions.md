@@ -23832,3 +23832,7 @@ Integrate the reviewed current-question knowledge selection path: rank approved 
 ## source-erasure164-profile-lineage-fence (2026-09-08)
 
 Integrate the reviewed source-erasure lineage guard and strict Room extraction schema atop question selection. The source erasure path retires current profiles only when cited source lineage matches, while Room schema validation preserves the exact existing enum and required fields. Import the reviewed product and focused test paths plus the required canary fixture; exclude all foreign context graphs. Root import tuples: c1e3a05b,d9937a4f -> api/_replica-source-erasure.js, evals/source-erasure/run.mjs; 61a823c4 -> api/_room-memory-authority.js, api/consolidate.js, evals/consolidation/config.mjs, evals/room-memory-authority/run.mjs, evals/room-memory-authority/canary79-enum-failure.json.
+
+## caller-lease165-opt-in-room-consolidation (2026-09-08)
+
+Integrate the approved incumbent caller that meters opt-in Room consolidation with strict schema, exact Room lease scope, and unknown-outcome reconciliation. Preserve legacy lease statements and keep the shipping flag disabled pending actual SQL admission. Root import tuple: 4efd08da -> api/_consolidation-config.js, api/_room-memory-consolidation.js, api/consolidate-sweep.js, evals/agent/raw-isolation.mjs, evals/consolidation/room-caller.mjs, evals/run.mjs, scripts/room-memory-caller80-proof-contract.mjs.

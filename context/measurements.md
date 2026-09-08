@@ -17621,3 +17621,7 @@ Focused measurement: replica dialogue n=42 checks passed; Person Model n=49 chec
 ## source-erasure164-focused-controls (2026-09-08)
 
 Focused measurement: Room authority n=22 controls passed; consolidation config n=7 passed; source erasure n=62 passed; TypeScript build passed after linking identical-lock dependencies. No DB, provider, cloud or full release checks.
+
+## caller-lease165-focused-controls (2026-09-08)
+
+Focused measurement: config n=7 controls passed; Room authority n=22 controls passed; Room consolidation caller n=18 controls passed; TypeScript build passed using the existing approved dependency junction. No DB, provider, cloud or full release checks.

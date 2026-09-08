@@ -248,7 +248,8 @@ console.log("\n-- R4 production call-site coverage --");
       /findLaggingRelationships\(CANDIDATE_FETCH\)/.test(sweep) &&
       /"clone_memory_write_authority_proof_pending"/.test(sweep) &&
       /blocker: "clone_memory_backlog_check_unavailable"/.test(sweep) &&
-      /if \(candidateAgentId !== MEERA_AGENT_ID\)[\s\S]*?runRoomMemoryConsolidation\(c,[\s\S]*?continue;/.test(sweep) &&
+      /if \(candidateAgentId !== MEERA_AGENT_ID\)[\s\S]*?runMeteredRoomMemoryConsolidation\(c,[\s\S]*?continue;/.test(sweep) &&
+      /return runRoomMemoryConsolidation\(candidate,/.test(read("api/_room-memory-consolidation.js")) &&
       /runFullChainForPerson\(person, \{ dryRun: false, agentId: candidateAgentId \}\)/.test(sweep) &&
       /export const ROOM_MEMORY_CONSOLIDATION_ENABLED = false/.test(read("api/_room-memory-authority.js")),
     "the unattended clone path requires guarded Room authority and remains disabled pending actual proof",

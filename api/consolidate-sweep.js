@@ -1,6 +1,8 @@
 import {
-  ROOM_MEMORY_CONSOLIDATION_ENABLED, ROOM_MEMORY_DISCOVERY_SQL, runRoomMemoryConsolidation,
+  ROOM_MEMORY_DISCOVERY_SQL,
 } from "./_room-memory-authority.js";
+import {roomMemorySweepEnabled, runMeteredRoomMemoryConsolidation,
+  ROOM_MEMORY_CLAIM_SQL, ROOM_MEMORY_RELEASE_SQL} from './_room-memory-consolidation.js';
 // Hourly consolidation sweep — Law E4 (docs/SPEC-AGENT-LAYER.md §5): "memory
 // that is not consolidated does not exist." Measured 2026-08-18: 40 of 41
 // people have log rows past what vy_episode has consolidated (2,025 pending
@@ -219,7 +221,10 @@ let schemaEnsured = false;
 // from PERSON_TABLES and outside the vy_% scan. That is not evading the
 // check's INTENT: the intent is "no table holding relationship content is
 // invisible to forget/export," and this table holds none — a person_id, two
-// timestamps and a run_id, self-expiring via LEASE_TTL regardless of whether
+// timestamps and a run_id. Legacy Meera leases self-expire via LEASE_TTL. Room
+// admissions additionally retain a content-free meter hash until its spend is
+// settled/released; an uncertain ACK needs reconciliation before retrying.
+// The old plain sweep lease expires regardless of whether
 // forget ever touches it. A forgotten person's stale lease row (worst case,
 // up to LEASE_TTL) blocks nothing but a hypothetical concurrent claim on a
 // person_id with no data left to protect.
@@ -342,7 +347,7 @@ export async function findLaggingRelationships(limit, queryFn = q) {
  *  within one statement, not coordinated across several). */
 async function claim(agentId, personId, runId) {
   const rows = await q(
-    `insert into meera_consolidate_lease (agent_id, person_id, leased_at, leased_by, run_id)
+    agentId !== MEERA_AGENT_ID ? ROOM_MEMORY_CLAIM_SQL : `insert into meera_consolidate_lease (agent_id, person_id, leased_at, leased_by, run_id)
      values (($1)::uuid, $2, now(), 'sweep', $3)
      on conflict (agent_id, person_id) do update
        set leased_at = now(), leased_by = 'sweep', run_id = $3
@@ -358,7 +363,7 @@ async function claim(agentId, personId, runId) {
  *  can never release the newer one's claim out from under it. */
 async function release(agentId, personId, runId) {
   await q(
-    `delete from meera_consolidate_lease
+    agentId !== MEERA_AGENT_ID ? ROOM_MEMORY_RELEASE_SQL : `delete from meera_consolidate_lease
       where agent_id = ($1)::uuid and person_id = $2 and run_id = $3`,
     [agentId, personId, runId],
   ).catch(
@@ -453,7 +458,7 @@ export default async function handler(req, res) {
         () => ({ ok: false, value: [] }),
       ),
     ]);
-    const roomCandidates = ROOM_MEMORY_CONSOLIDATION_ENABLED
+    const roomCandidates = roomMemorySweepEnabled()
       ? await q(ROOM_MEMORY_DISCOVERY_SQL, [CANDIDATE_FETCH, MEERA_AGENT_ID]) : [];
     const candidates = [...legacyCandidates.map(c=>({...c,agent_id:MEERA_AGENT_ID})), ...roomCandidates]
       .sort((a,b)=>new Date(a.oldest_pending_at)-new Date(b.oldest_pending_at))
@@ -465,7 +470,7 @@ export default async function handler(req, res) {
         person_id: candidate.person_id,
         pending_rows: Number(candidate.pending_rows),
         oldest_pending_at: candidate.oldest_pending_at,
-        blocker: ROOM_MEMORY_CONSOLIDATION_ENABLED ? "clone_memory_legacy_source_authority_unavailable" : "clone_memory_write_authority_proof_pending",
+        blocker: roomMemorySweepEnabled() ? "clone_memory_legacy_source_authority_unavailable" : "clone_memory_write_authority_proof_pending",
       }));
     if (!relationshipDiscovery.ok) waitingOnUs.push({ blocker: "clone_memory_backlog_check_unavailable" });
 
@@ -611,7 +616,7 @@ export default async function handler(req, res) {
         // and reports as success.
         const before = spent();
         if (candidateAgentId !== MEERA_AGENT_ID) {
-          const out = await runRoomMemoryConsolidation(c, {queryFn:q,model:llm});
+          const out = await runMeteredRoomMemoryConsolidation(c, {queryFn:q,llm,runId});
           const after = spent();
           results.push({agent:candidateAgentId,person,...out,
             llm_calls:after.llm_calls-before.llm_calls,

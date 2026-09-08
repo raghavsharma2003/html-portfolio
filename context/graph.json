@@ -17214,6 +17214,24 @@
       "kind": "rejection",
       "title": "Source erasure foreign context excluded",
       "at": "2026-09-08"
+    },
+    {
+      "id": "caller-lease165-opt-in-room-consolidation",
+      "kind": "decision",
+      "title": "Opt-in Room consolidation caller",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "caller-lease165-focused-controls",
+      "kind": "measurement",
+      "title": "Room caller focused controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "caller-lease165-context-excluded",
+      "kind": "rejection",
+      "title": "Room caller foreign context excluded",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29614,6 +29632,16 @@
       "src": "source-erasure164-profile-lineage-fence",
       "rel": "caused_by",
       "dst": "source-erasure164-context-excluded"
+    },
+    {
+      "src": "caller-lease165-opt-in-room-consolidation",
+      "rel": "measured_by",
+      "dst": "caller-lease165-focused-controls"
+    },
+    {
+      "src": "caller-lease165-opt-in-room-consolidation",
+      "rel": "caused_by",
+      "dst": "caller-lease165-context-excluded"
     }
   ]
 }

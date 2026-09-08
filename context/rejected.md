@@ -17624,3 +17624,7 @@ Prior context prose contained four known PowerShell escape corruptions: BEL+pi/,
 ## source-erasure164-context-excluded (2026-09-08)
 
 The reviewed source-erasure and strict-schema context records were excluded. The canary enum fixture was included only because the focused Room test requires it; no foreign context graph or receipt history was imported.
+
+## caller-lease165-context-excluded (2026-09-08)
+
+The reviewed caller commit's context records were excluded. Only its product, existing focused eval and proof contract paths were imported; memory writer remains disabled pending actual lease SQL proof.
