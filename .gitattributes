@@ -25,4 +25,4 @@ evals/text-publication-ui/early-share-old-clone.tsx.txt -text
 evals/verification-knowledge/fixtures/CloneExperience.before.tsx.txt -text
 
 # Exact read-only ARM projection is authenticated by its captured byte hash.
-evals/gpu-job-control/fixtures/arm-defaults34.json -text
+evals/gpu-job-control/fixtures/arm-defaults34.json -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

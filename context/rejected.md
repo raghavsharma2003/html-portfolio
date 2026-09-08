@@ -17131,3 +17131,5 @@ Rejected routing comparison-only uploads through the ordinary primary selector: 
 ## `gpu-arm-defaults34-generic-filter-and-eol` (2026-09-08)
 
 2026-09-08: Generic removal of empty values would conceal required manual trigger/command/identity changes; explicit negative controls preserve refusal. Independent review found the captured receipt has138CRLF but globalJSONattributes normalizeLF, breaking raw-hash proof after checkout. Added exactpath -text and verified stagedblob originalSHA. Existing scheduled config is nonempty, not evidence for normalizing future manualjob schedule defaults.
+
+Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-whitespace reports on138captured lines. The exact fixture attribute now recognizes CR-at-EOL while retaining blank-at-EOL/EOF and space-before-tab checks. Original captured bytes remain unchanged; no global whitespace rule changed.
