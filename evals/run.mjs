@@ -90,6 +90,7 @@ const suites = {
   "identity-speech-v2": "identity-speech-v2.mjs",
   "voice-revision-lineage": "voice-evidence/revision-lineage.mjs",
   "performance-measurements": "performance-measurements.mjs",
+  "performance-network-accounting": "performance-network-accounting.mjs",
   "performance-hindi-interface": "performance-hindi-interface.mjs",
   "personal-auth-locale": "personal-auth-locale.mjs",
   "room-entry-work": "room-entry-work.mjs",

@@ -23598,3 +23598,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `personal-auth-visual42-eager-cascade` (2026-09-08)
 
 2026-09-08: Actual product testEnvironment now sets data-auth-theme. Narrow CSS removes obsolete dark pseudo/ambient layers, uses existing paper and sets card margin0/opaque white. General image mode unchanged. Reverse if real mode selection, readability, layout or release tests regress.
+
+
+## `performance-accounting46-immutable-boundary` (2026-09-08)
+
+2026-09-08: Root-reviewed separate accounting helper snapshots byte counters/request count/Hindi subset synchronously after readSettledPerformance returns before async diagnostics/cleanup. Both objects frozen, timestamp names Node receipt boundary rather than atomic cross-process time. Real Hindi41 AuthGate now loads hiAuthCopy so count it once in actualJS/total with separate subset tally. Reverse if later events mutate receipt, actual chunk is excluded or totals double count. No waits/budget/product-font changes.

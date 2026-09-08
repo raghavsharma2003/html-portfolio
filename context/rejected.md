@@ -17368,3 +17368,8 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `personal-auth-visual42-selector-only-insufficient` (2026-09-08)
 
 2026-09-08: Hindi41 eight focused flow views passed but actualtest screenshot showed dark-on-dark hero and subtitle behind card. Preserve original personal-auth-locale-browser-1788861065537. Source proves legacy dark pseudo background plus dark auth-entry text and mobile margin-70px. Added explicit real hero/form contrast and non-overlap assertions; one repair batch passed. Disabled controls excluded explicitly; no blanket full-product quality claim.
+
+
+## `performance-accounting46-unattributed-font-optimization` (2026-09-08)
+
+2026-09-08: Complete diagnostic40 trace proves postpaint native Layout1211.946ms and nested shaping597.188ms but retainedargs lackDOM/fontidentity and productwasoldEnglishAuthGate. CurrentHindi41 visibleprobe didnotexistthen. Do not blame currentHindiheadings/probe or removeNoto with realbrandcaller. Observed diagnostic40run1 pendingfonts vs later84148bytes proves accounting timing defect, not fontreadiness or causeofrelease39zero totals. Preserveall39failure/40partialtrace receipts; fixmeasurement separately withoutclaiming productperformance improvement.

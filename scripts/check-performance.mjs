@@ -92,6 +92,7 @@ import { gzipSync } from "node:zlib";
 // conflicts with anything below.
 import { runInstallCheck } from "./check-install.mjs";
 import { installHindiInterfaceProbe } from "./performance-hindi-interface.mjs";
+import { createPerformanceNetworkAccounting } from "./performance-network-accounting.mjs";
 
 function rootFromModuleUrl(moduleUrl) {
   return fileURLToPath(new URL("..", moduleUrl));
@@ -412,31 +413,19 @@ async function measureOnce(browser, target, diagnostics = false, profile = false
   const hiChunkPath = target.name === "studio-hi" ? findHiAuthCopyChunkPath() : null;
 
   const pending = new Map(); // requestId -> { url, type }
-  const bytes = { js: 0, css: 0, font: 0, image: 0, other: 0, total: 0 };
-  let requestCount = 0;
-  let hindiChunkBytes = 0;
+  const networkAccounting = createPerformanceNetworkAccounting();
   cdp.on("Network.responseReceived", (e) => {
     pending.set(e.requestId, { url: e.response.url, type: e.type });
-    requestCount++;
+    networkAccounting.responseReceived();
   });
   cdp.on("Network.loadingFinished", (e) => {
     const r = pending.get(e.requestId);
     if (!r) return;
     const n = e.encodedDataLength || 0;
-    // WS-R82. The `studio-hi` target's own instrumentation below triggers a
-    // real `import()` of the Hindi chunk to TIME it — a fetch no ordinary
-    // signed-out visitor's browser ever makes (`AuthGate` never calls
-    // `loadStudioCopy`). Counting those bytes into `bytes.js`/`bytes.total`
-    // would fail the JS BUDGET on a request this gate's own measurement
-    // methodology caused, not one a real visit would ever issue. Tallied
-    // separately instead, and reported, never silently dropped.
-    if (hiChunkPath && r.url.endsWith(hiChunkPath)) {
-      hindiChunkBytes += n;
-      return;
-    }
+    // Hindi41's real signed-out AuthGate loads this chunk. Its separate
+    // timing tally is now a subset of actual JS/total, not an exemption.
     const cat = categorize(r.type, r.url);
-    bytes[cat] += n;
-    bytes.total += n;
+    networkAccounting.completed(cat, n, !!hiChunkPath && r.url.endsWith(hiChunkPath));
   });
 
   if (hiChunkPath) await page.addInitScript(installHindiInterfaceProbe);
@@ -578,6 +567,10 @@ async function measureOnce(browser, target, diagnostics = false, profile = false
   await page.waitForLoadState("networkidle", { timeout: 12000 }).catch(() => {});
   await page.waitForTimeout(1500);
   const perf = await readSettledPerformance(page);
+  // Freeze synchronously before any profile/diagnostic/cleanup await can
+  // deliver later CDP events. This is a Node receipt boundary, not an
+  // atomic browser/Node instant or proof of pending font completion.
+  const networkReceipt = networkAccounting.snapshot();
   const wallMs = Date.now() - t0;
   const cpuProfile = profile ? (await cdp.send("Profiler.stop")).profile : null;
   if (cpuProfile) {
@@ -627,12 +620,13 @@ async function measureOnce(browser, target, diagnostics = false, profile = false
     lcpObserverSupported: perf.lcpObserverSupported,
     cls: perf.cls,
     tbtMs,
-    bytes,
-    requestCount,
+    bytes: networkReceipt.bytes,
+    requestCount: networkReceipt.requestCount,
+    networkObservation: { boundary: networkReceipt.boundary, nodeReceivedAt: networkReceipt.nodeReceivedAt },
     renderBlocking,
     crashed,
     wallMs,
-    hindiChunkBytes,
+    hindiChunkBytes: networkReceipt.hindiChunkBytes,
     firstPaintMs: perf.firstPaintMs,
     hindiChunkWaitMs: perf.hindiChunkWaitMs,
     // WS-R91. `null` if no Devanagari DOM text was observed (every target but

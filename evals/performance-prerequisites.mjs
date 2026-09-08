@@ -13,6 +13,7 @@ try {
   mkdirSync(join(temporary, 'scripts'));
   copyFileSync(join(root, 'scripts/check-performance.mjs'), join(temporary, 'scripts/check-performance.mjs'));
   copyFileSync(join(root, 'scripts/performance-hindi-interface.mjs'), join(temporary, 'scripts/performance-hindi-interface.mjs'));
+  copyFileSync(join(root, 'scripts/performance-network-accounting.mjs'), join(temporary, 'scripts/performance-network-accounting.mjs'));
   writeFileSync(join(temporary, 'scripts/check-install.mjs'), 'export async function runInstallCheck(){throw new Error("must not reach installation without prerequisites")}');
   writeFileSync(join(temporary, 'scripts/build-suites-about-fixture.mjs'), 'export async function buildSuitesAboutFixture(){}');
   const run = (...args) => {

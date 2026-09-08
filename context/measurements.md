@@ -17375,3 +17375,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `personal-auth-visual42-eight-views` (2026-09-08)
 
 2026-09-08: exec6562 terminal0,09:59:12.827Z–09:59:33.815Z,20.986s. Eight en/hi x390/1440 xgeneral/test actualAuthGate views; four test views add hero/form non-overlap, whole scene overflow and visible active text contrast>=4.5. Selector44px/focus and email/code/cross-tab failure flows still pass. Actual eager CSS/mocked account responses; no liveprovider or performance claim. Screenshots/metrics scratchpad/personal-auth-locale-browser-1788861553569, correctedHindi390/1440 visually inspected. Scoped Impeccable once returned[].
+
+
+## `performance-accounting46-twelve-controls` (2026-09-08)
+
+2026-09-08: Root source cleared light controls while integration45 retained heavyCPU lane. node evals/performance-network-accounting.mjs passed12 in0.884s command; copy passed7scopes/21negatives in4.744s command. Durations include shell overhead, exactUTC notcaptured. Cases cover late font/request/Hindi events, deep-enough frozen snapshot, old live-object negative, actual subset counted once, nonHindi accounting and realcaller/return wiring. No browser/TS/build/fullperformance run. Eval registry addition preserves all existing entries; prerequisite fixture imports new helper.
