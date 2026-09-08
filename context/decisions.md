@@ -23898,3 +23898,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease188-isolated-import` (2026-09-08)
 
 2026-09-09: Imported exact955 source delta from938 into separate6201 successor. Default disabled retained; release175/product175/local174 unchanged. Reverse integration on bounded functional failure; no enablement.
+
+
+## `postrelease188-auth-extraction-union` (2026-09-08)
+
+2026-09-09: Root authorized auth061bb147 and extraction85fb3cbf on separate1033810b. Apply exact auth6201delta and extraction87cddelta, not whole ancestor tree. Retention disabled stays; Share held. Reverse on focused integration failure; current release freeze untouched.

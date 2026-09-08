@@ -29,14 +29,17 @@ function functionText(source, name) {
 }
 try {
   const entry = join(out, "entry.ts");
-  await writeFile(entry, `export * from ${JSON.stringify(join(root, "src/creatorStudio/copy.ts"))};\nexport * from ${JSON.stringify(join(root, "src/creatorStudio/studioLocalePreference.ts"))};\nexport * from ${JSON.stringify(join(root, "src/studio/personalAuthCopyRegistry.ts"))};\nexport { readPersonalAuthLocale } from ${JSON.stringify(join(root, "src/studio/personalAuthLocale.tsx"))};`);
+  await writeFile(entry, `export * from ${JSON.stringify(join(root, "src/creatorStudio/copy.ts"))};\nexport * from ${JSON.stringify(join(root, "src/creatorStudio/studioLocalePreference.ts"))};\nexport * from ${JSON.stringify(join(root, "src/studio/personalAuthCopyRegistry.ts"))};\nexport { primePersonalAuthLocale, readPersonalAuthLocale } from ${JSON.stringify(join(root, "src/studio/personalAuthLocale.tsx"))};`);
   const bundle = join(out, "entry.mjs");
   await build({ entryPoints: [entry], outfile: bundle, bundle: true, format: "esm", platform: "node", jsx: "automatic", logLevel: "silent" });
   const mod = await import(pathToFileURL(bundle).href);
+  const remembered = new Map();
+  globalThis.localStorage = { getItem: key => remembered.get(key) ?? null, setItem: (key, value) => remembered.set(key, value) };
+  globalThis.window = { location: { search: "?lang=hi&step=meet" } };
   check("Hindi personal auth rejects reads before loading", () => assert.throws(() => mod.PERSONAL_AUTH_COPY_TABLE.hi.emailTitle, /personal_auth_copy_hi_not_loaded/));
   check("Hindi personal auth starts unready", () => assert.equal(mod.personalAuthCopyReady("hi"), false));
-  await mod.loadPersonalAuthCopy("hi");
-  check("Hindi personal auth leaf loads independently", () => {
+  await mod.primePersonalAuthLocale();
+  check("Entry bootstrap installs Hindi personal auth copy before React mounts", () => {
     assert.equal(mod.personalAuthCopyReady("hi"), true);
     assert.equal(mod.studioAuthCopyReady("hi"), false);
   });
@@ -50,9 +53,6 @@ try {
     for (const [key, value] of leaves(en)) assert.deepEqual(value.match(/\{\w+\}/g)?.sort() ?? [], hindi.get(key).match(/\{\w+\}/g)?.sort() ?? [], key);
   });
   check("Only named eyebrows may be blank", () => { for (const [key, value] of [...leaves(en), ...leaves(hi)]) assert.ok(value.trim() || /^variant\.(generic|teacher|test)\.introEyebrow$/.test(key), key); });
-  const remembered = new Map();
-  globalThis.localStorage = { getItem: key => remembered.get(key) ?? null, setItem: (key, value) => remembered.set(key, value) };
-  globalThis.window = { location: { search: "?lang=hi&step=meet" } };
   mod.writeRememberedStudioLocale("en");
   check("Explicit Hindi beats stored English", () => assert.equal(mod.readPersonalAuthLocale(), "hi"));
   window.location.search = "?lang=en";
@@ -88,6 +88,7 @@ try {
   });
   check("Entry restores once before choosing auth or workspace", () => {
     assert.match(entrySource, /useEffect\(\(\) => \{[\s\S]*restore\(\)\.then[\s\S]*\}, \[restore\]\)/);
+    assert.match(entrySource, /useState\(\(\) => !hasStoredSessionCandidate\(\)\)/);
     assert.ok(entrySource.indexOf("if (!authChecked)") < entrySource.indexOf("if (!session)"));
     assert.ok(entrySource.indexOf("if (!session)") < entrySource.indexOf("<StudioApp initialSession={session} sessionAlreadyRestored />"));
   });
@@ -155,6 +156,14 @@ try {
   resetSession(null); session.configure({ result: fresh });
   const absent = await session.restoreSession({ reportTransientFailure: true });
   check("No candidate yields no authenticated session or refresh", () => { assert.equal(absent, null); assert.equal(session.refreshCalls.length, 0); assert.equal(writes, 0); });
+  globalThis.window = { location: { hash: "" } };
+  resetSession(null);
+  check("Only stored auth or an OAuth hash keeps the entry on the restoring path", () => {
+    assert.equal(session.hasStoredSessionCandidate(), false);
+    resetSession(); assert.equal(session.hasStoredSessionCandidate(), true);
+    resetSession(null); window.location.hash = "#access_token=callback-token";
+    assert.equal(session.hasStoredSessionCandidate(), true);
+  });
 
   // Extract the actual useCallback initializer, then execute it with session
   // and state boundaries injected. No copied error-classification logic.

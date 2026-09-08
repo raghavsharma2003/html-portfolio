@@ -28,6 +28,14 @@ export function readStoredSession(): StudioSession | null {
   return isSession(auth) ? auth : null;
 }
 
+// The signed-out entry can mount immediately only when there is no material
+// that restoreSession() could turn into an authenticated workspace. Keep an
+// OAuth callback on the restoring path so it is consumed exactly once there.
+export function hasStoredSessionCandidate(): boolean {
+  const hash = typeof window === "undefined" ? "" : window.location.hash;
+  return /(?:^|[?&#])access_token=/.test(hash) || readStoredSession() !== null;
+}
+
 export function writeStoredSession(session: StudioSession | null) {
   try {
     const state = storedState();

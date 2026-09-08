@@ -8,6 +8,14 @@ export function readPersonalAuthLocale(): StudioLocale {
   return resolveStudioLocale({ urlLocale: raw === "hi" || raw === "en" ? raw : null, replica: null, rememberedLocale: readRememberedStudioLocale() });
 }
 
+// Start the optional locale module during entry bootstrap. A failed attempt is
+// deliberately silent here: usePersonalAuthLocale owns the visible retry UI.
+export function primePersonalAuthLocale(): Promise<void> {
+  const locale = readPersonalAuthLocale();
+  if (personalAuthCopyReady(locale)) return Promise.resolve();
+  return loadPersonalAuthCopy(locale).then(() => undefined).catch(() => undefined);
+}
+
 export function usePersonalAuthLocale() {
   const [locale, setLocale] = useState(readPersonalAuthLocale);
   const [revision, setRevision] = useState(0);

@@ -17466,6 +17466,24 @@
       "kind": "rejection",
       "title": "Do not change deadlines or infer shutdown result",
       "at": "2026-09-08"
+    },
+    {
+      "id": "postrelease188-auth-extraction-union",
+      "kind": "decision",
+      "title": "Keep approved auth and extraction successors outside active release",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "postrelease188-eight-path-source",
+      "kind": "measurement",
+      "title": "Eight source/eval paths merged without conflict",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "postrelease188-no-concurrent-fullgate",
+      "kind": "rejection",
+      "title": "Preserve actual retention failure and avoid overlapping verification",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

@@ -17687,3 +17687,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease188-targeted-results` (2026-09-08)
 
 2026-09-09 n=1 four disabled/config controls passed. Exact955 shutdown test failed before shutdown: owned child must start at2s. No PID observed; subsequent process inspection found no postrelease188 node command. Preserve POSTRELEASE188-SHUTDOWN-CONTROLS.json. Root says full412suite release evaluation active; contention possible, not established. No browser/build/tsc/provider/SQL/deploy.
+
+
+## `postrelease188-eight-path-source` (2026-09-08)
+
+2026-09-09 n=1 exact8path union. Four Node syntax checks and diff whitespace check passed. Source review retains OAuth restore path and uncertain spend hold when begin acknowledgement is lost. No dependencies copied, browser/build/tsc/functional tests run under active412suite release CPUhold. These checks do not prove runtime behavior.

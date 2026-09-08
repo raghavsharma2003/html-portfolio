@@ -405,6 +405,7 @@ export async function extractOwnedClaims(db, ownerUserId, id, extractor, signal)
   const evidenceIds = state.rows.map((row) => row.evidence_id);
   if (run.state === "complete" || !truth(run.acquired)) return { ...run, input_evidence_ids: evidenceIds };
   let reservation = null;
+  let spendBeginState = "not_attempted";
   let providerStarted = false;
   try {
     reservation = await reserveFoundrySpend(db, {
@@ -414,13 +415,15 @@ export async function extractOwnedClaims(db, ownerUserId, id, extractor, signal)
       messages: extractionMessages(batch),
     });
     if (reservation) {
-      try { await beginFoundrySpend(db, reservation); }
-      catch (error) {
-        await releaseFoundrySpendBeforeCall(db, reservation, error).catch(() => null);
-        throw error;
-      }
-      providerStarted = true;
+      // A rejected/closed database call does not prove the UPDATE failed to
+      // commit. From the first byte sent until an acknowledgement returns, the
+      // reservation must remain held for reconciliation rather than being
+      // released as though the provider could not have started.
+      spendBeginState = "attempted_unknown";
+      await beginFoundrySpend(db, reservation);
+      spendBeginState = "acknowledged";
     }
+    providerStarted = true;
     const extracted = await extractor.extract({ batch, signal });
     if (!extracted?.output) throw new Error("claim_extractor_output_missing");
     const completed = await persistProposals(db, ownerUserId, state, run, batch, extracted.output, leaseToken);
@@ -434,7 +437,10 @@ export async function extractOwnedClaims(db, ownerUserId, id, extractor, signal)
     }
     return { ...completed, input_evidence_ids: evidenceIds };
   } catch (error) {
-    if (providerStarted) await markFoundrySpendUncertain(db, reservation, error);
+    if (reservation) {
+      if (providerStarted || spendBeginState === "attempted_unknown") await markFoundrySpendUncertain(db, reservation, error);
+      else await releaseFoundrySpendBeforeCall(db, reservation, error).catch(() => null);
+    }
     await failRun(db, ownerUserId, run.run_id, cleanCode(error), leaseToken);
     throw error;
   }

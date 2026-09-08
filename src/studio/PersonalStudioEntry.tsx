@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import PersonalAuthGate from "./PersonalAuthGate";
 import { PersonalAuthLoading, readPersonalAuthLocale, usePersonalAuthLocale } from "./personalAuthLocale";
-import { restoreSession } from "./session";
+import { hasStoredSessionCandidate, restoreSession } from "./session";
 import { studioSelfTestUiEnabled } from "./studioTestMode";
 import type { StudioSession } from "./types";
 
@@ -52,7 +52,11 @@ export default function PersonalStudioEntry({
   retryWorkspace?: () => void;
 } = {}) {
   const [session, setSession] = useState<StudioSession | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
+  // With no stored session or OAuth callback, restoreSession() can only return
+  // null. Mount the sign-in gate in the initial commit instead of making it
+  // wait behind the parent restore effect. Session candidates retain the
+  // existing restore-first path.
+  const [authChecked, setAuthChecked] = useState(() => !hasStoredSessionCandidate());
   const [workspaceAttempt, setWorkspaceAttempt] = useState(0);
   const StudioApp = useMemo(() => lazy(loadWorkspace), [loadWorkspace, workspaceAttempt]);
 

@@ -274,6 +274,44 @@ await assert.rejects(extractOwnedClaims(async (sql) => {
 }, OWNER, RID, { ...fakeExtractor, async extract() { providerCalled = true; } }), /claim_extraction_not_ready/);
 ok("missing training consent prevents any provider call", providerCalled === false);
 
+const budgetEnvKeys = ["AZURE_REPLICA_BUDGET_ID", "AZURE_REPLICA_APP_BUDGET_USD", "AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS", "AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS"];
+const priorBudgetEnv = Object.fromEntries(budgetEnvKeys.map((key) => [key, process.env[key]]));
+Object.assign(process.env, {
+  AZURE_REPLICA_BUDGET_ID: "synthetic-claim-begin-ack",
+  AZURE_REPLICA_APP_BUDGET_USD: "1",
+  AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "0.4",
+  AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: "1.6",
+});
+const beginAckCalls = [];
+let beginAckProviderCalled = false;
+let beginAckError = null;
+try {
+  try { await extractOwnedClaims(async (sql, params) => {
+    beginAckCalls.push({ sql, params });
+    if (/insert into vy_replica_claim_extraction/i.test(sql)) return [{ run_id: RUN, state: "extracting", acquired: true }];
+    if (/select r\.replica_id,r\.lifecycle/i.test(sql)) return [owned()];
+    if (/latest_speaker_decision/i.test(sql)) return [transcript()];
+    if (/from vy_replica_claim_extraction x join/i.test(sql)) return [];
+    if (/from vy_replica_claim_extraction_queue q/i.test(sql)) return [];
+    if (/insert into vy_provider_budget/i.test(sql)) return [];
+    if (/insert into vy_provider_spend/i.test(sql)) return [{ reservation_id: "90000000-0000-4000-8000-000000000009", budget_id: params[0], request_hash: params[7], state: "reserved", reserved_microusd: params[10] }];
+    if (/set state='in_flight'/i.test(sql)) throw Object.assign(new Error("synthetic begin acknowledgement lost"), { code: "synthetic_begin_ack_lost" });
+    if (/set state='reconcile_required'/i.test(sql) || /update vy_replica_claim_extraction/i.test(sql)) return [];
+    throw new Error(`unexpected begin-ack SQL ${sql.slice(0, 80)}`);
+  }, OWNER, RID, {
+    ...fakeExtractor,
+    billing: { meter: "azure_foundry_tokens", max_output_tokens: 100 },
+    async extract() { beginAckProviderCalled = true; throw new Error("provider_must_not_run"); },
+  }); } catch (error) { beginAckError = error; }
+} finally {
+  for (const key of budgetEnvKeys) priorBudgetEnv[key] === undefined ? delete process.env[key] : process.env[key] = priorBudgetEnv[key];
+}
+ok("ambiguous spend-begin acknowledgement retains the reservation and does not dispatch or release",
+  /synthetic begin acknowledgement lost/.test(beginAckError?.message || "")
+  && beginAckProviderCalled === false
+  && beginAckCalls.some((call) => /set state='reconcile_required'/i.test(call.sql))
+  && !beginAckCalls.some((call) => /set state='released'/i.test(call.sql)));
+
 const migration = readFileSync(join(ROOT, "db/migrations/026_claim_extraction.sql"), "utf8");
 ok("claim extraction migration remains one-statement-runner safe", splitSql(migration).length === 9);
 ok("citation lineage is composite owner claim evidence and source bound", /foreign key \(claim_id,replica_id,owner_user_id\)/i.test(migration) && /foreign key \(evidence_id,replica_id,owner_user_id\)/i.test(migration) && /foreign key \(source_id,replica_id,owner_user_id\)/i.test(migration));

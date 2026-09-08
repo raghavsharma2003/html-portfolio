@@ -269,7 +269,10 @@ const claims = readFileSync(join(ROOT, "api/_replica-claims.js"), "utf8");
 const dialogue = readFileSync(join(ROOT, "api/_replica-dialogue.js"), "utf8");
 ok("claim extraction reserves and starts spend before contacting its selected provider", /reservation = await reserveFoundrySpend[\s\S]*await beginFoundrySpend[\s\S]*extractor\.extract/.test(claims));
 ok("dialogue reserves and starts spend before contacting Azure", /reservation = await reserveFoundrySpend[\s\S]*await beginFoundrySpend[\s\S]*generator\.generate/.test(dialogue));
-ok("claim extraction retains its existing pre-provider release path", /releaseFoundrySpendBeforeCall[\s\S]*extractor\.extract/.test(claims));
+ok("claim extraction retains a release path only before spend begin is attempted", /releaseFoundrySpendBeforeCall[\s\S]*extractor\.extract/.test(claims));
+const claimBegin = claims.slice(claims.indexOf('spendBeginState = "attempted_unknown"'), claims.indexOf("const extracted", claims.indexOf('spendBeginState = "attempted_unknown"')));
+ok("claim extraction never releases an ambiguous begin acknowledgement", /await beginFoundrySpend/.test(claimBegin) && /spendBeginState = "acknowledged"/.test(claimBegin)
+  && !/releaseFoundrySpendBeforeCall/.test(claimBegin) && /spendBeginState === "attempted_unknown"/.test(claims));
 const dialogueBegin = dialogue.slice(dialogue.indexOf('spendBeginState = "attempted_unknown"'), dialogue.indexOf("assertCandidateRuntimeUnchanged", dialogue.indexOf('spendBeginState = "attempted_unknown"')));
 ok("dialogue never releases an ambiguous begin acknowledgement", /await beginFoundrySpend/.test(dialogueBegin) && /spendBeginState = "acknowledged"/.test(dialogueBegin)
   && !/releaseFoundrySpendBeforeCall/.test(dialogueBegin) && /spendBeginState === "attempted_unknown"/.test(dialogue));

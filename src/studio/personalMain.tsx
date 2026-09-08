@@ -13,6 +13,7 @@ import "./studio-entry.css";
 import "./auth-entry.css";
 import "./vyakti-mark.css";
 import { restoreStudioMode } from "./studioAuth";
+import { primePersonalAuthLocale } from "./personalAuthLocale";
 
 // BEFORE render, never after. `StudioApp.readStudioMode()` reads `?mode=` once
 // at mount and never again, so the URL has to be correct by the time the first
@@ -23,6 +24,7 @@ import { restoreStudioMode } from "./studioAuth";
 // OAuth redirect. The hash is preserved, so the OAuth token still reaches
 // `consumeStudioOAuthCallback()` afterwards.
 restoreStudioMode();
+void primePersonalAuthLocale();
 
 ReactDOM.createRoot(document.getElementById("studio-root")!).render(
   <React.StrictMode>
