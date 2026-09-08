@@ -23670,3 +23670,8 @@ Use has_continuity=true and can_voice=false together for a short localized adjac
 ## `continuity-audio40-tested-import` (2026-09-08)
 
 Import only the conditional localized explanation, minimal typography and real mounted controls plus context. Existing reply voice authorization and speak guard remain unchanged. Reverse if the server reason contract changes or supported continuity speech makes this explanation inaccurate.
+
+
+## `performance-accounting46-immutable-boundary` (2026-09-08)
+
+2026-09-08: Root-reviewed separate accounting helper snapshots byte counters/request count/Hindi subset synchronously after readSettledPerformance returns before async diagnostics/cleanup. Both objects frozen, timestamp names Node receipt boundary rather than atomic cross-process time. Real Hindi41 AuthGate now loads hiAuthCopy so count it once in actualJS/total with separate subset tally. Reverse if later events mutate receipt, actual chunk is excluded or totals double count. No waits/budget/product-font changes.

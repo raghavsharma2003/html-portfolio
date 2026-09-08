@@ -16524,6 +16524,24 @@
       "kind": "rejection",
       "title": "Do not call a localized note a fully translated product",
       "at": "2026-09-08"
+    },
+    {
+      "id": "performance-accounting46-immutable-boundary",
+      "kind": "decision",
+      "title": "Freeze CDP counts at named settled performance receipt",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "performance-accounting46-twelve-controls",
+      "kind": "measurement",
+      "title": "Twelve accounting controls and copy law passed",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "performance-accounting46-unattributed-font-optimization",
+      "kind": "rejection",
+      "title": "Reject font replacement or probe weakening without native attribution",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

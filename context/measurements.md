@@ -17454,3 +17454,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `continuity-audio40-mounted-result` (2026-09-08)
 
 2026-09-08 one real mounted synthetic-HTTP browser invocation exec95828 passed46 groups:34 original controls plus12 locale/width/state cases. Hindi and English at390/1440, continuity-disabled, unrelated-disabled and ordinary voice states preserve authorization and exact described-by binding. Receipt scratchpad/meet-setup-ui/1788861717206. Hindi390 and English1440 screenshots visually inspected: note readable without clipping. Semantic TypeScript emitted no diagnostics and copy passed7 scopes/21 negative controls in exec87253 terminal0. No model/voice generation, cloud calls or full gate run; this verifies explanation only, not continuity audio capability.
+
+
+## `performance-accounting46-twelve-controls` (2026-09-08)
+
+2026-09-08: Root source cleared light controls while integration45 retained heavyCPU lane. node evals/performance-network-accounting.mjs passed12 in0.884s command; copy passed7scopes/21negatives in4.744s command. Durations include shell overhead, exactUTC notcaptured. Cases cover late font/request/Hindi events, deep-enough frozen snapshot, old live-object negative, actual subset counted once, nonHindi accounting and realcaller/return wiring. No browser/TS/build/fullperformance run. Eval registry addition preserves all existing entries; prerequisite fixture imports new helper.

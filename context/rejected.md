@@ -17447,3 +17447,8 @@ Disabled Listen alone does not establish continuity as its cause. A generic note
 ## `continuity-audio40-not-complete-localization` (2026-09-08)
 
 The inspected Hindi fixture still contains incumbent English conversation controls. This patch localizes only its new explanation and must not be advertised as full Hindi journey completion or generated voice support.
+
+
+## `performance-accounting46-unattributed-font-optimization` (2026-09-08)
+
+2026-09-08: Complete diagnostic40 trace proves postpaint native Layout1211.946ms and nested shaping597.188ms but retainedargs lackDOM/fontidentity and productwasoldEnglishAuthGate. CurrentHindi41 visibleprobe didnotexistthen. Do not blame currentHindiheadings/probe or removeNoto with realbrandcaller. Observed diagnostic40run1 pendingfonts vs later84148bytes proves accounting timing defect, not fontreadiness or causeofrelease39zero totals. Preserveall39failure/40partialtrace receipts; fixmeasurement separately withoutclaiming productperformance improvement.
