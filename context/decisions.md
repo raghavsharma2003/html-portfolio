@@ -23365,3 +23365,8 @@ Implement a separate explicit private processing receipt and seven-stage worker 
 ## `gpu151-actual-catalog-cap-repair` (2026-09-08)
 
 2026-09-08: Migration151 drops only vy_gpu_allocation_window_check, the measured PostgreSQL auto-name for147 multi-column actual>=0 AND actual<=reserved.149 dropped a different name and retained this obsolete cap. Preserve applied149/150, nonnegative standalone CHECK, settled receipt check1 and other guards. Real verified overrun must record debt and pause admission, not fail reconciliation. Reverse only if catalog shows this name has a different definition; protected preflight must refuse that case.
+
+
+## `gpu-target35-observed-defaults` (2026-09-08)
+
+2026-09-08: Actual dedicated target GET confirms null scheduleTriggerConfig, empty-string registry identity/ephemeralStorage and omitted empty env. Normalize these four exact forms only, preserving nonempty/null alternatives, unknown execution fields and required per-window envmarker. CPU8 and memory56Gi matches independently confirmed. Reverse any form if actual API evidence shows it carries execution semantics. This extends34, retains151 and changes noSQL.

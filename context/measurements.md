@@ -17142,3 +17142,8 @@ On 2026-09-08 in isolated source based f4235c68: new41 offline actual issuer/reg
 ## `gpu151-catalog-and-source-controls` (2026-09-08)
 
 2026-09-08: Root actual devDB runtime failed23514 at overrun reconciliation after9 groups, cleanup zero; root read-only catalog receipt relational31-gpu-check-diagnosis-1788850824112-result.json confirms the legacy cap remains. This agent ran18 offline controls including source comparison against that actual catalog, schema mirror and wrong-name/settled-guard negative controls. These controls do not executeSQL.151 not applied by this agent; root protected DB proof remains required.
+
+
+## `gpu-target35-readback-and-controls` (2026-09-08)
+
+2026-09-08: Root actual target GET receipt gpu-target-defaults35-95e23e4b-95fc-4f92-a571-45425fe40631.jsonl at07:53:47Z confirms CPU8/memory56Gi and omitted env alongside exact optional defaults.26 synthetic ARM/DB groups passed in this isolate; these are not real execution orSQL proof. No GPU start orbudget created by this agent.

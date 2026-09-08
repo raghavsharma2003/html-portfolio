@@ -17138,3 +17138,8 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `gpu151-column-name-assumption` (2026-09-08)
 
 2026-09-08:149 assumed vy_gpu_allocation_window_actual_microusd_check named147 actual-cost cap. Actual PostgreSQL named the two-column check vy_gpu_allocation_window_check. DROP IF EXISTS silently did nothing and mock reconciliation missed the leftover cap. Reject naming inference and offline green asSQL proof.151 removes the catalog-confirmed old cap only, preserving nonnegative cost and settled-receipt invariants.
+
+
+## `gpu-target35-whole-resources-equality` (2026-09-08)
+
+2026-09-08: Actual deployment target reached Succeeded and exact image/command matched, but resources_match=false. Target diagnostic separated CPU/memory matches from the additional empty ephemeralStorage field. Reject treating the mismatch as permission to omit resources comparison; retain CPU/memory exactness and all unknownfields, normalize only measured empty default. Negative controls reject CPU4/memory32Gi/nullstorage/nonemptyidentity/nullenv and absent execution marker.
