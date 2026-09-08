@@ -16920,6 +16920,24 @@
       "kind": "rejection",
       "title": "Remote bundling did not expose a missing strict declaration",
       "at": "2026-09-08"
+    },
+    {
+      "id": "pilot71-integrate-voice-auth-reviewed-paths",
+      "kind": "decision",
+      "title": "Integrate reviewed voice and auth paths only",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "pilot71-reviewed-path-integration",
+      "kind": "measurement",
+      "title": "Reviewed voice and auth paths integrated",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "pilot71-memory-successor-excluded",
+      "kind": "rejection",
+      "title": "Pending memory successor excluded from pilot",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29155,6 +29173,16 @@
       "src": "azure-web70-adjacent-hook-declaration",
       "rel": "caused_by",
       "dst": "azure-web69-untyped-build-outcome-import"
+    },
+    {
+      "src": "pilot71-integrate-voice-auth-reviewed-paths",
+      "rel": "measured_by",
+      "dst": "pilot71-reviewed-path-integration"
+    },
+    {
+      "src": "pilot71-integrate-voice-auth-reviewed-paths",
+      "rel": "caused_by",
+      "dst": "pilot71-memory-successor-excluded"
     }
   ]
 }

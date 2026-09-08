@@ -17564,3 +17564,6 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `azure-web70-strict-types-and-packaging` (2026-09-08)
 
 2026-09-08: exact `tsc -b --force` passed with lock-identical release60 dependencies after adding the adjacent declaration; focused Azure web packaging remained18/18. No Docker, cloud, provider, GPU, database or full release run.
+## `pilot71-reviewed-path-integration` (2026-09-08)
+
+Focused source integration measurement: n=2 reviewed commits, 6 product/test/doc paths applied, 0 context graph files imported from either author commit, 0 cloud/SQL/browser/provider/install calls. The required `tsc -b --force` and focused checks remain to be run after this append.

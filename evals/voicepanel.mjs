@@ -870,6 +870,40 @@ section("ownership before deployment configuration");
     legacy.includes('voice_preview_trial_required'));
 }
 
+section("local protection configuration before runtime wake");
+{
+  const route = readFileSync(join(ROOT, "api/voice-preview.js"), "utf8");
+  check("actual route prepares both adapters and reuses the protection instance",
+    /prepare: \(\) => \{[\s\S]*?provider \|\|= createOpenChatterboxPreviewProvider\(\);[\s\S]*?createProductionProtectionAdapters\(\{ db: q \}\)/.test(route) &&
+    /protect: \(input\) => protectReplicaStream\(\{[\s\S]*?adapters: protectionAdapters/.test(route));
+  const missing = harness({ provider: fakeProvider({ runtimeReady: true }) });
+  let prepared = 0;
+  missing.deps.prepare = () => {
+    prepared += 1;
+    throw Object.assign(new Error("audio_protection_origin_required"), { code: "audio_protection_origin_required", status: 503 });
+  };
+  const refused = await handleVoicePreviewPanel({ ...PREVIEW }, missing.deps);
+  check("missing protection config returns its actionable 503",
+    refused.status === 503 && refused.body.error === "audio_protection_origin_required" && prepared === 1);
+  check("configuration refusal touches no health, runtime, synthesis or reference bytes",
+    missing.state.healthFetches.length === 0 && missing.provider.statusChecks.length === 0 &&
+    missing.provider.calls.length === 0 && missing.state.reads === 0 && missing.state.protections === 0);
+  check("configuration refusal settles the claimed intent as failed",
+    missing.state.failures.length === 1 && missing.state.failures[0].code === "audio_protection_origin_required");
+  const intruder = harness({ callerId: INTRUDER });
+  intruder.deps.prepare = missing.deps.prepare;
+  const denied = await handleVoicePreviewPanel({ ...PREVIEW }, intruder.deps);
+  check("unauthorized callers cannot inspect local configuration", denied.status === 409 && prepared === 1);
+  const status = await handleVoicePreviewPanel({ op: "status" }, missing.deps);
+  check("cached status does not construct synthesis adapters", status.status === 200 && prepared === 1);
+  const ready = harness({ provider: fakeProvider({ runtimeReady: true }) });
+  let preparedBeforeHealth = false;
+  ready.deps.prepare = () => { preparedBeforeHealth = ready.state.healthFetches.length === 0; };
+  const audio = await handleVoicePreviewPanel({ ...PREVIEW }, ready.deps);
+  check("configured positive control reaches protected audio after preparation",
+    preparedBeforeHealth && audio.kind === "audio" && ready.provider.calls.length === 1 && ready.state.protections === 1);
+}
+
 console.log(`\n  ${passed} checks passed, ${failures.length} failed`);
 for (const failure of failures) console.log(`  FAIL  ${failure}`);
 process.exit(failures.length ? 1 : 0);

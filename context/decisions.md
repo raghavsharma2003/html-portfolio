@@ -23775,3 +23775,6 @@ Both preload plugins use one source-committed build-outcome gate. `undefined` an
 ## `azure-web70-adjacent-hook-declaration` (2026-09-08)
 
 Keep the build-outcome implementation JavaScript and provide its exact adjacent `.d.mts` contract, including optional undefined or null error input and readonly returned methods. Source commitment includes both files. Reverse if the implementation moves to TypeScript or exports change.
+## `pilot71-integrate-voice-auth-reviewed-paths` (2026-09-08)
+
+Integrate only the reviewed voice-path70 product, focused eval, and next-step document plus creator auth copy into `faf12ab3`; preserve source APIs and exclude the pending memory35 successor. The preparation callback validates local protection configuration before runtime wake and reuses one adapter instance. Reverse if focused controls show an ownership, status, or dispatch regression. Root import tuples: `79530eb7 -> api/_voice/preview-panel.js, api/voice-preview.js, evals/voicepanel.mjs, docs/gurukul/VOICE-PREVIEW-NEXT-STEP70.md`; `bd150a28 -> src/creatorStudio/copy.ts, src/creatorStudio/hiAuthCopy.ts`.

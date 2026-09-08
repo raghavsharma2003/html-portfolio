@@ -2308,7 +2308,7 @@ const EN: StudioCopy = {
     invalidEmailError: "Enter a valid email address.",
     codeMismatchError: "That code did not match. Check it and try again.",
     googleError: "Google sign-in is unavailable. Use your email instead.",
-    legalNotice: "Your source-use agreement appears after sign-in. Identity and model authorization are shown before any cloned speech is created.",
+    legalNotice: "After sign-in, you choose what your AI can use.",
     visualAlt: "Illustration of an educator explaining an idea in her studio",
     visualCaptions: { knowledge: "Your knowledge.", voice: "Your voice.", people: "Your people." },
     variant: {

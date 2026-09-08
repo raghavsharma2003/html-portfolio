@@ -109,6 +109,7 @@ export default async function handler(req, res) {
 
     // Resolve deployment configuration only after the SQL ownership fence.
     let provider;
+    let protectionAdapters;
     const result = await handleVoicePreviewPanel(body, {
       origin: process.env.AZURE_OPEN_VOICE_ORIGIN,
       outputStorageBucket: REPLICA_STORAGE_WRITE_BUCKET,
@@ -116,6 +117,15 @@ export default async function handler(req, res) {
       traceId: `panel_${randomUUID().replaceAll("-", "")}`,
       signal: aborter.signal,
       get provider() { return provider ||= createOpenChatterboxPreviewProvider(); },
+      prepare: () => {
+        // Constructors validate local configuration only. Resolve both before
+        // any broker readiness request can wake the GPU for unusable audio.
+        provider ||= createOpenChatterboxPreviewProvider();
+        protectionAdapters ||= Object.freeze({
+          ...createProductionProtectionAdapters({ db: q }),
+          ledger: createNeonVoicePreviewLedger(q),
+        });
+      },
       authorize: (input) => beginOwnedVoicePreview(q, user.id, input),
       markAborted: (generationId, reason) => markVoicePreviewAborted(q, user.id, generationId, reason),
       markFailed: (generationId, error) => markVoicePreviewFailed(q, user.id, generationId, error),
@@ -161,7 +171,7 @@ export default async function handler(req, res) {
       },
       protect: (input) => protectReplicaStream({
         ...input,
-        adapters: Object.freeze({ ...createProductionProtectionAdapters({ db: q }), ledger: createNeonVoicePreviewLedger(q) }),
+        adapters: protectionAdapters,
       }),
     });
 

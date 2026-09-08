@@ -17564,3 +17564,6 @@ The first closeBundle guard treated only undefined as success, so a null success
 ## `azure-web69-untyped-build-outcome-import` (2026-09-08)
 
 Frozen source `de84da66` passed remote runtime build but failed the real strict TypeScript build with TS7016 because `vite.config.ts` imported `build-outcome.mjs` without a declaration. Do not treat successful bundling as type acceptance or weaken strictness. The adjacent exact declaration replaces the missing contract.
+## `pilot71-memory-successor-excluded` (2026-09-08)
+
+Do not integrate `memory35d96557` in this pilot. Its author is revising reason disclosure and has not supplied the successor reviewed patch; importing the current commit would widen the source/API scope beyond the two requested reviewed families.

@@ -248,6 +248,10 @@ export async function handleVoicePreviewPanel(body, deps) {
   };
 
   try {
+    // Configuration validation is local and follows owner/intent authority.
+    // A missing protection service must refuse before any billable wake.
+    // Observers and sealed-result readers above need no synthesis adapters.
+    await deps.prepare?.();
     // Wake the CPU broker on the UNAUTHENTICATED health route and sign nothing
     // until it answers 200 — `rejected.md#hmac-skew-shorter-than-cold-start`.
     const health = await probeAdmissionHealth({
