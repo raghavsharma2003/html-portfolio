@@ -17593,3 +17593,7 @@ Focused measurement: n=4 reviewed eval files imported; dialogue Unicode passed 1
 ## clone-learning74-candidate-worker-fixture-controls (2026-09-08)
 
 Focused measurement: correction candidate worker n=10 groups passed and candidate materializer worker n=12 groups passed after fixture completion. The first run failed at readiness because both fixtures omitted learner commitments; no API changes or external calls occurred.
+
+## clone-voice-pronunciation75-focused-controls (2026-09-08)
+
+Focused measurement: open-voice n=77 checks passed; Hindi text frontend n=34 checks passed; Node test suite n=1 passed; 	sc -b --force passed using the identical-lock dependency junction. No cloud, DB, provider or full release checks.

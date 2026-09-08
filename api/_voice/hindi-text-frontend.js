@@ -5,7 +5,7 @@ import { voiceScriptMode } from "./language-conditioning.js";
 export const HINDI_TEXT_FRONTEND_CONTRACT = "vyakti-hindi-text-frontend/v1";
 // This contract guarantees deterministic text normalization, not an acoustic
 // pronunciation score. The latter must be established with generated audio.
-export const HINDI_PRONUNCIATION_LEXICON_CONTRACT = "vyakti-curated-hi-in-orthography/v2";
+export const HINDI_PRONUNCIATION_LEXICON_CONTRACT = "vyakti-curated-hi-in-orthography/v3";
 
 const MAX_CODE_POINTS = 4_000;
 const MAX_SYNTHESIS_SEGMENTS = 16;
@@ -114,10 +114,18 @@ function tokenLanguageAndText(token) {
   if (DEVANAGARI.test(token)) return { languageId: "hi", text: token, transformation: null };
   if (!LATIN.test(token)) return { languageId: null, text: token, transformation: null };
   const key = token.toLocaleLowerCase("en-US").replace(/[’']/g, "'");
-  if (REVIEWED_ROMAN_HINDI[key]) {
+  // Capitalized acronyms/names are not Roman-Hindi words merely because their
+  // lowercase spelling collides with one (BAS, HUM, MAIN). Only the explicit
+  // borrowing table defines multi-letter uppercase pronunciation.
+  if (/^[A-Z]{2,}$/.test(token) && !Object.hasOwn(REVIEWED_HINDI_BORROWINGS, key)) {
+    return { languageId: "en", text: token, transformation: null };
+  }
+  // Only dictionary entries are reviewed. An inherited `constructor` property
+  // otherwise inserts the native Object function into the spoken text.
+  if (Object.hasOwn(REVIEWED_ROMAN_HINDI, key)) {
     return { languageId: "hi", text: REVIEWED_ROMAN_HINDI[key], transformation: "reviewed_roman_hindi" };
   }
-  if (REVIEWED_HINDI_BORROWINGS[key]) {
+  if (Object.hasOwn(REVIEWED_HINDI_BORROWINGS, key)) {
     return { languageId: "hi", text: REVIEWED_HINDI_BORROWINGS[key], transformation: "reviewed_hindi_borrowing" };
   }
   if (/^[A-Z]$/.test(token)) {
@@ -132,13 +140,14 @@ function tokenLanguageAndText(token) {
 
 function contextualRomanHindi(lexical, position) {
   const source = lexical[position]?.source || "";
-  if (source.toLocaleLowerCase("en-US") !== "is") return null;
+  if (source.toLocaleLowerCase("en-US") !== "is" || source === "IS") return null;
   if (position < 1 || position + 2 >= lexical.length) return null;
   const previous = lexical[position - 1].source.toLocaleLowerCase("en-US");
   const postposition = lexical[position + 2].source.toLocaleLowerCase("en-US");
   // Resolve only the Hindi grammar shape "hum is concept ko". Bare `is`
   // remains English because it is one of the highest-frequency confusables.
-  if (!REVIEWED_ROMAN_HINDI[previous] || !HINDI_POSTPOSITIONS.has(postposition)) return null;
+  if (!Object.hasOwn(REVIEWED_ROMAN_HINDI, previous) || !HINDI_POSTPOSITIONS.has(postposition) ||
+      /^[A-Z]{2,}$/.test(lexical[position - 1].source) || /^[A-Z]{2,}$/.test(lexical[position + 2].source)) return null;
   return { languageId: "hi", text: "इस", transformation: "reviewed_roman_hindi_context" };
 }
 

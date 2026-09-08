@@ -17596,3 +17596,7 @@ The candidate materializer fixture expects status while the current request emit
 ## clone-learning74-candidate-worker-fixture-gap (2026-09-08)
 
 The original authored synthetic rows omitted learner_input, learner_input_sha256 and prompt_hash, causing readiness to remain false in both candidate worker suites. Adding coherent fixture fields fixed the prerequisite without weakening dataset gates or altering production code.
+
+## clone-voice-pronunciation75-context-excluded (2026-09-08)
+
+The reviewed voice commit's context records were excluded from import. Only its three reviewed source/eval paths were integrated, with local provenance recorded here.

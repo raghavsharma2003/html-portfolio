@@ -23804,3 +23804,7 @@ Integrate the four reviewed release-contract eval repairs from 98e53af1 plus its
 ## clone-learning74-candidate-worker-fixture-contract (2026-09-08)
 
 Update only the two authored synthetic candidate worker fixtures with coherent learner question bytes, their SHA-256 commitment and prompt commitment so the current dataset and learning reader can reach the worker. Preserve the minimum-session, authority, consent, spend and no-dispatch controls. Reverse if the production contract changes its required learner commitments.
+
+## clone-voice-pronunciation75-reviewed-expert-terms (2026-09-08)
+
+Integrate the reviewed voice frontend fix for expert terms and uppercase acronyms together with its focused existing eval paths. Preserve the current Hindi conditioning, disclosure, audit and binding contracts. Reverse if a focused pronunciation control permits silent rewriting or loses source-span provenance. Root import tuple: 775cc368 -> api/_voice/hindi-text-frontend.js, evals/open-voice/run.mjs, evals/speech/hindi-text-frontend.test.mjs.

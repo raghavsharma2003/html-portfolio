@@ -13,6 +13,7 @@ import {
   openChatterboxConfig,
 } from "../../api/_voice/providers/open-chatterbox-preview.js";
 import { voiceLanguageConditioning, voiceScriptMode } from "../../api/_voice/language-conditioning.js";
+import { buildVoiceTextPlan } from "../../api/_voice/hindi-text-frontend.js";
 import { assertVoicePreviewAuthorization } from "../../api/_provenance/contracts.js";
 import {
   beginOwnedVoicePreview,
@@ -661,5 +662,32 @@ ok("new Studio copy contains no em dash or en dash", !/[—–]/.test(studio));
 
 execFileSync("python", ["-m", "py_compile", "services/open-voice-runtime/app.py", "services/open-voice-runtime/broker.py", "services/open-voice-runtime/fetch_models.py", "services/open-voice-runtime/hindi_pack.py", "services/open-voice-runtime/bake_runtime_assets.py", "services/open-voice-runtime/offline_assets.py", "services/open-voice-runtime/offline_startup_probe.py"], { cwd: ROOT, stdio: "pipe" });
 ok("Python service sources compile", true);
+
+const correctedInput = "Aaj BAS constructor API ka call samjho.";
+const correctedPlan = buildVoiceTextPlan({ text: correctedInput, languageId: "hi" });
+const correctedRequests = [];
+const correctedProvider = createOpenChatterboxPreviewProvider({
+  env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },
+  fetchImpl: async (url, init) => {
+    assert.equal(init.headers["X-Vyakti-Signature"], sign(Buffer.from(SECRET, "hex"), [
+      "vyakti-open-voice/v1", "POST", "/v1/synthesize", init.headers["X-Vyakti-Timestamp"],
+      init.headers["X-Vyakti-Nonce"], digest(init.body),
+    ]));
+    const value = signedResponse(url, init); correctedRequests.push(value.request); return value.response;
+  },
+});
+const correctedResult = await correctedProvider.synthesizePreview({ text: correctedInput, languageId: "hi", seed: 42,
+  reference: { bytes: reference, sha256: digest(reference), durationMs: 5_000, languageMode: "latin_only", languageEvidenceScope: "exact_reference" },
+  style: { exaggeration: 0.6, cfgWeight: 0.4, temperature: 0.75 },
+});
+ok("corrected expert words reach the exact signed runtime request in one continuous utterance",
+  correctedRequests.length === 1 && correctedRequests[0].text === correctedPlan.targetText &&
+  correctedRequests[0].text.includes("आज BAS constructor एपीआई का कॉल समझो") &&
+  !correctedRequests[0].text.includes("native code") && correctedRequests[0].text_plan_sha256 === correctedPlan.planSha256);
+ok("pronunciation repair preserves reference, seed, style, disclosure and verified response binding",
+  correctedRequests[0].reference_sha256 === digest(reference) && correctedRequests[0].seed === 42 &&
+  correctedRequests[0].exaggeration === 0.6 && correctedRequests[0].temperature === 0.75 &&
+  correctedRequests[0].disclosure_text === OPEN_CHATTERBOX_DISCLOSURES.hi &&
+  correctedResult.renderedText === correctedPlan.targetText && correctedResult.receipt.textFrontend.planSha256 === correctedPlan.planSha256);
 
 console.log(`\nOpen voice runtime: ${passed} checks passed.`);

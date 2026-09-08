@@ -169,4 +169,33 @@ ok("the Hindi-only arm receives one auditable code-mixed utterance instead of a 
   hindiOnlyMixed.synthesisSegments[0].languageId === "hi" &&
   hindiOnlyMixed.semanticSegments.some((segment) => segment.languageId === "en"));
 
+for (const text of ["Aaj constructor call samjho.", "constructor is concept ko explain karo."]) {
+  const plan = buildVoiceTextPlan({ text, languageId: "hi" });
+  ok("inherited dictionary properties never become spoken implementation text",
+    plan.targetText.includes("constructor") && !/function Object|native code/.test(plan.targetText) &&
+    !plan.transformations.some(item => item.source === "constructor") &&
+    plan.unresolvedLatin.some(item => item.source === "constructor"));
+  if (text.startsWith("constructor is")) assert.ok(plan.targetText.includes("constructor is"));
+}
+for (const text of ["BAS API ka result dekho.", "HUM aur MAIN ka API check karo.", "hum IS concept ko samjho."]) {
+  const plan = buildVoiceTextPlan({ text, languageId: "hi" });
+  for (const token of text.match(/\b[A-Z]{2,}\b/g).filter(token => token !== "API")) {
+    assert.ok(plan.targetText.includes(token));
+    assert.ok(plan.unresolvedLatin.some(item => item.source === token));
+    assert.ok(!plan.transformations.some(item => item.source === token));
+  }
+  ok("uppercase collisions stay owner-spelled and auditable in one Hindi utterance",
+    plan.synthesisSegments.length === 1 && plan.synthesisSegments[0].text === plan.targetText &&
+    plan.targetText.startsWith(SYNTHETIC_AUDIO_DISCLOSURES.hi));
+}
+const lowerRoman = buildVoiceTextPlan({ text: "Main bas hum is concept ko samjho.", languageId: "hi" });
+ok("ordinary Roman Hindi and contextual is retain their reviewed mapping",
+  lowerRoman.targetText.includes("मैं बस हम इस कॉन्सेप्ट को समझो"));
+const knownUpper = buildVoiceTextPlan({ text: "NASA API IIT JEE AI", languageId: "hi" });
+ok("explicitly reviewed acronyms keep their supported pronunciation",
+  ["नासा", "एपीआई", "आईआईटी", "जेईई", "एआई"].every(token => knownUpper.targetText.includes(token)));
+const exactEnglish = "BAS constructor API main is a method.";
+ok("English input remains byte-identical after its fixed disclosure",
+  buildVoiceTextPlan({ text: exactEnglish, languageId: "en" }).targetText === `${SYNTHETIC_AUDIO_DISCLOSURES.en} ${exactEnglish}`);
+
 console.log(`\nhindi text frontend: ${passed} checks passed`);

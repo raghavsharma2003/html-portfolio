@@ -17088,6 +17088,24 @@
       "kind": "rejection",
       "title": "Candidate worker fixture gap",
       "at": "2026-09-08"
+    },
+    {
+      "id": "clone-voice-pronunciation75-reviewed-expert-terms",
+      "kind": "decision",
+      "title": "Reviewed expert term pronunciation fix",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-voice-pronunciation75-focused-controls",
+      "kind": "measurement",
+      "title": "Voice pronunciation focused controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-voice-pronunciation75-context-excluded",
+      "kind": "rejection",
+      "title": "Foreign voice context excluded",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29418,6 +29436,16 @@
       "src": "clone-learning74-candidate-worker-fixture-contract",
       "rel": "caused_by",
       "dst": "clone-learning74-candidate-worker-fixture-gap"
+    },
+    {
+      "src": "clone-voice-pronunciation75-reviewed-expert-terms",
+      "rel": "measured_by",
+      "dst": "clone-voice-pronunciation75-focused-controls"
+    },
+    {
+      "src": "clone-voice-pronunciation75-reviewed-expert-terms",
+      "rel": "caused_by",
+      "dst": "clone-voice-pronunciation75-context-excluded"
     }
   ]
 }
