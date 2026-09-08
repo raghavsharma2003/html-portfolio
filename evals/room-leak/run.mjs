@@ -451,6 +451,28 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // (person_id, thread names, anything they said). A future edit that made
   // this file SELECT a follower's own columns fails this line.
   const TIER_WRITE_ONLY = new Set(["_payments.js"]);
+  // The Room memory worker names vy_room_follower only while checking that
+  // migration 159's column, triggers and cascade constraints exist. It never
+  // reads a follower row here; all runtime rows come through the already
+  // admitted, fully scoped _room-memory-authority.js statements. Keep this a
+  // narrower class than ALLOWED so adding any direct follower/thread table
+  // statement to the worker fails this gate.
+  const SCHEMA_READINESS_ONLY = new Set(["_room-memory-consolidation.js"]);
+  const schemaReadinessOnly = (src) => {
+    if (src.includes("vy_room_thread")) return false;
+    const statements = src.match(/`[^`]*vy_room_follower[^`]*`/g) || [];
+    if (!statements.length) return false;
+    return statements.every((statement) =>
+      /information_schema\.columns|pg_trigger|pg_constraint|to_regclass/i.test(statement) &&
+      !/\b(?:from|join|update|insert\s+into|delete\s+from)\s+(?:public\.)?vy_room_(?:follower|thread)\b/i.test(statement));
+  };
+  const roomMemoryConsolidationSrc = scanned(fs.readFileSync(join(REPO, "api", "_room-memory-consolidation.js"), "utf8"));
+  ok("Room memory consolidation mentions follower rows only in schema readiness catalogs",
+    schemaReadinessOnly(roomMemoryConsolidationSrc));
+  ok("NEGATIVE CONTROL: catalog-only admission catches an unscoped cross-Room follower read",
+    !schemaReadinessOnly(roomMemoryConsolidationSrc + "\nconst leak = `select person_id from vy_room_follower`"));
+  ok("NEGATIVE CONTROL: catalog-only admission catches an owner-filtered follower read",
+    !schemaReadinessOnly(roomMemoryConsolidationSrc + "\nconst leak = `select person_id from vy_room_follower where owner_user_id=$1::uuid`"));
   const offenders = [];
   for (const f of fs.readdirSync(join(REPO, "api"))) {
     if (!f.endsWith(".js") || ALLOWED.has(f)) continue;
@@ -462,6 +484,10 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
     // gone by the time this substring check runs.
     const src = scanned(fs.readFileSync(join(REPO, "api", f), "utf8"));
     if (!(src.includes("vy_room_thread") || src.includes("vy_room_follower"))) continue;
+    if (SCHEMA_READINESS_ONLY.has(f)) {
+      if (!schemaReadinessOnly(src)) offenders.push(f + ":not-schema-readiness-only");
+      continue;
+    }
     if (TIER_WRITE_ONLY.has(f)) {
       // The update sits inside one large multi-CTE template literal alongside
       // other statements that ALSO contain the words "set" and "from" (the

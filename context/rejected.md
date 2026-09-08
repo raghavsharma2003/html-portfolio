@@ -17700,3 +17700,8 @@ Only reviewed correction product, CSS and eval paths were imported. Experimental
 ## `postrelease188-no-old-dependency-proof` (2026-09-08)
 
 2026-09-09 isolatedcandidate still has no node_modules. Keep knownretentionadmissionfailure and pendingRoomleak scope review. Activefrozenrelease/localapp untouched; no fullrerun whileauthorlaneactive.
+
+
+## `postrelease188-roomleak-no-data-bypass` (2026-09-08)
+
+2026-09-09 approvednegativecontrols retaincrossRoom andownerfiltered read rejection. No productionmemorypermission change, no newRoom scopewhitelist, no fullgate or testexecutedthisphase.

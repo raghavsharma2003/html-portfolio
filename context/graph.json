@@ -17502,6 +17502,24 @@
       "kind": "rejection",
       "title": "Do not claim upgraded lock changes already installed dependencies",
       "at": "2026-09-08"
+    },
+    {
+      "id": "postrelease188-roomleak-catalog",
+      "kind": "decision",
+      "title": "Keep room-leak exception limited to schema catalog inspection",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "postrelease188-roomleak-source-cut",
+      "kind": "measurement",
+      "title": "Final reviewed eval repair source imported",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "postrelease188-roomleak-no-data-bypass",
+      "kind": "rejection",
+      "title": "Reject actual data reads masquerading as catalog checks",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

@@ -17697,3 +17697,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease188-source-only-repairs` (2026-09-08)
 
 2026-09-09 n=1 source assembly. Xmldom lockentry only0.9.10 to0.9.12 with exactresolved/integrity. Root reports separateaudit0high/0critical and Share8SQLreadonly EXPLAINrollbackclose; thisagent ran no SQL/audit. No dependencies installed or tests/browser/build/tsc under auth173 lane. Own fresh install from updatedlock required before validation; old modules cannot provefix.
+
+
+## `postrelease188-roomleak-source-cut` (2026-09-08)
+
+2026-09-09 sourceonly onefile importedcleanly. Root reports author341/341 with336323retrieval+586boundary; not rerunhere. Allsevenfailurefix sources nowincluded. Combinedfreshdependencyinstall/browser/tsc/build pendingauthlane release.

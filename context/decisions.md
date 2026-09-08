@@ -23908,3 +23908,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease188-reviewed-repair-union` (2026-09-08)
 
 2026-09-09: Root approved sound058e,threeevalb912,verificatione599,activity1f9b,securitydad6 and Share0fdebe1178d76f4384e5927b2d8872f9468d4e06 netfrom938 includingc727. Exactdeltas cleanlyapplied to78bf; no foreigncontexts. Register Share recovery suite. Reverse on integratedfailure; no timeoutrelaxation or Roomleak whitelist.
+
+
+## `postrelease188-roomleak-catalog` (2026-09-08)
+
+2026-09-09 rootapprovedff27e504 exactoneevalfile. Catalogclassifier only, no broadreaderallowlist; crossRoom/ownerfiltered actualreads remain negativecontrols. Reverse on a realread accepted by classifier.
