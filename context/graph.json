@@ -17538,6 +17538,18 @@
       "kind": "rejection",
       "title": "Do not mix pending transport limits or rejected rendering experiments",
       "at": "2026-09-08"
+    },
+    {
+      "id": "combined193-source-admission-cleared",
+      "kind": "decision",
+      "title": "Independent body review clears final source freeze",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "combined193-actual-v4-eleven-pins",
+      "kind": "measurement",
+      "title": "All eleven actual v4 source hashes match combined candidate",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

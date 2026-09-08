@@ -17707,3 +17707,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `combined193-sql-source-parity` (2026-09-08)
 
 2026-09-09 n=1 sixscope byte comparison against87cd actualv4 source. Personmodel,contextauthority,contextlocker,contextevidence,citationcoordinates identicalLFbytes; replica-claims entireprefix before extractionorchestrator (all SQLdeclarations) identical. COMBINED193-SQL-SOURCE-PARITY.json recordsSHA256; this is sourceparity, not new SQL execution or yet an independentlycomputedcomposedSQLhash.
+
+
+## `combined193-actual-v4-eleven-pins` (2026-09-08)
+
+2026-09-09 compared exact source_hashes from claim-spend-ack186/scratchpad/expert-tools/context-claims187-sql-v4-1788910245637-result.json, source85fb3cbf, not older87cd. All11 match raw or EOLnormalizedSHA256. COMBINED193-ACTUALV4-SQL-PINS.json records expected/actual hashes. NoSQLretrieval/rerun/npm/dependencies/browser/build. Prior87cdprefixcheck is supplementary, actualv4receiptpins authoritative.
