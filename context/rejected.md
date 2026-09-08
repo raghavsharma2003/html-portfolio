@@ -17358,3 +17358,8 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `correction37-parsed-refusal-is-not-unknown-usage` (2026-09-08)
 
 2026-09-08 source review identified that adapter-level parsed refusal or invalid JSON content could discard otherwise validated payload usage. It now attaches measured_usage to those errors; worker validates units again and persists/settles before a failed candidate state. New executed worker negative confirms no candidate and no duplicate provider call. Truly unknown transport, missing usage and failed settlement retain held accounting; no invoice or model-success claim follows.
+
+
+## `correction47-unbound-correction-and-missing-config` (2026-09-08)
+
+2026-09-08: Frozen41 correction adapter/caller discarded provider identity despite strict comparison. Initial new-worktree worker run failed before tests on absent ignored config; copying tracked example config enabled offline controls without real secrets. Context append first failed on default Windows decoding before writing context; explicit UTF-8 fixed it. One pair cannot replace30-heldout qualification.

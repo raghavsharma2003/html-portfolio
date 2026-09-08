@@ -17360,3 +17360,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `correction37-final-refusal-accounting-proof` (2026-09-08)
 
 2026-09-08 final scoped follow-up: adapter9groups and worker8groups passed after preserving validated usage on parsed provider refusal/invalid-content errors, recording usage before failure, and exact successful/abstained job receipt lookup. Worker controls use actual service/crypto/rendering with SQL fixtures;21 exact production SQL strings and synthetic parameters captured in scratchpad/correction37-proof/sql-inventory.json. No actualSQL/provider dispatch or quality proof.
+
+
+## `correction47-offline-source-controls` (2026-09-08)
+
+2026-09-08: n=10 adapter groups and10 worker groups passed with synthetic transport/SQL fixtures. Strict admission, missing/mismatched revision measured usage, hash-bound manifest and unknown transport replay hold covered. No SQL parser, Azure inference, live billing or release acceptance ran.

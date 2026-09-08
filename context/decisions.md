@@ -23578,3 +23578,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `correction37-connected-private-candidate-worker` (2026-09-08)
 
 2026-09-08: Add existing Saved corrections panel action to authenticated correction candidate route and one-shot durable worker, Azure catalog extraction, accurately labelled private renderer and existing draft registration. Reuse full runtime and feedback SQL in same-statement admission instead of duplicating consent gates. Register's optional fourth admission argument is fixed server SQL, never request input. Migration152 source only, mirrored schema/source-erasure/catalog-walk path. No activation or owner-vote fabrication. Reverse on real authority/SQL/erasure failure or fresh held-out evidence that this representation worsens fidelity.
+
+
+## `correction47-strict-revision-lane` (2026-09-08)
+
+2026-09-08: Optional strict correction binding is enabled by expected-model configuration or a bound adapter, participates in the job model commitment and persists in the candidate build manifest. Legacy unbound calls retain their contract. Reverse if actual provider revision fields stop working, by refusing the lane until a reviewed replacement exists.

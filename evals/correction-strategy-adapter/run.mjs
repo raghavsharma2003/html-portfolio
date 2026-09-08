@@ -96,4 +96,21 @@ await group('deadline bounds ignored signal in fetch and stalled stream', async 
   await refuses(() => adapter(() => new Response(body), { timeoutMs: 10 }).generate({ plan: plan() }), 'correction_azure_timeout');
   assert.equal(cancelled, true);
 });
+await group('strict revision checks preserve measured spend on missing/mismatched model and fingerprint',async()=>{
+  const strictRequest={...request,model:'gpt-4.1-mini'};
+  const strictPlan={...plan(),request:strictRequest,request_hash:sha256Hex(canonicalJson(strictRequest))};
+  const extra={endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com',model:'gpt-4.1-mini',
+    revisionBinding:{expected_response_model:'gpt-4.1-mini-2025-04-14',baseline_snapshot_hash:'a'.repeat(64)}};
+  const valid={...payload(),model:'gpt-4.1-mini-2025-04-14',system_fingerprint:'fp_fixture47'};
+  const result=await adapter(()=>response(valid),extra).generate({plan:strictPlan});
+  assert.equal(result.provider_identity.response_model,valid.model);
+  for(const changed of [{model:undefined},{model:'gpt-4.1-mini'},{model:'gpt-4.1-mini-2026-01-01'},
+    {system_fingerprint:undefined},{system_fingerprint:'invalid'}]){
+    await assert.rejects(()=>adapter(()=>response({...valid,...changed}),extra).generate({plan:strictPlan}),error=>{
+      assert.match(error.code,/^provider_revision_/);assert.deepEqual(error.measured_usage,{input_tokens:23,output_tokens:7});return true;
+    });
+  }
+  assert.throws(()=>adapter(()=>response(valid),{...extra,revisionBinding:{...extra.revisionBinding,expected_response_model:'alias'}}),
+    {code:'provider_revision_expected_version_required'});
+});
 process.stdout.write(`${groups} correction strategy adapter groups passed; offline fixtures only.\n`);

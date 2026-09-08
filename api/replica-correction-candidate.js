@@ -24,7 +24,10 @@ export function createCorrectionCandidateHandler({db,authenticate,resolveAdapter
 }
 const serve=createCorrectionCandidateHandler({db:q,authenticate:requireUser,
  resolveAdapter:()=>createAzureCorrectionStrategyAdapter({endpoint:process.env.AZURE_FOUNDRY_ENDPOINT,
-  model:process.env.AZURE_FOUNDRY_DIALOGUE_MODEL,apiKey:process.env.AZURE_FOUNDRY_API_KEY})});
+  model:process.env.AZURE_FOUNDRY_DIALOGUE_MODEL,apiKey:process.env.AZURE_FOUNDRY_API_KEY,
+  ...(process.env.AZURE_FOUNDRY_EXPECTED_RESPONSE_MODEL?{revisionBinding:{
+   expected_response_model:process.env.AZURE_FOUNDRY_EXPECTED_RESPONSE_MODEL,
+   baseline_snapshot_hash:process.env.AZURE_CORRECTION_BASE_MODEL_COMMITMENT}}:{})})});
 export default async function handler(req,res){
  res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');
  res.setHeader('Access-Control-Allow-Headers','Authorization, Content-Type');res.setHeader('Cache-Control','no-store');
