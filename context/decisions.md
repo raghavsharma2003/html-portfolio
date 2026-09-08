@@ -23680,3 +23680,8 @@ Import only the conditional localized explanation, minimal typography and real m
 ## `integration45-audio-and-accounting` (2026-09-08)
 
 2026-09-08: Integrated authorfrozen audio406a22082e only localized disabled-voice explanation, then root-reviewed accounting46a7d077 after original45prechecks terminal. Neither grants voice or changes performance thresholds/waits. Reverse on old voicepermission mutant passing or changed networkreceipt boundaries. Infra correction remainspending beforefinalfreeze/package.
+
+
+## `correction47-strict-revision-lane` (2026-09-08)
+
+2026-09-08: Optional strict correction binding is enabled by expected-model configuration or a bound adapter, participates in the job model commitment and persists in the candidate build manifest. Legacy unbound calls retain their contract. Reverse if actual provider revision fields stop working, by refusing the lane until a reviewed replacement exists.

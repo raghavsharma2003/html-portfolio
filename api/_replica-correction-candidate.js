@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import {prepareProviderRevisionBinding,verifyProviderRevision,assertSameReportedRevision} from './_dialogue/provider-revision.js';
 import { canonicalJson,sha256Hex } from './_provenance/contracts.js';
 import { buildFeedbackDatasetDefinition,FEEDBACK_DATASET_REVIEW_SQL } from './_replica-feedback-dataset.js';
 import { loadOwnedFeedbackLearningExample } from './_replica-feedback.js';
@@ -77,8 +78,18 @@ export async function runOwnedCorrectionCandidate(db,owner,input,{adapter,env=pr
  // A deployment name alone is not an immutable base-model commitment.
  const baseModelCommitment=env.AZURE_CORRECTION_BASE_MODEL_COMMITMENT;
  if(typeof baseModelCommitment!=='string'||!/^[a-f0-9]{64}$/.test(baseModelCommitment))fail('correction_candidate_base_model_pin_required',503);
+ const strict=Boolean(env.AZURE_FOUNDRY_EXPECTED_RESPONSE_MODEL||adapter.revision_binding);
+ let revisionBinding=null;
+ if(strict){
+   const supplied=adapter.revision_binding;
+   if(!supplied)fail('correction_candidate_provider_binding_required',503);
+   revisionBinding=prepareProviderRevisionBinding({expectedResponseModel:env.AZURE_FOUNDRY_EXPECTED_RESPONSE_MODEL||supplied?.expected_response_model,
+     endpoint:supplied?.endpoint,deployment:adapter.model,baselineSnapshotHash:baseModelCommitment});
+   if(hash(revisionBinding)!==hash(supplied))fail('correction_candidate_provider_binding_changed',503);
+ }
  const b=await basis(db,owner,input);
- const modelCommitment=hash({name:adapter.name,version:adapter.version,model:adapter.model,base_model_commitment:baseModelCommitment});
+ const modelCommitment=hash({name:adapter.name,version:adapter.version,model:adapter.model,base_model_commitment:baseModelCommitment,
+   ...(revisionBinding?{provider_revision_binding:revisionBinding}:{})});
  const inserted=await db(`insert into vy_replica_correction_candidate_job
  (job_id,dataset_id,replica_id,owner_user_id,source_set_hash,protocol,model_commitment,state)
  select $4::uuid,d.dataset_id,d.replica_id,d.owner_user_id,d.source_set_hash,$5,$6,'preparing'
@@ -134,6 +145,11 @@ export async function runOwnedCorrectionCandidate(db,owner,input,{adapter,env=pr
    recorded=Boolean(responseRows[0]);
    await settleFoundrySpend(db,reservation,response.usage);settled=true;
    if(!recorded)fail('correction_candidate_response_authority_changed');
+   if(revisionBinding){
+     const identity=verifyProviderRevision({model:response.provider_identity?.response_model,
+       system_fingerprint:response.provider_identity?.system_fingerprint},revisionBinding,response.usage);
+     assertSameReportedRevision(identity,response.provider_identity);
+   }
    if(proposalError)throw proposalError;
    const latest=await basis(db,owner,input);
    if(hash(latest.runtime.personProfile.definition)!==hash(b.runtime.personProfile.definition)
@@ -142,7 +158,8 @@ export async function runOwnedCorrectionCandidate(db,owner,input,{adapter,env=pr
    const {artifact,artifact_sha256}=buildPrivateCorrectionArtifact(latest.runtime,proposal);
    const manifest={schema:'vyakti.correction-build.v1',job_id:job.job_id,source_set_hash:plan.source_set_hash,
      request_hash:plan.request_hash,catalog_hash:plan.catalog_hash,model_commitment:modelCommitment,
-     base_model_commitment:baseModelCommitment,artifact_sha256,owner_approved:false};
+     base_model_commitment:baseModelCommitment,artifact_sha256,owner_approved:false,
+     ...(revisionBinding?{provider_revision_binding:revisionBinding,provider_identity:response.provider_identity}:{})};
    const manifestHash=hash(manifest);
    const saved=await db(`with authority as (${CORRECTION_CURRENT_AUTHORITY_SQL})
     update vy_replica_correction_candidate_job j set artifact=$12::jsonb,artifact_sha256=$13,

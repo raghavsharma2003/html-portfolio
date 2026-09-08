@@ -1,5 +1,6 @@
 import { CORRECTION_REQUEST_SCHEMA } from '../../_replica-correction-request.js';
 import { canonicalJson, sha256Hex } from '../../_provenance/contracts.js';
+import {prepareProviderRevisionBinding,verifyProviderRevision} from '../../_dialogue/provider-revision.js';
 
 const API_VERSION = '2024-05-01-preview';
 const MAX_BYTES = 512_000;
@@ -57,9 +58,13 @@ export function createAzureCorrectionStrategyAdapter(options = {}) {
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   if (typeof fetchImpl !== 'function') fail('correction_azure_fetch_required');
   const timeoutMs = Math.min(45_000, Math.max(1, Number(options.timeoutMs) || 45_000));
+  const revisionBinding=options.revisionBinding?prepareProviderRevisionBinding({
+    expectedResponseModel:options.revisionBinding.expected_response_model,endpoint:options.endpoint,
+    deployment:model,baselineSnapshotHash:options.revisionBinding.baseline_snapshot_hash}):null;
   return Object.freeze({
     family: 'claim_extraction', name: 'azure-correction-strategy', version: CORRECTION_REQUEST_SCHEMA,
     model, billing: Object.freeze({ meter: 'azure_foundry_tokens', max_output_tokens: 1200 }),
+    ...(revisionBinding?{revision_binding:revisionBinding}:{}),
     async generate({ plan, signal } = {}) {
       if (signal?.aborted) fail('correction_aborted');
       const body = requestBody(plan, model);
@@ -112,6 +117,7 @@ export function createAzureCorrectionStrategyAdapter(options = {}) {
         try { payload = JSON.parse(Buffer.concat(chunks, bytes).toString('utf8')); }
         catch { fail('correction_azure_response_invalid'); }
         const usage = usageOf(payload.usage);
+        const providerIdentity=revisionBinding?verifyProviderRevision(payload,revisionBinding,usage):null;
         const choice = payload?.choices?.[0];
         if (payload?.choices?.length !== 1 || choice?.finish_reason !== 'stop'
           || choice.message?.refusal || typeof choice.message?.content !== 'string')
@@ -119,11 +125,11 @@ export function createAzureCorrectionStrategyAdapter(options = {}) {
         try { output = JSON.parse(choice.message.content); } catch { fail('correction_azure_output_invalid',usage); }
         if (!object(output)) fail('correction_azure_output_invalid',usage);
         if (controller.signal.aborted) fail('correction_aborted');
-        return { output, usage };
+        return { output, usage, ...(providerIdentity?{provider_identity:providerIdentity}:{}) };
       } catch (error) {
         if (signal?.aborted) fail('correction_aborted');
         if (timedOut) fail('correction_azure_timeout');
-        if (typeof error?.code === 'string' && error.code.startsWith('correction_')) throw error;
+        if (typeof error?.code === 'string' && (error.code.startsWith('correction_')||error.code.startsWith('provider_revision_'))) throw error;
         fail('correction_azure_network_error');
       } finally {
         clearTimeout(timer);

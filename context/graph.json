@@ -16560,6 +16560,24 @@
       "kind": "rejection",
       "title": "Scope prior evidence to its frozen source",
       "at": "2026-09-08"
+    },
+    {
+      "id": "correction47-strict-revision-lane",
+      "kind": "decision",
+      "title": "correction47 strict revision lane",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "correction47-offline-source-controls",
+      "kind": "measurement",
+      "title": "correction47 offline source controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "correction47-unbound-correction-and-missing-config",
+      "kind": "rejection",
+      "title": "correction47 unbound correction and missing config",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

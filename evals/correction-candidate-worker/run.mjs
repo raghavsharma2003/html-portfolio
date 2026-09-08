@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {prepareProviderRevisionBinding,verifyProviderRevision} from '../../api/_dialogue/provider-revision.js';
 import {mkdirSync,writeFileSync} from 'node:fs';
 import { runOwnedCorrectionCandidate, CORRECTION_DATASET_SQL, CORRECTION_JOB_READ_SQL, CORRECTION_CURRENT_AUTHORITY_SQL } from '../../api/_replica-correction-candidate.js';
 import { OWNED_RUNTIME_CONTEXT_SQL, loadOwnedRuntimeContext } from '../../api/_replica-runtime.js';
@@ -125,7 +126,8 @@ function fixture(options={}){
       throw new Error(`unrecognized fixture SQL: ${sql.slice(0,100)}`);
     }catch(error){errors.push(error);throw error;}
   };
-  function adapter(model='fixture-model') {return{family:'claim_extraction',name:'azure-correction-strategy',version:CORRECTION_REQUEST_SCHEMA,model,
+  const revision=options.strict?prepareProviderRevisionBinding({expectedResponseModel:'gpt-4.1-mini-2025-04-14',endpoint:'https://raghavsharma1729-compan-resource.services.ai.azure.com',deployment:'gpt-4.1-mini',baselineSnapshotHash:ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT}):null;
+  function adapter(model='fixture-model') {return{...(revision?{revision_binding:revision}:{}),family:'claim_extraction',name:'azure-correction-strategy',version:CORRECTION_REQUEST_SCHEMA,model,
     billing:{meter:'azure_foundry_tokens',max_output_tokens:1200},async generate({plan}){
       providerCalls++;assert.equal(plan.dispatch_allowed,false);
       const evidence=JSON.parse(plan.request.messages[1].content).evidence;
@@ -141,7 +143,7 @@ function fixture(options={}){
       // Distinct policy avoids the existing same-artifact registry dedupe;
       // this case isolates exact job lookup across model commitments.
       if(model==='model-b')output.selections[0].strategy_id='reflective_arc';
-      return{output:options.invalidProposal?{selections:[{strategy_id:'invented',supporting_feedback_ids:support}]}:output,usage:{input_tokens:100,output_tokens:25}};
+      return{...(revision&&!options.missingIdentity?{provider_identity:verifyProviderRevision({model:'gpt-4.1-mini-2025-04-14',system_fingerprint:'fp_fixture47'},revision)}:{}),output:options.invalidProposal?{selections:[{strategy_id:'invented',supporting_feedback_ids:support}]}:output,usage:{input_tokens:100,output_tokens:25}};
     }};}
   return{db,adapter,jobs,candidates,spends,budget,pairReads,errors,run:(model='fixture-model',owner=OWNER)=>runOwnedCorrectionCandidate(db,owner,input,{adapter:adapter(model),env:ENV}),
     get writes(){return writes;},get providerCalls(){return providerCalls;},assertUnchanged(){assert.equal(JSON.stringify(runtime),initial);assert.deepEqual(errors,[]);}};
@@ -186,6 +188,20 @@ await test('same model replay returns exact job after another model made a later
 await test('foreign owner cannot write, read private pairs, or call provider',async()=>{
   const f=fixture();await assert.rejects(()=>f.run('fixture-model',uid(99999)),{code:'correction_candidate_runtime_unavailable'});
   assert.equal(f.writes,0);assert.equal(f.pairReads.length,0);assert.equal(f.providerCalls,0);f.assertUnchanged();
+});
+await test('strict correction persists revision in hash-bound manifest; missing identity spends but cannot register',async()=>{
+  const good=fixture({strict:true});await good.run('gpt-4.1-mini');
+  assert.equal(good.jobs[0].build_manifest.provider_identity.response_model,'gpt-4.1-mini-2025-04-14');
+  assert.equal(good.jobs[0].build_manifest.provider_revision_binding.baseline_snapshot_hash,ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT);
+  assert.equal(hash(good.jobs[0].build_manifest),good.jobs[0].build_manifest_hash);good.assertUnchanged();
+  const bad=fixture({strict:true,missingIdentity:true});await refused(()=>bad.run('gpt-4.1-mini'));
+  assert.equal(bad.spends[0].state,'settled');assert.equal(bad.candidates.length,0);assert.equal(bad.jobs[0].state,'failed');
+  await bad.run('gpt-4.1-mini');assert.equal(bad.providerCalls,1);bad.assertUnchanged();
+});
+await test('strict configuration requires adapter binding before any database or provider action',async()=>{
+  const f=fixture();await assert.rejects(()=>runOwnedCorrectionCandidate(f.db,OWNER,input,{adapter:f.adapter(),
+    env:{...ENV,AZURE_FOUNDRY_EXPECTED_RESPONSE_MODEL:'gpt-4.1-mini-2025-04-14'}}),{code:'correction_candidate_provider_binding_required'});
+  assert.equal(f.writes,0);assert.equal(f.providerCalls,0);
 });
 console.log(`${groups} correction candidate worker groups passed; offline control flow only.`);
 if(process.argv.includes('--write-sql-inventory')){

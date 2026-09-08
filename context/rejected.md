@@ -17457,3 +17457,8 @@ The inspected Hindi fixture still contains incumbent English conversation contro
 ## `integration45-old-precheck-not-new-release` (2026-09-08)
 
 2026-09-08: Accounting46 arrived after prechecksource060eb54f. Preserve that receipt as scoped proof, not a fullrelease or proof of subsequently editedgate/infra. Finalsource must receive newguard/preparation and rootreview. No browserperformance, actualAzurematerialization or completelearningloop claimed.
+
+
+## `correction47-unbound-correction-and-missing-config` (2026-09-08)
+
+2026-09-08: Frozen41 correction adapter/caller discarded provider identity despite strict comparison. Initial new-worktree worker run failed before tests on absent ignored config; copying tracked example config enabled offline controls without real secrets. Context append first failed on default Windows decoding before writing context; explicit UTF-8 fixed it. One pair cannot replace30-heldout qualification.

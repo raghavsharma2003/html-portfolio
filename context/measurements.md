@@ -17464,3 +17464,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `integration45-private-prechecks-pass` (2026-09-08)
 
 2026-09-08: privatecopy10:06:20.660to10:09:42.003Z,201.343s, independentdirs and18emptyASTconfigexports. Precheckexec68314 terminal0,14commands allpass10:09:52.313to10:11:37.841Z: forcedTS,copy,actualVitebuild,11offline materializer/adapter/qualification/auth suites. Full2988sourcehashes unchanged at060eb54f. Receipt release45-scoped-1788862192312/result.json. After accounting46 sourceunion,12lightnetworkcontrols pass, no browser. Rootreports152153committed and145readbackpassed;155stillunapplied;156excluded.
+
+
+## `correction47-offline-source-controls` (2026-09-08)
+
+2026-09-08: n=10 adapter groups and10 worker groups passed with synthetic transport/SQL fixtures. Strict admission, missing/mismatched revision measured usage, hash-bound manifest and unknown transport replay hold covered. No SQL parser, Azure inference, live billing or release acceptance ran.
