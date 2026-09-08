@@ -23558,3 +23558,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `release34-mutable-preparation` (2026-09-08)
 
 2026-09-08: Create codex/release34-candidate from frozen integrationdf83790a. Keep it mutable pending root performance result. Prepare guard with exact root/branch/output substitutions from31 and a duplicate-suite refusal. Hold dependency copy/build/fullrelease while performance lane reserved. Reversal: final source patch or inventory change requires new reviewed guard/preparation.
+
+
+## `gpu151-actual-catalog-cap-repair` (2026-09-08)
+
+2026-09-08: Migration151 drops only vy_gpu_allocation_window_check, the measured PostgreSQL auto-name for147 multi-column actual>=0 AND actual<=reserved.149 dropped a different name and retained this obsolete cap. Preserve applied149/150, nonnegative standalone CHECK, settled receipt check1 and other guards. Real verified overrun must record debt and pause admission, not fail reconciliation. Reverse only if catalog shows this name has a different definition; protected preflight must refuse that case.

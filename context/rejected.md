@@ -17333,3 +17333,8 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `release34-duplicate-registry` (2026-09-08)
 
 2026-09-08: Integration33 merge retained two identical gpu-allocation-budget object properties. JS would run it once but AST inventory inflated total373. Preserve frozen33; remove second property in mutable34 and refuse duplicate registry names in new guard. Source inventory helper initially imported Windows path as URL and failed ERR_UNSUPPORTED_ESM_URL_SCHEME; pathToFileURL fixed it before inventory completion.
+
+
+## `gpu151-column-name-assumption` (2026-09-08)
+
+2026-09-08:149 assumed vy_gpu_allocation_window_actual_microusd_check named147 actual-cost cap. Actual PostgreSQL named the two-column check vy_gpu_allocation_window_check. DROP IF EXISTS silently did nothing and mock reconciliation missed the leftover cap. Reject naming inference and offline green asSQL proof.151 removes the catalog-confirmed old cap only, preserving nonnegative cost and settled-receipt invariants.

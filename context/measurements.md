@@ -17330,3 +17330,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `release34-registry-inventory` (2026-09-08)
 
 2026-09-08: AST inventory after duplicate repair has372 distinct suites: all359 frozen31 name/path entries retained plus13new;38classified browser suites and24gates. Guard syntax passes; dependency/config/fullprep notrun. Disk free158394241024bytes measured via PowerShell drive metadata; no resource provisioning/model spend.
+
+
+## `gpu151-catalog-and-source-controls` (2026-09-08)
+
+2026-09-08: Root actual devDB runtime failed23514 at overrun reconciliation after9 groups, cleanup zero; root read-only catalog receipt relational31-gpu-check-diagnosis-1788850824112-result.json confirms the legacy cap remains. This agent ran18 offline controls including source comparison against that actual catalog, schema mirror and wrong-name/settled-guard negative controls. These controls do not executeSQL.151 not applied by this agent; root protected DB proof remains required.

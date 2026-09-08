@@ -16152,6 +16152,24 @@
       "kind": "rejection",
       "title": "Union created duplicate GPU suite property",
       "at": "2026-09-08"
+    },
+    {
+      "id": "gpu151-actual-catalog-cap-repair",
+      "kind": "decision",
+      "title": "Repair measured legacy cost CHECK",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu151-catalog-and-source-controls",
+      "kind": "measurement",
+      "title": "Actual catalog diagnosis and18 offline controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu151-column-name-assumption",
+      "kind": "rejection",
+      "title": "Column-specific constraint-name assumption failed",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
