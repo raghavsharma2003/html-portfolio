@@ -2,7 +2,7 @@
 export function roomExpertTextProfile(env = process.env) {
   const value = env.ROOM_EXPERT_TEXT_PROFILE;
   if (value === undefined) return undefined;
-  if (value !== "lean_v1") {
+  if (!["lean_v1", "lean_v2"].includes(value)) {
     throw Object.assign(new Error("room_expert_text_profile_invalid"), { code: "room_expert_text_profile_invalid", status: 503 });
   }
   if ((env.ROOM_REPLY_LANGUAGE_POLICY !== undefined && env.ROOM_REPLY_LANGUAGE_POLICY !== "follow_current_user")

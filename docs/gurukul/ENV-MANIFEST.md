@@ -82,7 +82,7 @@ lost list content. Structural checks are separate from answer acceptance.
 
 | name | consumed at | required | fallback | breaks without it |
 |---|---|---|---|---|
-| `ROOM_EXPERT_TEXT_PROFILE` | `api/_room-expert-profile.js`, `api/_room-surface.js` | optional; exact `lean_v1` only | unset preserves the existing Room compiler | lean selection combines current-user language and expert delivery; conflicting legacy flags refuse; requires scoped published TeacherSheet and strict memory reads |
+| `ROOM_EXPERT_TEXT_PROFILE` | `api/_room-expert-profile.js`, `api/_room-surface.js` | optional; exact `lean_v1` or `lean_v2` | unset preserves the existing Room compiler | v1 bytes preserved; v2 renders approved language defaults as conditional fallback data; conflicting legacy flags refuse; requires scoped published TeacherSheet and strict memory reads; v2 model adherence unmeasured |
 
 This candidate supports the existing teaching subjects. Publication authority
 is the persisted sheet receipt column, not an independently verified grant.

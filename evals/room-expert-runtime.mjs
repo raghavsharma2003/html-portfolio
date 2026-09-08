@@ -60,9 +60,21 @@ async function setup({profile='lean_v1',remembers=false}={}) {
 await check('single exact server flag selects coherent profile; absent and conflicting values fail safely',()=>{
   assert.equal(roomExpertTextProfile({}),undefined);
   assert.equal(roomExpertTextProfile({ROOM_EXPERT_TEXT_PROFILE:'lean_v1'}),'lean_v1');
+  assert.equal(roomExpertTextProfile({ROOM_EXPERT_TEXT_PROFILE:'lean_v2'}),'lean_v2');
   for(const value of ['',null,false,'lean','lean_v1 ']) assert.throws(()=>roomExpertTextProfile({ROOM_EXPERT_TEXT_PROFILE:value}),{code:'room_expert_text_profile_invalid'});
   for(const patch of [{ROOM_REPLY_LANGUAGE_POLICY:'other'},{ROOM_REPLY_TEXT_PROFILE:'other'}]) assert.throws(()=>roomExpertTextProfile({ROOM_EXPERT_TEXT_PROFILE:'lean_v1',...patch}),{code:'room_expert_text_profile_conflict'});
   assert.equal(roomExpertTextProfile({ROOM_EXPERT_TEXT_PROFILE:'lean_v1',ROOM_REPLY_LANGUAGE_POLICY:'follow_current_user',ROOM_REPLY_TEXT_PROFILE:'expert_answer'}),'lean_v1');
+});
+await check('v2 actual Room caller preserves current user role and server-only profile selection',async()=>{
+  const w=await setup({profile:'lean_v2'});
+  const message='Hindi mein samjhao.';
+  await w.say({message,profile:'lean_v1',locale:'en'});
+  assert.equal(w.modelCalls,1);
+  assert.equal(w.compiled.profile,'lean_v2');
+  assert(w.compiled.core.includes('APPROVED LANGUAGE DEFAULT JSON'));
+  assert.equal(w.compiled.system.includes(message),false);
+  assert.deepEqual(w.turns.at(-1),{role:'user',content:message});
+  assert(w.teacherReads>=2,'published authority is checked around dispatch');
 });
 await check('development proof rejects missing or malformed teacher input before any database work or fixture writes',async()=>{
   for(const sheet of [undefined,null,{},[]]){

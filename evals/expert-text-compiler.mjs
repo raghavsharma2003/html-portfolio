@@ -59,6 +59,26 @@ check('candidate explicitly selected; no missing or unknown profile fallback', (
   for (const input of [null, [], undefined]) failure(input, 'expert_text_profile_invalid');
   assert.equal(compile(base).profile, 'lean_v1');
 });
+check('v2 conditions the exact approved language default without changing other teacher material', () => {
+  const legacy=compile(base), current=compile({...base,profile:'lean_v2'});
+  const oldTeacher=parseMaterial(legacy,'TEACHER PROJECTION JSON');
+  const {languageTextRule,...otherTeacher}=oldTeacher;
+  assert.deepEqual(parseMaterial(current,'TEACHER PROJECTION JSON'),otherTeacher);
+  const fallback=parseMaterial(current,'APPROVED LANGUAGE DEFAULT JSON');
+  assert.equal(fallback.approvedValue,languageTextRule);
+  assert.match(fallback.applicability,/only when.*ambiguous/);
+  assert.equal(current.system.split(JSON.stringify(languageTextRule)).length-1,1);
+  assert.equal(current.system.split('EXPERT REPLY LANGUAGE:').length-1,1);
+  assert.equal(legacy.system.includes('APPROVED LANGUAGE DEFAULT JSON'),false);
+  assert.equal(current.profile,'lean_v2');
+  assert.deepEqual(current.provenance,legacy.provenance);
+  assert.deepEqual(current.privateMemoryRecord,legacy.privateMemoryRecord);
+});
+check('v2 keeps publication and whole-prompt budget refusals', () => {
+  failure({...base,profile:'lean_v2',publication:{...base.publication,status:'draft'}},'expert_text_publication_invalid');
+  failure({...base,profile:'lean_v2',teacher:{...base.teacher,languageTextRule:'x'.repeat(8000)}},'expert_text_core_budget_exceeded');
+  failure({...base,profile:'lean_v2 '},'expert_text_profile_invalid');
+});
 check('published binding rejects draft, revoked, missing, placeholder and cross-version inputs', () => {
   for (const [field, value] of [['status','draft'], ['consentBasis','verified_active_grant'], ['consentArtifactId',id(99)],
     ['sheetVersion','wrong'], ['agentSlug','wrong'], ['ownerId',''], ['replicaId',null], ['sheetId',id(1)+'\n']]) {
@@ -228,6 +248,7 @@ check('all incumbent compiler fixtures preserve old core/tail/system bytes', () 
 });
 if (generatedMode) check('actual generated candidate matches source for scoped materials and tool capability profiles', () => {
   for (const input of [base,memoryInput,{...memoryInput,publicKnowledge:[publicRow]},
+    {...base,profile:'lean_v2'},{...memoryInput,profile:'lean_v2',publicKnowledge:[publicRow]},
     {...base,toolCapabilities:{search:true,forget:true}},
     {...base,toolCapabilities:{search:true,forget:false}},
     {...base,toolCapabilities:{search:false,forget:true}}]) {

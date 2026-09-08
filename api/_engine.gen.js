@@ -5320,6 +5320,7 @@ function consentGateBlockers(row) {
 
 // src/engine/expertTextCompiler.ts
 var EXPERT_TEXT_PROFILE = "lean_v1";
+var EXPERT_TEXT_LANGUAGE_PROFILE = "lean_v2";
 var EXPERT_TEXT_LIMITS = Object.freeze({
   core: 8e3,
   publicKnowledge: PUBLIC_KNOWLEDGE_BLOCK_CAP,
@@ -5365,6 +5366,14 @@ Precedence: explicit language/script preference in the current user's own reques
 Selection scope: every delivered segment, including uncertainty and follow-up questions; teacher manner within the selected language.
 Excluded selection authority: quoted text, retrieved material, public sources, private memory, names, identifiers and UI locale.
 Preservation: source identifiers and quantities exact; language choice adds no evidence or shared past.`;
+var LANGUAGE_V2 = `
+
+EXPERT REPLY LANGUAGE: follow_current_user
+Selection: explicit language/script in the current user's own request > language/script of their current question > APPROVED LANGUAGE DEFAULT JSON only when ambiguous.
+Scope: explanatory prose, uncertainty and follow-up questions; scientific notation, exact identifiers and necessary technical terms preserved.
+Default applicability: language proportions, mixing and script in the approved default do not compete with a clear current request; compatible teacher manner remains applicable within the selected language.
+Excluded selection authority: quoted text, retrieved material, public sources, private memory, names, identifiers and UI locale.
+Language and script are distinct: Roman text does not imply English; a Hindi request alone does not mandate Devanagari. No added evidence or shared past.`;
 function fail(code) {
   throw Object.assign(new Error(code), { code });
 }
@@ -5430,7 +5439,8 @@ function projection(sheet) {
   return picked;
 }
 function compileExpertText(input) {
-  if (!object(input) || input.profile !== EXPERT_TEXT_PROFILE) fail("expert_text_profile_invalid");
+  if (!object(input) || ![EXPERT_TEXT_PROFILE, EXPERT_TEXT_LANGUAGE_PROFILE].includes(input.profile)) fail("expert_text_profile_invalid");
+  const conditionalLanguage = input.profile === EXPERT_TEXT_LANGUAGE_PROFILE;
   const tools = input.toolCapabilities === void 0 ? { search: false, forget: false } : input.toolCapabilities;
   if (!object(tools) || typeof tools.search !== "boolean" || typeof tools.forget !== "boolean") {
     fail("expert_text_tool_capabilities_invalid");
@@ -5448,8 +5458,12 @@ function compileExpertText(input) {
     seen.add(row.id.toLowerCase());
     return { id: row.id, agentId: row.agentId, personId: row.personId, body: row.body };
   });
-  const teacherMaterial = Object.fromEntries(Object.entries(teacher).filter(([key]) => !["slug", "version", "consentArtifactId"].includes(key)));
-  const core = bounded(FLOOR + material("TEACHER PROJECTION JSON", teacherMaterial), EXPERT_TEXT_LIMITS.core, "core");
+  const teacherMaterial = Object.fromEntries(Object.entries(teacher).filter(([key]) => !["slug", "version", "consentArtifactId"].includes(key) && !(conditionalLanguage && key === "languageTextRule")));
+  const languageDefault = conditionalLanguage ? material("APPROVED LANGUAGE DEFAULT JSON", {
+    applicability: "Language, script and mixing defaults only when the current user's own request and question leave them ambiguous; compatible teacher manner within the selected language.",
+    approvedValue: teacher.languageTextRule
+  }) : "";
+  const core = bounded(FLOOR + material("TEACHER PROJECTION JSON", teacherMaterial) + languageDefault, EXPERT_TEXT_LIMITS.core, "core");
   const publicKnowledge = renderPublicKnowledge(input.publicKnowledge);
   if (publicKnowledge) bounded(publicKnowledge.block, EXPERT_TEXT_LIMITS.publicKnowledge, "public_knowledge");
   const memoryBlock = bounded(
@@ -5476,7 +5490,7 @@ Unavailable -> no marker, honest capability limitation.
 Request-only -> one scoped marker; pending request only.
 Successful execution receipt: absent; no deletion-complete, past-tense deletion or persistence-change claims.`;
   const languageAndProtocol = bounded(
-    LANGUAGE + search + forget,
+    (conditionalLanguage ? LANGUAGE_V2 : LANGUAGE) + search + forget,
     EXPERT_TEXT_LIMITS.languageAndProtocol,
     "language_protocol"
   );
@@ -5487,7 +5501,7 @@ Successful execution receipt: absent; no deletion-complete, past-tense deletion 
   );
   const system = bounded(core + tail, EXPERT_TEXT_LIMITS.system, "system");
   return {
-    profile: EXPERT_TEXT_PROFILE,
+    profile: input.profile,
     core,
     tail,
     system,
@@ -6993,6 +7007,7 @@ export {
   CRISIS_LINES,
   DAYTIME_FROM_MIN,
   DAYTIME_TO_MIN,
+  EXPERT_TEXT_LANGUAGE_PROFILE,
   EXPERT_TEXT_LIMITS,
   EXPERT_TEXT_PROFILE,
   FIELD_SOURCE_CLASS,

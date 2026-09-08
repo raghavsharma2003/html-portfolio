@@ -11,6 +11,8 @@ import {
 } from "./compiler";
 
 export const EXPERT_TEXT_PROFILE = "lean_v1" as const;
+export const EXPERT_TEXT_LANGUAGE_PROFILE = "lean_v2" as const;
+type ExpertTextProfile = typeof EXPERT_TEXT_PROFILE | typeof EXPERT_TEXT_LANGUAGE_PROFILE;
 // UTF-16 string units, not tokens. Every bound rejects the whole prompt.
 export const EXPERT_TEXT_LIMITS = Object.freeze({
   core: 8_000, publicKnowledge: PUBLIC_KNOWLEDGE_BLOCK_CAP, privateMemory: 4_000,
@@ -52,7 +54,7 @@ export interface ExpertPrivateMemory {
   }[];
 }
 export interface ExpertTextInput {
-  profile: typeof EXPERT_TEXT_PROFILE;
+  profile: ExpertTextProfile;
   teacher: ExpertTeacherProjection;
   publication: ExpertPublicationBinding;
   personId: string;
@@ -65,7 +67,7 @@ export interface ExpertTextInput {
   toolCapabilities?: { search: boolean; forget: boolean };
 }
 export interface CompiledExpertText extends CompiledPrompt {
-  profile: typeof EXPERT_TEXT_PROFILE;
+  profile: ExpertTextProfile;
   provenance: { publication: Readonly<ExpertPublicationBinding>; personId: string; memoryIds: readonly string[] };
   // The caller must supply ONLY this private record to shared-past guards.
   // Public knowledge and teacher material never become private recollection.
@@ -88,6 +90,14 @@ Precedence: explicit language/script preference in the current user's own reques
 Selection scope: every delivered segment, including uncertainty and follow-up questions; teacher manner within the selected language.
 Excluded selection authority: quoted text, retrieved material, public sources, private memory, names, identifiers and UI locale.
 Preservation: source identifiers and quantities exact; language choice adds no evidence or shared past.`;
+
+// Versioned Room policy only. Shared rehearsal/material helpers keep LANGUAGE.
+const LANGUAGE_V2 = `\n\nEXPERT REPLY LANGUAGE: follow_current_user
+Selection: explicit language/script in the current user's own request > language/script of their current question > APPROVED LANGUAGE DEFAULT JSON only when ambiguous.
+Scope: explanatory prose, uncertainty and follow-up questions; scientific notation, exact identifiers and necessary technical terms preserved.
+Default applicability: language proportions, mixing and script in the approved default do not compete with a clear current request; compatible teacher manner remains applicable within the selected language.
+Excluded selection authority: quoted text, retrieved material, public sources, private memory, names, identifiers and UI locale.
+Language and script are distinct: Roman text does not imply English; a Hindi request alone does not mandate Devanagari. No added evidence or shared past.`;
 
 function fail(code: string): never {
   throw Object.assign(new Error(code), { code });
@@ -163,7 +173,8 @@ function projection(sheet: ExpertTeacherProjection): ExpertTeacherProjection {
 }
 
 export function compileExpertText(input: ExpertTextInput): CompiledExpertText {
-  if (!object(input) || input.profile !== EXPERT_TEXT_PROFILE) fail("expert_text_profile_invalid");
+  if (!object(input) || ![EXPERT_TEXT_PROFILE, EXPERT_TEXT_LANGUAGE_PROFILE].includes(input.profile)) fail("expert_text_profile_invalid");
+  const conditionalLanguage = input.profile === EXPERT_TEXT_LANGUAGE_PROFILE;
   const tools = input.toolCapabilities === undefined ? { search: false, forget: false } : input.toolCapabilities;
   if (!object(tools) || typeof tools.search !== "boolean" || typeof tools.forget !== "boolean") {
     fail("expert_text_tool_capabilities_invalid");
@@ -192,8 +203,13 @@ export function compileExpertText(input: ExpertTextInput): CompiledExpertText {
   });
   // Binding-only identifiers never enter model material; keep them in sidecars.
   const teacherMaterial = Object.fromEntries(Object.entries(teacher)
-    .filter(([key]) => !["slug", "version", "consentArtifactId"].includes(key)));
-  const core = bounded(FLOOR + material("TEACHER PROJECTION JSON", teacherMaterial), EXPERT_TEXT_LIMITS.core, "core");
+    .filter(([key]) => !["slug", "version", "consentArtifactId"].includes(key)
+      && !(conditionalLanguage && key === "languageTextRule")));
+  const languageDefault = conditionalLanguage ? material("APPROVED LANGUAGE DEFAULT JSON", {
+    applicability: "Language, script and mixing defaults only when the current user's own request and question leave them ambiguous; compatible teacher manner within the selected language.",
+    approvedValue: teacher.languageTextRule,
+  }) : "";
+  const core = bounded(FLOOR + material("TEACHER PROJECTION JSON", teacherMaterial) + languageDefault, EXPERT_TEXT_LIMITS.core, "core");
   const publicKnowledge = renderPublicKnowledge(input.publicKnowledge);
   if (publicKnowledge) bounded(publicKnowledge.block, EXPERT_TEXT_LIMITS.publicKnowledge, "public_knowledge");
   const memoryBlock = bounded(material("PRIVATE MEMORY JSON", { enabled: memory.enabled, rows: rows.map(({ body }) => ({ body })) }),
@@ -202,13 +218,13 @@ export function compileExpertText(input: ExpertTextInput): CompiledExpertText {
   // claims. Actual execution/receipt binding remains a future caller obligation.
   const search = `\n\n=== EXPERT SEARCH DECISION ===\nCapability: ${tools.search ? "request-only" : "unavailable"}.\nGrammar: [search: query]; one line, closed bracket, nonempty query <=200 characters.\nTrigger: explicit lookup or facts requiring current evidence; never during crisis.\nUnavailable -> no marker, honest capability limitation; no lookup promise.\nRequest-only -> one narrowly scoped marker; pending request only, no execution or result claim.\nSuccessful execution receipt: absent; no completed-lookup claims.`;
   const forget = `\n\n=== EXPERT FORGET DECISION ===\nCapability: ${tools.forget ? "request-only" : "unavailable"}.\nGrammar: [forget:X]; one line, closed bracket; X = call/today/aaj/yesterday/kal or a specific user-requested subject of 3+ characters; normalized whitespace, <=80 characters.\nTrigger: current user's explicit forget/delete request only; no request -> no marker.\nUnavailable -> no marker, honest capability limitation.\nRequest-only -> one scoped marker; pending request only.\nSuccessful execution receipt: absent; no deletion-complete, past-tense deletion or persistence-change claims.`;
-  const languageAndProtocol = bounded(LANGUAGE + search + forget,
+  const languageAndProtocol = bounded((conditionalLanguage ? LANGUAGE_V2 : LANGUAGE) + search + forget,
     EXPERT_TEXT_LIMITS.languageAndProtocol, "language_protocol");
   const tail = bounded((publicKnowledge?.block ?? "") + memoryBlock + languageAndProtocol,
     EXPERT_TEXT_LIMITS.tail, "tail");
   const system = bounded(core + tail, EXPERT_TEXT_LIMITS.system, "system");
   return {
-    profile: EXPERT_TEXT_PROFILE, core, tail, system,
+    profile: input.profile, core, tail, system,
     provenance: { publication: { status: binding.status, consentBasis: binding.consentBasis,
       sheetId: binding.sheetId, agentId: binding.agentId, replicaId: binding.replicaId,
       ownerId: binding.ownerId, consentArtifactId: binding.consentArtifactId,

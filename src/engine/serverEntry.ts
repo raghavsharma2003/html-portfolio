@@ -33,7 +33,7 @@ export { compilePrivateExpertRehearsal, PRIVATE_REHEARSAL_PROFILE, PRIVATE_REHEA
   type PrivateRehearsalAuthority, type PrivateRehearsalInput } from "./privateExpertRehearsal";
 // Pure compiler for the explicit Room server opt-in; default compile unchanged.
 export {
-  compileExpertText, EXPERT_TEXT_PROFILE, EXPERT_TEXT_LIMITS,
+  compileExpertText, EXPERT_TEXT_PROFILE, EXPERT_TEXT_LANGUAGE_PROFILE, EXPERT_TEXT_LIMITS,
   type ExpertTextInput, type ExpertTeacherProjection, type ExpertPublicationBinding,
   type ExpertPrivateMemory, type CompiledExpertText,
 } from "./expertTextCompiler";
