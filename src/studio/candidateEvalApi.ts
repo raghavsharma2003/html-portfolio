@@ -1,10 +1,10 @@
 import { replicaRequest } from "./replicaApi";
 import type { CandidateEvalChoice, CandidateEvalDimension, CandidateEvaluation } from "./types";
 
-export async function getCandidateEvaluation(token: string, replicaId: string): Promise<CandidateEvaluation> {
+export async function getCandidateEvaluation(token: string, replicaId: string, candidateId?: string): Promise<CandidateEvaluation> {
   const data = await replicaRequest<{ evaluation: CandidateEvaluation }>(token, "/api/replica-candidate-eval", {
     method: "POST",
-    body: JSON.stringify({ op: "status", replica_id: replicaId }),
+    body: JSON.stringify({ op: "status", replica_id: replicaId, ...(candidateId ? { candidate_id: candidateId } : {}) }),
   });
   return data.evaluation;
 }

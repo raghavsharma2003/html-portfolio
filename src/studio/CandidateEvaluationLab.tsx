@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { getCandidateEvaluation, judgeCandidateAssignment } from "./candidateEvalApi";
 import { ReplicaApiError } from "./replicaApi";
 import type {
@@ -29,14 +29,17 @@ function loadError(cause: unknown) {
 export default function CandidateEvaluationLab({
   token,
   replicaId,
+  candidateId,
   stopped,
   onAuthError,
 }: {
   token: string;
   replicaId: string;
+  candidateId?: string;
   stopped: boolean;
   onAuthError: (cause: unknown) => void;
 }) {
+  const titleId = useId();
   const [evaluation, setEvaluation] = useState<CandidateEvaluation | null>(null);
   const [ratings, setRatings] = useState<Partial<Record<CandidateEvalDimension, CandidateEvalChoice>>>({});
   const [loading, setLoading] = useState(true);
@@ -48,7 +51,7 @@ export default function CandidateEvaluationLab({
     setLoading(true);
     setError("");
     try {
-      const next = await getCandidateEvaluation(token, replicaId);
+      const next = await getCandidateEvaluation(token, replicaId, candidateId);
       setEvaluation(next);
       setRatings({});
     } catch (cause) {
@@ -57,7 +60,7 @@ export default function CandidateEvaluationLab({
     } finally {
       setLoading(false);
     }
-  }, [onAuthError, replicaId, stopped, token]);
+  }, [onAuthError, replicaId, candidateId, stopped, token]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -89,11 +92,11 @@ export default function CandidateEvaluationLab({
   const progress = evaluation?.progress || { completed: 0, total: 0 };
 
   return (
-    <section className="candidate-eval-lab" aria-labelledby="candidate-eval-title">
+    <section className="candidate-eval-lab" aria-labelledby={titleId}>
       <div className="candidate-eval-head">
         <div>
           <p className="eyebrow">Blind comparison</p>
-          <h2 id="candidate-eval-title">Pick the closer voice, without being told which is which</h2>
+          <h2 id={titleId}>Pick the closer voice, without being told which is which</h2>
           <p>Compare two hidden outputs layer by layer. Their identity stays sealed until the full evaluation is complete.</p>
         </div>
         <div className="candidate-eval-seal" aria-label="Evaluation blinding status">
