@@ -42,6 +42,7 @@ export default function TurnFeedback({
   voiceHeard,
   onAuthError,
   onSaved,
+  initialOpen = false,
 }: {
   token: string;
   replicaId: string;
@@ -49,8 +50,9 @@ export default function TurnFeedback({
   voiceHeard: boolean;
   onAuthError: (cause: unknown) => void;
   onSaved?: (feedback: ReplicaTurnFeedback) => void;
+  initialOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const editor = useTurnFeedbackEditor(token, replicaId, turnId, onAuthError, onSaved);
   const { ratings, setRatings, reasons, setReasons, correction, setCorrection, saved, busy, error, ready, loading, clearCorrection, setClearCorrection } = editor;
   async function persist(nextRatings: Record<string, TurnFeedbackRating>, nextReasons = reasons) {

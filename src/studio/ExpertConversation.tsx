@@ -289,7 +289,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
           {answer.has_continuity&&<PrivateConversationSources key={`${scope}:${answer.turn_id}`} token={token} replicaId={replicaId} turnId={answer.turn_id}/>}
           <div className="expert-conversation__actions"><button type="button" disabled={!answer.can_voice || stopped || privateTextOnly} aria-describedby={answer.has_continuity === true && answer.can_voice === false ? `continuity-audio-${answer.turn_id}` : undefined} onClick={() => void speak(answer)}>{speaking === answer.turn_id ? "Stop audio" : "Listen"}</button><button type="button" aria-expanded={feedbackTurn === answer.turn_id} onClick={() => setFeedbackTurn(feedbackTurn === answer.turn_id ? "" : answer.turn_id)}>Teach a correction</button></div>
           {answer.has_continuity === true && answer.can_voice === false && <p id={`continuity-audio-${answer.turn_id}`} lang={continuityAudioLocale} className="expert-conversation__audio-note">{continuityAudioNote}</p>}
-          {feedbackTurn === answer.turn_id && <TurnFeedback token={token} replicaId={replicaId} turnId={answer.turn_id} voiceHeard={heard.has(answer.turn_id)} onAuthError={onAuthError} onSaved={() => setFeedbackRevision(current => current + 1)} />}
+          {feedbackTurn === answer.turn_id && <TurnFeedback token={token} replicaId={replicaId} turnId={answer.turn_id} voiceHeard={heard.has(answer.turn_id)} onAuthError={onAuthError} onSaved={() => setFeedbackRevision(current => current + 1)} initialOpen />}
         </article>
       </div>)}
       {sending && <p className="expert-conversation__working" role="status">Your AI is preparing a reply</p>}<div ref={latest} />

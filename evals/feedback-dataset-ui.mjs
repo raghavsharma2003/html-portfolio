@@ -111,13 +111,15 @@ try {
     await page.getByLabel("Ask your AI", { exact: true }).fill("Synthetic correction question");
     await page.getByRole("button", { name: "Send", exact: true }).click();
     await page.getByRole("button", { name: "Teach a correction", exact: true }).click();
+    assert.equal(await page.getByRole("button", { name: "Tune this", exact: true }).count(), 0);
+    await page.locator("fieldset").filter({ has: page.getByText("Wording", { exact: true }) }).getByRole("button", { name: "Exact", exact: true }).click();
     holdFeedback = true; const beforeFeedback = readCount;
-    await page.getByRole("button", { name: "This is me", exact: true }).click();
-    await page.waitForFunction(() => document.querySelector(".turn-feedback button")?.disabled === true);
+    await page.getByRole("button", { name: "Save evidence", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector(".feedback-actions .primary-button")?.disabled === true);
     assert.equal(readCount, beforeFeedback, "pending feedback does not refresh or claim saved evidence");
     assert(feedbackPending); feedbackPending(); feedbackPending = null; holdFeedback = false;
     await page.getByText("1 saved example across 1 conversation.", { exact: true }).waitFor();
-    assert.equal(readCount, beforeFeedback + 1); checks.push(`${width}: actual persisted TurnFeedback callback refreshes current counts`);
+    assert.equal(readCount, beforeFeedback + 1); checks.push(`${width}: correction intent opens the editor directly and persisted feedback refreshes current counts`);
     mode = "stale";
     const prepare = page.getByRole("button", { name: "Prepare correction set", exact: true });
     await prepare.click();

@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 import {
  ROOM_MEMORY_BATCH_SQL,ROOM_MEMORY_COMMIT_SQL,ROOM_MEMORY_LOG_SQL,
  ROOM_MEMORY_RECALL_SQL,ROOM_MEMORY_HISTORY_SQL,ROOM_MEMORY_DISCOVERY_SQL,
- ROOM_MEMORY_CONSOLIDATION_ENABLED,ROOM_MEMORY_RESPONSE_FORMAT,runRoomMemoryConsolidation,
+ ROOM_MEMORY_CONSOLIDATION_ENABLED,ROOM_MEMORY_RESPONSE_FORMAT,ROOM_MEMORY_NAME_TAXONOMY,runRoomMemoryConsolidation,
  roomMemoryAdapter,validateRoomMemoryProposal,
 } from '../../api/_room-memory-authority.js';
 
@@ -145,6 +145,28 @@ await check('strict transport schema uses exact existing enums and required fiel
  assert.deepEqual(entry.properties.name.enum,['goal','preference','person','project','learning_context','relationship']);
  for(const name of ['minItems','maxItems','minLength','maxLength','pattern'])assert.ok(!JSON.stringify(format).includes(`"${name}"`));
 });
+await check('name taxonomy is telegraphic and varied desired labels remain exactly grounded',()=>{
+ assert.ok(ROOM_MEMORY_NAME_TAXONOMY.includes('preference=learner-chosen recurring method/routine/format or like/dislike'));
+ assert.ok(ROOM_MEMORY_NAME_TAXONOMY.includes('project=explicitly named or bounded ongoing undertaking with intended outcome, excluding methods/routines/subject practice'));
+ assert.ok(ROOM_MEMORY_NAME_TAXONOMY.includes('named third party=person'));
+ assert.ok(ROOM_MEMORY_NAME_TAXONOMY.includes('quoted claim about learner=not self-report, skip unsupported trait label'));
+ assert.ok(!ROOM_MEMORY_NAME_TAXONOMY.includes('\n'));
+ const cases=[
+  {id:'501',language:'Hindi',attribution:'self',negated:false,name:'preference',quote:'मैं हर शाम रिवीजन के लिए फ्लैशकार्ड चुनता हूँ।'},
+  {id:'502',language:'Hinglish',attribution:'self',negated:false,name:'preference',quote:'Chemistry ke liye main flashcards use karta hoon.'},
+  {id:'503',language:'English',attribution:'self',negated:false,name:'project',quote:'My ongoing project is named Project Aurora, with a demo due in October.'},
+  {id:'504',language:'English',attribution:'self',negated:false,name:'learning_context',quote:'I need step-by-step support while learning organic chemistry reactions.'},
+  {id:'505',language:'Hinglish',attribution:'self',negated:true,name:'preference',quote:'Mujhe long English-only explanations bilkul pasand nahi hain.'},
+  {id:'506',language:'Hindi',attribution:'third_party',negated:false,name:'person',quote:'रिया अपनी परीक्षा के लिए हर रविवार फ्लैशकार्ड बनाती है।'},
+  {id:'507',language:'Hinglish',attribution:'quoted_claim',negated:false,name:null,quote:'Mere tutor ne kaha, "tum visual learner ho".'},
+ ];
+ const rows=cases.map(v=>({...source,id:v.id,content:v.quote}));
+ const memories=cases.filter(v=>v.name).map(v=>({source_id:v.id,kind:'user',name:v.name,quote:v.quote}));
+ const validated=validateRoomMemoryProposal({memories},rows);
+ assert.deepEqual(validated.map(v=>v.name),cases.filter(v=>v.name).map(v=>v.name));
+ assert.equal(validated.find(v=>v.source_id==='505').quote,cases.find(v=>v.id==='505').quote);
+ assert.ok(!validated.some(v=>v.source_id==='507'));
+});
 await check('actual79 grounded quotes with invented enums remain rejected; response schema reaches model options',async()=>{
  const retained=JSON.parse(readFileSync(new URL('./canary79-enum-failure.json',import.meta.url),'utf8'));
  const output=JSON.parse(retained.raw_output);
@@ -156,6 +178,7 @@ await check('actual79 grounded quotes with invented enums remain rejected; respo
   queryFn:async(sql)=>{assert.equal(sql,ROOM_MEMORY_BATCH_SQL);reads++;return[row];},
   model:async(messages,maxTokens,options)=>{
    assert.equal(maxTokens,1600);assert.deepEqual(options.responseFormat,ROOM_MEMORY_RESPONSE_FORMAT);
+   assert.ok(messages[0].content.includes(ROOM_MEMORY_NAME_TAXONOMY));
    return retained.raw_output;
   },
  }),/proposal_invalid/);
