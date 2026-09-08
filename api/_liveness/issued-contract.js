@@ -56,7 +56,8 @@ export function buildModernCaptureContract(input) {
 }
 
 // expectedHash must come from independently persisted server authority, never
-// envelope.contractSha256 alone. The modern SQL issuer/loader is not implemented.
+// envelope.contractSha256 alone. issued-authority.js persists and reloads it;
+// this pure validator grants no permission and produces no identity verdict.
 export function validateModernCaptureContract(envelope, expectedHash, now = Date.now()) {
   if (!envelope || !expectedHash) throw captureContractError('unavailable',503);
   exact(envelope,['contract','contractSha256','nonce','phrase']);

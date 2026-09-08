@@ -17096,3 +17096,128 @@ Adding publication's cron and erasure entries without adapting sweep-name discov
 ## `expert-publication-fixture-encoding` (2026-09-07)
 
 Identical retained bundle served by the incumbent fixture withoutcharset produced document.characterSet windows-1252, SyntaxError, empty Reactroot and0APIrequests. Adding only UTF-8 meta produced UTF-8, no parseerror, profile selector and1readinessrequest. Production studio/index HTML already declared UTF-8. Fix fixture encoding, preserve same-bundle negative and positive controls; do not alter product code or call a timeout an answer-rendering failure. Full30publicationcontrols then passed.
+
+
+## `selected-reference-network-and-scope-assumptions30-20260908` (2026-09-08)
+
+Pre-header socket destruction produced two native Chromium issue POSTs from one application fetch. Retain trace1788819455669; backend must consume exact input at most once. Use interrupted body for causal uncertainty UI control. Also reject an abort barrier based solely on server socket state and a supplied scope signal that silently removes the default deadline. Exact failures and negative controls are retained in the slice report.
+
+
+## `release29-timeout-not-proved-fixed30-20260908` (2026-09-08)
+
+Release29 creator timed out after25checks without DOM evidence; action focus timed out after45checks before an action, with11.5second first-frame gap and later rendered screenshot. Neither reproduced in bounded runs. The gap does not identify resource blocking versus scheduling. Reject palette changes, force clicks, broad timeout increases and a claim that no bug exists merely because isolated reruns pass.
+
+
+## `modern-issued-authority30-snapshot-and-bootstrap-20260908` (2026-09-08)
+
+Rejected try-advisory/NOWAIT as sufficient freshness: a competing decision append can commit after statement snapshot but before lock acquisition, leaving old accepted evidence visible without an epoch mutation. Also rejected insert-before-expire replacement because migration016 has a partial unique live-challenge index; failed insertion must roll back prior expiry rather than swallow a conflict. Reusing private_text_epoch for voice review would invalidate completed publication answer readback. Signed VAD revisions were discarded by normalizedMeasurements, so historical reference compatibility cannot be inferred. Finally, legacy selected artifacts require prior liveness plus training/biometric consent; this is not a brand-new-owner comparison producer. The handoff preserves these walls and specifies a distinct purpose-limited reference preparation caller without training/inference grants.
+
+
+## `expert-release29-preserve-junction-and-install-private` (2026-09-07)
+
+Automatic review rejected replacing the assembly node_modules junction. It remains intact. Created a new detached checkout with its own npm ci, proved package/lock equal to assembled29, then switched the clean checkout to the exact finalcommit under codex/expert-29-release. GuardV2 refuses junctions and distinguishes terminalprocess from successful exit. This fresh checkout is the safe completed alternative; no deletion retry or shared dependency mutation occurred.
+
+
+## `expert-azure-face-digest-not-capture-proof` (2026-09-07)
+
+Focused primary-source research distinguishes Azure Face result digest integrity from a hash of our captured audio/video/timeline. No documented shared MediaStream/audio interface was established. SyncNet/AASIST can supply bounded measurements but do not establish the current calibrated identity contract; clip averaging, duration truncation and unmeasured Hindi/Hinglish attacks remain material limits. Research is evidence for the next experiment, not permission to activate readiness or label a score liveness probability. Source SAME-CAPTURE-VOICE-RESEARCH-20260908.md SHAa6cf024fb1a6104c4e5148cb73001b7c7b026cace6252b9c26685ae56f208415.
+
+
+## `expert-parallelism-not-quality-evidence` (2026-09-07)
+
+Reject counting parallel agents or passed preflight checks as product quality. Native29 is the already-consumed pendulum regression; its result cannot establish general grounding or voice likeness. Post29 UI and issued-authority changes remain isolated and readiness remains unavailable without the calibrated same-capture producer. Reverse only with applicable measured end-to-end evidence, not more activity.
+
+
+## `expert-reference-review-trylock-snapshot-gap` (2026-09-07)
+
+A competing artifact/evidence review can commit after the authority statement snapshot but before advisory lock acquisition; old accepted decisions may still be visible. NOWAIT does not prove freshness. Reusing private_text_epoch would also invalidate previously completed publication answers, an unwanted cross-feature effect. Dedicated versioning and real overlapping-transaction evidence are required. Legacy selected reference also requires prior liveness/training, leaving first-owner enrollment dependency unresolved; do not claim full issuance from this slice.
+
+
+## `expert-separator-global-occurrence-assumption` (2026-09-07)
+
+Old test expected one globally occurring separator regex; generated engine now has separate expert-prose and companion paths, yielding actual3 versus expected2 split-array assertion. It failed before any behavioral checks. Preserve original fullgate failure and narrow the negative-control mutation to its actual caller. The two browser timeouts remain separately unresolved, not classified environmental without evidence.
+
+
+## `expert-diagnostic30-deleted-source-helper` (2026-09-07)
+
+Root read diagnostic30 delta and found the request replacement's old span accidentally included sourceRows while new span omitted it. That deletes a helper used by both primary execution and cleanup. Fifteen diagnostics-unit groups and reversible-text equality did not catch the missing callable. No live derivative execution occurred. Agent must restore exact function and add coverage of lexical/helper preservation before any launcher preparation.
+
+
+## `expert-verification-cards-not-final-design` (2026-09-07)
+
+Root inspected actual UI30 mobile screenshot: eight large consent cards and server-verifier implementation prose dominate the screen. Keep explicit permissions and real recording binding, replace repeated card borders with compact accessible rows, and explain the result boundary in plain language. New design31 remains isolated pending browser/independent review; no claim that fixture checks prove whole-product design quality.
+
+
+## `expert-native30-successful-boundary-not-old-cause` (2026-09-07)
+
+Instrumented diagnostic30 has passed private-draft open, published and joined, and reached one model attempt; response and cleanup remain pending on exec28215. This does not identify original29 FEED_PROBE_FAILED cause, and no inference result is claimed yet. Never erase the earlier failed run because a later attempt passes.
+
+
+## `expert-native30-quality-does-not-clear-cleanup` (2026-09-07)
+
+The measured answer and10flow checks passed, but EPERM interrupted cleanup and final scope counts are absent. Do not report whole native pass or infer the original29 failure cause. The current diagnostic error allowlist also omitted EPERM; expand only via reviewed diagnostics if needed, never print arbitrary error messages or secrets.
+
+
+## `expert-candidate30-provisional-plan-hash` (2026-09-07)
+
+Initial assembly refused provisional planhashadbacb before writes. Author confirmed finalda8d83de only adds9contextnodes6edges and corrects unqueried migration wording; codepins33fileinventory unchanged. Root reviewed final and assembled once. Finalmanifest is immutable. No hash-check bypass or in-place frozen source change occurred.
+
+
+## `expert-sql-witness-truncation-and-cleanup` (2026-09-07)
+
+Independent SQL harness review found pg_stat_activity may truncate11KBtarget SQL and holder-close failure may skip reader release. Proposed harness-only follow-up must use a unique retained query marker/full local query hash with actual reader/blocker PIDs and visible-prefix evidence, plus nested cleanup for both sessions. No database setting increase or realSQL success is assumed. Production3462 unchanged.
+
+
+## `expert-authority30-parser-not-runtime` (2026-09-07)
+
+Eight valid SQL shapes do not prove that a valid owner can issue, that failed replacement rolls back, that a concurrent review is refused or that selected-reference erasure works. Retain separate parser and actual execution receipts. First-owner comparison selection and fresh-upload worker remain additional product dependencies, not solved by144.
+
+
+## `authority30-runtime-proxy-proof` (2026-09-07)
+
+Eight EXPLAIN successes cannot establish replacement rollback, revocation or concurrent issuance correctness. The next evidence must execute the pinned real SQL, witness blocked reader sessions, include the retained no-epoch negative and prove exact fixture cleanup. No readiness or voice likeness follows from this harness.
+
+
+## `authority30-shared-decision-id-assumption` (2026-09-07)
+
+The offline fixture guard only checked parameters and could not type-check SQL. Reusing UUID evidence decision IDs for vy_replica_processing_artifact_decision.decision_id fails real PostgreSQL; actual column isbigint. Split these identities correctly and cover seed/count/delete/preflight queries with real parsing before another runtime claim.
+
+
+## `authority30-attempt-owner-columns` (2026-09-07)
+
+Whole-fixture audit found a second deterministic defect: attempt hasjob_id, no replica_id/owner_user_id. Use exact ownedjob SELECT forinsert and declaredjobIDs forcount; retain old42703negative. Original absence42883receipt remains unchanged.
+
+
+## `authority30-timestamp-driver-assumption` (2026-09-07)
+
+The fixture returns verification_lease_expires_at through pgClient whereas production q returns rawNeonHTTPJSON. A Date object may canonicalize as{} and converting to ISO may lose PostgreSQLmicroseconds. Do not weaken exact lease timestamp equality or call timestamp parsing success a loader proof. Actual diagnosis and precision-preserving fix pending.
+
+
+## `authority30-date-iso-fix` (2026-09-07)
+
+Date.toISOString cannot recover PostgreSQL microseconds, so converting driver Date to ISO would hide22007 yet fail exact lease binding. Fixture now asksPostgres for text, validates string and passes unchanged into actualproductionloader.
+
+
+## `authority30-runtime-not-identity` (2026-09-07)
+
+V5uses syntheticrows and noAzure inference. It cannot establish humanidentity, samecaptureproviderreadiness, ownerlikeness, freshuploadcompletion, marketfitness or deployment. Preserve these unfinishedrequirements after accepting the transaction evidence.
+
+
+## `modern-authority-uuid-artifact-fixture30-20260908` (2026-09-08)
+
+Rejected UUID artifact decision fixtures: database column is generated-always bigint, causing actual42883 at absence; seed also wrongly supplied UUID identity. Whole-fixture audit found attempt table lacks owner/replica columns. Prior8production EXPLAINs excluded fixture queries and did not prove them. See MODERN-AUTHORITY30-FIXTURE-TYPES-20260908.md.
+
+
+## `modern-authority-date-is-not-json30-20260908` (2026-09-08)
+
+Rejected direct pgClient Date leaseExpiresAt: canonical JSON produces{} and SQL timestamptz fails22007. Also reject Date.toISOString repair: original .123456 becomes .123, breaking exact timestamp equality. Production HTTP q preserves strings; fixture must match transport precision.
+
+
+## `modern-authority-explain-not-runtime-guard30-20260908` (2026-09-08)
+
+Rejected treating passed EXPLAIN as evidence the runtime guard permits a query: EXPLAIN intentionally bypasses mutation checks, while artifact review updates model_build and voice_genome and old runtime allowlist rejected before DB. Preserve exact hash/owner scope instead of weakening checks.
+
+
+## `candidate30-no-premature-deploy` (2026-09-07)
+
+Selection145 remains dirtyunfrozen despite agentreported19backend/28mounted; preparation146 froze atc5385f85 with26focusedoffline, no realSQL;147meterisolate exists but no implementedchangesverified. Twoagents stopped with usage-limit errors. Preserve theirwork; do not inferbackgroundcompletion or deploythese slices. Root cancontinue verifiedcandidate30 work. Initial integrationhelper Windowscp1252read failed beforewrites; explicitUTF8 repair integrated successfully, no partialsourcecopy fromfailedattempt.

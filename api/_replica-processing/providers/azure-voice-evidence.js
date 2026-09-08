@@ -320,10 +320,23 @@ function normalizedMeasurements(value, inputs) {
   if (!value.measurements || typeof value.measurements !== "object" || !value.quality || typeof value.quality !== "object") {
     fail("voice_evidence_measurements_invalid");
   }
+  // Preserve signed service provenance through the existing voice_measurement
+  // record. Never infer the VAD revision, and never promote a similarly named
+  // arbitrary measurement field into the authoritative top-level revision map.
+  if (hasRevisions && Object.hasOwn(value.model_revisions, "silero-vad") &&
+      (typeof value.model_revisions["silero-vad"] !== "string" ||
+       !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(value.model_revisions["silero-vad"]) ||
+       value.model_revisions["silero-vad"] !== value.model_revisions["silero-vad"].trim() || value.model_revisions["silero-vad"].length > 32)) {
+    fail("voice_evidence_model_revisions_invalid");
+  }
+  const { model_revisions: ignoredMeasurementRevisionMap, ...measurements } = value.measurements;
+  if (hasRevisions) measurements.model_revisions = Object.freeze(Object.fromEntries(
+    ["speechbrain-ecapa", "speechbrain-xvector", "silero-vad"].filter(key => Object.hasOwn(value.model_revisions, key))
+      .map(key => [key, value.model_revisions[key]])));
   return Object.freeze({
     embeddings: Object.freeze(embeddings),
     confidence: finite(value.confidence, 0, 1),
-    measurements: value.measurements,
+    measurements: Object.freeze(measurements),
     quality: value.quality,
   });
 }

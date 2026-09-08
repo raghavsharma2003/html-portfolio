@@ -81,6 +81,38 @@ const embeddings = actual.evidence.filter((row) => row.evidence_type === "voice_
 check("actual worker records keep family revisions and measured input SHA", () => {
   for (const row of embeddings) { assert.equal(row.value.model_revision, BY_FAMILY[row.value.family]); assert.equal(row.input_sha256, source.sha256); }
 });
+check("signed VAD provenance survives normalized measurements and actual hashed worker record", () => {
+  assert.deepEqual(normalized.measurements.model_revisions, REVISIONS);
+  const measurement = actual.evidence.find(row => row.evidence_type === "voice_measurement");
+  assert.deepEqual(measurement.value.measurements.model_revisions, REVISIONS);
+  assert.throws(() => { normalized.measurements.model_revisions["silero-vad"] = "0.0.0"; }, TypeError);
+});
+const absentVad = payload(); delete absentVad.model_revisions["silero-vad"];
+const absentVadResult = await run(adapterFor(absentVad).voice_quality);
+check("historical missing VAD stays absent through real worker", () => {
+  assert.equal(absentVadResult.outcome, "complete");
+  assert(!Object.hasOwn(absentVadResult.evidence.find(row => row.evidence_type === "voice_measurement").value.measurements.model_revisions, "silero-vad"));
+});
+const nestedOnly = payload(); delete nestedOnly.model_revisions; nestedOnly.measurements.model_revisions = { ...REVISIONS };
+const nestedOnlyResult = await run(adapterFor(nestedOnly).voice_quality);
+check("nested arbitrary measurement map cannot impersonate signed top-level revision provenance", () => {
+  assert.equal(nestedOnlyResult.outcome, "complete");
+  assert(!Object.hasOwn(nestedOnlyResult.evidence.find(row => row.evidence_type === "voice_measurement").value.measurements, "model_revisions"));
+});
+for (const invalid of [null, 6.2, "", "latest", "6.2.1\n"]) {
+  const invalidVad = payload(); invalidVad.model_revisions["silero-vad"] = invalid;
+  await rejects(`malformed signed VAD revision refuses: ${JSON.stringify(invalid)}`,
+    () => adapterFor(invalidVad).voice_quality.measure(request), /voice_evidence_model_revisions_invalid/);
+}
+const changedVad = payload(); changedVad.model_revisions["silero-vad"] = "6.2.2";
+const changedVadResult = await run(adapterFor(changedVad).voice_quality);
+check("changed signed VAD changes measurement ID and hash without changing embedding bytes", () => {
+  const oldMeasurement = actual.evidence.find(row => row.evidence_type === "voice_measurement");
+  const newMeasurement = changedVadResult.evidence.find(row => row.evidence_type === "voice_measurement");
+  assert.notEqual(oldMeasurement.evidence_id, newMeasurement.evidence_id);
+  assert.notEqual(oldMeasurement.record_hash, newMeasurement.record_hash);
+  assert.deepEqual(changedVadResult.evidence.filter(row => row.evidence_type === "voice_embedding"), embeddings);
+});
 const segment = createEvidenceRecord({ ...source, created_by_job_id: job.job_id, evidence_type: "speaker_segment",
   span: { start_ms: 0, end_ms: 2000 }, confidence: 0.8, value: { speaker_key: "speaker-1", target_likelihood: 0.8 },
   input_sha256: source.sha256, adapter: adapters.diarize, adapter_stage: "diarize" });
@@ -168,4 +200,12 @@ check("historical absent-revision manifest is byte-identical to prior builder be
 const wrongMapper = await mutant("../../api/_replica-processing/providers/azure-voice-evidence.js", "model_revision: value.model_revisions[revisionKeys[embedding.family]]", "model_revision: value.model_revisions['speechbrain-ecapa']");
 const misbound = await adapterFor(payload(), wrongMapper.createAzureVoiceEvidenceAdapters).voice_quality.measure(request);
 check("negative control detects incorrect family-to-service revision mapping", () => assert.throws(() => assert.equal(misbound.embeddings[1].model_revision, BY_FAMILY[XVECTOR])));
+const droppedMap = await mutant("../../api/_replica-processing/providers/azure-voice-evidence.js", "measurements: Object.freeze(measurements),", "measurements: value.measurements,");
+const droppedMapResult = await run(adapterFor(payload(), droppedMap.createAzureVoiceEvidenceAdapters).voice_quality);
+check("retained pre-fix adapter expression loses VAD through the actual worker while corrected path preserves it", () => {
+  const oldMeasurement = droppedMapResult.evidence.find(row => row.evidence_type === "voice_measurement");
+  assert.equal(oldMeasurement.value.measurements.model_revisions, undefined);
+  assert.throws(() => assert.deepEqual(oldMeasurement.value.measurements.model_revisions, REVISIONS));
+  assert.deepEqual(actual.evidence.find(row => row.evidence_type === "voice_measurement").value.measurements.model_revisions, REVISIONS);
+});
 console.log(`${checks} revision lineage checks passed; signed fixtures only, no model or identity acceptance.`);

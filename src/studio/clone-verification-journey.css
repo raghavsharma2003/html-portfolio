@@ -688,6 +688,42 @@
     background: color-mix(in srgb, #fff 78%, transparent);
   }
 
+  .cvj-shell .challenge-empty .biometric-consent-list {
+    gap: 0;
+    margin-top: 20px;
+  }
+
+  .cvj-shell .challenge-empty .biometric-consent-list legend {
+    margin-bottom: 8px;
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+
+  .cvj-shell .challenge-empty .biometric-consent-list label {
+    min-height: 44px;
+    padding: 10px 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .cvj-shell .challenge-empty .biometric-consent-list label + label {
+    border-top: 1px solid var(--cvj-line);
+  }
+
+  .cvj-shell .comparison-recording {
+    margin-bottom: 12px;
+  }
+
+  .cvj-shell .comparison-recording p {
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
   .cvj-shell .identity-form,
   .cvj-shell .challenge-empty,
   .cvj-shell .model-consent-ceremony,

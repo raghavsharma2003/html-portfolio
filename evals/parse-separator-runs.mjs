@@ -19,9 +19,16 @@ const bubbles = text => engine.parseBubbles(text).bubbles;
 const runtime = readFileSync(new URL('../api/_engine.gen.js', import.meta.url), 'utf8');
 const current = String.raw`/\n?-{3,}\n?|\n+/`;
 const previous = String.raw`/\n?---\n?|\n+/`;
-assert.equal(runtime.split(current).length, 2, 'one actual separator expression');
+// Expert prose now has its own math-preserving splitter. Target the actual
+// companion branch, rather than assuming its regex is globally unique.
+const target = `raw.split(${current})`;
+const replacement = `raw.split(${previous})`;
+assert.equal(runtime.split(target).length, 2, 'one actual companion separator expression');
 const mutantPath = join(mkdtempSync(join(tmpdir(), 'separator-regression-')), 'old-runtime.mjs');
-writeFileSync(mutantPath, runtime.replace(current, previous));
+const mutated = runtime.replace(target, replacement);
+assert.notEqual(mutated, runtime, 'negative control must change the actual runtime');
+assert.equal(mutated.replace(replacement, target), runtime, 'only the intended parser branch changes');
+writeFileSync(mutantPath, mutated);
 const old = await import(pathToFileURL(mutantPath).href);
 
 check('three or more hyphens are completely consumed without phantom bubbles', () => {

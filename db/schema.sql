@@ -5730,3 +5730,7 @@ create index if not exists vy_text_publication_owner_ix on vy_text_publication(o
 create index if not exists vy_text_visitor_user_ix on vy_text_publication_visitor(visitor_user_id);
 
 create index if not exists vy_text_request_user_ix on vy_text_publication_request(visitor_user_id,publication_id);
+
+-- Migration 144 - private comparison authority, independent of text.
+alter table vy_replica
+  add column if not exists reference_authority_epoch bigint not null default 0;

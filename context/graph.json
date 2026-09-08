@@ -15387,6 +15387,456 @@
       "kind": "measurement",
       "title": "Four actual SQL shapes parsed against development Postgres",
       "at": "2026-09-07"
+    },
+    {
+      "id": "selected-reference-explicit-producer30-20260908",
+      "kind": "decision",
+      "title": "Bind the existing permission flow to the exact reviewed selected recording",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "selected-reference-producer24-mounted30-20260908",
+      "kind": "measurement",
+      "title": "Actual selected-reference UI and caller controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "selected-reference-network-and-scope-assumptions30-20260908",
+      "kind": "rejection",
+      "title": "Do not equate one fetch with one native HTTP attempt",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "creator-target-before-contrast30-20260908",
+      "kind": "decision",
+      "title": "Measure only after the actual creator target exists",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release29-browser-bounded122-20260908",
+      "kind": "measurement",
+      "title": "Unchanged browser reruns and repaired creator audit",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release29-timeout-not-proved-fixed30-20260908",
+      "kind": "rejection",
+      "title": "Do not declare release timeouts fixed by standalone passes",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "modern-issued-authority30-20260908",
+      "kind": "decision",
+      "title": "Persist modern capture authority in the existing biometric grant receipt and use a dedicated reference_authority_epoch (",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "modern-issued-authority30-offline-20260908",
+      "kind": "measurement",
+      "title": "On 2026-09-08 in isolated source based f4235c68",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "modern-issued-authority30-snapshot-and-bootstrap-20260908",
+      "kind": "rejection",
+      "title": "Rejected try-advisory/NOWAIT as sufficient freshness",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "expert-release29-frozen-private-checkout",
+      "kind": "decision",
+      "title": "Run release29 on the exact frozen commit and private dependencies",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-release29-started",
+      "kind": "measurement",
+      "title": "Full release29 started on70263",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-release29-preserve-junction-and-install-private",
+      "kind": "rejection",
+      "title": "Do not disturb shared dependencies to add a renderer",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-native29-reviewed-known-regression",
+      "kind": "decision",
+      "title": "Prepare one connected known regression on frozen assembly29",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-native29-proposal-and-hosting-inventory",
+      "kind": "measurement",
+      "title": "Native29 proposal emitted and deployment access rechecked",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-azure-face-digest-not-capture-proof",
+      "kind": "rejection",
+      "title": "Do not reinterpret Face communication digest as audiovisual lineage",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-parallel-four-slot-continuation",
+      "kind": "decision",
+      "title": "Use all available specialist slots with an active goal",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-native29-execution-start",
+      "kind": "measurement",
+      "title": "Native29 protected execution started after independent preflight",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-parallelism-not-quality-evidence",
+      "kind": "rejection",
+      "title": "Agent counts cannot establish completion or superiority",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-native29-failed-before-dispatch-cleaned",
+      "kind": "measurement",
+      "title": "Native29 failed before inference and completed cleanup",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-reference-review-dedicated-epoch",
+      "kind": "decision",
+      "title": "Use dedicated review epoch for reference authority",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-reference-review-trylock-snapshot-gap",
+      "kind": "rejection",
+      "title": "Advisory try-lock alone cannot refresh a database snapshot",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-separator30-target-actual-branch",
+      "kind": "decision",
+      "title": "Target regression mutation to companion parser caller",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-separator30-eight-controls",
+      "kind": "measurement",
+      "title": "Eight separator regression groups passed after fixture repair",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-separator-global-occurrence-assumption",
+      "kind": "rejection",
+      "title": "Shared regex count does not identify parser under test",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-release29-terminal-23-of-24",
+      "kind": "measurement",
+      "title": "Release29 completed with one failed gate",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-release30-preserve-terminal29",
+      "kind": "decision",
+      "title": "Preserve release29 while fixing failed suites separately",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-diagnostic30-deleted-source-helper",
+      "kind": "rejection",
+      "title": "Reversible textual patch alone missed deleted live helper",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-native-diagnostic30-reviewed-execution",
+      "kind": "decision",
+      "title": "Run one instrumented attempt after cleaned pre-dispatch failure",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-native-diagnostic30-started",
+      "kind": "measurement",
+      "title": "Instrumented native attempt and verification design checks started",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-verification-cards-not-final-design",
+      "kind": "rejection",
+      "title": "Functional verification screen still needs visual refinement",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-verification-design31-focused-pass",
+      "kind": "measurement",
+      "title": "Simplified permissions passed mounted and source checks",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-verification-design31-preserve-permissions",
+      "kind": "decision",
+      "title": "Compact permission rows with unchanged authority",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-native30-successful-boundary-not-old-cause",
+      "kind": "rejection",
+      "title": "Passing prior boundary does not explain prior failure",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-native-diagnostic30-answer-cleanup-pending",
+      "kind": "measurement",
+      "title": "Live answer passed but cleanup needs recovery",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-native30-resume-cleanup-only",
+      "kind": "decision",
+      "title": "Recover pending cleanup from pinned manifest",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-native30-quality-does-not-clear-cleanup",
+      "kind": "rejection",
+      "title": "Successful response cannot override incomplete cleanup",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-candidate30-assembled-focused",
+      "kind": "measurement",
+      "title": "Thirty-three reviewed files assembled and focused checks passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-cleanup30-zero-inference-resume",
+      "kind": "decision",
+      "title": "Execute reviewed cleanup-only recovery",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-candidate30-provisional-plan-hash",
+      "kind": "rejection",
+      "title": "Do not assemble from a changing preparation manifest",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-cleanup30-complete",
+      "kind": "measurement",
+      "title": "Cleanup-only recovery completed with zero inference",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-native30-joint-evidence",
+      "kind": "decision",
+      "title": "Use separate answer and recovery receipts as joint scoped evidence",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-sql-witness-truncation-and-cleanup",
+      "kind": "rejection",
+      "title": "Full activity-text assumption and incomplete session teardown rejected",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-authority30-real-parser",
+      "kind": "measurement",
+      "title": "Migration144 and eight actual SQL parser checks passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-authority30-prove-runtime-after-parser",
+      "kind": "decision",
+      "title": "Require real transaction checks after parsing",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "expert-authority30-parser-not-runtime",
+      "kind": "rejection",
+      "title": "EXPLAIN does not prove receipt state transitions",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-runtime-launch",
+      "kind": "decision",
+      "title": "Run scoped real authority transactions",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-launcher-controls",
+      "kind": "measurement",
+      "title": "Protected launcher offline verification",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-runtime-proxy-proof",
+      "kind": "rejection",
+      "title": "Parsing does not prove transactional behavior",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-fixture-types-repair",
+      "kind": "decision",
+      "title": "Repair runtime fixture types before acceptance",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-runtime-absence-failed",
+      "kind": "measurement",
+      "title": "Real runtime preflight failure before mutation",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-shared-decision-id-assumption",
+      "kind": "rejection",
+      "title": "Artifact and evidence decisions have different ID types",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-v3-runtime-launch",
+      "kind": "decision",
+      "title": "Run corrected fixture and authority acceptance",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-v3-offline-ready",
+      "kind": "measurement",
+      "title": "Corrected source and launcher verified offline",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-attempt-owner-columns",
+      "kind": "rejection",
+      "title": "Processing attempt ownership is inherited from its job",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-v3-terminal-diagnosis",
+      "kind": "decision",
+      "title": "Preserve successful transaction evidence and diagnose lease timestamp",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-v3-transactions",
+      "kind": "measurement",
+      "title": "Real parser and replacement checks passed before timestamp failure",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-timestamp-driver-assumption",
+      "kind": "rejection",
+      "title": "Timestamp transport representations require exact matching",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-v4-runtime-launch",
+      "kind": "decision",
+      "title": "Preserve timestamp precision in runtime fixture",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-v4-offline",
+      "kind": "measurement",
+      "title": "Timestamp fixture controls and source pins passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-date-iso-fix",
+      "kind": "rejection",
+      "title": "Do not normalize an already truncated Date",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-v5-acceptance",
+      "kind": "decision",
+      "title": "Accept scoped SQL behavior for release review",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-v5-real-sql-passed",
+      "kind": "measurement",
+      "title": "Eighty real SQL checks and three witnessed races passed",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "authority30-runtime-not-identity",
+      "kind": "rejection",
+      "title": "Database authority is not biometric or product acceptance",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "modern-authority-fixture-types30-20260908",
+      "kind": "decision",
+      "title": "Preserve generated artifact selection identity and parse all fixture SQL before seed",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "modern-authority-fixture-types-controls30-20260908",
+      "kind": "measurement",
+      "title": "2026-09-08: parent actual acceptance failed pre-seed42883 with zero created fixtures/providers",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "modern-authority-uuid-artifact-fixture30-20260908",
+      "kind": "rejection",
+      "title": "Rejected UUID artifact decision fixtures: database column is generated-always bigint, causing actual42883 at absence; seed also wrongly supplied UUID identity",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "modern-authority-timestamp-text30-20260908",
+      "kind": "decision",
+      "title": "Preserve exact PostgreSQL timestamp text in the SQL Client fixture; do not change production HTTP caller or exact lease equality",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "modern-authority-timestamp-controls30-20260908",
+      "kind": "measurement",
+      "title": "2026-09-08: parent V3 SQL passed59checks then valid-load22007;48cleanup counts0,5sessionsclosed,282queries,0providers",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "modern-authority-date-is-not-json30-20260908",
+      "kind": "rejection",
+      "title": "Rejected direct pgClient Date leaseExpiresAt: canonical JSON produces{} and SQL timestamptz fails22007",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "modern-authority-exact-review-guard30-20260908",
+      "kind": "decision",
+      "title": "Permit the two existing artifact-review retirement writes only under their exact frozen SQL hash and declared fixture tuple",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "modern-authority-exact-review-controls30-20260908",
+      "kind": "measurement",
+      "title": "2026-09-08: V4 actual63checks then launcher-local ERR_ASSERTION;48cleanupcounts0,7sessionsclosed,315queries,0providers",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "modern-authority-explain-not-runtime-guard30-20260908",
+      "kind": "rejection",
+      "title": "Rejected treating passed EXPLAIN as evidence the runtime guard permits a query: EXPLAIN intentionally bypasses mutation checks, while artifact review updates model_build and voice_genome and old runtime allowlist rejected before DB",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "candidate30-release-freeze",
+      "kind": "decision",
+      "title": "Freeze assembled candidate for complete release gate",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "candidate30-integration-final",
+      "kind": "measurement",
+      "title": "Combined source and SQL evidence integration",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "candidate30-no-premature-deploy",
+      "kind": "rejection",
+      "title": "New work and agent stops do not constitute a release",
+      "at": "2026-09-07"
     }
   ],
   "edges": [
@@ -27482,6 +27932,66 @@
       "src": "publication-release-integration29-20260908",
       "rel": "caused_by",
       "dst": "publication-registry-is-not-operational-integration29-20260908"
+    },
+    {
+      "src": "selected-reference-explicit-producer30-20260908",
+      "rel": "measured_by",
+      "dst": "selected-reference-producer24-mounted30-20260908"
+    },
+    {
+      "src": "selected-reference-explicit-producer30-20260908",
+      "rel": "caused_by",
+      "dst": "selected-reference-network-and-scope-assumptions30-20260908"
+    },
+    {
+      "src": "creator-target-before-contrast30-20260908",
+      "rel": "measured_by",
+      "dst": "release29-browser-bounded122-20260908"
+    },
+    {
+      "src": "creator-target-before-contrast30-20260908",
+      "rel": "caused_by",
+      "dst": "release29-timeout-not-proved-fixed30-20260908"
+    },
+    {
+      "src": "modern-issued-authority30-20260908",
+      "rel": "measured_by",
+      "dst": "modern-issued-authority30-offline-20260908"
+    },
+    {
+      "src": "modern-issued-authority30-20260908",
+      "rel": "caused_by",
+      "dst": "modern-issued-authority30-snapshot-and-bootstrap-20260908"
+    },
+    {
+      "src": "modern-authority-fixture-types30-20260908",
+      "rel": "measured_by",
+      "dst": "modern-authority-fixture-types-controls30-20260908"
+    },
+    {
+      "src": "modern-authority-fixture-types30-20260908",
+      "rel": "caused_by",
+      "dst": "modern-authority-uuid-artifact-fixture30-20260908"
+    },
+    {
+      "src": "modern-authority-timestamp-text30-20260908",
+      "rel": "measured_by",
+      "dst": "modern-authority-timestamp-controls30-20260908"
+    },
+    {
+      "src": "modern-authority-timestamp-text30-20260908",
+      "rel": "caused_by",
+      "dst": "modern-authority-date-is-not-json30-20260908"
+    },
+    {
+      "src": "modern-authority-exact-review-guard30-20260908",
+      "rel": "measured_by",
+      "dst": "modern-authority-exact-review-controls30-20260908"
+    },
+    {
+      "src": "modern-authority-exact-review-guard30-20260908",
+      "rel": "caused_by",
+      "dst": "modern-authority-explain-not-runtime-guard30-20260908"
     }
   ]
 }

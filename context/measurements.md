@@ -17102,3 +17102,128 @@ On an isolate based exactly on frozen f027349a, all six release28-failing suites
 ## `expert-publication29-four-real-sql-shapes` (2026-09-07)
 
 At2026-09-07T21:54:13.482Z, n=4 actual export/heartbeat shapes passed EXPLAIN in BEGIN READ ONLY on vyakti_expert_integration_20260906. Negative invalid-column control returned42703. No ANALYZE, writes, private rows, real export or expiry executed. Source42a01d02 and2811tracked hashes unchanged; root verified3sourcepins equal merged29 and retained receiptSHA5f32d096fcd158f8f4b189c5e8fc35d9cc8aaafc68782c8e8e3ad276048f1334. This proves parser/type acceptance for these query bytes, not whole-product execution.
+
+
+## `selected-reference-producer24-mounted30-20260908` (2026-09-08)
+
+On 2026-09-08,24 mounted controls passed (12 each390/1440) through actual Journey/Capture/client and exact AST-extracted Studio callbacks against synthetic localhost JSON. Receipt1788819592661. Client11 and incumbent Journey31 also passed. No real model/auth/SQL or identity acceptance. See research/SELECTED-REFERENCE-UI30-20260908.md for actual scope and retained failures.
+
+
+## `release29-browser-bounded122-20260908` (2026-09-08)
+
+On2026-09-08, unchanged creator32 and focus58 passed on exactf4235c68 with release29 built bytes/dependencies reused read-only, then creator32 passed after target-before-audit repair. Receipts1788819913680/1788819927384/1788820001886. No full workload recreation, timeout increase, CSS change or provider/SQL call. Original failure retained.
+
+
+## `modern-issued-authority30-offline-20260908` (2026-09-08)
+
+On 2026-09-08 in isolated source based f4235c68: new41 offline actual issuer/registry/loader/SQL-capture controls passed; revision-lineage56 passed including10 new signed VAD retention and retained-old-expression controls. Impacted incumbent groups passed modern-capture52, readiness16, liveness22, composite13, evidence25, identity-audio39, replica-review38 and self-test31. Synthetic transport/DB callbacks only; no real SQL, model, browser, deployment, identity or likeness acceptance. Eight actual query shapes and one proposed unapplied migration are prepared for root parser/CAS proof. Copy7scopes21negatives passed.
+
+
+## `expert-release29-started` (2026-09-07)
+
+At2026-09-07T21:56:00.821Z, actual exec70263/PID32704 started scripts/verify-release.mjs under guardV2. Prep release29-preparation-1788818134936.json recorded2832trackedfiles,24gates,356suites,34browser suites, source digest835112ea2a365f6541f1860cca948e6379fd1b4e4ab93ec9dd56ae5e68b062b3, emptyconfig and privateKaTeX0.18.7 install. Logrelease29-1788818160820.log; completionreceipt sameprefix-completion.json. No terminal result yet. Separate SQL4shape EXPLAIN plus42703negative passed and exact3sourcepins match mergedcommit. No native29 modelcall/push/deploy.
+
+
+## `expert-native29-proposal-and-hosting-inventory` (2026-09-07)
+
+On2026-09-07 root preparer --check and --write-proposal passed:522native sources,25queries, noquerydelta, frozenf4235c68, fourlauncher files emitted. NodeSHAcf6d94c7a10b2f33bb6c95d46c046e772751a386f6f881f36b03ca02a384a1d7; PythonSHA3081a5df3e88ceae5d8e37c3ac87ec22f33bfcf8914f245c0ea33fe7abad7d0c. No new livecall yet. Read-only Vercel listteams returned[]; bounded Azure ARM inventory21:59:50Z found33resources and15hosting-type resources, all namedvoice ContainerApps, no separate Web/sites or staticSites. Zero writes/keyreads; this is resource inventory, not deploy capability or readiness.
+
+
+## `expert-native29-execution-start` (2026-09-07)
+
+On 2026-09-07 root offline check exec29789 exited0:522sources,25queries,7helpers,blankconfig,max1,servicesfalse. Independent review also passed; computed conservative reservation3493microUSD is an estimate, not billing. Root launched exactly one --execute at exec97514; protected readiness confirmed Azure gpt-4.1-mini2025-04-14 GlobalStandard eastus2, publication cap0.01USD and existing global1USD. No response or cleanup outcome yet. Release29 exec70263 remains running; its log reports layout readability251563ms and performance budgets109469ms passed.
+
+
+## `expert-native29-failed-before-dispatch-cleaned` (2026-09-07)
+
+Actual exec97514 exited1. Run22:09:41.269Z to22:13:57.115Z on2026-09-07: publication readiness200/can_publish true, then generic FEED_PROBE_FAILED before any answer. Model attempts0, no quality result. Cleanup complete, errors0, all145 scoped private counts0, both synthetic auth absent, ledger preserved. Blob delete202 and subsequent HEAD404 recorded. Artifact native-text-publication-run-checkpoint29.json SHA750230779a6633283a5e90c8aaabca988a00e2dc17aa7ab670b8bf379fe38a02. Failure diagnosis pending; no restart.
+
+
+## `expert-separator30-eight-controls` (2026-09-07)
+
+On2026-09-08 root isolated expert-separator30 atf4235c68 and committed2d0d936a: twofiles, no production edits. Actual eight retained parser/shared-gate groups passed, including ghost-bubble negative and recovered timing/label. First run missing ignored config was environmental; exact pinned all-empty config installed, no service calls. Release29 full eval reports failures creator-cascade-order and explicit-action-focus browser timeouts plus the repaired separator setup assertion; run70263 still pending remaining gates. Local deploy plan only succeeded: vyakti-clone source sha256:6cac3f84b74836c7480060910310cc0605b12de695014e0677a81a7d4b4d1142,1061inputs,29172399bytes; no deployment.
+
+
+## `expert-release29-terminal-23-of-24` (2026-09-07)
+
+Actual exec70263 exited1 at2026-09-07T22:19:56.167Z, started21:56:00.821Z.23of24gates passed including layout, performance, accessibility and securityheaders. Eval suite failed creator-cascade-order locator timeout after25checks, explicit-action-focus navigation timeout after45checks, and parse-separator-runs global regex-count assertion. Completionreceipt release29-1788818160820-completion.json proves source/head/config/dependencies unchanged and terminalprocess. Two relational gates skipped, not passed. Isolated parser repair2d0d936a already passes8focused controls, not integrated or a replacement fullgate.
+
+
+## `expert-native-diagnostic30-started` (2026-09-07)
+
+On2026-09-08 local, root launched diagnostic30 --execute at exec28215 after defaultoffline passed522sources/25queries/21helperartifacts. New output native-text-publication-run-diagnostic30.json, no outcome yet. Root design31 worktree based UI42e19f51 installed158packages privately in52s; twofiles simplify permission row presentation and plain wording while preserving8choices. Impeccable detector[]; mounted check exec93385 started and first unavailable-state check passed. No completed visual acceptance claimed.
+
+
+## `expert-verification-design31-focused-pass` (2026-09-07)
+
+2026-09-08: root design31 commita72cf570 based UI42e19f51 changes3files.24mounted groups at390/1440 passed, root viewed both permission screenshots, independent source review found all8choices/callers/bindings intact. ForcedTypeScript/copy7scopes21negatives/diff/detector passed. Receipt expert-verification-design31/scratchpad/selected-reference-comparison/1788819932994/result.json. This is synthetic connected UI coverage, not real verification/provider acceptance.
+
+
+## `expert-native-diagnostic30-answer-cleanup-pending` (2026-09-07)
+
+Root exec28215 terminal exit1 at2026-09-07T22:29:16.061Z. All10actual flow checks passed, one settled Azure call1150input179output747microUSD. Raw/delivered Hindi gives2.5seconds/0.4Hz, corrects frequency misconception, length explicitly unknown; independent original8rubric checks passed, delivered only normalizes blanklines. Ledger141531to142278microUSD,reserved0,preserved. Cleanup stopped EPERM; source delete202/HEAD404 recorded, final145scope counts/auth absence not yet proven. Terminalartifact native-text-publication-run-diagnostic30.json SHAd2ba959c8b0c7b7a67c353b9fffa9960ccafcbdbc031c290f48f34eda057f2d8. No further modelcall authorized by cleanup.
+
+
+## `expert-candidate30-assembled-focused` (2026-09-07)
+
+Root assembled33noncontext paths from UI42e19f51/designa72cf570/parser2d0d936a/creator-auditef65dd8e/authority3462b1f6 into expert-30-combined basedf4235c68. Exact commit/predecessor hashes checked before writes. Agent added2UI test registrations and9contextnodes6edges; graph2555/2424 passed. Root private npmci158packages40s, forcedTypeScript passed, actual41authority and8separator groups passed on combinedsource. SQL144 and fullrelease remain pending; no accepted integration/push/deploy.
+
+
+## `expert-cleanup30-complete` (2026-09-07)
+
+Actual exec59006 exited0; run2026-09-07T22:34:54.800Z to22:36:16.923Z. cleanup_complete,0modelcalls,0errors,145scope counts all0,both authabsent,2content-free IDledgers retained, billingpreserved142278microUSDspent/0reserved. Receipt native-text-publication-cleanup-diagnostic30.json SHA00253dc01f3a94f0b7b56bd5057fe9ff27fb29482e8de9b9d0d3a4177bfe2310. Original diagnostic30 answer/10flow checks passed but its EPERM terminalreport remains unchanged; this separate receipt closes cleanup only.
+
+
+## `expert-authority30-real-parser` (2026-09-07)
+
+Root exec29059 exited0. On2026-09-07T22:39:39.298Z to22:39:48.888Z, exact devdatabase vyakti_expert_integration_20260906 initially lacked reference_authority_epoch; applied reviewed one-statement144, catalog confirms bigint/notnull/default0. All8actual exported/caller-captured SQL EXPLAIN shapes passed plus42703negative in READONLY transaction, noANALYZE/no fixturewrites/providers. Receipt modern-authority30-migrate-explain-1788820779297.json SHA2dfe7ef082efa5f480c06ab32123e93538ce333b9183bc45c4ce1fb4ff86e2bb. Frozenproduction pins checked before/after.
+
+
+## `authority30-launcher-controls` (2026-09-07)
+
+2026-09-08: n=16 offline control groups passed in modern-authority30-launcher-offline-1788821179157.json. Root separately inspected launcher, guards and runtime harness and ran default check against37 source closure files,23 SQL runtime files and8queries. These are preparation checks, not SQL runtime evidence.
+
+
+## `authority30-runtime-absence-failed` (2026-09-07)
+
+n=1 run, 2026-09-07T22:47:00.349Z through22:47:05.488Z, terminalexit1. Receipt modern-authority30-sql-1788821220349-e4912018-94d8-40f1-b035-c0e0ba8c86c1-result.json records absence42883,checks0,races0,seeded0,provider0 and no session errors. Follow-up READONLY information_schema returned298 IDcolumns in authority30-column-types-1788821271651.json. Actual artifact decision_id isbigint, whereas fixture absence casts shared IDs to uuid[].
+
+
+## `authority30-v3-offline-ready` (2026-09-07)
+
+2026-09-08: Root default--check passed45sourceclosure/23runtime/8production/42fixture querypins. Agent source14+fixture7+launcher17controlgroups passed. These results do not prove realSQL execution; nextrootrun must supply that evidence.
+
+
+## `authority30-v3-transactions` (2026-09-07)
+
+n=1 V3run22:55:17.119Z to22:56:29.922Z September7UTC;282queries/5sessions.8production+42fixture EXPLAINs,3retainednegatives and6issuance/replacement/duplicate checks passed. valid-load22007; races0. Cleanup3ownerfixturesx16tablecounts allzero,sessionerrors0,provider0. Receipt modern-authority30-sql-v3-1788821717119-359235fa-fd41-4685-8ddd-9aa5e3fc076d-result.json SHAb71b32fed39ec5333264170cd3e246a6c6c7442b2b09b131d862c104658ad4d3.
+
+
+## `authority30-v4-offline` (2026-09-07)
+
+2026-09-08: root V4defaultcheck passed45source/23runtime/8production/42fixture. Agent14harness+9fixture+17launcher controls passed. Actual installedClient timestamp parser reproduces Date canonical{} and .123456 to .123 millisecondloss offline. Runtime stillpending.
+
+
+## `authority30-v5-real-sql-passed` (2026-09-07)
+
+n=1 V5run2026-09-07T23:05:29.258Z to23:07:43.131Z;500queries,17sessions,80checks including53EXPLAINshapes+3parsernegatives,3actualblockedPIDwitnessraces with returnedrows0/1/0. Retainednoepochnegative permits1row; guardedcasesreturn0.54scopedcleanupcounts0,sessionerrors0,providers0. Receipt modern-authority30-sql-v5-1788822329258-961ce76b-3929-4e70-9a4d-41e3aaf75b57-result.json SHAf5fedd793c09f0cda0507329fe68e8475da47f76b9656c81412ba4804707431b. Sourcececc71e5, production3462unchanged.
+
+
+## `modern-authority-fixture-types-controls30-20260908` (2026-09-08)
+
+2026-09-08: parent actual acceptance failed pre-seed42883 with zero created fixtures/providers. Actual catalog298 ID columns retained,67 for fixture tables. Agent offline14harness plus7schema/fixture controls passed;42fixture queries prepared for root EXPLAIN alongside8production shapes. No SQL run by agent; next actual acceptance pending.
+
+
+## `modern-authority-timestamp-controls30-20260908` (2026-09-08)
+
+2026-09-08: parent V3 SQL passed59checks then valid-load22007;48cleanup counts0,5sessionsclosed,282queries,0providers. InstalledClient OID1184 reproduced Date to canonical{} and microsecond loss offline.14harness+9schema controls pass after fixture text RETURNING; no agent SQL execution.
+
+
+## `modern-authority-exact-review-controls30-20260908` (2026-09-08)
+
+2026-09-08: V4 actual63checks then launcher-local ERR_ASSERTION;48cleanupcounts0,7sessionsclosed,315queries,0providers. Offline exactproductionquery replay reproduces guard refusal.13queryguard+14harness+9schema controls pass;45fixturequeries prepared, no agent SQL.
+
+
+## `candidate30-integration-final` (2026-09-07)
+
+2026-09-08: candidate30-runtime-integration.json records8newfiles andsourcececc71e5. Graph2618/2430 afterharnessunion. Priorcombined41authority+8parser+11client+24mounted+forcedTS passed; realSQL80/races3/cleanup54 passed separately andcandidate8actualSQL hashesequal. Fullrelease30 notyetstarted.

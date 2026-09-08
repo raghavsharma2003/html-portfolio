@@ -23325,3 +23325,128 @@ Close publication's existing export, visitor inventory, cron observability and p
 ## `expert-candidate29-freeze-combined-source` (2026-09-07)
 
 Assemble math retention, nativeMathML rendering, verification navigation, fixture layer/encoding corrections and the six publication integration repairs in one candidate29 commit. Transfer that commit into the separately installed expert-29-release checkout; compare package/lock hashes before reusing its private install. Full gate and known native regression require this immutable source. Reversal: any new defect or drift requires a reviewed change and new freeze, not mutation under a running gate.
+
+
+## `selected-reference-explicit-producer30-20260908` (2026-09-08)
+
+Use the actual authenticated comparison descriptor and explicit unchecked statements in the existing verification step. Fresh read and opaque snapshot comparison precede issue; current unavailable producer requests no permission. Reverse only with equivalent explicit current-recording authority and measured scope controls, never by inferring consent from old grants.
+
+
+## `creator-target-before-contrast30-20260908` (2026-09-08)
+
+Wait for the existing target control before contrast measurement; retain deadlines and old layer-order negatives. Add passive failure diagnostics. This is audit completeness, not a proved fix for release29 timeout. Reverse only if equivalent target coverage and failure attribution are retained.
+
+
+## `modern-issued-authority30-20260908` (2026-09-08)
+
+Persist modern capture authority in the existing biometric grant receipt and use a dedicated reference_authority_epoch (proposed migration144) for successful reference review and issuance. Bind the owner preview pre-state and store the incremented post-state; the actual registry supplies the SQL loader. Keep capture readiness false, preserve legacy voice/training gates and forbid old grant conversion. Existing primary/live-challenge uniqueness and atomic rollback govern replacement. Reverse if real PostgreSQL CAS/rollback proof admits stale authority, owner erasure retains private evidence, or a narrower implementation proves equivalent isolation. Details: docs/gurukul/research/MODERN-ISSUED-AUTHORITY30-HANDOFF-20260908.md.
+
+
+## `expert-release29-frozen-private-checkout` (2026-09-07)
+
+Candidate29 is frozen atf4235c6809128d00f336fb73b127e75afe6493b2 in both assembly and fresh release checkout. Run fullgate only in expert-29-release; keep assembly available for separately pinned native proof preparation to avoid transient generated API files. No heavy external browser/build jobs during the release performance window. Reverse on any source/config/dependency drift or actual failed gate; never mutate the running tree.
+
+
+## `expert-native29-reviewed-known-regression` (2026-09-07)
+
+Root reviewed10 native inventory changes against27: seven API changes, two independently checked EOL-only schema changes and the pinned math dependency. The25 SQL statements and lease remain byte-identical. Generated new source-pinned Node/Python proposal after explicit review874a1c47a892a34c3e663711039ae10a81c071bf2a07daf585745e22dee04866. Preserve one inference, existing1USD development ledger,0.01USD publication ceiling, no retry, raw/delivered evidence and complete synthetic cleanup. Reverse on source/query/accounting/cleanup drift or factual failure. No execution is claimed by preparation.
+
+
+## `expert-parallel-four-slot-continuation` (2026-09-07)
+
+User requested tens of agents and a persistent goal. This runtime permits four concurrent agents including root. Keep root on release integration and live proof, one specialist on independent quality review, one on issued recording authority, and one on its actual client flow. Reassign completed specialists sequentially. Existing full-product goal remains active without a token budget. Reverse task allocation when dependencies or evidence make another bounded subtask more useful; never pretend unavailable concurrency exists.
+
+
+## `expert-reference-review-dedicated-epoch` (2026-09-07)
+
+Post29 source review exposed stale reference approval after append-only artifact/evidence decisions. Implement a dedicated reference review epoch in proposed migration144, verified free against current inventory, and update actual successful reference-relevant writers with consistent source/replica locking. Keep changes isolated until actual SQL and concurrency checks. Reverse if a smaller proven mechanism preserves fresh reference authority without invalidating unrelated answers. No migration has been applied.
+
+
+## `expert-separator30-target-actual-branch` (2026-09-07)
+
+Use unique raw.split expression to mutate the actual companion runtime for retained separator negative controls. The new expert math-preserving prose splitter legitimately reuses the regex. Assert mutation and exact reverse restoration. Reversal: caller movement or duplication must fail setup and trigger review, never arbitrary first-occurrence mutation.
+
+
+## `expert-release30-preserve-terminal29` (2026-09-07)
+
+Keep accepted integration26 and frozen29 unchanged. Complete narrow browser diagnosis, parser fixture integration and real native test diagnostics before deciding the next candidate. Reverse release refusal only with applicable fullgate and connected native evidence;23passinggates do not establish product completion.
+
+
+## `expert-native-diagnostic30-reviewed-execution` (2026-09-07)
+
+Root reviewed actual Node/Python against exact7/5 changes and independently reran18helper controls and Python defaultoffline. Candidate remains f4235c68,522sources/25SQL, same corpus/rubric, max1call,0.01publication/existing1USDdevelopment cap. Prior29 artifact pins failed/model0/completecleanup. Diagnostic derivative sourceRows deletion was restored and regression-controlled before this attempt. Reverse on source drift, budget uncertainty or cleanup failure; no automatic retry.
+
+
+## `expert-verification-design31-preserve-permissions` (2026-09-07)
+
+Keep eight individual unchecked permissions, exact key/payload contracts and recording snapshot validation. Replace repetitive bordered cards with compact labelled rows and plain language. Reversal requires evidence of lost permission comprehension or accessibility, then revise wording/layout without weakening authority.
+
+
+## `expert-native30-resume-cleanup-only` (2026-09-07)
+
+Prepare a separate reviewed cleanup-only launcher using existing resumeNativeTextPublicationCleanup against exact failed manifest/source, with new output preserving terminalreport. No account create/publish/model dispatch. Stop concurrent artifact readers during execution to reduce possible Windows file sharing contention; this is precaution, not proven diagnosis. Reverse only after complete scoped zero-count/auth/physical/ledger receipts.
+
+
+## `expert-cleanup30-zero-inference-resume` (2026-09-07)
+
+Root read Node/Python scope and defaultoffline passed522sources/25queries/7helpers/maxnewcalls0. Launched cleanup30 exec59006, protectedstorageonly, no modelcredentials. Uses unchanged original resume helper with same cleanup functions and pinned pendingmanifest, newoutput preserving failedrun. Poll process only while active; finalcleanup unknown at start. Reverse pending status only on authoritative zero-count/auth/physical/ledger receipt.
+
+
+## `expert-native30-joint-evidence` (2026-09-07)
+
+Retain diagnostic30 response/ledger/replay evidence plus cleanup-only receipt, never rewrite failed terminalreport as passed. Together they establish one known Hindi pendulum native case onf423 with exact cleanup. Reverse scoped acceptance on answer/ledger/cleanup binding mismatch; do not infer owner identity, voice likeness, broad model superiority or production readiness.
+
+
+## `expert-authority30-prove-runtime-after-parser` (2026-09-07)
+
+Parser acceptance permits proceeding to the reviewed source-pinned runtime/race harness; it does not establish issuance or revocation behavior. Final a8daeca harness adds unique test-query marker/prefix/PID witnesses and robust nested session cleanup. Protected launcher preparation remains offline until rootreview. Reverse on any race, rollback, fixturecleanup or authority mismatch.
+
+
+## `authority30-runtime-launch` (2026-09-07)
+
+2026-09-08: Root reviewed the final a8daeca runtime harness and launcher ee52ea65f088525411e04c4508bed1e2ae50531035ac307fd28b13df752443b7. Execute only against vyakti_expert_integration_20260906, with durable distinct fixture manifests, exact source pins, tracked session closure and no model calls. Migration144 already exists. Reversal: any source mismatch, foreign fixture scope, cleanup failure or transaction/race failure prevents acceptance.
+
+
+## `authority30-fixture-types-repair` (2026-09-07)
+
+2026-09-08: Root live runner terminated before seed at absence SQLSTATE42883. Preserve failed receipt and repair only harness using actual column metadata; production authority is not implicated by this preflight result. Reversal: runtime evidence locating a production defect requires a separate implementation repair and new freeze.
+
+
+## `authority30-v3-runtime-launch` (2026-09-07)
+
+2026-09-08: Root reviewed08e88ad7 and V3launcher, retaining production unchanged. RealEXPLAIN of42fixture shapes now precedes all fixture writes; generated artifact bigint identity is DBallocated and durably checkpointed. Attempt ownership uses scoped job join. Reversal: any parser/runtime/race/cleanup failure blocks acceptance and requires scoped diagnosis.
+
+
+## `authority30-v3-terminal-diagnosis` (2026-09-07)
+
+2026-09-08: V3exec57614 terminalexit1 at valid-load22007. Preserve receipt and scoped successes; no raceacceptance. Check pgClientDate vs production NeonHTTPJSON timestamp representation and microsecond precision before production edits. Reversal: evidence from the actual production string path showing fault requires production repair.
+
+
+## `authority30-v4-runtime-launch` (2026-09-07)
+
+2026-09-08: Root reviewed85c4f416; fixture SQL returns timestamp::text and rejects nonstring, retaining microseconds. Production equality and production SQL unchanged. RunV4realacceptance with same scope/session controls. Reversal: failure reproduced with exact production-compatible text needs production diagnosis, not weaker timestamp equality.
+
+
+## `authority30-v5-acceptance` (2026-09-07)
+
+2026-09-08: V5terminalpass establishes scoped real issuance/revocation/epoch behavior and exact synthetic cleanup on developmentDB. Retain originalfailures and negativecontrols; independentreview required before finalcandidatefreeze. Reversal: a mismatchedpin, failedretainednegative, nonzerocleanup or runtimecaseoutside verifiedscope reopensacceptance. No identity/voicequality accepted.
+
+
+## `modern-authority-fixture-types30-20260908` (2026-09-08)
+
+Preserve generated artifact selection identity and parse all fixture SQL before seed. Rationale: actual catalog and first42883 failure contradict UUID fixtures. Reversal requires contrary real catalog/parser evidence or equivalent scoped cleanup. Production remains unchanged.
+
+
+## `modern-authority-timestamp-text30-20260908` (2026-09-08)
+
+Preserve exact PostgreSQL timestamp text in the SQL Client fixture; do not change production HTTP caller or exact lease equality. Reversal: contradictory actual transport evidence or an equivalent precision-preserving representation.
+
+
+## `modern-authority-exact-review-guard30-20260908` (2026-09-08)
+
+Permit the two existing artifact-review retirement writes only under their exact frozen SQL hash and declared fixture tuple. Explicitly count their scopes. Reversal requires SQL drift or actual evidence of broader writes; never globally allowlist model/voice tables.
+
+
+## `candidate30-release-freeze` (2026-09-07)
+
+2026-09-08: Root integrated eight reviewed SQL harness/evidence files fromcecc71e5,9contextnodes6edges; actualcandidate8productionSQL hashes match acceptedV5. Independentreview53482de9 acceptsboundedSQL80checks3races54zero. Freeze candidate30 forfullrelease; accepted26/local5177 unchanged until gates. Reversal: any gate/source mutation failure keepscandidate unaccepted.
