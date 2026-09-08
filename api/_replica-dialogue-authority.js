@@ -1,5 +1,7 @@
 import {personProfileValiditySql} from "./_person-model.js";
 export const DIALOGUE_AUTHORITY_SQL = `select r.replica_id,r.owner_user_id,r.agent_id,r.subject_person_id,
+      r.lifecycle,r.subject_mode,r.policy_version,r.identity_expires_at,
+      r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,
       c.capability_id,c.profile_version,c.calibration_version
     from vy_replica r
     join vy_replica_runtime_capability c on c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id

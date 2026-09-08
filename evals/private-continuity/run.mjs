@@ -5,6 +5,7 @@ import {continuityTokens,continuityReferences,continuityPrompt,readPrivateContin
  PRIVATE_CONTINUITY_SQL,PRIVATE_CONTINUITY_SOURCES_SQL,continuityPredicate} from '../../api/_private-dialogue-continuity.js';
 import {compileDialoguePrompt} from '../../api/_dialogue/contracts.js';
 import {splitSql} from '../../db/migrations/apply.mjs';
+import {DIALOGUE_AUTHORITY_SQL} from '../../api/_replica-dialogue-authority.js';
 const id=n=>`${n}0000000-0000-4000-8000-00000000000${n}`;
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const [owner,replica,session,prior,turn]=[1,2,3,4,5].map(id);
@@ -12,6 +13,12 @@ const question='कल physics lesson में pendulum discuss किया �
 const reply='We discussed its period.';
 const evidence={turn_id:turn,session_id:prior,created_at:'2026-09-08T01:00:00.000Z',question,reply,question_sha256:hash(question),reply_sha256:hash(reply)};
 let checks=0;const test=async(name,fn)=>{await fn();console.log(`ok ${++checks} - ${name}`);};
+await test('shared authority CTE projects every replica field read by continuity callers',()=>{
+ const required=[...new Set([...continuityPredicate('refs').matchAll(/\br\.([a-z_]+)/g)].map(m=>m[1]))];
+ const validate=sql=>{const projection=sql.slice(0,sql.indexOf('from vy_replica r'));for(const field of required)assert(new RegExp('\\br\\.'+field+'\\b').test(projection),'missing continuity authority projection: '+field);};
+ validate(DIALOGUE_AUTHORITY_SQL);assert(PRIVATE_CONTINUITY_SOURCES_SQL.includes(DIALOGUE_AUTHORITY_SQL));
+ for(const field of required)assert.throws(()=>validate(DIALOGUE_AUTHORITY_SQL.replace(new RegExp('\\br\\.'+field+'\\b'),'NULL')),/missing continuity authority projection/);
+});
 await test('Hindi meaningful words survive while common recall fillers are removed',()=>{assert(continuityTokens('मुझे physics pendulum याद है').includes('pendulum'));assert(!continuityTokens('मुझे याद है').length);});
 await test('Hinglish and English bounded tokens use no provider',()=>{assert.deepEqual(continuityTokens('Pendulum pendulum ka TIME kya hai?'),['pendulum','time']);assert.equal(continuityTokens(Array.from({length:20},(_,i)=>'word'+i).join(' ')).length,8);});
 await test('actual retrieval sends only server-derived scope and query tokens',async()=>{
