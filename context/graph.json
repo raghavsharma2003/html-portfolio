@@ -16830,6 +16830,24 @@
       "kind": "rejection",
       "title": "String replacement silently expanded SQL regex anchors",
       "at": "2026-09-08"
+    },
+    {
+      "id": "candidate64-single-authority-projection",
+      "kind": "decision",
+      "title": "Reuse the shared authority projection exactly once",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "candidate64-projection-regression",
+      "kind": "measurement",
+      "title": "Unique authority projection controls pass",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "candidate64-duplicate-authority-columns",
+      "kind": "rejection",
+      "title": "Appending existing authority fields made SQL references ambiguous",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29015,6 +29033,16 @@
       "src": "candidate63-literal-sql-replacement",
       "rel": "caused_by",
       "dst": "candidate63-sql-replacement-metacharacters"
+    },
+    {
+      "src": "candidate64-single-authority-projection",
+      "rel": "measured_by",
+      "dst": "candidate64-projection-regression"
+    },
+    {
+      "src": "candidate64-single-authority-projection",
+      "rel": "caused_by",
+      "dst": "candidate64-duplicate-authority-columns"
     }
   ]
 }

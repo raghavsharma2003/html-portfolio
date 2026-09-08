@@ -17539,3 +17539,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `candidate63-private-sql-regression` (2026-09-08)
 
 2026-09-08: actual156V3 parent receipt candidate156v3-301bde55470c153614a90fd6-result.json failed SQLSTATE42601 on OWNED_PRIVATE_RUNTIME_CONTEXT_SQL after activation positive; rollback/restoration/close confirmed by root. Locally, one focused exported-SQL regression passes across runtime/open/history/two continuity readers/two aliases, with old string replacement detected as negative controls. Existing8 private-pointer,26 continuity and12 history controls pass after repairing two continuity fixture occurrences of the same bad replacement. Initial test launch missed ignored inert config because of a relative path error; fixed without keys. No SQL/provider/browser/build execution by this slice.
+
+
+## `candidate64-projection-regression` (2026-09-08)
+
+2026-09-08: root actual156V4 failed42702 on DIALOGUE_HISTORY_SQL after additional activation/reset/rollback controls, with rollback/restoration/close confirmed and no uncertainty. Local focused regression passes on five top-level projections, each with duplicate-field negative control;26 continuity and12 history controls pass. No SQL, provider or browser executed by this source slice.

@@ -33,10 +33,7 @@ const historicalState = `(${ownerPrivateCapabilityAuthoritySql('c','r')} or (c.s
    and current_cap.agent_id=r.agent_id and current_cap.subject_person_id=r.subject_person_id
    and ${ownerPrivateCapabilityAuthoritySql('current_cap','r')})))`;
 if(runtime.split("c.state='active'").length!==2)throw Error('dialogue_history_authority_shape_changed');
-if(runtime.split('c.capability_id,c.profile_version,c.calibration_version').length!==2)throw Error('dialogue_history_projection_shape_changed');
 const historicalRuntime=runtime.replace("c.state='active'",()=>historicalState)
- .replace('c.capability_id,c.profile_version,c.calibration_version',
-  'c.capability_id,c.profile_version,c.calibration_version,r.lifecycle,r.subject_mode,r.policy_version,r.identity_expires_at,r.age_verified_at,r.identity_verified_at,r.liveness_verified_at')
  + ` and ${candidateRuntimeAuthoritySql('c','r')}`;
 const historicalContinuity=continuityPredicate('t.continuity_refs','r','c','t.session_id');
 if(historicalContinuity.split("c.state='active'").length!==2)throw Error('dialogue_history_continuity_shape_changed');

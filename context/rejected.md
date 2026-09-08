@@ -17539,3 +17539,8 @@ Original45 failures are retained. Shared copy table expansion caused three panel
 ## `candidate63-sql-replacement-metacharacters` (2026-09-08)
 
 The failed156V3 derived query hash was b563a9eda463ac64aced0b3be35a22a1b7ee8e057e4c6521798193a14568d3c1. A SQL regex dollar-plus-quote sequence was treated as JavaScript suffix substitution, corrupting SQL rather than preserving the predicate. Existing continuity expectations repeated this same mechanism and therefore agreed with broken SQL. Tests now independently splice literal bytes; callback replacements fix product construction. Other API SQL replacements inspected: parameter renumbering already uses callbacks; fixed literals and fixed table names have no relevant metacharacter. SQL types and actual156 rollback execution remain pending.
+
+
+## `candidate64-duplicate-authority-columns` (2026-09-08)
+
+Actual receipt candidate156v4-6ea6d026b9a36b382f2ef829-result.json retains the42702 failure. Appending fields already present in the shared SELECT created duplicate names in the authorized CTE. Literal-byte preservation fixed corruption but did not prove unique projection. Tests now inspect only the bounded simple top-level field list and reject duplicate injection; they are not a SQL parser.

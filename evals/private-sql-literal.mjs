@@ -14,9 +14,21 @@ assert.equal(OWNED_PRIVATE_RUNTIME_CONTEXT_SQL,literalSplice(OWNED_RUNTIME_CONTE
 assert.notEqual(OWNED_RUNTIME_CONTEXT_SQL.replace(needle,fragment),OWNED_PRIVATE_RUNTIME_CONTEXT_SQL);
 const privateDialogue=literalSplice(DIALOGUE_AUTHORITY_SQL,fragment);
 assert(DIALOGUE_OPEN_SQL.startsWith(`with authorized as materialized (${privateDialogue} for update of r)`));
-const projection='c.capability_id,c.profile_version,c.calibration_version';
-const projected=privateDialogue.replace(projection,projection+',r.lifecycle,r.subject_mode,r.policy_version,r.identity_expires_at,r.age_verified_at,r.identity_verified_at,r.liveness_verified_at');
-for(const sql of [PRIVATE_CONTINUITY_SQL,PRIVATE_CONTINUITY_SOURCES_SQL])assert(sql.startsWith(`with authorized as materialized (${projected}),`));
+for(const sql of [PRIVATE_CONTINUITY_SQL,PRIVATE_CONTINUITY_SOURCES_SQL])assert(sql.startsWith(`with authorized as materialized (${privateDialogue}),`));
+// The shared authority has a deliberately simple top-level field projection.
+// Inspect that bounded list, not nested predicates or a pretend SQL parser.
+const projectedNames=sql=>{
+ const start=sql.indexOf('select '),end=sql.indexOf('from vy_replica r',start);
+ assert(start>=0&&end>start);return sql.slice(start+7,end).trim().split(',').map(field=>{
+  assert.match(field.trim(),/^[rc]\.[a-z_]+$/);return field.trim().split('.')[1];
+ });
+};
+const required=projectedNames(DIALOGUE_AUTHORITY_SQL);
+const uniqueProjection=sql=>{const names=projectedNames(sql);assert.equal(new Set(names).size,names.length,'duplicate authority field');assert.deepEqual(names,required);};
+for(const sql of [DIALOGUE_AUTHORITY_SQL,DIALOGUE_OPEN_SQL,DIALOGUE_HISTORY_SQL,PRIVATE_CONTINUITY_SQL,PRIVATE_CONTINUITY_SOURCES_SQL]){
+ uniqueProjection(sql);
+ assert.throws(()=>uniqueProjection(sql.replace('c.calibration_version','c.calibration_version,r.lifecycle')),/duplicate authority field/);
+}
 for(const [r,c] of [['r','c'],['owner_context','selected_capability']]){
  const original=continuityPredicate('t.continuity_refs',r,c,'t.session_id'),marker=`${c}.state='active'`,i=original.indexOf(marker);
  const expected=original.slice(0,i)+ownerPrivateCapabilityAuthoritySql(c,r)+original.slice(i+marker.length);

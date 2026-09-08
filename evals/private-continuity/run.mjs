@@ -19,9 +19,7 @@ const evidence={turn_id:turn,session_id:prior,created_at:'2026-09-08T01:00:00.00
 let checks=0;const test=async(name,fn)=>{await fn();console.log(`ok ${++checks} - ${name}`);};
 const privateAuthority=ownerPrivateCapabilityAuthoritySql('c','r');
 assert.equal(DIALOGUE_AUTHORITY_SQL.split("c.state='active'").length,2);
-const derivedAuthority=DIALOGUE_AUTHORITY_SQL.split("c.state='active'").join(privateAuthority)
- .replace('c.capability_id,c.profile_version,c.calibration_version',
-  'c.capability_id,c.profile_version,c.calibration_version,r.lifecycle,r.subject_mode,r.policy_version,r.identity_expires_at,r.age_verified_at,r.identity_verified_at,r.liveness_verified_at');
+const derivedAuthority=DIALOGUE_AUTHORITY_SQL.split("c.state='active'").join(privateAuthority);
 await test('derived owner-private authority preserves every shared field and exact global guard',()=>{
  const required=[...new Set([...continuityPredicate('refs').matchAll(/\br\.([a-z_]+)/g)].map(m=>m[1]))];
  const validate=sql=>{const projection=sql.slice(0,sql.indexOf('from vy_replica r'));for(const field of required)assert(new RegExp('\\br\\.'+field+'\\b').test(projection),'missing continuity authority projection: '+field);};

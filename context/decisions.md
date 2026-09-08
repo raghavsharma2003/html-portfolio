@@ -23750,3 +23750,8 @@ Three panel suites retain forbidden literal checks while selecting EN and HI sec
 ## `candidate63-literal-sql-replacement` (2026-09-08)
 
 Use function replacements at all five dynamic private SQL assembly sites. SQL regex end anchors followed by a quote are JavaScript replacement metacharacters in string replacement. Runtime, history/open and continuity now preserve the actual authority fragment. Reverse only if SQL composition no longer passes dynamic text through String.replace or equivalent literal-byte guarantees are independently proven.
+
+
+## `candidate64-single-authority-projection` (2026-09-08)
+
+The shared dialogue authority already projects lifecycle, subject mode, policy, identity expiry and verification fields. Remove two redundant projection expansions in history and continuity; retain every shared field and all private scope predicates. Reverse only if the shared projection changes, with explicit unique required-field tests.

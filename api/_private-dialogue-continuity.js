@@ -4,9 +4,7 @@ import {REPLICA_POLICY_VERSION} from './_replica.js';
 import {DIALOGUE_AUTHORITY_SQL as GLOBAL_DIALOGUE_AUTHORITY_SQL} from './_replica-dialogue-authority.js';
 import {ownerPrivateCapabilityAuthoritySql} from './_replica-candidate-activation-authority.js';
 if(GLOBAL_DIALOGUE_AUTHORITY_SQL.split("c.state='active'").length!==2)throw Error('continuity_authority_shape_changed');
-const DIALOGUE_AUTHORITY_SQL=GLOBAL_DIALOGUE_AUTHORITY_SQL.replace("c.state='active'",()=>ownerPrivateCapabilityAuthoritySql('c','r'))
- .replace('c.capability_id,c.profile_version,c.calibration_version',
-  'c.capability_id,c.profile_version,c.calibration_version,r.lifecycle,r.subject_mode,r.policy_version,r.identity_expires_at,r.age_verified_at,r.identity_verified_at,r.liveness_verified_at');
+const DIALOGUE_AUTHORITY_SQL=GLOBAL_DIALOGUE_AUTHORITY_SQL.replace("c.state='active'",()=>ownerPrivateCapabilityAuthoritySql('c','r'));
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HASH=/^[0-9a-f]{64}$/;
