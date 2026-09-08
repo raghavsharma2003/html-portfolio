@@ -23460,3 +23460,8 @@ Permit the two existing artifact-review retirement writes only under their exact
 ## `vyakti-scheduled-followup-paused` (2026-09-07)
 
 2026-09-08: User explicitly asked to stop Continue Vyakti expert product scheduled task. No automation management tool was exposed after tool inventory search. Backed up exact local automation.toml and changed only ACTIVE to PAUSED plus updated_at; readback confirmedPAUSED. Product goal remainsactive, agents resumed. Reversal: user explicitly requests schedule restart. Scheduler interference was suspected by user, not established as cause of earlier stops.
+
+
+## `azure-web33-production-adapter` (2026-09-08)
+
+2026-09-08: Added a production Node HTTP adapter and positive-list remote ACR build context in isolated codex/azure-web33 from frozen31 01a7b6f2. STUDIO_ROOT=1 is mandatory; the current 18 rewrites, 15 header rules and 22 schedules remain sourced from vercel.json. Runtime generates private config from environment, checks actual database identity, verifies source/static hashes and preserves API business handlers. CPU Container App and optional schedule templates use managed identity and Key Vault references; schedules default off. Reversal: replace this adapter only if an approved Azure runtime offers tested equivalent route/raw-body/streaming parity with less maintenance, or actual canary reveals incompatible handler behavior. No public cutover or cloud write was performed.

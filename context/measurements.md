@@ -17232,3 +17232,8 @@ n=1 V5run2026-09-07T23:05:29.258Z to23:07:43.131Z;500queries,17sessions,80checks
 ## `release31-focused-regression-results` (2026-09-07)
 
 2026-09-08: Store runner passes26 controls with changed-DDL negative. Mounted capture final run exec15698 terminal0 passes30 groups including old-media, old-start and old-lifecycle negatives; synthetic media only. Unchanged conversation suite terminal0 passes34 controls at390/1440, receipt1788844435205, SHA da61d48743054a8ae771291e335c5f55db452a614eadff30b9fb1d07376554cc. No provider or real SQL in these checks. Full release31 pending.
+
+
+## `azure-web33-offline-readiness` (2026-09-08)
+
+2026-09-08: Native Node loopback adapter suite passed 26 control groups against actual current Vercel declarations with synthetic API handlers and assets. Includes all 18 rewrites, all 15 header rules, raw-byte fidelity, auth refusal control, parsed body cap, streaming/client-close AbortSignal, traversal, private-file exclusions, manifest/API drift and symlink refusal. These are not real auth or provider tests. Packaging suite passed 12 groups against actual source and synthetic dist in the initial run; final rerun recorded separately in freeze evidence. Incumbent deploy-verifier passed 6 Vyakti + 3 companion positives and 2 negative controls, 28 fixture requests, zero legacy provider requests. Local installed Bicep compiler successfully compiled and formatted the CPU app/jobs template after two syntax repairs. No npm install, Vite build, browser, local Docker, remote image build, ARM validation, cloud provisioning, real database auth, or model calls were run. Payment/payout raw-reader 1,000,000-byte limits were source-inspected only. 504 plus aborted signal does not prove a handler/provider stopped.

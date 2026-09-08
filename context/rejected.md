@@ -17226,3 +17226,8 @@ Selection145 remains dirtyunfrozen despite agentreported19backend/28mounted; pre
 ## `release31-retry-not-crash-repair` (2026-09-07)
 
 2026-09-08: Original release30 Chromium launch died with3221225477 before checks. One unchanged diagnostic run succeeded; no matching Application event established a root cause. Keep original failure, no automatic retry or speculative browser replacement. Initial capture fixture correction still omitted comparison_code and mishandled empty deferred snapshots; independent review caught both and final30-group rerun passed after correction.
+
+
+## `azure-web33-rejected-packaging-shortcuts` (2026-09-08)
+
+2026-09-08: Existing Vite development bridge lacks production headers and conditional crawler routing, so publishing it was rejected. A broad substring private asset exclusion also rejects the legitimate PrivateTextRehearsal JavaScript chunk; replaced with path-segment/private-file matching and added a regression. Initial Bicep compilation rejected conditional-list syntax (BCP100) and nested for-expression placement (BCP138); explicit filtered variables compiled successfully. Do not interpret a manifest-only health response, local compiler success, or synthetic package as native image boot, target readiness or deployment acceptance. The web image must retain one exact private historical prosody JSON because _drift-watch.js reads it; excluding all eval paths indiscriminately would break that runtime caller. No voice-quality conclusion follows from that old file.
