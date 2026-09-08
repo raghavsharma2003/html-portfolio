@@ -1,3 +1,5 @@
+import { foundryBudgetConfig } from "../../_provider-budget.js";
+import { canonicalJson, sha256Hex } from "../../_provenance/contracts.js";
 import { DIALOGUE_OUTPUT_SCHEMA, DIALOGUE_PROMPT } from "../contracts.js";
 import { prepareProviderRevisionBinding, verifyProviderRevision } from "../provider-revision.js";
 
@@ -87,12 +89,31 @@ function measuredUsage(usage) {
   return { input_tokens: usage.prompt_tokens, output_tokens: usage.completion_tokens };
 }
 
+// Only this explicitly supported deployment changes dialect. Prices are supplied
+// separately from Room/shared replies and claim extraction, never borrowed.
+export function azureDialogueProtocol(model, env = process.env) {
+  if (model !== "gpt-5.6-terra") return null;
+  const expectedModel = "gpt-5.6-terra-2026-07-09";
+  if (env.AZURE_FOUNDRY_DIALOGUE_RATE_MODEL !== model) fail("dialogue_azure_rate_model_mismatch");
+  if (env.AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL !== expectedModel) fail("dialogue_azure_expected_model_required");
+  const budgetEnv = Object.freeze({
+    AZURE_REPLICA_BUDGET_ID: env.AZURE_REPLICA_BUDGET_ID,
+    AZURE_REPLICA_APP_BUDGET_USD: env.AZURE_REPLICA_APP_BUDGET_USD,
+    AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: env.AZURE_FOUNDRY_DIALOGUE_INPUT_USD_PER_MTOKENS,
+    AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: env.AZURE_FOUNDRY_DIALOGUE_OUTPUT_USD_PER_MTOKENS,
+  });
+  const rates = foundryBudgetConfig(budgetEnv);
+  const rateCommitment = sha256Hex(canonicalJson({model, expectedModel, input:rates.input_usd_per_million, output:rates.output_usd_per_million}));
+  return Object.freeze({expectedModel, budgetEnv, version:`terra-none-v1:${rateCommitment}`});
+}
+
 export function createAzureFoundryDialogueGenerator(options = {}) {
   const url = endpoint(options.endpoint);
   const model = String(options.model || "").trim();
   const apiKey = String(options.apiKey || "");
   if (!model || model.length > 120) fail("dialogue_azure_model_required");
   if (apiKey.length < 16) fail("dialogue_azure_auth_required");
+  const protocol = azureDialogueProtocol(model, options.env);
   const fetchImpl = options.fetchImpl || fetch;
   if (typeof fetchImpl !== "function") fail("dialogue_azure_fetch_required");
   const timeoutMs = Math.max(5_000, Math.min(55_000, Number(options.timeoutMs) || 45_000));
@@ -104,9 +125,9 @@ export function createAzureFoundryDialogueGenerator(options = {}) {
   return Object.freeze({
     family: "dialogue",
     name: "azure-foundry-structured-output",
-    version: `${AZURE_DIALOGUE_API_VERSION}:${DIALOGUE_PROMPT}`,
+    version: `${AZURE_DIALOGUE_API_VERSION}:${DIALOGUE_PROMPT}${protocol ? ":" + protocol.version : ""}`,
     model,
-    billing: Object.freeze({ meter: "azure_foundry_tokens", max_output_tokens: 700 }),
+    billing: Object.freeze({ meter: "azure_foundry_tokens", max_output_tokens: 700, ...(protocol ? {budget_env:protocol.budgetEnv} : {}) }),
     ...(revisionBinding ? {revision_binding:revisionBinding} : {}),
     async generate({ prompt, signal }) {
       if (signal?.aborted) fail("dialogue_aborted");
@@ -119,8 +140,7 @@ export function createAzureFoundryDialogueGenerator(options = {}) {
           body: JSON.stringify({
             model,
             messages: prompt.messages,
-            temperature: 0.45,
-            max_tokens: 700,
+            ...(protocol ? {max_completion_tokens:700, reasoning_effort:"none"} : {temperature:0.45, max_tokens:700}),
             response_format: {
               type: "json_schema",
               json_schema: {
@@ -146,7 +166,15 @@ export function createAzureFoundryDialogueGenerator(options = {}) {
           });
         }
         const payload = await responseJson(response, timer.signal);
-        const usage = revisionBinding ? measuredUsage(payload?.usage) : null;
+        const usage = revisionBinding || protocol ? measuredUsage(payload?.usage) : null;
+        if (protocol) {
+          const refuse = code => { throw Object.assign(new DialogueAdapterError(code), {measured_usage:usage}); };
+          if (payload.model !== protocol.expectedModel) refuse("dialogue_azure_response_model_mismatch");
+          const reasoning = payload.usage?.completion_tokens_details?.reasoning_tokens;
+          if (usage.output_tokens > 700 || (reasoning !== undefined && (!Number.isSafeInteger(reasoning) || reasoning < 0 || reasoning > usage.output_tokens))) refuse("dialogue_azure_completion_units_invalid");
+          const fp = payload.system_fingerprint;
+          if (fp != null && (typeof fp !== "string" || !/^fp_[A-Za-z0-9]{1,80}$/.test(fp))) refuse("dialogue_azure_fingerprint_invalid");
+        }
         const providerIdentity = revisionBinding ? verifyProviderRevision(payload, revisionBinding, usage) : null;
         const choice = payload?.choices?.[0];
         if (!choice || choice.finish_reason !== "stop" || typeof choice.message?.content !== "string") {
@@ -157,7 +185,7 @@ export function createAzureFoundryDialogueGenerator(options = {}) {
         return {
           output: choice.message.content,
           usage: usage || measuredUsage(payload?.usage),
-          ...(providerIdentity ? {provider_identity:providerIdentity} : {}),
+          ...(providerIdentity ? {provider_identity:providerIdentity} : protocol ? {provider_identity:{response_model:payload.model,system_fingerprint:payload.system_fingerprint ?? null,fingerprint_status:payload.system_fingerprint == null ? "not_provided" : "provided"}} : {}),
         };
       } catch (error) {
         if(error?.measured_usage)throw error;

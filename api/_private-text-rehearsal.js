@@ -24,12 +24,12 @@ function rehearsalOutput(value){
 export function createPrivateTextRehearsalHandler({db,requireUser,store,resolveGenerator,engine,
  gateReply,hasGate,honestyContextFor,loadNeverRules,compileNeverRules,budget=spend,env=process.env}){
  if([db,requireUser,resolveGenerator,gateReply,hasGate,honestyContextFor,loadNeverRules,compileNeverRules].some(f=>typeof f!=='function'))throw Error('private_rehearsal_dependencies_required');
- const platformReady=()=>{if(typeof engine?.compilePrivateExpertRehearsal!=='function'||typeof engine?.parseExpertAnswer!=='function'||!hasGate(engine))fail('rehearsal_engine_unavailable');budget.foundryBudgetConfig(env);};
+ const platformReady=()=>{if(typeof engine?.compilePrivateExpertRehearsal!=='function'||typeof engine?.parseExpertAnswer!=='function'||!hasGate(engine))fail('rehearsal_engine_unavailable');};
  return async function privateTextRehearsal(req,res){
   const aborter=new AbortController();const abort=()=>aborter.abort(new Error('request_aborted'));
   const closed=()=>{if(!res.writableEnded)abort();};req.on?.('aborted',abort);res.on?.('close',closed);
   if(req.aborted||res.destroyed)abort();
-  let owner=null,requestInput=null,admitted=null,reservation=null,claim=null,begun=false,billing='not_started';
+  let owner=null,requestInput=null,admitted=null,reservation=null,claim=null,begun=false,providerStarted=false,settlementAttempted=false,billing='not_started';
   try{
    if(aborter.signal.aborted)fail('rehearsal_request_aborted',409);
    if(!['GET','POST'].includes(req.method))fail('method_not_allowed',405);
@@ -37,7 +37,7 @@ export function createPrivateTextRehearsalHandler({db,requireUser,store,resolveG
    const options={env};
    if(req.method==='GET'&&input.op==='readiness'){
     const readiness=await store.readPrivateTextReadiness(db,owner,input,options);
-    if(readiness.can_ask)try{platformReady();adapterReady(await resolveGenerator());}catch(error){return res.status(200).json({readiness:{...readiness,state:'unavailable',can_ask:false,blockers:[...readiness.blockers,{code:safeCode(error),responsibility:'platform'}]}});}
+    if(readiness.can_ask)try{platformReady();const generator=adapterReady(await resolveGenerator());budget.foundryBudgetConfig(generator.billing.budget_env||env);}catch(error){return res.status(200).json({readiness:{...readiness,state:'unavailable',can_ask:false,blockers:[...readiness.blockers,{code:safeCode(error),responsibility:'platform'}]}});}
     return res.status(200).json({readiness});
    }
    if(req.method==='GET'&&input.op==='result')return res.status(200).json({rehearsal:await store.readPrivateTextRehearsal(db,owner,input,options)});
@@ -46,22 +46,22 @@ export function createPrivateTextRehearsalHandler({db,requireUser,store,resolveG
    admitted=await store.admitPrivateTextRehearsal(db,owner,input,options);
    if(!admitted.created)return res.status(200).json({rehearsal:await store.readPrivateTextRehearsal(db,owner,input,options)});
    input={...input,replica_id:admitted.request.replica_id,request_id:admitted.request.request_id};requestInput=input;
-   platformReady();const generator=adapterReady(await resolveGenerator());
+   platformReady();const generator=adapterReady(await resolveGenerator());budget.foundryBudgetConfig(generator.billing.budget_env||env);
    const compiled=engine.compilePrivateExpertRehearsal(admitted.compilerInput);
    const prompt={schema:'private_text_rehearsal/v1',messages:[{role:'system',content:compiled.system},{role:'user',content:compiled.question}]};
    prompt.prompt_hash=sha256Hex(canonicalJson(prompt));
    // No scoped rule text enters the prompt or shared-past record.
    if(aborter.signal.aborted)fail('rehearsal_request_aborted',409);
-   reservation=await budget.reserveFoundrySpend(db,{operation:'dialogue',requestKey:'private-text-rehearsal:'+input.request_id,adapter:generator,messages:prompt.messages,env});
+   reservation=await budget.reserveFoundrySpend(db,{operation:'dialogue',requestKey:'private-text-rehearsal:'+input.request_id,adapter:generator,messages:prompt.messages,env:generator.billing.budget_env||env});
    if(!reservation)fail('rehearsal_budget_unavailable');billing='reserved';
    claim=await store.claimPrivateTextRehearsal(db,owner,{replica_id:input.replica_id,request_id:input.request_id,reservation,provider:{family:generator.family,name:generator.name,version:generator.version,model:generator.model,prompt_hash:prompt.prompt_hash}},options);
    if(!claim?.dispatch_token)fail('rehearsal_dispatch_not_claimed',409);
    // Exclusive dispatch is held and begin has not been attempted, so release is safe here only.
    if(aborter.signal.aborted){await budget.releaseFoundrySpendBeforeCall(db,reservation,'rehearsal_request_aborted');reservation=null;billing='not_started';fail('rehearsal_request_aborted',409);}
    begun=true;await budget.beginFoundrySpend(db,reservation);billing='in_flight';
-   const generated=await generator.generate({prompt,signal:aborter.signal});
+   providerStarted=true;const generated=await generator.generate({prompt,signal:aborter.signal});
    // Actual provider usage is payable even when gates or current authority refuse delivery.
-   try{await budget.settleFoundrySpend(db,reservation,generated.usage);billing='settled';}
+   settlementAttempted=true;try{await budget.settleFoundrySpend(db,reservation,generated.usage);billing='settled';}
    catch(error){billing='reconcile_required';await budget.markFoundrySpendUncertain(db,reservation,error);}
    const output=rehearsalOutput(generated.output);
    const rules=compileNeverRules(await loadNeverRules(db,input.replica_id,owner));
@@ -72,6 +72,13 @@ export function createPrivateTextRehearsalHandler({db,requireUser,store,resolveG
     answer:gated.text,raw_output:generated.output,gate:{gated:true,finding_count:gated.findings?.length||0},billing_state:billing},options);
    return res.status(201).json({rehearsal});
   }catch(error){
+   // A measured adapter refusal is payable; an unknown begin or transport is not
+   // a reason to invent units. Never retry an ambiguous settlement acknowledgement.
+   if(reservation&&providerStarted&&!settlementAttempted&&error?.measured_usage){
+    settlementAttempted=true;
+    try{await budget.settleFoundrySpend(db,reservation,error.measured_usage);billing='settled';}
+    catch{billing='reconcile_required';}
+   }
    if(reservation&&begun&&billing!=='settled'){
     billing='reconcile_required';await budget.markFoundrySpendUncertain(db,reservation,error).catch(()=>{});
    }

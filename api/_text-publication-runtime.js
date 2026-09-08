@@ -32,7 +32,7 @@ export function createTextPublicationOwnerHandler({db,requireUser,store,resolveG
     const readiness=await store.readTextPublicationReadiness(db,owner,input,{env});
     if(readiness.can_publish)try{
      if(typeof engine?.compilePublishedMaterialAssistant!=='function'||typeof engine?.parseExpertAnswer!=='function'||typeof hasGate!=='function'||!hasGate(engine))refuse('text_publication_engine_unavailable');
-     budget.foundryBudgetConfig(env);adapterReady(await resolveGenerator());
+     const generator=adapterReady(await resolveGenerator());budget.foundryBudgetConfig(generator.billing.budget_env||env);
     }catch(error){return res.status(200).json({readiness:{...readiness,state:'unavailable',can_publish:false,blockers:[...readiness.blockers,{code:safeCode(error),responsibility:'platform'}]}});}
     return res.status(200).json({readiness});
    }
@@ -52,7 +52,7 @@ export function createTextPublicationVisitorHandler({db,requireUser,store,resolv
  if([db,requireUser,resolveGenerator,gateReply,hasGate,honestyContextFor,loadNeverRules,compileNeverRules].some(f=>typeof f!=='function'))throw Error('text_publication_dependencies_required');
  const platformReady=()=>{
   if(typeof engine?.compilePublishedMaterialAssistant!=='function'||typeof engine?.parseExpertAnswer!=='function'||!hasGate(engine))refuse('text_publication_engine_unavailable');
-  budget.foundryBudgetConfig(env);
+
  };
  return async function textPublicationVisitor(req,res){
   const aborter=new AbortController(),abort=()=>aborter.abort();
@@ -60,7 +60,7 @@ export function createTextPublicationVisitorHandler({db,requireUser,store,resolv
   req.on?.('aborted',abort);res.on?.('close',closed);
   if(req.aborted||res.destroyed)abort();
   const checkAbort=()=>{if(aborter.signal.aborted)refuse('text_publication_request_aborted',409);};
-  let visitor=null,input=null,admitted=null,reservation=null,claim=null,begun=false,billing='not_started';
+  let visitor=null,input=null,admitted=null,reservation=null,claim=null,begun=false,providerStarted=false,settlementAttempted=false,billing='not_started';
   const options={env};
   try{
    checkAbort();
@@ -80,12 +80,12 @@ export function createTextPublicationVisitorHandler({db,requireUser,store,resolv
    if(!admitted.created)return res.status(200).json({request:await store.readTextPublicationRequest(db,visitor,input,options)});
    input={public_id:admitted.request.public_id,request_id:admitted.request.request_id,session_token:input.session_token};
    if(admitted.failure_code)refuse(admitted.failure_code,409);
-   platformReady();const generator=adapterReady(await resolveGenerator());
+   platformReady();const generator=adapterReady(await resolveGenerator());budget.foundryBudgetConfig(generator.billing.budget_env||env);
    const compiled=engine.compilePublishedMaterialAssistant(admitted.compilerInput);
    const prompt={schema:admitted.compilerInput.authority.basis,messages:[{role:'system',content:compiled.system},{role:'user',content:compiled.question}]};
    prompt.prompt_hash=sha256Hex(canonicalJson(prompt));
    checkAbort();
-   reservation=await budget.reserveFoundrySpend(db,{operation:'dialogue',requestKey:'text-publication:'+input.request_id,adapter:generator,messages:prompt.messages,env});
+   reservation=await budget.reserveFoundrySpend(db,{operation:'dialogue',requestKey:'text-publication:'+input.request_id,adapter:generator,messages:prompt.messages,env:generator.billing.budget_env||env});
    if(!reservation)refuse('text_publication_budget_unavailable');billing='reserved';
    claim=await store.claimTextPublicationRequest(db,visitor,{...input,reservation,provider:{family:generator.family,name:generator.name,version:generator.version,model:generator.model,prompt_hash:prompt.prompt_hash}},options);
    if(!claim?.dispatch_token)refuse('text_publication_dispatch_not_claimed',409);
@@ -93,9 +93,9 @@ export function createTextPublicationVisitorHandler({db,requireUser,store,resolv
    // Set before awaiting: an ambiguous begin may have committed and cannot be released.
    begun=true;await budget.beginFoundrySpend(db,reservation);billing='in_flight';
    checkAbort();
-   const generated=await generator.generate({prompt,signal:aborter.signal});
+   providerStarted=true;const generated=await generator.generate({prompt,signal:aborter.signal});
    // Cancellation/authority refusal cannot erase usage already incurred.
-   try{await budget.settleFoundrySpend(db,reservation,generated.usage);billing='settled';}
+   settlementAttempted=true;try{await budget.settleFoundrySpend(db,reservation,generated.usage);billing='settled';}
    catch(error){billing='reconcile_required';await budget.markFoundrySpendUncertain(db,reservation,error);}
    checkAbort();
    const output=textPublicationOutput(generated.output);
@@ -110,6 +110,13 @@ export function createTextPublicationVisitorHandler({db,requireUser,store,resolv
    const request=await store.readTextPublicationRequest(db,visitor,input,options);checkAbort();
    return res.status(201).json({request});
   }catch(error){
+   // A measured adapter refusal is payable; an unknown begin or transport is not
+   // a reason to invent units. Never retry an ambiguous settlement acknowledgement.
+   if(reservation&&providerStarted&&!settlementAttempted&&error?.measured_usage){
+    settlementAttempted=true;
+    try{await budget.settleFoundrySpend(db,reservation,error.measured_usage);billing='settled';}
+    catch{billing='reconcile_required';}
+   }
    if(reservation&&begun&&billing!=='settled'){
     billing='reconcile_required';await budget.markFoundrySpendUncertain(db,reservation,error).catch(()=>{});
    }else if(reservation&&!begun){

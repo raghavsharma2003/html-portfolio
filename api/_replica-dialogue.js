@@ -255,6 +255,7 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
       requestKey: turn.turn_id,
       adapter: generator,
       messages: prompt.messages,
+      ...(generator.billing?.budget_env ? {env:generator.billing.budget_env} : {}),
     });
     if (reservation) {
       spendBeginState = "attempted_unknown";

@@ -266,6 +266,24 @@
     "required": true
   },
   {
+    "name": "AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL",
+    "section": "1",
+    "sectionTitle": "LLM claim extraction + dialogue generation (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "AZURE_FOUNDRY_DIALOGUE_INPUT_USD_PER_MTOKENS",
+    "section": "1",
+    "sectionTitle": "LLM claim extraction + dialogue generation (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
     "name": "AZURE_FOUNDRY_DIALOGUE_MODEL",
     "section": "1",
     "sectionTitle": "LLM claim extraction + dialogue generation (`vercel-app`)",
@@ -273,6 +291,24 @@
       "vercel-app"
     ],
     "required": true
+  },
+  {
+    "name": "AZURE_FOUNDRY_DIALOGUE_OUTPUT_USD_PER_MTOKENS",
+    "section": "1",
+    "sectionTitle": "LLM claim extraction + dialogue generation (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "AZURE_FOUNDRY_DIALOGUE_RATE_MODEL",
+    "section": "1",
+    "sectionTitle": "LLM claim extraction + dialogue generation (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
   },
   {
     "name": "AZURE_FOUNDRY_ENDPOINT",

@@ -1,3 +1,4 @@
+import {foundryBudgetConfig as realBudgetConfig,tokenReservationMicrousd} from '../api/_provider-budget.js';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
 import * as engine from '../api/_engine.gen.js';
@@ -8,6 +9,8 @@ const {gateReply,hasGate,honestyContextFor}=await import('../api/_surface.js');
 const id=n=>`b0000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const question='How many items are in LARCH-72?';
 const compilerInput={authority:{scope:'private_text_rehearsal',basis:'owner_question_attestation_v1',ownerId:id(1),replicaId:id(2),requestId:id(3),sheetId:id(4),sheetHash:'a'.repeat(64),receiptId:id(5)},draft:{name:'Synthetic maths expert',identityWho:'Maths teacher',subjectDomain:'maths'},contexts:[{itemId:id(6),sourceId:id(7),hash:'b'.repeat(64),body:'LARCH-72 has 31 items and 6 checks.'}],question};
+const genericRates={AZURE_REPLICA_BUDGET_ID:'synthetic-budget',AZURE_REPLICA_APP_BUDGET_USD:'1',AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS:'0.4',AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS:'1.6'};
+const scopedRates={...genericRates,AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS:'2',AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS:'12'};
 const output=(reply,languageHint='en-IN')=>JSON.stringify({reply,delivery:{mode:'grounded',pace:'natural',intensity:0.3,language_hint:languageHint,nonverbals:[]}});
 async function run(config={}){
  const events=[];const req=new EventEmitter();Object.assign(req,{aborted:config.alreadyAborted||false,method:config.method||'POST',body:{op:config.op||'ask',replica_id:id(2),request_id:config.uppercase?id(3).toUpperCase():id(3),question},query:config.query||{}});
@@ -22,12 +25,12 @@ async function run(config={}){
   async completePrivateTextRehearsal(db,owner,input){events.push('complete');if(config.commitError)throw err('rehearsal_authority_changed');return{state:'complete',answer:input.answer,can_voice:false,billing_state:input.billing_state};},
   async failPrivateTextRehearsal(db,owner,input){events.push('fail:'+input.billing_state);},
  };
- const budget={foundryBudgetConfig(){return{};},async reserveFoundrySpend(db,input){events.push('reserve');assert.equal(input.requestKey,'private-text-rehearsal:'+id(3));return{reservation_id:id(8)};},
+ const budget={foundryBudgetConfig(env){if(config.scopedRates)assert.equal(realBudgetConfig(env).output_usd_per_million,12);return{};},async reserveFoundrySpend(db,input){events.push('reserve');assert.equal(input.requestKey,'private-text-rehearsal:'+id(3));return{reservation_id:id(8),...(config.scopedRates?{config:realBudgetConfig(input.env)}:{})};},
   async beginFoundrySpend(){events.push('begin');if(config.beginError)throw err('provider_start_unknown');},
-  async releaseFoundrySpendBeforeCall(){events.push('release');},async settleFoundrySpend(){events.push('settle');if(config.settleError)throw err('provider_settlement_unknown');},async markFoundrySpendUncertain(){events.push('uncertain');}};
- const handler=createPrivateTextRehearsalHandler({db:async()=>{throw Error('implicit_database_refused');},requireUser:async()=>({id:id(1)}),store,budget,
+  async releaseFoundrySpendBeforeCall(){events.push('release');},async settleFoundrySpend(db,reservation,usage){events.push('settle');if(config.scopedRates)assert.equal(tokenReservationMicrousd(usage.input_tokens,usage.output_tokens,reservation.config),320);if(config.settleError)throw err('provider_settlement_unknown');},async markFoundrySpendUncertain(){events.push('uncertain');}};
+ const handler=createPrivateTextRehearsalHandler({db:async()=>{throw Error('implicit_database_refused');},requireUser:async()=>({id:id(1)}),store,budget,env:genericRates,
   engine:config.noEngine?{}:engine,gateReply,hasGate,honestyContextFor,compileNeverRules,loadNeverRules:async()=>{events.push('rules');return config.rules||[];},
-  resolveGenerator:async()=>{events.push('adapter');if(config.noAdapter)throw err('rehearsal_azure_unavailable');return{name:'azure-foundry-structured-output',billing:{meter:config.badMeter?'other':'azure_foundry_tokens',max_output_tokens:700},family:'dialogue',version:'test',model:'synthetic',async generate({prompt}){events.push('generate');assert.equal(prompt.messages.at(-1).content,question);if(config.networkError)throw err('dialogue_azure_network_error');return{output:config.invalid?'bad JSON':output(config.reply||'LARCH-72 has 31 items.',config.languageHint),usage:{input_tokens:100,output_tokens:10}};}};}});
+  resolveGenerator:async()=>{events.push('adapter');if(config.noAdapter)throw err('rehearsal_azure_unavailable');return{name:'azure-foundry-structured-output',billing:{meter:config.badMeter?'other':'azure_foundry_tokens',max_output_tokens:700,...(config.scopedRates?{budget_env:scopedRates}:{})},family:'dialogue',version:'test',model:'synthetic',async generate({prompt}){events.push('generate');assert.equal(prompt.messages.at(-1).content,question);if(config.measuredRefusal)throw Object.assign(err('dialogue_azure_response_model_mismatch'),{measured_usage:{input_tokens:100,output_tokens:10}});if(config.networkError)throw err('dialogue_azure_network_error');return{output:config.invalid?'bad JSON':output(config.reply||'LARCH-72 has 31 items.',config.languageHint),usage:{input_tokens:100,output_tokens:10}};}};}});
  await handler(req,res);assert.equal(req.listenerCount('aborted'),0);assert.equal(res.listenerCount('close'),0);return{events,res};
 }
 let checks=0;async function check(name,fn){await fn();console.log(`ok ${++checks} - ${name}`);}
@@ -48,4 +51,9 @@ await check('aborted request or destroyed response at entry performs no admissio
 await check('accepted uppercase UUID uses durable canonical request for reserve and claim',async()=>{const{events,res}=await run({uppercase:true});assert.equal(res.code,201);assert(events.includes('settle'));});
 await check('paid overlong astral or malformed reply is withheld whole before shared cleaner',async()=>{for(const reply of ['x'.repeat(1599)+'\u{1f642}','valid prefix\ud800']){const{events,res}=await run({reply});assert(events.includes('settle'));assert.equal(res.body.error,'rehearsal_reply_invalid');assert(!events.includes('complete'));}});
 await check('overlong or malformed language hint cannot be silently shortened',async()=>{for(const languageHint of ['x'.repeat(31)+'\u{1f642}','en-IN\ud800']){const{events,res}=await run({languageHint});assert(events.includes('settle'));assert.equal(res.body.error,'rehearsal_delivery_invalid');assert(!events.includes('complete'));}});
+await check('scoped dialogue2/12 rates override genericmini0.4/1.6 for readiness reservation and settlement',async()=>{const{res,events}=await run({scopedRates:true});assert.equal(res.code,201);assert.equal(events.filter(x=>x==='settle').length,1);});
+await check('measured adapter refusal settles exactly once and withholds output',async()=>{const{res,events}=await run({scopedRates:true,measuredRefusal:true});assert(res.code>=400);assert.equal(events.filter(x=>x==='settle').length,1);assert(events.includes('fail:settled'));assert(!events.includes('complete'));assert(!events.includes('uncertain'));assert(!events.includes('release'));});
+await check('measured refusal settlement ACK loss is held without second settlement or release',async()=>{const{events}=await run({scopedRates:true,measuredRefusal:true,settleError:true});assert.equal(events.filter(x=>x==='settle').length,1);assert(events.includes('uncertain'));assert(!events.includes('release'));assert(!events.includes('complete'));});
+
+await check('rehearsal readiness validates scoped dialogue rates without spending',async()=>{const{res,events}=await run({method:'GET',query:{op:'readiness'},scopedRates:true});assert.equal(res.body.readiness.can_ask,true);assert(!events.includes('reserve'));assert(!events.includes('generate'));});
 console.log(`${checks} private rehearsal handler groups passed; injected SQL/accounting, actual compiler and output gates. No live provider.`);

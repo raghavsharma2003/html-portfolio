@@ -1,3 +1,4 @@
+import {foundryBudgetConfig as realBudgetConfig,tokenReservationMicrousd} from '../../api/_provider-budget.js';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
 import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
@@ -12,6 +13,8 @@ const id=n=>`c0000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const owner=id(1),replica=id(2),publication=id(3),visitor=id(4),requestId=id(5);
 const question='How many items are in FIR-83?';
 const compilerInput={authority:{scope:'account_material_publication',basis:'account_material_publication/v1',ownerId:owner,replicaId:replica,publicationId:publication,requestId,visitorId:visitor,projectionHash:'a'.repeat(64),receiptHash:'b'.repeat(64),sourceHash:'c'.repeat(64)},projection:{name:'Synthetic maths materials',subjectDomain:'maths'},contexts:[{itemId:id(6),sourceId:id(7),hash:'d'.repeat(64),body:'FIR-83 has 29 items and 8 checks.'}],question};
+const genericRates={AZURE_REPLICA_BUDGET_ID:'synthetic-budget',AZURE_REPLICA_APP_BUDGET_USD:'1',AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS:'0.4',AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS:'1.6'};
+const scopedRates={...genericRates,AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS:'2',AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS:'12'};
 const output=(reply,language_hint='en-IN')=>JSON.stringify({reply,delivery:{mode:'grounded',pace:'natural',intensity:0.3,language_hint,nonverbals:[]}});
 const error=(code,status=409)=>Object.assign(new Error(code),{code,status});
 const request=(method='POST',input={})=>Object.assign(new EventEmitter(),{method,body:input,query:input,aborted:false});
@@ -30,14 +33,14 @@ async function run(config={}){
   async completeTextPublicationRequest(db,actor,input){scope(actor,input);events.push('complete');if(config.commitError)throw error('text_publication_delivery_blocked');assert.equal(input.dispatch_token,'synthetic-dispatch');saved={public_id:publication,request_id:requestId,state:'complete',answer:input.answer,billing_state:input.billing_state,can_voice:false};return saved;},
   async failTextPublicationRequest(db,actor,input){scope(actor,input);events.push('fail:'+input.billing_state);if(config.failError)throw Error('sensitive source contents');},
  };
- const budget={foundryBudgetConfig(){if(config.budgetInvalid)throw error('provider_budget_invalid',503);},async reserveFoundrySpend(db,input){events.push('reserve');assert.equal(input.requestKey,'text-publication:'+requestId);return{reservation_id:id(8)};},
+ const budget={foundryBudgetConfig(env){if(config.scopedRates)assert.equal(realBudgetConfig(env).output_usd_per_million,12);if(config.budgetInvalid)throw error('provider_budget_invalid',503);},async reserveFoundrySpend(db,input){events.push('reserve');assert.equal(input.requestKey,'text-publication:'+requestId);return{reservation_id:id(8),...(config.scopedRates?{config:realBudgetConfig(input.env)}:{})};},
   async beginFoundrySpend(){events.push('begin');if(config.beginError)throw error('provider_start_unknown',503);if(config.abortBegin)req.emit('aborted');},async releaseFoundrySpendBeforeCall(){events.push('release');if(config.releaseError)throw error('release_unknown',503);return config.releaseEmpty?null:{budget_id:'synthetic'};},
-  async settleFoundrySpend(){events.push('settle');if(config.settleError)throw error('settlement_unknown',503);},async markFoundrySpendUncertain(){events.push('uncertain');}};
- const handler=createTextPublicationVisitorHandler({db:async()=>{throw Error('implicit_db_refused');},store,budget,env:{},engine:config.noEngine?{}:engine,
+  async settleFoundrySpend(db,reservation,usage){events.push('settle');if(config.scopedRates)assert.equal(tokenReservationMicrousd(usage.input_tokens,usage.output_tokens,reservation.config),320);if(config.settleError)throw error('settlement_unknown',503);},async markFoundrySpendUncertain(){events.push('uncertain');}};
+ const handler=createTextPublicationVisitorHandler({db:async()=>{throw Error('implicit_db_refused');},store,budget,env:genericRates,engine:config.noEngine?{}:engine,
   requireUser:async()=>{events.push('auth');if(config.noAuth)throw error('invalid_session',401);return{id:visitor};},
   gateReply,hasGate,honestyContextFor,compileNeverRules,loadNeverRules:async(db,rid,uid)=>{events.push('rules');assert.equal(rid,replica);assert.equal(uid,owner);if(config.ruleReadError)throw error('never_rules_unavailable',503);return config.rules||[];},
-  resolveGenerator:async()=>{events.push('adapter');if(config.noAdapter)throw error('text_publication_azure_unavailable',503);return{name:config.otherProvider?'external':'azure-foundry-structured-output',family:'dialogue',version:'synthetic-v1',model:'synthetic',billing:{meter:config.badMeter?'other':'azure_foundry_tokens',max_output_tokens:700},
-   async generate({prompt,signal}){events.push('generate');assert.equal(prompt.schema,'account_material_publication/v1');assert.equal(prompt.messages.length,2);assert.equal(prompt.messages.at(-1).content,question);assert(!prompt.messages[0].content.includes('synthetic-session'));assert(!signal.aborted);if(config.networkError)throw new Error('sensitive endpoint and authorization');if(config.abortGenerate)req.emit('aborted');return{output:config.invalid?'invalid JSON':output(config.reply||'FIR-83 has 29 items.',config.languageHint),usage:{input_tokens:100,output_tokens:10}};}};}});
+  resolveGenerator:async()=>{events.push('adapter');if(config.noAdapter)throw error('text_publication_azure_unavailable',503);return{name:config.otherProvider?'external':'azure-foundry-structured-output',family:'dialogue',version:'synthetic-v1',model:'synthetic',billing:{meter:config.badMeter?'other':'azure_foundry_tokens',max_output_tokens:700,...(config.scopedRates?{budget_env:scopedRates}:{})},
+   async generate({prompt,signal}){events.push('generate');assert.equal(prompt.schema,'account_material_publication/v1');assert.equal(prompt.messages.length,2);assert.equal(prompt.messages.at(-1).content,question);assert(!prompt.messages[0].content.includes('synthetic-session'));assert(!signal.aborted);if(config.measuredRefusal)throw Object.assign(error('dialogue_azure_response_model_mismatch',503),{measured_usage:{input_tokens:100,output_tokens:10}});if(config.networkError)throw new Error('sensitive endpoint and authorization');if(config.abortGenerate)req.emit('aborted');return{output:config.invalid?'invalid JSON':output(config.reply||'FIR-83 has 29 items.',config.languageHint),usage:{input_tokens:100,output_tokens:10}};}};}});
  await handler(req,res);assert.equal(req.listenerCount('aborted'),0);assert.equal(res.listenerCount('close'),0);return{events,res};
 }
 const checks=[];async function check(name,fn){await fn();checks.push(name);console.log(`ok ${checks.length} - ${name}`);}
@@ -66,18 +69,24 @@ await check('settlement uncertainty retained honestly alongside gated known outp
 await check('already closed request invokes neither auth nor admission',async()=>{for(const c of [{aborted:true},{destroyed:true}]){const{events,res}=await run(c);assert.equal(res.code,409);assert.deepEqual(events,[]);}});
 await check('canonical durable IDs feed reservation and claim',async()=>{const{res}=await run({uppercase:true});assert.equal(res.code,201);});
 
+await check('scoped dialogue2/12 rates override genericmini0.4/1.6 for readiness reservation and settlement',async()=>{const{res,events}=await run({scopedRates:true});assert.equal(res.code,201);assert.equal(events.filter(x=>x==='settle').length,1);});
+await check('measured adapter refusal settles exactly once and withholds output',async()=>{const{res,events}=await run({scopedRates:true,measuredRefusal:true});assert(res.code>=400);assert.equal(events.filter(x=>x==='settle').length,1);assert(events.includes('fail:settled'));assert(!events.includes('complete'));assert(!events.includes('uncertain'));assert(!events.includes('release'));});
+await check('measured refusal settlement ACK loss is held without second settlement or release',async()=>{const{events}=await run({scopedRates:true,measuredRefusal:true,settleError:true});assert.equal(events.filter(x=>x==='settle').length,1);assert(events.includes('uncertain'));assert(!events.includes('release'));assert(!events.includes('complete'));});
+
 async function ownerRun(op,config={}){
  const events=[],req=request(['readiness','status'].includes(op)?'GET':'POST',{op,replica_id:replica,publication_id:publication,owner_user_id:id(99)}),res=response();
  const publicationWire={public_id:publication,can_voice:false,state:op==='unpublish'?'revoked':'active'};
  const scoped=actor=>assert.equal(actor,owner);
  const store={async readTextPublicationReadiness(db,actor){scoped(actor);events.push('readiness');return{can_publish:true,blockers:[],state:'ready'};},async readOwnedTextPublication(db,actor){scoped(actor);events.push('status');return publicationWire;},async unpublishTextPublication(db,actor){scoped(actor);events.push('unpublish');return publicationWire;},async publishTextPublication(db,actor,input){scoped(actor);events.push('publish');assert.equal(input.publication_id,publication);if(config.stale)throw error('text_publication_review_changed');return{created:!config.replay,publication:publicationWire};}};
- const handler=createTextPublicationOwnerHandler({db:async()=>{},requireUser:async()=>{events.push('auth');return{id:owner};},store,engine,hasGate,budget:{foundryBudgetConfig(){}},resolveGenerator:async()=>{events.push('adapter');if(config.unavailable)throw error('text_publication_azure_unavailable',503);return{name:'azure-foundry-structured-output',billing:{meter:'azure_foundry_tokens'},generate(){throw Error('never_generate');}};}});
+ const handler=createTextPublicationOwnerHandler({db:async()=>{},requireUser:async()=>{events.push('auth');return{id:owner};},store,engine,hasGate,env:genericRates,budget:{foundryBudgetConfig(env){if(config.scopedRates)assert.equal(realBudgetConfig(env).output_usd_per_million,12);}},resolveGenerator:async()=>{events.push('adapter');if(config.unavailable)throw error('text_publication_azure_unavailable',503);return{name:'azure-foundry-structured-output',billing:{meter:'azure_foundry_tokens',...(config.scopedRates?{budget_env:scopedRates}:{})},generate(){throw Error('never_generate');}};}});
  await handler(req,res);return{res,events};
 }
 await check('explicit owner publish creation/replay uses authenticated account, never body identity',async()=>{for(const replay of [false,true]){const{res,events}=await ownerRun('publish',{replay});assert.equal(res.code,replay?200:201);assert.equal(res.body.publication.public_id,publication);assert.deepEqual(events,['auth','publish']);}});
 await check('stale review refuses explicit owner publish and no implicit replace occurs',async()=>{const{res,events}=await ownerRun('publish',{stale:true});assert.equal(res.code,409);assert.deepEqual(events,['auth','publish']);});
 await check('owner readiness reports platform provider outage without model calls',async()=>{const{res}=await ownerRun('readiness',{unavailable:true});assert.equal(res.code,200);assert.equal(res.body.readiness.can_publish,false);assert.equal(res.body.readiness.blockers[0].responsibility,'platform');});
 await check('owner status/unpublish remain available during provider outage',async()=>{for(const op of ['status','unpublish']){const{res,events}=await ownerRun(op,{unavailable:true});assert.equal(res.code,200);assert.deepEqual(events,['auth',op]);}});
+
+await check('owner readiness validates scoped dialogue rates without generic borrowing or generation',async()=>{const{res,events}=await ownerRun('readiness',{scopedRates:true});assert.equal(res.body.readiness.can_publish,true);assert.deepEqual(events,['auth','readiness','adapter']);});
 
 // Execute each actual endpoint module with only its imported dependencies replaced.
 // This verifies the production caller, CORS/cache, limiter and auth wiring, not SQL.

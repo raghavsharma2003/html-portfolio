@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { createAzureFoundryDialogueGenerator as create } from "../api/_dialogue/providers/azure-foundry.js";
+import { createProductionDialogueGenerator } from "../api/_dialogue/registry.js";
 import { DIALOGUE_OUTPUT_SCHEMA, compileDialoguePrompt } from "../api/_dialogue/contracts.js";
 import { REPLICA_POLICY_VERSION } from "../api/_replica.js";
 import { canonicalJson, sha256Hex } from "../api/_provenance/contracts.js";
@@ -214,6 +215,34 @@ async function service(factory, usage, options = {}) {
     factory({ ...settings, fetchImpl: async () => { providerCalls++; return response(usage); } })); } catch (cause) { error = cause; }
   return { calls, result, error, providerCalls };
 }
+const terraEnv={AZURE_REPLICA_BUDGET_ID:'synthetic-dialogue-budget',AZURE_REPLICA_APP_BUDGET_USD:'1',AZURE_FOUNDRY_DIALOGUE_RATE_MODEL:'gpt-5.6-terra',AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL:'gpt-5.6-terra-2026-07-09',AZURE_FOUNDRY_DIALOGUE_INPUT_USD_PER_MTOKENS:'2',AZURE_FOUNDRY_DIALOGUE_OUTPUT_USD_PER_MTOKENS:'12'};
+const terraOptions={...settings,model:'gpt-5.6-terra',env:terraEnv};
+for(const key of Object.keys(terraEnv).filter(x=>x.startsWith('AZURE_FOUNDRY_DIALOGUE_'))){
+ const env={...terraEnv,[key]:undefined,AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS:'0.4',AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS:'1.6'};
+ assert.throws(()=>create({...terraOptions,env}));
+}
+ok('Terra refuses missing dialogue-specific acknowledgment and rates despite populated generic mini rates');
+assert.throws(()=>create({...terraOptions,env:{...terraEnv,AZURE_FOUNDRY_DIALOGUE_RATE_MODEL:'gpt-4.1-mini'}}),/rate_model_mismatch/);
+assert.throws(()=>create({...terraOptions,env:{...terraEnv,AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL:'gpt-5.6-terra'}}),/expected_model_required/);
+const priced=create(terraOptions),repriced=create({...terraOptions,env:{...terraEnv,AZURE_FOUNDRY_DIALOGUE_INPUT_USD_PER_MTOKENS:'3'}});
+assert.notEqual(priced.version,repriced.version);assert.equal(priced.billing.budget_env.AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS,'2');
+ok('Terra rate card enters immutable adapter identity; alternate explicit rates work without hardcoded price');
+let terraBody;
+const terraPayload={...payload({prompt_tokens:101,completion_tokens:23,completion_tokens_details:{reasoning_tokens:0}}),model:terraEnv.AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL,system_fingerprint:null};
+const terraReply=await create({...terraOptions,fetchImpl:async(_,init)=>{terraBody=JSON.parse(init.body);return new Response(JSON.stringify(terraPayload));}}).generate({prompt});
+assert.equal(terraBody.max_completion_tokens,700);assert.equal(terraBody.reasoning_effort,'none');assert(!('temperature'in terraBody));assert(!('max_tokens'in terraBody));assert.deepEqual(terraBody.response_format.json_schema.schema,DIALOGUE_OUTPUT_SCHEMA);assert.deepEqual(terraBody.messages,prompt.messages);
+assert.equal(terraReply.provider_identity.fingerprint_status,'not_provided');assert.equal(terraReply.usage.output_tokens,23);
+ok('ordinary Terra actual adapter preserves structured Meet prompt and700 total ceiling with optional fingerprint');
+const mutableEnv={...terraEnv};const snap=create({...terraOptions,env:mutableEnv});mutableEnv.AZURE_FOUNDRY_DIALOGUE_OUTPUT_USD_PER_MTOKENS='99';assert.equal(snap.billing.budget_env.AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS,'12');assert.equal(snap.version,priced.version);
+const registryEnv={...terraEnv,AZURE_FOUNDRY_ENDPOINT:settings.endpoint,AZURE_FOUNDRY_API_KEY:settings.apiKey,AZURE_FOUNDRY_DIALOGUE_MODEL:'gpt-5.6-terra'};
+const savedRegistryEnv=Object.fromEntries(Object.keys(registryEnv).map(k=>[k,process.env[k]]));
+try{Object.assign(process.env,registryEnv);const registered=createProductionDialogueGenerator();assert.equal(registered.version,priced.version);assert.deepEqual(registered.billing.budget_env,priced.billing.budget_env);}
+finally{for(const [key,value]of Object.entries(savedRegistryEnv))if(value===undefined)delete process.env[key];else process.env[key]=value;}
+ok('actual production registry constructs the frozen model-specific rate binding without a provider call');
+
+assert.throws(()=>materializationModel(priced,{AZURE_CORRECTION_BASE_MODEL_COMMITMENT:'b'.repeat(64)}),/materialization_provider_revision_required/);
+assert.throws(()=>create({...terraOptions,revisionBinding:{expected_response_model:terraEnv.AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL,baseline_snapshot_hash:'b'.repeat(64)}}),/provider_revision_expected_version_required/);
+ok('ordinary Terra cannot borrow mini-only comparison or materialization authority');
 const budgetEnv = { AZURE_REPLICA_BUDGET_ID: "synthetic-dialogue-budget", AZURE_REPLICA_APP_BUDGET_USD: "1", AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "1", AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: "1" };
 const previousEnv = Object.fromEntries(Object.keys(budgetEnv).map(key => [key, process.env[key]]));
 try {
@@ -271,5 +300,24 @@ try {
     && candidateSettlementAttempts.length === 1
     && candidateSettlementUnknown.calls.some(call => /set state='reconcile_required'/.test(call.sql))
     && !candidateSettlementUnknown.calls.some(call => /set state='released'/.test(call.sql)));
+  const terraFactory=options=>create({...options,model:'gpt-5.6-terra',env:terraEnv,fetchImpl:async(...args)=>{await options.fetchImpl(...args);return new Response(JSON.stringify(terraPayload));}});
+  const terraGood=await service(terraFactory);
+  const terraSettlement=terraGood.calls.find(x=>/with settled as/.test(x.sql));
+  assert.equal(terraGood.result.billing_state,'settled');assert.equal(terraSettlement.params[5],478);assert.equal(terraSettlement.params[4],23);
+  ok('real private Meet settles scoped Terra2/12 once while generic1/1 config remains untouched');
+  for(const [label,patch]of [['wrong dated model',{model:'gpt-5.6-terra'}],['length',{choices:[{finish_reason:'length',message:{content:'partial'}}]}],['malformed fingerprint',{system_fingerprint:42}],['invalid reasoning',{usage:{prompt_tokens:101,completion_tokens:23,completion_tokens_details:{reasoning_tokens:24}}}],['invalid structured output',{choices:[{finish_reason:'stop',message:{content:'not-json'}}]}]]){
+    const refused=await service(options=>create({...options,model:'gpt-5.6-terra',env:terraEnv,fetchImpl:async(...args)=>{await options.fetchImpl(...args);return new Response(JSON.stringify({...terraPayload,...patch}));}}));
+    assert(refused.error);assert(!refused.result);const settlements=refused.calls.filter(x=>/with settled as/.test(x.sql));assert.equal(settlements.length,1);assert.equal(settlements[0].params[5],478);assert(!refused.calls.some(x=>/assistant_log as|set state='released'/.test(x.sql)));
+    ok('Terra '+label+' refusal settles known usage once before returning the error');
+  }
+  const terraLostBegin=await service(terraFactory,undefined,{beginLostAcknowledgement:true});assert.equal(terraLostBegin.providerCalls,0);assert(terraLostBegin.calls.some(x=>/reconcile_required/.test(x.sql)));assert(!terraLostBegin.calls.some(x=>/set state='released'/.test(x.sql)));
+  const terraLostSettle=await service(terraFactory,undefined,{settleLostAcknowledgement:true});assert.equal(terraLostSettle.providerCalls,1);assert.equal(terraLostSettle.calls.filter(x=>/with settled as/.test(x.sql)).length,1);assert.equal(terraLostSettle.result.billing_state,'reconcile_required');
+  ok('Terra retains unknown begin and settlement ACK behavior without dispatch retry or release');
+  const reasoningIncluded=await service(options=>create({...options,model:'gpt-5.6-terra',env:terraEnv,fetchImpl:async(...args)=>{await options.fetchImpl(...args);return new Response(JSON.stringify({...terraPayload,usage:{prompt_tokens:101,completion_tokens:23,completion_tokens_details:{reasoning_tokens:7}}}));}}));
+  assert.equal(reasoningIncluded.calls.find(x=>/with settled as/.test(x.sql)).params[5],478);
+  ok('reported reasoning is part of total completion usage and never charged twice');
+
+  const oldCandidate=await service(terraFactory,undefined,{candidate:true});assert(oldCandidate.error);assert.equal(oldCandidate.providerCalls,0);assert(!oldCandidate.calls.some(x=>/insert into vy_provider_spend/.test(x.sql)));
+  ok('actual private Meet refuses old mini candidate binding before Terra reservation or dispatch');
 } finally { for (const [key, value] of Object.entries(previousEnv)) if (value === undefined) delete process.env[key]; else process.env[key] = value; }
 console.log(`\n${checks} Azure dialogue adapter checks passed; synthetic HTTP/DB only`);

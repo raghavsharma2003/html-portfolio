@@ -42,6 +42,10 @@ provider arms are never called.
 | `AZURE_FOUNDRY_API_KEY` | same registries | required for either Azure arm | same as above | same as above |
 | `AZURE_FOUNDRY_CLAIM_MODEL` | `api/_claim-extraction/registry.js` | required for Azure claim extraction | complete OpenRouter arm | claim extraction 503s only when no provider arm is complete |
 | `AZURE_FOUNDRY_DIALOGUE_MODEL` | `api/_dialogue/registry.js:5` | required | throws if unset | dialogue generation 503s (claim extraction unaffected) |
+| `AZURE_FOUNDRY_DIALOGUE_RATE_MODEL` | `api/_dialogue/providers/azure-foundry.js` | optional unless Terra dialogue selected | none | exact deployment acknowledgment; cannot borrow shared reply or claim rates |
+| `AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL` | `api/_dialogue/providers/azure-foundry.js` | optional unless Terra dialogue selected | none | exact dated Terra response model acknowledgment |
+| `AZURE_FOUNDRY_DIALOGUE_INPUT_USD_PER_MTOKENS` | `api/_dialogue/providers/azure-foundry.js` | optional unless Terra dialogue selected | none | explicit positive dialogue input rate; no generic fallback |
+| `AZURE_FOUNDRY_DIALOGUE_OUTPUT_USD_PER_MTOKENS` | `api/_dialogue/providers/azure-foundry.js` | optional unless Terra dialogue selected | none | explicit positive dialogue output rate; no generic fallback |
 | `OPENROUTER_API_KEY` | `api/_claim-extraction/registry.js` | one of two accepted OpenRouter credential names | `OPENROUTER_KEY` | OpenRouter arm unavailable when neither is set |
 | `OPENROUTER_KEY` | `api/_claim-extraction/registry.js` | compatibility credential name | `OPENROUTER_API_KEY` | same as above |
 | `OPENROUTER_CLAIM_MODEL` | `api/_claim-extraction/registry.js` | required for OpenRouter claim extraction | complete Azure claim arm | claim extraction 503s only when no provider arm is complete |
@@ -1562,3 +1566,12 @@ Azure deployment inspection. The route reuses `AZURE_FOUNDRY_ENDPOINT`,
 `AZURE_FOUNDRY_API_KEY`, `AZURE_FOUNDRY_DIALOGUE_MODEL` and the existing
 `AZURE_REPLICA_*`/Foundry token-price budget settings. No new secret value is
 stored in this manifest. Migration152 and actual provider proof remain pending.
+
+
+### Ordinary private Meet Terra protocol (source capability only)
+
+Selecting `AZURE_FOUNDRY_DIALOGUE_MODEL=gpt-5.6-terra` requires dialogue-specific `AZURE_FOUNDRY_DIALOGUE_RATE_MODEL=gpt-5.6-terra`, `AZURE_FOUNDRY_DIALOGUE_EXPECTED_RESPONSE_MODEL=gpt-5.6-terra-2026-07-09`, and explicit positive `AZURE_FOUNDRY_DIALOGUE_INPUT_USD_PER_MTOKENS` / `AZURE_FOUNDRY_DIALOGUE_OUTPUT_USD_PER_MTOKENS`. Prices are operator-supplied from reviewed evidence; none are hardcoded or borrowed from shared replies, Room or claim extraction. Existing budget ID and limit remain in force. Mini retains its current configuration and wire request.
+
+The existing structured dialogue adapter uses max_completion_tokens700 and reasoning_effort none for Terra, without temperature. Total completion includes reasoning usage. Validated measured usage accompanies identity/length refusals so the service settles known charges before returning the error; unknown acknowledgements retain existing reconciliation rules. Optional fingerprint is recorded as not_provided when absent. The adapter identity includes the explicit dialect and normalized model-specific rate commitment; its frozen rate environment is used for reserve and settlement. Do not reprice or retry an existing attempt.
+
+This supports ordinary private Meet only. The comparison/qualified-candidate revision helper remains mini-only and refuses Terra before dispatch; existing candidate qualifications cannot authorize the new model. No config switch, inference, structured Terra compatibility or teaching improvement is established by source tests. Previous Terra plain-text evidence does not prove this structured JSON-schema request. Endpoint migration is separate from this capability.
