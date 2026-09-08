@@ -183,6 +183,8 @@ type ContextLockerPanelProps = {
   onAuthError?: (error: ReplicaApiError) => void;
   onProposals?: (count: number) => void;
   onItemCount?: (count: number) => void;
+  onTeachSource?: (source: { replicaId: string; itemId: string }) => void;
+  teachSourceLabel?: string;
   onTestSource?: (source: { replicaId: string; itemId: string }) => void;
   testSourceLabel?: string;
 };
@@ -204,6 +206,8 @@ function ContextLockerScope({
   onAuthError,
   onProposals,
   onItemCount,
+  onTeachSource,
+  teachSourceLabel = "Teach your AI",
   onTestSource,
   testSourceLabel = "Test this source",
 }: {
@@ -221,6 +225,8 @@ function ContextLockerScope({
    *  panel is the only thing that asks the server. Reporting it up is cheaper
    *  and more honest than a second fetch that could disagree with this one. */
   onItemCount?: (count: number) => void;
+  onTeachSource?: (source: { replicaId: string; itemId: string }) => void;
+  teachSourceLabel?: string;
   onTestSource?: (source: { replicaId: string; itemId: string }) => void;
   testSourceLabel?: string;
 }) {
@@ -405,6 +411,8 @@ function ContextLockerScope({
 
   const items = view?.items ?? [];
   const quota = view?.quota;
+  const teachableSource = recent.map((row) => row.item).find(isTeachableContextSource)
+    ?? items.find(isTeachableContextSource);
   const speakersById = useMemo(() => {
     const map = new Map<string, ContextSpeaker[]>();
     for (const row of recent) if (row.item && row.speakers?.length) map.set(row.item.item_id, row.speakers);
@@ -523,6 +531,15 @@ function ContextLockerScope({
         </ul>
       )}
 
+      {onTeachSource && teachableSource ? (
+        <div className="context-result-actions">
+          <button type="button" className="button primary-button" data-teach-source={teachableSource.item_id}
+            disabled={busy || loading} onClick={() => {
+              if (mounted.current && !busy && !loading) onTeachSource({ replicaId, itemId: teachableSource.item_id });
+            }}>{teachSourceLabel}</button>
+        </div>
+      ) : null}
+
       {openItemId && <Suspense fallback={<p role="status">Opening phrases</p>}>
         <ContextProposalReview key={`${replicaId}:${openItemId}`} token={token} replicaId={replicaId}
           itemId={openItemId} regionId={reviewRegionId} onClose={closeReview} onAuthError={onAuthError} />
@@ -586,6 +603,12 @@ function ContextLockerScope({
       )}
     </section>
   );
+}
+
+export function isTeachableContextSource(item: ContextItem | null | undefined): item is ContextItem {
+  return !!item && item.kind === "file" && ["extracted", "mined"].includes(item.status)
+    && item.extracted_chars > 0 && item.consent_scope === "own_context" && item.authorship === "mine"
+    && ["text", "markdown", "pdf", "docx"].includes(item.format);
 }
 
 /** The five states, and nothing else. */

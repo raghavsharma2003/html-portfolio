@@ -61,6 +61,7 @@ const artifact=join(root,'scratchpad/feed-meet-return',String(Date.now()));mkdir
 let browser,server;const errors=[];
 try{
  const baselineOnly=process.argv.includes('--baseline');
+ const teachOnly=process.argv.includes('--teach');
  const built=await build({root,configFile:false,logLevel:'silent',build:{write:false,minify:true,rolldownOptions:{input:{studio:join(root,'studio.html'),scope:join(root,'evals/private-text-rehearsal/scope.html'),legacy:join(root,'evals/private-text-rehearsal/legacy.html')}}},plugins:[{name:'checkpoint23-negative',enforce:'pre',load(id){const rel=id.replaceAll('\\','/').split('/src/studio/')[1];if(baselineOnly&&['CloneExperience.tsx','ContextLockerPanel.tsx','PrivateTextRehearsal.tsx'].includes(rel))return execFileSync('git',['show','0a3b2d26:src/studio/'+rel],{cwd:root,encoding:'utf8'});}},{name:'retained-base-component',resolveId(id){if(id==='virtual:prior-private-panel')return '\0prior-private-panel.tsx';if(id==='virtual:legacy-experience')return '\0legacy-experience.tsx';},load(id){if(id==='\0prior-private-panel.tsx')return priorPanel.replace(/(from\s*|import\s*|import\()(["'])(\.\/[^"']+)\2/g,(_all,prefix,quote,path)=>prefix+quote+join(root,'src/studio',path).replaceAll('\\','/')+quote);if(id==='\0legacy-experience.tsx')return old.replace(/(from\s*|import\s*|import\()(["'])(\.\/[^"']+)\2/g,(_all,prefix,quote,path)=>prefix+quote+join(root,'src/studio',path).replaceAll('\\','/')+quote);}}]});
  const assets=new Map(built.output.map(item=>['/'+item.fileName,item.type==='chunk'?item.code:item.source]));
  writeFileSync(join(artifact,'build.json'),JSON.stringify(built.output.map(item=>({file:item.fileName,sha256:createHash('sha256').update(item.type==='chunk'?item.code:item.source).digest('hex')})),null,2));
@@ -92,7 +93,10 @@ try{
      return send(200,value);
     }
    }
+   if(url.pathname==='/api/context-items'&&req.method==='POST'&&op==='add_files')return send(201,{results:body.files.map((file,index)=>({item:{item_id:`30000000-0000-4000-8000-00000000000${index+2}`,kind:'file',format:'text',source_name:file.filename,source_url:'',byte_size:200,extracted_chars:200,extractor:'plain-text/v1',status:'extracted',refusal_reason:'',routed_to:'',mine_skip_reason:'no_candidates_cleared_held_out',authorship:'mine',owner_speaker:'',consent_scope:'own_context',proposal:null,created_at:null,updated_at:null},proposal:{ok:true,proposed:0}}))});
    if(url.pathname==='/api/context-items')return send(200,{items:[{item_id:ITEM,kind:'file',format:scenario==='image'?'image':'text',source_name:'pendulum-notes.txt',source_url:'',byte_size:200,extracted_chars:200,extractor:'plain-text/v1',status:scenario==='refused'?'refused':scenario==='routed'?'routed':scenario==='mined'?'mined':'extracted',refusal_reason:'',routed_to:'',mine_skip_reason:'no_candidates_cleared_held_out',authorship:scenario==='reference'?'not_mine':scenario==='unknown'?'unknown':'mine',owner_speaker:'',consent_scope:'own_context',proposal:null,created_at:null,updated_at:null}],quota:{items:1,bytes:200,max_items:100,max_bytes:1e7},limits:{max_item_bytes:1e6,accepted_file_formats:['text','markdown','pdf','docx'],routed_elsewhere:{}}});
+   if(url.pathname==='/api/replica-person-model')return send(200,{person_model:{replica_id:rid,claims:[],profiles:[],readiness:{ready:false,blockers:['self_name_required'],conflicts:[],accepted_claims:0}}});
+   if(url.pathname==='/api/replica-claims')return send(200,{extraction:{replica_id:rid,readiness:{ready:true,blockers:[],eligible_spans:1},nearline:{queued:false,state:'ready_for_manual_extraction',pending_items:0,complete_items:0,next_attempt_at:null,last_error_code:null},runs:[]}});
    if(url.pathname==='/api/teacher-sheet'){if(op==='save_draft'){if(draftStatus==='published'){publishedBefore=structuredClone(draft);activeSheet='20000000-0000-4000-8000-000000000002';}draft=body.draft;draftStatus='draft';scenario='ready';}return send(200,{sheet:{draft,sheet_id:activeSheet,status:draftStatus,updated_at:'2026-09-07T00:00:00Z'}});}
    if(url.pathname==='/api/replica')return send(200,{replicas:[replica(RID),replica(OTHER)],replica:replica(rid)});
    if(url.pathname==='/api/replica-consent'&&op==='list')return send(200,{consents:grants(rid)});
@@ -122,7 +126,27 @@ try{
  const check=async(name,fn)=>{await fn();checks.push(name);console.log(`ok ${checks.length} - ${name}`);};
 
 
- if(baselineOnly){
+ if(teachOnly){
+ const teachSource=()=>page.getByRole('button',{name:/^(Teach your AI|अपने AI को सिखाएँ)$/});
+ const testSource=()=>page.getByRole('button',{name:/^(Test this source|इस सामग्री से पूछें)$/});
+ for(const width of [390,1440])await check(`saved own-writing source ${width}: explicit teaching path without auto-navigation`,async()=>{
+  scenario='ready';pending=[];requests=[];await page.setViewportSize({width,height:900});const lang=width===390?'hi':'en';
+  await page.goto(`${origin}/studio?mode=replica&replica=${RID}&view=enrich&lang=${lang}`);
+  await page.getByRole('button',{name:/Files, images, links/}).click();await page.locator('#context-locker-title').waitFor();
+  assert.equal(new URL(page.url()).searchParams.get('view'),'enrich');assert.equal(await teachSource().count(),1);assert.equal(await testSource().count(),1);
+  await page.locator('input[type=file].context-file-input').setInputFiles([
+   {name:'batch-one.txt',mimeType:'text/plain',buffer:Buffer.from('First owner-written source.')},
+   {name:'batch-two.txt',mimeType:'text/plain',buffer:Buffer.from('Second owner-written source.')},
+  ]);
+  await page.getByText('batch-two.txt',{exact:true}).waitFor();assert.equal(new URL(page.url()).searchParams.get('view'),'enrich');
+  assert.equal(await page.getByRole('heading',{name:'Bring your context'}).count(),1);assert.equal(await teachSource().count(),1);
+  const add=requests.find(row=>row.path==='/api/context-items'&&row.op==='add_files');assert(add);assert.equal(add.body.files.length,2);
+  await teachSource().scrollIntoViewIfNeeded();await page.screenshot({path:join(artifact,`teach-source-${width}.png`)});
+  await teachSource().click();await page.getByRole('heading',{name:'Choose what becomes you.'}).waitFor();await page.locator('#person-model-studio').waitFor();
+  assert.equal(new URL(page.url()).searchParams.get('view'),'evolve');assert.equal(requests.filter(row=>row.path==='/api/replica-claims'&&row.method==='GET').length>0,true);
+  await page.screenshot({path:join(artifact,`teach-evolve-${width}.png`)});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ });
+ }else if(baselineOnly){
  await check('executed checkpoint23 missing return and discarded unsent question',async()=>{
   await page.setViewportSize({width:390,height:900});await open('ready',true);await page.locator('#ptr-question').fill('Keep this unsent question');
   await page.getByRole('button',{name:'Add or edit source material'}).click();await page.getByText('pendulum-notes.txt',{exact:true}).waitFor();

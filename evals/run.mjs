@@ -35,6 +35,7 @@ execSync(
 );
 
 const suites = {
+  "feed-meet-teach-cta": "feed-meet-return/teach-cta.mjs",
   "personal-studio-entry-recovery": "personal-studio-entry-recovery.mjs",
   "expert-answer-inline": "expert-answer-inline.mjs",
   "panel-copy-inventory": "lib/panel-copy.test.mjs",
