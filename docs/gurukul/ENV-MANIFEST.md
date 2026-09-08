@@ -1523,3 +1523,14 @@ The Azure dialogue endpoint, model, API key, token prices and shared provider bu
 The displayed publication budget is an additional per-publication allocation cap. It does not replace the shared provider ledger. Admitted attempts count toward the fixed 20 questions per visitor and 200 per publication even if an answer cannot be delivered. Version 1 expires publications and retains conversations for at most 30 days; visitors can request deletion sooner.
 
 The expiry caller is registered every ten minutes. Verify that the intended deployment actually invokes it and that its bounded cleanup catches up; source registration and a configured secret alone do not prove retention cleanup is running. Key rotation needs an explicit migration/read strategy for existing encrypted content. Replacing the key bytes while retaining the same identifier will make earlier conversations unreadable.
+# Private correction candidate construction (2026-09-08)
+
+`AZURE_CORRECTION_BASE_MODEL_COMMITMENT` is a required, non-secret SHA256 for
+the reviewed baseline model deployment used by private correction candidates.
+It is consumed only server-side by `api/_replica-correction-candidate.js`.
+Missing or malformed values refuse candidate construction. Obtain it from
+reviewed deployment evidence; a configured hash alone does not prove a current
+Azure deployment inspection. The route reuses `AZURE_FOUNDRY_ENDPOINT`,
+`AZURE_FOUNDRY_API_KEY`, `AZURE_FOUNDRY_DIALOGUE_MODEL` and the existing
+`AZURE_REPLICA_*`/Foundry token-price budget settings. No new secret value is
+stored in this manifest. Migration152 and actual provider proof remain pending.

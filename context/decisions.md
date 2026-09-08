@@ -23573,3 +23573,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `correction37-catalog-proposal-before-candidate` (2026-09-08)
 
 2026-09-08 source-only audit at release34 base5ade4ea95209b15b0268338128514401be41b710: correction feedback and dataset preparation have real UI callers; candidate construction is missing. Reuse existing calibration strategy catalog, learning-example reader, candidate registration, blind package and qualification components. Added a pure held Azure request preparer; no dispatch, registration or activation. Inferred strategy IDs remain proposals, never fabricated owner calibration. Reversal requires an alternative representation improving fresh owner-held-out behavior while retaining revision/source authority, privacy, budget and explicit promotion.
+
+
+## `correction37-connected-private-candidate-worker` (2026-09-08)
+
+2026-09-08: Add existing Saved corrections panel action to authenticated correction candidate route and one-shot durable worker, Azure catalog extraction, accurately labelled private renderer and existing draft registration. Reuse full runtime and feedback SQL in same-statement admission instead of duplicating consent gates. Register's optional fourth admission argument is fixed server SQL, never request input. Migration152 source only, mirrored schema/source-erasure/catalog-walk path. No activation or owner-vote fabrication. Reverse on real authority/SQL/erasure failure or fresh held-out evidence that this representation worsens fidelity.

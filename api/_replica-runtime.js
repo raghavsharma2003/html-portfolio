@@ -449,9 +449,7 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
   };
 }
 
-export async function loadOwnedRuntimeContext(db, ownerUserId, id) {
-  const rows = await db(
-    `select r.replica_id,r.owner_user_id,r.subject_person_id,r.agent_id,r.subject_mode,r.lifecycle,
+export const OWNED_RUNTIME_CONTEXT_SQL = `select r.replica_id,r.owner_user_id,r.subject_person_id,r.agent_id,r.subject_mode,r.lifecycle,
             r.policy_version,r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,r.identity_expires_at,
             a.status as agent_status,c.capability_id,c.state as capability_state,c.policy_version as runtime_policy,
             c.voice_profile_id,c.genome_version,c.profile_version,c.calibration_version,c.qualification_hash,
@@ -490,7 +488,11 @@ export async function loadOwnedRuntimeContext(db, ownerUserId, id) {
         and r.lifecycle='active' and r.policy_version=$3
         and r.age_verified_at is not null and r.identity_verified_at is not null
         and r.liveness_verified_at is not null and r.identity_expires_at>now()
-      limit 1`,
+      limit 1`;
+
+export async function loadOwnedRuntimeContext(db, ownerUserId, id) {
+  const rows = await db(
+    OWNED_RUNTIME_CONTEXT_SQL,
     [replicaId(id), ownerUserId, REPLICA_POLICY_VERSION],
   );
   const row = rows[0];

@@ -995,6 +995,10 @@ const suites = {
   feedbackdataset: "feedback-dataset/run.mjs",
   "feedback-dataset-client": "feedback-dataset-client.mjs",
   "feedback-dataset-ui": "feedback-dataset-ui.mjs",
+  "correction-strategy-request": "correction-strategy-request/run.mjs",
+  "correction-strategy-adapter": "correction-strategy-adapter/run.mjs",
+  "correction-candidate-worker": "correction-candidate-worker/run.mjs",
+  "correction-candidate-ui": "correction-candidate-ui.mjs",
   // Blinded paired target-improvement plus cross-layer noninferiority and
   // zero-tolerance safety gates; qualification never activates a candidate.
   candidatequal: "candidate-qualification/run.mjs",

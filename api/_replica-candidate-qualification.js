@@ -158,7 +158,7 @@ export function evaluateCandidateQualification(datasetDefinition, config, rawObs
   };
 }
 
-export async function registerOwnedCandidate(db, ownerUserId, input) {
+export async function registerOwnedCandidate(db, ownerUserId, input, admission = null) {
   if (typeof db !== "function") fail("qualification_db_required", 503);
   const kind = String(input?.kind || "");
   const replicaId = safeUuid(input?.replica_id, "candidate_replica_id_invalid");
@@ -170,9 +170,14 @@ export async function registerOwnedCandidate(db, ownerUserId, input) {
   for (const [value, code] of [[input?.artifact_sha256, "candidate_artifact_hash_invalid"], [input?.base_model_commitment, "candidate_base_hash_invalid"], [input?.build_manifest_hash, "candidate_manifest_hash_invalid"]]) {
     if (!/^[0-9a-f]{64}$/.test(String(value || ""))) fail(code, 400);
   }
+  // Optional server-owned same-statement authority predicate. This fourth
+  // argument is never populated from HTTP input; callers supply fixed SQL.
+  if (admission !== null && (typeof admission.sql !== "string" || !Array.isArray(admission.params)))
+    fail("candidate_admission_invalid", 500);
+  const gateSql = admission ? admission.sql.replace(/\$(\d+)/g, (_, index) => `$${Number(index) + 10}`) : null;
   const candidateId = randomUUID();
   const rows = await db(
-    `insert into vy_replica_candidate
+    `${gateSql ? `with candidate_admission as (${gateSql}) ` : ""}insert into vy_replica_candidate
        (candidate_id,dataset_id,replica_id,owner_user_id,base_capability_id,profile_version,calibration_version,
         kind,target_layers,artifact_sha256,base_model_commitment,build_manifest_hash,status)
      select $3::uuid,d.dataset_id,d.replica_id,d.owner_user_id,c.capability_id,d.profile_version,d.calibration_version,
@@ -183,6 +188,7 @@ export async function registerOwnedCandidate(db, ownerUserId, input) {
       where d.dataset_id=$4::uuid and d.replica_id=$1::uuid and d.owner_user_id=$2::uuid and d.status='draft'
         and coalesce((d.readiness->>'ready_for_candidate_dataset')::boolean,false)=true
         and c.state in ('active','superseded')
+        ${gateSql ? "and exists (select 1 from candidate_admission ca where ca.dataset_id=d.dataset_id and ca.capability_id=c.capability_id)" : ""}
      on conflict (replica_id,dataset_id,artifact_sha256) do update set artifact_sha256=excluded.artifact_sha256
        where vy_replica_candidate.base_capability_id=excluded.base_capability_id
          and vy_replica_candidate.profile_version=excluded.profile_version
@@ -194,7 +200,7 @@ export async function registerOwnedCandidate(db, ownerUserId, input) {
      returning candidate_id,dataset_id,replica_id,base_capability_id,profile_version,calibration_version,kind,target_layers,
                artifact_sha256,base_model_commitment,build_manifest_hash,status,created_at`,
     [replicaId, ownerUserId, candidateId, datasetId, baseCapabilityId, kind, targets,
-      input.artifact_sha256, input.base_model_commitment, input.build_manifest_hash],
+      input.artifact_sha256, input.base_model_commitment, input.build_manifest_hash, ...(admission?.params || [])],
   );
   if (!rows[0]) fail("candidate_dataset_not_ready");
   return rows[0];

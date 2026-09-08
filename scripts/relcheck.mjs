@@ -422,6 +422,8 @@ const erasureSrc = await readFile(
   "utf8",
 );
 const unreachable = [...ownerOnly]
+  // 152's correction candidate jobs cascade through their owned dataset and
+  // candidate FKs; this same catalog walk must prove their replica reach.
   // 141's vy_private_text_rehearsal is an owner lane with replica/source/item
   // cascades and an explicit full-erasure delete. This catalog walk checks it.
   .filter((t) => !reached.has(t))
