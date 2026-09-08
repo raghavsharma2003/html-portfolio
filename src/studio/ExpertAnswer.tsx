@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { splitAnswerMath, type AnswerPart } from "./answerMath";
+import { splitAnswerInline, splitAnswerMath, type AnswerPart } from "./answerMath";
 import "./expert-answer.css";
 
 // Load only for an answer with explicit math. No CDN, font request or provider call.
@@ -53,8 +53,17 @@ function Equation({ part }: { part: AnswerPart }) {
     : <span {...props} dangerouslySetInnerHTML={{ __html: markup }} />;
 }
 
+function InlineContent({ text }: { text: string }) {
+  return <>{splitAnswerInline(text).map((part, index) => {
+    const key = `${index}:${part.kind}:${part.text}`;
+    if (part.kind === "strong") return <strong key={key}>{part.text}</strong>;
+    if (part.kind === "code") return <code className="expert-answer__code" key={key}>{part.text}</code>;
+    return <span key={key}>{part.text}</span>;
+  })}</>;
+}
+
 export default function ExpertAnswer({ text }: { text: string }) {
   return <div className="expert-answer">{splitAnswerMath(text).map(part => part.expression !== undefined
     ? <Equation key={`${part.start}:${part.raw}`} part={part} />
-    : <span key={part.start}>{part.raw}</span>)}</div>;
+    : <InlineContent key={part.start} text={part.raw} />)}</div>;
 }

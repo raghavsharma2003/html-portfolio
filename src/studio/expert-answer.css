@@ -5,3 +5,4 @@
 .expert-answer__math--source { white-space: pre-wrap; overflow-wrap: anywhere; }
 .expert-answer__math:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 3px; }
 .expert-answer__math math[display="block"] { margin: 0; text-align: start; }
+.expert-answer__code { padding: 1px 4px; border-radius: 4px; background: color-mix(in srgb, currentColor 10%, transparent); font: 0.92em/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; }
