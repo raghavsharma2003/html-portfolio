@@ -17232,3 +17232,8 @@ n=1 V5run2026-09-07T23:05:29.258Z to23:07:43.131Z;500queries,17sessions,80checks
 ## `release31-focused-regression-results` (2026-09-07)
 
 2026-09-08: Store runner passes26 controls with changed-DDL negative. Mounted capture final run exec15698 terminal0 passes30 groups including old-media, old-start and old-lifecycle negatives; synthetic media only. Unchanged conversation suite terminal0 passes34 controls at390/1440, receipt1788844435205, SHA da61d48743054a8ae771291e335c5f55db452a614eadff30b9fb1d07376554cc. No provider or real SQL in these checks. Full release31 pending.
+
+
+## `private-continuity32-offline` (2026-09-08)
+
+2026-09-08 n=1 final focusedrun21controls; actualdialoguecallerfixture33controls; existinghistory12controls pass. FourTS/TSXsyntaxtranspiles0errors; Impeccabledetector0findings. No semanticTS/browser/npm/cloud/model/SQL execution. SevenproductionSQLshapes prepared;148migration4statementsunrun; rootfullreleasehosthold respected.

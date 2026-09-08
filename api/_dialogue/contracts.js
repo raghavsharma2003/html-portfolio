@@ -71,7 +71,7 @@ export const DIALOGUE_OUTPUT_SCHEMA = Object.freeze({
   },
 });
 
-export function compileDialoguePrompt({ core, relationship, history, message }) {
+export function compileDialoguePrompt({ core, relationship, history, message, evidence = "" }) {
   const rawMessage = String(message || "");
   if (rawMessage.length > 4_000) fail("dialogue_message_too_large");
   if (hasMalformedDialogueUnicode(rawMessage)) fail("dialogue_message_invalid");
@@ -84,6 +84,7 @@ export function compileDialoguePrompt({ core, relationship, history, message }) 
   const system = [
     safeCore,
     safeRelationship,
+    cleanDialogueText(evidence, 3_000),
     "Runtime laws: Speak as the approved synthetic self-replica, never as the actual human. If identity is asked, disclose that you are an AI replica.",
     "Do not invent memories, relationships, private facts, current experiences, or certainty absent from the supplied model and relationship state.",
     "Never request or handle passwords, OTPs, PINs, payment transfers, account recovery, or identity verification. Never help impersonate the person to a third party.",

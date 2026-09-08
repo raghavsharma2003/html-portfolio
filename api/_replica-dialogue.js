@@ -1,3 +1,4 @@
+import {readPrivateContinuity, continuityReferences, continuityPrompt, continuityPredicate, readPrivateContinuitySources} from "./_private-dialogue-continuity.js";
 import { randomUUID } from "node:crypto";
 import {
   DIALOGUE_SCHEMA,
@@ -70,9 +71,7 @@ async function ensureSession(db, ownerUserId, runtime, input) {
   return rows[0];
 }
 
-async function loadSessionHistory(db, ownerUserId, runtime, sessionId) {
-  const rows = await db(
-    `select recent.ordinal,u.content as user_content,a.content as assistant_content
+export const PRIVATE_SESSION_HISTORY_SQL = `select recent.ordinal,u.content as user_content,a.content as assistant_content
        from (
          select t.* from vy_replica_dialogue_turn t
           where t.session_id=$1::uuid and t.replica_id=$2::uuid and t.owner_user_id=$3::uuid
@@ -81,7 +80,14 @@ async function loadSessionHistory(db, ownerUserId, runtime, sessionId) {
        ) recent
        join meera_log u on u.id=recent.user_log_id and u.agent_id=recent.agent_id and u.device_id=recent.device_id
        join meera_log a on a.id=recent.assistant_log_id and a.agent_id=recent.agent_id and a.device_id=recent.device_id
-      order by recent.ordinal asc`,
+      join vy_replica r on r.replica_id=recent.replica_id and r.owner_user_id=recent.owner_user_id
+      join vy_replica_runtime_capability c on c.capability_id=recent.capability_id
+      where ${continuityPredicate('recent.continuity_refs','r','c','recent.session_id')}
+      order by recent.ordinal asc`;
+
+async function loadSessionHistory(db, ownerUserId, runtime, sessionId) {
+  const rows = await db(
+    PRIVATE_SESSION_HISTORY_SQL,
     [sessionId, runtime.replica.replica_id, ownerUserId, runtime.replica.agent_id, runtime.replica.subject_person_id],
   );
   return rows.flatMap((row) => [
@@ -90,9 +96,7 @@ async function loadSessionHistory(db, ownerUserId, runtime, sessionId) {
   ]);
 }
 
-async function beginDialogueTurn(db, ownerUserId, runtime, session, generator, input, prompt) {
-  const rows = await db(
-    `with authorized as materialized (
+export const PRIVATE_DIALOGUE_BEGIN_SQL = `with authorized as materialized (
        select s.session_id,s.capability_id,s.replica_id,s.owner_user_id,s.agent_id,s.person_id,s.channel,
               c.profile_version,c.calibration_version,pd.device_id
          from vy_replica_runtime_session s
@@ -110,6 +114,7 @@ async function beginDialogueTurn(db, ownerUserId, runtime, session, generator, i
             where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
               and x.scope='inference' and x.policy_version=$13 and x.revoked_at is null
               and (x.expires_at is null or x.expires_at>now()))
+          and ${continuityPredicate('$14::jsonb')}
         for update of r
      ), advanced as (
        update vy_replica_runtime_session s
@@ -125,23 +130,25 @@ async function beginDialogueTurn(db, ownerUserId, runtime, session, generator, i
        insert into vy_replica_dialogue_turn
          (session_id,capability_id,replica_id,owner_user_id,agent_id,person_id,device_id,ordinal,
           profile_version,calibration_version,schema_version,provider_family,provider_name,provider_version,
-          model,trace_id,user_log_id,prompt_hash,state)
+          model,trace_id,user_log_id,prompt_hash,state,continuity_refs)
        select a.session_id,a.capability_id,a.replica_id,a.owner_user_id,a.agent_id,a.person_id,a.device_id,a.ordinal,
-              a.profile_version,a.calibration_version,$7,$8,$9,$10,$11,$6,l.id,$12,'generating'
+              a.profile_version,a.calibration_version,$7,$8,$9,$10,$11,$6,l.id,$12,'generating',$14::jsonb
          from advanced a join user_log l on l.device_id=a.device_id and l.agent_id=a.agent_id
        returning turn_id,session_id,ordinal,created_at
-     ) select * from inserted`,
+     ) select * from inserted`;
+
+async function beginDialogueTurn(db, ownerUserId, runtime, session, generator, input, prompt, evidence = []) {
+  const rows = await db(
+    PRIVATE_DIALOGUE_BEGIN_SQL,
     [session.session_id, runtime.replica.replica_id, ownerUserId, runtime.capability.capability_id,
       input.message, input.trace_id, DIALOGUE_SCHEMA, generator.family, generator.name, generator.version,
-      generator.model, prompt.prompt_hash, REPLICA_POLICY_VERSION],
+      generator.model, prompt.prompt_hash, REPLICA_POLICY_VERSION, JSON.stringify(continuityReferences(evidence))],
   );
   if (!rows[0]) fail("dialogue_authorization_changed");
   return rows[0];
 }
 
-async function finishDialogueTurn(db, ownerUserId, runtime, turn, output) {
-  const rows = await db(
-    `with authorized as materialized (
+export const PRIVATE_DIALOGUE_FINISH_SQL = `with authorized as materialized (
        select t.turn_id,t.session_id,t.replica_id,t.owner_user_id,t.agent_id,t.person_id,t.device_id,t.ordinal,t.user_log_id,
               s.channel
          from vy_replica_dialogue_turn t
@@ -158,6 +165,7 @@ async function finishDialogueTurn(db, ownerUserId, runtime, turn, output) {
             where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
               and x.scope='inference' and x.policy_version=$7 and x.revoked_at is null
               and (x.expires_at is null or x.expires_at>now()))
+          and ${continuityPredicate('t.continuity_refs')}
         for update of r
      ), assistant_log as (
        insert into meera_log (device_id,role,channel,kind,content,at,agent_id)
@@ -171,7 +179,11 @@ async function finishDialogueTurn(db, ownerUserId, runtime, turn, output) {
          from authorized a join assistant_log l on l.device_id=a.device_id and l.agent_id=a.agent_id
         where t.turn_id=a.turn_id
        returning t.turn_id,t.session_id,t.ordinal,t.created_at,t.completed_at
-     ) select * from finished`,
+     ) select * from finished`;
+
+async function finishDialogueTurn(db, ownerUserId, runtime, turn, output) {
+  const rows = await db(
+    PRIVATE_DIALOGUE_FINISH_SQL,
     [turn.turn_id, runtime.replica.replica_id, ownerUserId, output.reply, output.response_hash,
       JSON.stringify(output.delivery), REPLICA_POLICY_VERSION],
   );
@@ -207,17 +219,20 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
   const runtime = await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id);
   if (!runtime) fail("dialogue_runtime_not_active");
   const session = await ensureSession(db, ownerUserId, runtime, input);
-  const [snapshot, history] = await Promise.all([
+  const [snapshot, history, evidence] = await Promise.all([
     loadPrivateRelationshipSnapshot(db, runtime, { strict: true }),
     loadSessionHistory(db, ownerUserId, runtime, session.session_id),
+    rawInput.recall_previous === true && input.channel === "private_chat"
+      ? readPrivateContinuity(db, ownerUserId, input.replica_id, session.session_id, input.message) : [],
   ]);
   const prompt = compileDialoguePrompt({
     core: compileReplicaRuntimeCore(runtime.personProfile.definition, runtime.calibration.definition),
     relationship: compileRelationshipTail(snapshot),
+    evidence: continuityPrompt(evidence),
     history,
     message: input.message,
   });
-  const turn = await beginDialogueTurn(db, ownerUserId, runtime, session, generator, input, prompt);
+  const turn = await beginDialogueTurn(db, ownerUserId, runtime, session, generator, input, prompt, evidence);
   let reservation = null;
   let providerStarted = false;
   try {
@@ -250,11 +265,12 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
       }
     }
     return {
+      has_continuity: evidence.length > 0,
       turn_id: finished.turn_id,
       session_id: finished.session_id,
       reply: output.reply,
       delivery: output.delivery,
-      can_voice: true,
+      can_voice: evidence.length === 0,
       billing_state: billingState,
       created_at: finished.created_at,
     };
@@ -265,11 +281,7 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
   }
 }
 
-export async function loadOwnedDialogueSpeech(db, ownerUserId, input) {
-  const rid = replicaId(input?.replica_id);
-  const turnId = safeUuid(input?.dialogue_turn_id, "valid_dialogue_turn_id_required");
-  const rows = await db(
-    `select t.turn_id,a.content,t.delivery_plan
+export const PRIVATE_DIALOGUE_SPEECH_SQL = `select t.turn_id,a.content,t.delivery_plan
        from vy_replica_dialogue_turn t
        join meera_log a on a.id=t.assistant_log_id and a.agent_id=t.agent_id and a.device_id=t.device_id and a.role='her'
        join vy_replica_runtime_capability c
@@ -277,12 +289,18 @@ export async function loadOwnedDialogueSpeech(db, ownerUserId, input) {
         and c.agent_id=t.agent_id and c.subject_person_id=t.person_id and c.profile_version=t.profile_version
         and c.calibration_version=t.calibration_version and c.state='active'
        join vy_replica r on r.replica_id=t.replica_id and r.owner_user_id=t.owner_user_id and r.lifecycle='active'
-      where t.turn_id=$1::uuid and t.replica_id=$2::uuid and t.owner_user_id=$3::uuid and t.state='complete'
+      where coalesce(t.continuity_refs,'[]'::jsonb)='[]'::jsonb and t.turn_id=$1::uuid and t.replica_id=$2::uuid and t.owner_user_id=$3::uuid and t.state='complete'
         and exists(select 1 from vy_replica_consent x
           where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
             and x.scope='inference' and x.policy_version=$4 and x.revoked_at is null
             and (x.expires_at is null or x.expires_at>now()))
-      limit 1`,
+      limit 1`;
+
+export async function loadOwnedDialogueSpeech(db, ownerUserId, input) {
+  const rid = replicaId(input?.replica_id);
+  const turnId = safeUuid(input?.dialogue_turn_id, "valid_dialogue_turn_id_required");
+  const rows = await db(
+    PRIVATE_DIALOGUE_SPEECH_SQL,
     [turnId, rid, ownerUserId, REPLICA_POLICY_VERSION],
   );
   if (!rows[0]) fail("dialogue_turn_not_speakable", 409);
@@ -301,6 +319,10 @@ export function createReplicaDialogueHandler({ db, requireUser, resolveGenerator
       if (req.method === "GET") {
         const history = await readOwnedDialogueHistory(db, user.id, req.query || {});
         return res.status(200).json({ history });
+      }
+      if (req.body?.op === "continuity_sources") {
+        const sources = await readPrivateContinuitySources(db, user.id, req.body);
+        return res.status(200).json({ sources });
       }
       if (req.body?.op === "open_session") {
         const session = await openOwnedDialogueSession(db, user.id, req.body);

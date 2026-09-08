@@ -23460,3 +23460,8 @@ Permit the two existing artifact-review retirement writes only under their exact
 ## `vyakti-scheduled-followup-paused` (2026-09-07)
 
 2026-09-08: User explicitly asked to stop Continue Vyakti expert product scheduled task. No automation management tool was exposed after tool inventory search. Backed up exact local automation.toml and changed only ACTIVE to PAUSED plus updated_at; readback confirmedPAUSED. Product goal remainsactive, agents resumed. Reversal: user explicitly requests schedule restart. Scheduler interference was suspected by user, not established as cause of earlier stops.
+
+
+## `private-continuity32-evidence-boundary` (2026-09-08)
+
+2026-09-08: Add opt-in private-session continuity using existing dialogue/log tables, max3prior active12h samecap exchanges and2048UTF8byte conservative token cap. Source IDs/hashes persist in148; owner corrections/publicpublication untouched. Reversal: actualscope/erase/parser or heldoutrecall failure invalidates acceptance; no semanticmemory quality inferred.

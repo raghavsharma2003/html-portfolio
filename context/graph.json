@@ -15861,6 +15861,24 @@
       "kind": "decision",
       "title": "Pause redundant scheduled continuation while retaining active product goal",
       "at": "2026-09-07"
+    },
+    {
+      "id": "private-continuity32-evidence-boundary",
+      "kind": "decision",
+      "title": "Reuse exact private rehearsal exchanges",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "private-continuity32-offline",
+      "kind": "measurement",
+      "title": "Private continuity32 offline controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "private-continuity32-reference-only-erasure",
+      "kind": "rejection",
+      "title": "JSON references alone do not erase derived replies",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

@@ -900,6 +900,8 @@ const suites = {
   // agent/person-scoped relationship context, erasable raw logs, strict
   // structured output and server-bound protected speech.
   replicadialogue: "replica-dialogue/run.mjs",
+  "private-continuity": "private-continuity/run.mjs",
+  "private-continuity-ui": "private-continuity/ui.mjs",
   // Atomic finite-grant control: conservative reservation before paid network
   // calls, measured settlement, crash/unknown reconciliation and content-free
   // accounting under one hard Azure application ceiling.

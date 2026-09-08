@@ -1,3 +1,5 @@
+import {PRIVATE_CONTINUITY_SQL} from "../../api/_private-dialogue-continuity.js";
+import {createHash} from "node:crypto";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -117,6 +119,21 @@ const db = async (sql, params) => {
 const turn = await generateOwnedDialogue(db, OWNER, { replica_id: RID, channel: "private_chat", message: "Aaj plan badal gaya", trace_id: "trace_dialogue_001" }, fakeGenerator);
 ok("active self replica produces an owner-visible reply and opaque turn handles", turn.turn_id === TURN && turn.session_id === SESSION && turn.reply === output.reply && turn.can_voice === true);
 ok("provider sees compiled Person Model and isolated relationship context but no tenancy or voice secrets", /Self-name: Asha/.test(generatorPrompt.messages[0].content) && /trust: 0.8/.test(generatorPrompt.messages[0].content) && !JSON.stringify(generatorPrompt).includes(OWNER) && !JSON.stringify(generatorPrompt).includes("private-provider-ref"));
+const firstGeneratorPrompt=generatorPrompt;
+const priorQuestion="My pendulum lesson uses a string example",priorReply="We discussed that lesson";
+const sha=value=>createHash('sha256').update(value).digest('hex');
+let continuityReads=0;
+const continuityTurn=await generateOwnedDialogue(async(sql,params)=>{
+ if(sql===PRIVATE_CONTINUITY_SQL){continuityReads++;return[{authorized:true,evidence:[{
+  turn_id:CONSENT,session_id:VOICE,created_at:"2026-09-08T01:00:00Z",question:priorQuestion,reply:priorReply,
+  question_sha256:sha(priorQuestion),reply_sha256:sha(priorReply),
+ }]}];}
+ return db(sql,params);
+},OWNER,{replica_id:RID,channel:"private_chat",message:"What was my pendulum lesson?",recall_previous:true,trace_id:"trace_continuity_001"},fakeGenerator);
+ok("opted-in actual dialogue caller includes bounded prior evidence and refuses derived voice",continuityReads===1&&continuityTurn.has_continuity===true&&continuityTurn.can_voice===false&&generatorPrompt.messages[0].content.includes(priorQuestion));
+const continuityAdmission=calls.filter(call=>/insert into vy_replica_dialogue_turn/i.test(call.sql)).at(-1);
+ok("prior evidence IDs and hashes are bound to the actual admission SQL",JSON.parse(continuityAdmission.params[13])[0].turn_id===CONSENT&&!continuityAdmission.params[13].includes(priorQuestion));
+generatorPrompt=firstGeneratorPrompt;
 const beginCall = calls.find((call) => /insert into vy_replica_dialogue_turn/i.test(call.sql));
 ok("user text is written once to the erasable agent-scoped raw log", /insert into meera_log \(device_id,role,channel,kind,content,at,agent_id\)/i.test(beginCall.sql) && /user_log_id,prompt_hash,state/i.test(beginCall.sql));
 ok("dialogue ledger stores a prompt hash and log id rather than duplicate content columns", beginCall.params[4] === "Aaj plan badal gaya" && beginCall.params[11] === generatorPrompt.prompt_hash);

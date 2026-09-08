@@ -17226,3 +17226,8 @@ Selection145 remains dirtyunfrozen despite agentreported19backend/28mounted; pre
 ## `release31-retry-not-crash-repair` (2026-09-07)
 
 2026-09-08: Original release30 Chromium launch died with3221225477 before checks. One unchanged diagnostic run succeeded; no matching Application event established a root cause. Keep original failure, no automatic retry or speculative browser replacement. Initial capture fixture correction still omitted comparison_code and mishandled empty deferred snapshots; independent review caught both and final30-group rerun passed after correction.
+
+
+## `private-continuity32-reference-only-erasure` (2026-09-08)
+
+Source references without deletion propagation can retain derived raw replies after individual sourceerasure. Added reviewedcandidate triggerlocking sameparent and deleting onlymatching derivedassistantlogs plusGINlookup. Actualtrigger/race/cascadeproof stillrequired. Firstdialoguetest attemptmissingblank_config importfailed, corrected withverifiedinertstub then33pass. Textonlyuntilactualprotectedstream sourcebinding isverified.

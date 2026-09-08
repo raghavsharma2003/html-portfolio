@@ -1,3 +1,4 @@
+import PrivateConversationSources from "./PrivateConversationSources";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createDialogueTurn, fetchProtectedTurnVoice, readDialogueHistory, openDialogueSession } from "./dialogueApi";
 import { readRuntimeStatus } from "./runtimeApi";
@@ -32,6 +33,8 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
   const [readUnavailable, setReadUnavailable] = useState(false);
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [draft, setDraft] = useState("");
+  const [recallPrevious,setRecallPrevious]=useState(false);
+  useEffect(()=>setRecallPrevious(false),[token,replicaId]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [speaking, setSpeaking] = useState("");
@@ -164,7 +167,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
       if (requestEpoch !== epoch.current) return;
       const traceId = `dialogue_${crypto.randomUUID().replaceAll("-", "")}`;
       remember(scope, { sessionId, uncertainTrace: traceId });
-      const answer = await createDialogueTurn(token, replicaId, question, sessionId, traceId);
+      const answer = await createDialogueTurn(token, replicaId, question, sessionId, traceId, recallPrevious);
       if (answer.session_id !== sessionId) throw new Error("conversation_response_changed");
       if (continuity.get(scope)?.uncertainTrace === traceId) remember(scope, { sessionId });
       if (requestEpoch !== epoch.current) return;
@@ -235,6 +238,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
       {scopedExchanges.map(({ question, answer }) => <div className="expert-exchange" key={answer.turn_id}>
         <div className="expert-exchange__question"><span>You</span><p>{question}</p></div>
         <article className="expert-exchange__answer"><span>Your AI</span><ExpertAnswer text={answer.reply} />
+          {answer.has_continuity&&<PrivateConversationSources key={`${scope}:${answer.turn_id}`} token={token} replicaId={replicaId} turnId={answer.turn_id}/>}
           <div className="expert-conversation__actions"><button type="button" disabled={!answer.can_voice || stopped} onClick={() => void speak(answer)}>{speaking === answer.turn_id ? "Stop audio" : "Listen"}</button><button type="button" aria-expanded={feedbackTurn === answer.turn_id} onClick={() => setFeedbackTurn(feedbackTurn === answer.turn_id ? "" : answer.turn_id)}>Teach a correction</button></div>
           {feedbackTurn === answer.turn_id && <TurnFeedback token={token} replicaId={replicaId} turnId={answer.turn_id} voiceHeard={heard.has(answer.turn_id)} onAuthError={onAuthError} onSaved={() => setFeedbackRevision(current => current + 1)} />}
         </article>
@@ -244,6 +248,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
     <FeedbackDatasetPanel key={replicaId} token={token} replicaId={replicaId} feedbackRevision={feedbackRevision} onAuthError={onAuthError} />
     {error && <p className="expert-conversation__error" role="alert">{error}</p>}
     <form className="expert-conversation__composer" onSubmit={event => { event.preventDefault(); void send(); }}>
+      <label className="private-continuity-choice"><input type="checkbox" checked={recallPrevious} disabled={!active||sending} onChange={event=>setRecallPrevious(event.target.checked)}/>Use earlier private conversations</label>
       <label htmlFor="expert-question">Ask your AI</label>
       <textarea ref={input} id="expert-question" rows={2} maxLength={4000} value={historyScope === scope ? draft : ""} disabled={!active} onChange={event => setDraft(event.target.value)} placeholder="Bring a question from your work" />
       <div><span>Private to this relationship</span><button type="submit" disabled={!active || sending || !draft.trim()}>{sending ? "Answering" : "Send"}</button></div>
