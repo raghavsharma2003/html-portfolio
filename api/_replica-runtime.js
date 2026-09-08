@@ -675,6 +675,8 @@ export function compileReplicaRuntimeCore(profileDefinition, calibrationDefiniti
   };
   scalar("Self-name", identity.self_name, 80);
   scalar("Pronouns", identity.pronouns, 60);
+  scalar("Home", identity.home, 160);
+  scalar("Culture", identity.culture, 160);
   const languages = list(speech.languages, 8, 40);
   if (languages.length) addLine(`Languages: ${languages.join(", ")}`);
   scalar("Code-switching", speech.code_switching);

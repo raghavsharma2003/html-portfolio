@@ -15,6 +15,7 @@ import {
   personModelSourceHash,
   reconcileUnsafePersonProfiles,
 } from "../../api/_person-model.js";
+import { compileReplicaRuntimeCore } from "../../api/_replica-runtime.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -52,18 +53,22 @@ const claims = [
   claim(10, "value", "honesty", "Prefer an uncomfortable truth over a soothing invention"),
   claim(11, "boundary", "privacy", "Never expose a private conversation to another person"),
   claim(12, "biography", "childhood_city", "Grew up in Pune"),
+  claim(13, "identity", "home", "Pune"),
+  claim(14, "identity", "culture", "Maharashtrian"),
 ];
 
 const ready = personModelReadiness(claims);
 ok("typed identity, language, behavior and boundary evidence is build-ready", ready.ready && ready.accepted_claims === claims.length);
 ok("a missing boundary fails closed", personModelReadiness(claims.filter((row) => row.domain !== "boundary")).blockers.includes("boundary_evidence_required"));
-const conflict = [...claims, claim(13, "identity", "self_name", "Someone else", { confidence: 0.99 })];
+const conflict = [...claims, claim(15, "identity", "self_name", "Someone else", { confidence: 0.99 })];
 ok("critical identity disagreement is preserved as a blocker", personModelReadiness(conflict).conflicts.includes("identity:self_name"));
 
 const definition = buildPersonModelDefinition(claims);
 ok("Person Model has a versioned typed schema", definition.schema === PERSON_MODEL_SCHEMA);
 ok("language and behavioral style remain separate layers", definition.speech.languages.includes("Hinglish") && /Dry teasing/.test(definition.behavior.humor));
 ok("values, boundaries and autobiography remain separate", definition.values.length === 1 && definition.boundaries.length === 1 && definition.autobiography[0].kind === "biography");
+const runtimeCore = compileReplicaRuntimeCore(definition, {});
+ok("accepted home and culture identity claims reach the private reply core", /Home: Pune/.test(runtimeCore) && /Culture: Maharashtrian/.test(runtimeCore));
 ok("definition provenance carries claim ids but no source ids", definition.provenance.claims.length === claims.length && !/source_ids|provider_ref|object_path|raw_transcript/.test(JSON.stringify(definition)));
 ok("same accepted evidence has a stable source commitment", personModelSourceHash(claims) === personModelSourceHash([...claims].reverse()));
 ok("changing claim content changes the source commitment", personModelSourceHash(claims) !== personModelSourceHash(claims.map((row) => row.claim_id === "8" ? { ...row, body: "Different humor" } : row)));

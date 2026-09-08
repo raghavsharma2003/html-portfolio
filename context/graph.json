@@ -17124,6 +17124,24 @@
       "kind": "rejection",
       "title": "Memory authority foreign context excluded",
       "at": "2026-09-08"
+    },
+    {
+      "id": "memory-authority159-identity-context-successor",
+      "kind": "decision",
+      "title": "Approved identity context successor",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "memory-authority159-identity-context-controls",
+      "kind": "measurement",
+      "title": "Identity context focused controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "memory-authority159-identity-context-scope",
+      "kind": "rejection",
+      "title": "Identity context scope constrained",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29474,6 +29492,16 @@
       "src": "memory-authority159-source-integration",
       "rel": "caused_by",
       "dst": "memory-authority159-context-excluded"
+    },
+    {
+      "src": "memory-authority159-identity-context-successor",
+      "rel": "measured_by",
+      "dst": "memory-authority159-identity-context-controls"
+    },
+    {
+      "src": "memory-authority159-identity-context-successor",
+      "rel": "caused_by",
+      "dst": "memory-authority159-identity-context-scope"
     }
   ]
 }

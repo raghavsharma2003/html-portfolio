@@ -23812,3 +23812,7 @@ Integrate the reviewed voice frontend fix for expert terms and uppercase acronym
 ## memory-authority159-source-integration (2026-09-08)
 
 Integrate the reviewed Room memory authority implementation, consolidation fencing, raw isolation discovery and migration/schema mirrors atop the voice pronunciation candidate. Migration 159 is source-only and required before deployment; follower rows carry the new source-generation authority shape. Reverse if focused authority controls or actual SQL proof identify a scope, lifecycle or duplicate-proposal regression. Root import tuples: 6b05d44 -> api/consolidate-sweep.js, evals/agent/raw-isolation.mjs; 24ce502 -> api/_room-memory-authority.js, api/_room-surface.js, api/consolidate-sweep.js, api/consolidate.js, db/migrations/159_room_memory_authority.sql, db/schema.sql, evals/agent/raw-isolation.mjs, evals/consolidation/run.mjs, evals/room-memory-authority/run.mjs, evals/room/fixtures.mjs, evals/run.mjs, scripts/relcheck.mjs, scripts/room-memory159-proof-contract.mjs; 354c8b4 -> api/_room-memory-authority.js, evals/room-memory-authority/run.mjs, scripts/room-memory159-proof-contract.mjs.
+
+## memory-authority159-identity-context-successor (2026-09-08)
+
+Integrate the bounded identity context successor so approved Home and Culture claims reach the compiled private reply core, with 160-character scalar limits and existing provenance. Import only the runtime source and two focused evals from ddc56dd; exclude its context records. Reverse if the bounded fields leak source identifiers or bypass approval.

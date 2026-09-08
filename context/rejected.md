@@ -17604,3 +17604,7 @@ The reviewed voice commit's context records were excluded from import. Only its 
 ## memory-authority159-context-excluded (2026-09-08)
 
 The three reviewed memory commits' context graph and narrative records were excluded. Only source, migration/schema and existing focused eval paths were imported; this lane records local provenance. The candidate remains non-deployable until migration 159 is applied.
+
+## memory-authority159-identity-context-scope (2026-09-08)
+
+The identity successor was limited to pi/_replica-runtime.js and its two existing eval paths. Foreign context graph and narrative edits were excluded, and no broader runtime rewrite was attempted.

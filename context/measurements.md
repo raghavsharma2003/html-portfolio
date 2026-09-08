@@ -17601,3 +17601,7 @@ Focused measurement: open-voice n=77 checks passed; Hindi text frontend n=34 che
 ## memory-authority159-focused-controls (2026-09-08)
 
 Focused measurement: Room authority n=20 controls passed; raw isolation n=52 checks passed; consolidation n=145 checks passed; room-memory proof contract completed; TypeScript build passed. Blank ignored config was generated with no values for offline imports. No DB, provider or cloud calls.
+
+## memory-authority159-identity-context-controls (2026-09-08)
+
+Focused measurement: Person Model n=44 checks passed; replica dialogue n=33 checks passed; TypeScript build passed. No DB, provider, cloud or full release checks.
