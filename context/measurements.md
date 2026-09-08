@@ -17459,3 +17459,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `performance-accounting46-twelve-controls` (2026-09-08)
 
 2026-09-08: Root source cleared light controls while integration45 retained heavyCPU lane. node evals/performance-network-accounting.mjs passed12 in0.884s command; copy passed7scopes/21negatives in4.744s command. Durations include shell overhead, exactUTC notcaptured. Cases cover late font/request/Hindi events, deep-enough frozen snapshot, old live-object negative, actual subset counted once, nonHindi accounting and realcaller/return wiring. No browser/TS/build/fullperformance run. Eval registry addition preserves all existing entries; prerequisite fixture imports new helper.
+
+
+## `integration45-private-prechecks-pass` (2026-09-08)
+
+2026-09-08: privatecopy10:06:20.660to10:09:42.003Z,201.343s, independentdirs and18emptyASTconfigexports. Precheckexec68314 terminal0,14commands allpass10:09:52.313to10:11:37.841Z: forcedTS,copy,actualVitebuild,11offline materializer/adapter/qualification/auth suites. Full2988sourcehashes unchanged at060eb54f. Receipt release45-scoped-1788862192312/result.json. After accounting46 sourceunion,12lightnetworkcontrols pass, no browser. Rootreports152153committed and145readbackpassed;155stillunapplied;156excluded.

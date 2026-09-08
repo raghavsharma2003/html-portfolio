@@ -16542,6 +16542,24 @@
       "kind": "rejection",
       "title": "Reject font replacement or probe weakening without native attribution",
       "at": "2026-09-08"
+    },
+    {
+      "id": "integration45-audio-and-accounting",
+      "kind": "decision",
+      "title": "Keep real voice permissions and performance evidence honest",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "integration45-private-prechecks-pass",
+      "kind": "measurement",
+      "title": "Actual private build and scoped commands passed",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "integration45-old-precheck-not-new-release",
+      "kind": "rejection",
+      "title": "Scope prior evidence to its frozen source",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

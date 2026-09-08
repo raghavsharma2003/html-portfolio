@@ -17452,3 +17452,8 @@ The inspected Hindi fixture still contains incumbent English conversation contro
 ## `performance-accounting46-unattributed-font-optimization` (2026-09-08)
 
 2026-09-08: Complete diagnostic40 trace proves postpaint native Layout1211.946ms and nested shaping597.188ms but retainedargs lackDOM/fontidentity and productwasoldEnglishAuthGate. CurrentHindi41 visibleprobe didnotexistthen. Do not blame currentHindiheadings/probe or removeNoto with realbrandcaller. Observed diagnostic40run1 pendingfonts vs later84148bytes proves accounting timing defect, not fontreadiness or causeofrelease39zero totals. Preserveall39failure/40partialtrace receipts; fixmeasurement separately withoutclaiming productperformance improvement.
+
+
+## `integration45-old-precheck-not-new-release` (2026-09-08)
+
+2026-09-08: Accounting46 arrived after prechecksource060eb54f. Preserve that receipt as scoped proof, not a fullrelease or proof of subsequently editedgate/infra. Finalsource must receive newguard/preparation and rootreview. No browserperformance, actualAzurematerialization or completelearningloop claimed.

@@ -23675,3 +23675,8 @@ Import only the conditional localized explanation, minimal typography and real m
 ## `performance-accounting46-immutable-boundary` (2026-09-08)
 
 2026-09-08: Root-reviewed separate accounting helper snapshots byte counters/request count/Hindi subset synchronously after readSettledPerformance returns before async diagnostics/cleanup. Both objects frozen, timestamp names Node receipt boundary rather than atomic cross-process time. Real Hindi41 AuthGate now loads hiAuthCopy so count it once in actualJS/total with separate subset tally. Reverse if later events mutate receipt, actual chunk is excluded or totals double count. No waits/budget/product-font changes.
+
+
+## `integration45-audio-and-accounting` (2026-09-08)
+
+2026-09-08: Integrated authorfrozen audio406a22082e only localized disabled-voice explanation, then root-reviewed accounting46a7d077 after original45prechecks terminal. Neither grants voice or changes performance thresholds/waits. Reverse on old voicepermission mutant passing or changed networkreceipt boundaries. Infra correction remainspending beforefinalfreeze/package.
