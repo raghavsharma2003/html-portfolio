@@ -498,8 +498,14 @@ console.log("\n── G6  agent parity (Law E1) ──");
   const branchy = SRC_CONSOLIDATE.split("\n")
     .map((l, i) => ({ l, i }))
     .filter(({ l }) => /(===|!==|==|!=)\s*MEERA_AGENT_ID|MEERA_AGENT_ID\s*(===|!==|==|!=)/.test(l));
-  assert(branchy.length === 0, "G6.4 no comparison against MEERA_AGENT_ID anywhere in consolidate.js",
+  // 159 refuses legacy full-chain entry for clone agents until that chain has
+  // source authority. The dedicated Room runner remains agent-independent.
+  assert(branchy.length === 1 && branchy[0].l.includes('throw new Error("room_memory_source_authority_required")'), "G6.4 only the explicit source-authority refusal branches on incumbent agent",
     branchy.map((b) => `line ${b.i + 1}: ${b.l.trim()}`).join("\n      "));
+  let sourceRefused=false;
+  try { await C.runFullChainForPerson(PERSON,{agentId:AGENT_B}); }
+  catch(e) { sourceRefused=e.message==='room_memory_source_authority_required'; }
+  assert(sourceRefused,"G6.4b clone entry refuses before database or provider work");
   const personaWords = SRC_CONSOLIDATE.split("\n")
     .map((l, i) => ({ l, i }))
     .filter(({ l }) => /\bif\s*\(.*\b(meera|hinglish|india_?only)\b/i.test(l));

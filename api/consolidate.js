@@ -2919,6 +2919,7 @@ export async function runConsolidation({ limit = DEFAULT_PERSON_LIMIT, dryRun = 
 // branch anywhere in this file — a second agent runs this identical chain by
 // passing its own id, which is the whole point of Law E1.
 export async function runFullChainForPerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
+  if (String(agentId) !== MEERA_AGENT_ID) throw new Error("room_memory_source_authority_required");
   const t0 = Date.now();
   const out = { person, ms: 0, halted: false, steps: {} };
   const step = async (name, fn) => {

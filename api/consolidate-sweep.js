@@ -1,3 +1,6 @@
+import {
+  ROOM_MEMORY_CONSOLIDATION_ENABLED, ROOM_MEMORY_DISCOVERY_SQL, runRoomMemoryConsolidation,
+} from "./_room-memory-authority.js";
 // Hourly consolidation sweep — Law E4 (docs/SPEC-AGENT-LAYER.md §5): "memory
 // that is not consolidated does not exist." Measured 2026-08-18: 40 of 41
 // people have log rows past what vy_episode has consolidated (2,025 pending
@@ -107,6 +110,7 @@ import { q } from "./_db.js";
 import { timingSafeEqual } from "node:crypto";
 import {
   runFullChainForPerson,
+  llm,
   LOG_BATCH_CAP,
   costSnapshot,
   costDelta,
@@ -241,9 +245,7 @@ async function ensureSchema() {
  *
  *  Migration 018 makes the cursor and lease work unit `(agent, person)`.
  *  Filtering `l.agent_id` and `e.agent_id` before MAX/count means agent A's
- *  progress cannot hide agent B's pending rows for the same human. The
- *  production sweep remains Meera-only until an authenticated replica
- *  scheduler supplies another trusted agent id. */
+ *  progress cannot hide agent B's pending rows for the same human. */
 export async function findLaggingPersons(limit, agentId = MEERA_AGENT_ID, queryFn = q) {
   return queryFn(
     // WS-SPINE, THE WATCH CONTRACT'S SWEEP-SIDE HALF (P0-3). `api/consolidate
@@ -283,6 +285,51 @@ export async function findLaggingPersons(limit, agentId = MEERA_AGENT_ID, queryF
      order by oldest_pending_at asc
      limit $1`,
     [limit, agentId],
+  );
+}
+
+/** Production candidate discovery across relationships that currently permit
+ *  memory. Meera retains the incumbent path. A clone pair enters only through
+ *  its server-side Room follower consent row, never merely because a raw log
+ *  exists. The global oldest-first limit retains the existing spend ceiling. */
+export async function findLaggingRelationships(limit, queryFn = q) {
+  return queryFn(
+    `with pd as (
+       select device_id, person_id from vy_person_device
+     ),
+     cons as (
+       select agent_id, person_id, max(log_to) as log_to
+       from vy_episode
+       where log_to is not null
+       group by agent_id, person_id
+     )
+     select
+       l.agent_id,
+       coalesce(pd.person_id, l.device_id)                              as person_id,
+       max(coalesce(c.log_to, 0))                                       as consolidated_to,
+       max(l.id)                                                        as max_log_id,
+       count(*) filter (where l.id > coalesce(c.log_to, 0)
+                          and l.channel is distinct from '${WATCH_CHANNEL}') as pending_rows,
+       min(l.at) filter (where l.id > coalesce(c.log_to, 0)
+                          and l.channel is distinct from '${WATCH_CHANNEL}') as oldest_pending_at
+     from meera_log l
+     left join pd on pd.device_id = l.device_id
+     left join cons c on c.agent_id = l.agent_id
+                     and c.person_id = coalesce(pd.person_id, l.device_id)
+     where l.agent_id = ($2)::uuid
+        or exists (
+          select 1 from vy_room_follower f
+           where f.agent_id = l.agent_id
+             and f.person_id = coalesce(pd.person_id, l.device_id)
+             and f.age_attested_at is not null
+             and f.memory_consent_at is not null
+        )
+     group by l.agent_id, coalesce(pd.person_id, l.device_id)
+     having count(*) filter (where l.id > coalesce(c.log_to, 0)
+                               and l.channel is distinct from '${WATCH_CHANNEL}') > 0
+     order by oldest_pending_at asc
+     limit $1`,
+    [limit, MEERA_AGENT_ID],
   );
 }
 
@@ -395,11 +442,32 @@ export default async function handler(req, res) {
     const summary = await withSweepRun(q, "consolidate", async () => {
     await ensureSchema();
     const t0 = Date.now();
-    // The cron is deliberately pinned to Meera. Replica agents will need an
-    // authenticated scheduler binding; accepting an agent id from this HTTP
-    // request would turn tenant selection into user input.
+    // Keep the incumbent Meera write path byte-for-byte scoped as before.
+    // Consented clone pairs are observed separately, but remain blocked until
+    // every downstream writer can bind the current Room memory generation.
     const sweepAgentId = MEERA_AGENT_ID;
-    const candidates = await findLaggingPersons(CANDIDATE_FETCH, sweepAgentId);
+    const [legacyCandidates, relationshipDiscovery] = await Promise.all([
+      findLaggingPersons(CANDIDATE_FETCH, sweepAgentId),
+      findLaggingRelationships(CANDIDATE_FETCH).then(
+        (value) => ({ ok: true, value }),
+        () => ({ ok: false, value: [] }),
+      ),
+    ]);
+    const roomCandidates = ROOM_MEMORY_CONSOLIDATION_ENABLED
+      ? await q(ROOM_MEMORY_DISCOVERY_SQL, [CANDIDATE_FETCH, MEERA_AGENT_ID]) : [];
+    const candidates = [...legacyCandidates.map(c=>({...c,agent_id:MEERA_AGENT_ID})), ...roomCandidates]
+      .sort((a,b)=>new Date(a.oldest_pending_at)-new Date(b.oldest_pending_at))
+      .slice(0,CANDIDATE_FETCH);
+    const waitingOnUs = relationshipDiscovery.value
+      .filter((candidate) => String(candidate.agent_id) !== sweepAgentId)
+      .map((candidate) => ({
+        agent_id: candidate.agent_id,
+        person_id: candidate.person_id,
+        pending_rows: Number(candidate.pending_rows),
+        oldest_pending_at: candidate.oldest_pending_at,
+        blocker: ROOM_MEMORY_CONSOLIDATION_ENABLED ? "clone_memory_legacy_source_authority_unavailable" : "clone_memory_write_authority_proof_pending",
+      }));
+    if (!relationshipDiscovery.ok) waitingOnUs.push({ blocker: "clone_memory_backlog_check_unavailable" });
 
     if (dryRun) {
       // Pure arithmetic — zero LLM calls, safe to hit as often as anyone
@@ -481,6 +549,7 @@ export default async function handler(req, res) {
           time_budget_ms: TIME_BUDGET_MS,
         },
         note: "arithmetic only — no LLM call made, no lease taken",
+        waiting_on_us: waitingOnUs,
         oldest_pending_at: candidates[0]?.oldest_pending_at ?? null,
         candidates: candidates.slice(0, personBudget).map((c) => ({
           agent_id: sweepAgentId,
@@ -522,9 +591,10 @@ export default async function handler(req, res) {
         break;
       }
       const person = c.person_id;
-      const got = await claim(sweepAgentId, person, runId);
+      const candidateAgentId = c.agent_id;
+      const got = await claim(candidateAgentId, person, runId);
       if (!got) {
-        results.push({ agent: sweepAgentId, person, skipped: "leased" });
+        results.push({ agent: candidateAgentId, person, skipped: "leased" });
         continue;
       }
       try {
@@ -540,11 +610,19 @@ export default async function handler(req, res) {
         // facts and leaves every derived table empty, which renders as nothing
         // and reports as success.
         const before = spent();
-        const out = await runFullChainForPerson(person, { dryRun: false, agentId: sweepAgentId });
+        if (candidateAgentId !== MEERA_AGENT_ID) {
+          const out = await runRoomMemoryConsolidation(c, {queryFn:q,model:llm});
+          const after = spent();
+          results.push({agent:candidateAgentId,person,...out,
+            llm_calls:after.llm_calls-before.llm_calls,
+            tokens:after.tokens_in+after.tokens_out-before.tokens_in-before.tokens_out});
+          continue;
+        }
+        const out = await runFullChainForPerson(person, { dryRun: false, agentId: candidateAgentId });
         const fin = out.steps.finalize || {};
         const after = spent();
         results.push({
-          agent: sweepAgentId,
+          agent: candidateAgentId,
           person,
           pending_rows_before: Number(c.pending_rows),
           episodes: fin.episodes_finalized,
@@ -575,10 +653,10 @@ export default async function handler(req, res) {
           break; // the SAME §4.2 layer-3 halt api/consolidate.js's own run honors — never override it here
         }
       } catch (e) {
-        results.push({ agent: sweepAgentId, person, error: e?.message || "consolidation failed" });
+        results.push({ agent: candidateAgentId, person, error: e?.message || "consolidation failed" });
         // no state write on failure — see the law note above
       } finally {
-        await release(sweepAgentId, person, runId);
+        await release(candidateAgentId, person, runId);
       }
     }
 
@@ -589,6 +667,7 @@ export default async function handler(req, res) {
       enabled_by: enabledBy,
       halted,
       stopped_by: stoppedBy,
+      waiting_on_us: waitingOnUs,
       candidates_seen: candidates.length,
       processed: results.filter((r) => !r.skipped && !r.error).length,
       skipped_leased: results.filter((r) => r.skipped === "leased").length,

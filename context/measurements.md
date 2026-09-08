@@ -17597,3 +17597,7 @@ Focused measurement: correction candidate worker n=10 groups passed and candidat
 ## clone-voice-pronunciation75-focused-controls (2026-09-08)
 
 Focused measurement: open-voice n=77 checks passed; Hindi text frontend n=34 checks passed; Node test suite n=1 passed; 	sc -b --force passed using the identical-lock dependency junction. No cloud, DB, provider or full release checks.
+
+## memory-authority159-focused-controls (2026-09-08)
+
+Focused measurement: Room authority n=20 controls passed; raw isolation n=52 checks passed; consolidation n=145 checks passed; room-memory proof contract completed; TypeScript build passed. Blank ignored config was generated with no values for offline imports. No DB, provider or cloud calls.

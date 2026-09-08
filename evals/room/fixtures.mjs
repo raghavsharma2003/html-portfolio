@@ -168,6 +168,19 @@ export function fakeDb(state) {
     calls.push(sql);
     const has = (s) => sql.includes(s);
 
+    // 159 exact statement shapes before the broad follower SELECT matcher.
+    // This legacy fixture contains no provenance-tagged episodes; new guarded
+    // memory and await races have their own suite and actual SQL admission.
+    if (has('as vy_observation') && has('as vy_episode') && has('room_memory_follower_id')) {
+      if ((state.facts || []).some(f=>f.room_memory_follower_id)) throw new Error('fixture_room_memory_sources_not_modelled');
+      return [{vy_fact:0,vy_observation:0,vy_episode:0}];
+    }
+    if (has('update vy_room_follower set memory_consent_at=null')) {
+      const found=state.followers.filter(f=>f.room_id===params[0] && f.person_id===params[1] && f.agent_id===params[2]);
+      for (const f of found) { f.memory_consent_at=null;f.memory_epoch=Number(f.memory_epoch||0)+1; }
+      return found.map(f=>({follower_id:f.follower_id}));
+    }
+
     // Exact public-Q&A reader shape, before generic Room routing. Interpret
     // each real SQL guard so removing it changes this fixture's result. This
     // models predicates only; real PostgreSQL parsing/constraints need SQL.

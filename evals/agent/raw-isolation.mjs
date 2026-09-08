@@ -143,6 +143,34 @@ console.log("\n-- R3 consolidation cursor and lease --");
     !/agent_id = \(\$2\)::uuid/i.test(struck),
     "negative control: both cursor boundaries disappear when struck",
   );
+
+  const { findLaggingRelationships } = await import("../../api/consolidate-sweep.js");
+  let discovered;
+  await findLaggingRelationships(7, async (query, params) => {
+    discovered = { query, params };
+    return [];
+  });
+  check(
+    discovered.params.length === 2 && discovered.params[0] === 7 && discovered.params[1] === MEERA_AGENT_ID,
+    "production relationship discovery accepts only a limit and the server's incumbent agent, not a caller-selected clone",
+  );
+  check(
+    /select agent_id, person_id, max\(log_to\)/i.test(discovered.query) &&
+      /left join cons c on c\.agent_id = l\.agent_id[\s\S]*c\.person_id = coalesce/i.test(discovered.query) &&
+      /f\.agent_id = l\.agent_id[\s\S]*f\.person_id = coalesce[\s\S]*f\.memory_consent_at is not null/i.test(discovered.query) &&
+      /group by l\.agent_id, coalesce/i.test(discovered.query),
+    "production discovery keeps each clone's watermark isolated and requires current Room memory consent",
+  );
+  const collapsed = discovered.query.replace(/c\.agent_id = l\.agent_id\s+and/i, "");
+  check(
+    !/left join cons c on c\.agent_id = l\.agent_id/i.test(collapsed),
+    "negative control: striking the agent join collapses clone watermarks",
+  );
+  const consentStruck = discovered.query.replace(/and f\.memory_consent_at is not null/i, "");
+  check(
+    !/f\.memory_consent_at is not null/i.test(consentStruck),
+    "negative control: striking current consent admits retained clone logs alone",
+  );
 }
 
 // Extract SQL-shaped template literals. The scanner is deliberately narrow:
@@ -214,6 +242,16 @@ console.log("\n-- R4 production call-site coverage --");
     /on conflict \(agent_id, person_id\)/.test(sweep) &&
       /delete from meera_consolidate_lease[\s\S]{0,140}agent_id/.test(sweep),
     "lease claim and release both bind agent_id",
+  );
+  check(
+    /findLaggingPersons\(CANDIDATE_FETCH, sweepAgentId\)/.test(sweep) &&
+      /findLaggingRelationships\(CANDIDATE_FETCH\)/.test(sweep) &&
+      /"clone_memory_write_authority_proof_pending"/.test(sweep) &&
+      /blocker: "clone_memory_backlog_check_unavailable"/.test(sweep) &&
+      /if \(candidateAgentId !== MEERA_AGENT_ID\)[\s\S]*?runRoomMemoryConsolidation\(c,[\s\S]*?continue;/.test(sweep) &&
+      /runFullChainForPerson\(person, \{ dryRun: false, agentId: candidateAgentId \}\)/.test(sweep) &&
+      /export const ROOM_MEMORY_CONSOLIDATION_ENABLED = false/.test(read("api/_room-memory-authority.js")),
+    "the unattended clone path requires guarded Room authority and remains disabled pending actual proof",
   );
 }
 

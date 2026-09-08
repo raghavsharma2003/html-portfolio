@@ -17600,3 +17600,7 @@ The original authored synthetic rows omitted learner_input, learner_input_sha256
 ## clone-voice-pronunciation75-context-excluded (2026-09-08)
 
 The reviewed voice commit's context records were excluded from import. Only its three reviewed source/eval paths were integrated, with local provenance recorded here.
+
+## memory-authority159-context-excluded (2026-09-08)
+
+The three reviewed memory commits' context graph and narrative records were excluded. Only source, migration/schema and existing focused eval paths were imported; this lane records local provenance. The candidate remains non-deployable until migration 159 is applied.

@@ -21,6 +21,31 @@ import { PERSON_TABLES } from "../api/memory.js";
 const checks = [];
 const check = (name, sql, params = []) => checks.push({ name, sql, params });
 
+// 159 adds only columns to tables already in PERSON_TABLES and already named
+// by full replica erasure. The FK walk below must additionally verify the two
+// source-parent cascades; explicit cited-child cleanup is a trigger, not an FK.
+const roomMemory159 = await q(`select 1 from information_schema.columns
+ where table_schema='public' and table_name='vy_room_follower' and column_name='memory_epoch'`);
+if (roomMemory159.length) {
+  check("Room memory source rows keep their exact owner", `select count(*)::integer n from (
+    select l.room_memory_follower_id,l.room_memory_epoch,l.agent_id,l.speaker_person_id as person_id from meera_log l
+    where l.room_memory_follower_id is not null
+    union all
+    select e.room_memory_follower_id,e.room_memory_epoch,e.agent_id,e.person_id from vy_episode e
+    where e.room_memory_follower_id is not null
+  ) s left join vy_room_follower f on f.follower_id=s.room_memory_follower_id
+  where f.follower_id is null or s.room_memory_epoch is null or s.room_memory_epoch>f.memory_epoch
+  or s.agent_id<>f.agent_id or s.person_id<>f.person_id`);
+  check("Room memory source erasure FK and trigger reach", `select (4-count(*))::integer n from (
+    select distinct c.conrelid::regclass::text as item from pg_constraint c
+    where c.contype='f' and c.confdeltype='c' and c.confrelid='vy_room_follower'::regclass
+    and c.conrelid in ('meera_log'::regclass,'vy_episode'::regclass)
+    union all
+    select t.tgname from pg_trigger t where t.tgrelid='vy_room_follower'::regclass and t.tgenabled<>'D'
+    and t.tgname in ('vy_room_memory_epoch_change','vy_room_memory_follower_erasure')
+  ) reached`);
+}
+
 // Migration153 adds lineage on already-owned rows. No parallel person table.
 check("publication continuity has no cross-visitor or erased provenance", `select count(*)::int n from vy_text_publication_request h
  where (h.memory_epoch is null and h.memory_refs<>'[]'::jsonb)

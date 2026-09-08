@@ -1,3 +1,5 @@
+import { MEERA_AGENT_ID } from "./_agentscope.js";
+import { roomMemoryAdapter, ROOM_MEMORY_REVOKE_SQL, ROOM_MEMORY_FORGET_SQL } from "./_room-memory-authority.js";
 // The Room - the follower's side of a published replica (WS-R1).
 //
 // A creator publishes; a follower arrives at /r/<slug> from a bio link and is
@@ -650,7 +652,7 @@ export const roomThreadDevice = (roomId, personId, threadId) =>
 export async function followerRow(db, roomId, personId, agentId) {
   const rows = await db(
     `select f.follower_id, f.room_id, f.person_id, f.agent_id, f.joined_at,
-            f.age_attested_at, f.memory_consent_at, f.tier,
+            f.age_attested_at, f.memory_consent_at, f.memory_epoch, f.tier,
             f.month_key, f.month_message_count, f.voice_seconds_month, f.voice_month_key, f.last_seen_at,
             f.locale, f.settings_reviewed_at,
             f.timezone, f.quiet_from, f.quiet_to
@@ -1743,6 +1745,13 @@ const DEFAULT_MEMORY = {
   recallStrict: (person, agentId) => dmRecall(person, { agentId, strict: true }),
 };
 
+function memoryForFollower(db, follower, deps) {
+  // Explicit server-owned adapter injection remains the test seam. Production
+  // clone Rooms cannot fall through to the unguarded, agent-wide DM adapter.
+  if (deps.memory) return { ...DEFAULT_MEMORY, ...deps.memory };
+  return String(follower.agent_id) === MEERA_AGENT_ID ? DEFAULT_MEMORY : roomMemoryAdapter(db, follower);
+}
+
 /**
  * The creator's "Never say this" set for one Room, compiled for `gatedReply`'s
  * `neverRules` predicate (WS-R4). ONE reader for every Room reply lane -
@@ -1940,7 +1949,7 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     throw new RoomError("room_expert_engine_unavailable", 503);
   }
 
-  const memory = { ...DEFAULT_MEMORY, ...(deps.memory || {}) };
+  const memory = memoryForFollower(db, follower, deps);
   // THE CONSENT GATE, and it is a branch rather than a filter on purpose: with
   // no consent there is no episode, no log row and no retrieval, so there is
   // nothing to filter later and nothing a future edit can accidentally
@@ -2012,7 +2021,8 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     await assertRoomExpertTeacherCurrent(db, knowledgeScope, teacherSnapshot);
     const current = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);
     if (!current || current.age_attested_at == null
-        || String(current.memory_consent_at ?? "") !== String(follower.memory_consent_at ?? "")) {
+        || String(current.memory_consent_at ?? "") !== String(follower.memory_consent_at ?? "")
+        || String(current.memory_epoch ?? "") !== String(follower.memory_epoch ?? "")) {
       throw new RoomError("room_expert_follower_consent_changed", 409);
     }
   };
@@ -2498,7 +2508,7 @@ export async function followerHistory(db, { session, threadId = null, limit = RO
   if (follower.memory_consent_at == null) return { remembers: false, turns: [] };
   const thread = await ownedThread(db, resolved.room.room_id, payload.p, resolved.agentId, threadId);
   const device = roomThreadDevice(resolved.room.room_id, payload.p, thread?.thread_id || null);
-  const memory = { ...DEFAULT_MEMORY, ...(deps.memory || {}) };
+  const memory = memoryForFollower(db, follower, deps);
   const turns = await memory.history(device, resolved.agentId, Math.min(200, Math.max(1, Number(limit) | 0)));
   return { remembers: true, thread_id: thread?.thread_id ?? null, turns };
 }
@@ -2900,8 +2910,20 @@ export async function roomForgetForFollower(db, who, deps = {}) {
 }
 
 async function roomForgetCore(db, who, deps = {}) {
+  // Revoke before ANY destructive pass; a model already awaiting completion
+  // must not refill a table the manifest just emptied. 159 increments epoch.
+  if (String(who.agentId) !== MEERA_AGENT_ID) {
+    await db(ROOM_MEMORY_REVOKE_SQL, [who.roomId, who.personId, who.agentId]);
+  }
   const devices = await threadDeviceSet(db, who.roomId, who.personId, who.agentId);
   const deleted = {};
+  if (String(who.agentId) !== MEERA_AGENT_ID) {
+    const counts = await db(ROOM_MEMORY_FORGET_SQL, [who.roomId, who.personId, who.agentId]);
+    if (counts.length !== 1 || ["vy_fact","vy_observation","vy_episode"].some(key => !Number.isSafeInteger(Number(counts[0][key])) || Number(counts[0][key]) < 0)) {
+      throw new RoomError("room_memory_forget_unconfirmed", 503);
+    }
+    for (const key of ["vy_fact","vy_observation","vy_episode"]) deleted[key] = Number(counts[0][key]);
+  }
 
   // ── WS-R27: EVERY explicit statement below runs CHILD BEFORE PARENT ───────
   //
@@ -3207,11 +3229,15 @@ async function roomForgetCore(db, who, deps = {}) {
     // NOT catch-wrapped, api/memory.js's rule: the receipt may only be sent
     // once the delete actually happened, so a failed statement must fail the
     // whole op loudly rather than leave a receipt that is not true.
+    const sourceScope = String(who.agentId) === MEERA_AGENT_ID ? ""
+      : t.table === "vy_episode" ? " and room_memory_follower_id is null"
+      : ["vy_fact", "vy_observation"].includes(t.table)
+        ? ` and not exists (select 1 from vy_episode source_episode where source_episode.id=any(${t.table}.citations) and source_episode.room_memory_follower_id is not null)` : "";
     const rows = await db(
-      `delete from ${t.table} where ${where} and agent_id = ($${params.length + 1})::uuid returning 1 as gone`,
+      `delete from ${t.table} where ${where} and agent_id = ($${params.length + 1})::uuid${sourceScope} returning 1 as gone`,
       [...params, who.agentId],
     );
-    deleted[t.table] = rows.length;
+    deleted[t.table] = Number(deleted[t.table] || 0) + rows.length;
   }
 
   // The topic threads, THEN the membership row itself - the two roots every
