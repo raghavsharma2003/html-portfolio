@@ -17338,3 +17338,8 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `gpu151-column-name-assumption` (2026-09-08)
 
 2026-09-08:149 assumed vy_gpu_allocation_window_actual_microusd_check named147 actual-cost cap. Actual PostgreSQL named the two-column check vy_gpu_allocation_window_check. DROP IF EXISTS silently did nothing and mock reconciliation missed the leftover cap. Reject naming inference and offline green asSQL proof.151 removes the catalog-confirmed old cap only, preserving nonnegative cost and settled-receipt invariants.
+
+
+## `release34-no-performance-causality` (2026-09-08)
+
+2026-09-08: One bounded A/B improvement does not prove eliminated host noise or full-release acceptance. Importing all performancebranch files would mix diagnostics with product; only reviewed site/vyakti.html was restored. Original release31 and diagnostic failures retained.

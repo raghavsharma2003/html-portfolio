@@ -1,5 +1,11 @@
 # STATE — read this first, then the graph
 
+## START HERE: RELEASE34 CANDIDATE (2026-09-08)
+
+This block supersedes older isolate notes below. Candidate based integration33df83790a adds the reviewed three-section landing containment27d67bef, catalog constraint correction151894f17f1 and removal of one duplicate eval registration. All359 prior suites remain plus13new,372total and38browser suites across24gates. GPU149/150 bytes unchanged,151 mirrored. Full release not started; root owns launch after final freeze/guard review. Independent private dependencies and AST-verified inert config are prepared. GPU18offline, copy7scopes21negatives, forced semantic TypeScript and guard11selfchecks pass. Root is separately proving real SQL; no actual schema/voice/deployment proof follows from this candidate.
+
+Parent-reported single3+3 landing A/B medianTBT300to0 andCLS0 supports this narrow candidate, not a causal claim or full acceptance. Accepted26/local5177 unchanged. Goal active; separate hourly automation paused.
+
 ## START HERE: INTEGRATION33 SOURCE CANDIDATE (2026-09-08)
 
 This block supersedes every older isolate note below. Source only, not accepted or deployed. Base frozen31 01a7b6f2; reviewed comparison c4130b83, private continuity b5dc0e2f, Azure web2a4e5dfe and GPU controller/defaults fe86c578 are now unioned here. Schema145to150, erasure/export reach, eval registry and context all retained. Release31 fixture repairs remain.

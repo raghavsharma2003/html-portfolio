@@ -23563,3 +23563,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `gpu151-actual-catalog-cap-repair` (2026-09-08)
 
 2026-09-08: Migration151 drops only vy_gpu_allocation_window_check, the measured PostgreSQL auto-name for147 multi-column actual>=0 AND actual<=reserved.149 dropped a different name and retained this obsolete cap. Preserve applied149/150, nonnegative standalone CHECK, settled receipt check1 and other guards. Real verified overrun must record debt and pause admission, not fail reconciliation. Reverse only if catalog shows this name has a different definition; protected preflight must refuse that case.
+
+
+## `release34-scoped-last-additions` (2026-09-08)
+
+2026-09-08: Root authorized only site/vyakti.html from27d67bef and151894f17f1, not performance experiment harness files. Three prose sections use content-visibility with measured fallback sizes and print restoration. Exact catalog correction removes remaining auto-named147 upper-cost check;149/150 unchanged. Reversal: integrated browser/accessibility/regression failure or mismatched real catalog reopens this candidate.

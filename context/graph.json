@@ -16170,6 +16170,30 @@
       "kind": "rejection",
       "title": "Column-specific constraint-name assumption failed",
       "at": "2026-09-08"
+    },
+    {
+      "id": "release34-scoped-last-additions",
+      "kind": "decision",
+      "title": "Preserve narrow landing and catalog fixes",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release34-source-pins",
+      "kind": "measurement",
+      "title": "Landing and151 source scope checked",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release34-no-performance-causality",
+      "kind": "rejection",
+      "title": "Keep narrow source result distinct from frontier claim",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release34-private-preparation-pass",
+      "kind": "measurement",
+      "title": "Private dependencies and scoped checks passed",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
