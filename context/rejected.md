@@ -17430,3 +17430,8 @@ A deliberately delayed real entry proves the old1200ms one-shot snapshot can rej
 ## `personal-auth-visual42-selector-only-insufficient` (2026-09-08)
 
 2026-09-08: Hindi41 eight focused flow views passed but actualtest screenshot showed dark-on-dark hero and subtitle behind card. Preserve original personal-auth-locale-browser-1788861065537. Source proves legacy dark pseudo background plus dark auth-entry text and mobile margin-70px. Added explicit real hero/form contrast and non-overlap assertions; one repair batch passed. Disabled controls excluded explicitly; no blanket full-product quality claim.
+
+
+## `integration45-dictionary-wholesale-replacement` (2026-09-08)
+
+2026-09-08: Hindi andmaterializer both modify src/creatorStudio/copy.ts in differentsections. Wholesale file replacement would lose either personalAuth types/table or accurate written-comparison wording. Threeway merge preserved both and staticchecks confirmed them. Source consistency is not semanticTypeScript/browserproof; finalchecks remainpending.

@@ -16470,6 +16470,24 @@
       "kind": "rejection",
       "title": "Selector-only contrast cannot establish full page readability",
       "at": "2026-09-08"
+    },
+    {
+      "id": "integration45-reviewed-source-boundary",
+      "kind": "decision",
+      "title": "Assemble comparison and localization without premature acceptance",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "integration45-source-preservation",
+      "kind": "measurement",
+      "title": "Static union retains every incumbent",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "integration45-dictionary-wholesale-replacement",
+      "kind": "rejection",
+      "title": "Retain two independent copy changes",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

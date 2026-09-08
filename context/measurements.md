@@ -17437,3 +17437,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `personal-auth-visual42-eight-views` (2026-09-08)
 
 2026-09-08: exec6562 terminal0,09:59:12.827Z–09:59:33.815Z,20.986s. Eight en/hi x390/1440 xgeneral/test actualAuthGate views; four test views add hero/form non-overlap, whole scene overflow and visible active text contrast>=4.5. Selector44px/focus and email/code/cross-tab failure flows still pass. Actual eager CSS/mocked account responses; no liveprovider or performance claim. Screenshots/metrics scratchpad/personal-auth-locale-browser-1788861553569, correctedHindi390/1440 visually inspected. Scoped Impeccable once returned[].
+
+
+## `integration45-source-preservation` (2026-09-08)
+
+2026-09-08: n54changedpaths,387unique literalregistry entries preserve all380prior name/pathpairs plus7new. All oldgraphnodes/edges retained; graph2727/2432 beforethislog.145to155migrationmirrors present,156absent. GPU36/39authority/fiveregressionfiles unchanged. SharedAzureadapter matches a4bf870 exactly. Englishdictionary has both PersonalAuth and writtencomparison wording. esbuild0.28.2 manifest/lock agree. Source inspection only; no dependencies/build/tests/browser/SQL/provider.

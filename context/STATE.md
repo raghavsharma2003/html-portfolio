@@ -1,5 +1,11 @@
 # STATE — read this first, then the graph
 
+## START HERE: INTEGRATION45 SOURCE CANDIDATE (2026-09-08)
+
+This block supersedes older candidate notes below. Source assembly only, not frozen or accepted. Base40 9797b16d plus materializer155 a4bf870, accessibility42 1028d86 and Hindi41/visual42 f61a384e.387literal registrations retain all380incumbents plus7new. Shared Englishcopy preserves both auth and written-comparison sections.145to155 mirrors retained;156 qualification/activation excluded. Audio40 pending frozenpass.
+
+No dependencies, build, tests, browser, SQL or provider execution in this assembly. Static source and graph checks only. Actual152153155 proof, reviewed private dependency install including esbuild0.28.2, semanticTypeScript and integrated desktop/mobile/fullrelease remain required. Materialization/comparison does not establish qualification, approval, active improvement or fulllearningloop completion. Root owns next acceptance and launch. Accepted26/local5177 unchanged; fullgoal active and hourlyautomation paused. See expert-tools/RELEASE45-ASSEMBLY-MANIFEST.json.
+
 ## START HERE: INTEGRATION40 SOURCE ASSEMBLY (2026-09-08)
 
 This block supersedes older candidate notes below. SOURCE ONLY, not frozen or accepted. Based immutable39 b534fa9, while root runs its full gate separately. Four bounded families now unioned: correction candidate152, opt-in publication visitor continuity153, honest Room memory-write state and measured GPUexecution36 defaults.380registry entries retain all372incumbents plus8new. Preserve39projection/154 and regression repairs.
