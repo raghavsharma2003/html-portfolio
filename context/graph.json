@@ -16938,6 +16938,24 @@
       "kind": "rejection",
       "title": "Pending memory successor excluded from pilot",
       "at": "2026-09-08"
+    },
+    {
+      "id": "pilot71-qualification-details-collapse",
+      "kind": "decision",
+      "title": "Collapse qualification details until opened",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "pilot71-qualification-details-integration",
+      "kind": "measurement",
+      "title": "Qualification details paths integrated",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "pilot71-memory-context-history-excluded",
+      "kind": "rejection",
+      "title": "Foreign memory context history excluded",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29183,6 +29201,16 @@
       "src": "pilot71-integrate-voice-auth-reviewed-paths",
       "rel": "caused_by",
       "dst": "pilot71-memory-successor-excluded"
+    },
+    {
+      "src": "pilot71-qualification-details-collapse",
+      "rel": "measured_by",
+      "dst": "pilot71-qualification-details-integration"
+    },
+    {
+      "src": "pilot71-qualification-details-collapse",
+      "rel": "caused_by",
+      "dst": "pilot71-memory-context-history-excluded"
     }
   ]
 }

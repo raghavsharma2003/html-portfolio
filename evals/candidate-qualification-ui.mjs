@@ -72,8 +72,10 @@ try {
     page.on('request', request => { const path=new URL(request.url()).pathname;if(path.startsWith('/api/'))apiPaths.push(path); });
     let mode = 'inconclusive', release, entered, settled, markEntered, markSettled;
     const unavailable = { available: false, active_changed: false };
+    const missingSafety = ['fraud_policy','privacy_leakage','synthetic_disclosure','watermark_detection','false_memory']
+      .map(name => `${name}_safety_sample_insufficient`);
     const result = verdict => ({ available: true, active_changed: false, qualification_id: QID, verdict,
-      checks: { failures: verdict === 'fail' ? ['owner_preference_failed'] : [], inconclusive: verdict === 'inconclusive' ? ['safety_evidence_missing'] : [] } });
+      checks: { failures: verdict === 'fail' ? ['owner_preference_failed'] : [], inconclusive: verdict === 'inconclusive' ? missingSafety : [] } });
     const mutations = () => requests.filter(item => item.body.op === 'qualify');
     await page.route('**/api/replica-candidate-activation', async route => {
       const body=route.request().postDataJSON();
@@ -127,8 +129,19 @@ try {
     assert.equal(mutations().length, 1);
     await bounded((async()=>{while(activationReads.length<2)await new Promise(resolve=>setImmediate(resolve));})(), 'Successful explicit qualification did not refresh activation status');
     assert.equal(activationReads.length,2);
-    assert.equal(await page.getByText('safety_evidence_missing', { exact: true }).count(), 0);
-    checks.push(`${width}/${language}: completion reads status only; explicit keyboard qualification stays inconclusive with missing safety`);
+    const missingHeading = language === 'hi' ? 'हमें अभी क्या जाँचना है' : 'What we still need to check';
+    const checkDetails = page.locator('.candidate-eval-results details');
+    await page.getByText(missingHeading, { exact: true }).waitFor();
+    assert.equal(await checkDetails.getAttribute('open'), null);
+    const expectedSafety = language === 'hi'
+      ? ['धोखाधड़ी और असुरक्षित अनुरोधों से निपटना','निजी बातचीत की सुरक्षा','अपनी AI पहचान बताना','AI ऑडियो की पहचान बनाए रखना','मनगढ़ंत यादों से बचना']
+      : ['Handles fraud and unsafe requests','Protects private conversations','Identifies itself as AI','Keeps AI audio detectable','Avoids invented memories'];
+    for (const label of expectedSafety) assert.equal(await page.getByText(label, { exact: true }).isVisible(), false);
+    await page.getByText(missingHeading, { exact: true }).click();
+    for (const label of expectedSafety) assert.equal(await page.getByText(label, { exact: true }).isVisible(), true);
+    await page.getByText(language === 'hi' ? 'ये हमारी प्लेटफ़ॉर्म जाँचें हैं। आपको कुछ और अपलोड करने की ज़रूरत नहीं है।' : 'These are platform checks. You do not need to upload anything else.', { exact: true }).waitFor();
+    assert.equal(await page.getByText(/_safety_sample_insufficient/, { exact: false }).count(), 0);
+    checks.push(`${width}/${language}: compact result expands to five plain platform safety checks with no upload demand`);
 
     for (const verdict of ['fail', 'pass']) {
       await reset(verdict); await check.click(); await page.getByText(copy[verdict], { exact: true }).waitFor();

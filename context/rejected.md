@@ -17567,3 +17567,6 @@ Frozen source `de84da66` passed remote runtime build but failed the real strict 
 ## `pilot71-memory-successor-excluded` (2026-09-08)
 
 Do not integrate `memory35d96557` in this pilot. Its author is revising reason disclosure and has not supplied the successor reviewed patch; importing the current commit would widen the source/API scope beyond the two requested reviewed families.
+## `pilot71-memory-context-history-excluded` (2026-09-08)
+
+The successor commit also rewrites author context records. Those records were excluded because this integration carries only the reviewed product and existing test paths; the local pilot records its own decision, measurement and rejection.

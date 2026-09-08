@@ -23778,3 +23778,6 @@ Keep the build-outcome implementation JavaScript and provide its exact adjacent 
 ## `pilot71-integrate-voice-auth-reviewed-paths` (2026-09-08)
 
 Integrate only the reviewed voice-path70 product, focused eval, and next-step document plus creator auth copy into `faf12ab3`; preserve source APIs and exclude the pending memory35 successor. The preparation callback validates local protection configuration before runtime wake and reuses one adapter instance. Reverse if focused controls show an ownership, status, or dispatch regression. Root import tuples: `79530eb7 -> api/_voice/preview-panel.js, api/voice-preview.js, evals/voicepanel.mjs, docs/gurukul/VOICE-PREVIEW-NEXT-STEP70.md`; `bd150a28 -> src/creatorStudio/copy.ts, src/creatorStudio/hiAuthCopy.ts`.
+## `pilot71-qualification-details-collapse` (2026-09-08)
+
+Integrate the reviewed memory successor's two product/test paths: qualification safety labels are plain user-facing checks, and inconclusive details stay collapsed until opened with explicit platform-only guidance. Preserve the existing qualification authority and avoid importing the author's context history. Reverse if mounted UI shows hidden results inaccessible by keyboard or implies another upload is required. Root import tuples: `f0762772 -> src/studio/CandidateEvaluationLab.tsx, evals/candidate-qualification-ui.mjs`.

@@ -29,6 +29,19 @@ const TEXT_COMPARISON_COPY={
   hi:{title:'कौन सा जवाब आपके जैसा है?',intro:'लिखे हुए जवाबों की तुलना करें। आपकी पसंद समीक्षा के लिए सहेजी जाएगी।',seal:'नाम छिपे रहेंगे',empty:'अभी तुलना तैयार नहीं है।',complete:(n:number)=>`${n} तुलनाएं सहेजी गईं। आपका मौजूदा AI नहीं बदला है।`},
 };
 
+const QUALIFICATION_CHECK_COPY: Record<string, { en: string; hi: string }> = {
+  fraud_policy_safety_sample_insufficient: { en: "Handles fraud and unsafe requests", hi: "धोखाधड़ी और असुरक्षित अनुरोधों से निपटना" },
+  privacy_leakage_safety_sample_insufficient: { en: "Protects private conversations", hi: "निजी बातचीत की सुरक्षा" },
+  synthetic_disclosure_safety_sample_insufficient: { en: "Identifies itself as AI", hi: "अपनी AI पहचान बताना" },
+  watermark_detection_safety_sample_insufficient: { en: "Keeps AI audio detectable", hi: "AI ऑडियो की पहचान बनाए रखना" },
+  false_memory_safety_sample_insufficient: { en: "Avoids invented memories", hi: "मनगढ़ंत यादों से बचना" },
+};
+
+function qualificationCheckLabel(code: string, language: 'en' | 'hi') {
+  return QUALIFICATION_CHECK_COPY[code]?.[language]
+    ?? (language === 'hi' ? "एक और आवश्यक जाँच" : "Another required check");
+}
+
 function loadError(cause: unknown) {
   return cause instanceof Error ? cause.message.replaceAll("_", " ") : "The comparison could not be loaded";
 }
@@ -71,6 +84,14 @@ function QualificationAction({token,replicaId,candidateId,language,onAuthError,o
       :result?.verdict==='pass'?(hi?'जांच पास हुई। आपका मौजूदा AI नहीं बदला है।':'Checks passed. Your current AI is unchanged.')
       :result?.verdict==='fail'?(hi?'यह बदलाव जांच पास नहीं कर पाया। आपका मौजूदा AI नहीं बदला है।':'This change did not pass. Your current AI is unchanged.')
       :hi?'अभी और जांच चाहिए। आपका मौजूदा AI नहीं बदला है।':'More checks are needed. Your current AI is unchanged.'}</p>
+    {checked&&result?.checks&&(result.checks.failures.length>0||result.checks.inconclusive.length>0)?<details>
+      <summary>{hi?'हमें अभी क्या जाँचना है':'What we still need to check'}</summary>
+      <p>{hi?'ये हमारी प्लेटफ़ॉर्म जाँचें हैं। आपको कुछ और अपलोड करने की ज़रूरत नहीं है।':'These are platform checks. You do not need to upload anything else.'}</p>
+      {result.checks.failures.length>0?<><strong>{hi?'जो जाँच पास नहीं हुईं':'Checks that did not pass'}</strong>
+        <ul>{result.checks.failures.map(code=><li key={code}>{qualificationCheckLabel(code,language)}</li>)}</ul></>:null}
+      {result.checks.inconclusive.length>0?<><strong>{hi?'जिन जाँचों के नतीजे बाकी हैं':'Checks awaiting results'}</strong>
+        <ul>{result.checks.inconclusive.map(code=><li key={code}>{qualificationCheckLabel(code,language)}</li>)}</ul></>:null}
+    </details>:null}
     {checked&&<button type="button" disabled={busy} onClick={()=>void request('qualify',true)}>{hi?'नतीजे जांचें':'Check results'}</button>}
     {!checked&&<button type="button" disabled={busy} onClick={()=>void request('qualification_status',true)}>{hi?'नतीजे की स्थिति देखें':'Read result status'}</button>}
     {error&&<p role="alert">{error}</p>}

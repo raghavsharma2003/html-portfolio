@@ -17567,3 +17567,6 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `pilot71-reviewed-path-integration` (2026-09-08)
 
 Focused source integration measurement: n=2 reviewed commits, 6 product/test/doc paths applied, 0 context graph files imported from either author commit, 0 cloud/SQL/browser/provider/install calls. The required `tsc -b --force` and focused checks remain to be run after this append.
+## `pilot71-qualification-details-integration` (2026-09-08)
+
+Source integration measurement: n=2 paths from `f0762772`, 0 foreign context files imported, 0 cloud/SQL/browser/provider/install calls before focused verification. The mounted qualification UI control covers both English and Hindi compact disclosure behavior.
