@@ -2,7 +2,7 @@ import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {flushSync} from 'react-dom';
 import type {LivenessChallenge} from '../../src/studio/types';
-import type {LivenessCaptureReadiness} from '../../src/studio/livenessApi';
+import type {LivenessCaptureReadiness, SelectedReferenceComparison} from '../../src/studio/livenessApi';
 
 const params = new URLSearchParams(location.search);
 // The test server supplies the actual component source, with bounded mutation
@@ -17,6 +17,15 @@ const challenge: LivenessChallenge = {
  face_session_state:(params.get('face') || 'passed_deleted') as LivenessChallenge['face_session_state'],
 };
 let fresh = {...challenge};
+// Synthetic contract data only; this fixture performs no reference verification.
+const comparison: SelectedReferenceComparison = {
+ statement_set:'selected-voice-comparison/v1',
+ primary_source_id:'30000000-0000-4000-8000-000000000003',
+ primary_selection_id:'40000000-0000-4000-8000-000000000004',
+ source_sha256:'a'.repeat(64),comparison_snapshot_sha256:'b'.repeat(64),
+ source_label:null,source_created_at:new Date().toISOString(),
+ locales:['en-IN','hi-IN'],available:true,code:'',
+};
 let deferredMedia = false;
 let releaseMedia: (()=>void) | null = null;
 let releaseRead: (()=>void) | null = null;
@@ -39,9 +48,9 @@ Object.defineProperty(window,'MediaRecorder',{configurable:true,value:Recorder})
 const onCheckReadiness=async():Promise<LivenessCaptureReadiness>=>{
  calls.readiness++;
  if(mode==='pending')return new Promise(()=>{});
- if(mode==='deferred')return new Promise(resolve=>{const snapshot={...fresh};releaseRead=()=>resolve({challenge:snapshot,readiness:{ready:true,waiting_on:null,code:''}});});
+ if(mode==='deferred')return new Promise(resolve=>{const snapshot=params.has('empty')?null:{...fresh};releaseRead=()=>resolve({challenge:snapshot,comparison,comparison_code:'',readiness:{ready:true,waiting_on:null,code:''}});});
  if(mode==='error')throw Error('Fixture readiness read failed');
- return {challenge:fresh,readiness:{ready:mode==='ready',waiting_on:mode==='ready'?null:'us',code:mode==='ready'?'':'liveness_verifier_unavailable'}};
+ return {challenge:params.has('empty')?null:fresh,comparison:mode==='ready'?comparison:null,comparison_code:mode==='ready'?'':'selected_reference_not_available',readiness:{ready:mode==='ready',waiting_on:mode==='ready'?null:'us',code:mode==='ready'?'':'liveness_verifier_unavailable'}};
 };
 let localChallenge: LivenessChallenge | null = params.has('empty')?null:challenge;
 let consentActive = true;

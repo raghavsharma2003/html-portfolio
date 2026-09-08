@@ -15837,6 +15837,30 @@
       "kind": "rejection",
       "title": "New work and agent stops do not constitute a release",
       "at": "2026-09-07"
+    },
+    {
+      "id": "release31-fixture-contract-repair",
+      "kind": "decision",
+      "title": "Repair release fixtures without changing capture authority",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release31-focused-regression-results",
+      "kind": "measurement",
+      "title": "Focused regression verification",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "release31-retry-not-crash-repair",
+      "kind": "rejection",
+      "title": "Do not confuse successful rerun with repaired browser crash",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "vyakti-scheduled-followup-paused",
+      "kind": "decision",
+      "title": "Pause redundant scheduled continuation while retaining active product goal",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

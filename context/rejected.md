@@ -17221,3 +17221,8 @@ Rejected treating passed EXPLAIN as evidence the runtime guard permits a query: 
 ## `candidate30-no-premature-deploy` (2026-09-07)
 
 Selection145 remains dirtyunfrozen despite agentreported19backend/28mounted; preparation146 froze atc5385f85 with26focusedoffline, no realSQL;147meterisolate exists but no implementedchangesverified. Twoagents stopped with usage-limit errors. Preserve theirwork; do not inferbackgroundcompletion or deploythese slices. Root cancontinue verifiedcandidate30 work. Initial integrationhelper Windowscp1252read failed beforewrites; explicitUTF8 repair integrated successfully, no partialsourcecopy fromfailedattempt.
+
+
+## `release31-retry-not-crash-repair` (2026-09-07)
+
+2026-09-08: Original release30 Chromium launch died with3221225477 before checks. One unchanged diagnostic run succeeded; no matching Application event established a root cause. Keep original failure, no automatic retry or speculative browser replacement. Initial capture fixture correction still omitted comparison_code and mishandled empty deferred snapshots; independent review caught both and final30-group rerun passed after correction.

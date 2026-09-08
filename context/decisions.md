@@ -23450,3 +23450,13 @@ Permit the two existing artifact-review retirement writes only under their exact
 ## `candidate30-release-freeze` (2026-09-07)
 
 2026-09-08: Root integrated eight reviewed SQL harness/evidence files fromcecc71e5,9contextnodes6edges; actualcandidate8productionSQL hashes match acceptedV5. Independentreview53482de9 acceptsboundedSQL80checks3races54zero. Freeze candidate30 forfullrelease; accepted26/local5177 unchanged until gates. Reversal: any gate/source mutation failure keepscandidate unaccepted.
+
+
+## `release31-fixture-contract-repair` (2026-09-07)
+
+2026-09-08: Normalize CRLF/LF only for the migration mirror test. Supply the exact selected-reference descriptor and comparison_code in mounted capture fixtures, including null challenge preservation for empty deferred reads. Hide unavailable issuance assertions match the UI; add fully checked consent followed by fresh refusal. Reversal: actual product failure or API contract change requires revisiting this fixture; full release and real relational gates remain required before promotion.
+
+
+## `vyakti-scheduled-followup-paused` (2026-09-07)
+
+2026-09-08: User explicitly asked to stop Continue Vyakti expert product scheduled task. No automation management tool was exposed after tool inventory search. Backed up exact local automation.toml and changed only ACTIVE to PAUSED plus updated_at; readback confirmedPAUSED. Product goal remainsactive, agents resumed. Reversal: user explicitly requests schedule restart. Scheduler interference was suspected by user, not established as cause of earlier stops.

@@ -43,9 +43,17 @@ try{
   await open('mode='+state);assert(await camera().isDisabled());assert.equal((await getCalls()).media,0);
   await page.getByRole('button',{name:'Cancel and erase this attempt'}).click();assert.equal((await getCalls()).cancel,1);
  });
- await check('complete attestations cannot issue a new unavailable challenge',async()=>{
-  await open('mode=blocked&empty=1');for(const box of await page.getByRole('checkbox').all())await box.check();
-  assert(await page.getByRole('button',{name:'Request live phrase'}).isDisabled());assert.equal((await getCalls()).issue,0);
+ await check('unavailable challenge hides new capture choices and issuance',async()=>{
+  await open('mode=blocked&empty=1');await page.getByText('Live verification is unavailable',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('checkbox').count(),0);
+  assert.equal(await page.getByRole('button',{name:'Request live phrase'}).count(),0);assert.equal((await getCalls()).issue,0);
+ });
+ await check('complete attestations cannot bypass a fresh unavailable challenge',async()=>{
+  await open('mode=ready&empty=1');const issue=page.getByRole('button',{name:'Request live phrase'});await issue.waitFor();
+  const boxes=await page.getByRole('checkbox').all();assert.equal(boxes.length,8);for(const box of boxes)await box.check();
+  assert(await issue.isEnabled());await mode('blocked');await issue.click();
+  await page.getByText('The recording or its permissions changed. Review the current selection.',{exact:true}).waitFor();
+  assert.equal((await getCalls()).issue,0);assert.equal((await getCalls()).media,0);
  });
  await check('blocked new face check stays disabled while existing face poll remains usable',async()=>{
   await open('mode=blocked&face=not_started');assert(await page.getByRole('button',{name:'Open official face check'}).isDisabled());

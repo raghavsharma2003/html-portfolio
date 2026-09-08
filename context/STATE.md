@@ -1,5 +1,9 @@
 # STATE — read this first, then the graph
 
+## START HERE: RELEASE31 REGRESSION CANDIDATE (2026-09-08)
+
+This isolated candidate contains release30 plus narrow migration-line-ending and capture-fixture repairs. Store26, capture30 mounted groups and unchanged conversation34 controls passed. The prior Chromium launch crash remains unexplained. Fullrelease31 pending; real relational gates still required. No deployment or owner likeness accepted. Accepted integration/local5177 remain release26. Comparison145 frozen97d02fec and preparation146 frozen c5385f85 are separate work, not integrated here. Root goal remains active; redundant hourly follow-up is paused at user request.
+
 ## START HERE: ACTIVE EXPERT INTEGRATION (2026-09-07)
 
 Current accepted source remains release26 at3eb404d4 in expert-integration; local5177 notpromoted. Candidate30 in expert-30-combined is being frozen for fullrelease: UI/design/parser/creatorfixture/issuedauthority plus accepted realSQL80checks,3witnessedraces,54zero cleanupcounts. V5exec13427TERMINALPASS, no provider calls. Candidate actual8productionSQL hashes match V5; previousfailure receipts retained. Fullrelease30 notstarted. Selection145 work in expert-comparison-reference31 remainsunfrozen; preparation146 clean c5385f85;147meter isolate created but worknotverified. Checkpoint/voiceagents stopped onusage-limit, do not assume stillrunning. Fullgoal remainsactive; no deployment, realownerlikeness, calibratedsamecapture or PMF acceptance.
