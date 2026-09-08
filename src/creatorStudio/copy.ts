@@ -1916,6 +1916,7 @@ interface ReplicaListCopy {
   newWorkspace: string;
 }
 interface VoiceUnlockNoticeCopy {
+  scopeLabel: string;
   bodyMissingBoth: string;
   bodyMissingLiveness: string;
   bodyMissingIdentity: string;
@@ -4129,9 +4130,10 @@ const EN: StudioCopy = {
       newWorkspace: "New workspace",
     },
     voiceUnlockNotice: {
-      bodyMissingBoth: "The preview above is private and works right now. To let this voice speak to anyone else we need identity and a live challenge, because a voice is a person and this product only ever builds its owner's own AI.",
-      bodyMissingLiveness: "The preview above is private and works right now. To let this voice speak to anyone else we need a live challenge, because a voice is a person and this product only ever builds its owner's own AI.",
-      bodyMissingIdentity: "The preview above is private and works right now. To let this voice speak to anyone else we need identity, because a voice is a person and this product only ever builds its owner's own AI.",
+      scopeLabel: "Before sharing",
+      bodyMissingBoth: "Before this voice can speak to anyone else, verify your identity and complete a live challenge to confirm it is yours.",
+      bodyMissingLiveness: "Before this voice can speak to anyone else, complete a live challenge to confirm it is yours.",
+      bodyMissingIdentity: "Before this voice can speak to anyone else, verify your identity to confirm it is yours.",
       verifyLink: "Verify below on this step",
     },
     testEnvironmentNoticeTitle: "Internal test environment",

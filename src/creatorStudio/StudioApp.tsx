@@ -90,7 +90,6 @@ import {
 import { useCompact } from "./useCompact";
 import { BlockerNotice } from "./BlockerNotice";
 import { InviteGate } from "./InviteGate";
-import { CLASS_COPY } from "./blockerClass";
 import type { ActivityJob, ActivityView } from "./activityApi";
 import {
   computeWizard,
@@ -441,10 +440,10 @@ function ReplicaList({
  * Identity and liveness used to be a wall in their own collapsed section, asked
  * for BEFORE the owner had any evidence we could do the thing. They are now on
  * the Meet step next to the voice they unlock, and this line is the sentence
- * that connects the two. It appears only while something is genuinely missing,
- * and it never claims the preview is blocked, because it is not: the draft
- * preview is private and works unverified. What is gated is ACTIVATION, and
- * that is what it says.
+ * that connects the two. It appears only while something is genuinely missing.
+ * Preview readiness belongs to `VoicePreviewPanel`, which can be waiting on a
+ * recording, review, runtime or provider; this notice speaks only about the
+ * owner's separate activation requirement.
  */
 function VoiceUnlockNotice({ replica }: { replica: Replica }) {
   const { t } = useStudioLocale();
@@ -463,12 +462,9 @@ function VoiceUnlockNotice({ replica }: { replica: Replica }) {
     : identity ? c.bodyMissingLiveness : c.bodyMissingIdentity;
   return (
     <aside className="voice-unlock" role="status">
-      {/* Carries the class label like every other blocked state on the studio,
-          because this genuinely IS the person's turn and saying so in the same
-          words the rest of the product uses is what makes "waiting on us"
-          believable when it appears. A vocabulary that is only honest in the
-          places where honesty is cheap is not a vocabulary. */}
-      <p className="voice-unlock-class">{CLASS_COPY.you.label}</p>
+      {/* Neutral scope label: verification itself can be waiting on the
+          platform, so this notice does not assign a blocker class. */}
+      <p className="voice-unlock-class">{c.scopeLabel}</p>
       <p>{body}</p>
       <a className="text-button" href="#identity-proofing">{c.verifyLink}</a>
     </aside>
