@@ -40,7 +40,7 @@ const server = createServer((req, res) => {
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
-const dir = join(root, 'scratchpad/candidate-materializer-ui'); mkdirSync(dir, { recursive: true });
+const dir = join(root, 'scratchpad/candidate-materializer-ui', String(Date.now())); mkdirSync(dir, { recursive: true });
 const checks = []; let browser;
 async function bounded(promise, label) {
   let timer;
@@ -166,7 +166,7 @@ try {
     await page.close();
   }
   writeFileSync(join(dir, 'result.json'), JSON.stringify({ checks, scope: 'synthetic mounted UI only' }, null, 2));
-  console.log(JSON.stringify({ passed: checks.length, checks }, null, 2));
+  console.log(JSON.stringify({ passed: checks.length, artifact: join(dir, 'result.json'), checks }, null, 2));
 } catch (cause) {
   writeFileSync(join(dir, 'failure.json'), JSON.stringify({ checks, error: String(cause.message) }, null, 2)); throw cause;
 } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
