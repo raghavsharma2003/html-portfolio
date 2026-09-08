@@ -79,7 +79,7 @@ try{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(origin+'/?view=owner');await page.getByLabel('Teaching profile').selectOption(SID);await page.getByLabel('Material').selectOption(IID);
   await page.getByRole('heading',{name:'Review what you will share'}).waitFor();assert(await page.getByRole('button',{name:'Publish link',exact:true}).isDisabled());assert.equal(requests.filter(r=>r.op==='publish').length,0);check(width+' owner review does not publish');
-  await page.getByText('pendulum.txt',{exact:true}).last().click();for(const box of await page.getByRole('checkbox').all())await box.check();lostPublish=true;
+  await page.getByText('pendulum.txt',{exact:true}).last().click();for(const box of await page.getByRole('group',{name:'Permission to publish'}).getByRole('checkbox').all())await box.check();lostPublish=true;
   await page.getByRole('button',{name:'Publish link',exact:true}).click();await page.getByRole('button',{name:'Check status',exact:true}).waitFor();assert.equal(requests.filter(r=>r.op==='publish').length,1);check(width+' unknown publication keeps recovery');
   await page.reload();await page.getByRole('button',{name:'Check status',exact:true}).click();await page.getByLabel('Share link').waitFor();assert.equal(requests.filter(r=>r.op==='publish').length,1);check(width+' reload readback never republishes');
   await page.screenshot({path:join(out,`owner-${width}.png`),fullPage:true});

@@ -71,15 +71,18 @@ export function createTextPublicationVisitorHandler({db,requireUser,store,resolv
    if(req.method!=='POST')refuse('text_publication_unknown_op',400);
    visitor=(await requireUser(req)).id;checkAbort();
    if(input.op==='join')return res.status(200).json(await store.joinTextPublication(db,visitor,input,options));
+   if(input.op==='memory_settings')return res.status(200).json(await store.readTextPublicationMemorySettings(db,visitor,input,options));
+   if(input.op==='set_memory')return res.status(200).json(await store.setTextPublicationMemory(db,visitor,input,options));
    if(input.op==='forget')return res.status(200).json(await store.forgetTextPublicationVisitor(db,visitor,input,options));
    if(input.op==='result')return res.status(200).json({request:await store.readTextPublicationRequest(db,visitor,input,options)});
    if(input.op!=='ask')refuse('text_publication_unknown_op',400);
    admitted=await store.admitTextPublicationRequest(db,visitor,input,options);
    if(!admitted.created)return res.status(200).json({request:await store.readTextPublicationRequest(db,visitor,input,options)});
    input={public_id:admitted.request.public_id,request_id:admitted.request.request_id,session_token:input.session_token};
+   if(admitted.failure_code)refuse(admitted.failure_code,409);
    platformReady();const generator=adapterReady(await resolveGenerator());
    const compiled=engine.compilePublishedMaterialAssistant(admitted.compilerInput);
-   const prompt={schema:'account_material_publication/v1',messages:[{role:'system',content:compiled.system},{role:'user',content:compiled.question}]};
+   const prompt={schema:admitted.compilerInput.authority.basis,messages:[{role:'system',content:compiled.system},{role:'user',content:compiled.question}]};
    prompt.prompt_hash=sha256Hex(canonicalJson(prompt));
    checkAbort();
    reservation=await budget.reserveFoundrySpend(db,{operation:'dialogue',requestKey:'text-publication:'+input.request_id,adapter:generator,messages:prompt.messages,env});
@@ -97,7 +100,7 @@ export function createTextPublicationVisitorHandler({db,requireUser,store,resolv
    checkAbort();
    const output=textPublicationOutput(generated.output);
    const rules=compileNeverRules(await loadNeverRules(db,admitted.replica_id,admitted.owner_user_id));
-   const honesty=honestyContextFor(engine,compiled,[{role:'user',content:compiled.question}],{record:[],nameable:[]});
+   const honesty=honestyContextFor(engine,compiled,[{role:'user',content:compiled.question}],{record:compiled.privateMemoryRecord||[],nameable:[]});
    const gated=gateReply(engine,output.reply,honesty,'text-publication',rules,'expert_answer');
    if(!gated.gated||!gated.text||gated.neverRule)refuse('text_publication_answer_withheld',409);
    checkAbort();

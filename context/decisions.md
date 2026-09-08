@@ -23568,3 +23568,13 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `release34-scoped-last-additions` (2026-09-08)
 
 2026-09-08: Root authorized only site/vyakti.html from27d67bef and151894f17f1, not performance experiment harness files. Three prose sections use content-visibility with measured fallback sizes and print restoration. Exact catalog correction removes remaining auto-named147 upper-cost check;149/150 unchanged. Reversal: integrated browser/accessibility/regression failure or mismatched real catalog reopens this candidate.
+
+
+## `publication-continuity37-scoped-v2` (2026-09-08)
+
+2026-09-08: New v2 owner review permits optional authenticated visitor continuity on the existing account-material text endpoint. Existing v1 remains memory-free. Durable memory epoch, explicit choice and prior-request hash lineage reuse encrypted request rows; no Rooms runtime/identity gate is bypassed and no competing memory engine is added. Settings changes invalidate admission and old memory-derived readback becomes content-free withdrawn with accurate billing. Reversal: actual SQL/race proof finds the same-publication lineage cannot be fenced atomically, or product policy requires verified identity for this capability.
+
+
+## `publication-continuity37-durable-memory-block` (2026-09-08)
+
+2026-09-08: Invalid, undecryptable or over-budget prior memory is admitted as an explicit blocked operation before provider reservation; no guessed empty memory or stranded result polling. Existing admission counting remains. Oversized history opens existing settings; only explicit visitor opt-out followed by rejoin permits a fresh ask. Reversal: actual SQL or production evidence shows this durable error representation cannot preserve request idempotency or accurate quota semantics.

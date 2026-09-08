@@ -17343,3 +17343,13 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `release34-no-performance-causality` (2026-09-08)
 
 2026-09-08: One bounded A/B improvement does not prove eliminated host noise or full-release acceptance. Importing all performancebranch files would mix diagnostics with product; only reviewed site/vyakti.html was restored. Original release31 and diagnostic failures retained.
+
+
+## `publication-continuity37-canonical-boundaries` (2026-09-08)
+
+Independent source review found numeric/newline memory epochs accepted by regex/BigInt coercion and an answer ciphertext ceiling too small for valid Hindi text under the decoded contract. Fixed exact canonical decimal string validation and UTF-8-aware12000base64 bound before aggregate decoded3000-unit validation. Added negatives and Hindi boundary fixtures. Also rejected direct Room routing because it would substitute stronger identity/runtime authority and broader agent/person recall for explicit account-publication scope. Initial backend test missing-brace syntax and compiler TS18048 failure were fixed and rerun; no mock result is a SQL proof.
+
+
+## `publication-continuity37-switch-and-recovery` (2026-09-08)
+
+Final mounted review caught settings using new publicId with stale previous publication v2 state. Effect and action now require matching ids. A decode failure before admission could strand the UI with a nonexistent result; blocked durable receipts now let the user explicitly disable memory and rejoin without replaying the failed operation. Both widths verified one dispatch of the blocked request. Browser fixture fixes preserved expectations: await recovery state rather than missing composer, flush headers before simulating truncated response, and scope incumbent consent selectors to their original fieldset.

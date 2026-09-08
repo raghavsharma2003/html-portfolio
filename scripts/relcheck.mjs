@@ -21,6 +21,17 @@ import { PERSON_TABLES } from "../api/memory.js";
 const checks = [];
 const check = (name, sql, params = []) => checks.push({ name, sql, params });
 
+// Migration153 adds lineage on already-owned rows. No parallel person table.
+check("publication continuity has no cross-visitor or erased provenance", `select count(*)::int n from vy_text_publication_request h
+ where (h.memory_epoch is null and h.memory_refs<>'[]'::jsonb)
+ or (h.state='withdrawn' and h.memory_refs<>'[]'::jsonb)
+ or exists(select 1 from jsonb_array_elements(h.memory_refs) ref where not exists(
+  select 1 from vy_text_publication_request prior where prior.request_id=(ref->>'request_id')::uuid
+  and prior.publication_id=h.publication_id and prior.replica_id=h.replica_id and prior.owner_user_id=h.owner_user_id
+  and prior.visitor_user_id=h.visitor_user_id and prior.memory_epoch=h.memory_epoch
+  and prior.question_hash=ref->>'question_hash' and prior.answer_hash=ref->>'answer_hash'
+  and prior.request_id<>h.request_id and prior.created_at<=h.created_at))`);
+
 // ── orphaned citations: a row citing a vy_episode id that does not exist ──
 const orphanCite = (table, extra = "") =>
   `select count(*)::int n from ${table} r
