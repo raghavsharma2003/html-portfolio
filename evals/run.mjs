@@ -35,6 +35,7 @@ execSync(
 );
 
 const suites = {
+  "personal-studio-entry-recovery": "personal-studio-entry-recovery.mjs",
   "expert-answer-inline": "expert-answer-inline.mjs",
   "panel-copy-inventory": "lib/panel-copy.test.mjs",
   "install-script-inventory": "install-script-inventory.mjs",

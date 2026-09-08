@@ -4,8 +4,14 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");
-const studio = readFileSync(join(ROOT, "src/studio/StudioApp.tsx"), "utf8");
-const copy = readFileSync(join(ROOT, "src/creatorStudio/copy.ts"), "utf8");
+const studioApp = readFileSync(join(ROOT, "src/studio/StudioApp.tsx"), "utf8");
+const authGate = readFileSync(join(ROOT, "src/studio/PersonalAuthGate.tsx"), "utf8");
+const studio = `${studioApp}\n${authGate}`;
+const copy = [
+  "src/creatorStudio/copy.ts",
+  "src/studio/personalAuthCopyRegistry.ts",
+  "src/studio/hiPersonalAuthCopy.ts",
+].map((file) => readFileSync(join(ROOT, file), "utf8")).join("\n");
 const auth = readFileSync(join(ROOT, "src/studio/studioAuth.ts"), "utf8");
 const session = readFileSync(join(ROOT, "src/studio/session.ts"), "utf8");
 

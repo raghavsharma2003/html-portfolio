@@ -39,6 +39,8 @@ export interface PersonalAuthCopy {
   invalidEmailError: string;
   codeMismatchError: string;
   googleError: string;
+  workspaceLoadError: string;
+  retryWorkspace: string;
   legalNotice: string;
   visualAlt: string;
   visualCaptions: Record<"knowledge" | "voice" | "people", string>;

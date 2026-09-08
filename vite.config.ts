@@ -59,10 +59,10 @@ function roomAboutFixturePlugin() {
 // parallel with the main chunk, which is the whole win.
 //
 // WS-R113 narrowed WHICH chunk this preloads: `hiCopy.ts` split into
-// `hiAuthCopy.ts` (the sign-in screen's own two sections, `authGate` +
+// `hiPersonalAuthCopy.ts` (the sign-in screen's own two sections, `authGate` +
 // `shell`) and `hiCopy.ts` (everything else, loaded only once a session
 // exists) — see `context/decisions.md#ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section`.
-// This plugin now preloads ONLY `hiAuthCopy-<hash>.js`: that is the one
+// This plugin now preloads ONLY `hiPersonalAuthCopy-<hash>.js`: that is the one
 // chunk a signed-out `?lang=hi` visit ever fetches, and preloading the much
 // larger rest chunk too would cost that visit bytes and a fetch it will
 // never use before signing in.
@@ -145,8 +145,8 @@ function studioHindiPreloadPlugin() {
       if (!outcome.shouldPostprocess()) return
       const distDir = join(process.cwd(), 'dist')
       const assetNames = readdirSync(join(distDir, 'assets'))
-      // `hiAuthCopy-<hash>.js`, the same filename shape
-      // `scripts/check-performance.mjs`'s `findHiAuthCopyChunkPath()` already
+      // `hiPersonalAuthCopy-<hash>.js`, the same filename shape
+      // `scripts/check-performance.mjs`'s `findHiPersonalAuthCopyChunkPath()` already
       // globs for -- found here rather than imported from there so this
       // plugin has no runtime dependency on a scripts/ file whose own job is
       // gating, not building. Both chunks are checked for existence (a
@@ -154,21 +154,21 @@ function studioHindiPreloadPlugin() {
       // plugin only ever preloads the auth one) so either half silently
       // disappearing fails the build loudly, by name, rather than shipping a
       // signed-in creator a broken locale.
-      const hiAuthChunk = assetNames.find((n) => n.startsWith('hiAuthCopy-') && n.endsWith('.js'))
+      const hiPersonalAuthChunk = assetNames.find((n) => n.startsWith('hiPersonalAuthCopy-') && n.endsWith('.js'))
       const hiRestChunk = assetNames.find((n) => n.startsWith('hiCopy-') && n.endsWith('.js'))
-      if (!hiAuthChunk || !hiRestChunk) {
+      if (!hiPersonalAuthChunk || !hiRestChunk) {
         // Loud, not silent: `#studio-hindi-table-is-its-own-chunk` /
         // `#ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section`
         // being unbuilt or renamed is exactly the state this plugin exists
         // to never paper over.
         throw new Error(
-          'studioHindiPreloadPlugin: expected both dist/assets/hiAuthCopy-*.js and dist/assets/hiCopy-*.js -- ' +
-            `found hiAuthCopy: ${hiAuthChunk ? 'yes' : 'NO'}, hiCopy: ${hiRestChunk ? 'yes' : 'NO'}. The Hindi copy ` +
+          'studioHindiPreloadPlugin: expected both dist/assets/hiPersonalAuthCopy-*.js and dist/assets/hiCopy-*.js -- ' +
+            `found hiPersonalAuthCopy: ${hiPersonalAuthChunk ? 'yes' : 'NO'}, hiCopy: ${hiRestChunk ? 'yes' : 'NO'}. The Hindi copy ` +
             'chunk split (context/decisions.md#ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section) ' +
             'is missing or an output name changed.',
         )
       }
-      const hiChunk = hiAuthChunk
+      const hiChunk = hiPersonalAuthChunk
       const studioHtmlPath = join(distDir, 'studio.html')
       const html = readFileSync(studioHtmlPath, 'utf8')
       const marker = '<meta charset="UTF-8" />'

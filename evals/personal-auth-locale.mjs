@@ -29,16 +29,21 @@ function functionText(source, name) {
 }
 try {
   const entry = join(out, "entry.ts");
-  await writeFile(entry, `export * from ${JSON.stringify(join(root, "src/creatorStudio/copy.ts"))};\nexport * from ${JSON.stringify(join(root, "src/creatorStudio/studioLocalePreference.ts"))};\nexport { readPersonalAuthLocale } from ${JSON.stringify(join(root, "src/studio/personalAuthLocale.tsx"))};`);
+  await writeFile(entry, `export * from ${JSON.stringify(join(root, "src/creatorStudio/copy.ts"))};\nexport * from ${JSON.stringify(join(root, "src/creatorStudio/studioLocalePreference.ts"))};\nexport * from ${JSON.stringify(join(root, "src/studio/personalAuthCopyRegistry.ts"))};\nexport { readPersonalAuthLocale } from ${JSON.stringify(join(root, "src/studio/personalAuthLocale.tsx"))};`);
   const bundle = join(out, "entry.mjs");
   await build({ entryPoints: [entry], outfile: bundle, bundle: true, format: "esm", platform: "node", jsx: "automatic", logLevel: "silent" });
   const mod = await import(pathToFileURL(bundle).href);
-  check("Hindi personal auth rejects reads before loading", () => assert.throws(() => mod.STUDIO_COPY_TABLE.hi.personalAuth, /studio_copy_hi_auth_not_loaded/));
-  check("Hindi auth starts unready", () => assert.equal(mod.studioAuthCopyReady("hi"), false));
+  check("Hindi personal auth rejects reads before loading", () => assert.throws(() => mod.PERSONAL_AUTH_COPY_TABLE.hi.emailTitle, /personal_auth_copy_hi_not_loaded/));
+  check("Hindi personal auth starts unready", () => assert.equal(mod.personalAuthCopyReady("hi"), false));
+  await mod.loadPersonalAuthCopy("hi");
+  check("Hindi personal auth leaf loads independently", () => {
+    assert.equal(mod.personalAuthCopyReady("hi"), true);
+    assert.equal(mod.studioAuthCopyReady("hi"), false);
+  });
   await mod.loadStudioCopyAuth("hi");
   check("Auth loads independently of signed-in copy", () => { assert.equal(mod.studioAuthCopyReady("hi"), true); assert.equal(mod.studioCopyReady("hi"), false); assert.throws(() => mod.STUDIO_COPY_TABLE.hi.creatorPath, /studio_copy_hi_not_loaded/); });
-  const en = mod.STUDIO_COPY_TABLE.en.personalAuth;
-  const hi = mod.STUDIO_COPY_TABLE.hi.personalAuth;
+  const en = mod.PERSONAL_AUTH_COPY_TABLE.en;
+  const hi = mod.PERSONAL_AUTH_COPY_TABLE.hi;
   check("Exact nested key parity", () => assert.deepEqual(leaves(en).map(([key]) => key).sort(), leaves(hi).map(([key]) => key).sort()));
   check("Every template preserves its placeholders", () => {
     const hindi = new Map(leaves(hi));
@@ -60,11 +65,37 @@ try {
   globalThis.localStorage = { getItem() { throw Error("denied"); }, setItem() { throw Error("denied"); } };
   check("Denied storage falls back without crashing", () => { assert.equal(mod.readPersonalAuthLocale(), "en"); mod.writeRememberedStudioLocale("hi"); });
 
-  const source = await readFile(join(root, "src/studio/StudioApp.tsx"), "utf8");
-  const auth = functionText(source, "AuthGate");
+  const source = await readFile(join(root, "src/studio/PersonalAuthGate.tsx"), "utf8");
+  const personalLocaleSource = await readFile(join(root, "src/studio/personalAuthLocale.tsx"), "utf8");
+  const preferenceSource = await readFile(join(root, "src/creatorStudio/studioLocalePreference.ts"), "utf8");
+  check("Personal auth entry has no runtime dependency on the full studio copy table", () => {
+    assert.doesNotMatch(personalLocaleSource, /creatorStudio\/copy/);
+    assert.doesNotMatch(preferenceSource, /from\s+["']\.\/copy["']/);
+  });
+  const auth = functionText(source, "PersonalAuthGate");
   check("No provider message rendered in auth error state", () => {
     assert.doesNotMatch(auth, /cause\.message|error\.message|replaceAll\("_"/);
     assert.match(auth, /\{(?:String\()?t\[error\]\)?\}/);
+  });
+  const entrySource = await readFile(join(root, "src/studio/PersonalStudioEntry.tsx"), "utf8");
+  const appSource = await readFile(join(root, "src/studio/StudioApp.tsx"), "utf8");
+  const mainSource = await readFile(join(root, "src/studio/personalMain.tsx"), "utf8");
+  check("Signed-out entry does not statically reach the workspace", () => {
+    assert.match(mainSource, /import PersonalStudioEntry from "\.\/PersonalStudioEntry"/);
+    assert.doesNotMatch(mainSource, /import StudioApp/);
+    assert.match(entrySource, /const loadStudioApp[^\n]*=> import\("\.\/StudioApp"\)/);
+    assert.match(entrySource, /useMemo\(\(\) => lazy\(loadWorkspace\)/);
+  });
+  check("Entry restores once before choosing auth or workspace", () => {
+    assert.match(entrySource, /useEffect\(\(\) => \{[\s\S]*restore\(\)\.then[\s\S]*\}, \[restore\]\)/);
+    assert.ok(entrySource.indexOf("if (!authChecked)") < entrySource.indexOf("if (!session)"));
+    assert.ok(entrySource.indexOf("if (!session)") < entrySource.indexOf("<StudioApp initialSession={session} sessionAlreadyRestored />"));
+  });
+  check("An adopted session initializes both state and the request authority", () => {
+    assert.match(appSource, /useState<StudioSession \| null>\(\(\) => initialSession\)/);
+    assert.match(appSource, /useRef<StudioSession \| null>\(initialSession\)/);
+    assert.match(appSource, /if \(sessionAlreadyRestored\)[\s\S]*if \(live && initialSession\) void loadReplicas\(initialSession\)/);
+    assert.match(appSource, /writeStoredSession\(null\);[\s\S]*setCurrentSession\(null\)/);
   });
   // Bundle the real storage/restore implementation. Stub only the network
   // boundary, preserving actual candidate selection and erasure behavior.

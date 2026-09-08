@@ -1,5 +1,9 @@
 import type { PersonalAuthCopy } from "../studio/personalAuthCopy";
 export type { PersonalAuthCopy } from "../studio/personalAuthCopy";
+import { PERSONAL_AUTH_COPY_TABLE } from "../studio/personalAuthCopyRegistry";
+import { normalizeStudioLocale, type StudioLocale } from "./studioLocalePreference";
+export { normalizeStudioLocale } from "./studioLocalePreference";
+export type { StudioLocale } from "./studioLocalePreference";
 // EVERY WORD THE STUDIO'S CHROME SAYS, IN ONE PLACE, IN EVERY LANGUAGE IT
 // SAYS IT (WS-R52, migration 112).
 //
@@ -84,11 +88,6 @@ export type { PersonalAuthCopy } from "../studio/personalAuthCopy";
  *  `studio-hi`-shaped targets in the same change --
  *  `evals/studio-locale/run.mjs` fails the build otherwise, by design. */
 export const STUDIO_LOCALES = ["en", "hi"] as const;
-export type StudioLocale = (typeof STUDIO_LOCALES)[number];
-
-export function normalizeStudioLocale(value: unknown): StudioLocale {
-  return value === "hi" ? "hi" : "en";
-}
 
 /** Both words, always, in both locales -- `src/room/copy.ts`'s
  *  `ROOM_LANGUAGE_LABELS`' own reason: a creator who reads only Hindi still
@@ -2269,55 +2268,7 @@ export type StudioAuthCopy = Pick<StudioCopy, "authGate" | "shell" | "personalAu
 export type StudioRestCopy = Omit<StudioCopy, "authGate" | "shell" | "personalAuth">;
 
 const EN: StudioCopy = {
-  personalAuth: {
-    homeAriaLabel: "Vyakti home",
-    safeguardsAriaLabel: "Studio safeguards",
-    privateByDefault: "Private by default",
-    everyClipDisclosed: "Every clip disclosed",
-    deleteAnytime: "Delete anytime",
-    welcomeBackTitle: "Welcome back",
-    emailTitle: "Start with your email",
-    inboxTitle: "Check your inbox",
-    resumeTitle: "Sign in again to continue where you were.",
-    resumeBodyTemplate: "We will return you to {name} on the {step} step. Private uploads and server work continue. For safety, an unsent recording or form field is not stored.",
-    sameClone: "the same clone",
-    stepTitle: { feed: "Add sources", meet: "Test your clone", deploy: "Deploy" },
-    emailBody: "Get a secure sign-in link in your inbox.",
-    inboxBodyTemplate: "We sent a sign-in email to {email}. Open its link. If the email also shows a six-digit code, you can enter it below.",
-    emailLabel: "Email address",
-    emailPlaceholder: "you@example.com",
-    sendingAriaLabel: "Sending sign-in email",
-    sending: "Sending email",
-    sendLink: "Email me a sign-in link",
-    or: "or",
-    google: "Continue with Google",
-    inboxHelp: "The email link opens the studio directly. This tab will also continue when sign-in finishes in another tab.",
-    checkingLink: "Checking sign-in",
-    openedLink: "I opened the email link",
-    optionalCodeDivider: "or enter a code if shown",
-    codeLabel: "Six-digit code (optional)",
-    codePlaceholder: "000000",
-    verifyingAriaLabel: "Verifying code",
-    verifying: "Verifying",
-    verify: "Verify and enter",
-    differentEmail: "Use a different email",
-    linkNotReadyError: "Sign-in has not reached this tab yet. Open the email link, or enter a code if your email shows one.",
-    sendError: "Could not send a sign-in email. Try again shortly.",
-    networkError: "Could not connect. Check your connection and try again.",
-    rateLimitError: "Too many sign-in attempts. Wait a moment and try again.",
-    serviceUnavailableError: "Sign-in is temporarily unavailable. Please try again shortly.",
-    invalidEmailError: "Enter a valid email address.",
-    codeMismatchError: "That code did not match. Check it and try again.",
-    googleError: "Google sign-in is unavailable. Use your email instead.",
-    legalNotice: "After sign-in, you choose what your AI can use.",
-    visualAlt: "Illustration of an educator explaining an idea in her studio",
-    visualCaptions: { knowledge: "Your knowledge.", voice: "Your voice.", people: "Your people." },
-    variant: {
-      generic: { brandTag: "PERSONAL AI", introEyebrow: "", introTitle: "Your expertise. More personal.", introBody: "Create an AI with your knowledge, your voice, and a memory for each person." },
-      teacher: { brandTag: "PERSONAL AI", introEyebrow: "", introTitle: "Your expertise. More personal.", introBody: "Create an AI with your knowledge, your voice, and a memory for each person." },
-      test: { brandTag: "INTERNAL TEST STUDIO", introEyebrow: "", introTitle: "Add your sources. Then test your clone.", introBody: "Upload useful examples of your voice, writing, videos, and context. Then hear the draft, talk to it, and correct it." },
-    },
-  },
+  personalAuth: PERSONAL_AUTH_COPY_TABLE.en,
   classLabels: { you: "Waiting on you", us: "Waiting on us" },
 
   shell: {

@@ -535,7 +535,7 @@ async function runHeaderChecks(rules) {
     // ── WS-R107, narrowed WS-R113: the Hindi AUTH chunk preload, present
     // exactly where it must be and absent everywhere else. Counted, never
     // just tested truthy, so a runaway duplicate (two links instead of one)
-    // fails by name rather than reading as "present, fine". `hiAuthCopy-`,
+    // fails by name rather than reading as "present, fine". `hiPersonalAuthCopy-`,
     // not `hiCopy-`: WS-R113 split the Hindi table so the sign-in screen's
     // own small chunk (`authGate` + `shell`) preloads on its own, and the
     // rest of the table (still `hiCopy-*.js`) is never preloaded at all —
@@ -545,7 +545,7 @@ async function runHeaderChecks(rules) {
     // present, silently proving nothing). ──
     if (target.hiPreload) {
       const count = await page.evaluate(
-        () => document.querySelectorAll('link[rel="modulepreload"][href*="hiAuthCopy-"]').length,
+        () => document.querySelectorAll('link[rel="modulepreload"][href*="hiPersonalAuthCopy-"]').length,
       );
       if (target.hiPreload === "present" && count !== 1) {
         fail("headers", target.name, "hi-preload-count", `expected exactly 1 Hindi-chunk modulepreload link, found ${count}`);

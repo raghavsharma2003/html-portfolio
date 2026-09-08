@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/instrument-sans";
 import "@fontsource/noto-sans-devanagari/devanagari-600.css";
-import StudioApp from "./StudioApp";
+import PersonalStudioEntry from "./PersonalStudioEntry";
 // Tokens first, then the original studio's sign-in/base declarations. The
 // entry subset preserves layer order and the studio palette overrides.
 import "./design/tokens.css";
@@ -26,6 +26,6 @@ restoreStudioMode();
 
 ReactDOM.createRoot(document.getElementById("studio-root")!).render(
   <React.StrictMode>
-    <StudioApp />
+    <PersonalStudioEntry />
   </React.StrictMode>,
 );

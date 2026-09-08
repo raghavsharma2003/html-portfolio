@@ -16,7 +16,7 @@ const receipts = join(root, "scratchpad", `personal-auth-locale-browser-${Date.n
 await mkdir(receipts, { recursive: true });
 let server, browser, timer;
 const rows = [];
-const appPath = join(root, "src/studio/StudioApp.tsx");
+const appPath = join(root, "src/studio/PersonalAuthGate.tsx");
 const sourceHash = createHash("sha256").update(await readFile(appPath)).digest("hex");
 const started = Date.now();
 const eagerCssPaths = new Set(["src/studio/design/tokens.css", "src/studio/studio-entry.css", "src/studio/auth-entry.css", "src/studio/vyakti-mark.css", "src/studio/expert-experience.css"].map(path => resolve(root, path).replaceAll("\\", "/")));
@@ -32,7 +32,7 @@ let cssEvidence;
 try {
   const imports = ["@fontsource-variable/geist", "@fontsource-variable/instrument-sans", "@fontsource/noto-sans-devanagari/devanagari-600.css", "./src/studio/design/tokens.css", "./src/studio/studio-entry.css", "./src/studio/auth-entry.css", "./src/studio/vyakti-mark.css"];
   const entry = `import React from 'react'; import {createRoot} from 'react-dom/client';
-    import { AuthGate } from './src/studio/StudioApp';
+    import PersonalAuthGate from './src/studio/PersonalAuthGate';
     import { PersonalAuthLoading } from './src/studio/personalAuthLocale';
     import { loadStudioCopyAuth, STUDIO_COPY_TABLE } from './src/creatorStudio/copy';
     ${imports.map(path => `import ${JSON.stringify(path)};`).join("\n")}
@@ -42,15 +42,13 @@ try {
     const root = createRoot(document.getElementById('studio-root'));
     window.fixtureRetries = 0; window.fixtureRecovery = null;
     window.showLoading = failed => root.render(<PersonalAuthLoading locale={lang} failed={failed} retry={() => window.fixtureRetries++} switchLocale={value => window.fixtureRecovery=value} testEnvironment={params.get('theme') === 'test'} />);
-    window.showAuth = () => root.render(<AuthGate testEnvironment={params.get('theme') === 'test'} resumeIntent={null} onAuthed={session => window.acceptedSessions.push(session)} />);
+    window.showAuth = () => root.render(<PersonalAuthGate testEnvironment={params.get('theme') === 'test'} resumeIntent={null} onAuthed={session => window.acceptedSessions.push(session)} />);
     window.showLoading(false);`;
   await build({ stdin: { contents: entry, resolveDir: root, sourcefile: "auth-fixture.tsx", loader: "tsx" }, absWorkingDir: root,
     outdir: temp, entryNames: "fixture", bundle: true, format: "esm", splitting: true, platform: "browser", jsx: "automatic", logLevel: "silent",
     define: { "import.meta.env": "{}", "process.env.NODE_ENV": '"production"' },
     loader: { ".woff2": "file", ".woff": "file", ".ttf": "file", ".svg": "file", ".png": "file", ".webp": "file" },
-    plugins: [cssPlugin, { name: "expose-real-authgate-for-fixture", setup(builder) {
-      builder.onLoad({ filter: /[\\/]src[\\/]studio[\\/]StudioApp\.tsx$/ }, async args => ({ contents: `${await readFile(args.path, "utf8")}\nexport { AuthGate };`, loader: "tsx", resolveDir: dirname(args.path) }));
-    } }],
+    plugins: [cssPlugin],
   });
   // A JS bundle's generated CSS can include styles from lazy signed-in panels.
   // Link a separate eager cascade matching personalMain plus its static visual.
@@ -125,10 +123,11 @@ try {
         const bounds=await control.boundingBox();
         assert.ok(bounds&&bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=width+1&&bounds.y+bounds.height<=1000,'Loading recovery control is reachable within viewport');
       }
-      // Negative control models the observed first-row placement defect.
-      await page.addStyleTag({content:'.auth-page.auth-loading .auth-card { grid-row: 1 / 2 !important; margin-top: -70px !important; }'}).then(async tag=>{
+      // Negative control must put the alert decisively outside every tested
+      // viewport, independent of the current card's intrinsic height.
+      await page.addStyleTag({content:'.auth-page.auth-loading .auth-card { position: fixed !important; top: -2000px !important; }'}).then(async tag=>{
         const broken=await page.getByRole('alert').boundingBox();
-        assert.ok(broken && (broken.y<0 || broken.y+broken.height>1000),'Old short-row placement fails real viewport bounds');
+        assert.ok(broken && (broken.y<0 || broken.y+broken.height>1000),'Forced offscreen placement fails real viewport bounds');
         await tag.evaluate(node=>node.remove());
       });
       await retry.focus();await page.keyboard.press('Enter');

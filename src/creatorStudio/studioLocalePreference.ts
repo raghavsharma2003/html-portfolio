@@ -22,7 +22,11 @@
 // switched language on a different device, or before ever finishing sign-in
 // on this one) resolves to the ROW every time, by construction: step 2 is
 // checked before step 3 is ever consulted.
-import { normalizeStudioLocale, type StudioLocale } from "./copy";
+export type StudioLocale = "en" | "hi";
+
+export function normalizeStudioLocale(value: unknown): StudioLocale {
+  return value === "hi" ? "hi" : "en";
+}
 
 export const STUDIO_LOCALE_STORAGE_KEY = "vyakti.studio.locale.v1";
 

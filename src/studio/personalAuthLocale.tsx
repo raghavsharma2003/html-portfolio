@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { loadStudioCopyAuth, STUDIO_COPY_TABLE, studioAuthCopyReady, type StudioLocale } from "../creatorStudio/copy";
+import { loadPersonalAuthCopy, PERSONAL_AUTH_COPY_TABLE, personalAuthCopyReady } from "./personalAuthCopyRegistry";
+import type { StudioLocale } from "../creatorStudio/studioLocalePreference";
 import { readRememberedStudioLocale, resolveStudioLocale, writeRememberedStudioLocale } from "../creatorStudio/studioLocalePreference";
 
 export function readPersonalAuthLocale(): StudioLocale {
@@ -11,13 +12,13 @@ export function usePersonalAuthLocale() {
   const [locale, setLocale] = useState(readPersonalAuthLocale);
   const [revision, setRevision] = useState(0);
   const [failed, setFailed] = useState(false);
-  const ready = studioAuthCopyReady(locale);
+  const ready = personalAuthCopyReady(locale);
   useEffect(() => {
     writeRememberedStudioLocale(locale);
     if (ready) { setFailed(false); return; }
     let alive = true;
     setFailed(false);
-    loadStudioCopyAuth(locale).then(() => { if (alive) setRevision(n => n + 1); }).catch(() => { if (alive) setFailed(true); });
+    loadPersonalAuthCopy(locale).then(() => { if (alive) setRevision(n => n + 1); }).catch(() => { if (alive) setFailed(true); });
     return () => { alive = false; };
   }, [locale, ready, revision]);
   function switchLocale(value: StudioLocale) {
@@ -27,7 +28,7 @@ export function usePersonalAuthLocale() {
     writeRememberedStudioLocale(value);
     setLocale(value);
   }
-  return { locale, ready, failed, switchLocale, retry: () => setRevision(n => n + 1), t: ready ? STUDIO_COPY_TABLE[locale].personalAuth : STUDIO_COPY_TABLE.en.personalAuth };
+  return { locale, ready, failed, switchLocale, retry: () => setRevision(n => n + 1), t: ready ? PERSONAL_AUTH_COPY_TABLE[locale] : PERSONAL_AUTH_COPY_TABLE.en };
 }
 
 // This small bootstrap stays available when the lazy locale chunk cannot load.
