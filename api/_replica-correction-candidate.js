@@ -43,11 +43,11 @@ export const CORRECTION_CURRENT_AUTHORITY_SQL=`with runtime as (${OWNED_RUNTIME_
  and jsonb_array_length(evidence.feedback_rows)=jsonb_array_length($9::jsonb)
  and evidence.assignments @> $10::jsonb and $10::jsonb @> evidence.assignments
  and jsonb_array_length(evidence.assignments)=jsonb_array_length($10::jsonb)`;
-function authorityParams(b,owner){return[b.replica_id,owner,REPLICA_POLICY_VERSION,b.dataset_id,b.dataset.source_set_hash,
+export function authorityParams(b,owner){return[b.replica_id,owner,REPLICA_POLICY_VERSION,b.dataset_id,b.dataset.source_set_hash,
  b.runtime.capability.capability_id,JSON.stringify(b.runtime.personProfile.definition),JSON.stringify(b.runtime.calibration.definition),
  JSON.stringify(b.feedbackRows),JSON.stringify(b.assignments)];}
 
-async function basis(db,owner,input){
+export async function basis(db,owner,input){
  const s=scope(input);
  const runtime=await loadOwnedRuntimeContext(db,owner,s.replica_id);
  if(!runtime)fail('correction_candidate_runtime_unavailable');

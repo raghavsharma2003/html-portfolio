@@ -53,6 +53,16 @@ Supabase and Azure retention configuration.
 
 Offline gates:
 
+Private text candidate materialization (migration155) stores intermediate
+questions and responses as envelope-encrypted item assets. Items cascade from
+their owned job and exact feedback owner tuple. Jobs cascade from candidate,
+dataset and the correction job. Source erasure already deletes affected
+correction jobs, so it also removes these intermediate assets. The package
+field stores only run ID and commitment, not duplicated output ciphertext.
+Final A/B assets remain in the existing owner evaluation erasure chain. The
+live `relcheck` owner walk and an actual source/feedback deletion drill must
+prove these paths before release; source declarations are not that proof.
+
 ```bash
 node evals/run.mjs voiceerasure
 node evals/run.mjs sourceerasure

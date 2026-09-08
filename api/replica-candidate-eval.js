@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     if (!allow(user.id, "replica_candidate_eval_user", 180)) return res.status(429).json({ error: "slow_down" });
     const body = req.body || {};
     if (body.op === "status") {
-      return res.status(200).json({ evaluation: await loadOwnedCandidateEvaluation(q, user.id, body.replica_id) });
+      return res.status(200).json({ evaluation: await loadOwnedCandidateEvaluation(q, user.id, body.replica_id, process.env, body.candidate_id ?? null) });
     }
     if (body.op === "judge") {
       const result = await recordOwnedCandidateJudgment(q, user.id, body);

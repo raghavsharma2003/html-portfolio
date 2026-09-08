@@ -422,6 +422,8 @@ const erasureSrc = await readFile(
   "utf8",
 );
 const unreachable = [...ownerOnly]
+  // 155's private text materialization jobs/items must be reached through
+  // owned candidate/dataset/correction-job and feedback FKs; no exemption.
   // 152's correction candidate jobs cascade through their owned dataset and
   // candidate FKs; this same catalog walk must prove their replica reach.
   // 141's vy_private_text_rehearsal is an owner lane with replica/source/item
