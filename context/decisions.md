@@ -23845,3 +23845,7 @@ Integrate the approved incumbent caller that meters opt-in Room consolidation wi
 ## caller-lease165-final-eval-parity (2026-09-09)
 
 Integrate the approved final dialogue Unicode parity fixture and incidents caller admission negative control, preserving the current API/source and billing repair. Import only the two reviewed eval files; transient rejected parity changes remain excluded. Root import tuples: 910e9e91 -> evals/dialogue-unicode.mjs; 3650e76 -> evals/incidents/run.mjs.
+
+## caller-lease165-taxonomy-correction-intent (2026-09-09)
+
+Integrate the reviewed Room memory name taxonomy correction and Meet correction intent editor entry. Taxonomy wording remains telegraphic and grounded; correction intent opens the existing editor while preserving persisted feedback authority. Import only reviewed product and eval paths; exclude experimental combined auth. Root tuples: 09914e41 to api/_room-memory-authority.js and evals/room-memory-authority/run.mjs; 27afc8ac to src/studio/ExpertConversation.tsx, src/studio/TurnFeedback.tsx and evals/feedback-dataset-ui.mjs.

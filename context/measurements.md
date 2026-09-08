@@ -17634,3 +17634,7 @@ Focused measurement: config n=7 controls passed; Room authority n=22 controls pa
 ## caller-lease165-final-eval-parity-controls (2026-09-09)
 
 Focused measurement: dialogue Unicode n=13 groups passed; incidents n=129 checks passed; diff check passed. No API/source, DB, provider, browser or full release changes.
+
+## caller-lease165-taxonomy-correction-controls (2026-09-09)
+
+Focused measurement: Room authority and taxonomy n=23 controls passed; correction UI n=12 controls passed at 390 and 1440; TypeScript, copy and context checks passed. No DB, provider, browser or full release checks.

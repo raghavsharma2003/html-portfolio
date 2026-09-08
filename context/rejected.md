@@ -17637,3 +17637,7 @@ First diagnostic knowledge86-readonly-df2ea76a74a091fbb701e0f7-result.json stopp
 ## caller-lease165-final-eval-parity-scope (2026-09-09)
 
 Only the final two eval bytes were imported. Rejected transient parity fixtures and foreign context graph entries were excluded.
+
+## caller-lease165-taxonomy-correction-scope (2026-09-09)
+
+Only the reviewed taxonomy and correction intent product and eval files were imported. Experimental combined auth and foreign context graph edits remain excluded.

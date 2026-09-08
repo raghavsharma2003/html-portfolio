@@ -17268,6 +17268,24 @@
       "kind": "rejection",
       "title": "Final eval parity scope constrained",
       "at": "2026-09-09"
+    },
+    {
+      "id": "caller-lease165-taxonomy-correction-intent",
+      "kind": "decision",
+      "title": "Room taxonomy and correction intent",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "caller-lease165-taxonomy-correction-controls",
+      "kind": "measurement",
+      "title": "Taxonomy correction focused controls",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "caller-lease165-taxonomy-correction-scope",
+      "kind": "rejection",
+      "title": "Taxonomy correction scope constrained",
+      "at": "2026-09-09"
     }
   ],
   "edges": [
@@ -29688,6 +29706,16 @@
       "src": "caller-lease165-final-eval-parity",
       "rel": "caused_by",
       "dst": "caller-lease165-final-eval-parity-scope"
+    },
+    {
+      "src": "caller-lease165-taxonomy-correction-intent",
+      "rel": "measured_by",
+      "dst": "caller-lease165-taxonomy-correction-controls"
+    },
+    {
+      "src": "caller-lease165-taxonomy-correction-intent",
+      "rel": "caused_by",
+      "dst": "caller-lease165-taxonomy-correction-scope"
     }
   ]
 }
