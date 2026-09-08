@@ -23903,3 +23903,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease188-auth-extraction-union` (2026-09-08)
 
 2026-09-09: Root authorized auth061bb147 and extraction85fb3cbf on separate1033810b. Apply exact auth6201delta and extraction87cddelta, not whole ancestor tree. Retention disabled stays; Share held. Reverse on focused integration failure; current release freeze untouched.
+
+
+## `postrelease188-reviewed-repair-union` (2026-09-08)
+
+2026-09-09: Root approved sound058e,threeevalb912,verificatione599,activity1f9b,securitydad6 and Share0fdebe1178d76f4384e5927b2d8872f9468d4e06 netfrom938 includingc727. Exactdeltas cleanlyapplied to78bf; no foreigncontexts. Register Share recovery suite. Reverse on integratedfailure; no timeoutrelaxation or Roomleak whitelist.

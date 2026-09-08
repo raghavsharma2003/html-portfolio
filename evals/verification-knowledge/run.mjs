@@ -24,7 +24,27 @@ const ownerPlumbing=[
 ];
 let navigationBaseline=normalize(current);
 for(const [before,after]of ownerPlumbing){assert.equal(navigationBaseline.split(before).length-1,1,'exact reviewed owner plumbing occurs once');navigationBaseline=navigationBaseline.replace(before,after);}
-assert.equal(navigationBaseline.replace(' onExit={() => { setEnrichView("menu"); chooseRoom("enrich"); }} exitLabel="Back to knowledge"',''),normalize(old),'actual caller has only navigation and reviewed owner plumbing deltas');
+// This suite owns the verification invocation, not the whole workspace file.
+// Reviewed Teach/evolve additions elsewhere must not invalidate its historical
+// negative caller. Keep every invocation prop compared, including authority.
+const navigation=' onExit={() => { setEnrichView("menu"); chooseRoom("enrich"); }} exitLabel="Back to knowledge"';
+function invocation(source) {
+ const matches=source.match(/<CloneVerificationJourney\b[\s\S]*?\/>/g)||[];
+ assert.equal(matches.length,1,'exactly one verification invocation is required');
+ return matches[0];
+}
+function checkNavigation(source) {
+ const call=invocation(source);
+ assert.equal(call.split(navigation).length-1,1,'exact knowledge navigation is required');
+ assert.equal(call.replace(navigation,''),invocation(normalize(old)),'verification props retain historical contract apart from reviewed navigation/owner plumbing');
+}
+checkNavigation(navigationBaseline);
+for(const changed of [
+ navigationBaseline.replace(navigation,''),
+ navigationBaseline.replace(navigation,navigation.replace('chooseRoom("enrich")','chooseRoom("voice")')),
+ navigationBaseline.replace('consents={consents}','consents={[]}'),
+ navigationBaseline+'\n'+invocation(navigationBaseline),
+]) assert.throws(()=>checkNavigation(changed),'missing/wrong navigation, authority drift and duplicate caller must fail');
 if(process.argv.includes('--source-only')){console.log(JSON.stringify({sourceOnly:true,hashes,oldHash:sha(old),callerDeltas:['knowledge-navigation','reviewed-owner-identity-plumbing']}));process.exit(0);}
 const {build}=await import('vite');
 const {chromium}=await import('playwright');

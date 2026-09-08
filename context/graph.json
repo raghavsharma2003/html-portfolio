@@ -17484,6 +17484,24 @@
       "kind": "rejection",
       "title": "Preserve actual retention failure and avoid overlapping verification",
       "at": "2026-09-08"
+    },
+    {
+      "id": "postrelease188-reviewed-repair-union",
+      "kind": "decision",
+      "title": "Assemble reviewed repairs before a single combined validation",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "postrelease188-source-only-repairs",
+      "kind": "measurement",
+      "title": "Source union prepared with updated dependency lock",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "postrelease188-no-old-dependency-proof",
+      "kind": "rejection",
+      "title": "Do not claim upgraded lock changes already installed dependencies",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

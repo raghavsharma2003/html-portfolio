@@ -120,9 +120,12 @@ function privatePanelsStayDeferred(source) {
     source.includes(`const ${name} = lazy(() => import("./${name}"))`)
     && !source.includes(`import ${name} from "./${name}"`))
     && /<Suspense fallback=\{<DeferredWorkspacePanel \/>\}>/.test(source)
-    && /if \(!session\)[\s\S]*<AuthGate[\s\S]*<Suspense[\s\S]*<CloneExperience/.test(source);
+    && /import PersonalAuthGate\b[^;]*from "\.\/PersonalAuthGate"/.test(source)
+    && /if \(!session\)\s*\{\s*return \(\s*<PersonalAuthGate\b[\s\S]*?\/>\s*\);\s*\}\s*if \(!STUDIO_SELF_TEST_UI\)[\s\S]*<Suspense[\s\S]*<CloneExperience/.test(source);
 }
 ok("phone-first source and preview code load after auth while advanced laboratories stay deferred", privatePanelsStayDeferred(studio));
+ok("negative control: removing the signed-out early return breaks the boundary", !privatePanelsStayDeferred(studio.replace('if (!session) {\n    return (\n      <PersonalAuthGate', 'if (!session) {\n    (\n      <PersonalAuthGate').replace('if (!session) {\r\n    return (\r\n      <PersonalAuthGate', 'if (!session) {\r\n    (\r\n      <PersonalAuthGate')));
+ok("negative control: an unrelated auth import cannot satisfy the boundary", !privatePanelsStayDeferred(studio.replace('from "./PersonalAuthGate"', 'from "./UnrelatedAuthGate"')));
 for (const name of ["MirrorCallStudio", "VoicePreviewLab", "IdentityProofing", "VoicePreviewPanel", "EnrollmentWorkspace", "CloneExperience"]) {
   const eager = studio.replace(`const ${name} = lazy(() => import("./${name}"));`, `import ${name} from "./${name}";`);
   ok(`negative control: eager ${name} breaks the private-panel boundary`, !privatePanelsStayDeferred(eager));

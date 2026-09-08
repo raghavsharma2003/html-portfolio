@@ -45,7 +45,18 @@ check("negative control catches a changed actual declaration", () => {
   mutant.walkDecls("color", declaration => { declaration.value = "rebeccapurple"; });
   assert.throws(() => assertExactSubset(mutant.toString()));
 });
-const authCode = app.slice(app.indexOf("function AuthGate("), app.indexOf("function CreateReplicaCard("));
+// Auth is now a shared entry component. An absent inline function must never
+// turn this rule-coverage check into an empty-class, vacuous success.
+const authCode = read("src/studio/PersonalAuthGate.tsx") + read("src/studio/personalAuthLocale.tsx");
+check("auth classes come from the actual imported gate and loading component", () => {
+  const connected = source => /import PersonalAuthGate\b[^;]*from "\.\/PersonalAuthGate"/.test(source)
+    && /if \(!session\)\s*\{\s*return \(\s*<PersonalAuthGate\b/.test(source);
+  assert.ok(connected(app));
+  assert.ok(!connected(app.replace("<PersonalAuthGate", "<DisconnectedAuthGate")));
+  assert.ok(!connected(app.replace('from "./PersonalAuthGate"', 'from "./DisconnectedAuthGate"')));
+  assert.match(authCode, /className="auth-page"/);
+  assert.match(authCode, /className="auth-page auth-loading"/);
+});
 const authClasses = new Set([...authCode.matchAll(/className="([^"]+)"/g)].flatMap(m => m[1].split(/\s+/)));
 for (const cls of ["boot-page", "mark", "spinner", "deferred-workspace", "visually-hidden"]) authClasses.add(cls);
 const relevant = originalRules.filter(rule => {

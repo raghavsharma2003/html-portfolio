@@ -32,12 +32,18 @@ assert.deepEqual(statements.map(s=>s.id),['authorize_private_text_question','und
 assert(readFileSync(join(root,'api/_replica.js'),'utf8').includes("'consent_pending'"));
 assert(readFileSync(join(root,'src/studio/enrollmentApi.ts'),'utf8').includes('return data.consents;'));
 if(process.argv.includes('--source-only')){console.log('3 actual-contract source checks passed; mounted controls not run');process.exit(0);}
+const activityApiSource=readFileSync(join(root,'src/studio/activityApi.ts'),'utf8');
+const activityReturn='return replicaRequest<ActivityView>(token, `/api/replica-activity?${query}`, { signal });';
+assert.equal(activityApiSource.split(activityReturn).length,2,'exact real Activity transport caller remains instrumented');
+const observedActivity=activityApiSource.replace(activityReturn,`return replicaRequest<ActivityView>(token, \`/api/replica-activity?\${query}\`, { signal }).then(value=>{
+ (window as any).__activitySettlements.push({state:'fulfilled',aborted:signal?.aborted===true,keys:Object.keys(value??{})});return value;
+},error=>{(window as any).__activitySettlements.push({state:'rejected',aborted:signal?.aborted===true,name:error?.name});throw error;});`);
 const countCreate=()=>requests.filter(r=>r.path==='/api/replica'&&r.op==='create').length;
 let server,browser;
 try{
  const assets={};
  for(const variant of ['old','current']){
-  const built=await build({root,configFile:false,logLevel:'silent',build:{write:false,minify:true,rolldownOptions:{input:join(root,'studio.html')}},plugins:[{name:'retained-transport-abort-negative',enforce:'pre',load(id){if(variant==='old'&&id.replaceAll('\\','/').endsWith('/src/studio/replicaApi.ts'))return readFileSync(join(root,'evals/first-use-private-flow/fixtures/old-replicaApi.ts.txt'),'utf8');}}]});
+  const built=await build({root,configFile:false,logLevel:'silent',build:{write:false,minify:true,rolldownOptions:{input:join(root,'studio.html')}},plugins:[{name:'retained-transport-abort-negative',enforce:'pre',load(id){if(id.replaceAll('\\','/').endsWith('/src/studio/activityApi.ts'))return observedActivity;if(variant==='old'&&id.replaceAll('\\','/').endsWith('/src/studio/replicaApi.ts'))return readFileSync(join(root,'evals/first-use-private-flow/fixtures/old-replicaApi.ts.txt'),'utf8');}}]});
   assets[variant]=new Map(built.output.map(i=>['/'+i.fileName,i.type==='chunk'?i.code:i.source]));
  }
  server=createServer(async(req,res)=>{
@@ -92,7 +98,7 @@ try{
  const waitFor=async(predicate)=>{const end=Date.now()+10000;while(!predicate()&&Date.now()<end)await new Promise(r=>setTimeout(r,10));assert(predicate(),'bounded HTTP barrier');};
  const release=kind=>{const selected=pending.filter(p=>p.kind===kind);assert(selected.length,`held ${kind}`);pending=pending.filter(p=>p.kind!==kind);selected.forEach(p=>p.send());};
  const snapFocus=async(label)=>focus.push({label,...await page.evaluate(()=>({tag:document.activeElement?.tagName,id:document.activeElement?.id,text:document.activeElement?.textContent?.slice(0,100),heading:document.querySelector('.vx-main h1,.vx-main h2')?.textContent}))});
- const open=async(variant,width,mode='',returning=false)=>{if(page)await page.context().close();scenario=mode;requests=[];pending=[];owned=[replica(RID),replica(OTHER)];receipts=[...grants(RID),...grants(OTHER)];draft=null;item=null;saved=new Map();currentAssets=assets[variant];const ctx=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'});page=await ctx.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.stack||e.message));await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());await page.addInitScript(({TOKEN,OWNER})=>{window.__activityReads=0;window.__activityBodies=0;window.__activityAborts=[];const nativeFetch=window.fetch.bind(window);window.fetch=async(...args)=>{const activity=String(args[0]).includes('/api/replica-activity');if(activity)window.__activityReads++;try{const response=await nativeFetch(...args);if(activity){const nativeJson=response.json.bind(response);response.json=async()=>{window.__activityBodies++;try{return await nativeJson();}catch(error){window.__activityAborts.push(error.name);throw error;}finally{window.__activityReads--;window.__activityBodies--;}};}return response;}catch(error){if(activity)window.__activityReads--;throw error;}};localStorage.setItem('meera.state.v1',JSON.stringify({auth:{userId:OWNER,accessToken:TOKEN,refreshToken:TOKEN,expiresAt:Date.now()+3600000,email:'firstuse@fixture.test'}}));},{TOKEN,OWNER});await page.goto(origin+'/studio');assert.equal(new URL(page.url()).searchParams.get('mode'),null);await waitFor(()=>requests.filter(r=>r.path==='/api/replica'&&r.method==='GET'&&r.rid===RID).length>=2);await page.waitForLoadState('networkidle');};
+ const open=async(variant,width,mode='',returning=false)=>{if(page)await page.context().close();scenario=mode;requests=[];pending=[];owned=[replica(RID),replica(OTHER)];receipts=[...grants(RID),...grants(OTHER)];draft=null;item=null;saved=new Map();currentAssets=assets[variant];const ctx=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'});page=await ctx.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.stack||e.message));await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());await page.addInitScript(({TOKEN,OWNER})=>{window.__activitySettlements=[];window.__activityReads=0;window.__activityBodies=0;window.__activityAborts=[];const nativeFetch=window.fetch.bind(window);window.fetch=async(...args)=>{const activity=String(args[0]).includes('/api/replica-activity');if(activity)window.__activityReads++;try{const response=await nativeFetch(...args);if(activity){const nativeJson=response.json.bind(response);response.json=async()=>{window.__activityBodies++;try{return await nativeJson();}catch(error){window.__activityAborts.push(error.name);throw error;}finally{window.__activityReads--;window.__activityBodies--;}};}return response;}catch(error){if(activity)window.__activityReads--;throw error;}};localStorage.setItem('meera.state.v1',JSON.stringify({auth:{userId:OWNER,accessToken:TOKEN,refreshToken:TOKEN,expiresAt:Date.now()+3600000,email:'firstuse@fixture.test'}}));},{TOKEN,OWNER});await page.goto(origin+'/studio');assert.equal(new URL(page.url()).searchParams.get('mode'),null);await waitFor(()=>requests.filter(r=>r.path==='/api/replica'&&r.method==='GET'&&r.rid===RID).length>=2);await page.waitForLoadState('networkidle');};
  const agree=async()=>{await page.getByRole('button',{name:'Select all',exact:true}).click();await page.getByRole('button',{name:'Agree and continue',exact:true}).click();};
  const check=async(name,fn)=>{await fn();checks.push(name);console.log(`ok ${checks.length} - ${name}`);};
  const expectedOldCrashes=[];
@@ -101,8 +107,16 @@ try{
   await page.evaluate(()=>{const now=Date.now;Date.now=()=>now()+3600000;window.dispatchEvent(new Event('focus'));});
   await waitFor(()=>pending.some(p=>p.kind==='refresh')&&pending.some(p=>p.kind==='activity-body'));await page.waitForFunction(()=>window.__activityBodies>0);
   const before=errors.length;release('refresh');await page.waitForFunction(()=>window.__activityAborts.includes('AbortError'));
-  if(variant==='old'){await waitFor(()=>errors.length>before);const failures=errors.splice(before);assert(failures.every(error=>error.includes("reading 'map'")),JSON.stringify(failures));expectedOldCrashes.push({width,nativeAbort:await page.evaluate(()=>window.__activityAborts),errors:failures});}
-  else{await waitFor(()=>requests.some(r=>r.path==='/api/replica-source'&&r.auth===`Bearer ${TOKEN}-fresh`));assert.equal(errors.length,before);}
+  await page.waitForFunction(()=>window.__activitySettlements.some(value=>value.aborted));
+  const settlements=await page.evaluate(()=>window.__activitySettlements.filter(value=>value.aborted));
+  if(variant==='old'){
+   assert(settlements.some(value=>value.state==='fulfilled'&&value.keys.length===0),'old real transport incorrectly fulfills empty data after native body abort');
+   const failures=errors.splice(before);assert(failures.every(error=>error.includes("reading 'map'")),JSON.stringify(failures));
+   expectedOldCrashes.push({width,nativeAbort:await page.evaluate(()=>window.__activityAborts),settlements,errors:failures,crashRequired:false});
+  }else{
+   assert(settlements.every(value=>value.state==='rejected'&&value.name==='AbortError'),'current real transport preserves native abort rejection');
+   await waitFor(()=>requests.some(r=>r.path==='/api/replica-source'&&r.auth===`Bearer ${TOKEN}-fresh`));assert.equal(errors.length,before);
+  }
   release('activity-body');const response=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/replica'&&r.request().method()==='POST');release('operation');await (await response).finished();
   if(variant==='current'){await page.getByRole('heading',{name:'We could not load your workspace.',exact:true}).waitFor();assert.equal(errors.length,before);await page.screenshot({path:join(artifact,`activity-abort-recovery-${width}.png`)});}
   assert.equal(countCreate(),1);assert.equal(count('/api/replica-consent','grant'),0);assert.equal(count('/api/replica-text-rehearsal','ask'),0);

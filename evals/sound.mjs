@@ -479,9 +479,32 @@ ok("and a probe that says no does not", S.blockedBy("send") === null);
 
 // THE THROTTLE. Two transients inside a few milliseconds sum, and a summed
 // transient is louder than either cue's declared peak.
-unlocked();
-S.play("place");
-ok("a second cue on the same millisecond is throttled", S.blockedBy("place") === "throttled");
+// Freeze the clock for this boundary check. Two adjacent JavaScript calls can
+// be descheduled for longer than the gap; wall-clock adjacency is not proof
+// that they happened in the same millisecond.
+const realDateNow = Date.now;
+let throttleNow = 10_000;
+try {
+  Date.now = () => throttleNow;
+  unlocked();
+  voices.length = 0;
+  S.play("place");
+  const firstCueVoices = voices.length;
+  ok("the first cue schedules voices before throttle checks", firstCueVoices > 0);
+  ok("a second cue on the same millisecond is throttled", S.blockedBy("place") === "throttled");
+  S.play("place");
+  ok("same-millisecond play schedules no additional voices", voices.length === firstCueVoices);
+  throttleNow += 69;
+  ok("a cue at 69ms remains throttled", S.blockedBy("place") === "throttled");
+  S.play("place");
+  ok("play inside the gap schedules no additional voices", voices.length === firstCueVoices);
+  throttleNow += 1;
+  ok("a cue at the exact 70ms boundary is allowed", S.blockedBy("place") === null);
+  S.play("place");
+  ok("play at the boundary schedules the next cue", voices.length > firstCueVoices);
+} finally {
+  Date.now = realDateNow;
+}
 
 // AN UNKNOWN CUE. Nothing in TypeScript stops a value arriving from a stored
 // blob or a future build; the gate answers rather than throwing.

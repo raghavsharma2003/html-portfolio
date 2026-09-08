@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { readRememberedStudioLocale, resolveStudioLocale } from "../../creatorStudio/studioLocalePreference";
 import { openPublication, publicationReadiness, publicationStatus, publishMaterial, unpublishMaterial, type PublicationReadiness, type Publication } from "./publicationApi";
 import "./publication.css";
 
-export default function MaterialSharePanel({ token, replicaId }: { token: string; replicaId: string }) {
+const hasCandidateBindingShareBlocker = (readiness: PublicationReadiness | null) =>
+  readiness?.blockers.some(blocker => blocker.responsibility === "platform" && blocker.code === "candidate_binding_required") === true;
+
+export default function MaterialSharePanel({ token, replicaId, onReview }: { token: string; replicaId: string; onReview: () => void }) {
   const [data, setData] = useState<PublicationReadiness | null>(null);
   const [sheet, setSheet] = useState("");
   const [item, setItem] = useState("");
@@ -86,11 +90,22 @@ export default function MaterialSharePanel({ token, replicaId }: { token: string
   const url = published ? `${window.location.origin}/studio?publication=${encodeURIComponent(published.public_id)}` : "";
   const reviewParams = new URLSearchParams({ mode: "teacher", replica: replicaId, step: "meet", view: "review" });
   const ownerBlockers = data?.blockers.filter(b => b.responsibility === "owner") || [];
+  const candidateBindingBlocked = hasCandidateBindingShareBlocker(data);
+  const otherPlatformBlocked = data?.blockers.some(b => b.responsibility === "platform" && b.code !== "candidate_binding_required");
+  const urlLocale = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("lang");
+  const hi = resolveStudioLocale({ urlLocale: urlLocale === "hi" || urlLocale === "en" ? urlLocale : null,
+    replica: null, rememberedLocale: readRememberedStudioLocale() }) === "hi";
   return <section className="vp-owner" aria-labelledby="material-share-title" aria-busy={busy}>
     <h2 id="material-share-title">Share your knowledge</h2>
     <p>Let people ask your AI about material you choose.</p>
     {message && <p role="status">{message}</p>}
-    {data?.blockers.some(b => b.responsibility === "platform") && <p role="status">Sharing is waiting on our platform.{!active && !pending ? " Your material stays private." : ""}</p>}
+    {candidateBindingBlocked && <div className="vp-recovery">
+      <p role="status">{hi
+        ? "आपके AI का उम्मीदवार संस्करण अभी सक्रिय है। इस संस्करण से सामग्री साझा नहीं की जा सकती। सामग्री निजी रहेगी।"
+        : "A candidate version of your AI is active. Material cannot be shared from this version. Your material stays private."}</p>
+      <button type="button" onClick={onReview}>{hi ? "अपने AI की समीक्षा करें" : "Review your AI"}</button>
+    </div>}
+    {otherPlatformBlocked && <p role="status">Sharing is waiting on our platform.{!active && !pending ? " Your material stays private." : ""}</p>}
     {pending ? <div className="vp-recovery"><p>Your publish request needs a check.</p>
       <button disabled={busy} onClick={() => void act("status")}>Check status</button>
       <button disabled={busy} onClick={() => void act("unpublish")}>Keep private</button>

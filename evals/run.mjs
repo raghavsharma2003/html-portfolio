@@ -35,6 +35,7 @@ execSync(
 );
 
 const suites = {
+  "candidate-binding-recovery": "text-publication-ui/candidate-binding-recovery.mjs",
   "context-claim-grounding": "context-claim-grounding/run.mjs",
   "citation-coordinates": "citation-coordinates.mjs",
   "feed-meet-teach-cta": "feed-meet-return/teach-cta.mjs",

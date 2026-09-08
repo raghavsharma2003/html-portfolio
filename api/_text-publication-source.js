@@ -6,7 +6,8 @@ import {PROCESSING_SCHEMA_VERSION} from './_replica-processing/contracts.js';
 import {verifyContextCanonicalEvidence} from './_experience-compiler/context-evidence.js';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TEXT_FORMATS=['text','pdf','docx','markdown'];
-const LIVE="r.subject_mode='self' and r.policy_version=$5 and r.lifecycle in ('draft','consent_pending','enrolling','calibrating','ready','active') and not exists(select 1 from vy_replica_runtime_capability candidate_cap where candidate_cap.replica_id=r.replica_id and candidate_cap.owner_user_id=r.owner_user_id and candidate_cap.state='active' and candidate_cap.candidate_binding_required)";
+const ACTIVE_CANDIDATE="exists(select 1 from vy_replica_runtime_capability candidate_cap where candidate_cap.replica_id=r.replica_id and candidate_cap.owner_user_id=r.owner_user_id and candidate_cap.state='active' and candidate_cap.candidate_binding_required)";
+const LIVE=`r.subject_mode='self' and r.policy_version=$5 and r.lifecycle in ('draft','consent_pending','enrolling','calibrating','ready','active') and not ${ACTIVE_CANDIDATE}`;
 const accountSql=`select distinct on(c.scope) c.consent_id,c.receipt_hash,c.scope,c.metadata from vy_replica_consent c
  where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id and c.scope in ('capture','storage')
  and c.method='account_attestation' and c.policy_version=r.policy_version and c.revoked_at is null
@@ -32,6 +33,7 @@ export const PRIVATE_TEXT_SELECTION_SQL=`select r.replica_id,r.owner_user_id,r.l
  left join vy_replica_source src on src.source_id=i.source_id and src.replica_id=r.replica_id and src.owner_user_id=r.owner_user_id
  where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and ${LIVE}`;
 export const PRIVATE_TEXT_CHOICES_SQL=`select r.replica_id,r.lifecycle,
+ ${ACTIVE_CANDIDATE} active_candidate_binding_required,
  coalesce((select jsonb_agg(d order by d.updated_at desc,d.sheet_id) from
  (select s.sheet_id,s.sheet->>'name' name,s.updated_at,s.status from vy_teacher_sheet s
  where ${ownSheet} and s.status in ('draft','validated','published')) d),'[]'::jsonb) drafts,

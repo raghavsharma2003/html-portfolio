@@ -17692,3 +17692,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease188-eight-path-source` (2026-09-08)
 
 2026-09-09 n=1 exact8path union. Four Node syntax checks and diff whitespace check passed. Source review retains OAuth restore path and uncertain spend hold when begin acknowledgement is lost. No dependencies copied, browser/build/tsc/functional tests run under active412suite release CPUhold. These checks do not prove runtime behavior.
+
+
+## `postrelease188-source-only-repairs` (2026-09-08)
+
+2026-09-09 n=1 source assembly. Xmldom lockentry only0.9.10 to0.9.12 with exactresolved/integrity. Root reports separateaudit0high/0critical and Share8SQLreadonly EXPLAINrollbackclose; thisagent ran no SQL/audit. No dependencies installed or tests/browser/build/tsc under auth173 lane. Own fresh install from updatedlock required before validation; old modules cannot provefix.
