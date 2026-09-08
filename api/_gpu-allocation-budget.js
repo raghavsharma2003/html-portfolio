@@ -11,8 +11,8 @@ export const GPU_WINDOW_SQL=Object.freeze({
   select budget_id from vy_provider_budget where budget_id=$1 and state='active'
    and limit_microusd=$2 and spent_microusd+reserved_microusd+$7<=limit_microusd for update
  ), inserted as (
-  insert into vy_gpu_allocation_window(budget_id,resource_sha256,revision_sha256,request_sha256,contract_sha256,provider_request_sha256,reserved_microusd,max_allocation_seconds,state)
-  select budget_id,$3,$4,$5,$6,$9,$7,$8,'reserved' from budget on conflict do nothing returning *
+  insert into vy_gpu_allocation_window(budget_id,resource_sha256,revision_sha256,request_sha256,contract_sha256,provider_request_sha256,reserved_microusd,max_allocation_seconds,accounting_basis,state)
+  select budget_id,$3,$4,$5,$6,$9,$7,$8,$10,'reserved' from budget on conflict do nothing returning *
  ), charged as (
   update vy_provider_budget b set reserved_microusd=b.reserved_microusd+w.reserved_microusd,updated_at=now()
   from inserted w where b.budget_id=w.budget_id returning b.budget_id
@@ -35,25 +35,26 @@ export const GPU_WINDOW_SQL=Object.freeze({
  reconcile:`with settled as (
   update vy_gpu_allocation_window set state='settled',actual_microusd=$4,usage_sha256=$5,finished_at=now()
   where window_id=$1::uuid and budget_id=$2 and request_sha256=$3
-  and state in ('in_flight','uncertain','accounting_pending') and $4>=0 and $4<=reserved_microusd
+  and state in ('in_flight','uncertain','accounting_pending') and $4>=0
   returning budget_id,reserved_microusd,actual_microusd
  ), charged as (
   update vy_provider_budget b set reserved_microusd=b.reserved_microusd-w.reserved_microusd,
    spent_microusd=b.spent_microusd+w.actual_microusd,updated_at=now(),
-   state=case when b.spent_microusd+w.actual_microusd>=b.limit_microusd then 'exhausted' else b.state end
+   state=case when w.actual_microusd>w.reserved_microusd then 'paused' when b.spent_microusd+w.actual_microusd>=b.limit_microusd then 'exhausted' else b.state end
   from settled w where b.budget_id=w.budget_id returning b.budget_id
  ) select * from charged`,
 });
 
 // The controller is a trusted server dependency, never request data or an env
-// flag. None ships today. Its grant must bound all allocation startup/tail,
-// replicas, CPU, memory and ancillary charges and exclude other dispatchers.
-// Ordinary Container Apps request timeout and minReplicas=0 do not do that.
+// flag. The legacy finite contract promises a bound. The separately approved
+// supervised-job contract reserves an explicit planning estimate and persists
+// that distinction. Unknown startup/tail is never a measured invoice.
+// Ordinary Container Apps request timeout and minReplicas=0 bound neither.
 export function createGpuAllocationMeter({db,budgetId,limitMicrousd,controller}={}){
  if(typeof db!=='function'||!/^[a-z][a-z0-9_-]{2,63}$/.test(budgetId||''))fail('gpu_budget_configuration_invalid');
  amount(limitMicrousd);
  const requireController=()=>{
-  if(controller?.kind!=='azure-finite-allocation-controller/v1'||typeof controller.authorizeWindow!=='function')fail('gpu_finite_allocation_unavailable');
+  if(!['azure-finite-allocation-controller/v1','azure-supervised-job-controller/v1'].includes(controller?.kind)||typeof controller.authorizeWindow!=='function')fail('gpu_finite_allocation_unavailable');
  };
  const params=r=>{
   if(!uuid.test(r?.window_id||'')||r.budget_id!==budgetId)fail('gpu_reservation_invalid');
@@ -68,17 +69,20 @@ export function createGpuAllocationMeter({db,budgetId,limitMicrousd,controller}=
    // The content-free key is scoped by work identity without retaining it.
    const key=sha256Hex(canonicalJson({request,preparation:input.preparation_id,job:input.job_id,step:input.step}));
    const grant=await controller.authorizeWindow({request_sha256:key});
-   if(grant?.kind!=='azure-finite-allocation/v1'||grant.request_sha256!==key)fail('gpu_finite_allocation_invalid');
-   const cost=amount(grant.upper_bound_microusd),seconds=amount(grant.max_allocation_seconds);
+   if(!['azure-finite-allocation/v1','azure-supervised-job/v1'].includes(grant?.kind)||grant.request_sha256!==key)fail('gpu_finite_allocation_invalid');
+   const supervised=grant.kind==='azure-supervised-job/v1';
+   if(supervised!==(controller.kind==='azure-supervised-job-controller/v1'))fail('gpu_accounting_basis_mismatch');
+   const basis=supervised?'planning_estimate':'verified_bound';
+   const cost=amount(supervised?grant.reservation_estimate_microusd:grant.upper_bound_microusd),seconds=amount(supervised?grant.planning_allocation_seconds:grant.max_allocation_seconds);
    if(seconds>3600)fail('gpu_window_too_long');
    const bindings=[digest(grant.resource_sha256),digest(grant.revision_sha256),key,digest(grant.contract_sha256)];
-   let rows=await db(GPU_WINDOW_SQL.reserve,[budgetId,limitMicrousd,...bindings,cost,seconds,request]);
+   let rows=await db(GPU_WINDOW_SQL.reserve,[budgetId,limitMicrousd,...bindings,cost,seconds,request,basis]);
    const recovered=!rows.length;
    if(recovered)rows=await db(GPU_WINDOW_SQL.existing,[budgetId,key]);
    const row=rows[0];
-   if(!row||row.provider_request_sha256!==request||row.resource_sha256!==bindings[0]||row.revision_sha256!==bindings[1]||row.contract_sha256!==bindings[3]
+   if(!row||row.accounting_basis!==basis||row.provider_request_sha256!==request||row.resource_sha256!==bindings[0]||row.revision_sha256!==bindings[1]||row.contract_sha256!==bindings[3]
     ||Number(row.reserved_microusd)!==cost||Number(row.max_allocation_seconds)!==seconds)fail('gpu_budget_reservation_refused');
-   return {...row,recovered,receipt_sha256:sha256Hex(canonicalJson({window_id:row.window_id,budget_id:budgetId,request_sha256:key,contract_sha256:bindings[3],reserved_microusd:cost}))};
+   return {...row,recovered,receipt_sha256:sha256Hex(canonicalJson({window_id:row.window_id,budget_id:budgetId,request_sha256:key,contract_sha256:bindings[3],reserved_microusd:cost,accounting_basis:basis}))};
   },
   async begin(reservation){
    requireController();

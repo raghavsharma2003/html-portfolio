@@ -17122,3 +17122,8 @@ On 2026-09-08 in isolated source based f4235c68: new41 offline actual issuer/reg
 ## `gpu147-discovery-reader-control` (2026-09-08)
 
 2026-09-08:15 offline groups passed, including actual exported completed-reader query capture, expected parameters and old-state negative. Real PostgreSQL not run.
+
+
+## `gpu-controller33-synthetic` (2026-09-08)
+
+2026-09-08: n=13 synthetic ARM/DB groups and17 allocation groups passed using actual source and fake transports/state. Incumbent provider-budget41 passed. Copy7/21 passed. No real SQL, ARM request, GPU wake, deployment, expense or model/voice quality evaluation. Proposed runtime120s+headroom180s at462microUSD/s equals138600microUSD reserved estimate; separate250000microUSD GPU budget is a proposal, not created.

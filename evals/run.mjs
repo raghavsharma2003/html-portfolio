@@ -903,6 +903,7 @@ const suites = {
   // accounting under one hard Azure application ceiling.
   providerbudget: "provider-budget/run.mjs",
   "gpu-allocation-budget": "gpu-allocation-budget/run.mjs",
+  "gpu-job-control": "gpu-job-control/run.mjs",
   // Approval-gated Azure Personal Voice lifecycle: consent, verified private
   // audio, native-unit spend fencing, pinned synthesis, status and deletion.
   personalvoice: "azure-personal-voice/run.mjs",

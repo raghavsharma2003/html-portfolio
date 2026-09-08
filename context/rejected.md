@@ -17116,3 +17116,8 @@ Rejected routing comparison-only uploads through the ordinary primary selector: 
 ## `gpu147-forgotten-discovery-caller` (2026-09-08)
 
 2026-09-08: comparison seam agent found COMPARISON_COMPLETED_AUTHORITY_SQL still required settled after147 wrote response_recorded. This permanently refused prepared candidate discovery. Both required-stage and no-other-state predicates repaired; historical settled deliberately remains ineligible.
+
+
+## `gpu-controller33-invoice-and-race` (2026-09-08)
+
+2026-09-08: Independent source review found estimated reservations could reject valid larger invoices, stale polls could replace terminal state with running, and mixed finite/supervised kinds could hide accounting basis.149 now allows honest overrun only on paused/exhausted ledgers; actual GPU overrun pauses further admission. Terminal persistence is monotonic, missing observations are unknown, and grant/controller kinds must match persisted basis. Existing shared HTTP apps remain unsuitable for an isolated request allocation; do not infer total billable bound from replicaTimeout.

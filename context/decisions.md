@@ -23345,3 +23345,8 @@ Implement a separate explicit private processing receipt and seven-stage worker 
 ## `gpu147-discovery-response-state` (2026-09-08)
 
 2026-09-08: completed preparation discovery must require response_recorded just like the actual writer and completion caller. Reverse only with equivalent typed funded-response binding; never relabel historical settled rows.
+
+
+## `gpu-controller33-supervised-estimate` (2026-09-08)
+
+2026-09-08: Root explicitly reversed absolute invoice-bound requirement in favor of operational deadline, zero retries, exclusive dispatch, server replica timeout and separate cancellation/readback. Implement one fixed non-personal GPU probe with explicit gpu-* budget and persisted planning_estimate basis. Actual overrun records then pauses admission; no text-ledger consumption. Reverse if real Azure/SQL evidence shows uncontrolled retries, changed execution templates or misleading settlement. See GPU-JOB-CONTROLLER33-20260908.md.

@@ -15456,6 +15456,24 @@
       "kind": "rejection",
       "title": "Do not stop at the writer and first caller",
       "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-controller33-supervised-estimate",
+      "kind": "decision",
+      "title": "Use supervised jobs with honest estimated reservation",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-controller33-synthetic",
+      "kind": "measurement",
+      "title": "Thirteen ARM and seventeen allocation controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-controller33-invoice-and-race",
+      "kind": "rejection",
+      "title": "Reject invoice suppression and terminal regression",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
