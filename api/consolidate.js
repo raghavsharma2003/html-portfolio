@@ -188,7 +188,7 @@ function strictAuditModel(env = process.env) {
   return model;
 }
 
-export async function llm(messages, maxTokens, { model = null, env = process.env, fetchImpl = globalThis.fetch } = {}) {
+export async function llm(messages, maxTokens, { model = null, env = process.env, fetchImpl = globalThis.fetch, responseFormat = null } = {}) {
   if (isAzureOnlyServing(env)) {
     const { url, key } = strictConsolidationConfig(env);
     cost.azure_attempts++;
@@ -196,7 +196,8 @@ export async function llm(messages, maxTokens, { model = null, env = process.env
       const response = await fetchImpl(url, {
         method: "POST", redirect: "error",
         headers: { "api-key": key, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: model || EXTRACT_MODEL_AZURE, max_tokens: maxTokens, messages }),
+        body: JSON.stringify({ model: model || EXTRACT_MODEL_AZURE, max_tokens: maxTokens, messages,
+          ...(responseFormat ? {response_format:responseFormat} : {}) }),
         signal: AbortSignal.timeout(45_000),
       });
       if (!response.ok) throw Object.assign(new Error("consolidate_azure_http_failed"), { code: "consolidate_azure_http_failed", status: 502 });

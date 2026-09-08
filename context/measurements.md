@@ -17617,3 +17617,7 @@ Focused measurement: consolidation config n=7 controls passed; Room authority n=
 ## question-selection163-focused-controls (2026-09-08)
 
 Focused measurement: replica dialogue n=42 checks passed; Person Model n=49 checks passed; candidate runtime n=17 groups passed; copy gate passed; TypeScript build passed. The four known C0 context corruptions were repaired with literal-safe Node replacements and the changed context scan found no unexpected control characters.
+
+## source-erasure164-focused-controls (2026-09-08)
+
+Focused measurement: Room authority n=22 controls passed; consolidation config n=7 passed; source erasure n=62 passed; TypeScript build passed after linking identical-lock dependencies. No DB, provider, cloud or full release checks.

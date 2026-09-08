@@ -17620,3 +17620,7 @@ The reviewed config commit's context graph and narrative records were excluded. 
 ## question-selection163-context-control-repair (2026-09-08)
 
 Prior context prose contained four known PowerShell escape corruptions: BEL+pi/, ESC+ddc56dd, FF+181c8f, and VT+y_replica. Only those exact replacements were made in this new worktree; no frozen checkout or foreign graph history was changed.
+
+## source-erasure164-context-excluded (2026-09-08)
+
+The reviewed source-erasure and strict-schema context records were excluded. The canary enum fixture was included only because the focused Room test requires it; no foreign context graph or receipt history was imported.

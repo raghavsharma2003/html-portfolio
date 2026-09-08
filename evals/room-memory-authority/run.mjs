@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 import {
  ROOM_MEMORY_BATCH_SQL,ROOM_MEMORY_COMMIT_SQL,ROOM_MEMORY_LOG_SQL,
  ROOM_MEMORY_RECALL_SQL,ROOM_MEMORY_HISTORY_SQL,ROOM_MEMORY_DISCOVERY_SQL,
- ROOM_MEMORY_CONSOLIDATION_ENABLED,runRoomMemoryConsolidation,
+ ROOM_MEMORY_CONSOLIDATION_ENABLED,ROOM_MEMORY_RESPONSE_FORMAT,runRoomMemoryConsolidation,
  roomMemoryAdapter,validateRoomMemoryProposal,
 } from '../../api/_room-memory-authority.js';
 
@@ -134,5 +134,31 @@ await check('SQL duplicate proposal refusal gates the atomic write even without 
  assert.ok(hasDuplicateGuard(ROOM_MEMORY_COMMIT_SQL));
  assert.equal(hasDuplicateGuard(ROOM_MEMORY_COMMIT_SQL.replace('group by source_id,quote having count(*)>1','group by source_id,quote having count(*)>2')),false);
  assert.equal(hasDuplicateGuard(ROOM_MEMORY_COMMIT_SQL.replace('and not exists(select 1 from proposals group by source_id,quote having count(*)>1)','')),false);
+});
+await check('strict transport schema uses exact existing enums and required fields without unsupported bounds',()=>{
+ const format=ROOM_MEMORY_RESPONSE_FORMAT;
+ assert.equal(format.type,'json_schema');assert.equal(format.json_schema.strict,true);
+ const root=format.json_schema.schema,entry=root.properties.memories.items;
+ assert.deepEqual(root.required,['memories']);assert.equal(root.additionalProperties,false);
+ assert.deepEqual(entry.required,['source_id','kind','name','quote']);assert.equal(entry.additionalProperties,false);
+ assert.deepEqual(entry.properties.kind.enum,['user','relationship']);
+ assert.deepEqual(entry.properties.name.enum,['goal','preference','person','project','learning_context','relationship']);
+ for(const name of ['minItems','maxItems','minLength','maxLength','pattern'])assert.ok(!JSON.stringify(format).includes(`"${name}"`));
+});
+await check('actual79 grounded quotes with invented enums remain rejected; response schema reaches model options',async()=>{
+ const retained=JSON.parse(readFileSync(new URL('./canary79-enum-failure.json',import.meta.url),'utf8'));
+ const output=JSON.parse(retained.raw_output);
+ const row={...source,id:'8504',content:output.memories.map(v=>v.quote).join('\n')};
+ for(const item of output.memories){assert.equal(item.source_id,row.id);assert.ok(row.content.includes(item.quote));}
+ assert.throws(()=>validateRoomMemoryProposal(retained.raw_output,[row]),/proposal_invalid/);
+ let reads=0;
+ await assert.rejects(runRoomMemoryConsolidation(candidate,{env,
+  queryFn:async(sql)=>{assert.equal(sql,ROOM_MEMORY_BATCH_SQL);reads++;return[row];},
+  model:async(messages,maxTokens,options)=>{
+   assert.equal(maxTokens,1600);assert.deepEqual(options.responseFormat,ROOM_MEMORY_RESPONSE_FORMAT);
+   return retained.raw_output;
+  },
+ }),/proposal_invalid/);
+ assert.equal(reads,1);
 });
 process.stdout.write(`${checks} controls passed; no SQL or provider calls.\n`);

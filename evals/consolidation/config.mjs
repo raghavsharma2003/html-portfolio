@@ -64,6 +64,7 @@ try {
   assert.equal(test.calls.http[0].url,`${configEndpoint}/chat/completions`);
   assert.equal(test.calls.http[0].init.headers['api-key'],configKey);
   assert.equal(test.calls.http[0].init.redirect,'error');
+  assert.deepEqual(JSON.parse(test.calls.http[0].init.body).response_format,memory.ROOM_MEMORY_RESPONSE_FORMAT);
   const delta=costDelta(before);assert.equal(delta.azure_attempts,1);assert.equal(delta.fallback_attempts,0);
  });
  await check('explicit custom configuration overrides synthetic deployed config consistently',async()=>{

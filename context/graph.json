@@ -17196,6 +17196,24 @@
       "kind": "rejection",
       "title": "Known context control corruption repaired",
       "at": "2026-09-08"
+    },
+    {
+      "id": "source-erasure164-profile-lineage-fence",
+      "kind": "decision",
+      "title": "Source erasure profile lineage fence",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "source-erasure164-focused-controls",
+      "kind": "measurement",
+      "title": "Source erasure focused controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "source-erasure164-context-excluded",
+      "kind": "rejection",
+      "title": "Source erasure foreign context excluded",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29586,6 +29604,16 @@
       "src": "question-selection163-approved-knowledge-ranking",
       "rel": "caused_by",
       "dst": "question-selection163-context-control-repair"
+    },
+    {
+      "src": "source-erasure164-profile-lineage-fence",
+      "rel": "measured_by",
+      "dst": "source-erasure164-focused-controls"
+    },
+    {
+      "src": "source-erasure164-profile-lineage-fence",
+      "rel": "caused_by",
+      "dst": "source-erasure164-context-excluded"
     }
   ]
 }

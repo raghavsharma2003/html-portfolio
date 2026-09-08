@@ -23828,3 +23828,7 @@ Integrate the reviewed consolidation configuration helper so Room preflight and 
 ## question-selection163-approved-knowledge-ranking (2026-09-08)
 
 Integrate the reviewed current-question knowledge selection path: rank approved Unicode profile statements, select at most twelve under the 6,000-character whole-line budget, recheck the same question and authority before completion, and keep immutable candidate cores unchanged. SQL and migrations remain frozen. Root import tuples: cd3a52a -> api/_replica-candidate-runtime.js, api/_replica-dialogue.js, api/_replica-runtime.js, evals/candidate-activation-runtime/run.mjs, evals/replica-dialogue/run.mjs; 9f6541b -> evals/candidate-activation-runtime/run.mjs.
+
+## source-erasure164-profile-lineage-fence (2026-09-08)
+
+Integrate the reviewed source-erasure lineage guard and strict Room extraction schema atop question selection. The source erasure path retires current profiles only when cited source lineage matches, while Room schema validation preserves the exact existing enum and required fields. Import the reviewed product and focused test paths plus the required canary fixture; exclude all foreign context graphs. Root import tuples: c1e3a05b,d9937a4f -> api/_replica-source-erasure.js, evals/source-erasure/run.mjs; 61a823c4 -> api/_room-memory-authority.js, api/consolidate.js, evals/consolidation/config.mjs, evals/room-memory-authority/run.mjs, evals/room-memory-authority/canary79-enum-failure.json.
