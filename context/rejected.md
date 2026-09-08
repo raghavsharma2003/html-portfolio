@@ -17592,3 +17592,7 @@ Customer private words were excluded from fixtures and context records. The sele
 ## clone-learning74-release-eval-contract-drift (2026-09-08)
 
 The candidate materializer fixture expects status while the current request emits qualification_status; room knowledge exposes y_replica_runtime_capability while its incumbent expected list omits it, and clonechannel reaches a clone_unavailable refusal after its controls. These failures are recorded without weakening either the reviewed eval contract or product source.
+
+## clone-learning74-candidate-worker-fixture-gap (2026-09-08)
+
+The original authored synthetic rows omitted learner_input, learner_input_sha256 and prompt_hash, causing readiness to remain false in both candidate worker suites. Adding coherent fixture fields fixed the prerequisite without weakening dataset gates or altering production code.

@@ -17589,3 +17589,7 @@ Source integration measurement: n=7 selected product, test and SQL-prep paths, l
 ## clone-learning74-reviewed-release-eval-controls (2026-09-08)
 
 Focused measurement: n=4 reviewed eval files imported; dialogue Unicode passed 13 groups. Candidate materializer and room knowledge exposed incumbent contract drift, and clonechannel exposed a runtime refusal during its focused run. No product source, SQL, cloud, provider, browser or install calls were made.
+
+## clone-learning74-candidate-worker-fixture-controls (2026-09-08)
+
+Focused measurement: correction candidate worker n=10 groups passed and candidate materializer worker n=12 groups passed after fixture completion. The first run failed at readiness because both fixtures omitted learner commitments; no API changes or external calls occurred.

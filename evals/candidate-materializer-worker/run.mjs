@@ -22,11 +22,11 @@ const sqlInventory=new Map();
 const rows=[], encrypted=new Map(), plaintext=new Map();
 let index=0;
 for(let session=1;session<=12;session++) for(let item=0;item<16;item++) {
-  const n=++index, correction=`Private correction ${n}: pehle ek chhoti observation.`;
+  const n=++index, learner_input=`Learner question ${n}: coefficient aur subscript kaise alag rakhen?`, correction=`Private correction ${n}: pehle ek chhoti observation.`;
   const row={feedback_id:uid(n),turn_id:uid(20000+n),session_id:uid(10000+session),revision:1,
     profile_version:7,calibration_version:3,capability_id:CAP,
     ratings:{wording:item<4?'off':'exact',behavior:item<4?'close':'exact',relationship:item<4?'close':'exact',memory:item<4?'close':'exact',delivery:item<4?'close':'exact'},
-    ratings_hash:sha256Hex(`rating ${n}`),response_hash:sha256Hex(`response ${n}`),
+    ratings_hash:sha256Hex(`rating ${n}`),prompt_hash:hash({learner_input}),learner_input_sha256:sha256Hex(learner_input),learner_input,response_hash:sha256Hex(`response ${n}`),
     correction_hash:item<4?exemplarTextHash(correction):null,source_generation_id:null};
   rows.push(row);
   if(item<4){plaintext.set(row.feedback_id,correction); encrypted.set(row.feedback_id,encryptTurnExemplar(correction,

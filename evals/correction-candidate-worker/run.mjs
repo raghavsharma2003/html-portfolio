@@ -23,11 +23,11 @@ const sqlInventory=new Map();
 const rows=[], encrypted=new Map(), plaintext=new Map();
 let index=0;
 for(let session=1;session<=12;session++) for(let item=0;item<16;item++) {
-  const n=++index, correction=`Private correction ${n}: pehle ek chhoti observation.`;
+  const n=++index, learner_input=`Learner question ${n}: coefficient aur subscript kaise alag rakhen?`, correction=`Private correction ${n}: pehle ek chhoti observation.`;
   const row={feedback_id:uid(n),turn_id:uid(20000+n),session_id:uid(10000+session),revision:1,
     profile_version:7,calibration_version:3,capability_id:CAP,
     ratings:{wording:item<4?'off':'exact',behavior:item<4?'close':'exact',relationship:item<4?'close':'exact',memory:item<4?'close':'exact',delivery:item<4?'close':'exact'},
-    ratings_hash:sha256Hex(`rating ${n}`),response_hash:sha256Hex(`response ${n}`),
+    ratings_hash:sha256Hex(`rating ${n}`),prompt_hash:hash({learner_input}),learner_input_sha256:sha256Hex(learner_input),learner_input,response_hash:sha256Hex(`response ${n}`),
     correction_hash:item<4?exemplarTextHash(correction):null,source_generation_id:null};
   rows.push(row);
   if(item<4){plaintext.set(row.feedback_id,correction); encrypted.set(row.feedback_id,encryptTurnExemplar(correction,
@@ -152,7 +152,8 @@ let groups=0;
 async function test(name,run){await run();console.log(`PASS ${++groups}: ${name}`);}
 const refused=f=>assert.rejects(f,{code:'correction_candidate_not_completed'});
 await test('real worker registers a renderable private draft without changing active person',async()=>{
-  const f=fixture(),result=await f.run();assert.equal(result.state,'draft');assert.equal(result.active_changed,false);assert.equal(f.providerCalls,1);
+  const f=fixture(),result=await f.run();
+  assert.equal(result.state,'draft');assert.equal(result.active_changed,false);assert.equal(f.providerCalls,1);
   assert.equal(f.candidates.length,1);assert.equal(f.spends[0].state,'settled');assert.equal(f.budget.reserved_microusd,0);
   const job=f.jobs[0];assert.equal(hash(job.artifact),job.artifact_sha256);assert.equal(hash(job.build_manifest),job.build_manifest_hash);
   const runtime=await loadOwnedRuntimeContext(f.db,OWNER,RID),rendered=renderPrivateCorrectionCandidate(runtime,job.artifact);

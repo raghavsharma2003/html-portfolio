@@ -23800,3 +23800,7 @@ Bind correction evidence to the owner's current learner input bytes and prompt c
 ## clone-learning74-reviewed-release-eval-repairs (2026-09-08)
 
 Integrate the four reviewed release-contract eval repairs from 98e53af1 plus its dialogue refusal assertion follow-up 2d6494fc, limited to existing eval files. Reverse if these controls contradict the current authority contracts after a source review. Root import tuples: 98e53af1, 2d6494fc -> evals/candidate-materializer-ui.mjs, evals/clonechannel.mjs, evals/dialogue-unicode.mjs, evals/room-knowledge.mjs.
+
+## clone-learning74-candidate-worker-fixture-contract (2026-09-08)
+
+Update only the two authored synthetic candidate worker fixtures with coherent learner question bytes, their SHA-256 commitment and prompt commitment so the current dataset and learning reader can reach the worker. Preserve the minimum-session, authority, consent, spend and no-dispatch controls. Reverse if the production contract changes its required learner commitments.

@@ -17070,6 +17070,24 @@
       "kind": "rejection",
       "title": "Release eval contract drift recorded",
       "at": "2026-09-08"
+    },
+    {
+      "id": "clone-learning74-candidate-worker-fixture-contract",
+      "kind": "decision",
+      "title": "Candidate worker fixture commitments",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-learning74-candidate-worker-fixture-controls",
+      "kind": "measurement",
+      "title": "Candidate worker fixture controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "clone-learning74-candidate-worker-fixture-gap",
+      "kind": "rejection",
+      "title": "Candidate worker fixture gap",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
@@ -29390,6 +29408,16 @@
       "src": "clone-learning74-reviewed-release-eval-repairs",
       "rel": "caused_by",
       "dst": "clone-learning74-release-eval-contract-drift"
+    },
+    {
+      "src": "clone-learning74-candidate-worker-fixture-contract",
+      "rel": "measured_by",
+      "dst": "clone-learning74-candidate-worker-fixture-controls"
+    },
+    {
+      "src": "clone-learning74-candidate-worker-fixture-contract",
+      "rel": "caused_by",
+      "dst": "clone-learning74-candidate-worker-fixture-gap"
     }
   ]
 }
