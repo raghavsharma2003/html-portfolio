@@ -15438,6 +15438,24 @@
       "kind": "rejection",
       "title": "Reject shared retry release and unbound response receipt",
       "at": "2026-09-07"
+    },
+    {
+      "id": "gpu147-discovery-response-state",
+      "kind": "decision",
+      "title": "Keep completed reader in response contract",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu147-discovery-reader-control",
+      "kind": "measurement",
+      "title": "Fifteen budget controls with completed reader",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu147-forgotten-discovery-caller",
+      "kind": "rejection",
+      "title": "Do not stop at the writer and first caller",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

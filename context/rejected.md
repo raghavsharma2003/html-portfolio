@@ -17111,3 +17111,8 @@ Rejected routing comparison-only uploads through the ordinary primary selector: 
 ## `gpu-allocation147-retry-release-and-response` (2026-09-07)
 
 2026-09-08: Independent review found a recovered retry could release the original reserved window before its begin, stranding its durable claim. Recovered reservations now cannot claim/begin/release, with a negative schedule control. Response receipt initially omitted actual response hash/status; now validated and bound with different-response and missing-fields controls. HTTP elapsed time remains rejected as a GPU invoice. Initial comparison suite import failed without ignored config; blank generated config allowed offline completion.
+
+
+## `gpu147-forgotten-discovery-caller` (2026-09-08)
+
+2026-09-08: comparison seam agent found COMPARISON_COMPLETED_AUTHORITY_SQL still required settled after147 wrote response_recorded. This permanently refused prepared candidate discovery. Both required-stage and no-other-state predicates repaired; historical settled deliberately remains ineligible.

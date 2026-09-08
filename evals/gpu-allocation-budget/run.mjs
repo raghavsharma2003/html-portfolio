@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createGpuAllocationMeter,reconcileGpuAllocation,GPU_WINDOW_SQL as Q} from '../../api/_gpu-allocation-budget.js';
+import {COMPARISON_COMPLETED_AUTHORITY_SQL,readOwnedCompletedComparisonPreparation} from '../../api/_comparison-preparation.js';
 globalThis.fetch=()=>{throw Error('network_forbidden');};
 const hash=c=>c.repeat(64),id='12345678-1234-4234-8234-123456789012';
 const input={request_sha256:hash('a'),preparation_id:'fixture-p',job_id:'fixture-j',step:'diarize',max_dispatches:1};
@@ -96,6 +97,17 @@ await test('forged revision and nonterminated usage remain held',async()=>{
   const verifier=f.verify(r),orig=verifier.verifyClosedAllocation;verifier.verifyClosedAllocation=async()=>({...await orig(),...change});
   await assert.rejects(reconcileGpuAllocation({db:f.db,reservation:r,usageVerifier:verifier}));assert.equal(f.state().reserved,600);
  }
+});
+await test('completed discovery uses new response state and rejects historical settlement',async()=>{
+ let calls=0;
+ const result=await readOwnedCompletedComparisonPreparation(async(sql,p)=>{
+  calls++;assert.equal(sql,COMPARISON_COMPLETED_AUTHORITY_SQL);assert.equal(p.length,4);
+  assert(sql.includes("d.state='response_recorded'"));assert(sql.includes("d.state<>'response_recorded'"));
+  assert(!sql.includes("d.state='settled'"));return[];
+ },id,id,id,id);
+ assert.equal(calls,1);assert.equal(result,null);
+ const old=COMPARISON_COMPLETED_AUTHORITY_SQL.replaceAll('response_recorded','settled');
+ assert(!old.includes("d.state='response_recorded'"));
 });
 await test('migration mirror, global resource exclusion and no expiry release query',async()=>{
  const migration=await readFile(new URL('../../db/migrations/147_gpu_allocation_window.sql',import.meta.url),'utf8');

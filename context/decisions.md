@@ -23340,3 +23340,8 @@ Implement a separate explicit private processing receipt and seven-stage worker 
 ## `gpu-allocation147-pending-accounting` (2026-09-07)
 
 2026-09-08: Add dormant content-free allocation accounting sharing the provider budget, exclusive resource lease across revisions, one-shot begin and separately recorded response. No timeout auto-release. Production refuses without an implemented finite controller. Reverse only with real SQL races and an execution capability proving bounded allocation and attributable reconciliation. See GPU-ALLOCATION-BUDGET32-HANDOFF-20260908.md.
+
+
+## `gpu147-discovery-response-state` (2026-09-08)
+
+2026-09-08: completed preparation discovery must require response_recorded just like the actual writer and completion caller. Reverse only with equivalent typed funded-response binding; never relabel historical settled rows.

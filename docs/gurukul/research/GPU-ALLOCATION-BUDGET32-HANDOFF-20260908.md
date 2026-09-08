@@ -14,7 +14,7 @@ The ledger has no owner, replica, source, prompt or audio fields. Only opaque in
 
 ## Validation on September 8, 2026
 
-- Fourteen offline budget groups passed using a synthetic state-model DB adapter. They cover refused missing controller, whole reservation, shared budget exhaustion, one-shot begin, unknown outcomes, no timeout release, response binding, held pending accounting, closed-usage reconciliation and replay refusal. They do not parse SQL or establish real concurrency.
+- Fifteen offline budget groups passed using a synthetic state-model DB adapter. They cover refused missing controller, whole reservation, shared budget exhaustion, one-shot begin, unknown outcomes, no timeout release, response binding, held pending accounting, closed-usage reconciliation and replay refusal. They do not parse SQL or establish real concurrency.
 - Existing comparison preparation's 28 synthetic groups passed, including its seven-stage chain with three fixture POSTs and no network.
 - Provider budget, processing worker and creator export suites passed; creator export reported 57 checks.
 - Independent source review found a duplicate retry that could release the original worker's reservation and a receipt that omitted the provider response hash. Both were repaired, with dedicated new negative controls. A recovered reservation cannot claim, begin or release another worker's allocation.
@@ -25,3 +25,5 @@ Remaining validation: real PostgreSQL EXPLAIN for every exported query, migratio
 ## Integration
 
 This isolate starts from frozen preparation 146 (`c5385f85`). Apply its source delta after 146. `evals/run.mjs` adds `gpu-allocation-budget`; the separate preparation suite still needs its earlier registry integration. Merge schema by appending exactly migration 147. Keep the meter's response contract and repository dispatch predicate together. The public capture readiness remains unavailable.
+
+Follow-up: comparison seam review found the completed-preparation discovery SQL still required historical settled dispatches. Both required-stage and no-other-state predicates now use response_recorded; an actual exported reader query-capture control checks the contract and old-state negative. No real SQL acceptance.

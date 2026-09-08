@@ -17117,3 +17117,8 @@ On 2026-09-08 in isolated source based f4235c68: new41 offline actual issuer/reg
 ## `gpu-allocation147-offline-controls` (2026-09-07)
 
 2026-09-08: n=14 offline groups using actual budget functions with synthetic DB state model passed; 28 comparison preparation groups passed including 3 fixture POSTs and no network. Provider budget, processing worker and creator-export57 passed. Independent source review found two repaired defects. No real SQL, cloud, migration, full release, finite termination or GPU accounting proof.
+
+
+## `gpu147-discovery-reader-control` (2026-09-08)
+
+2026-09-08:15 offline groups passed, including actual exported completed-reader query capture, expected parameters and old-state negative. Real PostgreSQL not run.
