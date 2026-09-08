@@ -17141,3 +17141,8 @@ Rejected routing comparison-only uploads through the ordinary primary selector: 
 ## `comparison-seam32-copy-merge-cardinality` (2026-09-08)
 
 Copy replacement script expected each old phrase once, but modern capture fixture contained it twice. It stopped after two product files; the immediately run old Journey copy assertion failed. Applying the exact remaining fixture replacements restored31Journey controls. No production logic or negative-control intent was changed.
+
+
+## `comparison-seam32-prepared-unavailable-copy` (2026-09-08)
+
+Initial uploader fixture1788849012056 passed6groups, but actual390image showed preparation unavailable alongside recording prepared. Original retained; conditional visibility now suppresses new-upload instructions after saved state. Final uploader6groups adds assertion of absent unavailable notice; parent34groups rerun after shared component changed. Initial parent1788848949548 also retained.

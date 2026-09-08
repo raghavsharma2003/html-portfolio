@@ -21,9 +21,9 @@ export default function ComparisonPreparation({token,ownerUserId,replicaId,onAut
  async function upload(){if(savedRef.current||!file||!ready?.can_upload||!PREPARATION_KEYS.every(k=>checks[k]))return;await run(async()=>{const pending={id:crypto.randomUUID(),withdrawing:false};persist(pending);accept(await uploadComparisonRecording(token,replicaId,pending.id,file,checks,controller.current.signal));if(live.current){setFile(null);setChecks({});}});}
  async function withdraw(){if(!savedRef.current)return;await run(async()=>{const next={...savedRef.current!,withdrawing:true};persist(next);setP(null);const d=await preparationRequest(token,replicaId,next.id,'withdraw',controller.current.signal);if(!live.current)return;if(d.preparation.state!=='revoked')throw Error('withdrawal_unconfirmed');persist({...next,withdrawing:false});accept(d);});}
  return <div className="cvj-comparison-reference" aria-label="Prepare a private recording">
-  <h3>Add a comparison recording</h3>
-  <p>A recording of just you, up to one minute and 32 MB. Recording and private storage permissions must already be enabled in your permissions step.</p>
-  {ready&&!ready.can_prepare?<p role="status">You can upload now. Preparation is not available yet; we need to finish our processing setup.</p>:null}
+  <h3>{saved?"Your comparison recording":"Add a comparison recording"}</h3>
+  {!saved?<p>A recording of just you, up to one minute and 32 MB. Recording and private storage permissions must already be enabled in your permissions step.</p>:null}
+  {!saved&&ready&&!ready.can_prepare?<p role="status">You can upload now. Preparation is not available yet; we need to finish our processing setup.</p>:null}
   {message?<p role="alert">{message}</p>:null}{busy?<p role="status">Checking your recording</p>:null}
   {busy?<button className="cvj-quiet" type="button" onClick={()=>controller.current.abort()}>Stop request</button>:null}
   {!saved?<><label>Audio or video<input type="file" accept="audio/*,video/*" style={{maxWidth:"100%",minWidth:0}} disabled={busy||!ready?.can_upload} onChange={e=>{setFile(e.target.files?.[0]||null);setChecks({});}}/></label>

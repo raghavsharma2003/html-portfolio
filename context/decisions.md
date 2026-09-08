@@ -23365,3 +23365,8 @@ Implement a separate explicit private processing receipt and seven-stage worker 
 ## `comparison-seam32-dedicated-selection` (2026-09-08)
 
 2026-09-08: Combine145/146 with selected145 reference UUID as fresh comparison selection identity; immutable receipt keeps null ordinary selection. Private identity requires capture/storage; ordinary recording/transcription/training gates still apply before build. Reverse on real SQL or mounted stale authority, training bypass, or private leakage.
+
+
+## `comparison-seam32-saved-recording-copy` (2026-09-08)
+
+After actual visual inspection, hide new-upload instructions and unavailable preparation notice once a recording status is saved; show the exact saved state and recovery/withdrawal actions. Reverse if actual owner testing loses the ability to understand or recover an incomplete upload. No backend or permission change.

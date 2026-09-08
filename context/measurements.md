@@ -17142,3 +17142,8 @@ On 2026-09-08 in isolated source based f4235c68: new41 offline actual issuer/reg
 ## `comparison-seam32-source-freeze` (2026-09-08)
 
 Final source-only phase:23seam,15client,31Journey,57creator-export controls, forced TypeScript, copy7scopes21negatives, graph2569/2422 and4suite resource classifications passed. Exact6671d632 copy replacements integrated into5files preserving the seam. Browser runs remain explicitly pending behind rootrelease31; root authorized preliminary source freeze.
+
+
+## `comparison-seam32-mounted-terminal` (2026-09-08)
+
+2026-09-08: Actual Chromium parent Journey/component/HTTP-store fixture passed34groups at390/1440, finalreceipt1788849093326 SHA71a6151eba5ef74585228fe5eae102db091e67b15185e97a25d2d206e158a52d, terminal0 at06:32:10.306Z, errors[]. Standalone actual uploader/client fixture passed6groups, finalreceipt1788849077454 SHAbbc2297a88881ad0c00d8be99b5fbfa291c65d8959d460d7d5c67e8e0af75db1, exec terminal0. Synthetic SQL/HTTP/AzurePUT/PCM only. Both390/1440 prepared screenshots inspected; copy7scopes21negatives passed after visibility fix. No realSQL/provider/voice/identity/fullrelease acceptance.

@@ -15534,6 +15534,24 @@
       "kind": "rejection",
       "title": "Do not assume copy occurrence cardinality",
       "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-seam32-saved-recording-copy",
+      "kind": "decision",
+      "title": "Saved recording replaces upload instructions",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-seam32-mounted-terminal",
+      "kind": "measurement",
+      "title": "Final mounted private preparation and selection",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "comparison-seam32-prepared-unavailable-copy",
+      "kind": "rejection",
+      "title": "Do not present new-work unavailability beside prepared status",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

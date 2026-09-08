@@ -2,7 +2,7 @@
 
 ## START HERE: ISOLATED FRESH COMPARISON SEAM32 (2026-09-08)
 
-This worktree is an unaccepted integration candidate over frozen145 plus preparation146 and allocation147/followup. Fresh upload, completed-evidence selection and dedicated modern descriptor/issuer/Journey wiring are implemented; offline tests pass, mounted tests are queued behind root release31. No real SQL, migration, provider, deployment, identity or voice-quality acceptance. Production remains dormant without finite GPU allocation authority and calibrated same-capture verification. Read docs/gurukul/research/COMPARISON-SEAM32-HANDOFF-20260908.md. Root accepted integration/local5177 remains release26; historical statements below are superseded for this worktree.
+This worktree is an unaccepted integration candidate over frozen145 plus preparation146 and allocation147/followup. Fresh upload, completed-evidence selection and dedicated modern descriptor/issuer/Journey wiring are implemented; offline tests and final mounted34parent/6uploader groups at390/1440 pass with synthetic transport; receipts1788849093326/1788849077454. No real SQL, migration, provider, deployment, identity or voice-quality acceptance. Production remains dormant without finite GPU allocation authority and calibrated same-capture verification. Read docs/gurukul/research/COMPARISON-SEAM32-HANDOFF-20260908.md. Root accepted integration/local5177 remains release26; historical statements below are superseded for this worktree.
 
 ## START HERE: ACTIVE EXPERT INTEGRATION (2026-09-07)
 
