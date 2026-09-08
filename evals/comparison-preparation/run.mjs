@@ -30,12 +30,23 @@ function fixture(step='diarize',options={}){
   if(sql.startsWith('update vy_replica_comparison_dispatch'))return[{step}];
   if(sql.startsWith('update'))return[];
   return active?[prep]:[];};
- const meter={kind:'azure-container-infrastructure/v1',reserve:async()=>{events.push('reserve');return{receipt_sha256:'c'.repeat(64)};},
+ const meter={kind:'azure-container-infrastructure/v1',assertReady:async()=>{},reserve:async()=>{events.push('reserve');return{receipt_sha256:'c'.repeat(64),recovered:options.recovered===true};},
   begin:async()=>{events.push('begin');if(options.beginLoss)throw Error('synthetic_begin_response_lost');},
-  settle:async()=>{events.push('settle');return{accounted:true,receipt_sha256:'d'.repeat(64)};},
+  recordResponse:async()=>{events.push('settle');return{response_recorded:true,accounting_state:'accounting_pending',accounted:false,receipt_sha256:'d'.repeat(64)};},
   markUncertain:async()=>events.push('uncertain'),releaseBeforeBegin:async()=>events.push('release')};
  return {events,leased,db,meter,revoke:()=>{active=false;},dispatch:createComparisonDispatch({db,leased,source,preparation:prep,meter:options.noMeter?null:meter})};
 }
+await test('recovered allocation cannot claim or release winning worker reservation',async()=>{
+ const f=fixture('diarize',{recovered:true});
+ await assert.rejects(f.dispatch.billing.beforeProviderRequest({operation:'diarize',requestSha256:'e'.repeat(64)}),/already_claimed/);
+ await f.dispatch.failStage(Error('fixture'));
+ assert(!f.events.includes('claim'));assert(!f.events.includes('release'));assert(!f.events.includes('begin'));
+});
+await test('finite controller readiness refusal stops actual dispatch stage',async()=>{
+ const f=fixture();f.meter.assertReady=async()=>{throw Error('gpu_finite_allocation_unavailable');};
+ await assert.rejects(f.dispatch.beforeStage(),/finite_allocation_unavailable/);
+ assert(!f.events.includes('reserve'));assert(!f.events.includes('begin'));
+});
 await test('explicit exact processing choices are distinct and mandatory',()=>{
  assert(comparisonPreparationInput({preparation_id:pid,source_id:sid,attestations}));
  for(const a of [{}, {...attestations,process_for_private_comparison:false},{...attestations,extra:true}])assert.throws(()=>comparisonPreparationInput({preparation_id:pid,source_id:sid,attestations:a}));
@@ -70,7 +81,7 @@ await test('lost begin acknowledgement stays uncertain with no release or retry'
  const f=fixture('diarize',{beginLoss:true});let error;try{await f.dispatch.billing.beforeProviderRequest({operation:'diarize',requestSha256:'e'.repeat(64)});}catch(e){error=e;}
  const failure=await f.dispatch.failStage(error);assert.equal(failure.code,'comparison_dispatch_reconciliation_required');assert.equal(failure.retryable,false);assert(f.events.includes('uncertain'));assert(!f.events.includes('release'));
 });
-await test('settled synthetic meter still cannot defeat revoked completion',async()=>{
+await test('response-recorded synthetic meter still cannot defeat revoked completion',async()=>{
  const f=fixture();await f.dispatch.billing.beforeProviderRequest({operation:'diarize',requestSha256:'e'.repeat(64)});
  await f.dispatch.billing.afterProviderResponse({request_sha256:'e'.repeat(64),response_sha256:'f'.repeat(64)});f.revoke();
  await assert.rejects(()=>f.dispatch.completeStage({evidence:[]}));assert.equal(f.events.filter(e=>e==='settle').length,1);
@@ -102,10 +113,10 @@ await test('actual runtime lease branch stops unavailable GPU and records failed
  const result=await runNextProcessingJob({db,adapters:{diarize:{family:'diarization',name:'synthetic',version:'v1',diarize:async()=>{provider++;}}}});
  assert.equal(result.failure_code,'comparison_gpu_accounting_unavailable');assert.equal(provider,0);assert(failedPrep);
 });
-await test('completion SQL is actual caller with purpose and settled dispatch predicates',async()=>{
+await test('completion SQL is actual caller with purpose and response-recorded dispatch predicates',async()=>{
  const f=fixture('integrity',{noMeter:true}),out=await executeProcessingJob({job:f.leased.job,source,adapters:createFakeProcessingAdapters(),completedSteps:[],comparison:f.dispatch});
  let sql;await commitProcessingOutput(async(s)=>{sql=s;return[{job_id:f.leased.job.job_id}];},{jobId:f.leased.job.job_id,leaseToken:f.leased.leaseToken,output:out});
- assert(sql.includes('comparison_replica_guard'));assert(sql.includes("cd.state='settled'"));assert(sql.includes('comparison_completed'));
+ assert(sql.includes('comparison_replica_guard'));assert(sql.includes("cd.state='response_recorded'"));assert(sql.includes('comparison_completed'));
 });
 await test('public readiness cannot claim configured GPU accounting',()=>{const r=comparisonPreparationReadiness();assert.equal(r.available,false);assert.equal(r.waiting_on,'us');assert.equal(r.can_prepare,false);});
 await test('compatible declared revisions remain required and historical VAD absence is refused',()=>{

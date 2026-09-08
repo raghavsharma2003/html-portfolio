@@ -17106,3 +17106,8 @@ Rejected try-advisory/NOWAIT as sufficient freshness: a competing decision appen
 ## `comparison-preparation31-ordinary-primary` (2026-09-08)
 
 Rejected routing comparison-only uploads through the ordinary primary selector: actual setter admitted purpose comparison_reference and could rotate its primary_selection_id, despite ordinary build/review refusing that material. Added actual target predicate and ordinary-list exclusion. Captured SQL control preserves synthetic pointer/epoch; removing that predicate reproduces mutation. Real SQL pointer CAS remains unrun. Also rejected treating unmetered GPU request duration or retail-window estimates as settled Azure spend; actual meter remains unavailable.
+
+
+## `gpu-allocation147-retry-release-and-response` (2026-09-07)
+
+2026-09-08: Independent review found a recovered retry could release the original reserved window before its begin, stranding its durable claim. Recovered reservations now cannot claim/begin/release, with a negative schedule control. Response receipt initially omitted actual response hash/status; now validated and bound with different-response and missing-fields controls. HTTP elapsed time remains rejected as a GPU invoice. Initial comparison suite import failed without ignored config; blank generated config allowed offline completion.

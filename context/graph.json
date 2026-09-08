@@ -15420,6 +15420,24 @@
       "id": "comparison-preparation31-ordinary-primary",
       "kind": "rejection",
       "title": "comparison preparation31 ordinary primary"
+    },
+    {
+      "id": "gpu-allocation147-pending-accounting",
+      "kind": "decision",
+      "title": "Hold whole allocation funds until verified closure",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "gpu-allocation147-offline-controls",
+      "kind": "measurement",
+      "title": "Fourteen synthetic allocation controls",
+      "at": "2026-09-07"
+    },
+    {
+      "id": "gpu-allocation147-retry-release-and-response",
+      "kind": "rejection",
+      "title": "Reject shared retry release and unbound response receipt",
+      "at": "2026-09-07"
     }
   ],
   "edges": [

@@ -23335,3 +23335,8 @@ Persist modern capture authority in the existing biometric grant receipt and use
 ## `comparison-preparation31-purpose` (2026-09-08)
 
 Implement a separate explicit private processing receipt and seven-stage worker branch. Preserve ordinary capture/training/genome gates and refuse missing GPU accounting before model work. Fresh dedicated selection remains a coordinated145 seam; no readiness activation. Reverse if real SQL admits stale authority, comparison-only material reaches ordinary selection/builds, or uncertain dispatch retries. See docs/gurukul/research/COMPARISON-PREPARATION31-HANDOFF-20260908.md.
+
+
+## `gpu-allocation147-pending-accounting` (2026-09-07)
+
+2026-09-08: Add dormant content-free allocation accounting sharing the provider budget, exclusive resource lease across revisions, one-shot begin and separately recorded response. No timeout auto-release. Production refuses without an implemented finite controller. Reverse only with real SQL races and an execution capability proving bounded allocation and attributable reconciliation. See GPU-ALLOCATION-BUDGET32-HANDOFF-20260908.md.

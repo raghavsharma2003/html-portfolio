@@ -54,8 +54,8 @@ const azure=createAzureVoiceEvidenceAdapters({env:{AZURE_VOICE_EVIDENCE_ORIGIN:'
  }});
 const store={async writeImmutable(i){await i.beforeWriteRequest?.();const body=Buffer.from(i.body);assert.equal(sha256Hex(body),i.expectedSha256);if(objects.has(i.objectPath))assert(objects.get(i.objectPath).equals(body));objects.set(i.objectPath,body);return{sha256:sha256Hex(body),byteSize:body.length,mime:i.mime};}};
 let settlements=0;
-const meter={kind:'azure-container-infrastructure/v1',reserve:async()=>({receipt_sha256:sha256Hex('synthetic-reservation')}),begin:async()=>{},
- settle:async()=>{settlements++;return{accounted:true,receipt_sha256:sha256Hex('synthetic-settlement')};},markUncertain:async()=>{throw Error('unexpected_uncertainty');},releaseBeforeBegin:async()=>{}};
+const meter={kind:'azure-container-infrastructure/v1',assertReady:async()=>{},reserve:async()=>({receipt_sha256:sha256Hex('synthetic-reservation')}),begin:async()=>{},
+ recordResponse:async()=>{settlements++;return{response_recorded:true,accounting_state:'accounting_pending',accounted:false,receipt_sha256:sha256Hex('synthetic-settlement')};},markUncertain:async()=>{throw Error('unexpected_uncertainty');},releaseBeforeBegin:async()=>{}};
 const materialize=async(_,fn)=>fn({extractWindow:async(start,end,{rate=16000}={})=>wavBytesForSamples(Buffer.alloc(Math.round((end-start)*rate/1000)*2,0).map((_,i)=>i%2?0:120),rate)});
 for(const step of COMPARISON_STEPS){const result=await runNextProcessingJob({db,adapters:{...createFakeProcessingAdapters(),...azure},artifactStore:store,resolveInput,
  withMaterializedAudio:materialize,comparisonMeter:meter,acquireStorageWriter:async()=>({}),renewStorageWriter:async w=>w,releaseStorageWriter:async()=>true});

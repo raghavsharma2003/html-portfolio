@@ -130,7 +130,7 @@ export async function commitProcessingOutput(db, input) {
              when 'media_probe' then '["diarize"]'::jsonb when 'diarize' then '["separate"]'::jsonb
              when 'separate' then '["enhance"]'::jsonb when 'enhance' then '["voice_quality"]'::jsonb else '[]'::jsonb end
             and (j.step not in ('diarize','enhance','voice_quality') or exists(select 1 from vy_replica_comparison_dispatch cd
-             where cd.preparation_id=j.comparison_preparation_id and cd.job_id=j.job_id and cd.state='settled'))
+             where cd.preparation_id=j.comparison_preparation_id and cd.job_id=j.job_id and cd.state='response_recorded'))
           ))
           and (s.capture_mode<>'live_challenge' or (
             $5::jsonb->>'purpose'='${LIVE_INTAKE_PURPOSE}'

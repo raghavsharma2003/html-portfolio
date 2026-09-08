@@ -17112,3 +17112,8 @@ On 2026-09-08 in isolated source based f4235c68: new41 offline actual issuer/reg
 ## `comparison-preparation31-offline` (2026-09-08)
 
 2026-09-08:26 focused offline groups passed using actual handlers/store/runtime/worker and synthetic SQL/storage/meter/signed transport; one complete seven-stage chain made3 fixture POSTs and zero real provider calls. Incumbent processing, voice-evidence25, processing-worker45, processing-sweep44, replica-review38, self-test31 and storage-writer22, model-build17, primary-voice17, source-erasure59 and creator-export57 passed. No PostgreSQL/browser/full-release/provider/owner-likeness proof. See COMPARISON-PREPARATION31-HANDOFF-20260908.md for limits.
+
+
+## `gpu-allocation147-offline-controls` (2026-09-07)
+
+2026-09-08: n=14 offline groups using actual budget functions with synthetic DB state model passed; 28 comparison preparation groups passed including 3 fixture POSTs and no network. Provider budget, processing worker and creator-export57 passed. Independent source review found two repaired defects. No real SQL, cloud, migration, full release, finite termination or GPU accounting proof.
