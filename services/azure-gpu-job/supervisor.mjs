@@ -1,17 +1,24 @@
 import {createGpuAllocationMeter} from '../../api/_gpu-allocation-budget.js';
-import {API_VERSION,commitment,createAzureJobInspector} from './controller.mjs';
+import {API_VERSION,commitment,createAzureJobInspector,windowExecutionTemplate} from './controller.mjs';
 
 const fail = code => { throw Object.assign(new Error(code),{code}); };
 export const JOB_SQL = Object.freeze({
  bind: `update vy_gpu_allocation_window set azure_job_id=$4,job_configuration_sha256=$5,
-   job_runtime_seconds=$6,job_control_state='start_claimed'
+   job_runtime_seconds=$6,job_control_state='start_claimed',job_prestart_inventory=$7::jsonb,
+   job_start_requested_at=now(),job_execution_template_sha256=$8
    where window_id=$1::uuid and budget_id=$2 and request_sha256=$3 and state='in_flight'
    and job_control_state is null returning *`,
  started: `update vy_gpu_allocation_window set azure_execution_name=$4,job_control_state='running'
    where window_id=$1::uuid and budget_id=$2 and request_sha256=$3 and job_control_state='start_claimed' returning *`,
  unknown: `update vy_gpu_allocation_window set job_control_state='start_unknown'
    where window_id=$1::uuid and budget_id=$2 and request_sha256=$3 and job_control_state='start_claimed' returning *`,
- read: `select * from vy_gpu_allocation_window where window_id=$1::uuid and budget_id=$2`,
+ read: `select w.*,w.job_start_requested_at::text as job_start_requested_at,w.begun_at::text as begun_at
+   from vy_gpu_allocation_window w where window_id=$1::uuid and budget_id=$2`,
+ recover: `update vy_gpu_allocation_window set azure_execution_name=$3,job_recovery_sha256=$4,job_control_state='running'
+   where window_id=$1::uuid and budget_id=$2 and azure_execution_name is null
+   and job_control_state in ('start_claimed','start_unknown')
+   and job_prestart_inventory=$5::jsonb and job_start_requested_at=$6::timestamptz
+   and job_configuration_sha256=$7 and job_execution_template_sha256=$8 returning *`,
  stop: `update vy_gpu_allocation_window set job_control_state='stop_requested'
    where window_id=$1::uuid and budget_id=$2 and job_control_state in ('running','stop_pending','stop_requested','observation_unknown') returning *`,
  observed: `update vy_gpu_allocation_window set job_control_state=$3,job_observation_sha256=$4,
@@ -55,12 +62,13 @@ export function createGpuJobSupervisor({db,plan,policy,getToken,fetchImpl=global
       // Read-only preflight before reserving or waking. The approved digest
       // pins command/image/resources. No request-body overrides from callers.
       await inspector.inspect();
-      await inspector.assertIdle();
+      const inventory=await inspector.inventory();
       const reservation=await budget.reserve({request_sha256:experimentId,preparation_id:'gpu-control-probe',
         job_id:plan.job_id,step:'gpu-control-probe',max_dispatches:1});
       if (reservation.recovered) fail('gpu_experiment_already_claimed');
       await budget.begin(reservation);
-      const bound=await db(JOB_SQL.bind,[...params(reservation),plan.job_id,plan.configuration_sha256,plan.properties.configuration.replicaTimeout]);
+      const executionTemplate=windowExecutionTemplate(plan,reservation.window_id);
+      const bound=await db(JOB_SQL.bind,[...params(reservation),plan.job_id,plan.configuration_sha256,plan.properties.configuration.replicaTimeout,JSON.stringify(inventory),commitment(executionTemplate)]);
       if (bound.length!==1) fail('gpu_job_binding_failed');
       try {
         const token=await getToken();
@@ -68,7 +76,7 @@ export function createGpuJobSupervisor({db,plan,policy,getToken,fetchImpl=global
         const response=await fetchImpl(`https://management.azure.com${plan.job_id}/start?api-version=${API_VERSION}`,{
           method:'POST',redirect:'error',signal:AbortSignal.timeout(15000),
           headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json','x-ms-client-request-id':reservation.window_id},
-          body:JSON.stringify(plan.properties.template),
+          body:JSON.stringify(executionTemplate),
         });
         // Azure start is not assumed idempotent. 202 or lost response keeps
         // funds and dispatch ownership; no retry, no inferred execution name.
@@ -86,16 +94,24 @@ export function createGpuJobSupervisor({db,plan,policy,getToken,fetchImpl=global
       }
     },
     async supervise(windowId,{cancel=false}={}) {
-      const row=await load(windowId);
+      let row=await load(windowId);
       if(row.job_control_state==='terminal_observed')return {window_id:windowId,state:'terminal_observed',terminal:true,accounting_state:'accounting_pending'};
-      if (!row.azure_execution_name) return {window_id:windowId,state:'start_unknown',accounting_state:'accounting_pending'};
+      if (!row.azure_execution_name) {
+        const recovered=await inspector.recover(row);
+        const saved=await db(JOB_SQL.recover,[windowId,policy.budgetId,recovered.execution_name,recovered.recovery_sha256,
+          JSON.stringify(row.job_prestart_inventory),row.job_start_requested_at,plan.configuration_sha256,row.job_execution_template_sha256]);
+        row=saved[0]||await load(windowId);
+        // A competing recovery can be reused only if it bound the same exact
+        // execution. Persisted identity always precedes any stop request.
+        if(row.azure_execution_name!==recovered.execution_name)fail('gpu_recovery_identity_conflict');
+      }
       let observation;
       const begun=Date.parse(row.begun_at);
       if (!Number.isFinite(begun)) fail('gpu_job_begin_time_invalid');
       if (cancel||now()>=begun+row.job_runtime_seconds*1000) {
         await db(JOB_SQL.stop,[windowId,policy.budgetId]);
-        observation=await inspector.stop(row.azure_execution_name);
-      } else observation=await inspector.observe(row.azure_execution_name);
+        observation=await inspector.stop(row.azure_execution_name,row.job_execution_template_sha256?row.window_id:undefined);
+      } else observation=await inspector.observe(row.azure_execution_name,row.job_execution_template_sha256?row.window_id:undefined);
       const state=observation.terminal?'terminal_observed':observation.state==='stop_pending'?'stop_pending':observation.state==='unknown'?'observation_unknown':'running';
       const saved=await db(JOB_SQL.observed,[windowId,policy.budgetId,state,commitment(observation)]);
       if (saved.length!==1) fail('gpu_job_observation_not_saved');

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {isolatedJobPlan,inspectJobSnapshot,executionObservation,createAzureJobInspector,deploymentTemplate,commitment} from '../../services/azure-gpu-job/controller.mjs';
+import {isolatedJobPlan,inspectJobSnapshot,executionObservation,createAzureJobInspector,deploymentTemplate,commitment,recoverStartedExecution,windowExecutionTemplate} from '../../services/azure-gpu-job/controller.mjs';
 import {createGpuJobSupervisor,JOB_SQL as J} from '../../services/azure-gpu-job/supervisor.mjs';
 import {GPU_WINDOW_SQL as Q} from '../../api/_gpu-allocation-budget.js';
 globalThis.fetch=()=>{throw Error('network_forbidden');};
@@ -22,9 +22,10 @@ function fixture({startStatus=200,stopStatus=200,missing=false,pages=false,now=D
   if(sql===Q.existing)return row?[{...row}]:[];
   if(sql===Q.begin){if(row.state!=='reserved')return[];row.state='in_flight';row.begun_at='2026-09-08T00:00:00Z';return[{...row}];}
   if(sql===Q.uncertain){row.state='uncertain';return[];}
-  if(sql===J.bind){Object.assign(row,{azure_job_id:p[3],job_configuration_sha256:p[4],job_runtime_seconds:p[5],job_control_state:'start_claimed'});return[{...row}];}
+  if(sql===J.bind){Object.assign(row,{azure_job_id:p[3],job_configuration_sha256:p[4],job_runtime_seconds:p[5],job_control_state:'start_claimed',job_prestart_inventory:JSON.parse(p[6]),job_start_requested_at:'2026-09-08T00:00:00.123456Z',job_execution_template_sha256:p[7]});return[{...row}];}
   if(sql===J.started){Object.assign(row,{azure_execution_name:p[3],job_control_state:'running'});return[{...row}];}
   if(sql===J.unknown){row.job_control_state='start_unknown';return[{...row}];}
+  if(sql===J.recover){if(row.azure_execution_name)return[];Object.assign(row,{azure_execution_name:p[2],job_recovery_sha256:p[3],job_control_state:'running'});return[{...row}];}
   if(sql===J.read)return[{...row}];
   if(sql===J.stop){row.job_control_state='stop_requested';return[{...row}];}
   if(sql===J.observed){if(row.job_control_state==='terminal_observed')return[];row.job_control_state=p[2];return[{...row}];}
@@ -32,11 +33,11 @@ function fixture({startStatus=200,stopStatus=200,missing=false,pages=false,now=D
  };
  const fetchImpl=async(url,options)=>{
   assert(url.startsWith('https://management.azure.com'+prefix));assert.equal(options.redirect,'error');
-  if(url.includes('/start?')){post++;assert.equal(options.method,'POST');assert.deepEqual(JSON.parse(options.body),plan.properties.template);
+  if(url.includes('/start?')){post++;assert.equal(options.method,'POST');assert.deepEqual(JSON.parse(options.body),windowExecutionTemplate(plan,row.window_id));
    assert.equal(row.job_control_state,'start_claimed');assert.equal(row.state,'in_flight');assert.equal(row.accounting_basis,'planning_estimate');
-   current=execution('Running');return new Response(startStatus===200?JSON.stringify(current):'',{status:startStatus});}
-  if(url.includes('/stop?')){stops++;if(stopStatus===200)current=execution('Succeeded');return new Response('',{status:stopStatus});}
-  if(url.includes('/executions?'))return Response.json({value:missing?[]:current?[current]:[],nextLink:pages?'https://attacker.invalid/':null});
+   current=execution('Running');current.properties.template=JSON.parse(options.body);return new Response(startStatus===200?JSON.stringify(current):'',{status:startStatus});}
+  if(url.includes('/stop?')){assert.equal(row.azure_execution_name,'probe-one');stops++;if(stopStatus===200){const template=current.properties.template;current=execution('Succeeded');current.properties.template=template;}return new Response('',{status:stopStatus});}
+  if(url.includes('/executions?'))return Response.json({value:missing?[]:Array.isArray(current)?current:current?[current]:[],nextLink:pages?'https://attacker.invalid/':null});
   if(url.includes('/managedEnvironments/'))return Response.json(environment);
   return Response.json(resource);
  };
@@ -74,6 +75,52 @@ await test('durable reservation and claim precede one exact start POST',async()=
 await test('202 start stays unknown with held funds and no implicit retry',async()=>{
  const f=fixture({startStatus:202});await assert.rejects(f.supervisor.start(hash('c')),/outcome_unknown/);
  assert.equal(f.state().row.job_control_state,'start_unknown');assert.equal(f.state().reserved,138600);assert.equal(f.state().post,1);
+});
+await test('202 recovery persists unique identity before named stop and is idempotent',async()=>{
+ const f=fixture({startStatus:202});await assert.rejects(f.supervisor.start(hash('c')));
+ const id=f.state().row.window_id;
+ const v=await f.supervisor.supervise(id,{cancel:true});assert.equal(v.terminal,true);
+ assert.equal(f.state().post,1);assert.equal(f.state().stops,1);assert(f.state().row.job_recovery_sha256);
+ assert(f.state().calls.indexOf(J.recover)<f.state().calls.indexOf(J.stop));
+ await f.supervisor.supervise(id,{cancel:true});assert.equal(f.state().post,1);assert.equal(f.state().stops,1);
+ assert.equal(f.state().reserved,138600);
+});
+await test('unknown start can recover after supervisor process replacement',async()=>{
+ const f=fixture({startStatus:202});await assert.rejects(f.supervisor.start(hash('c')));
+ const restored=createGpuJobSupervisor({db:f.db,plan,policy:f.policy,getToken:async()=>'synthetic',fetchImpl:f.fetchImpl,now:()=>Date.parse('2026-09-08T00:05:00Z')});
+ assert.equal((await restored.supervise(f.state().row.window_id,{cancel:true})).terminal,true);
+});
+await test('ambiguous, stale, future, wrong-template and missing starts never guessed',async()=>{
+ for(const kind of ['ambiguous','stale','future','template','missing','old']){
+  const f=fixture({startStatus:202});await assert.rejects(f.supervisor.start(hash('c')));
+  const one=execution('Running');one.properties.template=windowExecutionTemplate(plan,f.state().row.window_id);
+  if(kind==='ambiguous')f.setCurrent([one,{...clone(one),id:plan.job_id+'/executions/second',name:'second'}]);
+  if(kind==='stale'){one.properties.startTime='2026-09-07T23:59:59Z';f.setCurrent(one);}
+  if(kind==='future'){one.properties.startTime='2026-09-08T01:00:00Z';f.setCurrent(one);}
+  if(kind==='template'){one.properties.template.containers[0].image+='x';f.setCurrent(one);}
+  if(kind==='missing')f.setCurrent(null);
+  if(kind==='old')f.state().row.job_prestart_inventory=[{id:one.id,name:one.name}];
+  await assert.rejects(f.supervisor.supervise(f.state().row.window_id,{cancel:true}));
+  assert.equal(f.state().stops,0);assert.equal(f.state().post,1);assert.equal(f.state().reserved,138600);
+ }
+});
+await test('another actor shared-template execution cannot bind our unknown start',async()=>{
+ const f=fixture({startStatus:202});await assert.rejects(f.supervisor.start(hash('c')));f.setCurrent(execution('Running'));
+ await assert.rejects(f.supervisor.supervise(f.state().row.window_id,{cancel:true}),/template_mismatch/);assert.equal(f.state().stops,0);
+});
+await test('changed current policy cannot expand original persisted recovery interval',async()=>{
+ const f=fixture({startStatus:202});await assert.rejects(f.supervisor.start(hash('c')));
+ const late=execution('Running');late.properties.template=windowExecutionTemplate(plan,f.state().row.window_id);late.properties.startTime='2026-09-08T00:05:01Z';f.setCurrent(late);
+ const changed=createGpuJobSupervisor({db:f.db,plan,policy:{...f.policy,planningHeadroomSeconds:400,limitMicrousd:300000},getToken:async()=>'synthetic',fetchImpl:f.fetchImpl});
+ await assert.rejects(changed.supervise(f.state().row.window_id,{cancel:true}),/outside_window/);assert.equal(f.state().stops,0);
+});
+await test('legacy unknown row without prestart evidence refuses recovery',async()=>{
+ const f=fixture({startStatus:202});await assert.rejects(f.supervisor.start(hash('c')));f.state().row.job_prestart_inventory=null;
+ await assert.rejects(f.supervisor.supervise(f.state().row.window_id),/inventory_unavailable/);assert.equal(f.state().stops,0);
+});
+await test('unobserved ARM defaults remain rejected pending actual metadata',()=>{
+ const changed=clone(resource);changed.properties.configuration.eventTriggerConfig=null;
+ assert.throws(()=>inspectJobSnapshot(plan,changed,environment),/configuration_drift/);
 });
 await test('server deadline supervision stops named execution then observes terminal',async()=>{
  const f=fixture(),r=await f.supervisor.start(hash('c')),v=await f.supervisor.supervise(r.window_id);

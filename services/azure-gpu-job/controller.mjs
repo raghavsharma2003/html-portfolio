@@ -94,21 +94,79 @@ function executionName(name) {
   return name;
 }
 
-export function executionObservation(plan, name, executions) {
+export function windowExecutionTemplate(plan, windowId) {
+  validatePlan(plan);
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(windowId||''))fail('gpu_window_id_invalid');
+  const template=structuredClone(plan.properties.template);
+  template.containers[0].env=[{name:'VYAKTI_GPU_WINDOW_ID',value:windowId}];
+  return template;
+}
+
+export function executionObservation(plan, name, executions, windowId) {
   validatePlan(plan);
   const id = `${plan.job_id}/executions/${executionName(name)}`;
   const rows = executions.filter(e => e.id === id && e.name === name);
   if (rows.length !== 1) return {execution_id: id, state: 'unknown', terminal: false, accounting_state: 'accounting_pending'};
   const row = rows[0], p = row.properties || {};
-  if (commitment(p.template) !== plan.template_sha256) fail('gpu_execution_template_mismatch');
+  const expectedHash=windowId?commitment(windowExecutionTemplate(plan,windowId)):plan.template_sha256;
+  if (commitment(p.template) !== expectedHash) fail('gpu_execution_template_mismatch');
   const terminal = ['Succeeded', 'Failed', 'Stopped'].includes(p.status)
     && Number.isFinite(Date.parse(p.startTime)) && Number.isFinite(Date.parse(p.endTime))
     && Date.parse(p.endTime) >= Date.parse(p.startTime);
   // Execution status is not a meter receipt. Even terminal status never sets
   // allocation_terminated or accounted for the 147 settlement interface.
   return {execution_id: id, state: p.status || 'Unknown', terminal,
-    configuration_sha256: plan.configuration_sha256, template_sha256: plan.template_sha256,
+    configuration_sha256: plan.configuration_sha256, template_sha256: expectedHash,
     accounting_state: 'accounting_pending', accounted: false};
+}
+
+export function prestartInventory(plan, executions) {
+  validatePlan(plan);
+  if (!Array.isArray(executions) || executions.length>1000) fail('gpu_execution_inventory_invalid');
+  const seen=new Set();
+  return executions.map(row=>{
+    const name=executionName(row?.name);
+    if(row.id!==`${plan.job_id}/executions/${name}`||seen.has(row.id))fail('gpu_execution_inventory_invalid');
+    seen.add(row.id);
+    // Old completed executions may use an earlier image, so retain their
+    // identity but do not require their template to match this new plan.
+    const p=row.properties||{};
+    if(!['Succeeded','Failed','Stopped'].includes(p.status))fail('gpu_job_has_live_execution');
+    return {id:row.id,name,start_time:p.startTime||null,template_sha256:commitment(p.template||{})};
+  }).sort((a,b)=>a.id.localeCompare(b.id));
+}
+
+export function recoverStartedExecution(plan, window, executions) {
+  validatePlan(plan);
+  const inventory=window?.job_prestart_inventory;
+  if(!Array.isArray(inventory)||inventory.length>1000||window.azure_job_id!==plan.job_id
+    ||window.job_configuration_sha256!==plan.configuration_sha256)fail('gpu_recovery_inventory_unavailable');
+  const requested=Date.parse(window.job_start_requested_at);
+  const allocationSeconds=Number(window.max_allocation_seconds);
+  if(!Number.isFinite(requested)||!Number.isSafeInteger(window.job_runtime_seconds)||window.job_runtime_seconds<1
+    ||!Number.isSafeInteger(allocationSeconds)||allocationSeconds<window.job_runtime_seconds||allocationSeconds>3600)fail('gpu_recovery_time_invalid');
+  const expectedHash=commitment(windowExecutionTemplate(plan,window.window_id));
+  if(window.job_execution_template_sha256!==expectedHash)fail('gpu_recovery_template_binding_unavailable');
+  const old=new Set(inventory.map(row=>row.id));
+  if(old.size!==inventory.length||inventory.some(row=>row.id!==`${plan.job_id}/executions/${executionName(row.name)}`))fail('gpu_recovery_inventory_invalid');
+  if(!Array.isArray(executions)||executions.length>1000)fail('gpu_execution_inventory_invalid');
+  const fresh=executions.filter(row=>!old.has(row?.id));
+  // Refuse all ambiguity, including a second candidate with another image.
+  // Choosing the most recent or closest start would silently guess ownership.
+  if(fresh.length!==1)fail(fresh.length?'gpu_recovery_ambiguous':'gpu_recovery_not_visible');
+  const candidate=fresh[0],name=executionName(candidate.name),p=candidate.properties||{};
+  if(candidate.id!==`${plan.job_id}/executions/${name}`)fail('gpu_recovery_execution_mismatch');
+  const started=Date.parse(p.startTime);
+  const last=requested+allocationSeconds*1000;
+  // ARM timestamps can have second precision. The lower edge is the same
+  // UTC second as the persisted request, not an arbitrary clock-skew grace.
+  if(!Number.isFinite(started)||started<Math.floor(requested/1000)*1000||started>last)fail('gpu_recovery_outside_window');
+  if(commitment(p.template)!==expectedHash)fail('gpu_execution_template_mismatch');
+  return {execution_name:name,execution_id:candidate.id,recovery_sha256:commitment({
+    window_id:window.window_id,requested_at:window.job_start_requested_at,
+    inventory,execution_id:candidate.id,start_time:p.startTime,template_sha256:expectedHash,
+    configuration_sha256:plan.configuration_sha256,
+  })};
 }
 
 export function createAzureJobInspector({plan, getToken, fetchImpl = globalThis.fetch}) {
@@ -139,23 +197,29 @@ export function createAzureJobInspector({plan, getToken, fetchImpl = globalThis.
       const environment = await (await request(plan.properties.environmentId)).json();
       return inspectJobSnapshot(plan, resource, environment);
     },
-    async observe(name) { return executionObservation(plan, name, await executions()); },
+    async observe(name,windowId) { return executionObservation(plan, name, await executions(),windowId); },
+    async inventory() { return prestartInventory(plan,await executions()); },
+    async recover(window) {
+      // Verify the current job remains the approved job before attribution.
+      await this.inspect();
+      return recoverStartedExecution(plan,window,await executions());
+    },
     async assertIdle() {
       const rows=await executions();
       if(rows.some(row=>!['Succeeded','Failed','Stopped'].includes(row.properties?.status))) fail('gpu_job_has_live_execution');
       return true;
     },
-    async stop(name) {
+    async stop(name,windowId) {
       // One named execution only. Refuse the collection-wide stop API.
       const target = executionName(name);
-      const before = executionObservation(plan, target, await executions());
+      const before = executionObservation(plan, target, await executions(),windowId);
       if (before.state === 'unknown') fail('gpu_execution_unknown');
       if (before.terminal) return before;
       const res = await request(`${plan.job_id}/executions/${target}/stop`, 'POST');
       if (res.status === 202) return {...before, state: 'stop_pending', terminal: false};
       // A 200 is Azure's stop acknowledgement. Observe separately to retain
       // exact execution/template binding, and never interpret cost here.
-      return executionObservation(plan, target, await executions());
+      return executionObservation(plan, target, await executions(),windowId);
     },
     async start() { fail('gpu_billable_allocation_bound_unproven'); },
     async authorizeWindow() { fail('gpu_billable_allocation_bound_unproven'); },

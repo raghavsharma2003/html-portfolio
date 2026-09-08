@@ -17121,3 +17121,8 @@ Rejected routing comparison-only uploads through the ordinary primary selector: 
 ## `gpu-controller33-invoice-and-race` (2026-09-08)
 
 2026-09-08: Independent source review found estimated reservations could reject valid larger invoices, stale polls could replace terminal state with running, and mixed finite/supervised kinds could hide accounting basis.149 now allows honest overrun only on paused/exhausted ledgers; actual GPU overrun pauses further admission. Terminal persistence is monotonic, missing observations are unknown, and grant/controller kinds must match persisted basis. Existing shared HTTP apps remain unsuitable for an isolated request allocation; do not infer total billable bound from replicaTimeout.
+
+
+## `gpu150-unmarked-recovery-and-policy-drift` (2026-09-08)
+
+2026-09-08: Review showed one new shared-template execution could belong to an outside actor, and current policy headroom could expand a prior reservation interval. Exact per-window UUID environment marker and durable template hash now correlate the POST; persisted max_allocation_seconds bounds recovery. Both paths have negative controls. Never retry an unknown start, silently normalize ARM defaults, or release unknown cost.

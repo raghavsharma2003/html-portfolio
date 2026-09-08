@@ -17127,3 +17127,8 @@ On 2026-09-08 in isolated source based f4235c68: new41 offline actual issuer/reg
 ## `gpu-controller33-synthetic` (2026-09-08)
 
 2026-09-08: n=13 synthetic ARM/DB groups and17 allocation groups passed using actual source and fake transports/state. Incumbent provider-budget41 passed. Copy7/21 passed. No real SQL, ARM request, GPU wake, deployment, expense or model/voice quality evaluation. Proposed runtime120s+headroom180s at462microUSD/s equals138600microUSD reserved estimate; separate250000microUSD GPU budget is a proposal, not created.
+
+
+## `gpu150-twenty-synthetic-groups` (2026-09-08)
+
+2026-09-08:20 synthetic ARM/DB groups passed before root host reservation. New controls cover202 recovery, process replacement, identity before stop, duplicate supervision, ambiguous/stale/future/old/missing starts, external shared-template start, changed policy interval and legacy absence. Independent source review found no further blocking defect after corrections. No real SQL, cloud or deployment. Context graph recheck deferred during root performance host reservation.

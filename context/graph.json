@@ -15474,6 +15474,24 @@
       "kind": "rejection",
       "title": "Reject invoice suppression and terminal regression",
       "at": "2026-09-08"
+    },
+    {
+      "id": "gpu150-marker-bound-start-recovery",
+      "kind": "decision",
+      "title": "Correlate asynchronous starts with a persisted per-window marker",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu150-twenty-synthetic-groups",
+      "kind": "measurement",
+      "title": "Twenty supervisor synthetic controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu150-unmarked-recovery-and-policy-drift",
+      "kind": "rejection",
+      "title": "Do not infer start ownership from a shared template and time",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
