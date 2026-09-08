@@ -3,8 +3,10 @@
 import { isAzureOnlyServing } from "./_model-serving-policy.js";
 import { strictConsolidationConfig } from "./_consolidation-config.js";
 
-// Root must admit migration 159 and prove the exact statements before shipping.
-export const ROOM_MEMORY_CONSOLIDATION_ENABLED = false;
+// Migration 159 and the exact caller/lease statements have been admitted and
+// proven. Runtime execution remains default-off behind the Room-only scheduler
+// mode and its independent development/configuration gates.
+export const ROOM_MEMORY_CONSOLIDATION_ENABLED = true;
 export const ROOM_MEMORY_BATCH_CAP = 32;
 export const ROOM_MEMORY_MAX_OUTPUT_TOKENS = 1600;
 export const ROOM_MEMORY_NAME_TAXONOMY = 'Name taxonomy: preference=learner-chosen recurring method/routine/format or like/dislike; learning_context=support need/constraint/current study context, excluding choices; project=explicitly named or bounded ongoing undertaking with intended outcome, excluding methods/routines/subject practice; goal=desired future result; person=named third-party fact; relationship=shared learner-agent relation. Attribution: self-report=learner label; named third party=person; quoted claim about learner=not self-report, skip unsupported trait label.';

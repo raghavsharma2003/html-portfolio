@@ -17642,3 +17642,8 @@ Focused measurement: Room authority and taxonomy n=23 controls passed; correctio
 ## product175-correction-editor-controls (2026-09-09)
 
 Focused measurement: correction dataset UI n=12 checks passed; correction reopen UI n=36 checks passed at 390 and 1440; TypeScript and copy gates passed. No browser, DB, provider or full release checks.
+
+
+## `product175-combined-offline-checks` (2026-09-08)
+
+2026-09-09 local n=1 combined10-command batch at20:41:10–20:42:26UTC: TSbuild,copy,manifestfreshness,env andstrictheartbeat/configpassed;4API suites refused missing ignored_config beforeexecution. Hash-pinned18empty-export stub then4affected reruns20:43:18–20:43:21UTC allpassed: Azure reply,Room caller,Room authority,raw isolation. Receipts product175-integrated-1788900070537/result.json and product175-integrated-1788900198462/result.json. Generated140vercel-app/191totalnames. Existing dependency junction read only; no provider/SQL/credential/configenable/deploy/browser/fullrelease.

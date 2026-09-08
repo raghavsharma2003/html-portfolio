@@ -118,6 +118,33 @@ before it can spend money.
 | `AZURE_REPLICA_BUDGET_ID` | `api/_provider-budget.js:25` | optional | defaults to `"azure-replica-grant-v1"` | none — cosmetic budget-row id only |
 | `AZURE_REPLICA_APP_BUDGET_USD` | `api/_provider-budget.js` | required | throws `provider_budget_limit_required` | every fenced spend, including OpenRouter, Foundry, personal voice and fast transcription, refuses to reserve |
 | `AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS` | `api/_provider-budget.js:28` | required | throws `provider_input_rate_required` | Foundry reservation refuses |
+
+Room consolidation has a separate development opt-in. `CONSOLIDATE_SWEEP_MODE`
+must be exactly `room_only`; the lane then requires `CONSOLIDATE_ROOM_DEV=1`
+and `CONSOLIDATE_SWEEP_LIVE=1`. It reuses the existing Foundry endpoint/key
+and application budget/rates, but has its own model and expected-response-model
+bindings so enabling the Room lane cannot silently use the dialogue model.
+`NEON_URL` remains required for the current development database intent. All
+rows below are optional until the mode is exactly `room_only`.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `CONSOLIDATE_SWEEP_MODE` | Room consolidation caller | optional; exact `room_only` selects the isolated Room lane | unset preserves the legacy disabled/default lane | any other value is rejected by the self-check |
+| `CONSOLIDATE_ROOM_DEV` | Room consolidation caller | conditional; exact `1` when mode is `room_only` | unset keeps Room consolidation disabled | missing or malformed when enabled is BROKEN-HALFWAY |
+| `CONSOLIDATE_SWEEP_LIVE` | Room consolidation caller | conditional; exact `1` when mode is `room_only` | unset keeps Room consolidation disabled | missing or malformed when enabled is BROKEN-HALFWAY |
+| `VYAKTI_MODEL_SERVING` | Room consolidation caller and Azure serving policy | conditional; exact `azure_only` when mode is `room_only` | unset preserves the existing default | another value is rejected before provider construction |
+| `AZURE_FOUNDRY_ROOM_MEMORY_MODEL` | Room consolidation provider binding | conditional when `CONSOLIDATE_SWEEP_MODE=room_only` | none | Room memory remains unavailable until the dedicated model is named |
+| `AZURE_FOUNDRY_ROOM_MEMORY_EXPECTED_RESPONSE_MODEL` | Room consolidation response binding | conditional when `CONSOLIDATE_SWEEP_MODE=room_only` | none | Room memory remains unavailable until the expected response model is named |
+| `CONSOLIDATE_ROOM_PERSON_LIMIT` | Room consolidation caller | optional; integer `1` through `10` when mode is `room_only` | unset defaults to `1` | an out-of-range or non-integer value is rejected by the self-check |
+
+When enabled, the self-check also requires the existing `AZURE_FOUNDRY_ENDPOINT`,
+`AZURE_FOUNDRY_API_KEY`, `AZURE_REPLICA_BUDGET_ID`, `AZURE_REPLICA_APP_BUDGET_USD`,
+`AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS`, `AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS`,
+and `NEON_URL`. It checks the endpoint with the existing Azure-origin policy
+and the budget ID, positive finite limit, and positive finite rates with the
+existing Foundry budget validator. A `LIVE` preflight result means only that
+the configuration shape is complete; it proves no provider, database, or Room
+memory readiness. No credential or model value is provisioned by this manifest.
 | `AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS` | `api/_provider-budget.js:29` | required | throws `provider_output_rate_required` | Foundry reservation refuses |
 | `OPENROUTER_INPUT_USD_PER_MTOKENS` | `api/_provider-budget.js` | required for OpenRouter claim extraction | none | OpenRouter reservation refuses |
 | `OPENROUTER_OUTPUT_USD_PER_MTOKENS` | `api/_provider-budget.js` | required for OpenRouter claim extraction | none | OpenRouter reservation refuses |
@@ -1506,6 +1533,7 @@ from a different claim-extraction deployment.
 | `AZURE_FOUNDRY_REPLY_MODEL` | `api/_azure-surface-reply.js` | optional unless Azure replies are selected | none | selected Azure replies refuse |
 | `AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS` | `api/_azure-surface-reply.js` | optional unless Azure replies are selected | none | unpriced replies cannot reserve budget |
 | `AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS` | `api/_azure-surface-reply.js` | optional unless Azure replies are selected | none | unpriced replies cannot reserve budget |
+| `AZURE_FOUNDRY_REPLY_RATE_MODEL` | `api/_azure-surface-reply.js` | optional unless Terra replies are selected | none | must equal the selected deployment to acknowledge its separately verified input/output rate card; changing only the model refuses |
 
 ## 37. Account-material text publication (`vercel-app`, 2026-09-08)
 

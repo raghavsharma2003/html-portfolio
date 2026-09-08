@@ -17645,3 +17645,8 @@ Only the reviewed taxonomy and correction intent product and eval files were imp
 ## product175-correction-editor-scope (2026-09-09)
 
 Only reviewed correction product, CSS and eval paths were imported. Experimental combined auth and foreign context graph changes remain excluded.
+
+
+## `product175-missing-config-is-not-contract-failure` (2026-09-08)
+
+2026-09-09 local4API suites initially ERR_MODULE_NOT_FOUND for ignored api/_config.js. No actual assertions executed. Preserve first receipt; create only known SHA728dc5821336bed9c5ad851b3e837a54d342674923de81454ce11b0a2d48a432 blank stub, thenrerun4affected tests. Never copy local174/caller165 live credentials or infer operational Room enablement from offlinepass.

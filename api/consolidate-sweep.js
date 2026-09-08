@@ -1,7 +1,7 @@
 import {
   ROOM_MEMORY_DISCOVERY_SQL,
 } from "./_room-memory-authority.js";
-import {roomMemorySweepEnabled, runMeteredRoomMemoryConsolidation,
+import {assertRoomMemorySweepReady, roomMemoryPersonLimit, roomMemorySweepEnabled, runMeteredRoomMemoryConsolidation,
   ROOM_MEMORY_CLAIM_SQL, ROOM_MEMORY_RELEASE_SQL} from './_room-memory-consolidation.js';
 // Hourly consolidation sweep — Law E4 (docs/SPEC-AGENT-LAYER.md §5): "memory
 // that is not consolidated does not exist." Measured 2026-08-18: 40 of 41
@@ -159,6 +159,7 @@ const KILL = ["1", "true", "yes"].includes(String(process.env.CONSOLIDATE_KILL |
 // An explicit `?dryRun=1` always forces a dry run, so a human can ask for
 // arithmetic on a live-configured project without unsetting anything.
 const SWEEP_LIVE = ["1", "true", "yes"].includes(String(process.env.CONSOLIDATE_SWEEP_LIVE || "").toLowerCase());
+const SWEEP_MODE = String(process.env.CONSOLIDATE_SWEEP_MODE || "legacy").trim();
 
 // PER-INVOCATION SPEND CEILINGS. These are the rails that make the first run
 // over the backlog safe to leave unattended. Checked BETWEEN people (never
@@ -345,9 +346,9 @@ export async function findLaggingRelationships(limit, queryFn = q) {
  *  Neon SQL-HTTP's one-statement-per-request rule (no session/xact advisory
  *  lock survives across two separate q() calls, so the claim MUST be atomic
  *  within one statement, not coordinated across several). */
-async function claim(agentId, personId, runId) {
+async function claim(agentId, personId, runId, roomOnly = false) {
   const rows = await q(
-    agentId !== MEERA_AGENT_ID ? ROOM_MEMORY_CLAIM_SQL : `insert into meera_consolidate_lease (agent_id, person_id, leased_at, leased_by, run_id)
+    roomOnly ? ROOM_MEMORY_CLAIM_SQL : `insert into meera_consolidate_lease (agent_id, person_id, leased_at, leased_by, run_id)
      values (($1)::uuid, $2, now(), 'sweep', $3)
      on conflict (agent_id, person_id) do update
        set leased_at = now(), leased_by = 'sweep', run_id = $3
@@ -361,9 +362,9 @@ async function claim(agentId, personId, runId) {
 /** Release only the lease THIS run holds — guarded by run_id so a slow
  *  invocation whose lease already expired and was taken over by a newer one
  *  can never release the newer one's claim out from under it. */
-async function release(agentId, personId, runId) {
+async function release(agentId, personId, runId, roomOnly = false) {
   await q(
-    agentId !== MEERA_AGENT_ID ? ROOM_MEMORY_RELEASE_SQL : `delete from meera_consolidate_lease
+    roomOnly ? ROOM_MEMORY_RELEASE_SQL : `delete from meera_consolidate_lease
       where agent_id = ($1)::uuid and person_id = $2 and run_id = $3`,
     [agentId, personId, runId],
   ).catch(
@@ -434,9 +435,25 @@ export default async function handler(req, res) {
       : body.dryRun === undefined
         ? null
         : body.dryRun !== false;
-  const dryRun = explicit !== null ? explicit : !SWEEP_LIVE;
+  if (!['legacy','room_only'].includes(SWEEP_MODE)) {
+    return res.status(503).json({error:'sweep_mode_invalid'});
+  }
+  const roomOnly = SWEEP_MODE === 'room_only';
+  if (roomOnly && !roomMemorySweepEnabled()) {
+    return res.status(503).json({error:'room_memory_sweep_disabled'});
+  }
+  // Room spend requires both deployment switches. A request may force it dry,
+  // but cannot turn a default-off scheduled consumer live by itself.
+  const dryRun = roomOnly ? explicit === true || !SWEEP_LIVE : explicit !== null ? explicit : !SWEEP_LIVE;
   const enabledBy = explicit !== null ? "request" : SWEEP_LIVE ? "env CONSOLIDATE_SWEEP_LIVE" : "default (dry)";
-  const personBudget = Math.max(1, Math.min(MAX_PERSON_BUDGET, Number(body.limit) || DEFAULT_PERSON_BUDGET));
+  let personBudget;
+  try {
+    const configuredRoomLimit=roomOnly?roomMemoryPersonLimit():MAX_PERSON_BUDGET;
+    personBudget=Math.max(1,Math.min(configuredRoomLimit,
+      Number(body.limit)||(roomOnly?configuredRoomLimit:DEFAULT_PERSON_BUDGET)));
+  } catch(error) {
+    return res.status(error?.status||503).json({error:error?.code||'room_memory_configuration_invalid'});
+  }
 
   try {
     // WS-R21: the ops board's heartbeat (migration 084). The inner function
@@ -445,20 +462,22 @@ export default async function handler(req, res) {
     // heartbeat's own UPDATE, from the returned object, so the JSON body a
     // caller sees is byte-identical to before this change.
     const summary = await withSweepRun(q, "consolidate", async () => {
-    await ensureSchema();
+    if(roomOnly) await assertRoomMemorySweepReady(q);
+    else await ensureSchema();
     const t0 = Date.now();
     // Keep the incumbent Meera write path byte-for-byte scoped as before.
     // Consented clone pairs are observed separately, but remain blocked until
     // every downstream writer can bind the current Room memory generation.
     const sweepAgentId = MEERA_AGENT_ID;
-    const [legacyCandidates, relationshipDiscovery] = await Promise.all([
-      findLaggingPersons(CANDIDATE_FETCH, sweepAgentId),
-      findLaggingRelationships(CANDIDATE_FETCH).then(
-        (value) => ({ ok: true, value }),
-        () => ({ ok: false, value: [] }),
-      ),
-    ]);
-    const roomCandidates = roomMemorySweepEnabled()
+    const [legacyCandidates, relationshipDiscovery] = roomOnly ? [[],{ok:true,value:[]}]
+      : await Promise.all([
+        findLaggingPersons(CANDIDATE_FETCH, sweepAgentId),
+        findLaggingRelationships(CANDIDATE_FETCH).then(
+          (value) => ({ ok: true, value }),
+          () => ({ ok: false, value: [] }),
+        ),
+      ]);
+    const roomCandidates = roomOnly
       ? await q(ROOM_MEMORY_DISCOVERY_SQL, [CANDIDATE_FETCH, MEERA_AGENT_ID]) : [];
     const candidates = [...legacyCandidates.map(c=>({...c,agent_id:MEERA_AGENT_ID})), ...roomCandidates]
       .sort((a,b)=>new Date(a.oldest_pending_at)-new Date(b.oldest_pending_at))
@@ -470,7 +489,7 @@ export default async function handler(req, res) {
         person_id: candidate.person_id,
         pending_rows: Number(candidate.pending_rows),
         oldest_pending_at: candidate.oldest_pending_at,
-        blocker: roomMemorySweepEnabled() ? "clone_memory_legacy_source_authority_unavailable" : "clone_memory_write_authority_proof_pending",
+        blocker: "clone_memory_room_sweep_disabled",
       }));
     if (!relationshipDiscovery.ok) waitingOnUs.push({ blocker: "clone_memory_backlog_check_unavailable" });
 
@@ -597,7 +616,11 @@ export default async function handler(req, res) {
       }
       const person = c.person_id;
       const candidateAgentId = c.agent_id;
-      const got = await claim(candidateAgentId, person, runId);
+      if(roomOnly&&candidateAgentId===MEERA_AGENT_ID) {
+        results.push({agent:candidateAgentId,person,error:'room_memory_candidate_scope_invalid'});
+        continue;
+      }
+      const got = await claim(candidateAgentId, person, runId, roomOnly);
       if (!got) {
         results.push({ agent: candidateAgentId, person, skipped: "leased" });
         continue;
@@ -615,7 +638,7 @@ export default async function handler(req, res) {
         // facts and leaves every derived table empty, which renders as nothing
         // and reports as success.
         const before = spent();
-        if (candidateAgentId !== MEERA_AGENT_ID) {
+        if (roomOnly) {
           const out = await runMeteredRoomMemoryConsolidation(c, {queryFn:q,llm,runId});
           const after = spent();
           results.push({agent:candidateAgentId,person,...out,
@@ -661,7 +684,7 @@ export default async function handler(req, res) {
         results.push({ agent: candidateAgentId, person, error: e?.message || "consolidation failed" });
         // no state write on failure — see the law note above
       } finally {
-        await release(candidateAgentId, person, runId);
+        await release(candidateAgentId, person, runId, roomOnly);
       }
     }
 
@@ -691,9 +714,12 @@ export default async function handler(req, res) {
       results,
       ms: Date.now() - t0,
     };
-    });
+    }, roomOnly ? {strictHeartbeat:true} : undefined);
     return res.status(summary.dryRun || !summary.halted ? 200 : 500).json(summary);
   } catch (e) {
-    return res.status(500).json({ error: "sweep failure", message: e?.message });
+    if(!roomOnly) return res.status(500).json({error:"sweep failure",message:e?.message});
+    return res.status(e?.status||500).json({error:e?.code||"sweep_failure",
+      retryable:e?.retryable,work_started:e?.work_started,work_completed:e?.work_completed,
+      work_outcome:e?.work_outcome,message:e?.message});
   }
 }

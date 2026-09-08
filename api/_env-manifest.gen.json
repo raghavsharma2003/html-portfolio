@@ -293,15 +293,6 @@
     "required": true
   },
   {
-    "name": "AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS",
-    "section": "2",
-    "sectionTitle": "LLM spend fencing (`vercel-app`)",
-    "target": [
-      "vercel-app"
-    ],
-    "required": true
-  },
-  {
     "name": "AZURE_FOUNDRY_REPLY_API_KEY",
     "section": "36",
     "sectionTitle": "Optional shared Azure reply (`vercel-app`, 2026-09-06)",
@@ -341,6 +332,33 @@
     "name": "AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS",
     "section": "36",
     "sectionTitle": "Optional shared Azure reply (`vercel-app`, 2026-09-06)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "AZURE_FOUNDRY_REPLY_RATE_MODEL",
+    "section": "36",
+    "sectionTitle": "Optional shared Azure reply (`vercel-app`, 2026-09-06)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "AZURE_FOUNDRY_ROOM_MEMORY_EXPECTED_RESPONSE_MODEL",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "AZURE_FOUNDRY_ROOM_MEMORY_MODEL",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
     "target": [
       "vercel-app"
     ],
@@ -560,6 +578,42 @@
     "required": true
   },
   {
+    "name": "CONSOLIDATE_ROOM_DEV",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "CONSOLIDATE_ROOM_PERSON_LIMIT",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "CONSOLIDATE_SWEEP_LIVE",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
+    "name": "CONSOLIDATE_SWEEP_MODE",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
+    ],
+    "required": false
+  },
+  {
     "name": "CRON_SECRET",
     "section": "15",
     "sectionTitle": "Cron auth — the vercel-env-only var (`vercel-app`, **not** baked by `write-config.mjs`)",
@@ -721,15 +775,6 @@
     "required": true
   },
   {
-    "name": "OPENROUTER_INPUT_USD_PER_MTOKENS",
-    "section": "2",
-    "sectionTitle": "LLM spend fencing (`vercel-app`)",
-    "target": [
-      "vercel-app"
-    ],
-    "required": true
-  },
-  {
     "name": "OPENROUTER_KEY",
     "section": "1",
     "sectionTitle": "LLM claim extraction + dialogue generation (`vercel-app`)",
@@ -737,15 +782,6 @@
       "vercel-app"
     ],
     "required": false
-  },
-  {
-    "name": "OPENROUTER_OUTPUT_USD_PER_MTOKENS",
-    "section": "2",
-    "sectionTitle": "LLM spend fencing (`vercel-app`)",
-    "target": [
-      "vercel-app"
-    ],
-    "required": true
   },
   {
     "name": "OPEN_VOICE_HMAC_SECRET",
@@ -1213,6 +1249,15 @@
     "target": [
       "vercel-app",
       "web build"
+    ],
+    "required": false
+  },
+  {
+    "name": "VYAKTI_MODEL_SERVING",
+    "section": "2",
+    "sectionTitle": "LLM spend fencing (`vercel-app`)",
+    "target": [
+      "vercel-app"
     ],
     "required": false
   },

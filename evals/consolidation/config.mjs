@@ -123,7 +123,7 @@ try {
   // Git line endings are not schema changes; pin the canonical LF source.
   const ddl=readFileSync(new URL('../../db/migrations/159_room_memory_authority.sql',import.meta.url),'utf8').replace(/\r\n/g,'\n');
   assert.equal(hash(ddl),'f178a32a07fbc640671787c733850f75451e3bb2de9a41b26632813aab5539e5');
-  assert.equal(memory.ROOM_MEMORY_CONSOLIDATION_ENABLED,false);
+  assert.equal(memory.ROOM_MEMORY_CONSOLIDATION_ENABLED,true);
  });
  console.log(`${checks} configuration controls passed; synthetic transports only.`);
 } finally {

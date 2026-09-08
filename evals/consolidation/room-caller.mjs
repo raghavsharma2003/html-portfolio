@@ -1,17 +1,12 @@
 // Actual cron handler -> counted llm -> production meter -> guarded Room commit.
-// Only DB/HTTP and the source enable flag are test doubles; no real SQL parsing.
+// Only DB/HTTP are test doubles; no real SQL parsing.
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
 import {readFileSync} from 'node:fs';
 const api=new URL('../../api/',import.meta.url);
-const roomUrl=new URL('_room-memory-authority.js',api).href;
-const originalRoom=readFileSync(new URL(roomUrl),'utf8');
-assert.match(originalRoom,/ROOM_MEMORY_CONSOLIDATION_ENABLED\s*=\s*false/);
 const hooks=registerHooks({load(url,context,next){
   if(url===new URL('_db.js',api).href) return {format:'module',shortCircuit:true,
     source:'export const q=(...args)=>globalThis.__roomCallerDb(...args);'};
-  if(url===roomUrl) return {format:'module',shortCircuit:true,
-    source:originalRoom.replace(/ROOM_MEMORY_CONSOLIDATION_ENABLED\s*=\s*false/,'ROOM_MEMORY_CONSOLIDATION_ENABLED=true')};
   return next(url,context);
 }});
 const env={VYAKTI_MODEL_SERVING:'azure_only',CONSOLIDATE_ROOM_DEV:'1',
@@ -20,7 +15,8 @@ const env={VYAKTI_MODEL_SERVING:'azure_only',CONSOLIDATE_ROOM_DEV:'1',
   AZURE_FOUNDRY_ROOM_MEMORY_EXPECTED_RESPONSE_MODEL:'gpt-4.1-mini-2025-04-14',
   AZURE_REPLICA_BUDGET_ID:'room-caller-fixture',AZURE_REPLICA_APP_BUDGET_USD:'1',
   AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS:'0.4',AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS:'1.6',
-  CONSOLIDATE_SWEEP_SECRET:'synthetic-offline-sweep-secret',CONSOLIDATE_KILL:'0'};
+  CONSOLIDATE_SWEEP_SECRET:'synthetic-offline-sweep-secret',CONSOLIDATE_KILL:'0',
+  CONSOLIDATE_SWEEP_MODE:'room_only',CONSOLIDATE_SWEEP_LIVE:'1',CONSOLIDATE_ROOM_PERSON_LIMIT:'1'};
 const prior={...process.env},priorFetch=globalThis.fetch;
 Object.assign(process.env,env);
 const R=await import('../../api/_room-memory-authority.js');
@@ -35,9 +31,15 @@ const output=JSON.stringify({memories:[{source_id:'41',kind:'relationship',name:
 function fixture(options={}) {
   const s={events:[],consent:true,lease:{run_id:'fixture-run',leased_by:'sweep'},spend:null,writes:0,http:0};
   s.db=async(sql,p=[])=>{
-    if(sql===R.ROOM_MEMORY_BATCH_SQL){s.events.push('batch');return s.consent?[{...row}]:[];}
+    if(sql===W.ROOM_MEMORY_SWEEP_READINESS_SQL){s.events.push('readiness');return [{schema_ready:options.schemaReady!==false,budget_ready:options.budgetReady!==false}];}
+    if(sql.includes("insert into vy_sweep_run")&&sql.includes('returning run_id')){s.events.push('heartbeat-start');return[{run_id:p[0],outcome:'running'}];}
+    if(sql.includes('update vy_sweep_run')&&sql.includes('returning run_id')){s.events.push('heartbeat-finish');return[{run_id:p[0],outcome:p[1],finished_at:new Date().toISOString()}];}
+    if(sql.includes('delete from vy_sweep_run')){s.events.push('heartbeat-prune');return[];}
+    if(sql===R.ROOM_MEMORY_BATCH_SQL){s.events.push('batch');return s.consent?[{...row,follower_id:p[0],agent_id:p[1],person_id:p[2]}]:[];}
     if(sql===R.ROOM_MEMORY_COMMIT_SQL){s.events.push('commit');if(!s.consent)return[];s.writes++;return[{facts_written:1,observations_written:1}];}
-    if(sql===R.ROOM_MEMORY_DISCOVERY_SQL)return[{...candidate,pending_rows:1,oldest_pending_at:'2026-09-08T00:00:00Z'}];
+    if(sql===R.ROOM_MEMORY_DISCOVERY_SQL){s.events.push('room-discovery');return Array.from({length:options.discoveryCount||1},(_,i)=>
+      ({...candidate,person_id:`30000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`,pending_rows:1,
+        oldest_pending_at:`2026-09-0${8+i}T00:00:00Z`}));}
     if(sql===W.ROOM_MEMORY_CLAIM_SQL){
       s.events.push('claim');
       if(s.lease?.leased_by.startsWith('room-memory:')&&!['settled','released'].includes(s.spend?.state))return[];
@@ -69,7 +71,9 @@ function fixture(options={}) {
     if(sql.includes('with released as')){s.events.push('release-spend');if(options.releaseUnknown)throw new Error('synthetic_release_ack_lost');
       s.spend.state='released';return[{reserved_microusd:0}];}
     if(sql.includes("set state='reconcile_required'")){s.events.push('uncertain');s.spend.state='reconcile_required';return[];}
-    if(sql.includes('vy_sweep_run')||sql.includes('create table if not exists meera_consolidate_lease'))return[];
+    if(sql.includes('create table if not exists meera_consolidate_lease')){s.events.push('runtime-ddl');return[];}
+    if(sql.includes('coalesce(pd.person_id')&&sql.includes('from meera_log l')){s.events.push('legacy-discovery');return[];}
+    if(sql.includes('vy_sweep_run'))return[];
     // Incumbent Meera/legacy backlog reads are empty in this authored fixture.
     if(sql.includes('meera_log'))return[];
     throw new Error(`Unexpected offline SQL: ${sql.slice(0,70)}`);
@@ -106,16 +110,30 @@ try {
     assert.throws(()=>strictRoomConsolidationConfig({...env,AZURE_FOUNDRY_ENDPOINT:'https://example.com'}));
     assert.throws(()=>strictRoomConsolidationConfig({...env,VYAKTI_MODEL_SERVING:'other'}));
     assert.equal(W.roomMemorySweepEnabled({}),false);
+    assert.equal(W.roomMemorySweepEnabled({...env,CONSOLIDATE_SWEEP_MODE:'legacy'}),false);
+    assert.equal(W.roomMemoryPersonLimit({...env,CONSOLIDATE_ROOM_PERSON_LIMIT:'1'}),1);
+    assert.throws(()=>W.roomMemoryPersonLimit({...env,CONSOLIDATE_ROOM_PERSON_LIMIT:'11'}),/person_limit_invalid/);
     const config=strictRoomConsolidationConfig(env);
     assert.equal(config.url,'https://fixture.services.ai.azure.com/openai/v1/chat/completions');
     assert.equal(config.requestUrl,config.url);assert.equal(new URL(config.requestUrl).search,'');
   });
-  await check('actual incumbent cron dispatches strict schema with exact production meter order',async()=>{
+  await check('Room-only cron checks readiness and dispatches exact production meter order',async()=>{
     const s=fixture();const r=await s.sweep();assert.equal(r.status,200);assert.equal(r.payload.errored,0);
     assert.equal(s.http,1);assert.equal(s.writes,1);assert.equal(s.spend.actual_microusd,285);assert.equal(s.lease,null);
-    assert.deepEqual(s.events.filter(x=>['admit','reserve','begin','http','settle','commit','release-lease'].includes(x)),
-      ['admit','reserve','begin','http','settle','commit','release-lease']);
+    assert.deepEqual(s.events.filter(x=>['heartbeat-start','readiness','room-discovery','admit','reserve','begin','http','settle','commit','release-lease','heartbeat-finish'].includes(x)),
+      ['heartbeat-start','readiness','room-discovery','admit','reserve','begin','http','settle','commit','release-lease','heartbeat-finish']);
+    assert(!s.events.includes('legacy-discovery'));assert(!s.events.includes('runtime-ddl'));
     assert.equal(r.payload.spend.llm_calls,1);assert.equal(r.payload.spend.tokens_in,208);assert.equal(r.payload.spend.tokens_out,126);
+  });
+  await check('Room-only readiness failure writes no lease and dispatches no provider',async()=>{
+    const s=fixture({budgetReady:false}),r=await s.sweep();assert.equal(r.status,503);
+    assert.equal(r.payload.error,'room_memory_budget_unavailable');assert.equal(s.http,0);assert.equal(s.writes,0);
+    assert.deepEqual(s.events,['heartbeat-start','readiness','heartbeat-finish','heartbeat-prune']);
+  });
+  await check('first-preview Room cap remains one even when caller asks for three',async()=>{
+    const s=fixture({discoveryCount:2}),r=await s.sweep();assert.equal(r.status,200);
+    assert.equal(r.payload.candidates_seen,2);assert.equal(r.payload.processed,1);assert.equal(s.http,1);
+    assert.equal(r.payload.results.length,1);assert.equal(r.payload.results[0].agent,candidate.agent_id);
   });
   await check('forget during actual caller model await settles usage and writes zero memories',async()=>{
     const s=fixture({withdrawDuringAwait:true}),r=await s.sweep();
@@ -167,8 +185,11 @@ try {
       assert.match(sql,/s\.state in \('settled','released'\)/);
     }
     const sweep=readFileSync(new URL('consolidate-sweep.js',api),'utf8');
-    assert.match(sweep,/agentId !== MEERA_AGENT_ID \? ROOM_MEMORY_CLAIM_SQL/);
-    assert.match(sweep,/agentId !== MEERA_AGENT_ID \? ROOM_MEMORY_RELEASE_SQL/);
+    assert.match(sweep,/roomOnly \? ROOM_MEMORY_CLAIM_SQL/);
+    assert.match(sweep,/roomOnly \? ROOM_MEMORY_RELEASE_SQL/);
+    assert.match(sweep,/if\(roomOnly\) await assertRoomMemorySweepReady\(q\);/);
+    assert.match(sweep,/else await ensureSchema\(\);/);
+    assert.match(sweep,/if \(roomOnly\)[\s\S]*?runMeteredRoomMemoryConsolidation\(c,[\s\S]*?continue;/);
   });
   console.log(`Room consolidation caller: ${checks} controls passed (offline DB/HTTP doubles; SQL unparsed)`);
 } finally {

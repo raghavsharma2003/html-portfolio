@@ -10,6 +10,11 @@ import {
 
 const VERSION = "2024-05-01-preview";
 const fail = (code) => { throw Object.assign(new Error(code), { code, status: 503 }); };
+// Explicitly tested deployment dialect, not a prefix guess for all GPT models.
+const MODEL_PROTOCOLS = Object.freeze({
+  "gpt-5.6-terra": Object.freeze({ expectedModel: "gpt-5.6-terra-2026-07-09",
+    completion: Object.freeze({ max_completion_tokens: 400, reasoning_effort: "none" }) }),
+});
 
 export function azureSurfaceReplyConfig(env = process.env) {
   let url;
@@ -24,6 +29,10 @@ export function azureSurfaceReplyConfig(env = process.env) {
   const apiKey = String(env.AZURE_FOUNDRY_REPLY_API_KEY || env.AZURE_FOUNDRY_API_KEY || "").trim();
   if (!/^[A-Za-z0-9_.-]{1,120}$/.test(model)) fail("azure_reply_model_required");
   if (apiKey.length < 16) fail("azure_reply_auth_required");
+  const protocol = Object.hasOwn(MODEL_PROTOCOLS, model) ? MODEL_PROTOCOLS[model] : undefined;
+  // A model-only switch must not reuse the incumbent's rates accidentally.
+  // The operator still supplies the verified rate card; prices are not eternal.
+  if (protocol && env.AZURE_FOUNDRY_REPLY_RATE_MODEL !== model) fail("azure_reply_rate_model_mismatch");
   // Prices belong to this exact deployment, not to the independent claim or
   // structured-dialogue model. Reuse the ledger without borrowing its rates.
   const budgetEnv = {
@@ -33,7 +42,7 @@ export function azureSurfaceReplyConfig(env = process.env) {
     AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: env.AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS,
   };
   foundryBudgetConfig(budgetEnv);
-  return { url, model, apiKey, budgetEnv };
+  return { url, model, apiKey, budgetEnv, protocol };
 }
 
 async function boundedJson(response) {
@@ -84,7 +93,8 @@ export async function azureSurfaceReply({ compiled, turns, db, env = process.env
     const response = await fetchImpl(config.url, {
       method: "POST", redirect: "error",
       headers: { "Content-Type": "application/json", "api-key": config.apiKey },
-      body: JSON.stringify({ model: config.model, messages, max_tokens: 400, stream: false }),
+      body: JSON.stringify({ model: config.model, messages,
+        ...(config.protocol?.completion || { max_tokens: 400 }), stream: false }),
       signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000),
     });
     if (!response.ok) fail(`azure_reply_http_${Number(response.status) || "unknown"}`);
@@ -95,6 +105,18 @@ export async function azureSurfaceReply({ compiled, turns, db, env = process.env
     await settleFoundrySpend(db, reservation, {
       input_tokens: usage.prompt_tokens, output_tokens: usage.completion_tokens,
     });
+    if (config.protocol) {
+      // Known usage settles before identity or semantic refusal. Completion
+      // tokens already include reasoning; never charge the detail twice.
+      if (payload?.model !== config.protocol.expectedModel) fail("azure_reply_revision_mismatch");
+      const reasoning = usage.completion_tokens_details?.reasoning_tokens;
+      if (usage.completion_tokens > 400 || (reasoning !== undefined &&
+          (!Number.isSafeInteger(reasoning) || reasoning < 0 || reasoning > usage.completion_tokens))) {
+        fail("azure_reply_usage_contract_invalid");
+      }
+      // system_fingerprint is optional on this API, including successful Terra
+      // responses. No backend fingerprint or qualification claim is inferred.
+    }
     const choice = payload?.choices?.[0];
     if (choice?.finish_reason !== "stop" || typeof choice?.message?.content !== "string" ||
         !choice.message.content.trim()) fail("azure_reply_response_incomplete");

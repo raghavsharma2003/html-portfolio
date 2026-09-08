@@ -49,6 +49,9 @@
 // hand before a deploy phase (see docs/gurukul/DEPLOY.md), not a CI gate.
 // EXITS 0 UNCONDITIONALLY unless --strict is passed, for the same reason.
 
+import { assertAzureServingOrigin } from "../api/_model-serving-policy.js";
+import { foundryBudgetConfig } from "../api/_provider-budget.js";
+
 const args = process.argv.slice(2);
 const strict = args.includes("--strict");
 
@@ -83,6 +86,16 @@ const has = (name) => typeof env[name] === "string" && env[name].length > 0;
  *                                   was touched but points nowhere the code
  *                                   accepts (see e.g. `identity_verifier_unsupported`).
  * @param {string} def.note
+ * @param {boolean} [def.requiredWhenEnabled]  an accepted switch with no
+ *                                             bindings is still BROKEN-HALFWAY
+ * @param {{name:string,expected:string}[]} [def.exactWhenEnabled] values that
+ *                                             must match when the switch is on
+ * @param {{name:string,pattern:RegExp}[]} [def.optionalWhenEnabled] optional
+ *                                             value shapes checked when enabled
+ * @param {string[]} [def.azureOriginsWhenEnabled] origins checked with the
+ *                                             existing Azure serving policy
+ * @param {boolean} [def.budgetWhenEnabled] use the existing Foundry budget
+ *                                             validator when enabled
  */
 function evaluate(def) {
   if (Array.isArray(def.variants)) {
@@ -115,6 +128,31 @@ function evaluate(def) {
     if (switchVal !== def.switch.expected) {
       return { state: "BROKEN-HALFWAY", detail: `${def.switch.var} is set but not to the accepted value — provider construction will throw at runtime` };
     }
+    if (def.requiredWhenEnabled && def.required.every((name) => !has(name))) {
+      return { state: "BROKEN-HALFWAY", detail: `${def.switch.var} enables this subsystem, but none of its required bindings are set` };
+    }
+    for (const binding of def.exactWhenEnabled || []) {
+      if (has(binding.name) && env[binding.name] !== binding.expected) {
+        return { state: "BROKEN-HALFWAY", detail: `${binding.name} is set but not to its accepted value` };
+      }
+    }
+    for (const binding of def.optionalWhenEnabled || []) {
+      if (has(binding.name) && !binding.pattern.test(env[binding.name])) {
+        return { state: "BROKEN-HALFWAY", detail: `${binding.name} has an invalid shape` };
+      }
+    }
+    for (const name of def.azureOriginsWhenEnabled || []) {
+      try {
+        const origin = assertAzureServingOrigin(env[name], { ...env, VYAKTI_MODEL_SERVING: "azure_only" });
+        if (origin.pathname !== "/" || origin.search || origin.hash) throw new Error("origin_shape");
+      } catch {
+        return { state: "BROKEN-HALFWAY", detail: `${name} is not a valid Azure serving origin` };
+      }
+    }
+    if (def.budgetWhenEnabled) {
+      try { foundryBudgetConfig(env); }
+      catch (error) { return { state: "BROKEN-HALFWAY", detail: `${error.code || "provider_budget_invalid"}` }; }
+    }
   }
   if (def.mode === "any") {
     const setCount = def.required.filter(has).length;
@@ -145,6 +183,34 @@ const VERCEL_APP = [
     id: "foundry_dialogue_generation",
     required: ["AZURE_FOUNDRY_ENDPOINT", "AZURE_FOUNDRY_API_KEY", "AZURE_FOUNDRY_DIALOGUE_MODEL"],
     note: "WS-E sheet-authoring assist (api/_dialogue/registry.js)",
+  },
+  {
+    id: "room_memory_consolidation_dev",
+    switch: { var: "CONSOLIDATE_SWEEP_MODE", expected: "room_only" },
+    requiredWhenEnabled: true,
+    required: [
+      "CONSOLIDATE_ROOM_DEV",
+      "CONSOLIDATE_SWEEP_LIVE",
+      "VYAKTI_MODEL_SERVING",
+      "AZURE_FOUNDRY_ENDPOINT",
+      "AZURE_FOUNDRY_API_KEY",
+      "AZURE_FOUNDRY_ROOM_MEMORY_MODEL",
+      "AZURE_FOUNDRY_ROOM_MEMORY_EXPECTED_RESPONSE_MODEL",
+      "AZURE_REPLICA_BUDGET_ID",
+      "AZURE_REPLICA_APP_BUDGET_USD",
+      "AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS",
+      "AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS",
+      "NEON_URL",
+    ],
+    exactWhenEnabled: [
+      { name: "CONSOLIDATE_ROOM_DEV", expected: "1" },
+      { name: "CONSOLIDATE_SWEEP_LIVE", expected: "1" },
+      { name: "VYAKTI_MODEL_SERVING", expected: "azure_only" },
+    ],
+    optionalWhenEnabled: [{ name: "CONSOLIDATE_ROOM_PERSON_LIMIT", pattern: /^(?:[1-9]|10)$/ }],
+    azureOriginsWhenEnabled: ["AZURE_FOUNDRY_ENDPOINT"],
+    budgetWhenEnabled: true,
+    note: "Room-only development consolidation; disabled unless CONSOLIDATE_SWEEP_MODE=room_only and uses the existing Azure budget plus current dev database.",
   },
   {
     id: "foundry_spend_budget",

@@ -17304,6 +17304,24 @@
       "kind": "rejection",
       "title": "Correction editor scope constrained",
       "at": "2026-09-09"
+    },
+    {
+      "id": "product175-room-reply-union",
+      "kind": "decision",
+      "title": "Integrate reviewed Room caller and reply protocol without enabling services",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-combined-offline-checks",
+      "kind": "measurement",
+      "title": "Combined offline source checks passed after inert config preparation",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "product175-missing-config-is-not-contract-failure",
+      "kind": "rejection",
+      "title": "Preserve import failure instead of blaming merged provider or memory code",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

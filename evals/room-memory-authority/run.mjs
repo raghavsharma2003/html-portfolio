@@ -34,7 +34,7 @@ function store(){
    throw new Error('unexpected statement');
  };return state;
 }
-await check('shipping flag remains disabled pending actual SQL admission',()=>assert.equal(ROOM_MEMORY_CONSOLIDATION_ENABLED,false));
+await check('admitted source capability still requires the runtime scheduler gates',()=>assert.equal(ROOM_MEMORY_CONSOLIDATION_ENABLED,true));
 await check('durable facts and relational observations use one atomic commit after model await',async()=>{
  const s=store(),gate=deferred(),entered=deferred();
  const job=runRoomMemoryConsolidation(candidate,{queryFn:s.query,env,model:async(messages,max)=>{

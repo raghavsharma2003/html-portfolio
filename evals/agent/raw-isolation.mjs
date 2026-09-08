@@ -239,20 +239,22 @@ console.log("\n-- R4 production call-site coverage --");
   );
   const sweep = read("api/consolidate-sweep.js");
   check(
-    /on conflict \(agent_id, person_id\)/.test(sweep) &&
+    /roomOnly \? ROOM_MEMORY_CLAIM_SQL/.test(sweep) &&
+      /on conflict \(agent_id, person_id\)/.test(sweep) &&
       /delete from meera_consolidate_lease[\s\S]{0,140}agent_id/.test(sweep),
     "lease claim and release both bind agent_id",
   );
   check(
     /findLaggingPersons\(CANDIDATE_FETCH, sweepAgentId\)/.test(sweep) &&
       /findLaggingRelationships\(CANDIDATE_FETCH\)/.test(sweep) &&
-      /"clone_memory_write_authority_proof_pending"/.test(sweep) &&
+      /"clone_memory_room_sweep_disabled"/.test(sweep) &&
       /blocker: "clone_memory_backlog_check_unavailable"/.test(sweep) &&
-      /if \(candidateAgentId !== MEERA_AGENT_ID\)[\s\S]*?runMeteredRoomMemoryConsolidation\(c,[\s\S]*?continue;/.test(sweep) &&
+      /if \(roomOnly\)[\s\S]*?runMeteredRoomMemoryConsolidation\(c,[\s\S]*?continue;/.test(sweep) &&
       /return runRoomMemoryConsolidation\(candidate,/.test(read("api/_room-memory-consolidation.js")) &&
       /runFullChainForPerson\(person, \{ dryRun: false, agentId: candidateAgentId \}\)/.test(sweep) &&
-      /export const ROOM_MEMORY_CONSOLIDATION_ENABLED = false/.test(read("api/_room-memory-authority.js")),
-    "the unattended clone path requires guarded Room authority and remains disabled pending actual proof",
+      /export const ROOM_MEMORY_CONSOLIDATION_ENABLED = true/.test(read("api/_room-memory-authority.js")) &&
+      /const roomOnly = SWEEP_MODE === 'room_only'/.test(sweep),
+    "the unattended clone path requires guarded Room authority and explicit Room-only mode",
   );
 }
 

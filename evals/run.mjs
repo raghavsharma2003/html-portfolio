@@ -1749,6 +1749,7 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   ops: "ops/run.mjs",
+  "sweep-heartbeat-strict": "sweep-heartbeat-strict.mjs",
   // WS-R58. The incident ledger (migration 109): `recordIncident`'s upsert
   // and its four negative controls (unrecognised kind, empty door,
   // out-of-range/non-integer status, a db that throws); `withDoor`'s own

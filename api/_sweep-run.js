@@ -80,6 +80,59 @@ async function finish(db, runId, outcome, counts, errorCode) {
   );
 }
 
+function heartbeatFailure(phase, workOutcome = "not_started") {
+  const code = `sweep_heartbeat_${phase}_failed`;
+  return Object.assign(new Error(code), {
+    code, status: 503, retryable: false,
+    work_started: workOutcome !== "not_started",
+    work_completed: workOutcome === "ok" || workOutcome === "partial",
+    work_outcome: workOutcome,
+  });
+}
+
+// Opt-in: acknowledgment must describe exactly the row we intended to write.
+// A transport exception or missing RETURNING row is not evidence of persistence.
+async function strictStart(db, runId, sweep) {
+  try {
+    const rows = await db(`insert into vy_sweep_run (run_id, sweep, started_at, outcome)
+      values ($1::uuid, $2, $3, 'running') returning run_id, outcome`, [runId, sweep, new Date()]);
+    if (!Array.isArray(rows) || rows.length !== 1 || rows[0]?.run_id !== runId || rows[0]?.outcome !== "running")
+      throw new Error("heartbeat_ack_missing");
+  } catch { throw heartbeatFailure("start"); }
+}
+
+async function strictFinish(db, runId, outcome, counts) {
+  try {
+    const rows = await db(`update vy_sweep_run
+      set finished_at=now(), outcome=$2, counts=$3::jsonb, error_code=$4
+      where run_id=$1::uuid and outcome='running'
+      returning run_id, outcome, finished_at`,
+      [runId, outcome, JSON.stringify(counts), outcome === "failed" ? "sweep_work_failed" : ""]);
+    const row = Array.isArray(rows) && rows.length === 1 ? rows[0] : null;
+    if (!row || row.run_id !== runId || row.outcome !== outcome
+      || !(typeof row.finished_at === "string" || row.finished_at instanceof Date)
+      || !Number.isFinite(new Date(row.finished_at).getTime())) throw new Error("heartbeat_ack_missing");
+  } catch { throw heartbeatFailure("finish", outcome); }
+}
+
+async function strictSweepRun(db, sweep, fn, runId) {
+  await strictStart(db, runId, sweep);
+  let result;
+  try { result = await fn(); }
+  catch (error) {
+    // Retain the original work error when its failed heartbeat is acknowledged.
+    // If that write fails, expose the failed-work state through a safe wrapper;
+    // neither database messages nor potentially sensitive error codes escape.
+    await strictFinish(db, runId, "failed", {});
+    await pruneOldRuns(db, sweep);
+    throw error;
+  }
+  const counts = sanitizeCounts(result);
+  await strictFinish(db, runId, classifyOutcome(counts), counts);
+  await pruneOldRuns(db, sweep);
+  return result;
+}
+
 // WS-R25 (migration 088's own workstream, closing WS-R21's own open item:
 // "the heartbeat table needs a retention delete before Phase 1"). 30 days,
 // one bounded DELETE per finishing sweep, planned on the same
@@ -121,20 +174,26 @@ async function pruneOldRuns(db, sweep) {
  *     makes sure one gets recorded before it propagates - the existing
  *     per-handler catch blocks (401/500 mapping, etc.) are untouched.
  *
- * The heartbeat writes themselves are best-effort (`.catch(() => {})`): a
+ * By default heartbeat writes are best-effort (`.catch(() => {})`): a
  * Neon hiccup on the WRITE must never turn a sweep that otherwise succeeded
  * into a 500, the same posture `api/consolidate-sweep.js`'s own lease
  * release takes.
+ * Opting into `{strictHeartbeat:true}` instead requires exact start and finish
+ * acknowledgments. Start failure prevents work; finish failure returns a safe
+ * non-retryable error with the work outcome and never repeats the work.
  *
  * After every finish (success OR failure), this sweep's own rows older than
  * `SWEEP_RUN_RETENTION_DAYS` are pruned - one bounded DELETE, scoped to THIS
  * sweep name, so a heartbeat table with 11 crons on it does not grow
  * forever while nobody is watching (WS-R21's own open item, closed here).
  */
-export async function withSweepRun(db, sweep, fn) {
+export async function withSweepRun(db, sweep, fn, options = {}) {
   if (typeof db !== "function") throw new Error("withSweepRun: db required");
   if (!sweep) throw new Error("withSweepRun: sweep name required");
   const runId = randomUUID();
+  // Existing callers keep their best-effort behavior. Strict callers never
+  // retry work after an ambiguous terminal write and receive a non-success.
+  if (options?.strictHeartbeat === true) return strictSweepRun(db, sweep, fn, runId);
   await insertStart(db, runId, sweep, new Date()).catch(() => {});
   let result;
   try {

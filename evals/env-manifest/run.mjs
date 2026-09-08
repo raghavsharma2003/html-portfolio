@@ -10,6 +10,7 @@
 //
 // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
@@ -57,6 +58,13 @@ console.log("── §1: parseEnvManifest against the real document ──");
   check("AZURE_FOUNDRY_ENDPOINT present, section 1, target vercel-app",
     foundry && foundry.section === "1" && foundry.target.includes("vercel-app"), JSON.stringify(foundry));
 
+  for (const name of ["CONSOLIDATE_SWEEP_MODE", "CONSOLIDATE_ROOM_DEV", "CONSOLIDATE_SWEEP_LIVE", "VYAKTI_MODEL_SERVING", "AZURE_FOUNDRY_ROOM_MEMORY_MODEL", "AZURE_FOUNDRY_ROOM_MEMORY_EXPECTED_RESPONSE_MODEL", "CONSOLIDATE_ROOM_PERSON_LIMIT"]) {
+    const entry = entries.find((e) => e.name === name);
+    check(`${name} present as an optional Room development binding`,
+      entry?.target.includes("vercel-app") && entry.required === false,
+      JSON.stringify(entry));
+  }
+
   // A nonstandard four-column table previously hid these settings from
   // generation while the freshness check still passed on that omission.
   for (const name of ["AZURE_ENDPOINT", "AZURE_API_KEY", "AZURE_PHOTO_MODEL", "AZURE_AUDIT_MODEL"]) {
@@ -96,6 +104,40 @@ console.log("── §1: parseEnvManifest against the real document ──");
   // mistaken for an env-var table.
   check("no entry named 'mark' or 'status' leaked from a citation table",
     !entries.some((e) => e.name === "MARK" || e.name === "STATUS"));
+}
+
+// ── §1a: Room-only conditional preflight controls ───────────────────────
+console.log("\n── §1a: Room-only preflight is honest about configuration shape ──");
+{
+  const checkEnv = (values, strict = true) => {
+    try {
+      return { status: 0, output: execFileSync(process.execPath, [join(ROOT, "scripts", "check-replica-env.mjs"), ...(strict ? ["--strict"] : [])], {
+        cwd: ROOT, env: { PATH: process.env.PATH, ...values }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+      }) };
+    } catch (error) {
+      return { status: error.status, output: `${error.stdout || ""}${error.stderr || ""}` };
+    }
+  };
+  const room = {
+    CONSOLIDATE_SWEEP_MODE: "room_only", CONSOLIDATE_ROOM_DEV: "1", CONSOLIDATE_SWEEP_LIVE: "1",
+    VYAKTI_MODEL_SERVING: "azure_only", AZURE_FOUNDRY_ENDPOINT: "https://fixture.services.ai.azure.com",
+    AZURE_FOUNDRY_API_KEY: "synthetic-key", AZURE_FOUNDRY_ROOM_MEMORY_MODEL: "room-model",
+    AZURE_FOUNDRY_ROOM_MEMORY_EXPECTED_RESPONSE_MODEL: "room-response-model", AZURE_REPLICA_BUDGET_ID: "room-budget",
+    AZURE_REPLICA_APP_BUDGET_USD: "1", AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "0.4",
+    AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS: "1.6", NEON_URL: "postgres://fixture@ep-fake.neon.tech/db",
+  };
+  const dark = checkEnv({});
+  check("disabled Room mode remains DARK", /room_memory_consolidation_dev\s+switch CONSOLIDATE_SWEEP_MODE unset/.test(dark.output));
+  const missing = checkEnv({ CONSOLIDATE_SWEEP_MODE: "room_only" });
+  check("enabled Room mode with missing bindings is BROKEN-HALFWAY", missing.status === 1 && /room_memory_consolidation_dev\s+CONSOLIDATE_SWEEP_MODE enables/.test(missing.output));
+  const wrongServing = checkEnv({ ...room, VYAKTI_MODEL_SERVING: "openrouter" });
+  check("Room mode rejects non-Azure serving", wrongServing.status === 1 && /VYAKTI_MODEL_SERVING is set but not to its accepted value/.test(wrongServing.output));
+  const badOrigin = checkEnv({ ...room, AZURE_FOUNDRY_ENDPOINT: "https://example.com" });
+  check("Room mode rejects non-Azure endpoint", badOrigin.status === 1 && /AZURE_FOUNDRY_ENDPOINT is not a valid Azure serving origin/.test(badOrigin.output));
+  const badBudget = checkEnv({ ...room, AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS: "0" });
+  check("Room mode rejects non-positive budget rate", badBudget.status === 1 && /provider_input_rate_required/.test(badBudget.output));
+  const live = checkEnv(room, false);
+  check("complete Room configuration is statically LIVE", live.status === 0 && /room_memory_consolidation_dev\s+12\/12 set/.test(live.output));
 }
 
 // ── §2: negative controls — DOC DEFECTS throw, never silently degrade ───

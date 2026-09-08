@@ -6,7 +6,52 @@ import {ROOM_MEMORY_CONSOLIDATION_ENABLED, ROOM_MEMORY_BATCH_SQL, ROOM_MEMORY_MA
   runRoomMemoryConsolidation} from './_room-memory-authority.js';
 
 export function roomMemorySweepEnabled(env = process.env) {
-  return ROOM_MEMORY_CONSOLIDATION_ENABLED && env.CONSOLIDATE_ROOM_DEV === '1';
+  return ROOM_MEMORY_CONSOLIDATION_ENABLED && env.CONSOLIDATE_SWEEP_MODE === 'room_only'
+    && env.CONSOLIDATE_ROOM_DEV === '1';
+}
+
+export function roomMemoryPersonLimit(env = process.env) {
+  const raw=String(env.CONSOLIDATE_ROOM_PERSON_LIMIT || '1').trim();
+  const limit=Number(raw);
+  if(!/^\d+$/.test(raw)||!Number.isSafeInteger(limit)||limit<1||limit>10)
+    throw Object.assign(new Error('room_memory_person_limit_invalid'),
+      {code:'room_memory_person_limit_invalid',status:503});
+  return limit;
+}
+
+// Read-only cold-start admission. This prevents an unattended Room run from
+// relying on the legacy endpoint's caught CREATE TABLE or silently creating a
+// new provider budget. The actual claim and reserve statements retain their
+// own atomic checks after this early readiness snapshot.
+export const ROOM_MEMORY_SWEEP_READINESS_SQL=`select
+ (select count(*)=10 from (values
+   ('vy_room_follower','memory_epoch','bigint','NO'),
+   ('meera_log','room_memory_follower_id','uuid','YES'),('meera_log','room_memory_epoch','bigint','YES'),
+   ('vy_episode','room_memory_follower_id','uuid','YES'),('vy_episode','room_memory_epoch','bigint','YES'),
+   ('meera_consolidate_lease','agent_id','uuid','NO'),('meera_consolidate_lease','person_id','uuid','NO'),
+   ('meera_consolidate_lease','leased_at','timestamp with time zone','NO'),
+   ('meera_consolidate_lease','leased_by','text','NO'),('meera_consolidate_lease','run_id','text','YES')
+ ) expected(table_name,column_name,data_type,is_nullable)
+ join information_schema.columns actual using(table_name,column_name,data_type,is_nullable)
+ where actual.table_schema='public')
+ and (select count(*)=2 from pg_trigger where tgrelid=to_regclass('public.vy_room_follower')
+   and tgname in ('vy_room_memory_epoch_change','vy_room_memory_follower_erasure') and tgenabled in ('O','A'))
+ and (select count(*)=2 from pg_constraint where contype='f' and confdeltype='c'
+   and confrelid=to_regclass('public.vy_room_follower')
+   and conrelid in (to_regclass('public.meera_log'),to_regclass('public.vy_episode')))
+ as schema_ready,
+ exists(select 1 from vy_provider_budget where budget_id=$1 and limit_microusd=$2
+   and state='active' and spent_microusd+reserved_microusd<limit_microusd) as budget_ready`;
+
+export async function assertRoomMemorySweepReady(queryFn,env=process.env) {
+  const config=strictRoomConsolidationConfig(env);
+  const budget=foundryBudgetConfig(config.env);
+  const rows=await queryFn(ROOM_MEMORY_SWEEP_READINESS_SQL,[budget.budget_id,budget.limit_microusd]);
+  if(rows?.length!==1||rows[0].schema_ready!==true)
+    throw Object.assign(new Error('room_memory_schema_unavailable'),{code:'room_memory_schema_unavailable',status:503});
+  if(rows[0].budget_ready!==true)
+    throw Object.assign(new Error('room_memory_budget_unavailable'),{code:'room_memory_budget_unavailable',status:503});
+  return {config,budget};
 }
 
 // leased_by is existing unrestricted TEXT. Only this Room lane writes this

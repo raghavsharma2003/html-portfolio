@@ -7,6 +7,7 @@ const FAILURE_CODES = new Set([
   "azure_reply_auth_required", "provider_budget_id_invalid",
   "provider_budget_limit_required", "provider_input_rate_required",
   "provider_output_rate_required", "neon_url_missing",
+  "azure_reply_rate_model_mismatch",
 ]);
 
 // This is shared-reply configuration readiness, not a private-dialogue,
@@ -20,6 +21,7 @@ export function selfCheckServing(env = process.env) {
     "AZURE_FOUNDRY_REPLY_MODEL", "AZURE_REPLICA_APP_BUDGET_USD",
     "AZURE_FOUNDRY_REPLY_INPUT_USD_PER_MTOKENS", "AZURE_FOUNDRY_REPLY_OUTPUT_USD_PER_MTOKENS",
   ];
+  if (String(env.AZURE_FOUNDRY_REPLY_MODEL || "").trim() === "gpt-5.6-terra") required.push("AZURE_FOUNDRY_REPLY_RATE_MODEL");
   try {
     resolveReplyServingProvider(env);
     azureSurfaceReplyConfig(env);

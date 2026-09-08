@@ -23853,3 +23853,8 @@ Integrate the reviewed Room memory name taxonomy correction and Meet correction 
 ## product175-correction-editor-polish (2026-09-09)
 
 Integrate the reviewed correction editor polish: correction intent opens the existing editor, persisted feedback remains authoritative, blank edits require explicit owner clear, and the focused layout remains usable at mobile and desktop widths. Import only the six reviewed product and eval files from e14ced1e; exclude experimental auth and author context graphs.
+
+
+## `product175-room-reply-union` (2026-09-08)
+
+2026-09-09 local: Root authorized af5d258d Room-only/strict heartbeat,5a010131 Room env and4d5189ff reply protocol deltas against6ad4 into clean product175df70. All patches applied cleanly; union ENV documentation and regenerate manifest. Preserve focused correction UI exactly, exclude inline3909 and foreign context graphs. Reverse if combined tests reveal contract conflict; operational enablement and provider readiness remain separate.
