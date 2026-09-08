@@ -16062,6 +16062,60 @@
       "kind": "rejection",
       "title": "Inspect suite implementation before assigning lane",
       "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-controller33-supervised-estimate",
+      "kind": "decision",
+      "title": "Use supervised jobs with honest estimated reservation",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-controller33-synthetic",
+      "kind": "measurement",
+      "title": "Thirteen ARM and seventeen allocation controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-controller33-invoice-and-race",
+      "kind": "rejection",
+      "title": "Reject invoice suppression and terminal regression",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu150-marker-bound-start-recovery",
+      "kind": "decision",
+      "title": "Correlate asynchronous starts with a persisted per-window marker",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu150-twenty-synthetic-groups",
+      "kind": "measurement",
+      "title": "Twenty supervisor synthetic controls",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu150-unmarked-recovery-and-policy-drift",
+      "kind": "rejection",
+      "title": "Do not infer start ownership from a shared template and time",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-arm-defaults34-five-observed-forms",
+      "kind": "decision",
+      "title": "Normalize five observed optional ARM defaults",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-arm-defaults34-get-and-controls",
+      "kind": "measurement",
+      "title": "One exact GET and twenty-five synthetic groups",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-arm-defaults34-generic-filter-and-eol",
+      "kind": "rejection",
+      "title": "Reject generic empty filtering and normalized evidence bytes",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

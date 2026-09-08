@@ -13,14 +13,14 @@ function fixture({limit=1000,cost=600,controller=true}={}){
  const db=async(sql,p)=>{calls++;
   if(sql===Q.reserve){if(row||spent+reserved+p[6]>limit)return[];
    row={window_id:id,budget_id:p[0],resource_sha256:p[2],revision_sha256:p[3],request_sha256:p[4],contract_sha256:p[5],
-    reserved_microusd:p[6],max_allocation_seconds:p[7],provider_request_sha256:p[8],state:'reserved'};reserved+=p[6];return[{...row}];}
+    reserved_microusd:p[6],max_allocation_seconds:p[7],provider_request_sha256:p[8],accounting_basis:p[9],state:'reserved'};reserved+=p[6];return[{...row}];}
   if(sql===Q.existing)return row&&row.budget_id===p[0]&&row.request_sha256===p[1]?[{...row}]:[];
   if(!row||p[0]!==row.window_id||p[1]!==row.budget_id||p[2]!==row.request_sha256)return[];
   if(sql===Q.begin){if(row.state!=='reserved')return[];row.state='in_flight';return[{...row}];}
   if(sql===Q.response){if(row.state!=='in_flight')return[];row.state='accounting_pending';return[{...row}];}
   if(sql===Q.uncertain){if(row.state==='in_flight')row.state='uncertain';return[];}
   if(sql===Q.release){if(row.state!=='reserved')return[];row.state='released';reserved-=row.reserved_microusd;return[{}];}
-  if(sql===Q.reconcile){if(!['in_flight','uncertain','accounting_pending'].includes(row.state)||p[3]>row.reserved_microusd)return[];
+  if(sql===Q.reconcile){if(!['in_flight','uncertain','accounting_pending'].includes(row.state))return[];
    row.state='settled';spent+=p[3];reserved-=row.reserved_microusd;return[{}];}
   throw Error('unexpected_query');
  };
@@ -47,6 +47,10 @@ await test('retry cannot release or begin original reserving worker allocation',
 });
 await test('insufficient shared budget refuses',async()=>{
  const f=fixture({limit:500});await assert.rejects(f.meter.reserve(input),/reservation_refused/);assert.equal(f.state().reserved,0);
+});
+await test('controller and grant accounting basis cannot be interchanged',async()=>{
+ const f=fixture();f.ctrl.kind='azure-supervised-job-controller/v1';
+ await assert.rejects(f.meter.reserve(input),/accounting_basis_mismatch/);assert.equal(f.state().calls,0);
 });
 await test('duplicate begin gives exactly one dispatch permission',async()=>{
  const f=fixture(),r=await f.meter.reserve(input);const results=await Promise.allSettled([f.meter.begin(r),f.meter.begin(r)]);
@@ -92,7 +96,7 @@ await test('attributable closed allocation settles once',async()=>{
  assert.equal(f.state().reserved,0);assert.equal(f.state().spent,400);
 });
 await test('forged revision and nonterminated usage remain held',async()=>{
- for(const change of [{revision_sha256:hash('f')},{allocation_terminated:false},{actual_microusd:601}]){
+ for(const change of [{revision_sha256:hash('f')},{allocation_terminated:false}]){
   const f=fixture(),r=await f.meter.reserve(input);await f.meter.begin(r);
   const verifier=f.verify(r),orig=verifier.verifyClosedAllocation;verifier.verifyClosedAllocation=async()=>({...await orig(),...change});
   await assert.rejects(reconcileGpuAllocation({db:f.db,reservation:r,usageVerifier:verifier}));assert.equal(f.state().reserved,600);
@@ -108,6 +112,14 @@ await test('completed discovery uses new response state and rejects historical s
  assert.equal(calls,1);assert.equal(result,null);
  const old=COMPARISON_COMPLETED_AUTHORITY_SQL.replaceAll('response_recorded','settled');
  assert(!old.includes("d.state='response_recorded'"));
+});
+await test('verified overrun records actual cost and pauses further admission SQL',async()=>{
+ const f=fixture(),r=await f.meter.reserve(input);await f.meter.begin(r);
+ const verifier=f.verify(r),original=verifier.verifyClosedAllocation;
+ verifier.verifyClosedAllocation=async()=>({...await original(),actual_microusd:1200});
+ assert.equal((await reconcileGpuAllocation({db:f.db,reservation:r,usageVerifier:verifier})).accounted,true);
+ assert.equal(f.state().spent,1200);assert.equal(f.state().reserved,0);
+ assert(Q.reconcile.includes("w.actual_microusd>w.reserved_microusd then 'paused'"));
 });
 await test('migration mirror, global resource exclusion and no expiry release query',async()=>{
  const migration=await readFile(new URL('../../db/migrations/147_gpu_allocation_window.sql',import.meta.url),'utf8');

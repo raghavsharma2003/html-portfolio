@@ -23529,3 +23529,22 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `integration33-source-union` (2026-09-08)
 
 2026-09-08: New worktree based frozen31 integrates comparison c4130b83, private continuity b5dc0e2f and Azure packaging2a4e5dfe. Resolve code conflict regions with reviewed seam additions; union context by node/section and retain existing eval entries and all145to148 schema mirrors. Reverse on a lost invariant, source-pin mismatch or failed scoped control; this is not release acceptance.
+
+
+## `gpu-controller33-supervised-estimate` (2026-09-08)
+
+2026-09-08: Root explicitly reversed absolute invoice-bound requirement in favor of operational deadline, zero retries, exclusive dispatch, server replica timeout and separate cancellation/readback. Implement one fixed non-personal GPU probe with explicit gpu-* budget and persisted planning_estimate basis. Actual overrun records then pauses admission; no text-ledger consumption. Reverse if real Azure/SQL evidence shows uncontrolled retries, changed execution templates or misleading settlement. See GPU-JOB-CONTROLLER33-20260908.md.
+
+
+
+
+## `gpu150-marker-bound-start-recovery` (2026-09-08)
+
+2026-09-08: Preserve149 and add150 pre-start inventory, DB timestamp and exact per-window execution-template commitment. Recover only one new marked execution in the original persisted planning interval; persist identity before stop. Reverse if real ARM/SQL evidence admits another execution or a changed interval. Metadata defaults remain strict pending actual values.
+
+
+
+
+## `gpu-arm-defaults34-five-observed-forms` (2026-09-08)
+
+2026-09-08: Strip only observed response dapr/eventTriggerConfig null, identitySettings[], template initContainers/volumes null. Keep request plan unchanged and reuse narrow template comparison for inspect/observe/recovery. Unknown/nonempty/mistyped fields and per-window marker changes refuse. Reverse only with actual metadata establishing a changed semantic/default and retained positive/negative controls. See GPU-ARM-DEFAULTS34-20260908.md.
