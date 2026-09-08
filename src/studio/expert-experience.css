@@ -31,6 +31,7 @@
 .expert-exchange__answer { padding: 24px 4px 0; }
 .expert-exchange span { font-size: 12px; color: #506256; }
 .expert-exchange p { margin-block: 7px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.expert-exchange .expert-conversation__audio-note { font-size: 14px; line-height: 1.5; color: var(--ink-soft, #515c57); }
 .expert-conversation__working { padding: 20px 4px; }
 .expert-conversation__error { padding: 14px 0; color: #a12b23; }
 .expert-conversation__composer { border: 1px solid var(--expert-line); border-radius: 14px; padding: 14px; margin-top: 18px; background: #fff; }

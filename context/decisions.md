@@ -23583,3 +23583,13 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `release39-accepted-continuity-source` (2026-09-08)
 
 2026-09-08: Root accepted actualV4 rollback proof for72b7db22, so candidate39 adds154 AFTER DELETE function/trigger and preserves148history. OLD retains derived rawlog binding after parentcascade. Shared authority projection adds7fields only; no predicate removal. Reverse if integrated SQL/sourcepins mismatch, concurrent erasure proof fails or fullrelease finds regression. Actual migrations148154 remain uncommitted.
+
+
+## `continuity-audio40-specific-explanation` (2026-09-08)
+
+Use has_continuity=true and can_voice=false together for a short localized adjacent note. Keep voice authorization and stopped guards untouched. Reverse only when current-evidence voice is supported or the server exposes a more precise reason contract.
+
+
+## `continuity-audio40-tested-import` (2026-09-08)
+
+Import only the conditional localized explanation, minimal typography and real mounted controls plus context. Existing reply voice authorization and speak guard remain unchanged. Reverse if the server reason contract changes or supported continuity speech makes this explanation inaccurate.

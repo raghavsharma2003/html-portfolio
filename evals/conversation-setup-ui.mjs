@@ -47,6 +47,7 @@ const result = await build({ root, configFile: false, logLevel: "silent", build:
     } }] });
 const assets = new Map(result.output.map(item => ["/" + item.fileName, item.type === "chunk" ? item.code : item.source]));
 let runtimeMode = "inactive", holdNext = false, captured, writes = [], reads = 0, heldResponses = [], heldExpected = 1;
+let audioCase = null;
 let heldResolve;
 function holdRead(expected = 1) { holdNext = true; heldResponses = []; heldExpected = expected; return new Promise((resolve, reject) => {
   const timeout = setTimeout(() => reject(new Error("fixture expected runtime read was not received")), 15_000);
@@ -79,7 +80,7 @@ const server = createServer(async (req, res) => {
       replica_id: writes.at(-1).body.replica_id, session_id: writes.at(-1).body.session_id,
     } });
     if (url.pathname === "/api/replica-dialogue") return json(200, { turn: { turn_id: TURN, session_id: writes.at(-1).body.session_id,
-      reply: "Synthetic reply retained while usage is reconciled.", can_voice: false, billing_state: "reconcile_required" } });
+      reply: "Synthetic reply retained while usage is reconciled.", can_voice: false, billing_state: "reconcile_required", ...(audioCase || {}) } });
     return json(409, { error: "synthetic_mutation_refused" });
   }
   if (assets.has(url.pathname)) {
@@ -103,7 +104,7 @@ const checks = [], observations = [], runtimeErrors = []; let browser, page, fai
 try {
   const { chromium } = await import("playwright"); browser = await chromium.launch({ headless: true });
   for (const width of [390, 1440]) {
-    writes = []; runtimeMode = "inactive";
+    writes = []; runtimeMode = "inactive"; audioCase = null;
     page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: "reduce" });
     const errors = []; page.on("pageerror", error => { errors.push(error.message); runtimeErrors.push(error.message); });
     await page.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
@@ -172,6 +173,23 @@ try {
     assert.equal(writes.length, 2); assert.equal(writes[0].body.op, "open_session");
     assert.equal(writes[1].path, "/api/replica-dialogue"); assert.equal(writes[1].body.session_id, writes[0].body.session_id);
     checks.push(`${width}: reconciliation preserves reply without setup or automatic retry`);
+    assert.equal(await page.locator('.expert-conversation__audio-note').count(),0,'billing reconciliation must not be described as continuity');
+    for(const lang of ['en','hi'])for(const scenario of ['continuity','other-disabled','ordinary-voice']){
+      audioCase={can_voice:scenario==='ordinary-voice',has_continuity:scenario==='continuity',billing_state:'not_metered'};
+      runtimeMode='active';await page.goto(`${origin}/meet?lang=${lang}&audio-case=${scenario}`);
+      await ask().fill('Synthetic audio availability question');await page.getByRole('button',{name:'Send',exact:true}).click();
+      const listen=page.getByRole('button',{name:'Listen',exact:true});await listen.waitFor();
+      const note=page.locator('.expert-conversation__audio-note');
+      if(scenario==='continuity'){
+        await note.waitFor();assert.equal(await listen.isDisabled(),true);
+        assert.equal(await note.textContent(),lang==='hi'?'पुरानी बातचीत वाले जवाबों में ऑडियो उपलब्ध नहीं है।':'Audio is unavailable for replies using earlier conversations.');
+        assert.equal(await listen.getAttribute('aria-describedby'),await note.getAttribute('id'));
+        assert.equal(await note.evaluate(n=>n.getBoundingClientRect().right<=innerWidth&&n.getBoundingClientRect().left>=0),true);
+        await page.screenshot({path:join(artifactDir,`continuity-audio-${lang}-${width}.png`),fullPage:true});
+      }else{assert.equal(await note.count(),0);assert.equal(await listen.getAttribute('aria-describedby'),null);assert.equal(await listen.isDisabled(),scenario==='other-disabled');}
+      checks.push(`${width}/${lang}: ${scenario} audio availability remains unchanged with correctly scoped explanation`);
+    }
+    audioCase=null;
     // Follow the real link through actual src/studio/main entry routing.
     runtimeMode = "inactive"; await page.goto(`${origin}/meet?lang=hi`); await setup().waitFor();
     await setup().focus(); await page.keyboard.press("Enter"); await page.locator('[data-fixture-destination="creator"]').waitFor();

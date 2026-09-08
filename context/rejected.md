@@ -17353,3 +17353,13 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `release39-checkout-sql-byte-assumption` (2026-09-08)
 
 2026-09-08: Raw workingSQLbytes differed from frozen Gitblobs because Windows checkout changed LFtoCRLF in145and154. Initial exactcomparison refused. Explicit EOL-only normalization verifies content; manifest records distinct Gitblob andworking hashes. No SQL literals or predicates changed to satisfy the check. Migrations152153 remainexcluded.
+
+
+## `continuity-audio40-no-availability-bypass` (2026-09-08)
+
+Disabled Listen alone does not establish continuity as its cause. A generic note would mislabel billing/stopped states. Do not alter can_voice, suggest re-recording or promise a timeline; attach the note only to server-confirmed recalled-source replies.
+
+
+## `continuity-audio40-not-complete-localization` (2026-09-08)
+
+The inspected Hindi fixture still contains incumbent English conversation controls. This patch localizes only its new explanation and must not be advertised as full Hindi journey completion or generated voice support.
