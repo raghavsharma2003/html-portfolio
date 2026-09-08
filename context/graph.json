@@ -16212,6 +16212,18 @@
       "kind": "rejection",
       "title": "Exclude unrelated source ancestors",
       "at": "2026-09-08"
+    },
+    {
+      "id": "release39-pending-continuity-projection",
+      "kind": "decision",
+      "title": "Keep actual SQL acceptance separate",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release39-private-copy-and-projection",
+      "kind": "measurement",
+      "title": "Private setup and local continuity controls",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

@@ -23573,3 +23573,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `release39-bounded-regression-assembly` (2026-09-08)
 
 2026-09-08: New candidate from frozen34 restores only dialogue0d4ac01a twoevals, regression758f8018 threeevals and GPUtarget19fb3c2f controller/eval/fixture. No ancestor productfamilies,152/153 or pending continuity repair imported. Reverse if exactdiff changes protected predicates, weakens negatives or fails independent review. Root owns fullgate after actual privateSQL proof.
+
+
+## `release39-pending-continuity-projection` (2026-09-08)
+
+2026-09-08: Root reviewed fa221c22 and authorized its two exact paths into mutable39 before real SQL proof. Add only seven projected replica fields and the consumed-field negative control; predicates unchanged. Final freeze/fullgate held until root actualSQLacceptance. Reverse on unexpected SQL/runtime failure or diff beyond projection.
