@@ -35,6 +35,7 @@ execSync(
 );
 
 const suites = {
+  "expert-answer-inline": "expert-answer-inline.mjs",
   "panel-copy-inventory": "lib/panel-copy.test.mjs",
   "install-script-inventory": "install-script-inventory.mjs",
   "loading-font-collector": "loading-font-collector.mjs",

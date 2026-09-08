@@ -4,7 +4,8 @@ import {candidateRuntimeCore,assertCandidateGenerator,assertCandidateResponse,as
 import {buildPrivateCorrectionArtifact,renderPrivateCorrectionCandidate,LEGACY_CORRECTION_ARTIFACT_SCHEMA} from '../../api/_replica-correction-artifact.js';
 import {materializationModel} from '../../api/_replica-candidate-materializer.js';
 import {prepareProviderRevisionBinding,verifyProviderRevision} from '../../api/_dialogue/provider-revision.js';
-import {compileDialoguePrompt} from '../../api/_dialogue/contracts.js';
+import {createAzureFoundryDialogueGenerator} from '../../api/_dialogue/providers/azure-foundry.js';
+import {compileDialoguePrompt,DIALOGUE_PROMPT} from '../../api/_dialogue/contracts.js';
 const hash=v=>sha256Hex(canonicalJson(v));
 const base={replica:{replica_id:'10000000-0000-4000-8000-000000000001'},capability:{capability_id:'20000000-0000-4000-8000-000000000001'},
  personProfile:{definition:{identity:{self_name:'Synthetic expert'},knowledge:[
@@ -80,4 +81,22 @@ test('missing or forged returned revision refuses completion',()=>{assert.throws
 test('withdrawal and capability switch refuse completion',()=>{assert.throws(()=>assertCandidateRuntimeUnchanged(active,null));
  assert.throws(()=>assertCandidateRuntimeUnchanged(active,base));assert.throws(()=>assertCandidateRuntimeUnchanged(active,change(r=>r.candidateBinding.activation_id='other')));
  assertCandidateRuntimeUnchanged(active,structuredClone(active));});
+
+
+// No inference: use the actual factory identity at the serving commitment guard.
+test('v1 compared commitment refuses current v2 serving; newly compared v2 remains coherent',()=>{
+ const current=createAzureFoundryDialogueGenerator({endpoint:revision.endpoint,model:revision.deployment,apiKey:'offline-placeholder-key',revisionBinding:revision,fetchImpl:()=>{throw Error('NO_PROVIDER_CALL');}});
+ assert.ok(current.version.endsWith(':'+DIALOGUE_PROMPT));
+ const prior={...current,version:current.version.replace('replica-dialogue/v2','replica-dialogue/v1')};
+ const env={AZURE_CORRECTION_BASE_MODEL_COMMITMENT:revision.baseline_snapshot_hash};
+ const old=change(r=>r.candidateBinding.model_commitment=materializationModel(prior,env).commitment);
+ assert.throws(()=>assertCandidateGenerator(old,current),/candidate_runtime_model_changed/);
+ const fresh=change(r=>r.candidateBinding.model_commitment=materializationModel(current,env).commitment);
+ assertCandidateGenerator(fresh,current);
+ for(const runtime of [base,fresh]){
+  const system=compileDialoguePrompt({core:candidateRuntimeCore(runtime),message:'Explain my answer in Hindi'}).messages[0].content;
+  assert.ok(system.includes('Turn language precedence:')&&system.includes('Learner diagnosis shape:'));
+ }
+});
+
 console.log(`${groups} candidate runtime guard groups passed; no provider or database calls`);

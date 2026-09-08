@@ -153,6 +153,7 @@ async function fixture(options={}){
  candidate={candidate_id:CANDIDATE,dataset_id:DATASET,replica_id:RID,owner_user_id:OWNER,kind:'prompt_policy',status:'draft',artifact_sha256:art.artifact_sha256,build_manifest_hash:hash(manifest),base_model_commitment:ENV.AZURE_CORRECTION_BASE_MODEL_COMMITMENT,dataset_source_set_hash:built.source_set_hash};
  correction={job_id:CORRECTION,candidate_id:CANDIDATE,artifact:art.artifact,build_manifest:manifest,state:'draft'};
  const adapter={family:'dialogue',name:'azure-foundry-structured-output',version:'fixture-v1',model:'gpt-4.1-mini',revision_binding:revisionBinding,billing:{meter:'azure_foundry_tokens',max_output_tokens:700},async generate({prompt}){
+  assert.ok(prompt.messages[0].content.includes("Turn language precedence:") && prompt.messages[0].content.includes("Learner diagnosis shape:"));
   calls++;const text=JSON.stringify(prompt);assert.ok(!text.includes('Original response'));for(const v of plaintext.values())assert.ok(!text.includes(v));
   const message=prompt.messages.at(-1).content;assert.ok(held.some(e=>message===`Held SN1 question ${e.feedback_id}?`));
   assert.ok(prompt.messages[0].content.includes('knowledge.chemistry_sn1_rate_law: For an SN1 reaction'));

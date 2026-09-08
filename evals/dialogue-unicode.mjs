@@ -73,11 +73,16 @@ try {
     }
     assert.equal(malformed('हिंदी 🙂 𐀀'), false);
   });
-  await check('English Hindi Roman Hinglish normalization and hashes unchanged', () => {
+  await check('English Hindi Roman Hinglish normalization preserved with versioned prompt hash', () => {
     for (const reply of ['Let us review this 🙂', 'पहले सवाल हल करें, फिर उत्तर जाँचें।', 'Pehle solve karo, phir review 🙂', '<assistant>Hello</assistant>  friend\n\n\nOkay']) {
       assert.deepEqual(validate(answer(reply)), old.validateDialogueOutput(answer(reply)));
       const input = { core: 'Approved persona', relationship: 'Private context', history: [{role:'user',content:reply}], message: reply };
-      assert.deepEqual(compile(input), old.compileDialoguePrompt(input));
+      const actualPrompt=compile(input), priorPrompt=old.compileDialoguePrompt(input);
+      assert.deepEqual(actualPrompt.messages.slice(1),priorPrompt.messages.slice(1));
+      // v2 adds two policy paragraphs; Unicode parity still covers all original bytes.
+      const originalSystem=actualPrompt.messages[0].content.split('\n\n').filter(row=>!row.startsWith('Turn language precedence:')&&!row.startsWith('Learner diagnosis shape:')).join('\n\n');
+      assert.equal(originalSystem,priorPrompt.messages[0].content);
+      assert.notEqual(actualPrompt.prompt_hash,priorPrompt.prompt_hash);
     }
   });
   await check('intentional prompt prefixes preserve UTF16 budgets and pairs', () => {
