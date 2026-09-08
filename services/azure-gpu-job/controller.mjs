@@ -64,6 +64,24 @@ function validatePlan(plan) {
   if (expected.configuration_sha256 !== plan.configuration_sha256 || plan.location !== expected.location) fail('gpu_job_plan_invalid');
 }
 
+// Only defaults observed in the retained exact existing-job GET on 2026-09-08.
+// Do not recursively remove nulls/empty collections: a null required trigger,
+// a missing command, a changed env marker or an unknown field must still fail.
+export function normalizeObservedJobConfiguration(configuration) {
+  const value=structuredClone(configuration);
+  if(!value||typeof value!=='object'||Array.isArray(value))return value;
+  for(const key of ['dapr','eventTriggerConfig'])if(value[key]===null)delete value[key];
+  if(Array.isArray(value.identitySettings)&&value.identitySettings.length===0)delete value.identitySettings;
+  return value;
+}
+
+export function normalizeObservedJobTemplate(template) {
+  const value=structuredClone(template);
+  if(!value||typeof value!=='object'||Array.isArray(value))return value;
+  for(const key of ['initContainers','volumes'])if(value[key]===null)delete value[key];
+  return value;
+}
+
 export function inspectJobSnapshot(plan, resource, environment) {
   validatePlan(plan);
   if (resource?.id !== plan.job_id || resource.type?.toLowerCase() !== 'microsoft.app/jobs') fail('gpu_job_resource_mismatch');
@@ -72,13 +90,13 @@ export function inspectJobSnapshot(plan, resource, environment) {
   // Ignore server metadata, but retain every execution-relevant template and
   // trigger field. Registry secrets compare by reviewed names and are supplied
   // only as secure deployment parameters, never as a returned credential.
-  const configuration=structuredClone(p.configuration);
+  const configuration=normalizeObservedJobConfiguration(p.configuration);
   // GET does not establish the secret value. Compare names, never return or
   // hash credentials; a differently named secret or Key Vault target refuses.
   if(configuration?.secrets?.some(s=>s.keyVaultUrl||s.identity))fail('gpu_registry_secret_binding_invalid');
   if(configuration?.secrets)configuration.secrets=configuration.secrets.map(s=>({name:s.name}));
   const observed = {environmentId: p.environmentId, workloadProfileName: p.workloadProfileName,
-    configuration, template: p.template};
+    configuration, template: normalizeObservedJobTemplate(p.template)};
   if (commitment(observed) !== plan.configuration_sha256) fail('gpu_job_configuration_drift');
   if (environment?.id !== p.environmentId) fail('gpu_environment_mismatch');
   const profiles = environment.properties?.workloadProfiles || [];
@@ -109,7 +127,7 @@ export function executionObservation(plan, name, executions, windowId) {
   if (rows.length !== 1) return {execution_id: id, state: 'unknown', terminal: false, accounting_state: 'accounting_pending'};
   const row = rows[0], p = row.properties || {};
   const expectedHash=windowId?commitment(windowExecutionTemplate(plan,windowId)):plan.template_sha256;
-  if (commitment(p.template) !== expectedHash) fail('gpu_execution_template_mismatch');
+  if (commitment(normalizeObservedJobTemplate(p.template)) !== expectedHash) fail('gpu_execution_template_mismatch');
   const terminal = ['Succeeded', 'Failed', 'Stopped'].includes(p.status)
     && Number.isFinite(Date.parse(p.startTime)) && Number.isFinite(Date.parse(p.endTime))
     && Date.parse(p.endTime) >= Date.parse(p.startTime);
@@ -161,7 +179,7 @@ export function recoverStartedExecution(plan, window, executions) {
   // ARM timestamps can have second precision. The lower edge is the same
   // UTC second as the persisted request, not an arbitrary clock-skew grace.
   if(!Number.isFinite(started)||started<Math.floor(requested/1000)*1000||started>last)fail('gpu_recovery_outside_window');
-  if(commitment(p.template)!==expectedHash)fail('gpu_execution_template_mismatch');
+  if(commitment(normalizeObservedJobTemplate(p.template))!==expectedHash)fail('gpu_execution_template_mismatch');
   return {execution_name:name,execution_id:candidate.id,recovery_sha256:commitment({
     window_id:window.window_id,requested_at:window.job_start_requested_at,
     inventory,execution_id:candidate.id,start_time:p.startTime,template_sha256:expectedHash,

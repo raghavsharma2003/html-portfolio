@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import {isolatedJobPlan,inspectJobSnapshot,executionObservation,createAzureJobInspector,deploymentTemplate,commitment,recoverStartedExecution,windowExecutionTemplate} from '../../services/azure-gpu-job/controller.mjs';
+import {readFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {isolatedJobPlan,inspectJobSnapshot,executionObservation,createAzureJobInspector,deploymentTemplate,commitment,recoverStartedExecution,windowExecutionTemplate,normalizeObservedJobTemplate,normalizeObservedJobConfiguration} from '../../services/azure-gpu-job/controller.mjs';
 import {createGpuJobSupervisor,JOB_SQL as J} from '../../services/azure-gpu-job/supervisor.mjs';
 import {GPU_WINDOW_SQL as Q} from '../../api/_gpu-allocation-budget.js';
 globalThis.fetch=()=>{throw Error('network_forbidden');};
@@ -119,8 +121,48 @@ await test('legacy unknown row without prestart evidence refuses recovery',async
  await assert.rejects(f.supervisor.supervise(f.state().row.window_id),/inventory_unavailable/);assert.equal(f.state().stops,0);
 });
 await test('unobserved ARM defaults remain rejected pending actual metadata',()=>{
- const changed=clone(resource);changed.properties.configuration.eventTriggerConfig=null;
+ const changed=clone(resource);changed.properties.configuration.unobservedFutureOption=null;
  assert.throws(()=>inspectJobSnapshot(plan,changed,environment),/configuration_drift/);
+});
+await test('retained real GET evidence permits only five exact observed defaults',async()=>{
+ const bytes=await readFile(new URL('./fixtures/arm-defaults34.json',import.meta.url));
+ assert.equal(createHash('sha256').update(bytes).digest('hex'),'5ef543bfe1e73281bef54e875202a4c34ac4d9191b6596f9f76c8c6f02ab3825');
+ const receipt=JSON.parse(bytes);assert.equal(receipt.arm_writes,0);assert.equal(receipt.cloud_key_reads,0);
+ const observed=new Map(receipt.observations.map(v=>[v.path,v]));
+ const paths=['configuration.dapr','configuration.eventTriggerConfig','configuration.identitySettings','template.initContainers','template.volumes'];
+ const r=clone(resource);
+ for(const path of paths){const [scope,key]=path.split('.'),v=observed.get(path);assert.equal(v.state,'empty');r.properties[scope][key]=v.value;}
+ assert(inspectJobSnapshot(plan,r,environment));
+ assert.equal(r.properties.configuration.dapr,null,'normalizer does not mutate input');
+ assert.deepEqual(r.properties.configuration.identitySettings,[]);
+});
+await test('every observed optional default rejects nonmatching or active alternatives',()=>{
+ const locations=[['configuration','dapr'],['configuration','eventTriggerConfig'],['configuration','identitySettings'],['template','initContainers'],['template','volumes']];
+ for(const [scope,key] of locations){
+  const values=key==='identitySettings'?[null,{},false,'',[{identity:'system',lifecycle:'All'}]]:[[],{},false,'',[{name:'unexpected'}],{enabled:true}];
+  for(const value of values){const r=clone(resource);r.properties[scope][key]=value;assert.throws(()=>inspectJobSnapshot(plan,r,environment),/configuration_drift/);}
+ }
+});
+await test('required trigger and execution fields are never normalized away',()=>{
+ for(const mutate of [r=>r.properties.configuration.manualTriggerConfig=null,r=>r.properties.configuration.scheduleTriggerConfig=null,
+  r=>r.properties.template.containers[0].command=null,r=>r.properties.template.containers[0].args=[],
+  r=>r.properties.template.containers[0].resources.ephemeralStorage='',r=>r.properties.configuration.identitySettings=[{}]]){
+  const r=clone(resource);mutate(r);assert.throws(()=>inspectJobSnapshot(plan,r,environment));
+ }
+});
+await test('marked execution observation and recovery share narrow template normalization',async()=>{
+ const f=fixture({startStatus:202});await assert.rejects(f.supervisor.start(hash('c')));
+ const row=f.state().row,one=execution('Running');one.properties.template=windowExecutionTemplate(plan,row.window_id);
+ one.properties.template.initContainers=null;one.properties.template.volumes=null;
+ assert.equal(recoverStartedExecution(plan,row,[one]).execution_name,'probe-one');
+ assert.equal(executionObservation(plan,'probe-one',[one],row.window_id).terminal,false);
+ one.properties.template.containers[0].env=[];
+ assert.throws(()=>recoverStartedExecution(plan,row,[one]),/template_mismatch/);
+ assert.throws(()=>executionObservation(plan,'probe-one',[one],row.window_id),/template_mismatch/);
+});
+await test('unknown null fields remain visible in both normalization shapes',()=>{
+ assert.deepEqual(normalizeObservedJobTemplate({containers:[],future:null}),{containers:[],future:null});
+ assert.deepEqual(normalizeObservedJobConfiguration({future:null}),{future:null});
 });
 await test('server deadline supervision stops named execution then observes terminal',async()=>{
  const f=fixture(),r=await f.supervisor.start(hash('c')),v=await f.supervisor.supervise(r.window_id);

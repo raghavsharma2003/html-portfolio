@@ -17132,3 +17132,8 @@ On 2026-09-08 in isolated source based f4235c68: new41 offline actual issuer/reg
 ## `gpu150-twenty-synthetic-groups` (2026-09-08)
 
 2026-09-08:20 synthetic ARM/DB groups passed before root host reservation. New controls cover202 recovery, process replacement, identity before stop, duplicate supervision, ambiguous/stale/future/old/missing starts, external shared-template start, changed policy interval and legacy absence. Independent source review found no further blocking defect after corrections. No real SQL, cloud or deployment. Context graph recheck deferred during root performance host reservation.
+
+
+## `gpu-arm-defaults34-get-and-controls` (2026-09-08)
+
+2026-09-08: One exact existing job GET completed through approved MSAL/DPAPI helper; safe projection contains no env/secret values, zero ARM writes/key reads/models. Receipt SHA5ef543bfe1e73281bef54e875202a4c34ac4d9191b6596f9f76c8c6f02ab3825.25 synthetic ARM/DB groups passed and staged blob preserves original receipt hash. Earlier deferred c7b457 graph check passed2564nodes/2422edges. No candidate deployment, SQL or GPU execution.

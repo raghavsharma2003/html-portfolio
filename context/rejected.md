@@ -17126,3 +17126,8 @@ Rejected routing comparison-only uploads through the ordinary primary selector: 
 ## `gpu150-unmarked-recovery-and-policy-drift` (2026-09-08)
 
 2026-09-08: Review showed one new shared-template execution could belong to an outside actor, and current policy headroom could expand a prior reservation interval. Exact per-window UUID environment marker and durable template hash now correlate the POST; persisted max_allocation_seconds bounds recovery. Both paths have negative controls. Never retry an unknown start, silently normalize ARM defaults, or release unknown cost.
+
+
+## `gpu-arm-defaults34-generic-filter-and-eol` (2026-09-08)
+
+2026-09-08: Generic removal of empty values would conceal required manual trigger/command/identity changes; explicit negative controls preserve refusal. Independent review found the captured receipt has138CRLF but globalJSONattributes normalizeLF, breaking raw-hash proof after checkout. Added exactpath -text and verified stagedblob originalSHA. Existing scheduled config is nonempty, not evidence for normalizing future manualjob schedule defaults.

@@ -23,3 +23,6 @@ evals/text-publication-ui/early-share-old-clone.tsx.txt -text
 
 # Exact historical navigation caller for shallow-checkout negative control.
 evals/verification-knowledge/fixtures/CloneExperience.before.tsx.txt -text
+
+# Exact read-only ARM projection is authenticated by its captured byte hash.
+evals/gpu-job-control/fixtures/arm-defaults34.json -text

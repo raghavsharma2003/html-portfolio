@@ -23355,3 +23355,8 @@ Implement a separate explicit private processing receipt and seven-stage worker 
 ## `gpu150-marker-bound-start-recovery` (2026-09-08)
 
 2026-09-08: Preserve149 and add150 pre-start inventory, DB timestamp and exact per-window execution-template commitment. Recover only one new marked execution in the original persisted planning interval; persist identity before stop. Reverse if real ARM/SQL evidence admits another execution or a changed interval. Metadata defaults remain strict pending actual values.
+
+
+## `gpu-arm-defaults34-five-observed-forms` (2026-09-08)
+
+2026-09-08: Strip only observed response dapr/eventTriggerConfig null, identitySettings[], template initContainers/volumes null. Keep request plan unchanged and reuse narrow template comparison for inspect/observe/recovery. Unknown/nonempty/mistyped fields and per-window marker changes refuse. Reverse only with actual metadata establishing a changed semantic/default and retained positive/negative controls. See GPU-ARM-DEFAULTS34-20260908.md.

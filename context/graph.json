@@ -15492,6 +15492,24 @@
       "kind": "rejection",
       "title": "Do not infer start ownership from a shared template and time",
       "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-arm-defaults34-five-observed-forms",
+      "kind": "decision",
+      "title": "Normalize five observed optional ARM defaults",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-arm-defaults34-get-and-controls",
+      "kind": "measurement",
+      "title": "One exact GET and twenty-five synthetic groups",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "gpu-arm-defaults34-generic-filter-and-eol",
+      "kind": "rejection",
+      "title": "Reject generic empty filtering and normalized evidence bytes",
+      "at": "2026-09-08"
     }
   ],
   "edges": [
