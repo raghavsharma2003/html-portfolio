@@ -44,6 +44,13 @@ var secretEnv = [
     secretRef: secret.name
   }
 ]
+var cronSecretReferences = [
+  for secret in cronSecrets: {
+    name: secret.name
+    keyVaultUrl: secret.keyVaultUrl
+    identity: identityId
+  }
+]
 var registrySecret = {
   name: 'web-registry-password'
   keyVaultUrl: registryKeyVaultUrl
@@ -115,13 +122,7 @@ resource jobs 'Microsoft.App/jobs@2024-03-01' = [
         triggerType: 'Schedule'
         replicaTimeout: 330
         replicaRetryLimit: 0
-        secrets: concat([
-          for secret in cronSecrets: {
-            name: secret.name
-            keyVaultUrl: secret.keyVaultUrl
-            identity: identityId
-          }
-        ], [registrySecret])
+        secrets: concat(cronSecretReferences, [registrySecret])
         registries: [registryBinding]
         scheduleTriggerConfig: { cronExpression: schedule.schedule, parallelism: 1, replicaCompletionCount: 1 }
       }
