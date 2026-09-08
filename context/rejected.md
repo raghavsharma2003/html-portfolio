@@ -17328,3 +17328,8 @@ Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-w
 ## `integration33-utf8-schema-reader` (2026-09-08)
 
 2026-09-08: Final Python inspection used implicit cp1252 and failed decoding schema at byte11924. ExplicitUTF8 completed149/150 mirror checks. No source was changed by failed mirror read; active state header had already been written and was not duplicated.
+
+
+## `release34-duplicate-registry` (2026-09-08)
+
+2026-09-08: Integration33 merge retained two identical gpu-allocation-budget object properties. JS would run it once but AST inventory inflated total373. Preserve frozen33; remove second property in mutable34 and refuse duplicate registry names in new guard. Source inventory helper initially imported Windows path as URL and failed ERR_UNSUPPORTED_ESM_URL_SCHEME; pathToFileURL fixed it before inventory completion.

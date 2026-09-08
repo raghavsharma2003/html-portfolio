@@ -23553,3 +23553,8 @@ After actual visual inspection, hide new-upload instructions and unavailable pre
 ## `integration33-gpu-union` (2026-09-08)
 
 2026-09-08: Integrated fe86c578 after the first three source slices passed scoped checks. Preserve existing seam comparison paths and union149/150 after148. Reversal: source or SQL mismatch, failed erasure reach or application integration control reopens this source freeze; no release acceptance.
+
+
+## `release34-mutable-preparation` (2026-09-08)
+
+2026-09-08: Create codex/release34-candidate from frozen integrationdf83790a. Keep it mutable pending root performance result. Prepare guard with exact root/branch/output substitutions from31 and a duplicate-suite refusal. Hold dependency copy/build/fullrelease while performance lane reserved. Reversal: final source patch or inventory change requires new reviewed guard/preparation.

@@ -16134,6 +16134,24 @@
       "kind": "rejection",
       "title": "Windows implicit encoding cannot inspect schema",
       "at": "2026-09-08"
+    },
+    {
+      "id": "release34-mutable-preparation",
+      "kind": "decision",
+      "title": "Prepare a separate release candidate",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release34-registry-inventory",
+      "kind": "measurement",
+      "title": "Retain all prior suites and new capabilities",
+      "at": "2026-09-08"
+    },
+    {
+      "id": "release34-duplicate-registry",
+      "kind": "rejection",
+      "title": "Union created duplicate GPU suite property",
+      "at": "2026-09-08"
     }
   ],
   "edges": [

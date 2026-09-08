@@ -17325,3 +17325,8 @@ Final source-only phase:23seam,15client,31Journey,57creator-export controls, for
 ## `integration33-gpu-union-proof` (2026-09-08)
 
 2026-09-08: n14 actual exported GPU SQL strings match frozenc7b457 exactly. Frozen GPU Git manifest verified. Updated budget17/controller25/preparation28 controls pass, final forced semantic TypeScript terminal0, copy7scopes21negatives. Deploy verifier11 positive/negative fixtures passed28localrequests. All145to150 migration mirrors present. No SQL/provider/cloud execution.
+
+
+## `release34-registry-inventory` (2026-09-08)
+
+2026-09-08: AST inventory after duplicate repair has372 distinct suites: all359 frozen31 name/path entries retained plus13new;38classified browser suites and24gates. Guard syntax passes; dependency/config/fullprep notrun. Disk free158394241024bytes measured via PowerShell drive metadata; no resource provisioning/model spend.
