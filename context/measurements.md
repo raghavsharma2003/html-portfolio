@@ -17137,3 +17137,8 @@ On 2026-09-08 in isolated source based f4235c68: new41 offline actual issuer/reg
 ## `gpu-arm-defaults34-get-and-controls` (2026-09-08)
 
 2026-09-08: One exact existing job GET completed through approved MSAL/DPAPI helper; safe projection contains no env/secret values, zero ARM writes/key reads/models. Receipt SHA5ef543bfe1e73281bef54e875202a4c34ac4d9191b6596f9f76c8c6f02ab3825.25 synthetic ARM/DB groups passed and staged blob preserves original receipt hash. Earlier deferred c7b457 graph check passed2564nodes/2422edges. No candidate deployment, SQL or GPU execution.
+
+
+## `gpu151-catalog-and-source-controls` (2026-09-08)
+
+2026-09-08: Root actual devDB runtime failed23514 at overrun reconciliation after9 groups, cleanup zero; root read-only catalog receipt relational31-gpu-check-diagnosis-1788850824112-result.json confirms the legacy cap remains. This agent ran18 offline controls including source comparison against that actual catalog, schema mirror and wrong-name/settled-guard negative controls. These controls do not executeSQL.151 not applied by this agent; root protected DB proof remains required.

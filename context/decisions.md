@@ -23360,3 +23360,8 @@ Implement a separate explicit private processing receipt and seven-stage worker 
 ## `gpu-arm-defaults34-five-observed-forms` (2026-09-08)
 
 2026-09-08: Strip only observed response dapr/eventTriggerConfig null, identitySettings[], template initContainers/volumes null. Keep request plan unchanged and reuse narrow template comparison for inspect/observe/recovery. Unknown/nonempty/mistyped fields and per-window marker changes refuse. Reverse only with actual metadata establishing a changed semantic/default and retained positive/negative controls. See GPU-ARM-DEFAULTS34-20260908.md.
+
+
+## `gpu151-actual-catalog-cap-repair` (2026-09-08)
+
+2026-09-08: Migration151 drops only vy_gpu_allocation_window_check, the measured PostgreSQL auto-name for147 multi-column actual>=0 AND actual<=reserved.149 dropped a different name and retained this obsolete cap. Preserve applied149/150, nonnegative standalone CHECK, settled receipt check1 and other guards. Real verified overrun must record debt and pause admission, not fail reconciliation. Reverse only if catalog shows this name has a different definition; protected preflight must refuse that case.

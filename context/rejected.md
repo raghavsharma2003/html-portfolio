@@ -17133,3 +17133,8 @@ Rejected routing comparison-only uploads through the ordinary primary selector: 
 2026-09-08: Generic removal of empty values would conceal required manual trigger/command/identity changes; explicit negative controls preserve refusal. Independent review found the captured receipt has138CRLF but globalJSONattributes normalizeLF, breaking raw-hash proof after checkout. Added exactpath -text and verified stagedblob originalSHA. Existing scheduled config is nonempty, not evidence for normalizing future manualjob schedule defaults.
 
 Normalization34 final check follow-up: preserving rawCRLF exposed Git trailing-whitespace reports on138captured lines. The exact fixture attribute now recognizes CR-at-EOL while retaining blank-at-EOL/EOF and space-before-tab checks. Original captured bytes remain unchanged; no global whitespace rule changed.
+
+
+## `gpu151-column-name-assumption` (2026-09-08)
+
+2026-09-08:149 assumed vy_gpu_allocation_window_actual_microusd_check named147 actual-cost cap. Actual PostgreSQL named the two-column check vy_gpu_allocation_window_check. DROP IF EXISTS silently did nothing and mock reconciliation missed the leftover cap. Reject naming inference and offline green asSQL proof.151 removes the catalog-confirmed old cap only, preserving nonnegative cost and settled-receipt invariants.

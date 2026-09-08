@@ -130,4 +130,26 @@ await test('migration mirror, global resource exclusion and no expiry release qu
  assert(Q.release.includes("state='reserved'"));assert(!Q.release.includes('now()>'));
  assert(!migration.includes('owner_user_id'));assert(!migration.includes('source_id'));
 });
+await test('151 drops actual catalog legacy cap while preserving debt and settlement guards',async()=>{
+ const migration=await readFile(new URL('../../db/migrations/151_gpu_actual_cost_constraint.sql',import.meta.url),'utf8');
+ const schema=await readFile(new URL('../../db/schema.sql',import.meta.url),'utf8');
+ const catalog=JSON.parse(await readFile(new URL('./catalog151.json',import.meta.url),'utf8'));
+ const statements=migration.replace(/--[^\n]*/g,'').split(';').map(s=>s.trim()).filter(Boolean);
+ const expected='alter table vy_gpu_allocation_window drop constraint if exists vy_gpu_allocation_window_check';
+ function retained(sql){
+  assert.equal(sql,expected);
+  return catalog.checks.filter(c=>!(c.table_name==='vy_gpu_allocation_window'&&c.constraint_name==='vy_gpu_allocation_window_check'));
+ }
+ assert.equal(statements.length,1);const after=retained(statements[0]);
+ const before=catalog.checks.find(c=>c.constraint_name==='vy_gpu_allocation_window_check');
+ assert.equal(before.definition,'CHECK (((actual_microusd >= 0) AND (actual_microusd <= reserved_microusd)))');
+ assert(after.some(c=>c.constraint_name==='vy_gpu_allocation_window_actual_microusd_check'&&c.definition==='CHECK (((actual_microusd IS NULL) OR (actual_microusd >= 0)))'));
+ assert(after.some(c=>c.constraint_name==='vy_gpu_allocation_window_check1'&&c.definition.includes('usage_sha256 IS NOT NULL')));
+ assert(after.some(c=>c.constraint_name==='vy_gpu_allocation_window_check2'));
+ assert.equal(after.length,catalog.checks.length-1);
+ assert.throws(()=>retained(expected.replace('window_check','window_actual_microusd_check')));
+ assert.throws(()=>retained(expected+'1'));
+ assert(schema.replace(/\r/g,'').includes(migration.replace(/\r/g,'')));
+ // This compares source against a measured catalog, not PostgreSQL execution.
+});
 console.log(`${count} offline controls passed; no SQL, cloud or finite-controller acceptance`);
