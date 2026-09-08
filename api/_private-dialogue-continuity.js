@@ -29,7 +29,7 @@ export function continuityFeedbackEligibilitySql(turn='t'){
   or coalesce(latest_feedback.reason_codes,'{}'::text[]) && array['wrong_fact','wrong_relationship','wrong_wording','unsafe_or_boundary']::text[]
   or exists(select 1 from jsonb_each_text(coalesce(latest_feedback.ratings,'{}'::jsonb)) rating(dimension,value)
    where rating.dimension in ('overall','wording','behavior','relationship','memory')
-    and rating.value in ('off','unsafe')))}`;
+    and rating.value in ('off','unsafe')))`;
 }
 
 export function privateContinuityPredicate(refs,r='r',c='c',currentSession='s.session_id'){
