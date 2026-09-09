@@ -17722,3 +17722,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `combined198-source-assembly` (2026-09-09)
 
 2026-09-09 n=3 net patches, eight product/test paths with no overlaps. Source assembly only; no combined tests, build, browser, SQL, model, cloud or push. Registry adds runner output regression to413 incumbent suites for414. Private dependencies absent. Exact inputs and patch hashes are in COMBINED198-WORKING-INVENTORY.json. Independent77 reports actual offline service caller reserve messages1040 equals wire1040, ten emitted SQL byte-equal and canonical validator unchanged; no SQL rerun.
+
+
+## `combined198-test-repair-source-union` (2026-09-09)
+
+2026-09-09 n=2 patches,3 eval files cleanly applied. Author evidence supplied by root:20/131 contract controls and9 Windows portable controls passed. These author runs are not combined198 validation. No tests, browser, npm, build, SQL or cloud executed by this integration.

@@ -866,11 +866,20 @@ const INJECTED_PROVIDER_EXCLUSIONS = {
   "_replica-storage.js": "Private storage upload/read/erasure lifecycle; not a Room provider delivery seam.",
   "_review-queue/questions.js": "Owner review-question generation lifecycle, not follower replies.",
   "_video-enroll/youtube-metadata.js": "Owner video enrollment metadata lookup, not follower delivery.",
+  "_voice/allocation-runtime.js": "Voice app allocation identity/management transport; current production callers are voice-preview.js and voice-allocation-supervise.js, covered by their voice lifecycle suites rather than the Room incident ledger.",
   "_voice/providers/azure-personal-voice.js": "Replica voice artifact lifecycle; not proof of Room incident coverage for voice operations.",
   "_voice/providers/elevenlabs-pvc.js": "Legacy Replica voice artifact lifecycle; retained transport even when serving policy disables it.",
   "_voice/providers/open-chatterbox-preview.js": "Replica preview/artifact lifecycle; not proof of Room incident coverage for voice operations.",
   "_voice/providers/sarvam-bulbul.js": "Legacy Replica voice artifact lifecycle; retained transport even when serving policy disables it.",
   "_voice/warmup.js": "Voice runtime readiness/warmup lifecycle, separate from follower text delivery.",
+};
+
+// The allocation runtime is excluded from the Room incident taxonomy because
+// it owns a private voice-app lifecycle. Keep its actual production callers
+// named here so a future route can silently stop wiring the runtime without
+// making the exclusion look like coverage.
+const EXCLUDED_PROVIDER_CALLERS = {
+  "_voice/allocation-runtime.js": ["voice-preview.js", "voice-allocation-supervise.js"],
 };
 // A named private lifecycle is not evidence of Room incident recording.
 // Its actual admission, cost accounting and bounded transport must remain wired.
@@ -959,6 +968,24 @@ ok(
     : "",
 );
 console.log(`  remote fetch( files (${DISCOVERED_REMOTE_FETCH_FILES.length}): ${DISCOVERED_REMOTE_FETCH_FILES.join(", ")}`);
+
+function productionCallersImportProvider(provider, callers, sourceMutator = (source) => source) {
+  return callers.length > 0 && callers.every((caller, index) => {
+    const p = join(API, caller);
+    if (!fs.existsSync(p)) return false;
+    const source = sourceMutator(scanned(fs.readFileSync(p, "utf8")), caller, index);
+    return source.includes(provider);
+  });
+}
+
+for (const [provider, callers] of Object.entries(EXCLUDED_PROVIDER_CALLERS)) {
+  ok(`[provider-coverage/${provider}] its current production callers import the excluded runtime`,
+    Object.hasOwn(INJECTED_PROVIDER_EXCLUSIONS, provider) &&
+    productionCallersImportProvider(provider, callers));
+  ok(`NEGATIVE CONTROL: ${provider} caller coverage rejects a missing production import`,
+    !productionCallersImportProvider(provider, callers,
+      (source, caller) => caller === callers[0] ? source.replaceAll(provider, "REMOVED_CONTROL") : source));
+}
 
 function fileHasRecordIncident(relFile) {
   const p = join(API, relFile);

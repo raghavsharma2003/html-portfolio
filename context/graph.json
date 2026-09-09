@@ -17586,6 +17586,24 @@
       "kind": "rejection",
       "title": "Working source union is not final release acceptance",
       "at": "2026-09-09"
+    },
+    {
+      "id": "combined198-final-test-repairs",
+      "kind": "decision",
+      "title": "Import reviewed contract and portable command assertions",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "combined198-test-repair-source-union",
+      "kind": "measurement",
+      "title": "Two reviewed test patches apply without overlap",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "combined198-no-history-product-workaround",
+      "kind": "rejection",
+      "title": "Restore genuine Git closure rather than change private draft assertions",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

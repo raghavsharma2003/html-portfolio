@@ -23933,3 +23933,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `combined198-working-repair-union` (2026-09-09)
 
 2026-09-09: Root requested successor to frozen194 with native AbortSignal preservation60c03195, eval output drain5a487c34 and claims schema/accounting f3e822b2 net from194. Claims final77 source admission approved; await remaining targeted repairs, and do not freeze/fullgate. Reverse any import on source mismatch or independent review rejection.
+
+
+## `combined198-final-test-repairs` (2026-09-09)
+
+2026-09-09: Root approved1ca0ee2e Azure serving/incidents assertions and3e89da90 portable copy controls. Import only three eval paths; existing runtime and registry unchanged. Reverse if combined focused checks contradict the stated contracts. Creator refresh diagnosis is the only remaining code queue; candidate stays mutable.

@@ -143,7 +143,8 @@ const extractor = createProductionClaimExtractor(claimEnv, { fetchImpl: async (u
 } });
 const extracted = await extractor.extract({ batch });
 assert.equal(extracted.output.proposals.length, 0);
-assert.equal(calls.length, 1); assert.ok(calls[0].startsWith("https://fixture.services.ai.azure.com/models/"));
+assert.equal(calls.length, 1);
+assert.equal(calls[0], "https://fixture.services.ai.azure.com/openai/v1/chat/completions");
 pass("strict production claim factory dispatches through the real Azure adapter with redirect refusal");
 calls = [];
 await assert.rejects(createProductionClaimExtractor(claimEnv, { fetchImpl: async (url) => {

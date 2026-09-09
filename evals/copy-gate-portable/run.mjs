@@ -34,7 +34,7 @@ try{
  pass('actual CLI exits1 on a real fixture violation without a filesystem error');
  const old=run(['scripts/prior-check-copy.mjs']);
  if(process.platform==='win32'){assert.equal(old.status,0);assert.equal(old.output,'');pass('retained old CLI exits0 silently on Windows despite the same violation');}
- else {assert.notEqual(old.status,0);assert.match(old.output,/ENOENT/);pass('retained old CLI fails encoded filesystem root before scanning');}
+ else {assert.equal(old.status,0);assert.equal(old.output,'');pass('retained old CLI exits0 silently when its encoded POSIX entry guard does not match');}
  writeFileSync(join(fixture,'scripts/forced-prior.mjs'),prior.replace('if (import.meta.url === `file://${process.argv[1]}`) {','if (true) {'));
  const forced=run(['scripts/forced-prior.mjs']);assert.notEqual(forced.status,0);assert.match(forced.output,/ENOENT/);assert.doesNotMatch(forced.output,/\[dash\]/);
  pass('old entry forced open still fails pathname filesystem conversion; no false scan acceptance');
