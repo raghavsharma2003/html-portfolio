@@ -93,21 +93,24 @@ export function createProcessingGpuAdmission({db,env=process.env,clock=Date.now,
    if(typeof observe!=='function')fail('processing_gpu_observer_required');
    const metadata=await observe(p);
    if(metadata?.resource_id!==p.resource_id||metadata.revision_sha256!==p.revision_sha256||metadata.image_sha256!==p.image_sha256)fail('processing_gpu_deployment_changed');
-   await authorize();
+   if(metadata.source_sha256&&metadata.source_sha256!==source.sha256)fail('processing_canary_source_mismatch');
+   const snapshotFresh=()=>{if(metadata.valid_until_ms!==undefined&&clock()>metadata.valid_until_ms)fail('processing_canary_snapshot_expired');};
+   snapshotFresh();await authorize();snapshotFresh();
    const deadline=Math.min(p.expires_at_ms,clock()+p.dispatch_seconds*1000);
-   const controller={kind:'azure-shared-evidence-controller/v1',async authorizeWindow({request_sha256}){await authorize();return {...p,request_sha256,resource_sha256:sha256Hex(p.resource_id),kind:'azure-shared-evidence/v1'};}};
+   const controller={kind:'azure-shared-evidence-controller/v1',async authorizeWindow({request_sha256}){snapshotFresh();await authorize();snapshotFresh();return {...p,request_sha256,resource_sha256:sha256Hex(p.resource_id),kind:'azure-shared-evidence/v1'};}};
    const limit=Number(env.AZURE_PROCESSING_GPU_LIMIT_MICROUSD);
    const meter=meterFactory({db,budgetId:env.AZURE_PROCESSING_GPU_BUDGET_ID,limitMicrousd:limit,controller});
    const request=hash({kind:'ordinary-source-evidence/v1',sourceKey,runNonce,contract:p.contract_sha256});
    const reservation=await meter.reserve({request_sha256:request,preparation_id:null,job_id:sourceKey,step:'whole_source',max_dispatches:1});
    if(reservation.recovered)fail('processing_gpu_allocation_already_claimed');
+   try{snapshotFresh();}catch(error){await meter.releaseBeforeBegin(reservation);throw error;}
    // Begin and durable authority are one statement: no invisible begun parent.
    const rows=await db(PROCESSING_GPU_SQL.bind,[...args,reservation.window_id,reservation.budget_id,reservation.request_sha256,p.resource_id,p.revision_sha256,p.origin,p.contract_sha256,deadline]);
    if(rows.length!==1){await meter.releaseBeforeBegin(reservation);fail('processing_gpu_authority_changed');}
-   parent={reservation,meter,p,deadline};parents.set(sourceKey,parent);
+   parent={reservation,meter,p,deadline,snapshotFresh,snapshotConsumed:false};parents.set(sourceKey,parent);
   }
   const jobHash=hash({job:job.job_id,revision:job.revision});let requestHash=null;
-  const boundary=async()=>{if(stopped||clock()>=parent.deadline)fail('processing_gpu_deadline');await authorize();};
+  const boundary=async()=>{if(stopped||clock()>=parent.deadline)fail('processing_gpu_deadline');if(!parent.snapshotConsumed)parent.snapshotFresh();await authorize();if(!parent.snapshotConsumed)parent.snapshotFresh();};
   return Object.freeze({
    assertProviderOrigin(origin){if(origin!==parent.p.origin)fail('processing_gpu_origin_mismatch');},
    deadlineSignal(){const remaining=parent.deadline-clock();if(remaining<=0||stopped)fail('processing_gpu_deadline');return AbortSignal.timeout(remaining);},
@@ -117,7 +120,7 @@ export function createProcessingGpuAdmission({db,env=process.env,clock=Date.now,
     await boundary();const rows=await db(PROCESSING_GPU_SQL.claim,[...args,parent.reservation.window_id,jobHash,requestSha256]);
     if(rows.length!==1)fail('processing_gpu_child_already_claimed');requestHash=requestSha256;
    },
-   async beforeProviderPoll(){await boundary();if(!requestHash||!(await db(PROCESSING_GPU_SQL.poll,[...args,parent.reservation.window_id,jobHash,requestHash])).length)fail('processing_gpu_authority_changed');},
+   async beforeProviderPoll(){await boundary();if(!requestHash||!(await db(PROCESSING_GPU_SQL.poll,[...args,parent.reservation.window_id,jobHash,requestHash])).length)fail('processing_gpu_authority_changed');if(!parent.snapshotConsumed)parent.snapshotFresh();parent.snapshotConsumed=true;},
    async afterProviderResponse(response){if(response.request_sha256!==requestHash||!HASH.test(response.response_sha256||''))fail('processing_gpu_response_invalid');
     if((await db(PROCESSING_GPU_SQL.response,[parent.reservation.window_id,jobHash,requestHash,response.response_sha256])).length!==1)fail('processing_gpu_response_unknown');},
   });

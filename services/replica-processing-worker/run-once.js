@@ -1,4 +1,4 @@
-import {createProcessingGpuObserver} from '../../api/_replica-processing/gpu-observer.js';
+import {createProcessingAdmissionObserver} from '../../api/_replica-processing/canary-observer.js';
 import {createProcessingGpuAdmission} from '../../api/_replica-processing/gpu-admission.js';
 import {
   CAPABILITY_ABSENCE_CODES,
@@ -105,7 +105,7 @@ async function main() {
   // admission request, not an invitation to fall back to the global queue.
   const sourceScope = processingSourceScopeFromEnv(process.env);
   const db = createNeonDb();
-  const processingAllocation=createProcessingGpuAdmission({db,env:process.env,observe:createProcessingGpuObserver()});
+  const processingAllocation=createProcessingGpuAdmission({db,env:process.env,observe:createProcessingAdmissionObserver()});
 
   // Composed WITHOUT the scanner first, only to learn what work is waiting.
   // `clamdscan` is on the PATH in this image, so the capability report already
