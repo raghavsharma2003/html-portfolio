@@ -17755,3 +17755,8 @@ a85f2f8b adds diagnostic barriers only; do not claim the refresh defect resolved
 ## `postrelease202-no-inherited-native-reversion` (2026-09-09)
 
 Explicit allowlist excludes inherited Azure web eval that would reverse native lifecycle fix. Race/auth matrix remains pending. Initial registry read hit Windows cp1252 decoding before mutation; resumed explicit UTF8, without reapplying already-verified feature patch.
+
+
+## `postrelease202-reject-old-refresh-wholefile` (2026-09-09)
+
+git apply --check rejected donor hunk context because current named wait diagnostics are newer. No source mutation occurred on failed check. Per root, merged only optional sourceGET to exact10s persisted-token barrier; no wholesale donor checkout and no lost diagnostic helpers.

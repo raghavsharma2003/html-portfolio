@@ -17718,6 +17718,24 @@
       "kind": "measurement",
       "title": "Integrated TypeScript passes on91aada0f",
       "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease202-refresh-adoption-barrier",
+      "kind": "decision",
+      "title": "Use fresh stored-token adoption while preserving current diagnostics",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease202-refresh-barrier-union",
+      "kind": "measurement",
+      "title": "One functional barrier replacement retains newer diagnostics",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease202-reject-old-refresh-wholefile",
+      "kind": "rejection",
+      "title": "Do not overwrite current diagnostics with older donor file",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

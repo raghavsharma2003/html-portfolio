@@ -23968,3 +23968,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease202-remembered-correction` (2026-09-09)
 
 2026-09-09: Root approved57a38e25 after actual SQL203 and mounted evidence. Ten exact feature files plus only new suite registration imported. Preserve newer native lifecycle files. Reverse on race/auth matrix failure or authority regression; working checkpoint only.
+
+
+## `postrelease202-refresh-adoption-barrier` (2026-09-09)
+
+2026-09-09: Root approved e2ad functional10s barrier, then explicitly instructed hunk-only merge because donor predates current named wait/httpState diagnostics. Replace only optional sourceGET wait with exact donor persisted owner+fresh token assertion. Freeze source checkpoint for next release; root owns execution. Reverse on authority regression or combined failure.
