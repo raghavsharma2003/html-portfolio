@@ -24008,3 +24008,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease205-transcript-chronology` (2026-09-09)
 
 Root approved1d0319ed two-path ORDER BY repair: sources chronological then span offset instead of random UUID priority.55 focused claims checks passed;57 owns separate actual readonly EXPLAIN. Reverse on query proof failure or broken source lineage. Do not infer prior SQL hash parity after intentional SQL change.
+
+
+## `communication-policy214` (2026-09-09)
+
+When trusted scoped saved metadata resolves the response language, omit the approved language-default material from this reply projection. Keep all non-language approved teacher fields unchanged; do not modify the persisted persona. Replace the existing saved policy with one per-dimension effective-default policy: explicit current choice wins, then saved fields, then current-question inference and unresolved approved defaults. An explicit override wins over incompatible saved script; temporary override never edits memory. Reverse if actual multilingual trials show worse adherence, override/forget regression, or lost essential teacher behavior.

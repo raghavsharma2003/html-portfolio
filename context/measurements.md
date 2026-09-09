@@ -17802,3 +17802,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease205-integrated-controls` (2026-09-09)
 
 2026-09-09 one combined engine rebuild and tsc-b-force exit0; private6496files exact-lock verified. Math13, answer19, authority29, caller/meter27, generated compiler30 and claims55 controls passed. Initial math import failed missing ignored config; checked-in generator under scrubbed env wrote inert exports then correctly refused deploy exit1. All config exports verified blank/empty; resumed only failed/unrun suites. Receipts postrelease205-checks-1788930475592 and postrelease205-offline-1788930594581. No model/SQL/fullgate/preview205.
+
+
+## `communication-policy214-offline` (2026-09-09)
+
+2026-09-09: inspected actual213 result rsemantic213-a730b630faa547d148b0e814-result.json call5 and compilation3: mini saved Hindi/devanagari/detailed but delivered prose was entirely English. The actual prompt already used savedCommunication OR LANGUAGE_V2, so duplicated earlier LANGUAGE_V2 was not the cause. Earlier approved English-first/never-shuddh-Hindi material remained present with applicability ignoring saved values; causal hypothesis remains unproved until new model trial. Candidate generatedcompiler31, Roomruntime24, narrowcompiler TypeScript, initial bundlefresh375161 bytes pass; after reviewer clarification on compatible saved Roman script, generated31 passed again with375362-byte bundle. New control proves resolved default absent, single language policy, partial fallback retained and wholeforget restored default. No model/SQL calls.

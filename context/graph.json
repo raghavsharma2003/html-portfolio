@@ -17856,6 +17856,24 @@
       "kind": "decision",
       "title": "Preserve source chronology when extraction timestamps tie",
       "at": "2026-09-09"
+    },
+    {
+      "id": "communication-policy214",
+      "kind": "decision",
+      "title": "Remove resolved language default from saved-preference replies",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "communication-policy214-offline",
+      "kind": "measurement",
+      "title": "Actual213 failure and214 structural verification",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "communication-policy214-no-append",
+      "kind": "rejection",
+      "title": "Reject repeated language instructions and false causal diagnosis",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

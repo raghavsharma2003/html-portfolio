@@ -89,6 +89,31 @@ check('one typed Hindi memory projects multiple fields and corrected scope block
  assert.deepEqual(parseMaterial(compile(input([changed,typed])),'SAVED COMMUNICATION JSON'),{language:'english'},'removed brevity remains cleared inside retained scope');
  for(const patch of [{communication:{...communication,state:'pending'}},{sourceContent:'foreign source'},{kind:'relationship'},{name:'goal'}])failure(input([{...typed,...patch}]),'expert_text_memory_scope_invalid');
 });
+check('resolved saved language removes conflicting approved default and has one effective presentation policy',()=>{
+ const teacher={...base.teacher,languageTextRule:'ENGLISH-FIRST only: never Hindi. Approved fallback canary.'};
+ const quote='I prefer full Hindi explanations in Devanagari for our ongoing conversations.';
+ const saved={...preferenceRow,id:'515',body:quote,sourceContent:quote,
+  communication:communicationFromProposal({language:'hindi',script:'devanagari',brevity:'detailed'})};
+ const input={...preferenceInput,teacher,privateMemory:{...preferenceInput.privateMemory,rows:[saved]}};
+ const actual=compile(input);
+ assert.equal(actual.system.includes(teacher.languageTextRule),false);
+ assert.equal(actual.system.includes('APPROVED LANGUAGE DEFAULT JSON:'),false);
+ assert.equal(actual.system.split('EXPERT REPLY LANGUAGE:').length-1,1);
+ assert.deepEqual(parseMaterial(actual,'SAVED COMMUNICATION JSON'),{language:'hindi',script:'devanagari',brevity:'detailed'});
+ assert.match(actual.tail,/A question written in another language is not an explicit request/);
+ assert.match(actual.tail,/Resolve incompatible saved fields in favor of that explicit request/);
+ assert.match(actual.tail,/Only if a saved script is incompatible/);
+ assert.match(actual.tail,/requesting Hindi alone does not replace a saved Roman script/);
+ assert.equal(actual.tail.includes('private memory, names, identifiers and UI locale'),false);
+ const forgotten=compile({...input,privateMemory:{...input.privateMemory,enabled:false,rows:[]}});
+ assert.equal(forgotten.system.includes('SAVED COMMUNICATION JSON:'),false);
+ assert.equal(parseMaterial(forgotten,'APPROVED LANGUAGE DEFAULT JSON').approvedValue,teacher.languageTextRule);
+ assert.match(forgotten.tail,/explicit language\/script in the current user's own request > language\/script of their current question/);
+ const partial={...saved,communication:communicationFromProposal({language:null,script:null,brevity:'detailed'})};
+ const partialResult=compile({...input,privateMemory:{...input.privateMemory,rows:[partial]}});
+ assert.equal(parseMaterial(partialResult,'APPROVED LANGUAGE DEFAULT JSON').approvedValue,teacher.languageTextRule);
+ assert.deepEqual(parseMaterial(actual,'TEACHER PROJECTION JSON'),parseMaterial(forgotten,'TEACHER PROJECTION JSON'));
+});
 check('scoped positive preferences become closed presentation fields with provenance only outside model material',()=>{
  const result=compile(preferenceInput);
  assert.deepEqual(parseMaterial(result,'SAVED COMMUNICATION JSON'),{verificationLabel:'orbit-check',brevity:'short',language:'hinglish',script:'roman'});
