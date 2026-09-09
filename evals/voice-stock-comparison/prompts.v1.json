@@ -1,0 +1,53 @@
+{
+  "contract": "vyakti-synthetic-stock-voice-prompts/v1",
+  "authoredAt": "2026-09-09",
+  "heldOutMeaning": "New evaluation text; never used as reference transcript, training input or tuning feedback in this experiment. Pretrained-model contamination is unknown.",
+  "prompts": [
+    {
+      "id": "hi-pendulum-negation", "language": "hi", "script": "devanagari", "seed": 106001,
+      "text": "सरल लोलक के छोटे दोलनों में आवर्तकाल उसकी लंबाई और गुरुत्वीय त्वरण पर निर्भर करता है। द्रव्यमान बढ़ाने से आवर्तकाल नहीं बढ़ता।",
+      "criticalUnits": ["छोटे दोलनों", "लंबाई", "गुरुत्वीय त्वरण", "द्रव्यमान", "नहीं बढ़ता"],
+      "meaningCheck": "Small-angle ideal pendulum period depends on length and gravity, not mass. Negation must remain audible."
+    },
+    {
+      "id": "hi-current-condition", "language": "hi", "script": "devanagari", "seed": 106002,
+      "text": "यदि प्रतिरोध 4 ओम और विभवांतर 12 वोल्ट हो, तो धारा 3 ऐम्पियर होगी। यह निष्कर्ष तभी लागू है जब तापमान स्थिर रहे।",
+      "criticalUnits": ["4 ओम", "12 वोल्ट", "3 ऐम्पियर", "तापमान स्थिर"],
+      "meaningCheck": "Four ohms, twelve volts and three amperes must retain value and unit; the constant-temperature condition must remain."
+    },
+    {
+      "id": "hinglish-sign-correction", "language": "hi", "script": "mixed", "seed": 106003,
+      "text": "पहले units जाँचो, फिर calculation करो। Negative sign हटाने से answer का अर्थ बदल सकता है।",
+      "languageSpans": [
+        {"text":"पहले ","language":"hi"}, {"text":"units","language":"en"}, {"text":" जाँचो, फिर ","language":"hi"},
+        {"text":"calculation","language":"en"}, {"text":" करो। ","language":"hi"}, {"text":"Negative sign","language":"en"},
+        {"text":" हटाने से ","language":"hi"}, {"text":"answer","language":"en"}, {"text":" का अर्थ बदल सकता है।","language":"hi"}
+      ],
+      "criticalUnits": ["units", "calculation", "Negative sign", "answer", "बदल सकता है"],
+      "meaningCheck": "Check units first; removing a minus sign can change the answer's meaning. Score all four English islands and adjacent Hindi words."
+    },
+    {
+      "id": "hinglish-length-ratio", "language": "hi", "script": "mixed", "seed": 106004,
+      "text": "द्रव्यमान constant रखो और length को चार गुना करो। Small-angle approximation में time period दो गुना होगा, चार गुना नहीं।",
+      "languageSpans": [
+        {"text":"द्रव्यमान ","language":"hi"}, {"text":"constant","language":"en"}, {"text":" रखो और ","language":"hi"},
+        {"text":"length","language":"en"}, {"text":" को चार गुना करो। ","language":"hi"}, {"text":"Small-angle approximation","language":"en"},
+        {"text":" में ","language":"hi"}, {"text":"time period","language":"en"}, {"text":" दो गुना होगा, चार गुना नहीं।","language":"hi"}
+      ],
+      "criticalUnits": ["constant", "length", "चार गुना करो", "Small-angle approximation", "time period", "दो गुना", "चार गुना नहीं"],
+      "meaningCheck": "For an ideal simple pendulum at small angle, four times the length gives twice the period. Preserve the assumption and negated four-times conclusion."
+    },
+    {
+      "id": "en-pendulum-negation", "language": "en", "script": "latin", "seed": 106005,
+      "text": "An ideal simple pendulum swings more slowly when its length increases. Doubling its mass does not double its period.",
+      "criticalUnits": ["ideal simple pendulum", "length increases", "mass", "does not double"],
+      "meaningCheck": "Mass independence and the negative statement must remain intelligible."
+    },
+    {
+      "id": "en-names-current", "language": "en", "script": "latin", "seed": 106006,
+      "text": "Asha and Pranav measured twelve volts across a four-ohm resistor in Pune. At constant temperature, the current is three amperes.",
+      "criticalUnits": ["Asha", "Pranav", "Pune", "twelve volts", "four-ohm", "constant temperature", "three amperes"],
+      "meaningCheck": "Indian names and Pune, values/units and the temperature condition must be intelligible."
+    }
+  ]
+}

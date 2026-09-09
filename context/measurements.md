@@ -17777,3 +17777,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease204-test-source-parity` (2026-09-09)
 
 2026-09-09 n=2 patches/3files match incoming LF bytes. Root reports controlled oldwait8-versus0 failure followed by24checks390/1440 pass with session74524exit0. Action focus reports58passed but launcher exit is null; no captured exit0 claim. Integration ran no runtime/fullgate/cloud/browser.
+
+
+## `voice-stock106-offline-controls` (2026-09-09)
+
+2026-09-09, n=15 Node groups plus6 Python groups passed on isolated7bfa08d successor. Twelve payloads passed unchanged pure runtime validators on the full26.6125-second stock WAV; Chatterbox soundfile metadata used a stdlib WAV adapter. CPU fake synthesis exercised both six-call jobs and complete collection; actual capture caller used a scoped HTTP fixture then the real Python collector. Cleanup journal/supervise/sleep/deadline and missing-first-artifact controls passed. Existing27 GPU Job controls previously passed with the controller delta. No live SQL parser, GPU, model, provider, build or provisioning calls. Concrete disabled contexts/scoring share planSHA c4862a0980ec263b68568a60d9595e221f1ba9dc1c6a6741bdc9c70bc36f5414.

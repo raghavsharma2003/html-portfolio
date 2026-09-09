@@ -17770,3 +17770,8 @@ Do not claim world-class design or end-to-end product acceptance from four Room 
 ## `postrelease204-no-inferred-action-exit` (2026-09-09)
 
 Action focus58printed success is retained with launcher exitnull. Selected-reference actual captured exit0 is separate evidence. No production change or fullrerun performed by source integration; frozen202 remains intact.
+
+
+## `voice-stock106-reject-inprocess-only` (2026-09-09)
+
+Independent review caught the first draft exiting after post-start journal/supervision failure without exact-window cleanup, and starting arm2 before arm1 output completeness. Added finally cancellation plus a detached source-bound observer, checked again at actual ARM start, and bounded exact-execution Log Analytics capture/collector before arm2. Processing161 is evidence preprocessing only and cannot authorize synthesis; Chatterbox ignored extra scope fields, so runtime flags cannot issue synthetic authority. Unknown cleanup remains held, not proof of stopped allocation; offline artifacts are not measured voice quality.

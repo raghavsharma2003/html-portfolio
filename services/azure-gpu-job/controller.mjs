@@ -16,6 +16,8 @@ function canonical(value) {
 export const commitment = value => createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex');
 
 export function isolatedJobPlan(input) {
+  const workload=input?.workload??'gpu-control-probe';
+  if(!['gpu-control-probe','synthetic-stock-comparison106-v1'].includes(workload))fail('gpu_workload_invalid');
   if (!ID.test(input?.jobId || '')) fail('gpu_job_id_invalid');
   const environmentPrefix = input.jobId.split('/providers/')[0] + '/providers/Microsoft.App/managedEnvironments/';
   if (!input.environmentId?.startsWith(environmentPrefix) || !/^[a-zA-Z0-9_-]+$/.test(input.environmentId.slice(environmentPrefix.length))) fail('gpu_environment_invalid');
@@ -32,10 +34,11 @@ export function isolatedJobPlan(input) {
       registries: [{server:input.image.split('/')[0],username:input.image.split('.')[0],passwordSecretRef:'registry-pull'}],
       secrets: [{name:'registry-pull'}]},
     template: {containers: [{name: 'comparison', image: input.image,
-      command: ['python', '-c', GPU_PROBE],
+      command: workload==='gpu-control-probe'?['python', '-c', GPU_PROBE]:['python','/opt/vyakti-stock/entrypoint.py'],
       resources: {cpu: 8, memory: '56Gi'}, env: []}]},
   };
   return Object.freeze({kind: 'azure-isolated-gpu-job-plan/v1', job_id: input.jobId,
+    ...(workload==='gpu-control-probe'?{}:{workload}),
     location: 'centralindia', properties, template_sha256: commitment(properties.template),
     configuration_sha256: commitment(properties), activation_available: false,
     blocking_codes: ['gpu_experiment_budget_not_approved', 'gpu_private_registry_auth_not_deployed',
@@ -59,6 +62,7 @@ function validatePlan(plan) {
   // Reconstruct the accepted configuration rather than accepting recomputed
   // hashes on an arbitrary ARM resource or changed command/parallelism.
   const expected = isolatedJobPlan({jobId: plan.job_id, environmentId: plan.properties.environmentId,
+    workload:plan.workload,
     workloadProfileName: plan.properties.workloadProfileName, image: plan.properties.template?.containers?.[0]?.image,
     replicaTimeout: plan.properties.configuration?.replicaTimeout});
   if (expected.configuration_sha256 !== plan.configuration_sha256 || plan.location !== expected.location) fail('gpu_job_plan_invalid');

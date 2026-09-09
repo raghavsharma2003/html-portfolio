@@ -23983,3 +23983,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease204-cu3p-test-repairs` (2026-09-09)
 
 2026-09-09: Root approved4b9b9847 action focus and910aea4d selected-reference test repairs. Import exactly3 eval files, preserve all production source. Reverse if barriers bypass actual save/permission readiness or hide wrong consent assertions. Working checkpoint awaits semantic/processing reviews.
+
+
+## `voice-stock106-dedicated-jobs` (2026-09-09)
+
+Root approved source-only fixed overlays and two serial dedicated Manual GPU Jobs for the full synthetic stock reference and six immutable Hindi/Hinglish/English texts. Reuse existing allocation ledger and supervisor, with exact workload/configuration/manifest commitments, independent CPU observation and complete first-arm capture before the second. No owner route, processing161 waiver, adapter, training or new authority table. Reverse if immutable image/input binding, existing supervisor safety or actual runtime/capture compatibility fails. Build/provision/execution needs separate approval.

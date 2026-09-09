@@ -17772,6 +17772,24 @@
       "kind": "rejection",
       "title": "Do not invent a successful terminal status from printed checks",
       "at": "2026-09-09"
+    },
+    {
+      "id": "voice-stock106-dedicated-jobs",
+      "kind": "decision",
+      "title": "Separate fixed synthetic Manual Jobs reuse147/149/150",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "voice-stock106-offline-controls",
+      "kind": "measurement",
+      "title": "Fifteen Node and six Python groups, no model calls",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "voice-stock106-reject-inprocess-only",
+      "kind": "rejection",
+      "title": "Reject in-process-only cleanup and terminal-only arm sequencing",
+      "at": "2026-09-09"
     }
   ],
   "edges": [
@@ -30212,6 +30230,11 @@
       "src": "product175-correction-editor-polish",
       "rel": "caused_by",
       "dst": "product175-correction-editor-scope"
+    },
+    {
+      "src": "voice-stock106-dedicated-jobs",
+      "dst": "voice-stock106-offline-controls",
+      "rel": "measured_by"
     }
   ]
 }
