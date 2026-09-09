@@ -63,6 +63,7 @@ export const PROCESSING_GPU_SQL=Object.freeze({
 export function processingGpuPlan(env={}, {recovery=false}={}){
  let p;try{p=JSON.parse(env.AZURE_PROCESSING_GPU_PLAN_JSON||'null');}catch{fail('processing_gpu_plan_invalid');}
  if(!p||p.kind!=='azure-shared-evidence/v1'||p.resource_id!=='/subscriptions/c60a32f6-c812-4c0e-bc42-b6431ee90b8f/resourceGroups/vyakti-voice/providers/Microsoft.App/containerapps/vyakti-voice-evidence'
+ || !/^vyakti-voice-evidence--[a-zA-Z0-9-]+$/.test(p.active_revision_name||'')||!HASH.test(p.active_revision_template_sha256||'')
  || !HASH.test(p.revision_sha256||'')||!HASH.test(p.contract_sha256||'')||!HASH.test(p.image_sha256||'')
  ||!Number.isSafeInteger(p.reservation_estimate_microusd)||p.reservation_estimate_microusd<=0
  ||!Number.isSafeInteger(p.planning_allocation_seconds)||p.planning_allocation_seconds<60||p.planning_allocation_seconds>3600

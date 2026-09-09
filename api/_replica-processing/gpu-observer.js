@@ -29,11 +29,12 @@ export function createProcessingGpuObserver({env=process.env,getToken=()=>voiceA
    if(typeof name!=='string'||!/^vyakti-voice-evidence--[a-zA-Z0-9-]+$/.test(name)||names.has(name)||revision.id?.toLowerCase()!==`${base}/revisions/${name}`.toLowerCase()||typeof revision.properties?.active!=='boolean')fail();
    names.add(name);
    // Any currently active foreign template makes admission and release unknown.
-   if(revision.properties.active&&hash(revision.properties.template)!==hash(p.template))fail();
+   if(revision.properties.active&&(name!==plan.active_revision_name||hash(revision.properties.template)!==plan.active_revision_template_sha256))fail();
    const replicas=await list(`${base}/revisions/${name}/replicas`),ids=new Set();
    for(const replica of replicas){if(typeof replica.id!=='string'||!replica.id.toLowerCase().startsWith(`${base}/revisions/${name}/replicas/`.toLowerCase())||ids.has(replica.id))fail();ids.add(replica.id);}
    observed.push({name,active:revision.properties.active,replicas:replicas.length});
   }
+  if(observed.filter(r=>r.active).length!==1)fail();
   return {kind:'azure-shared-evidence-observation/v1',resource_id:base,revision_sha256:commitment,image_sha256:plan.image_sha256,observed_at_ms:clock(),revisions:observed};
  };
 }
