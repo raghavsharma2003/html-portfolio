@@ -551,7 +551,19 @@ export function parseExpertAnswer(raw: string): ParsedReply {
       code: "expert_answer_text_too_long", status: 502,
     });
   }
-  return parseTextReply(raw, true);
+  const parsed = parseTextReply(raw, true);
+  parsed.bubbles = parsed.bubbles.map(normalizeExpertBonds);
+  return parsed;
+}
+
+// Bond punctuation is content, not a prose pause. Only adjacent chemical
+// symbols/groups are normalized here; the shared prose dash gate still runs.
+// Boundaries exclude words such as "North–South" and identifiers like "varC".
+function normalizeExpertBonds(text: string): string {
+  return text.replace(
+    /(?<![\p{L}\p{N}_])(?:CH3|NH2|OH|Cl|Br|R|X|C|N|O|H|S|P|F|I)[–—](?=(?:CH3|NH2|OH|Cl|Br|R|X|C|N|O|H|S|P|F|I|leaving\s*group)(?![\p{L}\p{N}_]))/gu,
+    bond => bond.replace(/[–—]/g, "-"),
+  );
 }
 
 // Explicit LaTeX spans are answer content on the expert lane. Keep multiline

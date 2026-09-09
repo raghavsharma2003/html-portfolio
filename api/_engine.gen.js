@@ -6242,7 +6242,15 @@ function parseExpertAnswer(raw) {
       status: 502
     });
   }
-  return parseTextReply(raw, true);
+  const parsed = parseTextReply(raw, true);
+  parsed.bubbles = parsed.bubbles.map(normalizeExpertBonds);
+  return parsed;
+}
+function normalizeExpertBonds(text3) {
+  return text3.replace(
+    /(?<![\p{L}\p{N}_])(?:CH3|NH2|OH|Cl|Br|R|X|C|N|O|H|S|P|F|I)[–—](?=(?:CH3|NH2|OH|Cl|Br|R|X|C|N|O|H|S|P|F|I|leaving\s*group)(?![\p{L}\p{N}_]))/gu,
+    (bond) => bond.replace(/[–—]/g, "-")
+  );
 }
 var EXPERT_MATH_SPAN = /(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g;
 function splitExpertTextParts(raw) {

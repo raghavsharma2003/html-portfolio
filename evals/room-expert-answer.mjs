@@ -155,12 +155,13 @@ await check('actual Room delivers the late label, hashes delivered bytes and ret
   assert.equal(payload.lr, createHash('sha256').update(turn.reply).digest('base64url').slice(0, 32));
 });
 await check('actual Room preserves scientific brackets in delivery and remembered answer', async () => {
-  const raw = 'Rate = k[substrate]';
+  const raw = 'Rate = k[substrate]. The R–X bond breaks; the C–leaving group bond matters.';
+  const expected = 'Rate = k[substrate]. The R-X bond breaks; the C-leaving group bond matters.';
   const world = await setup({ profile: PROFILE, remembers: true, raw });
   const turn = await world.say();
-  assert.equal(turn.reply, raw);
-  assert.deepEqual(turn.bubbles, [raw]);
-  assert.deepEqual(world.memlog.filter(x => x.call === 'logTurn' && x.role === 'her').map(x => x.content), [raw]);
+  assert.equal(turn.reply, expected);
+  assert.deepEqual(turn.bubbles, [expected]);
+  assert.deepEqual(world.memlog.filter(x => x.call === 'logTurn' && x.role === 'her').map(x => x.content), [expected]);
   assert.equal(world.calls(), 1);
 });
 await check('memory-free next turn accepts the complete 4000-unit answer transcript', async () => {
