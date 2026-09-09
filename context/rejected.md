@@ -17780,3 +17780,8 @@ UI source and real Retry contract review are necessary but insufficient for end-
 ## `postrelease204-no-source-only-runtime-claim` (2026-09-09)
 
 Migration162 source inclusion is not execution. Do not import unapproved processing work, overwrite final UI or donorgraph, or claim actual model trial succeeded. Source integration precedes separately admitted SQL/provider verification.
+
+
+## `postrelease204-processing-not-likeness` (2026-09-09)
+
+Root supplied actual Azure processing evidence; integration adds no new Azure proof. Preserve separation of natural-zero processing accounting from voice185 deactivation semantics. No older donor memory/UI overwrites and no schema162 loss; actual voice likeness remains separately unproved.

@@ -281,7 +281,11 @@ const fragmentedPrimarySegments = [
   { start_ms: 13_264, end_ms: 15_984, speaker_key: "cluster-3", confidence: 0.96, overlap: false },
   { start_ms: 17_808, end_ms: 18_416, speaker_key: "cluster-4", confidence: 1, overlap: false },
 ];
+// Synthetic authority fixture: these three controls exercise CPU window selection only.
+// Any accidental provider dispatch remains a test failure, not simulated evidence.
+const cpuWindowAuthority = Object.freeze({beforePrivateRead: async()=>{}, beforeProviderRequest: async()=>{throw Error("unexpected_window_gpu_dispatch");}});
 const fragmentedPrimary = await Worker.executeProcessingJob({
+  ordinaryGpu: cpuWindowAuthority,
   job: job("separate"),
   source: {
     ...source, duration_ms: 20_992, capture_mode: "upload", subject_mode: "self",
@@ -296,6 +300,7 @@ ok("a short selected self-recording survives diarizer over-fragmentation without
   fragmentedPrimary.artifacts[0].quality.reference_selection_mode === "primary_self_capture" &&
   fragmentedPrimary.artifacts[0].transform.name === "reference-window-passthrough");
 const fragmentedSupporting = await Worker.executeProcessingJob({
+  ordinaryGpu: cpuWindowAuthority,
   job: job("separate"),
   source: {
     ...source, duration_ms: 20_992, capture_mode: "upload", subject_mode: "self",
@@ -308,6 +313,7 @@ const fragmentedSupporting = await Worker.executeProcessingJob({
 ok("the fragmented-window fallback refuses a supporting or unselected upload",
   fragmentedSupporting.outcome === "failed" && fragmentedSupporting.failure_code === "reference_window_no_candidate");
 const fragmentedOverlap = await Worker.executeProcessingJob({
+  ordinaryGpu: cpuWindowAuthority,
   job: job("separate"),
   source: {
     ...source, duration_ms: 20_992, capture_mode: "upload", subject_mode: "self",

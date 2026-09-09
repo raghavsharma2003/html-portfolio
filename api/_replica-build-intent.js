@@ -1,6 +1,7 @@
 import { clientIntentId, replicaId } from "./_replica.js";
 import { queueOwnedVoiceGenome } from "./_replica-review.js";
 import { primarySelectionQuery } from "./_replica-primary-selection.js";
+import { assertProcessingSourceScope } from "./_replica-processing/source-scope.js";
 
 const INTENT_RETURNING = `intent_id,replica_id,owner_user_id,candidate_source_id,state,build_id,
   blockers,last_error_code,promoted_at,next_check_at,created_at,updated_at,expected_primary_selection_id`;
@@ -392,14 +393,16 @@ export async function requestOwnedVoiceGenomeBuild(db, ownerUserId, value, optio
 
 export async function reconcileVoiceBuildIntents(db, options = {}) {
   const limit = Math.max(1, Math.min(50, Number(options.limit || 12)));
+  const sourceScope = assertProcessingSourceScope(options.sourceScope);
   const rows = await db(
     `select i.intent_id,i.replica_id,i.owner_user_id
        from vy_replica_voice_build_intent i
        join vy_replica r on r.replica_id=i.replica_id and r.owner_user_id=i.owner_user_id
-      where i.state in ('waiting','queued') and i.next_check_at<=now()
-        and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
-      order by i.next_check_at,i.created_at limit $1::int4`,
-    [limit],
+       where i.state in ('waiting','queued') and i.next_check_at<=now()
+         and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
+         and ($2::uuid is null or (i.owner_user_id=$2::uuid and i.replica_id=$3::uuid and i.candidate_source_id=$4::uuid))
+       order by i.next_check_at,i.created_at limit $1::int4`,
+    [limit, sourceScope?.ownerUserId || null, sourceScope?.replicaId || null, sourceScope?.sourceId || null],
   );
   const summary = { examined: rows.length, waiting: 0, queued: 0, review: 0, failed: 0 };
   for (const row of rows) {

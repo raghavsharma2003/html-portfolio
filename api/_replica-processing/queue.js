@@ -2,6 +2,7 @@ import { processingPurposeSql, LIVE_INTAKE_PURPOSE } from "./purpose.js";
 import { randomBytes } from "node:crypto";
 import { PROCESSING_SCHEMA_VERSION, PROCESSING_STAGES, assertSha256, sha256Hex } from "./contracts.js";
 import {COMPARISON_PREPARATION_PURPOSE,COMPARISON_STEPS} from './comparison.js';
+import { assertProcessingSourceScope } from "./source-scope.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -27,6 +28,7 @@ function publicJob(row) {
 
 export async function leaseNextProcessingJob(db, options = {}) {
   const token = options.token || randomBytes(32).toString("base64url");
+  const sourceScope = assertProcessingSourceScope(options.sourceScope);
   // A two-hour Sarvam batch and a multi-chunk diarization pass can legitimately
   // outlive the old 15 minute ceiling. The scheduled worker requests the long
   // lease; serverless callers keep their shorter explicit value.
@@ -38,7 +40,8 @@ export async function leaseNextProcessingJob(db, options = {}) {
        join vy_replica_source s
          on s.source_id = j.source_id and s.replica_id = j.replica_id
         and s.owner_user_id = j.owner_user_id
-        where s.state in ('quarantined','processing') and ${processingPurposeSql()} and (
+        where s.state in ('quarantined','processing') and ${processingPurposeSql()}
+          and ($4::uuid is null or (j.owner_user_id=$4::uuid and j.replica_id=$5::uuid and j.source_id=$6::uuid)) and (
               (j.state in ('queued','retry') and j.next_attempt_at <= now())
            or (j.state = 'leased' and j.lease_expires_at <= now())
         )
@@ -73,7 +76,8 @@ export async function leaseNextProcessingJob(db, options = {}) {
        on conflict (job_id, attempt) do nothing
      )
      select * from leased`,
-    [leaseTokenHash(token), leaseMs, options.preferredSourceId || null],
+     [leaseTokenHash(token), leaseMs, options.preferredSourceId || null,
+       sourceScope?.ownerUserId || null, sourceScope?.replicaId || null, sourceScope?.sourceId || null],
   );
   if (!rows[0]) return null;
   return Object.freeze({ job: publicJob(rows[0]), leaseToken: token });

@@ -23993,3 +23993,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease204-backend208-union` (2026-09-09)
 
 2026-09-09: Root/77 approved76f1db59 complete backend delta fromcb2939 including typed communication, metering, caller208, migration162/schema/relcheck and engine bundle. Twenty relevant files imported; final UI7f737 remains byte-preserved. Reverse on integrated type/runtime or actual SQL/provider failure. Not final acceptance.
+
+
+## `postrelease204-processing-runtime` (2026-09-09)
+
+2026-09-09: Root approved e913ffcb after actual Azure uploaded source/all8 processing stages. Import28 intended files from57eda; append161 schema alongside162 and merge relcheck comments additively. Preserve76f memory and7f UI bytes. Reverse if integrated processing boundaries fail. No voice likeness claim.

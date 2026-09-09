@@ -17792,3 +17792,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease204-integrated-typescript` (2026-09-09)
 
 2026-09-09 n=1 actual node node_modules/typescript/bin/tsc -b --force on e5a4622f exited0, stdout/stderr empty and tracked source clean. Private202 dependencies copied after recursive non-reparse and exact package/lock412f958e checks;6496files/237656288bytes hash verified. Receipt postrelease204-tsc-1788927707304/result.json SHA256 180ddf4262767c597ee83cf5fcadda1197ba70f23aa27467c8f0ba9f1a7e0c9e. No npm/shared writes/fullgate/cloud. Actual SQL/provider evidence remains separately pending.
+
+
+## `postrelease204-processing-five-controls` (2026-09-09)
+
+2026-09-09 n=5 serial commands, each exit0: GPU admission, GPU observer, source scope, canary snapshot, replica-processing eval. Durable result postrelease204-processing-1788929692502/result.json and stdout/stderr.26nonoverlap paths match incoming LF bytes; only schema/relcheck unioned. Memory engine/API and finalUI hashes preserved. No fullgate/build/cloud/provider/SQL execution.

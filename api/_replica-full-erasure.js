@@ -511,6 +511,7 @@ export async function completeReplicaErasure(db, lease, receipt) {
      rel_states as (delete from vy_rel_state x using target t where x.agent_id=t.agent_id),
      sessions as (delete from vy_session x using target t where x.agent_id=t.agent_id),
      episodes as (delete from vy_episode x using target t where x.agent_id=t.agent_id),
+     processing_gpu_authority as (delete from vy_processing_gpu_authority x using target t where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      audit as (delete from vy_replica_audit x using target t where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      channel_extraction_objects as (delete from vy_channel_extraction_object x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),

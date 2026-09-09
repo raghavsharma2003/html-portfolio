@@ -1,3 +1,5 @@
+import {createProcessingAdmissionObserver} from '../../api/_replica-processing/canary-observer.js';
+import {createProcessingGpuAdmission} from '../../api/_replica-processing/gpu-admission.js';
 import {
   CAPABILITY_ABSENCE_CODES,
   capabilitySummary,
@@ -8,6 +10,7 @@ import { runNextProcessingJob } from "../../api/_replica-processing/runtime.js";
 import { runVoiceGenomeBuildSweep } from "../../api/_replica-model-build.js";
 import { reconcileSelfTestVoiceGenomes } from "../../api/_replica-processing/self-test.js";
 import { reconcileVoiceBuildIntents } from "../../api/_replica-build-intent.js";
+import { processingSourceScopeFromEnv } from "../../api/_replica-processing/source-scope.js";
 import { CLAMD_CONFIG_PATH, refreshSignatures, startClamd } from "./clamav.js";
 import { createNeonDb } from "./db.js";
 
@@ -60,6 +63,7 @@ function boundedInteger(value, fallback, min, max, code) {
  * recovery to the next one.
  */
 export async function pendingWork(db, capabilities, options = {}) {
+  const sourceScope = options.sourceScope || null;
   const liveSteps = Object.keys(capabilities).filter((step) => capabilities[step]?.available);
   if (!liveSteps.length) return Object.freeze({ total: 0, steps: Object.freeze([]), needsScanner: false });
   const rows = await db(
@@ -71,10 +75,12 @@ export async function pendingWork(db, capabilities, options = {}) {
         and exists (
           select 1 from vy_replica_source s
            where s.source_id = j.source_id and s.replica_id = j.replica_id
-             and s.owner_user_id = j.owner_user_id
-             and s.state in ('quarantined','processing'))
+              and s.owner_user_id = j.owner_user_id
+              and s.state in ('quarantined','processing')
+              and ($3::uuid is null or (j.owner_user_id=$3::uuid and j.replica_id=$4::uuid and j.source_id=$5::uuid)))
       limit 20`,
-    [liveSteps, [...CAPABILITY_ABSENCE_CODES]],
+    [liveSteps, [...CAPABILITY_ABSENCE_CODES], sourceScope?.ownerUserId || null,
+      sourceScope?.replicaId || null, sourceScope?.sourceId || null],
     options.timeoutMs || 30_000,
   );
   const steps = [...new Set(rows.map((row) => String(row.step)))].sort();
@@ -95,7 +101,11 @@ async function main() {
   const maxRuntimeMs = boundedInteger(process.env.PROCESSING_RUN_BUDGET_MS, 3_300_000, 60_000, 3_500_000, "processing_run_budget_invalid");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error("processing-run-budget")), maxRuntimeMs);
+  // Parse before any database work. A malformed partial scope is an unsafe
+  // admission request, not an invitation to fall back to the global queue.
+  const sourceScope = processingSourceScopeFromEnv(process.env);
   const db = createNeonDb();
+  const processingAllocation=createProcessingGpuAdmission({db,env:process.env,observe:createProcessingAdmissionObserver()});
 
   // Composed WITHOUT the scanner first, only to learn what work is waiting.
   // `clamdscan` is on the PATH in this image, so the capability report already
@@ -120,16 +130,16 @@ async function main() {
   };
   let clamdChild = null;
   try {
-    const pending = await pendingWork(db, composed.capabilities);
+    const pending = await pendingWork(db, composed.capabilities, { sourceScope });
     if (!pending.total) {
       // A completed voice_quality job queues its VoiceGenome after the source
       // DAG is already empty. Running the same durable model-build sweep here
       // removes an otherwise unavoidable extra cron interval. The independent
       // Vercel cron remains the recovery owner; both consumers use the same
       // token-fenced model-build lease.
-      report.model_recovery = await reconcileSelfTestVoiceGenomes(db, { env: process.env });
-      report.build_intents = await reconcileVoiceBuildIntents(db, { limit: 12 });
-      report.model_builds = await runVoiceGenomeBuildSweep({ db, maxJobs: 4 });
+      report.model_recovery = await reconcileSelfTestVoiceGenomes(db, { env: process.env, sourceScope });
+      report.build_intents = await reconcileVoiceBuildIntents(db, { limit: 12, sourceScope });
+      report.model_builds = await runVoiceGenomeBuildSweep({ db, maxJobs: 4, sourceScope });
       report.idle = true;
       return report;
     }
@@ -144,7 +154,7 @@ async function main() {
     // Fenced to capability-absence codes on steps that are live right here, so
     // a real malware hit or a digest mismatch can never be resurrected by it.
     try {
-      const recovered = await requeueRecoveredProcessingJobs(db, composed.capabilities);
+      const recovered = await requeueRecoveredProcessingJobs(db, composed.capabilities, { sourceScope });
       report.requeued = recovered.requeued;
     } catch {
       report.requeue_failed = true;
@@ -155,6 +165,7 @@ async function main() {
     for (let count = 0; count < maxJobs && Date.now() - started < maxRuntimeMs - 20_000; count++) {
       const outcome = await runNextProcessingJob({
         db,
+        processingAllocation,
         adapters: composed.adapters,
         artifactStore: composed.storage.artifactStore,
         resolveInput: composed.resolveInput,
@@ -166,6 +177,7 @@ async function main() {
         leaseMs: 600_000,
         heartbeatMs: 60_000,
         preferredSourceId,
+        sourceScope,
         maxAttempts: 5,
         signal: controller.signal,
       });
@@ -178,17 +190,19 @@ async function main() {
       if (outcome.outcome === "idle") break;
     }
     report.processed = report.outcomes.filter((entry) => entry.outcome !== "idle").length;
-    report.model_recovery = await reconcileSelfTestVoiceGenomes(db, { env: process.env });
-    report.build_intents = await reconcileVoiceBuildIntents(db, { limit: 12 });
-    report.model_builds = await runVoiceGenomeBuildSweep({ db, maxJobs: 4 });
+    report.model_recovery = await reconcileSelfTestVoiceGenomes(db, { env: process.env, sourceScope });
+    report.build_intents = await reconcileVoiceBuildIntents(db, { limit: 12, sourceScope });
+    report.model_builds = await runVoiceGenomeBuildSweep({ db, maxJobs: 4, sourceScope });
     return report;
   } finally {
+    try { await processingAllocation.closeAll(); } finally {
     clearTimeout(timer);
     // clamd runs in the foreground as a child of this run-once process. If it
     // remains referenced after the bounded queue drains, Node never exits and
     // Azure bills the otherwise-finished execution until replicaTimeout. The
     // container is the daemon's entire lifetime, so stop it on every exit.
     if (clamdChild && clamdChild.exitCode === null) clamdChild.kill("SIGTERM");
+    }
   }
 }
 

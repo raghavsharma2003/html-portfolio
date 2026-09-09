@@ -8,6 +8,7 @@ import { createNativeMediaAdapters } from "./providers/native-media.js";
 import { createSarvamTranscriptionAdapter } from "./providers/sarvam-transcription.js";
 import { isAzureOnlyServing } from "../_model-serving-policy.js";
 import { createReplicaProcessingStorage } from "./storage.js";
+import { assertProcessingSourceScope } from "./source-scope.js";
 
 // COMPOSING THE REAL PIPELINE, INCLUDING THE PARTS THAT ARE NOT THERE
 // ---------------------------------------------------------------------------
@@ -316,12 +317,14 @@ export async function requeueRecoveredProcessingJobs(db, capabilities, options =
   const liveSteps = COMPOSED_STEPS.filter((step) => capabilities?.[step]?.available);
   if (!liveSteps.length) return Object.freeze({ requeued: 0, steps: Object.freeze([]) });
   const limit = boundedInteger(options.limit, 50, 1, 500);
+  const scope = assertProcessingSourceScope(options.sourceScope);
   const rows = await db(
     `with recovered as (
        select job_id from vy_replica_processing_job
         where state = 'failed'
           and step = any($1::text[])
           and failure_code = any($2::text[])
+          and ($4::uuid is null or (owner_user_id=$4::uuid and replica_id=$5::uuid and source_id=$6::uuid))
         order by updated_at
         limit $3::int4
      )
@@ -332,7 +335,8 @@ export async function requeueRecoveredProcessingJobs(db, capabilities, options =
        from recovered r
       where j.job_id = r.job_id
       returning j.step`,
-    [liveSteps, [...CAPABILITY_ABSENCE_CODES], limit],
+    [liveSteps, [...CAPABILITY_ABSENCE_CODES], limit,
+      scope?.ownerUserId || null, scope?.replicaId || null, scope?.sourceId || null],
   );
   return Object.freeze({
     requeued: rows.length,

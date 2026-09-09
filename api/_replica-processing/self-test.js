@@ -30,6 +30,7 @@
 
 import { acceptAllOwnedEvidenceForSelfTest, queueOwnedVoiceGenome, selectOwnedVoiceArtifact } from "../_replica-review.js";
 import { replicaId as parseReplicaId } from "../_replica.js";
+import { assertProcessingSourceScope } from "./source-scope.js";
 
 export const SELF_TEST_GRANT_METADATA = Object.freeze({
   self_test_mode: true,
@@ -209,6 +210,11 @@ export async function bootstrapSelfTestReplica(db, { ownerUserId, replicaId, env
  * instead, then reuses the exact grant, selection and queue functions below.
  */
 export async function reconcileSelfTestVoiceGenomes(db, options = {}) {
+  const sourceScope = assertProcessingSourceScope(options.sourceScope);
+  // This recovery grants consent, accepts evidence and chooses a reference for
+  // a replica as a whole. It has no per-source operation, so a source-scoped
+  // canary must leave it untouched instead of broadening into sibling sources.
+  if (sourceScope) return Object.freeze({ examined: 0, queued: 0, blocked: 0, failed: 0, skipped: "source_scope_no_per_source_api" });
   const env = options.env || process.env;
   if (env.REPLICA_SELF_TEST_MODE !== "true" || env.REPLICA_SELF_TEST_ENVIRONMENT !== SELF_TEST_ENVIRONMENT) {
     return Object.freeze({ examined: 0, queued: 0, blocked: 0, failed: 0 });

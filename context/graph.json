@@ -17814,6 +17814,24 @@
       "kind": "measurement",
       "title": "Integrated backend208 and final UI pass TypeScript",
       "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-processing-runtime",
+      "kind": "decision",
+      "title": "Integrate reviewed processing allocation and source authority",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-processing-five-controls",
+      "kind": "measurement",
+      "title": "Five integrated offline processing commands pass",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-processing-not-likeness",
+      "kind": "rejection",
+      "title": "Processing completion does not establish owner voice quality",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

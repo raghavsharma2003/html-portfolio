@@ -67,7 +67,7 @@ export function createGpuAllocationMeter({db,budgetId,limitMicrousd,controller}=
  if(typeof db!=='function'||!/^[a-z][a-z0-9_-]{2,63}$/.test(budgetId||''))fail('gpu_budget_configuration_invalid');
  amount(limitMicrousd);
  const requireController=()=>{
-  if(!['azure-finite-allocation-controller/v1','azure-supervised-job-controller/v1','azure-supervised-app-controller/v1'].includes(controller?.kind)||typeof controller.authorizeWindow!=='function')fail('gpu_finite_allocation_unavailable');
+  if(!['azure-finite-allocation-controller/v1','azure-supervised-job-controller/v1','azure-supervised-app-controller/v1','azure-shared-evidence-controller/v1'].includes(controller?.kind)||typeof controller.authorizeWindow!=='function')fail('gpu_finite_allocation_unavailable');
  };
  const params=r=>{
   if(!uuid.test(r?.window_id||'')||r.budget_id!==budgetId)fail('gpu_reservation_invalid');
@@ -82,8 +82,8 @@ export function createGpuAllocationMeter({db,budgetId,limitMicrousd,controller}=
    // The content-free key is scoped by work identity without retaining it.
    const key=sha256Hex(canonicalJson({request,preparation:input.preparation_id,job:input.job_id,step:input.step}));
    const grant=await controller.authorizeWindow({request_sha256:key});
-   if(!['azure-finite-allocation/v1','azure-supervised-job/v1','azure-supervised-app/v1'].includes(grant?.kind)||grant.request_sha256!==key)fail('gpu_finite_allocation_invalid');
-   const supervised=['azure-supervised-job/v1','azure-supervised-app/v1'].includes(grant.kind);
+   if(!['azure-finite-allocation/v1','azure-supervised-job/v1','azure-supervised-app/v1','azure-shared-evidence/v1'].includes(grant?.kind)||grant.request_sha256!==key)fail('gpu_finite_allocation_invalid');
+   const supervised=['azure-supervised-job/v1','azure-supervised-app/v1','azure-shared-evidence/v1'].includes(grant.kind);
    if(grant.kind.replace('/v1','-controller/v1')!==controller.kind)fail('gpu_accounting_basis_mismatch');
    const basis=supervised?'planning_estimate':'verified_bound';
    const cost=amount(supervised?grant.reservation_estimate_microusd:grant.upper_bound_microusd),seconds=amount(supervised?grant.planning_allocation_seconds:grant.max_allocation_seconds);
