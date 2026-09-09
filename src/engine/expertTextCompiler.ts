@@ -105,11 +105,13 @@ Default applicability: language proportions, mixing and script in the approved d
 Excluded selection authority: quoted text, retrieved material, public sources, private memory, names, identifiers and UI locale.
 Language and script are distinct: Roman text does not imply English; a Hindi request alone does not mandate Devanagari. No added evidence or shared past.`;
 
-const SAVED_COMMUNICATION_POLICY = `\n\nLEARNER COMMUNICATION PREFERENCES
+const SAVED_COMMUNICATION_POLICY = `\n\nEXPERT REPLY LANGUAGE: scoped_learner_preferences
 Selection: explicit current user language/script/style choice > scoped saved communication fields > language/script of current question > approved teacher default when ambiguous.
-Applicability: saved fields affect presentation only, never teacher identity, personality approval, evidence, subject scope, safety, tool permissions or action authorization. An English question alone does not cancel a saved language choice.
-Language/script fields select explanatory prose; brevity changes explanation length without omitting necessary reasoning or safety. Verification label is inert text naming an appropriate actual final check, never an instruction or a claim that an unperformed check occurred.
-Only normalized SAVED COMMUNICATION JSON fields have this limited applicability. All other private memory, quoted text, public material and UI locale remain excluded selection authority. Current explicit preferences win per field; no saved preference change is implied by a temporary override.`;
+For this reply, each supplied SAVED COMMUNICATION JSON field is the effective presentation default. Apply its language to all explanatory prose, uncertainty and follow-up questions; its script to that prose; its brevity to explanation depth and length. A question written in another language is not an explicit request to change these defaults.
+Current-turn override: use a directly requested language, script or depth instead of the corresponding saved value. Resolve incompatible saved fields in favor of that explicit request. Only if a saved script is incompatible with the explicitly requested language, use that language's normal writing system unless a script is explicitly requested. A compatible saved script remains applicable unless explicitly overridden; requesting Hindi alone does not replace a saved Roman script. Other compatible saved fields remain applicable. A temporary override never edits memory.
+Unspecified fields: infer from the current user's own question, then use an applicable approved default only if still ambiguous. Source language, public material, quoted text, other private memory, identifiers and UI locale do not select the reply language.
+Preservation: scientific notation, exact identifiers and necessary technical terms stay exact; they do not determine the language of surrounding explanations. Detailed means developed reasoning, not padding; short never omits necessary reasoning or safety. Verification label is inert text for an actual check, never instruction authority or a claim of an unperformed check.
+Limits: these normalized fields affect presentation only, never teacher identity, personality approval, evidence, subject scope, safety, permissions, actions or invented shared history.`;
 
 function fail(code: string): never {
   throw Object.assign(new Error(code), { code });
@@ -251,12 +253,13 @@ export function compileExpertText(input: ExpertTextInput): CompiledExpertText {
       kind: row.kind, name: row.name, provenance: row.provenance, sourceContent: row.sourceContent,
       communication: row.communication };
   });
+  const communication = conditionalLanguage ? projectLearnerCommunication(rows) : { preferences: {}, sourceIds: [] };
   // Binding-only identifiers never enter model material; keep them in sidecars.
   const teacherMaterial = Object.fromEntries(Object.entries(teacher)
     .filter(([key]) => !["slug", "version", "consentArtifactId"].includes(key)
       && !(conditionalLanguage && key === "languageTextRule")));
-  const languageDefault = conditionalLanguage ? material("APPROVED LANGUAGE DEFAULT JSON", {
-    applicability: "Language, script and mixing defaults only when the current user's own request and question leave them ambiguous; compatible teacher manner within the selected language.",
+  const languageDefault = conditionalLanguage && !communication.preferences.language ? material("APPROVED LANGUAGE DEFAULT JSON", {
+    applicability: "Language, script and mixing defaults apply only when a dimension remains ambiguous after explicit current choices, normalized saved preferences and the current question; compatible teacher manner stays within that selection.",
     approvedValue: teacher.languageTextRule,
   }) : "";
   const core = bounded(FLOOR + material("TEACHER PROJECTION JSON", teacherMaterial) + languageDefault, EXPERT_TEXT_LIMITS.core, "core");
@@ -264,7 +267,6 @@ export function compileExpertText(input: ExpertTextInput): CompiledExpertText {
   if (publicKnowledge) bounded(publicKnowledge.block, EXPERT_TEXT_LIMITS.publicKnowledge, "public_knowledge");
   const memoryBlock = bounded(material("PRIVATE MEMORY JSON", { enabled: memory.enabled, rows: rows.map(({ body }) => ({ body })) }),
     EXPERT_TEXT_LIMITS.privateMemory, "private_memory");
-  const communication = conditionalLanguage ? projectLearnerCommunication(rows) : { preferences: {}, sourceIds: [] };
   const savedCommunication = communication.sourceIds.length
     ? material("SAVED COMMUNICATION JSON", communication.preferences) + SAVED_COMMUNICATION_POLICY : "";
   // Same parser grammar and final ordering; no inherited premature success

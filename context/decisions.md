@@ -24008,3 +24008,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease205-transcript-chronology` (2026-09-09)
 
 Root approved1d0319ed two-path ORDER BY repair: sources chronological then span offset instead of random UUID priority.55 focused claims checks passed;57 owns separate actual readonly EXPLAIN. Reverse on query proof failure or broken source lineage. Do not infer prior SQL hash parity after intentional SQL change.
+
+
+## `handoff206-preservation-priority` (2026-09-09)
+
+2026-09-09: User prioritizes commit/push/handoff before usage limit. New codex/handoff206 fromc0 includes approved policyc171, authcf574 and principled expert ASCII punctuation net1877. Regenerate combined engine with private205 esbuild read-only; keep unfinished branches separate. Root supplies canonical handoff evidence/context archive;193 owns authorized normal push. Reverse any import on source review rejection, not on unfinished fullrelease/model experiments.

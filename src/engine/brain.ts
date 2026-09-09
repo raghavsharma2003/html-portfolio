@@ -551,7 +551,17 @@ export function parseExpertAnswer(raw: string): ParsedReply {
       code: "expert_answer_text_too_long", status: 502,
     });
   }
-  return parseTextReply(raw, true);
+  const parsed = parseTextReply(raw, true);
+  parsed.bubbles = parsed.bubbles.map(normalizeExpertDashes);
+  return parsed;
+}
+
+// Expert punctuation can encode bonds, subtraction, ranges or prose. Preserve
+// the separator without guessing the subject, using the permitted ASCII form.
+// Collapse repeated typographic dashes so the companion double-hyphen cleanup
+// cannot erase the normalized separator later. Companion parsing is unchanged.
+function normalizeExpertDashes(text: string): string {
+  return text.replace(/[–—]+/g, "-");
 }
 
 // Explicit LaTeX spans are answer content on the expert lane. Keep multiline

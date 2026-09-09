@@ -98,6 +98,33 @@ check('typed markers and bracket shrapnel retain old behavior', () => {
     assert.deepEqual(engine.parseExpertAnswer(raw), old.parseExpertAnswer(raw));
   }
 });
+check('expert Unicode dashes preserve bonds, algebra, ranges and prose in ASCII form', () => {
+  for (const [raw, expected] of [
+    ['R–X', 'R-X'], ['C–leaving group', 'C-leaving group'],
+    ['C–leavinggroup', 'C-leavinggroup'], ['C—Cl bond', 'C-Cl bond'],
+    ['CH3–CH3 and C–C–C', 'CH3-CH3 and C-C-C'],
+    ['R–X का bond टूटता है।', 'R-X का bond टूटता है।'],
+    ['R–X bond break hota hai.', 'R-X bond break hota hai.'],
+    [String.raw`\[R–X \rightarrow R^+ + X^-\]`, String.raw`\[R-X \rightarrow R^+ + X^-\]`],
+    ['Na–Cl Mg–O Ca–O A–B', 'Na-Cl Mg-O Ca-O A-B'],
+    ['5–2 and 10–20; x—y', '5-2 and 10-20; x-y'],
+    ['Pause – then explain — clearly.', 'Pause - then explain - clearly.'],
+    ['North–South varC–Cl C–Class I – think', 'North-South varC-Cl C-Class I - think'],
+    ['one——two', 'one-two'],
+    ['1800-599-0019 and e-mail', '1800-599-0019 and e-mail'],
+  ]) {
+    assert.equal(gate(raw).text, expected);
+    assert.deepEqual(gate(raw), gate(raw, [], source));
+  }
+  const withoutBondNormalization = {...engine, parseExpertAnswer: raw => {
+    const parsed = engine.parseExpertAnswer(raw);
+    parsed.bubbles = parsed.bubbles.map(b => b.replaceAll('R-X', 'R–X'));
+    return parsed;
+  }};
+  assert.equal(gate('R–X', [], withoutBondNormalization).text, 'R X');
+  assert.equal(engine.parseBubbles('R–X').bubbles.map(engine.stripTextingDashes).join(''), 'R X');
+  assert.ok(!gate('[search: hidden R–X] safe').text.includes('hidden'));
+});
 check('ordinary brackets cannot conceal never rules or unsupported links', () => {
   const rules = compileNeverRules([{rule_id:'bracket-never',pattern:'BRACKET_CANARY'}]);
   assert.equal(gate('Value [BRACKET_CANARY]', rules).neverRule, 'bracket-never');

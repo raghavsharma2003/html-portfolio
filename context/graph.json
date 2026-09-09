@@ -17856,6 +17856,24 @@
       "kind": "decision",
       "title": "Preserve source chronology when extraction timestamps tie",
       "at": "2026-09-09"
+    },
+    {
+      "id": "handoff206-preservation-priority",
+      "kind": "decision",
+      "title": "Preserve completed reviewed work without claiming publish readiness",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "handoff206-source-assembly",
+      "kind": "measurement",
+      "title": "Approved source assembled with one combined engine artifact",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "handoff206-not-publish-ready",
+      "kind": "rejection",
+      "title": "Preservation push is not deployment or model acceptance",
+      "at": "2026-09-09"
     }
   ],
   "edges": [
