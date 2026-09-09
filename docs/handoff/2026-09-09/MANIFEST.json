@@ -287,8 +287,8 @@
     {
       "path": "listening/index.html",
       "original": "scratchpad/expert-tools/voice-listening106-public/index.html",
-      "bytes": 17454,
-      "sha256": "9875e3a486bbce7105fac6bd1cdd245921b245432ded3792dec75bcfdbec6338"
+      "bytes": 17451,
+      "sha256": "8067010bda64ea7f7546948240cd54f57a58afa095408603a48cd00a8b765dc4"
     },
     {
       "path": "listening/manifest.json",
@@ -301,6 +301,36 @@
       "original": "scratchpad/expert-tools/voice-listening106-public/reference.wav",
       "bytes": 1277444,
       "sha256": "16636b6e06d0e7145fad3cab3ac5d85409f84e527c23a2189fb3c79b85738cf6"
+    },
+    {
+      "path": "evidence/voice-listening106-template.html",
+      "original": "scratchpad/expert-tools/voice-listening106-template.html",
+      "bytes": 9178,
+      "sha256": "29e09381998cd12fd184c6551e5ba993708a85a9fbfc6bf1c8295ac8d23a9fdd"
+    },
+    {
+      "path": "evidence/VOICE-LISTENING106-USABILITY-RECEIPT.json",
+      "original": "scratchpad/expert-tools/VOICE-LISTENING106-USABILITY-RECEIPT.json",
+      "bytes": 1674,
+      "sha256": "80b64b2aad4fd9a1dfc83345a98cdfc23652545bfa65c33968960456d117398e"
+    },
+    {
+      "path": "evidence/listening-usability-result.json",
+      "original": "scratchpad/expert-tools/voice-listening106-usability-1788932816328/result.json",
+      "bytes": 1273,
+      "sha256": "86870bdc6cae39d66201572e9517aab213c3f5f34df580899607dbbfcca0d342"
+    },
+    {
+      "path": "evidence/listening-mobile.png",
+      "original": "scratchpad/expert-tools/voice-listening106-usability-1788932816328/390.png",
+      "bytes": 45104,
+      "sha256": "2d2d8b29e2d774bbabc2e0165c624b1dd5eddeeb7148f395d1d7c70dca7f6cfd"
+    },
+    {
+      "path": "evidence/listening-desktop.png",
+      "original": "scratchpad/expert-tools/voice-listening106-usability-1788932816328/1440.png",
+      "bytes": 59836,
+      "sha256": "37ed60b4edb6e96e6b8291ef8e8470eedbec0dab9a78c377c224ddeb376dbe45"
     }
   ]
 }
