@@ -17910,6 +17910,24 @@
       "kind": "rejection",
       "title": "Local Git availability alone does not prove a handover",
       "at": "2026-09-09"
+    },
+    {
+      "id": "handoff207-focused-combined-checks",
+      "kind": "decision",
+      "title": "Check combined source without reopening paid experiments",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "handoff207-focused-combined-results",
+      "kind": "measurement",
+      "title": "64 focused checks passed on combined handover source",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "handoff207-windows-import-url",
+      "kind": "rejection",
+      "title": "Windows absolute path is not an ESM import URL",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

@@ -24023,3 +24023,8 @@ Root approved1d0319ed two-path ORDER BY repair: sources chronological then span 
 ## `handoff206-remote-recovery` (2026-09-09)
 
 User requested a durable GitHub handover before their usage limit. Verify from an empty bare repository fetched directly from GitHub, retaining a separate historical archive branch instead of merging historical product states. Reverse if a fresh fetch lacks any required object or receipt bytes; repair preservation rather than rebuilding product work.
+
+
+## `handoff207-focused-combined-checks` (2026-09-09)
+
+User prioritized the preserved handover and usage limits. Run only the existing compiler, scientific-text and Room-handler suites against the final combined source, reusing read-only private exact-lock dependencies and inert config import mapping. Reverse if dependency equality or isolation fails; do not infer live language quality from structural tests.

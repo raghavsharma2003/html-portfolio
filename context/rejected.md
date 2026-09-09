@@ -17805,3 +17805,8 @@ Do not overwrite this repository graph with ROOT historical graph or imply prese
 ## `handoff206-local-objects-not-remote-proof` (2026-09-09)
 
 A successful lookup in an existing multi-worktree repository could rely on unpublished Git objects. Earlier normal branch pushes did not by themselves prove that a fresh clone could run historical tests. The separate archive branch and actual fresh remote fetch close this preservation gap without claiming the app is publish-ready.
+
+
+## `handoff207-windows-import-url` (2026-09-09)
+
+Initial --import C:/... invocation failed before test execution with ERR_UNSUPPORTED_ESM_URL_SCHEME. Replaced only that invocation with file:///C:/...; then all three suites actually passed. Do not count the setup failure as a product regression or the later offline pass as live model evidence.
