@@ -129,6 +129,7 @@ import {
   roomSettingsReviewed,
   roomRememberedThings,
   roomCorrectRememberedThing,
+  roomReclassifyRememberedThing,
   roomForgetRememberedThing,
   roomSetQuietHours,
   personForAccount,
@@ -499,7 +500,7 @@ async function handler(req, res) {
       return res.status(200).json(await roomSettingsReviewed(q, { session: body.session }));
     }
 
-    if (op === "memory_facts" || op === "memory_correct" || op === "memory_forget") {
+    if (op === "memory_facts" || op === "memory_correct" || op === "memory_forget" || op === "memory_classify") {
       // A Room session is sufficient for ordinary conversation, but these
       // explicit memory controls reveal or change durable personal facts.
       // Match export/whole-forget's two credential check before the scoped
@@ -522,6 +523,9 @@ async function handler(req, res) {
           factId: body.fact_id,
           replacement: body.replacement,
         }));
+      }
+      if(op==='memory_classify') {
+        return res.status(200).json(await roomReclassifyRememberedThing(q,{session:body.session,factId:body.fact_id}));
       }
       return res.status(200).json(await roomForgetRememberedThing(q, {
         session: body.session,

@@ -23988,3 +23988,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease204-memory-classify-ui` (2026-09-09)
 
 2026-09-09: Root approved final7f737280 five UI paths, visually inspected390 and confirmed Retry contract with77. Import exact UI bytes only; API208 remains separate and incoming. Reverse on final backend contract mismatch or focused integrated failure. Working source is not a release-complete feature.
+
+
+## `postrelease204-backend208-union` (2026-09-09)
+
+2026-09-09: Root/77 approved76f1db59 complete backend delta fromcb2939 including typed communication, metering, caller208, migration162/schema/relcheck and engine bundle. Twenty relevant files imported; final UI7f737 remains byte-preserved. Reverse on integrated type/runtime or actual SQL/provider failure. Not final acceptance.

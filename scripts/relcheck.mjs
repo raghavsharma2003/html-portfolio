@@ -20,6 +20,17 @@ import { PERSON_TABLES } from "../api/memory.js";
 
 const checks = [];
 const check = (name, sql, params = []) => checks.push({ name, sql, params });
+// 162 keeps metadata inside the already-owned fact row; no new erasure table.
+const communication162 = await q(`select 1 from information_schema.columns
+ where table_schema='public' and table_name='vy_fact' and column_name='communication'`);
+if(communication162.length) {
+ check('fact communication constraint remains validated',`select (1-count(*))::integer n from pg_constraint
+  where conrelid='vy_fact'::regclass and conname='vy_fact_communication_check' and contype='c' and convalidated`);
+ check('fact communication remains learner sourced and cited',`select count(*)::integer n from vy_fact v
+  where v.communication is not null and (v.kind<>'user' or v.name<>'preference' or v.provenance<>'user_said'
+   or cardinality(v.citations)=0 or not exists(select 1 from vy_episode e where e.id=any(v.citations)
+    and e.agent_id=v.agent_id and e.person_id=v.person_id and e.room_memory_follower_id is not null))`);
+}
 
 // 159 adds only columns to tables already in PERSON_TABLES and already named
 // by full replica erasure. The FK walk below must additionally verify the two

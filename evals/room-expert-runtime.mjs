@@ -1,6 +1,7 @@
 // Actual Room, generated compiler, shared gate and SELECT-only reader.
 // Fixtures establish control flow only; SQL parser/ownership proof is separate.
 import assert from 'node:assert/strict';
+import {communicationFromProposal} from '../api/_learner-communication-contract.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { loadFixtureAgent, freshState, fakeDb, fakeMemory, SLUG, ROOM_ID, REPLICA_ID,
@@ -12,7 +13,8 @@ import { proveRoomExpertTeacherDevelopment } from './room-expert-teacher-develop
 
 globalThis.fetch = async () => { throw new Error('network_forbidden_in_room_expert_eval'); };
 process.env.ROOM_SESSION_SECRET = 'room-expert-synthetic-session-'.repeat(3);
-const { roomSay, joinRoom, ROOM_RECALL_TURNS, ROOM_HISTORY_TURNS } = await import('../api/_room-surface.js');
+const { roomSay, joinRoom, roomCorrectRememberedThing, roomReclassifyRememberedThing, ROOM_RECALL_TURNS, ROOM_HISTORY_TURNS } = await import('../api/_room-surface.js');
+const {ROOM_MEMORY_CORRECT_SQL}=await import('../api/_room-memory-authority.js');
 const { dmRecall } = await import('../api/_room.js');
 const { dmHistory } = await import('../api/_surface.js');
 const fixture = await loadFixtureAgent(fileURLToPath(new URL('../',import.meta.url)));
@@ -75,6 +77,42 @@ await check('v2 actual Room caller preserves current user role and server-only p
   assert.equal(w.compiled.system.includes(message),false);
   assert.deepEqual(w.turns.at(-1),{role:'user',content:message});
   assert(w.teacherReads>=2,'published authority is checked around dispatch');
+});
+await check('actual Room caller carries scoped source evidence into generated presentation preferences only',async()=>{
+ const w=await setup({profile:'lean_v2',remembers:true});
+ const body='Please keep the explanation short and use Roman Hinglish.';
+ w.deps.memory.recallStrict=async()=>[{id:'1',body,kind:'user',name:'preference',provenance:'user_said',preference_source:body+' What is acceleration?'}];
+ await w.say({message:'Explain acceleration.'});
+ assert.equal(w.modelCalls,1);
+ assert.deepEqual(JSON.parse(w.compiled.system.split('SAVED COMMUNICATION JSON: ')[1].split('\n')[0]),{brevity:'short',language:'hinglish',script:'roman'});
+ assert.deepEqual(w.compiled.provenance.communicationPreferenceIds,['1']);
+ assert.deepEqual(w.compiled.privateMemoryRecord,[body]);
+ assert.equal(w.turns.at(-1).content,'Explain acceleration.');
+});
+await check('actual Room keeps one multilingual memory with typed fields and current override user role',async()=>{
+ const w=await setup({profile:'lean_v2',remembers:true});
+ const body='आगे से मुझे हिंदी में छोटे जवाब दिया करें।';
+ w.deps.memory.recallStrict=async()=>[{id:'3',body,kind:'user',name:'preference',provenance:'user_said',preference_source:body,
+  communication:communicationFromProposal({language:'hindi',script:null,brevity:'short'})}];
+ await w.say({message:'For this question, answer in English.'});
+ assert.deepEqual(JSON.parse(w.compiled.system.split('SAVED COMMUNICATION JSON: ')[1].split('\n')[0]),{language:'hindi',brevity:'short'});
+ assert.equal(w.turns.at(-1).content,'For this question, answer in English.');
+ assert.deepEqual(w.compiled.provenance.communicationPreferenceIds,['3']);
+ assert.deepEqual(w.compiled.privateMemoryRecord,[body]);
+});
+await check('actual correction preserves acknowledged one-fact replacement when classification is unavailable and offers real retry',async()=>{
+ const w=await setup({profile:'lean_v2',remembers:true});
+ const body='अब से मुझे विस्तार से समझाइए।';let writes=0,model=0;
+ const query=async(sql,p)=>{if(sql===ROOM_MEMORY_CORRECT_SQL){writes++;assert.equal(p[5],body);return[{fact_id:'52',body,communication_classification:'unclassified'}];}return w.db(sql,p);};
+ const deps={...w.deps,roomMemoryLlm:async()=>{model++;throw new Error('unexpected paid call');}};
+ const result=await roomCorrectRememberedThing(query,{session:w.joined.session,factId:'51',replacement:body},deps);
+ assert.deepEqual(result,{fact:{id:'52',body},communication_classification:'unconfirmed'});
+ assert.equal(writes,1);assert.equal(model,0);
+ const retry=await roomReclassifyRememberedThing(query,{session:w.joined.session,factId:'52'},deps);
+ assert.deepEqual(retry,{communication_classification:'unconfirmed'});assert.equal(writes,1);assert.equal(model,0);
+ const route=readFileSync(new URL('../api/room.js',import.meta.url),'utf8');
+ assert(route.includes('op === "memory_classify"'));
+ assert(route.includes("roomReclassifyRememberedThing(q,{session:body.session,factId:body.fact_id})"));
 });
 await check('development proof rejects missing or malformed teacher input before any database work or fixture writes',async()=>{
   for(const sheet of [undefined,null,{},[]]){

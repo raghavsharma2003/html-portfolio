@@ -21,6 +21,7 @@ const prior={...process.env},priorFetch=globalThis.fetch;
 Object.assign(process.env,env);
 const R=await import('../../api/_room-memory-authority.js');
 const W=await import('../../api/_room-memory-consolidation.js');
+const C=await import('../../api/_room-memory-reclassification.js');
 const {strictRoomConsolidationConfig}=await import('../../api/_consolidation-config.js');
 const {llm}=await import('../../api/consolidate.js');
 const {default:handler}=await import('../../api/consolidate-sweep.js');
@@ -88,7 +89,7 @@ function fixture(options={}) {
     if(options.networkUnknown)throw new Error('synthetic_network_unknown');
     return new Response(JSON.stringify({model:options.wrongModel?'unexpected-model':env.AZURE_FOUNDRY_ROOM_MEMORY_EXPECTED_RESPONSE_MODEL,
       usage:options.usageUnknown?null:{prompt_tokens:208,completion_tokens:126},
-      choices:[{finish_reason:options.incomplete?'length':'stop',message:{content:options.badOutput?'invalid':output}}]}));
+      choices:[{finish_reason:options.incomplete?'length':'stop',message:{content:options.badOutput?'invalid':options.outputOverride??output}}]}));
   };
   s.run=()=>W.runMeteredRoomMemoryConsolidation(candidate,{queryFn:s.db,llm,runId:'fixture-run',env,fetchImpl:s.fetch});
   s.sweep=async()=>{
@@ -98,6 +99,45 @@ function fixture(options={}) {
     await handler({method:'POST',headers:{'x-sweep-secret':env.CONSOLIDATE_SWEEP_SECRET},body:{dryRun:false,limit:3},socket:{remoteAddress:'127.0.0.1'}},res);
     return{status,payload};
   };
+  return s;
+}
+const reclassificationCandidate={...candidate,memory_epoch:'7'};
+const reclassificationSnapshot={...candidate,memory_epoch:'7',fact_id:'51',fact_body:row.content,
+  fact_name:'preference',episode_id:'61',source_id:row.id,source_content:row.content,
+  fact_communication:{version:1,state:'unclassified',scope:{language:true,script:false,brevity:true},
+    language:null,script:null,brevity:null}};
+function reclassificationFixture(options={}){
+  const s=fixture(options);s.lease=null;s.reclassificationReads=0;s.reclassificationWrites=0;
+  const readSnapshot=async()=>{
+    s.events.push('reclassification-read');s.reclassificationReads++;
+    if(options.noJob)return[];
+    if(options.metadataDriftAt===s.reclassificationReads)return[{...reclassificationSnapshot,
+      fact_communication:{...reclassificationSnapshot.fact_communication,
+        scope:{...reclassificationSnapshot.fact_communication.scope,script:true}}}];
+    if(options.driftAt===s.reclassificationReads)return[{...reclassificationSnapshot,
+      fact_body:`${row.content} changed`,source_content:`${row.content} changed`}];
+    return[{...reclassificationSnapshot}];
+  };
+  const prepareRequest=snapshot=>({messages:[
+    {role:'system',content:'fixture closed communication classifier'},
+    {role:'user',content:JSON.stringify([{id:snapshot.source_id,content:snapshot.source_content}])},
+  ],responseFormat:R.ROOM_MEMORY_RESPONSE_FORMAT,maxTokens:R.ROOM_MEMORY_MAX_OUTPUT_TOKENS});
+  const validateProposal=(raw,snapshot)=>{
+    assert.equal(snapshot.fact_id,reclassificationSnapshot.fact_id);
+    return JSON.parse(raw).memories;
+  };
+  const commitProposal=async(proposal,snapshot)=>{
+    s.events.push('reclassification-cas');s.reclassificationWrites++;
+    assert.equal(snapshot.fact_name,'preference');assert.equal(snapshot.fact_communication.state,'unclassified');assert.equal(proposal.length,1);
+    return{classification:'classified',facts_written:1};
+  };
+  const queryFn=async(sql,params)=>{
+    if(sql.includes('insert into vy_provider_spend'))s.reclassificationProviderVersion=params[5];
+    return s.db(sql,params);
+  };
+  s.reclassify=()=>W.runMeteredRoomMemoryReclassification(reclassificationCandidate,
+    {queryFn,llm,runId:'reclassification-run',env,fetchImpl:s.fetch,
+      readSnapshot,prepareRequest,validateProposal,commitProposal});
   return s;
 }
 let checks=0;
@@ -178,6 +218,34 @@ try {
     assert.equal(s.spend,null);assert.equal(s.http,0);assert.equal(s.lease.leased_by,'sweep');
     assert.equal((await s.db(W.ROOM_MEMORY_RELEASE_SQL,[])).length,1);assert.equal(s.lease,null);
   });
+  await check('corrected-fact reclassification uses one metered call and exact source checks around it',async()=>{
+    const s=reclassificationFixture(),result=await s.reclassify();
+    assert.deepEqual(result,{classification:'classified',facts_written:1});
+    assert.equal(s.reclassificationReads,3);assert.equal(s.reclassificationWrites,1);
+    assert.equal(s.http,1);assert.equal(s.spend.state,'settled');assert.equal(s.lease,null);
+    assert.equal(s.reclassificationProviderVersion,
+      `${env.AZURE_FOUNDRY_ROOM_MEMORY_EXPECTED_RESPONSE_MODEL}:room-memory/reclassification-v1`);
+    assert.deepEqual(s.events.filter(event=>['reclassification-read','claim','admit','reserve','begin','http','settle','reclassification-cas','release-lease'].includes(event)),
+      ['reclassification-read','claim','admit','reserve','reclassification-read','begin','http','settle','reclassification-read','reclassification-cas','release-lease']);
+  });
+  await check('no eligible corrected fact returns honest unclassified state without lease or spend',async()=>{
+    const s=reclassificationFixture({noJob:true}),result=await s.reclassify();
+    assert.deepEqual(result,{classification:'unclassified',skipped:'no_job'});
+    assert.deepEqual(s.events,['reclassification-read']);assert.equal(s.http,0);assert.equal(s.spend,null);
+  });
+  await check('corrected metadata drift before begin releases reservation and skips provider and CAS',async()=>{
+    const s=reclassificationFixture({metadataDriftAt:2});await assert.rejects(s.reclassify(),/authority_changed/);
+    assert.equal(s.http,0);assert.equal(s.spend.state,'released');assert.equal(s.reclassificationWrites,0);assert.equal(s.lease,null);
+  });
+  await check('corrected source drift before CAS preserves settled usage and skips CAS',async()=>{
+    const s=reclassificationFixture({driftAt:3});await assert.rejects(s.reclassify(),/authority_changed/);
+    assert.equal(s.http,1);assert.equal(s.spend.state,'settled');assert.equal(s.reclassificationWrites,0);assert.equal(s.lease,null);
+  });
+  await check('ambiguous corrected-fact begin retains admission and never dispatches',async()=>{
+    const s=reclassificationFixture({beginUnknown:true});await assert.rejects(s.reclassify(),/begin_ack_lost/);
+    assert.equal(s.http,0);assert.equal(s.reclassificationWrites,0);assert.equal(s.spend.state,'in_flight');
+    assert.match(s.lease.leased_by,/^room-memory:room-caller-fixture:[a-f0-9]{64}$/);
+  });
   await check('Room lease SQL binds exact meter scope and leaves legacy lease statements intact',()=>{
     for(const sql of [W.ROOM_MEMORY_CLAIM_SQL,W.ROOM_MEMORY_RELEASE_SQL]){
       assert.match(sql,/s\.operation='claim_extraction'/);assert.match(sql,/s\.provider_family='consolidation'/);
@@ -190,6 +258,43 @@ try {
     assert.match(sweep,/if\(roomOnly\) await assertRoomMemorySweepReady\(q\);/);
     assert.match(sweep,/else await ensureSchema\(\);/);
     assert.match(sweep,/if \(roomOnly\)[\s\S]*?runMeteredRoomMemoryConsolidation\(c,[\s\S]*?continue;/);
+  });
+  await check('actual correction service reclassifies one fact through meter and exact ten-parameter CAS without duplicate logs',async()=>{
+    const quote='आगे से मुझे हिंदी में छोटे जवाब दिया करें।';
+    const s=fixture({outputOverride:JSON.stringify({memories:[{source_id:'41',kind:'user',name:'preference',quote,
+      communication:{language:'hindi',script:null,brevity:'short'}}]})});
+    s.lease=null;
+    const snapshot={...reclassificationSnapshot,fact_body:quote,source_content:quote};
+    let current=structuredClone(snapshot),cas=0;
+    const query=async(sql,p)=>{
+      if(sql===R.ROOM_MEMORY_RECLASSIFY_READ_SQL){assert.deepEqual(p,[candidate.follower_id,'7',candidate.agent_id,candidate.person_id,'51']);return current.fact_communication.state==='unclassified'?[structuredClone(current)]:[];}
+      if(sql===R.ROOM_MEMORY_RECLASSIFY_COMMIT_SQL){
+        cas++;assert.equal(p.length,10);assert.deepEqual(p.slice(4,6),['51',quote]);
+        assert.deepEqual(JSON.parse(p[6]),snapshot.fact_communication);assert.deepEqual(p.slice(7,9),['61','41']);
+        current.fact_communication=JSON.parse(p[9]);
+        return[{fact_id:'51',body:quote,communication:current.fact_communication}];
+      }
+      return s.db(sql,p);
+    };
+    const result=await C.reclassifyRoomMemory(query,reclassificationCandidate,'51',{env,llm,fetchImpl:s.fetch,runId:'actual-correction'});
+    assert.equal(result.classification,'classified');assert.deepEqual(result.fact,{id:'51',body:quote});
+    assert.equal(cas,1);assert.equal(s.http,1);assert.equal(s.spend.state,'settled');
+    assert.equal(current.fact_communication.language,'hindi');assert.equal(current.fact_communication.brevity,'short');
+    const repeated=await C.reclassifyRoomMemory(query,reclassificationCandidate,'51',{env,llm,fetchImpl:s.fetch,runId:'repeated-correction'});
+    assert.equal(repeated.skipped,'no_job');assert.equal(s.http,1);assert.equal(cas,1);
+    assert(!R.ROOM_MEMORY_RECLASSIFY_COMMIT_SQL.includes('insert into'));
+    for(const token of ['v.body=$6::text','v.communication=$7::jsonb','e.id=$8::bigint','l.id=$9::bigint',"v.communication->>'state'='unclassified'",'v.superseded_by is null'])assert(R.ROOM_MEMORY_RECLASSIFY_COMMIT_SQL.includes(token),token);
+  });
+  await check('corrected projection clears removed dimensions and refuses fabricated sources before CAS',()=>{
+    const empty=C.correctedCommunication({memories:[]},reclassificationSnapshot);
+    assert.equal(empty.state,'no_preference');assert.deepEqual(empty.scope,reclassificationSnapshot.fact_communication.scope);
+    assert.equal(empty.language,null);assert.equal(empty.brevity,null);
+    const changed=C.correctedCommunication({memories:[{source_id:'41',kind:'user',name:'preference',quote:row.content,
+      communication:{language:'english',script:null,brevity:null}}]},reclassificationSnapshot);
+    assert.equal(changed.state,'classified');assert.equal(changed.language,'english');assert.equal(changed.brevity,null);
+    assert.equal(changed.scope.brevity,true,'removed original brevity blocks older fallback');
+    assert.throws(()=>C.correctedCommunication({memories:[{source_id:'other',kind:'user',name:'preference',quote:row.content,
+      communication:{language:'english',script:null,brevity:null}}]},reclassificationSnapshot),/proposal_invalid/);
   });
   console.log(`Room consolidation caller: ${checks} controls passed (offline DB/HTTP doubles; SQL unparsed)`);
 } finally {

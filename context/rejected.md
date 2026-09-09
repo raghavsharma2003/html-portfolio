@@ -17775,3 +17775,8 @@ Action focus58printed success is retained with launcher exitnull. Selected-refer
 ## `postrelease204-no-ui-only-feature-acceptance` (2026-09-09)
 
 UI source and real Retry contract review are necessary but insufficient for end-to-end acceptance. Keep backend208 and semantic/CAS changes isolated until their final reviewed source is admitted. Preserve own context history instead of donor graph replacement.
+
+
+## `postrelease204-no-source-only-runtime-claim` (2026-09-09)
+
+Migration162 source inclusion is not execution. Do not import unapproved processing work, overwrite final UI or donorgraph, or claim actual model trial succeeded. Source integration precedes separately admitted SQL/provider verification.

@@ -1,9 +1,10 @@
 import {strictRoomConsolidationConfig} from './_consolidation-config.js';
+import {isAzureOnlyServing} from './_model-serving-policy.js';
 import {canonicalJson, sha256Hex} from './_provenance/contracts.js';
 import {foundryBudgetConfig, reserveFoundrySpend, beginFoundrySpend, settleFoundrySpend,
   releaseFoundrySpendBeforeCall, markFoundrySpendUncertain} from './_provider-budget.js';
 import {ROOM_MEMORY_CONSOLIDATION_ENABLED, ROOM_MEMORY_BATCH_SQL, ROOM_MEMORY_MAX_OUTPUT_TOKENS,
-  runRoomMemoryConsolidation} from './_room-memory-authority.js';
+  ROOM_MEMORY_RESPONSE_FORMAT, runRoomMemoryConsolidation} from './_room-memory-authority.js';
 
 export function roomMemorySweepEnabled(env = process.env) {
   return ROOM_MEMORY_CONSOLIDATION_ENABLED && env.CONSOLIDATE_SWEEP_MODE === 'room_only'
@@ -91,6 +92,93 @@ function sourceBinding(rows) {
     memory_epoch:String(r.memory_epoch),agent_id:String(r.agent_id),person_id:String(r.person_id)}));
 }
 
+const RECLASSIFICATION_SNAPSHOT_KEYS=Object.freeze(['follower_id','memory_epoch','agent_id','person_id',
+  'fact_id','fact_body','fact_name','episode_id','source_id','source_content','fact_communication']);
+
+function exactReclassificationSnapshot(rows,candidate) {
+  if(!Array.isArray(rows)||rows.length>1) throw new Error('room_memory_reclassification_source_invalid');
+  if(!rows.length) return null;
+  const row=rows[0];
+  if(!row||typeof row!=='object'||Object.keys(row).sort().join(',')!==[...RECLASSIFICATION_SNAPSHOT_KEYS].sort().join(','))
+    throw new Error('room_memory_reclassification_source_invalid');
+  const scalarKeys=RECLASSIFICATION_SNAPSHOT_KEYS.filter(key=>key!=='fact_communication');
+  const metadata=row.fact_communication;
+  if(!metadata||typeof metadata!=='object'||Array.isArray(metadata)
+    ||Object.keys(metadata).sort().join(',')!=='brevity,language,scope,script,state,version'
+    ||metadata.version!==1||metadata.state!=='unclassified'
+    ||metadata.language!==null||metadata.script!==null||metadata.brevity!==null
+    ||!metadata.scope||typeof metadata.scope!=='object'||Array.isArray(metadata.scope)
+    ||Object.keys(metadata.scope).sort().join(',')!=='brevity,language,script'
+    ||Object.values(metadata.scope).some(value=>typeof value!=='boolean')
+    ||!Object.values(metadata.scope).some(Boolean))throw new Error('room_memory_reclassification_source_invalid');
+  const snapshot=Object.fromEntries(scalarKeys.map(key=>[key,String(row[key]??'')]));
+  snapshot.fact_communication=JSON.parse(canonicalJson(metadata));
+  Object.freeze(snapshot.fact_communication.scope);Object.freeze(snapshot.fact_communication);
+  if(scalarKeys.some(key=>!snapshot[key])
+    || snapshot.follower_id!==String(candidate.follower_id)||snapshot.agent_id!==String(candidate.agent_id)
+    || snapshot.person_id!==String(candidate.person_id)
+    || (candidate.memory_epoch!=null&&snapshot.memory_epoch!==String(candidate.memory_epoch))
+    || snapshot.fact_name!=='preference'
+    || snapshot.fact_body!==snapshot.source_content)
+    throw new Error('room_memory_reclassification_source_invalid');
+  return Object.freeze(snapshot);
+}
+
+async function runMeteredRoomMemoryModel({candidate,queryFn,llm,runId,config,budget,fetchImpl,
+  sourceSnapshot,rereadSnapshot,messages,maxTokens,responseFormat,adapterVersion}) {
+  const adapter = {family:'consolidation',name:'azure-foundry-room-memory',
+    version:`${config.expectedModel}:${adapterVersion}`,model:config.model,
+    billing:{meter:'azure_foundry_tokens',max_output_tokens:maxTokens}};
+  const sources=canonicalJson(sourceSnapshot);
+  const requestKey=sha256Hex(canonicalJson({budget_id:budget.budget_id,run_id:runId,
+    source_binding:sourceSnapshot,messages,response_format:responseFormat,
+    max_tokens:maxTokens,model:config.model,expected_model:config.expectedModel,url:config.requestUrl}));
+  const requestHash=sha256Hex(canonicalJson({operation:'claim_extraction',request_key:requestKey,
+    provider_family:adapter.family,provider_name:adapter.name,provider_version:adapter.version,model:adapter.model}));
+  const token=`room-memory:${budget.budget_id}:${requestHash}`;
+  const admitted=await queryFn(ROOM_MEMORY_ADMIT_SQL,[candidate.agent_id,candidate.person_id,runId,token]);
+  if(admitted.length!==1) throw new Error('room_memory_lease_changed');
+  let reservation;
+  try {
+    reservation=await reserveFoundrySpend(queryFn,{operation:'claim_extraction',requestKey,adapter,messages,env:config.env});
+  } catch(error) {
+    if(error?.code==='provider_budget_reservation_denied')
+      await queryFn(ROOM_MEMORY_CANCEL_ADMISSION_SQL,[candidate.agent_id,candidate.person_id,runId,token]);
+    throw error;
+  }
+  const current=await rereadSnapshot();
+  if(canonicalJson(current)!==sources) {
+    const released=await releaseFoundrySpendBeforeCall(queryFn,reservation,'room_memory_authority_changed');
+    if(!released) throw new Error('room_memory_release_unconfirmed');
+    throw new Error('room_memory_authority_changed');
+  }
+  await beginFoundrySpend(queryFn,reservation);
+  let payload,output,dispatchError;
+  try {
+    output=await llm(messages,maxTokens,{env:config.env,responseFormat,model:config.model,
+      fetchImpl:async(url,init)=>{
+        if(String(url)!==config.url) throw new Error('room_memory_dispatch_binding_changed');
+        const response=await fetchImpl(config.requestUrl,init);
+        payload=await response.clone().json();
+        return response;
+      }});
+  } catch(error) { dispatchError=error; }
+  const input=payload?.usage?.prompt_tokens, out=payload?.usage?.completion_tokens;
+  if(!Number.isSafeInteger(input)||input<0||!Number.isSafeInteger(out)||out<0||input+out===0) {
+    await markFoundrySpendUncertain(queryFn,reservation,'room_memory_usage_unknown');
+    throw new Error('room_memory_usage_unknown');
+  }
+  try { await settleFoundrySpend(queryFn,reservation,{input_tokens:input,output_tokens:out}); }
+  catch(error) {
+    await markFoundrySpendUncertain(queryFn,reservation,error);
+    throw error;
+  }
+  if(payload?.model!==config.expectedModel) throw new Error('room_memory_response_model_mismatch');
+  if(dispatchError) throw dispatchError;
+  if(payload?.choices?.[0]?.finish_reason!=='stop') throw new Error('room_memory_response_incomplete');
+  return output;
+}
+
 // Reuses the incumbent counted llm and production spend meter. This wrapper is
 // also the explicit dev canary entrypoint; scheduled discovery has its own false
 // source flag. No transaction or row lock spans a provider call.
@@ -100,9 +188,6 @@ export async function runMeteredRoomMemoryConsolidation(candidate,
   const budget = foundryBudgetConfig(config.env);
   if (!runId || typeof queryFn !== 'function' || typeof llm !== 'function')
     throw new Error('room_memory_sweep_binding_required');
-  const adapter = {family:'consolidation',name:'azure-foundry-room-memory',
-    version:`${config.expectedModel}:room-memory/v1`,model:config.model,
-    billing:{meter:'azure_foundry_tokens',max_output_tokens:ROOM_MEMORY_MAX_OUTPUT_TOKENS}};
   let capturedRows;
   const scopedQuery = async(sql,params)=>{
     const rows=await queryFn(sql,params);
@@ -111,63 +196,54 @@ export async function runMeteredRoomMemoryConsolidation(candidate,
   };
   return runRoomMemoryConsolidation(candidate,{queryFn:scopedQuery,env:config.env,
     model:async(messages,maxTokens,options)=>{
-      const sources=canonicalJson(sourceBinding(capturedRows));
-      // A new, separately claimed sweep can retry a known completed attempt
-      // (including a before-call release). Unknown attempts retain the old
-      // lease and therefore cannot acquire a new run identity. Preserve every
-      // old spend row; never reset a released/settled ledger state.
-      const requestKey=sha256Hex(canonicalJson({budget_id:budget.budget_id,run_id:runId,
-        source_binding:sourceBinding(capturedRows),messages,response_format:options.responseFormat,
-        max_tokens:maxTokens,model:config.model,expected_model:config.expectedModel,url:config.requestUrl}));
-      // Exact same hash shape as reserveFoundrySpend. Persist BEFORE asking the
-      // meter, so a lost reservation ACK remains addressable without its row ID.
-      const requestHash=sha256Hex(canonicalJson({operation:'claim_extraction',request_key:requestKey,
-        provider_family:adapter.family,provider_name:adapter.name,provider_version:adapter.version,model:adapter.model}));
-      const token=`room-memory:${budget.budget_id}:${requestHash}`;
-      const admitted=await queryFn(ROOM_MEMORY_ADMIT_SQL,[candidate.agent_id,candidate.person_id,runId,token]);
-      if(admitted.length!==1) throw new Error('room_memory_lease_changed');
-      let reservation;
-      try {
-        reservation=await reserveFoundrySpend(queryFn,{operation:'claim_extraction',requestKey,adapter,messages,env:config.env});
-      } catch(error) {
-        // Only an acknowledged empty reservation result proves no spend began.
-        // Transport errors/unknown ACKs keep their token for reconciliation.
-        if(error?.code==='provider_budget_reservation_denied')
-          await queryFn(ROOM_MEMORY_CANCEL_ADMISSION_SQL,[candidate.agent_id,candidate.person_id,runId,token]);
-        throw error;
-      }
-      const current=await queryFn(ROOM_MEMORY_BATCH_SQL,[candidate.follower_id,candidate.agent_id,candidate.person_id]);
-      if(canonicalJson(sourceBinding(current))!==sources) {
-        const released=await releaseFoundrySpendBeforeCall(queryFn,reservation,'room_memory_authority_changed');
-        if(!released) throw new Error('room_memory_release_unconfirmed');
-        throw new Error('room_memory_authority_changed');
-      }
-      await beginFoundrySpend(queryFn,reservation);
-      let payload,output,dispatchError;
-      try {
-        output=await llm(messages,maxTokens,{...options,env:config.env,model:config.model,
-          fetchImpl:async(url,init)=>{
-            if(String(url)!==config.url) throw new Error('room_memory_dispatch_binding_changed');
-            const response=await fetchImpl(config.requestUrl,init);
-            payload=await response.clone().json();
-            return response;
-          }});
-      } catch(error) { dispatchError=error; }
-      const input=payload?.usage?.prompt_tokens, out=payload?.usage?.completion_tokens;
-      if(!Number.isSafeInteger(input)||input<0||!Number.isSafeInteger(out)||out<0||input+out===0) {
-        await markFoundrySpendUncertain(queryFn,reservation,'room_memory_usage_unknown');
-        throw new Error('room_memory_usage_unknown');
-      }
-      try { await settleFoundrySpend(queryFn,reservation,{input_tokens:input,output_tokens:out}); }
-      catch(error) {
-        await markFoundrySpendUncertain(queryFn,reservation,error);
-        throw error;
-      }
-      // Bill measured usage even when the provider returns the wrong revision,
-      // incomplete output, or invalid content. None may reach the memory commit.
-      if(payload?.model!==config.expectedModel) throw new Error('room_memory_response_model_mismatch');
-      if(dispatchError) throw dispatchError;
-      if(payload?.choices?.[0]?.finish_reason!=='stop') throw new Error('room_memory_response_incomplete');
-      return output;
+      return runMeteredRoomMemoryModel({candidate,queryFn,llm,runId,config,budget,fetchImpl,
+        sourceSnapshot:sourceBinding(capturedRows),
+        rereadSnapshot:async()=>sourceBinding(await queryFn(ROOM_MEMORY_BATCH_SQL,
+          [candidate.follower_id,candidate.agent_id,candidate.person_id])),
+        messages,maxTokens,responseFormat:options.responseFormat,adapterVersion:'room-memory/v1'});
     }});
+}
+
+// Reclassifies one active correction fact through the same bounded Room meter.
+// The caller owns the authority read and atomic CAS; this wrapper owns the
+// agent/person lease, exact snapshot comparisons and the single paid attempt.
+export async function runMeteredRoomMemoryReclassification(candidate,
+  {queryFn,llm,runId,readSnapshot,prepareRequest,validateProposal,commitProposal,
+    env=process.env,fetchImpl=globalThis.fetch}={}) {
+  if(!isAzureOnlyServing(env))throw new Error('room_memory_azure_only_required');
+  const config=strictRoomConsolidationConfig(env),budget=foundryBudgetConfig(config.env);
+  if(!runId||typeof queryFn!=='function'||typeof llm!=='function'||typeof readSnapshot!=='function'
+    ||typeof prepareRequest!=='function'||typeof validateProposal!=='function'||typeof commitProposal!=='function')
+    throw new Error('room_memory_reclassification_binding_required');
+  const snapshot=exactReclassificationSnapshot(await readSnapshot(queryFn,candidate),candidate);
+  if(!snapshot)return {classification:'unclassified',skipped:'no_job'};
+  const claimed=await queryFn(ROOM_MEMORY_CLAIM_SQL,[candidate.agent_id,candidate.person_id,runId]);
+  if(claimed.length!==1)return {classification:'unclassified',skipped:'leased'};
+  let failed=null;
+  try {
+    const request=prepareRequest(snapshot);
+    if(!request||!Array.isArray(request.messages)||!request.messages.length
+      ||!Number.isSafeInteger(request.maxTokens)||request.maxTokens<1
+      ||request.maxTokens>ROOM_MEMORY_MAX_OUTPUT_TOKENS
+      ||canonicalJson(request.responseFormat)!==canonicalJson(ROOM_MEMORY_RESPONSE_FORMAT))
+      throw new Error('room_memory_reclassification_request_invalid');
+    const suppliedSources=request.messages.filter(message=>message?.role==='user');
+    if(suppliedSources.length!==1||suppliedSources[0].content!==JSON.stringify([
+      {id:snapshot.source_id,content:snapshot.source_content}]))
+      throw new Error('room_memory_reclassification_request_invalid');
+    const reread=async()=>exactReclassificationSnapshot(await readSnapshot(queryFn,candidate),candidate);
+    const output=await runMeteredRoomMemoryModel({candidate,queryFn,llm,runId,config,budget,fetchImpl,
+      sourceSnapshot:snapshot,rereadSnapshot:reread,messages:request.messages,maxTokens:request.maxTokens,
+      responseFormat:request.responseFormat,adapterVersion:'room-memory/reclassification-v1'});
+    const proposal=validateProposal(output,snapshot);
+    if(canonicalJson(await reread())!==canonicalJson(snapshot))
+      throw new Error('room_memory_authority_changed');
+    return await commitProposal(proposal,snapshot);
+  }catch(error){failed=error;throw error;}
+  finally{
+    try{
+      const released=await queryFn(ROOM_MEMORY_RELEASE_SQL,[candidate.agent_id,candidate.person_id,runId]);
+      if(!failed&&released.length!==1)throw new Error('room_memory_release_unconfirmed');
+    }catch(error){if(!failed)throw error;failed.release_error_code='room_memory_release_unconfirmed';}
+  }
 }

@@ -60,7 +60,7 @@ await check("only an active fact cited by this Room's current epoch can mutate",
 
 await check("a stale or foreign correction returns no row, never scalar null fields", () => {
   assert.ok(ROOM_MEMORY_CORRECT_SQL.endsWith(
-    ") select s.id::text as replaced_id,n.id::text as fact_id,n.body\n from superseded s join replacement n on true join source c on true",
+    " from superseded s join replacement n on true join source c on true",
   ));
   assert.ok(!ROOM_MEMORY_CORRECT_SQL.includes("(select id::text from superseded)"));
   const correct = ({ authority, target }) => authority && target
@@ -68,6 +68,12 @@ await check("a stale or foreign correction returns no row, never scalar null fie
     : [];
   assert.deepEqual(correct({ authority: false, target: true }), []);
   assert.deepEqual(correct({ authority: true, target: false }), []);
+});
+await check('one corrected fact retains all dimension ownership but no stale values or fake pending job',()=>{
+ assert(ROOM_MEMORY_CORRECT_SQL.includes("'state','unclassified'"));
+ assert(ROOM_MEMORY_CORRECT_SQL.includes("'scope',t.communication->'scope','language',null,'script',null,'brevity',null"));
+ assert(ROOM_MEMORY_CORRECT_SQL.includes("then 'not_applicable' else 'unclassified' end as communication_classification"));
+ assert(!ROOM_MEMORY_CORRECT_SQL.includes("'pending'"));
 });
 
 await check("the correction log is inserted into its own cited episode before discovery", () => {

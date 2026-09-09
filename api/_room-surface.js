@@ -1,4 +1,5 @@
 import { MEERA_AGENT_ID } from "./_agentscope.js";
+import {reclassifyRoomMemory} from './_room-memory-reclassification.js';
 import {
   roomMemoryAdapter,
   roomMemoryAuthority,
@@ -2053,8 +2054,9 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     publication: teacherSnapshot.publication,
     personId: payload.p,
     privateMemory: { enabled: remembers, agentId: resolved.agentId, personId: payload.p,
-      rows: facts.map(f => ({ id: f.id, body: f.body, agentId: resolved.agentId,
-        personId: payload.p, consentStatus: "active" })) },
+      rows: engine.selectExpertPrivateMemoryRows(facts, remembers).map(f => ({ id: f.id, body: f.body, agentId: resolved.agentId,
+        personId: payload.p, consentStatus: "active", kind: f.kind, name: f.name,
+        provenance: f.provenance, sourceContent: f.preference_source, communication:f.communication })) },
     publicKnowledge: knowledge.sources.map(({ id, question, answer }) => ({ id, question, answer })),
     // Room has no search/forget execution receipt flow. No capabilities granted.
   }) : engine.compile({
@@ -3806,6 +3808,7 @@ export async function roomRememberedThings(db, { session }, deps = {}) {
       kind: String(fact.kind),
       name: String(fact.name),
       created_at: fact.created_at,
+      communication_classification: fact.communication?.state || 'not_applicable',
     })),
   };
 }
@@ -3822,7 +3825,32 @@ export async function roomCorrectRememberedThing(db, { session, factId, replacem
   if (!/^\d+$/.test(String(factId || ""))) throw new RoomError("room_memory_fact_unavailable", 404);
   const rows = await db(ROOM_MEMORY_CORRECT_SQL, [...roomMemoryAuthority(follower), String(factId), text]);
   if (!rows[0]) throw new RoomError("room_memory_fact_unavailable", 404);
-  return { fact: { id: String(rows[0].fact_id), body: String(rows[0].body) } };
+  const fact={id:String(rows[0].fact_id),body:String(rows[0].body)};
+  if(rows[0].communication_classification!=='unclassified')return{fact,communication_classification:'not_applicable'};
+  const classification=await attemptRememberedClassification(db,follower,fact.id,deps);
+  return {fact,communication_classification:classification.classification};
+}
+
+async function attemptRememberedClassification(db,follower,factId,deps) {
+  try {
+    const result=await reclassifyRoomMemory(db,follower,factId,{env:deps.env??process.env,
+      llm:deps.roomMemoryLlm,fetchImpl:deps.roomMemoryFetch??globalThis.fetch});
+    return result.skipped?{classification:'unconfirmed'}:result;
+  } catch {
+    // The correction text has its own acknowledged receipt. Classification may
+    // have failed or its CAS acknowledgement may be unknown; never invent a job.
+    return{classification:'unconfirmed'};
+  }
+}
+
+/** Explicit retry door for an unconfirmed classification; the same scoped CAS
+ * makes an already classified, erased or superseded fact a no-op without spend. */
+export async function roomReclassifyRememberedThing(db,{session,factId},deps={}) {
+  const who=await selfScope(db,session,deps);
+  const follower=await followerRow(db,who.roomId,who.personId,who.agentId);
+  if(!follower||follower.memory_consent_at==null)throw new RoomError('room_memory_not_enabled',403);
+  const result=await attemptRememberedClassification(db,follower,factId,deps);
+  return{communication_classification:result.classification};
 }
 
 /** Retract just one fact. Its episode stays intact because consolidation may

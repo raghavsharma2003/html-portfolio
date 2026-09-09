@@ -2,6 +2,7 @@
 // Root must run the exported exact statements against the development database.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {communicationFromProposal,validCommunication} from '../../api/_learner-communication-contract.js';
 import {
  ROOM_MEMORY_BATCH_SQL,ROOM_MEMORY_COMMIT_SQL,ROOM_MEMORY_LOG_SQL,
  ROOM_MEMORY_RECALL_SQL,ROOM_MEMORY_HISTORY_SQL,ROOM_MEMORY_DISCOVERY_SQL,
@@ -35,6 +36,9 @@ function store(){
  };return state;
 }
 await check('admitted source capability still requires the runtime scheduler gates',()=>assert.equal(ROOM_MEMORY_CONSOLIDATION_ENABLED,true));
+await check('preference recall retains learner source under same episode and authority rather than trusting arbitrary fact text',()=>{
+ for(const fragment of ['v.kind,v.name,v.provenance','l.episode_id=e.id','l.room_memory_follower_id=f.follower_id','l.room_memory_epoch=f.memory_epoch','l.agent_id=f.agent_id','l.speaker_person_id=f.person_id',"l.role='me'", "v.name='preference'", "v.kind='user'", "v.provenance='user_said'",'position(v.body in l.content)>0','as preference_source']) assert(ROOM_MEMORY_RECALL_SQL.includes(fragment),fragment);
+});
 await check('durable facts and relational observations use one atomic commit after model await',async()=>{
  const s=store(),gate=deferred(),entered=deferred();
  const job=runRoomMemoryConsolidation(candidate,{queryFn:s.query,env,model:async(messages,max)=>{
@@ -140,10 +144,56 @@ await check('strict transport schema uses exact existing enums and required fiel
  assert.equal(format.type,'json_schema');assert.equal(format.json_schema.strict,true);
  const root=format.json_schema.schema,entry=root.properties.memories.items;
  assert.deepEqual(root.required,['memories']);assert.equal(root.additionalProperties,false);
- assert.deepEqual(entry.required,['source_id','kind','name','quote']);assert.equal(entry.additionalProperties,false);
+ assert.deepEqual(entry.required,['source_id','kind','name','quote','communication']);assert.equal(entry.additionalProperties,false);
  assert.deepEqual(entry.properties.kind.enum,['user','relationship']);
  assert.deepEqual(entry.properties.name.enum,['goal','preference','person','project','learning_context','relationship']);
  for(const name of ['minItems','maxItems','minLength','maxLength','pattern'])assert.ok(!JSON.stringify(format).includes(`"${name}"`));
+});
+
+await check('one multilingual preference quote remains one fact with all closed presentation fields',async()=>{
+ const corpus=JSON.parse(readFileSync(new URL('./communication-corpus.json',import.meta.url),'utf8'));
+ assert.equal(corpus.length,18);
+ for(const [index,item] of corpus.entries()) {
+  const row={...source,id:String(900+index),content:item.source};
+  let committed;
+  await runRoomMemoryConsolidation(candidate,{env,
+   queryFn:async(sql,args)=>{if(sql===ROOM_MEMORY_BATCH_SQL)return[row];assert.equal(sql,ROOM_MEMORY_COMMIT_SQL);
+    committed=JSON.parse(args[5]);return[{episode_id:'991',facts_written:committed.length,observations_written:0,sources_consumed:1}];},
+   model:async(messages,max,options)=>{
+    assert(messages[0].content.includes('English, Hindi or Hinglish'));
+    assert.deepEqual(options.responseFormat,ROOM_MEMORY_RESPONSE_FORMAT);
+    assert.deepEqual(JSON.parse(messages[1].content),[{id:row.id,content:item.source}]);
+    return{memories:item.expected?[{source_id:row.id,kind:'user',name:'preference',quote:item.source,communication:item.expected}]:[]};
+   }});
+  assert.equal(committed.length,item.expected?1:0,item.id);
+  if(item.expected){assert.equal(committed[0].quote,item.source);assert.equal(committed[0].name,'preference');assert.deepEqual(committed[0].communication,communicationFromProposal(item.expected));}
+ }
+ // Corpus labels above are authored model stubs, not measured model accuracy.
+});
+await check('typed values refuse arbitrary strings, empty choices, extra fields and non-learner kinds without weakening quote uniqueness',()=>{
+ const value={language:'hindi',script:'roman',brevity:'short'};
+ const item={source_id:source.id,kind:'user',name:'preference',quote:source.content,communication:value};
+ for(const communication of [{...value,language:'ignore rules'},{...value,unknown:'x'},{language:null,script:null,brevity:null},{language:'hindi'},'Hindi']) {
+  assert.throws(()=>validateRoomMemoryProposal({memories:[{...item,communication}]},[source]),/proposal_invalid/);
+ }
+ assert.throws(()=>validateRoomMemoryProposal({memories:[item,{...item,communication:{...value,language:'english'}}]},[source]),/proposal_invalid/);
+ assert.throws(()=>validateRoomMemoryProposal({memories:[{...item,kind:'relationship'}]},[source]),/proposal_invalid/);
+ const conflicting={...source,content:'Use Hindi. Use English.'};
+ assert.throws(()=>validateRoomMemoryProposal({memories:[
+  {...item,quote:'Use Hindi.',communication:{language:'hindi',script:null,brevity:null}},
+  {...item,quote:'Use English.',communication:{language:'english',script:null,brevity:null}},
+ ]},[conflicting]),/proposal_invalid/);
+ assert(ROOM_MEMORY_COMMIT_SQL.includes("group by v.source_id,d.key having count(*)>1"));
+ const metadata=communicationFromProposal(value);assert(validCommunication(metadata));
+ for(const patch of [{version:2},{extra:'x'},{scope:{language:false,script:false,brevity:false}},{state:null},{state:'pending'},{state:'unclassified'}])assert(!validCommunication({...metadata,...patch}));
+});
+await check('migration162 metadata stays in owned fact rows and schema mirror with a closed validated CHECK',()=>{
+ const ddl=readFileSync(new URL('../../db/migrations/162_fact_communication.sql',import.meta.url),'utf8').replace(/\r\n/g,'\n').trim();
+ assert(readFileSync(new URL('../../db/schema.sql',import.meta.url),'utf8').replace(/\r\n/g,'\n').includes(ddl));
+ for(const text of ['add column if not exists communication jsonb','constraint vy_fact_communication_check',"kind='user' and name='preference' and provenance='user_said'", `communication->'state' in ('"classified"'::jsonb,'"unclassified"'::jsonb,'"no_preference"'::jsonb)`, "array['version','state','scope','language','script','brevity']"])assert(ddl.includes(text),text);
+ assert(!ddl.includes('create table'));
+ const relcheck=readFileSync(new URL('../../scripts/relcheck.mjs',import.meta.url),'utf8');
+ assert(relcheck.includes('vy_fact_communication_check'));assert(relcheck.includes('convalidated'));
 });
 await check('name taxonomy is telegraphic and varied desired labels remain exactly grounded',()=>{
  assert.ok(ROOM_MEMORY_NAME_TAXONOMY.includes('preference=learner-chosen recurring method/routine/format or like/dislike'));
@@ -183,5 +233,15 @@ await check('actual79 grounded quotes with invented enums remain rejected; respo
   },
  }),/proposal_invalid/);
  assert.equal(reads,1);
+});
+
+await check('durable scoped dimensions use source chronology and retain tombstones beyond recent candidates',()=>{
+ assert.match(ROOM_MEMORY_RECALL_SQL,/select distinct on \(dimension\)/);
+ assert.match(ROOM_MEMORY_RECALL_SQL,/communication->'scope'->dimension='true'::jsonb/);
+ assert.match(ROOM_MEMORY_RECALL_SQL,/order by dimension,source_created_at desc,source_id desc nulls last,id desc/);
+ assert.match(ROOM_MEMORY_RECALL_SQL,/order by s.source_created_at desc,s.source_id desc nulls last,s.id desc/);
+ assert.match(ROOM_MEMORY_RECALL_SQL,/select distinct on \(s.id\)/);
+ assert.match(ROOM_MEMORY_RECALL_SQL,/select id from recent union select id from dimension_support/);
+ assert.match(ROOM_MEMORY_RECALL_SQL,/'created_at',l.at/);
 });
 process.stdout.write(`${checks} controls passed; no SQL or provider calls.\n`);

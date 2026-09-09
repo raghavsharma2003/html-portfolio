@@ -17790,6 +17790,24 @@
       "kind": "rejection",
       "title": "Do not claim classification complete before backend admission",
       "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-backend208-union",
+      "kind": "decision",
+      "title": "Integrate complete approved communication memory backend",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-backend208-source-parity",
+      "kind": "measurement",
+      "title": "Twenty backend paths match approved source without UI overlap",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-no-source-only-runtime-claim",
+      "kind": "rejection",
+      "title": "Do not equate backend source approval with live SQL or model quality",
+      "at": "2026-09-09"
     }
   ],
   "edges": [
