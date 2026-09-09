@@ -2,13 +2,38 @@
 // Credentials come from the parent process. An explicit database identity check
 // prevents accidentally using the production Neon database as the write target.
 import { createServer } from 'node:http';
-import { readdir, readFile } from 'node:fs/promises';
+import { access, readdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { createServer as createViteServer } from 'vite';
 import { createAzureOnlyFetch } from './azure-only-fetch.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
+async function ensureInertConfigModule() {
+  const config = join(root, 'api', '_config.js');
+  try {
+    await access(config);
+    return false;
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw new Error('Development config module cannot be read.');
+  }
+  let inert;
+  try {
+    inert = await readFile(join(root, 'api', '_config.example.js'), 'utf8');
+  } catch {
+    throw new Error('Development config module is missing and its checked-in inert template is unavailable.');
+  }
+  if (!inert.includes('export const SUPABASE_URL = "";') || !inert.includes('export const NEON_URL = "";')) {
+    throw new Error('Development config module is missing and its inert template is invalid.');
+  }
+  try {
+    await writeFile(config, inert, { encoding: 'utf8', flag: 'wx' });
+  } catch (error) {
+    if (error?.code !== 'EEXIST') throw new Error('Development config module could not be prepared from the inert template.');
+  }
+  return true;
+}
+await ensureInertConfigModule();
 const database = process.env.VYAKTI_DEV_DATABASE;
 if (!database || !/^vyakti_expert_integration_[0-9]{8}$/.test(database)) {
   throw new Error('Set VYAKTI_DEV_DATABASE to the isolated development database name.');
