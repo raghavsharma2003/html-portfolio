@@ -17810,3 +17810,8 @@ A successful lookup in an existing multi-worktree repository could rely on unpub
 ## `handoff207-windows-import-url` (2026-09-09)
 
 Initial --import C:/... invocation failed before test execution with ERR_UNSUPPORTED_ESM_URL_SCHEME. Replaced only that invocation with file:///C:/...; then all three suites actually passed. Do not count the setup failure as a product regression or the later offline pass as live model evidence.
+
+
+## `handoff208-openrouter-required-comment` (2026-09-09)
+
+The shared config template stated OPENROUTER_KEY and NEON_URL were both required for a brain and memory. Applied to the expert studio, this conflicts with its Azure-only serving configuration and would send the next agent toward unnecessary credentials. Corrected comments and local setup guidance; retained legacy exports for their existing callers.

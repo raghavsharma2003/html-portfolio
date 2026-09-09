@@ -17928,6 +17928,24 @@
       "kind": "rejection",
       "title": "Windows absolute path is not an ESM import URL",
       "at": "2026-09-09"
+    },
+    {
+      "id": "handoff208-expert-config-guidance",
+      "kind": "decision",
+      "title": "Separate Azure expert setup from legacy companion keys",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "handoff208-config-source-audit",
+      "kind": "measurement",
+      "title": "Core local consumers support environment injection",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "handoff208-openrouter-required-comment",
+      "kind": "rejection",
+      "title": "Do not request legacy keys for the Azure expert profile",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

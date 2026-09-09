@@ -7,8 +7,11 @@
 // deployed site will have it locally and not in production, which fails in the
 // one place nobody is watching.
 //
-// OPENROUTER_KEY and NEON_URL are required: without them she has no brain and
-// no memory. Everything else degrades rather than breaks.
+// This template includes both legacy companion and expert-studio settings.
+// The Azure-only expert studio uses Azure Foundry environment bindings, not
+// OPENROUTER_KEY. NEON_URL supplies its database; SUPABASE_URL and SUPABASE_KEY
+// supply authentication. Private storage and other features have their own
+// required settings. See docs/handoff/2026-09-09/LOCAL-CONFIG.md before setup.
 
 export const OPENROUTER_KEY = "";
 

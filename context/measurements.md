@@ -17822,3 +17822,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `handoff207-focused-combined-results` (2026-09-09)
 
 2026-09-09, source0fce7b03e02342fecfcab09fbd87e9dbafee1a59, n=3 actual local suite commands, all exit0: compiler31, expert math14, Room answer19. No model/SQL/cloud compute. Temporary loader mapped only missing config to checked-in inert example, checked private dependency directory and exact lockfile equality, scrubbed credential environment and blocked fetch. Existing suite fixtures prove control flow, not database semantics or Hindi adherence. Product files unchanged.
+
+
+## `handoff208-config-source-audit` (2026-09-09)
+
+2026-09-09 source audit of _db.js, _auth.js, _replica-storage.js and dev-expert.mjs on handover f1d89527: database, auth and selected private-storage values choose environment before imported config; launcher checks isolated database identity and model destination policy. This is source evidence, not new live authentication/storage/SQL proof. No model calls, provider calls, server restart or credential file changes.

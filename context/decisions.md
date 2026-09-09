@@ -24028,3 +24028,8 @@ User requested a durable GitHub handover before their usage limit. Verify from a
 ## `handoff207-focused-combined-checks` (2026-09-09)
 
 User prioritized the preserved handover and usage limits. Run only the existing compiler, scientific-text and Room-handler suites against the final combined source, reusing read-only private exact-lock dependencies and inert config import mapping. Reverse if dependency equality or isolation fails; do not infer live language quality from structural tests.
+
+
+## `handoff208-expert-config-guidance` (2026-09-09)
+
+Preserve the shared inert template but correct its obsolete assertion that OpenRouter is required for all functionality. The user's expert product uses Azure-only model serving. Document existing environment precedence and the static-module requirement, without changing runtime authority or requesting new credentials. Reverse if the supported expert serving configuration changes.
