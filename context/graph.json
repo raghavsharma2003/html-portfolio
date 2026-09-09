@@ -17694,6 +17694,24 @@
       "kind": "rejection",
       "title": "Refresh diagnostics are not a refresh defect fix",
       "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease202-remembered-correction",
+      "kind": "decision",
+      "title": "Integrate reviewed remembered-things correction feature",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease202-correction-source-parity",
+      "kind": "measurement",
+      "title": "Feature source matches reviewed donor while native fixes remain intact",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease202-no-inherited-native-reversion",
+      "kind": "rejection",
+      "title": "Exclude older native eval and withhold final race acceptance",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

@@ -215,6 +215,42 @@
     margin-bottom: 0;
   }
 
+  /* The account page's remembered-facts list stays a single narrow column on
+     phones. Each item owns its actions and edit field, so longer Hindi text
+     wraps instead of pushing controls off screen. */
+  .room-account .room-list {
+    display: grid;
+    gap: var(--space-tight);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .room-account .room-list .room-card {
+    overflow-wrap: anywhere;
+  }
+
+  .room-account .room-list textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 88px;
+    margin-top: var(--space-hair);
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: var(--space-row);
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    resize: vertical;
+  }
+
+  .room-account .room-list textarea:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--forest) 35%, transparent);
+    outline-offset: 2px;
+  }
+
   .room-bubble {
     box-sizing: border-box;
     max-width: min(88%, var(--measure));

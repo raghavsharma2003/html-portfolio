@@ -417,6 +417,29 @@ export const forgetRoomData = (session: string, accessToken: string) =>
     accessToken,
   );
 
+/** A durable, currently active fact the follower may correct or retract.
+ * `id` is opaque to the UI and is still re-authorized through its cited Room
+ * episode on every mutation. */
+export interface RoomRememberedThing {
+  id: string;
+  body: string;
+  kind: string;
+  name: string;
+  created_at: string;
+}
+
+export const rememberedThings = (session: string, accessToken: string) =>
+  post<{ facts: RoomRememberedThing[] }>({ op: "memory_facts", session }, accessToken);
+
+export const correctRememberedThing = (session: string, accessToken: string, factId: string, replacement: string) =>
+  post<{ fact: Pick<RoomRememberedThing, "id" | "body"> }>(
+    { op: "memory_correct", session, fact_id: factId, replacement },
+    accessToken,
+  );
+
+export const forgetRememberedThing = (session: string, accessToken: string, factId: string) =>
+  post<{ forgotten: boolean; fact_id: string }>({ op: "memory_forget", session, fact_id: factId }, accessToken);
+
 // ── web push (WS-R22, migration 085) ───────────────────────────────────────
 // The endpoint/keys are the browser's OWN `PushSubscription`, never
 // constructed here - `CheckinsPanel.tsx`'s `enablePush` builds them via the

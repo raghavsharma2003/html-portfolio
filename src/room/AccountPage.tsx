@@ -14,7 +14,7 @@
  * WHETHER a write succeeds lives server side, where the offline suite can
  * reach it.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type { StudioSession } from "../creatorStudio/types";
 import type { RoomCopy, RoomLocale } from "./copy";
 import { LocalizedName, LocalizedDisclosure } from "./Localized";
@@ -35,6 +35,9 @@ import {
   listReceipts,
   fetchReceiptHtml,
   fetchRoomExportReadableHtml,
+  rememberedThings,
+  correctRememberedThing,
+  forgetRememberedThing,
   lastMonthNote,
   setQuietHours,
   type RoomFlag,
@@ -43,6 +46,7 @@ import {
   type RoomReceiptRow,
   type RoomReferralProgress,
   type RoomMonthNote,
+  type RoomRememberedThing,
 } from "./roomApi";
 import { listCheckinDesignsAndPushKey, setTelegramCheckins, browserTimezone } from "./roomCheckinsApi";
 import { paymentStatus, type RoomPaymentStatus } from "./roomPayApi";
@@ -217,6 +221,20 @@ export default function AccountPage({
   // copy of it.
   const [flags, setFlags] = useState<RoomFlag[]>([]);
   const [withdrawingHash, setWithdrawingHash] = useState<string | null>(null);
+  // These are the follower's own active facts, never a local inference from
+  // transcript text. A fresh server read is the only list the edit controls
+  // can act on, and every button sends its opaque id back for re-authorization.
+  const [remembered, setRemembered] = useState<RoomRememberedThing[]>([]);
+  const [rememberedLoading, setRememberedLoading] = useState(false);
+  const [rememberedError, setRememberedError] = useState(false);
+  const [rememberedReload, setRememberedReload] = useState(0);
+  const [editingRememberedId, setEditingRememberedId] = useState<string | null>(null);
+  const [rememberedReplacement, setRememberedReplacement] = useState("");
+  const [rememberedBusyId, setRememberedBusyId] = useState<string | null>(null);
+  const [returnRememberedFocusId, setReturnRememberedFocusId] = useState<string | null>(null);
+  const rememberedEditTrigger = useRef<HTMLButtonElement | null>(null);
+  const [returnRememberedHeadingFocus, setReturnRememberedHeadingFocus] = useState(false);
+  const rememberedHeading = useRef<HTMLHeadingElement | null>(null);
   // WS-R100 (migration 126). The follower's own receipts - the subscription
   // panel's own list, `flags`' own state shape one field up.
   const [receipts, setReceipts] = useState<RoomReceiptRow[]>([]);
@@ -273,6 +291,41 @@ export default function AccountPage({
       live = false;
     };
   }, [session, fixtureSettings]);
+
+  // The correction controls are meaningful only while memory is enabled and
+  // this browser still has the bearer required by the server's second layer.
+  // Clearing immediately on withdrawal avoids presenting an old list while
+  // the Room's epoch/forget work completes server side.
+  useEffect(() => {
+    if (fixtureSettings || !auth || !remembers) {
+      setRemembered([]);
+      setRememberedError(false);
+      setEditingRememberedId(null);
+      setReturnRememberedFocusId(null);
+      setReturnRememberedHeadingFocus(false);
+      return;
+    }
+    let live = true;
+    setRememberedLoading(true);
+    setRememberedError(false);
+    rememberedThings(session, auth.accessToken)
+      .then((result) => { if (live) setRemembered(result.facts); })
+      .catch(() => { if (live) setRememberedError(true); })
+      .finally(() => { if (live) setRememberedLoading(false); });
+    return () => { live = false; };
+  }, [session, auth, remembers, fixtureSettings, rememberedReload]);
+
+  useEffect(() => {
+    if (!returnRememberedFocusId || editingRememberedId !== null) return;
+    rememberedEditTrigger.current?.focus();
+    setReturnRememberedFocusId(null);
+  }, [returnRememberedFocusId, editingRememberedId]);
+
+  useEffect(() => {
+    if (!returnRememberedHeadingFocus) return;
+    rememberedHeading.current?.focus();
+    setReturnRememberedHeadingFocus(false);
+  }, [returnRememberedHeadingFocus]);
 
   // WS-R67. Never on a fixture, the settings effect's own rule restated.
   useEffect(() => {
@@ -370,6 +423,52 @@ export default function AccountPage({
       setWithdrawingHash(null);
     }
   }, [session, copy]);
+
+  const beginRememberedEdit = useCallback((fact: RoomRememberedThing) => {
+    setReturnRememberedFocusId(null);
+    setEditingRememberedId(fact.id);
+    setRememberedReplacement(fact.body);
+    setError("");
+  }, []);
+
+  const saveRememberedEdit = useCallback(async (event: FormEvent<HTMLFormElement>, factId: string) => {
+    event.preventDefault();
+    if (!auth || fixtureSettings || rememberedReplacement.length < 3 || rememberedReplacement.length > 400) return;
+    setRememberedBusyId(factId);
+    setError("");
+    try {
+      const result = await correctRememberedThing(session, auth.accessToken, factId, rememberedReplacement);
+      setRemembered((current) => current.map((fact) =>
+        fact.id === factId ? { ...fact, id: result.fact.id, body: result.fact.body } : fact,
+      ));
+      setEditingRememberedId(null);
+      setRememberedReplacement("");
+      setReturnRememberedFocusId(result.fact.id);
+    } catch {
+      setError(copy.errors.generic);
+    } finally {
+      setRememberedBusyId(null);
+    }
+  }, [auth, fixtureSettings, rememberedReplacement, session, copy]);
+
+  const removeRememberedThing = useCallback(async (factId: string) => {
+    if (!auth || fixtureSettings) return;
+    setRememberedBusyId(factId);
+    setError("");
+    try {
+      await forgetRememberedThing(session, auth.accessToken, factId);
+      setRemembered((current) => current.filter((fact) => fact.id !== factId));
+      setReturnRememberedHeadingFocus(true);
+      if (editingRememberedId === factId) {
+        setEditingRememberedId(null);
+        setRememberedReplacement("");
+      }
+    } catch {
+      setError(copy.errors.generic);
+    } finally {
+      setRememberedBusyId(null);
+    }
+  }, [auth, fixtureSettings, session, copy, editingRememberedId]);
 
   const [pushOn, setPushOn] = useState(false);
   const [waOn, setWaOn] = useState(false);
@@ -701,6 +800,69 @@ export default function AccountPage({
           {memoryBusy ? copy.pay.working : remembers ? copy.account.memoryDisable : copy.account.memoryEnable}
         </button>
       </div>
+
+      {remembers && auth && (
+        <>
+          <h3 ref={rememberedHeading} tabIndex={-1} className="room-checkins-subhead">{copy.account.rememberedTitle}</h3>
+          <p className="room-fine">{copy.account.rememberedNote}</p>
+          {rememberedLoading ? (
+            <p className="room-fine" role="status">{copy.account.rememberedLoading}</p>
+          ) : rememberedError ? (
+            <>
+              <p className="room-fine" role="alert">{copy.errors.generic}</p>
+              <button type="button" className="room-btn" onClick={() => setRememberedReload((value) => value + 1)}>
+                {copy.account.rememberedRetry}
+              </button>
+            </>
+          ) : remembered.length === 0 ? (
+            <p className="room-fine">{copy.account.rememberedEmpty}</p>
+          ) : (
+            <ul className="room-list" aria-label={copy.account.rememberedTitle}>
+              {remembered.map((fact) => (
+                <li key={fact.id} className="room-card">
+                  {editingRememberedId === fact.id ? (
+                    <form onSubmit={(event) => void saveRememberedEdit(event, fact.id)}>
+                      <label className="room-fine" htmlFor={`remembered-${fact.id}`}>
+                        {copy.account.rememberedReplacementLabel}
+                      </label>
+                      <textarea
+                        id={`remembered-${fact.id}`}
+                        value={rememberedReplacement}
+                        onChange={(event) => setRememberedReplacement(event.target.value)}
+                        minLength={3}
+                        maxLength={400}
+                        rows={3}
+                        autoFocus
+                        disabled={rememberedBusyId === fact.id}
+                      />
+                      <div className="room-actions">
+                        <button type="submit" className="room-btn" disabled={rememberedBusyId === fact.id || rememberedReplacement.length < 3 || rememberedReplacement.length > 400}>
+                          {rememberedBusyId === fact.id ? copy.pay.working : copy.account.rememberedSave}
+                        </button>
+                        <button type="button" className="room-btn" disabled={rememberedBusyId === fact.id} onClick={() => { setEditingRememberedId(null); setRememberedReplacement(""); setReturnRememberedFocusId(fact.id); }}>
+                          {copy.account.rememberedCancel}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <p>{fact.body}</p>
+                      <div className="room-actions">
+                        <button ref={fact.id === returnRememberedFocusId ? rememberedEditTrigger : undefined} type="button" className="room-btn" disabled={rememberedBusyId === fact.id} onClick={() => beginRememberedEdit(fact)}>
+                          {copy.account.rememberedEdit}
+                        </button>
+                        <button type="button" className="room-btn danger" disabled={rememberedBusyId === fact.id} onClick={() => void removeRememberedThing(fact.id)}>
+                          {rememberedBusyId === fact.id ? copy.pay.working : copy.account.rememberedForget}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
 
       <h3 className="room-checkins-subhead">{copy.account.localeTitle}</h3>
       <LanguageSwitch locale={locale} busy={localeBusy} onSwitch={onSwitchLocale} />

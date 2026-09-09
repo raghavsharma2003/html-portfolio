@@ -1185,6 +1185,7 @@ const suites = {
   // fact about somebody's mother.
   consolidation: "consolidation/run.mjs",
   "room-memory-authority": "room-memory-authority/run.mjs",
+  "room-memory-correction": "room-memory-correction/run.mjs",
   "consolidation-config": "consolidation/config.mjs",
   "room-memory-caller": "consolidation/room-caller.mjs",
   // Migration 018 and the raw RelationalOS boundary: schema parity, explicit

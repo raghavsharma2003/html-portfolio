@@ -17750,3 +17750,8 @@ Two other UI diagnoses remain active; correctiona442 awaits SQL and browser evid
 ## `postrelease202-refresh-unresolved` (2026-09-09)
 
 a85f2f8b adds diagnostic barriers only; do not claim the refresh defect resolved. Correction UI successor remains excluded pending mounted evidence/root admission. Keep this a working checkpoint, not final product acceptance.
+
+
+## `postrelease202-no-inherited-native-reversion` (2026-09-09)
+
+Explicit allowlist excludes inherited Azure web eval that would reverse native lifecycle fix. Race/auth matrix remains pending. Initial registry read hit Windows cp1252 decoding before mutation; resumed explicit UTF8, without reapplying already-verified feature patch.

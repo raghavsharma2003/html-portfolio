@@ -142,6 +142,84 @@ export const ROOM_MEMORY_RECALL_SQL = `select v.id,v.body from vy_fact v
  and v.t_invalid is null and v.retracted_at is null and v.superseded_by is null
  order by v.created_at desc,v.id desc limit 30`;
 
+// The account surface can show only the follower's currently recallable Room
+// facts. The episode join is the provenance boundary: a fact sharing this
+// agent/person pair but cited from another Room never becomes editable here.
+export const ROOM_MEMORY_FACTS_SQL = `select v.id::text,v.body,v.kind,v.name,v.created_at from vy_fact v
+ join vy_episode e on e.id=any(v.citations)
+ join vy_room_follower f on f.follower_id=e.room_memory_follower_id and f.memory_epoch=e.room_memory_epoch
+ join vy_room r on r.room_id=f.room_id and r.agent_id=f.agent_id
+ join vy_replica p on p.replica_id=r.replica_id and p.owner_user_id=r.owner_user_id and p.agent_id=r.agent_id
+ where f.follower_id=$1::uuid and f.memory_epoch=$2::bigint and f.agent_id=$3::uuid and f.person_id=$4::uuid
+ and f.memory_consent_at is not null and f.age_attested_at is not null
+ and r.published_at is not null and r.paused_at is null
+ and p.lifecycle not in ('revoked','purging') and p.revoked_at is null
+ and e.agent_id=f.agent_id and e.person_id=f.person_id and v.agent_id=f.agent_id and v.person_id=f.person_id
+ and v.t_invalid is null and v.retracted_at is null and v.superseded_by is null
+ order by v.created_at desc,v.id desc limit 30`;
+
+// A correction is a new, exact learner statement. It does not call a model,
+// reinterpret the replacement, or overwrite history: one short statement
+// locks authority and the selected cited fact, records the replacement with
+// its own episode, then invalidates the prior fact by lineage.
+export const ROOM_MEMORY_CORRECT_SQL = `with ${AUTHORITY},
+ target as materialized (
+ select v.id,v.kind,v.name,(select e.device_id from vy_episode e
+   join authority f on f.follower_id=e.room_memory_follower_id and f.memory_epoch=e.room_memory_epoch
+   where e.id=any(v.citations) and e.agent_id=f.agent_id and e.person_id=f.person_id
+   order by e.id limit 1) as device_id
+ from vy_fact v join authority f on true
+ where v.id=$5::bigint and v.agent_id=f.agent_id and v.person_id=f.person_id
+ and v.t_invalid is null and v.retracted_at is null and v.superseded_by is null
+ and exists(select 1 from vy_episode e where e.id=any(v.citations)
+   and e.room_memory_follower_id=f.follower_id and e.room_memory_epoch=f.memory_epoch
+   and e.agent_id=f.agent_id and e.person_id=f.person_id)
+ for update of v
+ ), log_id as materialized (
+ select nextval(pg_get_serial_sequence('meera_log','id'))::bigint as id
+ from authority f join target t on true
+ ), episode as (
+insert into vy_episode(agent_id,person_id,device_id,channel,participation,started_at,ended_at,
+  boundary_reason,log_from,log_to,summary,provisional,room_memory_follower_id,room_memory_epoch)
+ select f.agent_id,f.person_id,t.device_id,'chat','user',now(),now(),'room_memory_correction',
+   l.id,l.id,'',false,f.follower_id,f.memory_epoch
+ from authority f join target t on true join log_id l on true
+ where length($6::text) between 3 and 400
+returning id,agent_id,person_id
+ ), source as (
+ insert into meera_log(id,agent_id,device_id,speaker_person_id,role,channel,kind,content,at,episode_id,
+   room_memory_follower_id,room_memory_epoch) overriding system value
+ select l.id,f.agent_id,t.device_id,f.person_id,'me','chat','text',$6::text,now(),e.id,
+   f.follower_id,f.memory_epoch
+ from authority f join target t on true join log_id l on true join episode e on true
+ returning id
+), replacement as (
+insert into vy_fact(agent_id,person_id,kind,name,body,provenance,confidence,citations,provisional)
+select e.agent_id,e.person_id,t.kind,t.name,$6::text,'user_said',1.0,array[e.id],false
+ from episode e join target t on true join source s on true
+returning id,body
+), superseded as (
+update vy_fact v set t_invalid=now(),superseded_by=n.id
+from target t cross join replacement n where v.id=t.id
+returning v.id
+) select s.id::text as replaced_id,n.id::text as fact_id,n.body
+ from superseded s join replacement n on true join source c on true`;
+
+// Forgetting one item preserves its cited episode and any sibling facts that
+// came from it. Whole-Room forget remains the existing deletion path.
+export const ROOM_MEMORY_RETRACT_SQL = `with ${AUTHORITY},
+ target as materialized (
+ select v.id from vy_fact v join authority f on true
+ where v.id=$5::bigint and v.agent_id=f.agent_id and v.person_id=f.person_id
+ and v.t_invalid is null and v.retracted_at is null and v.superseded_by is null
+ and exists(select 1 from vy_episode e where e.id=any(v.citations)
+   and e.room_memory_follower_id=f.follower_id and e.room_memory_epoch=f.memory_epoch
+   and e.agent_id=f.agent_id and e.person_id=f.person_id)
+ for update of v
+ ), retracted as (
+ update vy_fact v set retracted_at=now() from target t where v.id=t.id returning v.id
+ ) select id::text as fact_id from retracted`;
+
 export const ROOM_MEMORY_HISTORY_SQL = `select l.role,l.content from meera_log l
  join vy_room_follower f on f.follower_id=l.room_memory_follower_id and f.memory_epoch=l.room_memory_epoch
  join vy_room r on r.room_id=f.room_id and r.agent_id=f.agent_id

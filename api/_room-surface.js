@@ -1,5 +1,13 @@
 import { MEERA_AGENT_ID } from "./_agentscope.js";
-import { roomMemoryAdapter, ROOM_MEMORY_REVOKE_SQL, ROOM_MEMORY_FORGET_SQL } from "./_room-memory-authority.js";
+import {
+  roomMemoryAdapter,
+  roomMemoryAuthority,
+  ROOM_MEMORY_REVOKE_SQL,
+  ROOM_MEMORY_FORGET_SQL,
+  ROOM_MEMORY_FACTS_SQL,
+  ROOM_MEMORY_CORRECT_SQL,
+  ROOM_MEMORY_RETRACT_SQL,
+} from "./_room-memory-authority.js";
 // The Room - the follower's side of a published replica (WS-R1).
 //
 // A creator publishes; a follower arrives at /r/<slug> from a bio link and is
@@ -3765,6 +3773,68 @@ export async function roomSettings(db, { session }, deps = {}) {
     // the account itself.
     own_quiet_hours: ownQuietHours,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OP: remembered things (follower correction)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** A correction is deliberately bounded to the same 3-400 character range
+ * the Room consolidator accepts for a grounded fact. Do not trim or rewrite
+ * it: the text that reaches the cited correction episode is exactly the text
+ * the follower supplied. */
+function exactRememberedReplacement(value) {
+  if (typeof value !== "string" || value.length < 3 || value.length > 400) {
+    throw new RoomError("room_memory_replacement_invalid", 400);
+  }
+  return value;
+}
+
+/** The list is derived through the authoritative fact-to-cited-episode path,
+ * never from a person/agent scan. It therefore remains empty after consent is
+ * withdrawn even if a racing old browser still carries a signed Room session. */
+export async function roomRememberedThings(db, { session }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  const follower = await followerRow(db, who.roomId, who.personId, who.agentId);
+  if (!follower) throw new RoomError("room_join_required", 403);
+  if (follower.memory_consent_at == null) return { facts: [] };
+  const facts = await db(ROOM_MEMORY_FACTS_SQL, roomMemoryAuthority(follower));
+  return {
+    facts: facts.map((fact) => ({
+      id: String(fact.id),
+      body: String(fact.body),
+      kind: String(fact.kind),
+      name: String(fact.name),
+      created_at: fact.created_at,
+    })),
+  };
+}
+
+/** Atomically record the follower's exact replacement and supersede the
+ * selected active fact. The authority CTE locks the current follower/epoch
+ * before the fact, so a consent withdrawal or whole-room forget either wins
+ * first and makes this return no row, or follows and erases both generations. */
+export async function roomCorrectRememberedThing(db, { session, factId, replacement }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  const text = exactRememberedReplacement(replacement);
+  const follower = await followerRow(db, who.roomId, who.personId, who.agentId);
+  if (!follower || follower.memory_consent_at == null) throw new RoomError("room_memory_not_enabled", 403);
+  if (!/^\d+$/.test(String(factId || ""))) throw new RoomError("room_memory_fact_unavailable", 404);
+  const rows = await db(ROOM_MEMORY_CORRECT_SQL, [...roomMemoryAuthority(follower), String(factId), text]);
+  if (!rows[0]) throw new RoomError("room_memory_fact_unavailable", 404);
+  return { fact: { id: String(rows[0].fact_id), body: String(rows[0].body) } };
+}
+
+/** Retract just one fact. Its episode stays intact because consolidation may
+ * have put several independent facts under that one cited source episode. */
+export async function roomForgetRememberedThing(db, { session, factId }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  const follower = await followerRow(db, who.roomId, who.personId, who.agentId);
+  if (!follower || follower.memory_consent_at == null) throw new RoomError("room_memory_not_enabled", 403);
+  if (!/^\d+$/.test(String(factId || ""))) throw new RoomError("room_memory_fact_unavailable", 404);
+  const rows = await db(ROOM_MEMORY_RETRACT_SQL, [...roomMemoryAuthority(follower), String(factId)]);
+  if (!rows[0]) throw new RoomError("room_memory_fact_unavailable", 404);
+  return { forgotten: true, fact_id: String(rows[0].fact_id) };
 }
 
 /**

@@ -21,6 +21,9 @@
 //   POST /api/room {op:"offer_dismiss", session}     -> "continue free" (WS-R30)
 //   POST /api/room {op:"settings", session}          -> the follower's own page (WS-R39)
 //   POST /api/room {op:"settings_reviewed", session} -> "I looked at this page"
+//   POST /api/room {op:"memory_facts", session}       -> own active remembered things
+//   POST /api/room {op:"memory_correct", session, fact_id, replacement}
+//   POST /api/room {op:"memory_forget", session, fact_id}
 //   POST /api/room {op:"set_quiet_hours", session, timezone, quiet_from, quiet_to}
 //                                          -> the follower's own timezone/quiet
 //                                          window, set once, in their account
@@ -124,6 +127,9 @@ import {
   roomDismissOffer,
   roomSettings,
   roomSettingsReviewed,
+  roomRememberedThings,
+  roomCorrectRememberedThing,
+  roomForgetRememberedThing,
   roomSetQuietHours,
   personForAccount,
   readRoomSession,
@@ -491,6 +497,36 @@ async function handler(req, res) {
 
     if (op === "settings_reviewed") {
       return res.status(200).json(await roomSettingsReviewed(q, { session: body.session }));
+    }
+
+    if (op === "memory_facts" || op === "memory_correct" || op === "memory_forget") {
+      // A Room session is sufficient for ordinary conversation, but these
+      // explicit memory controls reveal or change durable personal facts.
+      // Match export/whole-forget's two credential check before the scoped
+      // surface function runs: the bearer must resolve to the session person.
+      const authUserId = await requiredUser(req);
+      const payload = readRoomSession(body.session);
+      const personId = await personForAccount(q, authUserId);
+      if (String(personId) !== String(payload.p)) {
+        return res.status(403).json({ error: "room_session_mismatch" });
+      }
+      if (!allow(authUserId, `room_${op}_user`, 20)) {
+        return res.status(429).json({ error: "slow_down" });
+      }
+      if (op === "memory_facts") {
+        return res.status(200).json(await roomRememberedThings(q, { session: body.session }));
+      }
+      if (op === "memory_correct") {
+        return res.status(200).json(await roomCorrectRememberedThing(q, {
+          session: body.session,
+          factId: body.fact_id,
+          replacement: body.replacement,
+        }));
+      }
+      return res.status(200).json(await roomForgetRememberedThing(q, {
+        session: body.session,
+        factId: body.fact_id,
+      }));
     }
 
     if (op === "set_quiet_hours") {

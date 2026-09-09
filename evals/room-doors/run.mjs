@@ -332,6 +332,7 @@ const {
   openRoom, joinRoom, roomSay, roomSetLocale, followerHistory, createFollowerThread,
   roomCitations, roomExport, roomForget, roomDismissOffer, ROOM_SESSION_TTL_MS,
   roomDisclosureCard, roomSettings, roomSettingsReviewed, roomSetQuietHours,
+  roomRememberedThings, roomCorrectRememberedThing, roomForgetRememberedThing,
   flagReply, unflagReply, followerFlags,
   // WS-R100 (migration 126). The follower's own receipt.
   roomReceipt, roomReceipts,
@@ -2825,6 +2826,12 @@ const OP_COVERAGE = {
     offer_dismiss: { classes: ["a"] },
     settings: { classes: ["a", "b"] },
     settings_reviewed: { classes: ["a", "b"] },
+    // Explicit remembered-fact controls require the same signed session and
+    // bearer/person match as export and whole-room forget. The fact id is
+    // opaque but still attacker-controlled, so each mutation has class c.
+    memory_facts: { classes: ["a", "b"] },
+    memory_correct: { classes: ["a", "b", "c"] },
+    memory_forget: { classes: ["a", "b", "c"] },
     // WS-R131 (migration 134). "Set once, in your account" - the SAME
     // classes and shape as settings_reviewed immediately above: goes
     // through selfScope, no body-supplied person/follower id at all
@@ -4500,6 +4507,11 @@ const OP_INVOKE = {
     offer_dismiss: (db, body) => roomDismissOffer(db, { session: body.session }, fuzzDeps),
     settings: (db, body) => roomSettings(db, { session: body.session }, fuzzDeps),
     settings_reviewed: (db, body) => roomSettingsReviewed(db, { session: body.session }, fuzzDeps),
+    memory_facts: (db, body) => roomRememberedThings(db, { session: body.session }, fuzzDeps),
+    memory_correct: (db, body) => roomCorrectRememberedThing(db, {
+      session: body.session, factId: body.fact_id, replacement: body.replacement,
+    }, fuzzDeps),
+    memory_forget: (db, body) => roomForgetRememberedThing(db, { session: body.session, factId: body.fact_id }, fuzzDeps),
     set_quiet_hours: (db, body) => roomSetQuietHours(db, {
       session: body.session, timezone: body.timezone, quietFrom: body.quiet_from, quietTo: body.quiet_to,
     }, fuzzDeps),

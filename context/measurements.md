@@ -17752,3 +17752,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease202-focus-diagnostic-parity` (2026-09-09)
 
 2026-09-09 n=2 patches/2files applied without conflict; LF-normalized bytes identical to reviewed input heads. Source assembly only, with context and diff checks. No mounted/runtime/fullgate/npm/SQL/cloud execution.
+
+
+## `postrelease202-correction-source-parity` (2026-09-09)
+
+2026-09-09 n=10 files LF byte-identical to57a38e25; mergebase79c9. Registry415 with414 incumbents retained. Native server/eval unchanged. Root reports actual SQL77/77 receipt504c983c and mounted16/16 EN/HI390/1440 receipt35833088. No integration runtime/browser/SQL/build/npm/fullgate run.

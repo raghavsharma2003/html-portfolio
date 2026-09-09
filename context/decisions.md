@@ -23963,3 +23963,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease202-private-focus-refresh-diagnostics` (2026-09-09)
 
 2026-09-09: Root reviewed08e2bbac private draft save focus and a85f2f8b refresh diagnostic eval. Apply only these two files to working202, preserving previous source and frozen200. Reverse focus change if review shows wrong focus target or inaccessible save interaction; diagnostics must not relax acceptance.
+
+
+## `postrelease202-remembered-correction` (2026-09-09)
+
+2026-09-09: Root approved57a38e25 after actual SQL203 and mounted evidence. Ten exact feature files plus only new suite registration imported. Preserve newer native lifecycle files. Reverse on race/auth matrix failure or authority regression; working checkpoint only.
