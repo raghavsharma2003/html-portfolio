@@ -23973,3 +23973,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease202-refresh-adoption-barrier` (2026-09-09)
 
 2026-09-09: Root approved e2ad functional10s barrier, then explicitly instructed hunk-only merge because donor predates current named wait/httpState diagnostics. Replace only optional sourceGET wait with exact donor persisted owner+fresh token assertion. Freeze source checkpoint for next release; root owns execution. Reverse on authority regression or combined failure.
+
+
+## `postrelease204-account-readability` (2026-09-09)
+
+2026-09-09: Root visually reviewed English390 fullshell and approved082496fe CSS. Import only room.css into new frozen202 successor; preserve active fullrelease203 source. Reverse if full Room shell overflow, sticky-header positioning or accessibility regress. Candidate remains open for separately reviewed typed preference/processing work.

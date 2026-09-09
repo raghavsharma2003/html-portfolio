@@ -17736,6 +17736,24 @@
       "kind": "rejection",
       "title": "Do not overwrite current diagnostics with older donor file",
       "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-account-readability",
+      "kind": "decision",
+      "title": "Improve Account readability in an isolated successor",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-account-source-parity",
+      "kind": "measurement",
+      "title": "Account CSS matches approved measured source",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-no-global-design-claim",
+      "kind": "rejection",
+      "title": "Bounded readability evidence is not full journey acceptance",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

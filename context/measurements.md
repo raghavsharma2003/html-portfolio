@@ -17767,3 +17767,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease202-refresh-barrier-union` (2026-09-09)
 
 2026-09-09 n=1 eval hunk imported; current labelled waits/httpState retained. Root reports12 browser cells passed on donor functional fix; merged bytes intentionally differ and have not been browser-run. Production source unchanged from integrated TypeScript91a pass. No TS repeat/npm/fullgate/cloud.
+
+
+## `postrelease204-account-source-parity` (2026-09-09)
+
+2026-09-09 n=1 product file exactly matches082496fe after Git newline normalization. Author full RoomApp EN/HI390/1440 fixture has no errors/overflow, production fonts retained; body14, section15, heading28, button14 and48px minimum height. Root inspected English390. Integration runs no browser/TS/fullgate/cloud/dependencies; CSS-only change.

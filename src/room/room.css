@@ -251,6 +251,52 @@
     outline-offset: 2px;
   }
 
+  /* Account is a long settings document, so give its real sections a clear
+     reading rhythm without turning every setting into another card. These
+     rules stay inside AccountPage; the conversational Room surface keeps its
+     compact supporting type. */
+  .room-account {
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    scroll-margin-block-start: 190px;
+  }
+
+  .room-menu.room-account > h2 {
+    margin-bottom: var(--space-item);
+    font-size: 28px;
+    line-height: 1.2;
+  }
+
+  .room-account :is(.room-fine, .room-card, .room-note, .room-error) {
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+  }
+
+  .room-account > .room-checkins-subhead {
+    margin: var(--space-block) 0 var(--space-tight);
+    border-top: var(--hairline) solid var(--line);
+    padding-top: var(--space-item);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.4;
+    letter-spacing: var(--tracking-heading);
+    text-transform: none;
+  }
+
+  .room-account > .room-checkins-subhead:first-of-type {
+    margin-top: 0;
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .room-account .room-actions {
+    align-items: stretch;
+  }
+
+  .room-account .room-btn {
+    width: 100%;
+  }
+
   .room-bubble {
     box-sizing: border-box;
     max-width: min(88%, var(--measure));
@@ -1127,6 +1173,28 @@
     min-width: 180px;
   }
 
+  .room-account .room-checkins-quiet-set {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .room-account .room-checkins-quiet-set label,
+  .room-account .room-checkins-quiet-set input,
+  .room-account .room-checkins-quiet-set .room-actions {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .room-account .room-checkins-quiet-set label {
+    font-size: var(--text-body);
+  }
+
+  .room-account .room-checkins-quiet-set input {
+    font-size: 16px;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .room-checkins-day { transition: none; }
   }
@@ -1212,6 +1280,28 @@
 
     .room-composer {
       padding-inline: var(--space-block);
+    }
+
+    .room-account .room-actions {
+      flex-flow: row wrap;
+      align-items: center;
+    }
+
+    .room-account {
+      scroll-margin-block-start: 96px;
+    }
+
+    .room-account .room-actions > .room-btn {
+      width: auto;
+      min-width: 180px;
+    }
+
+    .room-account .room-checkins-quiet-set {
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .room-account .room-checkins-quiet-set .room-actions {
+      grid-column: 1 / -1;
     }
   }
 }
