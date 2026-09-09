@@ -552,18 +552,16 @@ export function parseExpertAnswer(raw: string): ParsedReply {
     });
   }
   const parsed = parseTextReply(raw, true);
-  parsed.bubbles = parsed.bubbles.map(normalizeExpertBonds);
+  parsed.bubbles = parsed.bubbles.map(normalizeExpertDashes);
   return parsed;
 }
 
-// Bond punctuation is content, not a prose pause. Only adjacent chemical
-// symbols/groups are normalized here; the shared prose dash gate still runs.
-// Boundaries exclude words such as "North–South" and identifiers like "varC".
-function normalizeExpertBonds(text: string): string {
-  return text.replace(
-    /(?<![\p{L}\p{N}_])(?:CH3|NH2|OH|Cl|Br|R|X|C|N|O|H|S|P|F|I)[–—](?=(?:CH3|NH2|OH|Cl|Br|R|X|C|N|O|H|S|P|F|I|leaving\s*group)(?![\p{L}\p{N}_]))/gu,
-    bond => bond.replace(/[–—]/g, "-"),
-  );
+// Expert punctuation can encode bonds, subtraction, ranges or prose. Preserve
+// the separator without guessing the subject, using the permitted ASCII form.
+// Collapse repeated typographic dashes so the companion double-hyphen cleanup
+// cannot erase the normalized separator later. Companion parsing is unchanged.
+function normalizeExpertDashes(text: string): string {
+  return text.replace(/[–—]+/g, "-");
 }
 
 // Explicit LaTeX spans are answer content on the expert lane. Keep multiline

@@ -98,7 +98,7 @@ check('typed markers and bracket shrapnel retain old behavior', () => {
     assert.deepEqual(engine.parseExpertAnswer(raw), old.parseExpertAnswer(raw));
   }
 });
-check('expert bond dashes become ASCII bonds without changing prose pauses', () => {
+check('expert Unicode dashes preserve bonds, algebra, ranges and prose in ASCII form', () => {
   for (const [raw, expected] of [
     ['R–X', 'R-X'], ['C–leaving group', 'C-leaving group'],
     ['C–leavinggroup', 'C-leavinggroup'], ['C—Cl bond', 'C-Cl bond'],
@@ -106,8 +106,11 @@ check('expert bond dashes become ASCII bonds without changing prose pauses', () 
     ['R–X का bond टूटता है।', 'R-X का bond टूटता है।'],
     ['R–X bond break hota hai.', 'R-X bond break hota hai.'],
     [String.raw`\[R–X \rightarrow R^+ + X^-\]`, String.raw`\[R-X \rightarrow R^+ + X^-\]`],
-    ['Pause – then explain — clearly.', 'Pause then explain clearly.'],
-    ['North–South varC–Cl C–Class I – think', 'North South varC Cl C Class I think'],
+    ['Na–Cl Mg–O Ca–O A–B', 'Na-Cl Mg-O Ca-O A-B'],
+    ['5–2 and 10–20; x—y', '5-2 and 10-20; x-y'],
+    ['Pause – then explain — clearly.', 'Pause - then explain - clearly.'],
+    ['North–South varC–Cl C–Class I – think', 'North-South varC-Cl C-Class I - think'],
+    ['one——two', 'one-two'],
     ['1800-599-0019 and e-mail', '1800-599-0019 and e-mail'],
   ]) {
     assert.equal(gate(raw).text, expected);
