@@ -17808,6 +17808,12 @@
       "kind": "rejection",
       "title": "Do not equate backend source approval with live SQL or model quality",
       "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-integrated-typescript",
+      "kind": "measurement",
+      "title": "Integrated backend208 and final UI pass TypeScript",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

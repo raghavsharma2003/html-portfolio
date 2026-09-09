@@ -17787,3 +17787,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease204-backend208-source-parity` (2026-09-09)
 
 2026-09-09 n=20 files compared against actual commonbasecb2939 and incoming76f1db59. No overlap with204 changes; exact LF byte parity verified; five final UI hashes retained. Owncontext only. Actual SQL/provider acceptance pending57/47. Integrated TypeScript preparation authorized next, no fullgate/cloud.
+
+
+## `postrelease204-integrated-typescript` (2026-09-09)
+
+2026-09-09 n=1 actual node node_modules/typescript/bin/tsc -b --force on e5a4622f exited0, stdout/stderr empty and tracked source clean. Private202 dependencies copied after recursive non-reparse and exact package/lock412f958e checks;6496files/237656288bytes hash verified. Receipt postrelease204-tsc-1788927707304/result.json SHA256 180ddf4262767c597ee83cf5fcadda1197ba70f23aa27467c8f0ba9f1a7e0c9e. No npm/shared writes/fullgate/cloud. Actual SQL/provider evidence remains separately pending.
