@@ -17727,3 +17727,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `combined198-test-repair-source-union` (2026-09-09)
 
 2026-09-09 n=2 patches,3 eval files cleanly applied. Author evidence supplied by root:20/131 contract controls and9 Windows portable controls passed. These author runs are not combined198 validation. No tests, browser, npm, build, SQL or cloud executed by this integration.
+
+
+## `combined198-refresh-source-admission` (2026-09-09)
+
+2026-09-09 n=1 imported eval file with two replacements; author reports12 named Windows controls with24 success/error outcomes. No combined runtime or Linux run claimed. Final claims adapter and orchestrator will be byte-compared to approved f3e source; voice source pins remain194-equivalent.

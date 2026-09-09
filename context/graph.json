@@ -17604,6 +17604,24 @@
       "kind": "rejection",
       "title": "Restore genuine Git closure rather than change private draft assertions",
       "at": "2026-09-09"
+    },
+    {
+      "id": "combined198-queue-closed-freeze",
+      "kind": "decision",
+      "title": "Freeze the final reviewed combined repair candidate",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "combined198-refresh-source-admission",
+      "kind": "measurement",
+      "title": "Final refresh fixture source preserves runtime",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "combined198-no-postqueue-expansion",
+      "kind": "rejection",
+      "title": "Do not expand the release queue after reviewed fixes",
+      "at": "2026-09-09"
     }
   ],
   "edges": [
