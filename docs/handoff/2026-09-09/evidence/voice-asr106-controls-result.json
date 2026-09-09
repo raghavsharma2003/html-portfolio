@@ -1,0 +1,6 @@
+{
+  "groups": 7,
+  "provider_calls": 0,
+  "sql_calls": 0,
+  "scope": "Script-aware ASR scoring negatives, not acoustic quality"
+}

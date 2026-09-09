@@ -1,0 +1,172 @@
+{
+  "contract": "stock106-blind-listening/v1",
+  "id": "be42f4ad714b1e66366d3844",
+  "reference": "reference.wav",
+  "pairs": [
+    {
+      "id": "hi-pendulum-negation",
+      "text": "सरल लोलक के छोटे दोलनों में आवर्तकाल उसकी लंबाई और गुरुत्वीय त्वरण पर निर्भर करता है। द्रव्यमान बढ़ाने से आवर्तकाल नहीं बढ़ता।",
+      "language": "Hindi",
+      "criticalUnits": [
+        "छोटे दोलनों",
+        "लंबाई",
+        "गुरुत्वीय त्वरण",
+        "द्रव्यमान",
+        "नहीं बढ़ता"
+      ],
+      "clips": [
+        {
+          "id": "eec6139a036b641d5a92aae0",
+          "label": "A",
+          "status": "ready",
+          "src": "audio/eec6139a036b641d5a92aae0.wav"
+        },
+        {
+          "id": "c46c21f293cfd638d6a3da20",
+          "label": "B",
+          "status": "ready",
+          "src": "audio/c46c21f293cfd638d6a3da20.wav"
+        }
+      ]
+    },
+    {
+      "id": "hi-current-condition",
+      "text": "यदि प्रतिरोध 4 ओम और विभवांतर 12 वोल्ट हो, तो धारा 3 ऐम्पियर होगी। यह निष्कर्ष तभी लागू है जब तापमान स्थिर रहे।",
+      "language": "Hindi",
+      "criticalUnits": [
+        "4 ओम",
+        "12 वोल्ट",
+        "3 ऐम्पियर",
+        "तापमान स्थिर"
+      ],
+      "clips": [
+        {
+          "id": "dfaaa471415ba6b714f08bee",
+          "label": "A",
+          "status": "ready",
+          "src": "audio/dfaaa471415ba6b714f08bee.wav"
+        },
+        {
+          "id": "95ddd1609fcba459a08fe6d4",
+          "label": "B",
+          "status": "ready",
+          "src": "audio/95ddd1609fcba459a08fe6d4.wav"
+        }
+      ]
+    },
+    {
+      "id": "hinglish-sign-correction",
+      "text": "पहले units जाँचो, फिर calculation करो। Negative sign हटाने से answer का अर्थ बदल सकता है।",
+      "language": "Hinglish",
+      "criticalUnits": [
+        "units",
+        "calculation",
+        "Negative sign",
+        "answer",
+        "बदल सकता है"
+      ],
+      "clips": [
+        {
+          "id": "68f71ce5d4dfab70cbbbc8da",
+          "label": "A",
+          "status": "ready",
+          "src": "audio/68f71ce5d4dfab70cbbbc8da.wav"
+        },
+        {
+          "id": "b71cf50c79fc2bd6be2e2ae7",
+          "label": "B",
+          "status": "ready",
+          "src": "audio/b71cf50c79fc2bd6be2e2ae7.wav"
+        }
+      ]
+    },
+    {
+      "id": "hinglish-length-ratio",
+      "text": "द्रव्यमान constant रखो और length को चार गुना करो। Small-angle approximation में time period दो गुना होगा, चार गुना नहीं।",
+      "language": "Hinglish",
+      "criticalUnits": [
+        "constant",
+        "length",
+        "चार गुना करो",
+        "Small-angle approximation",
+        "time period",
+        "दो गुना",
+        "चार गुना नहीं"
+      ],
+      "clips": [
+        {
+          "id": "cf0f38010cdfc8e891f96a13",
+          "label": "A",
+          "status": "ready",
+          "src": "audio/cf0f38010cdfc8e891f96a13.wav"
+        },
+        {
+          "id": "8cd1c2be9169b69250d45011",
+          "label": "B",
+          "status": "ready",
+          "src": "audio/8cd1c2be9169b69250d45011.wav"
+        }
+      ]
+    },
+    {
+      "id": "en-pendulum-negation",
+      "text": "An ideal simple pendulum swings more slowly when its length increases. Doubling its mass does not double its period.",
+      "language": "English",
+      "criticalUnits": [
+        "ideal simple pendulum",
+        "length increases",
+        "mass",
+        "does not double"
+      ],
+      "clips": [
+        {
+          "id": "97a4340a36c1b1aec7c462e0",
+          "label": "A",
+          "status": "ready",
+          "src": "audio/97a4340a36c1b1aec7c462e0.wav"
+        },
+        {
+          "id": "566ae4b414f4890a02030e1a",
+          "label": "B",
+          "status": "ready",
+          "src": "audio/566ae4b414f4890a02030e1a.wav"
+        }
+      ]
+    },
+    {
+      "id": "en-names-current",
+      "text": "Asha and Pranav measured twelve volts across a four-ohm resistor in Pune. At constant temperature, the current is three amperes.",
+      "language": "English",
+      "criticalUnits": [
+        "Asha",
+        "Pranav",
+        "Pune",
+        "twelve volts",
+        "four-ohm",
+        "constant temperature",
+        "three amperes"
+      ],
+      "clips": [
+        {
+          "id": "51040b82d3557b04cb492f7c",
+          "label": "A",
+          "status": "ready",
+          "src": "audio/51040b82d3557b04cb492f7c.wav"
+        },
+        {
+          "id": "6d577fe65ecf736cbb5f0b96",
+          "label": "B",
+          "status": "ready",
+          "src": "audio/6d577fe65ecf736cbb5f0b96.wav"
+        }
+      ]
+    }
+  ],
+  "counts": {
+    "expected": 12,
+    "verified": 12,
+    "unavailable": 0
+  },
+  "humanRatings": 0,
+  "automaticWinner": null
+}

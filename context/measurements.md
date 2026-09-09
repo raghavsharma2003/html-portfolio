@@ -17807,3 +17807,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `handoff206-source-assembly` (2026-09-09)
 
 2026-09-09 reviewed source slices assembled without overlaps. Generated bundle built from combined source with exact-lock205 esbuild and correct target working directory; no dependency writes, installs, new previews or cloud runs. Initial helper import used unsupported Windows path URL and failed before generation; corrected file URL, then corrected generator working directory before final artifact. No final integrated fullgate claimed.
+
+
+## `handoff206-canonical-integrity` (2026-09-09)
+
+2026-09-09 n=50 archived entries totaling19694371bytes verified SHA256 and size both before and after copy. START-HERE and MANIFEST additionally byte-matched. Includes coordinator context, actual receipts, voice evidence/listening WAVs and disabled ASR draft; no new evaluation or paid experiment.

@@ -1,0 +1,306 @@
+{
+  "date": "2026-09-09",
+  "purpose": "unfinished release handover; evidence is not a completion claim",
+  "entries": [
+    {
+      "path": "context-root/STATE.md",
+      "original": "context/STATE.md",
+      "bytes": 166252,
+      "sha256": "d225a13888047124552da566d0e900863535d66a109cc69377ebc71bed979c70"
+    },
+    {
+      "path": "context-root/decisions.md",
+      "original": "context/decisions.md",
+      "bytes": 642840,
+      "sha256": "bf35734b5d0a76a344a16103c45bb0e3040918ed4d5b41cf2484ee535715a819"
+    },
+    {
+      "path": "context-root/measurements.md",
+      "original": "context/measurements.md",
+      "bytes": 678132,
+      "sha256": "e098c8c756329adf3330471e4780de70ccb93f5b850dd84006ed83cda69c287c"
+    },
+    {
+      "path": "context-root/rejected.md",
+      "original": "context/rejected.md",
+      "bytes": 519714,
+      "sha256": "d9420648f3c3c296f3b0ee5ff8088cbb2462f7c9d93a549e576e1afc2fcb65cd"
+    },
+    {
+      "path": "context-root/graph.json",
+      "original": "context/graph.json",
+      "bytes": 542877,
+      "sha256": "04097c56fc46e7a12608b4b8229470c6d32d3335e29bbb92729442e97475c142"
+    },
+    {
+      "path": "evidence/rsemantic213-a730b630faa547d148b0e814-result.json",
+      "original": "scratchpad/expert-tools/rsemantic213-a730b630faa547d148b0e814-result.json",
+      "bytes": 127756,
+      "sha256": "50de4a2a9838498ec1dc1cf3e02ffe38bf1157164571abc602c4dcc34af4d7c7"
+    },
+    {
+      "path": "evidence/room-semantic213-actual-dialogue-review.json",
+      "original": "scratchpad/expert-tools/room-semantic213-actual-dialogue-review.json",
+      "bytes": 169473,
+      "sha256": "114abe8bf25b3dec65aba82c3ac80c4208d26d0beccd7043e2f6059f9624e7e7"
+    },
+    {
+      "path": "evidence/room-semantic211-actual-dialogue-review.json",
+      "original": "scratchpad/expert-tools/room-semantic211-actual-dialogue-review.json",
+      "bytes": 69551,
+      "sha256": "50f5394f2819bc80d10c5afa15b37e53ce872367e73b4a3343d4840b93ca4142"
+    },
+    {
+      "path": "evidence/communication162-apply210-1788928534286-result.json",
+      "original": "scratchpad/expert-tools/communication162-apply210-1788928534286-result.json",
+      "bytes": 164416,
+      "sha256": "b5ba1ba5fc4c7c075c39621fd4ba77d8f6be01fd88ea9d385d0648127c9cde23"
+    },
+    {
+      "path": "evidence/communication162-proof208-1788927832182-result.json",
+      "original": "scratchpad/expert-tools/communication162-proof208-1788927832182-result.json",
+      "bytes": 234969,
+      "sha256": "858e11ae268f6b104155cd7599004a39b2b48c05719b5ded9eabe401e5dce89a"
+    },
+    {
+      "path": "evidence/transcript-chronology213-parser-1788930746778-result.json",
+      "original": "scratchpad/expert-tools/transcript-chronology213-parser-1788930746778-result.json",
+      "bytes": 19863,
+      "sha256": "b7ac93e7a60247ec53c195f07e5621230b78f1ad40b11be5db2f408edf117782"
+    },
+    {
+      "path": "evidence/PROCESSING204-TRANSCRIPT-ASSESSMENT.md",
+      "original": "scratchpad/expert-tools/PROCESSING204-TRANSCRIPT-ASSESSMENT.md",
+      "bytes": 3237,
+      "sha256": "2dbf93d8073ad42777767511d3f60285b06b90c96adde42dce96b058f84ae77e"
+    },
+    {
+      "path": "evidence/processing204-transcript-readonly-result.json",
+      "original": "scratchpad/expert-tools/processing204-transcript-readonly-result.json",
+      "bytes": 2485,
+      "sha256": "50f3aa105206cb198224e9aad1021641f5b83d1bf6b7335e17ac8d63898fbcd1"
+    },
+    {
+      "path": "evidence/PROCESSING204-OUTPUT-VERIFY-V2-DIAGNOSTIC-ADDENDUM.md",
+      "original": "scratchpad/expert-tools/PROCESSING204-OUTPUT-VERIFY-V2-DIAGNOSTIC-ADDENDUM.md",
+      "bytes": 3037,
+      "sha256": "6913e4f74b5eb821bf3a4ee80ea5bbe8f98010fd47f0f01baff80e337079046d"
+    },
+    {
+      "path": "evidence/processing204-terminal-readonly-1788929509237.json",
+      "original": "scratchpad/expert-tools/processing204-terminal-readonly-1788929509237.json",
+      "bytes": 3576,
+      "sha256": "ca499dc848f60cfa9d8e23d0b8d900740a33d81caa9274afbe6dcc3a1a0c6661"
+    },
+    {
+      "path": "evidence/VOICE-OVERLAY106-ACTUAL-BUILDS.json",
+      "original": "scratchpad/expert-tools/VOICE-OVERLAY106-ACTUAL-BUILDS.json",
+      "bytes": 1337,
+      "sha256": "df63072836d438fc620ef89bbf07bd13a15658728dee07e2cac926049cb1c94f"
+    },
+    {
+      "path": "evidence/VOICE-JOBS106-HANDOFF.md",
+      "original": "scratchpad/expert-tools/VOICE-JOBS106-HANDOFF.md",
+      "bytes": 3154,
+      "sha256": "0d11cc9d52ed59c24ae54fe0d668915532d5a8ccfeb5a9f701bcfbec9a30df39"
+    },
+    {
+      "path": "evidence/VOICE-JOBS106-EXECUTION-PACKET.json",
+      "original": "scratchpad/expert-tools/VOICE-JOBS106-EXECUTION-PACKET.json",
+      "bytes": 14051,
+      "sha256": "f56c4f9f7e1ae2e97e85309070ba16b9b5f89d78f20998635f1441a1bf549cf9"
+    },
+    {
+      "path": "evidence/VOICE-JOBS106-ENVELOPE.json",
+      "original": "scratchpad/expert-tools/VOICE-JOBS106-ENVELOPE.json",
+      "bytes": 11508,
+      "sha256": "364500291a739181323037d1fb5773595927381b2ce284d2ab58c9ac2b5b230d"
+    },
+    {
+      "path": "evidence/VOICE-LISTENING106-RECEIPT.json",
+      "original": "scratchpad/expert-tools/VOICE-LISTENING106-RECEIPT.json",
+      "bytes": 1144,
+      "sha256": "27959c90f53ad841811fd9decc4991a633de3e6173d26d15abbfebe174ece56a"
+    },
+    {
+      "path": "evidence/voice-listening106-public.private.json",
+      "original": "scratchpad/expert-tools/voice-listening106-public.private.json",
+      "bytes": 5011,
+      "sha256": "12177bc59ccb9304ae996aa8ff735d2f0f7bbfbdb01aefb09a2756d8ad1ce3fa"
+    },
+    {
+      "path": "evidence/VOICE-ASR106-HANDOFF.json",
+      "original": "scratchpad/expert-tools/VOICE-ASR106-HANDOFF.json",
+      "bytes": 8752,
+      "sha256": "23f16c9981a493b61da9a02be00e80f952cdab498fbe14bb61023a5c6da0f357"
+    },
+    {
+      "path": "evidence/VOICE-ASR106-DISABLED.json",
+      "original": "scratchpad/expert-tools/VOICE-ASR106-DISABLED.json",
+      "bytes": 58419,
+      "sha256": "e5ecd73cdb614a4ca6bfe08a936bcc030dd96a63362e291a17abd0087bdfe3c3"
+    },
+    {
+      "path": "evidence/voice-asr106-screen.mjs",
+      "original": "scratchpad/expert-tools/voice-asr106-screen.mjs",
+      "bytes": 9764,
+      "sha256": "1c2b8a963c8b450b1b9a05eecf5477e7a54102213a64d6af33fd17492804b824"
+    },
+    {
+      "path": "evidence/voice-asr106-key.py",
+      "original": "scratchpad/expert-tools/voice-asr106-key.py",
+      "bytes": 1973,
+      "sha256": "e3d227f2cc22e52bafd9b3dfe582bfc4c3cb6fdacd5954a1a1ca633e66f6805b"
+    },
+    {
+      "path": "evidence/voice-asr106-controls.mjs",
+      "original": "scratchpad/expert-tools/voice-asr106-controls.mjs",
+      "bytes": 1165,
+      "sha256": "b3ef0268dbff6f87697b1c5cb879d3e49b73692a55054546833438fb2e57dfde"
+    },
+    {
+      "path": "evidence/voice-asr106-controls-result.json",
+      "original": "scratchpad/expert-tools/voice-asr106-controls-result.json",
+      "bytes": 130,
+      "sha256": "8d27a6d7fddc5abdffc6845bc3e570af01218beed02335582cfe44f6c7910b71"
+    },
+    {
+      "path": "evidence/POSTRELEASE205-FREEZE.json",
+      "original": "scratchpad/expert-tools/POSTRELEASE205-FREEZE.json",
+      "bytes": 3205,
+      "sha256": "47eb008b1f5722ca25209115835eeb07fb19158ec8483663a9133d26c5a0545b"
+    },
+    {
+      "path": "evidence/scientific-bonds214-actual213-replay.json",
+      "original": "scratchpad/expert-tools/scientific-bonds214-actual213-replay.json",
+      "bytes": 4015,
+      "sha256": "321443abb223b0ec819d21850fc008a41489cf723f2adc713afdcc7fdfe727aa"
+    },
+    {
+      "path": "evidence/auth-google205-preview/result.json",
+      "original": "scratchpad/expert-tools/auth-google205-preview/result.json",
+      "bytes": 689,
+      "sha256": "2399c58131449b32fbec122013c960ff4ba19d66bfcc0321479d3fd3254bc9d4"
+    },
+    {
+      "path": "evidence/voice-jobs106-receipts/runner.result.json",
+      "original": "scratchpad/expert-tools/voice-jobs106-receipts/runner.result.json",
+      "bytes": 3353,
+      "sha256": "787dade57b9b0e91905a23f0a6c93e0dc52c534ce4711efeb64f15853a72ef7d"
+    },
+    {
+      "path": "evidence/voice-jobs106-receipts/runner.jsonl",
+      "original": "scratchpad/expert-tools/voice-jobs106-receipts/runner.jsonl",
+      "bytes": 22139,
+      "sha256": "49cfec9c294fb1e47fe645d798ac9c6164c15360b03bf22de5ff6057196a40a2"
+    },
+    {
+      "path": "evidence/voice-jobs106-receipts/stock106-artifacts/chatterbox.json",
+      "original": "scratchpad/expert-tools/voice-jobs106-receipts/stock106-artifacts/chatterbox.json",
+      "bytes": 4360400,
+      "sha256": "048c648c1c4b4f8acadfb24439d24106644667fb6fea0e6b3568302b93c9a4b5"
+    },
+    {
+      "path": "evidence/voice-jobs106-receipts/stock106-artifacts/voxcpm2.json",
+      "original": "scratchpad/expert-tools/voice-jobs106-receipts/stock106-artifacts/voxcpm2.json",
+      "bytes": 4161334,
+      "sha256": "4ee012e94b5160f93f3a39b4e978c52bcceb8db9ea2abdc9de8d686306fec22c"
+    },
+    {
+      "path": "PROGRESS.md",
+      "original": "docs/gurukul/EXPERT-PROGRESS-2026-09-09.md",
+      "bytes": 3238,
+      "sha256": "f373b06ee5d340aa441b2640581a739f62a2948f1959bb201c5d652f04158082"
+    },
+    {
+      "path": "listening/audio/51040b82d3557b04cb492f7c.wav",
+      "original": "scratchpad/expert-tools/voice-listening106-public/audio/51040b82d3557b04cb492f7c.wav",
+      "bytes": 483884,
+      "sha256": "117af1ee22c754aa6d1386e036ecb11d9f59c2ba52715cf3afacd6ab1c27730b"
+    },
+    {
+      "path": "listening/audio/566ae4b414f4890a02030e1a.wav",
+      "original": "scratchpad/expert-tools/voice-listening106-public/audio/566ae4b414f4890a02030e1a.wav",
+      "bytes": 483884,
+      "sha256": "8ec5f2664675a20420378820f31065cce6fe448cb86514789d60786ac60367fe"
+    },
+    {
+      "path": "listening/audio/68f71ce5d4dfab70cbbbc8da.wav",
+      "original": "scratchpad/expert-tools/voice-listening106-public/audio/68f71ce5d4dfab70cbbbc8da.wav",
+      "bytes": 460844,
+      "sha256": "f2bd0b9625275720d13ee336eb3be97ea1598c0f5464407703d46d2cf4bd9aa6"
+    },
+    {
+      "path": "listening/audio/6d577fe65ecf736cbb5f0b96.wav",
+      "original": "scratchpad/expert-tools/voice-listening106-public/audio/6d577fe65ecf736cbb5f0b96.wav",
+      "bytes": 518444,
+      "sha256": "8492d9c469d0c51527260281e6a744a8bc8e6bd079784dadf778fae0e4c46acd"
+    },
+    {
+      "path": "listening/audio/8cd1c2be9169b69250d45011.wav",
+      "original": "scratchpad/expert-tools/voice-listening106-public/audio/8cd1c2be9169b69250d45011.wav",
+      "bytes": 553004,
+      "sha256": "d24f89301f669b8d3294779ef49c5f41c1bdcada64e18aeabeb23c5134098e99"
+    },
+    {
+      "path": "listening/audio/95ddd1609fcba459a08fe6d4.wav",
+      "original": "scratchpad/expert-tools/voice-listening106-public/audio/95ddd1609fcba459a08fe6d4.wav",
+      "bytes": 591404,
+      "sha256": "f8a713c6012a2b3628665c491f6a8f85be3cc8202b63c39bfd951edf07845f58"
+    },
+    {
+      "path": "listening/audio/97a4340a36c1b1aec7c462e0.wav",
+      "original": "scratchpad/expert-tools/voice-listening106-public/audio/97a4340a36c1b1aec7c462e0.wav",
+      "bytes": 526124,
+      "sha256": "025102284c4805f588a1ef11fbea48eccfaf4b50456d851c9e2f37bcb6003883"
+    },
+    {
+      "path": "listening/audio/b71cf50c79fc2bd6be2e2ae7.wav",
+      "original": "scratchpad/expert-tools/voice-listening106-public/audio/b71cf50c79fc2bd6be2e2ae7.wav",
+      "bytes": 445484,
+      "sha256": "918f3c35c2f16789b8f8ade5e83ac0e41c60d4c2545dd930d6b3b1a4276cf971"
+    },
+    {
+      "path": "listening/audio/c46c21f293cfd638d6a3da20.wav",
+      "original": "scratchpad/expert-tools/voice-listening106-public/audio/c46c21f293cfd638d6a3da20.wav",
+      "bytes": 602924,
+      "sha256": "4e43c1b447630203bcd697c05cd1ffd023790ac7e7f16eb8d82d1642a527d53f"
+    },
+    {
+      "path": "listening/audio/cf0f38010cdfc8e891f96a13.wav",
+      "original": "scratchpad/expert-tools/voice-listening106-public/audio/cf0f38010cdfc8e891f96a13.wav",
+      "bytes": 576044,
+      "sha256": "178609e059dac42a1bfb76561a247ac541f4b63d4f2f459eced7a11bc917ac6a"
+    },
+    {
+      "path": "listening/audio/dfaaa471415ba6b714f08bee.wav",
+      "original": "scratchpad/expert-tools/voice-listening106-public/audio/dfaaa471415ba6b714f08bee.wav",
+      "bytes": 599084,
+      "sha256": "3aadddda472c9d61bde3d14a6a852d398f9538af01203a2b967edcda64217267"
+    },
+    {
+      "path": "listening/audio/eec6139a036b641d5a92aae0.wav",
+      "original": "scratchpad/expert-tools/voice-listening106-public/audio/eec6139a036b641d5a92aae0.wav",
+      "bytes": 529964,
+      "sha256": "a480632bd29fe8da1494848778cca149fe203868dad3e069c57264eb65d3c621"
+    },
+    {
+      "path": "listening/index.html",
+      "original": "scratchpad/expert-tools/voice-listening106-public/index.html",
+      "bytes": 17454,
+      "sha256": "9875e3a486bbce7105fac6bd1cdd245921b245432ded3792dec75bcfdbec6338"
+    },
+    {
+      "path": "listening/manifest.json",
+      "original": "scratchpad/expert-tools/voice-listening106-public/manifest.json",
+      "bytes": 5426,
+      "sha256": "671d56344b3de4fb892c8f3ae85cd723860fba9670f1cb8cb1a9f42f75820da7"
+    },
+    {
+      "path": "listening/reference.wav",
+      "original": "scratchpad/expert-tools/voice-listening106-public/reference.wav",
+      "bytes": 1277444,
+      "sha256": "16636b6e06d0e7145fad3cab3ac5d85409f84e527c23a2189fb3c79b85738cf6"
+    }
+  ]
+}

@@ -1,5 +1,10 @@
 # STATE — read this first, then the graph
 
+## START HERE: PRESERVATION HANDOFF (2026-09-09)
+
+Read [the canonical handoff](../docs/handoff/2026-09-09/START-HERE.md) before continuing. This active block supersedes older status below. The source is NOT publish-ready. User prioritized committing and pushing completed reviewed work; unfinished quality, runtime and release work remains explicitly documented. The complete coordinator context is archived under that handoff directory; retain this repository graph rather than replacing it with the archived graph. No new full tests or paid experiments were run for this handoff.
+
+
 ## START HERE: RELEASE45 FINAL SOURCE FREEZE (2026-09-08)
 
 This block wins over earlier candidate notes. Integrated40 plus materializer155, a11y42, Hindi/visual42, audio40, accounting46, strict correction47 and registry48.388distinct registrations retain380from40.156 qualification/activation excluded. Own private dependencies match reviewed esbuild0.28.2 lock;18ASTverified emptyconfigexports. Actual Bicepcompile and21serialized localchecks including semanticTS/build/package/adapter/fixtures passed on a3bf16af with all sourcebytes unchanged. Final context commit follows, no product edits after checks.

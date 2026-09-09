@@ -24013,3 +24013,8 @@ Root approved1d0319ed two-path ORDER BY repair: sources chronological then span 
 ## `handoff206-preservation-priority` (2026-09-09)
 
 2026-09-09: User prioritizes commit/push/handoff before usage limit. New codex/handoff206 fromc0 includes approved policyc171, authcf574 and principled expert ASCII punctuation net1877. Regenerate combined engine with private205 esbuild read-only; keep unfinished branches separate. Root supplies canonical handoff evidence/context archive;193 owns authorized normal push. Reverse any import on source review rejection, not on unfinished fullrelease/model experiments.
+
+
+## `handoff206-canonical-package` (2026-09-09)
+
+2026-09-09: Root supplied explicit docs/handoff/2026-09-09 package. Copy only that directory, verify manifest sizes/hashes, point main STATE to START-HERE, and preserve main graph.193 owns immediate authorized preservation push. Reverse on hash mismatch or credential concern; source is not publish-ready.

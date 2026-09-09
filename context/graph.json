@@ -17874,6 +17874,24 @@
       "kind": "rejection",
       "title": "Preservation push is not deployment or model acceptance",
       "at": "2026-09-09"
+    },
+    {
+      "id": "handoff206-canonical-package",
+      "kind": "decision",
+      "title": "Preserve canonical coordinator context and evidence without replacing the graph",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "handoff206-canonical-integrity",
+      "kind": "measurement",
+      "title": "All archived handoff files match canonical manifest",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "handoff206-no-context-graph-replacement",
+      "kind": "rejection",
+      "title": "Keep archived coordinator history separate from the repository graph",
+      "at": "2026-09-09"
     }
   ],
   "edges": [
