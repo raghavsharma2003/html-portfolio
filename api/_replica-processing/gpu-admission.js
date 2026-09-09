@@ -67,6 +67,7 @@ export function processingGpuPlan(env={}, {recovery=false}={}){
  || !HASH.test(p.revision_sha256||'')||!HASH.test(p.contract_sha256||'')||!HASH.test(p.image_sha256||'')
  ||!Number.isSafeInteger(p.reservation_estimate_microusd)||p.reservation_estimate_microusd<=0
  ||!Number.isSafeInteger(p.planning_allocation_seconds)||p.planning_allocation_seconds<60||p.planning_allocation_seconds>3600
+ ||!Number.isSafeInteger(p.dispatch_seconds)||p.dispatch_seconds<60||p.planning_allocation_seconds-p.dispatch_seconds<360
  ||!Number.isSafeInteger(p.rate_microusd_per_second)||p.rate_microusd_per_second<=0
  ||!Number.isSafeInteger(p.contingency_multiplier)||p.contingency_multiplier<1||p.contingency_multiplier>10
  ||p.reservation_estimate_microusd!==p.rate_microusd_per_second*p.contingency_multiplier*p.planning_allocation_seconds
@@ -93,7 +94,7 @@ export function createProcessingGpuAdmission({db,env=process.env,clock=Date.now,
    const metadata=await observe(p);
    if(metadata?.resource_id!==p.resource_id||metadata.revision_sha256!==p.revision_sha256||metadata.image_sha256!==p.image_sha256)fail('processing_gpu_deployment_changed');
    await authorize();
-   const deadline=Math.min(p.expires_at_ms,clock()+p.planning_allocation_seconds*1000);
+   const deadline=Math.min(p.expires_at_ms,clock()+p.dispatch_seconds*1000);
    const controller={kind:'azure-shared-evidence-controller/v1',async authorizeWindow({request_sha256}){await authorize();return {...p,request_sha256,resource_sha256:sha256Hex(p.resource_id),kind:'azure-shared-evidence/v1'};}};
    const limit=Number(env.AZURE_PROCESSING_GPU_LIMIT_MICROUSD);
    const meter=meterFactory({db,budgetId:env.AZURE_PROCESSING_GPU_BUDGET_ID,limitMicrousd:limit,controller});
