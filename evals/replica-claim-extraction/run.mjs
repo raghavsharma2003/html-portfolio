@@ -285,6 +285,8 @@ const status = await ownedClaimExtractionStatus(async (sql, params) => {
 }, OWNER, RID);
 ok("status exposes counts and blockers without transcript content", status.readiness.ready && status.readiness.eligible_spans === 1 && status.nearline.state === "ready_for_manual_extraction" && !JSON.stringify(status).includes("Asha"));
 ok("eligible transcripts require accepted target-speaker overlap and reject declared third parties or test adapters", /d\.decision='accepted'/i.test(ELIGIBLE_TRANSCRIPTS_SQL) && /s\.contains_third_parties=false/i.test(ELIGIBLE_TRANSCRIPTS_SQL) && /!~ '\(fake\|fixture\|test\|mock\)'/i.test(ELIGIBLE_TRANSCRIPTS_SQL));
+ok("eligible transcript spans preserve each source's audio chronology before UUID tie-breaking",
+  /order by s\.created_at asc,s\.source_id asc,e\.span_start_ms asc nulls last,\s*e\.span_end_ms asc nulls last,e\.created_at asc,e\.evidence_id asc/i.test(ELIGIBLE_TRANSCRIPTS_SQL));
 ok("completed older extraction schemas remain eligible for the knowledge-capable extractor", /xr\.schema_version=\$3/i.test(ELIGIBLE_TRANSCRIPTS_SQL) && CLAIM_EXTRACTION_SCHEMA === "vyakti.claim-extraction.v2");
 ok("all extraction status reads remain owner-bound", statusCalls.every((call) => call.params[0] === RID && call.params[1] === OWNER));
 

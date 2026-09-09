@@ -17797,3 +17797,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease204-processing-five-controls` (2026-09-09)
 
 2026-09-09 n=5 serial commands, each exit0: GPU admission, GPU observer, source scope, canary snapshot, replica-processing eval. Durable result postrelease204-processing-1788929692502/result.json and stdout/stderr.26nonoverlap paths match incoming LF bytes; only schema/relcheck unioned. Memory engine/API and finalUI hashes preserved. No fullgate/build/cloud/provider/SQL execution.
+
+
+## `postrelease205-integrated-controls` (2026-09-09)
+
+2026-09-09 one combined engine rebuild and tsc-b-force exit0; private6496files exact-lock verified. Math13, answer19, authority29, caller/meter27, generated compiler30 and claims55 controls passed. Initial math import failed missing ignored config; checked-in generator under scrubbed env wrote inert exports then correctly refused deploy exit1. All config exports verified blank/empty; resumed only failed/unrun suites. Receipts postrelease205-checks-1788930475592 and postrelease205-offline-1788930594581. No model/SQL/fullgate/preview205.

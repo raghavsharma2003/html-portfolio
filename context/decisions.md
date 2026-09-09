@@ -23998,3 +23998,13 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease204-processing-runtime` (2026-09-09)
 
 2026-09-09: Root approved e913ffcb after actual Azure uploaded source/all8 processing stages. Import28 intended files from57eda; append161 schema alongside162 and merge relcheck comments additively. Preserve76f memory and7f UI bytes. Reverse if integrated processing boundaries fail. No voice likeness claim.
+
+
+## `postrelease205-scientific-depth-union` (2026-09-09)
+
+2026-09-09: Root approved scientific-bracketsc5c2 and preference-depth0ef3. Import six disjoint source/eval paths into isolated f928 successor; regenerate one engine from both sources instead of selecting a donor generated bundle. Preserve current204 preview. Reverse on combined math/runtime/authority or typecheck failure.
+
+
+## `postrelease205-transcript-chronology` (2026-09-09)
+
+Root approved1d0319ed two-path ORDER BY repair: sources chronological then span offset instead of random UUID priority.55 focused claims checks passed;57 owns separate actual readonly EXPLAIN. Reverse on query proof failure or broken source lineage. Do not infer prior SQL hash parity after intentional SQL change.

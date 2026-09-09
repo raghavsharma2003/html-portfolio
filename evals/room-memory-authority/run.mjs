@@ -2,7 +2,7 @@
 // Root must run the exported exact statements against the development database.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {communicationFromProposal,validCommunication} from '../../api/_learner-communication-contract.js';
+import {communicationFromProposal,validCommunication,COMMUNICATION_PROPOSAL_SCHEMA,COMMUNICATION_EXTRACTION_RULE} from '../../api/_learner-communication-contract.js';
 import {
  ROOM_MEMORY_BATCH_SQL,ROOM_MEMORY_COMMIT_SQL,ROOM_MEMORY_LOG_SQL,
  ROOM_MEMORY_RECALL_SQL,ROOM_MEMORY_HISTORY_SQL,ROOM_MEMORY_DISCOVERY_SQL,
@@ -243,5 +243,31 @@ await check('durable scoped dimensions use source chronology and retain tombston
  assert.match(ROOM_MEMORY_RECALL_SQL,/select distinct on \(s.id\)/);
  assert.match(ROOM_MEMORY_RECALL_SQL,/select id from recent union select id from dimension_support/);
  assert.match(ROOM_MEMORY_RECALL_SQL,/'created_at',l.at/);
+});
+await check('depth semantics are explicit in actual schema and held-out multilingual expected values survive normalization',async()=>{
+ const fixture=JSON.parse(readFileSync(new URL('../fixtures/communication-depth212.json',import.meta.url),'utf8'));
+ const schema=COMMUNICATION_PROPOSAL_SCHEMA.anyOf.find(v=>v.type==='object');
+ assert.match(schema.properties.brevity.description,/length OR explanation depth/);
+ assert.match(schema.properties.brevity.description,/without a word meaning long/);
+ assert.match(COMMUNICATION_EXTRACTION_RULE,/Assess all three dimensions independently/);
+ assert.match(COMMUNICATION_EXTRACTION_RULE,/never infer its value from dislike/);
+ for(const [index,item] of fixture.cases.entries()){
+  // These are human-authored expected outputs, NOT an offline classifier.
+  assert.ok(!COMMUNICATION_EXTRACTION_RULE.includes(item.source));
+  const record={...source,id:String(10000+index),content:item.source};
+  const output={memories:[{source_id:record.id,kind:'user',name:'preference',quote:item.source,communication:item.expected}]};
+  const result=validateRoomMemoryProposal(JSON.stringify(output),[record]);
+  assert.deepEqual(result[0].communication??null,communicationFromProposal(item.expected));
+ }
+ const item=fixture.cases.find(v=>v.id==='hi-depth'),record={...source,content:item.source};
+ const output={memories:[{source_id:record.id,kind:'user',name:'preference',quote:item.source,communication:item.expected}]};
+ let optionsSeen=false;
+ await runRoomMemoryConsolidation(candidate,{env,queryFn:async sql=>sql===ROOM_MEMORY_BATCH_SQL?[record]:[{fact_count:1}],
+  model:async(messages,maxTokens,options)=>{
+   assert.ok(messages[0].content.includes(COMMUNICATION_EXTRACTION_RULE));
+   assert.deepEqual(options.responseFormat.json_schema.schema.properties.memories.items.properties.communication,COMMUNICATION_PROPOSAL_SCHEMA);
+   optionsSeen=true;return JSON.stringify(output);
+  }});
+ assert.ok(optionsSeen);
 });
 process.stdout.write(`${checks} controls passed; no SQL or provider calls.\n`);

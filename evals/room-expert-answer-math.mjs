@@ -32,7 +32,9 @@ async function build(name, prior = false) {
       // No recognized math spans reproduces the previous splitting/stripping.
       const needle = /^const EXPERT_MATH_SPAN = .+;$/m;
       assert.ok(needle.test(code)); mutations++;
-      return { code: code.replace(needle, 'const EXPERT_MATH_SPAN = /((?!))/g;'), map: null };
+      assert.ok(code.includes('  if (expertAnswer) return text;'));
+      return { code: code.replace(needle, 'const EXPERT_MATH_SPAN = /((?!))/g;')
+        .replace('  if (expertAnswer) return text;', ''), map: null };
     },
   }] });
   const file = join(temp, name + '.mjs');
@@ -77,11 +79,31 @@ check('display, inline, nested brackets, multiline, adjacency and three language
     assert.deepEqual(gate(raw), gate(raw, [], source));
   }
 });
-check('ordinary stage directions, malformed delimiters and bracket shrapnel retain old behavior', () => {
-  for (const raw of ['safe [softly] end', 'value [1, 2] stays legacy', 'safe [unclosed',
-    'safe \\[x = 4', 'tail\\]', '[search: ] safe', '*opens notebook*\nsafe']) {
+check('scientific brackets reproduce old corruption and retain exact expert content', () => {
+  assert.equal(gate('Rate = k[substrate]', [], old).text, 'Rate = k');
+  for (const raw of ['Rate = k[substrate]', 'Rate = k[RX][OH-]',
+    'See [12] and [Smith, 2024].', 'A = [[1, 2], [3, 4]]',
+    'Units [mol L^-1 s^-1]', 'f(x) lies in [0, 1].',
+    'दर = k[सब्सट्रेट]', 'Rate mein [substrate] rakho.',
+    'The [state] variable matters.', 'A [note: hypothetical] example.',
+    'safe [softly] end', 'safe [unclosed']) {
+    assert.equal(flat(gate(raw).text), flat(raw));
+    assert.deepEqual(gate(raw), gate(raw, [], source));
+  }
+});
+check('typed markers and bracket shrapnel retain old behavior', () => {
+  for (const raw of ['tail\\]', '[search: ] safe', '*opens notebook*\nsafe',
+    '[tone: warm] safe', '[search: hidden request payload] safe',
+    '[followup: invalid hidden request payload] safe', '[voice note: hidden payload] safe']) {
     assert.deepEqual(engine.parseExpertAnswer(raw), old.parseExpertAnswer(raw));
   }
+});
+check('ordinary brackets cannot conceal never rules or unsupported links', () => {
+  const rules = compileNeverRules([{rule_id:'bracket-never',pattern:'BRACKET_CANARY'}]);
+  assert.equal(gate('Value [BRACKET_CANARY]', rules).neverRule, 'bracket-never');
+  const link = gate('See [https://untrusted-fixture.invalid/path]');
+  assert.ok(link.findings.length > 0);
+  assert.ok(!link.text.includes('untrusted-fixture'));
 });
 check('protocol extraction remains active inside explicit math and does not execute tools', () => {
   const raw = String.raw`\[x=1 [search: worksheet] [forget: yesterday] [tone: calm]\]`;

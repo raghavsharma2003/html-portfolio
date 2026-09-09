@@ -556,7 +556,8 @@ export function parseExpertAnswer(raw: string): ParsedReply {
 
 // Explicit LaTeX spans are answer content on the expert lane. Keep multiline
 // spans together, without hiding their bytes from protocol or safety checks.
-// Unmatched delimiters and ordinary brackets retain the legacy cleanup.
+// Ordinary brackets also carry expert content (concentrations, citations,
+// arrays). Only typed protocol markers are removed before this step.
 const EXPERT_MATH_SPAN = /(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g;
 
 function splitExpertTextParts(raw: string): string[] {
@@ -574,6 +575,7 @@ function splitExpertTextParts(raw: string): string[] {
 }
 
 function stripReplyBrackets(text: string, expertAnswer: boolean): string {
+  if (expertAnswer) return text;
   const strip = (part: string) => part
     .replace(/\[[^\]]*\]/g, " ")
     .replace(/\[[^\]]*$/, " ")
@@ -785,9 +787,8 @@ function parseTextReply(raw: string, expertAnswer: boolean): ParsedReply {
     // tail of a mangled marker ("ide eye cat]"): a short line ending with a
     // bracket it never opened is protocol shrapnel, not conversation
     if (/\]\s*$/.test(p) && !p.includes("[") && p.length < 60) continue;
-    // Outside explicit expert math, anything bracketed that
-    // survived marker extraction is a stage direction ("[slightly out of
-    // breath...]") or shrapnel — remove the content and the stray brackets.
+    // Expert brackets are content after typed marker extraction. Companion
+    // parsing retains its established stage-direction cleanup.
     p = stripReplyBrackets(p, expertAnswer)
       .replace(/\s+/g, " ")
       .trim();

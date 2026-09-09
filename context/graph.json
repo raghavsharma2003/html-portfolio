@@ -17832,6 +17832,30 @@
       "kind": "rejection",
       "title": "Processing completion does not establish owner voice quality",
       "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease205-scientific-depth-union",
+      "kind": "decision",
+      "title": "Preserve scientific notation and define multilingual explanation depth",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease205-no-donor-bundle-overwrite",
+      "kind": "rejection",
+      "title": "Do not lose either fix through generated bundle replacement",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease205-integrated-controls",
+      "kind": "measurement",
+      "title": "Integrated source bundle TypeScript and targeted checks pass",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease205-transcript-chronology",
+      "kind": "decision",
+      "title": "Preserve source chronology when extraction timestamps tie",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

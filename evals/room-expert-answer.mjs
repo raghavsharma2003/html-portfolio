@@ -82,12 +82,15 @@ await check('retained policy has both timing parts, label and no ghost separator
   for (const value of ['19 minutes', '4 minutes', 'birch-28']) assert.ok(output.includes(value));
   assert.ok(!output.split('\n').some(x => /^-+$/.test(x)));
 });
-await check('format cleanup and protocol extraction remain byte-identical below the default cap', () => {
+await check('typed protocol cleanup remains identical; ordinary brackets belong to expert content', () => {
   for (const raw of ['[tone: calm]one\n----\ntwo', 'PINE-63 and BIRCH-28', 'call 1800-599-0019 pe',
-    'hello [stage direction] there', '- a plain message\nhello',
+    '- a plain message\nhello',
     '[search: exercise]\nhello', '*looks around*\nhello', '']) {
     assert.deepEqual(engine.parseExpertAnswer(raw), engine.parseBubbles(raw));
   }
+  const bracketed = 'hello [stage direction] there';
+  assert.deepEqual(engine.parseExpertAnswer(bracketed).bubbles, [bracketed]);
+  assert.deepEqual(engine.parseBubbles(bracketed).bubbles, ['hello there']);
 });
 await check('real honesty predicates inspect a fabricated attribution after segment four', () => {
   const raw = 'first\nsecond\nthird\nfourth\nyou told me your favourite colour is vermilion';
@@ -150,6 +153,15 @@ await check('actual Room delivers the late label, hashes delivered bytes and ret
   assert.equal(world.memlog.length, 0);
   const payload = readRoomSession(turn.session, world.env);
   assert.equal(payload.lr, createHash('sha256').update(turn.reply).digest('base64url').slice(0, 32));
+});
+await check('actual Room preserves scientific brackets in delivery and remembered answer', async () => {
+  const raw = 'Rate = k[substrate]';
+  const world = await setup({ profile: PROFILE, remembers: true, raw });
+  const turn = await world.say();
+  assert.equal(turn.reply, raw);
+  assert.deepEqual(turn.bubbles, [raw]);
+  assert.deepEqual(world.memlog.filter(x => x.call === 'logTurn' && x.role === 'her').map(x => x.content), [raw]);
+  assert.equal(world.calls(), 1);
 });
 await check('memory-free next turn accepts the complete 4000-unit answer transcript', async () => {
   const world = await setup({ profile: PROFILE, raw: 'z'.repeat(4000) });

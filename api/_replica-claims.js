@@ -49,7 +49,8 @@ select e.evidence_id,e.source_id,e.span_start_ms,e.span_end_ms,e.confidence,
           and speaker.span_start_ms<e.span_end_ms and speaker.span_end_ms>e.span_start_ms
           and lower(speaker.adapter_family||' '||speaker.adapter_name||' '||speaker.adapter_version) !~ '(fake|fixture|test|mock)'
      )) or ${CONTEXT_TEXT_EVIDENCE_AUTHORITY_SQL})
- order by e.created_at asc,e.evidence_id asc limit 100`;
+ order by s.created_at asc,s.source_id asc,e.span_start_ms asc nulls last,
+          e.span_end_ms asc nulls last,e.created_at asc,e.evidence_id asc limit 100`;
 
 const OWNED_EXTRACTION_SQL = `select r.replica_id,r.lifecycle,r.subject_mode,r.policy_version,
   array(select distinct c.consent_id from vy_replica_consent c

@@ -5332,9 +5332,14 @@ function validCommunication(value) {
   if (!FIELDS.every((field) => (value[field] === null || COMMUNICATION_VALUES[field].includes(value[field])) && (value[field] === null || value.scope[field]))) return false;
   return value.state === "classified" ? FIELDS.some((field) => value[field] !== null) : FIELDS.every((field) => value[field] === null);
 }
+var FIELD_MEANINGS = Object.freeze({
+  language: "Explicit recurring response language: english, hindi, or hinglish (a Hindi-English mixture). Interpret meaning across languages; do not infer this from the language used to write the request. Null when no positive durable choice is expressed.",
+  script: "Explicit recurring writing system: roman for Latin letters, devanagari for Devanagari letters. Independent of language; Hindi alone does not specify a script. Null when unspecified.",
+  brevity: "Explicit recurring answer length OR explanation depth. short means concise, condensed or brief answers; detailed means thorough, elaborated, in-depth explanations with reasoning developed rather than compressed. A request to explain in detail is detailed even without a word meaning long. Hindi and Roman Hindi semantic equivalents count equally. Examples or step ordering alone do not establish depth. Null when depth/length is unspecified, only negated, or only requested for this turn."
+});
 var COMMUNICATION_PROPOSAL_SCHEMA = Object.freeze({ anyOf: [
   { type: "null" },
-  { type: "object", properties: Object.fromEntries(FIELDS.map((field) => [field, { type: ["string", "null"], enum: [...COMMUNICATION_VALUES[field], null] }])), required: FIELDS, additionalProperties: false }
+  { type: "object", description: "One durable learner communication preference with every independently supported dimension. Preserve language, script and explanation depth together; null is absence of evidence for that dimension, not a default.", properties: Object.fromEntries(FIELDS.map((field) => [field, { type: ["string", "null"], enum: [...COMMUNICATION_VALUES[field], null], description: FIELD_MEANINGS[field] }])), required: FIELDS, additionalProperties: false }
 ] });
 
 // src/engine/learnerCommunication.ts
@@ -6254,6 +6259,7 @@ function splitExpertTextParts(raw) {
   return parts;
 }
 function stripReplyBrackets(text3, expertAnswer) {
+  if (expertAnswer) return text3;
   const strip = (part) => part.replace(/\[[^\]]*\]/g, " ").replace(/\[[^\]]*$/, " ").replace(/[\[\]]+/g, " ");
   return expertAnswer ? text3.split(EXPERT_MATH_SPAN).map((part, i) => i % 2 ? part : strip(part)).join("") : strip(text3);
 }
