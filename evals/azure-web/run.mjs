@@ -21,8 +21,8 @@ const manifest = {contract:'vyakti-azure-web-artifact/v1',product:'vyakti-clone'
 mkdirSync(join(home,'dist'));mkdirSync(join(home,'api'));
 for (const [p,b] of Object.entries(files)) {mkdirSync(resolve(home,'dist',p,'..'),{recursive:true});writeFileSync(join(home,'dist',p),b);}
 const names = readdirSync(join(root,'api')).filter(n=>/^[a-z][a-z0-9-]*\.js$/.test(n));
-for (const name of [...names,'echo.js','raw.js','auth.js','stream.js','abort.js','throws.js']) writeFileSync(join(home,'api',name),'// Adapter fixture marker, not production API implementation.\n');
-manifest.runtimeFiles=[...names,'echo.js','raw.js','auth.js','stream.js','abort.js','throws.js'].map(name=>({path:`api/${name}`,sha256:digest(readFileSync(join(home,'api',name)))}));
+for (const name of [...names,'echo.js','native.js','raw.js','auth.js','stream.js','abort.js','throws.js']) writeFileSync(join(home,'api',name),'// Adapter fixture marker, not production API implementation.\n');
+manifest.runtimeFiles=[...names,'echo.js','native.js','raw.js','auth.js','stream.js','abort.js','throws.js'].map(name=>({path:`api/${name}`,sha256:digest(readFileSync(join(home,'api',name)))}));
 writeFileSync(join(home,'api/_config.js'),'private fixture must never be served');
 writeFileSync(join(home,'dist/private.json'),'private fixture must never be served');
 let releaseStream, streamingStarted;
@@ -38,6 +38,12 @@ const platformState = req => {
  let state = platformSignals.get(req);
  if (!state) {
   const controller = new AbortController(), native = originalSignal?.get?.call(req);
+  // Node v24.18.1 _http_incoming.js:179-195 aborts on ordinary message
+  // destruction/close too, including successful consumption of the body.
+  if (!native) {
+   if (req.destroyed) controller.abort();
+   else req.once('close',()=>controller.abort());
+  }
   state = { controller, signal: native ? AbortSignal.any([native, controller.signal]) : controller.signal };
   platformSignals.set(req, state);
  }
@@ -45,15 +51,31 @@ const platformState = req => {
 };
 Object.defineProperty(IncomingMessage.prototype, 'signal', { configurable: true, get() { return platformState(this).signal; } });
 let deadlineReason;
+let uploadAbortObserved;
+const uploadAborted=new Promise(resolve=>uploadAbortObserved=resolve);
 const loader = async name=>({
- config:name==='raw.js'?{api:{bodyParser:false}}:name==='echo.js'?{maxDuration:1}:{},
+ config:['raw.js','native.js'].includes(name)?{api:{bodyParser:false}}:name==='echo.js'?{maxDuration:1}:{},
  default:async(req,res)=>{
-  if(name==='echo.js'&&req.query.signalTest==='native') {
+  if(name==='native.js') {
    assert(req instanceof IncomingMessage);assert.equal(Object.hasOwn(req,'signal'),false);
+   assert.equal(req.complete,false,'native-abort fixture holds the upload open');
    const combined=req.signal;assert.equal(req.signal,combined);assert.equal(combined.aborted,false);
+   if(req.query.signalTest==='disconnect') {
+    combined.addEventListener('abort',()=>uploadAbortObserved({aborted:combined.aborted,complete:req.complete}),{once:true});
+    res.write('upload handler ready');return;
+   }
    const reason=new Error('synthetic_native_abort');platformState(req).controller.abort(reason);
    assert.equal(combined.aborted,true);assert.equal(combined.reason,reason);
    return res.json({nativeAbort:true});
+  }
+  if(name==='echo.js'&&req.query.signalTest==='complete') {
+   await new Promise(resolve=>setImmediate(resolve));
+   assert.equal(req.complete,true);assert.equal(req.readableEnded,true);
+   assert.equal(platformState(req).signal.aborted,true,'normal body consumption closes the native message');
+   assert.equal(req.signal.aborted,false,'response work remains live after complete body');
+   const oldCombined=AbortSignal.any([platformState(req).signal,new AbortController().signal]);
+   assert.equal(oldCombined.aborted,true,'incumbent unconditional composition cancels normal requests');
+   return res.json({complete:true,body:req.body});
   }
   if(name==='echo.js'&&req.query.signalTest==='deadline') {
    await new Promise(resolve=>req.signal.addEventListener('abort',()=>{deadlineReason=req.signal.reason.message;resolve();},{once:true}));return;
@@ -62,7 +84,7 @@ const loader = async name=>({
   if(name==='auth.js'&&req.headers.authorization!=='Bearer fixture')return res.status(401).json({error:'bearer_token_required'});
   if(name==='raw.js'){const chunks=[];for await(const chunk of req)chunks.push(chunk);return res.json({rawSha256:digest(Buffer.concat(chunks)),parsed:typeof req.body!=='undefined'});}
   if(name==='stream.js'){res.setHeader('Content-Type','text/event-stream');res.write('data: first\n\n');streamingStarted();await released;if(!res.destroyed)res.end('data: second\n\n');return;}
-  if(name==='abort.js'){res.setHeader('Content-Type','text/event-stream');res.once('close',()=>abortObserved(req.signal.aborted));res.write('data: abort\n\n');return;}
+  if(name==='abort.js'){assert.equal(req.complete,true);assert.equal(req.signal.aborted,false);res.setHeader('Content-Type','text/event-stream');res.once('close',()=>abortObserved(req.signal.aborted));res.write('data: abort\n\n');return;}
   res.json({name,query:req.query,url:req.url,body:Buffer.isBuffer(req.body)?{bytes:req.body.length}:req.body,ip:req.headers['x-real-ip']});
  }
 });
@@ -78,8 +100,24 @@ try {
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  await test('root serves Vyakti with no development redirect',async()=>{const r=await call('/');assert.equal(r.status,200);assert.equal(r.text,files['index.html']);});
  await test('native request abort reaches stable combined signal without replacing native getter',async()=>{
-  assert.deepEqual(JSON.parse((await call('/api/echo?signalTest=native')).text),{nativeAbort:true});
+  const response=await new Promise((resolve,reject)=>{
+   const pending=request({hostname:'127.0.0.1',port:server.address().port,path:'/api/native',method:'POST'},res=>{
+    const chunks=[];res.on('data',b=>chunks.push(b));res.on('end',()=>{pending.destroy();resolve({status:res.statusCode,text:Buffer.concat(chunks).toString()});});res.on('error',reject);
+   });pending.on('error',reject);pending.setTimeout(5000,()=>pending.destroy(Error('incomplete_native_deadline')));pending.write('partial upload');
+  });
+  assert.equal(response.status,200);assert.deepEqual(JSON.parse(response.text),{nativeAbort:true});
   assert.equal(typeof Object.getOwnPropertyDescriptor(IncomingMessage.prototype,'signal').get,'function');
+ });
+ await test('complete parsed body does not cancel response work, while old composition does',async()=>{
+  const response=await call('/api/echo?signalTest=complete',{method:'POST',headers:{'content-type':'application/json'},body:'{"value":3}'});
+  assert.equal(response.status,200);assert.deepEqual(JSON.parse(response.text),{complete:true,body:{value:3}});
+ });
+ await test('real incomplete upload disconnect cancels handler work',async()=>{
+  const pending=request({hostname:'127.0.0.1',port:server.address().port,path:'/api/native?signalTest=disconnect',method:'POST'},res=>{
+   res.once('data',()=>pending.destroy());res.on('error',()=>{});
+  });pending.on('error',()=>{});pending.write('partial upload');
+  let timer;try{assert.deepEqual(await Promise.race([uploadAborted,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('upload_abort_not_observed')),5000);})]),{aborted:true,complete:false});}
+  finally{clearTimeout(timer);pending.destroy();}
  });
  await test('handler deadline aborts request signal and returns explicit 504',async()=>{
   const response=await call('/api/echo?signalTest=deadline');assert.equal(response.status,504);assert.equal(deadlineReason,'handler_deadline');

@@ -23943,3 +23943,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `combined198-queue-closed-freeze` (2026-09-09)
 
 2026-09-09: Root approved refresh2dbc0e6c exact eval file and closed the code queue. Preserve visible-switcher/selection response/URL synchronization instead of requiring an optional second GET. Freeze after clean/diff/context and source-parity checks. Root owns scoped verification and fullrelease admission; reverse only on concrete verification failure.
+
+
+## `combined200-native-lifecycle-successor` (2026-09-09)
+
+2026-09-09: Root approved native lifecycle fix33c73053 after production diff review and31 focused author results. Apply only server and Azure web eval to new frozen198 successor. Preserve all414 registered suites and existing memory/voice. Reverse if focused combined verification contradicts request lifecycle semantics.

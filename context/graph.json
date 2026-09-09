@@ -17622,6 +17622,24 @@
       "kind": "rejection",
       "title": "Do not expand the release queue after reviewed fixes",
       "at": "2026-09-09"
+    },
+    {
+      "id": "combined200-native-lifecycle-successor",
+      "kind": "decision",
+      "title": "Keep handler cancellation distinct from completed request body",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "combined200-exact-native-source",
+      "kind": "measurement",
+      "title": "Exact two-file approved source imported",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "combined200-no-extra-feature-union",
+      "kind": "rejection",
+      "title": "Exclude unreviewed memory features from native lifecycle repair",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

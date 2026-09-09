@@ -22,13 +22,21 @@ function cancellationFor(req) {
   return state;
 }
 // Recent Node 24 releases expose a getter-only platform signal. Keep the
-// native stream and combine its cancellation with our response/deadline scope.
+// native stream; its close signal covers the request body, not the lifetime
+// of the response. A successfully consumed body must not cancel its handler.
 class AzureIncomingMessage extends IncomingMessage {
   get signal() {
     const state = cancellationFor(this);
     if (!state.signal) {
       const nativeSignal = super.signal;
-      state.signal = nativeSignal ? AbortSignal.any([nativeSignal, state.controller.signal]) : state.controller.signal;
+      state.signal = state.controller.signal;
+      if (nativeSignal) {
+        const onNativeAbort = () => {
+          if (this.aborted || !this.complete) state.controller.abort(nativeSignal.reason);
+        };
+        if (nativeSignal.aborted) onNativeAbort();
+        else nativeSignal.addEventListener('abort', onNativeAbort, { once: true });
+      }
     }
     return state.signal;
   }

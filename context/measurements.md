@@ -17732,3 +17732,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `combined198-refresh-source-admission` (2026-09-09)
 
 2026-09-09 n=1 imported eval file with two replacements; author reports12 named Windows controls with24 success/error outcomes. No combined runtime or Linux run claimed. Final claims adapter and orchestrator will be byte-compared to approved f3e source; voice source pins remain194-equivalent.
+
+
+## `combined200-exact-native-source` (2026-09-09)
+
+2026-09-09 n=2 files byte-identical to reviewed33c73053 after Git newline normalization. No dependency installation, fullgate, cloud, browser or SQL run. Root reports31 focused author results; these are not new combined200 test results. Source diff adds no historical Git-show dependency.
