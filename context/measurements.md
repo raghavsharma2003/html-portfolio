@@ -17812,3 +17812,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `handoff206-canonical-integrity` (2026-09-09)
 
 2026-09-09 n=50 archived entries totaling19694371bytes verified SHA256 and size both before and after copy. START-HERE and MANIFEST additionally byte-matched. Includes coordinator context, actual receipts, voice evidence/listening WAVs and disabled ASR draft; no new evaluation or paid experiment.
+
+
+## `handoff206-remote-recovery-measured` (2026-09-09)
+
+2026-09-09T05:57:38.170Z, n=1 empty bare repository, depth2 fetch of main31833cdf and archive7a8ad90d. Actual verification exit0:55 evidence files/19811433bytes SHA and size matched,33 historical file lookups matched,10 absent-path negative checks passed,3 original fix commits present. No local object reuse, model calls or cloud compute runs. Scope is recovery only, not full release or product quality.

@@ -17800,3 +17800,8 @@ Do not wait for fullrelease/model pass before preserving authorized work, and do
 ## `handoff206-no-context-graph-replacement` (2026-09-09)
 
 Do not overwrite this repository graph with ROOT historical graph or imply preservation push is production acceptance. Only explicit handoff directory copied; ROOT dirty source and secrets excluded. Manifest integrity is evidence preservation, not fresh runtime verification.
+
+
+## `handoff206-local-objects-not-remote-proof` (2026-09-09)
+
+A successful lookup in an existing multi-worktree repository could rely on unpublished Git objects. Earlier normal branch pushes did not by themselves prove that a fresh clone could run historical tests. The separate archive branch and actual fresh remote fetch close this preservation gap without claiming the app is publish-ready.

@@ -24018,3 +24018,8 @@ Root approved1d0319ed two-path ORDER BY repair: sources chronological then span 
 ## `handoff206-canonical-package` (2026-09-09)
 
 2026-09-09: Root supplied explicit docs/handoff/2026-09-09 package. Copy only that directory, verify manifest sizes/hashes, point main STATE to START-HERE, and preserve main graph.193 owns immediate authorized preservation push. Reverse on hash mismatch or credential concern; source is not publish-ready.
+
+
+## `handoff206-remote-recovery` (2026-09-09)
+
+User requested a durable GitHub handover before their usage limit. Verify from an empty bare repository fetched directly from GitHub, retaining a separate historical archive branch instead of merging historical product states. Reverse if a fresh fetch lacks any required object or receipt bytes; repair preservation rather than rebuilding product work.
