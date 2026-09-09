@@ -17754,6 +17754,24 @@
       "kind": "rejection",
       "title": "Bounded readability evidence is not full journey acceptance",
       "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-cu3p-test-repairs",
+      "kind": "decision",
+      "title": "Use actual settled save and permission adoption barriers",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-test-source-parity",
+      "kind": "measurement",
+      "title": "Three test files match reviewed sources",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-no-inferred-action-exit",
+      "kind": "rejection",
+      "title": "Do not invent a successful terminal status from printed checks",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

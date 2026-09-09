@@ -73,7 +73,23 @@ try{
   for(const action of ['Switch account','Refresh token','Leave verification']){
    reset();await open();await request().waitFor();await chooseAll();hold='issue';issueStatus=401;await request().click();await until(()=>held.length===1);await page.getByRole('button',{name:action,exact:true}).click();await release();assert.equal(await page.evaluate(()=>window.__comparison.authErrors),0);assert.equal(await page.getByText('Synthetic fixture phrase',{exact:true}).count(),0);await pass(`pending issue abort and late401 cannot affect ${action}`);
   }
-  reset();await open();await request().waitFor();await chooseAll();selections[A]=selection(A,SA,'d');await page.getByRole('button',{name:'Replace source permission',exact:true}).click();await request().waitFor();assert.equal(await page.locator('input:checked').count(),0);assert.equal(issueRequests().length,0);await pass('local permission receipt replacement clears every choice');
+  reset();await open();await request().waitFor();await chooseAll();selections[A]=selection(A,SA,'d');
+  // Hold the fixture's scope adoption to prove the previous readiness locator
+  // can succeed on the old scope. Then hold the real new HTTP readiness read.
+  await page.evaluate(()=>{window.__comparison.deferReceipt=true;});hold='capture_readiness';
+  const readsBefore=requests.filter(r=>r.input.op==='capture_readiness').length;
+  await page.getByRole('button',{name:'Replace source permission',exact:true}).click();
+  await request().waitFor();const oldChecks=await page.locator('input:checked').count();
+  assert.equal(await page.locator('[data-permission-receipt]').getAttribute('data-permission-receipt'),'receipt-1');
+  assert.equal(requests.filter(r=>r.input.op==='capture_readiness').length,readsBefore);
+  if(process.argv.includes('--old-receipt-wait'))assert.equal(oldChecks,0,'incumbent wait matches old scope before receipt adoption');
+  assert.equal(oldChecks,8);assert.throws(()=>assert.equal(oldChecks,0),'old readiness wait does not prove receipt adoption');
+  await page.evaluate(()=>window.__comparison.adoptReceipt());
+  await page.locator('[data-permission-receipt="receipt-2"]').waitFor();await until(()=>held.length===1);
+  await request().waitFor({state:'hidden'});assert.equal(await page.locator('input:checked').count(),0,'no inherited consent while new receipt readiness is pending');
+  assert.equal(issueRequests().length,0);await release();await request().waitFor();
+  assert.equal(await page.locator('input:checked').count(),0);assert.equal(issueRequests().length,0);
+  await pass('local permission receipt adoption clears every choice before fresh readiness resolves; old wait negative detected');
   reset();malformed=true;await open();await page.getByText('Live verification is unavailable',{exact:true}).waitFor();assert.equal(await page.getByRole('checkbox').count(),0);assert.equal(issueRequests().length,0);await pass('malformed successful descriptor is unavailable, never checked consent');
   reset();await open();await request().waitFor();await chooseAll();hold='issue';await request().click();await until(()=>held.length===1);const beforeHeaders=await page.evaluate(()=>window.__fetchSettled||0);held[0].res.writeHead(200,{'Content-Type':'application/json'});held[0].res.write('{"challenge":');await page.waitForFunction(n=>(window.__fetchSettled||0)>n,beforeHeaders);held[0].res.destroy();held=[];await page.getByRole('button',{name:'Check saved attempt',exact:true}).waitFor();assert.equal(await request().isDisabled(),true);await page.getByRole('button',{name:'Check saved attempt',exact:true}).click();await page.getByRole('button',{name:'Check saved attempt',exact:true}).waitFor({state:'hidden'});assert.equal(issueRequests().length,1);assert.equal(await page.locator('input:checked').count(),0);await pass('lost issue body requires explicit readback and never retries POST');
   await page.screenshot({path:join(out,`permission-${width}.png`),fullPage:true});await context.close();

@@ -23978,3 +23978,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease204-account-readability` (2026-09-09)
 
 2026-09-09: Root visually reviewed English390 fullshell and approved082496fe CSS. Import only room.css into new frozen202 successor; preserve active fullrelease203 source. Reverse if full Room shell overflow, sticky-header positioning or accessibility regress. Candidate remains open for separately reviewed typed preference/processing work.
+
+
+## `postrelease204-cu3p-test-repairs` (2026-09-09)
+
+2026-09-09: Root approved4b9b9847 action focus and910aea4d selected-reference test repairs. Import exactly3 eval files, preserve all production source. Reverse if barriers bypass actual save/permission readiness or hide wrong consent assertions. Working checkpoint awaits semantic/processing reviews.

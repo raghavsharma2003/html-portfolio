@@ -33,11 +33,11 @@ function Host(){
  onCheckCaptureReadiness:handleCheckCaptureReadiness,onIssueChallenge:handleIssueChallenge,
  onOpenSourcePermission:()=>{},onResetLegacyClone:async()=>false,onReturnToVoice:()=>{},onContinue:()=>{},onAuthError:()=>{fixture.__comparison.authErrors++;},
  onCreateSourceUpload:async()=>{throw Error('upload forbidden');},onRetryUpload:async()=>{throw Error('upload forbidden');},onFinalizeSourceUpload:async()=>{throw Error('upload forbidden');},onDeleteSource:async()=>{throw Error('erase forbidden');},onSourcesChanged:async()=>{},onIdentityChanged:async()=>{},onVerifiedConsentChanged:async()=>{},onStartFaceSession:async()=>{throw Error('face forbidden');},onPollFaceSession:async()=>{throw Error('face forbidden');},onCancelChallenge:async()=>{throw Error('cancel forbidden');},onCreateLivenessUpload:async()=>{throw Error('upload forbidden');},onFinalizeLiveness:async()=>{throw Error('upload forbidden');}};
- return <><nav aria-label="Synthetic scope controls">
+ return <><nav aria-label="Synthetic scope controls" data-permission-receipt={receipt}>
  <button onClick={()=>{selectedIdRef.current=B;setSelected({...selected,replica_id:B,display_name:'Synthetic other'});setSourceId(SB);setChallenge(null);}}>Switch replica</button>
  <button onClick={()=>{accountRevision.current++;selectedIdRef.current=B;const next={userId:B,accessToken:'synthetic-other'};activeSessionRef.current=next;setSession(next);setSelected({...selected,replica_id:B});setSourceId(SB);setChallenge(null);}}>Switch account</button>
  <button onClick={()=>{setSourceId(sourceId===SA?SB:SA);setChallenge(null);}}>Switch recording</button>
- <button onClick={()=>setReceipt('receipt-2')}>Replace source permission</button>
+ <button onClick={()=>{if(fixture.__comparison.deferReceipt)fixture.__comparison.adoptReceipt=()=>setReceipt('receipt-2');else setReceipt('receipt-2');}}>Replace source permission</button>
  <button onClick={()=>{const next={...session,accessToken:'synthetic-fresh'};activeSessionRef.current=next;setSession(next);}}>Refresh token</button>
  <button onClick={()=>{livenessMounted.current=false;setVisible(false);}}>Leave verification</button>
  </nav>{mounted&&visible?(old?<OldCapture consentActive challenge={challenge} loading={false} onCheckReadiness={handleCheckCaptureReadiness} onIssue={(attestations:any)=>oldIssue(session.accessToken,selected.replica_id,attestations)} onStartFace={props.onStartFaceSession} onPollFace={props.onPollFaceSession} onCancel={props.onCancelChallenge} onCreateUpload={props.onCreateLivenessUpload} onRetryUpload={props.onRetryUpload} onFinalize={props.onFinalizeLiveness}/>:<Journey {...props}/>):<p>Outside verification</p>}</>;

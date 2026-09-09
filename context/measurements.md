@@ -17772,3 +17772,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease204-account-source-parity` (2026-09-09)
 
 2026-09-09 n=1 product file exactly matches082496fe after Git newline normalization. Author full RoomApp EN/HI390/1440 fixture has no errors/overflow, production fonts retained; body14, section15, heading28, button14 and48px minimum height. Root inspected English390. Integration runs no browser/TS/fullgate/cloud/dependencies; CSS-only change.
+
+
+## `postrelease204-test-source-parity` (2026-09-09)
+
+2026-09-09 n=2 patches/3files match incoming LF bytes. Root reports controlled oldwait8-versus0 failure followed by24checks390/1440 pass with session74524exit0. Action focus reports58passed but launcher exit is null; no captured exit0 claim. Integration ran no runtime/fullgate/cloud/browser.
