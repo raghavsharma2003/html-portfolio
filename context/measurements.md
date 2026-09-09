@@ -17757,3 +17757,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease202-correction-source-parity` (2026-09-09)
 
 2026-09-09 n=10 files LF byte-identical to57a38e25; mergebase79c9. Registry415 with414 incumbents retained. Native server/eval unchanged. Root reports actual SQL77/77 receipt504c983c and mounted16/16 EN/HI390/1440 receipt35833088. No integration runtime/browser/SQL/build/npm/fullgate run.
+
+
+## `postrelease202-integrated-typescript` (2026-09-09)
+
+2026-09-09 n=1 actual node node_modules/typescript/bin/tsc -b --force on91aada0f exited0 with empty stdout/stderr and clean tracked source. Private194 dependencies copied only after package/lock412f958e parity and recursive non-reparse checks;6496 files/237656288 bytes verified SHA256. Receipt postrelease202-tsc-1788921848768/result.json SHA256 dce52aebac9398868d94c17eeeccc4570c3a338f91736b10f861094375960dd2. No npm/shared writes/fullgate/cloud.

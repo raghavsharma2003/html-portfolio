@@ -17712,6 +17712,12 @@
       "kind": "rejection",
       "title": "Exclude older native eval and withhold final race acceptance",
       "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease202-integrated-typescript",
+      "kind": "measurement",
+      "title": "Integrated TypeScript passes on91aada0f",
+      "at": "2026-09-09"
     }
   ],
   "edges": [
