@@ -5381,6 +5381,12 @@ var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function uuid(value) {
   return typeof value === "string" && value.length === 36 && UUID.test(value) && !/^00000000-0000-[04]000-[08]000-000000000000$/i.test(value);
 }
+function memoryIdentity(value) {
+  if (uuid(value)) return value.toLowerCase();
+  if (typeof value !== "string" || !/^[1-9][0-9]{0,18}$/.test(value)) return null;
+  const integer = BigInt(value);
+  return integer <= 9223372036854775807n && integer.toString() === value ? value : null;
+}
 function object(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -5454,9 +5460,10 @@ function compileExpertText(input) {
   if (!uuid(input.personId) || !object(memory) || typeof memory.enabled !== "boolean" || memory.agentId !== binding.agentId || memory.personId !== input.personId || !Array.isArray(memory.rows) || memory.rows.length > 20 || !memory.enabled && memory.rows.length) fail("expert_text_memory_scope_invalid");
   const seen = /* @__PURE__ */ new Set();
   const rows = Array.from(memory.rows, (row) => {
-    if (!object(row) || !uuid(row.id) || seen.has(row.id.toLowerCase()) || row.agentId !== binding.agentId || row.personId !== input.personId || row.consentStatus !== "active" || !text(row.body)) fail("expert_text_memory_scope_invalid");
-    seen.add(row.id.toLowerCase());
-    return { id: row.id, agentId: row.agentId, personId: row.personId, body: row.body };
+    const identity = object(row) ? memoryIdentity(row.id) : null;
+    if (!object(row) || identity === null || seen.has(identity) || row.agentId !== binding.agentId || row.personId !== input.personId || row.consentStatus !== "active" || !text(row.body)) fail("expert_text_memory_scope_invalid");
+    seen.add(identity);
+    return { id: identity, agentId: row.agentId, personId: row.personId, body: row.body };
   });
   const teacherMaterial = Object.fromEntries(Object.entries(teacher).filter(([key]) => !["slug", "version", "consentArtifactId"].includes(key) && !(conditionalLanguage && key === "languageTextRule")));
   const languageDefault = conditionalLanguage ? material("APPROVED LANGUAGE DEFAULT JSON", {

@@ -17737,3 +17737,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `combined200-exact-native-source` (2026-09-09)
 
 2026-09-09 n=2 files byte-identical to reviewed33c73053 after Git newline normalization. No dependency installation, fullgate, cloud, browser or SQL run. Root reports31 focused author results; these are not new combined200 test results. Source diff adds no historical Git-show dependency.
+
+
+## `postrelease202-six-path-source-parity` (2026-09-09)
+
+2026-09-09 n=2 patches,6 code/eval/generated paths applied without overlap; exact incoming LF-normalized bytes verified. Root reports actual Hindi201 success and compiler source24/generated25 controls passed. Integration ran no new runtime tests, deps/build/fullgate/cloud/SQL.

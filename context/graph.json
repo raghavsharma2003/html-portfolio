@@ -17640,6 +17640,24 @@
       "kind": "rejection",
       "title": "Exclude unreviewed memory features from native lifecycle repair",
       "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease202-hindi-memory-union",
+      "kind": "decision",
+      "title": "Assemble approved Hindi limits and Room memory compiler repairs",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease202-six-path-source-parity",
+      "kind": "measurement",
+      "title": "Six disjoint source and eval paths match reviewed inputs",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease202-no-unreviewed-correction",
+      "kind": "rejection",
+      "title": "Keep rejected correction patch outside the candidate",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

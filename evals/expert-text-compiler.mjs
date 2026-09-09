@@ -54,6 +54,36 @@ const memoryInput = { ...base, privateMemory: { ...base.privateMemory, enabled: 
 const publicRow = { id: id(8), question: 'PUBLIC_ONLY_CANARY?', answer: 'The LARCH-72 exercise has 31 items and 6 checks.' };
 const parseMaterial = (result, label) => JSON.parse(result.system.split(`${label}: `)[1].split('\n')[0]);
 
+check('Room fact row decimal int8 identity reaches memory without entering model material', () => {
+  for (const factId of ['1','9007199254740993','9223372036854775807']) {
+    // roomSay preserves the PostgreSQL driver's canonical int8 string f.id.
+    const fact = { id: factId, body: 'Synthetic learner prefers a worked example' };
+    const projected = { id: fact.id, agentId: base.publication.agentId, personId: base.personId, consentStatus: 'active', body: fact.body };
+    const result = compile({ ...memoryInput, privateMemory: { ...memoryInput.privateMemory, rows: [projected] } });
+    assert.deepEqual(result.provenance.memoryIds,[factId]);
+    assert.deepEqual(result.privateMemoryRecord,[fact.body]);
+    assert.deepEqual(parseMaterial(result,'PRIVATE MEMORY JSON').rows,[{body:fact.body}]);
+  }
+});
+check('fact identities reject noncanonical, malformed and out-of-range integers', () => {
+  for(const value of ['0','-1','+1','01','1.0','1e3','0x10',' 1','1 ','1\n','1\r\n','1\t','9223372036854775808','99999999999999999999','१२',1,1n,null,undefined,{}]) {
+    failure({...memoryInput,privateMemory:{...memoryInput.privateMemory,rows:[{...row,id:value}]}},'expert_text_memory_scope_invalid');
+  }
+});
+check('memory identity deduplication and provenance share canonical forms', () => {
+  const upper=row.id.toUpperCase();
+  assert.deepEqual(compile({...memoryInput,privateMemory:{...memoryInput.privateMemory,rows:[{...row,id:upper}]}}).provenance.memoryIds,[row.id]);
+  for(const ids of [[row.id,upper],['9007199254740993','9007199254740993']]) {
+    failure({...memoryInput,privateMemory:{...memoryInput.privateMemory,rows:ids.map(id=>({...row,id}))}},'expert_text_memory_scope_invalid');
+  }
+  assert.deepEqual(compile({...memoryInput,privateMemory:{...memoryInput.privateMemory,rows:[row,{...row,id:'1'}]}}).provenance.memoryIds,[row.id,'1']);
+});
+check('decimal fact IDs never relax owner, publication, agent or person scope', () => {
+  for(const field of ['sheetId','agentId','replicaId','ownerId','consentArtifactId']) failure({...base,publication:{...base.publication,[field]:'1'}},'expert_text_publication_invalid');
+  failure({...memoryInput,personId:'1',privateMemory:{...memoryInput.privateMemory,personId:'1',rows:[{...row,id:'1',personId:'1'}]}},'expert_text_memory_scope_invalid');
+  for(const field of ['agentId','personId']) failure({...memoryInput,privateMemory:{...memoryInput.privateMemory,rows:[{...row,id:'1',[field]:id(99)}]}},'expert_text_memory_scope_invalid');
+});
+
 check('candidate explicitly selected; no missing or unknown profile fallback', () => {
   for (const profile of [undefined, null, '', 'expert_answer', 'LEAN_V1']) failure({ ...base, profile }, 'expert_text_profile_invalid');
   for (const input of [null, [], undefined]) failure(input, 'expert_text_profile_invalid');

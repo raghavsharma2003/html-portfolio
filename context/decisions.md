@@ -23948,3 +23948,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `combined200-native-lifecycle-successor` (2026-09-09)
 
 2026-09-09: Root approved native lifecycle fix33c73053 after production diff review and31 focused author results. Apply only server and Azure web eval to new frozen198 successor. Preserve all414 registered suites and existing memory/voice. Reverse if focused combined verification contradicts request lifecycle semantics.
+
+
+## `postrelease202-hindi-memory-union` (2026-09-09)
+
+2026-09-09: Root approved5f60a8ad Unicode mark validation and94f3af13 int8 memory compiler binding with generated engine. Import into isolated release200 successor; preserve release200 and exclude correction8b4d pending author repair/review. Reverse on combined proof regression or source mismatch.

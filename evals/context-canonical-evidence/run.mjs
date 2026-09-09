@@ -205,6 +205,7 @@ function callerHarness() {
       Object.assign(row, { status: params[2], mine_skip_reason: params[3], run_id: params[4] ?? row.run_id });
       return [{ ...row }];
     }
+    if (sql.includes("insert into vy_ingest_run")) return [{ run_id: params[0], status: "proposed" }];
     throw new Error(`caller harness unrouted SQL: ${sql.slice(0, 100)}`);
   };
   let sequence = 0;
@@ -231,6 +232,18 @@ ok("the browser upload caller stores a source-linked item", textAdded.item.item_
 ok("the browser upload caller reaches canonical text evidence", textCaller.state.evidence.length === 1
   && textCaller.state.evidence[0].evidence_type === "text_span"
   && textCaller.state.evidence[0].value.text === "These exact words are my own short note.");
+
+const HINDI_BODY = "ओम के नियम में, यदि तापमान स्थिर हो, तो धारा वोल्टेज के समानुपाती होती है: वोल्टेज 12 V और प्रतिरोध 4 Ω हो तो धारा 3 A होती है; तापमान स्थिर न हो तो यह निष्कर्ष सीधे लागू नहीं होता।";
+const hindiCaller = callerHarness();
+const hindiAdded = await addContextFile(hindiCaller.db, OWNER, REPLICA, {
+  filename: "hindi-physics-note.txt", bytes: Buffer.from(HINDI_BODY, "utf8"), authorship: "mine",
+}, hindiCaller.deps);
+const hindiEvidence = hindiCaller.state.evidence[0];
+ok("the actual upload caller retains owner-authored Hindi as canonical text evidence", hindiAdded.item.status !== "refused"
+  && hindiCaller.state.evidence.length === 1 && hindiEvidence.value.text === HINDI_BODY);
+ok("Hindi evidence offsets cite the complete unchanged native text", hindiEvidence.value.locator.unit === "utf16_code_units"
+  && hindiEvidence.value.locator.start_char === 0 && hindiEvidence.value.locator.end_char === HINDI_BODY.length
+  && HINDI_BODY.slice(hindiEvidence.value.locator.start_char, hindiEvidence.value.locator.end_char) === hindiEvidence.value.text);
 
 const imageCaller = callerHarness();
 const imageAdded = await addContextFile(imageCaller.db, OWNER, REPLICA, {

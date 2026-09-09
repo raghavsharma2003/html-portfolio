@@ -107,6 +107,14 @@ function uuid(value: unknown): value is string {
   return typeof value === "string" && value.length === 36 && UUID.test(value)
     && !/^00000000-0000-[04]000-[08]000-000000000000$/i.test(value);
 }
+// vy_fact.id is PostgreSQL int8, delivered as a decimal string by the Room
+// caller. Keep this separate from UUID-only ownership/publication bindings.
+function memoryIdentity(value: unknown): string | null {
+  if (uuid(value)) return value.toLowerCase();
+  if (typeof value !== "string" || !/^[1-9][0-9]{0,18}$/.test(value)) return null;
+  const integer = BigInt(value);
+  return integer <= 9223372036854775807n && integer.toString() === value ? value : null;
+}
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -195,11 +203,12 @@ export function compileExpertText(input: ExpertTextInput): CompiledExpertText {
       || (!memory.enabled && memory.rows.length)) fail("expert_text_memory_scope_invalid");
   const seen = new Set<string>();
   const rows = Array.from(memory.rows, row => {
-    if (!object(row) || !uuid(row.id) || seen.has(row.id.toLowerCase())
+    const identity = object(row) ? memoryIdentity(row.id) : null;
+    if (!object(row) || identity === null || seen.has(identity)
         || row.agentId !== binding.agentId || row.personId !== input.personId
         || row.consentStatus !== "active" || !text(row.body)) fail("expert_text_memory_scope_invalid");
-    seen.add(row.id.toLowerCase());
-    return { id: row.id, agentId: row.agentId, personId: row.personId, body: row.body };
+    seen.add(identity);
+    return { id: identity, agentId: row.agentId, personId: row.personId, body: row.body };
   });
   // Binding-only identifiers never enter model material; keep them in sidecars.
   const teacherMaterial = Object.fromEntries(Object.entries(teacher)

@@ -132,9 +132,20 @@ export function assertReadable(text, code, details) {
   }
   let letters = 0;
   let spaces = 0;
+  let hasBaseInWord = false;
   for (const ch of trimmed) {
-    if (/\p{L}|\p{N}/u.test(ch)) letters++;
-    else if (ch === " " || ch === "\n" || ch === "\t") spaces++;
+    if (/\p{L}|\p{N}/u.test(ch)) {
+      letters++;
+      hasBaseInWord = true;
+    } else if (/\p{M}/u.test(ch) && hasBaseInWord) {
+      // Devanagari and many other scripts encode vowel signs as combining
+      // marks after a base letter. Count only attached marks so a string of
+      // free-standing marks cannot satisfy the language-text gate.
+      letters++;
+    } else {
+      if (ch === " " || ch === "\n" || ch === "\t") spaces++;
+      hasBaseInWord = false;
+    }
   }
   if (letters / trimmed.length < 0.5) {
     refuse(code, { ...details, note: "under half the characters are letters or digits", letter_ratio: Number((letters / trimmed.length).toFixed(3)) });

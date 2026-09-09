@@ -331,6 +331,8 @@ const refusalOf = (filename, bytes) => {
 };
 
 ok("txt extracts", refusalOf("notes.txt", OWN_WRITING).ok === "text");
+ok("Hindi text with attached Devanagari vowel marks extracts", refusalOf("hindi-notes.txt", Buffer.from("ओम के नियम में तापमान स्थिर हो तो धारा वोल्टेज के समानुपाती होती है।", "utf8")).ok === "text");
+ok("free-standing combining marks do not pass as readable text", refusalOf("marks.txt", Buffer.from(`${"\u0301".repeat(4)} `.repeat(20), "utf8")).refused === "text_unreadable");
 ok("md extracts as markdown", refusalOf("notes.md", OWN_WRITING).ok === "markdown");
 ok("pdf text layer extracts", refusalOf("cv.pdf", makePdf(["Dekho beta this is the text layer", "and this is a second line of it"])).ok === "pdf");
 ok("docx extracts", refusalOf("bio.docx", makeDocx(["Dekho beta this is my own writing about myself", "and here is a second paragraph of it"])).ok === "docx");
