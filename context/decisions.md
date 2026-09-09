@@ -23928,3 +23928,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `combined194-disabled-voice-lifecycle` (2026-09-09)
 
 2026-09-09: Apply approved net c85d voice185 patch to isolated77f successor. Preserve current preview and all incumbent capabilities. Migration158 is source only; voice flags remain absent/false. Reverse if exact source proof pins mismatch or combined gates regress. No provider, media, SQL or cloud operation.
+
+
+## `combined198-working-repair-union` (2026-09-09)
+
+2026-09-09: Root requested successor to frozen194 with native AbortSignal preservation60c03195, eval output drain5a487c34 and claims schema/accounting f3e822b2 net from194. Claims final77 source admission approved; await remaining targeted repairs, and do not freeze/fullgate. Reverse any import on source mismatch or independent review rejection.

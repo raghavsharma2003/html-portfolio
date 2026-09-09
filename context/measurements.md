@@ -17717,3 +17717,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `combined194-source-parity` (2026-09-09)
 
 2026-09-09 n=36 incoming paths:108 base/incoming/target SHA256 comparisons and36 applied file checks passed. Seven parser186v3 source pins match modulo Git CRLF checkout; race187 packet and parser receipt linkage verified. All11 actual claims187v4 source pins still match. Artifacts COMBINED194-SOURCE-PARITY.json and COMBINED194-VOICE-SQL-PARITY.json. Source parity only; no new runtime or SQL test.
+
+
+## `combined198-source-assembly` (2026-09-09)
+
+2026-09-09 n=3 net patches, eight product/test paths with no overlaps. Source assembly only; no combined tests, build, browser, SQL, model, cloud or push. Registry adds runner output regression to413 incumbent suites for414. Private dependencies absent. Exact inputs and patch hashes are in COMBINED198-WORKING-INVENTORY.json. Independent77 reports actual offline service caller reserve messages1040 equals wire1040, ten emitted SQL byte-equal and canonical validator unchanged; no SQL rerun.

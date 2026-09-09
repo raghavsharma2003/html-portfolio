@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, symlinkSync, unlinkSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { request } from 'node:http';
+import { request, IncomingMessage } from 'node:http';
 import { createHash } from 'node:crypto';
 import { createWebServer, publicAsset } from '../../services/azure-web/server.mjs';
 import { compileRoutes, routeRequest } from '../../services/azure-web/routing.mjs';
@@ -30,9 +30,34 @@ let abortObserved;
 const abortClosed = new Promise(resolve=>abortObserved=resolve);
 const opened = new Promise(resolve=>streamingStarted=resolve);
 const released = new Promise(resolve=>releaseStream=resolve);
+// Exercise the Node 24.18 getter contract even on older supported Node builds.
+// On newer builds retain the real native signal as an input, never discard it.
+const originalSignal = Object.getOwnPropertyDescriptor(IncomingMessage.prototype, 'signal');
+const platformSignals = new WeakMap();
+const platformState = req => {
+ let state = platformSignals.get(req);
+ if (!state) {
+  const controller = new AbortController(), native = originalSignal?.get?.call(req);
+  state = { controller, signal: native ? AbortSignal.any([native, controller.signal]) : controller.signal };
+  platformSignals.set(req, state);
+ }
+ return state;
+};
+Object.defineProperty(IncomingMessage.prototype, 'signal', { configurable: true, get() { return platformState(this).signal; } });
+let deadlineReason;
 const loader = async name=>({
- config:name==='raw.js'?{api:{bodyParser:false}}:{},
+ config:name==='raw.js'?{api:{bodyParser:false}}:name==='echo.js'?{maxDuration:1}:{},
  default:async(req,res)=>{
+  if(name==='echo.js'&&req.query.signalTest==='native') {
+   assert(req instanceof IncomingMessage);assert.equal(Object.hasOwn(req,'signal'),false);
+   const combined=req.signal;assert.equal(req.signal,combined);assert.equal(combined.aborted,false);
+   const reason=new Error('synthetic_native_abort');platformState(req).controller.abort(reason);
+   assert.equal(combined.aborted,true);assert.equal(combined.reason,reason);
+   return res.json({nativeAbort:true});
+  }
+  if(name==='echo.js'&&req.query.signalTest==='deadline') {
+   await new Promise(resolve=>req.signal.addEventListener('abort',()=>{deadlineReason=req.signal.reason.message;resolve();},{once:true}));return;
+  }
   if(name==='throws.js')throw new Error('sensitive sentinel');
   if(name==='auth.js'&&req.headers.authorization!=='Bearer fixture')return res.status(401).json({error:'bearer_token_required'});
   if(name==='raw.js'){const chunks=[];for await(const chunk of req)chunks.push(chunk);return res.json({rawSha256:digest(Buffer.concat(chunks)),parsed:typeof req.body!=='undefined'});}
@@ -46,9 +71,19 @@ const call = (path,opts={})=>new Promise((resolve,reject)=>{
  req.on('error',reject);if(opts.body)req.write(opts.body);req.end();
 });
 try {
+ await test('old signal assignment fails against getter-only IncomingMessage contract',()=>{
+  const req=new IncomingMessage(null);assert.throws(()=>{req.signal=new AbortController().signal;},TypeError);
+ });
  server=await createWebServer({root:home,manifest,config,loadHandler:loader,bodyLimit:1024});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  await test('root serves Vyakti with no development redirect',async()=>{const r=await call('/');assert.equal(r.status,200);assert.equal(r.text,files['index.html']);});
+ await test('native request abort reaches stable combined signal without replacing native getter',async()=>{
+  assert.deepEqual(JSON.parse((await call('/api/echo?signalTest=native')).text),{nativeAbort:true});
+  assert.equal(typeof Object.getOwnPropertyDescriptor(IncomingMessage.prototype,'signal').get,'function');
+ });
+ await test('handler deadline aborts request signal and returns explicit 504',async()=>{
+  const response=await call('/api/echo?signalTest=deadline');assert.equal(response.status,504);assert.equal(deadlineReason,'handler_deadline');
+ });
  await test('all current rewrites resolve including crawler conditional',async()=>{
   for(const rule of config.rewrites){const path=rule.source.replace(':slug','teacher');const headers=rule.has?{'user-agent':'WhatsApp'}:{};const r=await call(path,{headers});assert.equal(r.status,200,path);if(rule.destination.startsWith('/api/'))assert.equal(JSON.parse(r.text).name,rule.destination.split('?')[0].slice(5).replace(/\.js$/,'')+'.js');else assert.equal(r.text,files[rule.destination.slice(1)],path);}
  });
@@ -86,5 +121,6 @@ try {
 } finally {
  releaseStream?.();if(server)await new Promise(resolve=>{server.closeAllConnections();server.close(resolve);});
  assert.equal(resolve(home),home);assert(home.startsWith(join(tmpdir(),'vyakti-azure-web33-')));rmSync(home,{recursive:true,force:true});
+ if(originalSignal)Object.defineProperty(IncomingMessage.prototype,'signal',originalSignal);else delete IncomingMessage.prototype.signal;
 }
 console.log(`azure web adapter: ${checks} groups passed; native loopback fixtures only; no cloud, browser, SQL or product acceptance`);

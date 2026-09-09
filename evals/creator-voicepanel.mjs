@@ -213,10 +213,13 @@ function harness(options = {}) {
   const db = options.db || fakeDb();
   const generationIdRef = { value: null };
   const state = {
-    reads: 0, healthFetches: [], failures: [], aborted: [], protections: 0, slept: 0,
+    reads: 0, healthFetches: [], failures: [], aborted: [], protections: 0, slept: 0, allocationChecks: 0,
     storedResults: [], sealedIntents: [], retryable: [], renewals: 0, expired: 0, cleanupEvents: [],
   };
   const deps = {
+    // Offline panel fixture only. Production allocation is exercised below by
+    // removing this dependency; real GPU authority is never manufactured here.
+    allocation: { assertReady: async () => { state.allocationChecks += 1; } },
     origin: ORIGIN,
     outputStorageBucket: "private-test",
     warmth,
@@ -446,6 +449,20 @@ section("failure classification");
 
 section("ownership");
 {
+  const unconfigured = harness();
+  delete unconfigured.deps.allocation;
+  const unavailable = await handleVoicePreviewPanel({ ...PREVIEW }, unconfigured.deps);
+  check("missing allocation returns the actual platform refusal",
+    unavailable.kind === "json" && unavailable.status === 503 &&
+      unavailable.body.error === "voice_allocation_not_configured", JSON.stringify(unavailable.body));
+  check("missing allocation reads no private reference and touches no broker or provider",
+    unconfigured.state.reads === 0 && unconfigured.state.healthFetches.length === 0 &&
+      unconfigured.provider.calls.length === 0 && unconfigured.state.protections === 0);
+  const unavailableStatus = await handleVoicePreviewPanel({ op: "status" }, unconfigured.deps);
+  check("status also refuses missing allocation without broker work",
+    unavailableStatus.status === 503 && unavailableStatus.body.error === "voice_allocation_not_configured" &&
+      unconfigured.state.healthFetches.length === 0);
+
   const intruder = harness({ callerId: INTRUDER });
   const refused = await handleVoicePreviewPanel({ ...PREVIEW }, intruder.deps);
   check("a caller who does not own the replica is refused",
@@ -547,6 +564,8 @@ section("cold start");
   const warm = harness({ provider: warmProvider, warmth: cold.warmth });
   const third = await handleVoicePreviewPanel({ ...PREVIEW }, warm.deps);
   check("once warm the same request returns audio", third.kind === "audio", JSON.stringify(third.body || {}));
+  check("the warm fixture passes allocation admission before protected audio",
+    warm.state.allocationChecks === 1 && warm.state.protections === 1);
   check("the warm path waits for the synthesis rather than dispatching it", warmProvider.calls.length === 1);
   check("the audio is a RIFF/WAVE container",
     third.body.subarray(0, 4).toString() === "RIFF" && third.body.subarray(8, 12).toString() === "WAVE");

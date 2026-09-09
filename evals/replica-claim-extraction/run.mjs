@@ -111,8 +111,16 @@ const azure = createAzureFoundryClaimExtractor({
 const azureResult = await azure.extract({ batch });
 ok("Azure adapter uses exact OpenAI v1 route without query or redirect and strict JSON schema",
   azureRequest.url === "https://vyakti.services.ai.azure.com/openai/v1/chat/completions"
-  && azureRequest.init.redirect === "error" && azure.version === "openai-v1:claim-extractor/v2:raw-body/v1"
+  && azureRequest.init.redirect === "error" && azure.version === "openai-v1:claim-extractor/v2:raw-body/v2"
   && azureRequest.body.response_format.type === "json_schema" && azureRequest.body.response_format.json_schema.strict === true);
+ok("Azure-only prompt states canonical key and body bounds omitted from its wire schema",
+  /key must match \^\[a-z\]\[a-z0-9_\]\{1,63\}\$/.test(azureRequest.body.messages[0].content)
+  && /body must be 3 to 500 characters/.test(azureRequest.body.messages[0].content)
+  && /Never truncate or normalize/.test(azureRequest.body.messages[0].content));
+ok("Azure reservation accounting receives the exact extended prompt messages",
+  typeof azure.messagesForBudget === "function"
+  && JSON.stringify(azure.messagesForBudget(batch)) === JSON.stringify(azureRequest.body.messages)
+  && /messagesForBudget\(batch\)/.test(readFileSync(join(ROOT, "api", "_replica-claims.js"), "utf8")));
 assert.deepEqual(azureRequest.body.response_format.json_schema.schema, AZURE_FOUNDRY_CLAIM_WIRE_SCHEMA);
 const wireRemoved=[];
 function compareWire(canonical,wire,path='schema') {
@@ -149,6 +157,13 @@ const invalidWireClaims=[
 const invalidWireResult=await extractAzureFixture(invalidWireClaims);
 ok("actual Azure output still rejects invalid keys, counts, quote bounds, coordinates and entailment",
   invalidWireResult.output.proposals.length===0 && invalidWireResult.output.rejected.length===9);
+const strictKeyResult=await extractAzureFixture([
+  {...validWireClaim,key:'SN1_rate_law'},
+  {...validWireClaim,key:'bad-key'},
+]);
+ok("Azure output strictly rejects uppercase subject labels and non-snake keys",
+  strictKeyResult.output.proposals.length===0
+  && strictKeyResult.output.rejected.filter(code=>code==='invalid_claim_shape').length===2);
 await assert.rejects(()=>extractAzureFixture(Array.from({length:51},()=>validWireClaim)));
 ok("actual Azure output refuses more than fifty claims despite omitted wire count bound",true);
 const repairedWire=await extractAzureFixture([{...validWireClaim,confidence:99,

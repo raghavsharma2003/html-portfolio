@@ -7,6 +7,11 @@ import {
 
 export const AZURE_FOUNDRY_OPENAI_API_VERSION = "openai-v1";
 
+// Azure's wire schema cannot carry these canonical string bounds. Keep the
+// constraints in the local validator, and state them in the Azure-only
+// instruction so the model has the same contract before local validation.
+export const AZURE_CLAIM_SCHEMA_GUIDANCE = "Claim shape guidance: key must match ^[a-z][a-z0-9_]{1,63}$ (lowercase ASCII snake_case); body must be 3 to 500 characters. Never truncate or normalize a key or body; omit a claim that cannot satisfy these bounds.";
+
 // Azure's wire subset excludes these constraints from our canonical schema:
 // https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs
 // Keep the canonical contract and validateExtractionOutput unchanged. The
@@ -24,6 +29,11 @@ function azureWireSchema(value) {
       : azureWireSchema(child)])));
 }
 export const AZURE_FOUNDRY_CLAIM_WIRE_SCHEMA = azureWireSchema(CLAIM_EXTRACTION_JSON_SCHEMA);
+
+function azureExtractionMessages(batch) {
+  const messages = extractionMessages(batch);
+  return [{ ...messages[0], content: `${messages[0].content} ${AZURE_CLAIM_SCHEMA_GUIDANCE}` }, ...messages.slice(1)];
+}
 
 function validateAzureOutput(value, batch) {
   const raw = JSON.parse(value);
@@ -118,8 +128,9 @@ export function createAzureFoundryClaimExtractor(options = {}) {
   return Object.freeze({
     family: "claim-extraction",
     name: "azure-foundry-structured-output",
-    version: `${AZURE_FOUNDRY_OPENAI_API_VERSION}:${CLAIM_EXTRACTION_PROMPT}:raw-body/v1`,
+    version: `${AZURE_FOUNDRY_OPENAI_API_VERSION}:${CLAIM_EXTRACTION_PROMPT}:raw-body/v2`,
     model,
+    messagesForBudget: azureExtractionMessages,
     billing: Object.freeze({ meter: "azure_foundry_tokens", max_output_tokens: 4_000 }),
     async extract({ batch, signal }) {
       const auth = await authorization(options);
@@ -131,7 +142,7 @@ export function createAzureFoundryClaimExtractor(options = {}) {
           headers: { "Content-Type": "application/json", ...auth },
           body: JSON.stringify({
             model,
-            messages: extractionMessages(batch),
+            messages: azureExtractionMessages(batch),
             temperature: 0,
             max_tokens: 4_000,
             response_format: {

@@ -17568,6 +17568,24 @@
       "kind": "rejection",
       "title": "Default-disabled lifecycle source is not voice readiness",
       "at": "2026-09-09"
+    },
+    {
+      "id": "combined198-working-repair-union",
+      "kind": "decision",
+      "title": "Keep reviewed release repairs in a new working candidate",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "combined198-source-assembly",
+      "kind": "measurement",
+      "title": "Disjoint source patches assembled without dependency mutations",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "combined198-no-premature-release",
+      "kind": "rejection",
+      "title": "Working source union is not final release acceptance",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

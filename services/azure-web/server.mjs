@@ -1,4 +1,4 @@
-import { createServer } from 'node:http';
+import { createServer, IncomingMessage } from 'node:http';
 import { readFile, readdir, realpath, lstat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { resolve, join, extname, sep } from 'node:path';
@@ -15,6 +15,24 @@ export function publicAsset(path) {
     && !/(?:^|\/)private(?:\/|\.)/i.test(path) && Boolean(types[extname(path).toLowerCase()]);
 }
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+const requestCancellation = new WeakMap();
+function cancellationFor(req) {
+  let state = requestCancellation.get(req);
+  if (!state) { state = { controller: new AbortController() }; requestCancellation.set(req, state); }
+  return state;
+}
+// Recent Node 24 releases expose a getter-only platform signal. Keep the
+// native stream and combine its cancellation with our response/deadline scope.
+class AzureIncomingMessage extends IncomingMessage {
+  get signal() {
+    const state = cancellationFor(this);
+    if (!state.signal) {
+      const nativeSignal = super.signal;
+      state.signal = nativeSignal ? AbortSignal.any([nativeSignal, state.controller.signal]) : state.controller.signal;
+    }
+    return state.signal;
+  }
+}
 async function boundedFile(root, path) {
   const target = resolve(root, path);
   if (!target.startsWith(root + sep)) throw new Error('private_file');
@@ -55,10 +73,9 @@ export async function createWebServer({ root, manifest, config, loadHandler, tru
   const names = new Set((await readdir(apiRoot)).filter(n => /^[a-z][a-z0-9-]*\.js$/.test(n)));
   if ([...names].some(name=>!runtimePaths.has(`api/${name}`))) throw new Error('azure_web_uncommitted_handler');
   const loader = loadHandler || (async name => import(pathToFileURL(await boundedFile(apiRoot, name)).href));
-  const server = createServer(async (req, res) => {
+  const server = createServer({ IncomingMessage: AzureIncomingMessage }, async (req, res) => {
     let deadline;
-    const cancellation = new AbortController();
-    req.signal = cancellation.signal;
+    const cancellation = cancellationFor(req).controller;
     req.once('aborted', () => cancellation.abort(new Error('client_aborted')));
     res.once('close', () => { if (!res.writableFinished) cancellation.abort(new Error('client_closed')); });
     try {

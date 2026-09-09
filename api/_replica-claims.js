@@ -412,7 +412,9 @@ export async function extractOwnedClaims(db, ownerUserId, id, extractor, signal)
       operation: "claim_extraction",
       requestKey: run.run_id,
       adapter: extractor,
-      messages: extractionMessages(batch),
+      messages: typeof extractor.messagesForBudget === "function"
+        ? extractor.messagesForBudget(batch)
+        : extractionMessages(batch),
     });
     if (reservation) {
       // A rejected/closed database call does not prove the UPDATE failed to

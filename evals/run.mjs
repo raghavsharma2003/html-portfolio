@@ -17,6 +17,7 @@
 // need which treatment and why. This file stays the registry plus the
 // driver: no suite-classification reasoning belongs here twice.
 import { execSync } from "node:child_process";
+import { exitWithFlushedOutput } from "./runner-output.mjs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { PRE_POOL_SUITES, PORT_LANE_SUITES, pickWorkerCount, runPool, runSuiteFile, createBrowserBudget } from "./runner-lib.mjs";
@@ -2970,6 +2971,7 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, ~1s.
   "registry-runner": "registry-runner/run.mjs",
+  "runner-output": "runner-output.mjs.test.mjs",
   // WS-R129 ("quiet hours on every channel"). `api/_quiet-hours.js`'s own
   // shared fragment (`quietHoursOkSql`/`quietHoursOkForFollowerSql`), and a
   // static scan proving it is actually spliced into every named proactive
@@ -3055,11 +3057,11 @@ if (pick) {
   // pool when there is exactly one suite.
   if (!(pick in suites)) {
     console.error(`no such suite: ${pick}`);
-    process.exit(1);
+    await exitWithFlushedOutput(1);
   }
   const r = await runSuiteFile(pick, join(HERE, suites[pick]), { cwd: ROOT });
   process.stdout.write(r.output);
-  process.exit(r.ok ? 0 : 1);
+  await exitWithFlushedOutput(r.ok ? 0 : 1);
 }
 
 if (serial) {
@@ -3077,7 +3079,7 @@ if (serial) {
     }
   }
   if (failedSuites.length) console.error(`\nfailed suites: ${failedSuites.join(", ")}`);
-  process.exit(failed ? 1 : 0);
+  await exitWithFlushedOutput(failed ? 1 : 0);
 }
 
 // Parallel default. Three groups, in this order:
@@ -3106,7 +3108,7 @@ if (preEntries.length !== PRE_POOL_SUITES.length || portEntries.length !== PORT_
       `PRE_POOL_SUITES matched ${preEntries.length}/${PRE_POOL_SUITES.length}, ` +
       `PORT_LANE_SUITES matched ${portEntries.length}/${PORT_LANE_SUITES.length}`,
   );
-  process.exit(1);
+  await exitWithFlushedOutput(1);
 }
 
 const resultByName = new Map();
@@ -3143,4 +3145,4 @@ for (const [name] of Object.entries(suites)) {
   }
 }
 if (failedSuites.length) console.error(`\nfailed suites: ${failedSuites.join(", ")}`);
-process.exit(failed ? 1 : 0);
+await exitWithFlushedOutput(failed ? 1 : 0);
