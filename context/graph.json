@@ -17676,6 +17676,24 @@
       "kind": "rejection",
       "title": "Keep pending UI and correction changes outside working checkpoint",
       "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease202-private-focus-refresh-diagnostics",
+      "kind": "decision",
+      "title": "Import approved private draft focus repair and refresh diagnostics",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease202-focus-diagnostic-parity",
+      "kind": "measurement",
+      "title": "Two reviewed source files match incoming bytes",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease202-refresh-unresolved",
+      "kind": "rejection",
+      "title": "Refresh diagnostics are not a refresh defect fix",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

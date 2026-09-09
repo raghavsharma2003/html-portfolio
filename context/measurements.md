@@ -17747,3 +17747,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease202-comparison-source-parity` (2026-09-09)
 
 2026-09-09 n=2 imported paths,6 additions/2 deletions. Exact LF bytes match be171358; author reported baseline3-versus0 held HTTP and34 fixed mounted controls. Integration did not rerun browser, tests, build, dependency installation, SQL or cloud.
+
+
+## `postrelease202-focus-diagnostic-parity` (2026-09-09)
+
+2026-09-09 n=2 patches/2files applied without conflict; LF-normalized bytes identical to reviewed input heads. Source assembly only, with context and diff checks. No mounted/runtime/fullgate/npm/SQL/cloud execution.

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import PrivateTeachingRefinement from "./PrivateTeachingRefinement";
 import { ReplicaApiError } from "./replicaApi";
 import type { ReplicaLifecycle } from "./types";
@@ -9,26 +9,18 @@ import "./private-text-rehearsal.css";
 // An explicit action may replace its focused control. Recover only that lost
 // focus; later input/focus movement permanently cancels this one-shot intent.
 function useActionFocus() {
-  type Intent = { origin: HTMLElement; target?: () => HTMLElement | null; dispose: () => void };
+  type Intent = { origin: HTMLElement; target?: () => HTMLElement | null; frame: number | null; dispose: () => void };
   const pending = useRef<Intent | null>(null);
   const cancel = () => { pending.current?.dispose(); pending.current = null; };
   useEffect(() => cancel, []);
-  useLayoutEffect(() => {
-    const intent = pending.current;
-    if (!intent?.target) return;
-    cancel();
-    if (document.activeElement === document.body && (!intent.origin.isConnected || intent.origin.matches(":disabled"))) {
-      const target = intent.target();
-      if (target?.isConnected) target.focus();
-    }
-  });
   return (container: HTMLElement) => {
     cancel();
     const origin = document.activeElement;
     if (!(origin instanceof HTMLElement) || !container.contains(origin)) return { finish: (_target: () => HTMLElement | null) => {}, cancel: () => {} };
     const moved = () => cancel();
     const focused = (event: FocusEvent) => { if (event.target !== origin && event.target !== document.body) cancel(); };
-    const intent: Intent = { origin, dispose: () => {
+    const intent: Intent = { origin, frame: null, dispose: () => {
+      if (intent.frame !== null) cancelAnimationFrame(intent.frame);
       document.removeEventListener("pointerdown", moved, true);
       document.removeEventListener("keydown", moved, true);
       document.removeEventListener("input", moved, true);
@@ -39,7 +31,18 @@ function useActionFocus() {
     document.addEventListener("keydown", moved, true);
     document.addEventListener("input", moved, true);
     document.addEventListener("focusin", focused, true);
-    return { finish: (target: () => HTMLElement | null) => { if (pending.current === intent) intent.target = target; }, cancel: () => { if (pending.current === intent) cancel(); } };
+    return { finish: (target: () => HTMLElement | null) => {
+      if (pending.current !== intent) return;
+      intent.target = target;
+      intent.frame = requestAnimationFrame(() => {
+        if (pending.current !== intent) return;
+        cancel();
+        if (document.activeElement === document.body && (!intent.origin.isConnected || intent.origin.matches(":disabled"))) {
+          const next = intent.target?.();
+          if (next?.isConnected) next.focus();
+        }
+      });
+    }, cancel: () => { if (pending.current === intent) cancel(); } };
   };
 }
 

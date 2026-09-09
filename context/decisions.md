@@ -23958,3 +23958,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease202-comparison-reset` (2026-09-09)
 
 2026-09-09: Root approved be171358 two-file fix after baseline held-HTTP repro and34 mounted mobile/desktop controls. Import exact source and fixture into working202. Reverse if refresh retains stale authorized choices or fails current selection recovery. Preserve frozen200.
+
+
+## `postrelease202-private-focus-refresh-diagnostics` (2026-09-09)
+
+2026-09-09: Root reviewed08e2bbac private draft save focus and a85f2f8b refresh diagnostic eval. Apply only these two files to working202, preserving previous source and frozen200. Reverse focus change if review shows wrong focus target or inaccessible save interaction; diagnostics must not relax acceptance.

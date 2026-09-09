@@ -17745,3 +17745,8 @@ Root review found defects in correction8b4d; author repairs remain pending. Do n
 ## `postrelease202-other-ui-correction-hold` (2026-09-09)
 
 Two other UI diagnoses remain active; correctiona442 awaits SQL and browser evidence. Do not freeze final or incorporate pending patches merely because comparison reset is approved.
+
+
+## `postrelease202-refresh-unresolved` (2026-09-09)
+
+a85f2f8b adds diagnostic barriers only; do not claim the refresh defect resolved. Correction UI successor remains excluded pending mounted evidence/root admission. Keep this a working checkpoint, not final product acceptance.
