@@ -17742,3 +17742,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease202-six-path-source-parity` (2026-09-09)
 
 2026-09-09 n=2 patches,6 code/eval/generated paths applied without overlap; exact incoming LF-normalized bytes verified. Root reports actual Hindi201 success and compiler source24/generated25 controls passed. Integration ran no new runtime tests, deps/build/fullgate/cloud/SQL.
+
+
+## `postrelease202-comparison-source-parity` (2026-09-09)
+
+2026-09-09 n=2 imported paths,6 additions/2 deletions. Exact LF bytes match be171358; author reported baseline3-versus0 held HTTP and34 fixed mounted controls. Integration did not rerun browser, tests, build, dependency installation, SQL or cloud.

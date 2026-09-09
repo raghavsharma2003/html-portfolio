@@ -23953,3 +23953,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease202-hindi-memory-union` (2026-09-09)
 
 2026-09-09: Root approved5f60a8ad Unicode mark validation and94f3af13 int8 memory compiler binding with generated engine. Import into isolated release200 successor; preserve release200 and exclude correction8b4d pending author repair/review. Reverse on combined proof regression or source mismatch.
+
+
+## `postrelease202-comparison-reset` (2026-09-09)
+
+2026-09-09: Root approved be171358 two-file fix after baseline held-HTTP repro and34 mounted mobile/desktop controls. Import exact source and fixture into working202. Reverse if refresh retains stale authorized choices or fails current selection recovery. Preserve frozen200.

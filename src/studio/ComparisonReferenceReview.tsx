@@ -64,7 +64,11 @@ export default function ComparisonReferenceReview({token,ownerUserId,replicaId,e
   const value=await writeComparisonReference(token,replicaId,saved.id,{op:"withdraw"},controller.current.signal);if(!current(ticket))return;
   setReference(value);if(value.state!=="revoked")throw Error("withdraw_unconfirmed");persist({...saved,withdrawing:false});onSelectionChanged?.();
  },true);}
- async function startAgain(){if(!terminal)return;await run(async()=>{persist(null);setReference(null);clearAudio();await refresh();});}
+ async function startAgain(){if(!terminal)return;await run(async()=>{
+  // A new review never inherits the previous choice or its permissions while
+  // the fresh options request is pending (or if that request fails).
+  setOptions(null);setSelected("");setChecks({});persist(null);setReference(null);clearAudio();await refresh();
+ });}
  return <section className="cvj-comparison-reference" aria-labelledby="comparison-reference-title">
   <details onToggle={event=>setPreparationOpen(event.currentTarget.open)}><summary>Add a comparison recording</summary>{preparationOpen?<ComparisonPreparation key={JSON.stringify([ownerUserId,token,replicaId])} token={token} ownerUserId={ownerUserId} replicaId={replicaId} onAuthError={onAuthError} onPrepared={()=>{void run(refresh);}} onWithdrawn={()=>{onSelectionChanged?.();void run(refresh);}}/>:null}</details>
   <h2 id="comparison-reference-title">Your comparison recording</h2>

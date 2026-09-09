@@ -17740,3 +17740,8 @@ Frozen198 remains intact. This successor carries only the approved two-file nati
 ## `postrelease202-no-unreviewed-correction` (2026-09-09)
 
 Root review found defects in correction8b4d; author repairs remain pending. Do not freeze final release or infer correction inclusion from the approved independent Hindi/compiler changes. No foreign graph replacement or shared dependency mutation.
+
+
+## `postrelease202-other-ui-correction-hold` (2026-09-09)
+
+Two other UI diagnoses remain active; correctiona442 awaits SQL and browser evidence. Do not freeze final or incorporate pending patches merely because comparison reset is approved.
