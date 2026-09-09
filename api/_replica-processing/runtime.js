@@ -275,6 +275,7 @@ export async function runNextProcessingJob(options) {
     leaseMs: options.leaseMs || 600_000,
     token: options.leaseToken,
     preferredSourceId: options.preferredSourceId,
+    sourceScope: options.sourceScope,
   });
   if (!leased) return Object.freeze({ outcome: "idle" });
   const writtenObjects = [];
@@ -284,7 +285,8 @@ export async function runNextProcessingJob(options) {
     const context = await loadLeasedProcessingContext(options.db, leased.job);
     assertProcessingPurpose(context.source, leased.job.step);
     const preparation=isComparisonSource(context.source)?await requireCurrentComparisonPreparation(options.db,context.source):null;
-    const guard=async()=>{if(preparation)await requireCurrentComparisonPreparation(options.db,context.source);};
+    const guard=async()=>{if(preparation)await requireCurrentComparisonPreparation(options.db,context.source);await ordinaryGpu?.beforePrivateRead();};
+    const ordinaryGpu=!preparation&&options.processingAllocation?await options.processingAllocation.forStage({leased,source:context.source}):null;
     const comparison=preparation?createComparisonDispatch({db:options.db,leased,source:context.source,preparation,meter:options.comparisonMeter}):null;
     output = await executeWithLeaseHeartbeat(options, leased, (signal) => executeProcessingJob({
       job: leased.job,
@@ -297,6 +299,7 @@ export async function runNextProcessingJob(options) {
       resolveInput: options.resolveInput?async(...args)=>{await guard();return options.resolveInput(...args);}:undefined,
       withMaterializedAudio: options.withMaterializedAudio?async(...args)=>{await guard();return options.withMaterializedAudio(...args);}:undefined,
       comparison,
+      ordinaryGpu,
       spendDb: options.db,
       budgetEnv: options.budgetEnv,
       maxAttempts: options.maxAttempts || 5,

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { buildVoiceGenomeDraft } from "./_replica-processing/builders.js";
 import { loadAcceptedVoiceGenomeInput } from "./_replica-review.js";
+import { assertProcessingSourceScope } from "./_replica-processing/source-scope.js";
 
 export const VOICE_GENOME_BUILDER_VERSION = "voice-genome-builder/v1";
 const MAX_ATTEMPTS = 5;
@@ -35,15 +36,17 @@ export async function leaseNextVoiceGenomeBuild(db, options = {}) {
   const leaseToken = options.leaseToken || randomBytes(32).toString("base64url");
   const leaseHash = modelBuildLeaseHash(leaseToken);
   const leaseSeconds = Math.max(60, Math.min(600, Number(options.leaseSeconds || 300)));
+  const sourceScope = assertProcessingSourceScope(options.sourceScope);
   const rows = await db(
     `with candidate as (
        select b.build_id,
                case when b.state in ('leased','building') then 'lease_expired' else b.failure_code end prior_failure,
-               (select i.candidate_source_id
-                  from vy_replica_voice_build_intent i
-                 where i.build_id=b.build_id and i.replica_id=b.replica_id
-                   and i.owner_user_id=b.owner_user_id and i.state='queued'
-                 order by i.created_at,i.intent_id limit 1) candidate_source_id
+                (select i.candidate_source_id
+                   from vy_replica_voice_build_intent i
+                  where i.build_id=b.build_id and i.replica_id=b.replica_id
+                    and i.owner_user_id=b.owner_user_id and i.state='queued'
+                    and ($4::uuid is null or (i.owner_user_id=$4::uuid and i.replica_id=$5::uuid and i.candidate_source_id=$6::uuid))
+                  order by i.created_at,i.intent_id limit 1) candidate_source_id
          from vy_replica_model_build b
          join vy_replica r on r.replica_id=b.replica_id and r.owner_user_id=b.owner_user_id
         where b.build_kind='voice_genome' and b.attempt<$3::int4
@@ -58,9 +61,16 @@ export async function leaseNextVoiceGenomeBuild(db, options = {}) {
           and exists (select 1 from vy_replica_consent c where c.replica_id=r.replica_id
             and c.owner_user_id=r.owner_user_id and c.scope='training' and c.policy_version=r.policy_version and c.revoked_at is null
             and (c.expires_at is null or c.expires_at>now()))
-          and exists (select 1 from vy_replica_consent c where c.replica_id=r.replica_id
+           and exists (select 1 from vy_replica_consent c where c.replica_id=r.replica_id
             and c.owner_user_id=r.owner_user_id and c.scope='inference' and c.policy_version=r.policy_version and c.revoked_at is null
             and (c.expires_at is null or c.expires_at>now()))
+           and ($4::uuid is null or exists (
+             select 1 from vy_replica_voice_build_intent scoped_intent
+              where scoped_intent.build_id=b.build_id and scoped_intent.state='queued'
+                and scoped_intent.replica_id=b.replica_id and scoped_intent.owner_user_id=b.owner_user_id
+                and scoped_intent.replica_id=$5::uuid
+                and scoped_intent.owner_user_id=$4::uuid and scoped_intent.candidate_source_id=$6::uuid
+           ))
         order by b.next_attempt_at,b.created_at for update of b skip locked limit 1
      ), leased as (
        update vy_replica_model_build b set state='leased',attempt=b.attempt+1,
@@ -70,7 +80,8 @@ export async function leaseNextVoiceGenomeBuild(db, options = {}) {
        returning b.*
       ) select leased.*,candidate.candidate_source_id
           from leased join candidate on candidate.build_id=leased.build_id`,
-    [leaseHash, leaseSeconds, MAX_ATTEMPTS],
+    [leaseHash, leaseSeconds, MAX_ATTEMPTS,
+      sourceScope?.ownerUserId || null, sourceScope?.replicaId || null, sourceScope?.sourceId || null],
   );
   return leaseRow(rows[0], leaseToken);
 }
@@ -274,11 +285,12 @@ export async function buildLeasedVoiceGenome(db, lease) {
 }
 
 export async function runVoiceGenomeBuildSweep({ db, maxJobs = 2, lease = leaseNextVoiceGenomeBuild,
-  build = buildLeasedVoiceGenome, retry = retryVoiceGenomeBuild } = {}) {
+  build = buildLeasedVoiceGenome, retry = retryVoiceGenomeBuild, sourceScope = null } = {}) {
   if (typeof db !== "function") fail("model_build_db_required", 500);
+  const checkedScope = assertProcessingSourceScope(sourceScope);
   const summary = { leased: 0, built: 0, retried: 0, failed: 0 };
   for (let index = 0; index < Math.max(1, Math.min(5, Number(maxJobs || 2))); index++) {
-    const claim = await lease(db);
+    const claim = checkedScope ? await lease(db, { sourceScope: checkedScope }) : await lease(db);
     if (!claim) break;
     summary.leased++;
     try {

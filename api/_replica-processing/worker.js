@@ -478,7 +478,10 @@ export async function executeProcessingJob(input) {
   let reservation = null;
   let providerStarted = false;
   try {
-    let billing=input.comparison?.billing;
+    let billing=input.comparison?.billing || input.ordinaryGpu;
+    if (source.capture_mode==='upload' && !isComparisonSource(source) && ['diarize','separate','enhance','voice_quality'].includes(job.step) && !billing) {
+      throw Object.assign(new Error('processing_gpu_admission_required'), {code:'processing_gpu_admission_required',retryable:false});
+    }
     if(isComparisonSource(source)&&!input.comparison)throw Object.assign(Error('comparison_execution_authority_required'),{code:'comparison_execution_authority_required'});
     if(input.comparison)await input.comparison.beforeStage();
     if (adapter.billing?.meter === "azure_speech_audio_ms") {

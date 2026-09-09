@@ -154,10 +154,11 @@ async function privateInputs(resolver, source, inputs, config, signal) {
 // request can actually be served.
 //
 // The probe's body is never read. This is a timing gate, not evidence.
-async function awaitReady(config, fetchImpl, signal) {
+async function awaitReady(config, fetchImpl, signal, billing) {
   const deadline = Date.now() + config.readyTimeoutMs;
   let last = "none";
   while (Date.now() < deadline) {
+    await billing?.beforeProviderPoll?.();
     try {
       const probe = await fetchImpl(`${config.origin}/healthz`, {
         redirect: "error",
@@ -177,6 +178,9 @@ async function awaitReady(config, fetchImpl, signal) {
 }
 
 async function remote(config, operation, inputs, fetchImpl, signal, extra = {}, billing = null) {
+  billing?.assertProviderOrigin?.(config.origin);
+  const allocationSignal = billing?.deadlineSignal?.();
+  if (allocationSignal) signal = signal ? AbortSignal.any([signal, allocationSignal]) : allocationSignal;
   const path = "/v1/analyze";
   const payload = {
     operation,
@@ -192,7 +196,8 @@ async function remote(config, operation, inputs, fetchImpl, signal, extra = {}, 
   const body = Buffer.from(canonicalJson(payload));
   const bodyHash = sha256Hex(body);
   await billing?.beforeProviderRequest?.({operation,requestSha256:bodyHash});
-  await awaitReady(config, fetchImpl, signal);
+  await awaitReady(config, fetchImpl, signal, billing);
+  await billing?.beforeProviderPoll?.();
   const timestamp = new Date().toISOString();
   const nonce = randomBytes(18).toString("base64url");
   let response;
@@ -349,6 +354,7 @@ export function createAzureVoiceEvidenceAdapters(options = {}) {
   if (typeof fetchImpl !== "function") fail("voice_evidence_fetch_unavailable");
   const config = azureVoiceEvidenceConfig(options.env || process.env);
   const invoke = async (operation, request) => {
+    request.billing?.assertProviderOrigin?.(config.origin);
     await request.billing?.beforePrivateRead?.();
     const inputs = await privateInputs(options.resolveInput, request.source, request.inputs, config, request.signal);
     return { value: await remote(config, operation, inputs, fetchImpl, request.signal,{},request.billing), inputs };

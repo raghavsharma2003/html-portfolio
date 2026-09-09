@@ -461,6 +461,8 @@ const unreachable = [...ownerOnly]
   // 156 activation snapshots cascade from their owner replica, candidate and
   // qualification. Erasing snapshots must retain the capability's required
   // binding marker; candidate runtime then refuses instead of falling back.
+  // 161 ordinary processing authority cascades from owned source/replica.
+  // Hashed infrastructure lifecycle/child evidence and monetary holds survive erasure.
   // 158 voice allocation authority/children cascade from owned source/replica.
   // Content-free app lifecycle/cost windows and resource-release receipts survive for accounting.
   // Releasing resource exclusion never removes owner erasure reach or monetary holds.
