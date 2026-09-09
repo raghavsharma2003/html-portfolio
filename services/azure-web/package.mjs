@@ -49,7 +49,7 @@ export function assembleRuntime(root, destination, release) {
   root = resolve(root); destination = resolve(destination);
   if (existsSync(destination)) throw new Error('azure_web_runtime_must_be_new');
   const dist = join(root,'dist'), assets = walk(dist).filter(publicAsset);
-  const runtime = ['package.json','package-lock.json','vercel.json','scripts/write-config.mjs','scripts/check-copy.mjs','scripts/roomsVocabAllowlist.mjs','scripts/copy-room-scope.mjs','scripts/azure-only-fetch.mjs','evals/dbattery/prosody-baseline-log.json',
+  const runtime = ['services/azure-voice-app/controller.mjs','scripts/azure-voice-supervisor53.mjs','package.json','package-lock.json','vercel.json','scripts/write-config.mjs','scripts/check-copy.mjs','scripts/roomsVocabAllowlist.mjs','scripts/copy-room-scope.mjs','scripts/azure-only-fetch.mjs','evals/dbattery/prosody-baseline-log.json',
     ...walk(join(root,'api')).filter(p=>!privatePath(p)).map(p=>`api/${p}`),
     ...['routing.mjs','server.mjs','entrypoint.mjs','cron-runner.mjs'].map(p=>`services/azure-web/${p}`),
     ...assets.map(p=>`dist/${p}`)];

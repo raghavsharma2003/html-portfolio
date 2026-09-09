@@ -9,9 +9,38 @@ import {
   OPEN_CHATTERBOX_BASE_PACK_COMMITMENT,
   OPEN_CHATTERBOX_HINDI_PACK_COMMITMENT,
   OPEN_CHATTERBOX_MODEL_COMMITMENT,
-  createOpenChatterboxPreviewProvider,
+  createOpenChatterboxPreviewProvider as realCreateOpenChatterboxPreviewProvider,
   openChatterboxConfig,
 } from "../../api/_voice/providers/open-chatterbox-preview.js";
+// Synthetic whole-window transport controls; never production authority.
+function createOpenChatterboxPreviewProvider(options) {
+  const {statusFetchImpl, fetchImpl, ...rest} = options;
+  let activeOperations = null;
+  return realCreateOpenChatterboxPreviewProvider({...rest,
+    allocation: {assertReady: async () => {}, runTransaction: async (operations, work) => {
+      assert.equal(activeOperations, null);
+      assert.equal(operations.length, 31);
+      assert.equal(operations.filter(op => op.operation === 'synthesize').length, 1);
+      activeOperations = operations;
+      const issued = new Set();
+      try { return await work({headers(index) {
+        assert.ok(Number.isInteger(index) && operations[index] && !issued.has(index));
+        issued.add(index);
+        return {'X-Vyakti-Allocation-Window': 'synthetic-window', 'X-Vyakti-Allocation-Child': String(index)};
+      }}); } finally { activeOperations = null; }
+    }},
+    fetchImpl: async (url, init) => {
+      assert.ok(activeOperations, 'each request needs its outer window');
+      const op = activeOperations[Number(init.headers['X-Vyakti-Allocation-Child'])];
+      const status = new URL(url).pathname === '/v1/runtime-status';
+      assert.equal(op.operation, status ? 'status' : 'synthesize');
+      assert.equal(op.body_sha256, digest(init.body));
+      assert.equal(init.headers['X-Vyakti-Allocation-Window'], 'synthetic-window');
+      if (status) return statusFetchImpl ? statusFetchImpl(url, init) : signedRuntimeStatus(url, init).response;
+      return fetchImpl ? fetchImpl(url, init) : signedResponse(url, init).response;
+    },
+  });
+}
 import { voiceLanguageConditioning, voiceScriptMode } from "../../api/_voice/language-conditioning.js";
 import { buildVoiceTextPlan } from "../../api/_voice/hindi-text-frontend.js";
 import { assertVoicePreviewAuthorization } from "../../api/_provenance/contracts.js";
@@ -146,10 +175,15 @@ assert.throws(() => openChatterboxConfig({ AZURE_OPEN_VOICE_ORIGIN: "http://unsa
 assert.throws(() => openChatterboxConfig({ AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: "short" }), /open_voice_hmac_secret_required/);
 ok("configuration requires HTTPS and a 256-bit transport secret", true);
 
+function readinessInput() {
+  const bytes = wav();
+  return {text: 'Private preview.', languageId: 'en', seed: 1,
+    reference: {bytes, sha256: digest(bytes), durationMs: 5000}};
+}
 let runtimeStatusRequest;
 const runtimeStatusProvider = createOpenChatterboxPreviewProvider({
   env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },
-  fetchImpl: async (url, init) => {
+  statusFetchImpl: async (url, init) => {
     const path = new URL(url).pathname;
     const bodyHash = digest(init.body);
     const expected = sign(Buffer.from(SECRET, "hex"), [
@@ -164,34 +198,37 @@ const runtimeStatusProvider = createOpenChatterboxPreviewProvider({
     return signed.response;
   },
 });
-assert.equal(await runtimeStatusProvider.probeRuntimeReadiness(), true);
+await runtimeStatusProvider.synthesizePreview(readinessInput());
 ok("private runtime readiness uses an exact-body signed broker request",
   JSON.stringify(runtimeStatusRequest) === JSON.stringify({ op: "runtime_status" }));
 
+let warmingChecks = 0;
 const warmingStatusProvider = createOpenChatterboxPreviewProvider({
   env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },
-  fetchImpl: async (url, init) => signedRuntimeStatus(url, init, { ready: false }).response,
+  statusFetchImpl: async (url, init) => signedRuntimeStatus(url, init, { ready: ++warmingChecks > 1 }).response,
 });
-assert.equal(await warmingStatusProvider.probeRuntimeReadiness(), false);
-ok("a signed broker warming response is a readiness result, not a transport failure", true);
+// Exercise the real bounded delay; no production timing override.
+await warmingStatusProvider.synthesizePreview(readinessInput());
+assert.equal(warmingChecks, 2);
+ok("signed warming readiness retries inside its one declared window", true);
 
 const tamperedStatusProvider = createOpenChatterboxPreviewProvider({
   env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },
-  fetchImpl: async (url, init) => signedRuntimeStatus(url, init, { tamper: true }).response,
+  statusFetchImpl: async (url, init) => signedRuntimeStatus(url, init, { tamper: true }).response,
 });
-await assert.rejects(tamperedStatusProvider.probeRuntimeReadiness(), /open_voice_response_signature_invalid/);
+await assert.rejects(tamperedStatusProvider.synthesizePreview(readinessInput()), /open_voice_response_signature_invalid/);
 ok("runtime readiness fails closed on a tampered broker response", true);
 
 const statusNetworkFailure = createOpenChatterboxPreviewProvider({
   env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },
-  fetchImpl: async () => { throw new TypeError("network down"); },
+  statusFetchImpl: async () => { throw new TypeError("network down"); },
 });
-await assert.rejects(statusNetworkFailure.probeRuntimeReadiness(), /open_voice_unreachable/);
-ok("a readiness-only network failure remains safely retryable", true);
+await assert.rejects(statusNetworkFailure.synthesizePreview(readinessInput()), /open_voice_unreachable/);
+ok("a readiness network failure rejects its owning synthesis window", true);
 
 const widenedStatusProvider = createOpenChatterboxPreviewProvider({
   env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },
-  fetchImpl: async (url, init) => {
+  statusFetchImpl: async (url, init) => {
     const signed = signedRuntimeStatus(url, init);
     const body = Buffer.from(JSON.stringify({ ready: true, runtime_origin: "private.invalid" }));
     const path = new URL(url).pathname;
@@ -201,8 +238,11 @@ const widenedStatusProvider = createOpenChatterboxPreviewProvider({
     return new Response(body, { status: signed.response.status, headers: { "X-Vyakti-Response-Signature": responseSignature } });
   },
 });
-await assert.rejects(widenedStatusProvider.probeRuntimeReadiness(), /open_voice_runtime_status_invalid/);
+await assert.rejects(widenedStatusProvider.synthesizePreview(readinessInput()), /open_voice_runtime_status_invalid/);
 ok("runtime readiness refuses signed responses that expose anything beyond readiness", true);
+
+await assert.rejects(runtimeStatusProvider.probeRuntimeReadiness(), /voice_allocation_outer_window_required/);
+ok('standalone readiness cannot bypass whole-window admission', true);
 
 const reference = wav();
 let observed;
@@ -614,12 +654,15 @@ ok("the Hindi evaluation arm cannot reuse either production app name",
 ok("the startup probe leaves bounded headroom above the measured cold load",
   (infra.match(/tcpSocket:\s*\{\s*port:\s*8080\s*\}/g) || []).length === 3 &&
   /type:\s*'Startup'[\s\S]{0,500}initialDelaySeconds:\s*45[\s\S]{0,120}periodSeconds:\s*10[\s\S]{0,120}failureThreshold:\s*12/.test(infra));
-ok("a scale-to-zero CPU admission broker protects the private GPU from internet-triggered spend", /resource broker/.test(infra) && /external:\s*true/.test(infra) && /workloadProfileName:\s*'Consumption'/.test(infra) && /OPEN_VOICE_RUNTIME_ORIGIN/.test(infra) && broker.indexOf("body = await _admit(request)") < broker.indexOf("client.post"));
+const synthesisRoute = broker.slice(broker.indexOf("async def synthesize"), broker.indexOf("@app.post(RUNTIME_STATUS_PATH)"));
+ok("a scale-to-zero CPU admission broker protects the private GPU from internet-triggered spend", /resource broker/.test(infra) && /external:\s*true/.test(infra) && /workloadProfileName:\s*'Consumption'/.test(infra) && /OPEN_VOICE_RUNTIME_ORIGIN/.test(infra) && synthesisRoute.indexOf("body, body_hash = await _admit(request)") >= 0 && synthesisRoute.indexOf("await _require_allocation_authority(request, body_hash)") > synthesisRoute.indexOf("await _admit(request)") && synthesisRoute.indexOf("await _require_allocation_authority(request, body_hash)") < synthesisRoute.indexOf("await _bounded_response("));
 const runtimeStatusRoute = broker.slice(broker.indexOf("async def runtime_status"));
 ok("private runtime readiness is brokered only after signed admission",
   /RUNTIME_STATUS_PATH = "\/v1\/runtime-status"/.test(broker) &&
-  runtimeStatusRoute.indexOf("body, _ = await _admit(request)") >= 0 &&
-  runtimeStatusRoute.indexOf("body, _ = await _admit(request)") < runtimeStatusRoute.indexOf("await _runtime_is_ready()") &&
+  runtimeStatusRoute.indexOf("body, body_hash = await _admit(request)") >= 0 &&
+  runtimeStatusRoute.indexOf("body, body_hash = await _admit(request)") < runtimeStatusRoute.indexOf("await _runtime_is_ready(dispatch_deadline)") &&
+  runtimeStatusRoute.indexOf("await _require_allocation_authority(request, body_hash)") > runtimeStatusRoute.indexOf("await _admit(request)") &&
+  runtimeStatusRoute.indexOf("await _require_allocation_authority(request, body_hash)") < runtimeStatusRoute.indexOf("await _runtime_is_ready(dispatch_deadline)") &&
   /request\.url\.path/.test(broker));
 ok("the runtime status route exposes readiness only, not private ingress or synthesis output",
   /value != \{"op": "runtime_status"\}/.test(runtimeStatusRoute) &&
@@ -628,7 +671,7 @@ ok("the runtime status route exposes readiness only, not private ingress or synt
 ok("admission and GPU responses remain end-to-end HMAC bound across cold starts",
   /runtime_response_signature_invalid/.test(broker) && /internal_nonce/.test(broker) &&
   /_internal_headers/.test(broker) && /open_voice_runtime_warming/.test(broker) &&
-  /return _signed_response\(request, response_body, upstream\.status_code\)/.test(broker) &&
+  /return _signed_response\(request, response_body, status\)/.test(broker) &&
   brokerDocker.includes("--no-access-log"));
 ok("preview rows are structurally distinct from qualified runtime generations", /purpose='voice_preview'/.test(migration) && /voice_profile_id is null/.test(migration) && /preview_model_commitment~/.test(migration));
 ok("canonical schema carries the exact preview migration", schema.includes("vy_replica_generation_preview_shape") && schema.includes("vy_replica_generation_preview_artifact_fk"));

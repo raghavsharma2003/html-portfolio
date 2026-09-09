@@ -1,3 +1,4 @@
+import { productionVoiceAllocation } from './allocation-boundary.js';
 // "Preview my voice" — the studio panel's server logic.
 //
 // This is the first surface where an owner interacts with their OWN clone, so
@@ -138,6 +139,8 @@ export async function handleVoicePreviewPanel(body, deps) {
   // It still requires the verified session — the caller reached it through
   // requireUser — but it deliberately reveals nothing replica-specific.
   if (op === "status") {
+    try { await (deps.allocation || productionVoiceAllocation).assertReady(); }
+    catch { return jsonResult(503, { state: 'error', error: 'voice_allocation_not_configured', blocker: 'us', retryable: false }); }
     const warmth = deps.warmth.read(deps.origin, now());
     return jsonResult(200, {
       state: warmth.state,
@@ -252,6 +255,7 @@ export async function handleVoicePreviewPanel(body, deps) {
     // A missing protection service must refuse before any billable wake.
     // Observers and sealed-result readers above need no synthesis adapters.
     await deps.prepare?.();
+    await (deps.allocation || productionVoiceAllocation).assertReady();
     // Wake the CPU broker on the UNAUTHENTICATED health route and sign nothing
     // until it answers 200 — `rejected.md#hmac-skew-shorter-than-cold-start`.
     const health = await probeAdmissionHealth({
@@ -280,7 +284,7 @@ export async function handleVoicePreviewPanel(body, deps) {
     // `warming`. The broker endpoint is HMAC admitted before it touches the
     // internal origin, so this neither exposes the GPU ingress nor lets public
     // traffic wake billable capacity.
-    if (warmth.state !== "warm" && typeof deps.provider.probeRuntimeReadiness === "function") {
+    if (!deps.provider.managesAllocationWindow && warmth.state !== "warm" && typeof deps.provider.probeRuntimeReadiness === "function") {
       const runtimeReady = await deps.provider.probeRuntimeReadiness({ signal: deps.signal });
       if (runtimeReady) {
         deps.warmth.note(deps.origin, "ready", now());
@@ -293,7 +297,7 @@ export async function handleVoicePreviewPanel(body, deps) {
           : warmingResult("runtime_cold", { runtime_status_checked: true });
       }
     }
-    if (warmth.state === "warming") {
+    if (!deps.provider.managesAllocationWindow && warmth.state === "warming") {
       // Somebody's click is already paying for this wake. Charging a second
       // GPU cold start for the same replica would be paying twice for one boot.
       await abortWarmup("voice_preview_wake_in_flight");
@@ -336,7 +340,7 @@ export async function handleVoicePreviewPanel(body, deps) {
     };
 
     let raw;
-    if (warmth.state === "warm") {
+    if (deps.provider.managesAllocationWindow || warmth.state === "warm") {
       raw = await synthesize();
     } else {
       // Cold. This request is the wake. Dispatch it, let it run, and stop

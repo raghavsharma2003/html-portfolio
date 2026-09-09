@@ -17712,3 +17712,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `combined193-actual-v4-eleven-pins` (2026-09-08)
 
 2026-09-09 compared exact source_hashes from claim-spend-ack186/scratchpad/expert-tools/context-claims187-sql-v4-1788910245637-result.json, source85fb3cbf, not older87cd. All11 match raw or EOLnormalizedSHA256. COMBINED193-ACTUALV4-SQL-PINS.json records expected/actual hashes. NoSQLretrieval/rerun/npm/dependencies/browser/build. Prior87cdprefixcheck is supplementary, actualv4receiptpins authoritative.
+
+
+## `combined194-source-parity` (2026-09-09)
+
+2026-09-09 n=36 incoming paths:108 base/incoming/target SHA256 comparisons and36 applied file checks passed. Seven parser186v3 source pins match modulo Git CRLF checkout; race187 packet and parser receipt linkage verified. All11 actual claims187v4 source pins still match. Artifacts COMBINED194-SOURCE-PARITY.json and COMBINED194-VOICE-SQL-PARITY.json. Source parity only; no new runtime or SQL test.

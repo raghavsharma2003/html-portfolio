@@ -23923,3 +23923,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `combined193-source-admission-cleared` (2026-09-08)
 
 2026-09-09 root confirms77approved737a6673 rawbody successor, which is context-only after alreadyintegrated96fee. No additional productdiff. Finalcombined sourceadmission cleared for Linuxpacket preparation; runtime/fullrelease acceptance remains pending. Reverse onlywithactual sourceorproofmismatch.
+
+
+## `combined194-disabled-voice-lifecycle` (2026-09-09)
+
+2026-09-09: Apply approved net c85d voice185 patch to isolated77f successor. Preserve current preview and all incumbent capabilities. Migration158 is source only; voice flags remain absent/false. Reverse if exact source proof pins mismatch or combined gates regress. No provider, media, SQL or cloud operation.

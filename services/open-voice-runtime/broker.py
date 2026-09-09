@@ -112,15 +112,103 @@ async def _admit(request: Request) -> tuple[bytes, str]:
     return body, body_hash
 
 
-async def _runtime_is_ready() -> bool:
+ALLOCATION_PATH = "/api/voice-allocation-admission"
+MAX_ADMISSION_BYTES = 4096
+UUID_PATTERN = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+
+
+def _azure_origin(name: str) -> str:
+    raw = os.getenv(name, "")
+    parsed = urlsplit(raw)
+    if (parsed.scheme != "https" or not parsed.hostname
+            or not parsed.hostname.endswith(".azurecontainerapps.io")
+            or parsed.username or parsed.password or parsed.port
+            or parsed.path not in ("", "/") or parsed.query or parsed.fragment):
+        raise BrokerError("voice_allocation_not_configured", 503)
+    return f"https://{parsed.hostname}"
+
+
+async def _bounded_response(client, method: str, url: str, limit: int, **kwargs):
+    # Bound actual streamed bytes, including chunked responses. No redirect can
+    # cause a second request. Callers must never retry a consumed child.
+    async with client.stream(method, url, follow_redirects=False, **kwargs) as response:
+        declared = response.headers.get("content-length")
+        if declared and (not declared.isdigit() or int(declared) > limit):
+            raise BrokerError("upstream_response_invalid", 503)
+        body = bytearray()
+        async for chunk in response.aiter_bytes():
+            if len(body) + len(chunk) > limit:
+                raise BrokerError("upstream_response_invalid", 503)
+            body.extend(chunk)
+        if not body or 300 <= response.status_code < 400:
+            raise BrokerError("upstream_response_invalid", 503)
+        return response.status_code, response.headers, bytes(body)
+
+
+def _dispatch_deadline(value: str) -> float:
+    # Require an explicit UTC ISO timestamp; reject coercions, NaN and local time.
+    if not isinstance(value, str) or not re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z", value):
+        raise BrokerError("voice_allocation_expired", 503)
     try:
-        response = await app.state.wake_client.get(f"{app.state.runtime_origin}/healthz")
-        return response.status_code == 200 and bool(response.json().get("ready"))
+        deadline = datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except (ValueError, OverflowError) as exc:
+        raise BrokerError("voice_allocation_expired", 503) from exc
+    _check_dispatch_deadline(deadline)
+    return deadline
+
+
+def _check_dispatch_deadline(deadline: float) -> None:
+    remaining = deadline - time.time()
+    if not 0 < remaining <= 420:
+        raise BrokerError("voice_allocation_expired", 503)
+
+
+async def _require_allocation_authority(request: Request, body_hash: str) -> float:
+    origin = _azure_origin("OPEN_VOICE_ALLOCATION_ORIGIN")
+    broker_origin = _azure_origin("OPEN_VOICE_BROKER_ORIGIN")
+    window_id = request.headers.get("x-vyakti-allocation-window", "")
+    child_id = request.headers.get("x-vyakti-allocation-child", "")
+    if not re.fullmatch(UUID_PATTERN, window_id) or not re.fullmatch(UUID_PATTERN, child_id):
+        raise BrokerError("voice_allocation_binding_invalid", 403)
+    operation = "status" if request.url.path == RUNTIME_STATUS_PATH else "synthesize"
+    binding = {"window_id": window_id, "child_id": child_id,
+               "operation": operation, "body_sha256": body_hash}
+    payload = json.dumps({**binding, "broker_origin": broker_origin,
+                          "runtime_origin": app.state.runtime_origin},
+                         sort_keys=True, separators=(",", ":")).encode()
+    headers, nonce = _internal_headers(_sha(payload), ALLOCATION_PATH)
+    try:
+        status, response_headers, body = await _bounded_response(
+            app.state.admission_client, "POST", origin + ALLOCATION_PATH,
+            MAX_ADMISSION_BYTES, content=payload, headers=headers)
+        expected = _signature(app.state.secret, (PROTOCOL, "response", ALLOCATION_PATH,
+                              nonce, str(status), _sha(body)))
+        if status != 200 or not hmac.compare_digest(
+                expected, response_headers.get("x-vyakti-response-signature", "")):
+            raise ValueError("admission rejected")
+        value = json.loads(body)
+        if (not isinstance(value, dict) or value.get("authorized") is not True
+                or set(value) != {"authorized", "dispatch_not_after", *binding}
+                or any(value.get(key) != expected_value for key, expected_value in binding.items())):
+            raise ValueError("admission binding mismatch")
+        return _dispatch_deadline(value["dispatch_not_after"])
+    except Exception as exc:
+        # No raw database/provider error or ambiguous response authorizes GPU IO.
+        raise BrokerError("voice_allocation_admission_denied", 503) from exc
+
+
+async def _runtime_is_ready(dispatch_deadline: float) -> bool:
+    try:
+        _check_dispatch_deadline(dispatch_deadline)
+        status, _, body = await _bounded_response(
+            app.state.wake_client, "GET", f"{app.state.runtime_origin}/healthz", 4096)
+        return status == 200 and json.loads(body).get("ready") is True
     except Exception:
         return False
 
 
-def _internal_headers(body_hash: str) -> tuple[dict[str, str], str]:
+def _internal_headers(body_hash: str, path: str = PATH) -> tuple[dict[str, str], str]:
     timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
     nonce = secrets.token_urlsafe(24)
     return {
@@ -130,7 +218,7 @@ def _internal_headers(body_hash: str) -> tuple[dict[str, str], str]:
         "x-vyakti-nonce": nonce,
         "x-vyakti-content-sha256": body_hash,
         "x-vyakti-signature": _signature(
-            app.state.secret, (PROTOCOL, "POST", PATH, timestamp, nonce, body_hash)
+            app.state.secret, (PROTOCOL, "POST", path, timestamp, nonce, body_hash)
         ),
     }, nonce
 
@@ -146,9 +234,13 @@ async def lifespan(application: FastAPI):
     application.state.runtime_client = httpx.AsyncClient(
         follow_redirects=False, timeout=httpx.Timeout(240.0, connect=10.0)
     )
+    application.state.admission_client = httpx.AsyncClient(
+        follow_redirects=False, timeout=httpx.Timeout(8.0, connect=5.0)
+    )
     application.state.ready = True
     yield
     application.state.ready = False
+    await application.state.admission_client.aclose()
     await application.state.wake_client.aclose()
     await application.state.runtime_client.aclose()
 
@@ -165,19 +257,18 @@ async def health() -> JSONResponse:
 async def synthesize(request: Request) -> Response:
     try:
         body, body_hash = await _admit(request)
-        if not await _runtime_is_ready():
-            raise BrokerError("open_voice_runtime_warming", 503)
+        dispatch_deadline = await _require_allocation_authority(request, body_hash)
         headers, internal_nonce = _internal_headers(body_hash)
-        upstream = await app.state.runtime_client.post(
-            f"{app.state.runtime_origin}{PATH}", content=body, headers=headers
-        )
-        response_body = upstream.content
-        if not response_body or len(response_body) > MAX_RESPONSE_BYTES:
-            raise BrokerError("runtime_response_size_invalid", 503)
-        expected = _signature(app.state.secret, (PROTOCOL, "response", PATH, internal_nonce, str(upstream.status_code), _sha(response_body)))
-        if not hmac.compare_digest(expected, upstream.headers.get("x-vyakti-response-signature", "")):
+        _check_dispatch_deadline(dispatch_deadline)
+        status, response_headers, response_body = await _bounded_response(
+            app.state.runtime_client, "POST", f"{app.state.runtime_origin}{PATH}",
+            MAX_RESPONSE_BYTES, content=body, headers=headers)
+        expected = _signature(app.state.secret, (PROTOCOL, "response", PATH, internal_nonce, str(status), _sha(response_body)))
+        if not hmac.compare_digest(expected, response_headers.get("x-vyakti-response-signature", "")):
             raise BrokerError("runtime_response_signature_invalid", 503)
-        return _signed_response(request, response_body, upstream.status_code)
+        if status != 200:
+            raise BrokerError("open_voice_runtime_failed", 503)
+        return _signed_response(request, response_body, status)
     except BrokerError as error:
         return _signed_error(request, error.code, error.status)
     except Exception:
@@ -193,14 +284,15 @@ async def runtime_status(request: Request) -> Response:
     broker probes the private origin, so it cannot wake billable GPU capacity.
     """
     try:
-        body, _ = await _admit(request)
+        body, body_hash = await _admit(request)
         try:
             value = json.loads(body)
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise BrokerError("runtime_status_request_invalid", 400) from exc
         if value != {"op": "runtime_status"}:
             raise BrokerError("runtime_status_request_invalid", 400)
-        if not await _runtime_is_ready():
+        dispatch_deadline = await _require_allocation_authority(request, body_hash)
+        if not await _runtime_is_ready(dispatch_deadline):
             raise BrokerError("open_voice_runtime_warming", 503)
         ready = json.dumps({"ready": True}, sort_keys=True, separators=(",", ":")).encode()
         return _signed_response(request, ready, 200)

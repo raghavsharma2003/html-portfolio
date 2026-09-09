@@ -17550,6 +17550,24 @@
       "kind": "measurement",
       "title": "All eleven actual v4 source hashes match combined candidate",
       "at": "2026-09-08"
+    },
+    {
+      "id": "combined194-disabled-voice-lifecycle",
+      "kind": "decision",
+      "title": "Integrate the complete reviewed voice lifecycle in a separate release candidate",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "combined194-source-parity",
+      "kind": "measurement",
+      "title": "Voice and claims source pins preserved after integration",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "combined194-no-live-voice-claim",
+      "kind": "rejection",
+      "title": "Default-disabled lifecycle source is not voice readiness",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

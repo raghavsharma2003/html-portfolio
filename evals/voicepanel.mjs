@@ -39,7 +39,7 @@ import {
   createWarmthRegistry,
   probeAdmissionHealth,
 } from "../api/_voice/warmup.js";
-import { handleVoicePreviewPanel, isRetryableVoicePreviewFailure } from "../api/_voice/preview-panel.js";
+import { handleVoicePreviewPanel as realHandleVoicePreviewPanel, isRetryableVoicePreviewFailure } from "../api/_voice/preview-panel.js";
 import { beginOwnedVoicePreview } from "../api/_replica-voice-preview.js";
 import { VOICE_PCM_FORMAT } from "../api/_voice/contracts.js";
 import { buildVoiceTextPlan, voiceTextPlanAudit } from "../api/_voice/hindi-text-frontend.js";
@@ -851,7 +851,7 @@ section("ownership before deployment configuration");
 {
   const route = readFileSync(join(ROOT, "api/voice-preview.js"), "utf8");
   check("the real route defers provider configuration to an accessor",
-    /get provider\(\) \{ return provider \|\|= createOpenChatterboxPreviewProvider\(\); \}/.test(route));
+    /get provider\(\) \{ return provider \|\|= createOpenChatterboxPreviewProvider\(\{ allocation: allocation\(\) \}\); \}/.test(route));
   const intruder = harness({ callerId: INTRUDER });
   let constructions = 0;
   Object.defineProperty(intruder.deps, "provider", { get() {
@@ -874,7 +874,7 @@ section("local protection configuration before runtime wake");
 {
   const route = readFileSync(join(ROOT, "api/voice-preview.js"), "utf8");
   check("actual route prepares both adapters and reuses the protection instance",
-    /prepare: \(\) => \{[\s\S]*?provider \|\|= createOpenChatterboxPreviewProvider\(\);[\s\S]*?createProductionProtectionAdapters\(\{ db: q \}\)/.test(route) &&
+    /prepare: \(\) => \{[\s\S]*?provider \|\|= createOpenChatterboxPreviewProvider\(\{ allocation: allocation\(\) \}\);[\s\S]*?createProductionProtectionAdapters\(\{ db: q \}\)/.test(route) &&
     /protect: \(input\) => protectReplicaStream\(\{[\s\S]*?adapters: protectionAdapters/.test(route));
   const missing = harness({ provider: fakeProvider({ runtimeReady: true }) });
   let prepared = 0;
@@ -904,6 +904,25 @@ section("local protection configuration before runtime wake");
     preparedBeforeHealth && audio.kind === "audio" && ready.provider.calls.length === 1 && ready.state.protections === 1);
 }
 
+section("production allocation refuses before wake");
+{
+  const closed = harness({ provider: fakeProvider({ runtimeReady: true }) });
+  const result = await realHandleVoicePreviewPanel({ ...PREVIEW }, closed.deps);
+  check("missing production allocation refuses preview", result.status === 503);
+  check("missing allocation makes zero broker, runtime, synthesis or reference reads",
+    closed.state.healthFetches.length === 0 && closed.provider.statusChecks.length === 0 &&
+    closed.provider.calls.length === 0 && closed.state.reads === 0);
+  const status = await realHandleVoicePreviewPanel({ op: "status" }, closed.deps);
+  check("status reports platform allocation blocker without any wake",
+    status.status === 503 && status.body.error === "voice_allocation_not_configured" && closed.state.healthFetches.length === 0);
+}
+
 console.log(`\n  ${passed} checks passed, ${failures.length} failed`);
 for (const failure of failures) console.log(`  FAIL  ${failure}`);
 process.exit(failures.length ? 1 : 0);
+
+// Fixture allocation isolates panel control flow, never real GPU authority.
+function handleVoicePreviewPanel(body, deps) {
+ return realHandleVoicePreviewPanel(body, Object.create(deps, {
+   allocation: {value:{ assertReady: async () => {} }} }));
+}

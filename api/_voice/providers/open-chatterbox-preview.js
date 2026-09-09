@@ -1,3 +1,5 @@
+import {setTimeout as delay} from 'node:timers/promises';
+import { productionVoiceAllocation } from '../allocation-boundary.js';
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { probeEnrollmentWav } from "../../_audio/wav.js";
 import { canonicalJson, sha256Hex } from "../../_provenance/contracts.js";
@@ -175,8 +177,7 @@ function byteStream(bytes, size = 11_520) {
   })();
 }
 
-async function remote(config, value, fetchImpl, signal) {
-  const path = "/v1/synthesize";
+function synthesisBody(config, value) {
   const payload = {
     request_id: value.requestId,
     text: value.renderedText,
@@ -206,7 +207,22 @@ async function remote(config, value, fetchImpl, signal) {
       adapter_base64: value.adapter.bytes.toString("base64"),
     } : {}),
   };
-  const body = Buffer.from(canonicalJson(payload));
+  return Buffer.from(canonicalJson(payload));
+}
+
+async function boundedResponseBytes(response, limit) {
+  const reader=response.body?.getReader();
+  if(!reader)fail('open_voice_response_size_invalid');
+  const chunks=[];let size=0;
+  try{for(;;){const{done,value}=await reader.read();if(done)break;size+=value.byteLength;
+    if(size>limit)fail('open_voice_response_size_invalid');chunks.push(Buffer.from(value));}}
+  finally{await reader.cancel().catch(()=>{});}
+  return Buffer.concat(chunks);
+}
+
+async function remote(config, value, fetchImpl, signal) {
+  const path = "/v1/synthesize";
+  const body = synthesisBody(config, value);
   const bodyHash = sha256Hex(body);
   const timestamp = new Date().toISOString();
   const nonce = randomBytes(18).toString("base64url");
@@ -241,7 +257,7 @@ async function remote(config, value, fetchImpl, signal) {
     }
     fail("open_voice_execution_may_continue", 503);
   }
-  const bytes = Buffer.from(await response.arrayBuffer());
+  const bytes = await boundedResponseBytes(response, MAX_RESPONSE_BYTES);
   if (!bytes.length || bytes.length > MAX_RESPONSE_BYTES) fail("open_voice_response_size_invalid");
   const responseHash = sha256Hex(bytes);
   const expected = signature(config.transportSecret, [PROTOCOL, "response", path, nonce, String(response.status), responseHash]);
@@ -369,7 +385,7 @@ async function remoteRuntimeReady(config, fetchImpl, signal) {
     }
     fail(error?.name === "TimeoutError" ? "open_voice_runtime_status_timeout" : "open_voice_unreachable");
   }
-  const bytes = Buffer.from(await response.arrayBuffer());
+  const bytes = await boundedResponseBytes(response, MAX_STATUS_RESPONSE_BYTES);
   if (!bytes.length || bytes.length > MAX_STATUS_RESPONSE_BYTES) fail("open_voice_runtime_status_invalid");
   const expected = signature(config.transportSecret, [
     PROTOCOL, "response", path, nonce, String(response.status), sha256Hex(bytes),
@@ -446,24 +462,42 @@ function combinedResult(input, segments) {
 
 export function createOpenChatterboxPreviewProvider(options = {}) {
   const config = openChatterboxConfig(options.env || process.env);
-  const fetchImpl = options.fetchImpl || fetch;
+  const transport = options.fetchImpl || fetch;
+  const allocation = options.allocation || productionVoiceAllocation;
   return Object.freeze({
     name: PROVIDER_NAME,
     modelCommitment: config.modelCommitment,
     modelArm: config.modelArm,
-    async probeRuntimeReadiness(input = {}) {
-      return remoteRuntimeReady(config, fetchImpl, input.signal);
+    managesAllocationWindow: true,
+    async probeRuntimeReadiness() {
+      // Readiness that can wake capacity belongs inside the synthesis window.
+      throw Object.assign(new Error('voice_allocation_outer_window_required'), {code:'voice_allocation_outer_window_required',status:503});
     },
     async synthesizePreview(raw) {
+      await allocation.assertReady();
       const input = inputValues(raw, config);
-      const segments = [];
-      // Sequential by design. Concurrent forwards duplicate the reference
-      // conditioning tensors on one T4 and turn a short code-switch into an
-      // avoidable out-of-memory race. Segment order is also the audio order.
-      for (const value of input.values) {
-        segments.push(verifiedResult(await remote(config, value, fetchImpl, raw?.signal), value, config));
-      }
-      return combinedResult(input, segments);
+      const statusHash=sha256Hex(Buffer.from(canonicalJson({op:'runtime_status'})));
+      const operations=[...Array.from({length:30},()=>({operation:'status',body_sha256:statusHash})),
+        ...input.values.map(value=>({operation:'synthesize',body_sha256:sha256Hex(synthesisBody(config,value))}))];
+      return allocation.runTransaction(operations,async window=>{
+        let current=0;
+        const scopedFetch=(url,init)=>transport(url,{...init,headers:{...init.headers,...window.headers(current)}});
+        let ready=false;
+        const startupDeadline=Date.now()+300000;
+        const startupSignal=raw?.signal ? AbortSignal.any([raw.signal,AbortSignal.timeout(300000)]) : AbortSignal.timeout(300000);
+        for(current=0;current<30 && Date.now()<startupDeadline;current++){
+          raw?.signal?.throwIfAborted();
+          if(await remoteRuntimeReady(config,scopedFetch,startupSignal)){ready=true;break;}
+          await delay(Math.min(10000,Math.max(0,startupDeadline-Date.now())),undefined,{signal:startupSignal});
+        }
+        if(!ready)fail('voice_allocation_startup_deadline',503);
+        const segments=[];
+        for(let i=0;i<input.values.length;i++){
+          current=30+i;
+          segments.push(verifiedResult(await remote(config,input.values[i],scopedFetch,raw?.signal ? AbortSignal.any([raw.signal,AbortSignal.timeout(120000)]) : AbortSignal.timeout(120000)),input.values[i],config));
+        }
+        return combinedResult(input,segments);
+      },{language_id:raw.languageId,model_arm:config.modelArm,text_sha256:sha256Hex(raw.text),reference_sha256:raw.reference?.sha256});
     },
   });
 }

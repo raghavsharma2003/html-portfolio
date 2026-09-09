@@ -1,3 +1,4 @@
+import { createProductionVoiceAllocation } from './_voice/allocation-runtime.js';
 // POST /api/voice-preview — the studio's "Preview my voice" panel.
 //
 // A thin adapter. Every decision lives in `api/_voice/preview-panel.js`, which
@@ -87,7 +88,7 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ state: "error", error: "POST only" });
   // Per-IP first, so an unauthenticated flood cannot reach Supabase either.
-  // Durable SQL intent admission is now the GPU-money guard. This outer limit
+  // SQL intent admission deduplicates work; allocation authority guards GPU cost. This outer limit
   // only absorbs unauthenticated floods, so it must leave room for several
   // phones behind one household or school NAT to observe their own intents.
   if (!allow(ipOf(req), "voice_preview_panel_ip", 60)) {
@@ -96,7 +97,7 @@ export default async function handler(req, res) {
 
   const aborter = new AbortController();
   req.on?.("aborted", () => aborter.abort(new Error("client_aborted")));
-  const deadline = setTimeout(() => aborter.abort(new Error("voice_preview_timeout")), 240_000);
+  const deadline = setTimeout(() => aborter.abort(new Error("voice_preview_timeout")), 420_000);
   try {
     const user = await requireUser(req);
     const body = req.body || {};
@@ -110,23 +111,31 @@ export default async function handler(req, res) {
     // Resolve deployment configuration only after the SQL ownership fence.
     let provider;
     let protectionAdapters;
+    let startedAuthority;
+    const allocation = () => createProductionVoiceAllocation({ db: q, authority: startedAuthority });
     const result = await handleVoicePreviewPanel(body, {
       origin: process.env.AZURE_OPEN_VOICE_ORIGIN,
+      get allocation() { return allocation(); },
       outputStorageBucket: REPLICA_STORAGE_WRITE_BUCKET,
       warmth: voiceWarmth,
       traceId: `panel_${randomUUID().replaceAll("-", "")}`,
       signal: aborter.signal,
-      get provider() { return provider ||= createOpenChatterboxPreviewProvider(); },
+      get provider() { return provider ||= createOpenChatterboxPreviewProvider({ allocation: allocation() }); },
       prepare: () => {
         // Constructors validate local configuration only. Resolve both before
         // any broker readiness request can wake the GPU for unusable audio.
-        provider ||= createOpenChatterboxPreviewProvider();
+        provider ||= createOpenChatterboxPreviewProvider({ allocation: allocation() });
         protectionAdapters ||= Object.freeze({
           ...createProductionProtectionAdapters({ db: q }),
           ledger: createNeonVoicePreviewLedger(q),
         });
       },
-      authorize: (input) => beginOwnedVoicePreview(q, user.id, input),
+      authorize: async (input) => {
+        const started = await beginOwnedVoicePreview(q, user.id, input);
+        startedAuthority = { intent_id: started.intent?.intentId, intent_attempt: started.intent?.attempt, lease_token_hash: started.intent?.leaseTokenHash, owner_user_id: user.id, replica_id: started.generation?.replica_id,
+          generation_id: started.generation?.generation_id, source_id: started.reference?.sourceId || started.reference?.source_id };
+        return started;
+      },
       markAborted: (generationId, reason) => markVoicePreviewAborted(q, user.id, generationId, reason),
       markFailed: (generationId, error) => markVoicePreviewFailed(q, user.id, generationId, error),
       markWarming: (started, reason) => markVoicePreviewIntentWarming(q, user.id, started, reason),
@@ -235,4 +244,4 @@ export default async function handler(req, res) {
   }
 }
 
-export const config = { maxDuration: 300 };
+export const config = { maxDuration: 480 };

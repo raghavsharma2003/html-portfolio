@@ -7,8 +7,8 @@ const digest=value=>{if(!hash.test(value||''))fail('gpu_commitment_invalid');ret
 const amount=value=>{if(!Number.isSafeInteger(value)||value<=0)fail('gpu_reservation_invalid');return value;};
 
 export const GPU_WINDOW_SQL=Object.freeze({
- reserve:`with budget as materialized (
-  select budget_id from vy_provider_budget where budget_id=$1 and state='active'
+ reserve:`with resource_lock as materialized (select pg_advisory_xact_lock(hashtextextended($3::text,0))), budget as materialized (
+  select budget_id from vy_provider_budget cross join resource_lock where budget_id=$1 and state='active'
    and limit_microusd=$2 and spent_microusd+reserved_microusd+$7<=limit_microusd for update
  ), inserted as (
   insert into vy_gpu_allocation_window(budget_id,resource_sha256,revision_sha256,request_sha256,contract_sha256,provider_request_sha256,reserved_microusd,max_allocation_seconds,accounting_basis,state)
@@ -17,6 +17,19 @@ export const GPU_WINDOW_SQL=Object.freeze({
   update vy_provider_budget b set reserved_microusd=b.reserved_microusd+w.reserved_microusd,updated_at=now()
   from inserted w where b.budget_id=w.budget_id returning b.budget_id
  ) select w.* from inserted w join charged c using(budget_id)`,
+ releaseResource:`with resource_lock as materialized (select pg_advisory_xact_lock(hashtextextended($2::text,0))), current_window as materialized (
+ select w.window_id from vy_gpu_allocation_window w join vy_voice_app_lifecycle l using(window_id) cross join resource_lock
+ where w.window_id=$1::uuid and w.resource_sha256=$2 and w.state in ('in_flight','uncertain','accounting_pending')
+ and l.state='terminal_observed' and l.activation_state in ('not_started','acknowledged')
+ and l.deactivation_state='acknowledged' and l.deactivation_dispatched_at is not null
+ and l.observation=$3::jsonb and l.observation->>'app_id'=$4 and l.observation->>'revision_name'=l.revision_name
+ and l.observation->>'terminal'='true' and l.observation->>'all_replicas_zero'='true'
+ and l.observation->>'all_revisions_inactive'='true' and jsonb_typeof(l.observation->'revisions')='array'
+ and jsonb_array_length(l.observation->'revisions')>0
+ and not exists(select 1 from jsonb_array_elements(l.observation->'revisions') r where r->>'active' is distinct from 'false' or r->>'replicas' is distinct from '0')
+ for update of w,l
+ ) update vy_gpu_allocation_window w set resource_released_at=coalesce(w.resource_released_at,now()),
+ resource_release_sha256=coalesce(w.resource_release_sha256,$5) from current_window c where w.window_id=c.window_id returning w.window_id`,
  existing:`select * from vy_gpu_allocation_window where budget_id=$1 and request_sha256=$2`,
  begin:`update vy_gpu_allocation_window set state='in_flight',begun_at=now()
   where window_id=$1::uuid and budget_id=$2 and request_sha256=$3 and state='reserved' returning *`,
@@ -54,7 +67,7 @@ export function createGpuAllocationMeter({db,budgetId,limitMicrousd,controller}=
  if(typeof db!=='function'||!/^[a-z][a-z0-9_-]{2,63}$/.test(budgetId||''))fail('gpu_budget_configuration_invalid');
  amount(limitMicrousd);
  const requireController=()=>{
-  if(!['azure-finite-allocation-controller/v1','azure-supervised-job-controller/v1'].includes(controller?.kind)||typeof controller.authorizeWindow!=='function')fail('gpu_finite_allocation_unavailable');
+  if(!['azure-finite-allocation-controller/v1','azure-supervised-job-controller/v1','azure-supervised-app-controller/v1'].includes(controller?.kind)||typeof controller.authorizeWindow!=='function')fail('gpu_finite_allocation_unavailable');
  };
  const params=r=>{
   if(!uuid.test(r?.window_id||'')||r.budget_id!==budgetId)fail('gpu_reservation_invalid');
@@ -69,9 +82,9 @@ export function createGpuAllocationMeter({db,budgetId,limitMicrousd,controller}=
    // The content-free key is scoped by work identity without retaining it.
    const key=sha256Hex(canonicalJson({request,preparation:input.preparation_id,job:input.job_id,step:input.step}));
    const grant=await controller.authorizeWindow({request_sha256:key});
-   if(!['azure-finite-allocation/v1','azure-supervised-job/v1'].includes(grant?.kind)||grant.request_sha256!==key)fail('gpu_finite_allocation_invalid');
-   const supervised=grant.kind==='azure-supervised-job/v1';
-   if(supervised!==(controller.kind==='azure-supervised-job-controller/v1'))fail('gpu_accounting_basis_mismatch');
+   if(!['azure-finite-allocation/v1','azure-supervised-job/v1','azure-supervised-app/v1'].includes(grant?.kind)||grant.request_sha256!==key)fail('gpu_finite_allocation_invalid');
+   const supervised=['azure-supervised-job/v1','azure-supervised-app/v1'].includes(grant.kind);
+   if(grant.kind.replace('/v1','-controller/v1')!==controller.kind)fail('gpu_accounting_basis_mismatch');
    const basis=supervised?'planning_estimate':'verified_bound';
    const cost=amount(supervised?grant.reservation_estimate_microusd:grant.upper_bound_microusd),seconds=amount(supervised?grant.planning_allocation_seconds:grant.max_allocation_seconds);
    if(seconds>3600)fail('gpu_window_too_long');
@@ -123,4 +136,15 @@ export async function reconcileGpuAllocation({db,reservation,usageVerifier,evide
  const rows=await db(GPU_WINDOW_SQL.reconcile,[reservation.window_id,reservation.budget_id,digest(reservation.request_sha256),verified.actual_microusd,digest(verified.usage_sha256)]);
  if(rows.length!==1)fail('gpu_reconciliation_refused');
  return {accounting_state:'settled',accounted:true};
+}
+
+// Infrastructure availability is separate from still-held monetary liability.
+export async function releaseObservedGpuResource({db,windowId,appId,observation}){
+ if(!uuid.test(windowId||'')||typeof appId!=='string'||observation?.app_id!==appId||observation?.terminal!==true||
+ observation.all_replicas_zero!==true||observation.all_revisions_inactive!==true||
+ !Array.isArray(observation.revisions)||!observation.revisions.length||observation.revisions.some(row=>row.active!==false||row.replicas!==0))fail('gpu_resource_shutdown_required');
+ const evidence=canonicalJson(observation);
+ const rows=await db(GPU_WINDOW_SQL.releaseResource,[windowId,sha256Hex(appId),evidence,appId,sha256Hex(evidence)]);
+ if(rows.length!==1)fail('gpu_resource_release_refused');
+ return {resource_available:true,accounted:false,monetary_liability:'held'};
 }

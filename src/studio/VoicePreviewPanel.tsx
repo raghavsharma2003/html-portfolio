@@ -339,6 +339,12 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
         onAuthError(cause);
         return;
       }
+      if (cause instanceof ReplicaApiError && /^(voice_allocation_|voice_app_)/.test(String(cause.data?.error || ''))) {
+        clearPersistedIntent(replicaId);
+        setPhase({ kind: 'error', headline: 'Voice preview is not ready yet',
+          detail: cause.data?.error === 'voice_allocation_not_configured' ? 'We are finishing the voice connection. No preview has started.' : 'We need to check this voice attempt before trying again.', canRetry: false });
+        return;
+      }
       const connectionInterrupted = !navigator.onLine || cause instanceof TypeError ||
         cause instanceof DOMException && (cause.name === "TimeoutError" || cause.name === "AbortError") ||
         cause instanceof ReplicaApiError && (cause.status === 429 || cause.status >= 500);

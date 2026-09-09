@@ -123,10 +123,9 @@ export async function requestVoicePanelPreview(token: string, input: {
       language_id: input.languageId,
       ...(input.regenerationKey ? { regeneration_key: input.regenerationKey } : {}),
     }),
-    // The server answers a cold start in about 12 seconds and the warm path in
-    // under 10. 90 s is generous headroom, not a cold-start budget — nothing
-    // here waits out a 161 s GPU boot on an open connection any more.
-    signal: AbortSignal.timeout(90_000),
+    // One admitted allocation owns readiness and synthesis. Do not abandon it
+    // after the legacy90s socket window and silently start another GPU attempt.
+    signal: AbortSignal.timeout(450_000),
   });
 
   if (response.status === 202) {
