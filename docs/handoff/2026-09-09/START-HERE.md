@@ -2,6 +2,8 @@
 
 **Not ready for production. Preserve the full product goal. Do not restart research or mistake an offline test for real quality.**
 
+Read [NEXT-AGENT.md](NEXT-AGENT.md) first for the latest user priorities, exact workspace, and accountable outcome-first work order.
+
 The user asked to prioritize committing and pushing all completed work before their usage limit. New paid experiments were stopped. The intended product is creator-first: **Feed it → Meet it → Deploy it**, an expert's editable knowledge, voice, personality and scoped memory for each person. Azure-only serving; no local Docker. Hindi, Hinglish and English are priorities. Existing safety, consent, AI-disclosure, watermark and explicit human-approval invariants remain binding.
 
 ## Start efficiently
