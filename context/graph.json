@@ -17772,6 +17772,24 @@
       "kind": "rejection",
       "title": "Do not invent a successful terminal status from printed checks",
       "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-memory-classify-ui",
+      "kind": "decision",
+      "title": "Integrate reviewed Account memory classification UI",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-memory-classify-parity",
+      "kind": "measurement",
+      "title": "Five UI files exactly match reviewed final source",
+      "at": "2026-09-09"
+    },
+    {
+      "id": "postrelease204-no-ui-only-feature-acceptance",
+      "kind": "rejection",
+      "title": "Do not claim classification complete before backend admission",
+      "at": "2026-09-09"
     }
   ],
   "edges": [

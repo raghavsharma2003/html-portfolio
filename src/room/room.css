@@ -230,6 +230,14 @@
     overflow-wrap: anywhere;
   }
 
+  .room-account .room-memory-classification {
+    margin-block: var(--space-hair) var(--space-tight);
+  }
+
+  .room-account .room-memory-classification-retry {
+    margin-bottom: var(--space-tight);
+  }
+
   .room-account .room-list textarea {
     box-sizing: border-box;
     width: 100%;

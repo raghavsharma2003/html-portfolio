@@ -464,6 +464,11 @@ const EN = {
     rememberedSave: "Save change",
     rememberedCancel: "Cancel",
     rememberedRetry: "Try again",
+    rememberedClassification: {
+      classified: "Preference saved.",
+      unresolved: "Could not confirm this preference.",
+      retry: "Try again",
+    },
     localeTitle: "Language",
     channelsTitle: "Check-ins",
     channelsNote: "Where a due check-in can reach you.",

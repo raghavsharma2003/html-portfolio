@@ -17777,3 +17777,8 @@ Focused measurement: correction dataset UI n=12 checks passed; correction reopen
 ## `postrelease204-test-source-parity` (2026-09-09)
 
 2026-09-09 n=2 patches/3files match incoming LF bytes. Root reports controlled oldwait8-versus0 failure followed by24checks390/1440 pass with session74524exit0. Action focus reports58passed but launcher exit is null; no captured exit0 claim. Integration ran no runtime/fullgate/cloud/browser.
+
+
+## `postrelease204-memory-classify-parity` (2026-09-09)
+
+2026-09-09 n=5 files, actual commonbase7bfa; LF byte parity verified. Root reports focused8EN/HI passed, initial676 TypeScript passed and copy followup checked. No combined204 TS/browser/fullgate run or dependency mutation during integration. Backend not imported.

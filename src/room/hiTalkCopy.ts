@@ -268,6 +268,11 @@ export const HI_TALK: RoomTalkCopy = {
     rememberedSave: "बदलाव सहेजें",
     rememberedCancel: "रद्द करें",
     rememberedRetry: "फिर से कोशिश करें",
+    rememberedClassification: {
+      classified: "पसंद सहेजी गई।",
+      unresolved: "इस पसंद की पुष्टि नहीं हो सकी।",
+      retry: "फिर कोशिश करें",
+    },
     localeTitle: "भाषा",
     channelsTitle: "चेक-इन",
     channelsNote: "बकाया चेक-इन आप तक कहां पहुंच सकता है।",

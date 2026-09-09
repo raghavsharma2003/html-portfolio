@@ -426,14 +426,31 @@ export interface RoomRememberedThing {
   kind: string;
   name: string;
   created_at: string;
+  communication_classification: RoomMemoryClassification;
 }
+
+export type RoomMemoryClassification =
+  | "classified"
+  | "no_preference"
+  | "unclassified"
+  | "unconfirmed"
+  | "not_applicable";
 
 export const rememberedThings = (session: string, accessToken: string) =>
   post<{ facts: RoomRememberedThing[] }>({ op: "memory_facts", session }, accessToken);
 
 export const correctRememberedThing = (session: string, accessToken: string, factId: string, replacement: string) =>
-  post<{ fact: Pick<RoomRememberedThing, "id" | "body"> }>(
+  post<{
+    fact: Pick<RoomRememberedThing, "id" | "body">;
+    communication_classification: RoomMemoryClassification;
+  }>(
     { op: "memory_correct", session, fact_id: factId, replacement },
+    accessToken,
+  );
+
+export const classifyRememberedThing = (session: string, accessToken: string, factId: string) =>
+  post<{ communication_classification: Exclude<RoomMemoryClassification, "unclassified" | "not_applicable"> }>(
+    { op: "memory_classify", session, fact_id: factId },
     accessToken,
   );
 

@@ -17770,3 +17770,8 @@ Do not claim world-class design or end-to-end product acceptance from four Room 
 ## `postrelease204-no-inferred-action-exit` (2026-09-09)
 
 Action focus58printed success is retained with launcher exitnull. Selected-reference actual captured exit0 is separate evidence. No production change or fullrerun performed by source integration; frozen202 remains intact.
+
+
+## `postrelease204-no-ui-only-feature-acceptance` (2026-09-09)
+
+UI source and real Retry contract review are necessary but insufficient for end-to-end acceptance. Keep backend208 and semantic/CAS changes isolated until their final reviewed source is admitted. Preserve own context history instead of donor graph replacement.

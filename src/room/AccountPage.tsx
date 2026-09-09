@@ -37,6 +37,7 @@ import {
   fetchRoomExportReadableHtml,
   rememberedThings,
   correctRememberedThing,
+  classifyRememberedThing,
   forgetRememberedThing,
   lastMonthNote,
   setQuietHours,
@@ -47,6 +48,7 @@ import {
   type RoomReferralProgress,
   type RoomMonthNote,
   type RoomRememberedThing,
+  type RoomMemoryClassification,
 } from "./roomApi";
 import { listCheckinDesignsAndPushKey, setTelegramCheckins, browserTimezone } from "./roomCheckinsApi";
 import { paymentStatus, type RoomPaymentStatus } from "./roomPayApi";
@@ -231,8 +233,11 @@ export default function AccountPage({
   const [editingRememberedId, setEditingRememberedId] = useState<string | null>(null);
   const [rememberedReplacement, setRememberedReplacement] = useState("");
   const [rememberedBusyId, setRememberedBusyId] = useState<string | null>(null);
+  const [rememberedClassifyBusyId, setRememberedClassifyBusyId] = useState<string | null>(null);
+  const [returnRememberedClassifyFocusId, setReturnRememberedClassifyFocusId] = useState<string | null>(null);
   const [returnRememberedFocusId, setReturnRememberedFocusId] = useState<string | null>(null);
   const rememberedEditTrigger = useRef<HTMLButtonElement | null>(null);
+  const rememberedClassifyTrigger = useRef<HTMLButtonElement | null>(null);
   const [returnRememberedHeadingFocus, setReturnRememberedHeadingFocus] = useState(false);
   const rememberedHeading = useRef<HTMLHeadingElement | null>(null);
   // WS-R100 (migration 126). The follower's own receipts - the subscription
@@ -301,6 +306,8 @@ export default function AccountPage({
       setRemembered([]);
       setRememberedError(false);
       setEditingRememberedId(null);
+      setRememberedClassifyBusyId(null);
+      setReturnRememberedClassifyFocusId(null);
       setReturnRememberedFocusId(null);
       setReturnRememberedHeadingFocus(false);
       return;
@@ -326,6 +333,12 @@ export default function AccountPage({
     rememberedHeading.current?.focus();
     setReturnRememberedHeadingFocus(false);
   }, [returnRememberedHeadingFocus]);
+
+  useEffect(() => {
+    if (!returnRememberedClassifyFocusId || rememberedClassifyBusyId !== null) return;
+    rememberedClassifyTrigger.current?.focus();
+    setReturnRememberedClassifyFocusId(null);
+  }, [returnRememberedClassifyFocusId, rememberedClassifyBusyId]);
 
   // WS-R67. Never on a fixture, the settings effect's own rule restated.
   useEffect(() => {
@@ -439,7 +452,12 @@ export default function AccountPage({
     try {
       const result = await correctRememberedThing(session, auth.accessToken, factId, rememberedReplacement);
       setRemembered((current) => current.map((fact) =>
-        fact.id === factId ? { ...fact, id: result.fact.id, body: result.fact.body } : fact,
+        fact.id === factId ? {
+          ...fact,
+          id: result.fact.id,
+          body: result.fact.body,
+          communication_classification: result.communication_classification,
+        } : fact,
       ));
       setEditingRememberedId(null);
       setRememberedReplacement("");
@@ -469,6 +487,49 @@ export default function AccountPage({
       setRememberedBusyId(null);
     }
   }, [auth, fixtureSettings, session, copy, editingRememberedId]);
+
+  const retryRememberedClassification = useCallback(async (factId: string) => {
+    if (!auth || fixtureSettings) return;
+    setRememberedClassifyBusyId(factId);
+    try {
+      const result = await classifyRememberedThing(session, auth.accessToken, factId);
+      let finalClassification: RoomMemoryClassification = result.communication_classification;
+      setRemembered((current) => current.map((fact) =>
+        fact.id === factId
+          ? { ...fact, communication_classification: result.communication_classification }
+          : fact,
+      ));
+      try {
+        const refreshed = await rememberedThings(session, auth.accessToken);
+        setRemembered(refreshed.facts);
+        finalClassification = refreshed.facts.find((fact) => fact.id === factId)?.communication_classification
+          ?? finalClassification;
+      } catch {
+        // The classification result above is authoritative for this attempt.
+        // A failed follow-up read must not erase it or hide the saved fact.
+      }
+      if (finalClassification !== "unclassified" && finalClassification !== "unconfirmed") {
+        setReturnRememberedFocusId(factId);
+      } else {
+        setReturnRememberedClassifyFocusId(factId);
+      }
+    } catch {
+      setRemembered((current) => current.map((fact) =>
+        fact.id === factId ? { ...fact, communication_classification: "unconfirmed" } : fact,
+      ));
+      setReturnRememberedClassifyFocusId(factId);
+    } finally {
+      setRememberedClassifyBusyId(null);
+    }
+  }, [auth, fixtureSettings, session]);
+
+  const rememberedClassificationLabel = useCallback((state: RoomMemoryClassification) => {
+    if (state === "classified") return copy.account.rememberedClassification.classified;
+    if (state === "unclassified" || state === "unconfirmed") {
+      return copy.account.rememberedClassification.unresolved;
+    }
+    return null;
+  }, [copy]);
 
   const [pushOn, setPushOn] = useState(false);
   const [waOn, setWaOn] = useState(false);
@@ -847,11 +908,29 @@ export default function AccountPage({
                   ) : (
                     <>
                       <p>{fact.body}</p>
+                      {rememberedClassificationLabel(fact.communication_classification) && (
+                        <p className="room-fine room-memory-classification" role="status">
+                          {rememberedClassificationLabel(fact.communication_classification)}
+                        </p>
+                      )}
+                      {(fact.communication_classification === "unclassified" || fact.communication_classification === "unconfirmed") && (
+                        <button
+                          ref={fact.id === returnRememberedClassifyFocusId ? rememberedClassifyTrigger : undefined}
+                          type="button"
+                          className="room-btn room-memory-classification-retry"
+                          disabled={rememberedClassifyBusyId === fact.id}
+                          onClick={() => void retryRememberedClassification(fact.id)}
+                        >
+                          {rememberedClassifyBusyId === fact.id
+                            ? copy.pay.working
+                            : copy.account.rememberedClassification.retry}
+                        </button>
+                      )}
                       <div className="room-actions">
-                        <button ref={fact.id === returnRememberedFocusId ? rememberedEditTrigger : undefined} type="button" className="room-btn" disabled={rememberedBusyId === fact.id} onClick={() => beginRememberedEdit(fact)}>
+                        <button ref={fact.id === returnRememberedFocusId ? rememberedEditTrigger : undefined} type="button" className="room-btn" disabled={rememberedBusyId === fact.id || rememberedClassifyBusyId === fact.id} onClick={() => beginRememberedEdit(fact)}>
                           {copy.account.rememberedEdit}
                         </button>
-                        <button type="button" className="room-btn danger" disabled={rememberedBusyId === fact.id} onClick={() => void removeRememberedThing(fact.id)}>
+                        <button type="button" className="room-btn danger" disabled={rememberedBusyId === fact.id || rememberedClassifyBusyId === fact.id} onClick={() => void removeRememberedThing(fact.id)}>
                           {rememberedBusyId === fact.id ? copy.pay.working : copy.account.rememberedForget}
                         </button>
                       </div>

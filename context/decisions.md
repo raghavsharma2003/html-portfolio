@@ -23983,3 +23983,8 @@ Integrate the reviewed correction editor polish: correction intent opens the exi
 ## `postrelease204-cu3p-test-repairs` (2026-09-09)
 
 2026-09-09: Root approved4b9b9847 action focus and910aea4d selected-reference test repairs. Import exactly3 eval files, preserve all production source. Reverse if barriers bypass actual save/permission readiness or hide wrong consent assertions. Working checkpoint awaits semantic/processing reviews.
+
+
+## `postrelease204-memory-classify-ui` (2026-09-09)
+
+2026-09-09: Root approved final7f737280 five UI paths, visually inspected390 and confirmed Retry contract with77. Import exact UI bytes only; API208 remains separate and incoming. Reverse on final backend contract mismatch or focused integrated failure. Working source is not a release-complete feature.
