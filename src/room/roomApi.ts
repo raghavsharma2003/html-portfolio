@@ -67,6 +67,17 @@ export interface RoomSpoken {
   disclosure_scheme: string;
   voice: { seconds_used: number; seconds_included: number; seconds_left: number };
   session: string;
+  // WS-R156: the ordered-plan shape every clip carries. `reply_sha256`
+  // names WHICH reply this clip is a rendering of (the same hex digest
+  // `sayInRoom`'s own knowledge block and `flagReply` already mint off the
+  // full reply text). `index`/`count` are the server's OWN plan — never a
+  // value this client sent and got echoed back — so "am I on the last clip
+  // yet" is answered by `index + 1 >= count`, real numbers from the
+  // response, never guessed from how many requests the client happens to
+  // have made.
+  reply_sha256: string;
+  index: number;
+  count: number;
 }
 
 export interface RoomThread {
@@ -308,9 +319,16 @@ export const sayInRoom = (
 /** WS-R19, behind `VITE_ROOM_VOICE`. `text` must be the EXACT reply text the
  *  session just returned from `sayInRoom` — the server binds a clip to the
  *  reply that produced it and refuses anything else, `room_voice_reply_
- *  mismatch`. */
-export const speakInRoom = (session: string, text: string) =>
-  post<RoomSpoken>({ op: "speak", session, text });
+ *  mismatch`.
+ *
+ *  WS-R156: `index` names WHICH sentence of `text` to synthesise (the server
+ *  splits `text` into an ordered plan itself — this call never sends a
+ *  sentence string, only which position it wants, and never sends a
+ *  `count`: the real count comes back on every response, `RoomSpoken`'s own
+ *  comment explains why a client-claimed one is never read). Omit `index`
+ *  for the first clip of a reply; it defaults to `0` server-side. */
+export const speakInRoom = (session: string, text: string, index?: number) =>
+  post<RoomSpoken>(index === undefined ? { op: "speak", session, text } : { op: "speak", session, text, index });
 
 export const roomHistory = (session: string, thread?: string | null) =>
   post<RoomHistory>({ op: "history", session, thread: thread ?? null });

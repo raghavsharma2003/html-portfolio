@@ -104,6 +104,7 @@ import {
   type RoomTurn,
 } from "./roomApi";
 import { RoomPayApiError, startSubscription, type RoomPaymentStatus } from "./roomPayApi";
+import { runVoiceSequence } from "./voiceSequence";
 import { noteInstallVisit, markInstallDismissed, shouldShowInstallCard } from "./installPrompt";
 
 type Turn = { role: "user" | "assistant"; content: string; fresh?: boolean; knowledge?: RoomTurn["knowledge"]; memoryWriteState?: RoomTurn["memory_write_state"] };
@@ -320,10 +321,46 @@ export default function RoomApp({
   const scrolledOnce = useRef(false);
   // WS-R19: which bubble is being fetched/played, and the one <audio> both
   // share (one clip at a time - a second tap stops the first rather than
-  // layering two voices).
+  // layering two voices). WS-R156: `voicePlaying` now names a bubble whose
+  // whole SEQUENCE of clips is active (fetching, playing, or paused between
+  // two clips), not just the one clip in flight - `voicePaused` is the
+  // sequence's own pause/resume state, orthogonal to which bubble is active.
   const [voiceBusy, setVoiceBusy] = useState<number | null>(null);
   const [voicePlaying, setVoicePlaying] = useState<number | null>(null);
+  const [voicePaused, setVoicePaused] = useState(false);
   const audioEl = useRef<HTMLAudioElement | null>(null);
+  // The active sequence's own identity: which bubble it plays for, and a
+  // token that changes every time a NEW sequence starts - a stale async step
+  // from a superseded sequence checks its own token against this ref before
+  // touching any state, so starting bubble B's voice while bubble A's clips
+  // are still arriving can never have A's late clip play over B's.
+  const voiceSeqRef = useRef<{ index: number; token: symbol } | null>(null);
+  // A resume gate for the gap BETWEEN two clips (the audio element itself
+  // handles pause/resume DURING one clip natively). While paused, the
+  // sequence's fetch-and-play loop awaits this and does nothing else; tapping
+  // resume releases every waiter at once - there is ever at most one.
+  const voicePausedRef = useRef(false);
+  const voiceResumeWaiters = useRef<Array<() => void>>([]);
+  const waitForVoiceResume = useCallback(() => {
+    if (!voicePausedRef.current) return Promise.resolve();
+    return new Promise<void>((resolve) => voiceResumeWaiters.current.push(resolve));
+  }, []);
+  const setVoicePausedState = useCallback((paused: boolean) => {
+    voicePausedRef.current = paused;
+    setVoicePaused(paused);
+    if (!paused) {
+      const waiters = voiceResumeWaiters.current;
+      voiceResumeWaiters.current = [];
+      waiters.forEach((resolve) => resolve());
+    }
+  }, []);
+  const stopVoiceSequence = useCallback(() => {
+    voiceSeqRef.current = null;
+    audioEl.current?.pause();
+    audioEl.current = null;
+    setVoicePlaying(null);
+    setVoicePausedState(false);
+  }, [setVoicePausedState]);
   // WS-R24: the follower's own chrome language. `room.locale` is the server's
   // answer (the follower row once joined, the browser hint before that, the
   // creator's own default when the browser gave nothing) - never guessed here
@@ -445,34 +482,82 @@ export default function RoomApp({
       });
   const showInstallIOS = fixtureOpen ? Boolean(fixtureInstallPromptIOS) : isIOS;
 
+  /**
+   * WS-R156: plays a reply as an ORDERED SEQUENCE of sentence clips rather
+   * than one clip of the whole reply, so the first sound a follower hears
+   * starts after the FIRST sentence is synthesised, not the whole thing.
+   * Each clip is its own `speakInRoom(session, text, index)` call through
+   * the unchanged, signed voice path (`api/_room-surface.js`'s own header on
+   * why - this file never learns a second way to make the AI speak); the
+   * NEXT clip is requested as soon as the current one starts playing
+   * ("buffering one ahead"), so the gap between two clips is normally just
+   * however long the CURRENT one takes to finish, not a second fetch on top
+   * of it. A clip that fails stops the sequence honestly - the bubble's own
+   * text stays exactly as it already was, nothing about the reply changes,
+   * only the voice control resets to its idle state (`copy.voice.play`).
+   *
+   * Tapping the SAME bubble's control while its sequence is active toggles
+   * pause/resume (law 3's "one control (pause/resume) and a visible
+   * speaking state") rather than starting over: `voicePausedRef` gates the
+   * GAP between two clips (native `HTMLAudioElement.pause`/`.play` already
+   * covers pausing mid-clip), so pausing between sentence 2 and 3 holds
+   * exactly there rather than restarting the reply.
+   */
   const playReply = useCallback(
     async (index: number, text: string) => {
       if (!session) return;
-      if (voicePlaying === index) {
-        audioEl.current?.pause();
-        setVoicePlaying(null);
+      if (voiceSeqRef.current?.index === index) {
+        const pausing = !voicePausedRef.current;
+        setVoicePausedState(pausing);
+        if (pausing) audioEl.current?.pause();
+        else void audioEl.current?.play();
         return;
       }
+      stopVoiceSequence();
+      const token = Symbol("room-voice-sequence");
+      voiceSeqRef.current = { index, token };
+      const stillActive = () => voiceSeqRef.current?.token === token;
       setVoiceBusy(index);
       setError("");
       try {
-        const spoken = await speakInRoom(session, text);
-        const audio = new Audio(`data:audio/wav;base64,${spoken.audio}`);
-        audioEl.current = audio;
-        audio.onended = () => setVoicePlaying((current) => (current === index ? null : current));
-        setVoicePlaying(index);
-        await audio.play();
+        // THE LOOP ITSELF lives in `voiceSequence.ts`, framework-free, so
+        // `evals/room-speak-plan/benchmark.mjs` can run this EXACT code in a
+        // real browser against a fake synthesiser and measure it — every
+        // handler below is the REAL one; nothing about the sequencing is
+        // re-implemented here for the product path.
+        await runVoiceSequence({
+          fetchClip: async (i) => {
+            const spoken = await speakInRoom(session, text, i);
+            return { audio: spoken.audio, count: spoken.count };
+          },
+          playClip: (clip) =>
+            new Promise<void>((resolve) => {
+              const audio = new Audio(`data:audio/wav;base64,${clip.audio as string}`);
+              audioEl.current = audio;
+              audio.onended = () => resolve();
+              void audio.play();
+            }),
+          isActive: stillActive,
+          waitForResume: waitForVoiceResume,
+          onFirstAudio: () => {
+            setVoiceBusy(null);
+            setVoicePlaying(index);
+          },
+        });
       } catch (e) {
-        setError(
-          e instanceof RoomApiError && e.code === "room_voice_paid_only"
-            ? copy.voice.freeOnly
-            : copy.voice.unavailable,
-        );
+        if (stillActive()) {
+          setError(
+            e instanceof RoomApiError && e.code === "room_voice_paid_only"
+              ? copy.voice.freeOnly
+              : copy.voice.unavailable,
+          );
+        }
       } finally {
+        if (stillActive()) stopVoiceSequence();
         setVoiceBusy((current) => (current === index ? null : current));
       }
     },
-    [session, voicePlaying],
+    [session, setVoicePausedState, stopVoiceSequence, waitForVoiceResume],
   );
 
   /**
@@ -1372,14 +1457,32 @@ export default function RoomApp({
                 would still read as a broken feature rather than an absent
                 one. */}
             {ROOM_VOICE_UI && turn.role === "assistant" && tier === "paid" && session && (
-              <button
-                type="button"
-                className="room-bubble-voice"
-                disabled={voiceBusy === i}
-                onClick={() => void playReply(i, turn.content)}
-              >
-                {voicePlaying === i ? copy.voice.playing : copy.voice.play}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="room-bubble-voice"
+                  disabled={voiceBusy === i}
+                  onClick={() => void playReply(i, turn.content)}
+                >
+                  {/* WS-R156: the same control now doubles as pause/resume
+                      once its sequence of clips is active (law 3's "one
+                      control (pause/resume)") - `copy.voice.play` is the
+                      idle/loading label, unchanged from WS-R19. */}
+                  {voicePlaying === i
+                    ? voicePaused
+                      ? copy.voiceSequence.resume
+                      : copy.voiceSequence.pause
+                    : copy.voice.play}
+                </button>
+                {/* The visible "speaking" state law 3 also names - a plain
+                    status line, never just a change of button text a
+                    screen reader would miss. */}
+                {voicePlaying === i && (
+                  <span className="room-bubble-voice-status" role="status">
+                    {voicePaused ? copy.voiceSequence.paused : copy.voiceSequence.speaking}
+                  </span>
+                )}
+              </>
             )}
 
             {/* WS-R67 (migration 116). Every follower, free or paid, law 4's

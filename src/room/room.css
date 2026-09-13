@@ -352,6 +352,18 @@
     cursor: default;
   }
 
+  /* WS-R156: the visible "speaking"/"paused" status law 3 names, next to the
+     pause/resume control once a sequence of clips is active - quiet text,
+     never a second control, `room-bubble-flag`'s own soft-ink precedent one
+     rule up. */
+  .room-bubble-voice-status {
+    display: inline-block;
+    margin-top: var(--space-hair);
+    margin-inline-start: var(--space-tight);
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+  }
+
   /* WS-R67 (migration 116). "Flag this" - a small, quiet chip under every AI
      reply, `room-bubble-voice`'s own shape one control over, but never
      gated by tier: this is a safety report, not a paid feature. A real

@@ -99,6 +99,7 @@ import {
   roomForgetReceiptHash, ROOM_FORGET_RECEIPT_POLICY_VERSION,
 } from "./memory.js";
 import { authorizeRoomVoice, estimateClipSeconds } from "./_room-voice.js";
+import { roomSpeakPlan } from "./_room-speak-plan.js";
 import { sessionWorked, recordOffer, markOfferOutcome } from "./_phase-gate.js";
 // WS-R4's rule, read per turn: `loadNeverRules` is a SELECT and nothing else
 // (`evals/room-leak/run.mjs` layer 1 names this exact import as the allowed
@@ -2241,6 +2242,29 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
 // checked, VERIFY the reply binding, SPEND the voice cap in one conditional
 // UPDATE before any synthesis, THEN authorize + synthesise + protect, and
 // only once the watermarked bytes exist does anything leave this function.
+//
+// ── WS-R156: ONE SENTENCE PER CALL, so the first clip starts fast ─────────
+//
+// `docs/gurukul/AZURE-DEPLOY-STATE.md` §8: the runtime returns a COMPLETE,
+// signed synthesis result under a GPU lock — this is not streaming TTS, and
+// a benchmark of this path has to include the whole round trip. What the
+// product controls without a new model is how much text one call has to
+// wait on. `replyRef.index` (default 0) names WHICH sentence of the reply
+// this call synthesises: `api/_room-speak-plan.js`'s `roomSpeakPlan` is the
+// ONE pure splitter, called here and nowhere else, so "how many sentences"
+// and "what sentence 2 says" are never computed two different ways. The
+// caller (the Room's client) asks for index 0, plays it, and asks for index
+// 1 while it plays — five short synthesis calls instead of one long one, the
+// SAME signed path, the SAME cap, the SAME watermark, run five times instead
+// of once. `replyRef.count`, if a caller sends one, is NEVER READ below: the
+// true count is always `plan.count`, recomputed from the reply text this
+// call already re-verified against `payload.lr` — a client-supplied count
+// naming anything else would be exactly the "trust the caller's own math"
+// defect this codebase's own `rejected.md` entries exist to name, so this
+// function does not accept its input at all rather than trust and re-check
+// it. An `index` outside `[0, plan.count)` is refused BEFORE the cap is
+// touched, `room_voice_index_invalid` — same "refuse before you charge"
+// order the free-tier check above it already keeps.
 export async function roomSpeak(deps, session, replyRef) {
   const db = deps?.db;
   if (typeof db !== "function") throw new RoomError("room_db_required", 500);
@@ -2292,7 +2316,20 @@ export async function roomSpeak(deps, session, replyRef) {
     throw new RoomError("room_voice_reply_mismatch", 409);
   }
 
-  const clipSeconds = estimateClipSeconds(text);
+  // THE PLAN. Recomputed from `text` on every call — the same reply text this
+  // call just re-verified above, never cached or re-derived from anything the
+  // caller sent. `replyRef.count`, if present, is intentionally never read:
+  // see this function's own header for why a client-named count is refused
+  // by omission rather than by a check that could be gotten wrong.
+  const plan = roomSpeakPlan(text);
+  const rawIndex = replyRef?.index;
+  const index = rawIndex === undefined || rawIndex === null ? 0 : Number(rawIndex);
+  if (!Number.isInteger(index) || index < 0 || index >= plan.count) {
+    throw new RoomError("room_voice_index_invalid", 400, { count: plan.count });
+  }
+  const sentenceText = plan.sentences[index];
+
+  const clipSeconds = estimateClipSeconds(sentenceText);
 
   // THE VOICE CAP, as one statement - `roomSay`'s cap law restated for the
   // second number the plan promises. Rolls the month over and spends
@@ -2350,7 +2387,7 @@ export async function roomSpeak(deps, session, replyRef) {
   const authorize = deps.authorize ?? ((input) => authorizeRoomVoice(db, resolved.room.owner_user_id, input));
   let authorized;
   try {
-    authorized = await authorize({ replicaId: resolved.room.replica_id, text, traceId: deps.traceId });
+    authorized = await authorize({ replicaId: resolved.room.replica_id, text: sentenceText, traceId: deps.traceId });
   } catch (error) {
     throw new RoomError(String(error?.code || "room_voice_unavailable"), Number(error?.status) || 503, {
       blocker: error?.details?.blocker || error?.blockerClass || "us",
@@ -2375,7 +2412,7 @@ export async function roomSpeak(deps, session, replyRef) {
   }
   let synthesized;
   try {
-    synthesized = await deps.synth({ authorized, text });
+    synthesized = await deps.synth({ authorized, text: sentenceText });
   } catch (error) {
     throw new RoomError("room_voice_synthesis_failed", 503, {
       reason: error?.code || String(error?.message || "unknown"),
@@ -2443,6 +2480,19 @@ export async function roomSpeak(deps, session, replyRef) {
     generation_id: authorized.generation.generation_id,
     watermark_algorithm: receipt.watermark_algorithm,
     disclosure_scheme: receipt.disclosure_scheme,
+    // WS-R156: the shape every clip in the sequence carries. `reply_sha256`
+    // is the SAME hex digest `say`'s own `knowledge.reply_sha256` and
+    // `flagReply` already mint off the full reply text (never `sha()`'s
+    // internal, truncated session-binding hash, which is a different value
+    // for a different purpose) - one follower-visible name for "which
+    // reply", stable across every clip index of that reply. `index`/`count`
+    // are the plan `roomSpeakPlan` computed above, never a value this
+    // function read off `replyRef` - see the header comment on why a
+    // caller-supplied count is never trusted, let alone echoed back as if it
+    // had been.
+    reply_sha256: createHash("sha256").update(text, "utf8").digest("hex"),
+    index,
+    count: plan.count,
     voice: {
       seconds_used: voiceUsed,
       seconds_included: voiceIncluded,

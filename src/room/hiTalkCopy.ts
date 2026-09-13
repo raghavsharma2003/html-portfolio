@@ -358,4 +358,14 @@ export const HI_TALK: RoomTalkCopy = {
   about: {
     linkLabel: "यह AI आपके बारे में क्या जानता है",
   },
+
+  // WS-R156. `copy.ts`'s own `voiceSequence` header explains the split from
+  // `voice` above - same reasoning, restated once per Hindi file exactly as
+  // this file's own header states the convention is.
+  voiceSequence: {
+    pause: "रोकें",
+    resume: "फिर चलाएं",
+    speaking: "बोल रहे हैं",
+    paused: "रुका हुआ है",
+  },
 };

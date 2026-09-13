@@ -17994,6 +17994,48 @@
       "kind": "measurement",
       "title": "Gate runs on the merged handoff206 tree and the live catalog before and after the apply (2026-09-13)",
       "at": "context/measurements.md#gate-on-the-merged-handoff206-tree-2026-09-13"
+    },
+    {
+      "id": "ws-r156-room-speak-plan",
+      "kind": "component",
+      "title": "The pure sentence splitter (api/_room-speak-plan.js) roomSpeak uses to synthesise one sentence per call",
+      "at": "api/_room-speak-plan.js"
+    },
+    {
+      "id": "ws-r156-voice-sequence",
+      "kind": "component",
+      "title": "The client's framework-free clip fetch-and-play loop (src/room/voiceSequence.ts), used by RoomApp.tsx and by the Chromium benchmark",
+      "at": "src/room/voiceSequence.ts"
+    },
+    {
+      "id": "ws-r156-per-sentence-clips-not-a-plan-endpoint",
+      "kind": "decision",
+      "title": "roomSpeak takes an index and recomputes the plan every call, rather than a separate plan endpoint with a client-carried count (2026-09-13)",
+      "at": "context/decisions.md#ws-r156-per-sentence-clips-not-a-plan-endpoint"
+    },
+    {
+      "id": "ws-r156-voice-sequence-extracted-for-benchmarkability",
+      "kind": "decision",
+      "title": "The client sequencing loop is extracted into a plain function so a real Chromium benchmark runs the shipped code (2026-09-13)",
+      "at": "context/decisions.md#ws-r156-voice-sequence-extracted-for-benchmarkability"
+    },
+    {
+      "id": "ws-r156-time-to-first-audio",
+      "kind": "measurement",
+      "title": "Time to first audio, five-sentence reply, fake 400ms/sentence synthesiser, n=10: 2001.5ms before vs 400.7ms after, 5.00x (2026-09-13)",
+      "at": "context/measurements.md#ws-r156-time-to-first-audio"
+    },
+    {
+      "id": "ws-r156-an-old-session-replaying-its-own-reply-is-not-stale",
+      "kind": "rejection",
+      "title": "A captured (session, reply) pair from an earlier turn is not a replay attack against itself; the real case is the CURRENT session naming an OLD reply (2026-09-13)",
+      "at": "context/rejected.md#ws-r156-an-old-session-replaying-its-own-reply-is-not-stale"
+    },
+    {
+      "id": "ws-r156-a-plan-endpoint-that-trusts-a-client-count",
+      "kind": "rejection",
+      "title": "Considered, not built: a speak_plan op returning a count the client would carry back (2026-09-13)",
+      "at": "context/rejected.md#ws-r156-a-plan-endpoint-that-trusts-a-client-count"
     }
   ],
   "edges": [
@@ -30439,6 +30481,46 @@
       "src": "codex-handoff206-adopted-as-the-base",
       "dst": "gate-on-the-merged-handoff206-tree-2026-09-13",
       "rel": "measured_by"
+    },
+    {
+      "src": "ws-r156-room-speak-plan",
+      "rel": "part_of",
+      "dst": "ws-r19-paid-tier-component"
+    },
+    {
+      "src": "ws-r156-voice-sequence",
+      "rel": "part_of",
+      "dst": "ws-r19-paid-tier-component"
+    },
+    {
+      "src": "ws-r156-per-sentence-clips-not-a-plan-endpoint",
+      "rel": "part_of",
+      "dst": "ws-r156-room-speak-plan"
+    },
+    {
+      "src": "ws-r156-per-sentence-clips-not-a-plan-endpoint",
+      "rel": "caused_by",
+      "dst": "ws-r156-a-plan-endpoint-that-trusts-a-client-count"
+    },
+    {
+      "src": "ws-r156-voice-sequence-extracted-for-benchmarkability",
+      "rel": "part_of",
+      "dst": "ws-r156-voice-sequence"
+    },
+    {
+      "src": "ws-r156-voice-sequence-extracted-for-benchmarkability",
+      "rel": "measured_by",
+      "dst": "ws-r156-time-to-first-audio"
+    },
+    {
+      "src": "ws-r156-per-sentence-clips-not-a-plan-endpoint",
+      "rel": "measured_by",
+      "dst": "ws-r156-time-to-first-audio"
+    },
+    {
+      "src": "ws-r156-time-to-first-audio",
+      "rel": "caused_by",
+      "dst": "ws-r156-voice-sequence"
     }
   ]
 }
