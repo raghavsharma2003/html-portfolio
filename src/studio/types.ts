@@ -494,12 +494,23 @@ export interface VoiceListeningCandidate {
   created_at: string;
 }
 
+// WS-R179. The method behind the likeness number, stated rather than left
+// implicit: which verdicts (the owner's own approved blind paired listening
+// tests), which axes (the sealed harness's own four, by id), and n (a real
+// count, honestly zero -- `measured` -- when none exist yet).
+export interface VoiceListeningMethod {
+  verdict_count: number;
+  axes: ListeningAxis[];
+  measured: boolean;
+}
+
 export interface VoiceLikenessSummary {
   replica_id: string;
   fidelity: VoiceFidelitySummary;
   reference_sha256: string | null;
   listening_candidates: VoiceListeningCandidate[];
   listening_ready: boolean;
+  listening_method: VoiceListeningMethod;
 }
 
 export interface VoiceListeningVerdict {

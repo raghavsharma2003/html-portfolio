@@ -61,6 +61,18 @@
 // file's own attack-class taxonomy (a)-(h) above — dead weight a future
 // reader would have to prove is dead weight all over again.
 //
+// WS-R163 and WS-R179: two more GET-only doors joined `api/` for the
+// listening test's own players, excluded on the SAME rule (a) but for a
+// DIFFERENT reason than the public doors above — `api/replica-generation-
+// audio.js` and `api/replica-source-audio.js` both require an owner bearer
+// (`requireUser(req)`), so they are not public by design; they are simply
+// not Room doors at all. Neither resolves a Room, mints or consumes a Room
+// session, or touches a follower — both stream one owner's own sealed
+// bytes back to that SAME owner, proved directly by their own dedicated
+// suite (`evals/listening-test/run.mjs`) rather than this file's Room
+// attack-class taxonomy, none of which applies to a door with no Room on
+// either side of it.
+//
 // ── ATTACK CLASSES, AND WHERE EACH APPLIES ──────────────────────────────────
 //
 //   (a) forged session      — every session-consuming door

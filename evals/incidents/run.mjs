@@ -608,6 +608,17 @@ const FROZEN_ELEVEN_DOORS = [
   "tg.js", "whatsapp.js", "checkins.js", "handoff.js", "apply.js",
 ];
 
+// Named rather than derived, the same reason PAGE_DOORS above is named
+// rather than derived: two owner-bearer, GET-only doors that never touch
+// `req.body` (WS-R163's `replica-generation-audio.js`, WS-R179's own
+// `replica-source-audio.js`), so room-doors' own §0 discovery rule
+// correctly never admits either into EXPECTED_DOORS
+// (`evals/listening-test/run.mjs` is each door's own dedicated suite).
+// Both are wrapped in `withDoor` anyway, by convention, not by any gate
+// requiring it — asserted here so a future edit that drops the wrapping
+// fails loudly instead of merely going unnoticed by MIRRORED_EXPECTED_DOORS.
+const LISTENING_TEST_AUDIO_DOORS = ["replica-generation-audio.js", "replica-source-audio.js"];
+
 // Extracts a `const NAME = [...]` string-array literal from a REAL source
 // file, by bracket balance rather than a single regex (the array itself
 // contains string literals, never nested brackets, so this is exact).
@@ -659,6 +670,9 @@ for (const door of MIRRORED_EXPECTED_CRON_DOORS) {
 }
 for (const door of PAGE_DOORS) {
   ok(`[withDoor/${door}] the named page door's default export is wrapped in withDoor`, isDoorWrapped(door));
+}
+for (const door of LISTENING_TEST_AUDIO_DOORS) {
+  ok(`[withDoor/${door}] the named GET-only owner-bearer audio door's default export is wrapped in withDoor`, isDoorWrapped(door));
 }
 
 // LAW 2's own "superset assertion": every door WS-R58 wrapped by hand

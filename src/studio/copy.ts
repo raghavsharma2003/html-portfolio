@@ -424,6 +424,9 @@ export interface VoicePreviewPanelCopy {
     tieTemplate: string;
     preferredTemplate: string;
     noListeningTestYet: string;
+    // WS-R179. The method behind the number: which verdicts, which axes, n.
+    methodMeasuredTemplate: string;
+    methodNotMeasured: string;
   };
   stage: {
     protecting: string;
@@ -1419,6 +1422,8 @@ const EN_VOICE_PREVIEW_PANEL: VoicePreviewPanelCopy = {
     tieTemplate: "In your last listening test on {date}, you rated both samples the same.",
     preferredTemplate: "In your last listening test on {date}, you preferred one sample over the other.",
     noListeningTestYet: "You have not run a listening test yet.",
+    methodMeasuredTemplate: "Based on {n} of your own blind listening tests, comparing two saved samples against your own reference recording on how much it sounds like you, how natural it sounds, how well the accent fits, and how clear the words are.",
+    methodNotMeasured: "This score is only an automatic measurement so far. Run a blind listening test to compare it with what you actually hear.",
   },
   stage: {
     protecting: "Protecting your preview",

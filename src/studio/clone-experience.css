@@ -1633,4 +1633,6 @@
   .voice-likeness-score { margin: 0; font-size: 14px; }
   .voice-likeness-score strong { font-size: 20px; }
   .voice-likeness-preference { margin: 0; font-size: 13px; opacity: 0.8; }
+  /* WS-R179: the method behind the number. */
+  .voice-likeness-method { margin: 0; font-size: 12px; opacity: 0.7; }
 }
