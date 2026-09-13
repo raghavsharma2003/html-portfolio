@@ -546,6 +546,72 @@ console.log("\n── section 5: roomSpeak carries a prosody plan on every clip 
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+// SECTION 6 — WS-R176: the register of the turn the reply answers reaches
+// the prosody plan, bound by the SAME `lr` this file's own section 4
+// already proves cannot be replayed against a superseded reply.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── section 6: the register of the turn a reply answers reaches roomSpeak's plan (WS-R176) ──");
+{
+  // Two real, hand-verified high-confidence turns in OPPOSITE register
+  // directions (`readRegister`, gap 0, the fixed clock this file already
+  // uses) — `REGISTER_DELTA` (api/_voice/prosody.js) pushes "excited"
+  // toward faster/higher-energy and "upset" toward slower/lower, so a
+  // wiring defect that dropped or swapped the register would show up as a
+  // wrong DIRECTION, not just a missing nudge.
+  const EXCITED_TEXT = "Yesss!! I got it!!";
+  const UPSET_TEXT = "Fine.";
+
+  const state = freshState();
+  const db = extendedDb(state);
+  const session0 = await setupPaidFollower(db, state, USER_A, PERSON_A);
+
+  const saidExcited = await roomSay(db, { session: session0, message: EXCITED_TEXT }, {
+    loadAgent, memory, reply: async () => "Arre wah, batao batao!", now: NOW,
+  });
+  const saidUpset = await roomSay(db, { session: saidExcited.session, message: UPSET_TEXT }, {
+    loadAgent, memory, reply: async () => "Theek hai, jab chaho baat karna.", now: NOW,
+  });
+
+  const NEUTRAL_VIBE_SO_ONLY_REGISTER_MOVES_IT = async () => ({ warmth: 2, energy: 2, humour: 2, directness: 2, formality: 2 });
+
+  const seamExcited = voiceSeam();
+  await roomSpeak(
+    { db, loadAgent, now: NOW, authorize: fakeAuthorize(), synth: seamExcited.synth, protect: seamExcited.protect, getVibe: NEUTRAL_VIBE_SO_ONLY_REGISTER_MOVES_IT },
+    saidExcited.session,
+    { text: saidExcited.reply, index: 0 },
+  );
+  ok("the EXCITED turn's own reply carries an EXCITED plan (appliedRegister)",
+    seamExcited.calls.prosodyPlans[0].appliedRegister === "excited", JSON.stringify(seamExcited.calls.prosodyPlans[0]));
+  ok("...faster than the neutral-vibe baseline rate", seamExcited.calls.prosodyPlans[0].rateBand === "fast");
+
+  const seamUpset = voiceSeam();
+  await roomSpeak(
+    { db, loadAgent, now: NOW, authorize: fakeAuthorize(), synth: seamUpset.synth, protect: seamUpset.protect, getVibe: NEUTRAL_VIBE_SO_ONLY_REGISTER_MOVES_IT },
+    saidUpset.session,
+    { text: saidUpset.reply, index: 0 },
+  );
+  ok("the LATER, UPSET turn's own reply carries an UPSET plan, never the EARLIER excited one",
+    seamUpset.calls.prosodyPlans[0].appliedRegister === "upset", JSON.stringify(seamUpset.calls.prosodyPlans[0]));
+  ok("...slower than the neutral-vibe baseline rate — the OPPOSITE direction from the excited turn above",
+    seamUpset.calls.prosodyPlans[0].rateBand === "slow");
+
+  // NEGATIVE CONTROL: the FIRST session/reply (still individually valid —
+  // never superseded, section 4's own REPLAY case is about a STALE reply on
+  // the CURRENT session, a different thing) still carries its OWN excited
+  // register when spoken a second time, never the second turn's upset one —
+  // proving the binding is to the reply each session's own `lr` names, not
+  // to "whatever the follower's register happens to be right now".
+  const seamReplayExcited = voiceSeam();
+  await roomSpeak(
+    { db, loadAgent, now: NOW, authorize: fakeAuthorize(), synth: seamReplayExcited.synth, protect: seamReplayExcited.protect, getVibe: NEUTRAL_VIBE_SO_ONLY_REGISTER_MOVES_IT },
+    saidExcited.session,
+    { text: saidExcited.reply, index: 0 },
+  );
+  ok("NEGATIVE CONTROL: replaying the FIRST (excited) session again still reads excited, never the follower's later upset turn",
+    seamReplayExcited.calls.prosodyPlans[0].appliedRegister === "excited");
+}
+
 console.log("\n── verdict ──");
 console.log(`  total assertions   ${pass + fail}`);
 console.log(`\nroom-speak-plan: ${pass} passed, ${fail} failed`);

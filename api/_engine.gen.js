@@ -1731,6 +1731,7 @@ function momentGate(userText, gapSinceLastMs = 0, phraseLedger = []) {
 }
 
 // src/engine/register.ts
+var REGISTERS = ["rushed", "upset", "excited", "flat", "neutral"];
 var HINDI_MARKER_WORDS = [
   "hai",
   "hain",
@@ -4139,7 +4140,7 @@ ${v}`;
   _track("vibe");
   const hasTurn = (input.latestUserText || "").trim().length > 0;
   const gate = hasTurn ? momentGate(input.latestUserText || "", input.gapSinceLastMs || 0, input.relBundle?.phraseLedger || []) : { moment: "none", pulled: false };
-  const registerResult = hasTurn ? readRegister(input.latestUserText || "", {
+  const registerResult = input.register !== void 0 ? input.register ?? { register: "neutral", confidence: "low" } : hasTurn ? readRegister(input.latestUserText || "", {
     gapSinceLastMs: input.gapSinceLastMs || 0,
     timeOfDay: typeof input.nowMs === "number" ? new Date(input.nowMs).getUTCHours() : void 0
   }) : { register: "neutral", confidence: "low" };
@@ -7451,6 +7452,8 @@ export {
   PRIVATE_REHEARSAL_LIMITS,
   PRIVATE_REHEARSAL_PROFILE,
   QUALITATIVE_PROPOSABLE_FIELDS,
+  REGISTERS,
+  REGISTER_HINTS,
   ROOM_INTRO_DIRECTIVE,
   ROOM_MEMBER_CAP,
   ROOM_MODE_NOTE,
@@ -7492,6 +7495,7 @@ export {
   parseBubbles,
   parseExpertAnswer,
   promoteObservation,
+  readRegister,
   readTexture,
   recordRitualOccurrence,
   refreshTexture,
@@ -7501,6 +7505,7 @@ export {
   renderKinLines,
   renderMpBridge,
   renderMpRoster,
+  renderRegisterHint,
   renderVibe,
   seedFromStoryCatalog,
   selectExpertPrivateMemoryRows,

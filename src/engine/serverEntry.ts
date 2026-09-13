@@ -69,6 +69,27 @@ export {
 // than a second, hand-mirrored copy, so a person's text-ready AI and their
 // Room both render the identical vibe line for the identical five dials.
 export { renderVibe, type VibeInput, type VibeDim } from "./compiler";
+// WS-R176 (EmotionOS register in the reply and the voice). `roomSay`
+// (`api/_room-surface.js`) needs the REAL `readRegister` — the same "pure,
+// deterministic, LLM-free" reader `compiler.ts` itself calls internally
+// (register.ts's own header) — to compute the RegisterResult for the
+// follower's current turn ONCE and hand it to BOTH `compile()` (as the new
+// `register` field) and the session it mints for `roomSpeak` to read later,
+// bound to that exact turn via the reply hash. Without this export the only
+// way to get that value server-side would be a second, hand-mirrored copy of
+// the cascade in api/ — exactly the `mirrored-persona-drifts` failure this
+// file's own header names for the compiler as a whole, applied to one of its
+// pure sub-readers instead of the ~45k-character persona.
+export {
+  readRegister,
+  renderRegisterHint,
+  REGISTERS,
+  REGISTER_HINTS,
+  type Register,
+  type RegisterConfidence,
+  type RegisterResult,
+  type RegisterInput,
+} from "./register";
 export {
   renderMpRoster,
   renderMpBridge,

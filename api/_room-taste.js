@@ -205,6 +205,18 @@ export async function roomTaste(db, { slug, message, locale: hintLocale = null, 
     // sites hand compile() the identical field set (evals/room-taste's own
     // control) and a time-pinned taste is possible for the same reason.
     nowMs: Date.now(),
+    // WS-R176 (EmotionOS register in the reply and the voice): `roomSay`
+    // now reads the REAL register of the follower's current turn and hands
+    // it to `compile()` explicitly (its own field doc on `CompileInput`
+    // explains why: the identical value is also bound into the session for
+    // `roomSpeak`). A taste turn is a stranger sampling the AI before they
+    // have joined anything — never a relationship, never a follower — so
+    // this lane deliberately passes an explicit NEUTRAL read rather than
+    // computing one from `text` (a visitor's own delivery shape is not a
+    // signal this pre-join lane acts on), keeping BOTH call sites' field
+    // SET identical (evals/room-taste's own control, restated above for
+    // `nowMs`) while their VALUES differ on purpose.
+    register: { register: "neutral", confidence: "low" },
   });
 
   // ONE TURN, NEVER A THREAD. No history is read from anywhere and none is

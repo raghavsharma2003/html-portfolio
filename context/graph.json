@@ -19176,6 +19176,18 @@
       "kind": "measurement",
       "title": "Wave twenty-two's eleven merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
       "at": "context/measurements.md#wave-22-merges-2026-09-13"
+    },
+    {
+      "id": "ws-r176-register-threaded-into-roomspeak-via-session-binding",
+      "kind": "decision",
+      "title": "roomSay reads the register once (the real reader) and binds it into the session (rg/rc) alongside lr; roomSpeak reads it from there, never re-derives (2026-09-13)",
+      "at": "context/decisions.md#ws-r176-register-threaded-into-roomspeak-via-session-binding"
+    },
+    {
+      "id": "ws-r176-register-in-reply-and-voice",
+      "kind": "measurement",
+      "title": "60 labelled turns driven through the real roomSay/roomSpeak: prompt hint and plan register agree with readRegister on every row; low-confidence byte-identical to neutral, high-confidence provably not (2026-09-13)",
+      "at": "context/measurements.md#ws-r176-register-in-reply-and-voice"
     }
   ],
   "edges": [
@@ -32661,6 +32673,21 @@
       "src": "wave-22-merged-as-a-batch-with-a-repair-workstream",
       "dst": "wave-21-merged-as-a-batch-under-contention",
       "rel": "supersedes"
+    },
+    {
+      "src": "ws-r176-register-threaded-into-roomspeak-via-session-binding",
+      "dst": "ws-r168-register-not-threaded-into-roomspeak",
+      "rel": "supersedes"
+    },
+    {
+      "src": "ws-r176-register-threaded-into-roomspeak-via-session-binding",
+      "dst": "ws-r153-emotionos-register",
+      "rel": "part_of"
+    },
+    {
+      "src": "ws-r176-register-threaded-into-roomspeak-via-session-binding",
+      "dst": "ws-r176-register-in-reply-and-voice",
+      "rel": "measured_by"
     }
   ]
 }

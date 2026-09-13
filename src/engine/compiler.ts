@@ -49,7 +49,7 @@ import { momentGate } from "./moment";
 // pull-only shape moment.ts's own momentGate already is — a pure function
 // of the current turn, read once, rendered only when it clears its own bar.
 // See register.ts's own header for why it owns no keyword table of its own.
-import { readRegister, renderRegisterHint } from "./register";
+import { readRegister, renderRegisterHint, type RegisterResult } from "./register";
 import {
   renderRelSnapshot,
   renderDyadicActive,
@@ -360,6 +360,30 @@ export interface CompileInput {
   // so every one of the 83 byte-identity fixtures is unaffected by
   // construction (none sets this field).
   vibe?: VibeInput | null;
+  // ── WS-R176 (EmotionOS register in the reply and the voice) — the CALLER's
+  // own already-computed read of the OTHER person's current turn, exactly the
+  // `herCommitments`/`reciprocity` shape above: compile() stays a pure
+  // function of its input, so a caller that also needs this exact
+  // RegisterResult for something OUTSIDE the prompt (WS-R176's own reason:
+  // `roomSpeak`'s prosody plan, keyed to the same turn via the reply-hash
+  // binding) computes it ONCE, through the real reader, and hands it here
+  // rather than this function silently recomputing a second, possibly
+  // different, answer to "how did they write this".
+  //
+  // UNDEFINED (the key entirely absent, every caller before this workstream
+  // and every one of the 83 byte-identity fixtures) is the ONLY state that
+  // preserves today's behavior byte-for-byte: this function falls back to
+  // its own internal `readRegister(input.latestUserText, ...)` call exactly
+  // as it always has. A caller that WANTS to force "no register" (never
+  // "no turn was read") passes an actual neutral RegisterResult
+  // (`{ register: "neutral", confidence: "low" }`) rather than `null` —
+  // `null` is reserved for "absent", the same convention `relBundle`/
+  // `selfBundle`/`cloneNow` already use, so a caller cannot accidentally
+  // ask for "fall back to internal computation" when it meant "suppress".
+  // `renderRegisterHint`'s own gate (only "high" confidence, never
+  // "neutral") is unchanged either way — this field decides WHERE the
+  // RegisterResult comes from, never whether the render gate applies it.
+  register?: RegisterResult | null;
 }
 
 export interface CompiledPrompt {
@@ -908,7 +932,20 @@ export function compile(input: CompileInput): CompiledPrompt {
   // directive turn has no user turn to read a delivery shape FROM.
   // `renderRegisterHint` itself enforces "only high confidence, never
   // neutral" — restated here only in the comment, never re-implemented.
-  const registerResult = hasTurn
+  //
+  // WS-R176: `input.register !== undefined` is the ONLY branch a caller can
+  // reach without passing the new field at all, which is every caller before
+  // this workstream and all 83 byte-identity fixtures — they take the exact
+  // internal computation this line always did, byte for byte. A caller that
+  // DOES pass `register` (roomSay, with the real read; roomTaste, with an
+  // explicit neutral one — both stated in full at the field's own doc on
+  // CompileInput) skips this internal call entirely rather than risk a
+  // second, differently-timed read of the same turn disagreeing with the one
+  // the caller already computed and may reuse elsewhere (WS-R176's own
+  // reason: `roomSpeak`'s prosody plan).
+  const registerResult: RegisterResult = input.register !== undefined
+    ? input.register ?? { register: "neutral" as const, confidence: "low" as const }
+    : hasTurn
     ? readRegister(input.latestUserText || "", {
         gapSinceLastMs: input.gapSinceLastMs || 0,
         timeOfDay: typeof input.nowMs === "number" ? new Date(input.nowMs).getUTCHours() : undefined,
