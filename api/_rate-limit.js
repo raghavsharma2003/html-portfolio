@@ -177,6 +177,53 @@ export const DEFAULT_LIMITS = {
   // `room_tg_update_seen`'s own comment states, restated rather than
   // claiming a stronger guarantee this table does not have.
   room_wa_chat_seen: { limit: 1, windowMs: 3 * 60 * 60_000 },
+  // ── WS-R170 (data safety for the new tables). Four scopes that close the
+  // same gap `otp_send_ip`/`otp_send_dest` closed above one door at a time:
+  // every scope below already sits behind an in-memory `api/_ratelimit.js`
+  // bucket at its own door, which is "in-memory per warm lambda" (this
+  // file's own header) - a cold start or a second region resets it, and a
+  // determined caller only has to land on a fresh instance to reset their
+  // own budget. Each scope below restates the SAME order of magnitude as
+  // the in-memory bucket it sits behind rather than inventing a fresh
+  // opinion, `otp_send_dest`'s own precedent.
+  //
+  // `api/replica-vibe.js`'s three owner-bearer ops (get/set/revert) sit
+  // behind `replica_vibe_owner_user` (30/min, that door's own in-memory
+  // number) - a vibe row is the owner's own dated description of who their
+  // AI is (the same table `api/_replica-full-erasure.js`'s own comment on
+  // it says), and a stolen bearer token replaying `revert` past a cold
+  // start is exactly the abuse shape a warm-lambda-only limit cannot stop.
+  replica_vibe_owner: { limit: 30, windowMs: 60_000 },
+  // `api/replica-calibration.js`'s `listening_submit` op sits behind the
+  // SAME in-memory `replica_calibration_user` bucket (120/min) every other
+  // op on that door shares - too generous for the one op among them that
+  // writes a verdict row on every call. A real blind listening session is
+  // a handful of pairs, never dozens a minute; this scope is deliberately
+  // its own, tighter number rather than reusing `replica_calibration_user`
+  // itself, `room_say_follower`'s own "a burst limit ABOVE a shared door
+  // budget" shape restated for one op instead of a whole door.
+  replica_listening_submit_owner: { limit: 20, windowMs: 60_000 },
+  // `api/room.js`'s "How we are" / "Start fresh" (op:"relstate" /
+  // "relstate_reset") sit behind the SAME in-memory bucket shape every
+  // sibling durable-personal-fact op on that door shares
+  // (`allow(authUserId, "room_${op}_user", 20), 20/min) - WS-R154's own
+  // law restated for abuse resistance: relationship state is the same
+  // class of durable personal fact a remembered fact is, and it deserves
+  // the identical persistent floor `memory_correct`/`memory_forget`
+  // would want too, closed here first because this workstream's brief
+  // names these two ops by name.
+  room_relstate_user: { limit: 20, windowMs: 60_000 },
+  room_relstate_reset_user: { limit: 20, windowMs: 60_000 },
+  // `api/teacher-sheet.js`'s `publish` op (the gate that makes a sheet -
+  // teacher OR, since migration 163's `sheet_kind`, a person's own - live)
+  // sits behind the SAME in-memory `teacher_sheet_user` bucket (60/min)
+  // every other op on that door shares, which is far too generous for an
+  // op that runs the full readiness gate and writes a publish record on
+  // every call. `creator_export_owner`'s own shape restated (a day, not a
+  // minute): publishing is a deliberate, occasional act for a real owner,
+  // never a burst, and this is firm against a stolen bearer token turning
+  // the gate itself into an unbounded compute engine.
+  teacher_sheet_publish_owner: { limit: 20, windowMs: 24 * 60 * 60_000 },
 };
 
 /**

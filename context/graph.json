@@ -18624,6 +18624,66 @@
       "kind": "measurement",
       "title": "Wave twenty-one's ten merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
       "at": "context/measurements.md#wave-21-merges-2026-09-13"
+    },
+    {
+      "id": "reconciliation-076-stays-unapplied",
+      "kind": "decision",
+      "title": "Reconciliation 076 (composite owner/agent FKs) stays unapplied: already redundant with explicit delete-by-name, and this session found first-party evidence of an unverified ordering hazard on a real FK of the same shape (2026-09-13)",
+      "at": "context/decisions.md#reconciliation-076-stays-unapplied"
+    },
+    {
+      "id": "ws-r170-calibration-not-added-to-creator-export-manifest",
+      "kind": "decision",
+      "title": "vy_replica_calibration stays out of the creator export manifest: adding it would fail the static completeness check's symmetry requirement without also naming it in erasure, which runs into the unresolved FK ordering hazard (2026-09-13)",
+      "at": "context/decisions.md#ws-r170-calibration-not-added-to-creator-export-manifest"
+    },
+    {
+      "id": "ws-r170-five-persistent-rate-scopes-restate-existing-in-memory-numbers",
+      "kind": "decision",
+      "title": "Five new api/_rate-limit.js scopes (replica-vibe, listening submit, relstate/relstate_reset, sheet publish) each restate an existing in-memory ceiling as a persistent, cold-start-proof second layer (2026-09-13)",
+      "at": "context/decisions.md#ws-r170-five-persistent-rate-scopes-restate-existing-in-memory-numbers"
+    },
+    {
+      "id": "ws-r170-no-new-relcheck-entries-for-163-164-166",
+      "kind": "decision",
+      "title": "No new scripts/relcheck.mjs entries for migrations 163/164/166: the generic owner-lane sweep already covers reachability, and 166's own conditional listening-verdict check already covers its one FK-shaped-not-FK column (2026-09-13)",
+      "at": "context/decisions.md#ws-r170-no-new-relcheck-entries-for-163-164-166"
+    },
+    {
+      "id": "ws-r170-schema-mirror-literal-statement-text-was-the-wrong-grain",
+      "kind": "rejection",
+      "title": "A literal normalized-statement-text schema-mirror check flagged 235 of 1,375 real statements, all false positives from db/schema.sql's own intentional ADD-COLUMN/constraint-folding convention (2026-09-13)",
+      "at": "context/rejected.md#ws-r170-schema-mirror-literal-statement-text-was-the-wrong-grain"
+    },
+    {
+      "id": "ws-r170-constraint-names-are-not-a-safe-mirror-dimension",
+      "kind": "rejection",
+      "title": "Checking named constraints by name in the schema-mirror gate produced 33 false positives from db/schema.sql's own inconsistent named/unnamed inline-constraint convention; dropped as a checked dimension (2026-09-13)",
+      "at": "context/rejected.md#ws-r170-constraint-names-are-not-a-safe-mirror-dimension"
+    },
+    {
+      "id": "ws-r170-calibration-generation-fk-graph-has-an-unverified-erasure-ordering-hazard",
+      "kind": "open",
+      "title": "vy_replica_calibration's real cascade FK plus three NO ACTION referencing FKs (generation/eval_run/runtime_capability, never deleted by erasure) risk a live FK violation on full erasure for a replica with calibration history; found, not fixed, unverifiable offline (2026-09-13)",
+      "at": "context/rejected.md#ws-r170-calibration-generation-fk-graph-has-an-unverified-erasure-ordering-hazard"
+    },
+    {
+      "id": "ws-r170-schema-mirror-sweep-2026-09-13",
+      "kind": "measurement",
+      "title": "Three design iterations of the schema-mirror completeness check against the real 157-migration tree: 235/1375 (all false), 38/3416 (5 real, 33 false), 7/2857 (7 real, 0 false); both real gaps fixed by appending to db/schema.sql",
+      "at": "context/measurements.md#ws-r170-schema-mirror-sweep-2026-09-13"
+    },
+    {
+      "id": "ws-r170-rate-limit-suite-2026-09-13",
+      "kind": "measurement",
+      "title": "evals/rate-limit/run.mjs 94 of 94 after WS-R170's five new scopes and one negative control; room-doors 2333/2333, room-leak 363/363, room-export 48/48 unchanged",
+      "at": "context/measurements.md#ws-r170-rate-limit-suite-2026-09-13"
+    },
+    {
+      "id": "check-schema-mirror-gate",
+      "kind": "component",
+      "title": "scripts/check-schema-mirror.mjs + evals/schema-mirror/run.mjs: proves every table/column/index/routine a migration declares exists by name in db/schema.sql, the 25th verify-release.mjs check (2026-09-13)",
+      "at": "scripts/check-schema-mirror.mjs"
     }
   ],
   "edges": [
@@ -31599,6 +31659,46 @@
       "src": "wave-21-merged-as-a-batch-under-contention",
       "dst": "wave-21-merge-gate-found-four-cross-workstream-breaks",
       "rel": "constrains"
+    },
+    {
+      "src": "ws-r170-calibration-generation-fk-graph-has-an-unverified-erasure-ordering-hazard",
+      "rel": "constrains",
+      "dst": "reconciliation-076-stays-unapplied"
+    },
+    {
+      "src": "ws-r170-calibration-not-added-to-creator-export-manifest",
+      "rel": "caused_by",
+      "dst": "ws-r170-calibration-generation-fk-graph-has-an-unverified-erasure-ordering-hazard"
+    },
+    {
+      "src": "ws-r170-five-persistent-rate-scopes-restate-existing-in-memory-numbers",
+      "rel": "measured_by",
+      "dst": "ws-r170-rate-limit-suite-2026-09-13"
+    },
+    {
+      "src": "ws-r170-schema-mirror-literal-statement-text-was-the-wrong-grain",
+      "rel": "measured_by",
+      "dst": "ws-r170-schema-mirror-sweep-2026-09-13"
+    },
+    {
+      "src": "ws-r170-constraint-names-are-not-a-safe-mirror-dimension",
+      "rel": "measured_by",
+      "dst": "ws-r170-schema-mirror-sweep-2026-09-13"
+    },
+    {
+      "src": "ws-r170-constraint-names-are-not-a-safe-mirror-dimension",
+      "rel": "caused_by",
+      "dst": "ws-r170-schema-mirror-literal-statement-text-was-the-wrong-grain"
+    },
+    {
+      "src": "check-schema-mirror-gate",
+      "rel": "measured_by",
+      "dst": "ws-r170-schema-mirror-sweep-2026-09-13"
+    },
+    {
+      "src": "voice-preference-fk-tuple-has-no-matching-unique-constraint",
+      "rel": "supersedes",
+      "dst": "ws-r170-schema-mirror-sweep-2026-09-13"
     }
   ]
 }

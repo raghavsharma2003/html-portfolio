@@ -9041,3 +9041,41 @@ create unique index if not exists vy_replica_vibe_live_ix
 
 create index if not exists vy_replica_vibe_owner_history_ix
  on vy_replica_vibe(replica_id, owner_user_id, version desc);
+
+-- WS-R170 mirror corrections, appended (never edited in place, ws-common.md).
+-- scripts/check-schema-mirror.mjs found both by walking every migration file
+-- in numeric order and confirming its own declared objects exist somewhere
+-- in this file; both were real, confirmed by hand against the cited
+-- migration file before being added here.
+--
+-- 046 (context/rejected.md#046-replica-voice-preference). The preference
+-- table's left/right FKs reference the owner tuple on vy_replica_generation;
+-- no earlier migration created a unique constraint on that exact tuple, so
+-- 046's own file adds this index immediately before creating the table that
+-- needs it. The CREATE TABLE made it into this mirror; this preceding INDEX
+-- did not.
+create unique index if not exists vy_replica_generation_owner_tuple_ix
+  on vy_replica_generation (generation_id,replica_id,owner_user_id);
+
+-- 056 (fact_validity). Event-time columns on the belief-time fact/graph
+-- stores, closing `stale-note-keys-on-row-age` (context/decisions.md) — see
+-- db/migrations/056_fact_validity.sql for the full product reasoning. Never
+-- backfilled (both columns are nullable with no default); absence means
+-- "not derivable", not "false".
+alter table vy_fact add column if not exists valid_from timestamptz;
+alter table vy_fact add column if not exists valid_to timestamptz;
+alter table vy_fact drop constraint if exists vy_fact_validity_order;
+alter table vy_fact add constraint vy_fact_validity_order
+  check (valid_from is null or valid_to is null or valid_to >= valid_from);
+create index if not exists vy_fact_validity_ix
+  on vy_fact (person_id, valid_to)
+  where valid_to is not null and t_invalid is null and retracted_at is null;
+
+alter table meera_nodes add column if not exists valid_from timestamptz;
+alter table meera_nodes add column if not exists valid_to timestamptz;
+alter table meera_nodes drop constraint if exists meera_nodes_validity_order;
+alter table meera_nodes add constraint meera_nodes_validity_order
+  check (valid_from is null or valid_to is null or valid_to >= valid_from);
+create index if not exists meera_nodes_validity_ix
+  on meera_nodes (device_id, valid_to)
+  where valid_to is not null;

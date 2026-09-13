@@ -3269,6 +3269,19 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   emotionos: "emotionos/run.mjs",
+  // WS-R170 ("data safety for the new tables"). The offline eval for
+  // `scripts/check-schema-mirror.mjs` (the "schema mirror" gate in
+  // scripts/verify-release.mjs): every migration file's own declared
+  // tables/columns/indexes/routines exist by name in db/schema.sql, walked
+  // in migration-numeric order. Two required negative controls: a clean
+  // pair reports zero missing (the gate does not cry wolf), and an object
+  // genuinely absent from the mirror is still caught even though an ADD
+  // COLUMN folded into its own CREATE TABLE is correctly NOT flagged. Also
+  // runs the real check against the real repo tree (part of this "eval
+  // suite" gate, so drift trips CI even before a standalone gate run).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "schema-mirror": "schema-mirror/run.mjs",
 };
 
 const argv = process.argv.slice(2);

@@ -355,5 +355,64 @@ function fakeRateDb(state) {
   ok("send_sms keeps the fast in-memory per-destination layer too", /allow\(phone, "otp_dest", 3\)/.test(sendBlock));
 }
 
+// ── §9 WS-R170: data safety for the new tables. Four persistent scopes
+//    closing the gap on doors wave twenty-one added (replica-vibe, the
+//    listening submit, relstate/relstate_reset, the sheet publish path) -
+//    each already sat behind an in-memory `api/_ratelimit.js` bucket alone,
+//    which resets on every cold start; this section proves the SAME static
+//    shape §7/§8 already proved for the older doors, applied to these four. ─
+{
+  ok("the four WS-R170 scopes are defined", [
+    "replica_vibe_owner", "replica_listening_submit_owner",
+    "room_relstate_user", "room_relstate_reset_user", "teacher_sheet_publish_owner",
+  ].every((s) => s in DEFAULT_LIMITS));
+
+  const vibe = readFileSync(join(ROOT, "api/replica-vibe.js"), "utf8");
+  ok("api/replica-vibe.js imports consume from _rate-limit.js", /import \{ consume \} from ".\/_rate-limit\.js"/.test(vibe));
+  ok("api/replica-vibe.js gates every op on replica_vibe_owner, keyed by the owner's own id, before dispatch",
+    /refused\(res, "replica_vibe_owner", user\.id\)[\s\S]{0,400}if \(op === "get"\)/.test(vibe));
+
+  const calibration = readFileSync(join(ROOT, "api/replica-calibration.js"), "utf8");
+  ok("api/replica-calibration.js imports consume from _rate-limit.js", /import \{ consume \} from ".\/_rate-limit\.js"/.test(calibration));
+  ok("api/replica-calibration.js gates listening_submit on replica_listening_submit_owner",
+    /body\.op === "listening_submit"[\s\S]{0,400}refused\(res, "replica_listening_submit_owner", user\.id\)[\s\S]{0,300}recordVoiceListeningVerdict/.test(calibration));
+  ok("...and the OTHER three ops (choose/build/approve) are NOT gated on that scope - it is the listening op's own ceiling, not the door's",
+    !/op === "choose"[\s\S]{0,300}refused\(res, "replica_listening_submit_owner"/.test(calibration)
+    && !/op === "build"[\s\S]{0,300}refused\(res, "replica_listening_submit_owner"/.test(calibration)
+    && !/op === "approve"[\s\S]{0,300}refused\(res, "replica_listening_submit_owner"/.test(calibration));
+
+  const room = readFileSync(join(ROOT, "api/room.js"), "utf8");
+  ok("api/room.js gates relstate on room_relstate_user, keyed by the session's own auth user, before roomRelState runs",
+    /op === "relstate"\)[\s\S]{0,400}refused\(res, "room_relstate_user", authUserId\)[\s\S]{0,200}roomRelState\(/.test(room));
+  ok("api/room.js gates relstate_reset on room_relstate_reset_user before roomRelStateReset runs",
+    /op === "relstate_reset"\)[\s\S]{0,400}refused\(res, "room_relstate_reset_user", authUserId\)[\s\S]{0,200}roomRelStateReset\(/.test(room));
+
+  const teacherSheet = readFileSync(join(ROOT, "api/teacher-sheet.js"), "utf8");
+  ok("api/teacher-sheet.js imports consume from _rate-limit.js", /import \{ consume \} from ".\/_rate-limit\.js"/.test(teacherSheet));
+  ok("api/teacher-sheet.js gates publish on teacher_sheet_publish_owner before publishOwnedTeacherSheet runs",
+    /op === "publish"\)[\s\S]{0,400}refused\(res, "teacher_sheet_publish_owner", user\.id\)[\s\S]{0,300}publishOwnedTeacherSheet\(/.test(teacherSheet));
+
+  ok("every WS-R170 scope every one of these four files uses is one this module actually defines a limit for", [
+    "replica_vibe_owner", "replica_listening_submit_owner",
+    "room_relstate_user", "room_relstate_reset_user", "teacher_sheet_publish_owner",
+  ].every((s) => s in DEFAULT_LIMITS));
+
+  // NEGATIVE CONTROL (e): driven through the REAL consume() - the 21st
+  // publish in one day against the SAME owner is refused, a different
+  // owner's 1st call the same window is unaffected. `otp_verify_dest`'s own
+  // negative control (d) shape, restated for a day-scoped owner key.
+  const state = freshRateState();
+  const db = fakeRateDb(state);
+  const now = Date.UTC(2026, 8, 13, 6, 0, 0);
+  const results = [];
+  for (let i = 0; i < 21; i++) {
+    results.push(await consume(db, { scope: "teacher_sheet_publish_owner", key: "owner-a", now: now + i * 1000 }));
+  }
+  ok("publishes 1 through 20 for one owner in one day are all admitted", results.slice(0, 20).every((r) => r.ok === true));
+  ok("NEGATIVE CONTROL (e): the 21st publish for the SAME owner the same day is refused", results[20].ok === false && results[20].code === "rate_limited");
+  const otherOwner = await consume(db, { scope: "teacher_sheet_publish_owner", key: "owner-b", now });
+  ok("a DIFFERENT owner's first publish that day is unaffected", otherOwner.ok === true);
+}
+
 console.log(`\n${pass} ok, ${fail} failed`);
 process.exit(fail ? 1 : 0);

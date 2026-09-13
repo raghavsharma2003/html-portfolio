@@ -2,6 +2,7 @@
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
+import { consume } from "./_rate-limit.js";
 import {
   approveOwnedCalibration,
   buildOwnedCalibration,
@@ -17,6 +18,17 @@ function cors(res) {
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   res.setHeader("Cache-Control", "no-store");
+}
+
+/** WS-R170. `api/room.js`'s `refused` and `api/account.js`'s own copy of
+ *  it, same shape, restated here rather than imported (no shared module
+ *  owns it). */
+async function refused(res, scope, key) {
+  const gate = await consume(q, { scope, key });
+  if (gate.ok) return false;
+  res.setHeader("Retry-After", String(gate.retryAfterSeconds));
+  res.status(429).json({ error: gate.code, retry_after_seconds: gate.retryAfterSeconds });
+  return true;
 }
 export default async function handler(req, res) {
   cors(res);
@@ -54,6 +66,11 @@ export default async function handler(req, res) {
       return calibration ? res.status(200).json({ calibration }) : res.status(409).json({ error: "calibration_stale_or_unavailable" });
     }
     if (body.op === "listening_submit") {
+      // WS-R170: the persistent second layer, `replica_listening_submit_
+      // owner`'s own header in api/_rate-limit.js - survives a cold start
+      // the shared `replica_calibration_user` bucket above does not, and is
+      // its own tighter ceiling than that door-wide number.
+      if (await refused(res, "replica_listening_submit_owner", user.id)) return;
       const verdict = await recordVoiceListeningVerdict(q, user.id, body);
       return res.status(201).json({ verdict });
     }

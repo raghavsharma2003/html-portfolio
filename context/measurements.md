@@ -18193,3 +18193,19 @@ Method: each workstream's own report (suite counts as printed by its suites), th
 | WS-R153 EmotionOS, vibe and register (164) | e41589a | emotionos 37 (60 of 60 labelled turns), room-doors 2305, incidents, ops, lanes |
 
 Full gate on the batch: seven merges 24 of 24 after the four repairs; nine merges 24 of 24 (5d68438, CI green on both workflows); eleven merges 24 of 24 (e41589a). Live database after the wave: migrations 163, 164 and 166 applied one statement per request (3 + 3 + 3 statements, 0 failures), 207 `vy_` tables; 165 unused (WS-R154 needed no schema change).
+
+## `ws-r170-schema-mirror-sweep-2026-09-13` (WS-R170)
+
+Method: `scripts/check-schema-mirror.mjs`'s `checkSchemaMirror()` driven directly over the real checked-in `db/migrations/*.sql` (157 files) and `db/schema.sql`, on the ws-r170 worktree, 2026-09-13, no database touched (pure text/DDL parse). Three design iterations, each measured against the same real tree:
+
+| design | dimension checked | hits | of | real drift |
+|---|---|---|---|---|
+| 1 | literal normalized statement text, substring compare | 235 | 1,375 statements | 0 (all `db/schema.sql`'s own ADD-COLUMN/constraint-folding convention) |
+| 2 | column presence (`parseDDL`) + index names + constraint names + routine names | 38 | 3,416 declared objects | 5 real (046's index, 056's two columns x2 tables, two indexes); 33 false (unnamed inline constraints matching a named migration constraint by content, not name) |
+| 3 (shipped) | column presence + index names + routine names only (constraints dropped as a dimension) | 7 | 2,857 declared objects | 7 real, 0 false: `046_replica_voice_preference.sql`'s `vy_replica_generation_owner_tuple_ix` (previously known, `context/rejected.md#voice-preference-fk-tuple-has-no-matching-unique-constraint`), `056_fact_validity.sql`'s `vy_fact.valid_from`/`valid_to`, `meera_nodes.valid_from`/`valid_to`, `vy_fact_validity_ix`, `meera_nodes_validity_ix` (previously unknown, found by this sweep) |
+
+Both real gaps fixed by appending idempotent `create index if not exists`/`alter table add column if not exists`/`add constraint` statements to the end of `db/schema.sql` (never editing in place); re-run after the fix: `0 missing` of 2,857 checked. Not verified live (no `NEON_URL` in this environment) — the mirror now matches the checked-in migrations; whether the live database's actual catalog also carries `vy_fact_validity_ix`/`meera_nodes_validity_ix` (056 predates this session) is a separate, unverified question this sweep does not answer.
+
+## `ws-r170-rate-limit-suite-2026-09-13` (WS-R170)
+
+Method: `node evals/rate-limit/run.mjs` on the ws-r170 worktree, 2026-09-13. n=94 assertions (up from 65 before this workstream's own §9), 0 failed. New in §9: 5 new `DEFAULT_LIMITS` scope-definition checks, 4 static wiring proofs (`api/replica-vibe.js`, `api/replica-calibration.js`, `api/room.js` x2, `api/teacher-sheet.js`, each asserting the `refused()`/`consume()` call sits between the op dispatch and the real decision-module call it guards), 1 scope-exists-for-every-caller check, and NEGATIVE CONTROL (e): 21 `teacher_sheet_publish_owner` calls against one fixture owner in one fixture day — calls 1 through 20 admitted, the 21st refused with `rate_limited`, a different owner's first call the same window unaffected. `node evals/room-doors/run.mjs` re-run after the wiring changes: 2333 of 2333 (unchanged count, confirming no existing op/door coverage regressed). `node evals/room-leak/run.mjs`: 363 of 363 (unchanged). `node evals/room-export/run.mjs`: 48 of 48 (unchanged).
