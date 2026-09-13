@@ -47,6 +47,11 @@
 
 import { spawn } from "node:child_process";
 import { availableParallelism, cpus } from "node:os";
+// WS-R181. loadRatio is the one place load1/cores is computed — shared with
+// the load-aware barriers and the performance gate's own load-ceiling
+// refusal, so this budget's threshold and theirs can never drift apart by
+// accident.
+import { loadRatio } from "./lib/bounded-wait.mjs";
 
 /** Suites that write a repo-shared file (`dist/`). Run serially, in registry
  * order, BEFORE the pool or the port lane starts — not merely in a lane
@@ -77,6 +82,32 @@ export function pickWorkerCount(env = process.env) {
   if (Number.isInteger(override) && override >= 1) return override;
   const n = typeof availableParallelism === "function" ? availableParallelism() : cpus().length;
   return Math.max(2, n - 1);
+}
+
+/**
+ * WS-R181. The shared two-slot browser budget (measured 2026-09-08: seven
+ * concurrent mounted browser suites starved renderer frames for 5.2 and 8.8
+ * seconds despite visible/editable controls — this file's own header) was
+ * calibrated on a machine running ONE gate. Ten siblings sharing this same
+ * four-core box each run their own pool, each with its own two-browser
+ * budget, so the real concurrent-Chromium count this machine sees is never
+ * 2 — it is up to 2 x (however many sibling gates are mid-run), and TWO
+ * browsers fighting for CPU that is ALREADY oversubscribed is exactly the
+ * frame-starvation shape that measurement found in the first place.
+ *
+ * `EVALS_BROWSER_BUDGET` (a developer knob, never added to the manifest) if
+ * set to a positive integer; else 1 above the SAME load ratio ceiling this
+ * workstream's `boundedWaitMs`/`loadCeilingResult` use elsewhere (load1/cores
+ * > 2 — half of `DEFAULT_LOAD_CEILING`'s own ratio at 4 cores, chosen
+ * because a browser is far more CPU-hungry per instance than the ordinary
+ * CPU-bound suites `pickWorkerCount` sizes for, so this budget backs off
+ * sooner), else the original 2 on a quiet machine.
+ */
+export function pickBrowserBudget(env = process.env, opts = {}) {
+  const override = Number(env.EVALS_BROWSER_BUDGET);
+  if (Number.isInteger(override) && override >= 1) return override;
+  const { ratio } = loadRatio(opts);
+  return ratio > 2 ? 1 : 2;
 }
 
 /**

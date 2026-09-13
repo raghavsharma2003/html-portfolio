@@ -45,6 +45,10 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, win32 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+// WS-R181. Fixed port 8931 -- a sibling worktree's own gate can hold it at
+// the exact instant this one tries to bind. Wait for it rather than crash on
+// Node's own uncaught EADDRINUSE (see evals/lib/bounded-wait.mjs's header).
+import { listenWithPortWait } from "../evals/lib/bounded-wait.mjs";
 
 function rootFromModuleUrl(moduleUrl, options) {
   return fileURLToPath(new URL("..", moduleUrl), options);
@@ -642,7 +646,7 @@ function serveDist() {
       res.writeHead(404).end("not found");
     }
   });
-  return new Promise((ok) => server.listen(PORT, "127.0.0.1", () => ok(server)));
+  return listenWithPortWait(server, PORT, "127.0.0.1");
 }
 
 /** Runs INSIDE the page. Returns every layout complaint it can measure. */

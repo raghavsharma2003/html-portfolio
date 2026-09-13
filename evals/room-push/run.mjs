@@ -54,6 +54,7 @@ import {
   freshState,
   fakeDb,
 } from "../room/fixtures.mjs";
+import { listenWithPortWait } from "../lib/bounded-wait.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -595,7 +596,9 @@ self.addEventListener("push", (event) => {
       res.writeHead(500).end(String(err?.message || err));
     }
   });
-  await new Promise((r) => server.listen(PORT, "127.0.0.1", r));
+  // WS-R181. Fixed port, sibling worktrees included -- wait for it to free
+  // rather than crash on a sibling gate's own EADDRINUSE.
+  await listenWithPortWait(server, PORT, "127.0.0.1");
 
   // With no explicit binary, the shared launcher (`evals/rehearsal/
   // browser.mjs`, WS-R165) asks Playwright for its FULL chromium build by

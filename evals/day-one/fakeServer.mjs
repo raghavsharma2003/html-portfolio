@@ -20,6 +20,12 @@
 // is configured or not, per `docs/gurukul/DAY-ONE.md`'s own step 4 note).
 import { createServer } from "node:http";
 import { startFakeServer } from "../probe-live/fakeServer.mjs";
+// WS-R181. This outer server binds its own fixed port (8945, `port + 1` =
+// 8946 for the wrapped inner fixture) -- the identical sibling-process
+// collision `evals/probe-live/fakeServer.mjs`'s own comment names, since
+// `startFakeServer` above is already fixed and this file's OWN `listen`
+// call was the one remaining unguarded bind.
+import { listenWithPortWait } from "../lib/bounded-wait.mjs";
 
 export const VALID_OPERATOR_BEARER = "day-one-fixture-operator-bearer";
 
@@ -124,16 +130,13 @@ export async function startDayOneFixture(port, { selfCheckState = "complete", pr
     }
   });
 
-  return new Promise((resolve) => {
-    server.listen(port, "127.0.0.1", () =>
-      resolve({
-        server,
-        url: `http://127.0.0.1:${port}`,
-        stop: async () => {
-          await new Promise((r) => server.close(r));
-          await inner.stop();
-        },
-      }),
-    );
-  });
+  await listenWithPortWait(server, port, "127.0.0.1");
+  return {
+    server,
+    url: `http://127.0.0.1:${port}`,
+    stop: async () => {
+      await new Promise((r) => server.close(r));
+      await inner.stop();
+    },
+  };
 }

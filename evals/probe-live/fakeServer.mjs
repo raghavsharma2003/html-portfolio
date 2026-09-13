@@ -23,6 +23,12 @@ import {
   cronPaths,
   cronAuthExpectation,
 } from "../../scripts/probeLiveExpectations.mjs";
+// WS-R181. This is a PORT_LANE_SUITES fixed port (8940) -- a sibling
+// worktree's own gate can hold it at the exact instant this one tries to
+// bind, and the pool's own port lane (runner-lib.mjs) only serialises this
+// process's OWN three fixed-port suites against each other, never against
+// another process entirely. Wait for it rather than crash on it.
+import { listenWithPortWait } from "../lib/bounded-wait.mjs";
 import { makePng } from "./fakePng.mjs";
 import { buildCreatorPageHtml } from "../../api/_creator-page.js";
 import { buildRoomAboutHtml } from "../../api/_room-about.js";
@@ -334,7 +340,9 @@ export function startFakeServer(port, defects = {}) {
     }
   });
 
-  return new Promise((resolve) => {
-    server.listen(port, "127.0.0.1", () => resolve({ server, url: `http://127.0.0.1:${port}`, stop: () => new Promise((r) => server.close(r)) }));
-  });
+  return listenWithPortWait(server, port, "127.0.0.1").then(() => ({
+    server,
+    url: `http://127.0.0.1:${port}`,
+    stop: () => new Promise((r) => server.close(r)),
+  }));
 }

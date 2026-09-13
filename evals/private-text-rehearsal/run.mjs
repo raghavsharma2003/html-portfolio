@@ -9,6 +9,7 @@ import {runInNewContext} from 'node:vm';
 import ts from 'typescript';
 import {build} from 'vite';
 import {chromium} from 'playwright';
+import {boundedWaitMs} from '../lib/bounded-wait.mjs'; // WS-R181: scale the fixed Playwright action timeout by machine load
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const RID='10000000-0000-4000-8000-000000000001',OTHER='10000000-0000-4000-8000-000000000002';
 const SHEET='20000000-0000-4000-8000-000000000001',ITEM='30000000-0000-4000-8000-000000000001',SOURCE='40000000-0000-4000-8000-000000000001',GRANT='50000000-0000-4000-8000-000000000001';
@@ -113,7 +114,7 @@ try{
  });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`;
  browser=await launchSuiteBrowser("private-text-rehearsal-ui");
- const page=await browser.newPage();page.setDefaultTimeout(15000);page.on('pageerror',error=>errors.push(error.message));
+ const page=await browser.newPage();page.setDefaultTimeout(boundedWaitMs(15000));page.on('pageerror',error=>errors.push(error.message));
  await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
  await page.addInitScript(({TOKEN,OWNER})=>{localStorage.setItem('meera.state.v1',JSON.stringify({auth:{userId:OWNER,accessToken:TOKEN,refreshToken:TOKEN,expiresAt:Date.now()+3600000,email:'private@fixture.test'}}));localStorage.setItem('vyakti.studio.mode.v1','replica');},{TOKEN,OWNER});
  const waitPending=async()=>{const end=Date.now()+5000;while(!pending.length&&Date.now()<end)await new Promise(resolve=>setTimeout(resolve,20));assert(pending.length,'bounded delayed request barrier');};

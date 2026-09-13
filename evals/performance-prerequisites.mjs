@@ -14,6 +14,14 @@ try {
   copyFileSync(join(root, 'scripts/check-performance.mjs'), join(temporary, 'scripts/check-performance.mjs'));
   copyFileSync(join(root, 'scripts/performance-hindi-interface.mjs'), join(temporary, 'scripts/performance-hindi-interface.mjs'));
   copyFileSync(join(root, 'scripts/performance-network-accounting.mjs'), join(temporary, 'scripts/performance-network-accounting.mjs'));
+  // WS-R181: check-performance.mjs now imports evals/lib/bounded-wait.mjs
+  // (`../evals/lib/bounded-wait.mjs` from scripts/) for its port wait and
+  // its load-ceiling refusal -- the copied file's own relative import
+  // resolves against THIS temp tree, so the real module has to exist at the
+  // identical relative path here too, or the spawned copy crashes at import
+  // time before it ever reaches the checks below.
+  mkdirSync(join(temporary, 'evals/lib'), { recursive: true });
+  copyFileSync(join(root, 'evals/lib/bounded-wait.mjs'), join(temporary, 'evals/lib/bounded-wait.mjs'));
   writeFileSync(join(temporary, 'scripts/check-install.mjs'), 'export async function runInstallCheck(){throw new Error("must not reach installation without prerequisites")}');
   writeFileSync(join(temporary, 'scripts/build-suites-about-fixture.mjs'), 'export async function buildSuitesAboutFixture(){}');
   const run = (...args) => {

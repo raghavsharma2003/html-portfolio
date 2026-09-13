@@ -9,6 +9,7 @@ import {createServer} from 'node:http';
 import {createHash} from 'node:crypto';
 import {build} from 'vite';
 import {chromium} from 'playwright';
+import {boundedWaitMs} from '../lib/bounded-wait.mjs'; // WS-R181: scale the fixed Playwright action timeout by machine load
 const root=fileURLToPath(new URL('../../',import.meta.url)),art=join(root,'scratchpad/editor-edit-races',String(Date.now()));mkdirSync(art,{recursive:true});
 const rid='10000000-0000-4000-8000-000000000001',sheetId='20000000-0000-4000-8000-000000000001';
 const initial={name:'Anjali',identityWho:'Physics teacher',subjectDomain:'physics',syllabusScope:'Saved scope A',subjectStrands:['Kinematics'],doubtEscalationLadder:['First hint'],strictness:2,warmth:3,identityLife:'Teaching life',boundaryParagraph:{retain:'raw boundary'},analogyBank:[null],unknownOwnerField:{retain:['exact',null,7]}};
@@ -35,7 +36,7 @@ try{
  });await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
  browser=await launchSuiteBrowser("teacher-sheet-edit-races");
  for(const width of [390,1440]){
-  const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'}),page=await context.newPage();await observeBrowser(context);page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());
+  const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'}),page=await context.newPage();await observeBrowser(context);page.setDefaultTimeout(boundedWaitMs(12000));page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());
   const open=async(lane,legacy=false,value=initial,hi=false)=>{assert.equal(pending.length,0);raw=structuredClone(value);mode='normal';posts=[];gets=[];published=false;await page.goto(`${origin}/evals/teacher-sheet-edit-races/host.html?${lane==='studio'?'studio=1&':''}${legacy?'old=1&':''}${hi?'hi=1':''}`);await page.locator('#teacher-sheet-studio').waitFor();};
   const load=()=>page.locator('.section-heading button'),save=()=>page.locator('.person-model-action button');
   const settle=async()=>{assert.equal(pending.length,1);pending.shift()();await page.waitForFunction(()=>!document.querySelector('.section-heading button')?.disabled&&!document.querySelector('.person-model-action button')?.disabled);};

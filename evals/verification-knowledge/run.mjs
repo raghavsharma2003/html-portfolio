@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {join} from 'node:path';
 import {createServer} from 'node:http';
 import {createHash} from 'node:crypto';
+import {boundedWaitMs} from '../lib/bounded-wait.mjs'; // WS-R181: scale the fixed Playwright action timeout by machine load
 
 const root=fileURLToPath(new URL('../../',import.meta.url)),base='684441e14dcbb0fac904fea3c8d104412848ab98';
 const oldBytes=readFileSync(new URL('./fixtures/CloneExperience.before.tsx.txt',import.meta.url));
@@ -75,7 +76,7 @@ try{
  });await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
  browser=await launchSuiteBrowser("verification-knowledge");
  for(const width of [396,1440]){
-  const page=await browser.newPage({viewport:{width,height:900},reducedMotion:'reduce'});page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
+  const page=await browser.newPage({viewport:{width,height:900},reducedMotion:'reduce'});page.setDefaultTimeout(boundedWaitMs(15000));page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
   const check=async(name,fn)=>{await fn();checks.push({width,name});console.log('ok '+checks.length+' - '+width+' '+name);};
   const open=async(scenario,extra='')=>{await page.goto(`${origin}/?replica=${rid}&step=meet&view=voice&lang=hi&case=${scenario}${extra}`);await page.waitForFunction(()=>window.journeyProbe?.builds.length===1);await page.locator('.cvj-shell').waitFor();};
   const exit=()=>page.getByRole('button',{name:'Back to knowledge',exact:true});

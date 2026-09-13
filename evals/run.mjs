@@ -20,7 +20,7 @@ import { execSync } from "node:child_process";
 import { exitWithFlushedOutput } from "./runner-output.mjs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { PRE_POOL_SUITES, PORT_LANE_SUITES, pickWorkerCount, runPool, runSuiteFile, createBrowserBudget } from "./runner-lib.mjs";
+import { PRE_POOL_SUITES, PORT_LANE_SUITES, pickWorkerCount, pickBrowserBudget, runPool, runSuiteFile, createBrowserBudget } from "./runner-lib.mjs";
 import { classifySuiteResources } from "./suite-resources.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -3412,6 +3412,21 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "schema-mirror": "schema-mirror/run.mjs",
+  // WS-R181 ("the gate honest under load"). `evals/lib/bounded-wait.mjs`'s
+  // own offline proof: boundedWaitMs scales with load (never below base,
+  // capped), loadCeilingResult refuses to judge above a ceiling and always
+  // reports what it read (wired end to end through the REAL
+  // `performanceGateResult` from scripts/check-performance.mjs, never a
+  // reimplementation), and listenWithPortWait actually waits for a held
+  // port rather than failing on the first attempt, naming the port only
+  // once its own bounded timeout expires. See that file's own header for
+  // what every barrier and every fixed-port suite in this registry now
+  // shares because of it.
+  //
+  // Offline, deterministic, $0, no DB, no network beyond 127.0.0.1 (three
+  // throwaway loopback servers this suite itself creates and closes), no
+  // model call, no GPU, no browser.
+  "gate-load": "gate-load/run.mjs",
 };
 
 const argv = process.argv.slice(2);
@@ -3457,7 +3472,10 @@ if (serial) {
 //     pool suite (none binds 8940/8941/8945) or with each other.
 //  3. Everything else — the pool, sized by pickWorkerCount().
 const entries = classifySuiteResources(Object.entries(suites).map(([name, file]) => ({ name, file: join(HERE, file) })), { root: ROOT });
-const browserBudget = createBrowserBudget(2);
+// WS-R181: the budget itself now scales down on an already-loaded machine
+// (runner-lib.mjs's own header) rather than staying fixed at the
+// quiet-machine calibration of 2.
+const browserBudget = createBrowserBudget(pickBrowserBudget());
 const preSet = new Set(PRE_POOL_SUITES);
 const portSet = new Set(PORT_LANE_SUITES);
 const preEntries = entries.filter((e) => preSet.has(e.name));

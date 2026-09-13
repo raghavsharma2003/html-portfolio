@@ -93,6 +93,12 @@ import { gzipSync } from "node:zlib";
 import { runInstallCheck } from "./check-install.mjs";
 import { installHindiInterfaceProbe } from "./performance-hindi-interface.mjs";
 import { createPerformanceNetworkAccounting } from "./performance-network-accounting.mjs";
+// WS-R181. Fixed port 8932 -- wait for a sibling gate to free it rather than
+// crash on it (evals/lib/bounded-wait.mjs's header). `loadCeilingResult` is
+// this gate's own "am I too busy to trust these numbers" read: a
+// time-measuring check must refuse to judge above a load ceiling, named as a
+// failure, rather than report a busy run as a budget miss or pass silently.
+import { listenWithPortWait, loadCeilingResult } from "../evals/lib/bounded-wait.mjs";
 
 function rootFromModuleUrl(moduleUrl) {
   return fileURLToPath(new URL("..", moduleUrl));
@@ -341,7 +347,7 @@ function serveApp() {
       res.writeHead(404).end("not found");
     }
   });
-  return new Promise((ok) => server.listen(PORT, "127.0.0.1", () => ok(server)));
+  return listenWithPortWait(server, PORT, "127.0.0.1");
 }
 
 function categorize(cdpType, url) {
@@ -832,11 +838,18 @@ function checkHindiPreloadStatic() {
 }
 
 // A skipped prerequisite is a failed release check, never a measured pass.
-export function performanceGateResult({ budgetFindings = [], install = null, staticFindings = [], prerequisiteFindings = [] } = {}) {
+//
+// WS-R181, law 4. `loadFindings` is a THIRD, distinct kind, never folded
+// into `prerequisiteFindings`: a prerequisite says "fix your environment and
+// rerun" (dist/ missing, a fixture absent); a load-ceiling finding says
+// "these numbers cannot be trusted right now, rerun once the machine is
+// quiet" -- a different instruction, so a reader scanning the finding list
+// sees which one applies rather than one bucket that means two things.
+export function performanceGateResult({ budgetFindings = [], install = null, staticFindings = [], prerequisiteFindings = [], loadFindings = [] } = {}) {
   const installFindings = install?.skipped
     ? [{ target: "installable Room", metric: "prerequisite", detail: install.skipped }]
     : (install?.findings || []).map(f => ({ target: "installable Room", metric: f.check, detail: f.detail }));
-  const findings = [...prerequisiteFindings, ...budgetFindings, ...installFindings, ...staticFindings];
+  const findings = [...prerequisiteFindings, ...loadFindings, ...budgetFindings, ...installFindings, ...staticFindings];
   return { status: findings.length ? "failed" : "passed", exitCode: findings.length ? 1 : 0, findings };
 }
 
@@ -881,6 +894,27 @@ async function main() {
   } catch {
     return prerequisiteFailure("playwright not installed");
   }
+
+  // WS-R181, law 4. This gate measures wall-clock timing under CPU/network
+  // throttling; a sibling gate's own real CPU contention adds noise this
+  // throttle cannot distinguish from a real regression (the exact "TBT
+  // finding under load" shape context/rejected.md names at least four times
+  // -- WS-R86, WS-R93, WS-R118, WS-R153, WS-R169). Above the ceiling this
+  // gate REFUSES to judge, named by the load it read, rather than report a
+  // busy machine as a budget miss or silently pass a run it cannot trust.
+  // The load is read once, after the cheap environment checks above (a
+  // missing binary is a different, more specific failure than "too busy to
+  // measure") and before any actual measurement work, and recorded in the
+  // JSON report either way (law 4: "record it in their output").
+  const load = loadCeilingResult();
+  if (load.exceeded) {
+    const detail = `not measurable at load ${load.load1.toFixed(2)} (ceiling ${load.ceiling}, ${load.cores} cores, ratio ${load.ratio.toFixed(2)}) -- rerun once the machine is quieter`;
+    const result = performanceGateResult({ loadFindings: [{ target: "performance budgets", metric: "load ceiling", detail }] });
+    if (asJson) console.log(JSON.stringify({ ...result, results: [], load }, null, 2));
+    else console.log(`FAIL  performance budgets: ${detail}`);
+    return result.exitCode;
+  }
+
   const executablePath = [
     process.env.CHROMIUM_PATH,
     "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
@@ -927,11 +961,12 @@ async function main() {
       ...outcome,
       throttle: THROTTLE,
       budgets: { ...BUDGETS, hindiChunkWaitMs: HINDI_CHUNK_WAIT_BUDGET_MS, firstHindiPaintMs: FIRST_HINDI_PAINT_BUDGET_MS },
-      viewport: VIEWPORT, runs: RUNS, results, install,
+      viewport: VIEWPORT, runs: RUNS, results, install, load,
       ...(profile ? { profiling: "CPU sampling enabled; attribution diagnostic, not an ordinary release measurement" } : {}),
       staticFindings: hindiPreloadFindings,
     }, null, 2));
   } else {
+    console.log(`  load average 1m: ${load.load1.toFixed(2)} (${load.cores} cores, ratio ${load.ratio.toFixed(2)}, ceiling ${load.ceiling})`);
     printReport(results);
     if (outcome.findings.length) {
       console.log(`FAIL  performance budgets: ${outcome.findings.length} finding(s)`);

@@ -7,6 +7,7 @@ import {createServer} from 'node:http';
 import {build} from 'vite';
 import {chromium} from 'playwright';
 import ts from 'typescript';
+import {boundedWaitMs} from '../lib/bounded-wait.mjs'; // WS-R181: scale the fixed Playwright action timeout by machine load
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const base='da3ac2aeac29571ae45a4507d947b1cf603cf9c1';
 const sourceBase='ab50c782303c9a6f8825ee9ce25e505b7421795e';
@@ -40,7 +41,7 @@ let browser;let checks=0;const results=[];const runtimeErrors=[];
 try{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`;
  browser=await launchSuiteBrowser("primary-intent-recovery");
- const page=await browser.newPage();page.setDefaultTimeout(12000);page.on('pageerror',error=>runtimeErrors.push(error.message));
+ const page=await browser.newPage();page.setDefaultTimeout(boundedWaitMs(12000));page.on('pageerror',error=>runtimeErrors.push(error.message));
  await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
  const action=()=>page.getByRole('button',{name:'Use this recording',exact:true});
  const calls=()=>page.evaluate(()=>window.recoveryProbe.calls);

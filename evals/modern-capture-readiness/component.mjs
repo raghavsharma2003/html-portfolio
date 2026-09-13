@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {createServer} from 'vite';
 import ts from 'typescript';
 import {chromium} from 'playwright';
+import {boundedWaitMs} from '../lib/bounded-wait.mjs'; // WS-R181: scale the fixed Playwright action timeout by machine load
 const ROOT=fileURLToPath(new URL('../../',import.meta.url));
 const cacheBase=join(ROOT,'scratchpad');mkdirSync(cacheBase,{recursive:true});
 const cacheDir=mkdtempSync(join(cacheBase,'capture-readiness-vite-'));
@@ -31,7 +32,7 @@ let browser;let checks=0;
 try{
  await server.listen();const base=`http://127.0.0.1:${server.httpServer.address().port}`;
  browser=await launchSuiteBrowser("modern-capture-readiness-ui");
- const page=await browser.newPage();page.setDefaultTimeout(20000);const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('component page error:',e.message);});
+ const page=await browser.newPage();page.setDefaultTimeout(boundedWaitMs(20000));const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('component page error:',e.message);});
  await page.route('**/*',route=>route.request().url().startsWith(base+'/')?route.continue():route.abort());
  async function open(query=''){await page.goto(base+'/capture-probe?'+query);await page.waitForFunction(()=>window.captureProbe?.calls.readiness>0);}
  const getCalls=()=>page.evaluate(()=>({...window.captureProbe.calls}));
