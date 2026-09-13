@@ -227,11 +227,28 @@ export {
   consentGateBlockers,
   helplineNumbersIn,
   PLACEHOLDER_CONSENT_ARTIFACT_ID,
+  // WS-R180: the reply-language policy projection, exported for the same
+  // standing reason as `sheetToModule` above it — `api/_room-surface.js` and
+  // `api/_replica-dialogue.js` are plain-JS Vercel functions under the
+  // zero-imports-from-src rule, and a hand-ported copy of this projection
+  // would be the mirrored-logic failure this file exists to refuse.
+  replyLanguagePolicyFor,
   type SheetValidation,
   type SheetValidationError,
   type TeacherSheetRowState,
 } from "./agents/fromSheet";
 export type { TeacherSheet } from "./agents/teacherTypes";
+// WS-R180: `PersonDeclaredLanguagePolicy` rides along so a plain-JS caller
+// can pass `replyLanguagePolicyFor`'s own return value straight into
+// `compile()`'s `replyLanguagePolicy` field with nothing re-typed in
+// between — types only, erased at the bundle boundary like every other
+// `type` export in this file. `renderPersonDeclaredLanguagePolicy` is the
+// SAME renderer `compile()` calls internally, exported for the ONE other
+// real prompt this repo assembles for a person's own AI — the text-ready
+// Meet door (`api/_replica-dialogue.js`, a different compiler,
+// `_dialogue/contracts.js`'s `compileDialoguePrompt`) — so that door states
+// the identical policy rather than a hand-typed second copy of it.
+export { renderPersonDeclaredLanguagePolicy, type PersonDeclaredLanguagePolicy } from "./compiler";
 
 // ── the clone aliveness seam (Gurukul WS-Q) ────────────────────────────────
 // A published clone's present moment and its right to speak first. Both cross

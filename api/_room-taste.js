@@ -52,6 +52,9 @@ import {
 } from "./_room-surface.js";
 import { tableApplied } from "./memory.js";
 import { roomReplyLanguagePolicy } from "./_room-reply-language.js";
+// WS-R180: same projection `roomSay` now calls — see that file's own
+// comment on the import.
+import { replyLanguagePolicyFor } from "./_engine.gen.js";
 
 /** How many questions a stranger may ask before the join control replaces
  *  the input — the workstream brief's own number, and the SAME number
@@ -121,7 +124,6 @@ export async function roomTaste(db, { slug, message, locale: hintLocale = null, 
   const text = String(message ?? "").trim();
   if (!text) throw new RoomError("room_message_empty", 400);
   if (text.length > ROOM_INBOUND_LIMIT) throw new RoomError("room_message_too_long", 413);
-  const replyLanguagePolicy = roomReplyLanguagePolicy(deps.env || process.env);
 
   const resolved = await resolveRoom(db, slug, deps);
   // The creator's own switch (migration 110). Checked AFTER `resolveRoom`
@@ -155,6 +157,12 @@ export async function roomTaste(db, { slug, message, locale: hintLocale = null, 
   const locale = hintLocale != null && String(hintLocale).trim()
     ? normalizeLocale(hintLocale)
     : normalizeLocale(resolved.room.default_locale);
+  // WS-R180: same fallback `roomSay` now applies — a person's own declared
+  // talk wins over the server's global opt-in; `??` keeps today's expression
+  // exactly as it was for every sheet `replyLanguagePolicyFor` returns
+  // `undefined` for.
+  const replyLanguagePolicy = replyLanguagePolicyFor(resolved.sheet, locale)
+    ?? roomReplyLanguagePolicy(deps.env || process.env);
   const disclosure = roomDisclosureCard(name, locale);
 
   const now = deps.now ?? Date.now();

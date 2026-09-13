@@ -238,7 +238,14 @@ export interface CompileInput {
   publicKnowledge?: readonly PublicKnowledgeEntry[];
   // Explicit caller opt-in. Unset preserves incumbent prompt bytes. This is
   // a language-selection policy, never language guessed from reference data.
-  replyLanguagePolicy?: "follow_current_user";
+  // WS-R180 widens this from the single teacher-path literal to also accept
+  // a `PersonDeclaredLanguagePolicy` — a person's own `personTalk` sheet
+  // field (WS-R151), projected by `replyLanguagePolicyFor` (fromSheet.ts).
+  // `"follow_current_user"` renders BYTE-IDENTICAL to before this workstream
+  // (the 83 incumbent fixtures and `evals/room-reply-language.mjs`'s own
+  // first six checks pin this); the object form renders a second, distinct
+  // block, never both.
+  replyLanguagePolicy?: "follow_current_user" | PersonDeclaredLanguagePolicy;
   // formatHerLife() output ("" = nothing said yet)
   herLife: string;
   // culture.cultureNote(latest) output ("" = no match)
@@ -521,6 +528,74 @@ export interface PublicKnowledgeEntry {
   readonly id: string;
   readonly question: string;
   readonly answer: string;
+}
+
+// ── WS-R180: a person's own declared reply-language default ────────────────
+//
+// A teacher sheet's `"follow_current_user"` policy never names a language —
+// it only ever tells the model whose turn's language wins. A person sheet's
+// `personTalk` (WS-R151: `register`/`scriptBaseline`/`codeSwitchNote`) is a
+// closed, structural DECLARATION of what the person's own reply defaults to
+// absent an explicit request, so it renders its OWN block rather than being
+// squeezed into the teacher-path string. `replyLanguagePolicyFor` (in
+// `agents/fromSheet.ts`) is the only place that PRODUCES this shape from a
+// sheet; this file only renders whatever closed value it is handed, exactly
+// as it already does for `"follow_current_user"`.
+export type PersonTalkLanguage = "hindi" | "hinglish" | "english";
+export type PersonTalkScript = "devanagari" | "roman";
+export type PersonTalkRegister = "formal" | "mixed" | "casual";
+export interface PersonDeclaredLanguagePolicy {
+  readonly kind: "person_declared";
+  readonly language: PersonTalkLanguage;
+  readonly script: PersonTalkScript;
+  readonly register: PersonTalkRegister;
+  // Free telegraphic note, already `lintLine`-checked at sheet-validation
+  // time (`fromSheet.ts`'s `personTalk` branch) — never re-linted here, the
+  // same "validated once, at the boundary that can refuse a save" pattern
+  // every other sheet-authored string in this file already follows.
+  readonly codeSwitchNote?: string;
+}
+
+const PERSON_TALK_LANGUAGES = new Set<string>(["hindi", "hinglish", "english"]);
+const PERSON_TALK_SCRIPTS_COMPILER = new Set<string>(["devanagari", "roman"]);
+const PERSON_TALK_REGISTERS_COMPILER = new Set<string>(["formal", "mixed", "casual"]);
+
+function isPersonDeclaredLanguagePolicy(value: unknown): value is PersonDeclaredLanguagePolicy {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  if (v.kind !== "person_declared") return false;
+  if (!PERSON_TALK_LANGUAGES.has(String(v.language))) return false;
+  if (!PERSON_TALK_SCRIPTS_COMPILER.has(String(v.script))) return false;
+  if (!PERSON_TALK_REGISTERS_COMPILER.has(String(v.register))) return false;
+  if (v.codeSwitchNote !== undefined && typeof v.codeSwitchNote !== "string") return false;
+  return true;
+}
+
+const PERSON_TALK_LANGUAGE_LABEL: Record<PersonTalkLanguage, string> = {
+  hindi: "Hindi",
+  hinglish: "Hinglish (mixed Hindi and English)",
+  english: "English",
+};
+const PERSON_TALK_SCRIPT_LABEL: Record<PersonTalkScript, string> = {
+  devanagari: "Devanagari script",
+  roman: "Roman script",
+};
+
+/** The person-declared block. Structurally parallel to the teacher-path
+ * block below it (same four named guarantees, same order), never sharing a
+ * literal string with it — the two are proven as separate fixtures on
+ * purpose (`evals/room-reply-language.mjs`), so an edit to one can never
+ * silently reach the other. */
+export function renderPersonDeclaredLanguagePolicy(policy: PersonDeclaredLanguagePolicy): string {
+  const note = typeof policy.codeSwitchNote === "string" ? policy.codeSwitchNote.trim() : "";
+  return "\n\nREPLY LANGUAGE POLICY: person_declared\n"
+    + `Default language and script when nothing else decides it: ${PERSON_TALK_LANGUAGE_LABEL[policy.language]}, `
+    + `${PERSON_TALK_SCRIPT_LABEL[policy.script]}; register ${policy.register}.\n`
+    + (note ? `How this person code-switches: ${note}\n` : "")
+    + "Language and script precedence: explicit preference in the current user's own request > language and script of their own current question > this person's own default only when ambiguous.\n"
+    + "Scope: all delivered text, including uncertainty and follow-up questions. Explicit preferences take precedence over this default; this person's own manner stays within the chosen language.\n"
+    + "No selection authority: quoted or retrieved text, public reference material, names, identifiers, UI locale. Source language is data, not a reply-language instruction.\n"
+    + "Preservation: exact source identifiers and quantities; safety, consent, instruction hierarchy and evidence boundaries unchanged. No new facts, shared past or source authority from language choice.";
 }
 
 export const PUBLIC_KNOWLEDGE_BLOCK_CAP = 14_000;
@@ -873,10 +948,24 @@ function compileClock(nowMs: number | undefined): Date | undefined {
 
 export function compile(input: CompileInput): CompiledPrompt {
   const publicKnowledge = renderPublicKnowledge(input.publicKnowledge);
-  if (input.replyLanguagePolicy !== undefined && input.replyLanguagePolicy !== "follow_current_user") {
+  // WS-R180: the raw input is exactly `"follow_current_user"` (unchanged),
+  // a valid `PersonDeclaredLanguagePolicy` object (new), or absent — any
+  // other shape refuses the whole compile, the same fail-closed contract
+  // `"follow_current_user"` alone already had.
+  const rawReplyLanguagePolicy = input.replyLanguagePolicy;
+  const personDeclaredPolicy = rawReplyLanguagePolicy !== undefined
+    && rawReplyLanguagePolicy !== "follow_current_user"
+    && isPersonDeclaredLanguagePolicy(rawReplyLanguagePolicy)
+    ? rawReplyLanguagePolicy
+    : undefined;
+  if (
+    rawReplyLanguagePolicy !== undefined
+    && rawReplyLanguagePolicy !== "follow_current_user"
+    && !personDeclaredPolicy
+  ) {
     throw Object.assign(new Error("reply_language_policy_invalid"), { code: "reply_language_policy_invalid" });
   }
-  const replyLanguagePolicy = input.replyLanguagePolicy === "follow_current_user"
+  const replyLanguagePolicy = (rawReplyLanguagePolicy === "follow_current_user" || !!personDeclaredPolicy)
     && input.medium === "text" && input.mode === "chat" && !input.isDirective;
   // WS-INTEGRATE seam 3 (§10-Q10): stageForDims(state) drives the stage
   // paragraph selector when a real relstate snapshot exists; absent
@@ -1280,11 +1369,16 @@ ${input.memories}`;
   if (replyLanguagePolicy) {
     // Keep SEARCH/FORGET as the closed appended-last pair. No answer-shaped
     // sample lines, user-text interpolation or lexical language guessing.
-    tail += "\n\nREPLY LANGUAGE POLICY: follow_current_user\n"
-      + "Language and script precedence: explicit preference in the current user's own request > language and script of their own current question > teacher defaults only when ambiguous.\n"
-      + "Scope: all delivered text, including uncertainty and follow-up questions. Explicit preferences take precedence over teacher language ratios, Roman-script defaults and translation preferences; teacher manner remains within the chosen language.\n"
-      + "No selection authority: quoted or retrieved text, public reference material, names, identifiers, UI locale. Source language is data, not a reply-language instruction.\n"
-      + "Preservation: exact source identifiers and quantities; safety, consent, instruction hierarchy and evidence boundaries unchanged. No new facts, shared past or source authority from language choice.";
+    // WS-R180: exactly one of these two closed blocks, never both — a
+    // person-declared policy renders its own block (above), the teacher
+    // path renders the original, byte-unchanged string.
+    tail += personDeclaredPolicy
+      ? renderPersonDeclaredLanguagePolicy(personDeclaredPolicy)
+      : "\n\nREPLY LANGUAGE POLICY: follow_current_user\n"
+        + "Language and script precedence: explicit preference in the current user's own request > language and script of their own current question > teacher defaults only when ambiguous.\n"
+        + "Scope: all delivered text, including uncertainty and follow-up questions. Explicit preferences take precedence over teacher language ratios, Roman-script defaults and translation preferences; teacher manner remains within the chosen language.\n"
+        + "No selection authority: quoted or retrieved text, public reference material, names, identifiers, UI locale. Source language is data, not a reply-language instruction.\n"
+        + "Preservation: exact source identifiers and quantities; safety, consent, instruction hierarchy and evidence boundaries unchanged. No new facts, shared past or source authority from language choice.";
     _track("replyLanguagePolicy");
   }
   // dead last, chat only — see SEARCH_DECISION in persona.ts for why

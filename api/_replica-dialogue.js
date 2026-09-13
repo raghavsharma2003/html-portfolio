@@ -32,6 +32,11 @@ import { readOwnedDialogueHistory, openOwnedDialogueSession } from "./_replica-d
 import {ownerPrivateCapabilityAuthoritySql} from './_replica-candidate-activation-authority.js';
 import {candidateRuntimeCore,assertCandidateGenerator,assertCandidateResponse,assertCandidateRuntimeUnchanged} from './_replica-candidate-runtime.js';
 import { getReplicaVibe } from './_replica-vibe.js';
+// WS-R180: how a person talks, the reply-language policy from the person
+// sheet (`personTalk`, WS-R151), reaching this file's own private Meet
+// dialogue the same way `renderVibe` already does (`_replica-runtime.js`'s
+// own header on why a hand-ported copy of engine logic is refused here).
+import { replyLanguagePolicyFor, renderPersonDeclaredLanguagePolicy } from './_engine.gen.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TRACE = /^[A-Za-z0-9_-]{8,96}$/;
@@ -80,6 +85,65 @@ function ownerMemoryTail(facts) {
 // (now-minted) identity through the SAME `textBlockers` eligibility, never
 // a looser or differently-worded rule than `generateOwnedTextDialogue`
 // itself already gates on.
+
+// WS-R180: the owner's own PUBLISHED person sheet (`sheetKind:'person'`,
+// WS-R151/WS-R152's Deploy path), read by the SAME `(replica_id,
+// owner_user_id)` ownership pair every other owner-lane query in this file
+// already authorizes against — never by slug, which this lane has no
+// follower-facing Room to carry. The join and predicate mirror two proven
+// shapes rather than inventing a third: `api/_teachersheet.js`'s
+// `publishedRow` (status/consent-artifact gate) and
+// `api/_teacher-sheet-draft.js`'s `BOUND_TEACHER_SHEET_READ_SQL` (the
+// agent_id join, then the explicit replica/owner ownership OR the legacy
+// agent-only row). Restated here rather than imported because neither file
+// is in this workstream's touched-file list, and a SELECT this narrow is
+// cheaper to restate than to widen either file's own export surface for one
+// new caller.
+export const OWNER_PERSON_TALK_SHEET_SQL = `select s.sheet
+   from vy_teacher_sheet s
+   join vy_replica r on r.agent_id = s.agent_id
+  where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
+    and r.lifecycle not in ('revoked','purging')
+    and s.status = 'published'
+    and s.consent_artifact_id is not null
+    and s.sheet_kind = 'person'
+    and ((s.replica_id = r.replica_id and s.owner_user_id = r.owner_user_id)
+      or (s.replica_id is null and s.owner_user_id is null))
+  order by s.published_at desc limit 1`;
+
+function parsedOwnerSheet(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value !== "string") return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Never throws: a failed read here must degrade to "no declared policy"
+// (today's default, byte-identical), never turn an honest reply into a 500
+// over metadata the reply itself does not need — the same posture
+// `ownedRuntimeStatus`'s own best-effort capability write already takes.
+async function ownerPersonLanguagePolicy(db, ownerUserId, rid) {
+  const rows = await db(OWNER_PERSON_TALK_SHEET_SQL, [rid, ownerUserId]).catch(() => []);
+  const sheet = parsedOwnerSheet(rows[0]?.sheet);
+  return sheet ? replyLanguagePolicyFor(sheet, undefined) : undefined;
+}
+
+// `renderPersonDeclaredLanguagePolicy` is `compile()`'s OWN block renderer
+// (src/engine/compiler.ts), reused verbatim rather than restated: this
+// file's `relationship` tail is a different compiler
+// (`_dialogue/contracts.js`'s `compileDialoguePrompt`) from the Room's, but
+// a person's declared reply-language default must read as the identical
+// instruction wherever their AI renders it. `.trim()` drops the leading
+// `\n\n` the Room's own tail-append callsite relies on and this file's own
+// `[...].filter(Boolean).join("\n\n")` pattern (below) already supplies.
+function ownerLanguagePolicyTail(policy) {
+  return policy ? renderPersonDeclaredLanguagePolicy(policy).trim() : "";
+}
+
 async function ownedSelfRuntime(db, ownerUserId, replicaIdInput) {
   const rid = replicaId(replicaIdInput);
   const runtime = await loadOwnedRuntimeContext(db, ownerUserId, rid);
@@ -459,8 +523,12 @@ export async function generateOwnedTextDialogue(db, ownerUserId, rawInput, gener
         loadPrivateRelationshipSnapshot(db, { replica: identity }, { strict: false }),
       ])
     : [[], null];
+  // WS-R180: absent a published person sheet (or one with no `personTalk`,
+  // or none at all) this is `""` — byte-identical to before this
+  // workstream, `ownerLanguagePolicyTail`'s own contract.
+  const languagePolicy = await ownerPersonLanguagePolicy(db, ownerUserId, rid);
   const core = compileReplicaRuntimeCore(profile.definition, null, message, undefined, vibe);
-  const relationship = [compileRelationshipTail(snapshot), ownerMemoryTail(ownerFacts)].filter(Boolean).join("\n\n");
+  const relationship = [compileRelationshipTail(snapshot), ownerMemoryTail(ownerFacts), ownerLanguagePolicyTail(languagePolicy)].filter(Boolean).join("\n\n");
   const prompt = compileDialoguePrompt({ core, relationship, evidence: "", history: [], message });
   signal?.throwIfAborted();
   const generated = await generator.generate({ prompt, signal });
@@ -506,7 +574,7 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
   if (runtime.candidateBinding && resolveCandidateGenerator) generator = await resolveCandidateGenerator();
   assertCandidateGenerator(runtime, generator);
   const session = await ensureSession(db, ownerUserId, runtime, input);
-  const [snapshot, history, evidence, ownerFacts] = await Promise.all([
+  const [snapshot, history, evidence, ownerFacts, languagePolicy] = await Promise.all([
     loadPrivateRelationshipSnapshot(db, runtime, { strict: true }),
     loadSessionHistory(db, ownerUserId, runtime, session.session_id),
     rawInput.recall_previous === true && input.channel === "private_chat"
@@ -518,10 +586,15 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
     // so this needs no separate consent branch here - the SAME "the SQL is
     // the gate" discipline `api/_agentscope.js` names for the agent axis.
     db(OWNER_MEMORY_RECALL_SQL, ownerMemoryAuthority({ replica_id: input.replica_id, owner_user_id: ownerUserId })).catch(() => []),
+    // WS-R180: absent a published person sheet (or one with no
+    // `personTalk`) this resolves `undefined`, and the tail below is `""` —
+    // byte-identical to before this workstream.
+    ownerPersonLanguagePolicy(db, ownerUserId, input.replica_id),
   ]);
   const prompt = compileDialoguePrompt({
     core: candidateRuntimeCore(runtime, input.message),
-    relationship: [compileRelationshipTail(snapshot), ownerMemoryTail(ownerFacts)].filter(Boolean).join("\n\n"),
+    relationship: [compileRelationshipTail(snapshot), ownerMemoryTail(ownerFacts), ownerLanguagePolicyTail(languagePolicy)]
+      .filter(Boolean).join("\n\n"),
     evidence: continuityPrompt(evidence),
     history,
     message: input.message,

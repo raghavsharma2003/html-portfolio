@@ -104,7 +104,7 @@ import {
   roomForgetReceiptHash, ROOM_FORGET_RECEIPT_POLICY_VERSION,
 } from "./memory.js";
 import { authorizeRoomVoice, estimateClipSeconds } from "./_room-voice.js";
-import { roomSpeakPlan } from "./_room-speak-plan.js";
+import { roomSpeakPlan, roomSpeakLanguageId } from "./_room-speak-plan.js";
 import { buildProsodyPlan } from "./_voice/prosody.js";
 import { sessionWorked, recordOffer, markOfferOutcome } from "./_phase-gate.js";
 // WS-R4's rule, read per turn: `loadNeverRules` is a SELECT and nothing else
@@ -113,6 +113,12 @@ import { sessionWorked, recordOffer, markOfferOutcome } from "./_phase-gate.js";
 import { loadNeverRules } from "./_review-queue.js";
 import { compileNeverRules } from "./_never-rules.js";
 import { roomReplyLanguagePolicy } from "./_room-reply-language.js";
+// WS-R180: the person's own declared talk (`personTalk`, WS-R151), projected
+// to the closed policy `compile()` accepts. `_engine.gen.js` (generated from
+// `src/engine/serverEntry.ts`) is the one crossing this file's own
+// zero-imports-from-src rule already uses for `sheetToModule` et al. — see
+// `api/_teachersheet.js`'s header on why a hand-ported copy is refused.
+import { replyLanguagePolicyFor } from "./_engine.gen.js";
 import { roomExpertTextProfile, assertExpertConversation } from "./_room-expert-profile.js";
 import { readRoomExpertTeacher, assertRoomExpertTeacherMatches, assertRoomExpertTeacherCurrent } from "./_room-expert-teacher.js";
 // WS-R100 (migration 126). `_receipt.js` is a leaf module (no imports of its
@@ -1847,7 +1853,19 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
 
   // Validate the server policy before quota admission or any model request.
   const expertProfile = roomExpertTextProfile(deps.env || process.env);
-  const replyLanguagePolicy = expertProfile ? "follow_current_user" : roomReplyLanguagePolicy(deps.env || process.env);
+  // WS-R180: a person's own declared talk wins over the server's global
+  // opt-in when the sheet has one — `replyLanguagePolicyFor` returns
+  // `undefined` for a teacher sheet (no `personTalk`) or a person sheet with
+  // none, and the `??` falls back to exactly today's expression, unchanged
+  // in every byte and every branch order. `payload.loc` — the TOKEN's own
+  // minted-in value, same reason `roomDisclosureCard` above reads it that
+  // way rather than the joined row's current value — and
+  // `replyLanguagePolicyFor` never reads it regardless (see that function's
+  // own header).
+  const personLanguagePolicy = expertProfile ? undefined : replyLanguagePolicyFor(resolved.sheet, payload.loc);
+  const replyLanguagePolicy = expertProfile
+    ? "follow_current_user"
+    : (personLanguagePolicy ?? roomReplyLanguagePolicy(deps.env || process.env));
   const textProfile = expertProfile ? "expert_answer" : roomReplyTextProfile(deps.env || process.env);
   const teacherSnapshot = expertProfile ? await readRoomExpertTeacher(db, publicKnowledgeScope(resolved)) : null;
   if (teacherSnapshot) assertRoomExpertTeacherMatches(teacherSnapshot, resolved.sheet, resolved.module.slug);
@@ -2489,8 +2507,19 @@ export async function roomSpeak(deps, session, replyRef) {
   // not-well-formed shape - including one whose `register` key is `undefined`
   // - exactly like `register: null`, so this degrades to the identical
   // vibe-only plan rather than throwing.
+  // WS-R180: the SAME resolution `roomSay` used to decide the text turn's
+  // reply-language policy, so the synthesiser's language conditioning
+  // matches the text it is speaking rather than the follower's own chrome
+  // locale — see `_room-speak-plan.js`'s own header on why this is a real
+  // gap and why `roomSpeakLanguageId` is where the two-value voice set and
+  // the three-value text policy meet. `undefined` (a teacher sheet, or a
+  // person sheet with none) makes this call byte-identical to before.
   const registerFromSession = { register: payload.rg, confidence: payload.rc };
-  const prosody = buildProsodyPlan({ vibe: rawVibe, register: registerFromSession, languageId: payload.loc });
+  const voiceLanguagePolicy = replyLanguagePolicyFor(resolved.sheet, payload.loc);
+  const prosody = buildProsodyPlan({
+    vibe: rawVibe, register: registerFromSession,
+    languageId: roomSpeakLanguageId(voiceLanguagePolicy, payload.loc),
+  });
 
   // SYNTHESISE + PROTECT, both REQUIRED injections with no default - a call
   // to this function that supplies neither throws rather than silently
