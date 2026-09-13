@@ -9041,3 +9041,25 @@ create unique index if not exists vy_replica_vibe_live_ix
 
 create index if not exists vy_replica_vibe_owner_history_ix
  on vy_replica_vibe(replica_id, owner_user_id, version desc);
+
+-- 167 (WS-R161). Meet opens for any person: a lighter, text-only runtime
+-- capability, a peer of vy_replica_runtime_capability above rather than a
+-- relaxation of it. No FK on replica_id/owner_user_id (009's own
+-- convention, vy_replica_vibe's own shape immediately above restated).
+create table if not exists vy_replica_text_capability (
+ capability_id uuid primary key default gen_random_uuid(),
+ replica_id uuid not null,
+ owner_user_id uuid not null,
+ profile_version integer not null check (profile_version > 0),
+ policy_version text not null,
+ state text not null default 'active' check (state in ('active','revoked')),
+ activated_at timestamptz not null default now(),
+ revoked_at timestamptz
+);
+
+create unique index if not exists vy_replica_text_capability_one_active_ix
+ on vy_replica_text_capability(replica_id)
+ where state = 'active';
+
+create index if not exists vy_replica_text_capability_owner_ix
+ on vy_replica_text_capability(owner_user_id, replica_id, activated_at desc);

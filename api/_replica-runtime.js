@@ -12,6 +12,16 @@ import { personProfileValiditySql } from "./_person-model.js";
 import { adoptActivatedPrivateTeacherSheet } from "./_teacher-sheet-adoption.js";
 import {loadOwnedCandidateBinding,CANDIDATE_RUNTIME_BINDING_SQL} from './_replica-candidate-binding-store.js';
 import {candidateRuntimeAuthoritySql,ownerPrivateCapabilityAuthoritySql} from './_replica-candidate-activation-authority.js';
+// WS-R161 (wave twenty-two). `renderVibe` is the REAL EmotionOS renderer
+// (src/engine/compiler.ts, exported for this file's own reason via
+// serverEntry.ts, api/tg.js's own precedent) rather than a second,
+// hand-mirrored copy — `recited-prompt`'s own law ("a mirrored persona is a
+// SECOND persona") applies to a five-word data line exactly as it does to
+// 45k characters of persona. `getReplicaVibe` is the owner's own live vibe
+// row (migration 164); both are used only by `compileReplicaRuntimeCore`'s
+// new optional `vibe` parameter below — existing call sites are unchanged.
+import { renderVibe } from "./_engine.gen.js";
+import { getReplicaVibe } from "./_replica-vibe.js";
 
 export const RUNTIME_POLICY_VERSION = "replica-runtime-v1";
 export const REPLICA_CORE_CAP = 12_000;
@@ -94,6 +104,44 @@ export function runtimeBlockers(row) {
   return blockers;
 }
 
+// WS-R161 (wave twenty-two). `text_ready` is a SECOND, LIGHTER blocker list
+// over the SAME row `runtimeBlockers` above already reads — never a second
+// SQL query, since RUNTIME_STATUS_SQL already resolves `pp` (the latest
+// approved+valid person sheet, `personProfileValiditySql` unchanged) and
+// `inference_consent` independent of any voice capability (`cap` is a plain
+// LEFT JOIN, so `pp`/`inference_consent` are never null merely because no
+// voice capability exists yet). `text_ready` is a PEER of `voice_ready`
+// (`runtimeBlockers` above, unchanged), never a step toward it: nothing here
+// ever sets `lifecycle='active'` or creates a
+// `vy_replica_runtime_capability` row, so a text-ready AI can never be
+// mistaken for a voice-ready one by any caller that only checks `active`.
+//
+// Deliberately NOT gated on calibration/voice genome/qualification/fidelity/
+// readiness — those measure the VOICE (SPEC-GURUKUL SS8.2), and WS-R158 found
+// the real product gap this closes: a person who has only described
+// themselves waits on that whole Azure chain for something text never
+// needed (context/rejected.md#ws-r158-meet-does-not-open-automatically-
+// without-the-full-build-promotion-pipeline). It IS gated on the same
+// identity/consent floor `runtimeBlockers` enforces (self replica, bound
+// identity, not revoked/purging, inference consent) — `training`/
+// `inference` consent can only ever be granted through
+// `grantVerifiedModelConsent` (`api/_replica-consent.js`), which itself
+// requires `identity_verified_at`/`liveness_verified_at`/`age_verified_at`
+// already set as its own precondition, so by the time `profile_approved` can
+// ever be true at all, the person behind this replica has already passed
+// live identity verification — text_ready is lighter on the VOICE pipeline,
+// never lighter on WHO this AI is allowed to claim to be.
+export function textBlockers(row) {
+  if (!row) return ["replica_not_found"];
+  const blockers = [];
+  if (row.subject_mode !== "self") blockers.push("self_replica_only");
+  if (new Set(["revoked", "purging"]).has(row.lifecycle)) blockers.push("replica_revoked");
+  if (!row.subject_person_id || !truth(row.account_person_matches)) blockers.push("self_identity_not_bound");
+  if (!truth(row.inference_consent)) blockers.push("inference_consent_required");
+  if (!truth(row.profile_approved)) blockers.push("person_profile_not_approved");
+  return blockers;
+}
+
 function fidelityStatistics(value) {
   const score = parsed(value, {});
   return {
@@ -165,6 +213,11 @@ export function clientRuntimeStatus(row) {
         }
       : null,
     activated_at: row.capability_activated_at || null,
+    // WS-R161. A PEER pair beside `active`/`blockers` above, never a
+    // replacement for them — see `textBlockers`'s own header for why this
+    // never implies or grants `active`.
+    text_ready: textBlockers(row).length === 0,
+    text_blockers: textBlockers(row),
   };
 }
 
@@ -281,12 +334,107 @@ left join lateral (
 where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.policy_version=$3
 limit 1`;
 
+// WS-R161. Ensures `vy_replica_text_capability` honestly reflects the SAME
+// blockers `textBlockers` above computes, so the capability table is a
+// RECORD of a live fact rather than a second source of truth for it — one
+// round trip, idempotent, safe to call on every status read the same way
+// `reconcileUnsafePersonProfiles` is safe to call repeatedly. There is no
+// separate "activate" action for text (law 4 of this workstream's own
+// brief: "Meet opens as soon as text_ready is true"), so this is the one
+// and only write path, called from `ownedRuntimeStatus` below and from the
+// text-ready dialogue path (`api/_replica-dialogue.js`) alike.
+//
+// Two independent, non-overlapping writes to the same table in one
+// statement — `stale` supersedes any ACTIVE row whose `profile_version`
+// is no longer the current eligible one (including "no longer eligible at
+// all", eligible then being empty), `created` inserts a fresh one only when
+// `eligible` has a row and none already matches it. No row is ever a target
+// of both (a row's `profile_version` either matches `eligible`'s single
+// value or it does not), the exact non-conflicting-independent-CTE shape
+// `vy_replica_vibe`'s own `SET_SQL` (`api/_replica-vibe.js`) already proves
+// for this table's partial unique-active index.
+export const TEXT_CAPABILITY_ENSURE_SQL = `with target as (
+  select r.replica_id,r.owner_user_id,r.subject_mode,r.lifecycle,r.subject_person_id,
+    exists(select 1 from vy_account_person ap
+            where ap.auth_user_id=r.owner_user_id and ap.person_id=r.subject_person_id) as account_person_matches,
+    exists(select 1 from vy_replica_consent c
+            where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
+              and c.scope='inference' and c.policy_version=r.policy_version and c.revoked_at is null
+              and (c.expires_at is null or c.expires_at>now())) as inference_consent,
+    pp.version as profile_version
+   from vy_replica r
+   left join lateral (
+     select x.version from vy_replica_profile x
+      where x.replica_id=r.replica_id and x.status='approved'
+        and (${personProfileValiditySql("x", "r")})
+      order by x.version desc limit 1
+   ) pp on true
+  where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
+), eligible as (
+  select replica_id,owner_user_id,profile_version from target
+   where subject_mode='self' and lifecycle not in ('revoked','purging')
+     and subject_person_id is not null and account_person_matches and inference_consent
+     and profile_version is not null
+), stale as (
+  update vy_replica_text_capability c set state='revoked',revoked_at=now()
+    from target t
+   where c.replica_id=t.replica_id and c.owner_user_id=t.owner_user_id and c.state='active'
+     and not exists(select 1 from eligible e where e.profile_version=c.profile_version)
+), existing as (
+  select c.* from vy_replica_text_capability c
+  join eligible e on e.replica_id=c.replica_id and e.owner_user_id=c.owner_user_id and e.profile_version=c.profile_version
+   where c.state='active'
+), created as (
+  insert into vy_replica_text_capability (replica_id,owner_user_id,profile_version,policy_version,state)
+  select replica_id,owner_user_id,profile_version,$3,'active' from eligible
+   where not exists(select 1 from existing)
+  returning *
+) select * from existing union all select * from created limit 1`;
+
+export async function ensureOwnedTextCapability(db, ownerUserId, id) {
+  const rows = await db(TEXT_CAPABILITY_ENSURE_SQL, [replicaId(id), ownerUserId, RUNTIME_POLICY_VERSION]);
+  return rows[0] || null;
+}
+
 export async function ownedRuntimeStatus(db, ownerUserId, id) {
   const rows = await db(RUNTIME_STATUS_SQL, [
     replicaId(id), ownerUserId, REPLICA_POLICY_VERSION, [...RUNTIME_QUALIFICATION_SUITES], FIDELITY_POLICY_VERSION,
     READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR,
   ]);
-  return clientRuntimeStatus(rows[0]);
+  const status = clientRuntimeStatus(rows[0]);
+  if (!status) return status;
+  // Best-effort: a failed ensure-write never turns an honest `text_ready`
+  // read into a 500. `text_ready`/`text_blockers` above are already computed
+  // purely from `rows[0]`, so a read stays correct even if this write fails.
+  const capability = await ensureOwnedTextCapability(db, ownerUserId, id).catch(() => null);
+  return {
+    ...status,
+    text_capability_id: capability?.capability_id ?? null,
+    text_activated_at: capability?.activated_at ?? null,
+  };
+}
+
+// WS-R161. The one thing the text-ready dialogue door needs that
+// `loadOwnedRuntimeContext` above does not supply for a replica with no
+// active VOICE capability: the owner's own latest approved+valid person
+// sheet, read directly (never through `vy_replica_runtime_capability`,
+// which does not exist yet for a text-only replica). Returns `null` for
+// anything `textBlockers` would refuse — the caller is expected to have
+// already read `ownedRuntimeStatus`/checked `text_ready` and reports the
+// SAME blockers, never a second, differently-worded refusal.
+export const OWNED_TEXT_PROFILE_SQL = `select p.version,p.definition
+   from vy_replica_profile p
+   join vy_replica r on r.replica_id=p.replica_id and r.owner_user_id=$2::uuid
+  where p.replica_id=$1::uuid and p.status='approved'
+    and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
+    and (${personProfileValiditySql("p", "r")})
+  order by p.version desc limit 1`;
+
+export async function loadOwnedTextProfile(db, ownerUserId, id) {
+  const rows = await db(OWNED_TEXT_PROFILE_SQL, [replicaId(id), ownerUserId]);
+  const row = rows[0];
+  if (!row) return null;
+  return { version: Number(row.version), definition: parsed(row.definition) };
 }
 
 export async function activateOwnedRuntime(db, ownerUserId, id) {
@@ -671,7 +819,13 @@ function questionKnowledge(items, question) {
   return candidates.sort((a, b) => b.score - a.score || a.index - b.index).slice(0, 12).map(({ item }) => item);
 }
 
-export function compileReplicaRuntimeCore(profileDefinition, calibrationDefinition, question = "", maxLength = REPLICA_CORE_CAP) {
+// WS-R161. `vibe` is OPTIONAL and defaults to `null` — `renderVibe(null)`
+// renders "" (its own header), so every existing call site
+// (`api/_replica-candidate-runtime.js`'s `candidateRuntimeCore`, which does
+// not pass one) is byte-identical to before this parameter existed. Only
+// the new text-ready dialogue path (`api/_replica-dialogue.js`) passes a
+// real vibe row.
+export function compileReplicaRuntimeCore(profileDefinition, calibrationDefinition, question = "", maxLength = REPLICA_CORE_CAP, vibe = null) {
   const d = parsed(profileDefinition);
   const identity = parsed(d.identity);
   const speech = parsed(d.speech);
@@ -698,6 +852,13 @@ export function compileReplicaRuntimeCore(profileDefinition, calibrationDefiniti
     const text = cleanText(value, max);
     if (text) addLine(`${label}: ${text}`);
   };
+  // WS-R161: EmotionOS's own vibe line (`renderVibe`, src/engine/compiler.ts),
+  // the REAL renderer, never a mirrored copy — see this function's own
+  // signature comment. `renderVibe` returns two lines (a shape header, then
+  // the five dials); each is added on its own so a downstream truncation can
+  // only ever drop the whole block, never half of it mid-sentence.
+  const vibeLine = renderVibe(vibe);
+  if (vibeLine) for (const part of vibeLine.split("\n")) addLine(part);
   scalar("Self-name", identity.self_name, 80);
   scalar("Pronouns", identity.pronouns, 60);
   scalar("Home", identity.home, 160);

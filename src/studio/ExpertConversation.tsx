@@ -168,7 +168,16 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
 
   const scopedExchanges = historyScope === scope ? exchanges : [];
   const unsettled = scopedExchanges.at(-1)?.answer.billing_state === "reconcile_required";
-  const runtimeActive = runtime?.replica_id === replicaId && runtime.active === true && !stopped && !checking && !readUnavailable;
+  // WS-R161 (wave twenty-two). `runtime.text_ready` is a PEER of
+  // `runtime.active`, never a replacement (`api/_replica-runtime.js#
+  // textBlockers`'s own header) — Meet opens on EITHER. `voiceReady` stays
+  // the narrower, ORIGINAL flag: only it gates session opening below, since
+  // `vy_replica_runtime_session`/history are FK-bound to the voice
+  // capability a text-ready-only replica has none of
+  // (`api/_replica-dialogue.js#generateOwnedTextDialogue`'s own header).
+  const voiceReady = runtime?.replica_id === replicaId && runtime.active === true;
+  const textOnlyReady = runtime?.replica_id === replicaId && !voiceReady && runtime.text_ready === true;
+  const runtimeActive = runtime?.replica_id === replicaId && (runtime.active === true || runtime.text_ready === true) && !stopped && !checking && !readUnavailable;
   const active = runtimeActive && historyReady && historyScope === scope && !historyPending && !unsettled && !uncertain && !opening && !needsNewSession;
   const lifecycleStopped = lifecycle === undefined ? stopped : ["paused", "revoked", "purging"].includes(lifecycle);
   const privateSelectionUnavailable = runtime?.private_selection === true && runtime.blockers?.includes('private_selection_unavailable');
@@ -190,7 +199,9 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
     const current = () => requestEpoch === epoch.current;
     setOpening(true); setError(""); setHistoryReady(false); stopAudio();
     try {
-      await openSession();
+      // WS-R161: a text-ready-only conversation is stateless, no session to
+      // open (see this file's own `voiceReady` comment above).
+      if (voiceReady) await openSession();
       if (!current()) return;
       setDraft(""); setFeedbackTurn(""); setHeard(new Set());
       if (await restoreHistory(current) && current()) {
@@ -208,12 +219,15 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
     sendLock.current = true; setSending(true); setError("");
     const requestEpoch = epoch.current;
     try {
-      const sessionId = continuity.get(scope)?.sessionId || await openSession();
+      // WS-R161: a text-ready-only turn carries no session at all — the
+      // real door (`generateOwnedTextDialogue`) never reads `session_id`
+      // and always answers `session_id: null`.
+      const sessionId = voiceReady ? (continuity.get(scope)?.sessionId || await openSession()) : undefined;
       if (requestEpoch !== epoch.current) return;
       const traceId = `dialogue_${crypto.randomUUID().replaceAll("-", "")}`;
       remember(scope, { sessionId, uncertainTrace: traceId });
       const answer = await createDialogueTurn(token, replicaId, question, sessionId, traceId, recallPrevious);
-      if (answer.session_id !== sessionId) throw new Error("conversation_response_changed");
+      if ((answer.session_id ?? null) !== (sessionId ?? null)) throw new Error("conversation_response_changed");
       if (continuity.get(scope)?.uncertainTrace === traceId) remember(scope, { ...continuity.get(scope), sessionId, uncertainTrace: undefined,
         pendingWork: answer.billing_state === 'reconcile_required' });
       if (requestEpoch !== epoch.current) return;
@@ -256,6 +270,7 @@ export default function ExpertConversation({ token, replicaId, runtimeStatus, st
   }
   return <section className="expert-conversation" aria-label={copy.ariaLabel}>
     <div className="expert-conversation__status"><span>{active ? copy.statusActive : copy.statusInactive}</span><span>{copy.aiReviewedByYou}</span></div>
+    {textOnlyReady && <p role="status" className="expert-conversation__apprentice-notice">{copy.apprenticeVoiceNotice}</p>}
     {(!runtimeActive || unsettled) && <div className="expert-conversation__readiness" role="status">
       <h2>{readiness === "stopped" ? copy.readinessTitle.stopped : readiness === "reconciling" ? copy.readinessTitle.reconciling : readiness === "checking" ? copy.readinessTitle.checking : readiness === 'private_unavailable' ? copy.readinessTitle.privateUnavailable : readiness === "unavailable" ? copy.readinessTitle.unavailable : copy.readinessTitle.setup}</h2>
       <p>{readiness === "stopped" ? copy.readinessBody.stopped

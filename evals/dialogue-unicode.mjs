@@ -25,7 +25,15 @@ globalThis.__dialogueUnicode = {
 const stubs = new Map([
   ['_replica.js', `export const replicaId=x=>x; export const REPLICA_POLICY_VERSION='offline-test';`],
   ['_person-model.js', `export const personProfileValiditySql=()=> 'true';`],
-  ['_replica-runtime.js', `export const REPLICA_CORE_CAP=12000; export const OWNED_RUNTIME_CONTEXT_SQL='select 1'; export const compileReplicaRuntimeCore=()=> 'Synthetic approved persona'; export const compileRelationshipTail=()=> ''; export const loadOwnedRuntimeContext=(...a)=>globalThis.__dialogueUnicode.runtime(...a); export const loadOwnedPrivateRuntimeContext=loadOwnedRuntimeContext; export const openOwnedRuntimeSession=(...a)=>globalThis.__dialogueUnicode.session(...a); export const loadPrivateRelationshipSnapshot=(...a)=>globalThis.__dialogueUnicode.snapshot(...a);`],
+  // WS-R161: `loadOwnedTextProfile`/`ownedRuntimeStatus` are new imports
+  // `api/_replica-dialogue.js` now carries for the text-ready fallback
+  // (`generateOwnedDialogue` calls them ONLY when `loadOwnedRuntimeContext`
+  // returns null). Every scenario in THIS suite drives the voice path with
+  // `runtime` always truthy (`globalThis.__dialogueUnicode.runtime()`
+  // above), so that branch never fires here; these two exports exist only
+  // so the static import resolves, matching this file's own established
+  // shape for an export a given suite's scenarios never actually reach.
+  ['_replica-runtime.js', `export const REPLICA_CORE_CAP=12000; export const OWNED_RUNTIME_CONTEXT_SQL='select 1'; export const compileReplicaRuntimeCore=()=> 'Synthetic approved persona'; export const compileRelationshipTail=()=> ''; export const loadOwnedRuntimeContext=(...a)=>globalThis.__dialogueUnicode.runtime(...a); export const loadOwnedPrivateRuntimeContext=loadOwnedRuntimeContext; export const openOwnedRuntimeSession=(...a)=>globalThis.__dialogueUnicode.session(...a); export const loadPrivateRelationshipSnapshot=(...a)=>globalThis.__dialogueUnicode.snapshot(...a); export const loadOwnedTextProfile=async()=>{ throw Object.assign(new Error('dialogue_unicode_suite_never_reaches_text_ready'), {code:'dialogue_unicode_suite_never_reaches_text_ready'}); }; export const ownedRuntimeStatus=async()=>{ throw Object.assign(new Error('dialogue_unicode_suite_never_reaches_text_ready'), {code:'dialogue_unicode_suite_never_reaches_text_ready'}); };`],
   ['_provider-budget.js', `export const conservativeTokenEstimate=()=>1; export const tokenReservationMicrousd=()=>1; export const foundryBudgetConfig=()=>({});\n` + ['reserveFoundrySpend:reserve','beginFoundrySpend:begin','settleFoundrySpend:settle','markFoundrySpendUncertain:uncertain','releaseFoundrySpendBeforeCall:release'].map(pair => { const [name,event]=pair.split(':'); return `export const ${name}=async(...a)=>globalThis.__dialogueUnicode.budget('${event}',...a);`; }).join('\n')],
 ].map(([path, source]) => [new URL(path, api).href, source]));
 const hooks = registerHooks({ load(url, context, nextLoad) {

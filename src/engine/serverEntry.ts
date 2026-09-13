@@ -62,6 +62,13 @@ export {
   PLATFORM_STAGE_GETTING_CLOSE,
   PLATFORM_STAGE_ESTABLISHED,
 } from "./compiler";
+// WS-R161 (wave twenty-two). The EmotionOS vibe line, exported for the same
+// standing reason as the exports above — `api/_replica-runtime.js`'s
+// `compileReplicaRuntimeCore` needs the REAL `renderVibe` (word tables and
+// the "recited-prompt" shape-not-lines discipline it already carries) rather
+// than a second, hand-mirrored copy, so a person's text-ready AI and their
+// Room both render the identical vibe line for the identical five dials.
+export { renderVibe, type VibeInput, type VibeDim } from "./compiler";
 export {
   renderMpRoster,
   renderMpBridge,

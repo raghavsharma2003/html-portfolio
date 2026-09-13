@@ -763,7 +763,10 @@ export default function CloneExperience(props: CloneExperienceProps) {
     const view = new URLSearchParams(window.location.search).get("view");
     return view === "rehearsal" ? "rehearsal" : view === "call" ? "call" : view === "enrich" ? "enrich" : view === "evolve" ? "evolve" : view === "share" ? "share" : view === "emotionos" ? "emotionos" : "voice";
   });
-  const [meetView, setMeetView] = useState<"conversation" | "sample">(() => initialMeetView(window.location.search, Boolean(runtimeStatus?.active)));
+  // WS-R161: a text-ready-only visit (no voice active yet) still opens on
+  // "conversation", never the sample tab a not-yet-existing voice cannot
+  // answer for.
+  const [meetView, setMeetView] = useState<"conversation" | "sample">(() => initialMeetView(window.location.search, Boolean(runtimeStatus?.active || runtimeStatus?.text_ready)));
   // WS-R151: `?enrichView=humanos` deep-links straight past the menu, for
   // `scripts/check-layout.mjs`/`scripts/check-accessibility.mjs`'s own
   // `studio:humanos` target — no earlier enrich subview (describe/files/
@@ -1269,11 +1272,26 @@ export default function CloneExperience(props: CloneExperienceProps) {
   const textShareOpen = Boolean(selected && consentActive && room === "share" && !upload);
   const textReviewOpen = Boolean(selected && consentActive && room === "evolve" && !upload);
   const textWorkspaceOpen = knowledgeOpen || textShareOpen || textReviewOpen;
+  // WS-R161 (wave twenty-two). `text_ready` (an approved person sheet, no
+  // voice needed — `api/_replica-runtime.js#textBlockers`) is what lets
+  // Meet open before the voice recorder has ever run. Read off the SAME
+  // `runtimeStatus` the voice gates below already use, never a second
+  // fetch.
+  const textReady = Boolean(runtimeStatus?.text_ready);
   const showSagaRecovery = Boolean(selected && consentActive && voiceSaga && !activeCandidate && !upload);
-  const showRecorder = Boolean(selected && consentActive && !voiceSaga && !activeCandidate && (!currentPrimary || replacePrimary) && !upload);
+  // A text-ready person who has never touched the recorder (no primary
+  // voice, `replacePrimary` false) skips straight to Meet instead of being
+  // forced into the recorder screen unprompted — the one behavior change
+  // this workstream makes here. `replacePrimary` (set by "Record my voice
+  // instead"/"Improve my voice") still opens the recorder on request,
+  // text-ready or not, and a non-text-ready person's existing behavior is
+  // byte-identical (the `textReady ? ... : ...` branch only changes
+  // anything when `textReady` is true).
+  const showRecorder = Boolean(selected && consentActive && !voiceSaga && !activeCandidate && !upload
+    && (textReady ? replacePrimary : (!currentPrimary || replacePrimary)));
   const showVerification = Boolean(selected && consentActive && activeCandidate && !upload);
   const voiceWorkspaceReady = Boolean(selected && consentActive && !voiceSaga && currentVoiceReady && !replacePrimary && !upload);
-  const showRooms = voiceWorkspaceReady || textWorkspaceOpen;
+  const showRooms = voiceWorkspaceReady || textWorkspaceOpen || (textReady && !upload && !voiceSaga && !activeCandidate);
   const readBlocked = workspaceReadState !== "ready" || Boolean(selected && !creatingNew && !agreementBusy && room !== "rehearsal" && consentReadState !== "ready");
 
   // WS-R157: the install card's own derived state, `RoomApp.tsx`'s own
@@ -1405,7 +1423,7 @@ export default function CloneExperience(props: CloneExperienceProps) {
         </AnimatePresence>
       </main>
 
-      {room !== "rehearsal" && voiceWorkspaceReady && <RoomNav room={room} onChange={chooseRoom} />}
+      {room !== "rehearsal" && (voiceWorkspaceReady || textReady) && <RoomNav room={room} onChange={chooseRoom} />}
       {/* WS-R157: the install card. `shouldShowInstallCard` (above) decides
           whether this renders at all; this block only decides which of the
           two variants — a browser with a captured `beforeinstallprompt` gets

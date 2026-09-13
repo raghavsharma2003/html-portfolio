@@ -20,6 +20,9 @@
 .vx-conversation-switch button[aria-pressed="true"] { background: #e6ece7; color: #173e32; }
 .expert-conversation { --expert-line: #d4dcd4; --expert-ink: #253d31; width: min(100%, 760px); margin-inline: auto; text-align: left; color: var(--expert-ink); padding-bottom: 24px; }
 .expert-conversation__status { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--expert-line); }
+/* WS-R161: the text-ready apprentice beacon — a quiet status line, the same
+   register `.expert-conversation__audio-note` already uses one screen over. */
+.expert-conversation__apprentice-notice { margin: 10px 0 0; font-size: 13px; color: var(--ink-soft, #515c57); }
 .expert-conversation__readiness, .expert-conversation__empty { padding: 28px 4px; }
 .expert-conversation h2 { margin: 0 0 12px; font-size: 24px; font-weight: 500; letter-spacing: -.025em; }
 .expert-conversation p { font-size: 15px; line-height: 1.65; max-width: 68ch; }

@@ -258,6 +258,17 @@ export interface ReplicaRuntimeStatus {
   versions: { profile: number | null; calibration: number | null; voice_genome: number | null };
   voice_genome_status?: string | null;
   activated_at: string | null;
+  /** WS-R161 (wave twenty-two). A PEER of `active`/`blockers` above, never
+   *  a replacement: `text_ready` can be true while `active` stays false
+   *  (an approved person sheet with no voice pipeline reached yet), and the
+   *  reverse never happens (`api/_replica-runtime.js#textBlockers`'s own
+   *  header). `text_activated_at`/`text_capability_id` are the honest
+   *  record of when/which, `null` for a replica that has never been
+   *  text-ready. */
+  text_ready?: boolean;
+  text_blockers?: string[];
+  text_activated_at?: string | null;
+  text_capability_id?: string | null;
 }
 
 export type CalibrationChoice = "left" | "right" | "tie" | "neither";

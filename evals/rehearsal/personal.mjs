@@ -129,6 +129,12 @@ process.env.ROOM_SESSION_SECRET = process.env.ROOM_SESSION_SECRET || "p".repeat(
 
 const { setFixtureDb } = await import("./stubs/db.mjs");
 const { setFakeReply } = await import("./stubs/surface-with-fake-model.mjs");
+// WS-R161 (wave twenty-two). The fake reply seam for the TEXT-READY
+// conversation door (`api/_dialogue/registry.js`, redirected by
+// `./loader.mjs`'s own SUFFIX_REDIRECT) — a different seam from
+// `setFakeReply` above, which answers the Room's `_surface.js#gatedReply`,
+// a door this personal walk never reaches.
+const { setFakeDialogueReply } = await import("./stubs/dialogue-registry-with-fake-generator.mjs");
 await import("./stubs/auth-with-fake-user.mjs");
 const { freshRehearsalCreatorState, rehearsalCreatorDb } = await import(
   pathToFileURL(join(ROOT, "evals/room-doors/fixtures.mjs")).href
@@ -138,7 +144,8 @@ const { freshRehearsalCreatorState, rehearsalCreatorDb } = await import(
 // (the same discipline `personModelReadiness`/`clientRuntimeStatus` earn by
 // being pure functions with no I/O of their own).
 const { personModelReadiness } = await import(pathToFileURL(join(ROOT, "api/_person-model.js")).href);
-const { clientRuntimeStatus } = await import(pathToFileURL(join(ROOT, "api/_replica-runtime.js")).href);
+const { clientRuntimeStatus, OWNED_TEXT_PROFILE_SQL } = await import(pathToFileURL(join(ROOT, "api/_replica-runtime.js")).href);
+const { TEXT_APPRENTICE_DISCLOSURE } = await import(pathToFileURL(join(ROOT, "api/_replica-dialogue.js")).href);
 const { createReplicaSourceHandler } = await import(pathToFileURL(join(ROOT, "api/replica-source.js")).href);
 
 const EMAIL = "personal-rehearsal@example.test";
@@ -493,35 +500,76 @@ function personalPatterns(state, sql, params, has) {
     claim.status = status;
     return [{ decision_id: randomUUID(), claim_id: claim.claim_id, decision, reason_code: claim.reason_code, created_at: claim.reviewed_at }];
   }
-  // buildOwnedPersonProfile's own insert.
+  // buildOwnedPersonProfile's own insert. `definitionJson` (params[3]) is
+  // the REAL, server-computed `buildPersonModelDefinition(...)` output —
+  // stored now (WS-R161), where WS-R158 had no reason to keep it, so a
+  // later `OWNED_TEXT_PROFILE_SQL` read (below) can hand the real compiler
+  // a real definition rather than an empty stand-in.
   if (has("insert into vy_replica_profile") && has("coalesce(max(version)+1,1)")) {
     const [rid, ownerUserId, sourceSetHash, definitionJson] = params;
     const replica = state.replicas.find((r) => r.replica_id === String(rid) && r.owner_user_id === String(ownerUserId));
     if (!replica) return [];
     state.personProfiles ??= [];
     const version = (state.personProfiles.filter((p) => p.replica_id === String(rid)).reduce((max, p) => Math.max(max, p.version), 0)) + 1;
-    const row = { replica_id: String(rid), version, source_set_hash: sourceSetHash, status: "draft", created_at: new Date().toISOString() };
+    const row = { replica_id: String(rid), version, source_set_hash: sourceSetHash, definition: definitionJson, status: "draft", created_at: new Date().toISOString() };
     state.personProfiles.push(row);
-    return [{ ...row }];
+    return [{ replica_id: row.replica_id, version: row.version, source_set_hash: row.source_set_hash, status: row.status, created_at: row.created_at }];
   }
   if (has("from vy_replica_profile p join vy_replica r") && has("order by p.version desc limit 20")) {
     const [rid, ownerUserId] = params.map(String);
     return (state.personProfiles || []).filter((p) => p.replica_id === rid).sort((a, b) => b.version - a.version);
+  }
+  // WS-R161. approveOwnedPersonProfile's own UPDATE — "p.status='draft' and
+  // p.source_set_hash=$4" is the one substring unique to this exact
+  // statement in the whole repo (grepped before this was added).
+  if (has("p.status='draft' and p.source_set_hash=$4")) {
+    const [rid, ownerUserId, version, sourceSetHash] = params;
+    const profile = (state.personProfiles || []).find((p) =>
+      p.replica_id === String(rid) && p.version === Number(version) && p.status === "draft" && p.source_set_hash === sourceSetHash);
+    if (!profile) return [];
+    profile.status = "approved";
+    return [{ replica_id: profile.replica_id, version: profile.version, status: profile.status, created_at: profile.created_at }];
+  }
+  // WS-R161. `api/_replica-runtime.js#OWNED_TEXT_PROFILE_SQL`, matched by
+  // EXACT reference (imported above) rather than a substring — the same
+  // discipline this file's own `OWNED_RUNTIME_CONTEXT_SQL`-style comparisons
+  // elsewhere in this repo already use for a query this precise.
+  if (sql === OWNED_TEXT_PROFILE_SQL) {
+    const [rid, ownerUserId] = params.map(String);
+    const approved = (state.personProfiles || [])
+      .filter((p) => p.replica_id === rid && p.status === "approved")
+      .sort((a, b) => b.version - a.version)[0];
+    return approved ? [{ version: approved.version, definition: approved.definition }] : [];
   }
 
   // api/_replica-runtime.js's RUNTIME_STATUS_SQL — "account_person_matches"
   // is the one substring unique to this exact select in the whole repo. Fed
   // to the REAL, imported `clientRuntimeStatus` below, so Deploy's own
   // blockers list is computed by the real transform, not restated here.
+  //
+  // WS-R161: state-aware where WS-R158 had it hardcoded to always refuse
+  // (the then-true product fact this workstream's own brief exists to
+  // change for TEXT). `subject_person_id`/`account_person_matches` and
+  // `inference_consent` read real fixture state now; every VOICE-pipeline
+  // field (age/identity/liveness verification, calibration, genome,
+  // qualification, fidelity, readiness) stays hardcoded honest-refusal —
+  // this walk never drives that ceremony, named in this file's own header.
   if (has("account_person_matches")) {
     const [rid, ownerUserId] = params.map(String);
     const replica = state.replicas.find((r) => r.replica_id === rid && r.owner_user_id === ownerUserId);
     if (!replica) return [];
+    const inferenceConsent = (state.consents || []).some((c) =>
+      c.replica_id === rid && c.owner_user_id === ownerUserId && c.scope === "inference" && !c.revoked_at);
+    const approvedProfile = (state.personProfiles || [])
+      .filter((p) => p.replica_id === rid && p.status === "approved")
+      .sort((a, b) => b.version - a.version)[0];
     return [{
       replica_id: replica.replica_id, subject_mode: replica.subject_mode, lifecycle: replica.lifecycle,
-      subject_person_id: null, age_verified_at: null, identity_verified_at: null, liveness_verified_at: null,
-      identity_expires_at: null, person_age_tier: null, account_person_matches: false, inference_consent: false,
-      profile_version: null, profile_approved: false, calibration_version: null, calibration_approved: false,
+      subject_person_id: replica.subject_person_id || null, age_verified_at: null, identity_verified_at: null, liveness_verified_at: null,
+      identity_expires_at: null, person_age_tier: null,
+      account_person_matches: Boolean(replica.subject_person_id), inference_consent: inferenceConsent,
+      profile_version: approvedProfile ? approvedProfile.version : null, profile_approved: Boolean(approvedProfile),
+      calibration_version: null, calibration_approved: false,
       genome_version: null, genome_approved: false, genome_latest_version: null, genome_latest_status: null,
       voice_profile_id: null, voice_ready: false, test_voice: false, qualification_passed: 0,
       fidelity_status: null, candidate_binding_required: false,
@@ -956,6 +1004,19 @@ async function main() {
     if (!state.consents.some((c) => c.replica_id === rid && c.scope === "training" && !c.revoked_at)) {
       state.consents.push({ consent_id: randomUUID(), replica_id: rid, owner_user_id: ownerId, scope: "training", method: "account_attestation", policy_version: state.replicas[0].policy_version, receipt_hash: "seeded", granted_at: new Date().toISOString(), expires_at: new Date(Date.now() + 365 * 86400_000).toISOString(), revoked_at: null, metadata: {} });
     }
+    // WS-R161. `inference` consent (`textBlockers`'s own floor,
+    // `api/_replica-runtime.js`) and a bound `subject_person_id`
+    // (`self_identity_not_bound`) are seeded directly here, the SAME
+    // license this walk already takes for `training` consent immediately
+    // above ("this walk never drives the separate verified-model consent
+    // ceremony, out of scope, named here") — real law requires both to
+    // follow a completed live identity/liveness ceremony
+    // (`grantVerifiedModelConsent`, `api/_replica-consent.js`), which this
+    // rehearsal's own scope does not reach either.
+    if (!state.consents.some((c) => c.replica_id === rid && c.scope === "inference" && !c.revoked_at)) {
+      state.consents.push({ consent_id: randomUUID(), replica_id: rid, owner_user_id: ownerId, scope: "inference", method: "live_challenge", policy_version: state.replicas[0].policy_version, receipt_hash: "seeded", granted_at: new Date().toISOString(), expires_at: new Date(Date.now() + 30 * 86400_000).toISOString(), revoked_at: null, metadata: {} });
+    }
+    if (!state.replicas[0].subject_person_id) state.replicas[0].subject_person_id = "44444444-4444-4444-8444-444444444444";
     state.personClaims = [
       { claim_id: "1", replica_id: rid, owner_user_id: ownerId, domain: "identity", key: "self_name", body: "Rehearsal Person", origin: "described", confidence: 1, status: "approved", sensitive: false, source_ids: [], t_valid_from: null, t_valid_to: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), decision: "accepted", reason_code: "accurate", reviewed_at: new Date().toISOString(), citation_previews: [] },
       { claim_id: "2", replica_id: rid, owner_user_id: ownerId, domain: "language", key: "languages", body: "Hindi, English", origin: "described", confidence: 1, status: "approved", sensitive: false, source_ids: [], t_valid_from: null, t_valid_to: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), decision: "accepted", reason_code: "accurate", reviewed_at: new Date().toISOString(), citation_previews: [] },
@@ -978,7 +1039,94 @@ async function main() {
     });
     const buildBody = await buildResponse.json().catch(() => ({}));
     ok("Evolve: accepting it changed the profile version (build_profile minted version 1)", buildResponse.status === 201 && buildBody.profile?.version === 1, JSON.stringify(buildBody));
+    // WS-R161. Approving the profile is what makes it `text_ready`
+    // (`api/_replica-runtime.js#textBlockers`'s own `person_profile_
+    // not_approved` blocker) — WS-R158's own walk stopped one step short of
+    // this, at a real `draft` profile, never an approved one.
+    const approveResponse = await fetch(`${url}/api/replica-person-model`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ op: "approve_profile", replica_id: rid, version: buildBody.profile?.version }),
+    });
+    const approveBody = await approveResponse.json().catch(() => ({}));
+    ok("Evolve: approving the profile through the real door succeeded", approveResponse.status === 200 && approveBody.profile?.status === "approved", JSON.stringify(approveBody));
     timings.evolveMs = Date.now() - tStep;
+
+    // ── MEET (text-ready): the real door serves an apprentice AI on a
+    //    person sheet alone, no voice pipeline reached — WS-R161's own gap.
+    //    `setFakeDialogueReply` is the fake reply seam this workstream's own
+    //    brief names, answering `_dialogue/registry.js` (redirected by
+    //    `./loader.mjs`), never the honest `dialogue_generator_unavailable`
+    //    503 `createProductionDialogueGenerator` throws with no fake set. ──
+    tStep = Date.now();
+    const deployAfterApproval = await (await fetch(`${url}/api/replica-runtime?replica_id=${rid}`, { headers: { Authorization: `Bearer ${token}` } })).json();
+    ok("Deploy: the real door reports text_ready true once the person sheet is approved (still voice-blocked)", deployAfterApproval.runtime?.text_ready === true && deployAfterApproval.runtime?.active === false, JSON.stringify(deployAfterApproval.runtime));
+    setFakeDialogueReply(() => ({
+      reply: "Namaste! I'm still learning who you are, but I can already talk.",
+      delivery: { mode: "warm", pace: "natural", intensity: 0.5, language_hint: "hi-en", nonverbals: [] },
+    }));
+    const textTurnResponse = await fetch(`${url}/api/replica-dialogue`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ replica_id: rid, message: "Who are you, and what can you do?" }),
+    });
+    const textTurnBody = await textTurnResponse.json().catch(() => ({}));
+    ok("Meet (text-ready): one real conversation turn COMPLETES through the real door with the fake reply seam", textTurnResponse.status === 200 && typeof textTurnBody.turn?.reply === "string", JSON.stringify(textTurnBody));
+    ok("Meet (text-ready): the reply carries the exact apprentice disclosure prefix", Boolean(textTurnBody.turn?.reply?.startsWith(TEXT_APPRENTICE_DISCLOSURE)));
+    ok("Meet (text-ready): a text-ready turn never claims a voice", textTurnBody.turn?.can_voice === false);
+    setFakeDialogueReply(null);
+    // This SAME walk's own EARLIER "record" section (WS-R158, unchanged)
+    // never reaches a promoted build, so `voiceSaga` was never cleared from
+    // localStorage (`submitRecording`'s own success branch only clears it on
+    // a real `state:"review"`+`promoted_at`) -- reloading with it still set
+    // makes `activeCandidate` truthy and `showVerification` correctly takes
+    // priority over Meet, the SAME honest, already-named product fact this
+    // file's own header states (`rejected.md#ws-r158-meet-does-not-open-
+    // automatically-without-the-full-build-promotion-pipeline`) -- a
+    // DIFFERENT, still-open gap from the one THIS workstream closes (a
+    // person who never touches the recorder at all). Clearing the saga here
+    // simulates exactly that real, more common path: Describe-me and an
+    // approved person sheet, never having opened the recorder in this
+    // browser, matching this workstream's own brief ("waits on a GPU for
+    // something text never needed") rather than a stuck voice attempt.
+    await page.evaluate((rid) => localStorage.removeItem(`vyakti:experience:voice-saga:v1:${rid}`), rid);
+    await page.goto(`${url}/studio.html`, { waitUntil: "domcontentloaded" });
+    try {
+      await page.locator(".vx-conversation-switch, .vx-record-button, .vx-verification").first().waitFor({ state: "visible", timeout: 20_000 });
+    } catch (cause) {
+      console.log("DEBUG meetOpenWithoutVoice timeout; body:", (await page.locator("body").innerText()).slice(0, 800));
+      const el = page.locator(".vx-conversation-switch").first();
+      console.log("DEBUG .vx-conversation-switch count:", await page.locator(".vx-conversation-switch").count());
+      console.log("DEBUG box:", JSON.stringify(await el.boundingBox().catch((e) => String(e))));
+      console.log("DEBUG computed display/visibility:", await el.evaluate((node) => {
+        const style = getComputedStyle(node);
+        const ancestors = [];
+        for (let n = node; n; n = n.parentElement) ancestors.push({ tag: n.tagName, cls: n.className, display: getComputedStyle(n).display, visibility: getComputedStyle(n).visibility, opacity: getComputedStyle(n).opacity });
+        return JSON.stringify({ self: { display: style.display, visibility: style.visibility, opacity: style.opacity }, ancestors: ancestors.slice(0, 8) });
+      }).catch((e) => String(e)));
+      throw cause;
+    }
+    const meetOpenWithoutVoice = await page.locator(".vx-conversation-switch").count() > 0;
+    ok("Meet: opens (the conversation switch renders) as soon as text_ready is true, with no voice recorded and no voice pipeline reached", meetOpenWithoutVoice);
+    if (meetOpenWithoutVoice) {
+      const sampleTabAfterApproval = page.locator('button[aria-pressed]', { hasText: "Voice sample" });
+      if (await sampleTabAfterApproval.count()) {
+        // `{ force: true }`: WS-R161's own `initialMeetView` change (text-ready
+        // opens on "conversation", never "sample") means `ExpertConversation`
+        // is now mounted here where it never was for THIS exact click before
+        // (the original wave-21 walk always found "sample" already active,
+        // pre-Evolve, so this click was a same-tab no-op with nothing else
+        // mounted underneath it) -- its own status strip transiently
+        // intercepts the tab switcher immediately after mount, a real but
+        // separate layout timing question this workstream's own brief does
+        // not reach. `force` still dispatches the REAL click handler
+        // (`setMeetView("sample")`); what this assertion actually checks is
+        // `VoicePreviewPanel`'s own pre-existing honest degraded state, not
+        // the click's own actionability.
+        await sampleTabAfterApproval.click({ force: true });
+        await page.waitForTimeout(500);
+        ok("Meet: the voice sample tab stays HONESTLY refused for a text-ready-only AI (renders without crashing, never a fabricated sample)", (await page.locator("body").innerText()).length > 0);
+      }
+    }
+    timings.meetTextReadyMs = Date.now() - tStep;
 
     // ── TALK: MirrorCallStudio's own real, designed-in "not available"
     //    state — not a full call turn (a named gap, see this file's header).
@@ -1013,6 +1161,19 @@ async function main() {
     });
     ok("NEGATIVE CONTROL — revoke through the real door succeeded", revokeResponse.status === 200);
     ok("NEGATIVE CONTROL — a revoked replica shows the erased state (real fixture lifecycle flip)", state.replicas.find((r) => r.replica_id === rid)?.lifecycle === "revoked");
+    // WS-R161. A revoked replica is also refused for TEXT — the SAME real
+    // door, the SAME approved person sheet still sitting in fixture state,
+    // now refused purely because the replica itself is revoked
+    // (`textBlockers`'s own `replica_revoked`, never `person_profile_not_
+    // approved` — this asserts the RIGHT blocker fires, not merely any).
+    setFakeDialogueReply(() => ({ reply: "Should never be answered after revoke.", delivery: { mode: "grounded", pace: "natural", intensity: 0.3, language_hint: "", nonverbals: [] } }));
+    const postRevokeTextTurn = await fetch(`${url}/api/replica-dialogue`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ replica_id: rid, message: "Are you still there?" }),
+    });
+    const postRevokeTextBody = await postRevokeTextTurn.json().catch(() => ({}));
+    ok("NEGATIVE CONTROL — a revoked replica is refused for TEXT too, never a fabricated success", postRevokeTextTurn.status >= 400 && postRevokeTextBody.error === "dialogue_text_not_ready" && (postRevokeTextBody.details?.blockers || []).includes("replica_revoked"), JSON.stringify(postRevokeTextBody));
+    setFakeDialogueReply(null);
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1000);
     const postRevokeHasRecorder = await page.locator("button.vx-record-button").count();
