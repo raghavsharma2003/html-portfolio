@@ -116,3 +116,52 @@ export const teacherSheetPublicationClient = {
   read: readTeacherSheetPublicationReview,
   publish: (token: string, replicaId: string, review: TeacherSheetPublicationKey) => publishTeacherSheet(token,replicaId,undefined,review),
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R178. "Draft it from what I gave" — op:"draft_from_sources". A read,
+// never a write: `api/_person-sheet-draft.js`'s pure drafter over the
+// person's own accepted, cited claims. Accepting a proposal in the studio
+// edits `draft` locally, exactly as typing does; saving still goes through
+// `saveTeacherSheetDraft` above, unchanged.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface PersonSheetDraftCitation { excerpt: string; entailment: number }
+
+export interface PersonSheetDraftProposal {
+  id: string;
+  /** a sheet field name, or "personTalk.<register|scriptBaseline|codeSwitchNote>" */
+  field: string;
+  value: string;
+  claimIds: string[];
+  citations: PersonSheetDraftCitation[];
+}
+
+export interface PersonSheetDraftGap {
+  field: string;
+  reason: string;
+  detail?: string;
+}
+
+export interface PersonSheetDraftResult {
+  replica_id: string;
+  proposals: PersonSheetDraftProposal[];
+  gaps: PersonSheetDraftGap[];
+  accepted_claim_count: number;
+}
+
+export async function readPersonSheetDraftProposals(token: string, replicaId: string): Promise<PersonSheetDraftResult> {
+  const data = await replicaRequest<PersonSheetDraftResult>(
+    token,
+    `/api/teacher-sheet?op=draft_from_sources&replica_id=${encodeURIComponent(replicaId)}`,
+  );
+  if (
+    !data || data.replica_id !== replicaId ||
+    !Array.isArray(data.proposals) || !data.proposals.every((p) =>
+      p && typeof p.id === "string" && typeof p.field === "string" && typeof p.value === "string" &&
+      Array.isArray(p.claimIds) && Array.isArray(p.citations)) ||
+    !Array.isArray(data.gaps) || !data.gaps.every((g) => g && typeof g.field === "string" && typeof g.reason === "string")
+  ) {
+    throw new Error("person_sheet_draft_response_invalid");
+  }
+  return data;
+}

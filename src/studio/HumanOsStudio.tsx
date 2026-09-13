@@ -59,7 +59,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./humanos-studio.css";
 import TeacherSheetPublication from "./TeacherSheetPublication";
 import { ReplicaApiError } from "./replicaApi";
-import { readTeacherSheetDraft, saveTeacherSheetDraft, teacherSheetPublicationClient } from "./teacherSheetApi";
+import {
+  readPersonSheetDraftProposals,
+  readTeacherSheetDraft,
+  saveTeacherSheetDraft,
+  teacherSheetPublicationClient,
+  type PersonSheetDraftProposal,
+  type PersonSheetDraftResult,
+} from "./teacherSheetApi";
 import { DEMO_TEACHER } from "../engine/agents/characters/demoTeacher";
 import type { TeacherSheet } from "../engine/agents/teacherTypes";
 import type { Replica } from "./types";
@@ -150,6 +157,16 @@ export default function HumanOsStudio({
   const [notice, setNotice] = useState("");
   const [neverSayDraft, setNeverSayDraft] = useState("");
   const [valueDraft, setValueDraft] = useState("");
+  // WS-R178. "Draft it from what I gave" — independent of the load/save
+  // request machinery above, since it is a read that never touches the
+  // saved row; a bare revision ref is enough to drop a stale response after
+  // a replica/token switch, the same minimal guard PersonModelStudio.tsx's
+  // own `checkExtractionNow` uses for an equivalent auxiliary read.
+  const [draftResult, setDraftResult] = useState<PersonSheetDraftResult | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftErrorMsg, setDraftErrorMsg] = useState("");
+  const [acceptedProposalIds, setAcceptedProposalIds] = useState<ReadonlySet<string>>(new Set());
+  const draftRevision = useRef(0);
   const mounted = useRef(false);
   const requestGeneration = useRef(0);
   const requestLocked = useRef(false);
@@ -227,6 +244,67 @@ export default function HumanOsStudio({
     edit({ personValues: (draft.personValues ?? []).filter((_, i) => i !== index) });
   }
 
+  // ── WS-R178: "Draft it from what I gave" ──────────────────────────────
+  async function runDraftFromSources() {
+    if (draftLoading) return;
+    const revision = ++draftRevision.current;
+    setDraftLoading(true);
+    setDraftErrorMsg("");
+    try {
+      const result = await readPersonSheetDraftProposals(token, replica.replica_id);
+      if (!mounted.current || revision !== draftRevision.current) return;
+      setDraftResult(result);
+      setAcceptedProposalIds(new Set());
+    } catch (cause) {
+      if (!mounted.current || revision !== draftRevision.current) return;
+      if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
+      setDraftErrorMsg(c.draftError);
+    } finally {
+      if (mounted.current && revision === draftRevision.current) setDraftLoading(false);
+    }
+  }
+
+  // Applies one proposal into the local draft exactly as the matching typed
+  // control would — a multi-field proposal is APPENDED (never replaces the
+  // array), a scalar or `personTalk.*` proposal SETS its own field, and
+  // every path after this still goes through the unchanged `save()` above.
+  function acceptProposal(proposal: PersonSheetDraftProposal) {
+    if (acceptedProposalIds.has(proposal.id)) return;
+    if (proposal.field === "personValues") {
+      if ((draft.personValues ?? []).length >= PERSON_VALUES_MAX) return;
+      edit({ personValues: [...(draft.personValues ?? []), proposal.value] });
+    } else if (proposal.field === "personNeverSay") {
+      edit({ personNeverSay: [...(neverSayIsNone ? [] : draft.personNeverSay ?? []), proposal.value] });
+    } else if (proposal.field === "personTalk.register") {
+      edit({ personTalk: { ...(draft.personTalk ?? { register: "mixed", scriptBaseline: "roman-hinglish" }), register: proposal.value as "formal" | "mixed" | "casual" } });
+    } else if (proposal.field === "personTalk.scriptBaseline") {
+      edit({ personTalk: { ...(draft.personTalk ?? { register: "mixed", scriptBaseline: "roman-hinglish" }), scriptBaseline: proposal.value as "roman-hinglish" | "devanagari" | "english" } });
+    } else if (proposal.field === "personTalk.codeSwitchNote") {
+      edit({ personTalk: { ...(draft.personTalk ?? { register: "mixed", scriptBaseline: "roman-hinglish" }), codeSwitchNote: proposal.value } });
+    } else {
+      edit({ [proposal.field]: proposal.value } as Partial<TeacherSheet>);
+    }
+    setAcceptedProposalIds((prev) => new Set(prev).add(proposal.id));
+  }
+
+  const draftFieldLabel = useCallback((field: string): string => {
+    switch (field) {
+      case "identityWho": return c.who;
+      case "identityLife": return c.life;
+      case "lifeTexture": return c.texture;
+      case "tasteTopics": return c.taste;
+      case "curiosityTopics": return c.curiosity;
+      case "personValues": return c.valuesHeading;
+      case "personNeverSay": return c.neverSayHeading;
+      case "personTalk.register": return c.register;
+      case "personTalk.scriptBaseline": return c.script;
+      case "personTalk.codeSwitchNote": return c.codeSwitch;
+      case "name": return c.name;
+      case "personLine": return c.oneLine;
+      default: return field;
+    }
+  }, [c]);
+
   async function save() {
     if (requestLocked.current || existingKind === "teacher") return;
     requestLocked.current = true;
@@ -277,6 +355,63 @@ export default function HumanOsStudio({
         <p className="inline-error" role="alert">{c.teacherKindBlock}</p>
       )}
       {notice && <p className="field-note" role="status">{notice}</p>}
+
+      <section className="humanos-draft" aria-labelledby="humanos-draft-title">
+        <h3 id="humanos-draft-title">{c.draftHeading}</h3>
+        <p className="field-note">{c.draftIntro}</p>
+        <button
+          className="button secondary-button"
+          type="button"
+          disabled={disabled || draftLoading}
+          onClick={() => void runDraftFromSources()}
+        >
+          {draftLoading ? c.draftingButton : c.draftButton}
+        </button>
+        {draftErrorMsg && <p className="inline-error" role="alert">{draftErrorMsg}</p>}
+        {draftResult && (
+          draftResult.proposals.length === 0 ? (
+            <p className="field-note" role="status">{c.draftNothingYet}</p>
+          ) : (
+            <ul className="humanos-draft-proposals" aria-label={c.draftHeading}>
+              {draftResult.proposals.map((proposal) => {
+                const used = acceptedProposalIds.has(proposal.id);
+                return (
+                  <li key={proposal.id} className="humanos-draft-proposal">
+                    <span className="eyebrow">{draftFieldLabel(proposal.field)}</span>
+                    <p>{proposal.value}</p>
+                    {proposal.citations.map((citation, index) => (
+                      <p key={index} className="humanos-draft-citation">
+                        <strong>{c.draftFromLabel}</strong> {citation.excerpt}
+                      </p>
+                    ))}
+                    <div className="humanos-draft-proposal-foot">
+                      <button
+                        className="button secondary-button"
+                        type="button"
+                        aria-pressed={used}
+                        disabled={disabled || used}
+                        onClick={() => acceptProposal(proposal)}
+                      >
+                        {used ? c.draftUsedLabel : c.draftUseButton}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )
+        )}
+        {draftResult && draftResult.gaps.length > 0 && (
+          <>
+            <p className="field-note">{c.draftGapsIntro}</p>
+            <ul className="humanos-draft-gaps">
+              {draftResult.gaps.map((gap) => (
+                <li key={gap.field}>{draftFieldLabel(gap.field)}</li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
 
       <fieldset className="humanos-grid" disabled={disabled}>
         <article className="humanos-card">

@@ -3445,6 +3445,19 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "erasure-order": "erasure-order/run.mjs",
+  // WS-R178. HumanOS drafted from a person's own sources:
+  // `api/_person-sheet-draft.js`'s pure mapping from a person's accepted,
+  // cited Person Model claims to proposed sheet lines. 40 fixture persons
+  // (English, Hindi, Hinglish) draft to sheets `validateTeacherSheet`
+  // accepts; three named negative controls (a citation-less claim never
+  // drafts, a rejected claim never appears, nothing given is an honest empty
+  // draft); the drafter's own shape rules (the 7-item values cap, the 3-item
+  // never-say floor with no partial fill and no auto "none", enum aliasing
+  // that gaps rather than guesses, determinism, never a recitable line).
+  //
+  // Offline, deterministic, $0, no DB. Re-bundles `fromSheet.ts` from the
+  // real source on every run, the same as `person-sheet` above.
+  "person-sheet-draft": "person-sheet-draft/run.mjs",
 };
 
 const argv = process.argv.slice(2);

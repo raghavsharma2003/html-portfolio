@@ -61,6 +61,19 @@ export interface HumanOsCopy {
   savingButton: string;
   add: string;
   remove: string;
+
+  // WS-R178. "Draft it from what I gave" — its own closed block, appended
+  // rather than interleaved into the fields above.
+  draftHeading: string;
+  draftIntro: string;
+  draftButton: string;
+  draftingButton: string;
+  draftError: string;
+  draftFromLabel: string;
+  draftUseButton: string;
+  draftUsedLabel: string;
+  draftNothingYet: string;
+  draftGapsIntro: string;
 }
 
 const EN: HumanOsCopy = {
@@ -111,6 +124,17 @@ const EN: HumanOsCopy = {
   savingButton: "Saving",
   add: "Add",
   remove: "Remove",
+
+  draftHeading: "Draft it from what I gave",
+  draftIntro: "Turn what you already gave your AI, files, links, describe me, the interview, into a first pass at this sheet. Every line shows where it came from. Review before it is saved.",
+  draftButton: "Draft from what I gave",
+  draftingButton: "Drafting",
+  draftError: "Could not draft from your sources. Try again.",
+  draftFromLabel: "From what you gave:",
+  draftUseButton: "Use this",
+  draftUsedLabel: "Added",
+  draftNothingYet: "Nothing to draft yet. Give your AI more, a file, a link, describe me, or answer the interview, then try again.",
+  draftGapsIntro: "Still needs your own words:",
 };
 
 const HI: HumanOsCopy = {
@@ -161,6 +185,17 @@ const HI: HumanOsCopy = {
   savingButton: "सहेजा जा रहा है",
   add: "जोड़ें",
   remove: "हटाएं",
+
+  draftHeading: "जो आपने दिया उससे रूपरेखा बनाएं",
+  draftIntro: "आपने अपने AI को जो पहले ही दिया है, फाइलें, लिंक, अपने बारे में बताना, इंटरव्यू, उसे इस शीट के पहले मसौदे में बदलें। हर पंक्ति दिखाती है कि वह कहां से आई है। सहेजे जाने से पहले जांच लें।",
+  draftButton: "जो दिया उससे रूपरेखा बनाएं",
+  draftingButton: "रूपरेखा बनाई जा रही है",
+  draftError: "आपके स्रोतों से रूपरेखा नहीं बन सकी। फिर से कोशिश करें।",
+  draftFromLabel: "आपने जो दिया उससे:",
+  draftUseButton: "इसे इस्तेमाल करें",
+  draftUsedLabel: "जोड़ा गया",
+  draftNothingYet: "अभी रूपरेखा बनाने के लिए कुछ नहीं है। अपने AI को और दें, एक फाइल, एक लिंक, अपने बारे में बताएं, या इंटरव्यू का जवाब दें, फिर दोबारा कोशिश करें।",
+  draftGapsIntro: "अभी भी आपके अपने शब्दों की ज़रूरत है:",
 };
 
 export const HUMANOS_COPY: Record<HumanOsLocale, HumanOsCopy> = { en: EN, hi: HI };
