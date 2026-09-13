@@ -24361,3 +24361,35 @@ same fact by construction and this fallback needs no further change.
 **Why.** `writeRelEvent`'s own citation law (`src/engine/relstate.ts`) exists so every relational-state claim traces to something that actually happened; a follower clicking "start fresh" asserts nothing NEW about what happened, only that the AI should stop holding the old thing against them, so chaining forward is the only citation that is both truthful and satisfies the CHECK. `direction: 'reset'` is deliberate: `Direction` names four values in `relstate.ts`'s own type but no PURE function in that file ever produces `'reset'` today, so this is the one write path that uses it, and doing so makes an explicit follower action visually distinct from an automatic hysteresis move in any future audit of the event log.
 
 **Reversal.** If a product review decides a reset should also touch honorific/trust/code-switch (a truly full "clean slate," not only closing the rupture), each additional dim needs its own event, each citing the SAME chained citations by the same reasoning — never a change to the citation law itself.
+
+## `ws-r158-personal-rehearsal-own-http-server` (2026-09-13, WS-R158)
+
+**Decision.** `evals/rehearsal/personal.mjs` runs its own small local HTTP server rather than extending `evals/rehearsal/harness.mjs`'s `startHarness`. It reuses that file's proven fixture-world builders (`freshRehearsalCreatorState`, `rehearsalCreatorDb` from `evals/room-doors/fixtures.mjs`) and repeats its (small) Vercel-shim/route-dispatch plumbing locally.
+
+**Why.** `startHarness`'s own door table (`CREATOR_DOOR_MODULES`, `FALLBACK_JSON_ROUTES`) is a closure private to `harness.mjs`, built for the five creator-studio doors WS-R94/R109 needed. The personal studio needs a different set (`api/account.js`'s OTP ceremony, `api/replica-source.js`, `api/replica-review.js`, `api/replica-person-model.js`, `api/replica-runtime.js`) that this file cannot add from outside without editing `harness.mjs` itself — and this workstream's own brief scopes its touches to `evals/rehearsal/personal.mjs` (new) and fixtures.
+
+**Reversal.** If a future workstream needs BOTH the personal and creator door sets in one process (a rehearsal that signs in as a personal user and also drives the teacher studio), fold `personal.mjs`'s door table into `harness.mjs`'s `CREATOR_DOOR_MODULES`/`FALLBACK_JSON_ROUTES` the same way WS-R109 folded `harness-creator.mjs` in, and retire this file's own server — matching the "one contract" law that fold already established.
+
+## `ws-r158-authfetch-in-memory-otp-simulator` (2026-09-13, WS-R158)
+
+**Decision.** `evals/rehearsal/stubs/auth-with-fake-user.mjs`'s `authFetch` (previously re-exported unchanged from the real `api/_auth.js`) is overridden with a pure, in-memory OTP simulator (one fixed destination email, one fixed 6-digit code, no network). `SB_URL`/`SB_KEY` are also overridden to fixed non-empty fixture strings (`api/account.js` refuses every op with `no backend configured` when either is empty, which the `write-config.mjs --stub` build every gate runs under leaves empty).
+
+**Why.** This is the first rehearsal in this repo to drive `api/account.js`'s real `send_otp`/`verify_otp` door through the real `PersonalAuthGate` UI (`creator.mjs`/`follower.mjs` both skip it with a seeded session or bearer token — confirmed by grep before this change: no existing rehearsal `.mjs` calls `send_otp`/`verify_otp`/`send_sms`/`verify_sms`, so overriding `authFetch` could not regress them). A second fake HTTP server (mirroring the WhatsApp/Telegram Cloud API fakes) was considered and rejected: `stubs/replica-storage-with-fake-object.mjs` already claims `process.env.SUPABASE_URL` for a DIFFERENT purpose (Storage), and a second claim on the same env var for Auth would race whichever stub's import happened to run first — see `context/rejected.md#ws-r158-supabase-url-double-booked-by-auth-and-storage-stubs`. A pure JS override of the one function the client actually calls has no such collision, since it never reads `SB_URL` at all.
+
+**Reversal.** If a future workstream needs `send_sms`/`verify_sms`/`google_url` exercised for real too, extend the same `authFetch` override with more fixed cases rather than reaching for a second fake-server mechanism.
+
+## `ws-r158-build-intent-left-honestly-waiting` (2026-09-13, WS-R158)
+
+**Decision.** The personal rehearsal's own fixture for `createOwnedVoiceBuildIntent` (`api/_replica-build-intent.js`) lands a freshly requested voice build on the REAL terminal state a first pass actually reaches (`state: "waiting"`, `settleWaiting`'s own real transition, driven through a real `getOwnedVoiceBuildIntent` fixture rather than a bypass), not a fabricated `state: "review", promoted_at`.
+
+**Why.** The first version of this fixture DID fake an instant promotion (skipping `_replica-build-intent.js`'s own `promoteCandidate` CTE, which needs an APPROVED `vy_replica_model_build` bound to a matching-hash `vy_replica_voice_genome`, itself gated by `queueOwnedVoiceGenome`'s real evidence checks). That worked for the ONE call this walk drives, but broke everything downstream: `submitRecording`'s own `voiceSaga` never clears without a real `promoted_at`, and reaching a state HONESTLY assessed as `review` requires the same processing/qualification pipeline this workstream already found too deep to fixture for `/api/replica-runtime` (see the Deploy blockers list this same walk's own assertion prints). Faking the promotion would have hidden that structural fact rather than proving it. See `context/rejected.md#ws-r158-meet-does-not-open-automatically-without-the-full-build-promotion-pipeline`.
+
+**Reversal.** Once a future workstream fixtures `queueOwnedVoiceGenome`'s evidence gate and `promoteCandidate`'s own CTE for real (or wires `REPLICA_SELF_TEST_MODE`'s real auto-grant chain, `api/_replica-processing/self-test.js`), update this fixture to drive the real promotion and change this walk's own "Meet opens automatically" assertion from a documented gap to a real pass.
+
+## `ws-r158-describe-me-driven-before-recording` (2026-09-13, WS-R158)
+
+**Decision.** `evals/rehearsal/personal.mjs` drives the Describe me step immediately after the Agreement screen, BEFORE the voice recording step — not in the journey order the brief lists them (record, then wait, then Meet, then Describe me).
+
+**Why.** `CloneExperience.tsx`'s own `showVerification` render gate (`Boolean(selected && consentActive && activeCandidate && !upload)`) takes over the WHOLE screen the moment a voice build is in flight, regardless of `room`/`enrichView` state — a real product fact this walk found by trying the documented order first: once `onRequestVoiceBuild` returns anything short of `state: "review"` with `promoted_at` (see the decision above), `voiceSaga` never clears and every other room, Describe me included, is unreachable until it does.
+
+**Reversal.** Once the build-promotion pipeline is fixtured for real (see the decision above), the walk can be reordered to match the brief's own listed sequence exactly, since `showVerification` would then resolve and release the screen on its own.

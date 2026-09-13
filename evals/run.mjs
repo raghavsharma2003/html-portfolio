@@ -3177,6 +3177,50 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   listeningtest: "listening-test/run.mjs",
+  // WS-R158 (wave twenty-one). The personal journey rehearsed: a real
+  // Chromium drives the REAL built personal studio (`dist/studio.html`, no
+  // `?mode=`) against this file's own small local HTTP server (`evals/
+  // rehearsal/personal.mjs`'s own header explains why it is not `evals/
+  // rehearsal/harness.mjs`'s `startHarness`), which routes to the REAL
+  // `api/account.js`, `api/replica.js`, `api/replica-consent.js`,
+  // `api/context-items.js`, `api/replica-source.js`, `api/replica-review.js`,
+  // `api/replica-person-model.js`, `api/replica-runtime.js` and
+  // `api/replica-dialogue.js` handlers over a fixture database, through the
+  // same `evals/rehearsal/loader.mjs` module-resolution hook every rehearsal
+  // in this repo shares. THE SIGN-IN GAP: neither `rehearsal-follower` nor
+  // `rehearsal-creator` ever walks the real `send_otp`/`verify_otp` OTP
+  // ceremony through the real `PersonalAuthGate` UI (both skip it with a
+  // seeded session) — this suite is the first to drive it for real, against
+  // an in-memory OTP simulator in `stubs/auth-with-fake-user.mjs`'s own
+  // `authFetch` override (a real network call to Supabase's GoTrue API would
+  // otherwise be needed). REAL AND FIXTURED: sign-in, the source-use
+  // agreement (real replica creation + enrollment consent,
+  // `StudioApp.tsx`'s own `handleBeginClone`), Describe me (a real context
+  // item through the real storage-writer pipeline,
+  // `api/_replica-storage-writer.js`), one >=12s voice recording (a real,
+  // non-clipping synthetic WAV fed to Chromium's own fake microphone device
+  // via `--use-file-for-fake-audio-capture` — Chromium's BUILT-IN fake tone
+  // clips the real recording quality gate, found on this suite's first real
+  // run), one source create_upload -> finalize -> voice-build request, the
+  // wait (a real `/api/replica-review` phase progression, no percentage),
+  // Evolve (one seeded claim decided for real, a real profile version
+  // built from it), Deploy (`/api/replica-runtime`'s real `clientRuntimeStatus`
+  // transform). THREE NEGATIVE CONTROLS: a too-short recording is refused
+  // client-side; a signed-out conversation-turn call is refused (401) before
+  // any dialogue logic runs; a revoked replica shows the erased state. THE
+  // REAL FINDING: Meet does not open automatically and a conversation/mirror-
+  // call turn cannot complete on this tree, because both require an ACTIVE
+  // runtime capability, which itself requires an approved profile,
+  // calibration, voice genome, a ready voice profile and a passing fidelity
+  // verdict — the full processing/qualification pipeline, one layer under
+  // the already-known "a personal AI cannot open a Room" fact
+  // (`context/STATE.md`). This walk drives the real door for both and
+  // asserts the honest refusal, never a crash or a fabricated success — see
+  // `evals/rehearsal/personal.mjs`'s own header for the full citation trail.
+  // Offline, deterministic, $0, no DB, no network beyond 127.0.0.1, no model
+  // call, no GPU. Chromium only (never `playwright install` — `/opt/pw-
+  // browsers` is pre-installed); gracefully skips (exit 0) if none is found.
+  "rehearsal-personal": "rehearsal/personal.mjs",
 };
 
 const argv = process.argv.slice(2);

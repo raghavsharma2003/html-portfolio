@@ -48,7 +48,16 @@ try{
   ok('CPU child progresses past seven queued browser entries while two browsers are held',current.pureOverlap);
   ok('failure releases its browser slot and every queued browser eventually completes',current.completion.length===9&&current.results.filter(r=>!r.ok).length===1&&current.results.find(r=>r.name==='browser0').ok===false);
   ok('results preserve input order across completion reordering',JSON.stringify(current.results.map(r=>r.name))===JSON.stringify(current.names));
-  ok('fixed-port and pre-pool writer classifications remain unchanged',JSON.stringify(PRE_POOL_SUITES)===JSON.stringify(old.PRE_POOL_SUITES)&&JSON.stringify(PORT_LANE_SUITES)===JSON.stringify(old.PORT_LANE_SUITES));
+  // WS-R158: byte-equality against the frozen snapshot broke the moment a
+  // new shared-`dist/`-writing rehearsal (`rehearsal-personal`) was legitimately
+  // ADDED to `PRE_POOL_SUITES` — the exact `frozen-file-merge-controls-break-
+  // on-the-next-change` shape this repo's own context/rejected.md already
+  // names, restated for a frozen ARRAY instead of a frozen FILE. The actual
+  // property this control exists to catch is regression (an existing entry
+  // silently dropped, renamed or reordered into a different list), not
+  // stasis (the lists may only ever grow) — checked here as "every frozen
+  // entry is still present, in both lists" rather than exact equality.
+  ok('fixed-port and pre-pool writer classifications remain unchanged',old.PRE_POOL_SUITES.every(name=>PRE_POOL_SUITES.includes(name))&&old.PORT_LANE_SUITES.every(name=>PORT_LANE_SUITES.includes(name)));
   mkdirSync(join(dir,'evals'));mkdirSync(join(dir,'scripts'));mkdirSync(join(dir,'api'));
   writeFileSync(join(dir,'api/_config.js'),'throw Error("CONFIG_MUST_NOT_BE_READ_OR_EXECUTED");');
   const source={

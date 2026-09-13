@@ -18438,6 +18438,78 @@
       "kind": "open",
       "title": "No endpoint fetches audio bytes for a past sealed generation; ListeningTest.tsx's audio playback is an honest placeholder (2026-09-13, WS-R155)",
       "at": "src/studio/ListeningTest.tsx"
+    },
+    {
+      "id": "ws-r158-personal-rehearsal-own-http-server",
+      "kind": "decision",
+      "title": "personal.mjs runs its own HTTP server rather than extending harness.mjs's closed door table (2026-09-13)",
+      "at": "context/decisions.md#ws-r158-personal-rehearsal-own-http-server"
+    },
+    {
+      "id": "ws-r158-authfetch-in-memory-otp-simulator",
+      "kind": "decision",
+      "title": "authFetch overridden as a pure in-memory OTP simulator, not a second fake HTTP server (2026-09-13)",
+      "at": "context/decisions.md#ws-r158-authfetch-in-memory-otp-simulator"
+    },
+    {
+      "id": "ws-r158-build-intent-left-honestly-waiting",
+      "kind": "decision",
+      "title": "the fixtured voice-build intent lands on the real waiting state, not a fabricated promotion (2026-09-13)",
+      "at": "context/decisions.md#ws-r158-build-intent-left-honestly-waiting"
+    },
+    {
+      "id": "ws-r158-describe-me-driven-before-recording",
+      "kind": "decision",
+      "title": "Describe me is driven before recording, since a pending build blocks every other room (2026-09-13)",
+      "at": "context/decisions.md#ws-r158-describe-me-driven-before-recording"
+    },
+    {
+      "id": "ws-r158-personal-rehearsal-wall-clock-2026-09-13",
+      "kind": "measurement",
+      "title": "The personal journey rehearsal's per-step wall clock, n=3 (2026-09-13)",
+      "at": "context/measurements.md#ws-r158-personal-rehearsal-wall-clock-2026-09-13"
+    },
+    {
+      "id": "ws-r158-supabase-url-double-booked-by-auth-and-storage-stubs",
+      "kind": "rejection",
+      "title": "A real fake-Supabase-Auth server would have raced the storage stub for process.env.SUPABASE_URL (2026-09-13)",
+      "at": "context/rejected.md#ws-r158-supabase-url-double-booked-by-auth-and-storage-stubs"
+    },
+    {
+      "id": "ws-r158-chromiums-built-in-fake-audio-device-clips-the-real-recording-quality-gate",
+      "kind": "rejection",
+      "title": "Chromium's built-in fake microphone tone clips the real recording quality gate (2026-09-13)",
+      "at": "context/rejected.md#ws-r158-chromiums-built-in-fake-audio-device-clips-the-real-recording-quality-gate"
+    },
+    {
+      "id": "ws-r158-missing-getownedvoicebuildintent-fixture-404s-a-real-voice-build-request",
+      "kind": "rejection",
+      "title": "A missing getOwnedVoiceBuildIntent fixture 404s a real voice-build request (2026-09-13)",
+      "at": "context/rejected.md#ws-r158-missing-getownedvoicebuildintent-fixture-404s-a-real-voice-build-request"
+    },
+    {
+      "id": "ws-r158-missing-storage-writer-fixture-denies-a-real-describe-me-save",
+      "kind": "rejection",
+      "title": "A missing storage-writer fixture denies a real Describe me save (2026-09-13)",
+      "at": "context/rejected.md#ws-r158-missing-storage-writer-fixture-denies-a-real-describe-me-save"
+    },
+    {
+      "id": "ws-r158-meet-does-not-open-automatically-without-the-full-build-promotion-pipeline",
+      "kind": "rejection",
+      "title": "Meet does not open automatically without the full build-promotion pipeline (2026-09-13)",
+      "at": "context/rejected.md#ws-r158-meet-does-not-open-automatically-without-the-full-build-promotion-pipeline"
+    },
+    {
+      "id": "ws-r158-personal-journey-rehearsal",
+      "kind": "component",
+      "title": "evals/rehearsal/personal.mjs \u2014 the personal journey rehearsed end to end (2026-09-13)",
+      "at": "context/decisions.md#ws-r158-personal-rehearsal-own-http-server"
+    },
+    {
+      "id": "ws-r158-runtime-activation-chain-not-fixtured",
+      "kind": "open",
+      "title": "The runtime-activation / voice qualification pipeline (approved profile+calibration+genome+voice+fidelity) is not fixtured; conversation and mirror-call turns are unproven beyond an honest refusal (2026-09-13)",
+      "at": "context/rejected.md#ws-r158-meet-does-not-open-automatically-without-the-full-build-promotion-pipeline"
     }
   ],
   "edges": [
@@ -31283,6 +31355,46 @@
       "src": "ws-r155-listening-test-ui",
       "dst": "ws-r155-voice-listening-verdict",
       "rel": "part_of"
+    },
+    {
+      "src": "ws-r158-personal-journey-rehearsal",
+      "rel": "part_of",
+      "dst": "codex-handoff206-adopted-as-the-base"
+    },
+    {
+      "src": "ws-r158-personal-rehearsal-own-http-server",
+      "dst": "ws-r158-personal-journey-rehearsal",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r158-authfetch-in-memory-otp-simulator",
+      "dst": "ws-r158-supabase-url-double-booked-by-auth-and-storage-stubs",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r158-build-intent-left-honestly-waiting",
+      "dst": "ws-r158-meet-does-not-open-automatically-without-the-full-build-promotion-pipeline",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r158-describe-me-driven-before-recording",
+      "dst": "ws-r158-meet-does-not-open-automatically-without-the-full-build-promotion-pipeline",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r158-personal-rehearsal-wall-clock-2026-09-13",
+      "dst": "ws-r158-personal-journey-rehearsal",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r158-runtime-activation-chain-not-fixtured",
+      "dst": "ws-r158-meet-does-not-open-automatically-without-the-full-build-promotion-pipeline",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r158-runtime-activation-chain-not-fixtured",
+      "dst": "ws-r158-personal-journey-rehearsal",
+      "rel": "blocks"
     }
   ]
 }
