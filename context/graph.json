@@ -18024,6 +18024,60 @@
       "kind": "measurement",
       "title": "CI runs on the 2026-09-13 base and the browser-suite repairs measured",
       "at": "context/measurements.md#ci-and-the-browser-suites-2026-09-13"
+    },
+    {
+      "id": "ws-r157-vyakti-mobile-app",
+      "kind": "component",
+      "title": "The Vyakti mobile app: a second Capacitor flavour beside Meera's",
+      "at": "2026-09-13"
+    },
+    {
+      "id": "ws-r157-capacitor-config-selected-by-a-repo-script-not-a-cli-flag",
+      "kind": "decision",
+      "title": "Capacitor config for the vyakti flavour is staged by a repo script, never a CLI flag",
+      "at": "context/decisions.md#ws-r157-capacitor-config-selected-by-a-repo-script-not-a-cli-flag"
+    },
+    {
+      "id": "ws-r157-vyakti-flavour-uses-applicationid-not-applicationidsuffix",
+      "kind": "decision",
+      "title": "The vyakti flavour sets its own applicationId rather than applicationIdSuffix",
+      "at": "context/decisions.md#ws-r157-vyakti-flavour-uses-applicationid-not-applicationidsuffix"
+    },
+    {
+      "id": "ws-r157-flavour-qualified-gradle-tasks-are-required-not-optional",
+      "kind": "decision",
+      "title": "build-apk.yml's Meera job is flavour-qualified (assembleMeeraDebug, etc.)",
+      "at": "context/decisions.md#ws-r157-flavour-qualified-gradle-tasks-are-required-not-optional"
+    },
+    {
+      "id": "ws-r157-loopback-mock-microphone-context-never-resumed",
+      "kind": "rejection",
+      "title": "The loopback mock microphone's AudioContext never resumed, so the mock stream was silent (2026-09-13)",
+      "at": "context/rejected.md#ws-r157-loopback-mock-microphone-context-never-resumed"
+    },
+    {
+      "id": "ws-r157-vyakti-app-suite",
+      "kind": "measurement",
+      "title": "evals/vyakti-app: 116 passed, 0 failed (2026-09-13)",
+      "at": "context/measurements.md#ws-r157-vyakti-app-suite"
+    },
+    {
+      "id": "ws-r157-mobile-webview-record-flow",
+      "kind": "measurement",
+      "title": "The studio's record flow reaches Continue under a mobile WebView UA with MediaRecorder deleted (2026-09-13)",
+      "at": "context/measurements.md#ws-r157-mobile-webview-record-flow"
+    },
+    {
+      "id": "ws-r157-select-capacitor-config-test-clobbered-its-own-fixture",
+      "kind": "measurement",
+      "title": "A shared fixture directory across two flavour-stage calls hid a real pass behind a test bug (2026-09-13)",
+      "at": "context/measurements.md#ws-r157-select-capacitor-config-test-clobbered-its-own-fixture"
+    },
+    {
+      "id": "ws-r157-vyakti-release-signing-unconfigured",
+      "kind": "open",
+      "title": "The vyakti flavour has no release signing config; only assembleVyaktiDebug is built in CI",
+      "at": "2026-09-13"
     }
   ],
   "edges": [
@@ -30489,6 +30543,71 @@
       "src": "ci-shallow-checkout-starved-the-history-reading-suites",
       "dst": "ci-and-the-browser-suites-2026-09-13",
       "rel": "measured_by"
+    },
+    {
+      "src": "ws-r157-capacitor-config-selected-by-a-repo-script-not-a-cli-flag",
+      "rel": "part_of",
+      "dst": "ws-r157-vyakti-mobile-app"
+    },
+    {
+      "src": "ws-r157-vyakti-flavour-uses-applicationid-not-applicationidsuffix",
+      "rel": "part_of",
+      "dst": "ws-r157-vyakti-mobile-app"
+    },
+    {
+      "src": "ws-r157-flavour-qualified-gradle-tasks-are-required-not-optional",
+      "rel": "part_of",
+      "dst": "ws-r157-vyakti-mobile-app"
+    },
+    {
+      "src": "ws-r157-loopback-mock-microphone-context-never-resumed",
+      "rel": "part_of",
+      "dst": "ws-r157-vyakti-mobile-app"
+    },
+    {
+      "src": "ws-r157-vyakti-app-suite",
+      "rel": "part_of",
+      "dst": "ws-r157-vyakti-mobile-app"
+    },
+    {
+      "src": "ws-r157-mobile-webview-record-flow",
+      "rel": "part_of",
+      "dst": "ws-r157-vyakti-mobile-app"
+    },
+    {
+      "src": "ws-r157-mobile-webview-record-flow",
+      "rel": "caused_by",
+      "dst": "ws-r157-loopback-mock-microphone-context-never-resumed"
+    },
+    {
+      "src": "ws-r157-vyakti-app-suite",
+      "rel": "measured_by",
+      "dst": "ws-r157-mobile-webview-record-flow"
+    },
+    {
+      "src": "ws-r157-select-capacitor-config-test-clobbered-its-own-fixture",
+      "rel": "caused_by",
+      "dst": "ws-r157-capacitor-config-selected-by-a-repo-script-not-a-cli-flag"
+    },
+    {
+      "src": "ws-r157-select-capacitor-config-test-clobbered-its-own-fixture",
+      "rel": "part_of",
+      "dst": "ws-r157-vyakti-app-suite"
+    },
+    {
+      "src": "ws-r157-flavour-qualified-gradle-tasks-are-required-not-optional",
+      "rel": "caused_by",
+      "dst": "ws-r157-vyakti-flavour-uses-applicationid-not-applicationidsuffix"
+    },
+    {
+      "src": "ws-r157-vyakti-release-signing-unconfigured",
+      "rel": "part_of",
+      "dst": "ws-r157-vyakti-mobile-app"
+    },
+    {
+      "src": "ws-r157-vyakti-release-signing-unconfigured",
+      "rel": "blocks",
+      "dst": "ws-r157-flavour-qualified-gradle-tasks-are-required-not-optional"
     }
   ]
 }

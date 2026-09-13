@@ -79,7 +79,23 @@ export function installLoopbackMockMicrophone() {
   oscillator.connect(gain);
   gain.connect(destination);
   oscillator.start();
-  navigator.mediaDevices.getUserMedia = async () => destination.stream.clone();
+  // WS-R157. A `new AudioContext()` created here, at module load, starts
+  // SUSPENDED under Chromium's autoplay policy — no user gesture has
+  // happened yet — and nothing was resuming it, so the oscillator was
+  // connected and "started" but silent: the mock stream carried zero
+  // energy the whole time. That went unnoticed because nothing had ever
+  // driven this seam end to end before (`?mockMic=1` was wired in
+  // `layoutFixture.tsx` but no suite called it — see
+  // `context/rejected.md#ws-r157-loopback-mock-microphone-context-never-resumed`).
+  // Resuming HERE, inside the overridden `getUserMedia` itself, times the
+  // resume to whenever a caller actually asks for the stream — in the real
+  // recorder that call sits inside a click handler's own async chain
+  // (`ResonanceRecorder.start`), the same gesture a REAL `getUserMedia`
+  // prompt would itself have needed.
+  navigator.mediaDevices.getUserMedia = async () => {
+    void context.resume();
+    return destination.stream.clone();
+  };
 }
 
 export async function openPrivateWavCapture(options: PrivateWavCaptureOptions = {}): Promise<PrivateWavCapture> {

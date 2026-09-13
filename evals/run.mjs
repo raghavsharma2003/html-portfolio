@@ -3047,6 +3047,31 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-month-note": "room-month-note/run.mjs",
+  // WS-R157: the Vyakti mobile app. Static parses of the real
+  // `android/app/build.gradle` flavour dimension, the flavour manifest
+  // fragment, `capacitor.vyakti.config.ts`, `public/studio.webmanifest` and
+  // `.github/workflows/build-apk.yml` (with a self-consistency check and
+  // required negative controls proving the pre-flavour, unqualified Gradle
+  // task names are actually gone, not merely added alongside); real runs of
+  // `scripts/select-capacitor-config.mjs` and `scripts/select-native-start-
+  // page.mjs` against throwaway fixture directories; a bundled proof that
+  // `src/studio/installPrompt.ts` really reuses (never re-derives)
+  // `src/room/installPrompt.ts`'s own second-visit predicate; a source-scan
+  // proving the install card is actually WIRED into `CloneExperience.tsx`
+  // rather than written and unused (`context/rejected.md`'s
+  // `manifest-sourcestatus` class of bug); the copy gate on the new
+  // strings; and (browser-classified, honest-skip without one) a real
+  // Chromium proving the studio's record flow reaches the reviewable,
+  // "Continue" state under a mobile Android-WebView UA with `MediaRecorder`
+  // deleted from the page global — proof that `wavCapture.ts`'s own
+  // getUserMedia+AudioContext WAV path never depended on it.
+  //
+  // Uses no DB, no network beyond loopback, no model call, no GPU; the one
+  // browser-dependent check inside classifies as `browser: true`
+  // automatically (`evals/suite-resources.mjs` recognises `launchRehearsal
+  // Browser(`) and shares the pool's browser budget rather than running
+  // unthrottled.
+  "vyakti-app": "vyakti-app/run.mjs",
 };
 
 const argv = process.argv.slice(2);

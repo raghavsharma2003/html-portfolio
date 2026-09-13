@@ -81,11 +81,22 @@ jobs:
       - run: node evals/multimodal/run.mjs --offline
       - run: npx vite build
       - run: npx cap sync android
-      - run: cd android && ./gradlew assembleDebug --no-daemon
+      # WS-R157: `android/app/build.gradle` now declares a `brand` flavour
+      # dimension (`meera`, `vyakti`), so the bare `assembleDebug` task this
+      # step used to call no longer names a single APK — AGP still accepts
+      # it as an AGGREGATE task that builds every flavour's debug variant
+      # together, which would ALSO build `vyakti`'s (using Meera's own
+      # namespace's resources for nothing this job needs) and would leave
+      # the fixed path below pointing at nothing, since a flavoured build
+      # writes each variant to its own `outputs/apk/<flavour>/debug/`
+      # subdirectory rather than the old flat `outputs/apk/debug/`. Naming
+      # the flavour explicitly keeps this job building ONLY what it always
+      # built — see `context/decisions.md#ws-r157-flavour-qualified-gradle-tasks-are-required-not-optional`.
+      - run: cd android && ./gradlew assembleMeeraDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: meera-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/meera/debug/app-meera-debug.apk
       # ── Play Store release: signed .aab + release APK ────────────────────
       # Runs only when the signing secrets exist, so forks and PRs without
       # them still get the debug APK above unchanged. The keystore lives ONLY
@@ -98,7 +109,12 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       - name: Build signed release bundle
         if: ${{ env.HAS_KEYSTORE == 'true' }}
-        run: cd android && ./gradlew bundleRelease assembleRelease --no-daemon
+        # WS-R157: flavour-qualified for the same reason `assembleMeeraDebug`
+        # is above — the bare `bundleRelease assembleRelease` pair would now
+        # also try to build `vyakti`'s release variant (unsigned, since no
+        # `vyakti` signing config exists), under this same job that only
+        # carries Meera's Play keystore.
+        run: cd android && ./gradlew bundleMeeraRelease assembleMeeraRelease --no-daemon
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -109,5 +125,45 @@ jobs:
         with:
           name: maya-release
           path: |
-            android/app/build/outputs/bundle/release/app-release.aab
-            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/bundle/meeraRelease/app-meera-release.aab
+            android/app/build/outputs/apk/meera/release/app-meera-release.apk
+
+  # WS-R157. Vyakti's own debug APK, built beside Meera's — a separate job
+  # (never a step tacked onto `build` above) so a Vyakti build failure never
+  # blocks Meera's, and so Meera's job above never has to know Vyakti exists.
+  # No secret is needed: this only ever calls `assembleVyaktiDebug`, which
+  # `android/app/build.gradle`'s own signing block leaves unsigned exactly
+  # like Meera's own debug build always has been.
+  vyakti-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npx tsc -b
+      - run: npx vite build
+      # Vyakti's start page is `/studio` (a SECOND vite entry, never the
+      # first — see `scripts/select-native-start-page.mjs`'s own header for
+      # why Meera needs no equivalent step: `dist/index.html` already IS her
+      # entry). Runs AFTER the same `vite build` Meera's job above also
+      # runs, on `dist/` in THIS job's own checkout — a separate runner, a
+      # separate `dist/`, so this can never race or interfere with Meera's.
+      - run: node scripts/select-native-start-page.mjs studio
+      # Stages `capacitor.vyakti.config.ts` onto `capacitor.config.ts` —
+      # the ONE name Capacitor's CLI reads (`scripts/select-capacitor-
+      # config.mjs`'s own header) — so `cap sync` below picks up Vyakti's
+      # appId/appName/webDir rather than Meera's.
+      - run: node scripts/select-capacitor-config.mjs vyakti
+      - run: npx cap sync android
+      - run: cd android && ./gradlew assembleVyaktiDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vyakti-apk
+          path: android/app/build/outputs/apk/vyakti/debug/app-vyakti-debug.apk

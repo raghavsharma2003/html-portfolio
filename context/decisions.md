@@ -24049,3 +24049,27 @@ Preserve the shared inert template but correct its obsolete assertion that OpenR
 **Why.** Eight consecutive git-connected deployments of `codex/handoff206` failed in 7 seconds with "deployment source product is missing or invalid" because the strict writer ran unconditionally. The strict writer stays strict (the deploy-verifier eval's negative control still proves it fails closed on a missing commitment); only the choice of which path a git-connected build takes changed.
 
 **Reversal.** If the release verifier ever compares a git-connected deployment against the wrong source identity, add the commit SHA to the marker schema rather than reinstating the unconditional strict writer.
+
+## `ws-r157-capacitor-config-selected-by-a-repo-script-not-a-cli-flag` (2026-09-13, WS-R157)
+
+**Decision.** `scripts/select-capacitor-config.mjs stage <flavor>` copies either the tracked `capacitor.config.ts` (flavor `meera`, a no-op copy of the file onto itself) or `capacitor.vyakti.config.ts` (flavor `vyakti`) onto `capacitor.config.ts` — the one filename Capacitor's CLI reads — before `npx cap sync android` runs, in the new `vyakti-apk` CI job only. Meera's own job never calls it.
+
+**Why.** The installed `@capacitor/cli` (8.5.0) has no `--config <path>` and consults no env var for an alternate config path — checked directly against `node_modules/@capacitor/cli/dist/config.js`'s `loadExtConfig`, which always resolves `capacitor.config(.ts|.js|.json)` from `process.cwd()`. The one place `CAPACITOR_CONFIG` appears in the installed CLI (`common.js`) is an output the CLI writes INTO the native build's own environment when it invokes a platform tool, never an input a caller can set to redirect which file the CLI itself reads. A second Capacitor app therefore needs something upstream of `cap sync`, and a plain copy (never a merge, never a runtime `--config` flag that does not exist) is the smallest thing that can do it without touching Meera's own tracked file.
+
+**Reversal.** If a future `@capacitor/cli` major version adds a real `--config` flag or an honoured env var, delete this script and pass the flag/var directly from the workflow instead — verify against that version's own `config.js` before assuming it exists, the way this decision was made by reading 8.5.0's source rather than its docs.
+
+## `ws-r157-vyakti-flavour-uses-applicationid-not-applicationidsuffix` (2026-09-13, WS-R157)
+
+**Decision.** The `vyakti` product flavour in `android/app/build.gradle` sets its own `applicationId "app.vyakti.studio"` rather than a Gradle `applicationIdSuffix`. The `meera` flavour carries no override at all and inherits `defaultConfig`'s `applicationId "app.meera.companion"` unchanged.
+
+**Why.** `applicationIdSuffix` can only ever EXTEND the base `applicationId` (e.g. `app.meera.companion.vyakti`); it cannot reach the independent namespace `app.vyakti.studio` that `capacitor.vyakti.config.ts`'s own `appId` field declares, and that field is not this workstream's to renegotiate — a second product gets its own identity, not a namespaced corner of the first one's. `applicationId` on the flavour block is the correct Gradle mechanism for exactly this ("each flavour ships as its own app"), and leaving `meera`'s block empty is what keeps that variant byte-identical to the pre-flavour build: nothing about `defaultConfig` moved.
+
+**Reversal.** If the owner decides Vyakti's Android identity should instead read as a Meera sub-brand (e.g. for a shared Play Store developer account policy reason), switch to `applicationIdSuffix` AND update `capacitor.vyakti.config.ts`'s `appId` to match the resulting namespace in the same commit — the two must never disagree, since `cap sync` writes the Capacitor config's appId into the SAME `AndroidManifest.xml`/`build.gradle` surface this decision touches.
+
+## `ws-r157-flavour-qualified-gradle-tasks-are-required-not-optional` (2026-09-13, WS-R157)
+
+**Decision.** `.github/workflows/build-apk.yml`'s original `build` job now runs `assembleMeeraDebug` (was `assembleDebug`) and `bundleMeeraRelease assembleMeeraRelease` (was `bundleRelease assembleRelease`), with flavour-qualified artifact paths (`outputs/apk/meera/debug/app-meera-debug.apk`, etc.).
+
+**Why.** Adding a `flavorDimensions`/`productFlavors` block to `android/app/build.gradle` is not additive to the OLD bare task names: AGP still accepts `assembleDebug` as a valid task, but reinterprets it as an AGGREGATE that builds every flavour's debug variant together, and a flavoured build writes each variant's APK to its own `outputs/apk/<flavour>/<buildType>/` subdirectory rather than the old flat one. Leaving the workflow unchanged would have kept it green on `check-workflows.mjs` (a YAML-shape lint, not a Gradle semantics one) while silently building Vyakti's variant inside Meera's job (using Meera's own signing context for nothing that job needs) and leaving the `actions/upload-artifact` step pointed at a path that no longer exists. `evals/vyakti-app` asserts this by parsing the workflow text directly, with a required NEGATIVE CONTROL proving the old, unqualified task names and artifact path are actually gone.
+
+**Reversal.** If AGP is ever configured to keep the old flat output layout for a single "primary" flavour (a real, documented AGP knob — `android.experimental....`), the flavour-qualified task names can be dropped in favour of that knob in the SAME commit that adds it, with the eval's negative controls updated to match the new shape rather than deleted.
