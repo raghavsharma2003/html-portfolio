@@ -3412,6 +3412,24 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "schema-mirror": "schema-mirror/run.mjs",
+  // WS-R175 (the calibration erasure hazard). The offline FK-graph model
+  // context/rejected.md#ws-r170-calibration-generation-fk-graph-has-an-
+  // unverified-erasure-ordering-hazard asked for: parses db/schema.sql's
+  // own foreign keys (never a hand-typed list), computes exactly which
+  // tables a full replica erasure reaches, and proves every table holding a
+  // Postgres NO ACTION/RESTRICT foreign key into vy_replica_calibration or
+  // vy_replica_generation is deleted BY NAME strictly before the table it
+  // references. LAYER 1 proves the real fix against the real files. LAYER 2
+  // is three synthetic negative controls that never touch a real file: the
+  // original (unfixed) hazard shape is caught, the fixed shape clears it,
+  // and a WRONG order (both named, wrong sequence) is still caught - proof
+  // this checks ORDER, not merely presence. LAYER 3 strips the real fix's
+  // own six CTEs from a COPY of the real erasure source and proves all
+  // seven real violations reappear, by name - the canary against a checker
+  // that reports zero no matter what it is fed.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "erasure-order": "erasure-order/run.mjs",
 };
 
 const argv = process.argv.slice(2);

@@ -19176,6 +19176,24 @@
       "kind": "measurement",
       "title": "Wave twenty-two's eleven merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
       "at": "context/measurements.md#wave-22-merges-2026-09-13"
+    },
+    {
+      "id": "ws-r175-calibration-erasure-hazard-fixed-by-explicit-ordering",
+      "kind": "decision",
+      "title": "The calibration/generation NO-ACTION erasure hazard fixed by explicit ordered deletes, not a migration (2026-09-13)",
+      "at": "context/decisions.md#ws-r175-calibration-erasure-hazard-fixed-by-explicit-ordering"
+    },
+    {
+      "id": "ws-r175-erasure-order-fk-graph-2026-09-13",
+      "kind": "measurement",
+      "title": "Offline FK-graph parse of db/schema.sql: 289 edges, 87-table cascade reach from vy_replica, 36 same-reach NO-ACTION pairs (7 calibration/generation, now 0 unresolved; 14 out-of-scope, still unresolved)",
+      "at": "context/measurements.md#ws-r175-erasure-order-fk-graph-2026-09-13"
+    },
+    {
+      "id": "ws-r175-forced-cte-dependency-needs-returning-or-postgres-refuses-the-statement",
+      "kind": "rejection",
+      "title": "A forced CTE dependency referenced only via (select count(*) from it) still needs RETURNING or Postgres refuses the whole statement at parse time (0A000)",
+      "at": "context/rejected.md#ws-r175-forced-cte-dependency-needs-returning-or-postgres-refuses-the-statement"
     }
   ],
   "edges": [
@@ -32661,6 +32679,26 @@
       "src": "wave-22-merged-as-a-batch-with-a-repair-workstream",
       "dst": "wave-21-merged-as-a-batch-under-contention",
       "rel": "supersedes"
+    },
+    {
+      "src": "ws-r175-calibration-erasure-hazard-fixed-by-explicit-ordering",
+      "dst": "ws-r170-calibration-generation-fk-graph-has-an-unverified-erasure-ordering-hazard",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r175-calibration-erasure-hazard-fixed-by-explicit-ordering",
+      "dst": "ws-r170-calibration-not-added-to-creator-export-manifest",
+      "rel": "supersedes"
+    },
+    {
+      "src": "ws-r175-calibration-erasure-hazard-fixed-by-explicit-ordering",
+      "dst": "ws-r175-erasure-order-fk-graph-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r175-forced-cte-dependency-needs-returning-or-postgres-refuses-the-statement",
+      "dst": "ws-r175-calibration-erasure-hazard-fixed-by-explicit-ordering",
+      "rel": "caused_by"
     }
   ]
 }

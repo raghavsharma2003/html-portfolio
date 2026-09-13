@@ -513,6 +513,81 @@ export async function completeReplicaErasure(db, lease, receipt) {
      episodes as (delete from vy_episode x using target t where x.agent_id=t.agent_id),
      processing_gpu_authority as (delete from vy_processing_gpu_authority x using target t where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      audit as (delete from vy_replica_audit x using target t where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- WS-R175 (the calibration erasure hazard, context/rejected.md#ws-r170-
+     -- calibration-generation-fk-graph-has-an-unverified-erasure-ordering-
+     -- hazard). vy_replica_calibration carries a real "on delete cascade" FK
+     -- FROM vy_replica, so a full erasure always reaches it eventually - but
+     -- FOUR other tables hold their own "calibration_version" FK BACK to
+     -- vy_replica_calibration(replica_id,version) with Postgres's default NO
+     -- ACTION: vy_replica_runtime_capability, vy_replica_eval_run and
+     -- vy_replica_generation (WS-R170's own three, migration 025) plus a
+     -- fourth WS-R170 did not look at because it was added by a LATER
+     -- migration (030): vy_replica_feedback_dataset. vy_replica_generation is
+     -- ITSELF the parent of a fifth: vy_replica_voice_preference's left/right
+     -- generation columns, "on delete restrict" - Postgres enforces RESTRICT
+     -- identically to NO ACTION. Every one of these five rows is deleted BY
+     -- NAME here, child before parent, rather than trusting Postgres to
+     -- resolve five NO-ACTION checks across a cascade this file does not
+     -- control the firing order of - this file's own standing rule, restated
+     -- at every block above: relying on a cascade means relying on an FK
+     -- nobody re-checks. evals/erasure-order/run.mjs is the offline model
+     -- that found this exact set by parsing db/schema.sql's own FK graph
+     -- (never a hand-typed list) and proves this ordering against it.
+     --
+     -- The order, forced by a real data dependency on the previous delete's
+     -- own CTE (this file's established idiom - see text_publications/
+     -- comparison_preparations below - never bare textual position):
+     --   1. voice_preferences    references generation; must go first.
+     --   2. eval_runs            references calibration; independent.
+     --   3. feedback_datasets    references calibration; also the ONLY path
+     --                           that reaches vy_replica_candidate (its own
+     --                           NO-ACTION child, cascading from THIS
+     --                           table), which references runtime_capability
+     --                           - cascading candidate away here keeps step
+     --                           4 safe without a sixth named delete.
+     --   4. runtime_capabilities references calibration; candidate (its own
+     --                           NO-ACTION child) is already gone by step 3.
+     --   5. generations          references calibration; voice_preference
+     --                           (its own NO-ACTION child) is already gone
+     --                           by step 1. This also removes every
+     --                           vy_replica_generation row this replica ever
+     --                           authorized, closing the gap
+     --                           prepareReplicaErasures' own earlier
+     --                           "generations" CTE left open (that one only
+     --                           UPDATEs state to aborted, in a separate,
+     --                           earlier statement; it never deletes).
+     --   6. calibrations         referenced by all four steps above; deleted
+     --                           explicitly and last, rather than left to
+     --                           the vy_replica cascade at the very end.
+     -- vy_replica_eval_run carries no owner_user_id column at all (its own
+     -- table definition, migration 022) - scoped by replica_id alone, the
+     -- identical shape vy_replica_erasure_job's own owner-scoped siblings do
+     -- not need because this table simply has no such column to filter on.
+     voice_preferences as (delete from vy_replica_voice_preference x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id
+       returning x.preference_id),
+     eval_runs as (delete from vy_replica_eval_run x using target t
+       where x.replica_id=t.replica_id
+       returning x.eval_id),
+     feedback_datasets as (delete from vy_replica_feedback_dataset x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id
+         and (select count(*) from voice_preferences)>=0
+       returning x.dataset_id),
+     runtime_capabilities as (delete from vy_replica_runtime_capability x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id
+         and (select count(*) from feedback_datasets)>=0
+       returning x.capability_id),
+     generations as (delete from vy_replica_generation x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id
+         and (select count(*) from voice_preferences)>=0
+         and (select count(*) from runtime_capabilities)>=0
+       returning x.generation_id),
+     calibrations as (delete from vy_replica_calibration x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id
+         and (select count(*) from eval_runs)>=0
+         and (select count(*) from feedback_datasets)>=0
+         and (select count(*) from runtime_capabilities)>=0
+         and (select count(*) from generations)>=0),
      channel_extraction_objects as (delete from vy_channel_extraction_object x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      -- WS-R. Step 5 of docs/REPLICA-ERASURE.md says "all remaining

@@ -267,6 +267,30 @@ export const OWNER_LANE_TABLES = Object.freeze([
   // shape restated for a creator's own device instead of a platform
   // operator's.
   { table: "vy_creator_push_subscription", scope: "owner" },
+
+  // ── WS-R175 (the calibration erasure hazard) ────────────────────────────
+  // Four tables api/_replica-full-erasure.js now deletes BY NAME (it used to
+  // reach them only through vy_replica's own cascade, which never showed up
+  // in this file's own completeness scan at all): a calibration run itself,
+  // and the three tables that hold a calibration_version FK back to it plus
+  // the one that holds a generation_id FK to vy_replica_generation. All four
+  // are owner-lane (an owner-authorized calibration/evaluation/preference
+  // decision about THIS owner's own replica, never a follower's), so a
+  // creator's export now carries them the same way it already carries
+  // vy_replica_generation two blocks up.
+  {
+    table: "vy_replica_calibration", scope: "replica",
+    sentence: {
+      en: "Your AI's calibration runs, including the listening-test verdict (which recording won, migration 166) where one was recorded.",
+      hi: "आपके AI के कैलिब्रेशन रन, जिसमें लिसनिंग-टेस्ट का फ़ैसला भी शामिल है (कौन-सी रिकॉर्डिंग जीती, माइग्रेशन 166), जहाँ कोई दर्ज हुआ हो।",
+    },
+  },
+  // vy_replica_eval_run carries no owner_user_id column at all (its own
+  // table definition, migration 022) - "replica_only" is scopedQuery's own
+  // narrower case for exactly that shape, added alongside this entry.
+  { table: "vy_replica_eval_run", scope: "replica_only" },
+  { table: "vy_replica_feedback_dataset", scope: "replica" },
+  { table: "vy_replica_voice_preference", scope: "replica" },
 ]);
 
 /** Every table `PERSON_TABLES` names, plus the two named in this file's own
@@ -363,6 +387,15 @@ export function scopedQuery(entry, ctx) {
       return {
         sql: `select * from ${entry.table} where replica_id = any($1::uuid[]) and owner_user_id = $2::uuid limit 20000`,
         params: [replicaIds, ownerUserId],
+      };
+    // WS-R175. vy_replica_eval_run's own table definition carries no
+    // owner_user_id column at all - "replica" above would reference a
+    // column that does not exist. Scoped by replica_id alone, the same
+    // narrowing api/_replica-full-erasure.js's own new "eval_runs" CTE uses.
+    case "replica_only":
+      return {
+        sql: `select * from ${entry.table} where replica_id = any($1::uuid[]) limit 20000`,
+        params: [replicaIds],
       };
     case "owner":
       return {
