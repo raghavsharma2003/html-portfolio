@@ -17994,6 +17994,54 @@
       "kind": "measurement",
       "title": "Gate runs on the merged handoff206 tree and the live catalog before and after the apply (2026-09-13)",
       "at": "context/measurements.md#gate-on-the-merged-handoff206-tree-2026-09-13"
+    },
+    {
+      "id": "ws-r159-tier-1-scope-and-tier-2-allowlist",
+      "kind": "decision",
+      "title": "The personal studio's own copy.ts/hiCopy.ts (merging personalAuth in); four screens converted (153 strings), five plus VideoEnrollPanel.tsx Tier 2",
+      "at": "context/decisions.md#ws-r159-tier-1-scope-and-tier-2-allowlist"
+    },
+    {
+      "id": "ws-r159-mixed-copy-regex-fixed-to-name-creatorstudio-only",
+      "kind": "decision",
+      "title": "copy-room-scope.mjs's MIXED_COPY regex narrowed to src/creatorStudio/ only",
+      "at": "context/decisions.md#ws-r159-mixed-copy-regex-fixed-to-name-creatorstudio-only"
+    },
+    {
+      "id": "ws-r159-mixed-copy-regex-matched-the-wrong-studio",
+      "kind": "rejection",
+      "title": "src/studio/copy.ts would have hard-failed copy_room_section_missing under a stale post-rename MIXED_COPY regex",
+      "at": "context/rejected.md#ws-r159-mixed-copy-regex-matched-the-wrong-studio"
+    },
+    {
+      "id": "ws-r159-bare-dash-placeholder-only-safe-outside-a-copy-file",
+      "kind": "rejection",
+      "title": "A literal em dash placeholder that never tripped the gate inline failed it the moment it moved into a COPY_FILES-matched module",
+      "at": "context/rejected.md#ws-r159-bare-dash-placeholder-only-safe-outside-a-copy-file"
+    },
+    {
+      "id": "ws-r159-creatorstudio-hi-glyph-probe-targets-the-wrong-fixture",
+      "kind": "open",
+      "title": "check-layout.mjs's studio-hi glyph probe navigates to studio-layout-fixture.html (personal) instead of creator-layout-fixture.html, so it has verified zero creatorStudio Hindi glyphs since the handoff206 rename",
+      "at": "context/rejected.md#ws-r159-creatorstudio-hi-glyph-probe-targets-the-wrong-fixture"
+    },
+    {
+      "id": "ws-r159-personal-studio-hindi-string-count-and-chunk-size-2026-09-13",
+      "kind": "measurement",
+      "title": "153 new leaf strings per locale (213 total with personalAuth merged in); Hindi chunk 19,043 B raw / 4,827 B gzip, reached only from behind sign-in",
+      "at": "context/measurements.md#ws-r159-personal-studio-hindi-string-count-and-chunk-size-2026-09-13"
+    },
+    {
+      "id": "ws-r159-first-localecontext-draft-invented-a-second-provider-contract",
+      "kind": "rejection",
+      "title": "A throw-on-missing-provider, URL-self-resolving StudioLocaleProvider broke nine pooled eval suites and diverged from a pre-existing locale-prop contract",
+      "at": "context/rejected.md#ws-r159-first-localecontext-draft-invented-a-second-provider-contract"
+    },
+    {
+      "id": "ws-r159-localecontext-matches-creatorstudio-shape",
+      "kind": "decision",
+      "title": "localeContext.tsx rewritten to match src/creatorStudio/localeContext.tsx's locale-prop, never-throws shape exactly",
+      "at": "context/decisions.md#ws-r159-localecontext-matches-creatorstudio-shape"
     }
   ],
   "edges": [
@@ -30439,6 +30487,51 @@
       "src": "codex-handoff206-adopted-as-the-base",
       "dst": "gate-on-the-merged-handoff206-tree-2026-09-13",
       "rel": "measured_by"
+    },
+    {
+      "src": "ws-r159-mixed-copy-regex-matched-the-wrong-studio",
+      "dst": "ws-r159-mixed-copy-regex-fixed-to-name-creatorstudio-only",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r159-tier-1-scope-and-tier-2-allowlist",
+      "dst": "ws-r159-mixed-copy-regex-fixed-to-name-creatorstudio-only",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r71-consent-ceremony-files-found-and-not-converted",
+      "dst": "ws-r159-tier-1-scope-and-tier-2-allowlist",
+      "rel": "constrains"
+    },
+    {
+      "src": "studio-hindi-table-is-its-own-chunk",
+      "dst": "ws-r159-tier-1-scope-and-tier-2-allowlist",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r159-tier-1-scope-and-tier-2-allowlist",
+      "dst": "ws-r159-personal-studio-hindi-string-count-and-chunk-size-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r159-mixed-copy-regex-matched-the-wrong-studio",
+      "dst": "ws-r159-creatorstudio-hi-glyph-probe-targets-the-wrong-fixture",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r159-tier-1-scope-and-tier-2-allowlist",
+      "dst": "ws-r159-bare-dash-placeholder-only-safe-outside-a-copy-file",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r159-first-localecontext-draft-invented-a-second-provider-contract",
+      "dst": "ws-r159-localecontext-matches-creatorstudio-shape",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r159-tier-1-scope-and-tier-2-allowlist",
+      "dst": "ws-r159-localecontext-matches-creatorstudio-shape",
+      "rel": "constrains"
     }
   ]
 }

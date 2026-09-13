@@ -18,11 +18,18 @@ import '@fontsource-variable/instrument-sans'; import './src/studio/design/token
 import './src/studio/design/honesty.css'; import './src/studio/design/mobile.css';`;
 const meetCode = `${imports}
 import ExpertConversation from './src/studio/ExpertConversation';
+import {StudioLocaleProvider} from './src/studio/localeContext';
 const authError=()=>{};
+// WS-R159: ExpertConversation.tsx now reads its own copy (including the
+// continuity-audio note) through StudioLocaleProvider rather than reading
+// \u003flang= itself directly -- this fixture's own \u003flang= is what the
+// provider resolves from, the same \u003flang= the gateCode fixture below
+// already reads for RuntimeGate/StudioLocaleProvider one block down.
+const params=new URLSearchParams(location.search);
 function Fixture(){const[rid,setRid]=useState('${RID}');const[stopped,setStopped]=useState(false);const[lifecycle,setLifecycle]=useState(undefined);const[runtime,setRuntime]=useState(null);
 window.meetFixture={setRid,setStopped,setRuntime,setLifecycle};
 return <main><p className="fixture-disclosure">Synthetic UI fixture. No model or owner data.</p>
-<ExpertConversation token="synthetic-token" replicaId={rid} stopped={stopped} lifecycle={lifecycle} runtimeStatus={runtime} onAuthError={authError}/></main>}
+<StudioLocaleProvider locale={params.get('lang')==='hi'?'hi':'en'}><ExpertConversation token="synthetic-token" replicaId={rid} stopped={stopped} lifecycle={lifecycle} runtimeStatus={runtime} onAuthError={authError}/></StudioLocaleProvider></main>}
 createRoot(document.getElementById('studio-root')!).render(<Fixture/>);`;
 // Absolute imports are required because this replaces the real main file.
 const gateCode = `import React,{useCallback,useEffect,useState} from 'react';
@@ -108,13 +115,13 @@ try {
     page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: "reduce" });
     const errors = []; page.on("pageerror", error => { errors.push(error.message); runtimeErrors.push(error.message); });
     await page.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
-    const setup = () => page.getByRole("link", { name: "Open conversation setup", exact: true });
-    const ask = () => page.getByLabel("Ask your AI", { exact: true });
+    const setup = () => page.getByRole("link", { name: "बातचीत की सेटअप खोलें", exact: true });
+    const ask = (lang = "hi") => page.getByLabel(lang === "hi" ? "अपने AI से पूछें" : "Ask your AI", { exact: true });
     const status = () => page.locator(".expert-conversation__readiness");
-    const retry = () => status().getByRole("button", { name: "Check again", exact: true });
+    const retry = () => status().getByRole("button", { name: "फिर जांचें", exact: true });
     const capturedInitial = holdRead();
     await page.goto(`${origin}/meet?lang=hi&replica=old&mode=replica&view=evolve&sample=1&panels=1`); await capturedInitial;
-    await page.getByRole("heading", { name: "Checking your AI", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "आपका AI जांचा जा रहा है", exact: true }).waitFor();
     assert.equal(await setup().count(), 0); assert.equal(await ask().isDisabled(), true); captured();
     await setup().waitFor(); checks.push(`${width}: pending readiness offers no setup or generation`);
     const destination = new URL(await setup().getAttribute("href"), origin);
@@ -132,10 +139,10 @@ try {
     runtimeMode = "error"; const heldFailure = holdRead(); await retry().click(); await heldFailure;
     await page.evaluate(rid => window.meetFixture.setRuntime({ replica_id: rid, active: true }), RID);
     assert.equal(await ask().isDisabled(), true); captured();
-    await page.getByRole("heading", { name: "Readiness is unavailable", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "तैयारी की जानकारी उपलब्ध नहीं है", exact: true }).waitFor();
     assert.equal(await setup().count(), 0); assert.equal(await ask().isDisabled(), true);
     checks.push(`${width}: failed current read cannot use an earlier parent success or blame owner setup`);
-    runtimeMode = "foreign"; await retry().click(); await page.getByRole("heading", { name: "Readiness is unavailable", exact: true }).waitFor();
+    runtimeMode = "foreign"; await retry().click(); await page.getByRole("heading", { name: "तैयारी की जानकारी उपलब्ध नहीं है", exact: true }).waitFor();
     assert.equal(await setup().count(), 0); assert.equal(await ask().isDisabled(), true);
     checks.push(`${width}: foreign active readiness is refused`);
     runtimeMode = "can-activate"; await retry().click(); await setup().waitFor(); assert.equal(writes.length, 0);
@@ -143,12 +150,12 @@ try {
     for (const lifecycle of ["draft", "consent_pending", "enrolling", "calibrating"]) {
       await page.evaluate(value => { window.meetFixture.setStopped(true); window.meetFixture.setLifecycle(value); }, lifecycle);
       await setup().waitFor(); assert.equal(await ask().isDisabled(), true);
-      assert.equal(await page.getByRole("heading", { name: "This AI is stopped", exact: true }).count(), 0);
+      assert.equal(await page.getByRole("heading", { name: "यह AI रुका हुआ है", exact: true }).count(), 0);
     }
     checks.push(`${width}: unfinished lifecycle allows setup while the existing stopped generation lock remains closed`);
     for (const lifecycle of ["paused", "revoked", "purging"]) {
       await page.evaluate(value => window.meetFixture.setLifecycle(value), lifecycle);
-      await page.getByRole("heading", { name: "This AI is stopped", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "यह AI रुका हुआ है", exact: true }).waitFor();
       assert.equal(await setup().count(), 0); assert.equal(await ask().isDisabled(), true);
     }
     checks.push(`${width}: actual paused/revoked/purging states never suggest owner setup`);
@@ -156,18 +163,18 @@ try {
     // Same mounted component, no React key reset, with old active read arriving last.
     runtimeMode = "active"; const heldOld = holdRead(); await retry().click(); await heldOld;
     holdNext = false; runtimeMode = "inactive"; await page.evaluate(rid => window.meetFixture.setRid(rid), OTHER); await setup().waitFor();
-    await releaseCaptured(page); await page.getByRole("heading", { name: "Set up your first conversation", exact: true }).waitFor();
+    await releaseCaptured(page); await page.getByRole("heading", { name: "अपनी पहली बातचीत शुरू करें", exact: true }).waitFor();
     assert.equal(new URL(await setup().getAttribute("href"), origin).searchParams.get("replica"), OTHER);
     assert.equal(await ask().isDisabled(), true);
     checks.push(`${width}: late old-replica active result cannot replace current setup`);
     await page.evaluate(() => window.meetFixture.setStopped(true));
-    await page.getByRole("heading", { name: "This AI is stopped", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "यह AI रुका हुआ है", exact: true }).waitFor();
     assert.equal(await setup().count(), 0); assert.equal(await status().getByRole("button").count(), 0);
     assert.equal(await ask().isDisabled(), true); checks.push(`${width}: stopped AI has no owner-setup instruction`);
     await page.evaluate(() => window.meetFixture.setStopped(false)); await setup().waitFor();
-    runtimeMode = "active"; await retry().click(); await page.getByRole("heading", { name: "Try a real question.", exact: true }).waitFor();
-    await ask().fill("Synthetic usage reconciliation question"); await page.getByRole("button", { name: "Send", exact: true }).click();
-    await page.getByRole("heading", { name: "Reply saved", exact: true }).waitFor();
+    runtimeMode = "active"; await retry().click(); await page.getByRole("heading", { name: "एक असली सवाल आज़माएं।", exact: true }).waitFor();
+    await ask().fill("Synthetic usage reconciliation question"); await page.getByRole("button", { name: "भेजें", exact: true }).click();
+    await page.getByRole("heading", { name: "जवाब सेव हो गया", exact: true }).waitFor();
     assert.equal(await setup().count(), 0); assert.equal(await status().getByRole("button").count(), 0); assert.equal(await ask().isDisabled(), true);
     assert.equal(await page.getByText("Synthetic reply retained while usage is reconciled.", { exact: true }).count(), 1);
     assert.equal(writes.length, 2); assert.equal(writes[0].body.op, "open_session");
@@ -177,8 +184,8 @@ try {
     for(const lang of ['en','hi'])for(const scenario of ['continuity','other-disabled','ordinary-voice']){
       audioCase={can_voice:scenario==='ordinary-voice',has_continuity:scenario==='continuity',billing_state:'not_metered'};
       runtimeMode='active';await page.goto(`${origin}/meet?lang=${lang}&audio-case=${scenario}`);
-      await ask().fill('Synthetic audio availability question');await page.getByRole('button',{name:'Send',exact:true}).click();
-      const listen=page.getByRole('button',{name:'Listen',exact:true});await listen.waitFor();
+      await ask(lang).fill('Synthetic audio availability question');await page.getByRole('button',{name:lang==='hi'?'भेजें':'Send',exact:true}).click();
+      const listen=page.getByRole('button',{name:lang==='hi'?'सुनें':'Listen',exact:true});await listen.waitFor();
       const note=page.locator('.expert-conversation__audio-note');
       if(scenario==='continuity'){
         await note.waitFor();assert.equal(await listen.isDisabled(),true);

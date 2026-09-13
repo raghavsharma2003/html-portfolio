@@ -3047,6 +3047,36 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-month-note": "room-month-note/run.mjs",
+  // WS-R159: the PERSONAL studio in Hindi. `src/studio/copy.ts` / `hiCopy.ts`
+  // (a NEW, separate registry from `src/studio-locale`'s `src/creatorStudio/
+  // copy.ts` -- the two studios are different products since Codex's
+  // handoff206 rename, `context/decisions.md
+  // #ws-r159-mixed-copy-regex-matched-the-wrong-studio`) exercised the same
+  // way `studio-locale/run.mjs` exercises its own table: KEY PARITY between
+  // `STUDIO_COPY_TABLE.en` and `.hi` (bundled with esbuild, the Hindi chunk
+  // installed through the real `loadStudioCopy` loader, never imported
+  // around it); the static scan (`literalEnglishTextNodes`, `studio-locale`'s
+  // own scanner, reused not re-derived) proving zero literal English JSX
+  // text remains in the four files this workstream converted
+  // (ExpertSharePanel.tsx, QuickVoiceCapture.tsx, ExpertConversation.tsx,
+  // PersonModelStudio.tsx) plus a justified Tier 2 allowlist entry for every
+  // other file the brief named; the loader's fresh-module not-loaded/ready
+  // states; and the real `scripts/check-copy.mjs` scanner run over every
+  // Hindi string this workstream shipped, with three NEGATIVE CONTROLS: (a)
+  // a Hindi string with an em dash fails the dash rule; (b) a Hindi string
+  // containing क्लोन fails the rooms-vocabulary rule when run with
+  // `roomsVocab: true` (this file's own strings are NOT under that rule
+  // today, `context/decisions.md
+  // #ws-r159-tier-1-scope-and-tier-2-allowlist` says why, but the words are
+  // avoided anyway and this control proves the SCANNER still bites Hindi
+  // exactly as English when asked to); (c) `resolveStudioLocale`'s own
+  // `?lang=` / remembered-choice / `"en"` order (no replica-locale step --
+  // the personal studio's `Replica` type carries no `locale` column and
+  // this workstream ships no migration) called directly, every branch
+  // asserted.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "studio-locale-personal": "studio-locale-personal/run.mjs",
 };
 
 const argv = process.argv.slice(2);

@@ -1,13 +1,32 @@
 // Current owner product terminology applies to private expert preparation.
 // Room recipients and the controls that publish/distribute Rooms retain the
 // established Room vocabulary. Other copy rules keep their original scope.
+//
+// WS-R159 note: both patterns below name `studio` alongside `creatorStudio`
+// because they predate Codex's handoff206 rename (the wave-era's creator
+// studio lived at `src/studio/` until that merge moved it to
+// `src/creatorStudio/` and gave `src/studio/` a new, unrelated meaning: the
+// PERSONAL studio, `context/decisions.md#codex-handoff206-adopted-as-the-base`).
+// `ROOM_VOCAB_PATH`'s nine named component filenames (RoomStudio.tsx,
+// ReadinessPanel.tsx, ...) do not exist under the new `src/studio/`, so that
+// alternation is dead there today and is left as-is rather than touched
+// speculatively. `MIXED_COPY` is NOT dead: it matches by bare filename
+// (`copy.ts` / `hiCopy.ts`), and the personal studio's own new registry
+// (WS-R159, `src/studio/copy.ts` / `hiCopy.ts`) has no Room sections at all
+// (it is not a Room-facing surface) and does not export top-level `EN`/`HI`
+// bindings. Left unfixed, `roomCopySectionSource` would either throw
+// `copy_room_section_missing` (all sixteen Room sections absent) or
+// `copy_room_table_shape_invalid` (no `EN`/`HI` declaration) the instant that
+// file existed, so `studio` is dropped from `MIXED_COPY` here rather than
+// carried forward as a second stale copy of the same assumption
+// (`context/rejected.md#ws-r159-mixed-copy-regex-matched-the-wrong-studio`).
 export const ROOM_VOCAB_PATH = /^(?:src\/room\/|src\/(?:studio|creatorStudio)\/(?:RoomStudio|ReadinessPanel|CheckinsCard|HandoffCard|SuiteCard|PayoutsCard|InviteCreatorCard|ShowcaseCard|ShareKitCard)\.tsx$|site\/(?:vyakti|creators|suites)\.html$|room\.html$)/;
 export const ROOM_COPY_SECTIONS = Object.freeze([
   'readiness', 'recallRun', 'payouts', 'checkins', 'handoff', 'inviteCreator',
   'suite', 'roomStudio', 'showcase', 'suiteSeatLock', 'showcasePicker', 'poster',
   'shareKit', 'suiteWeeklyNote', 'roomStudioMandate', 'shareKitWhatsappJoin',
 ]);
-const MIXED_COPY = /^src\/(?:studio|creatorStudio)\/(copy|hiCopy)\.ts$/;
+const MIXED_COPY = /^src\/creatorStudio\/(copy|hiCopy)\.ts$/;
 
 // Parse source only; never import/execute the locale table or its lazy loaders.
 // TypeScript is loaded only by the CLI's mixed-table pass. Existing server
