@@ -177,8 +177,15 @@ console.log("\n── 5. negative controls ──");
 // at all, so scanning ITS OWN property access is exhaustive, not sampled.
 // WS-R78: `slug` joined the allowed set for the poster's own QR (an
 // absolute `/r/<slug>?via=poster` URL) — still one of `publicRoomBySlug`'s
-// own four public columns, never a follower-shaped one.
-const ALLOWED_ROW_FIELDS = new Set(["display_name", "one_line_bio", "default_locale", "slug"]);
+// own four public columns, never a follower-shaped one. WS-R173:
+// `sheet_kind`/`person_line` join the allowed set too — the two columns
+// `publicRoomCardBySlug`'s own LEFT JOIN LATERAL adds (this file's own
+// `_room-card.js` read, mirroring `api/_room-about.js`'s `publicRoomAboutBySlug`
+// precedent, never `publicRoomBySlug` itself), still public sheet metadata
+// a follower never wrote, never a follower id or a count.
+const ALLOWED_ROW_FIELDS = new Set([
+  "display_name", "one_line_bio", "default_locale", "slug", "sheet_kind", "person_line",
+]);
 function rowFieldOffences(src) {
   const found = [...src.matchAll(/row\.([a-zA-Z_]+)/g)].map((m) => m[1]);
   return found.filter((name) => !ALLOWED_ROW_FIELDS.has(name));
@@ -379,6 +386,85 @@ console.log("\n── 7. the poster's ?channel=whatsapp variant: QR, sentence, i
     ok("a real Room's poster ETag changes between the ordinary and whatsapp variants",
       roomCardEtag(ROW_EN, "poster", ORIGIN) !== roomCardEtag(ROW_EN, "poster", ORIGIN, JOIN_URL_EN));
   }
+}
+
+// ═══ 8. WS-R173: A PERSON SHEET'S CARD NAMES THEM AND CARRIES THEIR OWN
+//        DISCLOSURE LINE; A TEACHER CARD STAYS BYTE-IDENTICAL ════════════
+console.log("\n── 8. a person sheet's card: the headline and the person's own disclosure line ──");
+{
+  const PERSON_LINE = "Product designer. Bad puns. Worse badminton.";
+  const ROW_PERSON = {
+    display_name: "Priya Menon",
+    one_line_bio: "Priya's own Room.",
+    default_locale: "en",
+    slug: "priya-menon",
+    sheet_kind: "person",
+    person_line: PERSON_LINE,
+  };
+  const ROW_PERSON_HI = { ...ROW_PERSON, default_locale: "hi", display_name: "प्रिया" };
+  // An explicit `sheet_kind: "teacher"` row — proves the guard reads the
+  // VALUE, never merely the field's presence.
+  const ROW_TEACHER_EXPLICIT = { ...ROW_EN, sheet_kind: "teacher", person_line: null };
+
+  // The headline and the person's own line can each wrap across more than
+  // one `<tspan>` at the card's own font sizes, so a raw `svg.includes(...)`
+  // substring check is the wrong tool here (`wrapLines`'s own word-boundary
+  // wrap never hyphenates, so re-joining a block's own lines with a single
+  // space reconstructs the exact original text whenever it was not long
+  // enough to need the ellipsis truncation neither of these two fixture
+  // strings triggers at these lengths).
+  function blockText(input, id) {
+    const block = computeCardLayout(input).blocks.find((b) => b.id === id);
+    return block ? block.lines.join(" ") : "";
+  }
+
+  for (const kind of ROOM_CARD_KINDS) {
+    const input = cardInputFor(ROW_PERSON, kind);
+    ok(`${kind}: a person sheet's headline names the AI and who made it`,
+      blockText(input, "name") === "Priya Menon AI, made by Priya Menon");
+    ok(`${kind}: a person sheet's card carries their OWN disclosure line, not the room's one_line_bio`,
+      blockText(input, "bio") === PERSON_LINE);
+
+    const inputHi = cardInputFor(ROW_PERSON_HI, kind);
+    ok(`${kind}/hi: a person sheet's Hindi headline names the AI and who made it, in Hindi`,
+      blockText(inputHi, "name") === "प्रिया AI, प्रिया द्वारा बनाया गया");
+
+    const offences = scanRenderedLines(input);
+    ok(`${kind}: a person sheet's card scans clean through the real copy scanner`,
+      offences.length === 0, offences.map((o) => `${o.rule}:${o.text}`).join(" | "));
+  }
+
+  // NEGATIVE CONTROL: a teacher sheet's card is BYTE-IDENTICAL whether
+  // `sheet_kind` is explicitly "teacher" or absent altogether —
+  // `personDisclosureLine`'s own `sheetKind !== "person"` guard, proven
+  // against the real renderer rather than assumed from that function's own
+  // unit coverage. Brief law 3: "a teacher's card is byte-identical to
+  // today."
+  for (const kind of ROOM_CARD_KINDS) {
+    const svgExplicitTeacher = await rasterizeRoomCard(cardInputFor(ROW_TEACHER_EXPLICIT, kind));
+    const svgPlainTeacher = await rasterizeRoomCard(cardInputFor(ROW_EN, kind));
+    ok(`${kind}: NEGATIVE CONTROL: an explicit sheet_kind:"teacher" row renders BYTE-IDENTICAL to the same row with no sheet_kind at all`,
+      sha256(svgExplicitTeacher) === sha256(svgPlainTeacher));
+  }
+  const teacherSvg = buildRoomCardSvg(ROW_TEACHER_EXPLICIT, "og");
+  ok("NEGATIVE CONTROL: a teacher card never carries a person's AI headline",
+    !teacherSvg.includes("AI, made by"));
+
+  // NEGATIVE CONTROL: a person sheet with NO personLine set falls back to
+  // the room's own `one_line_bio`, exactly like a teacher card does —
+  // `personDisclosureLine`'s own empty-string guard, restated against the
+  // real renderer.
+  const rowPersonNoLine = { ...ROW_PERSON, person_line: "" };
+  const svgNoLine = buildRoomCardSvg(rowPersonNoLine, "og");
+  ok("a person sheet with no personLine set falls back to the room's own one_line_bio",
+    svgNoLine.includes(ROW_PERSON.one_line_bio) && !svgNoLine.includes(PERSON_LINE));
+
+  // The ETag changes when the person's own line changes — a stale cache
+  // must never keep serving an old disclosure after this person edits it.
+  ok("the ETag changes once the person's own line changes",
+    roomCardEtag(ROW_PERSON, "og") !== roomCardEtag({ ...ROW_PERSON, person_line: "different" }, "og"));
+  ok("the ETag changes between a person sheet and the identical row with sheet_kind absent",
+    roomCardEtag(ROW_PERSON, "og") !== roomCardEtag({ ...ROW_PERSON, sheet_kind: undefined, person_line: undefined }, "og"));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

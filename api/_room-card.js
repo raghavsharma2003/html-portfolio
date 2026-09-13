@@ -1,12 +1,16 @@
 // The Room's pictures (WS-R55): a generated unfurl image per Room, a story
 // card the creator can post, and (WS-R78) a printable A4 poster with a QR
 // code — the story card gains the same QR, small, in a corner. Every
-// decision lives here, where a fake `db` never has to reach it at all —
-// `renderRoomCard`, `computeCardLayout` and `buildRoomCardSvg` below are
-// PURE (data in, string/object out), and `rasterizeRoomCard` is the one
-// function in this file that touches the filesystem (reading the bundled
-// font once) or a native addon (the canvas). `api/room-card.js` is the thin
-// HTTP door one file over.
+// decision lives here, where a fake `db` (a plain async function, never a
+// real connection) can reach it in an offline eval — `renderRoomCard`,
+// `computeCardLayout` and `buildRoomCardSvg` below are PURE (data in,
+// string/object out); `rasterizeRoomCard` is the one function that touches
+// the filesystem (reading the bundled font once) or a native addon (the
+// canvas); `publicRoomCardBySlug` (WS-R173, below) is the one function that
+// takes a `db` callback and issues a query through it, the SAME
+// take-a-function-never-import-a-connection shape `api/_room-about.js`'s own
+// `publicRoomAboutBySlug` already uses, so a fake `db` still never has to be
+// a real connection. `api/room-card.js` is the thin HTTP door one file over.
 //
 // ── WHY THIS EXISTS ─────────────────────────────────────────────────────
 //
@@ -14,11 +18,35 @@
 // `vy_room`, so its crawler-only unfurl never emits `og:image`, and a shared
 // Room link on WhatsApp, Telegram or Instagram shows text alone. This file
 // does not add a picture FIELD — nobody uploads anything, and no new column
-// exists. It renders the picture, every time, from the same three columns
-// `publicRoomBySlug` already exposes (`api/_room-publish.js`) — the identical
-// public read `api/_room-page.js` uses, and no other. A static scan in
-// `evals/room-card/run.mjs` proves this file's own source never mentions a
-// follower table, a follower id, or a count.
+// exists. It renders the picture, every time, from public columns
+// `publicRoomCardBySlug` below reads directly (this file's own read since
+// WS-R173 — see that function's own header for why). A static scan in
+// `evals/room-card/run.mjs` proves this file's own source, and the door's,
+// never touch a follower table, a follower id, or a count on the row they
+// read.
+//
+// ── WS-R173: THE CARD'S OWN READ, AND WHY IT IS NOT publicRoomBySlug ────
+//
+// A person's card must name them ("<Name> AI, made by <Name>") and carry
+// their own disclosure line (`personDisclosureLine`, `api/_room-publish.js`)
+// exactly like `api/_room-about.js`'s transparency page already does — but
+// `api/_room-publish.js`'s `publicRoomBySlug` is guarded by its OWN
+// closed-select-list control (`evals/room-share/run.mjs` §1b: exactly four
+// columns, no `agent_id` named anywhere in its body) built for exactly one
+// reason, stated in its own function header: a crawler-facing read a
+// follower or bystander interaction can reach must never gain a sheet-shaped
+// surface. WS-R162's own first draft of this exact feature widened that
+// function anyway and the control caught it before a line shipped
+// (`context/rejected.md#ws-r162-widening-publicroombyslug-would-trip-its-
+// own-closed-select-list-control`) — that entry's own reversal condition is
+// what this file now does: `publicRoomCardBySlug` below, mirroring
+// `api/_room-about.js`'s own `publicRoomAboutBySlug` LEFT JOIN LATERAL
+// precedent rather than `publicRoomBySlug`'s, never touching that guarded
+// function at all. `api/_room-page.js`'s own `resolveRoomPage` (still the
+// crawler unfurl's read, unmodified by this workstream) is a SEPARATE,
+// narrower function that stays exactly as it was — the unfurl's `<head>`
+// tags need no sheet kind or person line, so widening it would be surface
+// this page never uses.
 //
 // ── THE RASTERISER THIS FILE DOES NOT USE, AND WHY ──────────────────────
 //
@@ -85,10 +113,52 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { PLATFORM_TITLE, PLATFORM_DESCRIPTION } from "./_room-page.js";
-import { roomDisclosureCard, normalizeLocale } from "./_room-surface.js";
+import { roomDisclosureCard, normalizeLocale, slugOf } from "./_room-surface.js";
+import { personDisclosureLine } from "./_room-publish.js";
 import { encodeQR } from "./_qr.js";
 
 const require = createRequire(import.meta.url);
+
+/**
+ * WS-R173: the card's OWN read — slug -> the Room's public row, its
+ * `sheet_kind` and its `person_line`, or null. Mirrors `api/_room-about.js`'s
+ * own `publicRoomAboutBySlug` LEFT JOIN LATERAL precedent (this file's own
+ * header explains why, and why NOT `publicRoomBySlug`): same predicate
+ * (`published_at is not null and paused_at is null`), same lateral join onto
+ * the agent's own latest PUBLISHED, CONSENTED sheet for `sheet_kind`/
+ * `sheet ->> 'personLine'`, restated here rather than imported for the same
+ * reason `publicRoomAboutBySlug` restates it rather than sharing
+ * `api/_teachersheet.js`'s `publishedRow` — two extra text columns do not
+ * need that function's whole validate-and-construct cost. `LATERAL` rather
+ * than a plain `LEFT JOIN` because nothing enforces at most one `published`
+ * row per agent, so an unordered join could return more than one row for a
+ * single slug.
+ */
+export async function publicRoomCardBySlug(db, slug) {
+  if (typeof db !== "function") throw new Error("room_card_db_required");
+  const s = slugOf(slug);
+  if (!s) return null;
+  const rows = await db(
+    `select r.slug, r.display_name, r.one_line_bio, r.default_locale,
+            ps.sheet_kind, ps.person_line
+       from vy_room r
+       left join lateral (
+         select s.sheet_kind, s.sheet ->> 'personLine' as person_line
+           from vy_teacher_sheet s
+          where s.agent_id = r.agent_id
+            and s.status = 'published'
+            and s.consent_artifact_id is not null
+          order by s.published_at desc
+          limit 1
+       ) ps on true
+      where lower(r.slug) = $1
+        and r.published_at is not null
+        and r.paused_at is null
+      limit 1`,
+    [s],
+  );
+  return rows[0] || null;
+}
 
 /** The three shapes this product hands a creator: a landscape unfurl card
  *  (WhatsApp/Telegram/iMessage/Twitter's `og:image`), a portrait story card
@@ -123,6 +193,18 @@ const SIGNAL = "#ed693d";
 const BRAND_MARK = "Vyakti";
 
 const FONT_FAMILY = "Noto Sans Devanagari";
+
+/** WS-R173: the person card's headline — "<Name> AI, made by <Name>" (brief
+ *  law 3), bilingual, `roomDisclosureCard`'s own two-locale precedent
+ *  immediately above. Read only by `computeCardLayout`'s `nameText`, only
+ *  for `sheetKind === "person"` — a teacher card never calls this. */
+const PERSON_CARD_NAME = {
+  en: (name) => `${name} AI, made by ${name}`,
+  hi: (name) => `${name} AI, ${name} द्वारा बनाया गया`,
+};
+function personCardNameLine(name, locale) {
+  return (PERSON_CARD_NAME[locale] || PERSON_CARD_NAME.en)(name);
+}
 
 /** WS-R126 (join from WhatsApp): the poster's `?channel=whatsapp` variant
  *  encodes a wa.me deep link in its QR instead of this Room's own address —
@@ -197,21 +279,50 @@ function wrapLines(text, maxChars, maxLines) {
  * draw a different picture from the same inputs. Never reads a file, never
  * touches the network, never sees a follower — `url` is a plain string the
  * caller already resolved (`cardInputFor` below builds it from the SAME
- * `display_name`/`slug` `publicRoomBySlug` already exposes plus an
+ * public columns `publicRoomCardBySlug` above exposes plus an
  * `origin` the caller's own request carried, never fetched here) — which
  * is what makes `evals/room-card/run.mjs`'s negative control possible: a
  * follower-shaped field simply has nowhere to plug in. `encodeQR` (WS-R78,
  * `api/_qr.js`) is itself pure, so calling it here does not cost this
  * function its own purity.
+ *
+ * WS-R173: `sheetKind`/`personLine` are the two new inputs — present only
+ * for a published PERSON sheet (`publicRoomCardBySlug`'s own join, guarded
+ * the identical way `personDisclosureLine` already guards the about page:
+ * `sheetKind !== "person"` renders exactly nothing extra). A teacher card
+ * (every one of this file's own 83 pre-existing fixtures, none of which set
+ * either field) is BYTE-IDENTICAL to before this workstream — both new
+ * inputs default to `undefined`, the guards below read false, and the name/
+ * bio blocks fall through to the unmodified `displayName`/`bio` they always
+ * rendered.
  */
-export function computeCardLayout({ name, bio, locale, kind, url, channel } = {}) {
+export function computeCardLayout({ name, bio, locale, kind, url, channel, sheetKind, personLine } = {}) {
   const size = ROOM_CARD_SIZES[kind] || ROOM_CARD_SIZES.og;
   const { width, height } = size;
   const isStory = kind === "story";
   const isPoster = kind === "poster";
   const loc = normalizeLocale(locale);
+  const isPersonSheet = sheetKind === "person";
   const displayName = String(name || "").trim() || PLATFORM_TITLE;
-  const bioText = String(bio || "").trim();
+  // WS-R173: the headline names the AI and who made it — "<Name> AI, made
+  // by <Name>" (brief law 3) — the same fact `api/_room-page.js`'s
+  // `roomAiTitleLine` states for the crawler unfurl title, restated here
+  // WITHOUT its ", on Vyakti" tail (`BRAND_MARK` below already draws
+  // "Vyakti" as its own mark lower on this same picture, so repeating the
+  // platform name inside the large headline font would be pure repetition,
+  // never new information) rather than that function reused directly. A
+  // teacher card's headline is the unmodified plain `displayName`.
+  const nameText = isPersonSheet && name ? personCardNameLine(displayName, loc) : displayName;
+  // WS-R173: the person's own disclosure line (`personDisclosureLine`,
+  // `api/_room-publish.js` — "the disclosure a person's own Room can show
+  // carries their own one-line") takes the bio slot's place when this is a
+  // published person sheet that set one; every other case (a teacher sheet,
+  // no sheet, a person sheet with no personLine) renders the Room's own
+  // `one_line_bio` exactly as before — `personDisclosureLine`'s own
+  // `sheetKind !== "person"` guard is what keeps a teacher card's bio
+  // byte-identical to today.
+  const personDisclosure = personDisclosureLine({ sheetKind, personLine });
+  const bioText = personDisclosure || String(bio || "").trim();
   const disclosure = name ? roomDisclosureCard(displayName, loc).split("\n")[0] : PLATFORM_DESCRIPTION;
 
   const pad = isPoster ? 110 : isStory ? 96 : 88;
@@ -219,11 +330,18 @@ export function computeCardLayout({ name, bio, locale, kind, url, channel } = {}
   const bioSize = isPoster ? 50 : isStory ? 40 : 32;
   const discSize = isPoster ? 36 : isStory ? 30 : 24;
   const markSize = isPoster ? 40 : isStory ? 34 : 26;
-  const nameChars = isPoster ? 13 : isStory ? 14 : 20;
+  // A person headline is longer than a bare name ("<Name> AI, made by
+  // <Name>" vs "<Name>") — a wider wrap and one extra allowed line keeps it
+  // legible instead of ellipsising most of the phrase away. Unaffected for
+  // a teacher card: `isPersonSheet` is false, so both fall through to the
+  // original values.
+  const nameChars = isPersonSheet
+    ? (isPoster ? 20 : isStory ? 22 : 30)
+    : (isPoster ? 13 : isStory ? 14 : 20);
   const bioChars = isPoster ? 28 : isStory ? 26 : 40;
   const discChars = isPoster ? 44 : isStory ? 30 : 52;
 
-  const nameLines = wrapLines(displayName, nameChars, 2);
+  const nameLines = wrapLines(nameText, nameChars, isPersonSheet ? 3 : 2);
   const bioLines = bioText ? wrapLines(bioText, bioChars, isPoster ? 3 : isStory ? 4 : 3) : [];
   const discLines = wrapLines(disclosure, discChars, isPoster ? 3 : isStory ? 4 : 2);
 
@@ -369,10 +487,12 @@ export function renderRoomCard(input) {
 }
 
 /**
- * `row` is exactly what `publicRoomBySlug` returns, or `null` — the same
- * shape `api/_room-page.js`'s `buildRoomPageHtml` takes. `null` maps to the
- * SAME platform-only inputs `buildRoomPageHtml` renders for that case, so
- * the two "a bot/a picture must never learn whether a slug exists"
+ * `row` is exactly what `publicRoomCardBySlug` above returns, or `null` —
+ * `null` for the SAME cases `api/_room-page.js`'s `buildRoomPageHtml` treats
+ * as absent (unpublished, paused, or an unknown slug — `resolveRoomPage`'s
+ * own predicate, mirrored in `publicRoomCardBySlug`'s WHERE clause). `null`
+ * maps to the SAME platform-only inputs `buildRoomPageHtml` renders for that
+ * case, so the two "a bot/a picture must never learn whether a slug exists"
  * guarantees cannot drift apart from each other by one file changing its
  * own copy.
  *
@@ -405,6 +525,14 @@ export function renderRoomCard(input) {
  * "a picture must never learn whether a slug exists" law this function's
  * own header already states for `origin`, restated for a second query
  * parameter rather than assumed to still hold.
+ *
+ * WS-R173: `sheetKind`/`personLine` are read straight off `row` — the two
+ * new columns `publicRoomCardBySlug` joins in — and handed through
+ * unchanged; `computeCardLayout`'s own guards (`personDisclosureLine`'s
+ * `sheetKind !== "person"` check) decide what, if anything, they change. An
+ * unpublished/unknown slug (`row` is `null`) never reaches either field,
+ * the identical "a picture must never learn whether a slug exists" law
+ * restated for these two columns too.
  */
 export function cardInputFor(row, kind, origin = "", whatsappJoinUrl = "") {
   const base = String(origin || "").replace(/\/+$/, "");
@@ -417,6 +545,8 @@ export function cardInputFor(row, kind, origin = "", whatsappJoinUrl = "") {
     locale: row.default_locale,
     kind,
     channel: useWhatsapp ? "whatsapp" : "",
+    sheetKind: row.sheet_kind || "",
+    personLine: row.person_line || "",
     url: useWhatsapp ? joinUrl : (base ? `${base}/r/${encodeURIComponent(String(row.slug || ""))}?via=poster` : ""),
   };
 }
@@ -525,8 +655,19 @@ export function roomCardEtag(row, kind, origin = "", whatsappJoinUrl = "") {
   // a pixel: a `?channel=whatsapp` request for a slug nobody has ever
   // registered must hash IDENTICALLY to the same request with no `channel`
   // at all, or the ETag itself would leak which slugs are real.
+  //
+  // WS-R173: `sheet_kind`/`person_line` fold in too, for the SAME real-row
+  // reason `one_line_bio` already does — a published person setting or
+  // clearing their own `personLine` must change the picture's own cache
+  // key, never keep serving a stale rendering. Omitted from the platform
+  // basis for the identical reason `whatsappJoinUrl` is: an unpublished or
+  // unknown slug carries neither field (`cardInputFor`'s own guard), so
+  // including them there would add nothing but a constant string.
   const basis = row
-    ? JSON.stringify([row.display_name || "", row.one_line_bio || "", normalizeLocale(row.default_locale), kind, origin, String(whatsappJoinUrl || "")])
+    ? JSON.stringify([
+        row.display_name || "", row.one_line_bio || "", normalizeLocale(row.default_locale), kind, origin,
+        String(whatsappJoinUrl || ""), row.sheet_kind || "", row.person_line || "",
+      ])
     : JSON.stringify(["__platform__", kind, origin]);
   return `"${createHash("sha256").update(basis).digest("hex").slice(0, 32)}"`;
 }

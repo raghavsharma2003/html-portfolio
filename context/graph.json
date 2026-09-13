@@ -19176,6 +19176,30 @@
       "kind": "measurement",
       "title": "Wave twenty-two's eleven merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
       "at": "context/measurements.md#wave-22-merges-2026-09-13"
+    },
+    {
+      "id": "ws-r173-person-stage-lines-branch-the-same-way-personboundaryfor-already-does",
+      "kind": "decision",
+      "title": "personStageFor(name, stage), selected by sheetKind exactly like personBoundaryFor already is (2026-09-13, WS-R173)",
+      "at": "context/decisions.md#ws-r173-person-stage-lines-branch-the-same-way-personboundaryfor-already-does"
+    },
+    {
+      "id": "ws-r173-room-cards-own-read-mirrors-the-about-pages-not-publicroombyslugs",
+      "kind": "decision",
+      "title": "api/_room-card.js gets its own publicRoomCardBySlug read, mirroring publicRoomAboutBySlug, never widening publicRoomBySlug (2026-09-13, WS-R173)",
+      "at": "context/decisions.md#ws-r173-room-cards-own-read-mirrors-the-about-pages-not-publicroombyslugs"
+    },
+    {
+      "id": "ws-r173-touched-suites-2026-09-13",
+      "kind": "measurement",
+      "title": "WS-R173 touched-suite and full-registry results: every grep-matched suite 0 failed; first-five-minutes failed once under load 17-27, unrelated to any touched file",
+      "at": "context/measurements.md#ws-r173-touched-suites-2026-09-13"
+    },
+    {
+      "id": "ws-r173-card-headline-and-personline-wrap-across-tspans-breaking-svg-includes",
+      "kind": "rejection",
+      "title": "A raw svg.includes() check on a long, word-wrapped card headline/disclosure line fails even when the renderer is correct, because wrapLines splits it across multiple <tspan> elements",
+      "at": "context/rejected.md#ws-r173-card-headline-and-personline-wrap-across-tspans-breaking-svg-includes"
     }
   ],
   "edges": [
@@ -32661,6 +32685,31 @@
       "src": "wave-22-merged-as-a-batch-with-a-repair-workstream",
       "dst": "wave-21-merged-as-a-batch-under-contention",
       "rel": "supersedes"
+    },
+    {
+      "src": "ws-r173-person-stage-lines-branch-the-same-way-personboundaryfor-already-does",
+      "dst": "ws-r151-platform-boundary-and-stage-text-stays-teacher-worded-for-a-person-sheet",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r173-person-stage-lines-branch-the-same-way-personboundaryfor-already-does",
+      "dst": "ws-r173-touched-suites-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r173-room-cards-own-read-mirrors-the-about-pages-not-publicroombyslugs",
+      "dst": "ws-r162-widening-publicroombyslug-would-trip-its-own-closed-select-list-control",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r173-room-cards-own-read-mirrors-the-about-pages-not-publicroombyslugs",
+      "dst": "ws-r173-touched-suites-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r173-card-headline-and-personline-wrap-across-tspans-breaking-svg-includes",
+      "dst": "ws-r173-room-cards-own-read-mirrors-the-about-pages-not-publicroombyslugs",
+      "rel": "part_of"
     }
   ]
 }
