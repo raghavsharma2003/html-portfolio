@@ -3300,6 +3300,20 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   prosody: "prosody/run.mjs",
+  // WS-R161 (wave twenty-two). Meet opens for any person: the text-ready
+  // capability level (`textBlockers`/`clientRuntimeStatus` in
+  // `api/_replica-runtime.js`) and the text-ready dialogue door
+  // (`generateOwnedTextDialogue` in `api/_replica-dialogue.js`), driven
+  // through the REAL functions with a hand-rolled fake db matched by exact
+  // SQL reference (this file's own exported SQL constants, never a
+  // substring match on a live table/column name room-leak's scanner would
+  // then have to be told to ignore). Negative controls: no profile is not
+  // text_ready; a revoked replica is refused.
+  //
+  // Offline, deterministic, $0, no DB, no network, no GPU; the one fixture
+  // model call is a fake generator this suite owns (never the real
+  // `_dialogue/registry.js`, so it never touches AZURE_FOUNDRY_*).
+  "text-ready": "text-ready/run.mjs",
 };
 
 const argv = process.argv.slice(2);

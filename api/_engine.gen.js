@@ -7497,6 +7497,7 @@ export {
   renderKinLines,
   renderMpBridge,
   renderMpRoster,
+  renderVibe,
   seedFromStoryCatalog,
   selectExpertPrivateMemoryRows,
   shapeForDow,

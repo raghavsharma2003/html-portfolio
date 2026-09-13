@@ -214,6 +214,17 @@ export const OWNER_LANE_TABLES = Object.freeze([
       hi: "आपके AI की वाइब सेटिंग्स (गर्मजोशी, ऊर्जा, हास्य, स्पष्टता, औपचारिकता) और उनका इतिहास।",
     },
   },
+  // WS-R161 (migration 167). The text-ready capability record: which
+  // approved person-sheet version currently lets Meet answer in text, no
+  // voice needed (`vy_replica_vibe`'s own shape immediately above
+  // restated for a different table).
+  {
+    table: "vy_replica_text_capability", scope: "replica",
+    sentence: {
+      en: "Records of when your AI became text-ready (an approved person sheet, no voice needed) and which version.",
+      hi: "इस बात के रिकॉर्ड कि आपका AI कब टेक्स्ट-रेडी बना (एक स्वीकृत व्यक्ति शीट, आवाज़ की ज़रूरत नहीं) और किस वर्शन का।",
+    },
+  },
   { table: "vy_replica_funnel_mark", scope: "replica" },
   { table: "vy_replica_drift_report", scope: "replica" },
   { table: "vy_replica_generation", scope: "replica" },

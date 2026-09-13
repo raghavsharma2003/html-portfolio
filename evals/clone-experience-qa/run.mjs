@@ -22,7 +22,13 @@ ok("knowledge can open independently while voice workspace authority stays uncha
   /knowledgeOpen = Boolean\(selected && consentActive && room === "enrich" && !upload\)/.test(experience)
   && /textWorkspaceOpen = knowledgeOpen \|\| textShareOpen \|\| textReviewOpen/.test(experience)
   && /showRooms = voiceWorkspaceReady \|\| textWorkspaceOpen/.test(experience)
-  && /voiceWorkspaceReady && <RoomNav/.test(experience)
+  // WS-R161 (wave twenty-two): RoomNav's own gate widened, on purpose, to
+  // ALSO open on `textReady` (an approved person sheet, Meet opens with no
+  // voice recorded) -- `voiceWorkspaceReady` itself is still the exact,
+  // untouched first operand this check's own name asks for ("voice
+  // workspace authority stays unchanged"), now OR'd with the new clause
+  // rather than replaced.
+  && /\(voiceWorkspaceReady \|\| textReady\) && <RoomNav/.test(experience)
   && /captureState === "idle" && !sample && onKnowledge/.test(experience));
 ok("the replacement candidate resolves only by its exact source or upload intent",
   /source\.source_id === voiceSaga\.sourceId \|\| source\.upload_intent_id === voiceSaga\.uploadIntentId/.test(experience));

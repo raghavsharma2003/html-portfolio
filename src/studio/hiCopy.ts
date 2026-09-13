@@ -110,6 +110,8 @@ const HI_EXPERT_CONVERSATION: ExpertConversationCopy = {
   errorReplySavedNeedsReconcile: "आपका जवाब सेव हो गया है। अगले जवाब से पहले हमें इसका इस्तेमाल तय करना होगा।",
   errorAudioPlaybackFailed: "यह ऑडियो नहीं चल सका। फिर सुनने की कोशिश करें।",
   errorVoiceUnavailable: "आवाज़ में सुनना उपलब्ध नहीं है। लिखा हुआ जवाब अभी भी यहां है।",
+  // WS-R161 (wave twenty-two).
+  apprenticeVoiceNotice: "अब आप बात कर सकते हैं। आवाज़ अभी बन रही है।",
 };
 
 const HI_PERSON_MODEL_STUDIO: PersonModelStudioCopy = {

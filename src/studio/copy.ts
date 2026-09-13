@@ -134,6 +134,12 @@ export interface ExpertConversationCopy {
   errorReplySavedNeedsReconcile: string;
   errorAudioPlaybackFailed: string;
   errorVoiceUnavailable: string;
+  // WS-R161 (wave twenty-two). The status beacon this workstream's own
+  // brief names: shown only while Meet is open on a text-ready person sheet
+  // with no voice pipeline reached yet (`runtime.text_ready` true,
+  // `runtime.active` false) — a PEER addition, never inside the existing
+  // block above.
+  apprenticeVoiceNotice: string;
 }
 
 export interface PersonModelStudioCopy {
@@ -317,6 +323,7 @@ const EN_EXPERT_CONVERSATION: ExpertConversationCopy = {
   errorReplySavedNeedsReconcile: "Your reply is saved. We need to reconcile its usage before another reply.",
   errorAudioPlaybackFailed: "This audio could not play. Try listening again.",
   errorVoiceUnavailable: "Voice playback is unavailable. The text reply is still here.",
+  apprenticeVoiceNotice: "You can talk now. The voice is still being built.",
 };
 
 const EN_PERSON_MODEL_STUDIO: PersonModelStudioCopy = {

@@ -703,6 +703,14 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- would leave behind while reporting success.
      replica_vibes as (delete from vy_replica_vibe x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 167's text-ready capability record (WS-R161). Same shape as the
+     -- vibe row immediately above and for the same reason: NO foreign key
+     -- (009's convention, restated in this table's own migration), so this
+     -- line is not a second layer, it is the only layer, and
+     -- scripts/relcheck.mjs's owner-lane reach walk fails the build without
+     -- it.
+     text_capabilities as (delete from vy_replica_text_capability x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      -- 088's funnel marks (WS-R25). Same shape as readiness immediately
      -- above and for the same reason: NO foreign key (009's convention),
      -- so this line is not a second layer, it is the only layer, and

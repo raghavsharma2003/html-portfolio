@@ -11,15 +11,19 @@ import {
 } from "./_dialogue/contracts.js";
 import {
   compileRelationshipTail,
+  compileReplicaRuntimeCore,
   loadOwnedPrivateRuntimeContext as loadOwnedRuntimeContext,
+  loadOwnedTextProfile,
   loadPrivateRelationshipSnapshot,
   openOwnedRuntimeSession,
+  ownedRuntimeStatus,
 } from "./_replica-runtime.js";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
 import { beginFoundrySpend, markFoundrySpendUncertain, releaseFoundrySpendBeforeCall, reserveFoundrySpend, settleFoundrySpend } from "./_provider-budget.js";
 import { readOwnedDialogueHistory, openOwnedDialogueSession } from "./_replica-dialogue-history.js";
 import {ownerPrivateCapabilityAuthoritySql} from './_replica-candidate-activation-authority.js';
 import {candidateRuntimeCore,assertCandidateGenerator,assertCandidateResponse,assertCandidateRuntimeUnchanged} from './_replica-candidate-runtime.js';
+import { getReplicaVibe } from './_replica-vibe.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TRACE = /^[A-Za-z0-9_-]{8,96}$/;
@@ -206,6 +210,82 @@ async function failDialogueTurn(db, ownerUserId, turnId, code) {
   ).catch(() => []);
 }
 
+// WS-R161 (wave twenty-two). Law 2 of this workstream's own brief: every
+// apprentice reply carries this EXACT prefix, so a text-ready AI can never
+// read as a finished, qualified one. "apprentice" is this repo's own
+// established word for an incomplete AI (never "broken") —
+// `src/creatorStudio/ReadinessPanel.tsx`'s own header,
+// `context/decisions.md#vyakti-rooms-v1-adopted`. Plain, functional prose;
+// survives a read-aloud test; no em-dash (`scripts/check-copy.mjs`'s own
+// rule, which this file's directory is not exempt from even though the
+// Rooms-vocabulary word list itself is scoped to `src/studio/`/`src/room/`
+// only, `scripts/copy-room-scope.mjs`'s own header).
+export const TEXT_APPRENTICE_DISCLOSURE =
+  "You're talking with an AI apprentice. It is still learning who this person is from what they have shared, and it has no voice yet.";
+
+// Budget reserved so the reply is what gets shortened, never the
+// disclosure — the opposite failure shape CLAUDE.md already names for
+// prompt truncation (the newest, safety-relevant text sits at the end and
+// must never be the part silently cut).
+function withApprenticeDisclosure(reply) {
+  const budget = Math.max(0, 1_600 - TEXT_APPRENTICE_DISCLOSURE.length - 1);
+  const body = cleanDialogueText(reply, budget);
+  return `${TEXT_APPRENTICE_DISCLOSURE} ${body}`.trim();
+}
+
+// WS-R161. The text-ready conversation door: no `vy_replica_runtime_
+// capability`, no session, no turn history — a single, stateless compiled
+// reply from the owner's own approved person sheet (WS-R151), their vibe
+// line (WS-R153) and the profile's claims, through the SAME compiler the
+// voice-ready path uses (`compileReplicaRuntimeCore`/`compileDialoguePrompt`,
+// unchanged functions, a new caller). Never a fabricated voice and never a
+// claim of likeness — `can_voice` is always `false`, and the voice sample
+// and mirror call stay refused with the honest blocker naming voice
+// (`api/replica-voice-preview.js`/`api/mirror-call.js`, neither touched by
+// this workstream — both already refuse honestly with no active voice
+// profile, the SAME gap WS-R158 already named one layer under this one).
+//
+// Deliberately NOT wired into `vy_replica_dialogue_turn`/session history:
+// that machinery is FK-bound to `vy_replica_runtime_capability`
+// (`db/migrations/023_replica_runtime.sql`), which a text-only replica has
+// none of by design (`textBlockers`'s own header in `_replica-runtime.js`).
+// Building a second, lighter session/turn ledger for text alone is real,
+// named, future scope — not reached this workstream, stated here rather
+// than implied: a text-ready conversation has no server-side memory of its
+// own prior turns between requests.
+export async function generateOwnedTextDialogue(db, ownerUserId, rawInput, generator, signal) {
+  if (!generator || typeof generator.generate !== "function" || !generator.family || !generator.name || !generator.version || !generator.model)
+    fail("dialogue_generator_unavailable", 503);
+  const rawMessage = String(rawInput?.message || "");
+  if (rawMessage.length > 4_000) fail("dialogue_message_too_large", 413);
+  if (hasMalformedDialogueUnicode(rawMessage)) fail("dialogue_message_invalid", 400);
+  const rid = replicaId(rawInput?.replica_id);
+  const message = cleanDialogueText(rawMessage, 4_000);
+  if (!message) fail("dialogue_message_required", 400);
+  const status = await ownedRuntimeStatus(db, ownerUserId, rid);
+  if (!status) fail("dialogue_runtime_not_active");
+  if (!status.text_ready) fail("dialogue_text_not_ready", 409, { blockers: status.text_blockers });
+  const profile = await loadOwnedTextProfile(db, ownerUserId, rid);
+  if (!profile) fail("dialogue_text_not_ready", 409, { blockers: status.text_blockers });
+  const vibe = await getReplicaVibe(db, ownerUserId, rid).catch(() => null);
+  const core = compileReplicaRuntimeCore(profile.definition, null, message, undefined, vibe);
+  const prompt = compileDialoguePrompt({ core, relationship: "", evidence: "", history: [], message });
+  signal?.throwIfAborted();
+  const generated = await generator.generate({ prompt, signal });
+  const output = validateDialogueOutput(generated?.output);
+  return {
+    has_continuity: false,
+    turn_id: randomUUID(),
+    session_id: null,
+    reply: withApprenticeDisclosure(output.reply),
+    delivery: output.delivery,
+    can_voice: false,
+    billing_state: "not_metered",
+    created_at: new Date().toISOString(),
+    text_ready: true,
+  };
+}
+
 export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator, signal, {resolveCandidateGenerator} = {}) {
   if (!generator || typeof generator.generate !== "function" || !generator.family || !generator.name || !generator.version || !generator.model)
     fail("dialogue_generator_unavailable", 503);
@@ -222,8 +302,13 @@ export async function generateOwnedDialogue(db, ownerUserId, rawInput, generator
     trace_id: TRACE.test(String(rawInput?.trace_id || "")) ? String(rawInput.trace_id) : `dialogue_${randomUUID().replaceAll("-", "")}`,
   };
   if (!input.message) fail("dialogue_message_required", 400);
+  // WS-R161. A replica with no ACTIVE voice capability falls back to the
+  // text-ready door rather than the old unconditional
+  // `dialogue_runtime_not_active` refusal — the one behavior this
+  // workstream changes in this function. Every other line below is
+  // untouched: a voice-ready replica's turn is byte-identical to before.
   const runtime = await loadOwnedRuntimeContext(db, ownerUserId, input.replica_id);
-  if (!runtime) fail("dialogue_runtime_not_active");
+  if (!runtime) return generateOwnedTextDialogue(db, ownerUserId, rawInput, generator, signal);
   if (runtime.capability.private_selection && input.channel !== "private_chat") fail("candidate_runtime_text_only");
   if (runtime.candidateBinding && resolveCandidateGenerator) generator = await resolveCandidateGenerator();
   assertCandidateGenerator(runtime, generator);

@@ -918,9 +918,26 @@
     margin-left: auto;
   }
 
+  /* WS-R161 (wave twenty-two): a REAL, previously-latent layout bug found
+     and fixed here, not merely worked around in the test that found it.
+     `.vx-room__voice` (this exact section) always had THREE direct
+     children -- the stage title, the `.vx-conversation-switch` tab group,
+     and the meetView content (`ExpertConversation`/`VoicePreviewPanel`/the
+     listening test) -- but only TWO explicit row tracks. The third child
+     fell into an implicit `auto` row, and whenever that auto-placed
+     content wanted more height than the grid's own constrained total, the
+     explicit `minmax(0, 1fr)` track (which the tab switcher itself sits
+     in) was squeezed to its floor: a real, measured 0px-tall
+     `.vx-conversation-switch`, invisible to a real viewer though never
+     `display:none` -- found because this workstream is the first to ever
+     drive `ExpertConversation` through a real signed-in Meet with the
+     content its `runtimeActive` gate actually renders, not a shorter
+     fixture stand-in. Three explicit tracks now match the three real
+     children: title and switch both size to their own content, only the
+     conversation/sample content underneath is the flexible, scrollable one. */
   .vx-room__voice {
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
   }
 
   .vx-room__voice .hear-voice {

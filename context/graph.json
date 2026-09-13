@@ -18702,6 +18702,54 @@
       "kind": "measurement",
       "title": "replica-runtime 62/62, listening-test 63/63, room-doors 2333/2333, incidents 132/132, room-leak/room-export/mirrors/upload-boundary/copy/tsc/vite/layout/accessibility all clean (2026-09-13)",
       "at": "context/measurements.md#ws-r163-voice-activation-guard-and-audio-door-measurements"
+    },
+    {
+      "id": "ws-r161-meet-opens-for-any-person",
+      "kind": "component",
+      "title": "Text-ready Meet: a lighter runtime capability level, independent of the voice pipeline (2026-09-13)",
+      "at": "context/STATE.md#ws-r161-meet-opens-for-any-person"
+    },
+    {
+      "id": "ws-r161-two-capability-levels-text-ready-and-voice-ready",
+      "kind": "decision",
+      "title": "text_ready is a peer blocker list beside voice_ready, gated on identity/consent/profile only (2026-09-13)",
+      "at": "context/decisions.md#ws-r161-two-capability-levels-text-ready-and-voice-ready"
+    },
+    {
+      "id": "ws-r161-text-ready-dialogue-is-stateless-no-session-no-turn-history",
+      "kind": "decision",
+      "title": "generateOwnedTextDialogue is stateless: no session, no turn history (2026-09-13)",
+      "at": "context/decisions.md#ws-r161-text-ready-dialogue-is-stateless-no-session-no-turn-history"
+    },
+    {
+      "id": "ws-r161-vibe-line-exported-from-the-engine-bundle-not-mirrored",
+      "kind": "decision",
+      "title": "renderVibe imported from the engine bundle for the text-ready core, never mirrored (2026-09-13)",
+      "at": "context/decisions.md#ws-r161-vibe-line-exported-from-the-engine-bundle-not-mirrored"
+    },
+    {
+      "id": "ws-r161-reusing-vy-replica-runtime-capability-for-text-considered-and-rejected",
+      "kind": "rejection",
+      "title": "Granting text_ready a real vy_replica_runtime_capability row was considered and rejected: NOT NULL voice FKs (2026-09-13)",
+      "at": "context/rejected.md#ws-r161-reusing-vy-replica-runtime-capability-for-text-considered-and-rejected"
+    },
+    {
+      "id": "ws-r161-showrecorder-forced-voice-onboarding-over-an-already-text-ready-person",
+      "kind": "rejection",
+      "title": "showRecorder forced the voice recorder over an already text-ready person, found and fixed (2026-09-13)",
+      "at": "context/rejected.md#ws-r161-showrecorder-forced-voice-onboarding-over-an-already-text-ready-person"
+    },
+    {
+      "id": "ws-r161-meet-opens-for-any-person-2026-09-13",
+      "kind": "measurement",
+      "title": "WS-R161's full touched-suite sweep and the extended personal rehearsal walk, all clean (2026-09-13)",
+      "at": "context/measurements.md#ws-r161-meet-opens-for-any-person-2026-09-13"
+    },
+    {
+      "id": "ws-r161-vx-room-voice-grid-had-two-row-tracks-for-three-real-children",
+      "kind": "rejection",
+      "title": "A pre-existing zero-height layout bug (.vx-conversation-switch) found and fixed via the real browser walk (2026-09-13)",
+      "at": "context/rejected.md#ws-r161-vx-room-voice-grid-had-two-row-tracks-for-three-real-children"
     }
   ],
   "edges": [
@@ -31742,6 +31790,46 @@
       "src": "ws-r163-voice-activation-guard-and-audio-door",
       "rel": "supersedes",
       "dst": "ws-r155-generation-playback-not-wired"
+    },
+    {
+      "src": "ws-r161-meet-opens-for-any-person",
+      "dst": "ws-r161-two-capability-levels-text-ready-and-voice-ready",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r161-two-capability-levels-text-ready-and-voice-ready",
+      "dst": "ws-r158-meet-does-not-open-automatically-without-the-full-build-promotion-pipeline",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r161-text-ready-dialogue-is-stateless-no-session-no-turn-history",
+      "dst": "ws-r161-reusing-vy-replica-runtime-capability-for-text-considered-and-rejected",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r161-meet-opens-for-any-person",
+      "dst": "ws-r161-vibe-line-exported-from-the-engine-bundle-not-mirrored",
+      "rel": "part_of"
+    },
+    {
+      "src": "ws-r161-meet-opens-for-any-person",
+      "dst": "ws-r161-showrecorder-forced-voice-onboarding-over-an-already-text-ready-person",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r161-two-capability-levels-text-ready-and-voice-ready",
+      "dst": "ws-r161-meet-opens-for-any-person-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r161-text-ready-dialogue-is-stateless-no-session-no-turn-history",
+      "dst": "ws-r161-meet-opens-for-any-person-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r161-meet-opens-for-any-person",
+      "dst": "ws-r161-vx-room-voice-grid-had-two-row-tracks-for-three-real-children",
+      "rel": "caused_by"
     }
   ]
 }

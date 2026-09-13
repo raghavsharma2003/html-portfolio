@@ -57,6 +57,17 @@ const REDIRECT = new Map([
 // confirmed by grep before this was added.
 const SUFFIX_REDIRECT = new Map([
   ["_provenance/registry.js", STUB("provenance-registry-with-fake-adapters.mjs")],
+  // WS-R161 (wave twenty-two). `api/_replica-dialogue.js`'s own
+  // `createProductionDialogueGenerator`/`createProductionComparisonGenerator`
+  // seam — the ONLY other file in this repo whose relative specifier ends
+  // `registry.js` that any rehearsal walk needs to answer (confirmed by
+  // `grep -rln "_dialogue/registry.js" api/` before this was added: exactly
+  // one importer this workstream's own walk reaches, `api/replica-
+  // dialogue.js`). Basename-only would be unsafe here for the same reason
+  // `_provenance/registry.js` already is (eight files share the literal
+  // "registry.js"), hence the trailing-two-segments match this map already
+  // uses.
+  ["_dialogue/registry.js", STUB("dialogue-registry-with-fake-generator.mjs")],
 ]);
 
 export async function resolve(specifier, context, nextResolve) {
