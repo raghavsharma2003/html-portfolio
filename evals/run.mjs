@@ -3128,6 +3128,23 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-speak-plan": "room-speak-plan/run.mjs",
+
+  // WS-R152. Deploy for a personal AI: `src/studio/DeployStudio.tsx` mounts
+  // the creator studio's real `RoomStudio` (which already mounts
+  // `ShareKitCard` itself) inside the personal studio's shell, with a
+  // readiness banner in the person's own words. `evals/deploy-studio/run.mjs`
+  // bundles the REAL `src/studio/deployStudioState.ts` (the banner-state and
+  // visitor-link pure functions) and asserts: the banner resolves to exactly
+  // one of the three named states over every boolean input combination; the
+  // "See it as a visitor" link's own negative control (no Room, or an
+  // unpublished one, shows no link — only a published Room's real `/r/<slug>`
+  // does); the `onGoStep` step translation; the real `scripts/check-copy.mjs`
+  // scanner run against this workstream's own files, plus its standard
+  // banned-word negative control; and a static proof that `DeployStudio.tsx`
+  // imports `RoomStudio`, never forks it, and never re-imports `ShareKitCard`
+  // (already mounted inside `RoomStudio`). Offline, deterministic, $0, no DB,
+  // no network, no browser.
+  "deploy-studio": "deploy-studio/run.mjs",
 };
 
 const argv = process.argv.slice(2);

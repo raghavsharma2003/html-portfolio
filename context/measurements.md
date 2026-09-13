@@ -18008,3 +18008,27 @@ Method: `node scripts/verify-release.mjs` (no `--live`), full run, on this build
 **probe-live/day-one/private-rehearsal-combined were not investigated further** here — none names a file this workstream touched, `probe-live`/`day-one` are the registry's own named fixed-port suites (`evals/runner-lib.mjs`'s `PORT_LANE_SUITES`) exactly the kind nine concurrent full-registry runs would contend over, and `private-rehearsal-combined` launches a browser under the same shared two-slot budget nine concurrent gates were also drawing on.
 
 **Re-measured after the `azureweb` fix, each standalone once the relevant port freed:** `node evals/azure-web/run.mjs` (31 of 31), `node evals/vyakti-app/run.mjs` (116 of 116, unaffected), `node scripts/check-mirrors.mjs` (ok), `node scripts/check-headers.mjs` (0 findings across 10 targets), `node scripts/check-performance.mjs --json` (0 findings — confirms the first pass's TBT numbers were contention noise, not a regression), `node scripts/check-layout.mjs` (2059 prose blocks judged, ok). The full end-to-end `verify-release.mjs` tally after the fix was not re-run a second time in full (each affected gate was independently re-verified standalone instead, given nine-plus-way shared-machine contention made a second ~15+ minute full run impractical inside this session) — the main loop's own merge gate is the authoritative final full run.
+
+## `ws-r152-deploy-for-a-personal-ai-gate-results-2026-09-13`
+
+Method: worktree `ws-r152-deploy-for-a-personal-ai` at `54e553e`, no `NEON_URL`; each command run once in the foreground, date 2026-09-13.
+
+| check | result |
+|---|---|
+| `npx tsc -b --force` | 0 errors |
+| `node scripts/check-copy.mjs` | 7 scopes clean, 21 negative controls hit |
+| `npx oxlint` (this workstream's 3 new `.ts`/`.tsx` files) | 0 findings |
+| `node scripts/check-mirrors.mjs` | 10 markers checked across 318 files, 0 disagree |
+| `node evals/run.mjs deploy-studio` (new suite, registered) | 24 passed, 0 failed |
+| `node scripts/check-layout.mjs --only studio:deploy` | ok, 6 prose blocks judged, 390/834/1355px |
+| `node scripts/check-layout.mjs --only studio-hi:deploy` | ok, 6 prose blocks judged |
+| `node scripts/check-layout.mjs --only clone` (unaffected existing target, re-run as a regression check) | ok, 13 prose blocks, unchanged |
+| `node scripts/check-layout.mjs --only studio` (matches every `studio*`/`studio-hi*` target, 9 targets) | ok, 1687 prose blocks judged, all pass |
+| `node scripts/check-accessibility.mjs --target studio:deploy` (before the `--ink-soft` fix) | FAIL: 1 serious `color-contrast` (`--ink-faint` on `--signal-soft`, measured 3.52:1 against the 4.5:1 AA floor) |
+| `node scripts/check-accessibility.mjs --target studio:deploy` (after) | ok, 0 critical/serious, 0 keyboard findings |
+| `node scripts/check-accessibility.mjs --target studio-hi:deploy` (before the `lang={locale}` fix) | FAIL: 9 `lang-devanagari-untagged` findings |
+| `node scripts/check-accessibility.mjs --target studio-hi:deploy` (after) | ok, 0 critical/serious, 0 language-tag findings, 10 Devanagari text nodes checked, 2 own-attribute `lang="hi"` elements checked |
+
+Contrast ratios computed directly (WCAG relative-luminance formula, not read off a tool): `--ink-soft` (`#52564e`) against `--signal-soft` (`#fce9df`) is 6.38:1; against `--forest-soft` (`#e1eee7`) is 6.28:1. Both clear the 4.5:1 AA floor with margin.
+
+Not measured: the live database (no `NEON_URL` in this worktree; no migration in this workstream, per the brief); any real signed-in walk of `/studio?view=share` against a live replica (only the offline fixture, `studio-layout-fixture.html`, and the offline eval, were run); whether a real published personal AI's Room ever actually reaches `room.published = true` in production today — per `context/STATE.md`'s own standing fact and `rejected.md#ws-r7-room-for-generic-mode-with-no-disclosure-pathway`, it structurally cannot until a generic-mode disclosure path exists, so the "ready" banner state is exercised only by `evals/deploy-studio/run.mjs`'s own fixture, never a real Room.
