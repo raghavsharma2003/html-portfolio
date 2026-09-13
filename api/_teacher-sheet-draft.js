@@ -37,6 +37,14 @@ import {
 } from "./_engine.gen.js";
 import { checkPublishable } from "./_teachersheet.js";
 import { createHash } from "node:crypto";
+// WS-R178. `ownedPersonModelStatus` is the SAME owner-scoped, cited-claims
+// read `api/replica-person-model.js`'s own GET already answers with — reused
+// rather than a second query, so "draft from what I gave" can never disagree
+// with what the Person Model screen itself shows for the same replica at the
+// same moment. `draftPersonSheetFromClaims` is pure (see its own file
+// header); this module is the only place a DB is involved, and it is a READ.
+import { ownedPersonModelStatus } from "./_person-model.js";
+import { draftPersonSheetFromClaims } from "./_person-sheet-draft.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -323,6 +331,26 @@ export async function readOwnedTeacherSheet(db, ownerUserId, replicaIdValue) {
   // locally rather than blocking the screen".
   const rows = await db(PRIVATE_TEACHER_SHEET_READ_SQL, [replicaId, ownerUserId]);
   return clientSheet(rows[0]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// GET op:draft_from_sources — WS-R178, HumanOS drafted from a person's own
+// sources
+// ─────────────────────────────────────────────────────────────────────────
+//
+// A READ, never a write. Owner-scoped the SAME way `readOwnedTeacherSheet`
+// above is (null for "not yours" and "does not exist" alike — the same
+// existence-oracle reason `ownedReplica`'s own comment gives), then handed
+// straight to the pure drafter. The studio reviews every proposal with its
+// citation and saves accepted lines through the EXISTING, unchanged
+// `op:"save_draft"` door — this endpoint never writes the sheet itself.
+
+export async function draftOwnedPersonSheet(db, ownerUserId, replicaIdValue) {
+  const replicaId = replicaIdOf(replicaIdValue);
+  const status = await ownedPersonModelStatus(db, ownerUserId, replicaId);
+  if (!status) return null;
+  const { proposals, gaps, acceptedClaimCount } = draftPersonSheetFromClaims(status.claims);
+  return { replica_id: replicaId, proposals, gaps, accepted_claim_count: acceptedClaimCount };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

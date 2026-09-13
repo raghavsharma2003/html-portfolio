@@ -19176,6 +19176,36 @@
       "kind": "measurement",
       "title": "Wave twenty-two's eleven merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
       "at": "context/measurements.md#wave-22-merges-2026-09-13"
+    },
+    {
+      "id": "ws-r178-draft-sources-from-already-cited-accepted-claims-only",
+      "kind": "decision",
+      "title": "HumanOS's drafter reads only accepted, cited Person Model claims, never a fresh context-item read (2026-09-13)",
+      "at": "context/decisions.md#ws-r178-draft-sources-from-already-cited-accepted-claims-only"
+    },
+    {
+      "id": "ws-r178-name-and-personline-are-permanent-gaps-never-drafted",
+      "kind": "decision",
+      "title": "name and personLine are always gapped, never drafted from a claim (2026-09-13)",
+      "at": "context/decisions.md#ws-r178-name-and-personline-are-permanent-gaps-never-drafted"
+    },
+    {
+      "id": "ws-r178-no-migration-a-proposal-is-computed-not-persisted",
+      "kind": "decision",
+      "title": "A sheet-draft proposal is computed, never persisted; migration 174 not used (2026-09-13)",
+      "at": "context/decisions.md#ws-r178-no-migration-a-proposal-is-computed-not-persisted"
+    },
+    {
+      "id": "ws-r178-rehearsal-door-wired-narrowly-to-one-op-not-the-whole-handler",
+      "kind": "decision",
+      "title": "The personal rehearsal wires api/teacher-sheet.js for draft_from_sources only, not every op (2026-09-13)",
+      "at": "context/decisions.md#ws-r178-rehearsal-door-wired-narrowly-to-one-op-not-the-whole-handler"
+    },
+    {
+      "id": "ws-r178-humanos-draft-from-sources-2026-09-13",
+      "kind": "measurement",
+      "title": "40 fixture persons (English, Hindi, Hinglish) draft to sheets that pass validateTeacherSheet; the negative controls; the real-browser rehearsal proof (2026-09-13)",
+      "at": "context/measurements.md#ws-r178-humanos-draft-from-sources-2026-09-13"
     }
   ],
   "edges": [
@@ -32661,6 +32691,36 @@
       "src": "wave-22-merged-as-a-batch-with-a-repair-workstream",
       "dst": "wave-21-merged-as-a-batch-under-contention",
       "rel": "supersedes"
+    },
+    {
+      "src": "ws-r178-draft-sources-from-already-cited-accepted-claims-only",
+      "rel": "measured_by",
+      "dst": "ws-r178-humanos-draft-from-sources-2026-09-13"
+    },
+    {
+      "src": "ws-r178-name-and-personline-are-permanent-gaps-never-drafted",
+      "rel": "caused_by",
+      "dst": "private-editor-must-not-invent-complete-sheet-fields-20260907"
+    },
+    {
+      "src": "ws-r178-name-and-personline-are-permanent-gaps-never-drafted",
+      "rel": "caused_by",
+      "dst": "ws-r151-humanos-seed-reuses-demo-teachers-floor-fields-never-invents-a-person-floor"
+    },
+    {
+      "src": "ws-r178-no-migration-a-proposal-is-computed-not-persisted",
+      "rel": "constrains",
+      "dst": "ws-r178-draft-sources-from-already-cited-accepted-claims-only"
+    },
+    {
+      "src": "ws-r178-rehearsal-door-wired-narrowly-to-one-op-not-the-whole-handler",
+      "rel": "measured_by",
+      "dst": "ws-r178-humanos-draft-from-sources-2026-09-13"
+    },
+    {
+      "src": "ws-r178-draft-sources-from-already-cited-accepted-claims-only",
+      "rel": "part_of",
+      "dst": "ws-r151-person-sheet-shares-the-teacher-row-and-a-branched-validator"
     }
   ]
 }

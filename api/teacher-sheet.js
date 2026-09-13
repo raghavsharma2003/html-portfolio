@@ -43,6 +43,7 @@ import {
   statsForEvidence,
   reviewOwnedTeacherSheetPublication,
   requireTeacherSheetPublicationReview,
+  draftOwnedPersonSheet,
 } from "./_teacher-sheet-draft.js";
 
 function cors(res) {
@@ -90,6 +91,13 @@ export default async function handler(req, res) {
       if (req.query?.op === "publication_review") {
         const review = await reviewOwnedTeacherSheetPublication(q, user.id, req.query?.replica_id);
         return review ? res.status(200).json(review) : notFound(res);
+      }
+      // WS-R178. A read, never a write: proposals the studio shows with
+      // their citations, accepted or edited one at a time, saved through
+      // the unchanged op:"save_draft" below.
+      if (req.query?.op === "draft_from_sources") {
+        const draft = await draftOwnedPersonSheet(q, user.id, req.query?.replica_id);
+        return draft ? res.status(200).json(draft) : notFound(res);
       }
       const sheet = await readOwnedTeacherSheet(q, user.id, req.query?.replica_id);
       return sheet ? res.status(200).json({ sheet }) : notFound(res);

@@ -63,6 +63,56 @@
 .humanos-chip-list li span { font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
 .humanos-chip-list li .text-button { font-size: 11px; }
 
+/* WS-R178. "Draft it from what I gave" — own class names, the same
+   `.humanos-card .field-note` contrast fix above applied here too, since
+   this section sits outside `.humanos-grid`'s own cards. */
+.humanos-draft {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper);
+  margin-top: 22px;
+}
+.humanos-draft h3 { margin: 0 0 8px; color: var(--forest-deep); font: 500 18px/1.2 var(--serif); letter-spacing: -0.01em; }
+.humanos-draft .field-note { color: var(--ink); }
+
+.humanos-draft-proposals {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.humanos-draft-proposal {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.humanos-draft-proposal p { margin: 0; overflow-wrap: anywhere; }
+.humanos-draft-citation { font-size: 13px; color: var(--ink); }
+.humanos-draft-proposal-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.humanos-draft-gaps {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.humanos-draft-gaps li {
+  font-size: 13px;
+  color: var(--ink);
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
 @media (max-width: 590px) {
   .humanos-studio { padding: 23px 17px; }
   .humanos-grid { grid-template-columns: 1fr; }

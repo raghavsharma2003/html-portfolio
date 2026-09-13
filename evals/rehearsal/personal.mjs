@@ -722,6 +722,24 @@ async function startServer() {
   const contextItemsHandler = (await import(pathToFileURL(join(ROOT, "api/context-items.js")).href)).default;
   const replicaReviewHandler = (await import(pathToFileURL(join(ROOT, "api/replica-review.js")).href)).default;
   const replicaPersonModelHandler = (await import(pathToFileURL(join(ROOT, "api/replica-person-model.js")).href)).default;
+  // WS-R178. The REAL `api/teacher-sheet.js` handler, wired narrowly: only
+  // `op:"draft_from_sources"` (a READ, never a write) is delegated to it.
+  // Every other op keeps the exact static `FALLBACK_JSON_ROUTES` answer this
+  // file already gave before this workstream — `personalDb`'s own SQL
+  // pattern table has never been exercised against `PRIVATE_TEACHER_SHEET_
+  // READ_SQL`/`_SAVE_SQL`/`BOUND_TEACHER_SHEET_PUBLISH_SQL`, and widening
+  // this door to every op would risk a regression in the twenty-odd OTHER
+  // assertions this walk already makes, for a save/publish/validate path
+  // this workstream's own brief does not touch. `draftOwnedPersonSheet`
+  // itself only calls `ownedPersonModelStatus` (`api/_person-model.js`) —
+  // the SAME read the Evolve section below already exercises successfully
+  // through `/api/replica-person-model` — so this delegates to the real
+  // decision module without needing any new fixture SQL pattern at all.
+  const teacherSheetHandler = (await import(pathToFileURL(join(ROOT, "api/teacher-sheet.js")).href)).default;
+  const teacherSheetDraftOnlyHandler = async (req, res) => {
+    if (req.method === "GET" && req.query?.op === "draft_from_sources") return teacherSheetHandler(req, res);
+    return res.status(200).json(FALLBACK_JSON_ROUTES["/api/teacher-sheet"]);
+  };
   const replicaRuntimeHandler = (await import(pathToFileURL(join(ROOT, "api/replica-runtime.js")).href)).default;
   const replicaDialogueHandlerModule = await import(pathToFileURL(join(ROOT, "api/replica-dialogue.js")).href);
   const replicaDialogueHandler = replicaDialogueHandlerModule.default;
@@ -779,6 +797,7 @@ async function startServer() {
         "/api/replica-source": replicaSourceHandler,
         "/api/replica-review": replicaReviewHandler,
         "/api/replica-person-model": replicaPersonModelHandler,
+        "/api/teacher-sheet": teacherSheetDraftOnlyHandler,
         "/api/replica-runtime": replicaRuntimeHandler,
         "/api/replica-dialogue": replicaDialogueHandler,
       };
@@ -1118,6 +1137,41 @@ async function main() {
     const approveBody = await approveResponse.json().catch(() => ({}));
     ok("Evolve: approving the profile through the real door succeeded", approveResponse.status === 200 && approveBody.profile?.status === "approved", JSON.stringify(approveBody));
     timings.evolveMs = Date.now() - tStep;
+
+    // ── HumanOS: "Draft it from what I gave" (WS-R178) — the real
+    //    decision module, against the real accepted-claims read this walk
+    //    just proved works (`ownedPersonModelStatus`, the SAME function the
+    //    Evolve section's own `/api/replica-person-model` GET calls). Two
+    //    honest outcomes: the four claims Evolve seeded above all carry
+    //    `citation_previews: []` (a rehearsal-fixture limitation, not a
+    //    product fact) and must draft NOTHING; three fresh, CITED "value"
+    //    claims pushed here must draft real, cited personValues lines. ────
+    tStep = Date.now();
+    const noCitationDraft = await (await fetch(
+      `${url}/api/teacher-sheet?op=draft_from_sources&replica_id=${rid}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    )).json();
+    ok(
+      "HumanOS draft: the Evolve section's own citation-less claims draft an honest EMPTY set of proposals, never a fabricated line",
+      Array.isArray(noCitationDraft.proposals) && noCitationDraft.proposals.length === 0 && Array.isArray(noCitationDraft.gaps) && noCitationDraft.gaps.length > 0,
+      JSON.stringify(noCitationDraft.proposals),
+    );
+    state.personClaims.push(
+      { claim_id: "5", replica_id: rid, owner_user_id: ownerId, domain: "value", key: "value", body: "curiosity", origin: "described", confidence: 0.9, status: "approved", sensitive: false, source_ids: [], t_valid_from: null, t_valid_to: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), decision: "accepted", reason_code: "accurate", reviewed_at: new Date().toISOString(), citation_previews: [{ excerpt: "I get curious about the smallest things.", entailment: 0.9 }] },
+      { claim_id: "6", replica_id: rid, owner_user_id: ownerId, domain: "value", key: "value", body: "directness", origin: "described", confidence: 0.9, status: "approved", sensitive: false, source_ids: [], t_valid_from: null, t_valid_to: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), decision: "accepted", reason_code: "accurate", reviewed_at: new Date().toISOString(), citation_previews: [{ excerpt: "Prefers saying things plainly.", entailment: 0.85 }] },
+      { claim_id: "7", replica_id: rid, owner_user_id: ownerId, domain: "value", key: "value", body: "showing up on time", origin: "described", confidence: 0.9, status: "approved", sensitive: false, source_ids: [], t_valid_from: null, t_valid_to: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), decision: "accepted", reason_code: "accurate", reviewed_at: new Date().toISOString(), citation_previews: [{ excerpt: "Always arrives early.", entailment: 0.8 }] },
+    );
+    const citedDraft = await (await fetch(
+      `${url}/api/teacher-sheet?op=draft_from_sources&replica_id=${rid}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    )).json();
+    const valueProposals = (citedDraft.proposals || []).filter((p) => p.field === "personValues");
+    ok(
+      "HumanOS draft: three fresh, CITED value claims draft real personValues proposals, each carrying its own citation",
+      valueProposals.length === 3 && valueProposals.every((p) => Array.isArray(p.citations) && p.citations.length > 0),
+      JSON.stringify(valueProposals),
+    );
+    timings.humanOsDraftMs = Date.now() - tStep;
 
     // ── MEET (text-ready): the real door serves an apprentice AI on a
     //    person sheet alone, no voice pipeline reached — WS-R161's own gap.
