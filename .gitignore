@@ -78,3 +78,6 @@ api/_config.env
 # WS-R43: screenshots the Room layout gate writes on every run (evidence for
 # a human, not a build artifact) — never committed.
 evals/room-browser/shots/
+
+# scratch directories the expert-answer-inline suite writes beside the tree
+.tmp-expert-answer-inline-*/
