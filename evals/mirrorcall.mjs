@@ -62,7 +62,24 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..");
-const STUDIO_SOURCE = readFileSync(join(REPO, "src/studio/MirrorCallStudio.tsx"), "utf8");
+// WS-R166 (wave twenty-two) moved every user-visible string of
+// MirrorCallStudio.tsx into the personal studio's copy registry
+// (src/studio/copy.ts's EN_MIRROR_CALL_STUDIO block), so the copy-shaped
+// scans below read the component PLUS that one English block: the property
+// (what the owner is told, and which branch carries it) is what this suite
+// freezes, never which file carries the sentence
+// (context/rejected.md#frozen-file-merge-controls-break-on-the-next-change),
+// the same pattern already used at this merge in evals/voice-preview-ui.mjs
+// and evals/vyakti-app/run.mjs.
+function englishMirrorCallStudioCopy(repo) {
+  const source = readFileSync(join(repo, "src/studio/copy.ts"), "utf8");
+  const start = source.indexOf("const EN_MIRROR_CALL_STUDIO");
+  if (start < 0) throw new Error("EN_MIRROR_CALL_STUDIO not found in src/studio/copy.ts");
+  const end = source.indexOf("\n};\n", start);
+  return source.slice(start, end + 4);
+}
+const STUDIO_SOURCE = readFileSync(join(REPO, "src/studio/MirrorCallStudio.tsx"), "utf8")
+  + "\n" + englishMirrorCallStudioCopy(REPO);
 const STUDIO_CSS = readFileSync(join(REPO, "src/studio/studio.css"), "utf8");
 const OUT = mkdtempSync(join(tmpdir(), "mirrorcall-"));
 const ENTRY = join(OUT, "entry.ts");

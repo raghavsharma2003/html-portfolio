@@ -19128,6 +19128,42 @@
       "kind": "component",
       "title": "scripts/check-schema-mirror.mjs + evals/schema-mirror/run.mjs: proves every table/column/index/routine a migration declares exists by name in db/schema.sql, the 25th verify-release.mjs check (2026-09-13)",
       "at": "scripts/check-schema-mirror.mjs"
+    },
+    {
+      "id": "ws-r171-literal-string-scans-missed-the-studio-copy-registry",
+      "kind": "rejection",
+      "title": "mirrorcall/mirrorownerspeaker/studioselftestui scanned MirrorCallStudio.tsx/VoicePreviewPanel.tsx literal text; WS-R166 moved it to copy.ts's EN_MIRROR_CALL_STUDIO/EN_VOICE_PREVIEW_PANEL; fixed by reading component + registry English block, the voice-preview-ui.mjs pattern generalized",
+      "at": "context/rejected.md#ws-r171-literal-string-scans-missed-the-studio-copy-registry"
+    },
+    {
+      "id": "ws-r171-registry-conversion-introduced-a-resolved-label-binding-static-extractors-did-not-know-about",
+      "kind": "rejection",
+      "title": "teach-cta/mined-cta broke on ContextLockerPanel's teachSourceLabel/testSourceLabel renamed to resolvedTeachSourceLabel/resolvedTestSourceLabel by WS-R166; teach-cta's regex mismatched cleanly, mined-cta's VM-extracted JSX slice threw ReferenceError since the extraction never included the new binding",
+      "at": "context/rejected.md#ws-r171-registry-conversion-introduced-a-resolved-label-binding-static-extractors-did-not-know-about"
+    },
+    {
+      "id": "ws-r171-localized-menu-buttons-render-hindi-when-suites-always-request-lang-hi",
+      "kind": "rejection",
+      "title": "feed-meet-return-ui/private-text-rehearsal-ui always request lang=hi; WS-R166 made the enrich-menu and ContextLockerPanel buttons locale-aware, so they now render Hindi where the suites pinned English; fixed with bilingual locators, no component change",
+      "at": "context/rejected.md#ws-r171-localized-menu-buttons-render-hindi-when-suites-always-request-lang-hi"
+    },
+    {
+      "id": "ws-r171-recorder-probe-extraction-had-no-import-for-the-new-locale-hook",
+      "kind": "rejection",
+      "title": "recorder-lifecycle's standalone ResonanceRecorder probe never imported useStudioLocale, added by WS-R166; the probe threw ReferenceError on mount; fixed by importing the hook (no provider needed, per localeContext.tsx's own no-provider English fallback)",
+      "at": "context/rejected.md#ws-r171-recorder-probe-extraction-had-no-import-for-the-new-locale-hook"
+    },
+    {
+      "id": "ws-r171-owner-memory-panels-automatic-status-load-was-not-ws-r166-at-all",
+      "kind": "rejection",
+      "title": "conversation-setup-ui/dialogue-history-ui broke from WS-R167 (not WS-R166): ExpertConversation's new automatic memory_status POST fell through each suite's fixture-server catch-all, miscounted as a turn creation or an implicit new session; fixed by answering memory_status honestly in both fixtures",
+      "at": "context/rejected.md#ws-r171-owner-memory-panels-automatic-status-load-was-not-ws-r166-at-all"
+    },
+    {
+      "id": "ws-r171-wave-22-merge-repairs-ten-suites-2026-09-13",
+      "kind": "measurement",
+      "title": "Ten suites the wave-22 merge gate (ee7ac84) failed, each individually before/after this session's fix (feed-meet-teach-cta 16/16, feed-meet-mined-cta 15/15, feed-meet-return-ui 13/13, private-text-rehearsal-ui 20/20, conversation-setup-ui 46/46, dialogue-history-ui 30/30, recorder-lifecycle 12/12, mirrorcall 81/81, mirrorownerspeaker 37/37, studioselftestui 36/36); full registry, tsc, check-copy, check-mirrors and context.mjs --check all re-run clean",
+      "at": "context/measurements.md#ws-r171-wave-22-merge-repairs-ten-suites-2026-09-13"
     }
   ],
   "edges": [
@@ -32553,6 +32589,56 @@
       "src": "voice-preference-fk-tuple-has-no-matching-unique-constraint",
       "rel": "supersedes",
       "dst": "ws-r170-schema-mirror-sweep-2026-09-13"
+    },
+    {
+      "src": "ws-r171-wave-22-merge-repairs-ten-suites-2026-09-13",
+      "rel": "measured_by",
+      "dst": "ws-r171-literal-string-scans-missed-the-studio-copy-registry"
+    },
+    {
+      "src": "ws-r171-wave-22-merge-repairs-ten-suites-2026-09-13",
+      "rel": "measured_by",
+      "dst": "ws-r171-registry-conversion-introduced-a-resolved-label-binding-static-extractors-did-not-know-about"
+    },
+    {
+      "src": "ws-r171-wave-22-merge-repairs-ten-suites-2026-09-13",
+      "rel": "measured_by",
+      "dst": "ws-r171-localized-menu-buttons-render-hindi-when-suites-always-request-lang-hi"
+    },
+    {
+      "src": "ws-r171-wave-22-merge-repairs-ten-suites-2026-09-13",
+      "rel": "measured_by",
+      "dst": "ws-r171-recorder-probe-extraction-had-no-import-for-the-new-locale-hook"
+    },
+    {
+      "src": "ws-r171-wave-22-merge-repairs-ten-suites-2026-09-13",
+      "rel": "measured_by",
+      "dst": "ws-r171-owner-memory-panels-automatic-status-load-was-not-ws-r166-at-all"
+    },
+    {
+      "src": "ws-r171-literal-string-scans-missed-the-studio-copy-registry",
+      "rel": "caused_by",
+      "dst": "ws-r166-personal-studio-hindi-tier-two-string-count-and-chunk-size-2026-09-13"
+    },
+    {
+      "src": "ws-r171-registry-conversion-introduced-a-resolved-label-binding-static-extractors-did-not-know-about",
+      "rel": "caused_by",
+      "dst": "ws-r166-personal-studio-hindi-tier-two-string-count-and-chunk-size-2026-09-13"
+    },
+    {
+      "src": "ws-r171-localized-menu-buttons-render-hindi-when-suites-always-request-lang-hi",
+      "rel": "caused_by",
+      "dst": "ws-r166-personal-studio-hindi-tier-two-string-count-and-chunk-size-2026-09-13"
+    },
+    {
+      "src": "ws-r171-recorder-probe-extraction-had-no-import-for-the-new-locale-hook",
+      "rel": "caused_by",
+      "dst": "ws-r166-personal-studio-hindi-tier-two-string-count-and-chunk-size-2026-09-13"
+    },
+    {
+      "src": "ws-r171-owner-memory-panels-automatic-status-load-was-not-ws-r166-at-all",
+      "rel": "caused_by",
+      "dst": "ws-r167-meet-continuity-offline-proofs-2026-09-13"
     }
   ]
 }

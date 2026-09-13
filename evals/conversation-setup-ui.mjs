@@ -84,6 +84,17 @@ const server = createServer(async (req, res) => {
     if (url.pathname === "/api/replica-dialogue" && req.method === "GET") return json(200, { history: {
       replica_id: url.searchParams.get("replica_id"), session_id: null, exchanges: [], pending: false, billing_pending: false, latest_request: null,
     } });
+    // WS-R167: ExpertConversation now loads the owner's own "It remembers"
+    // status as soon as the runtime is reachable at all (readMeetMemoryStatus,
+    // a POST with op "memory_status"), independent of anything this suite
+    // drives. Before this handler existed the request fell through to the
+    // generic turn-creation branch below, got back a `{turn:...}` shape with
+    // no `memory_on` boolean, and dialogueApi.ts's own shape guard
+    // (`invalidMemory()`) threw a caught 502 — silently swallowed by
+    // ExpertConversation's catch, but still a real extra write this fixture
+    // was misrepresenting as a turn creation. Answered honestly (memory off,
+    // matching a fresh synthetic replica with no memory-scope consent).
+    if (url.pathname === "/api/replica-dialogue" && writes.at(-1)?.body.op === "memory_status") return json(200, { memory_on: false });
     if (url.pathname === "/api/replica-dialogue" && writes.at(-1)?.body.op === "open_session") return json(201, { session: {
       replica_id: writes.at(-1).body.replica_id, session_id: writes.at(-1).body.session_id,
     } });
@@ -178,8 +189,20 @@ try {
     await page.getByRole("heading", { name: "जवाब सेव हो गया", exact: true }).waitFor();
     assert.equal(await setup().count(), 0); assert.equal(await status().getByRole("button").count(), 0); assert.equal(await ask().isDisabled(), true);
     assert.equal(await page.getByText("Synthetic reply retained while usage is reconciled.", { exact: true }).count(), 1);
-    assert.equal(writes.length, 2); assert.equal(writes[0].body.op, "open_session");
-    assert.equal(writes[1].path, "/api/replica-dialogue"); assert.equal(writes[1].body.session_id, writes[0].body.session_id);
+    // WS-R167's own automatic "It remembers" status load (a POST with op
+    // "memory_status", see the fixture server above) fires once the runtime
+    // becomes reachable, independent of this flow's own session-open and
+    // turn-create writes; the PROPERTY this check protects ("reconciliation
+    // preserves reply without setup or automatic retry" — exactly one
+    // session open and one turn create, no silent extra dialogue write) is
+    // unaffected by that unrelated background load, so it is counted
+    // separately rather than folded into a widened total
+    // (context/rejected.md#frozen-file-merge-controls-break-on-the-next-change:
+    // freeze the property, not a byte-for-byte total).
+    assert.equal(writes.filter(write => write.body.op === "memory_status").length, 1);
+    const dialogueWrites = writes.filter(write => write.body.op !== "memory_status");
+    assert.equal(dialogueWrites.length, 2); assert.equal(dialogueWrites[0].body.op, "open_session");
+    assert.equal(dialogueWrites[1].path, "/api/replica-dialogue"); assert.equal(dialogueWrites[1].body.session_id, dialogueWrites[0].body.session_id);
     checks.push(`${width}: reconciliation preserves reply without setup or automatic retry`);
     assert.equal(await page.locator('.expert-conversation__audio-note').count(),0,'billing reconciliation must not be described as continuity');
     for(const lang of ['en','hi'])for(const scenario of ['continuity','other-disabled','ordinary-voice']){

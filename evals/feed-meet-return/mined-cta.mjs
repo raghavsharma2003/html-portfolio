@@ -20,7 +20,19 @@ function renderer(source, requireCurrent = false){
  function visit(node){if(ts.isJsxExpression(node)&&node.expression&&ts.isConditionalExpression(node.expression)&&node.expression.getText(ast).startsWith('onTestSource &&'))expression=node.expression.getText(ast);ts.forEachChild(node,visit);}visit(ast);assert(expression,'actual CTA expression');
  if(requireCurrent){assert.equal(expression.split(current).length,2,'Test CTA keeps its exact extracted/mined eligibility');assert.throws(()=>assert.equal(expression.replace(current,'true').split(current).length,2));}
  const code=ts.transpileModule('globalThis.render=(item,onTestSource,busy=false,loading=false)=>('+expression+');',{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None,jsx:ts.JsxEmit.React}}).outputText;
- const ctx={React,replicaId:'10000000-0000-4000-8000-000000000001',mounted:{current:true},testSourceLabel:'Test this source'};runInNewContext(code,ctx);return ctx.render;
+ // WS-R166 moved the button's own default label into the studio copy
+ // registry (src/studio/copy.ts's EN_CONTEXT_LOCKER_PANEL.testThisSource, byte
+ // identical to the pre-conversion default "Test this source") and the CTA
+ // JSX extracted above now reads `resolvedTestSourceLabel` (the
+ // `testSourceLabel` prop override, falling back to the registry value)
+ // rather than `testSourceLabel` directly — a binding declared just outside
+ // this extracted expression in the real component. The old fixture's
+ // pinned expression (`old`, above) still reads `testSourceLabel` directly,
+ // so both names are provided here rather than renaming the fixture's own
+ // pinned variable (context/rejected.md
+ // #frozen-file-merge-controls-break-on-the-next-change: freeze the
+ // property — the same real text renders either way — never the file).
+ const ctx={React,replicaId:'10000000-0000-4000-8000-000000000001',mounted:{current:true},testSourceLabel:'Test this source',resolvedTestSourceLabel:'Test this source'};runInNewContext(code,ctx);return ctx.render;
 }
 const before=renderer(old),after=renderer(source,true),callback=()=>{};
 const item={item_id:'30000000-0000-4000-8000-000000000001',kind:'file',status:'mined',extracted_chars:200,consent_scope:'own_context',authorship:'mine',format:'text'};

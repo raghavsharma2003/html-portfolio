@@ -19,6 +19,18 @@ const preamble = `import {useCallback,useEffect,useRef,useState} from 'react';
 import {AnimatePresence,motion,useReducedMotion} from 'framer-motion';
 import {openPrivateWavCapture} from 'virtual:recorder-device';
 import {ENROLLMENT_LANGUAGE_LABELS} from ${JSON.stringify(join(ROOT,'src/studio/enrollmentLanguage.ts'))};
+// WS-R166 moved ResonanceRecorder's own strings into the studio copy
+// registry, read through useStudioLocale() (src/studio/localeContext.tsx).
+// This probe mounts ResonanceRecorder standalone with no
+// StudioLocaleProvider above it -- the same posture the real production
+// entry never uses, but one useStudioLocale() is explicitly built to
+// survive (its header: "Never throws outside a provider: falls back to
+// en... a file mounted by an eval harness or fixture with no provider
+// still renders real English"). Importing the hook is therefore both
+// necessary (the extracted function calls it directly and previously had
+// no import for it at all) and sufficient (no provider wrapper needed) for
+// the real registry-driven English strings this suite asserts against.
+import {useStudioLocale} from ${JSON.stringify(join(ROOT,'src/studio/localeContext.tsx'))};
 const VoiceField=()=>null;
 ${constants}\n`;
 const base = join(ROOT, 'scratchpad'); mkdirSync(base, {recursive:true});

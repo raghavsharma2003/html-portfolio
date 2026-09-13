@@ -65,5 +65,16 @@ for (const stale of [
 ]) stale();
 assert.deepEqual(rooms, ["evolve"], "stale account, token, replica, item, and unmounted callbacks cannot navigate");
 assert.match(lockerSource, /onTeachSource && teachableSource/);
-assert.match(lockerSource, />\{teachSourceLabel\}<\/button>/);
+// WS-R166 moved the button's own default label into the studio copy
+// registry (src/studio/copy.ts's EN_CONTEXT_LOCKER_PANEL.teachYourAi, byte
+// identical to the pre-conversion default "Teach your AI"); the button now
+// renders `resolvedTeachSourceLabel` (the `teachSourceLabel` prop override,
+// falling back to the registry value) rather than the raw prop directly.
+// This freezes the PROPERTY (an override-or-registry-default label renders
+// inside the button), not the exact variable name
+// (context/rejected.md#frozen-file-merge-controls-break-on-the-next-change).
+assert.match(lockerSource, /const resolvedTeachSourceLabel = teachSourceLabel \?\? copy\.teachYourAi;/);
+assert.match(lockerSource, />\{resolvedTeachSourceLabel\}<\/button>/);
+const copySource = readFileSync(root + "src/studio/copy.ts", "utf8");
+assert.match(copySource, /teachYourAi: "Teach your AI",/);
 console.log("PASS 16 teach-path source and scope controls; no browser, API, database, or provider claim.");

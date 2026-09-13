@@ -18534,3 +18534,22 @@ Both real gaps fixed by appending idempotent `create index if not exists`/`alter
 ## `ws-r170-rate-limit-suite-2026-09-13` (WS-R170)
 
 Method: `node evals/rate-limit/run.mjs` on the ws-r170 worktree, 2026-09-13. n=94 assertions (up from 65 before this workstream's own §9), 0 failed. New in §9: 5 new `DEFAULT_LIMITS` scope-definition checks, 4 static wiring proofs (`api/replica-vibe.js`, `api/replica-calibration.js`, `api/room.js` x2, `api/teacher-sheet.js`, each asserting the `refused()`/`consume()` call sits between the op dispatch and the real decision-module call it guards), 1 scope-exists-for-every-caller check, and NEGATIVE CONTROL (e): 21 `teacher_sheet_publish_owner` calls against one fixture owner in one fixture day — calls 1 through 20 admitted, the 21st refused with `rate_limited`, a different owner's first call the same window unaffected. `node evals/room-doors/run.mjs` re-run after the wiring changes: 2333 of 2333 (unchanged count, confirming no existing op/door coverage regressed). `node evals/room-leak/run.mjs`: 363 of 363 (unchanged). `node evals/room-export/run.mjs`: 48 of 48 (unchanged).
+
+## `ws-r171-wave-22-merge-repairs-ten-suites-2026-09-13` (WS-R171)
+
+Method: each of the ten suites the wave-twenty-two merge gate (ee7ac84) failed, run individually with `node evals/run.mjs <name>` before and after this session's fix, on the ws-r171 worktree, 2026-09-13, no database or provider touched. "Before" counts are the first checkpoint each suite reaches before its own crash (a `console.log`d running count where the suite has one; a checkpoint's own reported partial state otherwise), not a full independent pass — several of these suites crash the Node process on the first failing assertion (`assert.equal`/`assert.match` throw uncaught) so no later checks in the same file execute at all, which is itself part of what "before" means here.
+
+| suite | before | after | cause class (`context/rejected.md#`) |
+|---|---|---|---|
+| `feed-meet-teach-cta` | crash before its one final PASS line (16 prior asserts pass silently, the 17th match fails) | 16/16 | `ws-r171-registry-conversion-introduced-a-resolved-label-binding-static-extractors-did-not-know-about` |
+| `feed-meet-mined-cta` | 1/15 (crashes with `ReferenceError` on check 2) | 15/15 | same |
+| `feed-meet-return-ui` | 0/13 (times out on the first mounted check) | 13/13 | `ws-r171-localized-menu-buttons-render-hindi-when-suites-always-request-lang-hi` |
+| `private-text-rehearsal-ui` | 0/20 (same) | 20/20 | same |
+| `conversation-setup-ui` | 9/46 (crashes on the write-count assertion of check 10) | 46/46 | `ws-r171-owner-memory-panels-automatic-status-load-was-not-ws-r166-at-all` |
+| `dialogue-history-ui` | 0/30 (crashes on the session-count assertion of check 1) | 30/30 | same |
+| `recorder-lifecycle` | 0/12 (times out on the first mounted check) | 12/12 | `ws-r171-recorder-probe-extraction-had-no-import-for-the-new-locale-hook` |
+| `mirrorcall` | 79/81 | 81/81 | `ws-r171-literal-string-scans-missed-the-studio-copy-registry` |
+| `mirrorownerspeaker` | 33/37 | 37/37 | same |
+| `studioselftestui` | 35/36 | 36/36 | same |
+
+After all ten fixes: `node evals/run.mjs` (the full registry) run once, foreground/backgrounded-to-completion, on a quiet machine (load average ~1.6-2.1, `uptime` checked immediately before starting), 2026-09-13 — **434 suites, 0 failed** (`grep -c` of the runner's own per-suite `ok    <name> (Nms)` completion lines; no `^FAIL` line anywhere in the ~25,500-line transcript; process exit code 0). `npx tsc -b`: clean, 0 errors. `node scripts/check-copy.mjs`: `7 scopes clean, 21 negative controls bit`. `node scripts/check-mirrors.mjs`: `10 marker(s) checked across 330 file(s), 0 disagree`. `node scripts/context.mjs --check`: run after this session's own context appends, see `context/STATE.md`'s session log for its result.
