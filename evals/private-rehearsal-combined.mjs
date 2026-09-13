@@ -50,7 +50,14 @@ const eligible="s.capture_mode in ('upload','import','derived')";
 const excluded=" and s.purpose<>'comparison_reference'";
 const incumbentIntent=prior(intentPath);
 assert.equal(incumbentIntent.split(eligible).length-1,2);
-const verifyIntent=text=>assert.equal(text,incumbentIntent.replaceAll(eligible,eligible+excluded));
+// The control is the PROPERTY (every eligible clause carries the exclusion,
+// at both entry points), not byte-equality to the historical file: the file
+// has since gained the processing source-scope import (processing204) and
+// will change again. A bare eligible clause anywhere is the omission mutant.
+const verifyIntent=text=>{
+ assert.equal(text.split(eligible+excluded).length-1,2,'both entry points exclude comparison-only references');
+ assert.equal(text.split(eligible).length-1,2,'no eligible clause without the exclusion');
+};
 const currentIntent=read(intentPath);verifyIntent(currentIntent);
 for(const name of ['create','promote']) {
  assert.ok(sql[name]?.sql,`${name} production query captured`);

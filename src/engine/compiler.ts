@@ -621,6 +621,17 @@ export const PLATFORM_STAGE_ESTABLISHED =
  * before extraction, for every input this codebase can produce. See
  * `src/engine/__fixtures__/byte-identity.mjs` for the proof harness.
  */
+/** The rupture stance lapses by wall-clock days (`relstate.ts#ruptureStance`),
+ * so the two relationship renders below must read the SAME clock the rest of
+ * this compile reads (`input.nowMs`, the one `commitmentAge` already uses).
+ * Left to their own `new Date()` default they drifted from the caller's
+ * clock: `evals/rupture-channel` pins NOW at 2026-08-22 and its freshly
+ * opened rupture rendered as "settled 3w" once the calendar passed the
+ * lapse. An absent nowMs keeps the default, so production is unchanged. */
+function compileClock(nowMs: number | undefined): Date | undefined {
+  return typeof nowMs === "number" ? new Date(nowMs) : undefined;
+}
+
 export function compile(input: CompileInput): CompiledPrompt {
   const publicKnowledge = renderPublicKnowledge(input.publicKnowledge);
   if (input.replyLanguagePolicy !== undefined && input.replyLanguagePolicy !== "follow_current_user") {
@@ -636,7 +647,7 @@ export function compile(input: CompileInput): CompiledPrompt {
     ? stageForDims(input.relBundle.relState, {
         lastRuptureMoveAt: input.relBundle.lastRuptureMoveAt,
         warmEpisodesSinceRupture: input.relBundle.warmEpisodesSinceRupture,
-      })
+      }, compileClock(input.nowMs))
     : undefined;
   // SPEC-AGENT-LAYER.md §3: the injected agent, defaulting to Meera's
   // module. Every call below that used to reach persona.ts directly now
@@ -762,7 +773,7 @@ export function compile(input: CompileInput): CompiledPrompt {
         lastHonorificMoveAt: input.relBundle.lastHonorificMoveAt,
         lastRuptureMoveAt: input.relBundle.lastRuptureMoveAt,
         warmEpisodesSinceRupture: input.relBundle.warmEpisodesSinceRupture,
-      });
+      }, compileClock(input.nowMs));
       if (t2.text) tail += `\n\n${t2.text}`;
     }
     _track("T2");

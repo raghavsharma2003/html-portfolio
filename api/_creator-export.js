@@ -276,6 +276,12 @@ export function followerLaneTableNames() {
  *  erasure.js` reaches never shows up in a creator's own export. */
 export const OWNER_LANE_DELIBERATE_GAPS = Object.freeze([
   "vy_payment_event",
+  // Migration 161 (Codex, 2026-09-09): the GPU admission window that
+  // processed a source. Processing-PROCESS bookkeeping like the erasure job
+  // rows below: it exists only while a GPU window is admitted, carries a
+  // window id, revision and source hash rather than any of the creator's own
+  // content, and full erasure deletes it by replica and owner. Not exported.
+  "vy_processing_gpu_authority",
   "vy_replica_erasure_job",
   "vy_replica_erasure_attempt",
   "vy_room_referral",

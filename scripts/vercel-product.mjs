@@ -9,9 +9,15 @@
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
+// The Vyakti branch family: the original platform branch plus every
+// claude/vyakti-cloning-platform-* ref (matched as a pattern so a rename inside
+// the family needs no script change, the rule vercel-build.sh documents). A
+// companion branch keeps Meera's landing; the studio project sets STUDIO_ROOT.
+const VYAKTI_BRANCH = /^(claude\/gurukul-platform|claude\/vyakti-cloning-platform-[a-z0-9-]+)$/;
+
 export function vercelProduct(environment = process.env) {
   return environment.STUDIO_ROOT === "1" ||
-    environment.VERCEL_GIT_COMMIT_REF === "claude/gurukul-platform"
+    VYAKTI_BRANCH.test(environment.VERCEL_GIT_COMMIT_REF || "")
     ? "vyakti-clone"
     : "meera-companion";
 }

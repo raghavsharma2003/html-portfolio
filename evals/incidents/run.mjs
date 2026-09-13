@@ -861,6 +861,7 @@ const INJECTED_PROVIDER_EXCLUSIONS = {
   "_liveness/providers/azure-composite.js": "Owner liveness verification evidence lifecycle, not follower delivery.",
   "_provenance/providers/azure-protection.js": "Protected artifact sealing/provenance lifecycle; not the Room incident provider taxonomy.",
   "_room-memory-consolidation.js": "Opt-in Room memory consolidation via consolidate-sweep.js; checked below for exact caller, lease/budget, bounded Azure transport and sweep-failure observation wiring.",
+  "_replica-processing/gpu-observer.js": "Read-only ARM metadata GETs that verify the shared GPU evidence app before processing admission; fails closed with its own processing_gpu_metadata_unverified code, never a Room delivery provider.",
   "_replica-processing/providers/azure-fast-transcription.js": "Enrollment processing job transcription lifecycle.",
   "_replica-processing/providers/azure-voice-evidence.js": "Enrollment processing voice-evidence job lifecycle.",
   "_replica-storage.js": "Private storage upload/read/erasure lifecycle; not a Room provider delivery seam.",

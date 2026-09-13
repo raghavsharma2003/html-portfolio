@@ -332,7 +332,7 @@ const {
   openRoom, joinRoom, roomSay, roomSetLocale, followerHistory, createFollowerThread,
   roomCitations, roomExport, roomForget, roomDismissOffer, ROOM_SESSION_TTL_MS,
   roomDisclosureCard, roomSettings, roomSettingsReviewed, roomSetQuietHours,
-  roomRememberedThings, roomCorrectRememberedThing, roomForgetRememberedThing,
+  roomRememberedThings, roomCorrectRememberedThing, roomForgetRememberedThing, roomReclassifyRememberedThing,
   flagReply, unflagReply, followerFlags,
   // WS-R100 (migration 126). The follower's own receipt.
   roomReceipt, roomReceipts,
@@ -2832,6 +2832,10 @@ const OP_COVERAGE = {
     memory_facts: { classes: ["a", "b"] },
     memory_correct: { classes: ["a", "b", "c"] },
     memory_forget: { classes: ["a", "b", "c"] },
+    // Explicit retry of an unconfirmed communication classification (Codex
+    // 2026-09-09, migration 162): the same session + bearer/person match and
+    // the same attacker-controlled fact id as memory_correct/memory_forget.
+    memory_classify: { classes: ["a", "b", "c"] },
     // WS-R131 (migration 134). "Set once, in your account" - the SAME
     // classes and shape as settings_reviewed immediately above: goes
     // through selfScope, no body-supplied person/follower id at all
@@ -4512,6 +4516,7 @@ const OP_INVOKE = {
       session: body.session, factId: body.fact_id, replacement: body.replacement,
     }, fuzzDeps),
     memory_forget: (db, body) => roomForgetRememberedThing(db, { session: body.session, factId: body.fact_id }, fuzzDeps),
+    memory_classify: (db, body) => roomReclassifyRememberedThing(db, { session: body.session, factId: body.fact_id }, fuzzDeps),
     set_quiet_hours: (db, body) => roomSetQuietHours(db, {
       session: body.session, timezone: body.timezone, quietFrom: body.quiet_from, quietTo: body.quiet_to,
     }, fuzzDeps),

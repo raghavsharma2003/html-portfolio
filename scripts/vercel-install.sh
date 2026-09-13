@@ -16,7 +16,22 @@ if [ ! -d src ]; then
   cp -Rn /tmp/meera-src/. .
 fi
 
-node scripts/write-deploy-marker.mjs
+# The authenticated deploy client (scripts/deploy-vercel.mjs) passes the
+# uploaded-source commitment as VYAKTI_SOURCE_* build metadata and the marker
+# is written here, before npm ci can touch the tree. A build started by
+# Vercel's own GitHub integration carries no such metadata: its source
+# identity is the commit Vercel cloned (VERCEL_GIT_COMMIT_SHA), and the build
+# phase computes the release marker from that checkout instead
+# (scripts/vercel-build.sh, deploy-commitment.mjs). Running the strict marker
+# writer without the metadata failed every git-connected deploy from
+# 2026-09-09 (eight ERROR deployments in a row on codex/handoff206).
+if [ -n "${VYAKTI_SOURCE_COMMITMENT:-}" ]; then
+  node scripts/write-deploy-marker.mjs
+elif [ -n "${VERCEL_GIT_COMMIT_SHA:-}" ]; then
+  echo "git-connected deploy of ${VERCEL_GIT_COMMIT_REF:-?} at ${VERCEL_GIT_COMMIT_SHA}: release marker is computed at build time"
+else
+  node scripts/write-deploy-marker.mjs
+fi
 
 # npm ci refuses a package.json/package-lock mismatch and never reconciles or
 # rewrites the lockfile. The marker above remains the uploaded-source identity

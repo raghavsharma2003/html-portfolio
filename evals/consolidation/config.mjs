@@ -107,15 +107,17 @@ try {
   assert.equal(JSON.parse(test.calls.http[0].init.body).model,'grok-4-1-fast-reasoning');
   const delta=costDelta(before);assert.equal(delta.azure_attempts,1);assert.equal(delta.fallback_attempts,0);
  });
- await check('all eight SQL exports and migration159 are identical to frozen84c',()=>{
+ // COMMIT and RECALL were re-frozen at 7e63071 (communication memory backend,
+ // migration 162): both statements gained the fact_communication metadata.
+ await check('all eight SQL exports and migration159 are identical to the frozen set (84c, COMMIT/RECALL re-frozen at 7e63071)',()=>{
   const expected={
    ROOM_MEMORY_BATCH_SQL:'0fa548d63e536c9aba42149c08d91523145514734c706c22725ae266af50df6e',
-   ROOM_MEMORY_COMMIT_SQL:'0f19c8a5c812f03774b36cd78a9c42b991677898f9f89c4405e83db9f75a81d3',
+   ROOM_MEMORY_COMMIT_SQL:'b774b310c033da143d01778688f66226392d0a46b6ce730ab17548b4b9c113fb',
    ROOM_MEMORY_DISCOVERY_SQL:'e4c098229289530e33e266e291c7cbc71e64694e1c697820a056ef818aec6dcc',
    ROOM_MEMORY_FORGET_SQL:'ef6fd4d3710f923b10020882c78440ff3897e424d8923849b5fe6088edb6f996',
    ROOM_MEMORY_HISTORY_SQL:'ab34a8bdb2bea88a3cfd5b51a3c3b742b98ffa9644ae7ebaee3ea35b5bf2f445',
    ROOM_MEMORY_LOG_SQL:'53a5098fe0eeaaf7cb83198f898891052fecb083af4cf732c2d8178ca4920058',
-   ROOM_MEMORY_RECALL_SQL:'b7e9678fd81862992f06e7f60c344610b2cdd45713247e6a9e2da035ac73c1d4',
+   ROOM_MEMORY_RECALL_SQL:'535906d5ce7b10ed470ca2645db29e46f956f52a95c9cda3ec551c2e47a730b9',
    ROOM_MEMORY_REVOKE_SQL:'0c479845218fc404c6dec4142ac128126e877027285a61957e7a47e62dfcb538',
   };
   const hash=value=>createHash('sha256').update(value).digest('hex');

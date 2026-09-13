@@ -342,7 +342,7 @@ ok("ClamAV and the worker lease are bounded for one GiB and long audio",
 ok("one scheduled run can finish an eight-step source and immediately build its VoiceGenome",
   /PROCESSING_JOBS_PER_RUN', value: '12'/.test(workerInfra)
   && /preferredSourceId/.test(runOnce)
-  && /runVoiceGenomeBuildSweep\(\{ db, maxJobs: 4 \}\)/.test(runOnce));
+  && /runVoiceGenomeBuildSweep\(\{ db, maxJobs: 4, sourceScope \}\)/.test(runOnce));
 ok("new recordings are picked up within two minutes without concurrent replicas",
   /cronExpression: '\*\/2 \* \* \* \*'/.test(workerInfra)
   && /parallelism: 1/.test(workerInfra) && /replicaCompletionCount: 1/.test(workerInfra));
