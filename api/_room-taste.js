@@ -134,7 +134,19 @@ export async function roomTaste(db, { slug, message, locale: hintLocale = null, 
   // for a client that ignored that.
   if (resolved.room.taste_enabled === false) throw new RoomError("room_taste_disabled", 404);
 
-  const name = roomNameFor(resolved.sheet);
+  // WS-R160: `roomNameFor` reads `sheet.name` alone, which a published
+  // teacher sheet always carries (`validateTeacherSheet`'s own required
+  // field) but a future non-teacher sheet is not guaranteed to shape the
+  // same way (`context/STATE.md`'s own note that R151's person sheet has
+  // not landed in this tree). Falling back to `resolved.room.display_name`
+  // - `vy_room`'s own copy of the same name, independent of sheet kind - is
+  // "the person sheet's one line" identity this workstream's brief names:
+  // until a dedicated per-sheet-kind field exists, the Room's own name is
+  // the one line every kind of sheet already guarantees, so a taste turn
+  // never renders a disclosure card with an empty name for a Room whose
+  // sheet is not shaped like a teacher's. See
+  // `context/decisions.md#ws-r160-taste-name-falls-back-to-room-display-name`.
+  const name = roomNameFor(resolved.sheet) || resolved.room.display_name || "";
   // Same fallback chain `openRoom` uses for a follower who has not joined
   // yet: a browser hint when present and recognised, otherwise the
   // creator's own `default_locale` — never a hardcoded "en". There is no

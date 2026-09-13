@@ -3089,6 +3089,29 @@ const suites = {
   // Browser(`) and shares the pool's browser budget rather than running
   // unthrottled.
   "vyakti-app": "vyakti-app/run.mjs",
+  // WS-R160 ("the Room and the landing for any person"). The Room's own
+  // copy tables and server-rendered pages (`src/room/copy.ts`/`hiCopy.ts`/
+  // `hiTalkCopy.ts`, `api/_room-about.js`, `api/_room-page.js`) carry no
+  // "creator"/"क्रिएटर" anywhere a stranger reads, the transparency page and
+  // the crawler head say "<Name> AI, made by <Name>, on Vyakti"
+  // (`roomAiTitleLine`), and the Room's chrome is proven sheet-kind
+  // agnostic (identical whether the loaded sheet carries teacher-shaped
+  // fields or not) - four sections, two required negative controls, see
+  // the file's own header. Walks the REAL, bundled `ROOM_COPY_TABLE`, never
+  // a re-typed list of "the strings we changed".
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-copy": "room-copy/run.mjs",
+  // WS-R160. `site/vyakti.html`'s three screens (build it, test and tweak
+  // it, deploy it), its three named systems (HumanOS, EmotionOS,
+  // RelationOS) as section promises, the honest "apprentice" line, and the
+  // absence of "creator" anywhere - proven against the REAL, shipping file
+  // in both `.locale` blocks, plus the real `scripts/check-copy.mjs`
+  // scanner run over that exact source. Four sections, four negative
+  // controls, see the file's own header.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "site-landing": "site-landing/run.mjs",
 };
 
 const argv = process.argv.slice(2);

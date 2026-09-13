@@ -472,6 +472,23 @@ const TARGETS = [
     panels: ".locale:not([hidden]) .hero, .locale:not([hidden]) section",
     minPanels: 2,
   },
+  // WS-R160 ("the Room and the landing for any person"). `site/vyakti.html`
+  // gained `site/suites.html`'s own `.locale`/`data-set-lang` bilingual
+  // shape in this same workstream — the identical target shape, restated
+  // for the second page that now carries it, `dir: "site"` and
+  // `mounted`/`panels` copied verbatim rather than re-derived, so a future
+  // divergence between the two pages' locale mechanics would show up as a
+  // diff here rather than being silently untested on one of them.
+  {
+    name: "vyakti",
+    dir: "site",
+    fixture: "vyakti.html",
+    query: (locale) => (locale === "hi" ? "lang=hi" : ""),
+    steps: ["en", "hi"],
+    mounted: ".locale:not([hidden])",
+    panels: ".locale:not([hidden]) .hero, .locale:not([hidden]) section",
+    minPanels: 2,
+  },
 ];
 
 // WS-R43: `--only <prefix>` runs just the targets whose name starts with

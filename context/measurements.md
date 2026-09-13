@@ -17927,3 +17927,60 @@ Method: `node scripts/verify-release.mjs` once, foreground, `timeout 1500`, on t
 | `evals/run.mjs` (the full ~416-suite registry, standalone, `timeout 2400`) | ran to at least suite 57 of the registry with every suite `ok` except one (`browser-resource`, see below); this process was still running when this entry was written and its own final tally is not recorded here — see the STATE.md session log for whether it was confirmed complete before this session ended |
 
 **One suite failed under the pooled registry and passed alone: `browser-resource`.** `FAIL browser-resource (29913ms)` inside the pooled `evals/run.mjs` run; `node evals/browser-resource/run.mjs` alone: `12/12 ok`. That suite asserts real wall-clock concurrency bounds on the eval runner's OWN browser-resource scheduler (a 12000ms deadline, a `max(active)<=2` assertion) — timing-sensitive by construction, and this workstream touches none of `evals/runner-lib.mjs`, `evals/browser-resource/`, or `evals/suite-resources.mjs`. Read as a load-induced flake, the same shape `context/rejected.md#recovery-fixture-raced-reacts-commit` already documents for a different suite under the identical "passes alone, fails pooled under load" pattern — not re-filed as its own rejected.md entry since it names no defect and no fix, only a measurement.
+
+## ws-r160-room-and-landing-vocabulary-sweep-2026-09-13 (WS-R160)
+
+**What.** A full grep of `teacher`, `student`, `doubt`, `class`, `lesson`,
+`creator`, `follower`, `subject` across `site/*.html`, `src/room/*.ts(x)` and
+every `api/_room-*.js`/`api/_creator-page.js` file, filtered to user-visible
+strings (excluding comments and internal identifiers).
+
+**n and method.** Every match manually classified by hand, one file group at
+a time (`grep -rniE` over the exact word list, then each hit read in context).
+7 exact "creator" hits in `src/room/copy.ts` (mirrored once each in
+`hiCopy.ts`/`hiTalkCopy.ts`, 7 more), 6 in `api/_room-about.js`'s `PAGE_COPY`
+(English) plus 6 Hindi mirrors, 1 in `api/_room-page.js`'s
+`PLATFORM_DESCRIPTION`. Zero hits for `teacher`/`student`/`doubt`/`class`/
+`lesson`/`subject` in any user-visible string in the same file set (one
+`student` hit in `copy.ts`'s `join.ageWhy`, reviewed and kept per
+`context/decisions.md#ws-r160-creator-becomes-the-person-or-you`). Total: 27
+strings changed across 4 source files (`copy.ts`, `hiCopy.ts`,
+`hiTalkCopy.ts`, `api/_room-about.js`) plus 1 in `api/_room-page.js`.
+
+**Date.** 2026-09-13, this session, against commit `54e553e` (the wave-
+twenty-one base) plus this workstream's own edits.
+
+## ws-r160-touched-suite-results-2026-09-13 (WS-R160)
+
+**What.** Every suite this workstream's changes touch, run individually
+before the full gate.
+
+**n and method.** `node evals/<name>/run.mjs` (or `node evals/run.mjs
+<name>` through the real registry for the two new suites), each run to
+completion, pass/fail counts read from the suite's own summary line:
+
+| suite | result |
+|---|---|
+| `room-taste` | 42 passed, 0 failed (36 pre-existing + 6 new: the §7 name-fallback section) |
+| `room-locale` | 54 passed, 0 failed |
+| `room-about` | 50 passed, 0 failed |
+| `room-share` | 56 passed, 0 failed (its own title assertion updated for `roomAiTitleLine`) |
+| `room-card` | 83 passed, 0 failed (unchanged; audited, no edit needed) |
+| `room-leak` | 341 passed, 0 failed |
+| `room-doors` | 2251 ok, 0 failed |
+| `room-export` | 48 passed, 0 failed |
+| `incidents` | 131 passed, 0 failed |
+| `room-copy` (new) | 19 passed, 0 failed |
+| `site-landing` (new) | 15 passed, 0 failed |
+| `scripts/check-copy.mjs` | 7 scopes clean, 21 negative controls bit |
+| `scripts/check-layout.mjs --only vyakti` (new target) | 156 prose blocks judged across 390/834/1355px x vyakti:en/hi, 0 findings |
+| `scripts/check-accessibility.mjs --target vyakti` (Hindi screen added) | 0 critical/serious/moderate/minor, 0 keyboard, 0 language-tag findings across 2 pages |
+| `scripts/check-performance.mjs --target /vyakti` | 1 target x 3 runs, all within budget (LCP 420ms, CLS 0.000, TBT 131ms) |
+| `scripts/check-headers.mjs` (full, all targets) | 0 findings across 10 page targets + supply chain |
+
+**Date.** 2026-09-13, same tree as above. Every port-collision retry during
+this session (`check-layout`/`check-accessibility`/`check-performance`/
+`check-headers` each collided with a sibling agent's own run of the same
+gate at least once) was a rerun after the port freed, per
+`docs/gurukul/waves/wave-21/ws-common.md`'s own rule — never counted as a
+pass or a failure of this workstream.

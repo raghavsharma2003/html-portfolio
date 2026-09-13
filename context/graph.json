@@ -18156,6 +18156,54 @@
       "kind": "measurement",
       "title": "verify-release.mjs under load average 47-60 (ten concurrent gates): 16/24 clean, 2 port collisions, eval-suite step timed out, then every remaining check run individually and clean bar one load flake (2026-09-13)",
       "at": "context/measurements.md#ws-r151-full-gate-under-extreme-shared-load"
+    },
+    {
+      "id": "ws-r160-creator-becomes-the-person-or-you",
+      "kind": "decision",
+      "title": "Every user-visible \"creator\" in the Room and landing becomes \"the person\" or \"you\" (2026-09-13, WS-R160)",
+      "at": "context/decisions.md#ws-r160-creator-becomes-the-person-or-you"
+    },
+    {
+      "id": "ws-r160-landing-three-screens-map-to-the-three-os-names",
+      "kind": "decision",
+      "title": "The landing's two audience sections become three, matching HumanOS/EmotionOS/RelationOS (2026-09-13, WS-R160)",
+      "at": "context/decisions.md#ws-r160-landing-three-screens-map-to-the-three-os-names"
+    },
+    {
+      "id": "ws-r160-landing-goes-bilingual",
+      "kind": "decision",
+      "title": "site/vyakti.html reuses site/suites.html's own .locale/data-set-lang bilingual mechanism (2026-09-13, WS-R160)",
+      "at": "context/decisions.md#ws-r160-landing-goes-bilingual"
+    },
+    {
+      "id": "ws-r160-taste-name-falls-back-to-room-display-name",
+      "kind": "decision",
+      "title": "roomTaste's disclosure name falls back to the Room's own display_name when the sheet carries none (2026-09-13, WS-R160)",
+      "at": "context/decisions.md#ws-r160-taste-name-falls-back-to-room-display-name"
+    },
+    {
+      "id": "ws-r160-room-and-landing-vocabulary-sweep-2026-09-13",
+      "kind": "measurement",
+      "title": "The full teacher/student/doubt/class/lesson/creator/follower/subject grep across the Room and site files (2026-09-13, WS-R160)",
+      "at": "context/measurements.md#ws-r160-room-and-landing-vocabulary-sweep-2026-09-13"
+    },
+    {
+      "id": "ws-r160-touched-suite-results-2026-09-13",
+      "kind": "measurement",
+      "title": "Every touched suite and gate this workstream's changes reach, run individually (2026-09-13, WS-R160)",
+      "at": "context/measurements.md#ws-r160-touched-suite-results-2026-09-13"
+    },
+    {
+      "id": "ws-r160-boundary-li-bare-text-node-reads-as-unfilled-grid-track",
+      "kind": "rejection",
+      "title": "A boundary <li>'s bare text node read as an unfilled CSS grid track once the page joined the layout gate (2026-09-13, WS-R160)",
+      "at": "context/rejected.md#ws-r160-boundary-li-bare-text-node-reads-as-unfilled-grid-track"
+    },
+    {
+      "id": "ws-r160-negative-control-checked-raw-source-with-comments-still-in-it",
+      "kind": "rejection",
+      "title": "A landing-copy suite's first draft scanned raw HTML including its own house-prose comments (2026-09-13, WS-R160)",
+      "at": "context/rejected.md#ws-r160-negative-control-checked-raw-source-with-comments-still-in-it"
     }
   ],
   "edges": [
@@ -30751,6 +30799,36 @@
       "src": "ws-r151-humanos-the-person-sheet",
       "rel": "measured_by",
       "dst": "ws-r151-full-gate-under-extreme-shared-load"
+    },
+    {
+      "src": "ws-r160-creator-becomes-the-person-or-you",
+      "dst": "ws-r160-room-and-landing-vocabulary-sweep-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r160-landing-three-screens-map-to-the-three-os-names",
+      "dst": "ws-r160-touched-suite-results-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r160-landing-goes-bilingual",
+      "dst": "ws-r160-touched-suite-results-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r160-taste-name-falls-back-to-room-display-name",
+      "dst": "ws-r160-touched-suite-results-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r160-boundary-li-bare-text-node-reads-as-unfilled-grid-track",
+      "dst": "ws-r160-landing-goes-bilingual",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r160-negative-control-checked-raw-source-with-comments-still-in-it",
+      "dst": "ws-r160-landing-three-screens-map-to-the-three-os-names",
+      "rel": "caused_by"
     }
   ]
 }

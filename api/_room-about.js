@@ -48,7 +48,7 @@
 import { roomDisclosureCard, normalizeLocale, slugOf, ROOM_FREE_MONTHLY_MESSAGES, ROOM_PAID_MONTHLY_MESSAGES, ROOM_PAID_MONTHLY_VOICE_SECONDS } from "./_room-surface.js";
 import { PULSE_MIN_FOLLOWERS } from "./_pulse.js";
 import { DORMANCY_GRACE_DAYS } from "./_dormancy.js";
-import { PLATFORM_TITLE, PLATFORM_DESCRIPTION } from "./_room-page.js";
+import { PLATFORM_TITLE, PLATFORM_DESCRIPTION, roomAiTitleLine } from "./_room-page.js";
 
 function esc(value) {
   return String(value || "")
@@ -178,22 +178,21 @@ export async function publicRoomAboutBySlug(db, slug) {
 const PAGE_COPY = {
   en: {
     heading: "What this AI knows about you",
-    pageTitle: (name) => `${name} AI, what it knows about you`,
     whatThisIsLabel: "What this is",
     scopeLabel: "Your own scope",
     scopeBody:
-      "What you say to this AI stays in your own thread. It never reaches the creator, and it never reaches anyone else who talks to this AI.",
-    creatorViewLabel: "What the creator can see",
+      "What you say to this AI stays in your own thread. It never reaches the person it was built from, and it never reaches anyone else who talks to this AI.",
+    creatorViewLabel: "What the person can see",
     creatorViewBody: (n) =>
-      `The creator never reads your words. They only ever see a topic as a count, and only once at least ${n} followers show a similar interest. A smaller number never appears at all, and no follower is ever named.`,
+      `The person never reads your words. They only ever see a topic as a count, and only once at least ${n} followers show a similar interest. A smaller number never appears at all, and no follower is ever named.`,
     retentionLabel: "How long it is kept",
     retentionWithPolicy: (duration, grace) =>
-      `This creator keeps a follower's conversation until ${duration} after that follower's last visit. Before then, a notice goes out, and if there is still no visit within ${grace} more days, the conversation is deleted.`,
-    retentionNoPolicy: "This creator has not set an automatic time limit. Your conversation is kept until you ask otherwise.",
+      `This person keeps a follower's conversation until ${duration} after that follower's last visit. Before then, a notice goes out, and if there is still no visit within ${grace} more days, the conversation is deleted.`,
+    retentionNoPolicy: "This person has not set an automatic time limit. Your conversation is kept until you ask otherwise.",
     receiptNote: "You can ask to be forgotten at any time from your account. You get a receipt that says exactly what was deleted.",
     referralLabel: "Your referral link",
     referralBody:
-      "If you bring a friend with your own link, the creator learns only that a friend joined, never who. Your link itself carries a one way scrambled code tied to this room and your own account, so even someone holding the underlying records directly cannot turn it back into your name.",
+      "If you bring a friend with your own link, only \"a friend joined\" is ever shown, never who. Your link itself carries a one way scrambled code tied to this room and your own account, so even someone holding the underlying records directly cannot turn it back into your name.",
     capsLabel: "Free and paid",
     capsFreeBody: (n) => `A free follower gets ${n} messages a month, no voice calls, and no scheduled check-ins.`,
     capsPaidBody: (messages, minutes) =>
@@ -211,22 +210,21 @@ const PAGE_COPY = {
   },
   hi: {
     heading: "यह AI आपके बारे में क्या जानता है",
-    pageTitle: (name) => `${name} AI, यह आपके बारे में क्या जानता है`,
     whatThisIsLabel: "यह क्या है",
     scopeLabel: "आपका अपना दायरा",
     scopeBody:
-      "आप इस AI से जो कहते हैं वह सिर्फ आपकी अपनी थ्रेड में रहता है। यह न तो क्रिएटर तक पहुंचता है, न ही इस AI से बात करने वाले किसी और तक।",
-    creatorViewLabel: "क्रिएटर क्या देख सकते हैं",
+      "आप इस AI से जो कहते हैं वह सिर्फ आपकी अपनी थ्रेड में रहता है। यह न तो उस व्यक्ति तक पहुंचता है जिससे यह AI बना है, न ही इस AI से बात करने वाले किसी और तक।",
+    creatorViewLabel: "यह व्यक्ति क्या देख सकता है",
     creatorViewBody: (n) =>
-      `क्रिएटर कभी आपके शब्द नहीं पढ़ते। वे किसी विषय को सिर्फ एक गिनती के रूप में देखते हैं, और तभी जब कम से कम ${n} फॉलोअर एक जैसी रुचि दिखाएं। इससे कम संख्या कभी नहीं दिखाई जाती, और किसी फॉलोअर का नाम कभी नहीं बताया जाता।`,
+      `यह व्यक्ति कभी आपके शब्द नहीं पढ़ता। वह किसी विषय को सिर्फ एक गिनती के रूप में देखता है, और तभी जब कम से कम ${n} फॉलोअर एक जैसी रुचि दिखाएं। इससे कम संख्या कभी नहीं दिखाई जाती, और किसी फॉलोअर का नाम कभी नहीं बताया जाता।`,
     retentionLabel: "कितने समय तक रखा जाता है",
     retentionWithPolicy: (duration, grace) =>
-      `यह क्रिएटर एक फॉलोअर की बातचीत उस फॉलोअर की आखिरी विज़िट के ${duration} बाद तक रखते हैं। उससे पहले एक सूचना भेजी जाती है, और अगर फिर भी ${grace} और दिनों में कोई विज़िट न हो, तो बातचीत मिटा दी जाती है।`,
-    retentionNoPolicy: "इस क्रिएटर ने कोई स्वचालित समय सीमा तय नहीं की है। आपकी बातचीत तब तक रखी जाती है जब तक आप कुछ और न कहें।",
+      `यह व्यक्ति एक फॉलोअर की बातचीत उस फॉलोअर की आखिरी विज़िट के ${duration} बाद तक रखता है। उससे पहले एक सूचना भेजी जाती है, और अगर फिर भी ${grace} और दिनों में कोई विज़िट न हो, तो बातचीत मिटा दी जाती है।`,
+    retentionNoPolicy: "इस व्यक्ति ने कोई स्वचालित समय सीमा तय नहीं की है। आपकी बातचीत तब तक रखी जाती है जब तक आप कुछ और न कहें।",
     receiptNote: "आप किसी भी समय अपने अकाउंट से भुलाए जाने के लिए कह सकते हैं। आपको एक रसीद मिलती है जो बताती है कि ठीक क्या मिटाया गया।",
     referralLabel: "आपका रेफ़रल लिंक",
     referralBody:
-      "अगर आप अपने लिंक से किसी दोस्त को लाते हैं, तो क्रिएटर को सिर्फ इतना पता चलता है कि एक दोस्त जुड़ा, कभी यह नहीं कि कौन। आपके लिंक में इस रूम और आपके अकाउंट से जुड़ा एक एकतरफ़ा स्क्रैम्बल्ड कोड होता है, इसलिए मूल रिकॉर्ड रखने वाला कोई भी इसे वापस आपके नाम में नहीं बदल सकता।",
+      "अगर आप अपने लिंक से किसी दोस्त को लाते हैं, तो सिर्फ इतना दिखता है कि एक दोस्त जुड़ा, कभी यह नहीं कि कौन। आपके लिंक में इस रूम और आपके अकाउंट से जुड़ा एक एकतरफ़ा स्क्रैम्बल्ड कोड होता है, इसलिए मूल रिकॉर्ड रखने वाला कोई भी इसे वापस आपके नाम में नहीं बदल सकता।",
     capsLabel: "फ्री और पेड",
     capsFreeBody: (n) => `एक फ्री फॉलोअर को महीने में ${n} मैसेज मिलते हैं, कोई वॉइस कॉल नहीं, और कोई शेड्यूल्ड चेक-इन नहीं।`,
     capsPaidBody: (messages, minutes) =>
@@ -265,7 +263,7 @@ export function buildRoomAboutHtml(room, { origin, slug, lang } = {}) {
   const locale = normalizeLocale(lang ?? room.default_locale);
   const c = PAGE_COPY[locale];
   const name = room.display_name || "";
-  const title = name ? c.pageTitle(name) : c.heading;
+  const title = name ? roomAiTitleLine(name, locale) : c.heading;
   const disclosure = roomDisclosureCard(name, locale);
   const openUrl = `${base}/r/${encodeURIComponent(String(slug || ""))}`;
 
@@ -295,8 +293,8 @@ export function buildRoomAboutHtml(room, { origin, slug, lang } = {}) {
       <p>${esc(c.scopeBody)}</p>
     </section>
 
-    <section aria-labelledby="about-creator-view-title">
-      <h2 id="about-creator-view-title">${esc(c.creatorViewLabel)}</h2>
+    <section aria-labelledby="about-person-view-title">
+      <h2 id="about-person-view-title">${esc(c.creatorViewLabel)}</h2>
       <p>${esc(c.creatorViewBody(String(PULSE_MIN_FOLLOWERS)))}</p>
     </section>
 

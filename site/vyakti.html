@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
   <title>Vyakti</title>
-  <meta name="description" content="A private AI built from a creator's own material. Every follower gets their own continuing relationship with it, and none of them can hear each other." />
+  <meta name="description" content="A private AI built from your own material: your identity, how it feels, and a private relationship with every person who talks to it." />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Vyakti" />
-  <meta property="og:description" content="A creator can only talk to one person at a time. Here, they talk to all of them, and none of them can hear each other." />
+  <meta property="og:description" content="Build the AI version of you, test it, tweak it, and deploy it: a private, continuing relationship with everyone who talks to it." />
   <meta name="theme-color" content="#f4f1e9" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
@@ -25,23 +25,34 @@
 
     ══ WS-R10 REWRITE, 2026-09-03: WHAT CHANGED AND WHY ═════════════════════
     This page used to pitch a single vertical (JEE teachers) and lead with
-    fidelity metrics from one owner's voice build: a bandwidth number, a
-    conditioning window, one listening comparison. Those numbers were true
-    and dated fast, and they answered a question ("does the voice sound
-    right yet") that is not this product's pitch. The product decided
+    fidelity metrics from one owner's voice build. The product decided
     2026-09-02 is Rooms: a creator's own AI, and a private, continuing
-    relationship for every follower who talks to it, with none of them able
-    to hear each other. This page now tells that story instead, keeps every
-    number it had a right to state (the free tier: 20 messages a month, no
-    voice, no check-ins) and invents none it did not: no adoption figures,
-    no pricing beyond "our share is one number, shown before you publish".
-    The word "clone" is gone from every string on this page; the copy gate
-    (`scripts/check-copy.mjs`, the "rooms vocabulary" rule) now fails the
-    build if it comes back. See `context/rejected.md#demo-teacher-is-not-a-
-    placeholder`: a fixture may never stand in on a page that asks someone
-    to commit their name and their audience to it, so this page states only
-    what is true of the product as built, never a number from one person's
-    one test run.
+    relationship for every follower who talks to it. This page told that
+    story instead.
+
+    ══ WS-R160 REWRITE, 2026-09-13: WHAT CHANGED AND WHY ════════════════════
+    The Rooms story was still written for a creator with an audience — every
+    stranger who opened this page was addressed as someone who already has
+    followers. The owner's own intent (`context/STATE.md`'s 2026-09-13 base
+    block, `docs/gurukul/waves/wave-21`'s common brief) is broader: ANY
+    person builds an AI version of themselves, whatever they intend to do
+    with it, and a Room is one way to deploy it, not the premise of the
+    page. The word "creator" is gone from every user-visible string here
+    (`context/decisions.md#ws-r160-creator-becomes-the-person-or-you`); the
+    two "for the creator" / "for the follower" sections became three,
+    matching the product's own build/test/deploy journey and naming its
+    three named systems (HumanOS, RelationOS, EmotionOS,
+    `context/decisions.md#ws-r160-landing-three-screens-map-to-the-three-os-names`)
+    as section titles with one plain sentence of promise each — never a
+    fourth, invented name, and never a claim about a screen that does not
+    exist yet (the interview, Readiness, and the review queue are live; a
+    measured likeness screen is not, `context/STATE.md`'s own honest state,
+    so this page states the MEASURING as a design commitment, never a
+    number). The page is now in English and Hindi, `site/suites.html`'s own
+    `.locale`/`data-set-lang` pattern reused rather than reinvented — see
+    that file's own header for the mechanism. Every fact this page had a
+    right to state before (the free tier, "our share is one number") is
+    unchanged; nothing invented, no adoption figures added.
 
     ══ WHAT MAY BE SAID HERE ════════════════════════════════════════════════
     No testimonials, no logos, no invented users, no "trusted by" - there are
@@ -53,9 +64,9 @@
 
     The em-dash ban (`scripts/check-copy.mjs`) covers every site/*.html, and
     so do the version-stamp, numbered-eyebrow, scroll-cue, filler-verb and
-    one-middot rules, plus (as of WS-R10) the Rooms vocabulary rule. HTML
-    comments are exempt, body copy is not - which is why this comment may use
-    the punctuation the page may not.
+    one-middot rules, plus the Rooms vocabulary rule. HTML comments are
+    exempt, body copy is not - which is why this comment may use the
+    punctuation the page may not.
   -->
 
   <style>
@@ -65,6 +76,7 @@
     body { margin: 0; }
     img, svg { display: block; max-width: 100%; }
     a { color: inherit; }
+    [hidden] { display: none !important; }
 
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
@@ -95,7 +107,7 @@
       --forest-deep: #0e352a;
       --forest-soft: #e1eee7;
 
-      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Devanagari", sans-serif;
       --serif: Georgia, "Times New Roman", serif;
       --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
@@ -180,10 +192,8 @@
     .mark i:nth-child(3) { height: 68%; }
 
     /* ── nav ───────────────────────────────────────────────────────────────
-       No button here. The page has exactly one conversion action and putting
-       it in the nav as well would be the duplicate-intent CTA the law bans,
-       one scroll-height above its twin. The nav's job is identity and one
-       way out. */
+       One conversion action lives in the page (the apply button below);
+       the nav's job is identity, one way out, and the language switch. */
     .nav {
       position: sticky;
       top: 0;
@@ -192,12 +202,23 @@
       background: color-mix(in srgb, var(--paper) 88%, transparent);
       backdrop-filter: saturate(1.4) blur(14px);
     }
-    .nav .wrap { display: flex; align-items: center; gap: 14px; }
+    .nav .wrap { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
     .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; }
     .brand b { font-size: 15px; font-weight: 800; letter-spacing: 0.14em; }
     .brand small { color: var(--ink-faint); font-size: 11px; font-weight: 800; letter-spacing: 0.1em; }
     .nav-spacer { flex: 1; }
     .nav-link { color: var(--ink-soft); font-size: 14px; text-decoration: underline; text-underline-offset: 4px; }
+    .lang-toggle {
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      padding: 7px 14px;
+      background: var(--panel);
+      color: var(--ink);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
 
     /* ── the one button ────────────────────────────────────────────────── */
     .btn {
@@ -224,15 +245,15 @@
        under the law's ~6rem, so the button is above the fold on a 640px-tall
        laptop viewport with the nav included. */
     .hero { padding: clamp(40px, 6vw, 88px) 0 var(--space-section); }
-    .hero h1 { max-width: 22ch; font-size: clamp(34px, 5vw, 56px); }
+    .hero h1 { max-width: 20ch; font-size: clamp(34px, 5vw, 56px); }
     .hero h1 em { font-style: normal; color: var(--forest); }
     .hero p.lede { max-width: 48ch; margin-top: 22px; color: var(--ink-soft); font-size: clamp(17px, 1.8vw, 20px); }
     .hero .btn { margin-top: 30px; }
-    .hero p.fine { margin-top: 16px; color: var(--ink-faint); font-size: 13px; }
+    .hero p.fine { max-width: 48ch; margin-top: 16px; color: var(--ink-faint); font-size: 13px; }
 
     /* ── section prose: one measure, no card grid ──────────────────────── */
     section { padding: var(--space-section) 0; }
-    .head h2 { font-size: clamp(28px, 3.8vw, 40px); max-width: 26ch; }
+    .head h2 { font-size: clamp(28px, 3.8vw, 40px); max-width: 30ch; }
     .head p { max-width: var(--measure); margin-top: 18px; color: var(--ink-soft); font-size: 17px; }
 
     .claims { max-width: var(--measure); margin-top: 46px; display: grid; gap: 30px; }
@@ -289,25 +310,26 @@
     .foot p { max-width: 54ch; }
     .foot a { color: var(--ink-soft); }
 
-    /* prose-containment34: measured fallback sizes; hypothesis pending A/B. */
+    /* prose-containment34: measured fallback size for #boundary, unchanged
+       content, unchanged estimate. The WS-R160 rewrite drops this
+       optimisation for the three build/test/deploy sections rather than
+       guess a size for entirely new prose - "hypothesis pending A/B" per
+       this rule's own name, never worth a mismatched-estimate layout shift
+       for a section whose length just moved. */
     @supports (content-visibility: auto) {
-      main > section[aria-labelledby="creator-title"], main > section[aria-labelledby="follower-title"], main > #boundary { content-visibility: auto; }
-      main > section[aria-labelledby="creator-title"] { contain-intrinsic-block-size: auto 882px; }
-      main > section[aria-labelledby="follower-title"] { contain-intrinsic-block-size: auto 722px; }
-      main > #boundary { contain-intrinsic-block-size: auto 635px; }
+      main > #boundary, main > #boundary-hi { content-visibility: auto; contain-intrinsic-block-size: auto 635px; }
       @media (min-width: 768px) {
-      main > section[aria-labelledby="creator-title"] { contain-intrinsic-block-size: auto 643px; }
-      main > section[aria-labelledby="follower-title"] { contain-intrinsic-block-size: auto 509px; }
-      main > #boundary { contain-intrinsic-block-size: auto 463px; }
+        main > #boundary, main > #boundary-hi { contain-intrinsic-block-size: auto 463px; }
       }
     }
     @media print {
-      main > section[aria-labelledby="creator-title"], main > section[aria-labelledby="follower-title"], main > #boundary { content-visibility: visible; contain-intrinsic-block-size: none; }
+      main > #boundary, main > #boundary-hi { content-visibility: visible; contain-intrinsic-block-size: none; }
     }
   </style>
 </head>
 <body>
 
+<div class="locale" id="loc-en" lang="en">
   <nav class="nav" aria-label="Primary">
     <div class="wrap">
       <a class="brand" href="/" aria-label="Vyakti home">
@@ -316,6 +338,7 @@
       </a>
       <span class="nav-spacer"></span>
       <a class="nav-link" href="#boundary">The privacy boundary</a>
+      <button class="lang-toggle" type="button" data-set-lang="hi"><span lang="hi">हिन्दी</span></button>
     </div>
   </nav>
 
@@ -324,24 +347,23 @@
     <!-- ══ 1. hero. Four elements: the one line, one button, one fine print. -->
     <header class="hero">
       <div class="wrap">
-        <h1>A creator can only talk to one person <em>at a time</em>.</h1>
+        <h1>Build the AI version of <em>you</em>.</h1>
         <p class="lede">
-          Here, they talk to all of them, and none of them can hear each other.
+          Test it, tweak it, and deploy it: the way people reach you when you cannot answer yourself.
         </p>
         <a class="btn" href="#apply">Apply for one of the first Rooms</a>
         <p class="fine">Free to build. You set what your followers pay. Our share is one number, shown before you publish.</p>
       </div>
     </header>
 
-    <!-- ══ 2. for the creator ═════════════════════════════════════════════ -->
-    <section aria-labelledby="creator-title">
+    <!-- ══ 2. build it: HumanOS ═══════════════════════════════════════════ -->
+    <section aria-labelledby="build-title">
       <div class="wrap">
         <div class="head">
-          <h2 id="creator-title">For you: an AI, built from your own material, that you keep correcting.</h2>
+          <h2 id="build-title">Build it: everything human about you, in one place it can use.</h2>
           <p>
-            The Studio is where you build it, correct it, and watch it work: your AI, never a copy hidden
-            behind a job you cannot see inside, and a workspace that shows you exactly what it knows and
-            where it still needs you.
+            <b>HumanOS</b> is who you are: your identity, your values, your style, what you know, what you would
+            never say, and your voice. You give it your own material, in your own words, and correct it from there.
           </p>
         </div>
 
@@ -350,11 +372,6 @@
             <b>Readiness is one number.</b> Five parts feed it: whether your AI knows your material, sounds
             like you, thinks like you, knows what not to say, and is still up to date. One number, five parts,
             one suggested action. Publishing is locked while any part is too far behind the rest.
-          </p>
-          <p>
-            <b>You review what it says.</b> The Review queue puts one answer in front of you at a time:
-            Sounds right, Close, fix it, or Never say this. A correction is never just a note. It becomes
-            material your AI can point back to.
           </p>
           <p>
             <b>The interview asks what your archive did not answer.</b> Instead of guessing, it finds the
@@ -369,14 +386,43 @@
       </div>
     </section>
 
-    <!-- ══ 3. for the follower ════════════════════════════════════════════ -->
-    <section aria-labelledby="follower-title">
+    <!-- ══ 3. test it, tweak it: EmotionOS ═════════════════════════════════ -->
+    <section aria-labelledby="test-title">
       <div class="wrap">
         <div class="head">
-          <h2 id="follower-title">For them: a private Room, and a relationship that remembers them.</h2>
+          <h2 id="test-title">Test it, tweak it: how it feels when it talks.</h2>
           <p>
-            Every follower who talks to your AI gets their own Room: "Your Room. Your AI, your people." It is
-            labelled as an AI on every screen they see, never presented as you.
+            <b>EmotionOS</b> is how it feels and expresses itself: its vibe, its warmth, its energy, its humour,
+            and how it reads the person it is talking to before it answers. You talk to it yourself, and correct
+            what does not sound like you.
+          </p>
+        </div>
+
+        <div class="claims">
+          <p>
+            <b>You review what it says.</b> The Review queue puts one answer in front of you at a time:
+            Sounds right, Close, fix it, or Never say this. A correction is never just a note. It becomes
+            material your AI can point back to.
+          </p>
+          <p>
+            <b>Whether it sounds like you is measured, not promised.</b> This platform checks its voice
+            against yours rather than only claiming a match, and it never states a number here without a real
+            measurement behind it.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 4. deploy it: RelationOS ════════════════════════════════════════ -->
+    <section aria-labelledby="deploy-title">
+      <div class="wrap">
+        <div class="head">
+          <h2 id="deploy-title">Deploy it: a private, continuing relationship with everyone who talks to it.</h2>
+          <p>
+            <b>RelationOS</b> is how it treats each person: private memory for every relationship, trust that
+            builds over time, and check-ins that follow up. Everyone who talks to it gets their own Room:
+            "Your Room. Your AI, your people." It is labelled as an AI on every screen they see, never
+            presented as you.
           </p>
         </div>
 
@@ -399,7 +445,7 @@
       </div>
     </section>
 
-    <!-- ══ 4. the boundary, in plain words ════════════════════════════════ -->
+    <!-- ══ 5. the boundary, in plain words ════════════════════════════════ -->
     <section id="boundary" aria-labelledby="boundary-title">
       <div class="wrap">
         <div class="floor">
@@ -409,16 +455,16 @@
             how the underlying scopes are structured.
           </p>
           <ul>
-            <li><span aria-hidden="true">&check;</span> What you give your AI (your material, your corrections) flows down to every follower who talks to it.</li>
-            <li><span aria-hidden="true">&check;</span> What a follower tells your AI stays in their own Room. It never becomes something your AI knows about you, and it never reaches anyone else's Room.</li>
-            <li><span aria-hidden="true">&check;</span> You see counts, never words. A pattern shared by five or more followers can surface to you as a number, and only once you have opted in to seeing it.</li>
-            <li><span aria-hidden="true">&check;</span> Your AI never denies being an AI, on either side of that line.</li>
+            <li><span aria-hidden="true">&check;</span><span>What you give your AI (your material, your corrections) flows down to every follower who talks to it.</span></li>
+            <li><span aria-hidden="true">&check;</span><span>What a follower tells your AI stays in their own Room. It never becomes something your AI knows about you, and it never reaches anyone else's Room.</span></li>
+            <li><span aria-hidden="true">&check;</span><span>You see counts, never words. A pattern shared by five or more followers can surface to you as a number, and only once you have opted in to seeing it.</span></li>
+            <li><span aria-hidden="true">&check;</span><span>Your AI never denies being an AI, on either side of that line.</span></li>
           </ul>
         </div>
       </div>
     </section>
 
-    <!-- ══ 5. what happens after you apply, and the real form (WS-R23). ═══
+    <!-- ══ 6. what happens after you apply, and the real form (WS-R23). ═══
          Posts to api/apply.js (op:"submit"), api/_apply.js's one predicate:
          at most one application per contact per day. No framework on this
          page (this file's own header note), so a small inline script. ══ -->
@@ -475,7 +521,7 @@
       </div>
     </section>
 
-    <!-- ══ 6. close ═══════════════════════════════════════════════════════ -->
+    <!-- ══ 7. close ═══════════════════════════════════════════════════════ -->
     <section class="close" aria-labelledby="close-title">
       <div class="wrap">
         <h2 id="close-title">Talk to all of them. Let none of them hear each other.</h2>
@@ -492,74 +538,333 @@
   <footer class="foot">
     <div class="wrap">
       <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
-      <p>Vyakti turns a creator's own material into a private AI, with a private, continuing relationship for every person who talks to it.</p>
+      <p>Vyakti turns your own material into a private AI, with a private, continuing relationship for every person who talks to it.</p>
       <span class="nav-spacer"></span>
       <a href="/privacy">Privacy and Terms</a>
     </div>
   </footer>
+</div>
+
+<div class="locale" id="loc-hi" lang="hi" hidden>
+  <nav class="nav" aria-label="मुख्य">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="Vyakti होम">
+        <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><b>VYAKTI</b><br /><small>ROOMS</small></span>
+      </a>
+      <span class="nav-spacer"></span>
+      <a class="nav-link" href="#boundary-hi">गोपनीयता की सीमा</a>
+      <button class="lang-toggle" type="button" data-set-lang="en">English</button>
+    </div>
+  </nav>
+
+  <main>
+
+    <header class="hero">
+      <div class="wrap">
+        <h1>अपना <em>AI</em> वर्शन बनाएं।</h1>
+        <p class="lede">
+          इसे टेस्ट करें, बदलें, और दुनिया में लॉन्च करें: जब आप खुद जवाब न दे सकें, तब भी लोग आप तक पहुंच सकें।
+        </p>
+        <a class="btn" href="#apply-hi">पहले Rooms में से एक के लिए आवेदन करें</a>
+        <p class="fine">बनाना मुफ़्त है। आपके फॉलोअर क्या देंगे, यह आप तय करते हैं। हमारा हिस्सा एक ही नंबर है, जो पब्लिश करने से पहले दिखाया जाता है।</p>
+      </div>
+    </header>
+
+    <section aria-labelledby="build-title-hi">
+      <div class="wrap">
+        <div class="head">
+          <h2 id="build-title-hi">बनाएं: आपके बारे में हर इंसानी बात, एक जगह जिसे यह इस्तेमाल कर सके।</h2>
+          <p>
+            <b>HumanOS</b> आपकी पहचान है: आपके मूल्य, आपका अंदाज़, आप क्या जानते हैं, आप क्या कभी नहीं कहेंगे, और
+            आपकी आवाज़। आप इसे अपनी ही सामग्री, अपने ही शब्दों में देते हैं, और वहीं से इसे सुधारते हैं।
+          </p>
+        </div>
+
+        <div class="claims">
+          <p>
+            <b>Readiness एक नंबर है।</b> पांच हिस्से इसे बनाते हैं: क्या आपका AI आपकी सामग्री जानता है, आपकी तरह
+            बोलता है, आपकी तरह सोचता है, क्या न कहना है यह जानता है, और अभी भी अपडेट है। एक नंबर, पांच हिस्से,
+            एक सुझाया गया कदम। जब तक कोई हिस्सा बाकी से बहुत पीछे है, पब्लिश करना लॉक रहता है।
+          </p>
+          <p>
+            <b>इंटरव्यू वह पूछता है जो आपके आर्काइव ने नहीं बताया।</b> अंदाज़ा लगाने के बजाय, यह उन कमियों को
+            ढूंढता है जो आपने अभी तक नहीं भरीं, और सीधे आपसे पूछता है। जब तक आप जवाब नहीं देते, आपके AI में
+            कुछ नहीं बदलता।
+          </p>
+          <p>
+            <b>अधूरा AI एक शागिर्द है, टूटा हुआ नहीं।</b> आप इसे अपना काम दिखाते हैं, यह पूछता है, आप सुधारते हैं।
+            यही चक्र प्रोडक्ट है, कोई एक बार का सेटअप कदम नहीं।
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="test-title-hi">
+      <div class="wrap">
+        <div class="head">
+          <h2 id="test-title-hi">टेस्ट करें, बदलें: बात करते वक्त इसका एहसास कैसा है।</h2>
+          <p>
+            <b>EmotionOS</b> तय करता है कि यह कैसा महसूस होता है और खुद को कैसे जताता है: इसका वाइब, इसकी
+            गर्मजोशी, इसकी एनर्जी, इसका ह्यूमर, और जवाब देने से पहले सामने वाले को पढ़ने का तरीका। आप खुद इससे
+            बात करते हैं, और जो आपकी तरह नहीं लगता उसे ठीक करते हैं।
+          </p>
+        </div>
+
+        <div class="claims">
+          <p>
+            <b>आप देखते हैं यह क्या कह रहा है।</b> Review queue एक बार में एक जवाब आपके सामने रखता है: सही
+            लगा, लगभग सही है ठीक करें, या यह कभी मत कहना। एक सुधार सिर्फ एक नोट नहीं होता। यह ऐसी सामग्री बन
+            जाता है जिसकी तरफ आपका AI दोबारा इशारा कर सकता है।
+          </p>
+          <p>
+            <b>यह आपकी तरह लगता है या नहीं, यह मापा जाता है, सिर्फ कहा नहीं जाता।</b> यह प्लेटफ़ॉर्म इसकी आवाज़
+            को आपकी आवाज़ से जांचता है, सिर्फ मेल होने का दावा नहीं करता, और बिना असली माप के यहां कभी कोई
+            नंबर नहीं बताया जाता।
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="deploy-title-hi">
+      <div class="wrap">
+        <div class="head">
+          <h2 id="deploy-title-hi">लॉन्च करें: हर उस व्यक्ति के साथ एक निजी, चलती रहने वाली रिश्तेदारी जो इससे बात करता है।</h2>
+          <p>
+            <b>RelationOS</b> तय करता है कि यह हर व्यक्ति के साथ कैसा बर्ताव करता है: हर रिश्ते के लिए अलग
+            निजी याददाश्त, समय के साथ बनता भरोसा, और चेक-इन जो फॉलो-अप करते हैं। जो भी इससे बात करता है उसे
+            अपना खुद का Room मिलता है: "आपका Room. आपका AI, आपके लोग।" हर स्क्रीन पर यह AI के तौर पर लेबल
+            किया जाता है, कभी आप के तौर पर नहीं।
+          </p>
+        </div>
+
+        <div class="claims">
+          <p>
+            <b>यह उन्हें याद रखता है, खास तौर पर।</b> सिर्फ एक ट्रांसक्रिप्ट नहीं, एक चलती रिश्तेदारी: यह
+            उनका हाल पूछता है, और उन्होंने जो बताया है उसे आगे ले जाता है, सिर्फ उनके अपने Room में।
+          </p>
+          <p>
+            <b>कोई और इसे कभी नहीं देखता।</b> एक फॉलोअर जो कहता है वह उसके अपने निजी दायरे में रहता है। यह
+            आपके AI की साझा सामग्री में कभी वापस नहीं जुड़ता, और यह किसी और फॉलोअर के Room तक कभी नहीं पहुंचता।
+            यहां तक कि आप भी इसे शब्दशः नहीं देखते: ज़्यादा से ज़्यादा, एक पैटर्न की गिनती जो कम से कम पांच
+            अलग लोग साझा करते हैं, और वह भी सिर्फ तब जब आपने इसे देखने के लिए सहमति दी हो।
+          </p>
+          <p>
+            <b>मुफ़्त का मतलब साफ़ तौर पर मुफ़्त है।</b> एक मुफ़्त फॉलोअर को महीने में 20 मैसेज मिलते हैं,
+            कोई वॉइस कॉल नहीं, और कोई चेक-इन नहीं। जो पेड है वह वह नंबर है जो आप तय करते हैं, हम नहीं।
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="boundary-hi" aria-labelledby="boundary-title-hi">
+      <div class="wrap">
+        <div class="floor">
+          <h2 id="boundary-title-hi">सीमा, सीधे शब्दों में।</h2>
+          <p>
+            तीन दायरे हैं, और वे एक दूसरे में कभी नहीं मिलते। यह कोई सेटिंग नहीं है जिसे आप बंद कर सकें, यह
+            इस बात का ढांचा है कि ये दायरे कैसे बने हैं।
+          </p>
+          <ul>
+            <li><span aria-hidden="true">&check;</span><span>आप अपने AI को जो देते हैं (आपकी सामग्री, आपके सुधार) हर उस फॉलोअर तक पहुंचता है जो इससे बात करता है।</span></li>
+            <li><span aria-hidden="true">&check;</span><span>एक फॉलोअर अपने AI को जो बताता है वह उसके अपने Room में ही रहता है। यह कभी ऐसी चीज़ नहीं बनता जो आपका AI आपके बारे में जानता हो, और यह किसी और के Room तक कभी नहीं पहुंचता।</span></li>
+            <li><span aria-hidden="true">&check;</span><span>आप सिर्फ गिनती देखते हैं, कभी शब्द नहीं। एक पैटर्न जो पांच या ज़्यादा फॉलोअर साझा करते हैं, वह आपको एक नंबर के तौर पर दिख सकता है, और वह भी सिर्फ तब जब आपने इसे देखने के लिए सहमति दी हो।</span></li>
+            <li><span aria-hidden="true">&check;</span><span>आपका AI कभी यह नहीं छिपाता कि वह एक AI है, इस सीमा के किसी भी तरफ।</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="apply-title-hi" id="apply-hi">
+      <div class="wrap">
+        <div class="limits">
+          <p class="eyebrow">आवेदन करने से पहले यह पढ़ें</p>
+          <h2 id="apply-title-hi">यह अभी सेल्फ-सर्व साइनअप नहीं है।</h2>
+          <ul>
+            <li>
+              <strong>हर आवेदन एक इंसान पढ़ता है।</strong> यह किसी क्यू या ऑटोमैटिक जवाब को नहीं, एक इंसान
+              को जाता है। नीचे फ़ॉर्म भेजें और असली जवाब की उम्मीद रखें।
+            </li>
+            <li>
+              <strong>हम पहले Rooms छोटे बैचों में खोल रहे हैं।</strong> यहां कोई तारीख नहीं बताई गई क्योंकि
+              अभी कोई तय नहीं हुई है, और एक झूठी तारीख न होने से बुरी होती।
+            </li>
+            <li>
+              <strong>आपकी सामग्री और आपका कैलिब्रेशन सुधारने के लिए आपका ही रहता है।</strong> Studio वह कुछ
+              भी पब्लिश नहीं करता जो आपने रिव्यू नहीं किया, और शुरुआत के दिन से ही वापस लेना उपलब्ध है।
+            </li>
+          </ul>
+
+          <form class="apply-form" id="apply-form-hi" novalidate>
+            <div class="apply-field">
+              <label for="apply-name-hi">आपका नाम</label>
+              <input id="apply-name-hi" name="name" type="text" maxlength="200" required autocomplete="name" />
+            </div>
+            <div class="apply-field">
+              <label for="apply-archive-hi">आपके आर्काइव का लिंक</label>
+              <input
+                id="apply-archive-hi" name="archive_link" type="text" maxlength="2000" required
+                placeholder="एक चैनल, एक कोर्स, एक फ़ीड, कुछ भी लंबा"
+              />
+            </div>
+            <div class="apply-field">
+              <label for="apply-audience-hi">आपकी ऑडियंस कौन है</label>
+              <textarea
+                id="apply-audience-hi" name="audience" maxlength="2000"
+                placeholder="वे आपको पहले से कहां पाते हैं, और लगभग कितने"
+              ></textarea>
+            </div>
+            <div class="apply-field">
+              <label for="apply-contact-hi">संपर्क</label>
+              <input
+                id="apply-contact-hi" name="contact" type="text" maxlength="320" required
+                placeholder="एक ईमेल या फ़ोन नंबर" autocomplete="email"
+              />
+            </div>
+            <button class="btn" type="submit" id="apply-submit-hi">आवेदन भेजें</button>
+            <p class="apply-note" id="apply-status-hi" role="status" aria-live="polite"></p>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="close" aria-labelledby="close-title-hi">
+      <div class="wrap">
+        <h2 id="close-title-hi">सबसे बात करें। किसी को किसी की बात सुनने न दें।</h2>
+        <p>
+          बनाना मुफ़्त है। आपके फॉलोअर क्या देंगे, यह आप तय करते हैं। हमारा हिस्सा एक ही नंबर है, जो पब्लिश
+          करने से पहले दिखाया जाता है।
+        </p>
+        <a class="btn" href="#apply-hi">पहले Rooms में से एक के लिए आवेदन करें</a>
+        <p class="fine">एक छोटा फ़ॉर्म, चार फ़ील्ड। इसे एक इंसान पढ़ता है। कोई ऑटोमैटिक फ़ैसला नहीं।</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <p>Vyakti आपकी अपनी सामग्री को एक निजी AI में बदलता है, हर उस व्यक्ति के साथ एक निजी, चलती रहने वाली रिश्तेदारी के साथ जो इससे बात करता है।</p>
+      <span class="nav-spacer"></span>
+      <a href="/privacy">गोपनीयता और शर्तें</a>
+    </div>
+  </footer>
+</div>
 
   <!-- WS-R23: the apply form's own small inline script, this file's no-build-
        step rule. Posts to api/apply.js; the one predicate that can refuse it
        (one application per contact per day) is api/_apply.js's, never
        re-implemented here - this script only reports whatever the server
-       already decided. -->
+       already decided. WS-R160: wired twice, once per locale form, the SAME
+       function taking every id as a parameter - `site/suites.html`'s own
+       `wireStartForm` precedent for a bilingual page with no framework. -->
   <script>
     (function () {
-      var form = document.getElementById("apply-form");
-      var status = document.getElementById("apply-status");
-      var submit = document.getElementById("apply-submit");
-      if (!form || !status || !submit) return;
+      function wireApplyForm(formId, nameId, archiveId, audienceId, contactId, submitId, statusId, msg) {
+        var form = document.getElementById(formId);
+        var status = document.getElementById(statusId);
+        var submit = document.getElementById(submitId);
+        if (!form || !status || !submit) return;
 
-      function setStatus(state, text) {
-        status.setAttribute("data-state", state);
-        status.textContent = text;
+        function setStatus(state, text) {
+          status.setAttribute("data-state", state);
+          status.textContent = text;
+        }
+
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          var name = document.getElementById(nameId).value.trim();
+          var archiveLink = document.getElementById(archiveId).value.trim();
+          var audience = document.getElementById(audienceId).value.trim();
+          var contact = document.getElementById(contactId).value.trim();
+          if (!name || !archiveLink || !contact) {
+            setStatus("error", msg.missing);
+            return;
+          }
+          submit.disabled = true;
+          setStatus("", msg.sending);
+          fetch("/api/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              op: "submit",
+              name: name,
+              archive_link: archiveLink,
+              audience: audience,
+              contact: contact,
+            }),
+          })
+            .then(function (response) {
+              return response.json().catch(function () { return {}; }).then(function (data) {
+                return { ok: response.ok, status: response.status, data: data };
+              });
+            })
+            .then(function (result) {
+              submit.disabled = false;
+              if (result.ok) {
+                form.reset();
+                setStatus("ok", msg.ok);
+                return;
+              }
+              if (result.status === 429) {
+                setStatus("error", msg.rateLimited);
+                return;
+              }
+              setStatus("error", msg.failed);
+            })
+            .catch(function () {
+              submit.disabled = false;
+              setStatus("error", msg.network);
+            });
+        });
       }
 
-      form.addEventListener("submit", function (event) {
-        event.preventDefault();
-        var name = document.getElementById("apply-name").value.trim();
-        var archiveLink = document.getElementById("apply-archive").value.trim();
-        var audience = document.getElementById("apply-audience").value.trim();
-        var contact = document.getElementById("apply-contact").value.trim();
-        if (!name || !archiveLink || !contact) {
-          setStatus("error", "Your name, an archive link and a contact are all required.");
-          return;
-        }
-        submit.disabled = true;
-        setStatus("", "Sending.");
-        fetch("/api/apply", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            op: "submit",
-            name: name,
-            archive_link: archiveLink,
-            audience: audience,
-            contact: contact,
-          }),
-        })
-          .then(function (response) {
-            return response.json().catch(function () { return {}; }).then(function (data) {
-              return { ok: response.ok, status: response.status, data: data };
-            });
-          })
-          .then(function (result) {
-            submit.disabled = false;
-            if (result.ok) {
-              form.reset();
-              setStatus("ok", "Sent. A person will read this and reach out.");
-              return;
-            }
-            if (result.status === 429) {
-              setStatus("error", "One application per contact per day. Please try again tomorrow.");
-              return;
-            }
-            setStatus("error", "That did not go through. Check the form and try again.");
-          })
-          .catch(function () {
-            submit.disabled = false;
-            setStatus("error", "That did not reach the server. Check your connection and try again.");
-          });
+      wireApplyForm(
+        "apply-form", "apply-name", "apply-archive", "apply-audience", "apply-contact",
+        "apply-submit", "apply-status",
+        {
+          missing: "Your name, an archive link and a contact are all required.",
+          sending: "Sending.",
+          ok: "Sent. A person will read this and reach out.",
+          rateLimited: "One application per contact per day. Please try again tomorrow.",
+          failed: "That did not go through. Check the form and try again.",
+          network: "That did not reach the server. Check your connection and try again.",
+        },
+      );
+
+      wireApplyForm(
+        "apply-form-hi", "apply-name-hi", "apply-archive-hi", "apply-audience-hi", "apply-contact-hi",
+        "apply-submit-hi", "apply-status-hi",
+        {
+          missing: "आपका नाम, आर्काइव का लिंक और संपर्क, तीनों ज़रूरी हैं।",
+          sending: "भेजा जा रहा है।",
+          ok: "भेज दिया गया। एक इंसान इसे पढ़ेगा और संपर्क करेगा।",
+          rateLimited: "एक दिन में एक संपर्क से एक ही आवेदन। कृपया कल फिर कोशिश करें।",
+          failed: "यह नहीं भेजा जा सका। फ़ॉर्म जांचें और फिर कोशिश करें।",
+          network: "यह सर्वर तक नहीं पहुंचा। अपना कनेक्शन जांचें और फिर कोशिश करें।",
+        },
+      );
+
+      // ── locale toggle, site/suites.html's own mechanism ─────────────────
+      function applyLang(lang) {
+        var en = document.getElementById("loc-en");
+        var hi = document.getElementById("loc-hi");
+        var isHi = lang === "hi";
+        en.hidden = isHi;
+        hi.hidden = !isHi;
+        document.documentElement.lang = isHi ? "hi" : "en";
+        var params = new URLSearchParams(window.location.search);
+        if (isHi) params.set("lang", "hi"); else params.delete("lang");
+        var q = params.toString();
+        history.replaceState(null, "", window.location.pathname + (q ? "?" + q : "") + window.location.hash);
+      }
+      var initial = new URLSearchParams(window.location.search).get("lang") === "hi" ? "hi" : "en";
+      applyLang(initial);
+      document.querySelectorAll("[data-set-lang]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          applyLang(btn.getAttribute("data-set-lang"));
+        });
       });
     })();
   </script>

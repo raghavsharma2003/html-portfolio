@@ -44,7 +44,22 @@ import { roomDisclosureCard, normalizeLocale } from "./_room-surface.js";
  *  reused verbatim rather than a second, drifting copy of the same idea. */
 export const PLATFORM_TITLE = "Vyakti";
 export const PLATFORM_DESCRIPTION =
-  "A private AI built from a creator's own material. Every follower gets their own continuing relationship with it, and none of them can hear each other.";
+  "A private AI built from a person's own material. Every follower gets their own continuing relationship with it, and none of them can hear each other.";
+
+/** WS-R160: the phrase a stranger sees ANYWHERE this AI is named to someone
+ *  who is not already talking to it - this crawler unfurl and the
+ *  transparency page's own `<title>` one file over (`api/_room-about.js`,
+ *  which imports this rather than keeping a second copy - the identical
+ *  "one source of truth" reuse this file's own header already gives for
+ *  `PLATFORM_TITLE`/`PLATFORM_DESCRIPTION`). States the same three facts in
+ *  the same order every time: whose AI this is, who made it, and that it
+ *  runs on this platform - never left to each caller to phrase on its own. */
+export function roomAiTitleLine(name, locale = "en") {
+  if (!name) return PLATFORM_TITLE;
+  return locale === "hi"
+    ? `${name} AI, ${name} द्वारा बनाया गया, Vyakti पर`
+    : `${name} AI, made by ${name}, on Vyakti`;
+}
 
 function esc(value) {
   return String(value || "")
@@ -132,7 +147,7 @@ export function buildRoomPageHtml(row, { origin, slug } = {}) {
   // joined by "\n"; splitting on that is safe because the card itself is
   // app-voiced data, never user-authored text that could contain one.
   const description = roomDisclosureCard(name, locale).split("\n")[0];
-  const title = name ? `${name} AI` : PLATFORM_TITLE;
+  const title = roomAiTitleLine(name, locale);
 
   return renderHead({
     title,

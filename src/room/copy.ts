@@ -143,7 +143,7 @@ const EN = {
    *  would tell a stranger which creators had taken their room down. */
   unavailable: {
     title: "This room is not open",
-    body: "The link may be old, or the creator may have paused it. Nothing else went wrong.",
+    body: "The link may be old, or the person may have paused it. Nothing else went wrong.",
   },
 
   /** WS-R59. Distinct from `unavailable` above on purpose: that message is
@@ -262,7 +262,7 @@ const EN = {
     },
     cancel: "Cancel",
     submitting: "Flagging...",
-    done: "Flagged. Sent to the creator's review.",
+    done: "Flagged. Sent for review.",
     alreadyFlagged: "You already flagged this reply.",
     error: "That flag could not be sent. Try again.",
     withdraw: "Withdraw this flag",
@@ -311,7 +311,7 @@ const EN = {
     cta: "Upgrade",
     working: "One moment",
     notConfigured: "Paid support for this room is not turned on yet.",
-    priceNotSet: "The creator has not set a price for this room yet.",
+    priceNotSet: "A price has not been set for this room yet.",
     noLink: "A start is already on file, but there is no payment link to open right now.",
     failed: "Could not start that just now. Try again in a moment.",
     // WS-R69. What tapping the subscribe button actually starts, before it
@@ -479,7 +479,7 @@ const EN = {
     // WS-R37's cancel op is not always in this tree. Shown only when there is
     // no way to act on the subscription from here - never a claim that one is
     // coming.
-    subscriptionNoCancel: "Cancelling from here is not available yet. Contact the creator to cancel.",
+    subscriptionNoCancel: "Cancelling from here is not available yet. Contact the person to cancel.",
     // WS-R69. `paused` and `halted` are the SAME stored database value
     // (Razorpay's own mandate can be paused by the follower's own UPI app,
     // or halted when an auto-charge's retries run out - `api/_payments.js`'s
@@ -490,7 +490,7 @@ const EN = {
       authenticated: "Your subscription is being set up.",
       active: "You are a paid follower.",
       paused: "Your subscription is paused. If you paused it from your UPI app, resume it there to keep talking as a paid follower.",
-      halted: "Your last payment did not go through. Check your UPI app, or contact the creator if it keeps failing.",
+      halted: "Your last payment did not go through. Check your UPI app, or contact the person if it keeps failing.",
       cancelled: "Your subscription has ended.",
       expired: "Your subscription has ended.",
     },
@@ -509,7 +509,7 @@ const EN = {
   checkins: {
     title: "Check-ins",
     intro: "Pick a check-in and a schedule. It will follow up right in this room, at the time you choose.",
-    empty: "This creator has not set up any check-ins yet.",
+    empty: "No check-ins have been set up here yet.",
     daysLabel: "Which days",
     timeLabel: "What time",
     zoneLabel: "Your timezone",
@@ -586,7 +586,7 @@ const EN = {
    *  one this workstream would have to keep in sync with it. */
   referral: {
     title: "Bring a friend",
-    note: "Share this link. If a friend joins through it, the creator only sees that a friend was brought in - never who.",
+    note: "Share this link. If a friend joins through it, only \"a friend was brought in\" is ever shown - never who.",
     copy: "Copy link",
     copied: "Copied",
   },

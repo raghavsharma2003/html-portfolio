@@ -5,7 +5,7 @@
 //
 // A stranger asks a creator's AI three questions before joining, from
 // creator material alone, remembering nothing, through the one door
-// (`gatedReply`, api/_surface.js). Five sections:
+// (`gatedReply`, api/_surface.js). Seven sections:
 //
 //   §1 THREE ANSWERS THEN A 429. `roomTaste` (api/_room-taste.js) driven
 //      through the REAL `api/_rate-limit.js` `consume()` and a fake
@@ -38,6 +38,12 @@
 //      assertion; (c) the §4 comparator, pointed at a compiled prompt
 //      deliberately seeded with a fake follower-memory string, DOES flag a
 //      difference - proving the byte-diff is not vacuous either.
+//   §6 WS-R80, THE STATIC ISLAND: `/c/<slug>`'s no-JS taste form fetches
+//      exactly `/api/room` with exactly one op literal, `"taste"`.
+//   §7 WS-R160, THE NAME FALLBACK: a sheet with no `name` field (the shape a
+//      future non-teacher sheet is not guaranteed to avoid, before R151's
+//      person sheet lands) still gets a real disclosure name, from the
+//      Room's own `display_name` - never an empty one.
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
@@ -433,6 +439,54 @@ const FOLLOWER_OPS = new Set([
 {
   ok("the real island never assigns .innerHTML", !/\.innerHTML\s*=/.test(ISLAND_SRC));
   ok("...it renders dynamic text with .textContent instead", /\.textContent\s*=/.test(ISLAND_SRC));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §7: the disclosure name falls back to the Room's own display_name ──");
+// WS-R160 ("the Room and the landing for any person"). A published teacher
+// sheet always carries `sheet.name` (`validateTeacherSheet`'s own required
+// field), but this workstream's brief names the day a Room's sheet is NOT
+// shaped like a teacher's - a future person sheet, before R151 lands a
+// dedicated one-liner for it (`context/STATE.md`'s own note that migration
+// 163 has not landed in this tree). `roomTaste`'s own `name` computation
+// now falls back to `resolved.room.display_name` - `vy_room`'s own copy of
+// the same name, independent of sheet kind - rather than rendering a
+// disclosure card with an empty name. Proven here by loading a sheet with
+// NO `name` field at all through the REAL `roomTaste`, never by asserting
+// against a re-typed copy of the fallback expression.
+{
+  const rateState = freshRateState();
+  const rateDb = fakeRateDb(rateState);
+  const roomState = freshState();
+  const roomDb = fakeDb(roomState);
+  const now = Date.parse("2026-09-04T12:05:00.000Z");
+
+  const namelessSheet = { ...SHEET, name: "" };
+  const loadNamelessAgent = async (slug) => {
+    if (slug !== SLUG) throw new Error("teacher_sheet_unavailable");
+    return { module: engine.sheetToModule({ ...namelessSheet, name: "Anjali" }), sheet: namelessSheet, row: {} };
+  };
+  // The compiled MODULE still needs a real name (`sheetToModule`'s own
+  // requirement) - only the SHEET object `roomNameFor` reads from is built
+  // nameless, so this is a true test of the fallback path alone, never a
+  // module that fails to compile for an unrelated reason.
+  const gate = await consume(rateDb, { scope: "room_taste", key: "anjali:9.9.9.9", now, env: process.env });
+  const turnIndex = limitsFor(process.env).room_taste.limit - gate.remaining;
+  const turn = await roomTaste(
+    roomDb,
+    { slug: SLUG, message: "hello", turnIndex },
+    { loadAgent: loadNamelessAgent, now, reply: () => "a taste answer." },
+  );
+  ok("a nameless sheet still returns the Room's own display_name", turn.room.name === "Anjali");
+  ok("...and the disclosure card carries that same name, never blank",
+    typeof turn.disclosure === "string" && turn.disclosure.includes("Anjali"));
+
+  // NEGATIVE CONTROL: `roomNameFor` alone (no fallback) DOES produce an
+  // empty name for this exact nameless sheet - proving the assertion above
+  // is exercising a real fallback, not a value that was already non-empty
+  // for an unrelated reason.
+  ok("NEGATIVE CONTROL: roomNameFor alone (no fallback) is blank for this sheet",
+    roomNameFor(namelessSheet) === "");
 }
 
 console.log(`\nroom-taste: ${pass} passed, ${fail} failed`);
