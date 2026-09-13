@@ -1,7 +1,6 @@
 // Merge-specific controls, actual captured production SQL. Not SQL execution.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
 import ts from 'typescript';
 import {capturePrimarySelectionSql} from './primary-selection-cas/capture.mjs';
 import {splitSql} from '../db/migrations/apply.mjs';
@@ -9,7 +8,9 @@ import {decideMirrorDelta} from '../api/_mirrorcall-store.js';
 globalThis.fetch=()=>{throw Error('network forbidden in merge controls');};
 const root=new URL('../',import.meta.url),base='c56cadfe72a20ee02781485752d8d67fcfc6fb21';
 const read=p=>readFileSync(new URL(p,root),'utf8').replaceAll('\r\n','\n');
-const prior=p=>execFileSync('git',['show',`${base}:${p}`],{cwd:root,encoding:'utf8',windowsHide:true}).replaceAll('\r\n','\n');
+// blobs from commit `base`, moved to committed fixtures
+// (context/rejected.md#ci-shallow-checkout-starved-the-history-reading-suites).
+const prior=p=>readFileSync(new URL(`evals/private-rehearsal-combined/fixtures/${base.slice(0,8)}/${p.replaceAll('/','__')}`,root),'utf8').replaceAll('\r\n','\n');
 let groups=0;const pass=name=>console.log(`ok ${++groups} - ${name}`);
 const sql=await capturePrimarySelectionSql();
 function bothEpochs(text){

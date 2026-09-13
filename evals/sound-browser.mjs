@@ -34,7 +34,7 @@
 //
 // The model is stubbed at /api/chat, so it is deterministic and costs $0.
 // Runtime ~45s.
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 
 const B = process.env.MEERA_PREVIEW || "http://localhost:4291";
 const OBSERVE = process.argv.includes("--observe");
@@ -108,7 +108,7 @@ const PROBE = `
 })();
 `;
 
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const browser = await launchSuiteBrowser("sound-browser");
 
 const BASE_STATE = {
   onboarded: true,

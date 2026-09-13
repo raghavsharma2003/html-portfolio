@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 
 const base = process.env.VYAKTI_VISUAL_BASE || "http://127.0.0.1:5173";
-const systemChrome = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-const browser = await chromium.launch({ headless: true, executablePath: existsSync(systemChrome) ? systemChrome : undefined });
+const browser = await launchSuiteBrowser("clone-verification-journey-visual");
 try {
   const page = await browser.newPage({ viewport: { width: 360, height: 640 }, deviceScaleFactor: 1, reducedMotion: "reduce" });
   const errors = [];

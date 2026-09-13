@@ -3,8 +3,7 @@ import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
-import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, extname } from "node:path";
 import { build } from "vite";
@@ -13,7 +12,10 @@ const old = process.argv.includes("--old-code");
 const RID = "10000000-0000-4000-8000-000000000001", OTHER = "10000000-0000-4000-8000-000000000002";
 const SESSION = "20000000-0000-4000-8000-000000000001";
 const entry = join(root, "__dialogue_history_fixture__.tsx");
-const oldSource = old ? execFileSync("git", ["show", "68283658:src/studio/ExpertConversation.tsx"], { cwd: root, encoding: "utf8" }) : null;
+// blob from commit 68283658955ca97eb057b201c8b35bae90ca702a, moved to a
+// committed fixture (context/rejected.md#ci-shallow-checkout-starved-the-
+// history-reading-suites).
+const oldSource = old ? readFileSync(join(root, "evals/dialogue-history-ui/fixtures/68283658/src__studio__ExpertConversation.tsx"), "utf8") : null;
 const contents = `import React,{useState} from 'react';import{createRoot}from'react-dom/client';
 import '@fontsource-variable/instrument-sans';import './src/studio/design/tokens.css';import './src/studio/studio.css';
 import './src/studio/design/honesty.css';import './src/studio/design/mobile.css';import ExpertConversation from './src/studio/ExpertConversation';

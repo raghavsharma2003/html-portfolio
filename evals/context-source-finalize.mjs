@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 const root=new URL('../',import.meta.url),path=new URL('../api/_replica-source.js',import.meta.url);
 const sha=x=>createHash('sha256').update(x).digest('hex');
@@ -8,7 +7,10 @@ const calls=[];let egress=0;const originalFetch=globalThis.fetch;globalThis.fetc
 try{
  const current=await import(path.href);
  const {fileURLToPath}=await import('node:url');
- const oldText=execFileSync('git',['show','0a3b2d2608d64a4f9aebdafc690caf445f6b5889:api/_replica-source.js'],{cwd:fileURLToPath(root),encoding:'utf8'});
+ // blob from commit 0a3b2d2608d64a4f9aebdafc690caf445f6b5889, moved to a
+ // committed fixture (context/rejected.md#ci-shallow-checkout-starved-the-
+ // history-reading-suites).
+ const oldText=readFileSync(new URL('evals/context-source-finalize/fixtures/0a3b2d26/api___replica-source.js',root),'utf8');
  const routed=oldText.replace(/from (["'])(\.[^"']+)\1/g,(_,quote,rel)=>`from ${quote}${new URL(rel,path).href}${quote}`);
  const old=await import('data:text/javascript;base64,'+Buffer.from(routed).toString('base64'));
  const f={rid:'10000000-0000-4000-8000-000000000001',owner:'10000000-0000-4000-8000-000000000002',sid:'10000000-0000-4000-8000-000000000003',hash:'a'.repeat(64)};

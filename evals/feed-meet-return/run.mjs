@@ -57,13 +57,20 @@ const remap=(value,rid)=>JSON.parse(JSON.stringify(value).replaceAll(base.FIXTUR
 const replica=rid=>({...remap(base.FIXTURE_REPLICA,rid),display_name:rid===RID?'Synthetic Physics Teacher':'Other Synthetic Teacher',lifecycle:'enrolling',age_verified:false,identity_verified:false,liveness_verified:false});
 const grants=rid=>['capture','transcription','storage'].map(scope=>({consent_id:GRANT,replica_id:rid,scope,method:'account_attestation',policy_version:'replica-self-v1',granted_at:'2026-09-07T00:00:00Z',expires_at:'2027-09-07T00:00:00Z',revoked_at:null}));
 const priorPanel=readFileSync(join(root,'evals/private-text-rehearsal/fixtures/prior-panel.tsx.txt'),'utf8');
-const old=execFileSync('git',['show','da3ac2ae:src/studio/CloneExperience.tsx'],{cwd:root,encoding:'utf8'});
+// blob from commit da3ac2aeac29571ae45a4507d947b1cf603cf9c1, moved to a
+// committed fixture (context/rejected.md#ci-shallow-checkout-starved-the-
+// history-reading-suites).
+const old=readFileSync(join(root,'evals/feed-meet-return/fixtures/da3ac2ae/src__studio__CloneExperience.tsx'),'utf8');
 const artifact=join(root,'scratchpad/feed-meet-return',String(Date.now()));mkdirSync(artifact,{recursive:true});
 let browser,server;const errors=[];
 try{
  const baselineOnly=process.argv.includes('--baseline');
  const teachOnly=process.argv.includes('--teach');
- const built=await build({root,configFile:false,logLevel:'silent',build:{write:false,minify:true,rolldownOptions:{input:{studio:join(root,'studio.html'),scope:join(root,'evals/private-text-rehearsal/scope.html'),legacy:join(root,'evals/private-text-rehearsal/legacy.html')}}},plugins:[{name:'checkpoint23-negative',enforce:'pre',load(id){const rel=id.replaceAll('\\','/').split('/src/studio/')[1];if(baselineOnly&&['CloneExperience.tsx','ContextLockerPanel.tsx','PrivateTextRehearsal.tsx'].includes(rel))return execFileSync('git',['show','0a3b2d26:src/studio/'+rel],{cwd:root,encoding:'utf8'});}},{name:'retained-base-component',resolveId(id){if(id==='virtual:prior-private-panel')return '\0prior-private-panel.tsx';if(id==='virtual:legacy-experience')return '\0legacy-experience.tsx';},load(id){if(id==='\0prior-private-panel.tsx')return priorPanel.replace(/(from\s*|import\s*|import\()(["'])(\.\/[^"']+)\2/g,(_all,prefix,quote,path)=>prefix+quote+join(root,'src/studio',path).replaceAll('\\','/')+quote);if(id==='\0legacy-experience.tsx')return old.replace(/(from\s*|import\s*|import\()(["'])(\.\/[^"']+)\2/g,(_all,prefix,quote,path)=>prefix+quote+join(root,'src/studio',path).replaceAll('\\','/')+quote);}}]});
+ const built=await build({root,configFile:false,logLevel:'silent',build:{write:false,minify:true,rolldownOptions:{input:{studio:join(root,'studio.html'),scope:join(root,'evals/private-text-rehearsal/scope.html'),legacy:join(root,'evals/private-text-rehearsal/legacy.html')}}},plugins:[{name:'checkpoint23-negative',enforce:'pre',load(id){const rel=id.replaceAll('\\','/').split('/src/studio/')[1];
+  // blobs from commit 0a3b2d2608d64a4f9aebdafc690caf445f6b5889, moved to
+  // committed fixtures (context/rejected.md#ci-shallow-checkout-starved-
+  // the-history-reading-suites).
+  if(baselineOnly&&['CloneExperience.tsx','ContextLockerPanel.tsx','PrivateTextRehearsal.tsx'].includes(rel))return readFileSync(join(root,'evals/feed-meet-return/fixtures/0a3b2d26/src__studio__'+rel),'utf8');}},{name:'retained-base-component',resolveId(id){if(id==='virtual:prior-private-panel')return '\0prior-private-panel.tsx';if(id==='virtual:legacy-experience')return '\0legacy-experience.tsx';},load(id){if(id==='\0prior-private-panel.tsx')return priorPanel.replace(/(from\s*|import\s*|import\()(["'])(\.\/[^"']+)\2/g,(_all,prefix,quote,path)=>prefix+quote+join(root,'src/studio',path).replaceAll('\\','/')+quote);if(id==='\0legacy-experience.tsx')return old.replace(/(from\s*|import\s*|import\()(["'])(\.\/[^"']+)\2/g,(_all,prefix,quote,path)=>prefix+quote+join(root,'src/studio',path).replaceAll('\\','/')+quote);}}]});
  const assets=new Map(built.output.map(item=>['/'+item.fileName,item.type==='chunk'?item.code:item.source]));
  writeFileSync(join(artifact,'build.json'),JSON.stringify(built.output.map(item=>({file:item.fileName,sha256:createHash('sha256').update(item.type==='chunk'?item.code:item.source).digest('hex')})),null,2));
  server=createServer(async(req,res)=>{

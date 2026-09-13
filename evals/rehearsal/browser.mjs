@@ -35,9 +35,20 @@ export function rehearsalChromiumPath() {
  *  workflow, which carries no browser (`context/rejected.md#direct-chromium-
  *  launches-crashed-the-browserless-build-job`). The skip is honest for the
  *  reason the header gives: the release gate runs the identical registry
- *  with a browser on every push. */
-export async function launchSuiteBrowser(suite, extraArgs = []) {
-  const { browser, reason } = await launchRehearsalBrowser(extraArgs);
+ *  with a browser on every push.
+ *
+ *  `launchOptions` (WS-R165) carries Playwright `launch()` options this
+ *  suite needs BEYOND the shared `executablePath`/`channel`/`args` shape —
+ *  today, only `notify-browser.mjs`'s `{ headless: false }` (headless
+ *  Chromium reports the notification permission as permanently "denied", so
+ *  the suite this exists to prove cannot run any other way; see that file's
+ *  own header) and `performance-hindi-interface-browser.mjs`'s launch
+ *  `timeout`. It is spread LAST, after the shared `executablePath`/`channel`
+ *  and `args`, so a caller can override either — `args` included, by passing
+ *  its own complete `args` array — but never has to re-derive the binary
+ *  resolution this file already owns. */
+export async function launchSuiteBrowser(suite, extraArgs = [], launchOptions = {}) {
+  const { browser, reason } = await launchRehearsalBrowser(extraArgs, launchOptions);
   if (browser) return browser;
   console.log(`SKIP ${suite}: ${reason}`);
   process.exit(0);
@@ -45,7 +56,7 @@ export async function launchSuiteBrowser(suite, extraArgs = []) {
 
 /** `{ browser }` on success; `{ browser: null, reason }` when no Chromium
  *  can be launched here. Never throws for a missing binary. */
-export async function launchRehearsalBrowser(extraArgs = []) {
+export async function launchRehearsalBrowser(extraArgs = [], launchOptions = {}) {
   let chromium;
   try {
     ({ chromium } = await import("playwright"));
@@ -54,7 +65,7 @@ export async function launchRehearsalBrowser(extraArgs = []) {
   }
   const executablePath = rehearsalChromiumPath();
   const args = ["--no-sandbox", ...extraArgs];
-  const opts = executablePath ? { executablePath, args } : { channel: "chromium", args };
+  const opts = { ...(executablePath ? { executablePath } : { channel: "chromium" }), args, ...launchOptions };
   try {
     const browser = await chromium.launch(opts);
     return { browser, executablePath, channel: executablePath ? null : "chromium" };

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 
 const base = process.env.CONTEXT_PROPOSAL_TEST_URL || "http://localhost:5177";
 const out = resolve("scratchpad/context-proposal-review");
 mkdirSync(out, { recursive: true });
-const browser = await chromium.launch({ headless: true });
+const browser = await launchSuiteBrowser("context-proposal-review-ui");
 let checks = 0;
 const ok = (condition, name) => { assert.ok(condition, name); console.log(`ok ${++checks} - ${name}`); };
 try {

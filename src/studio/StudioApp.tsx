@@ -1857,9 +1857,20 @@ export default function StudioApp({
     let live = true;
     let polling = false;
     let timer = 0;
+    // WS-R165: a focus/online resume that lands WHILE a poll is already in
+    // flight used to be silently dropped here (`if (polling) return;`, with
+    // no memory that the resume ever happened) and the next refresh was
+    // then up to IDLE_RECONCILE_MS (60s) away — reproduced under load,
+    // `context/rejected.md#first-use-refresh-suite-races-under-load`. This
+    // flag is the fix: a dropped resume is remembered, and the in-flight
+    // poll's own `finally` below fires the coalesced follow-up immediately
+    // (0ms) rather than waiting the full idle interval, without ever
+    // running two polls at once (the `polling` guard above is unchanged).
+    let resumeQueued = false;
     const refreshReadiness = async () => {
-      if (polling) return;
+      if (polling) { resumeQueued = true; return; }
       polling = true;
+      resumeQueued = false;
       try {
         const fresh = await refreshForRequest(session);
         const [sourceResult, runtimeResult, replicaResult] = await Promise.allSettled([
@@ -1885,7 +1896,9 @@ export default function StudioApp({
       } finally {
         polling = false;
         if (live && readinessPending && document.visibilityState !== "hidden") {
-          timer = window.setTimeout(() => { void refreshReadiness(); }, IDLE_RECONCILE_MS);
+          const delay = resumeQueued ? 0 : IDLE_RECONCILE_MS;
+          resumeQueued = false;
+          timer = window.setTimeout(() => { void refreshReadiness(); }, delay);
         }
       }
     };

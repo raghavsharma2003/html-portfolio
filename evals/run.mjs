@@ -3269,6 +3269,29 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   emotionos: "emotionos/run.mjs",
+
+  // WS-R165 ("the evals made durable"). `evals/lib/launch-scan.mjs`'s own
+  // suite: a static scan for a direct `chromium.launch(`/`firefox.launch(`/
+  // `webkit.launch(`/`puppeteer.launch(` call anywhere under evals/ outside
+  // the one shared launcher (`evals/rehearsal/browser.mjs`) — the shape 39
+  // of Codex's mounted-component suites had
+  // (`context/rejected.md#direct-chromium-launches-crashed-the-browserless-
+  // build-job`) and 31 more files still carried before this workstream. A
+  // required NEGATIVE CONTROL proves the scanner finds a planted violation
+  // before trusting it to report zero on the real, committed tree.
+  //
+  // Offline, deterministic, $0, no DB, no network, no browser.
+  "launch-scan": "launch-scan/run.mjs",
+  // WS-R165. `evals/lib/history-scan.mjs`'s own suite: a static scan for a
+  // `git show <ref>:<path>` historical-blob read anywhere under evals/ — the
+  // shape that starved 18 suites on CI's depth-1 checkout
+  // (`context/rejected.md#ci-shallow-checkout-starved-the-history-reading-
+  // suites`) and 20 files still carried before this workstream moved every
+  // blob into a committed fixture. Same negative-control shape as
+  // launch-scan above.
+  //
+  // Offline, deterministic, $0, no DB, no network, no browser.
+  "history-scan": "history-scan/run.mjs",
 };
 
 const argv = process.argv.slice(2);

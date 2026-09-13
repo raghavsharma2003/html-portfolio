@@ -44,7 +44,7 @@
 // generated in-process at known sizes and colours, so a tile carrying the wrong
 // picture is visible in the screenshots rather than merely plausible.
 
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import { deflateSync } from "node:zlib";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -205,7 +205,7 @@ const { normalizeDocs } = await import(join(ROOT, "api/_docs.js"));
 // ── the app ────────────────────────────────────────────────────────────────
 let browser;
 try {
-  browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+  browser = await launchSuiteBrowser("composer-browser");
 } catch (e) {
   dead(`chromium would not start (${String(e.message).slice(0, 160)})`);
 }

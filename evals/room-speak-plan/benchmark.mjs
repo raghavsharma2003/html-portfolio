@@ -32,10 +32,11 @@
 // $0: no network beyond loopback to the browser's own devtools protocol, no
 // model call, no GPU.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { launchRehearsalBrowser } from "../rehearsal/browser.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -61,28 +62,12 @@ execFileSync(
 );
 const bundleSource = readFileSync(bundlePath, "utf8");
 
-let chromium;
-try {
-  ({ chromium } = await import("playwright"));
-} catch {
-  console.error("playwright not installed — cannot run the Chromium benchmark");
-  rmSync(outDir, { recursive: true, force: true });
-  process.exit(1);
-}
-
-const executablePath = [
-  process.env.CHROMIUM_PATH,
-  "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-].find((p) => p && existsSync(p));
-
-const LAUNCH_ARGS = ["--no-sandbox", "--disable-background-networking"];
-const browser = await chromium
-  .launch(executablePath ? { executablePath, args: LAUNCH_ARGS } : { args: LAUNCH_ARGS })
-  .catch((e) => {
-    console.error("no chromium binary available:", e?.message || e);
-    return null;
-  });
+// Shared launcher (`evals/rehearsal/browser.mjs`, WS-R165) owns binary
+// resolution; this call's own `--disable-background-networking` rides its
+// `extraArgs` param alongside the launcher's own `--no-sandbox`.
+const { browser, reason } = await launchRehearsalBrowser(["--disable-background-networking"]);
 if (!browser) {
+  console.error(`no chromium binary available: ${reason}`);
   rmSync(outDir, { recursive: true, force: true });
   process.exit(1);
 }

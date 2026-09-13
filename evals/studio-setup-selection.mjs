@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 const source = readFileSync(new URL("../src/creatorStudio/StudioApp.tsx", import.meta.url), "utf8");
@@ -80,7 +79,10 @@ await check("negative control removing scope guards allows old auth resurrection
   d.resolve({ ...session, accessToken: "refreshed-old-token" }); await old; assert.throws(() => assert.equal(h.state.session, null), assert.AssertionError);
 });
 await check("exact checkpoint22 setup-only query guard loses teacher/replica/share selection",async()=>{
-  const oldSource=execFileSync('git',['show','43230e5e:src/creatorStudio/StudioApp.tsx'],{cwd:new URL('../',import.meta.url),encoding:'utf8',windowsHide:true});
+  // blob from commit 43230e5e94d2086bfaf8b974fbb041862736b28c, moved to a
+  // committed fixture (context/rejected.md#ci-shallow-checkout-starved-the-
+  // history-reading-suites).
+  const oldSource=readFileSync(new URL('studio-setup-selection/fixtures/43230e5e/src__creatorStudio__StudioApp.tsx',new URL('./',import.meta.url)),'utf8');
   assert(oldSource.includes('query.get("mode") === "setup" ? query.get("replica") : null'));const old=callbacks(oldSource);
   for(const prefix of ["?mode=teacher&", "?mode=replica&", "?mode=teacher&step=deploy&view=share&"]){const h=harness({code:old,search:`${prefix}replica=${B.replica_id}`});await h.loadReplicas(session);assert.equal(h.state.selected,A);assert.throws(()=>assert.equal(h.state.selected,B),assert.AssertionError);}
   const setup=harness({code:old});await setup.loadReplicas(session);assert.equal(setup.state.selected,B);

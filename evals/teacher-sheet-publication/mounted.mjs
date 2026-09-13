@@ -2,7 +2,6 @@
 import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
 import {join,resolve,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createServer} from 'node:http';
@@ -16,7 +15,10 @@ const sheet={...(await loadFixtureAgent(root)).SHEET,slug:'publication-fixture'}
 const f=fixture({agentId:agent,rows:[row(sheet)]}),initial=await reviewOwnedTeacherSheetPublication(f.db,owner,replica);
 let review,mode,posts,reads,loadedSheet,draftReads,pending=[],browser,server;const checks=[],errors=[];
 const check=name=>{checks.push(name);console.log('PASS '+name);};
-const old=execFileSync('git',['show','43230e5e:src/creatorStudio/TeacherSheetStudio.tsx'],{cwd:root,encoding:'utf8'});
+// blob from commit 43230e5e94d2086bfaf8b974fbb041862736b28c, moved to a
+// committed fixture (context/rejected.md#ci-shallow-checkout-starved-the-
+// history-reading-suites).
+const old=readFileSync(join(root,'evals/teacher-sheet-publication/fixtures/43230e5e/src__creatorStudio__TeacherSheetStudio.tsx'),'utf8');
 const oldLoads=JSON.parse(readFileSync(new URL('./old-load-editors.json',import.meta.url),'utf8')).files;
 for(const [lane,source]of Object.entries(oldLoads))writeFileSync(join(art,`${lane}-old-load.tsx`),source);
 try{

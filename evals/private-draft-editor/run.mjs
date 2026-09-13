@@ -2,8 +2,7 @@
 // No database, private inference, full Studio shell or publication acceptance.
 import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
-import {mkdirSync,writeFileSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
+import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
 import {join,resolve,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createServer} from 'node:http';
@@ -15,8 +14,11 @@ const root=fileURLToPath(new URL('../../',import.meta.url)),art=join(root,'scrat
 const rid='10000000-0000-4000-8000-000000000001';
 const minimal={name:'Anjali',identityWho:'Physics teacher',subjectDomain:'physics'};
 let raw={...minimal},posts=[],gets=[],browser,server;const checks=[],errors=[],measurements=[];
-const old=Object.fromEntries(['creatorStudio','studio'].map(l=>[l,execFileSync('git',['show',`c56cadfe:src/${l}/TeacherSheetStudio.tsx`],{cwd:root,encoding:'utf8'})]));
-const densityOld=Object.fromEntries(['creatorStudio','studio'].map(l=>[l,execFileSync('git',['show',`3db85f82:src/${l}/TeacherSheetStudio.tsx`],{cwd:root,encoding:'utf8'})]));
+// blobs from commits c56cadfe72a20ee02781485752d8d67fcfc6fb21 and
+// 3db85f82f9491322a8db2a62556cf39be8234937, moved to committed fixtures
+// (context/rejected.md#ci-shallow-checkout-starved-the-history-reading-suites).
+const old=Object.fromEntries(['creatorStudio','studio'].map(l=>[l,readFileSync(join(root,`evals/private-draft-editor/fixtures/c56cadfe/src__${l}__TeacherSheetStudio.tsx`),'utf8')]));
+const densityOld=Object.fromEntries(['creatorStudio','studio'].map(l=>[l,readFileSync(join(root,`evals/private-draft-editor/fixtures/3db85f82/src__${l}__TeacherSheetStudio.tsx`),'utf8')]));
 const check=n=>{checks.push(n);console.log('PASS '+n);};
 try{
  const built=await build({root,configFile:false,logLevel:'silent',build:{write:false,minify:true,rolldownOptions:{input:join(root,'evals/private-draft-editor/host.html')}},plugins:[{name:'exact-old-editor',resolveId(id){if(id==='virtual:density-old-creator')return '\0density-old-creator.tsx';if(id==='virtual:density-old-studio')return '\0density-old-studio.tsx';if(id==='virtual:old-creator')return '\0old-creator.tsx';if(id==='virtual:old-studio')return '\0old-studio.tsx';},load(id){if(id==='\0density-old-creator.tsx'||id==='\0density-old-studio.tsx'){const lane=id==='\0density-old-creator.tsx'?'creatorStudio':'studio';return densityOld[lane].replace(/(from\s*|import\s*|import\()(["'])(\.\.?\/[^"']+)\2/g,(_,p,q,r)=>p+q+resolve(root,'src',lane,r).replaceAll('\\','/')+q);}const lane=id==='\0old-creator.tsx'?'creatorStudio':id==='\0old-studio.tsx'?'studio':null;if(lane)return old[lane].replace(/(from\s*|import\s*|import\()(["'])(\.\.?\/[^"']+)\2/g,(_,p,q,r)=>p+q+resolve(root,'src',lane,r).replaceAll('\\','/')+q);}}]});

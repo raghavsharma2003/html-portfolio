@@ -2,8 +2,7 @@
 // No actual SQL, model, identity or source-attribution authority claim.
 import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
-import {mkdirSync,writeFileSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
+import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
 import {join,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createServer} from 'node:http';
@@ -15,7 +14,11 @@ const item=(overrides={})=>({item_id:ITEM,kind:'file',format:'text',source_name:
 const view=items=>({items,quota:{items:items.length,bytes:200,max_items:100,max_bytes:1e7},limits:{max_item_bytes:1e6,accepted_file_formats:['text','markdown','pdf','docx'],routed_elsewhere:{}}});
 let rows=[item()],posts=[],gets=[],held=[],holdPost=false,holdGet=false,postMode='normal',browser,server;const checks=[],errors=[];
 const until=async predicate=>{const deadline=Date.now()+5000;while(!predicate()){if(Date.now()>deadline)throw Error('fixture state deadline');await new Promise(r=>setTimeout(r,10));}};
-const old=execFileSync('git',['show','c56cadfe:src/studio/ContextLockerPanel.tsx'],{cwd:root,encoding:'utf8'});
+// blob from commit c56cadfe72a20ee02781485752d8d67fcfc6fb21 (before this
+// component's current shape), moved to a committed fixture so this suite
+// never shells to `git show` at test time (context/rejected.md#ci-shallow-
+// checkout-starved-the-history-reading-suites).
+const old=readFileSync(join(root,'evals/context-attribution/fixtures/c56cadfe/src__studio__ContextLockerPanel.tsx'),'utf8');
 try{
  const built=await build({root,configFile:false,logLevel:'silent',build:{write:false,minify:true,rolldownOptions:{input:join(root,'evals/context-attribution/host.html')}},plugins:[{name:'old-component-control',resolveId(id){if(id==='virtual:old-context-locker')return '\0old-context.tsx';},load(id){if(id==='\0old-context.tsx')return old.replace(/(from\s*|import\s*|import\()(["'])(\.\/[^"']+)\2/g,(_,prefix,quote,p)=>prefix+quote+join(root,'src/studio',p).replaceAll('\\','/')+quote);}}]});
  const assets=new Map(built.output.map(x=>['/'+x.fileName,x.type==='chunk'?x.code:x.source]));

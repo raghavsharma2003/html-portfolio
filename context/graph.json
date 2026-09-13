@@ -18624,6 +18624,42 @@
       "kind": "measurement",
       "title": "Wave twenty-one's ten merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
       "at": "context/measurements.md#wave-21-merges-2026-09-13"
+    },
+    {
+      "id": "ws-r165-live-component-race-repro-contaminated-by-unrelated-effects",
+      "kind": "rejection",
+      "title": "Reproducing the readiness-poll race against the live, mounted StudioApp component was contaminated by other effects sharing the same endpoints and clock (2026-09-13)",
+      "at": "context/rejected.md#ws-r165-live-component-race-repro-contaminated-by-unrelated-effects"
+    },
+    {
+      "id": "ws-r165-shared-browser-launcher-consolidation",
+      "kind": "decision",
+      "title": "Every direct browser launch under evals/ (31 files) now goes through the one shared launcher, extended with an optional launchOptions param (2026-09-13)",
+      "at": "context/decisions.md#ws-r165-shared-browser-launcher-consolidation"
+    },
+    {
+      "id": "ws-r165-history-blob-fixtures-commit-noted-at-the-call-site-not-inside-the-blob",
+      "kind": "decision",
+      "title": "20 historical git-show blobs moved to committed fixtures byte-for-byte; commit provenance lives in a call-site comment, never inside the fixture (2026-09-13)",
+      "at": "context/decisions.md#ws-r165-history-blob-fixtures-commit-noted-at-the-call-site-not-inside-the-blob"
+    },
+    {
+      "id": "ws-r165-readiness-poll-coalesces-a-mid-flight-resume-with-one-flag",
+      "kind": "decision",
+      "title": "StudioApp.tsx's readiness-poll effect coalesces a resume that lands mid-poll into an immediate follow-up via one boolean flag, rather than dropping it (2026-09-13)",
+      "at": "context/decisions.md#ws-r165-readiness-poll-coalesces-a-mid-flight-resume-with-one-flag"
+    },
+    {
+      "id": "ws-r165-launch-and-history-scan-counts",
+      "kind": "measurement",
+      "title": "31 files/32 call sites carried a direct browser launch, 20 files carried a git-show blob read, before this workstream's migration; both 0 after (2026-09-13)",
+      "at": "context/measurements.md#ws-r165-launch-and-history-scan-counts"
+    },
+    {
+      "id": "ws-r165-readiness-race-before-after",
+      "kind": "measurement",
+      "title": "The readiness-poll coalesce fix proven two ways: deterministic mechanism (old schedules 60000ms, new schedules 0ms, n=1 reproducible) and empirical n=10 under real shared-machine load (10/10 pass after, vs the already-recorded 4/10 fail before) (2026-09-13)",
+      "at": "context/measurements.md#ws-r165-readiness-race-before-after"
     }
   ],
   "edges": [
@@ -31599,6 +31635,46 @@
       "src": "wave-21-merged-as-a-batch-under-contention",
       "dst": "wave-21-merge-gate-found-four-cross-workstream-breaks",
       "rel": "constrains"
+    },
+    {
+      "src": "ws-r165-shared-browser-launcher-consolidation",
+      "dst": "direct-chromium-launches-crashed-the-browserless-build-job",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r165-history-blob-fixtures-commit-noted-at-the-call-site-not-inside-the-blob",
+      "dst": "ci-shallow-checkout-starved-the-history-reading-suites",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r165-readiness-poll-coalesces-a-mid-flight-resume-with-one-flag",
+      "dst": "first-use-refresh-suite-races-under-load",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r165-live-component-race-repro-contaminated-by-unrelated-effects",
+      "dst": "ws-r165-readiness-poll-coalesces-a-mid-flight-resume-with-one-flag",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r165-shared-browser-launcher-consolidation",
+      "dst": "ws-r165-launch-and-history-scan-counts",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r165-history-blob-fixtures-commit-noted-at-the-call-site-not-inside-the-blob",
+      "dst": "ws-r165-launch-and-history-scan-counts",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r165-readiness-poll-coalesces-a-mid-flight-resume-with-one-flag",
+      "dst": "ws-r165-readiness-race-before-after",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r165-readiness-race-before-after",
+      "dst": "first-use-refresh-suite-races-under-load",
+      "rel": "supersedes"
     }
   ]
 }

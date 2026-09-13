@@ -4,7 +4,6 @@ import {readFileSync,existsSync} from 'node:fs';
 import {createRequire,registerHooks} from 'node:module';
 import {join,relative} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
-import {execFileSync} from 'node:child_process';
 const root=fileURLToPath(new URL('../',import.meta.url)),req=createRequire(join(root,'package.json'));
 const ts=req('typescript'),React=req('react'),{renderToString}=req('react-dom/server');
 export const INVALID_DRAFT_CASES=[
@@ -28,7 +27,12 @@ export async function runInvalidDraftDisplayChecks(){
   if(url.endsWith('/api/_db.js'))return {format:'module',shortCircuit:true,source:'export const q=(...args)=>globalThis.__invalidDraftDb(...args);'};
   if(url.endsWith('/api/_config.js'))throw Error('secret config prohibited');
   if(/\.tsx?(?:\?(?:old-private-draft|before-disclosures))?$/.test(url)){
-   const path=fileURLToPath(url);const source=url.includes('?old-private-draft')||url.includes('?before-disclosures')?execFileSync('git',['show',(url.includes('?before-disclosures')?'3db85f82':'0a3b2d26')+':'+relative(root,path).replaceAll('\\','/')],{cwd:root,encoding:'utf8'}):readFileSync(path,'utf8');
+   const path=fileURLToPath(url);
+   // blobs from commits 0a3b2d2608d64a4f9aebdafc690caf445f6b5889 (the
+   // `?old-private-draft` lane) and 3db85f82f9491322a8db2a62556cf39be8234937
+   // (`?before-disclosures`), moved to committed fixtures
+   // (context/rejected.md#ci-shallow-checkout-starved-the-history-reading-suites).
+   const source=url.includes('?old-private-draft')||url.includes('?before-disclosures')?readFileSync(join(root,'evals/private-draft-invalid-display/fixtures',url.includes('?before-disclosures')?'3db85f82':'0a3b2d26',relative(root,path).replaceAll('\\','/').replaceAll('/','__')),'utf8'):readFileSync(path,'utf8');
    return {format:'module',shortCircuit:true,source:ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX}}).outputText};
   }return next(url,ctx);
  }});

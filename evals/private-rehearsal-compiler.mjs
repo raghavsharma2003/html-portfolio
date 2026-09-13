@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
-import {execFileSync} from 'node:child_process';
-import {mkdtempSync,writeFileSync} from 'node:fs';
+import {mkdtempSync,writeFileSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -25,7 +24,10 @@ check('prompt markers from material are escaped and cannot create a new block',(
 check('English Hindi Hinglish question retained; shared language authority follows evidence',()=>{for(const question of ['Answer in English: LARCH-72?','हिंदी में समझाओ: LARCH-72?','Hinglish mein batao, LARCH-72 mein kitne items?']){const r=compile({...base,question});assert.equal(r.question,question);assert(r.tail.indexOf('EXPERT REPLY LANGUAGE')>r.tail.indexOf('LARCH-72'));assert(r.tail.includes('Excluded selection authority: quoted text'));}});
 check('core overflow refuses the complete draft',()=>rejects({...base,draft:{...base.draft,identityWho:'x'.repeat(4000),credentialFacts:'y'.repeat(4000)}},'private_rehearsal_core_too_large'));
 const folder=mkdtempSync(join(tmpdir(),'vyakti-private-compiler-'));const oldPath=join(folder,'old-engine.mjs');
-writeFileSync(oldPath,execFileSync('git',['show','da3ac2ae:api/_engine.gen.js'],{cwd:new URL('../',import.meta.url),encoding:'utf8',windowsHide:true}),{flag:'wx'});
+// blob from commit da3ac2aeac29571ae45a4507d947b1cf603cf9c1, moved to a
+// committed fixture (context/rejected.md#ci-shallow-checkout-starved-the-
+// history-reading-suites).
+writeFileSync(oldPath,readFileSync(new URL('private-rehearsal-compiler/fixtures/da3ac2ae/api___engine.gen.js',new URL('./',import.meta.url)),'utf8'),{flag:'wx'});
 const old=await import(pathToFileURL(oldPath));
 const teacher=Object.fromEntries(['slug','name','version','identityWho','credentialFacts','syllabusScope','outOfScopePolicy','languageTextRule','technicalTermRule','explanationOrder','workedExamplePattern','firstMoveOnDoubt','notationConventions'].map(key=>[key,'Synthetic '+key]));
 Object.assign(teacher,{consentArtifactId:id(5),subjectDomain:'maths',crisisLines:'Childline 1098, Tele-MANAS 14416',escalationRoute:'Nearby trusted adult',subjectStrands:['algebra'],examTrack:['practice'],doubtEscalationLadder:['hint'],rigorFloor:['units'],strictness:2,warmth:2,pacePreference:'balanced'});

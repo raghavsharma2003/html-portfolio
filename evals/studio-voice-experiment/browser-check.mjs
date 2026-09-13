@@ -2,13 +2,11 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "../rehearsal/browser.mjs";
 
 const base = process.env.VYAKTI_VISUAL_BASE || "http://127.0.0.1:5173";
 const bundle = resolve(process.env.VYAKTI_VOICE_STUDIO_BUNDLE || "scratchpad/voice-matched-pack-20260828-r2/reports/owner-studio-bundle.json");
 const review = resolve(".impeccable/review");
-const systemChrome = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || (existsSync(systemChrome) ? systemChrome : undefined);
 assert.ok(existsSync(bundle), `sealed fixture bundle is missing: ${bundle}`);
 mkdirSync(review, { recursive: true });
 const lifecycleTemp = mkdtempSync(join(tmpdir(), "vyakti-studio-lifecycle-"));
@@ -22,7 +20,7 @@ replacement.trials.runId = replacement.runId;
 writeFileSync(replacementBundle, JSON.stringify(replacement));
 writeFileSync(invalidReplacementBundle, "{}");
 
-const browser = await chromium.launch({ headless: true, executablePath });
+const browser = await launchSuiteBrowser("studio-voice-experiment-browser-check");
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
   const issues = [];

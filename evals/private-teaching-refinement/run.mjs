@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {join,resolve,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {execFileSync} from 'node:child_process';
 import {createServer} from 'node:http';
 import {build} from 'vite';
 import {chromium} from 'playwright';
@@ -35,7 +34,10 @@ const resultApi=await import('data:text/javascript;base64,'+Buffer.from(ts.trans
 resultMode='stale-complete';assert(resultApi.validatePrivateTextResult(result(),RID,REQUEST));
 for(const mutate of [v=>v.can_review_teaching=false,v=>v.state='pending',v=>v.state='uncertain',v=>v.state='withdrawn',v=>v.failure_code='rehearsal_source_unavailable',v=>v.replica_id=ITEM,v=>v.request_id=ITEM,v=>{v.state='withdrawn';delete v.consent;delete v.source;delete v.failure_code;v.billing_state='unknown';}]){const v=result();mutate(v);assert.throws(()=>resultApi.validatePrivateTextResult(v,RID,REQUEST));}resultMode='complete';check('actual result validator permits marker only for exact scoped stale blocked response');
 if(process.argv.includes('--source-only')){console.log(`${checks.length} source groups passed`);process.exit(0);}
-const old=execFileSync('git',['show','43230e5e:src/studio/PrivateTextRehearsal.tsx'],{cwd:root,encoding:'utf8'});
+// blob from commit 43230e5e94d2086bfaf8b974fbb041862736b28c, moved to a
+// committed fixture (context/rejected.md#ci-shallow-checkout-starved-the-
+// history-reading-suites).
+const old=readFileSync(join(root,'evals/private-teaching-refinement/fixtures/43230e5e/src__studio__PrivateTextRehearsal.tsx'),'utf8');
 // Execute the actual old complete-only conditional with all other current code.
 const currentPanel=readFileSync(join(root,'src/studio/PrivateTextRehearsal.tsx'),'utf8');
 const recoveryGuard='(result?.state === "complete" || result?.state === "blocked" && result.can_review_teaching === true)';

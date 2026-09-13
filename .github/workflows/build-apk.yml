@@ -15,10 +15,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Twenty-five suites read historical blobs with `git show <commit>:<path>`
-          # (Codex's merge controls, 2026-09-08/09); a depth-1 checkout has none of
-          # those commits and the gate fails on 18 suites that pass on a full clone
-          # (rejected.md#ci-shallow-checkout-starved-the-history-reading-suites).
+          # WS-R165 moved every suite that read a historical blob with
+          # `git show <commit>:<path>` (20 files, Codex's merge controls,
+          # 2026-09-08/09) into a committed fixture instead
+          # (rejected.md#ci-shallow-checkout-starved-the-history-reading-
+          # suites) — a depth-1 checkout, the original defect, no longer
+          # starves any suite. Full history stays for a DIFFERENT reason:
+          # `evals/feltmem/arms.mjs` deliberately reads a real, fixed
+          # historical commit (`git archive`/`git log`, PREWAVE_REF) to
+          # materialize the pre-memory-wave tree for its A/B compiler
+          # battery, by design (rejected.md#shared-tree-concurrency) — a
+          # depth-1 checkout would starve THAT the same way. A future wave
+          # that moves feltmem off a live historical ref can drop this.
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:

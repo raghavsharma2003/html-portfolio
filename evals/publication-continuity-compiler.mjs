@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
-import {execFileSync} from 'node:child_process';
-import {mkdtempSync,rmSync} from 'node:fs';
+import {mkdtempSync,rmSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {resolve,join} from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -12,7 +11,9 @@ const ROOT=resolve(import.meta.dirname,'..');
 const SOURCE=resolve(ROOT,'src/engine/publishedMaterialAssistant.ts');
 const TEMP=mkdtempSync(join(tmpdir(),'vyakti-publication-continuity-'));
 const BASE='5ade4ea95209b15b0268338128514401be41b710';
-const oldSource=execFileSync('git',['show',`${BASE}:src/engine/publishedMaterialAssistant.ts`],{cwd:ROOT,encoding:'utf8',windowsHide:true});
+// blob from commit `BASE`, moved to a committed fixture
+// (context/rejected.md#ci-shallow-checkout-starved-the-history-reading-suites).
+const oldSource=readFileSync(resolve(ROOT,`evals/publication-continuity-compiler/fixtures/${BASE.slice(0,8)}/src__engine__publishedMaterialAssistant.ts`),'utf8');
 async function load(name,old=false){
  const bundle=await rolldown({input:SOURCE,platform:'node',plugins:[{
   name:'legacy-compiler-oracle',transform(code,id){if(old&&resolve(id)===SOURCE)return{code:oldSource,map:null};},

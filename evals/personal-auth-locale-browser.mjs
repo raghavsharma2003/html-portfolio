@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import { build } from "esbuild";
-import { chromium } from "playwright";
+import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const temp = await mkdtemp(join(tmpdir(), "personal-auth-browser-"));
@@ -77,7 +77,7 @@ try {
   });
   await new Promise(resolveListen => server.listen(0, "127.0.0.1", resolveListen));
   const origin = `http://127.0.0.1:${server.address().port}`;
-  browser = await chromium.launch({ headless: true });
+  browser = await launchSuiteBrowser("personal-auth-locale-browser");
   let deadlineExceeded = false;
   timer = setTimeout(() => { deadlineExceeded = true; void browser.close(); }, 240_000);
   for (const lang of ["en", "hi"]) for (const width of [390, 1440]) for (const theme of ["general", "test"]) {

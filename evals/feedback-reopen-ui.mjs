@@ -3,8 +3,7 @@ import { launchSuiteBrowser } from "./rehearsal/browser.mjs";
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
-import { mkdirSync,writeFileSync } from 'node:fs';
+import { mkdirSync,writeFileSync,readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join,extname } from 'node:path';
 import { build } from 'vite';
@@ -13,7 +12,10 @@ const RID='10000000-0000-4000-8000-000000000001',OTHER='10000000-0000-4000-8000-
 const entry=join(root,'__feedback_reopen_fixture__.tsx');
 const contents=`import React,{useState}from'react';import{createRoot}from'react-dom/client';import{flushSync}from'react-dom';import Modern from './src/studio/TurnFeedback';import Creator from './src/creatorStudio/TurnFeedback';import './src/studio/studio.css';
 function Fixture(){const focused=new URLSearchParams(location.search).has('focused');const[rid,setRid]=useState('${RID}'),[turn,setTurn]=useState('${TURN}'),[token,setToken]=useState('synthetic-a'),[visible,setVisible]=useState(true);const creator=new URLSearchParams(location.search).has('creator');const C=creator?Creator:Modern;window.fixture={setRid,setTurn,setToken,setVisible,flushSync};return <main><p>Synthetic correction editor. No real owner or model.</p>{visible&&<C token={token} replicaId={rid} turnId={turn} voiceHeard={false} onAuthError={()=>{}} onSaved={()=>{window.savedCallbacks=(window.savedCallbacks||0)+1}} initialOpen={focused} focusedCorrection={focused}/>}</main>}createRoot(document.getElementById('root')!).render(<Fixture/>);`;
-const frozen=new Map();if(old)for(const path of ['src/studio/TurnFeedback.tsx','src/studio/feedbackApi.ts'])frozen.set(join(root,path).replaceAll('\\','/'),execFileSync('git',['show',`cff35f0:${path}`],{cwd:root,encoding:'utf8'}));
+// blobs from commit cff35f0484a1b3c13ce0c96d933083dff870ab1e, moved to
+// committed fixtures (context/rejected.md#ci-shallow-checkout-starved-the-
+// history-reading-suites).
+const frozen=new Map();if(old)for(const path of ['src/studio/TurnFeedback.tsx','src/studio/feedbackApi.ts'])frozen.set(join(root,path).replaceAll('\\','/'),readFileSync(join(root,'evals/feedback-reopen-ui/fixtures/cff35f0',path.replaceAll('/','__')),'utf8'));
 const result=await build({root,configFile:false,logLevel:'silent',build:{write:false,minify:true,rolldownOptions:{input:entry,output:{entryFileNames:'fixture.js'}}},plugins:[{name:'feedback-fixture',resolveId(id){if(id===entry)return entry;},load(id){if(id===entry)return old?contents.replace("import Creator from './src/creatorStudio/TurnFeedback';","const Creator=Modern;"):contents;return frozen.get(id.replaceAll('\\','/'));}}]});
 const assets=new Map(result.output.map(item=>['/'+item.fileName,item.type==='chunk'?item.code:item.source]));const css=result.output.filter(item=>item.fileName.endsWith('.css')).map(item=>`<link rel="stylesheet" href="/${item.fileName}">`).join('');
 const rows=new Map(),requests=[],held=[];let holdRead=false,holdPost=false,uncertain=false,readFail=false;
