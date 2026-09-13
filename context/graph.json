@@ -18624,6 +18624,30 @@
       "kind": "measurement",
       "title": "Wave twenty-one's ten merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
       "at": "context/measurements.md#wave-21-merges-2026-09-13"
+    },
+    {
+      "id": "ws-r162-person-boundary-a-function-not-a-second-constant",
+      "kind": "decision",
+      "title": "compiler.ts gains personBoundaryFor(name), branched in fromSheet.ts::sheetToModule on sheetKind==='person'; PLATFORM_STAGE_* stay teacher-worded, an open half of the gap (2026-09-13)",
+      "at": "context/decisions.md#ws-r162-person-boundary-a-function-not-a-second-constant"
+    },
+    {
+      "id": "ws-r162-about-page-gets-its-own-sheet-join-never-publicroombyslug",
+      "kind": "decision",
+      "title": "api/_room-about.js's own publicRoomAboutBySlug gains a left join lateral onto vy_teacher_sheet for sheet_kind/personLine; publicRoomBySlug and api/_room-card.js stay untouched (2026-09-13)",
+      "at": "context/decisions.md#ws-r162-about-page-gets-its-own-sheet-join-never-publicroombyslug"
+    },
+    {
+      "id": "ws-r162-widening-publicroombyslug-would-trip-its-own-closed-select-list-control",
+      "kind": "rejection",
+      "title": "A left join onto vy_teacher_sheet inside publicRoomBySlug trips evals/room-share/run.mjs's own static closed-select-list/no-agent_id control by design (2026-09-13)",
+      "at": "context/rejected.md#ws-r162-widening-publicroombyslug-would-trip-its-own-closed-select-list-control"
+    },
+    {
+      "id": "ws-r162-a-personal-ai-room-publishes",
+      "kind": "measurement",
+      "title": "WS-R162: a person sheet clears the Room publish lock, the about page shows the person's own disclosure, and the compiled prompt carries a person boundary (2026-09-13)",
+      "at": "context/measurements.md#ws-r162-a-personal-ai-room-publishes"
     }
   ],
   "edges": [
@@ -31599,6 +31623,31 @@
       "src": "wave-21-merged-as-a-batch-under-contention",
       "dst": "wave-21-merge-gate-found-four-cross-workstream-breaks",
       "rel": "constrains"
+    },
+    {
+      "src": "ws-r151-platform-boundary-and-stage-text-stays-teacher-worded-for-a-person-sheet",
+      "dst": "ws-r162-person-boundary-a-function-not-a-second-constant",
+      "rel": "supersedes"
+    },
+    {
+      "src": "ws-r162-person-boundary-a-function-not-a-second-constant",
+      "dst": "ws-r162-a-personal-ai-room-publishes",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r7-room-for-generic-mode-with-no-disclosure-pathway",
+      "dst": "ws-r162-about-page-gets-its-own-sheet-join-never-publicroombyslug",
+      "rel": "constrains"
+    },
+    {
+      "src": "ws-r162-about-page-gets-its-own-sheet-join-never-publicroombyslug",
+      "dst": "ws-r162-widening-publicroombyslug-would-trip-its-own-closed-select-list-control",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r162-about-page-gets-its-own-sheet-join-never-publicroombyslug",
+      "dst": "ws-r162-a-personal-ai-room-publishes",
+      "rel": "measured_by"
     }
   ]
 }

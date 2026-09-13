@@ -72,6 +72,7 @@ import {
   PLATFORM_STAGE_EARLY,
   PLATFORM_STAGE_GETTING_CLOSE,
   PLATFORM_STAGE_ESTABLISHED,
+  personBoundaryFor,
   type MaterialLine,
 } from "../compiler";
 // WS-Q. `moodWordsIn` is timeline.ts's OWN G8 audit ("a calendar is not a mood
@@ -179,7 +180,16 @@ export function sheetToModule(sheet: TeacherSheet): AgentModule {
   // WS-R121: the platform owns these four now — overwritten on the SANITIZED
   // copy only, so `sheet` (captured by the closure below, unmodified) still
   // carries the creator's own raw text for the material lines.
-  sanitized.boundaryParagraph = PLATFORM_BOUNDARY;
+  //
+  // WS-R162: the boundary paragraph branches on `sheetKind` — a person sheet
+  // gets `personBoundaryFor(sheet.name)` rather than the teacher-worded
+  // `PLATFORM_BOUNDARY` (`context/rejected.md
+  // #ws-r151-platform-boundary-and-stage-text-stays-teacher-worded-for-a-person-sheet`'s
+  // own reversal condition). The three stage paragraphs are UNCHANGED and
+  // still teacher-worded for a person sheet — brief law 3 names only the
+  // boundary, and that half of the gap stays open (see this workstream's own
+  // decisions.md entry for the reversal condition on the stage half).
+  sanitized.boundaryParagraph = sheet.sheetKind === "person" ? personBoundaryFor(sheet.name) : PLATFORM_BOUNDARY;
   sanitized.stageEarly = PLATFORM_STAGE_EARLY;
   sanitized.stageGettingClose = PLATFORM_STAGE_GETTING_CLOSE;
   sanitized.stageEstablished = PLATFORM_STAGE_ESTABLISHED;

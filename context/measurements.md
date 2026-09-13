@@ -18193,3 +18193,26 @@ Method: each workstream's own report (suite counts as printed by its suites), th
 | WS-R153 EmotionOS, vibe and register (164) | e41589a | emotionos 37 (60 of 60 labelled turns), room-doors 2305, incidents, ops, lanes |
 
 Full gate on the batch: seven merges 24 of 24 after the four repairs; nine merges 24 of 24 (5d68438, CI green on both workflows); eleven merges 24 of 24 (e41589a). Live database after the wave: migrations 163, 164 and 166 applied one statement per request (3 + 3 + 3 statements, 0 failures), 207 `vy_` tables; 165 unused (WS-R154 needed no schema change).
+
+## `ws-r162-a-personal-ai-room-publishes` (2026-09-13, WS-R162)
+
+Method: touched suites run directly (`node evals/<suite>/run.mjs`), offline, deterministic, $0, no live DB, no network beyond 127.0.0.1, no model call, no GPU; the full release gate run once at the end (`node scripts/verify-release.mjs`, no `NEON_URL` in this environment, 24 checks). Date 2026-09-13.
+
+| suite | result |
+|---|---|
+| `evals/person-room/run.mjs` (new, this workstream) | 17/17 pass |
+| `evals/person-sheet/run.mjs` (extended: personBoundaryFor assertions) | 46/46 pass |
+| `evals/room-about/run.mjs` (extended: person disclosure line, §9) | 59/59 pass |
+| `evals/rehearsal/personal.mjs` (extended: Deploy publishes, about page) | 39/39 pass |
+| `evals/teachersheet.mjs` (regression) | 132/132 pass |
+| `evals/room-publish/run.mjs` (regression) | 39/39 pass |
+| `evals/room-adversarial-creator/run.mjs` (regression, PLATFORM_BOUNDARY injection) | 253/253 pass |
+| `evals/room-doors/run.mjs` (full battery) | 2333 ok, 0 failed |
+| `evals/room-leak/run.mjs` (full battery) | 363/363 pass |
+| `evals/room-export/run.mjs` (full battery) | 48/48 pass |
+| `src/engine/__fixtures__/byte-identity.mjs` | 83/83 pass (the 83 fixtures are all teachers or Meera; unaffected by the `sheetKind==="person"` branch) |
+| `node scripts/check-copy.mjs` | 7 scopes clean, 21 negative controls bit |
+| `npx tsc --noEmit -p tsconfig.json` | clean |
+| `node scripts/verify-release.mjs` (full gate, once, at the end) | see this entry's own follow-up line / the session log |
+
+New SQL added (for the main loop's EXPLAIN, no migration — no new table or column): `api/_room-about.js`'s `publicRoomAboutBySlug` gained one `left join lateral (select s.sheet_kind, s.sheet ->> 'personLine' as person_line from vy_teacher_sheet s where s.agent_id = r.agent_id and s.status = 'published' and s.consent_artifact_id is not null order by s.published_at desc limit 1) ps on true` onto its existing `vy_room` read.
