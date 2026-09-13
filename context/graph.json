@@ -19176,6 +19176,54 @@
       "kind": "measurement",
       "title": "Wave twenty-two's eleven merges, their proofs on the merged tree, the batch gates and the live applies (2026-09-13)",
       "at": "context/measurements.md#wave-22-merges-2026-09-13"
+    },
+    {
+      "id": "ws-r179-listening-test-against-the-persons-own-voice-2026-09-13",
+      "kind": "component",
+      "title": "The listening test against the person's own voice: a new owner-bearer reference-audio door plus the method behind the likeness number, stated (WS-R179)",
+      "at": "context/decisions.md#ws-r179-reference-door-mirrors-ws-r163s-shape"
+    },
+    {
+      "id": "ws-r179-reference-door-mirrors-ws-r163s-shape",
+      "kind": "decision",
+      "title": "The reference-audio door reuses WS-R163's GET-only owner-bearer shape exactly",
+      "at": "context/decisions.md#ws-r179-reference-door-mirrors-ws-r163s-shape"
+    },
+    {
+      "id": "ws-r179-reference-audio-is-the-primary-source-not-the-fidelity-artifact",
+      "kind": "decision",
+      "title": "The reference clip is the owner's primary vy_replica_source, not the voice_quality processing artifact the fidelity score already keys against",
+      "at": "context/decisions.md#ws-r179-reference-audio-is-the-primary-source-not-the-fidelity-artifact"
+    },
+    {
+      "id": "ws-r179-listening-method-is-additive-never-touches-fidelity",
+      "kind": "decision",
+      "title": "The method behind the number (n verdicts, which axes) is a separate field, never blended into the fidelity score",
+      "at": "context/decisions.md#ws-r179-listening-method-is-additive-never-touches-fidelity"
+    },
+    {
+      "id": "ws-r179-listening-method-does-not-recompute-the-fidelity-score",
+      "kind": "rejection",
+      "title": "Tried deriving the displayed percentage from listening verdicts; rejected as a second, unvalidated scorer",
+      "at": "context/rejected.md#ws-r179-listening-method-does-not-recompute-the-fidelity-score"
+    },
+    {
+      "id": "ws-r179-pre-existing-copy-migration-drift-found-in-two-unrelated-suites",
+      "kind": "rejection",
+      "title": "Found, not fixed: studio-journey-timing and clone-experience-qa still scan raw English text WS-R166 already moved into copy.ts",
+      "at": "context/rejected.md#ws-r179-pre-existing-copy-migration-drift-found-in-two-unrelated-suites"
+    },
+    {
+      "id": "ws-r179-voice-preview-concurrency-timeout-constant-drifted",
+      "kind": "rejection",
+      "title": "Found, not fixed: voice-preview-concurrency asserts a 90-second client deadline voicePanelApi.ts no longer carries",
+      "at": "context/rejected.md#ws-r179-voice-preview-concurrency-timeout-constant-drifted"
+    },
+    {
+      "id": "ws-r179-listening-test-against-the-persons-own-voice-measurements-2026-09-13",
+      "kind": "measurement",
+      "title": "listening-test suite 63 -> 86 checks; 27+ touched suites re-run this session, all 0 failed except 3 pre-existing unrelated failures; tsc and vite build clean",
+      "at": "context/measurements.md#ws-r179-listening-test-against-the-persons-own-voice-measurements-2026-09-13"
     }
   ],
   "edges": [
@@ -32661,6 +32709,46 @@
       "src": "wave-22-merged-as-a-batch-with-a-repair-workstream",
       "dst": "wave-21-merged-as-a-batch-under-contention",
       "rel": "supersedes"
+    },
+    {
+      "src": "ws-r179-reference-door-mirrors-ws-r163s-shape",
+      "rel": "part_of",
+      "dst": "ws-r179-listening-test-against-the-persons-own-voice-2026-09-13"
+    },
+    {
+      "src": "ws-r179-reference-audio-is-the-primary-source-not-the-fidelity-artifact",
+      "rel": "part_of",
+      "dst": "ws-r179-listening-test-against-the-persons-own-voice-2026-09-13"
+    },
+    {
+      "src": "ws-r179-listening-method-is-additive-never-touches-fidelity",
+      "rel": "part_of",
+      "dst": "ws-r179-listening-test-against-the-persons-own-voice-2026-09-13"
+    },
+    {
+      "src": "ws-r179-listening-method-is-additive-never-touches-fidelity",
+      "rel": "caused_by",
+      "dst": "ws-r179-listening-method-does-not-recompute-the-fidelity-score"
+    },
+    {
+      "src": "ws-r179-listening-method-is-additive-never-touches-fidelity",
+      "rel": "constrains",
+      "dst": "fidelity-score-is-0-100-only-at-the-display-layer"
+    },
+    {
+      "src": "ws-r179-reference-door-mirrors-ws-r163s-shape",
+      "rel": "caused_by",
+      "dst": "ws-r163-voice-activation-guard-wired-through-a-wrapper-not-inline"
+    },
+    {
+      "src": "ws-r179-listening-test-against-the-persons-own-voice-2026-09-13",
+      "rel": "measured_by",
+      "dst": "ws-r179-listening-test-against-the-persons-own-voice-measurements-2026-09-13"
+    },
+    {
+      "src": "ws-r179-pre-existing-copy-migration-drift-found-in-two-unrelated-suites",
+      "rel": "caused_by",
+      "dst": "ws-r166-personal-studio-hindi-tier-two-string-count-and-chunk-size-2026-09-13"
     }
   ]
 }

@@ -16,7 +16,7 @@
 // once the bytes arrive, or a plain refusal note if the fetch fails --
 // never a silent player with nothing behind it.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fetchGenerationAudio, submitListeningVerdict } from "./calibrationApi";
+import { fetchGenerationAudio, fetchReferenceAudio, submitListeningVerdict } from "./calibrationApi";
 import type { ListeningAxis, ListeningRating, VoiceListeningCandidate, VoiceListeningVerdict } from "./types";
 
 const AXES: ReadonlyArray<{ id: ListeningAxis; label: string; low: string; high: string }> = [
@@ -141,6 +141,7 @@ export default function ListeningTest({
         Compare two saved voice samples of you and rate each one on its own. The order is mixed
         each time, so you will not know which is which until you finish.
       </p>
+      <ReferenceSample token={token} replicaId={replicaId} onAuthError={onAuthError} />
       <div className="lt-samples">
         <ListeningSample slotLabel="Sample 1" slotKey="one" candidate={candidateOne} rating={ratings.one} onScore={setScore}
           token={token} replicaId={replicaId} onAuthError={onAuthError} />
@@ -204,6 +205,85 @@ function useSampleAudio(
   }, [token, replicaId, generationId]);
 
   return { state, url };
+}
+
+// WS-R179. "A person judging two candidates without hearing themselves is
+// guessing" -- the brief's own words. Fetches the owner's own CURRENT
+// primary voice recording once per mount, the same three honest states
+// `useSampleAudio` above already uses for a candidate (loading, a real
+// player, or a plain refusal note -- never a silent player with nothing
+// behind it). Deliberately NOT part of the swapped left/right ordering: the
+// reference is always visibly "you," the anchor the blinding compares
+// candidates against, never itself a blinded slot.
+function useReferenceAudio(
+  token: string,
+  replicaId: string,
+  onAuthError: (cause: unknown) => void,
+): { state: SampleAudioState; url: string | null } {
+  const [state, setState] = useState<SampleAudioState>("loading");
+  const [url, setUrl] = useState<string | null>(null);
+  const urlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+    setState("loading");
+    setUrl(null);
+    fetchReferenceAudio(token, replicaId, controller.signal)
+      .then((blob) => {
+        if (cancelled) return;
+        const objectUrl = URL.createObjectURL(blob);
+        urlRef.current = objectUrl;
+        setUrl(objectUrl);
+        setState("ready");
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+        if (cause && typeof cause === "object" && "status" in cause && (cause as { status?: number }).status === 401) {
+          onAuthError(cause);
+          return;
+        }
+        setState("unavailable");
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, replicaId]);
+
+  return { state, url };
+}
+
+function ReferenceSample({
+  token,
+  replicaId,
+  onAuthError,
+}: {
+  token: string;
+  replicaId: string;
+  onAuthError: (cause: unknown) => void;
+}) {
+  const { state, url } = useReferenceAudio(token, replicaId, onAuthError);
+  return (
+    <article className="lt-sample lt-reference" aria-label="Your own reference recording">
+      <h3>Your own voice</h3>
+      <p className="lt-reference-note">Play this next to each sample below before you rate it.</p>
+      {state === "loading" ? (
+        <p className="lt-playback-note">Loading your reference recording.</p>
+      ) : state === "ready" && url ? (
+        <audio controls preload="none" src={url} className="lt-player">
+          Your browser does not support audio playback.
+        </audio>
+      ) : (
+        <p className="lt-playback-note">
+          Your reference recording could not be loaded right now. You can still rate each sample
+          from memory, or cancel and try again once it is available.
+        </p>
+      )}
+    </article>
+  );
 }
 
 function ListeningSample({

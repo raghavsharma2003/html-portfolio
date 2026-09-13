@@ -5,6 +5,14 @@ import { PROVENANCE_POLICY, assertVoicePreviewAuthorization, canonicalJson } fro
 import { OPEN_CHATTERBOX_MODEL_COMMITMENT } from "./_voice/providers/open-chatterbox-preview.js";
 import { voiceLanguageConditioning, voiceScriptMode } from "./_voice/language-conditioning.js";
 import { clientFidelity, DEFAULT_FIDELITY_POLICY } from "./_fidelity.js";
+// WS-R179. LISTENING_AXES/LISTENING_VERDICT_SCHEMA are read-only constants,
+// not a second scorer: `ownedVoiceLikenessSummary` below cites the REAL
+// axis list and schema tag `api/_replica-calibration.js` already owns
+// rather than re-typing its own copy that could drift from the sealed
+// harness's own four axes (`evals/listening-test/run.mjs`'s own law 1).
+// No cycle: `_replica-calibration.js` imports only `_provenance/contracts.js`
+// and `_replica.js`, never this file.
+import { LISTENING_AXES, LISTENING_VERDICT_SCHEMA } from "./_replica-calibration.js";
 
 const TRACE = /^[A-Za-z0-9_-]{8,96}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -1142,13 +1150,30 @@ export async function ownedVoiceLikenessSummary(db, ownerUserId, id) {
   );
   const row = rows[0];
   if (!row) return null;
-  const candidateRows = await db(
-    `select generation_id, audio_sha256, created_at from vy_replica_generation
-      where replica_id=$1::uuid and owner_user_id=$2::uuid and state='sealed'
-        and purpose='voice_preview' and audio_sha256 is not null
-      order by created_at desc limit 8`,
-    [rid, ownerUserId],
-  );
+  const [candidateRows, verdictCountRows] = await Promise.all([
+    db(
+      `select generation_id, audio_sha256, created_at from vy_replica_generation
+        where replica_id=$1::uuid and owner_user_id=$2::uuid and state='sealed'
+          and purpose='voice_preview' and audio_sha256 is not null
+        order by created_at desc limit 8`,
+      [rid, ownerUserId],
+    ),
+    // WS-R179. "The score card shows a number nobody can explain" (the
+    // brief's own words). This is the count of the owner's OWN approved
+    // blind listening verdicts (WS-R155's paired test, against their own
+    // reference recording) -- never a stranger's, never a fixture, and
+    // never re-derived from `vy_voice_fidelity`'s own automated cosine
+    // score above, which this deliberately does not touch
+    // (`decisions.md#fidelity-score-is-0-100-only-at-the-display-layer`).
+    // Plain count, not `ownedVoiceListeningHistory`'s capped 50-row read:
+    // the method text states a true n, not "at most 50."
+    db(
+      `select count(*)::int as n from vy_replica_calibration
+        where replica_id=$1::uuid and owner_user_id=$2::uuid and status='approved'
+          and definition#>>'{schema}'=$3`,
+      [rid, ownerUserId, LISTENING_VERDICT_SCHEMA],
+    ),
+  ]);
   const seen = new Set();
   const listeningCandidates = [];
   for (const candidate of candidateRows) {
@@ -1188,11 +1213,26 @@ export async function ownedVoiceLikenessSummary(db, ownerUserId, id) {
       trigger: "finish enrolling and building a voice profile before a fidelity score can exist",
     };
   }
+  // WS-R179. The method behind the number, stated rather than left implicit:
+  // which verdicts (the owner's own approved blind paired tests, never a
+  // stranger's and never a fixture), which axes (the sealed harness's own
+  // four, cited by id so a future axis change here cannot drift from it),
+  // and n (a real count, honestly zero when the owner has never run one --
+  // "not measured" is a fact about THIS number, distinct from the fidelity
+  // half's own "not_measured"/"no_voice_yet" states above, which describe a
+  // different, automated measurement entirely).
+  const verdictCount = Number(verdictCountRows[0]?.n || 0);
+  const listeningMethod = {
+    verdict_count: verdictCount,
+    axes: [...LISTENING_AXES],
+    measured: verdictCount > 0,
+  };
   return {
     replica_id: row.replica_id,
     fidelity,
     reference_sha256: row.reference_sha256 || null,
     listening_candidates: listeningCandidates,
     listening_ready: listeningCandidates.length === 2 && Boolean(row.reference_sha256),
+    listening_method: listeningMethod,
   };
 }

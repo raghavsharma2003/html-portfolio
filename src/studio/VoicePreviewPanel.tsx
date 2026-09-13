@@ -204,6 +204,13 @@ function VoiceLikenessCard({
       ) : (
         <p className="voice-likeness-preference">{copy.noListeningTestYet}</p>
       )}
+      {/* WS-R179: the method behind the number, stated rather than left
+          implicit -- which verdicts, which axes, n. */}
+      <p className="voice-likeness-method">
+        {likeness.listening_method.measured
+          ? copy.methodMeasuredTemplate.replace("{n}", String(likeness.listening_method.verdict_count))
+          : copy.methodNotMeasured}
+      </p>
     </section>
   );
 }

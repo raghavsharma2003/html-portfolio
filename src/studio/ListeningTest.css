@@ -69,6 +69,15 @@
   background: var(--paper-deep);
 }
 
+/* WS-R179. The reference recording reuses .lt-sample's box; only the small
+ * instruction line beneath its heading is new. */
+.lt-reference-note {
+  font-size: var(--text-small);
+  line-height: var(--leading-snug);
+  color: var(--ink-soft);
+  margin: 0;
+}
+
 .lt-axis {
   border: 0;
   padding: 0;

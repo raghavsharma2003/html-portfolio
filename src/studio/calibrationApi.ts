@@ -82,6 +82,29 @@ export async function fetchGenerationAudio(
   return response.blob();
 }
 
+// WS-R179. The listening test's reference player: GET
+// /api/replica-source-audio over the owner's own CURRENT primary voice
+// recording, the same shape and the same reason `fetchGenerationAudio`
+// above fetches directly rather than through `replicaRequest` -- a WAV body
+// is not JSON. Only a replica id is needed: the primary voice reference is
+// unique per replica by construction, so there is no source id to pass.
+export async function fetchReferenceAudio(
+  token: string,
+  replicaId: string,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const response = await fetch(
+    `/api/replica-source-audio?replica_id=${encodeURIComponent(replicaId)}`,
+    { headers: { Authorization: `Bearer ${token}` }, signal: signal || AbortSignal.timeout(30_000) },
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const raw = typeof data?.error === "string" ? data.error : `request failed (${response.status})`;
+    throw new ReplicaApiError(raw.replaceAll("_", " "), response.status, data);
+  }
+  return response.blob();
+}
+
 export async function chooseCalibration(
   token: string,
   replicaId: string,

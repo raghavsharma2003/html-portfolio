@@ -32,6 +32,7 @@ import {
 } from "../../api/_replica-calibration.js";
 import { ownedVoiceLikenessSummary } from "../../api/_replica-voice-preview.js";
 import { OWNED_SEALED_GENERATION_AUDIO_SQL, ownedSealedGenerationAudio } from "../../api/_replica-generation-audio.js";
+import { OWNED_PRIMARY_VOICE_REFERENCE_AUDIO_SQL, ownedPrimaryVoiceReferenceAudio } from "../../api/_replica-source-audio.js";
 import { AXES as SEALED_HARNESS_AXES } from "../voice-listening-benchmark/lib.mjs";
 import { splitSql } from "../../db/migrations/apply.mjs";
 
@@ -50,6 +51,7 @@ const CURRENT_GEN = "50000000-0000-4000-8000-000000000005";
 const LEFT_SHA = "a".repeat(64);
 const RIGHT_SHA = "b".repeat(64);
 const REF_SHA = "c".repeat(64);
+const PRIMARY_SOURCE = "70000000-0000-4000-8000-000000000007";
 
 // ── 1. Axis parity with the sealed harness. "Never a second scorer" ────────
 const sealedIds = [...SEALED_HARNESS_AXES.map((axis) => axis.id)].sort();
@@ -249,6 +251,7 @@ ok("the candidate that won its own verdict may activate", decideVoiceActivation(
         { generation_id: RIGHT_GEN, audio_sha256: RIGHT_SHA, created_at: "2026-09-11T00:00:00.000Z" },
       ];
     }
+    if (/from vy_replica_calibration/.test(statement)) return [{ n: 3 }];
     return [{
       replica_id: RID, voice_profile_id: "60000000-0000-4000-8000-000000000006",
       fidelity_status: "pass", fidelity_score: { mean: 0.81, p10: 0.7, worst: 0.6, windows: 5 },
@@ -260,23 +263,52 @@ ok("the candidate that won its own verdict may activate", decideVoiceActivation(
   ok("a measured, non-superseded fidelity row reports its real status and score", summary.fidelity.status === "pass" && summary.fidelity.score.mean === 0.81);
   ok("a duplicate audio hash across two rows counts as ONE candidate, not two", summary.listening_candidates.length === 2);
   ok("listening is ready once two distinct candidates and a reference hash all exist", summary.listening_ready === true && summary.reference_sha256 === REF_SHA);
+  // WS-R179. The method behind the number: a real n, the sealed harness's
+  // own four axes by id, and "measured" once at least one verdict exists.
+  ok("the method reports a real verdict count and the sealed harness's own four axes, by id",
+    summary.listening_method.measured === true && summary.listening_method.verdict_count === 3
+    && JSON.stringify([...summary.listening_method.axes].sort()) === JSON.stringify(oursIds));
 }
 {
   const db = async (statement) => {
     if (/from vy_replica_generation/.test(statement)) return [];
+    if (/from vy_replica_calibration/.test(statement)) return [{ n: 0 }];
     return [{ replica_id: RID, voice_profile_id: "60000000-0000-4000-8000-000000000006", fidelity_status: null, reference_sha256: null }];
   };
   const summary = await ownedVoiceLikenessSummary(db, OWNER, RID);
   ok("NEGATIVE: a ready voice with no fidelity row ever computed reports not_measured, never a fabricated number", summary.fidelity.status === "not_measured" && summary.fidelity.score === null);
   ok("with fewer than two candidates, listening is honestly not ready", summary.listening_ready === false);
+  ok("NEGATIVE: zero recorded verdicts is honestly not measured, never a fabricated method claim", summary.listening_method.measured === false && summary.listening_method.verdict_count === 0);
 }
 {
   const db = async (statement) => {
     if (/from vy_replica_generation/.test(statement)) return [];
+    if (/from vy_replica_calibration/.test(statement)) return [{ n: 0 }];
     return [{ replica_id: RID, voice_profile_id: null, fidelity_status: null, reference_sha256: null }];
   };
   const summary = await ownedVoiceLikenessSummary(db, OWNER, RID);
   ok("NEGATIVE: with no ready voice at all, the state says so by name rather than reusing not_measured", summary.fidelity.status === "no_voice_yet");
+}
+{
+  // NEGATIVE, the decoupling itself: a real, measured fidelity score exists,
+  // but the owner has never run a blind listening test. The method must
+  // stay honestly "not measured" regardless of the OTHER, automated score
+  // (`decisions.md#fidelity-score-is-0-100-only-at-the-display-layer`'s own
+  // boundary: the listening method never claims to explain a number it did
+  // not produce).
+  const db = async (statement) => {
+    if (/from vy_replica_generation/.test(statement)) return [];
+    if (/from vy_replica_calibration/.test(statement)) return [{ n: 0 }];
+    return [{
+      replica_id: RID, voice_profile_id: "60000000-0000-4000-8000-000000000006",
+      fidelity_status: "pass", fidelity_score: { mean: 0.9, p10: 0.8, worst: 0.7, windows: 6 },
+      fidelity_policy_version: "voice-fidelity/v1", fidelity_computed_at: "2026-09-10T00:00:00.000Z",
+      fidelity_superseded_at: null, reference_sha256: REF_SHA,
+    }];
+  };
+  const summary = await ownedVoiceLikenessSummary(db, OWNER, RID);
+  ok("NEGATIVE: a measured automatic fidelity score does not itself imply a measured listening method",
+    summary.fidelity.status === "pass" && summary.listening_method.measured === false && summary.listening_method.verdict_count === 0);
 }
 {
   const summary = await ownedVoiceLikenessSummary(async () => [], OWNER, RID);
@@ -369,5 +401,108 @@ ok("the audio door is GET-only, owner-bearer, wrapped in withDoor, and never tou
   && /export default withDoor\(/.test(audioDoorText) && !/req\.body/.test(audioDoorText));
 ok("the audio door rate-limits both by IP and by authenticated owner, like every other owner-bearer door",
   /allow\(ipOf\(req\), "replica_generation_audio"/.test(audioDoorText) && /allow\(user\.id, "replica_generation_audio_user"/.test(audioDoorText));
+
+// ── 12. WS-R179: the listening test against the person's own voice. The
+// reference door serves the owner's own CURRENT primary voice recording,
+// the exact same "the SQL is the gate" posture §11 above already proves for
+// a sealed generation. ──────────────────────────────────────────────────
+ok("the reference SQL binds replica and owner both, resolves the primary source through vy_replica_voice_reference, and excludes a revoked or purging replica",
+  /vr\.replica_id=\$1::uuid and vr\.owner_user_id=\$2::uuid/.test(OWNED_PRIMARY_VOICE_REFERENCE_AUDIO_SQL)
+  && /join vy_replica_source s on s\.source_id=vr\.source_id and s\.replica_id=vr\.replica_id and s\.owner_user_id=vr\.owner_user_id/.test(OWNED_PRIMARY_VOICE_REFERENCE_AUDIO_SQL)
+  && /r\.lifecycle not in \('revoked','purging'\)/.test(OWNED_PRIMARY_VOICE_REFERENCE_AUDIO_SQL));
+ok("the reference SQL requires the source to be READY and to contain no third party, the same floor migration 066's own backfill uses",
+  /s\.state='ready'/.test(OWNED_PRIMARY_VOICE_REFERENCE_AUDIO_SQL) && /s\.contains_third_parties=false/.test(OWNED_PRIMARY_VOICE_REFERENCE_AUDIO_SQL));
+
+{
+  const REFERENCE_BYTES = Buffer.from("fixture-reference-wav-bytes");
+  let readCalls = [];
+  const readObject = async (locator) => { readCalls.push(locator); return { mime: "audio/wav", body: REFERENCE_BYTES, byteSize: REFERENCE_BYTES.length }; };
+  const db = async (sql, params) => {
+    ok("the reference door queries through the real, asserted SQL text, not a paraphrase", sql === OWNED_PRIMARY_VOICE_REFERENCE_AUDIO_SQL);
+    ok("the reference door needs no generation id, only replica and owner -- the primary reference is unique per replica by construction", params.length === 2 && params[0] === RID && params[1] === OWNER);
+    return [{ source_id: PRIMARY_SOURCE, replica_id: RID, owner_user_id: OWNER, storage_bucket: "vyakti-replica-private", object_path: `${OWNER}/${RID}/${PRIMARY_SOURCE}/original` }];
+  };
+  const audio = await ownedPrimaryVoiceReferenceAudio(db, OWNER, RID, { readObject });
+  ok("the owner's own current primary voice recording streams back through the same signed-read seam WS-R163's generation door already uses",
+    audio.mime === "audio/wav" && audio.body === REFERENCE_BYTES && audio.byteSize === REFERENCE_BYTES.length
+    && readCalls.length === 1 && readCalls[0].storageBucket === "vyakti-replica-private" && readCalls[0].objectPath.includes(PRIMARY_SOURCE));
+}
+
+// NEGATIVE CONTROLS. A db returning no row (as the real SQL's WHERE would
+// for each of these) must refuse with the SAME honest 404 -- never a crash
+// and never a distinguishable code an attacker could use to enumerate ids.
+await assert.rejects(
+  () => ownedPrimaryVoiceReferenceAudio(async () => [], "90000000-0000-4000-8000-000000000099", RID),
+  (error) => error.code === "reference_audio_not_available" && error.status === 404,
+);
+ok("NEGATIVE: another owner's recording (the real WHERE finds no row for a mismatched owner) refuses with the honest not-available code, not a distinguishable one", true);
+
+await assert.rejects(
+  () => ownedPrimaryVoiceReferenceAudio(async () => [], OWNER, "90000000-0000-4000-8000-000000000098"),
+  (error) => error.code === "reference_audio_not_available" && error.status === 404,
+);
+ok("NEGATIVE: a forged replica id (the real WHERE finds no row) refuses with the honest not-available code", true);
+
+await assert.rejects(
+  // A non-primary source (or a primary that is still quarantined/processing,
+  // or one that turns out to contain a third party) is exactly the case the
+  // real WHERE clause's own state/contains_third_parties/join conditions
+  // exclude -- proved directly rather than re-implemented here, the same
+  // posture §11 already takes for an unsealed generation.
+  () => ownedPrimaryVoiceReferenceAudio(async () => [], OWNER, RID),
+  (error) => error.code === "reference_audio_not_available" && error.status === 404,
+);
+ok("NEGATIVE: a non-primary source, or a primary not yet state='ready' (no row from the real WHERE clause) refuses honestly", true);
+
+await assert.rejects(
+  () => ownedPrimaryVoiceReferenceAudio(async () => { throw new Error("must not query the database"); }, OWNER, "not-a-uuid"),
+  (error) => error.code === "valid_replica_id_required" && error.status === 400,
+);
+ok("NEGATIVE: a malformed replica id is refused before any query runs", true);
+
+await assert.rejects(
+  () => ownedPrimaryVoiceReferenceAudio(async () => { throw new Error("must not query the database"); }, "", RID),
+  (error) => error.code === "valid_owner_required" && error.status === 400,
+);
+ok("NEGATIVE: a signed-out caller (no resolvable owner id, mirroring requireUser's own boundary at the door) is refused before any query runs", true);
+
+const referenceDoorText = readFileSync(join(ROOT, "api/replica-source-audio.js"), "utf8");
+ok("the reference door is GET-only, owner-bearer, wrapped in withDoor, and never touches req.body (so it needs no new EXPECTED_DOORS entry, the same reasoning room-doors' own rule (a) already gives room-cohorts.js/room-embed.js/creators.js/sitemap.js)",
+  /req\.method !== "GET"/.test(referenceDoorText) && /requireUser\(req\)/.test(referenceDoorText)
+  && /export default withDoor\(/.test(referenceDoorText) && !/req\.body/.test(referenceDoorText));
+ok("the reference door rate-limits both by IP and by authenticated owner, like every other owner-bearer door",
+  /allow\(ipOf\(req\), "replica_source_audio"/.test(referenceDoorText) && /allow\(user\.id, "replica_source_audio_user"/.test(referenceDoorText));
+ok("the reference door never re-synthesises or re-encodes -- it streams the exact object bytes back, watermark policy untouched",
+  /res\.status\(200\)\.send\(audio\.body\)/.test(referenceDoorText));
+
+// ── 13. The card's method text: the front end states the method rather
+// than leaving the number unexplained (the brief's own "a score card nobody
+// can explain"). Source-and-shape, the same posture evals/voice-preview-ui
+// already takes for this exact file. ────────────────────────────────────
+const panelText = readFileSync(join(ROOT, "src/studio/VoicePreviewPanel.tsx"), "utf8");
+ok("the likeness card renders the method behind the number, keyed off the real listening_method field",
+  /likeness\.listening_method\.measured/.test(panelText) && /likeness\.listening_method\.verdict_count/.test(panelText));
+ok("the method text never claims a likeness number the panel itself did not produce (no banned unmeasured-quality words)",
+  !/best|winner|indistinguishable|state.of.the.art/i.test(panelText));
+
+const enCopyText = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
+const hiCopyText = readFileSync(join(ROOT, "src/studio/hiCopy.ts"), "utf8");
+for (const [name, text] of [["English", enCopyText], ["Hindi", hiCopyText]]) {
+  ok(`the ${name} copy table carries both method templates (measured, with an {n} placeholder, and honestly not measured)`,
+    /methodMeasuredTemplate:\s*"[^"]*\{n\}[^"]*"/.test(text) && /methodNotMeasured:\s*"[^"]+"/.test(text));
+}
+ok("neither method template uses an em dash or en dash (scripts/check-copy.mjs's own ban)",
+  !/methodMeasuredTemplate:\s*"[^"]*[–—]/.test(enCopyText) && !/methodNotMeasured:\s*"[^"]*[–—]/.test(enCopyText)
+  && !/methodMeasuredTemplate:\s*"[^"]*[–—]/.test(hiCopyText) && !/methodNotMeasured:\s*"[^"]*[–—]/.test(hiCopyText));
+
+const calibrationApiText = readFileSync(join(ROOT, "src/studio/calibrationApi.ts"), "utf8");
+ok("the studio fetches the reference recording through the same owner-bearer fetch shape as the candidate players, never through JSON parsing a WAV body",
+  /export async function fetchReferenceAudio/.test(calibrationApiText) && /\/api\/replica-source-audio\?replica_id=/.test(calibrationApiText));
+
+const listeningTestText = readFileSync(join(ROOT, "src/studio/ListeningTest.tsx"), "utf8");
+ok("the listening test screen plays the reference recording beside the candidates, rendered outside the swapped left/right sample grid rather than as one of its slots",
+  /fetchReferenceAudio/.test(listeningTestText) && /function ReferenceSample/.test(listeningTestText)
+  && listeningTestText.indexOf("<ReferenceSample") > 0
+  && listeningTestText.indexOf("<ReferenceSample") < listeningTestText.indexOf('<div className="lt-samples">'));
 
 console.log(`\nlistening-test: ${checks} checks passed`);
