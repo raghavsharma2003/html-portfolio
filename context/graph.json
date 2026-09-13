@@ -19326,6 +19326,48 @@
       "kind": "measurement",
       "title": "60 labelled turns driven through the real roomSay/roomSpeak: prompt hint and plan register agree with readRegister on every row; low-confidence byte-identical to neutral, high-confidence provably not (2026-09-13)",
       "at": "context/measurements.md#ws-r176-register-in-reply-and-voice"
+    },
+    {
+      "id": "ws-r174-person-room-component",
+      "kind": "component",
+      "title": "evals/rehearsal/person-room.mjs -- a personal AI's Room walked in Chromium, from Deploy to a visitor's first reply, in English and Hindi",
+      "at": "evals/rehearsal/person-room.mjs"
+    },
+    {
+      "id": "ws-r174-expertsharepanel-textready-fix",
+      "kind": "decision",
+      "title": "ExpertSharePanel.tsx mounts DeployStudio on voiceWorkspaceReady || textReady, not voiceWorkspaceReady alone",
+      "at": "context/decisions.md#decision-ws-r174-2026-09-13"
+    },
+    {
+      "id": "ws-r174-expertsharepanel-showed-deploy-only-for-voiceworkspaceready-never-textready",
+      "kind": "rejection",
+      "title": "A text-ready person's Share tab silently showed the pre-voice text-publication screen instead of Deploy -- no error, no blocker, nothing that read as broken",
+      "at": "context/rejected.md#ws-r174-expertsharepanel-showed-deploy-only-for-voiceworkspaceready-never-textready"
+    },
+    {
+      "id": "ws-r174-doorspatterns-room-id-not-uuid-shaped-for-a-truly-new-room",
+      "kind": "rejection",
+      "title": "doorsPatterns' own insert into vy_room matcher mints a non-UUID room_id for a truly new room, refused by publicKnowledgeScope's real validator the moment a follower speaks",
+      "at": "context/rejected.md#ws-r174-doorspatterns-room-id-not-uuid-shaped-for-a-truly-new-room"
+    },
+    {
+      "id": "ws-r174-person-sheet-fixture-failed-loadteacheragents-validate-at-load-not-sheettomodule-alone",
+      "kind": "rejection",
+      "title": "A person sheet fixture that only satisfies sheetToModule fails loadTeacherAgent's real validate-at-load pipeline (personValues/personNeverSay/personTalk, sheet-internal slug match)",
+      "at": "context/rejected.md#ws-r174-person-sheet-fixture-failed-loadteacheragents-validate-at-load-not-sheettomodule-alone"
+    },
+    {
+      "id": "ws-r174-person-room-wall-clocks-2026-09-13",
+      "kind": "measurement",
+      "title": "person-room.mjs wall clocks, n=3 English / n=2 Hindi, under shared-machine contention (8.7-13.8s per locale)",
+      "at": "context/measurements.md#ws-r174-person-room-wall-clocks-2026-09-13"
+    },
+    {
+      "id": "ws-r174-performance-budgets-failed-on-four-targets-under-wave-23-contention",
+      "kind": "rejection",
+      "title": "WS-R174: performance budgets failed on four targets under wave-23 contention",
+      "at": "context/rejected.md#ws-r174-performance-budgets-failed-on-four-targets-under-wave-23-contention"
     }
   ],
   "edges": [
@@ -32971,6 +33013,46 @@
       "src": "ws-r176-register-threaded-into-roomspeak-via-session-binding",
       "dst": "ws-r176-register-in-reply-and-voice",
       "rel": "measured_by"
+    },
+    {
+      "src": "ws-r174-person-room-component",
+      "dst": "ws-r162-a-personal-ai-room-publishes",
+      "rel": "part_of"
+    },
+    {
+      "src": "ws-r174-expertsharepanel-textready-fix",
+      "dst": "ws-r174-expertsharepanel-showed-deploy-only-for-voiceworkspaceready-never-textready",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r174-expertsharepanel-textready-fix",
+      "dst": "ws-r174-person-room-wall-clocks-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r174-person-room-component",
+      "dst": "ws-r174-expertsharepanel-showed-deploy-only-for-voiceworkspaceready-never-textready",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r174-person-room-component",
+      "dst": "ws-r174-doorspatterns-room-id-not-uuid-shaped-for-a-truly-new-room",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r174-person-room-component",
+      "dst": "ws-r174-person-sheet-fixture-failed-loadteacheragents-validate-at-load-not-sheettomodule-alone",
+      "rel": "caused_by"
+    },
+    {
+      "src": "ws-r174-person-room-component",
+      "dst": "ws-r174-person-room-wall-clocks-2026-09-13",
+      "rel": "measured_by"
+    },
+    {
+      "src": "ws-r174-performance-budgets-failed-on-four-targets-under-wave-23-contention",
+      "rel": "part_of",
+      "dst": "ws-r174-person-room-component"
     }
   ]
 }
