@@ -467,7 +467,7 @@ function IncidentsCard({ incidents }: { incidents: OpsIncidents }) {
       {/* WS-R123, law 4: the derived door count as this card's own
           denominator - a completeness badge (`api/_incidents.js
           #OBSERVED_DOOR_COUNT` on both sides), never a live count, so it
-          reads "18 of 18" whether or not any door has ever failed.
+          reads "19 of 19" (WS-R153 added a 19th door) whether or not any door has ever failed.
           WS-R135: a copy function of the two numbers, both locales, rather
           than the English-only interpolation this badge shipped with. */}
       <p className="ops-board__slug">

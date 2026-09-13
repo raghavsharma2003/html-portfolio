@@ -693,6 +693,16 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- that skipped it would leave behind while reporting success.
      recall_runs as (delete from vy_recall_run x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 164's EmotionOS vibe (WS-R153). Same shape as recall_runs immediately
+     -- above and for the same reason: NO foreign key (009's convention), so
+     -- this line is not a second layer, it is the only layer, and
+     -- scripts/relcheck.mjs's owner-lane reach walk fails the build without
+     -- it. A vibe row is the owner's own dated description of who their AI
+     -- is, and its whole HISTORY (every superseded version, not merely the
+     -- live one) is exactly the kind of ledger an erasure that skipped it
+     -- would leave behind while reporting success.
+     replica_vibes as (delete from vy_replica_vibe x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      -- 088's funnel marks (WS-R25). Same shape as readiness immediately
      -- above and for the same reason: NO foreign key (009's convention),
      -- so this line is not a second layer, it is the only layer, and

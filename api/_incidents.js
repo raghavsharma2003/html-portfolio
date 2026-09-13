@@ -113,7 +113,7 @@ const INCIDENT_KIND_SET = new Set(INCIDENT_KINDS);
  * precedent that a closed list here is a literal checked by an eval, never
  * something re-derived from disk at request time.
  */
-export const OBSERVED_DOOR_COUNT = 18;
+export const OBSERVED_DOOR_COUNT = 19;
 
 /** WS-R102. The door prefix a `self_check` incident row carries when it
  *  names an OPTIONAL env var that is absent (`optional_absent: NAME`),

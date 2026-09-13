@@ -3251,6 +3251,24 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "studio-locale-personal": "studio-locale-personal/run.mjs",
+  // WS-R153. EmotionOS: vibe and register (migration 164). Two things:
+  // (1) `register.ts`'s pull-only, LLM-free `readRegister` — 60 hand-labelled
+  // turns, 20 per language (English, Hindi/Devanagari, Hinglish), driven
+  // through the real cascade into a confusion table (logged verbatim in
+  // context/measurements.md), plus a REQUIRED NEGATIVE CONTROL that
+  // "neutral" never renders a hint at any confidence, and that a real
+  // low-confidence non-neutral row is also refused by `renderRegisterHint`'s
+  // own gate. The Devanagari laughter-token miss this suite's own Hindi
+  // fixtures caught (`padT` was stripping combining vowel signs, the exact
+  // failure shape `transcriptStats.ts`'s header already documents for a
+  // different table) is fixed in `register.ts` itself, not worked around
+  // here. (2) `compiler.ts`'s `renderVibe` — five 0-4 dials each band to a
+  // distinct authored word, absent input renders nothing, and a single
+  // malformed dial fails the WHOLE block closed rather than four good lines
+  // and a silently dropped fifth.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  emotionos: "emotionos/run.mjs",
 };
 
 const argv = process.argv.slice(2);

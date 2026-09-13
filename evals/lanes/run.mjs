@@ -241,6 +241,31 @@ const BLOCKS = [
     cascade: "compile() gates it on `mode === \"chat\"`: a cascade turn is mode 'call', so this is chat-only BY CONSTRUCTION rather than by a caller's omission",
     live: "chat-only by construction inside compile() (mode 'call'); the call site also passes \"\" for clarity",
     watch: "chat-only by construction inside compile() (mode 'call'); the call site also passes \"\" for clarity" },
+  // WS-R153 (migration 164). No lane fixture in this file sets `input.vibe`
+  // — EmotionOS's vibe is a Vyakti-replica-only, owner-set field with no
+  // Meera/incumbent-agent counterpart, the same shape T18/T19's own "no
+  // sheet life shape on an incumbent agent" exemption above already states
+  // for a different pair of slots.
+  { id: "vibe", what: "EmotionOS vibe",
+    chat: "no input.vibe on any incumbent-agent fixture in this file — Meera carries no vibe row, the same T18/T19 exemption shape one section up",
+    cascade: "same: no input.vibe on an incumbent-agent fixture",
+    live: "same: no input.vibe on an incumbent-agent fixture",
+    watch: "same: no input.vibe on an incumbent-agent fixture" },
+  // This fixture's own `latestUserText` ("yaar aaj bahut stress hai,
+  // deadline kal hai") is a genuine, real cascade case for `readRegister`
+  // (see `register.ts`): it matches the "rushed" shape (a long run-on with
+  // no terminal punctuation) but at LOW confidence (a Hindi/Hinglish
+  // marker demotes it, `register.ts`'s own documented rule), and
+  // `renderRegisterHint` only ever renders on HIGH confidence — so this is
+  // a fact about THIS TEXT, not about any lane, and every lane using it
+  // (chat/cascade/live all share the same fixture string) renders zero
+  // bytes identically. `evals/emotionos/run.mjs` is the dedicated suite
+  // that drives the classifier's own gate-open (high-confidence) cases.
+  { id: "register", what: "register hint",
+    chat: "this fixture's own turn text reads as rushed at LOW confidence (a Hindi marker demotes it) and the render gate only fires on HIGH confidence — a text property, not a chat-lane property",
+    cascade: "same fixture text, same low-confidence non-render — a text property, not a cascade-lane property",
+    live: "same fixture text, same low-confidence non-render — a text property, not a live-lane property",
+    watch: "the watch lane's own latestUserText is \"\" (T4/T12's own budget-decision exemption above) — readRegister's own \"no turn, no register\" guard renders nothing" },
   { id: "watch", what: "WATCH note",
     chat: "there is no screen being shared on a text lane — the note describes a frame she is looking at, and this lane has none",
     cascade: "there is no shared screen on the cascade voice lane either; the note belongs to the surfaces that carry frames",

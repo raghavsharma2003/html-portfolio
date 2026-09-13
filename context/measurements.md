@@ -18150,3 +18150,27 @@ throttled connection (`ws-r71-studio-hindi-table-is-its-own-chunk`'s own
 not a substitute — a 4.71 KB gzipped chunk is a different network profile
 entirely, and no dedicated measurement was taken this session because no
 performance-gate target reaches this chunk yet, per the paragraph above).
+
+## `ws-r153-register-confusion-table` (2026-09-13, WS-R153)
+
+Method: `node evals/emotionos/run.mjs`, 60 hand-authored, hand-labelled turns (20 English, 20 Hindi/Devanagari, 20 Hinglish; 4 per register bucket per language), driven through the real `readRegister` (`src/engine/register.ts`), offline, $0, no model call. n=60. Date 2026-09-13.
+
+Confusion table (rows = expected, cols = actual):
+
+| expected \ actual | rushed | upset | excited | flat | neutral |
+|---|---|---|---|---|---|
+| rushed | 12 | 0 | 0 | 0 | 0 |
+| upset | 0 | 12 | 0 | 0 | 0 |
+| excited | 0 | 0 | 12 | 0 | 0 |
+| flat | 0 | 0 | 0 | 12 | 0 |
+| neutral | 0 | 0 | 0 | 0 | 12 |
+
+Overall accuracy 60/60 (100.0%), by language: en 20/20, hi 20/20, hinglish 20/20. Accuracy among HIGH-confidence calls only (the property that actually matters, since a low-confidence call never renders): 36/36 (100.0%).
+
+This table is not the first one measured. The first run (before the fix below) was 59/60 (98.3%), en 20/20, hi 19/20, hinglish 20/20, with one miss: a Hindi laughter turn ("हाहा मजा आ गया आज तो") classified `rushed/high` instead of `excited`. Root cause and fix: `context/rejected.md#ws-r153-padt-without-combining-marks-breaks-devanagari-laughter`.
+
+n=60 is small (this is a heuristic classifier's own authoring-time self-check, not a held-out human-labelled corpus) — a future workstream adding a larger, independently-labelled set would supersede this measurement, not merely repeat it.
+
+## `ws-r153-vibe-render-and-door-battery` (2026-09-13, WS-R153)
+
+Method: `node evals/emotionos/run.mjs` (§3, vibe render: 37 assertions, all pass) and `node evals/room-doors/run.mjs` (full battery, 2305 checks, 0 failed, including 10 new `e-owner-bearer` assertions against the real `api/_replica-vibe.js` driven with the full `doorsDb` fixture world: set/get/history/revert each proven refused for a different owner's bearer with `replica_not_found`, and the real owner's own revert proven to bring an old version's dims back as a NEW version while every prior version is retained). Also `node evals/creator-export/run.mjs` (57 passed), `node evals/room-leak/run.mjs` (341 passed), `node evals/room-export/run.mjs` (48 passed), `node src/engine/__fixtures__/byte-identity.mjs` (83/83), `node evals/persona-invariants.mjs` (654 checks across 3 agents), `node scripts/check-prompt-budget.mjs` (ok), `npx tsc -b --force` (clean), `npx vite build` (clean). All offline, $0, no live DB, no model call. Date 2026-09-13.

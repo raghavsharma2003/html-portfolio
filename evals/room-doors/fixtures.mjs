@@ -177,6 +177,11 @@ export function freshDoorsState() {
   // one caller in this repo that drives the REAL `api/room.js` HTTP handler
   // with NO deps overrides at all — see that file's own header.
   state.teacherSheets = [];
+  // WS-R153 (migration 164): EmotionOS's own vibe — empty by default (no
+  // vibe set yet), the same "absent renders nothing" default `state.checkins`/
+  // `state.handoffs` above already use for a table nothing seeds until a
+  // case sets it.
+  state.replicaVibes = [];
   return state;
 }
 
@@ -315,6 +320,64 @@ function doorsPatterns(state) {
         .filter((h) => h.room_id === roomId && h.person_id === personId && h.follower_id === followerId)
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
         .map((h) => ({ ...h }));
+    }
+
+    // ── vy_replica_vibe (api/_replica-vibe.js, WS-R153, migration 164) ──────
+    // The ownership gate (`OWNERSHIP_SQL`) is NOT matched here — it is the
+    // IDENTICAL string the existing `select replica_id from vy_replica
+    // where replica_id = $1::uuid and owner_user_id = $2::uuid` matcher
+    // above already answers, so a caller reaches this table's own matchers
+    // only after that gate already passed.
+    if (has("from vy_replica_vibe") && has("select vibe_id") && has("superseded_at is null")) {
+      const [replica, owner] = params.map(String);
+      const row = state.replicaVibes.find((v) => v.replica_id === replica && v.owner_user_id === owner && v.superseded_at == null);
+      return row ? [{ ...row }] : [];
+    }
+    if (has("from vy_replica_vibe") && has("order by version desc")) {
+      const [replica, owner, limit] = params;
+      return state.replicaVibes
+        .filter((v) => v.replica_id === String(replica) && v.owner_user_id === String(owner))
+        .sort((a, b) => b.version - a.version)
+        .slice(0, Number(limit))
+        .map((v) => ({ ...v }));
+    }
+    // `revert` (has "with target as") is checked BEFORE `set` (has "with
+    // superseded as") because the revert SQL also contains "with superseded
+    // as" as its own second CTE — order here mirrors the SQL text's own
+    // dependency, not an arbitrary preference.
+    if (has("insert into vy_replica_vibe") && has("with target as")) {
+      const [replica, owner, toVersion, vibeId] = params;
+      const target = state.replicaVibes.find(
+        (v) => v.replica_id === String(replica) && v.owner_user_id === String(owner) && v.version === Number(toVersion),
+      );
+      if (!target) return [];
+      const live = state.replicaVibes.find(
+        (v) => v.replica_id === String(replica) && v.owner_user_id === String(owner) && v.superseded_at == null,
+      );
+      const nextVersion = live ? live.version + 1 : 1;
+      if (live) live.superseded_at = new Date().toISOString();
+      const row = {
+        vibe_id: String(vibeId), replica_id: target.replica_id, owner_user_id: target.owner_user_id, version: nextVersion,
+        warmth: target.warmth, energy: target.energy, humour: target.humour, directness: target.directness,
+        formality: target.formality, note: target.note, created_at: new Date().toISOString(), superseded_at: null,
+      };
+      state.replicaVibes.push(row);
+      return [{ ...row }];
+    }
+    if (has("insert into vy_replica_vibe") && has("with superseded as")) {
+      const [replica, owner, vibeId, warmth, energy, humour, directness, formality, note] = params;
+      const live = state.replicaVibes.find(
+        (v) => v.replica_id === String(replica) && v.owner_user_id === String(owner) && v.superseded_at == null,
+      );
+      const nextVersion = live ? live.version + 1 : 1;
+      if (live) live.superseded_at = new Date().toISOString();
+      const row = {
+        vibe_id: String(vibeId), replica_id: String(replica), owner_user_id: String(owner), version: nextVersion,
+        warmth: Number(warmth), energy: Number(energy), humour: Number(humour), directness: Number(directness),
+        formality: Number(formality), note: String(note ?? ""), created_at: new Date().toISOString(), superseded_at: null,
+      };
+      state.replicaVibes.push(row);
+      return [{ ...row }];
     }
 
     // ── vy_replica.locale (api/_replica.js's `setOwnedReplicaLocale`, WS-R52,

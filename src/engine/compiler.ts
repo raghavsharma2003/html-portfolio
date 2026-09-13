@@ -45,6 +45,11 @@ import { DEFAULT_AGENT } from "./agents/registry";
 // moment.ts's "the single entry point both T4 and T6 render functions are
 // expected to be driven from."
 import { momentGate } from "./moment";
+// WS-R153 (EmotionOS, migration 164): the register read is the SAME
+// pull-only shape moment.ts's own momentGate already is — a pure function
+// of the current turn, read once, rendered only when it clears its own bar.
+// See register.ts's own header for why it owns no keyword table of its own.
+import { readRegister, renderRegisterHint } from "./register";
 import {
   renderRelSnapshot,
   renderDyadicActive,
@@ -345,6 +350,16 @@ export interface CompileInput {
   // slot. See initiative.ts's header for why that is a type property and not a
   // check.
   initiative?: InitiativeVerdict | null;
+  // ── WS-R153 (EmotionOS, migration 164): the owner's OWN set vibe for this
+  // replica — warmth/energy/humour/directness/formality, five 0-4 dials, the
+  // product layer over the closed expression-observation feature list
+  // (`api/_experience-compiler/expression-observation.js`'s own "cannot
+  // claim inner emotion" boundary): this is what the AI's own vibe IS, never
+  // a read of the other person's. Absent for Meera and for every Vyakti
+  // replica with no vibe row yet — renders zero bytes (`renderVibe` below),
+  // so every one of the 83 byte-identity fixtures is unaffected by
+  // construction (none sets this field).
+  vibe?: VibeInput | null;
 }
 
 export interface CompiledPrompt {
@@ -569,6 +584,82 @@ export function renderCreatorMaterial(lines: readonly MaterialLine[]): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// EmotionOS vibe — WS-R153, migration 164. The owner's own five-dial
+// description of their AI's baseline vibe, rendered as ONE short data block
+// of shapes, inside the PLATFORM-OWNED tail (this file's own term for the
+// PLATFORM_BOUNDARY/PLATFORM_STAGE_* block just below, restated here because
+// this is the section that coined it) — never sentence lines, per
+// `recited-prompt`'s own law: five `label: word` shapes joined on one line,
+// nothing a model has any reason to quote back, no owner-typed free text
+// (the `note` column is for the owner's OWN reading of their own history —
+// `api/_replica-vibe.js` — and is never compiled into a prompt at all, which
+// is what keeps this block free of the exact failure `recited-prompt`
+// names: a free-text field is the one thing that gets recited).
+//
+// Coarse, index-addressed word bands rather than texture.ts's continuous
+// float bands, because the input here is already coarse: an owner picks one
+// of five positions on a segmented control, not a rate texture.ts derives
+// from hundreds of turns — banding a discrete 0-4 integer by INDEX is exact,
+// not an approximation the way a float threshold is.
+export type VibeDim = 0 | 1 | 2 | 3 | 4;
+export interface VibeInput {
+  readonly warmth: VibeDim;
+  readonly energy: VibeDim;
+  readonly humour: VibeDim;
+  readonly directness: VibeDim;
+  readonly formality: VibeDim;
+}
+
+const VIBE_WARMTH_WORDS = ["cold", "reserved", "warm", "affectionate", "devoted"] as const;
+const VIBE_ENERGY_WORDS = ["still", "low", "steady", "upbeat", "high"] as const;
+const VIBE_HUMOUR_WORDS = ["serious", "dry, rare", "wry, occasional", "playful, often", "goofy, constant"] as const;
+const VIBE_DIRECTNESS_WORDS = ["indirect", "gentle", "plain", "blunt", "brutally direct"] as const;
+const VIBE_FORMALITY_WORDS = ["formal", "polite", "casual", "relaxed", "very casual"] as const;
+
+/** One platform sentence, a shape rather than a line (`recited-prompt`): what
+ *  the block IS and how it binds, never a persona line to quote back. */
+const VIBE_HEADER =
+  "YOUR OWN VIBE — how you come across by default, set once by the person you " +
+  "are and unrelated to who you are talking to right now: never announced, " +
+  "never explained, just how you naturally are.";
+
+/** Strict on purpose: `typeof value === "number"`, never `Number(value)`
+ *  coercion — a smallint column comes back from the driver as a real
+ *  number, so requiring one closes off `null`/`""`/a stray string quietly
+ *  becoming a valid dial (`Number(null) === 0`, `Number("") === 0`, both
+ *  silently "cold" rather than the malformed input they actually are). */
+function vibeDimWord(words: readonly string[], value: unknown): string | null {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 4) return null;
+  return words[value];
+}
+
+/**
+ * Renders the live vibe as one data line, or "" when the input is absent or
+ * any dial fails its own 0-4 shape check — fails CLOSED on a malformed row
+ * rather than rendering four dials and silently dropping the fifth, the same
+ * "a sliced block is a lie" rule `renderHerCommitments`'s own header states.
+ * Byte-identical (renders nothing) for every one of the 83 fixtures and for
+ * Meera, who carries no vibe row at all.
+ */
+export function renderVibe(vibe: VibeInput | null | undefined): string {
+  if (!vibe) return "";
+  const dims: ReadonlyArray<readonly [string, readonly string[], number]> = [
+    ["warmth", VIBE_WARMTH_WORDS, vibe.warmth],
+    ["energy", VIBE_ENERGY_WORDS, vibe.energy],
+    ["humour", VIBE_HUMOUR_WORDS, vibe.humour],
+    ["directness", VIBE_DIRECTNESS_WORDS, vibe.directness],
+    ["formality", VIBE_FORMALITY_WORDS, vibe.formality],
+  ];
+  const words: string[] = [];
+  for (const [label, table, value] of dims) {
+    const word = vibeDimWord(table, value);
+    if (word === null) return "";
+    words.push(`${label}: ${word}`);
+  }
+  return `${VIBE_HEADER}\n${words.join("; ")}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // The platform-owned boundary and stage shapes — WS-R121, taking up the
 // reversal condition `context/rejected.md
 // #ws-r111-boundary-and-stage-fields-not-material-blocked` itself named:
@@ -718,6 +809,19 @@ export function compile(input: CompileInput): CompiledPrompt {
   if (input.watching) tail += agent.WATCH_MODE_NOTE;
   _track("watch");
 
+  // ── WS-R153 vibe — EmotionOS's own data block, right after T1/watch: a
+  // stable fact about WHO the agent is (never who they are talking to),
+  // the same truncation-safety reasoning T1's own comment states for
+  // "must outlive a long tail's truncation" applied to a second thing that
+  // is also never turn-dependent. Absent input.vibe (Meera, every replica
+  // with no vibe row) renders "" — zero bytes, exactly `renderVibe`'s own
+  // documented behaviour.
+  {
+    const v = renderVibe(input.vibe);
+    if (v) tail += `\n\n${v}`;
+  }
+  _track("vibe");
+
   // ── T2 rel.snapshot / T3 india.dynamic / T4 dyadic.active — SPEC §3.2
   // TAIL_ORDER positions T2,T3,T4 between T1 (above) and T5 (memories,
   // below). Gated entirely on `input.relBundle`: absent => none of this
@@ -756,6 +860,28 @@ export function compile(input: CompileInput): CompiledPrompt {
   const gate = hasTurn
     ? momentGate(input.latestUserText || "", input.gapSinceLastMs || 0, input.relBundle?.phraseLedger || [])
     : { moment: "none" as const, pulled: false };
+
+  // ── WS-R153 register hint — pull-only, exactly like the moment gate just
+  // above and computed the SAME way: read once, from THIS turn alone (+ its
+  // own gap/time-of-day), never from relBundle/selfBundle/history, so it
+  // fires identically for Meera and for a fresh Vyakti Room follower with no
+  // relationship row at all. "No turn, no register" mirrors the WS-CONTINUITY
+  // guard immediately above it for the identical reason: a call pickup or a
+  // directive turn has no user turn to read a delivery shape FROM.
+  // `renderRegisterHint` itself enforces "only high confidence, never
+  // neutral" — restated here only in the comment, never re-implemented.
+  const registerResult = hasTurn
+    ? readRegister(input.latestUserText || "", {
+        gapSinceLastMs: input.gapSinceLastMs || 0,
+        timeOfDay: typeof input.nowMs === "number" ? new Date(input.nowMs).getUTCHours() : undefined,
+      })
+    : { register: "neutral" as const, confidence: "low" as const };
+  {
+    const hint = renderRegisterHint(registerResult);
+    if (hint) tail += `\n\n${hint}`;
+  }
+  _track("register");
+
   if (input.relBundle) {
     // T2/T4 are the only independently-droppable INTIMACY-REGISTER blocks
     // this compiler controls (honorific/trust/repair state, dyadic
